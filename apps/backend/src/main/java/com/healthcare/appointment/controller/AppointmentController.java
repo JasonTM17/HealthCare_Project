@@ -45,8 +45,9 @@ public class AppointmentController {
     @Operation(summary = "Get available doctor appointment slots for a specific date")
     public ResponseEntity<List<TimeSlotDto>> getDoctorSlots(
             @PathVariable UUID doctorId,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        return ResponseEntity.ok(scheduleService.getAvailableSlots(doctorId, date));
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required = false) UUID branchId) {
+        return ResponseEntity.ok(scheduleService.getAvailableSlots(doctorId, branchId, date));
     }
 
     @PostMapping("/hold")

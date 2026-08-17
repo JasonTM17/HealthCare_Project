@@ -24,27 +24,25 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.testcontainers.containers.PostgreSQLContainer;
 
 /**
  * Base class for all Spring Boot integration tests.
  *
- * <p>By default this base points the test datasource at the local PostgreSQL
- * instance (the docker-compose service on {@code localhost:5434/healthcare}), so
- * the suite runs without Testcontainers and without a Docker daemon. This keeps
- * the build hermetic on developer machines and CI agents where Docker is absent.
+ * <p>By default this base starts a disposable PostgreSQL 16 Testcontainer. This
+ * keeps Flyway, PostgreSQL advisory locks, and exclusion constraints under test
+ * without touching a developer's application database.
  *
- * <p>The connection is overridable via environment variables, so the same tests
- * can target any Postgres without code changes:
+ * <p>An explicitly supplied {@code TEST_DB_URL} can still target an external
+ * PostgreSQL instance. That override is intended for a dedicated throwaway test
+ * database because each test method cleans its rows.
+ *
+ * <p>The external connection is overridable via environment variables:
  * <ul>
- *   <li>{@code TEST_DB_URL} — JDBC URL (default {@code jdbc:postgresql://localhost:5434/healthcare})</li>
+ *   <li>{@code TEST_DB_URL} — external JDBC URL (otherwise a disposable container is used)</li>
  *   <li>{@code TEST_DB_USERNAME} — default {@code healthcare}</li>
  *   <li>{@code TEST_DB_PASSWORD} — default {@code change-me}</li>
- *   <li>{@code TEST_DB_NAME} — default {@code healthcare}</li>
  * </ul>
- *
- * <p>For an isolated, production-identical Postgres (incl. CI with Docker),
- * extend {@link TestcontainersIntegrationTest} instead, which spins up a shared
- * PostgreSQL 16 container.
  *
  * <p>Each test method gets a clean database state via {@link #cleanDatabase()} which
  * deletes all user-generated data (hospital domain + auth + appointments) while
@@ -58,13 +56,28 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 public abstract class AbstractIntegrationTest {
 
-    private static final String DEFAULT_DB_URL = "jdbc:postgresql://localhost:5434/healthcare";
-    private static final String DEFAULT_DB_USERNAME = "healthcare";
-    private static final String DEFAULT_DB_PASSWORD = "change-me";
+    private static final String externalDbUrl = System.getenv("TEST_DB_URL");
+    private static final boolean useExternalDatabase = externalDbUrl != null && !externalDbUrl.isBlank();
+    private static final PostgreSQLContainer<?> testDatabase = createTestDatabase();
+    private static final String dbUrl = useExternalDatabase ? externalDbUrl : testDatabase.getJdbcUrl();
+    private static final String dbUsername = useExternalDatabase
+        ? System.getenv().getOrDefault("TEST_DB_USERNAME", "healthcare")
+        : testDatabase.getUsername();
+    private static final String dbPassword = useExternalDatabase
+        ? System.getenv().getOrDefault("TEST_DB_PASSWORD", "change-me")
+        : testDatabase.getPassword();
 
-    private static final String dbUrl = System.getenv().getOrDefault("TEST_DB_URL", DEFAULT_DB_URL);
-    private static final String dbUsername = System.getenv().getOrDefault("TEST_DB_USERNAME", DEFAULT_DB_USERNAME);
-    private static final String dbPassword = System.getenv().getOrDefault("TEST_DB_PASSWORD", DEFAULT_DB_PASSWORD);
+    private static PostgreSQLContainer<?> createTestDatabase() {
+        if (useExternalDatabase) {
+            return null;
+        }
+        PostgreSQLContainer<?> container = new PostgreSQLContainer<>("postgres:16-alpine")
+            .withDatabaseName("healthcare_test")
+            .withUsername("healthcare_test")
+            .withPassword("healthcare_test");
+        container.start();
+        return container;
+    }
 
     @DynamicPropertySource
     static void configureDataSource(DynamicPropertyRegistry registry) {

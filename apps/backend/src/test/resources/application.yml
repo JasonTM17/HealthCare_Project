@@ -1,5 +1,6 @@
-# Test profile — datasource is overridden at runtime by Testcontainers DynamicPropertySource.
-# Only application-level test overrides are set here.
+# Test datasource is supplied at runtime by AbstractIntegrationTest. By default
+# it is a disposable PostgreSQL Testcontainer; TEST_DB_URL is an explicit
+# external-database escape hatch for dedicated test databases only.
 spring:
   jpa:
     hibernate:
@@ -23,12 +24,6 @@ app:
     allow-test-otp: true
   cors:
     allowed-origins: "http://localhost:3000"
-  datasource:
-    url: ${TEST_DB_URL:jdbc:postgresql://localhost:5434/healthcare}
-    username: ${TEST_DB_USERNAME:healthcare}
-    password: ${TEST_DB_PASSWORD:change-me}
-    driver-class-name: org.postgresql.Driver
-
 ai:
   service:
     runtime: local

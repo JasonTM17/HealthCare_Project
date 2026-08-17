@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -45,11 +46,21 @@ public class ScheduleService {
 
     /** Computes configured slots and marks every interval overlapping an appointment as occupied. */
     public List<TimeSlotDto> getAvailableSlots(UUID doctorId, LocalDate date) {
+        return getAvailableSlots(doctorId, null, date);
+    }
+
+    /**
+     * Computes slots for one branch when {@code branchId} is supplied. When it
+     * is omitted, persisted schedules for every branch are returned and each
+     * slot carries its branch id so callers cannot mistake equal clock times
+     * from different branches for one slot.
+     */
+    public List<TimeSlotDto> getAvailableSlots(UUID doctorId, UUID branchId, LocalDate date) {
         if (date == null || date.isBefore(LocalDate.now())) {
             return Collections.emptyList();
         }
 
-        List<ScheduleWindow> windows = scheduleWindowsForDate(doctorId, date, null);
+        List<ScheduleWindow> windows = scheduleWindowsForDate(doctorId, date, branchId);
         if (windows.isEmpty()) {
             return Collections.emptyList();
         }
@@ -77,7 +88,7 @@ public class ScheduleService {
                     ? "Đã qua giờ khám"
                     : (isOccupied ? "Đã có người đặt / Đang giữ chỗ" : "Còn trống");
 
-                slots.add(new TimeSlotDto(slotStart, slotEnd, available, note));
+                slots.add(new TimeSlotDto(window.branchId(), slotStart, slotEnd, available, note));
                 slotStart = slotEnd;
             }
         }
@@ -120,7 +131,8 @@ public class ScheduleService {
 
         // Only use defaults when the doctor has no active persisted schedule at
         // all. A missing row for one date must not bypass a persisted schedule.
-        if (schedules.isEmpty()
+        if (branchId == null
+                && schedules.isEmpty()
                 && !doctorScheduleRepository.existsActiveForDoctor(doctorId)
                 && date.getDayOfWeek() != DayOfWeek.SUNDAY) {
             return defaultWindows();
@@ -209,9 +221,9 @@ public class ScheduleService {
     }
 
     private boolean matchesBranch(ScheduleWindow window, UUID requestedBranchId) {
-        // Null branch belongs only to the documented default local/demo shift.
-        return window.branchId() == null
-            || (requestedBranchId != null && requestedBranchId.equals(window.branchId()));
+        // A branchless window is the local/demo fallback only. It must never
+        // satisfy a request explicitly scoped to a persisted branch.
+        return Objects.equals(window.branchId(), requestedBranchId);
     }
 
     private Optional<LocalTime> slotEnd(ScheduleWindow window, LocalTime requestedStart) {

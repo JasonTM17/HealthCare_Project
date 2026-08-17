@@ -67,7 +67,62 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$").isArray())
             .andExpect(jsonPath("$[0].startTime").exists())
+            .andExpect(jsonPath("$[0].branchId").doesNotExist())
             .andExpect(jsonPath("$[0].available").value(true));
+    }
+
+    @Test
+    void branchScopedSlotsAreTaggedAndFilteredByBranch() throws Exception {
+        Branch morningBranch = createBranchForDoctor("slot-morning");
+        Branch afternoonBranch = createBranchForDoctor("slot-afternoon");
+        LocalDate targetDate = nextDate(DayOfWeek.MONDAY);
+        saveSchedule(morningBranch, targetDate, 9, 0, 10, 0, 30);
+        saveSchedule(afternoonBranch, targetDate, 14, 0, 15, 0, 30);
+
+        mockMvc.perform(get("/api/v1/appointments/doctors/" + doctor.getId() + "/slots")
+                .param("date", targetDate.toString()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()").value(4))
+            .andExpect(jsonPath("$[0].branchId").value(morningBranch.getId().toString()))
+            .andExpect(jsonPath("$[2].branchId").value(afternoonBranch.getId().toString()));
+
+        mockMvc.perform(get("/api/v1/appointments/doctors/" + doctor.getId() + "/slots")
+                .param("date", targetDate.toString())
+                .param("branchId", morningBranch.getId().toString()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()").value(2))
+            .andExpect(jsonPath("$[0].branchId").value(morningBranch.getId().toString()))
+            .andExpect(jsonPath("$[0].startTime").value("09:00:00"));
+
+        mockMvc.perform(get("/api/v1/appointments/doctors/" + doctor.getId() + "/slots")
+                .param("date", targetDate.toString())
+                .param("branchId", afternoonBranch.getId().toString()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()").value(2))
+            .andExpect(jsonPath("$[0].branchId").value(afternoonBranch.getId().toString()))
+            .andExpect(jsonPath("$[0].startTime").value("14:00:00"));
+    }
+
+    @Test
+    void explicitBranchDoesNotReceiveTheBranchlessDemoFallback() throws Exception {
+        Branch branch = createBranchForDoctor("no-default-leak");
+        LocalDate targetDate = nextDate(DayOfWeek.TUESDAY);
+
+        mockMvc.perform(get("/api/v1/appointments/doctors/" + doctor.getId() + "/slots")
+                .param("date", targetDate.toString())
+                .param("branchId", branch.getId().toString()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$").isEmpty());
+
+        HoldSlotRequest request = new HoldSlotRequest(
+            doctor.getId(), targetDate, LocalTime.of(9, 0),
+            "Không đặt qua fallback", "0907000099", null, null,
+            specialty.getId(), branch.getId(), null);
+
+        mockMvc.perform(post("/api/v1/appointments/hold")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isBadRequest());
     }
 
     @Test
