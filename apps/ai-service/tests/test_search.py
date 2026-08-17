@@ -60,6 +60,11 @@ def test_search_returns_matching_documents(monkeypatch: pytest.MonkeyPatch) -> N
     assert len(results) >= 1
     # Cardio should rank first for a query embedding near [1,0,0].
     assert results[0]["source_id"] == "cardio"
+    assert results[0]["citation"] == {
+        "source_type": "specialty",
+        "source_id": "cardio",
+        "title": "Tim mạch",
+    }
 
 
 def test_search_respects_top_k(monkeypatch: pytest.MonkeyPatch) -> None:

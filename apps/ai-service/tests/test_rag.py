@@ -1,6 +1,7 @@
 """Tests for the RAG index, search, and specialty recommendation."""
 
 import pytest
+from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from app.rag import RagDocument, RagIndex, RagService
@@ -34,6 +35,61 @@ def test_service_ingest_and_remove() -> None:
     assert service.index.size == 0
 
 
+def test_ingest_normalizes_visible_content_and_reuses_embedding() -> None:
+    service = RagService()
+    calls: list[str] = []
+
+    def embedder(content: str) -> list[float]:
+        calls.append(content)
+        return [1.0, 0.0]
+
+    first = service.ingest(
+        "article",
+        "headache",
+        "<h1>Đau đầu</h1>",
+        "<p>Thông tin <strong>tham khảo</strong>.</p><script>secret()</script>",
+        embedder=embedder,
+    )
+    second = service.ingest(
+        "article",
+        "headache",
+        "Đau đầu cập nhật tiêu đề",
+        "<p>Thông tin <strong>tham khảo</strong>.</p><script>secret()</script>",
+        embedder=embedder,
+    )
+
+    assert first.content == "Thông tin tham khảo."
+    assert second.embedding == [1.0, 0.0]
+    assert calls == ["Thông tin tham khảo."]
+
+
+def test_inactive_and_unpublished_documents_are_not_searchable() -> None:
+    service = RagService()
+    service.ingest("specialty", "cardio", "Tim mạch", "Khám tim.", [1.0, 0.0])
+
+    inactive = service.ingest(
+        "specialty",
+        "cardio",
+        "Tim mạch",
+        "Khám tim.",
+        active=False,
+    )
+
+    assert inactive.searchable is False
+    assert service.index.size == 0
+    assert service.search([1.0, 0.0]) == []
+
+    service.ingest(
+        "article",
+        "draft",
+        "Bản nháp",
+        "Chưa công bố.",
+        published=False,
+        embedding=[1.0, 0.0],
+    )
+    assert service.index.size == 0
+
+
 def test_rag_search_endpoint() -> None:
     rag_service.index = __import__("app.rag", fromlist=["RagIndex"]).RagIndex()
     rag_service.ingest("specialty", "cardio", "Tim mạch", "Khám tim mạch, điều trị bệnh lý van tim.", [1.0, 0.0, 0.0])
@@ -42,6 +98,29 @@ def test_rag_search_endpoint() -> None:
     hits = rag_service.search([1.0, 0.0, 0.0], top_k=1)
     assert len(hits) == 1
     assert hits[0][0].source_id == "cardio"
+
+
+def test_specialty_recommendation_cites_indexed_sources_only() -> None:
+    rag_service.index = __import__("app.rag", fromlist=["RagIndex"]).RagIndex()
+    rag_service.ingest(
+        "specialty",
+        "cardio",
+        "Tim mạch",
+        "Khám tim mạch.",
+        [1.0, 0.0, 0.0],
+    )
+
+    with patch("app.main.embed") as mock_embed:
+        mock_embed.return_value = ([1.0, 0.0, 0.0], "local")
+        response = client.post(
+            "/recommendations/specialty",
+            json={"symptoms": "đau ngực"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["citations"] == [
+        {"source_type": "specialty", "source_id": "cardio", "title": "Tim mạch"}
+    ]
 
 
 def test_rag_ingest_is_disabled_or_token_protected(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -67,6 +146,29 @@ def test_rag_ingest_is_disabled_or_token_protected(monkeypatch: pytest.MonkeyPat
     )
     assert accepted.status_code == 200
     assert accepted.json()["id"] == "specialty:cardio"
+
+
+def test_rag_ingest_skips_inactive_source(monkeypatch: pytest.MonkeyPatch) -> None:
+    rag_service.index = __import__("app.rag", fromlist=["RagIndex"]).RagIndex()
+    monkeypatch.setattr(settings, "rag_ingest_enabled", True)
+    monkeypatch.setattr(settings, "rag_ingest_token", "test-ingest-token")
+
+    response = client.post(
+        "/rag/index",
+        json={
+            "source_type": "article",
+            "source_id": "draft",
+            "title": "Bản nháp",
+            "content": "Không được hiển thị.",
+            "active": False,
+            "published": False,
+        },
+        headers={"X-RAG-Ingest-Token": "test-ingest-token"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["indexed"] is False
+    assert response.json()["index_size"] == 0
 
 
 def test_ai_service_token_protects_search_routes(monkeypatch: pytest.MonkeyPatch) -> None:

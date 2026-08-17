@@ -113,7 +113,11 @@ def embeddings(request: EmbeddingRequest) -> EmbeddingResponse:
 def rag_search(request: RAGSearchRequest) -> RAGSearchResponse:
     query = _enforce_input_limit(request.query, label="RAG query", setting_name="ai_max_input_chars")
     query_embedding, _ = embed(query, settings)
-    hits = rag_service.search(query_embedding, top_k=request.top_k)
+    hits = rag_service.search(
+        query_embedding,
+        top_k=min(request.top_k, settings.ai_max_retrieved_chunks),
+        query_text=query,
+    )
     return RAGSearchResponse(
         results=[
             RAGSearchResult(
@@ -151,15 +155,21 @@ def rag_index(
         label="RAG document",
         setting_name="rag_max_document_chars",
     )
-    embedding, _ = embed(content, settings)
     doc = rag_service.ingest(
         source_type=payload.source_type,
         source_id=payload.source_id,
         title=payload.title,
         content=content,
-        embedding=embedding,
+        active=payload.active,
+        published=payload.published,
+        metadata=payload.metadata,
+        embedder=lambda normalized_content: embed(normalized_content, settings)[0],
     )
-    return RAGIndexResponse(id=doc.id, index_size=rag_service.index.size)
+    return RAGIndexResponse(
+        id=doc.id,
+        index_size=rag_service.index.size,
+        indexed=doc.searchable,
+    )
 
 
 @app.post(
@@ -174,7 +184,11 @@ def specialty_recommendation(request: SpecialtyRecommendationRequest) -> Special
         setting_name="ai_max_input_chars",
     )
     query_embedding, _ = embed(symptoms, settings)
-    hits = rag_service.search(query_embedding, top_k=3)
+    hits = rag_service.search(
+        query_embedding,
+        top_k=min(3, settings.ai_max_retrieved_chunks),
+        query_text=symptoms,
+    )
     if hits:
         # Keep the existing provider contract stable.  Retrieved content is
         # passed as reference context and citations are built from stored
@@ -216,7 +230,11 @@ def semantic_search(
         return SemanticSearchResponse(results=[])
     search_text = query or specialty_filter
     query_embedding, _ = embed(search_text, settings)
-    hits = rag_service.search(query_embedding, top_k=top_k * 2)
+    hits = rag_service.search(
+        query_embedding,
+        top_k=min(top_k * 2, settings.ai_max_retrieved_chunks),
+        query_text=search_text,
+    )
     results: list[SemanticSearchResult] = []
     for doc, score in hits:
         if specialty_filter and specialty_filter.casefold() not in doc.title.casefold():
