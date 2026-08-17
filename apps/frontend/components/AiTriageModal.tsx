@@ -56,16 +56,16 @@ export default function AiTriageModal({
       aria-modal="true"
       aria-labelledby="ai-triage-title"
     >
-      <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden border border-teal-100 flex flex-col">
+      <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden border border-brand-100 flex flex-col">
         {/* Header */}
-        <div className="bg-gradient-to-r from-teal-900 via-teal-800 to-teal-700 text-white px-6 py-4 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-brand-900 via-brand-800 to-brand-700 text-white px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <span className="text-2xl">🤖</span>
             <div>
               <h3 id="ai-triage-title" className="text-lg font-bold text-white">
-                Trợ Lý Y Tế AI — Phân Luồng Triệu Chứng
+                Trợ Lý Y Tế AI: Phân Luồng Triệu Chứng
               </h3>
-              <p className="text-xs text-teal-200">Gợi ý chuyên khoa và hướng xử trí y tế sơ bộ</p>
+              <p className="text-xs text-brand-200">Gợi ý chuyên khoa và hướng xử trí y tế sơ bộ</p>
             </div>
           </div>
           <button
@@ -88,13 +88,13 @@ export default function AiTriageModal({
               placeholder="Ví dụ: Tôi bị đau thắt ngực trái kèm khó thở khi leo cầu thang 2 ngày nay..."
               value={symptoms}
               onChange={(e) => setSymptoms(e.target.value)}
-              className="w-full p-3 bg-gray-50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none text-sm text-gray-900"
+              className="w-full p-3 bg-gray-50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand-600 focus:outline-none text-sm text-gray-900"
             />
             <div className="flex justify-end">
               <button
                 type="submit"
                 disabled={loading || !symptoms.trim()}
-                className="px-6 py-2.5 bg-teal-700 hover:bg-teal-800 disabled:opacity-50 text-white font-bold rounded-full text-xs shadow-md transition-all flex items-center gap-2"
+                className="px-6 py-2.5 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-bold rounded-full text-xs shadow-md transition-all flex items-center gap-2"
               >
                 {loading ? "⏳ Đang phân tích triệu chứng..." : "✨ Phân tích & Gợi ý chuyên khoa"}
               </button>
@@ -103,9 +103,9 @@ export default function AiTriageModal({
 
           {/* Result Box */}
           {result && (
-            <div className="p-4 bg-teal-50 border border-teal-200 rounded-xl space-y-3 animate-fadeIn">
+            <div className="p-4 bg-brand-50 border border-brand-200 rounded-xl space-y-3 animate-fadeIn">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-teal-900 uppercase tracking-wider">
+                <span className="text-xs font-bold text-brand-900 uppercase tracking-wider">
                   Chuyên khoa khuyến nghị
                 </span>
                 <span
@@ -125,22 +125,22 @@ export default function AiTriageModal({
                 </span>
               </div>
 
-              <h4 className="text-base font-extrabold text-teal-950">
+              <h4 className="text-base font-extrabold text-brand-950">
                 🏥 {result.recommendedSpecialty}
               </h4>
 
-              <p className="text-xs text-gray-700 leading-relaxed bg-white/80 p-3 rounded-lg border border-teal-100">
+              <p className="text-xs text-gray-700 leading-relaxed bg-white/80 p-3 rounded-lg border border-brand-100">
                 💡 <span className="font-semibold">Lời khuyên y khoa:</span> {result.advice}
               </p>
 
-              <div className="pt-2 flex items-center justify-between border-t border-teal-100">
+              <div className="pt-2 flex items-center justify-between border-t border-brand-100">
                 <span className="text-[11px] text-gray-500">
                   *Kết quả mang tính tham khảo sơ bộ.
                 </span>
                 <button
                   type="button"
                   onClick={handleBookNow}
-                  className="px-5 py-2 bg-teal-700 hover:bg-teal-800 text-white text-xs font-bold rounded-full shadow-md transition-all flex items-center gap-1.5"
+                  className="px-5 py-2 bg-brand-700 hover:bg-brand-800 text-white text-xs font-bold rounded-full shadow-md transition-all flex items-center gap-1.5"
                 >
                   <span>Đặt khám chuyên khoa này</span> <span>→</span>
                 </button>
@@ -152,3 +152,6 @@ export default function AiTriageModal({
     </div>
   );
 }
+
+
+
