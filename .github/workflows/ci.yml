@@ -5,10 +5,15 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   backend:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16-alpine
@@ -37,6 +42,8 @@ jobs:
           --health-retries 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-java@v4
         with:
           java-version: '21'
@@ -48,11 +55,22 @@ jobs:
           TEST_DB_USERNAME: healthcare_test
           TEST_DB_PASSWORD: healthcare_test
         run: mvn -B verify
+      - name: Upload backend build artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-jar
+          path: apps/backend/target/*.jar
+          if-no-files-found: error
+          retention-days: 7
 
   frontend:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -67,14 +85,28 @@ jobs:
       - name: Type check
         working-directory: apps/frontend
         run: npm run typecheck
+      - name: Test
+        working-directory: apps/frontend
+        run: npm run test
       - name: Build
         working-directory: apps/frontend
         run: npm run build
+      - name: Upload frontend build artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-next-build
+          path: apps/frontend/.next
+          if-no-files-found: error
+          retention-days: 7
 
   ai-service:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -82,7 +114,70 @@ jobs:
         working-directory: apps/ai-service
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          python -m pip install -r requirements.txt
+      - name: Lint
+        working-directory: apps/ai-service
+        run: python -m ruff check .
+      - name: Type check
+        working-directory: apps/ai-service
+        run: python -m mypy
       - name: Run tests
         working-directory: apps/ai-service
         run: python -m pytest
+
+  infrastructure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      JWT_SECRET: ci-only-jwt-secret-with-no-production-value
+      AI_SERVICE_TOKEN: ci-only-ai-service-token
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate Compose configuration
+        run: docker compose -f infrastructure/docker-compose.yml config --quiet
+
+  hygiene:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check changed-file whitespace
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          zero_sha=0000000000000000000000000000000000000000
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            git diff --check "$BASE_SHA...$HEAD_SHA"
+          elif [ -n "$BEFORE_SHA" ] && [ "$BEFORE_SHA" != "$zero_sha" ]; then
+            git diff --check "$BEFORE_SHA...$HEAD_SHA"
+          else
+            git diff --check "$HEAD_SHA^" "$HEAD_SHA"
+          fi
+      - name: Check tracked secret files and credential-shaped values
+        run: |
+          set -euo pipefail
+
+          forbidden_files="$({
+            git ls-files | grep -E '(^|/)\.env(\..*)?$|\.(pem|key|p12|pfx)$'
+          } | grep -vE '(^|/)\.env\.example$' || true)"
+          if [ -n "$forbidden_files" ]; then
+            echo "::error::Tracked environment or private-key files detected"
+            printf '%s\n' "$forbidden_files"
+            exit 1
+          fi
+
+          credential_files="$(git grep -I -l -e '-----BEGIN (RSA|EC|OPENSSH|DSA|PGP|PRIVATE) KEY-----|AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{20,}|sk-[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{30,}' HEAD -- . || true)"
+          if [ -n "$credential_files" ]; then
+            echo "::error::Credential-shaped content detected in tracked files"
+            printf '%s\n' "$credential_files"
+            exit 1
+          fi
