@@ -14,9 +14,15 @@
 BEGIN;
 
 TRUNCATE TABLE
+    prescription_items,
+    prescriptions,
+    medical_records,
+    diagnostic_results,
     refresh_tokens,
     user_roles,
     users,
+    patient_profiles,
+    appointments,
     doctor_branches,
     doctor_specialties,
     doctor_schedule_exceptions,
@@ -177,6 +183,13 @@ SELECT gen_random_uuid(),
 FROM generate_series(1, 1000) AS i
 ON CONFLICT (email) DO NOTHING;
 
+-- ── Patient profiles (avg 1 per 2 users ≈ 500) ───────────────────────────────
+INSERT INTO patient_profiles (id, user_id, full_name, phone, email)
+SELECT gen_random_uuid(), u.id, u.display_name, '09' || lpad((abs(hashtext(u.id::text)) % 100000000)::text, 8, '0'), u.email
+FROM users u
+WHERE (abs(hashtext(u.id::text)) % 2 = 0)
+ON CONFLICT DO NOTHING;
+
 -- Give each user the PATIENT role; every 10th also DOCTOR; every 50th also ADMIN.
 INSERT INTO user_roles (user_id, role_id)
 SELECT u.id, r.id
@@ -197,5 +210,47 @@ FROM users u
 JOIN roles r ON r.code = 'ADMIN'
 WHERE (abs(hashtext(u.id::text)) % 50 = 0)
 ON CONFLICT DO NOTHING;
+
+-- ── Clinical medical records (200) ───────────────────────────────────────────
+INSERT INTO medical_records (id, appointment_id, patient_id, doctor_id, icd10_code, icd10_name, diagnosis, symptoms_summary, created_at, updated_at)
+SELECT gen_random_uuid(), NULL, p.id, d.id,
+       'ICD-' || (i % 99 + 1),
+       'Chẩn đoán y khoa số ' || i,
+       'Chẩn đoán lâm sàng mẫu cho bệnh nhân ' || i,
+       'Tóm tắt triệu chứng mẫu số ' || i,
+       now() - ((i % 180) || ' days')::interval,
+       now()
+FROM generate_series(1, 200) AS i,
+     LATERAL (SELECT id FROM patient_profiles ORDER BY random() LIMIT 1) p,
+     LATERAL (SELECT id FROM doctors ORDER BY random() LIMIT 1) d;
+
+-- ── Prescriptions (150) ──────────────────────────────────────────────────────
+INSERT INTO prescriptions (id, medical_record_id, prescription_code, patient_id, doctor_id, diagnosis_summary, status, created_at, updated_at)
+SELECT gen_random_uuid(), mr.id, 'RX-2026-' || lpad(i::text, 4, '0'), mr.patient_id, mr.doctor_id, 'Đơn thuốc theo bệnh án', 'ACTIVE', mr.created_at, mr.created_at
+FROM generate_series(1, 150) AS i,
+     LATERAL (SELECT id, patient_id, doctor_id, created_at FROM medical_records ORDER BY random() LIMIT 1) mr;
+
+-- ── Prescription items (avg 3 per prescription ≈ 450) ───────────────────────
+INSERT INTO prescription_items (id, prescription_id, medication_name, dosage, unit, frequency, duration_days, total_quantity, created_at)
+SELECT gen_random_uuid(), rx.id,
+       'Thuốc ' || (i % 20 + 1),
+       (5 + (i % 5) * 50) || 'mg',
+       'Viên',
+       (1 + (i % 3)) || ' lần/ngày',
+       7 + (i % 14),
+       10 + (i % 20),
+       rx.created_at
+FROM prescriptions rx
+CROSS JOIN generate_series(1, 3) AS i;
+
+-- ── Diagnostic results (100) ─────────────────────────────────────────────────
+INSERT INTO diagnostic_results (id, patient_id, doctor_id, test_name, result, test_date)
+SELECT gen_random_uuid(), p.id, d.id,
+       'Xét nghiệm ' || (i % 15 + 1),
+       'Kết quả bình thường, chưa có dấu hiệu bất thường.',
+       now() - ((i % 90) || ' days')::interval
+FROM generate_series(1, 100) AS i,
+     LATERAL (SELECT id FROM patient_profiles ORDER BY random() LIMIT 1) p,
+     LATERAL (SELECT id FROM doctors ORDER BY random() LIMIT 1) d;
 
 COMMIT;
