@@ -34,6 +34,9 @@ test("appointment surfaces keep state boundaries and avoid symptoms or secrets",
     assert.doesNotMatch(source, /console\.(?:log|error|warn)/);
   }
   assert.match(component, /PortalAppointment/);
+  assert.match(component, /patientName/);
+  assert.match(component, /doctorName/);
+  assert.match(component, /Lịch khám của bác sĩ/);
   assert.match(component, /portal-appointment-list/);
   assert.match(component, /statusLabel/);
   assert.doesNotMatch(component, /symptoms|accessToken|refreshToken/i);

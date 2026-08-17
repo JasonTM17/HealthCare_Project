@@ -102,13 +102,9 @@ export interface AppointmentDetails {
   createdAt: string;
 }
 
-export interface PortalAppointment {
+interface PortalAppointmentBase {
   id: string;
   bookingCode: string;
-  doctorId: string;
-  doctorName: string;
-  patientId?: string;
-  patientName?: string;
   specialtyName?: string;
   branchId?: string;
   branchName?: string;
@@ -122,15 +118,20 @@ export interface PortalAppointment {
   createdAt: string;
 }
 
-export interface PatientPortalAppointment extends PortalAppointment {
-  patientId?: never;
-  patientName?: never;
+/** Exact JSON shape returned by GET /patient/appointments. */
+export interface PatientPortalAppointment extends PortalAppointmentBase {
+  doctorId: string;
+  doctorName: string;
+  paymentStatus: string;
 }
 
-export interface DoctorPortalAppointment extends PortalAppointment {
+/** Exact JSON shape returned by GET /doctor/appointments. */
+export interface DoctorPortalAppointment extends PortalAppointmentBase {
   patientId: string;
   patientName: string;
 }
+
+export type PortalAppointment = PatientPortalAppointment | DoctorPortalAppointment;
 
 export type AiTriageCitation = string | Record<string, unknown>;
 

@@ -44,10 +44,14 @@ export default function PortalAppointments({
             <span>{formatTime(appointment.startTime)} – {formatTime(appointment.endTime)}</span>
             <span className="portal-appointment__status">{statusLabel(appointment.status)}</span>
           </div>
-          <h3>{viewer === "doctor" ? appointment.patientName ?? "Bệnh nhân chưa cập nhật" : appointment.doctorName}</h3>
+          <h3>
+            {viewer === "doctor"
+              ? ("patientName" in appointment ? appointment.patientName : "Bệnh nhân chưa cập nhật")
+              : ("doctorName" in appointment ? appointment.doctorName : "Bác sĩ chưa cập nhật")}
+          </h3>
           <p className="portal-record__doctor">
             {viewer === "doctor"
-              ? `Bác sĩ: ${appointment.doctorName}`
+              ? "Lịch khám của bác sĩ"
               : appointment.specialtyName ?? "Chuyên khoa chưa cập nhật"}
           </p>
           <dl className="portal-appointment__details">
