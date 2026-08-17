@@ -4,7 +4,7 @@ HealthCare_Project is a healthcare platform foundation for a Vietnamese hospital
 
 ## Status
 
-Foundation work is in progress. The first committed scope should establish repository safety, service baselines, local development infrastructure, and documentation.
+Foundation work is complete through the public hospital domain (Phase 4). The monorepo has a working auth/RBAC system, appointment booking engine, clinical records overlay, hospital content APIs, a polished frontend catalog, and CI. The repository is on `main`, unpushed.
 
 ## Monorepo Layout
 
@@ -35,12 +35,12 @@ Copy `.env.example` to `.env` for local use and replace placeholder values. Neve
 
 ## Commands
 
-Backend:
+Backend (local profile uses PostgreSQL on `localhost:5433`):
 
 ```bash
 cd apps/backend
 mvn test
-mvn spring-boot:run
+mvn spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
 Frontend:
@@ -91,4 +91,6 @@ Google Stitch may be used for static design concepts only when API, dependencies
 
 ## Scope Boundaries
 
-Current foundation scope excludes real authentication, appointment booking, clinical records, AI RAG, deployment, and production compliance claims.
+The foundation (Phases 1-5) and public hospital domain (Phase 4) are complete: auth/RBAC, JWT access+refresh tokens, appointment booking, clinical records, hospital content APIs, frontend catalog, and CI.
+
+Remaining PROJECT_PLAN.md phases (5-21): admin CMS, doctor scheduling, appointment concurrency, patient/doctor portals, files, notifications, AI foundation/RAG/recommendations, semantic search, security hardening, performance, UX polish, and CI/CD.
