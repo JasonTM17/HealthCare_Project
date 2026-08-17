@@ -5,17 +5,29 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.healthcare.TestcontainersIntegrationTest;
 import com.healthcare.appointment.dto.ConfirmAppointmentRequest;
 import com.healthcare.appointment.dto.HoldSlotRequest;
+import com.healthcare.appointment.entity.PatientProfile;
 import com.healthcare.hospital.entity.Doctor;
 import com.healthcare.hospital.entity.Specialty;
+import com.healthcare.security.JwtTokenProvider;
+import com.healthcare.user.entity.User;
+import com.healthcare.user.repository.RoleRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -25,6 +37,15 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private RoleRepository roleRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private JwtTokenProvider tokenProvider;
 
     private Doctor doctor;
     private Specialty specialty;
@@ -192,5 +213,87 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(invalidConfirm)))
             .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void authenticatedUserCannotClaimUnlinkedPatientByPhone() throws Exception {
+        PatientProfile legacyProfile = new PatientProfile();
+        legacyProfile.setFullName("Hồ Sơ Chưa Liên Kết");
+        legacyProfile.setPhone("0905550000");
+        patientProfileRepository.saveAndFlush(legacyProfile);
+
+        HoldSlotRequest holdRequest = new HoldSlotRequest(
+            doctor.getId(),
+            LocalDate.now().plusDays(6),
+            LocalTime.of(13, 0),
+            "Tài Khoản Mới",
+            "0905550000",
+            null,
+            "Không được tự nhận hồ sơ cũ",
+            specialty.getId(),
+            null,
+            null
+        );
+
+        mockMvc.perform(post("/api/v1/appointments/hold")
+                .header("Authorization", patientToken())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(holdRequest)))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void concurrentHoldsForOneSlotAllowOnlyOneReservation() throws Exception {
+        HoldSlotRequest holdRequest = new HoldSlotRequest(
+            doctor.getId(),
+            LocalDate.now().plusDays(7),
+            LocalTime.of(14, 0),
+            "Người Đặt Đồng Thời",
+            "0905551111",
+            null,
+            "Kiểm tra tranh chấp slot",
+            specialty.getId(),
+            null,
+            null
+        );
+        String body = objectMapper.writeValueAsString(holdRequest);
+        CountDownLatch release = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+
+        try {
+            Future<Integer> first = executor.submit(() -> performHoldAfter(release, body));
+            Future<Integer> second = executor.submit(() -> performHoldAfter(release, body));
+            release.countDown();
+
+            int firstStatus = first.get(15, TimeUnit.SECONDS);
+            int secondStatus = second.get(15, TimeUnit.SECONDS);
+            assertEquals(1, (firstStatus == 201 ? 1 : 0) + (secondStatus == 201 ? 1 : 0));
+            assertEquals(1, (firstStatus == 409 ? 1 : 0) + (secondStatus == 409 ? 1 : 0));
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private int performHoldAfter(CountDownLatch release, String body) throws Exception {
+        release.await(5, TimeUnit.SECONDS);
+        return mockMvc.perform(post("/api/v1/appointments/hold")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+            .andReturn()
+            .getResponse()
+            .getStatus();
+    }
+
+    private String patientToken() {
+        User user = new User();
+        user.setEmail("appointment.patient." + UUID.randomUUID() + "@healthcare.local");
+        user.setPasswordHash(passwordEncoder.encode("NotUsed!123"));
+        user.setDisplayName("Appointment Patient");
+        user.setStatus("ACTIVE");
+        user.setCreatedAt(java.time.OffsetDateTime.now());
+        user.setUpdatedAt(java.time.OffsetDateTime.now());
+        user.addRole(roleRepository.findByCode("PATIENT").orElseThrow());
+        user = userRepository.saveAndFlush(user);
+        return "Bearer " + tokenProvider.generateAccessToken(user.getId(), user.getEmail());
     }
 }

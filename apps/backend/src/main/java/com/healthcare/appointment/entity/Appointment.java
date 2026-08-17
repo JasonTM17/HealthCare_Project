@@ -9,7 +9,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import org.hibernate.annotations.UuidGenerator;
 
 import java.time.LocalDate;
@@ -18,7 +17,7 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "appointments", uniqueConstraints = @UniqueConstraint(columnNames = {"doctor_id", "branch_id", "appointment_time", "status"}))
+@Table(name = "appointments")
 public class Appointment {
 
     @Id

@@ -80,7 +80,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/v1/appointments/confirm").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/appointments/*").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/appointments/*/cancel").permitAll()
-                .requestMatchers("/api/v1/ai/**").permitAll()
+                .requestMatchers("/api/v1/ai/**").authenticated()
                 .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 .requestMatchers("/api/v1/users/admin/**").hasRole("ADMIN")

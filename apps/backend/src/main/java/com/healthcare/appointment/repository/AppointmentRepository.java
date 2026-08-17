@@ -20,6 +20,13 @@ import java.util.UUID;
 @Repository
 public interface AppointmentRepository extends JpaRepository<Appointment, UUID> {
 
+    /**
+     * PostgreSQL transaction-scoped advisory lock for the logical appointment slot.
+     * This closes the empty-result race that row-level pessimistic locks cannot cover.
+     */
+    @Query(value = "SELECT pg_advisory_xact_lock(hashtext(CAST(:lockKey AS text)))", nativeQuery = true)
+    void acquireSlotLock(@Param("lockKey") String lockKey);
+
     Optional<Appointment> findByBookingCode(String bookingCode);
 
     @Query("select a from Appointment a join fetch a.patient join fetch a.doctor left join fetch a.specialty left join fetch a.branch left join fetch a.medicalPackage where a.bookingCode = :bookingCode")

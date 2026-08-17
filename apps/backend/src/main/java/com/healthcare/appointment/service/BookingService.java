@@ -17,6 +17,7 @@ import com.healthcare.hospital.repository.SpecialtyRepository;
 import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -79,6 +80,11 @@ public class BookingService {
 
         OffsetDateTime now = OffsetDateTime.now();
 
+        // Serialize the slot key even when no appointment row exists yet. A row lock
+        // alone cannot prevent two first writers from both observing an empty slot.
+        String slotLockKey = request.doctorId() + ":" + request.appointmentDate() + ":" + request.startTime();
+        appointmentRepository.acquireSlotLock(slotLockKey);
+
         // 1. Concurrency Check with Pessimistic Lock
         List<Appointment> conflicts = appointmentRepository.findActiveConflictsForUpdate(
             request.doctorId(),
@@ -131,7 +137,7 @@ public class BookingService {
             packageRepository.findById(request.packageId()).ifPresent(appointment::setMedicalPackage);
         }
 
-        appointmentRepository.save(appointment);
+        appointmentRepository.saveAndFlush(appointment);
 
         return new HoldSlotResponse(
             bookingCode,
@@ -149,20 +155,22 @@ public class BookingService {
             authenticatedUserId = user.getId();
         }
 
-        if (authenticatedUserId != null) {
+        if (authenticatedUserId != null && hasRole(userDetails, "PATIENT")) {
             UUID userId = authenticatedUserId;
             PatientProfile linked = patientProfileRepository.findByUserId(userId).orElse(null);
             if (linked != null) {
+                if (!normalizePhone(linked.getPhone()).equals(cleanPhone)) {
+                    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Số điện thoại không khớp hồ sơ bệnh nhân");
+                }
                 return linked;
             }
 
             PatientProfile byPhone = patientProfileRepository.findByPhone(cleanPhone).orElse(null);
             if (byPhone != null) {
-                if (byPhone.getUserId() != null && !userId.equals(byPhone.getUserId())) {
-                    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Số điện thoại đã thuộc tài khoản khác");
-                }
-                byPhone.setUserId(userId);
-                return patientProfileRepository.save(byPhone);
+                throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Số điện thoại đã có hồ sơ; cần xác minh trước khi liên kết tài khoản"
+                );
             }
 
             PatientProfile created = new PatientProfile();
@@ -221,7 +229,15 @@ public class BookingService {
             appointment.setNotes(request.notes().trim());
         }
 
-        appointmentRepository.save(appointment);
+        try {
+            appointmentRepository.saveAndFlush(appointment);
+        } catch (DataIntegrityViolationException exception) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Khung giờ khám này vừa có người đặt hoặc đang được giữ chỗ. Vui lòng chọn khung giờ khác.",
+                exception
+            );
+        }
         return toResponse(appointment);
     }
 
