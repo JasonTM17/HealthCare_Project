@@ -32,14 +32,14 @@ The user authorized this extension after an uncommitted backend implementation w
 
 ## Success Criteria
 
-- [ ] `mvn test` passes with the configured Java runtime or reports an evidenced blocker.
-- [ ] Flyway migration creates all identity/RBAC tables and seeded roles.
-- [ ] Registration normalizes email, rejects duplicates, and never exposes a password hash.
-- [ ] Login rejects invalid credentials without user enumeration.
-- [ ] Refresh tokens rotate and reuse of a rotated token is rejected.
-- [ ] Protected endpoints reject anonymous access and logout revokes active refresh tokens.
-- [ ] Backend YAML has no duplicate configuration keys and has no real secret committed.
-- [ ] ADR/schema docs match the implemented API and persistence behavior.
+- [ ] `mvn test` passes with the configured Java runtime or reports an evidenced blocker. (`BLOCKED`: Docker Desktop engine unavailable for Testcontainers.)
+- [ ] Flyway migration creates all identity/RBAC tables and seeded roles. (`BLOCKED`: PostgreSQL Testcontainer cannot start.)
+- [x] Registration normalizes email, rejects duplicates, and never exposes a password hash.
+- [x] Login rejects invalid credentials without user enumeration.
+- [x] Refresh tokens rotate and reuse of a rotated token is rejected in source-level regression coverage.
+- [x] Protected endpoints reject anonymous access and logout revokes active refresh tokens.
+- [x] Backend YAML has no duplicate configuration keys and has no real secret committed.
+- [x] ADR/schema docs match the implemented API and persistence behavior.
 
 ## Verification
 

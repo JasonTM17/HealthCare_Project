@@ -4,9 +4,9 @@ import test from "node:test";
 
 const pagePath = new URL("../app/page.tsx", import.meta.url);
 
-test("appointment and contact calls to action target an available section", async () => {
+test("appointment calls to action target the available branch section", async () => {
   const page = await readFile(pagePath, "utf8");
 
-  assert.match(page, /id="contact"/);
-  assert.match(page, /href="#contact"/);
+  assert.match(page, /id="branches"/);
+  assert.match(page, /href="#branches"/);
 });

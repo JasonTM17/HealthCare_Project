@@ -13,5 +13,7 @@ import java.util.UUID;
 public interface PackageRepository extends JpaRepository<Package, UUID> {
     Optional<Package> findBySlug(String slug);
 
+    Optional<Package> findBySlugAndActiveTrue(String slug);
+
     Page<Package> findByActiveTrue(Pageable pageable);
 }

@@ -1,5 +1,8 @@
 package com.healthcare;
 
+import com.healthcare.appointment.repository.AppointmentRepository;
+import com.healthcare.appointment.repository.DoctorScheduleRepository;
+import com.healthcare.appointment.repository.PatientProfileRepository;
 import com.healthcare.hospital.repository.ArticleRepository;
 import com.healthcare.hospital.repository.BranchRepository;
 import com.healthcare.hospital.repository.DoctorRepository;
@@ -67,14 +70,17 @@ public abstract class AbstractIntegrationTest {
     @Autowired private UserRepository userRepository;
     @Autowired private RefreshTokenRepository refreshTokenRepository;
 
-    // ── Hospital domain ───────────────────────────────────────────────────────
-    @Autowired private SpecialtyRepository specialtyRepository;
-    @Autowired private DoctorRepository doctorRepository;
-    @Autowired private BranchRepository branchRepository;
-    @Autowired private PackageRepository packageRepository;
-    @Autowired private ArticleRepository articleRepository;
-    @Autowired private FaqRepository faqRepository;
-    @Autowired private ServiceRepository serviceRepository;
+    // ── Hospital & Appointment domain ────────────────────────────────────────
+    @Autowired protected SpecialtyRepository specialtyRepository;
+    @Autowired protected DoctorRepository doctorRepository;
+    @Autowired protected BranchRepository branchRepository;
+    @Autowired protected PackageRepository packageRepository;
+    @Autowired protected ArticleRepository articleRepository;
+    @Autowired protected FaqRepository faqRepository;
+    @Autowired protected ServiceRepository serviceRepository;
+    @Autowired protected AppointmentRepository appointmentRepository;
+    @Autowired protected DoctorScheduleRepository doctorScheduleRepository;
+    @Autowired protected PatientProfileRepository patientProfileRepository;
 
     /**
      * Wipe all user-generated rows before every test so tests are fully independent.
@@ -83,7 +89,12 @@ public abstract class AbstractIntegrationTest {
      */
     @BeforeEach
     void cleanDatabase() {
-        // Hospital domain (no FK dependencies on auth)
+        // Appointment domain (FK dependencies on hospital & patient)
+        appointmentRepository.deleteAll();
+        doctorScheduleRepository.deleteAll();
+        patientProfileRepository.deleteAll();
+
+        // Hospital domain
         articleRepository.deleteAll();
         faqRepository.deleteAll();
         packageRepository.deleteAll();

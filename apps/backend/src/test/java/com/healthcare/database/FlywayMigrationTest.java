@@ -42,6 +42,18 @@ class FlywayMigrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void appointmentDomainTablesAreMigrated() {
+        List<String> tables = jdbcTemplate.queryForList(
+            "select table_name from information_schema.tables where table_schema = 'public'",
+            String.class
+        );
+
+        assertThat(tables).contains(
+            "doctor_schedules", "patient_profiles", "appointments"
+        );
+    }
+
+    @Test
     void defaultRolesAreSeeded() {
         List<String> roles = jdbcTemplate.queryForList(
             "select code from roles order by code",

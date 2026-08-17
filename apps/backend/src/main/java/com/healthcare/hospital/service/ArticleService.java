@@ -3,6 +3,7 @@ package com.healthcare.hospital.service;
 import com.healthcare.hospital.dto.ArticleResponse;
 import com.healthcare.hospital.entity.Article;
 import com.healthcare.hospital.repository.ArticleRepository;
+import com.healthcare.exception.ResourceNotFoundException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -17,13 +18,14 @@ public class ArticleService {
     }
 
     public Page<ArticleResponse> listPublished(Pageable pageable) {
-        return articleRepository.findByActiveTrueOrderByPublishedAtDesc(pageable).map(this::toResponse);
+        return articleRepository.findByActiveTrueAndPublishedAtIsNotNullOrderByPublishedAtDesc(pageable)
+            .map(this::toResponse);
     }
 
     public ArticleResponse getBySlug(String slug) {
-        return articleRepository.findBySlug(slug)
+        return articleRepository.findBySlugAndActiveTrueAndPublishedAtIsNotNull(slug)
             .map(this::toResponse)
-            .orElse(null);
+            .orElseThrow(() -> new ResourceNotFoundException("Article not found"));
     }
 
     private ArticleResponse toResponse(Article article) {

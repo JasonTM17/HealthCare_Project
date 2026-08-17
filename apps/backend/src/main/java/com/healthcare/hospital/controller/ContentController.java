@@ -6,6 +6,7 @@ import com.healthcare.hospital.entity.Package;
 import com.healthcare.hospital.entity.MedicalService;
 import com.healthcare.hospital.repository.PackageRepository;
 import com.healthcare.hospital.repository.ServiceRepository;
+import com.healthcare.exception.ResourceNotFoundException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -33,7 +34,9 @@ public class ContentController {
 
     @GetMapping("/services/{slug}")
     public ServiceResponse getServiceBySlug(@PathVariable String slug) {
-        return serviceRepository.findBySlug(slug).map(this::toServiceResponse).orElse(null);
+        return serviceRepository.findBySlugAndActiveTrue(slug)
+            .map(this::toServiceResponse)
+            .orElseThrow(() -> new ResourceNotFoundException("Service not found"));
     }
 
     @GetMapping("/hospital/services")
@@ -43,7 +46,9 @@ public class ContentController {
 
     @GetMapping("/hospital/services/{slug}")
     public ServiceResponse getHospitalServiceBySlug(@PathVariable String slug) {
-        return serviceRepository.findBySlug(slug).map(this::toServiceResponse).orElse(null);
+        return serviceRepository.findBySlugAndActiveTrue(slug)
+            .map(this::toServiceResponse)
+            .orElseThrow(() -> new ResourceNotFoundException("Service not found"));
     }
 
     @GetMapping("/packages")
@@ -53,7 +58,9 @@ public class ContentController {
 
     @GetMapping("/packages/{slug}")
     public PackageResponse getPackageBySlug(@PathVariable String slug) {
-        return packageRepository.findBySlug(slug).map(this::toPackageResponse).orElse(null);
+        return packageRepository.findBySlugAndActiveTrue(slug)
+            .map(this::toPackageResponse)
+            .orElseThrow(() -> new ResourceNotFoundException("Package not found"));
     }
 
     private ServiceResponse toServiceResponse(MedicalService service) {

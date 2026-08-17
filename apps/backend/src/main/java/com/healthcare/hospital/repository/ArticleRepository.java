@@ -13,5 +13,7 @@ import java.util.UUID;
 public interface ArticleRepository extends JpaRepository<Article, UUID> {
     Optional<Article> findBySlug(String slug);
 
-    Page<Article> findByActiveTrueOrderByPublishedAtDesc(Pageable pageable);
+    Optional<Article> findBySlugAndActiveTrueAndPublishedAtIsNotNull(String slug);
+
+    Page<Article> findByActiveTrueAndPublishedAtIsNotNullOrderByPublishedAtDesc(Pageable pageable);
 }

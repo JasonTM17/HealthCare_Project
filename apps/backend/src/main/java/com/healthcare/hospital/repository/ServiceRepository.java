@@ -13,5 +13,7 @@ import java.util.UUID;
 public interface ServiceRepository extends JpaRepository<MedicalService, UUID> {
     Optional<MedicalService> findBySlug(String slug);
 
+    Optional<MedicalService> findBySlugAndActiveTrue(String slug);
+
     Page<MedicalService> findByActiveTrue(Pageable pageable);
 }
