@@ -13,8 +13,6 @@ export default function DoctorsPage() {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError(null);
     fetchDoctors({ page: currentPage, size: 12, sort: "fullName,asc" })
       .then((data) => {
         if (!cancelled) setPage(data);
@@ -29,6 +27,12 @@ export default function DoctorsPage() {
       cancelled = true;
     };
   }, [currentPage]);
+
+  const handlePageChange = (nextPage: number) => {
+    setLoading(true);
+    setError(null);
+    setCurrentPage(nextPage);
+  };
 
   return (
     <main className="section">
@@ -77,7 +81,7 @@ export default function DoctorsPage() {
             <div className="flex items-center justify-center gap-3 mt-8">
               <button
                 type="button"
-                onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
+                onClick={() => handlePageChange(Math.max(0, currentPage - 1))}
                 disabled={page.first}
                 className="px-4 py-2 rounded-full border border-slate-300 text-sm disabled:opacity-40 hover:bg-slate-50"
               >
@@ -88,7 +92,7 @@ export default function DoctorsPage() {
               </span>
               <button
                 type="button"
-                onClick={() => setCurrentPage((p) => Math.min(page.totalPages - 1, p + 1))}
+                onClick={() => handlePageChange(Math.min(page.totalPages - 1, currentPage + 1))}
                 disabled={page.last}
                 className="px-4 py-2 rounded-full border border-slate-300 text-sm disabled:opacity-40 hover:bg-slate-50"
               >

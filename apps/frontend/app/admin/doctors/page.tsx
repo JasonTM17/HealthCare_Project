@@ -17,11 +17,10 @@ export default function AdminDoctorsPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const load = async () => {
-    setLoading(true);
-    setError(null);
     try {
       const page = await adminListDoctors(0, 100);
       setDoctors(page.content);
+      setError(null);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -30,7 +29,24 @@ export default function AdminDoctorsPage() {
   };
 
   useEffect(() => {
-    load();
+    let cancelled = false;
+    adminListDoctors(0, 100)
+      .then((page) => {
+        if (!cancelled) {
+          setDoctors(page.content);
+          setError(null);
+        }
+      })
+      .catch((e) => {
+        if (!cancelled) setError((e as Error).message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -40,6 +56,7 @@ export default function AdminDoctorsPage() {
       await adminCreateDoctor({ ...form, bio: form.bio || null, photoUrl: null, userId: null });
       setForm({ fullName: "", slug: "", bio: "", active: true });
       setShowForm(false);
+      setLoading(true);
       await load();
     } catch (e) {
       setSubmitError((e as Error).message);
@@ -50,6 +67,7 @@ export default function AdminDoctorsPage() {
     if (!window.confirm(`Xóa bác sĩ "${slug}"?`)) return;
     try {
       await adminDeleteDoctor(slug);
+      setLoading(true);
       await load();
     } catch (e) {
       setError((e as Error).message);

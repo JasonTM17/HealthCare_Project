@@ -12,7 +12,6 @@ export default function DoctorDetailPage({ params }: { params: { slug: string } 
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     fetchDoctorBySlug(params.slug)
       .then((data) => {
         if (!cancelled) setDoctor(data);

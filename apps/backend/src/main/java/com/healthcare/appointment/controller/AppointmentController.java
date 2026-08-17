@@ -1,6 +1,7 @@
 package com.healthcare.appointment.controller;
 
 import com.healthcare.appointment.dto.AppointmentResponse;
+import com.healthcare.appointment.dto.CancelAppointmentRequest;
 import com.healthcare.appointment.dto.ConfirmAppointmentRequest;
 import com.healthcare.appointment.dto.HoldSlotRequest;
 import com.healthcare.appointment.dto.HoldSlotResponse;
@@ -25,7 +26,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -66,16 +66,21 @@ public class AppointmentController {
 
     @GetMapping("/{bookingCode}")
     @Operation(summary = "Look up appointment details by booking code")
-    public ResponseEntity<AppointmentResponse> getAppointment(@PathVariable String bookingCode) {
-        return ResponseEntity.ok(bookingService.getAppointment(bookingCode));
+    public ResponseEntity<AppointmentResponse> getAppointment(
+            @PathVariable String bookingCode,
+            @RequestParam(required = false) String phone,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(bookingService.getAppointment(bookingCode, phone, userDetails));
     }
 
     @PostMapping("/{bookingCode}/cancel")
     @Operation(summary = "Cancel an appointment")
     public ResponseEntity<AppointmentResponse> cancelAppointment(
             @PathVariable String bookingCode,
-            @RequestBody(required = false) Map<String, String> body) {
-        String reason = body != null ? body.get("reason") : null;
-        return ResponseEntity.ok(bookingService.cancelAppointment(bookingCode, reason));
+            @RequestBody(required = false) CancelAppointmentRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        String reason = request != null ? request.reason() : null;
+        String phone = request != null ? request.phone() : null;
+        return ResponseEntity.ok(bookingService.cancelAppointment(bookingCode, reason, phone, userDetails));
     }
 }

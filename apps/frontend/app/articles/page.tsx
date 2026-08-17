@@ -16,7 +16,6 @@ export default function ArticlesPage() {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     fetchPackages(0, 50)
       .then((data) => {
         if (!cancelled) setPackages(data);

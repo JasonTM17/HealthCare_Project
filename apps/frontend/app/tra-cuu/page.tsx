@@ -28,7 +28,11 @@ export default function TraCuuPage() {
   const handleLookup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bookingCodeInput.trim()) {
-      setErrorMessage("Vui lòng nhập Mã lịch hẹn (ví dụ: APT-260817-1234)");
+      setErrorMessage("Vui lòng nhập Mã lịch hẹn");
+      return;
+    }
+    if (!phoneInput.trim()) {
+      setErrorMessage("Vui lòng nhập số điện thoại đã dùng khi đặt lịch");
       return;
     }
 
@@ -39,7 +43,7 @@ export default function TraCuuPage() {
 
     try {
       const res = await fetch(
-        `${API_BASE_URL}/appointments/${bookingCodeInput.trim()}`
+        `${API_BASE_URL}/appointments/${bookingCodeInput.trim()}?phone=${encodeURIComponent(phoneInput.trim())}`
       );
       if (!res.ok) {
         throw new Error(
@@ -48,34 +52,10 @@ export default function TraCuuPage() {
       }
       const data: AppointmentDetails = await res.json();
       setAppointment(data);
-    } catch (err: any) {
-      // Mock sample fallback if backend is offline
-      if (bookingCodeInput.toUpperCase().startsWith("APT-")) {
-        setAppointment({
-          id: "mock-1",
-          bookingCode: bookingCodeInput.toUpperCase(),
-          patientName: "Nguyễn Thị Thử Nghiệm",
-          patientPhone: phoneInput || "0901234567",
-          patientEmail: "patient@example.com",
-          doctorId: "doc-1",
-          doctorName: "PGS. TS. BS. Nguyễn Văn An",
-          doctorTitle: "Chuyên gia Tim Mạch",
-          specialtyName: "Tim Mạch & Can Thiệp Mạch Máu",
-          branchName: "Bệnh viện Đa khoa HealthCare, Trụ sở Trung tâm",
-          branchAddress: "120 Nguyễn Thị Minh Khai, P. Bến Thành, Q.1, TP.HCM",
-          appointmentDate: "2026-08-20",
-          startTime: "09:00:00",
-          endTime: "09:30:00",
-          status: "CONFIRMED",
-          paymentStatus: "UNPAID",
-          reasonForVisit: "Kiểm tra huyết áp định kỳ",
-          createdAt: new Date().toISOString(),
-        });
-      } else {
-        setErrorMessage(
-          err.message || "Không tìm thấy lịch hẹn. Định dạng mã hợp lệ: APT-XXXXXX-XXXX"
-        );
-      }
+    } catch (err: unknown) {
+      setErrorMessage(
+        err instanceof Error ? err.message : "Không tìm thấy lịch hẹn hoặc thông tin xác thực không đúng."
+      );
     } finally {
       setLoading(false);
     }
@@ -86,18 +66,23 @@ export default function TraCuuPage() {
     setLoading(true);
 
     try {
-      await fetch(`${API_BASE_URL}/appointments/${appointment.bookingCode}/cancel`, {
+      const res = await fetch(`${API_BASE_URL}/appointments/${appointment.bookingCode}/cancel`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason: cancelReason || "Bệnh nhân yêu cầu hủy" }),
+        body: JSON.stringify({
+          reason: cancelReason || "Bệnh nhân yêu cầu hủy",
+          phone: phoneInput.trim(),
+        }),
       });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || "Không thể hủy lịch hẹn.");
+      }
       setAppointment({ ...appointment, status: "CANCELLED" });
       setCancelSuccess(true);
       setShowCancelDialog(false);
-    } catch {
-      setAppointment({ ...appointment, status: "CANCELLED" });
-      setCancelSuccess(true);
-      setShowCancelDialog(false);
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : "Không thể hủy lịch hẹn.");
     } finally {
       setLoading(false);
     }
@@ -142,14 +127,28 @@ export default function TraCuuPage() {
                 <input
                   type="text"
                   required
-                  placeholder="Ví dụ: APT-260817-1234"
+                  placeholder="Ví dụ: APT-9F3A..."
                   value={bookingCodeInput}
                   onChange={(e) => setBookingCodeInput(e.target.value)}
                   className="w-full p-3 bg-sand-100 border border-mint-200 rounded-xl font-mono text-sm font-bold text-ink focus:ring-2 focus:ring-brand-600 focus:outline-none uppercase"
                 />
               </div>
 
-              <div className="sm:col-span-4 flex items-end">
+              <div className="sm:col-span-4">
+                <label className="block text-xs font-bold text-ink-muted uppercase mb-1.5">
+                  Số điện thoại đặt lịch <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="tel"
+                  required
+                  placeholder="0901234567"
+                  value={phoneInput}
+                  onChange={(e) => setPhoneInput(e.target.value)}
+                  className="w-full p-3 bg-sand-100 border border-mint-200 rounded-xl text-sm text-ink focus:ring-2 focus:ring-brand-600 focus:outline-none"
+                />
+              </div>
+
+              <div className="sm:col-span-12 flex items-end">
                 <button
                   type="submit"
                   disabled={loading}

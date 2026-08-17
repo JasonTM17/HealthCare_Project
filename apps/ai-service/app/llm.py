@@ -1,110 +1,156 @@
-"""LLM-backed triage with a rule-based fallback.
-
-When ``ai_provider`` is ``"deepseek"`` and a key is configured, triage is
-answered by the DeepSeek chat model (OpenAI-compatible API). Otherwise the
-deterministic rule-based baseline is used. The LLM path is best-effort: any
-provider failure falls back to the rule baseline so the endpoint stays
-available offline.
-"""
+"""LLM-backed triage with a deterministic, safety-first fallback."""
 
 from __future__ import annotations
+
+import json
+from typing import Any
 
 from app.schemas import TriageResponse
 
 RULE_BASED = "rule_based_triage"
+ALLOWED_URGENCY = frozenset({"EMERGENCY", "HIGH", "NORMAL"})
+ALLOWED_SPECIALTIES = frozenset({
+    "Tim Mạch & Can Thiệp Mạch Máu",
+    "Thần Kinh & Đột Quỵ",
+    "Tiêu Hóa - Gan Mật - Tụy",
+    "Cơ Xương Khớp & Phục Hồi Chức Năng",
+    "Sản Phụ Khoa",
+    "Nhi Khoa",
+    "Da Liễu",
+    "Nội Tổng Quát",
+    "Gói Khám Sức Khỏe Tổng Quát Toàn Diện",
+})
 
-# Deterministic baseline — also serves as the offline/fallback triage.
 _RULES = [
-    (["ngực", "tim", "hồi hộp", "khó thở", "đánh trống ngực"],
-     "Tim Mạch & Can Thiệp Mạch Máu", "HIGH",
-     "Nghi ngờ liên quan đến tim mạch hoặc tuần hoàn. Cần đo điện tâm đồ (ECG) và siêu âm tim sớm. Nếu đau tức ngực dữ dội kéo dài quá 15 phút, vui lòng gọi cấp cứu 1900 1234 ngay.",
-     ["Cơn đau có lan lên hàm hoặc cánh tay trái không?", "Có tiền sử cao huyết áp hay đái tháo đường không?"]),
-    (["bụng", "dạ dày", "tiêu hóa", "buồn nôn", "ợchua", "đầy bụng", "đại tràng"],
-     "Tiêu Hóa - Gan Mật - Tụy", "NORMAL",
-     "Triệu chứng cảnh báo bệnh lý đường tiêu hóa. Khuyến nghị thăm khám chuyên khoa Tiêu hóa. Nếu cần nội soi, nên nhịn ăn ít nhất 6 tiếng trước giờ khám.",
-     ["Đau xuất hiện lúc đói hay sau khi ăn no?", "Có sụt cân bất thường trong thời gian gần đây không?"]),
-    (["đầu", "chóng mặt", "mất ngủ", "tê", "đột quỵ", "yếu tay", "liệt"],
-     "Thần Kinh & Đột Quỵ", "NORMAL",
-     "Dấu hiệu hệ thần kinh. Nếu có dấu hiệu FAST (Méo miệng, Yếu liệt tay chân, Rối loạn giọng nói), cần chuyển ngay đến khoa Cấp cứu trong giờ vàng.",
-     ["Có kèm theo buồn nôn hoặc sợ ánh sáng không?", "Cơn đau đầu xuất hiện đột ngột hay âm ỉ kéo dài?"]),
-    (["khớp", "gối", "lưng", "cột sống", "xương", "cổ tay", "vai"],
-     "Cơ Xương Khớp & Phục Hồi Chức Năng", "NORMAL",
-     "Nên chụp X-quang hoặc siêu âm khớp chuyên sâu để đánh giá thoái hóa hoặc tổn thương mô mềm.",
-     ["Có hiện tượng cứng khớp vào buổi sáng không?", "Khớp có sưng đỏ, nóng hoặc hạn chế vận động không?"]),
+    (
+        ["ngực", "tim", "hồi hộp", "khó thở", "đánh trống ngực"],
+        "Tim Mạch & Can Thiệp Mạch Máu",
+        "HIGH",
+        "Nghi ngờ liên quan đến tim mạch hoặc tuần hoàn. Cần đo điện tâm đồ (ECG) và siêu âm tim sớm. Nếu đau tức ngực dữ dội kéo dài quá 15 phút, vui lòng gọi cấp cứu 1900 1234 ngay.",
+        ["Cơn đau có lan lên hàm hoặc cánh tay trái không?", "Có tiền sử cao huyết áp hay đái tháo đường không?"],
+    ),
+    (
+        ["bụng", "dạ dày", "tiêu hóa", "buồn nôn", "ợ chua", "đầy bụng", "đại tràng"],
+        "Tiêu Hóa - Gan Mật - Tụy",
+        "NORMAL",
+        "Triệu chứng cảnh báo bệnh lý đường tiêu hóa. Khuyến nghị thăm khám chuyên khoa Tiêu hóa. Nếu cần nội soi, nên nhịn ăn ít nhất 6 tiếng trước giờ khám.",
+        ["Đau xuất hiện lúc đói hay sau khi ăn no?", "Có sụt cân bất thường trong thời gian gần đây không?"],
+    ),
+    (
+        ["đầu", "chóng mặt", "mất ngủ", "tê", "đột quỵ", "yếu tay", "liệt"],
+        "Thần Kinh & Đột Quỵ",
+        "NORMAL",
+        "Dấu hiệu hệ thần kinh. Nếu có dấu hiệu FAST (méo miệng, yếu liệt tay chân, rối loạn giọng nói), cần chuyển ngay đến khoa Cấp cứu trong giờ vàng.",
+        ["Có kèm theo buồn nôn hoặc sợ ánh sáng không?", "Cơn đau đầu xuất hiện đột ngột hay âm ỉ kéo dài?"],
+    ),
+    (
+        ["khớp", "gối", "lưng", "cột sống", "xương", "cổ tay", "vai"],
+        "Cơ Xương Khớp & Phục Hồi Chức Năng",
+        "NORMAL",
+        "Nên chụp X-quang hoặc siêu âm khớp chuyên sâu để đánh giá thoái hóa hoặc tổn thương mô mềm.",
+        ["Có hiện tượng cứng khớp vào buổi sáng không?", "Khớp có sưng đỏ, nóng hoặc hạn chế vận động không?"],
+    ),
 ]
 
-_DEFAULT = {
-    "recommended_specialty": "Gói Khám Sức Khỏe Tổng Quát Toàn Diện",
-    "urgency_level": "NORMAL",
-    "clinical_advice": "Triệu chứng chưa đặc hiệu cho một cơ quan đơn lẻ. Bác sĩ chuyên khoa Nội tổng quát sẽ thăm khám lâm sàng toàn diện và chỉ định các xét nghiệm cần thiết.",
-    "suggested_questions": [
+_DEFAULT = TriageResponse(
+    recommended_specialty="Gói Khám Sức Khỏe Tổng Quát Toàn Diện",
+    urgency_level="NORMAL",
+    clinical_advice="Triệu chứng chưa đặc hiệu cho một cơ quan đơn lẻ. Bác sĩ chuyên khoa Nội tổng quát sẽ thăm khám lâm sàng toàn diện và chỉ định các xét nghiệm cần thiết.",
+    suggested_questions=[
         "Triệu chứng này đã kéo dài bao nhiêu ngày?",
         "Lần khám sức khỏe tổng quát gần nhất của bạn là khi nào?",
     ],
-}
+)
 
 
 def rule_based_triage(symptoms: str) -> TriageResponse:
-    s = symptoms.lower()
+    symptom_text = symptoms.lower()
     for keywords, specialty, urgency, advice, questions in _RULES:
-        if any(k in s for k in keywords):
+        if any(keyword in symptom_text for keyword in keywords):
             if specialty == "Tim Mạch & Can Thiệp Mạch Máu" and any(
-                k in s for k in ["dữ dội", "ngất", "vã mồ hôi", "lan ra tay", "nhói buốt"]
+                keyword in symptom_text for keyword in ["dữ dội", "ngất", "vã mồ hôi", "lan ra tay", "nhói buốt"]
             ):
-                return TriageResponse(recommended_specialty=specialty, urgency_level="EMERGENCY",
-                                      clinical_advice=advice, suggested_questions=questions)
+                urgency = "EMERGENCY"
             if specialty == "Thần Kinh & Đột Quỵ" and any(
-                k in s for k in ["méo miệng", "nói ngọng", "yếu một bên", "mờ mặt đột ngột"]
+                keyword in symptom_text for keyword in ["méo miệng", "nói ngọng", "yếu một bên", "mờ mắt đột ngột"]
             ):
-                return TriageResponse(recommended_specialty=specialty, urgency_level="EMERGENCY",
-                                      clinical_advice=advice, suggested_questions=questions)
-            return TriageResponse(recommended_specialty=specialty, urgency_level=urgency,
-                                  clinical_advice=advice, suggested_questions=questions)
-    return TriageResponse(**_DEFAULT)
+                urgency = "EMERGENCY"
+            return TriageResponse(
+                recommended_specialty=specialty,
+                urgency_level=urgency,
+                clinical_advice=advice,
+                suggested_questions=questions,
+            )
+    return _DEFAULT.model_copy(deep=True)
 
 
-def deepseek_triage(symptoms: str, settings) -> TriageResponse:
-    """Ask DeepSeek for a triage opinion. Falls back to rules on any error."""
+def _validated_llm_response(data: Any, fallback: TriageResponse) -> TriageResponse:
+    if not isinstance(data, dict):
+        return fallback
+
+    specialty = data.get("recommended_specialty")
+    urgency = data.get("urgency_level")
+    advice = data.get("clinical_advice")
+    raw_questions = data.get("suggested_questions")
+    if specialty not in ALLOWED_SPECIALTIES or urgency not in ALLOWED_URGENCY:
+        return fallback
+    if not isinstance(advice, str) or not advice.strip():
+        return fallback
+
+    questions: list[str] = []
+    if isinstance(raw_questions, list):
+        questions = [question.strip() for question in raw_questions if isinstance(question, str) and question.strip()][:3]
+    if not questions:
+        questions = fallback.suggested_questions
+
+    return TriageResponse(
+        recommended_specialty=specialty,
+        urgency_level=urgency,
+        clinical_advice=advice.strip()[:2000],
+        suggested_questions=questions,
+    )
+
+
+def deepseek_triage(symptoms: str, settings: Any) -> TriageResponse:
+    """Ask DeepSeek for bounded triage output; fall back on any provider error."""
+    fallback = rule_based_triage(symptoms)
     try:
         from openai import OpenAI
 
         client = OpenAI(
             api_key=settings.deepseek_api_key,
             base_url=settings.deepseek_base_url,
+            timeout=10.0,
+            max_retries=0,
         )
         completion = client.chat.completions.create(
             model=settings.deepseek_model,
             response_format={"type": "json_object"},
+            temperature=0,
             messages=[
                 {
                     "role": "system",
-                    "content":
-                        "Bác sĩ tư vấn y khoa an toàn. Dựa trên triệu chứng, đề xuất "
-                        "MỘT chuyên khoa phù hợp nhất (Ti Mạch, Thần kinh, Tiêu hóa, "
-                        "Cơ Xương Khớp, Sản phụ khoa, Nhi khoa, Da liễu, Nội tổng hợp), "
-                        "mức khẩn (EMERGENCY/HIGH/NORMAL), lời khuyên ngắn (không chẩn đoán, "
-                        "không kê đơn) và 2 câu hỏi lái. Trả JSON với các khóa: "
-                        "recommended_specialty, urgency_level, clinical_advice, suggested_questions.",
+                    "content": (
+                        "Bạn là trợ lý phân loại triệu chứng, không phải bác sĩ. Không chẩn đoán, "
+                        "không kê đơn. Chỉ chọn một specialty trong danh sách: "
+                        "Tim Mạch & Can Thiệp Mạch Máu; Thần Kinh & Đột Quỵ; Tiêu Hóa - Gan Mật - Tụy; "
+                        "Cơ Xương Khớp & Phục Hồi Chức Năng; Sản Phụ Khoa; Nhi Khoa; Da Liễu; "
+                        "Nội Tổng Quát; Gói Khám Sức Khỏe Tổng Quát Toàn Diện. "
+                        "urgency_level chỉ được là EMERGENCY, HIGH hoặc NORMAL. Trả JSON với các khóa "
+                        "recommended_specialty, urgency_level, clinical_advice, suggested_questions; "
+                        "suggested_questions tối đa 3 câu hỏi."
+                    ),
                 },
                 {"role": "user", "content": symptoms},
             ],
         )
-        import json
-
         content = completion.choices[0].message.content or "{}"
-        data = json.loads(content)
-        default = _DEFAULT
-        return TriageResponse(
-            recommended_specialty=data.get("recommended_specialty", default["recommended_specialty"]),
-            urgency_level=data.get("urgency_level", "NORMAL"),
-            clinical_advice=data.get("clinical_advice", default["clinical_advice"]),
-            suggested_questions=data.get("suggested_questions", default["suggested_questions"]),
-        )
+        return _validated_llm_response(json.loads(content), fallback)
     except Exception:
-        return rule_based_triage(symptoms)
+        return fallback
 
 
-def resolve_triage(symptoms: str, settings) -> TriageResponse:
+def resolve_triage(symptoms: str, settings: Any) -> TriageResponse:
     if settings.ai_provider == "deepseek" and settings.deepseek_api_key:
         return deepseek_triage(symptoms, settings)
     return rule_based_triage(symptoms)

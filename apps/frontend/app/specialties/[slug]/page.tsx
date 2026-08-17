@@ -12,7 +12,6 @@ export default function SpecialtyDetailPage({ params }: { params: { slug: string
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     fetchSpecialtyBySlug(params.slug)
       .then((data) => {
         if (!cancelled) setSpecialty(data);

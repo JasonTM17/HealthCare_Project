@@ -11,7 +11,6 @@ export default function BranchesPage() {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     fetchBranches(0, 50)
       .then((data) => {
         if (!cancelled) setPage(data);

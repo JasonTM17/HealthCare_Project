@@ -77,6 +77,39 @@ class FileStorageIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void doctorCanDownloadOnlyOwnFile() throws Exception {
+        String uploaderToken = doctorToken();
+        String otherDoctorToken = doctorToken();
+        MockMultipartFile file = new MockMultipartFile(
+            "file", "clinical-note.txt", MediaType.TEXT_PLAIN_VALUE, "note".getBytes());
+
+        String result = mockMvc.perform(multipart("/api/v1/files/upload")
+                .file(file)
+                .header("Authorization", uploaderToken))
+            .andExpect(status().isOk())
+            .andReturn().getResponse().getContentAsString();
+        String objectName = objectMapper.readTree(result).get("objectName").asText();
+
+        mockMvc.perform(get("/api/v1/files/" + objectName)
+                .header("Authorization", uploaderToken))
+            .andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/files/" + objectName)
+                .header("Authorization", otherDoctorToken))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void rejectsUnsupportedUploadType() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+            "file", "malware.zip", "application/zip", "not an allowed document".getBytes());
+
+        mockMvc.perform(multipart("/api/v1/files/upload")
+                .file(file)
+                .header("Authorization", adminToken()))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void patientCannotUploadFile() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
             "file", "hack.txt", MediaType.TEXT_PLAIN_VALUE, "x".getBytes());
@@ -117,6 +150,13 @@ class FileStorageIntegrationTest extends AbstractIntegrationTest {
     @Test
     void patientCannotDeleteFile() throws Exception {
         mockMvc.perform(delete("/api/v1/files/some-object")
+                .header("Authorization", patientToken()))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void patientCannotDownloadArbitraryObject() throws Exception {
+        mockMvc.perform(get("/api/v1/files/00000000-0000-0000-0000-000000000000-file.txt")
                 .header("Authorization", patientToken()))
             .andExpect(status().isForbidden());
     }

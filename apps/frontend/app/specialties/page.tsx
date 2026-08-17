@@ -16,7 +16,6 @@ export default function SpecialtiesPage() {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     fetchSpecialties(0, 50)
       .then((data) => {
         if (!cancelled) setPage(data);

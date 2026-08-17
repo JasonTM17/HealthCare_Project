@@ -16,7 +16,9 @@ import com.healthcare.hospital.repository.PackageRepository;
 import com.healthcare.hospital.repository.SpecialtyRepository;
 import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,7 +28,6 @@ import java.security.SecureRandom;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
 
@@ -43,6 +44,9 @@ public class BookingService {
     private final BranchRepository branchRepository;
     private final PackageRepository packageRepository;
     private final UserRepository userRepository;
+
+    @Value("${app.booking.allow-test-otp:false}")
+    private boolean allowTestOtp;
 
     public BookingService(AppointmentRepository appointmentRepository,
                           PatientProfileRepository patientProfileRepository,
@@ -204,9 +208,9 @@ public class BookingService {
             throw new ResponseStatusException(HttpStatus.GONE, "Thời gian giữ chỗ đã hết hạn. Vui lòng thực hiện đặt lại.");
         }
 
-        // Verify OTP (Allows mock 123456 or the exact generated OTP)
+        // Verify OTP. The fixed test code is available only in the test profile.
         String inputOtp = request.otpCode().trim();
-        if (!inputOtp.equals(appointment.getOtpCode()) && !inputOtp.equals("123456")) {
+        if (!inputOtp.equals(appointment.getOtpCode()) && !(allowTestOtp && inputOtp.equals("123456"))) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Mã xác thực OTP không chính xác");
         }
 
@@ -225,19 +229,26 @@ public class BookingService {
      * Look up appointment by booking code.
      */
     @Transactional(readOnly = true)
-    public AppointmentResponse getAppointment(String bookingCode) {
-        return appointmentRepository.findByBookingCodeWithDetails(bookingCode.trim())
-            .map(this::toResponse)
+    public AppointmentResponse getAppointment(String bookingCode, String phone, UserDetails principal) {
+        Appointment appointment = appointmentRepository.findByBookingCodeWithDetails(bookingCode.trim())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy lịch khám với mã: " + bookingCode));
+        authorizeAppointment(appointment, phone, principal);
+        return toResponse(appointment);
     }
 
     /**
      * Cancel an appointment.
      */
     @Transactional
-    public AppointmentResponse cancelAppointment(String bookingCode, String reason) {
+    public AppointmentResponse cancelAppointment(
+            String bookingCode,
+            String reason,
+            String phone,
+            UserDetails principal) {
         Appointment appointment = appointmentRepository.findByBookingCodeWithDetails(bookingCode.trim())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy lịch khám"));
+
+        authorizeAppointment(appointment, phone, principal);
 
         if (appointment.getStatus() == AppointmentStatus.COMPLETED) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Không thể hủy lịch khám đã hoàn tất");
@@ -250,9 +261,52 @@ public class BookingService {
     }
 
     private String generateBookingCode(LocalDate date) {
-        String datePart = date.format(DateTimeFormatter.ofPattern("yyMMdd"));
-        int randPart = 1000 + RANDOM.nextInt(9000);
-        return "APT-" + datePart + "-" + randPart;
+        String token = UUID.randomUUID().toString().replace("-", "").substring(0, 24).toUpperCase();
+        return "APT-" + token;
+    }
+
+    private void authorizeAppointment(Appointment appointment, String phone, UserDetails principal) {
+        if (principal == null) {
+            if (phone == null || !normalizePhone(phone).equals(normalizePhone(appointment.getPatient().getPhone()))) {
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Cần xác thực số điện thoại để xem lịch hẹn");
+            }
+            return;
+        }
+
+        UUID userId = resolveUserId(principal);
+        if (hasRole(principal, "ADMIN")) {
+            return;
+        }
+        if (hasRole(principal, "PATIENT")) {
+            PatientProfile patient = patientProfileRepository.findByUserId(userId)
+                .orElseThrow(() -> new AccessDeniedException("Tài khoản chưa liên kết hồ sơ bệnh nhân"));
+            if (patient.getId().equals(appointment.getPatient().getId())) {
+                return;
+            }
+        }
+        if (hasRole(principal, "DOCTOR")) {
+            Doctor doctor = doctorRepository.findByUserId(userId)
+                .orElseThrow(() -> new AccessDeniedException("Tài khoản chưa liên kết hồ sơ bác sĩ"));
+            if (doctor.getId().equals(appointment.getDoctor().getId())) {
+                return;
+            }
+        }
+        throw new AccessDeniedException("Bạn không có quyền truy cập lịch hẹn này");
+    }
+
+    private UUID resolveUserId(UserDetails principal) {
+        return userRepository.findByEmail(principal.getUsername())
+            .map(User::getId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Tài khoản không hợp lệ"));
+    }
+
+    private boolean hasRole(UserDetails principal, String role) {
+        return principal.getAuthorities().stream()
+            .anyMatch(authority -> ("ROLE_" + role).equals(authority.getAuthority()));
+    }
+
+    private String normalizePhone(String phone) {
+        return phone.replaceAll("[^0-9+]", "");
     }
 
     private AppointmentResponse toResponse(Appointment a) {

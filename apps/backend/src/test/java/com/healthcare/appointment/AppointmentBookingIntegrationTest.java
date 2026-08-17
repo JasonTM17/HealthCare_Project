@@ -110,6 +110,10 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
 
         // 4. Query appointment details by booking code
         mockMvc.perform(get("/api/v1/appointments/" + bookingCode))
+            .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/v1/appointments/" + bookingCode)
+                .param("phone", "0901234567"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.bookingCode").value(bookingCode))
             .andExpect(jsonPath("$.doctorName").value("BS. CKII Nguyễn Văn An"))
@@ -118,9 +122,37 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         // 5. Cancel appointment
         mockMvc.perform(post("/api/v1/appointments/" + bookingCode + "/cancel")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"reason\":\"Thay đổi kế hoạch công tác\"}"))
+                .content("{\"reason\":\"Thay đổi kế hoạch công tác\",\"phone\":\"0901234567\"}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("CANCELLED"));
+    }
+
+    @Test
+    void lookupRejectsWrongPhoneProof() throws Exception {
+        HoldSlotRequest holdRequest = new HoldSlotRequest(
+            doctor.getId(),
+            LocalDate.now().plusDays(5),
+            LocalTime.of(11, 0),
+            "Người Dùng Bảo Mật",
+            "0912345678",
+            null,
+            "Kiểm tra sức khỏe",
+            specialty.getId(),
+            null,
+            null
+        );
+
+        MvcResult holdResult = mockMvc.perform(post("/api/v1/appointments/hold")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(holdRequest)))
+            .andExpect(status().isCreated())
+            .andReturn();
+        String bookingCode = objectMapper.readTree(holdResult.getResponse().getContentAsString())
+            .get("bookingCode").asText();
+
+        mockMvc.perform(get("/api/v1/appointments/" + bookingCode)
+                .param("phone", "0900000000"))
+            .andExpect(status().isUnauthorized());
     }
 
     @Test

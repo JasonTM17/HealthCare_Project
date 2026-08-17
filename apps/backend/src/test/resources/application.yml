@@ -19,5 +19,7 @@ app:
   jwt:
     access-token-ttl: 900
     refresh-token-ttl: 604800
+  booking:
+    allow-test-otp: true
   cors:
     allowed-origins: "http://localhost:3000"
