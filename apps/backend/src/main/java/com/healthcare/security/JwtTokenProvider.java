@@ -19,6 +19,13 @@ public class JwtTokenProvider {
     public static final String TOKEN_TYPE_ACCESS = "access";
     public static final String TOKEN_TYPE_REFRESH = "refresh";
     public static final String CLAIM_TYPE = "type";
+
+    private static final long MAX_ACCESS_TOKEN_TTL_SECONDS = 3_600;
+    private static final long MAX_REFRESH_TOKEN_TTL_SECONDS = 2_592_000;
+    private static final long MAX_FUTURE_ISSUED_AT_SKEW_SECONDS = 30;
+    private static final int MIN_DISTINCT_SECRET_CODE_POINTS = 8;
+    private static final int MAX_REPEATED_SECRET_PATTERN_CODE_POINTS = 8;
+
     private static final Set<String> UNSAFE_DEFAULT_SECRETS = Set.of(
         "local-development-secret-must-be-replaced-before-production",
         "change-me-use-a-256-bit-secret-key-for-production-environment-please"
@@ -36,8 +43,17 @@ public class JwtTokenProvider {
         if (UNSAFE_DEFAULT_SECRETS.contains(secret.trim())) {
             throw new IllegalStateException("JWT_SECRET must be replaced with a unique secret");
         }
+        if (isObviouslyLowEntropy(secret)) {
+            throw new IllegalStateException("JWT_SECRET must not be an obvious low-entropy or repeated value");
+        }
         if (properties.accessTokenTtl() <= 0 || properties.refreshTokenTtl() <= 0) {
             throw new IllegalStateException("JWT token TTLs must be positive");
+        }
+        if (properties.accessTokenTtl() > MAX_ACCESS_TOKEN_TTL_SECONDS) {
+            throw new IllegalStateException("JWT access token TTL must not exceed 3600 seconds");
+        }
+        if (properties.refreshTokenTtl() > MAX_REFRESH_TOKEN_TTL_SECONDS) {
+            throw new IllegalStateException("JWT refresh token TTL must not exceed 2592000 seconds");
         }
         if (properties.refreshTokenTtl() < properties.accessTokenTtl()) {
             throw new IllegalStateException("JWT refresh token TTL must not be shorter than access token TTL");
@@ -112,21 +128,83 @@ public class JwtTokenProvider {
     }
 
     private boolean hasRequiredClaims(Claims claims) {
-        if (!hasText(claims.getSubject())
-                || !hasText(claims.getId())
-                || claims.getIssuedAt() == null
-                || claims.getExpiration() == null) {
+        String subject;
+        String tokenId;
+        String tokenType;
+        Date issuedAt;
+        Date expiration;
+        String email = null;
+
+        try {
+            subject = claims.getSubject();
+            tokenId = claims.getId();
+            tokenType = claims.get(CLAIM_TYPE, String.class);
+            issuedAt = claims.getIssuedAt();
+            expiration = claims.getExpiration();
+            if (TOKEN_TYPE_ACCESS.equals(tokenType)) {
+                email = claims.get("email", String.class);
+            }
+        } catch (RuntimeException e) {
+            return false;
+        }
+
+        if (!hasText(subject)
+                || !hasText(tokenId)
+                || issuedAt == null
+                || expiration == null
+                || (!TOKEN_TYPE_ACCESS.equals(tokenType) && !TOKEN_TYPE_REFRESH.equals(tokenType))
+                || (TOKEN_TYPE_ACCESS.equals(tokenType) && !hasText(email))) {
             return false;
         }
 
         try {
-            UUID.fromString(claims.getSubject());
+            UUID parsedSubject = UUID.fromString(subject);
+            if (!parsedSubject.toString().equalsIgnoreCase(subject)) {
+                return false;
+            }
         } catch (IllegalArgumentException e) {
             return false;
         }
 
-        String tokenType = claims.get(CLAIM_TYPE, String.class);
-        return TOKEN_TYPE_ACCESS.equals(tokenType) || TOKEN_TYPE_REFRESH.equals(tokenType);
+        Instant issuedAtInstant = issuedAt.toInstant();
+        Instant expirationInstant = expiration.toInstant();
+        Instant now = Instant.now();
+        if (issuedAtInstant.isAfter(now.plusSeconds(MAX_FUTURE_ISSUED_AT_SKEW_SECONDS))
+                || !expirationInstant.isAfter(issuedAtInstant)) {
+            return false;
+        }
+
+        long maxTokenLifetime = TOKEN_TYPE_ACCESS.equals(tokenType)
+            ? MAX_ACCESS_TOKEN_TTL_SECONDS
+            : MAX_REFRESH_TOKEN_TTL_SECONDS;
+        return !expirationInstant.isAfter(issuedAtInstant.plusSeconds(maxTokenLifetime));
+    }
+
+    private boolean isObviouslyLowEntropy(String secret) {
+        int[] codePoints = secret.codePoints().toArray();
+        if (secret.codePoints().distinct().count() < MIN_DISTINCT_SECRET_CODE_POINTS) {
+            return true;
+        }
+
+        for (int patternLength = 1;
+             patternLength <= MAX_REPEATED_SECRET_PATTERN_CODE_POINTS && patternLength < codePoints.length;
+             patternLength++) {
+            if (codePoints.length % patternLength != 0) {
+                continue;
+            }
+
+            boolean repeated = true;
+            for (int index = patternLength; index < codePoints.length; index++) {
+                if (codePoints[index] != codePoints[index % patternLength]) {
+                    repeated = false;
+                    break;
+                }
+            }
+            if (repeated) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean hasText(String value) {
