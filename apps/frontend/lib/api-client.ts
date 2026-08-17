@@ -376,11 +376,11 @@ export async function adminListDoctors(
   page = 0,
   size = 50,
 ): Promise<Page<Doctor>> {
-  return getJson<Page<Doctor>>(`/admin/doctors${toQuery({ page, size })}`);
+  return getAuthenticatedJson<Page<Doctor>>(`/admin/doctors${toQuery({ page, size })}`);
 }
 
 export async function adminCreateDoctor(payload: AdminDoctorPayload): Promise<Doctor> {
-  return getJson<Doctor>("/admin/doctors", {
+  return getAuthenticatedJson<Doctor>("/admin/doctors", {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -390,14 +390,14 @@ export async function adminUpdateDoctor(
   slug: string,
   payload: AdminDoctorPayload,
 ): Promise<Doctor> {
-  return getJson<Doctor>(`/admin/doctors/${slug}`, {
+  return getAuthenticatedJson<Doctor>(`/admin/doctors/${slug}`, {
     method: "PUT",
     body: JSON.stringify(payload),
   });
 }
 
 export async function adminDeleteDoctor(slug: string): Promise<void> {
-  await fetch(`${API_BASE_URL}/admin/doctors/${slug}`, { method: "DELETE" });
+  await getAuthenticatedJson<void>(`/admin/doctors/${slug}`, { method: "DELETE" });
 }
 
 // ── Admin: Specialties ──────────────────────────────────────────────────────
@@ -413,11 +413,11 @@ export async function adminListSpecialties(
   page = 0,
   size = 50,
 ): Promise<Page<Specialty>> {
-  return getJson<Page<Specialty>>(`/admin/specialties${toQuery({ page, size })}`);
+  return getAuthenticatedJson<Page<Specialty>>(`/admin/specialties${toQuery({ page, size })}`);
 }
 
 export async function adminCreateSpecialty(payload: AdminSpecialtyPayload): Promise<Specialty> {
-  return getJson<Specialty>("/admin/specialties", {
+  return getAuthenticatedJson<Specialty>("/admin/specialties", {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -427,14 +427,14 @@ export async function adminUpdateSpecialty(
   slug: string,
   payload: AdminSpecialtyPayload,
 ): Promise<Specialty> {
-  return getJson<Specialty>(`/admin/specialties/${slug}`, {
+  return getAuthenticatedJson<Specialty>(`/admin/specialties/${slug}`, {
     method: "PUT",
     body: JSON.stringify(payload),
   });
 }
 
 export async function adminDeleteSpecialty(slug: string): Promise<void> {
-  await fetch(`${API_BASE_URL}/admin/specialties/${slug}`, { method: "DELETE" });
+  await getAuthenticatedJson<void>(`/admin/specialties/${slug}`, { method: "DELETE" });
 }
 
 // ── Authentication and portal data ─────────────────────────────────────────
