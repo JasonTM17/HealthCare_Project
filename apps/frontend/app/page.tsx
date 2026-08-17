@@ -61,7 +61,7 @@ export default function Home() {
         <p>Các thẻ dịch vụ hiện là placeholder an toàn, không sao chép tên gói hoặc mô tả từ bệnh viện khác.</p>
       </section>
 
-      <section className="section contact" id="network">
+      <section className="section contact" id="contact">
         <h2>Mạng lưới cơ sở</h2>
         <p>Không gian dành cho danh sách cơ sở, giờ làm việc và kênh liên hệ khi backend domain sẵn sàng.</p>
       </section>
