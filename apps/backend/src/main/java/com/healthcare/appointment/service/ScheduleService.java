@@ -10,8 +10,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.DateTimeException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -41,13 +43,7 @@ public class ScheduleService {
             return Collections.emptyList();
         }
 
-        int dayOfWeekVal = date.getDayOfWeek().getValue(); // 1 = Monday, 7 = Sunday
-        List<DoctorSchedule> schedules = doctorScheduleRepository.findByDoctorIdAndDayOfWeekAndActiveTrue(doctorId, dayOfWeekVal);
-
-        // If no custom schedule is registered, provide standard clinical shifts (Mon-Sat)
-        if (schedules.isEmpty() && date.getDayOfWeek() != DayOfWeek.SUNDAY) {
-            schedules = createDefaultShifts(doctorId, dayOfWeekVal);
-        }
+        List<DoctorSchedule> schedules = schedulesForDate(doctorId, date);
 
         if (schedules.isEmpty()) {
             return Collections.emptyList();
@@ -86,6 +82,69 @@ public class ScheduleService {
         }
 
         return slots;
+    }
+
+    /**
+     * Keeps booking writes on the same schedule contract exposed by the slots API.
+     * A request must be aligned to a configured slot (or the documented local demo
+     * shifts when no custom schedule exists), and cannot target a past slot.
+     */
+    public boolean isBookableSlot(UUID doctorId, UUID branchId, LocalDate date, LocalTime startTime) {
+        if (date == null || startTime == null || date.isBefore(LocalDate.now())) {
+            return false;
+        }
+        if (date.equals(LocalDate.now())
+                && LocalDateTime.of(date, startTime).isBefore(LocalDateTime.now().plusMinutes(15))) {
+            return false;
+        }
+
+        return schedulesForDate(doctorId, date).stream()
+            .filter(schedule -> schedule.getBranch() == null
+                || (branchId != null && branchId.equals(schedule.getBranch().getId())))
+            .anyMatch(schedule -> containsSlot(schedule, startTime));
+    }
+
+    private List<DoctorSchedule> schedulesForDate(UUID doctorId, LocalDate date) {
+        int dayOfWeekVal = date.getDayOfWeek().getValue(); // 1 = Monday, 7 = Sunday
+        List<DoctorSchedule> schedules = doctorScheduleRepository
+            .findByDoctorIdAndDayOfWeekAndActiveTrue(doctorId, dayOfWeekVal);
+
+        // If no custom schedule is registered, provide standard clinical shifts (Mon-Sat).
+        if (schedules.isEmpty() && date.getDayOfWeek() != DayOfWeek.SUNDAY) {
+            return createDefaultShifts(doctorId, dayOfWeekVal);
+        }
+        return schedules;
+    }
+
+    private boolean containsSlot(DoctorSchedule schedule, LocalTime requestedStart) {
+        LocalTime scheduleStart = schedule.getStartTime();
+        LocalTime scheduleEnd = schedule.getEndTime();
+        int duration = schedule.getSlotDurationMinutes();
+        if (scheduleStart == null || scheduleEnd == null || duration <= 0 || duration > 1440
+                || requestedStart.isBefore(scheduleStart) || !requestedStart.isBefore(scheduleEnd)) {
+            return false;
+        }
+
+        LocalTime candidate = scheduleStart;
+        while (candidate.isBefore(scheduleEnd)) {
+            LocalTime candidateEnd;
+            try {
+                candidateEnd = candidate.plusMinutes(duration);
+            } catch (DateTimeException exception) {
+                return false;
+            }
+            if (!candidateEnd.isAfter(candidate)) {
+                return false;
+            }
+            if (candidate.equals(requestedStart)) {
+                return !candidateEnd.isAfter(scheduleEnd);
+            }
+            if (!candidateEnd.isBefore(scheduleEnd)) {
+                return false;
+            }
+            candidate = candidateEnd;
+        }
+        return false;
     }
 
     private List<DoctorSchedule> createDefaultShifts(UUID doctorId, int dayOfWeek) {

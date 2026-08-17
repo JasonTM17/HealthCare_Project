@@ -77,7 +77,7 @@ public class AppointmentController {
     @Operation(summary = "Cancel an appointment")
     public ResponseEntity<AppointmentResponse> cancelAppointment(
             @PathVariable String bookingCode,
-            @RequestBody(required = false) CancelAppointmentRequest request,
+            @Valid @RequestBody(required = false) CancelAppointmentRequest request,
             @AuthenticationPrincipal UserDetails userDetails) {
         String reason = request != null ? request.reason() : null;
         String phone = request != null ? request.phone() : null;

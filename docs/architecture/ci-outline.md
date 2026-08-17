@@ -16,8 +16,9 @@ CI run is claimed in the local handoff.
 
 ## Local Evidence Boundary
 
-The final local run observed backend 63/63 tests against explicitly configured
+The final local run observed backend 65/65 tests against explicitly configured
 PostgreSQL 18.1 with MinIO available, frontend lint/typecheck/test/build,
-AI pytest/Ruff/mypy, and Compose config validation. The Java Testcontainers
-provider was not accepted in this desktop environment, and no CI, deployment,
-or production-readiness conclusion follows from the local run.
+AI pytest 22/22 plus Ruff/mypy, and Compose config validation. Flyway applied
+V1-V8 and Hibernate validation passed. The Java Testcontainers provider was not
+accepted in this desktop environment, and no CI, deployment, or
+production-readiness conclusion follows from the local run.

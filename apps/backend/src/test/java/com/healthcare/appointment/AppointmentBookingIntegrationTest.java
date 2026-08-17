@@ -202,6 +202,35 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
     }
 
     @Test
+    void holdRejectsSlotOutsideDoctorSchedule() throws Exception {
+        HoldSlotRequest holdRequest = new HoldSlotRequest(
+            doctor.getId(),
+            LocalDate.now().plusDays(8),
+            LocalTime.of(12, 0),
+            "Slot Ngoài Lịch",
+            "0905552222",
+            null,
+            "Không được đặt giờ nghỉ trưa",
+            specialty.getId(),
+            null,
+            null
+        );
+
+        mockMvc.perform(post("/api/v1/appointments/hold")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(holdRequest)))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void malformedHoldPayloadReturnsBadRequest() throws Exception {
+        mockMvc.perform(post("/api/v1/appointments/hold")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"doctorId\":\"" + doctor.getId() + "\"}"))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void authenticatedUserCannotClaimUnlinkedPatientByPhone() throws Exception {
         PatientProfile legacyProfile = new PatientProfile();
         legacyProfile.setFullName("Hồ Sơ Chưa Liên Kết");
@@ -210,8 +239,8 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
 
         HoldSlotRequest holdRequest = new HoldSlotRequest(
             doctor.getId(),
-            LocalDate.now().plusDays(6),
-            LocalTime.of(13, 0),
+            LocalDate.now().plusDays(8),
+            LocalTime.of(13, 30),
             "Tài Khoản Mới",
             "0905550000",
             null,

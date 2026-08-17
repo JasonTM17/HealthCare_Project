@@ -2,7 +2,7 @@
 title: Security Review — HealthCare Backend
 date: 2026-08-17
 scope: apps/backend Spring Boot + apps/ai-service FastAPI
-verdict: PASS with noted gaps
+verdict: PASS for local foundation with noted gaps
 ---
 
 # Security Review
@@ -23,9 +23,11 @@ error handling, file uploads, AI endpoints.
 | 5 | CORS | Explicit allowlist from env, no wildcard; credentials enabled | PASS |
 | 6 | Error handling | Generic 500 message, no stack traces leaked, structured `ApiError` | PASS |
 | 7 | RAG ingest | Token-protected, disabled by default | PASS |
-| 8 | Input validation | Jakarta Validation on request DTOs; slug uniqueness enforced | PASS |
+| 8 | Input validation | Jakarta Validation on auth, appointment, and AI gateway request DTOs; slug uniqueness enforced | PASS |
 | 9 | Rate limiting | No rate limiter on auth endpoints | LOW (foundation phase) |
 | 10 | HTTPS/TLS | Not configured (local dev) | INFO |
+| 11 | Appointment integrity | Active doctor + schedule/slot validation, advisory lock, and V8 pending/active uniqueness index | PASS (local path) |
+| 12 | AI service boundary | Backend gateway is authenticated; direct FastAPI routes require `AI_SERVICE_TOKEN` when configured and Compose binds the port to loopback | LOCAL-ONLY |
 
 ## Recommendations (post-foundation)
 
@@ -36,6 +38,7 @@ error handling, file uploads, AI endpoints.
 
 ## Verdict
 
-No critical or high-severity issues. The auth/RBAC and object-level
-authorization boundaries are correctly implemented for the foundation
-scope.
+No critical or high-severity issues were found for the bounded local foundation
+path. The review is not production approval: Testcontainers/live provider
+execution, TLS, rate limiting, and non-loopback deployment isolation remain
+separate gates. Set a non-empty `AI_SERVICE_TOKEN` for shared/staging use.

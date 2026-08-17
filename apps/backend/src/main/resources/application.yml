@@ -32,6 +32,7 @@ app:
 ai:
   service:
     url: ${AI_SERVICE_URL:http://localhost:8000}
+    token: ${AI_SERVICE_TOKEN:}
 
 server:
   port: ${BACKEND_PORT:8080}

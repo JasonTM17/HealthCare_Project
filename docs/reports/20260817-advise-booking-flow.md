@@ -5,6 +5,12 @@
 - **Kỹ sư tư vấn:** AgentKit Advisor (`/ak:advise`)
 - **Đối tượng:** Monorepo (`apps/backend` Spring Boot, `apps/frontend` Next.js, `apps/ai-service` FastAPI, PostgreSQL 16)
 
+> **Historical advisory artifact.** This document records an earlier proposal,
+> not current implementation evidence. Current code uses Flyway V1-V8,
+> transaction-scoped advisory locking, schedule validation, and a guest OTP
+> flow; verify the implementation and current test report before treating any
+> recommendation below as a contract.
+
 ---
 
 ## 1. Verdict (Nhận định cốt lõi)

@@ -27,14 +27,14 @@ import org.springframework.test.web.servlet.MockMvc;
  * Base class for all Spring Boot integration tests.
  *
  * <p>By default this base points the test datasource at the local PostgreSQL
- * instance (the docker-compose service on {@code localhost:5432/healthcare}), so
+ * instance (the docker-compose service on {@code localhost:5434/healthcare}), so
  * the suite runs without Testcontainers and without a Docker daemon. This keeps
  * the build hermetic on developer machines and CI agents where Docker is absent.
  *
  * <p>The connection is overridable via environment variables, so the same tests
  * can target any Postgres without code changes:
  * <ul>
- *   <li>{@code TEST_DB_URL} — JDBC URL (default {@code jdbc:postgresql://localhost:5432/healthcare})</li>
+ *   <li>{@code TEST_DB_URL} — JDBC URL (default {@code jdbc:postgresql://localhost:5434/healthcare})</li>
  *   <li>{@code TEST_DB_USERNAME} — default {@code healthcare}</li>
  *   <li>{@code TEST_DB_PASSWORD} — default {@code change-me}</li>
  *   <li>{@code TEST_DB_NAME} — default {@code healthcare}</li>
@@ -56,7 +56,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 public abstract class AbstractIntegrationTest {
 
-    private static final String DEFAULT_DB_URL = "jdbc:postgresql://localhost:5432/healthcare";
+    private static final String DEFAULT_DB_URL = "jdbc:postgresql://localhost:5434/healthcare";
     private static final String DEFAULT_DB_USERNAME = "healthcare";
     private static final String DEFAULT_DB_PASSWORD = "change-me";
 

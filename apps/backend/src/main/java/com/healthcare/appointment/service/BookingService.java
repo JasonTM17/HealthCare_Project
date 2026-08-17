@@ -45,6 +45,7 @@ public class BookingService {
     private final BranchRepository branchRepository;
     private final PackageRepository packageRepository;
     private final UserRepository userRepository;
+    private final ScheduleService scheduleService;
 
     @Value("${app.booking.allow-test-otp:false}")
     private boolean allowTestOtp;
@@ -55,7 +56,8 @@ public class BookingService {
                           SpecialtyRepository specialtyRepository,
                           BranchRepository branchRepository,
                           PackageRepository packageRepository,
-                          UserRepository userRepository) {
+                          UserRepository userRepository,
+                          ScheduleService scheduleService) {
         this.appointmentRepository = appointmentRepository;
         this.patientProfileRepository = patientProfileRepository;
         this.doctorRepository = doctorRepository;
@@ -63,6 +65,7 @@ public class BookingService {
         this.branchRepository = branchRepository;
         this.packageRepository = packageRepository;
         this.userRepository = userRepository;
+        this.scheduleService = scheduleService;
     }
 
     /**
@@ -75,8 +78,23 @@ public class BookingService {
 
     @Transactional
     public HoldSlotResponse holdSlot(HoldSlotRequest request, UserDetails userDetails) {
+        if (request == null || request.doctorId() == null || request.appointmentDate() == null
+                || request.startTime() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Thông tin khung giờ không hợp lệ");
+        }
+
         Doctor doctor = doctorRepository.findById(request.doctorId())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy thông tin bác sĩ"));
+        if (!doctor.isActive()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Bác sĩ hiện không nhận lịch khám");
+        }
+        if (!scheduleService.isBookableSlot(
+                request.doctorId(), request.branchId(), request.appointmentDate(), request.startTime())) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Khung giờ không nằm trong lịch làm việc hoặc đã qua. Vui lòng chọn một slot đang mở."
+            );
+        }
 
         OffsetDateTime now = OffsetDateTime.now();
 
@@ -84,6 +102,21 @@ public class BookingService {
         // alone cannot prevent two first writers from both observing an empty slot.
         String slotLockKey = request.doctorId() + ":" + request.appointmentDate() + ":" + request.startTime();
         appointmentRepository.acquireSlotLock(slotLockKey);
+
+        List<Appointment> expired = appointmentRepository.findExpiredPendingConflictsForUpdate(
+            request.doctorId(),
+            request.appointmentDate(),
+            request.startTime(),
+            now
+        );
+        for (Appointment expiredAppointment : expired) {
+            expiredAppointment.setStatus(AppointmentStatus.CANCELLED);
+            expiredAppointment.setCancellationReason("Hết thời gian giữ chỗ (Quá 10 phút)");
+        }
+        if (!expired.isEmpty()) {
+            appointmentRepository.saveAll(expired);
+            appointmentRepository.flush();
+        }
 
         // 1. Concurrency Check with Pessimistic Lock
         List<Appointment> conflicts = appointmentRepository.findActiveConflictsForUpdate(
@@ -137,7 +170,15 @@ public class BookingService {
             packageRepository.findById(request.packageId()).ifPresent(appointment::setMedicalPackage);
         }
 
-        appointmentRepository.saveAndFlush(appointment);
+        try {
+            appointmentRepository.saveAndFlush(appointment);
+        } catch (DataIntegrityViolationException exception) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Khung giờ khám này vừa có người đặt hoặc đang được giữ chỗ. Vui lòng chọn khung giờ khác.",
+                exception
+            );
+        }
 
         return new HoldSlotResponse(
             bookingCode,

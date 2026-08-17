@@ -4,7 +4,7 @@
 
 Status: local foundation implemented; bounded clinical and safety repairs are
 complete on `main`. The current repository contains the backend, frontend,
-FastAPI AI/RAG service, infrastructure, committed CI definition, Flyway V1-V7,
+FastAPI AI/RAG service, infrastructure, committed CI definition, Flyway V1-V8,
 and AgentKit plans. This section supersedes the historical discovery notes that
 were written before application scaffolding existed.
 

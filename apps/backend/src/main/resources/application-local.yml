@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: ${DATABASE_URL:jdbc:postgresql://localhost:5433/healthcare}
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5434/healthcare}
     username: ${DATABASE_USERNAME:healthcare}
     password: ${DATABASE_PASSWORD:change-me}
   jpa:

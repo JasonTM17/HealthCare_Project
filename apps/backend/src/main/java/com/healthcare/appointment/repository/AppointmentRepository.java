@@ -41,11 +41,27 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
           and a.appointmentDate = :appointmentDate
           and a.startTime = :startTime
           and (
-            a.status = 'CONFIRMED'
+            a.status in ('CONFIRMED', 'CHECKED_IN', 'IN_PROGRESS')
             or (a.status = 'PENDING_CONFIRMATION' and a.holdExpiresAt > :now)
           )
     """)
     List<Appointment> findActiveConflictsForUpdate(
+        @Param("doctorId") UUID doctorId,
+        @Param("appointmentDate") LocalDate appointmentDate,
+        @Param("startTime") LocalTime startTime,
+        @Param("now") OffsetDateTime now
+    );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+        select a from Appointment a
+        where a.doctor.id = :doctorId
+          and a.appointmentDate = :appointmentDate
+          and a.startTime = :startTime
+          and a.status = 'PENDING_CONFIRMATION'
+          and (a.holdExpiresAt is null or a.holdExpiresAt <= :now)
+    """)
+    List<Appointment> findExpiredPendingConflictsForUpdate(
         @Param("doctorId") UUID doctorId,
         @Param("appointmentDate") LocalDate appointmentDate,
         @Param("startTime") LocalTime startTime,
@@ -57,7 +73,7 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
         where a.doctor.id = :doctorId
           and a.appointmentDate = :appointmentDate
           and (
-            a.status = 'CONFIRMED'
+            a.status in ('CONFIRMED', 'CHECKED_IN', 'IN_PROGRESS')
             or (a.status = 'PENDING_CONFIRMATION' and a.holdExpiresAt > :now)
           )
     """)

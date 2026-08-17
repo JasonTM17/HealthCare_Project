@@ -69,6 +69,19 @@ def test_rag_ingest_is_disabled_or_token_protected(monkeypatch: pytest.MonkeyPat
     assert accepted.json()["id"] == "specialty:cardio"
 
 
+def test_ai_service_token_protects_search_routes(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "ai_service_token", "test-service-token")
+
+    unauthorized = client.get("/rag/stats")
+    assert unauthorized.status_code == 401
+
+    authorized = client.get(
+        "/rag/stats",
+        headers={"X-AI-Service-Token": "test-service-token"},
+    )
+    assert authorized.status_code == 200
+
+
 def _doc(source_id: str, title: str, content: str, embedding: list[float]) -> RagDocument:
     return RagDocument(
         id=f"specialty:{source_id}",

@@ -43,7 +43,7 @@ local educational foundation; this plan does not authorize production use.
 
 - [x] `mvn -DskipTests compile` succeeds with the clinical source present.
 - [x] Exactly one canonical clinical migration follows committed `V4__appointments.sql`; no duplicate table creation remains.
-- [x] `spring.jpa.hibernate.ddl-auto=validate` passes against a fresh V1–V6 database.
+- [x] `spring.jpa.hibernate.ddl-auto=validate` passes against a fresh V1–V8 database.
 - [x] Clinical GET/POST endpoints enforce role and object ownership; cross-patient and cross-doctor negative tests return 403/404 as designed.
 - [x] Clinical controllers return DTOs rather than bidirectional JPA entities.
 - [x] Backend regression suite passes in an explicitly configured PostgreSQL environment; the Docker Java/Testcontainers provider remains NOT_RUN.
@@ -64,13 +64,13 @@ local educational foundation; this plan does not authorize production use.
 
 ## Evidence snapshot
 
-- Backend: `mvn test` passed 58/58 on PostgreSQL 16.15 database
-  `healthcare_repair_final_20260817`; Flyway validated/applied V1–V6 and
+- Backend: `mvn test` passed 65/65 on PostgreSQL 18.1 database
+  `healthcare_repair_final_20260817`; Flyway validated/applied V1–V8 and
   Hibernate ran with `ddl-auto=validate`. `mvn -DskipTests compile` passed.
 - Frontend: `npm run lint`, `npm run typecheck`, `npm test -- --runInBand`, and
   `npm run build` passed; the articles page now reads the articles API rather
   than the packages API.
-- AI service: 21 pytest tests, Ruff, and mypy passed. DeepSeek/provider calls
+- AI service: 22 pytest tests, Ruff, and mypy passed. DeepSeek/provider calls
   were not exercised with a live credential; local deterministic fallback was
   exercised. RAG ingestion is disabled and token-protected by default.
 - Infrastructure: `docker compose -f infrastructure/docker-compose.yml

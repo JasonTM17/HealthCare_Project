@@ -1,6 +1,9 @@
 package com.healthcare.ai.controller;
 
 import com.healthcare.ai.service.AiService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,15 +25,15 @@ public class AiController {
     }
 
     @PostMapping("/symptom-check")
-    public ResponseEntity<Map<String, Object>> symptomCheck(@RequestBody AiRequest request) {
+    public ResponseEntity<Map<String, Object>> symptomCheck(@Valid @RequestBody AiRequest request) {
         return ResponseEntity.ok(aiService.symptomCheck(Map.of("symptoms", request.symptoms())));
     }
 
     @PostMapping("/specialty-recommendation")
-    public ResponseEntity<Map<String, Object>> specialtyRecommendation(@RequestBody AiRequest request) {
+    public ResponseEntity<Map<String, Object>> specialtyRecommendation(@Valid @RequestBody AiRequest request) {
         return ResponseEntity.ok(aiService.recommendSpecialty(Map.of("symptoms", request.symptoms())));
     }
 
-    public record AiRequest(String symptoms) {
+    public record AiRequest(@NotBlank @Size(min = 2, max = 10_000) String symptoms) {
     }
 }

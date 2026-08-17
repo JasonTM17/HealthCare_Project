@@ -1,6 +1,6 @@
 import secrets
 
-from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from pydantic_settings import BaseSettings
 from app.schemas import (
     EmbeddingRequest, EmbeddingResponse,
@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     embedding_provider: str = "local"
     rag_ingest_enabled: bool = False
     rag_ingest_token: str = ""
+    ai_service_token: str = ""
     # DeepSeek LLM credentials
     deepseek_api_key: str = ""
     deepseek_model: str = "deepseek-chat"
@@ -34,6 +35,17 @@ app = FastAPI(title="HealthCare AI Service", version="0.1.0")
 rag_service = RagService()
 
 
+def require_service_auth(
+    x_ai_service_token: str | None = Header(default=None, alias="X-AI-Service-Token"),
+) -> None:
+    """Require a shared token when configured for shared/staging deployments."""
+    if settings.ai_service_token and (
+        not x_ai_service_token
+        or not secrets.compare_digest(x_ai_service_token, settings.ai_service_token)
+    ):
+        raise HTTPException(status_code=401, detail="AI service authentication required")
+
+
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse(
@@ -45,18 +57,18 @@ def health() -> HealthResponse:
     )
 
 
-@app.post("/triage", response_model=TriageResponse)
+@app.post("/triage", response_model=TriageResponse, dependencies=[Depends(require_service_auth)])
 def symptom_triage(request: TriageRequest) -> TriageResponse:
     return resolve_triage(request.symptoms, settings)
 
 
-@app.post("/embeddings", response_model=EmbeddingResponse)
+@app.post("/embeddings", response_model=EmbeddingResponse, dependencies=[Depends(require_service_auth)])
 def embeddings(request: EmbeddingRequest) -> EmbeddingResponse:
     vector, model = embed(request.text, settings)
     return EmbeddingResponse(embedding=vector, model=model)
 
 
-@app.post("/rag/search", response_model=RAGSearchResponse)
+@app.post("/rag/search", response_model=RAGSearchResponse, dependencies=[Depends(require_service_auth)])
 def rag_search(request: RAGSearchRequest) -> RAGSearchResponse:
     query_embedding, _ = embed(request.query, settings)
     hits = rag_service.search(query_embedding, top_k=request.top_k)
@@ -76,6 +88,7 @@ def rag_search(request: RAGSearchRequest) -> RAGSearchResponse:
 def rag_index(
     payload: RAGIndexRequest,
     x_rag_ingest_token: str | None = Header(default=None),
+    _service_auth: None = Depends(require_service_auth),
 ) -> RAGIndexResponse:
     """Ingest trusted knowledge; disabled and token-protected by default."""
     if not settings.rag_ingest_enabled:
@@ -98,7 +111,11 @@ def rag_index(
     return RAGIndexResponse(id=doc.id, index_size=rag_service.index.size)
 
 
-@app.post("/recommendations/specialty", response_model=TriageResponse)
+@app.post(
+    "/recommendations/specialty",
+    response_model=TriageResponse,
+    dependencies=[Depends(require_service_auth)],
+)
 def specialty_recommendation(request: SpecialtyRecommendationRequest) -> TriageResponse:
     """Specialty recommendation grounded in the RAG index when documents exist."""
     query_embedding, _ = embed(request.symptoms, settings)
@@ -111,7 +128,7 @@ def specialty_recommendation(request: SpecialtyRecommendationRequest) -> TriageR
     return resolve_triage(request.symptoms, settings)
 
 
-@app.get("/rag/stats")
+@app.get("/rag/stats", dependencies=[Depends(require_service_auth)])
 def rag_stats() -> dict:
     return {"documents": rag_service.index.size}
 
@@ -121,6 +138,7 @@ def semantic_search(
     q: str = Query(default="", max_length=10_000),
     specialty: str = Query(default="", max_length=200),
     top_k: int = Query(default=10, ge=1, le=20),
+    _service_auth: None = Depends(require_service_auth),
 ) -> SemanticSearchResponse:
     """Hybrid semantic search over the RAG index.
 

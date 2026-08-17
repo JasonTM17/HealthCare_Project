@@ -25,8 +25,12 @@
 - Clinical records require authentication, role checks, linked patient/doctor
   ownership, DTO responses, and negative authorization coverage.
 - Appointment lookup/cancellation requires a linked owner or phone proof;
-  slot creation uses transaction-scoped PostgreSQL advisory locking plus an
-  active-slot uniqueness index.
+  slot creation validates doctor status and schedule alignment, uses
+  transaction-scoped PostgreSQL advisory locking, and has a pending/active-slot
+  uniqueness index with expired-hold cleanup.
+- The AI gateway is authenticated at the backend boundary. A shared
+  `AI_SERVICE_TOKEN` also protects direct FastAPI routes when configured;
+  local Compose keeps the token optional and binds port 8000 to loopback.
 - RAG ingestion is disabled by default and requires a configured token when
   enabled. The in-memory index is a foundation implementation, not a durable
   production knowledge store.

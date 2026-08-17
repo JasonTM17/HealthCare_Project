@@ -52,7 +52,7 @@ class AiServiceTest {
 
     @Test
     void invalidSymptomsAreRejectedBeforeCallingUpstream() {
-        assertThatThrownBy(() -> aiService.symptomCheck(Map.of("symptoms", " ")))
+        assertThatThrownBy(() -> aiService.symptomCheck(Map.of("symptoms", "x")))
             .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
                 assertThat(exception.getStatusCode()).isEqualTo(BAD_REQUEST));
     }

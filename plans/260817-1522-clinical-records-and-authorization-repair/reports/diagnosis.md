@@ -44,3 +44,12 @@ and focused negative authorization tests. The final backend suite passed 58/58
 on an explicitly configured PostgreSQL 16.15 database with Flyway V1-V6 and
 Hibernate validation. Docker/Testcontainers availability and production
 provider/compliance claims remain separate evidence gates.
+
+## Follow-up evidence
+
+The bounded follow-up now also validates appointment schedule membership and
+request shape, protects the pending-slot database invariant with V8, aligns the
+backend/AI symptom contract, and adds an optional shared AI service token. The
+latest local run is recorded as 65/65 backend tests on PostgreSQL 18.1, 22/22
+AI tests plus Ruff/mypy, frontend gates, and Compose config validation. These
+results remain local-development evidence only.

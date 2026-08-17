@@ -8,6 +8,7 @@ import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.converter.ByteArrayHttpMessageConverter;
 import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
@@ -29,9 +30,15 @@ public class AiService {
     @Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl;
 
+    @Value("${ai.service.token:}")
+    private String aiServiceToken;
+
     public AiService(RestTemplateBuilder restTemplateBuilder, ObjectMapper objectMapper) {
         this.restTemplate = restTemplateBuilder
-            .messageConverters(new StringHttpMessageConverter(StandardCharsets.UTF_8))
+            .messageConverters(
+                new ByteArrayHttpMessageConverter(),
+                new StringHttpMessageConverter(StandardCharsets.UTF_8)
+            )
             .build();
         this.objectMapper = objectMapper;
     }
@@ -55,23 +62,30 @@ public class AiService {
 
     private Map<String, Object> post(String path, Map<String, Object> request) {
         Object symptoms = request == null ? null : request.get("symptoms");
-        if (!(symptoms instanceof String text) || text.isBlank() || text.length() > 10_000) {
-            throw new ResponseStatusException(BAD_REQUEST, "Symptoms must be between 1 and 10000 characters");
+        if (!(symptoms instanceof String text) || text.trim().length() < 2 || text.length() > 10_000) {
+            throw new ResponseStatusException(BAD_REQUEST, "Symptoms must be between 2 and 10000 characters");
         }
 
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
+            if (aiServiceToken != null && !aiServiceToken.isBlank()) {
+                headers.set("X-AI-Service-Token", aiServiceToken);
+            }
             String payload = objectMapper.writeValueAsString(request);
-            String raw = restTemplate.postForObject(
+            // Read the raw response as bytes, then decode as UTF-8 explicitly.
+            // This avoids RestTemplate applying the response's own charset
+            // (often ISO-8859-1 when omitted) which corrupts Vietnamese text.
+            byte[] raw = restTemplate.postForObject(
                 aiServiceUrl + path,
                 new HttpEntity<>(payload, headers),
-                String.class
+                byte[].class
             );
-            if (raw == null || raw.isBlank()) {
+            if (raw == null || raw.length == 0) {
                 throw new ResponseStatusException(BAD_GATEWAY, "AI service returned an empty response");
             }
-            return objectMapper.readValue(raw, new TypeReference<Map<String, Object>>() { });
+            String body = new String(raw, StandardCharsets.UTF_8);
+            return objectMapper.readValue(body, new TypeReference<Map<String, Object>>() { });
         } catch (RestClientException e) {
             throw new ResponseStatusException(BAD_GATEWAY, "AI service is unavailable", e);
         } catch (JsonProcessingException e) {

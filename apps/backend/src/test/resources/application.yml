@@ -23,3 +23,8 @@ app:
     allow-test-otp: true
   cors:
     allowed-origins: "http://localhost:3000"
+  datasource:
+    url: ${TEST_DB_URL:jdbc:postgresql://localhost:5434/healthcare}
+    username: ${TEST_DB_USERNAME:healthcare}
+    password: ${TEST_DB_PASSWORD:change-me}
+    driver-class-name: org.postgresql.Driver
