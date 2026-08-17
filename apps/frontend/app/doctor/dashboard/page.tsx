@@ -12,7 +12,7 @@ import {
   hasRole,
   type Page,
 } from "../../../lib/api-client";
-import type { AppointmentDetails, AuthUser, DiagnosticResult, MedicalRecord } from "../../../types/hospital";
+import type { DoctorPortalAppointment, AuthUser, DiagnosticResult, MedicalRecord } from "../../../types/hospital";
 import { EmptyState, ErrorState, ForbiddenState, LoadingState, LoginRequiredState } from "../../../components/PortalStates";
 import PortalAppointments from "../../../components/PortalAppointments";
 import { useAuthSession } from "../../../components/useAuthSession";
@@ -79,7 +79,7 @@ function renderLookupState<T>(
 }
 
 function renderDailyAppointments(
-  state: LookupState<Page<AppointmentDetails>>,
+  state: LookupState<Page<DoctorPortalAppointment>>,
   retry: () => void,
 ) {
   if (state.status === "idle") {
@@ -109,7 +109,7 @@ export default function DoctorDashboardPage() {
   const [diagnostics, setDiagnostics] = useState<LookupState<DiagnosticResult[]>>({ status: "idle" });
   const [dailyDate, setDailyDate] = useState(getTodayIsoDate);
   const [dailyStatus, setDailyStatus] = useState("");
-  const [dailyAppointments, setDailyAppointments] = useState<LookupState<Page<AppointmentDetails>>>({ status: "loading" });
+  const [dailyAppointments, setDailyAppointments] = useState<LookupState<Page<DoctorPortalAppointment>>>({ status: "loading" });
   const [dailyReloadKey, setDailyReloadKey] = useState(0);
   const [lookupError, setLookupError] = useState<string | null>(null);
 

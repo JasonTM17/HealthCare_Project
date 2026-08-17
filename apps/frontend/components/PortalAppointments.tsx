@@ -1,5 +1,5 @@
 import type { Page } from "../lib/api-client";
-import type { AppointmentDetails } from "../types/hospital";
+import type { PortalAppointment } from "../types/hospital";
 
 type AppointmentViewer = "patient" | "doctor";
 
@@ -32,7 +32,7 @@ export default function PortalAppointments({
   page,
   viewer,
 }: {
-  page: Page<AppointmentDetails>;
+  page: Page<PortalAppointment>;
   viewer: AppointmentViewer;
 }) {
   return (
@@ -44,11 +44,11 @@ export default function PortalAppointments({
             <span>{formatTime(appointment.startTime)} – {formatTime(appointment.endTime)}</span>
             <span className="portal-appointment__status">{statusLabel(appointment.status)}</span>
           </div>
-          <h3>{viewer === "doctor" ? appointment.patientName : appointment.doctorName}</h3>
+          <h3>{viewer === "doctor" ? appointment.patientName ?? "Bệnh nhân chưa cập nhật" : appointment.doctorName}</h3>
           <p className="portal-record__doctor">
             {viewer === "doctor"
-              ? `Bác sĩ: ${appointment.doctorName}${appointment.doctorTitle ? ` · ${appointment.doctorTitle}` : ""}`
-              : `${appointment.doctorTitle ? `${appointment.doctorTitle} · ` : ""}${appointment.specialtyName ?? "Chuyên khoa chưa cập nhật"}`}
+              ? `Bác sĩ: ${appointment.doctorName}`
+              : appointment.specialtyName ?? "Chuyên khoa chưa cập nhật"}
           </p>
           <dl className="portal-appointment__details">
             {appointment.specialtyName ? <div><dt>Chuyên khoa</dt><dd>{appointment.specialtyName}</dd></div> : null}

@@ -9,8 +9,9 @@ test("appointment client uses the documented authenticated Page contracts", asyn
   const source = await read("lib/api-client.ts");
 
   assert.match(source, /export async function fetchPatientAppointments/);
-  assert.match(source, /getAuthenticatedJson<Page<AppointmentDetails>>\(\s*`\/patient\/appointments/);
+  assert.match(source, /getAuthenticatedJson<Page<PatientPortalAppointment>>\(\s*`\/patient\/appointments/);
   assert.match(source, /export async function fetchDoctorAppointments/);
+  assert.match(source, /getAuthenticatedJson<Page<DoctorPortalAppointment>>/);
   assert.match(source, /const path = "\/doctor\/appointments"/);
   assert.match(source, /date: normalizedDate, status, page, size/);
   assert.match(source, /YYYY-MM-DD/);
@@ -32,7 +33,7 @@ test("appointment surfaces keep state boundaries and avoid symptoms or secrets",
     assert.match(source, /clearAuthSession/);
     assert.doesNotMatch(source, /console\.(?:log|error|warn)/);
   }
-  assert.match(component, /AppointmentDetails/);
+  assert.match(component, /PortalAppointment/);
   assert.match(component, /portal-appointment-list/);
   assert.match(component, /statusLabel/);
   assert.doesNotMatch(component, /symptoms|accessToken|refreshToken/i);

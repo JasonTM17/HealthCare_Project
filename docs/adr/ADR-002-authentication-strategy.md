@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted for the backend identity foundation. Frontend session transport remains undecided.
+Accepted for the backend identity foundation. Frontend session transport is
+accepted for the bounded local educational flow; production transport
+hardening remains a release decision.
 
 ## Context
 
@@ -16,7 +18,11 @@ Use application-owned email/password authentication with BCrypt password hashes,
 
 - Password hashes must never be returned from APIs or logs.
 - Refresh-token rotation, reuse rejection, and logout revocation are covered by backend regression tests.
-- Cookie vs bearer-token transport remains a user-facing security decision before frontend auth forms are implemented.
+- The local frontend stores the backend access/refresh response in
+  `sessionStorage` and sends bearer tokens to authenticated endpoints. This is
+  intentionally bounded to the local educational flow; a production release
+  still requires an approved transport, CSP/XSS posture, rate limiting, and
+  deployment evidence.
 
 ## JWT policy
 

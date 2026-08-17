@@ -102,6 +102,36 @@ export interface AppointmentDetails {
   createdAt: string;
 }
 
+export interface PortalAppointment {
+  id: string;
+  bookingCode: string;
+  doctorId: string;
+  doctorName: string;
+  patientId?: string;
+  patientName?: string;
+  specialtyName?: string;
+  branchId?: string;
+  branchName?: string;
+  branchAddress?: string;
+  packageName?: string;
+  appointmentDate: string;
+  startTime: string;
+  endTime: string;
+  status: string;
+  reasonForVisit?: string;
+  createdAt: string;
+}
+
+export interface PatientPortalAppointment extends PortalAppointment {
+  patientId?: never;
+  patientName?: never;
+}
+
+export interface DoctorPortalAppointment extends PortalAppointment {
+  patientId: string;
+  patientName: string;
+}
+
 export type AiTriageCitation = string | Record<string, unknown>;
 
 export type AiTriageProvenance = string | Record<string, unknown>;

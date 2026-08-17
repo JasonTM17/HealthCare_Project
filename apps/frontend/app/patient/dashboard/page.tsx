@@ -20,7 +20,7 @@ import {
 import { useAuthSession } from "../../../components/useAuthSession";
 import type {
   AuthUser,
-  AppointmentDetails,
+  PatientPortalAppointment,
   DiagnosticResult,
   MedicalRecord,
   Notification,
@@ -41,7 +41,7 @@ type Loadable<T> =
   | { status: "error"; message: string; statusCode?: number };
 
 const initialRecords: Loadable<MedicalRecord[]> = { status: "loading" };
-const initialAppointments: Loadable<Page<AppointmentDetails>> = { status: "loading" };
+const initialAppointments: Loadable<Page<PatientPortalAppointment>> = { status: "loading" };
 const initialPrescriptions: Loadable<Prescription[]> = { status: "loading" };
 const initialDiagnostics: Loadable<DiagnosticResult[]> = { status: "loading" };
 const initialNotifications: Loadable<Page<Notification>> = { status: "loading" };
@@ -127,7 +127,7 @@ export default function PatientDashboardPage() {
       ? "ready"
       : "forbidden";
   const [records, setRecords] = useState<Loadable<MedicalRecord[]>>(initialRecords);
-  const [appointments, setAppointments] = useState<Loadable<Page<AppointmentDetails>>>(initialAppointments);
+  const [appointments, setAppointments] = useState<Loadable<Page<PatientPortalAppointment>>>(initialAppointments);
   const [prescriptions, setPrescriptions] = useState<Loadable<Prescription[]>>(initialPrescriptions);
   const [diagnostics, setDiagnostics] = useState<Loadable<DiagnosticResult[]>>(initialDiagnostics);
   const [notifications, setNotifications] = useState<Loadable<Page<Notification>>>(initialNotifications);
