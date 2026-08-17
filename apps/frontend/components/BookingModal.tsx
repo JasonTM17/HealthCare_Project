@@ -43,14 +43,18 @@ export default function BookingModal({
 
   // Form State
   const defaultDoctor = SEED_DOCTORS.find((doctor) => doctor.id === initialDoctorId) || SEED_DOCTORS[0];
+  const requestedBranchId = initialBranchId || defaultDoctor.branchId || SEED_BRANCHES[0].id;
+  const branchDoctor = defaultDoctor.branchId === requestedBranchId
+    ? defaultDoctor
+    : SEED_DOCTORS.find((doctor) => doctor.branchId === requestedBranchId) || defaultDoctor;
   const [selectedSpecialty, setSelectedSpecialty] = useState<string>(
     initialSpecialtyId || SEED_SPECIALTIES[0].id
   );
   const [selectedDoctor, setSelectedDoctor] = useState<string>(
-    defaultDoctor.id
+    branchDoctor.id
   );
   const [selectedBranch, setSelectedBranch] = useState<string>(
-    initialBranchId || defaultDoctor.branchId || SEED_BRANCHES[0].id
+    requestedBranchId
   );
   const [selectedPackage, setSelectedPackage] = useState<string>(initialPackageId || "");
   
@@ -62,6 +66,7 @@ export default function BookingModal({
   const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<string>("");
   const [loadingSlots, setLoadingSlots] = useState<boolean>(false);
+  const [slotError, setSlotError] = useState<string>("");
 
   // Patient Info
   const [fullName, setFullName] = useState<string>("");
@@ -81,29 +86,38 @@ export default function BookingModal({
   // Load doctor slots when doctor or date changes
   useEffect(() => {
     let ignore = false;
-    if (selectedDoctor && selectedDate) {
-      fetchDoctorSlots(selectedDoctor, selectedDate)
-        .then((data) => {
-          if (!ignore) {
-            setSlots(data);
-            const firstAvailable = data.find((s) => s.available);
-            if (firstAvailable) {
-              setSelectedSlot(firstAvailable.startTime);
-            }
-            setLoadingSlots(false);
-          }
-        })
-        .catch(() => {
-          if (!ignore) {
-            setSlots([]);
-            setLoadingSlots(false);
-          }
-        });
-    }
+
+    const loadSlots = async () => {
+      setLoadingSlots(true);
+      setSlots([]);
+      setSelectedSlot("");
+      setSlotError("");
+      if (!selectedDoctor || !selectedBranch || !selectedDate) {
+        setLoadingSlots(false);
+        return;
+      }
+
+      try {
+        const data = await fetchDoctorSlots(selectedDoctor, selectedBranch, selectedDate);
+        if (ignore) return;
+        const firstAvailable = data.find((slot) => slot.available && slot.branchId === selectedBranch);
+        setSlots(data);
+        if (firstAvailable) setSelectedSlot(firstAvailable.startTime);
+      } catch (error) {
+        if (!ignore) {
+          setSlots([]);
+          setSlotError(error instanceof Error ? error.message : "Không thể tải lịch khám.");
+        }
+      } finally {
+        if (!ignore) setLoadingSlots(false);
+      }
+    };
+
+    void loadSlots();
     return () => {
       ignore = true;
     };
-  }, [selectedDoctor, selectedDate]);
+  }, [selectedDoctor, selectedBranch, selectedDate]);
 
   // Countdown timer for 10-minute hold lock
   useEffect(() => {
@@ -123,19 +137,39 @@ export default function BookingModal({
   const availableDoctors = SEED_DOCTORS.filter(
     (doctor) => !doctor.branchId || doctor.branchId === selectedBranch,
   );
-  const demoSlots = slots.some((slot) => slot.isDemo);
-
   const handleBranchChange = (branchId: string): void => {
     setSelectedBranch(branchId);
+    setSlots([]);
+    setSelectedSlot("");
+    setSlotError("");
     const firstDoctorAtBranch = SEED_DOCTORS.find((doctor) => doctor.branchId === branchId);
-    if (firstDoctorAtBranch) setSelectedDoctor(firstDoctorAtBranch.id);
+    setSelectedDoctor(firstDoctorAtBranch?.id || "");
+  };
+
+  const handleDoctorChange = (doctorId: string): void => {
+    setSelectedDoctor(doctorId);
+    setSlots([]);
+    setSelectedSlot("");
+    setSlotError("");
+  };
+
+  const handleDateChange = (date: string): void => {
+    setSelectedDate(date);
+    setSlots([]);
+    setSelectedSlot("");
+    setSlotError("");
   };
 
   // Handle Step 3: Hold Slot
   const handleHoldSlot = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (demoSlots) {
-      setErrorMessage("Lịch đang hiển thị là dữ liệu demo local. Hãy kết nối API lịch hẹn trước khi giữ chỗ.");
+    const chosenSlot = slots.find((slot) => slot.startTime === selectedSlot);
+    if (!chosenSlot || !chosenSlot.available || chosenSlot.branchId !== selectedBranch) {
+      setErrorMessage("Khung giờ không còn thuộc cơ sở đang chọn. Vui lòng tải lại và chọn khung giờ khác.");
+      return;
+    }
+    if (currentDoctor.branchId && currentDoctor.branchId !== selectedBranch) {
+      setErrorMessage("Bác sĩ không thuộc cơ sở đang chọn. Vui lòng chọn lại bác sĩ.");
       return;
     }
     if (!fullName || !phone) {
@@ -152,7 +186,7 @@ export default function BookingModal({
         branchId: selectedBranch,
         packageId: selectedPackage || undefined,
         appointmentDate: selectedDate,
-        startTime: selectedSlot || "09:00:00",
+        startTime: chosenSlot.startTime,
         fullName,
         phone,
         email: email || undefined,
@@ -305,7 +339,7 @@ export default function BookingModal({
                 </label>
                 <select
                   value={selectedDoctor}
-                  onChange={(e) => setSelectedDoctor(e.target.value)}
+                  onChange={(e) => handleDoctorChange(e.target.value)}
                   className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-600 focus:outline-none text-sm text-gray-900 font-medium"
                 >
                   {availableDoctors.map((doc) => (
@@ -351,7 +385,7 @@ export default function BookingModal({
                   type="date"
                   min={selectedDate}
                   value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
+                  onChange={(e) => handleDateChange(e.target.value)}
                   className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-600 focus:outline-none text-sm text-gray-900"
                 />
               </div>
@@ -365,15 +399,17 @@ export default function BookingModal({
                     🟢 Còn trống • ⚪ Đã có người giữ
                   </span>
                 </div>
-                {demoSlots ? (
-                  <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                    Bản demo local: API lịch hẹn chưa trả dữ liệu live, nên các khung giờ bên dưới chỉ để xem giao diện.
-                  </p>
-                ) : null}
-
                 {loadingSlots ? (
-                  <div className="py-8 text-center text-sm text-gray-500">
+                  <div aria-live="polite" className="py-8 text-center text-sm text-gray-500" role="status">
                     <Icon name="clock" size={15} /> Đang tải lịch khám khả dụng...
+                  </div>
+                ) : slotError ? (
+                  <div aria-live="assertive" className="rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700" role="alert">
+                    {slotError}
+                  </div>
+                ) : slots.length === 0 ? (
+                  <div aria-live="polite" className="rounded-lg border border-dashed border-gray-300 px-3 py-6 text-center text-sm text-gray-500" role="status">
+                    Chưa có khung giờ cho bác sĩ, cơ sở và ngày đã chọn.
                   </div>
                 ) : (
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 max-h-48 overflow-y-auto p-1">
@@ -383,7 +419,7 @@ export default function BookingModal({
                         <button
                           key={slot.startTime}
                           type="button"
-                          disabled={!slot.available}
+                          disabled={!slot.available || slot.branchId !== selectedBranch}
                           onClick={() => setSelectedSlot(slot.startTime)}
                           className={`p-2.5 rounded-lg text-xs font-semibold border transition-colors flex flex-col items-center justify-center gap-0.5 ${
                             isSelected
@@ -416,7 +452,7 @@ export default function BookingModal({
                 </button>
                 <button
                   type="button"
-                  disabled={!selectedSlot || demoSlots}
+                  disabled={!selectedSlot || !slots.some((slot) => slot.available && slot.startTime === selectedSlot && slot.branchId === selectedBranch)}
                   onClick={() => setStep(3)}
                   className="px-6 py-2.5 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-semibold rounded-full shadow-md transition-colors flex items-center gap-2"
                 >

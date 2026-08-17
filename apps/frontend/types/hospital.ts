@@ -47,17 +47,17 @@ export interface Article {
 }
 
 export interface TimeSlot {
+  branchId: string;
   startTime: string; // e.g. "08:00:00"
   endTime: string;   // e.g. "08:30:00"
   available: boolean;
   statusNote: string;
-  isDemo?: boolean;
 }
 
 export interface HoldSlotPayload {
   doctorId: string;
   specialtyId?: string;
-  branchId?: string;
+  branchId: string;
   packageId?: string;
   appointmentDate: string; // "YYYY-MM-DD"
   startTime: string;       // "HH:mm:ss"
@@ -107,4 +107,98 @@ export interface AiTriageResult {
   urgencyLevel: "EMERGENCY" | "HIGH" | "NORMAL";
   advice: string;
   suggestedQuestions: string[];
+}
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  displayName: string;
+  roles: string[];
+}
+
+export interface AuthSession {
+  accessToken: string;
+  refreshToken: string;
+  tokenType: string;
+  expiresIn: number;
+  user: AuthUser;
+}
+
+export interface UserProfile extends AuthUser {
+  status: string;
+}
+
+export interface PrescriptionItem {
+  medicationName: string;
+  activeIngredient?: string | null;
+  dosage: string;
+  unit?: string | null;
+  frequency: string;
+  durationDays: number;
+  totalQuantity: number;
+  usageNote?: string | null;
+}
+
+export interface Prescription {
+  id: string;
+  prescriptionCode: string;
+  patientId: string;
+  patientName: string;
+  doctorId: string;
+  doctorName: string;
+  diagnosisSummary?: string | null;
+  generalAdvice?: string | null;
+  status: string;
+  items: PrescriptionItem[];
+  createdAt: string;
+}
+
+export interface MedicalRecord {
+  id: string;
+  appointmentId?: string | null;
+  bookingCode?: string | null;
+  patientId: string;
+  patientName: string;
+  patientPhone: string;
+  doctorId: string;
+  doctorName: string;
+  doctorTitle?: string | null;
+  icd10Code?: string | null;
+  icd10Name?: string | null;
+  diagnosis?: string | null;
+  symptomsSummary?: string | null;
+  bloodPressureSystolic?: number | null;
+  bloodPressureDiastolic?: number | null;
+  heartRate?: number | null;
+  temperature?: number | null;
+  weightKg?: number | null;
+  heightCm?: number | null;
+  treatmentPlan?: string | null;
+  doctorNotes?: string | null;
+  followUpDate?: string | null;
+  prescriptions: Prescription[];
+  createdAt: string;
+}
+
+export interface DiagnosticResult {
+  id: string;
+  patientId: string;
+  patientName: string;
+  doctorId?: string | null;
+  doctorName?: string | null;
+  testName: string;
+  result: string;
+  fileUrl?: string | null;
+  testDate: string;
+}
+
+export interface Notification {
+  id: string;
+  eventType: string;
+  title: string;
+  message: string;
+  referenceId?: string | null;
+  read: boolean;
+  createdAt: string;
+  readAt?: string | null;
 }

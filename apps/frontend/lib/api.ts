@@ -220,18 +220,41 @@ export async function fetchDoctors(): Promise<Doctor[]> {
 
 export async function fetchDoctorSlots(
   doctorId: string,
+  branchId: string,
   date: string
 ): Promise<TimeSlot[]> {
-  try {
-    const res = await fetch(
-      `${API_BASE_URL}/appointments/doctors/${doctorId}/slots?date=${date}`,
-      { cache: "no-store" }
+  const query = new URLSearchParams({ date, branchId });
+  const res = await fetch(
+    `${API_BASE_URL}/appointments/doctors/${encodeURIComponent(doctorId)}/slots?${query.toString()}`,
+    { cache: "no-store" }
+  );
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(
+      errorData.message || "Không thể tải lịch khám cho cơ sở đã chọn. Vui lòng thử lại."
     );
-    if (!res.ok) return generateFallbackSlots();
-    return await res.json();
-  } catch {
-    return generateFallbackSlots();
   }
+
+  const data: unknown = await res.json();
+  if (!Array.isArray(data)) {
+    throw new Error("Dữ liệu lịch khám không đúng định dạng.");
+  }
+  if (data.length === 0) return [];
+
+  const slots = data as Partial<TimeSlot>[];
+  if (slots.some((slot) => (
+    typeof slot.branchId !== "string" ||
+    typeof slot.startTime !== "string" ||
+    typeof slot.endTime !== "string" ||
+    typeof slot.available !== "boolean" ||
+    typeof slot.statusNote !== "string"
+  ))) {
+    throw new Error("API lịch khám chưa trả về branchId; không thể xác nhận đúng cơ sở.");
+  }
+  if (slots.some((slot) => slot.branchId !== branchId)) {
+    throw new Error("Lịch khám trả về không thuộc cơ sở đang chọn. Vui lòng tải lại.");
+  }
+  return slots as TimeSlot[];
 }
 
 export async function holdAppointmentSlot(
@@ -317,30 +340,5 @@ export async function performAiTriage(symptoms: string): Promise<AiTriageResult>
     advice: "Dấu hiệu chưa khu trú rõ vào một cơ quan. Bác sĩ Đa khoa tổng quát sẽ thăm khám lâm sàng và chỉ định xét nghiệm phù hợp.",
     suggestedQuestions: ["Bạn đã kiểm tra sức khỏe định kỳ trong năm nay chưa?"],
   };
-}
-
-function generateFallbackSlots(): TimeSlot[] {
-  const times = [
-    { start: "08:00:00", end: "08:30:00" },
-    { start: "08:30:00", end: "09:00:00" },
-    { start: "09:00:00", end: "09:30:00" },
-    { start: "09:30:00", end: "10:00:00" },
-    { start: "10:00:00", end: "10:30:00" },
-    { start: "10:30:00", end: "11:00:00" },
-    { start: "13:30:00", end: "14:00:00" },
-    { start: "14:00:00", end: "14:30:00" },
-    { start: "14:30:00", end: "15:00:00" },
-    { start: "15:00:00", end: "15:30:00" },
-    { start: "15:30:00", end: "16:00:00" },
-    { start: "16:00:00", end: "16:30:00" },
-  ];
-
-  return times.map((t, idx) => ({
-    startTime: t.start,
-    endTime: t.end,
-    available: idx !== 2 && idx !== 5, // mock 2 slots taken
-    statusNote: idx === 2 || idx === 5 ? "Đã có người đặt" : "Còn trống",
-    isDemo: true,
-  }));
 }
 
