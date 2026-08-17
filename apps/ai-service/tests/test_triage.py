@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 import pytest
+from unittest.mock import patch
 
 from app.main import app, settings
 
@@ -51,3 +52,38 @@ def test_triage_enforces_configured_input_limit(monkeypatch: pytest.MonkeyPatch)
 
     assert response.status_code == 413
     assert "configured limit" in response.json()["detail"]
+
+
+def test_remote_provider_failure_returns_503_outside_local_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "ai_provider", "deepseek")
+    monkeypatch.setattr(settings, "deepseek_api_key", "test-key")
+    monkeypatch.setattr(settings, "ai_api_key", "")
+    monkeypatch.setattr(settings, "ai_service_runtime", "staging")
+    monkeypatch.setattr(settings, "ai_service_token", "service-token")
+
+    with patch("openai.OpenAI", side_effect=RuntimeError("provider down")):
+        response = client.post(
+            "/triage",
+            json={"symptoms": "đau ngực dữ dội"},
+            headers={"X-AI-Service-Token": "service-token"},
+        )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "AI provider unavailable"
+
+
+def test_local_provider_failure_is_explicitly_labeled_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "ai_provider", "deepseek")
+    monkeypatch.setattr(settings, "deepseek_api_key", "test-key")
+    monkeypatch.setattr(settings, "ai_api_key", "")
+    monkeypatch.setattr(settings, "ai_service_runtime", "local")
+
+    with patch("openai.OpenAI", side_effect=RuntimeError("provider down")):
+        response = client.post("/triage", json={"symptoms": "đau ngực dữ dội"})
+
+    assert response.status_code == 200
+    assert response.json()["provenance"] == "local_fallback"

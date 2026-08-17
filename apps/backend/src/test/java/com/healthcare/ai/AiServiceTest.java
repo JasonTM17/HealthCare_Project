@@ -20,8 +20,10 @@ import static org.springframework.http.HttpStatus.BAD_GATEWAY;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
@@ -103,6 +105,52 @@ class AiServiceTest {
         assertThatThrownBy(() -> aiService.symptomCheck(Map.of("symptoms", "đau đầu")))
             .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
                 assertThat(exception.getStatusCode()).isEqualTo(BAD_GATEWAY));
+        server.verify();
+    }
+
+    @Test
+    void availabilityForwardsTokenAndRequiresReadyJsonStatus() {
+        ReflectionTestUtils.setField(aiService, "aiServiceToken", "shared-service-token");
+        server.expect(requestTo("http://ai.test/health"))
+            .andExpect(method(HttpMethod.GET))
+            .andExpect(header("X-AI-Service-Token", "shared-service-token"))
+            .andRespond(withSuccess("{\"status\":\"ok\",\"ready\":true}", MediaType.APPLICATION_JSON));
+
+        assertThat(aiService.isAvailable()).isTrue();
+        server.verify();
+    }
+
+    @Test
+    void availabilityRejectsMisconfiguredJsonEvenWhenHttpResponseIsSuccessful() {
+        ReflectionTestUtils.setField(aiService, "aiServiceToken", "shared-service-token");
+        server.expect(requestTo("http://ai.test/health"))
+            .andExpect(method(HttpMethod.GET))
+            .andExpect(header("X-AI-Service-Token", "shared-service-token"))
+            .andRespond(withSuccess("{\"status\":\"misconfigured\",\"ready\":false}", MediaType.APPLICATION_JSON));
+
+        assertThat(aiService.isAvailable()).isFalse();
+        server.verify();
+    }
+
+    @Test
+    void availabilityRejectsHealthWithoutExplicitReadyFlag() {
+        ReflectionTestUtils.setField(aiService, "aiServiceToken", "shared-service-token");
+        server.expect(requestTo("http://ai.test/health"))
+            .andExpect(method(HttpMethod.GET))
+            .andRespond(withSuccess("{\"status\":\"ok\"}", MediaType.APPLICATION_JSON));
+
+        assertThat(aiService.isAvailable()).isFalse();
+        server.verify();
+    }
+
+    @Test
+    void availabilityRejectsUnreadyHttpStatus() {
+        ReflectionTestUtils.setField(aiService, "aiServiceToken", "shared-service-token");
+        server.expect(requestTo("http://ai.test/health"))
+            .andExpect(method(HttpMethod.GET))
+            .andRespond(withStatus(SERVICE_UNAVAILABLE));
+
+        assertThat(aiService.isAvailable()).isFalse();
         server.verify();
     }
 

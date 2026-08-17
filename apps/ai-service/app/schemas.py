@@ -10,6 +10,7 @@ MAX_DOCUMENT_CHARS = 20_000
 MAX_RETRIEVED_CHUNKS = 20
 
 SOURCE_TYPES = Literal["specialty", "doctor", "service", "package", "article", "faq"]
+ProviderProvenance = Literal["local_provider", "remote_provider", "local_fallback"]
 
 ALLOWED_SPECIALTIES = (
     "Tim Mạch & Can Thiệp Mạch Máu",
@@ -38,6 +39,9 @@ class HealthResponse(BaseModel):
     deepseek_model: str | None = None
     service_auth_configured: bool
     local_auth_escape_hatch: bool
+    ready: bool = True
+    provider_configured: bool = True
+    fallback_allowed: bool = False
 
 
 class TriageRequest(BaseModel):
@@ -62,6 +66,8 @@ class Citation(BaseModel):
     own verified catalog when a richer follow-up is needed.
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     source_type: SOURCE_TYPES
     source_id: str = Field(..., min_length=1, max_length=200, pattern=r"^[A-Za-z0-9._:-]+$")
     title: str = Field(..., min_length=1, max_length=300)
@@ -77,6 +83,7 @@ class TriageResponse(BaseModel):
         "không thay thế chẩn đoán của bác sĩ chuyên khoa."
     )
     citations: list[Citation] = Field(default_factory=list, max_length=MAX_RETRIEVED_CHUNKS)
+    provenance: ProviderProvenance = "local_provider"
 
 
 class SpecialtyRecommendationResponse(TriageResponse):
@@ -122,6 +129,7 @@ class EmbeddingRequest(BaseModel):
 class EmbeddingResponse(BaseModel):
     embedding: list[float]
     model: str
+    provenance: ProviderProvenance = "local_provider"
 
 
 class RAGSearchRequest(BaseModel):
@@ -171,6 +179,7 @@ class RAGSearchResult(BaseModel):
 
 class RAGSearchResponse(BaseModel):
     results: list[RAGSearchResult] = Field(max_length=MAX_RETRIEVED_CHUNKS)
+    provenance: ProviderProvenance = "local_provider"
 
 
 class SemanticSearchResult(BaseModel):
@@ -186,6 +195,7 @@ class SemanticSearchResponse(BaseModel):
     results: list[SemanticSearchResult] = Field(max_length=MAX_RETRIEVED_CHUNKS)
     query: str = ""
     specialty: str = ""
+    provenance: ProviderProvenance = "local_provider"
 
 
 class SpecialtyRecommendationRequest(BaseModel):

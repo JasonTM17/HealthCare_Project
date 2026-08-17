@@ -1,11 +1,22 @@
 import secrets
 from typing import cast
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
+from fastapi.responses import JSONResponse
 
 from app.config import Settings
-from app.embeddings import embed
+from app.embeddings import EmbeddingResult, embed
 from app.llm import resolve_triage
+from app.providers import (
+    LOCAL_CHAT_PROVIDERS,
+    LOCAL_EMBEDDING_PROVIDERS,
+    ProviderUnavailable,
+    REMOTE_CHAT_PROVIDERS,
+    merge_provenance,
+    provider_configured,
+    runtime_allows_local_fallback,
+    secret_setting,
+)
 from app.rag import RagService
 from app.schemas import (
     Citation,
@@ -17,6 +28,7 @@ from app.schemas import (
     RAGSearchRequest,
     RAGSearchResponse,
     RAGSearchResult,
+    ProviderProvenance,
     SOURCE_TYPES,
     SemanticSearchResponse,
     SemanticSearchResult,
@@ -32,6 +44,27 @@ app = FastAPI(title="HealthCare AI Service", version="0.1.0")
 
 # Shared in-memory RAG index for the foundation phase.
 rag_service = RagService()
+
+
+def _embedding_parts(value: object) -> tuple[list[float], str, ProviderProvenance]:
+    """Read the additive result while tolerating legacy test doubles."""
+
+    if isinstance(value, EmbeddingResult):
+        return value.vector, value.model, value.provenance
+    if isinstance(value, tuple) and len(value) == 2:
+        vector = cast(list[float], value[0])
+        model = cast(str, value[1])
+        provenance: ProviderProvenance = (
+            "local_provider" if model in {"local", "local-hash"} else "remote_provider"
+        )
+        return vector, model, provenance
+    raise TypeError("invalid embedding result")
+
+
+@app.exception_handler(ProviderUnavailable)
+async def provider_unavailable_handler(request: Request, exc: ProviderUnavailable) -> JSONResponse:
+    del request, exc
+    return JSONResponse(status_code=503, content={"detail": "AI provider unavailable"})
 
 
 def _configured_secret(value: object) -> bool:
@@ -76,19 +109,43 @@ def local_auth_escape_hatch_enabled() -> bool:
 
 
 @app.get("/health", response_model=HealthResponse)
-def health() -> HealthResponse:
-    api_key_configured = _configured_secret(settings.ai_api_key) or _configured_secret(
-        settings.deepseek_api_key
-    )
+def health(response: Response) -> HealthResponse:
+    api_key_configured = _configured_secret(secret_setting(settings, "ai_api_key", "deepseek_api_key"))
     auth_configured = _configured_secret(settings.ai_service_token)
+    chat_provider = settings.ai_provider.strip().casefold()
+    provider_ready = (
+        chat_provider in LOCAL_CHAT_PROVIDERS | REMOTE_CHAT_PROVIDERS
+        and provider_configured(
+            settings,
+            "ai_provider",
+            LOCAL_CHAT_PROVIDERS,
+            "ai_api_key",
+            "deepseek_api_key",
+        )
+        and provider_configured(
+            settings,
+            "embedding_provider",
+            LOCAL_EMBEDDING_PROVIDERS,
+            "ai_api_key",
+            "deepseek_api_key",
+        )
+    )
+    fallback_allowed = runtime_allows_local_fallback(settings)
+    auth_ready = auth_configured or local_auth_escape_hatch_enabled()
+    ready = auth_ready and provider_ready
+    status = "ok" if ready else "degraded" if fallback_allowed and auth_ready else "misconfigured"
+    response.status_code = 200 if ready else 503
     return HealthResponse(
-        status="ok" if auth_configured or local_auth_escape_hatch_enabled() else "misconfigured",
+        status=status,
         service=settings.service_name,
         ai_provider=settings.ai_provider,
         deepseek_configured=api_key_configured,
-        deepseek_model=settings.deepseek_model if api_key_configured else None,
+        deepseek_model=(settings.ai_chat_model or settings.deepseek_model) if api_key_configured else None,
         service_auth_configured=auth_configured,
         local_auth_escape_hatch=local_auth_escape_hatch_enabled(),
+        ready=ready,
+        provider_configured=provider_ready,
+        fallback_allowed=fallback_allowed,
     )
 
 
@@ -105,14 +162,14 @@ def symptom_triage(request: TriageRequest) -> TriageResponse:
 @app.post("/embeddings", response_model=EmbeddingResponse, dependencies=[Depends(require_service_auth)])
 def embeddings(request: EmbeddingRequest) -> EmbeddingResponse:
     text = _enforce_input_limit(request.text, label="Embedding input", setting_name="ai_max_input_chars")
-    vector, model = embed(text, settings)
-    return EmbeddingResponse(embedding=vector, model=model)
+    vector, model, provenance = _embedding_parts(embed(text, settings))
+    return EmbeddingResponse(embedding=vector, model=model, provenance=provenance)
 
 
 @app.post("/rag/search", response_model=RAGSearchResponse, dependencies=[Depends(require_service_auth)])
 def rag_search(request: RAGSearchRequest) -> RAGSearchResponse:
     query = _enforce_input_limit(request.query, label="RAG query", setting_name="ai_max_input_chars")
-    query_embedding, _ = embed(query, settings)
+    query_embedding, _, provenance = _embedding_parts(embed(query, settings))
     hits = rag_service.search(
         query_embedding,
         top_k=min(request.top_k, settings.ai_max_retrieved_chunks),
@@ -129,7 +186,8 @@ def rag_search(request: RAGSearchRequest) -> RAGSearchResponse:
                 citation=_citation(doc.source_type, doc.source_id, doc.title),
             )
             for doc, score in hits
-        ]
+        ],
+        provenance=provenance,
     )
 
 
@@ -155,6 +213,9 @@ def rag_index(
         label="RAG document",
         setting_name="rag_max_document_chars",
     )
+    def embed_document(normalized_content: str) -> list[float]:
+        return _embedding_parts(embed(normalized_content, settings))[0]
+
     doc = rag_service.ingest(
         source_type=payload.source_type,
         source_id=payload.source_id,
@@ -163,7 +224,7 @@ def rag_index(
         active=payload.active,
         published=payload.published,
         metadata=payload.metadata,
-        embedder=lambda normalized_content: embed(normalized_content, settings)[0],
+        embedder=embed_document,
     )
     return RAGIndexResponse(
         id=doc.id,
@@ -183,7 +244,7 @@ def specialty_recommendation(request: SpecialtyRecommendationRequest) -> Special
         label="Symptoms",
         setting_name="ai_max_input_chars",
     )
-    query_embedding, _ = embed(symptoms, settings)
+    query_embedding, _, embedding_provenance = _embedding_parts(embed(symptoms, settings))
     hits = rag_service.search(
         query_embedding,
         top_k=min(3, settings.ai_max_retrieved_chunks),
@@ -199,10 +260,15 @@ def specialty_recommendation(request: SpecialtyRecommendationRequest) -> Special
             _citation(doc.source_type, doc.source_id, doc.title) for doc, _ in hits[:2]
         ]
         return SpecialtyRecommendationResponse(
-            **response.model_dump(exclude={"citations"}),
+            **response.model_dump(exclude={"citations", "provenance"}),
             citations=citations,
+            provenance=merge_provenance(response.provenance, embedding_provenance),
         )
-    return SpecialtyRecommendationResponse(**resolve_triage(symptoms, settings).model_dump())
+    response = resolve_triage(symptoms, settings)
+    return SpecialtyRecommendationResponse(
+        **response.model_dump(exclude={"provenance"}),
+        provenance=merge_provenance(response.provenance, embedding_provenance),
+    )
 
 
 @app.get("/rag/stats", dependencies=[Depends(require_service_auth)])
@@ -229,7 +295,7 @@ def semantic_search(
     if not query and not specialty_filter:
         return SemanticSearchResponse(results=[])
     search_text = query or specialty_filter
-    query_embedding, _ = embed(search_text, settings)
+    query_embedding, _, provenance = _embedding_parts(embed(search_text, settings))
     hits = rag_service.search(
         query_embedding,
         top_k=min(top_k * 2, settings.ai_max_retrieved_chunks),
@@ -251,4 +317,9 @@ def semantic_search(
         )
         if len(results) >= top_k:
             break
-    return SemanticSearchResponse(results=results, query=query, specialty=specialty_filter)
+    return SemanticSearchResponse(
+        results=results,
+        query=query,
+        specialty=specialty_filter,
+        provenance=provenance,
+    )

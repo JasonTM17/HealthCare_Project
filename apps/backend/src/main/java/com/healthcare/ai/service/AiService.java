@@ -10,6 +10,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.ByteArrayHttpMessageConverter;
 import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.stereotype.Service;
@@ -121,9 +122,25 @@ public class AiService {
             return false;
         }
         try {
-            restTemplate.getForObject(endpoint("/health"), String.class);
-            return true;
-        } catch (RestClientException e) {
+            ResponseEntity<byte[]> response = restTemplate.exchange(
+                URI.create(endpoint("/health")),
+                HttpMethod.GET,
+                new HttpEntity<>(headers()),
+                byte[].class
+            );
+            if (!response.getStatusCode().is2xxSuccessful()
+                || response.getBody() == null
+                || response.getBody().length == 0) {
+                return false;
+            }
+            Map<String, Object> health = objectMapper.readValue(
+                new String(response.getBody(), StandardCharsets.UTF_8),
+                new TypeReference<Map<String, Object>>() { }
+            );
+            Object status = health.get("status");
+            Object ready = health.get("ready");
+            return "ok".equals(status) && Boolean.TRUE.equals(ready);
+        } catch (RestClientException | JsonProcessingException e) {
             return false;
         }
     }

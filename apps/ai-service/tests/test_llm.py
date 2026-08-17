@@ -1,8 +1,10 @@
-"""Tests for the LLM triage provider and its rule-based fallback."""
+"""Tests for the LLM provider policy and structured fallback."""
 
+import pytest
 from unittest.mock import MagicMock, patch
 
 from app.llm import rule_based_triage, resolve_triage, RULE_BASED
+from app.providers import ProviderUnavailable
 
 
 def test_rule_based_cardiology_emergency() -> None:
@@ -56,6 +58,7 @@ def test_resolve_deepseek_success() -> None:
 
     assert result.recommended_specialty == "Thần Kinh & Đột Quỵ"
     assert result.urgency_level == "HIGH"
+    assert result.provenance == "remote_provider"
 
 
 def test_remote_provider_uses_configured_timeout() -> None:
@@ -95,6 +98,7 @@ def test_remote_output_with_unknown_fields_falls_back() -> None:
     settings.deepseek_api_key = "test-key"
     settings.deepseek_model = "deepseek-chat"
     settings.deepseek_base_url = "https://api.deepseek.com"
+    settings.ai_service_runtime = "local"
 
     mock_message = MagicMock()
     mock_message.content = (
@@ -109,7 +113,10 @@ def test_remote_output_with_unknown_fields_falls_back() -> None:
         mock_openai.return_value.chat.completions.create.return_value = mock_completion
         result = resolve_triage("đau ngực dữ dội", settings)
 
-    assert result == fallback
+    assert result.model_dump(exclude={"provenance"}) == fallback.model_dump(
+        exclude={"provenance"}
+    )
+    assert result.provenance == "local_fallback"
 
 
 def test_resolve_deepseek_falls_back_on_error() -> None:
@@ -118,6 +125,7 @@ def test_resolve_deepseek_falls_back_on_error() -> None:
     settings.deepseek_api_key = "test-key"
     settings.deepseek_model = "deepseek-chat"
     settings.deepseek_base_url = "https://api.deepseek.com"
+    settings.ai_service_runtime = "local"
 
     with patch("openai.OpenAI", side_effect=Exception("provider down")):
         result = resolve_triage("đau ngực dữ dội", settings)
@@ -125,3 +133,36 @@ def test_resolve_deepseek_falls_back_on_error() -> None:
     # Falls back to rule-based, which detects cardiac emergency
     assert result.recommended_specialty == "Tim Mạch & Can Thiệp Mạch Máu"
     assert result.urgency_level == "EMERGENCY"
+    assert result.provenance == "local_fallback"
+
+
+def test_remote_provider_failure_fails_closed_outside_local_runtime() -> None:
+    settings = MagicMock()
+    settings.ai_provider = "deepseek"
+    settings.deepseek_api_key = "test-key"
+    settings.deepseek_model = "deepseek-chat"
+    settings.deepseek_base_url = "https://api.deepseek.com"
+    settings.ai_service_runtime = "staging"
+
+    with patch("openai.OpenAI", side_effect=Exception("provider down")):
+        with pytest.raises(ProviderUnavailable):
+            resolve_triage("đau ngực dữ dội", settings)
+
+
+def test_invalid_remote_output_fails_closed_outside_local_runtime() -> None:
+    settings = MagicMock()
+    settings.ai_provider = "deepseek"
+    settings.deepseek_api_key = "test-key"
+    settings.deepseek_model = "deepseek-chat"
+    settings.deepseek_base_url = "https://api.deepseek.com"
+    settings.ai_service_runtime = "staging"
+
+    mock_message = MagicMock()
+    mock_message.content = '{"doctor_id":"invented"}'
+    mock_completion = MagicMock()
+    mock_completion.choices = [MagicMock(message=mock_message)]
+
+    with patch("openai.OpenAI") as mock_openai:
+        mock_openai.return_value.chat.completions.create.return_value = mock_completion
+        with pytest.raises(ProviderUnavailable):
+            resolve_triage("đau ngực", settings)

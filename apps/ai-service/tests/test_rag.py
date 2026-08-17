@@ -106,7 +106,7 @@ def test_specialty_recommendation_cites_indexed_sources_only() -> None:
         "specialty",
         "cardio",
         "Tim mạch",
-        "Khám tim mạch.",
+        "Khám tim mạch. Nguồn nội bộ: https://catalog.test/cardio.",
         [1.0, 0.0, 0.0],
     )
 
@@ -121,6 +121,7 @@ def test_specialty_recommendation_cites_indexed_sources_only() -> None:
     assert response.json()["citations"] == [
         {"source_type": "specialty", "source_id": "cardio", "title": "Tim mạch"}
     ]
+    assert "url" not in response.json()["citations"][0]
 
 
 def test_rag_ingest_is_disabled_or_token_protected(monkeypatch: pytest.MonkeyPatch) -> None:

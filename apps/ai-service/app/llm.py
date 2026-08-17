@@ -6,6 +6,16 @@ import json
 from dataclasses import dataclass
 from typing import Any, Protocol, Sequence
 
+from app.providers import (
+    LOCAL_CHAT_PROVIDERS,
+    ProviderUnavailable,
+    REMOTE_CHAT_PROVIDERS,
+    float_setting,
+    remote_provider_requested,
+    runtime_allows_local_fallback,
+    secret_setting,
+    string_setting,
+)
 from app.schemas import (
     ALLOWED_SPECIALTIES,
     ALLOWED_URGENCY,
@@ -27,16 +37,6 @@ class LLMClient(Protocol):
         context: Sequence[str] = (),
     ) -> Any:
         """Return decoded JSON or raise a provider error."""
-
-
-def _string_setting(settings: Any, name: str, default: str = "") -> str:
-    value = getattr(settings, name, None)
-    return value if isinstance(value, str) else default
-
-
-def _float_setting(settings: Any, name: str, default: float) -> float:
-    value = getattr(settings, name, default)
-    return value if isinstance(value, (int, float)) and value > 0 else default
 
 
 @dataclass(frozen=True)
@@ -95,24 +95,22 @@ class OpenAIChatClient:
 def build_llm_client(settings: Any) -> LLMClient | None:
     """Resolve a configured remote client without exposing credentials."""
 
-    provider = _string_setting(settings, "ai_provider", RULE_BASED).lower()
-    api_key = _string_setting(settings, "ai_api_key") or _string_setting(
-        settings, "deepseek_api_key"
-    )
-    if provider not in {"deepseek", "openai"} or not api_key:
+    provider = string_setting(settings, "ai_provider", RULE_BASED).lower()
+    api_key = secret_setting(settings, "ai_api_key", "deepseek_api_key")
+    if provider not in REMOTE_CHAT_PROVIDERS or not api_key:
         return None
 
-    model = _string_setting(settings, "ai_chat_model") or _string_setting(
+    model = string_setting(settings, "ai_chat_model") or string_setting(
         settings, "deepseek_model", "deepseek-chat"
     )
-    base_url = _string_setting(settings, "ai_base_url") or _string_setting(
+    base_url = string_setting(settings, "ai_base_url") or string_setting(
         settings, "deepseek_base_url", "https://api.deepseek.com"
     )
     return OpenAIChatClient(
         api_key=api_key,
         base_url=base_url,
         model=model,
-        timeout_seconds=_float_setting(settings, "ai_timeout_seconds", 10.0),
+        timeout_seconds=float_setting(settings, "ai_timeout_seconds", 10.0),
     )
 
 
@@ -190,13 +188,20 @@ def rule_based_triage(symptoms: str) -> TriageResponse:
     return _DEFAULT.model_copy(deep=True)
 
 
-def _validated_llm_response(data: Any, fallback: TriageResponse) -> TriageResponse:
+def _validated_llm_response(
+    data: Any,
+    fallback: TriageResponse,
+    *,
+    fallback_allowed: bool = True,
+) -> TriageResponse:
     """Accept only the strict structured recommendation contract."""
 
     try:
         candidate = LLMRecommendation.model_validate(data)
     except Exception:
-        return fallback
+        if fallback_allowed:
+            return fallback
+        raise ProviderUnavailable()
 
     questions = [question for question in candidate.suggested_questions if question][:3]
     if not questions:
@@ -213,13 +218,17 @@ def deepseek_triage(
     symptoms: str,
     settings: Any,
     context: Sequence[str] = (),
+    client: LLMClient | None = None,
 ) -> TriageResponse:
-    """Ask an OpenAI-compatible provider and fall back on every provider error."""
+    """Ask an OpenAI-compatible provider with explicit runtime policy."""
 
-    fallback = rule_based_triage(symptoms)
-    client = build_llm_client(settings)
+    fallback = rule_based_triage(symptoms).model_copy(update={"provenance": "local_fallback"})
+    allow_fallback = runtime_allows_local_fallback(settings)
+    client = client or build_llm_client(settings)
     if client is None:
-        return fallback
+        if allow_fallback:
+            return fallback
+        raise ProviderUnavailable()
 
     try:
         data = client.complete_json(
@@ -234,11 +243,22 @@ def deepseek_triage(
             user_prompt=symptoms,
             context=context,
         )
-        return _validated_llm_response(data, fallback)
+        response = _validated_llm_response(
+            data,
+            fallback,
+            fallback_allowed=allow_fallback,
+        )
+        if response.provenance == "local_fallback":
+            return response
+        return response.model_copy(update={"provenance": "remote_provider"})
+    except ProviderUnavailable:
+        raise
     except Exception:
-        # Do not log the patient prompt or provider payload.  The deterministic
-        # result keeps the endpoint useful without exposing sensitive text.
-        return fallback
+        if allow_fallback:
+            return fallback
+        # Do not log the patient prompt or provider payload.  The caller turns
+        # this into a generic 503 without exposing provider details.
+        raise ProviderUnavailable()
 
 
 def resolve_triage(
@@ -246,7 +266,10 @@ def resolve_triage(
     settings: Any,
     context: Sequence[str] = (),
 ) -> TriageResponse:
-    provider = _string_setting(settings, "ai_provider", RULE_BASED).lower()
-    if provider in {"deepseek", "openai"} and build_llm_client(settings) is not None:
-        return deepseek_triage(symptoms, settings, context)
+    remote_requested = remote_provider_requested(settings, "ai_provider", LOCAL_CHAT_PROVIDERS)
+    if remote_requested:
+        client = build_llm_client(settings)
+        if client is None and not runtime_allows_local_fallback(settings):
+            raise ProviderUnavailable()
+        return deepseek_triage(symptoms, settings, context, client=client)
     return rule_based_triage(symptoms)

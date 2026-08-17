@@ -6,7 +6,7 @@ hard limits in the request schemas remain the final safety boundary; the
 configured limits may make those bounds stricter for a deployment.
 """
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -25,9 +25,9 @@ class Settings(BaseSettings):
     ai_provider: str = "rule_based_triage"
     embedding_provider: str = "local"
     ai_api_key: str = ""
-    ai_chat_model: str = "deepseek-chat"
-    ai_embedding_model: str = "text-embedding-3-small"
-    ai_base_url: str = "https://api.deepseek.com"
+    ai_chat_model: str = ""
+    ai_embedding_model: str = ""
+    ai_base_url: str = ""
     ai_timeout_seconds: float = Field(default=10.0, gt=0, le=60)
     ai_max_input_chars: int = Field(default=10_000, ge=2, le=10_000)
     ai_max_retrieved_chunks: int = Field(default=5, ge=1, le=20)
@@ -46,4 +46,19 @@ class Settings(BaseSettings):
     # local setups while new deployments should use the provider-neutral names.
     deepseek_api_key: str = ""
     deepseek_model: str = "deepseek-chat"
+    deepseek_embedding_model: str = ""
     deepseek_base_url: str = "https://api.deepseek.com"
+
+    @model_validator(mode="after")
+    def apply_legacy_provider_aliases(self) -> "Settings":
+        """Use legacy values only when the provider-neutral value is empty."""
+
+        if not self.ai_api_key.strip():
+            self.ai_api_key = self.deepseek_api_key
+        if not self.ai_chat_model.strip():
+            self.ai_chat_model = self.deepseek_model
+        if not self.ai_embedding_model.strip():
+            self.ai_embedding_model = self.deepseek_embedding_model or "text-embedding-3-small"
+        if not self.ai_base_url.strip():
+            self.ai_base_url = self.deepseek_base_url
+        return self
