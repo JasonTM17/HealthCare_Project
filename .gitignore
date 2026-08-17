@@ -1,0 +1,72 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+secrets/
+credentials/
+
+# Dependencies
+node_modules/
+.opencode/node_modules/
+
+# Java / Maven
+target/
+.mvn/.maven-wrapper.jar
+
+# Next.js / frontend builds
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Logs and temp files
+*.log
+logs/
+tmp/
+temp/
+.cache/
+
+# Local service data and uploads
+.data/
+data/local/
+postgres-data/
+redis-data/
+minio-data/
+uploads/local/
+storage/local/
+
+# Docker and runtime override files
+docker-compose.override.yml
+*.pid
+
+# IDE and OS files
+.idea/
+.vscode/settings.json
+.vscode/tasks.json
+.vscode/launch.json
+.DS_Store
+Thumbs.db
+
+# Agent/runtime local state
+.agentkit/local/
+.agentkit/tmp/
+.gemini/logs/
+.gemini/tmp/
+.gemini/sessions/
