@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed for implementation phase.
+Accepted for the backend identity foundation. Frontend session transport remains undecided.
 
 ## Context
 
@@ -10,10 +10,10 @@ The platform will need patients, doctors, and admins. Authentication must be sec
 
 ## Decision
 
-Use application-owned email/password authentication with BCrypt password hashes, server-side role checks, refresh-token rotation, and database-backed RBAC tables. The foundation migration creates identity/RBAC tables but does not expose registration or login endpoints yet.
+Use application-owned email/password authentication with BCrypt password hashes, JWT bearer access tokens, server-side role checks, refresh-token rotation, and database-backed RBAC tables. The backend exposes registration, login, refresh, logout, and current-user endpoints. New registrations receive only the `PATIENT` role.
 
 ## Consequences
 
 - Password hashes must never be returned from APIs or logs.
-- Refresh-token reuse and revocation behavior need dedicated tests in the auth phase.
+- Refresh-token rotation, reuse rejection, and logout revocation are covered by backend regression tests.
 - Cookie vs bearer-token transport remains a user-facing security decision before frontend auth forms are implemented.

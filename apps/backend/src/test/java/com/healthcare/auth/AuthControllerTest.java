@@ -118,8 +118,45 @@ class AuthControllerTest {
             .andExpect(status().isOk());
     }
 
-    private void register(String email, String password, String displayName) throws Exception {
-        mockMvc.perform(post("/api/v1/auth/register")
+    @Test
+    void refreshRotatesTokenAndRejectsReuse() throws Exception {
+        JsonNode registration = register("refresh.patient@example.com", "Str0ng!Pass", "Refresh Patient");
+        String originalRefreshToken = registration.get("refreshToken").asText();
+
+        MvcResult refreshResult = mockMvc.perform(post("/api/v1/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"%s\"}".formatted(originalRefreshToken)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.refreshToken").exists())
+            .andReturn();
+
+        JsonNode refreshed = objectMapper.readTree(refreshResult.getResponse().getContentAsString());
+        assertThat(refreshed.get("refreshToken").asText()).isNotEqualTo(originalRefreshToken);
+
+        mockMvc.perform(post("/api/v1/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"%s\"}".formatted(originalRefreshToken)))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void logoutRevokesActiveRefreshTokens() throws Exception {
+        JsonNode registration = register("logout.patient@example.com", "Str0ng!Pass", "Logout Patient");
+        String accessToken = registration.get("accessToken").asText();
+        String refreshToken = registration.get("refreshToken").asText();
+
+        mockMvc.perform(post("/api/v1/auth/logout")
+                .header("Authorization", "Bearer " + accessToken))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"%s\"}".formatted(refreshToken)))
+            .andExpect(status().isUnauthorized());
+    }
+
+    private JsonNode register(String email, String password, String displayName) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/v1/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -128,6 +165,9 @@ class AuthControllerTest {
                       "displayName": "%s"
                     }
                     """.formatted(email, password, displayName)))
-            .andExpect(status().isOk());
+            .andExpect(status().isOk())
+            .andReturn();
+
+        return objectMapper.readTree(result.getResponse().getContentAsString());
     }
 }
