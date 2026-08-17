@@ -12,7 +12,6 @@ import jakarta.persistence.Table;
 import org.hibernate.annotations.UuidGenerator;
 
 import java.time.LocalTime;
-import java.time.OffsetDateTime;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -45,14 +44,8 @@ public class DoctorSchedule {
     @Column(name = "slot_duration_minutes", nullable = false)
     private int slotDurationMinutes = 30;
 
-    @Column(name = "max_patients_per_slot", nullable = false)
-    private int maxPatientsPerSlot = 1;
-
     @Column(name = "active", nullable = false)
     private boolean active = true;
-
-    @Column(name = "created_at", nullable = false)
-    private OffsetDateTime createdAt = OffsetDateTime.now();
 
     public UUID getId() {
         return id;
@@ -110,28 +103,12 @@ public class DoctorSchedule {
         this.slotDurationMinutes = slotDurationMinutes;
     }
 
-    public int getMaxPatientsPerSlot() {
-        return maxPatientsPerSlot;
-    }
-
-    public void setMaxPatientsPerSlot(int maxPatientsPerSlot) {
-        this.maxPatientsPerSlot = maxPatientsPerSlot;
-    }
-
     public boolean isActive() {
         return active;
     }
 
     public void setActive(boolean active) {
         this.active = active;
-    }
-
-    public OffsetDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(OffsetDateTime createdAt) {
-        this.createdAt = createdAt;
     }
 
     @Override

@@ -1,5 +1,6 @@
 package com.healthcare.appointment.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -25,6 +26,9 @@ public class PatientProfile {
 
     @Column(name = "email", length = 320)
     private String email;
+
+    @Column(name = "user_id")
+    private UUID userId;
 
     public UUID getId() {
         return id;
@@ -56,5 +60,14 @@ public class PatientProfile {
 
     public void setEmail(String email) {
         this.email = email;
+    }
+
+    @JsonIgnore
+    public UUID getUserId() {
+        return userId;
+    }
+
+    public void setUserId(UUID userId) {
+        this.userId = userId;
     }
 }

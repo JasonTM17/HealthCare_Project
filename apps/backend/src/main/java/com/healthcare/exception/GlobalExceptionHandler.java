@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 
 import java.util.List;
@@ -112,6 +113,22 @@ public class GlobalExceptionHandler {
             extractPath(request)
         );
         return ResponseEntity.status(404).body(error);
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ApiError> handleResponseStatus(ResponseStatusException ex, WebRequest request) {
+        int status = ex.getStatusCode().value();
+        HttpStatus httpStatus = HttpStatus.resolve(status);
+        String message = ex.getReason() != null
+            ? ex.getReason()
+            : (httpStatus != null ? httpStatus.getReasonPhrase() : "Request failed");
+        ApiError error = new ApiError(
+            status,
+            httpStatus != null ? httpStatus.getReasonPhrase() : "Request failed",
+            message,
+            extractPath(request)
+        );
+        return ResponseEntity.status(status).body(error);
     }
 
     @ExceptionHandler(Exception.class)

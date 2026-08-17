@@ -21,9 +21,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Public hospital domain API — all endpoints are unauthenticated.
@@ -33,8 +31,6 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>All data is placeholder/seed until the admin CMS phase supplies real content.
  */
-@RestController
-@RequestMapping("/api/v1/hospital")
 @Tag(name = "Hospital Domain", description = "Public read-only hospital domain endpoints")
 public class HospitalController {
 

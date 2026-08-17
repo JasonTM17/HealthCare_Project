@@ -1,5 +1,6 @@
 package com.healthcare.hospital.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -32,6 +33,9 @@ public class Doctor {
 
     @Column(name = "active", nullable = false)
     private boolean active = true;
+
+    @Column(name = "user_id")
+    private UUID userId;
 
     public UUID getId() {
         return id;
@@ -79,5 +83,14 @@ public class Doctor {
 
     public void setActive(boolean active) {
         this.active = active;
+    }
+
+    @JsonIgnore
+    public UUID getUserId() {
+        return userId;
+    }
+
+    public void setUserId(UUID userId) {
+        this.userId = userId;
     }
 }

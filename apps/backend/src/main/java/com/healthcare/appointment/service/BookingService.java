@@ -14,8 +14,11 @@ import com.healthcare.hospital.repository.BranchRepository;
 import com.healthcare.hospital.repository.DoctorRepository;
 import com.healthcare.hospital.repository.PackageRepository;
 import com.healthcare.hospital.repository.SpecialtyRepository;
+import com.healthcare.user.entity.User;
+import com.healthcare.user.repository.UserRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -39,19 +42,22 @@ public class BookingService {
     private final SpecialtyRepository specialtyRepository;
     private final BranchRepository branchRepository;
     private final PackageRepository packageRepository;
+    private final UserRepository userRepository;
 
     public BookingService(AppointmentRepository appointmentRepository,
                           PatientProfileRepository patientProfileRepository,
                           DoctorRepository doctorRepository,
                           SpecialtyRepository specialtyRepository,
                           BranchRepository branchRepository,
-                          PackageRepository packageRepository) {
+                          PackageRepository packageRepository,
+                          UserRepository userRepository) {
         this.appointmentRepository = appointmentRepository;
         this.patientProfileRepository = patientProfileRepository;
         this.doctorRepository = doctorRepository;
         this.specialtyRepository = specialtyRepository;
         this.branchRepository = branchRepository;
         this.packageRepository = packageRepository;
+        this.userRepository = userRepository;
     }
 
     /**
@@ -59,6 +65,11 @@ public class BookingService {
      */
     @Transactional
     public HoldSlotResponse holdSlot(HoldSlotRequest request) {
+        return holdSlot(request, null);
+    }
+
+    @Transactional
+    public HoldSlotResponse holdSlot(HoldSlotRequest request, UserDetails userDetails) {
         Doctor doctor = doctorRepository.findById(request.doctorId())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy thông tin bác sĩ"));
 
@@ -81,14 +92,7 @@ public class BookingService {
 
         // 2. Find or Create Patient Profile (Hybrid Onboarding)
         String cleanPhone = request.phone().replaceAll("[^0-9+]", "");
-        PatientProfile patient = patientProfileRepository.findByPhone(cleanPhone)
-            .orElseGet(() -> {
-                PatientProfile p = new PatientProfile();
-                p.setFullName(request.fullName().trim());
-                p.setPhone(cleanPhone);
-                p.setEmail(request.email() != null ? request.email().trim().toLowerCase() : null);
-                return patientProfileRepository.save(p);
-            });
+        PatientProfile patient = resolvePatient(request, cleanPhone, userDetails);
 
         // 3. Create Appointment with Hold Lock
         String bookingCode = generateBookingCode(request.appointmentDate());
@@ -104,6 +108,9 @@ public class BookingService {
         appointment.setAppointmentDate(request.appointmentDate());
         appointment.setStartTime(request.startTime());
         appointment.setEndTime(request.startTime().plusMinutes(30));
+        appointment.setAppointmentTime(
+            OffsetDateTime.of(request.appointmentDate(), request.startTime(), now.getOffset())
+        );
         appointment.setStatus(AppointmentStatus.PENDING_CONFIRMATION);
         appointment.setHoldExpiresAt(holdExpiry);
         appointment.setOtpCode(otpCode);
@@ -128,6 +135,48 @@ public class BookingService {
             "Đã giữ chỗ thành công trong " + HOLD_DURATION_MINUTES + " phút. Vui lòng nhập mã OTP để xác nhận đặt khám.",
             true
         );
+    }
+
+    private PatientProfile resolvePatient(HoldSlotRequest request, String cleanPhone, UserDetails userDetails) {
+        UUID authenticatedUserId = null;
+        if (userDetails != null) {
+            User user = userRepository.findByEmail(userDetails.getUsername())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Tài khoản không hợp lệ"));
+            authenticatedUserId = user.getId();
+        }
+
+        if (authenticatedUserId != null) {
+            UUID userId = authenticatedUserId;
+            PatientProfile linked = patientProfileRepository.findByUserId(userId).orElse(null);
+            if (linked != null) {
+                return linked;
+            }
+
+            PatientProfile byPhone = patientProfileRepository.findByPhone(cleanPhone).orElse(null);
+            if (byPhone != null) {
+                if (byPhone.getUserId() != null && !userId.equals(byPhone.getUserId())) {
+                    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Số điện thoại đã thuộc tài khoản khác");
+                }
+                byPhone.setUserId(userId);
+                return patientProfileRepository.save(byPhone);
+            }
+
+            PatientProfile created = new PatientProfile();
+            created.setUserId(userId);
+            created.setFullName(request.fullName().trim());
+            created.setPhone(cleanPhone);
+            created.setEmail(request.email() != null ? request.email().trim().toLowerCase() : null);
+            return patientProfileRepository.save(created);
+        }
+
+        return patientProfileRepository.findByPhone(cleanPhone)
+            .orElseGet(() -> {
+                PatientProfile p = new PatientProfile();
+                p.setFullName(request.fullName().trim());
+                p.setPhone(cleanPhone);
+                p.setEmail(request.email() != null ? request.email().trim().toLowerCase() : null);
+                return patientProfileRepository.save(p);
+            });
     }
 
     /**
