@@ -54,7 +54,8 @@ def test_search_returns_matching_documents(monkeypatch: pytest.MonkeyPatch) -> N
             "title": "Thần kinh", "content": "Khám thần kinh.",
         })
 
-    response = client.get("/search?q=tim")
+    with patch("app.main.embed", return_value=([1.0, 0.0, 0.0], "local")):
+        response = client.get("/search?q=tim")
     assert response.status_code == 200
     results = response.json()["results"]
     assert len(results) >= 1
@@ -83,9 +84,28 @@ def test_search_respects_top_k(monkeypatch: pytest.MonkeyPatch) -> None:
                 "title": f"Specialty {sid}", "content": f"Content {sid}",
             })
 
-    response = client.get("/search?q=test&top_k=2")
+    with patch("app.main.embed", return_value=([1.0, 0.0], "local")):
+        response = client.get("/search?q=test&top_k=2")
     assert response.status_code == 200
     assert len(response.json()["results"]) <= 2
+
+
+def test_post_search_keeps_query_out_of_the_upstream_path() -> None:
+    _reset_index()
+    rag_service.ingest(
+        "specialty",
+        "cardio",
+        "Tim mạch",
+        "Khám tim mạch.",
+        [1.0, 0.0],
+        embedding_model="local",
+    )
+
+    with patch("app.main.embed", return_value=([1.0, 0.0], "local")):
+        response = client.post("/search", json={"query": "tim", "top_k": 1})
+
+    assert response.status_code == 200
+    assert response.json()["query"] == "tim"
 
 
 def test_rag_stats_reflects_index_size() -> None:

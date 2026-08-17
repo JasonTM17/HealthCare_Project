@@ -4,7 +4,8 @@ import pytest
 from unittest.mock import patch
 from fastapi.testclient import TestClient
 
-from app.rag import RagDocument, RagIndex, RagService
+from app.rag import EmbeddingContractError, RagDocument, RagIndex, RagService
+from app.schemas import MAX_EMBEDDING_DIMENSION
 from app.main import app, rag_service, settings
 
 client = TestClient(app)
@@ -108,6 +109,7 @@ def test_specialty_recommendation_cites_indexed_sources_only() -> None:
         "Tim mạch",
         "Khám tim mạch. Nguồn nội bộ: https://catalog.test/cardio.",
         [1.0, 0.0, 0.0],
+        embedding_model="local",
     )
 
     with patch("app.main.embed") as mock_embed:
@@ -124,7 +126,79 @@ def test_specialty_recommendation_cites_indexed_sources_only() -> None:
     assert "url" not in response.json()["citations"][0]
 
 
+def test_local_fallback_recommendation_suppresses_retrieved_citations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rag_service.index = __import__("app.rag", fromlist=["RagIndex"]).RagIndex()
+    rag_service.ingest(
+        "specialty",
+        "cardio",
+        "Tim mạch",
+        "Khám tim mạch.",
+        [1.0, 0.0, 0.0],
+        embedding_model="local",
+    )
+    monkeypatch.setattr(settings, "ai_provider", "deepseek")
+    monkeypatch.setattr(settings, "deepseek_api_key", "test-key")
+    monkeypatch.setattr(settings, "ai_api_key", "")
+    monkeypatch.setattr(settings, "ai_service_runtime", "local")
+
+    with patch("app.main.embed", return_value=([1.0, 0.0, 0.0], "local")):
+        with patch("openai.OpenAI", side_effect=RuntimeError("provider down")):
+            response = client.post(
+                "/recommendations/specialty",
+                json={"symptoms": "đau ngực"},
+            )
+
+    assert response.status_code == 200
+    assert response.json()["provenance"] == "local_fallback"
+    assert response.json()["citations"] == []
+
+
+def test_index_tracks_embedding_contract_and_rejects_mixed_vectors() -> None:
+    service = RagService()
+    remote = service.ingest(
+        "specialty",
+        "cardio",
+        "Tim mạch",
+        "Khám tim mạch.",
+        embedder=lambda _: ([1.0, 0.0], "model-a", "remote_provider"),
+    )
+
+    assert remote.embedding_model == "model-a"
+    assert remote.embedding_provenance == "remote_provider"
+
+    with pytest.raises(EmbeddingContractError):
+        service.ingest(
+            "specialty",
+            "neuro",
+            "Thần kinh",
+            "Khám thần kinh.",
+            embedder=lambda _: ([1.0, 0.0, 0.0], "model-b", "remote_provider"),
+        )
+
+    with pytest.raises(EmbeddingContractError):
+        service.search([1.0, 0.0], embedding_model="model-b", embedding_provenance="remote_provider")
+
+
+def test_index_bounds_embedding_dimension_and_document_count() -> None:
+    index = RagIndex(max_documents=1)
+    index.add(_doc("one", "One", "Content", [1.0, 0.0]))
+
+    with pytest.raises(EmbeddingContractError):
+        index.add(_doc("two", "Two", "Content", [1.0, 0.0]))
+    with pytest.raises(EmbeddingContractError):
+        RagService().ingest(
+            "specialty",
+            "too-large",
+            "Too large",
+            "Content",
+            [0.0] * (MAX_EMBEDDING_DIMENSION + 1),
+        )
+
+
 def test_rag_ingest_is_disabled_or_token_protected(monkeypatch: pytest.MonkeyPatch) -> None:
+    rag_service.index = __import__("app.rag", fromlist=["RagIndex"]).RagIndex()
     payload = {
         "source_type": "specialty",
         "source_id": "cardio",

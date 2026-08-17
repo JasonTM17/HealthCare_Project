@@ -17,7 +17,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -107,14 +106,18 @@ public class AiService {
         }
         ensureServiceAuthConfiguration();
 
-        URI uri = UriComponentsBuilder
-            .fromUriString(endpoint("/search"))
-            .queryParam("q", normalizedQuery)
-            .queryParam("top_k", topK)
-            .build()
-            .encode()
-            .toUri();
-        return exchange(HttpMethod.GET, uri, null);
+        try {
+            String payload = objectMapper.writeValueAsString(
+                Map.of("query", normalizedQuery, "top_k", topK)
+            );
+            return exchange(
+                HttpMethod.POST,
+                URI.create(endpoint("/search")),
+                new HttpEntity<>(payload, headers())
+            );
+        } catch (JsonProcessingException e) {
+            throw new ResponseStatusException(BAD_GATEWAY, "AI request could not be encoded", e);
+        }
     }
 
     public boolean isAvailable() {

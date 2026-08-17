@@ -15,9 +15,50 @@ from dataclasses import dataclass, field
 from html.parser import HTMLParser
 from typing import Callable, Collection, List, Optional, Protocol
 
+from app.schemas import MAX_EMBEDDING_DIMENSION, ProviderProvenance
+
 
 MAX_DOCUMENT_CHARS = 20_000
+MAX_RAG_DOCUMENTS = 1_000
 _IGNORED_HTML_TAGS = frozenset({"script", "style", "noscript", "template"})
+
+
+class EmbeddingContractError(ValueError):
+    """Raised when vectors cannot safely share the in-memory index."""
+
+
+EmbeddingCallbackResult = tuple[List[float], str, ProviderProvenance]
+EmbeddingCallback = Callable[[str], List[float] | EmbeddingCallbackResult]
+
+
+def _normalize_embedding(
+    value: List[float] | EmbeddingCallbackResult,
+    *,
+    default_model: str,
+    default_provenance: ProviderProvenance,
+) -> tuple[List[float], str, ProviderProvenance]:
+    if isinstance(value, tuple):
+        if len(value) != 3:
+            raise EmbeddingContractError("embedding callback returned invalid metadata")
+        vector, model, provenance = value
+    else:
+        vector, model, provenance = value, default_model, default_provenance
+
+    if not model.strip() or provenance not in {
+        "local_provider",
+        "remote_provider",
+        "local_fallback",
+    }:
+        raise EmbeddingContractError("embedding metadata is invalid")
+    if not vector or len(vector) > MAX_EMBEDDING_DIMENSION:
+        raise EmbeddingContractError("embedding dimension is outside the configured bound")
+    try:
+        normalized = [float(value) for value in vector]
+    except (TypeError, ValueError) as exc:
+        raise EmbeddingContractError("embedding vector is not numeric") from exc
+    if any(not math.isfinite(value) for value in normalized):
+        raise EmbeddingContractError("embedding vector contains a non-finite value")
+    return normalized, model.strip(), provenance
 
 
 class _VisibleTextParser(HTMLParser):
@@ -101,6 +142,8 @@ class RagDocument:
     title: str
     content: str
     embedding: List[float] = field(default_factory=list)
+    embedding_model: str = "provided"
+    embedding_provenance: ProviderProvenance = "local_provider"
     content_hash: str = ""
     active: bool = True
     published: bool = True
@@ -121,6 +164,8 @@ class Retriever(Protocol):
         *,
         query_text: str = "",
         source_types: Collection[str] | None = None,
+        embedding_model: str = "provided",
+        embedding_provenance: ProviderProvenance = "local_provider",
     ) -> List[tuple[RagDocument, float]]:
         """Return bounded, searchable documents ordered by relevance."""
 
@@ -128,14 +173,42 @@ class Retriever(Protocol):
 class RagIndex:
     """In-memory hybrid vector/keyword index with active-content filtering."""
 
-    def __init__(self) -> None:
+    def __init__(self, max_documents: int = MAX_RAG_DOCUMENTS) -> None:
+        if max_documents < 1:
+            raise ValueError("max_documents must be positive")
         self._documents: dict[str, RagDocument] = {}
+        self.max_documents = max_documents
+
+    def _reference_contract(self) -> tuple[int, str, ProviderProvenance] | None:
+        for document in self._documents.values():
+            if document.searchable and document.embedding:
+                return (
+                    len(document.embedding),
+                    document.embedding_model,
+                    document.embedding_provenance,
+                )
+        return None
 
     def add(self, doc: RagDocument) -> None:
-        if doc.searchable:
-            self._documents[doc.id] = doc
-        else:
+        if not doc.searchable:
             self.remove(doc.id)
+            return
+
+        vector, model, provenance = _normalize_embedding(
+            doc.embedding,
+            default_model=doc.embedding_model,
+            default_provenance=doc.embedding_provenance,
+        )
+        reference = self._reference_contract()
+        contract = (len(vector), model, provenance)
+        if reference and contract != reference:
+            raise EmbeddingContractError("embedding model, provenance, or dimension is incompatible")
+        if doc.id not in self._documents and self.size >= self.max_documents:
+            raise EmbeddingContractError("RAG document limit reached")
+        doc.embedding = vector
+        doc.embedding_model = model
+        doc.embedding_provenance = provenance
+        self._documents[doc.id] = doc
 
     def remove(self, doc_id: str) -> None:
         self._documents.pop(doc_id, None)
@@ -154,9 +227,19 @@ class RagIndex:
         *,
         query_text: str = "",
         source_types: Collection[str] | None = None,
+        embedding_model: str = "provided",
+        embedding_provenance: ProviderProvenance = "local_provider",
     ) -> List[tuple[RagDocument, float]]:
         if not query_embedding:
             return []
+        normalized_query, query_model, query_provenance = _normalize_embedding(
+            query_embedding,
+            default_model=embedding_model,
+            default_provenance=embedding_provenance,
+        )
+        reference = self._reference_contract()
+        if reference and (len(normalized_query), query_model, query_provenance) != reference:
+            raise EmbeddingContractError("query embedding is incompatible with the indexed vectors")
         top_k = max(1, min(top_k, 100))
         allowed_source_types = set(source_types) if source_types else None
         scored: list[tuple[RagDocument, float]] = []
@@ -165,7 +248,7 @@ class RagIndex:
                 continue
             if allowed_source_types and doc.source_type not in allowed_source_types:
                 continue
-            vector_score = max(0.0, _cosine_similarity(query_embedding, doc.embedding))
+            vector_score = max(0.0, _cosine_similarity(normalized_query, doc.embedding))
             lexical_score = _keyword_similarity(query_text, doc) if query_text else 0.0
             score = 0.75 * vector_score + 0.25 * lexical_score if query_text else vector_score
             scored.append((doc, score))
@@ -189,7 +272,9 @@ class RagServiceContract(Protocol):
         active: bool = True,
         published: bool = True,
         metadata: dict[str, str] | None = None,
-        embedder: Callable[[str], List[float]] | None = None,
+        embedding_model: str = "provided",
+        embedding_provenance: ProviderProvenance = "local_provider",
+        embedder: EmbeddingCallback | None = None,
     ) -> RagDocument:
         """Create or update one public document."""
 
@@ -200,6 +285,8 @@ class RagServiceContract(Protocol):
         *,
         query_text: str = "",
         source_types: Collection[str] | None = None,
+        embedding_model: str = "provided",
+        embedding_provenance: ProviderProvenance = "local_provider",
     ) -> List[tuple[RagDocument, float]]:
         """Retrieve bounded public documents."""
 
@@ -207,8 +294,12 @@ class RagServiceContract(Protocol):
 class RagService:
     """Coordinates normalized, idempotent ingestion and hybrid retrieval."""
 
-    def __init__(self, index: Optional[RagIndex] = None) -> None:
-        self.index = index or RagIndex()
+    def __init__(
+        self,
+        index: Optional[RagIndex] = None,
+        max_documents: int = MAX_RAG_DOCUMENTS,
+    ) -> None:
+        self.index = index or RagIndex(max_documents=max_documents)
 
     def ingest(
         self,
@@ -221,7 +312,9 @@ class RagService:
         active: bool = True,
         published: bool = True,
         metadata: dict[str, str] | None = None,
-        embedder: Callable[[str], List[float]] | None = None,
+        embedding_model: str = "provided",
+        embedding_provenance: ProviderProvenance = "local_provider",
+        embedder: EmbeddingCallback | None = None,
     ) -> RagDocument:
         normalized_title = normalize_content(title)
         normalized_content = normalize_content(content)
@@ -241,7 +334,9 @@ class RagService:
             source_id=source_id,
             title=normalized_title,
             content=normalized_content,
-            embedding=embedding or [],
+            embedding=[],
+            embedding_model=embedding_model,
+            embedding_provenance=embedding_provenance,
             content_hash=content_hash,
             active=active,
             published=published,
@@ -258,10 +353,30 @@ class RagService:
         # changes.  A content hash change is the only reason to call embedder.
         if existing and existing.content_hash == content_hash and existing.embedding:
             document.embedding = existing.embedding
+            document.embedding_model = existing.embedding_model
+            document.embedding_provenance = existing.embedding_provenance
         elif embedding is None:
             if embedder is None:
                 raise ValueError("an embedding or embedder is required for new documents")
-            document.embedding = embedder(normalized_content)
+            (
+                document.embedding,
+                document.embedding_model,
+                document.embedding_provenance,
+            ) = _normalize_embedding(
+                embedder(normalized_content),
+                default_model=embedding_model,
+                default_provenance=embedding_provenance,
+            )
+        else:
+            (
+                document.embedding,
+                document.embedding_model,
+                document.embedding_provenance,
+            ) = _normalize_embedding(
+                embedding,
+                default_model=embedding_model,
+                default_provenance=embedding_provenance,
+            )
 
         self.index.add(document)
         return document
@@ -276,10 +391,14 @@ class RagService:
         *,
         query_text: str = "",
         source_types: Collection[str] | None = None,
+        embedding_model: str = "provided",
+        embedding_provenance: ProviderProvenance = "local_provider",
     ) -> List[tuple[RagDocument, float]]:
         return self.index.search(
             query_embedding,
             top_k,
             query_text=query_text,
             source_types=source_types,
+            embedding_model=embedding_model,
+            embedding_provenance=embedding_provenance,
         )

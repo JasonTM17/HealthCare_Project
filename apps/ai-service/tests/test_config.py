@@ -8,6 +8,7 @@ from app.config import Settings
 def test_legacy_deepseek_values_fill_empty_provider_neutral_values(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv("AI_PROVIDER", "deepseek")
     monkeypatch.setenv("AI_API_KEY", "")
     monkeypatch.setenv("AI_CHAT_MODEL", "")
     monkeypatch.setenv("AI_EMBEDDING_MODEL", "")
@@ -28,6 +29,7 @@ def test_legacy_deepseek_values_fill_empty_provider_neutral_values(
 def test_provider_neutral_values_override_legacy_aliases(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv("AI_PROVIDER", "deepseek")
     monkeypatch.setenv("AI_API_KEY", "neutral-test-key")
     monkeypatch.setenv("AI_CHAT_MODEL", "neutral-chat")
     monkeypatch.setenv("AI_EMBEDDING_MODEL", "neutral-embedding")
@@ -43,3 +45,24 @@ def test_provider_neutral_values_override_legacy_aliases(
     assert settings.ai_chat_model == "neutral-chat"
     assert settings.ai_embedding_model == "neutral-embedding"
     assert settings.ai_base_url == "https://neutral-provider.test"
+
+
+def test_deepseek_aliases_do_not_populate_openai_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AI_PROVIDER", "openai")
+    monkeypatch.setenv("AI_API_KEY", "")
+    monkeypatch.setenv("AI_CHAT_MODEL", "")
+    monkeypatch.setenv("AI_EMBEDDING_MODEL", "")
+    monkeypatch.setenv("AI_BASE_URL", "")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "legacy-test-key")
+    monkeypatch.setenv("DEEPSEEK_MODEL", "legacy-chat")
+    monkeypatch.setenv("DEEPSEEK_EMBEDDING_MODEL", "legacy-embedding")
+    monkeypatch.setenv("DEEPSEEK_BASE_URL", "https://legacy-provider.test")
+
+    settings = Settings()
+
+    assert settings.ai_api_key == ""
+    assert settings.ai_chat_model == ""
+    assert settings.ai_embedding_model == ""
+    assert settings.ai_base_url == ""

@@ -11,9 +11,9 @@ from app.providers import (
     ProviderUnavailable,
     REMOTE_CHAT_PROVIDERS,
     float_setting,
+    provider_secret,
     remote_provider_requested,
     runtime_allows_local_fallback,
-    secret_setting,
     string_setting,
 )
 from app.schemas import (
@@ -96,16 +96,21 @@ def build_llm_client(settings: Any) -> LLMClient | None:
     """Resolve a configured remote client without exposing credentials."""
 
     provider = string_setting(settings, "ai_provider", RULE_BASED).lower()
-    api_key = secret_setting(settings, "ai_api_key", "deepseek_api_key")
+    api_key = provider_secret(settings, provider)
     if provider not in REMOTE_CHAT_PROVIDERS or not api_key:
         return None
 
-    model = string_setting(settings, "ai_chat_model") or string_setting(
-        settings, "deepseek_model", "deepseek-chat"
-    )
-    base_url = string_setting(settings, "ai_base_url") or string_setting(
-        settings, "deepseek_base_url", "https://api.deepseek.com"
-    )
+    model = string_setting(settings, "ai_chat_model")
+    base_url = string_setting(settings, "ai_base_url")
+    if provider == "deepseek":
+        model = model or string_setting(settings, "deepseek_model", "deepseek-chat")
+        base_url = base_url or string_setting(
+            settings, "deepseek_base_url", "https://api.deepseek.com"
+        )
+    else:
+        base_url = base_url or "https://api.openai.com/v1"
+    if not model:
+        return None
     return OpenAIChatClient(
         api_key=api_key,
         base_url=base_url,
