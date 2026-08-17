@@ -22,3 +22,33 @@ class TriageResponse(BaseModel):
     clinical_advice: str
     suggested_questions: List[str]
     disclaimer: str = "Kết quả phân tích triệu chứng từ AI mang tính tham khảo sơ bộ, không thay thế chẩn đoán của bác sĩ chuyên khoa."
+
+
+class EmbeddingRequest(BaseModel):
+    text: str
+
+
+class EmbeddingResponse(BaseModel):
+    embedding: List[float]
+    model: str
+
+
+class RAGSearchRequest(BaseModel):
+    query: str
+    top_k: int = 5
+
+
+class RAGSearchResult(BaseModel):
+    source_type: str
+    source_id: str
+    title: str
+    content: str
+    score: float
+
+
+class RAGSearchResponse(BaseModel):
+    results: List[RAGSearchResult]
+
+
+class SpecialtyRecommendationRequest(BaseModel):
+    symptoms: str
