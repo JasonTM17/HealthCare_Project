@@ -7,7 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.healthcare.AbstractIntegrationTest;
+import com.healthcare.TestcontainersIntegrationTest;
 import com.healthcare.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,7 +17,7 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class AuthControllerTest extends AbstractIntegrationTest {
+class AuthControllerTest extends TestcontainersIntegrationTest {
     @Autowired
     private ObjectMapper objectMapper;
 

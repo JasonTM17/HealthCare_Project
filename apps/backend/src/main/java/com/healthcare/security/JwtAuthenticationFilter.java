@@ -36,6 +36,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 UUID userId = tokenProvider.extractUserId(token);
                 UserDetails userDetails = userDetailsService.loadUserByUsername(tokenProvider.extractEmail(token));
 
+                if (!(userDetails instanceof HealthcareUserPrincipal principal)
+                        || !principal.getUserId().equals(userId)) {
+                    SecurityContextHolder.clearContext();
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+
                 if (!userDetails.isEnabled()) {
                     filterChain.doFilter(request, response);
                     return;
@@ -48,7 +55,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 );
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
-            } catch (org.springframework.security.core.userdetails.UsernameNotFoundException e) {
+            } catch (RuntimeException e) {
                 // User was deleted after token issuance: treat as unauthenticated (401 via entry point).
                 SecurityContextHolder.clearContext();
             }

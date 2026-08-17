@@ -2,7 +2,7 @@ package com.healthcare.auth;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.healthcare.AbstractIntegrationTest;
+import com.healthcare.TestcontainersIntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -11,7 +11,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-class RefreshFlowRegressionTest extends AbstractIntegrationTest {
+class RefreshFlowRegressionTest extends TestcontainersIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;

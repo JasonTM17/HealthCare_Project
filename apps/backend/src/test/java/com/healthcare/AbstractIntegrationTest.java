@@ -3,6 +3,9 @@ package com.healthcare;
 import com.healthcare.appointment.repository.AppointmentRepository;
 import com.healthcare.appointment.repository.DoctorScheduleRepository;
 import com.healthcare.appointment.repository.PatientProfileRepository;
+import com.healthcare.clinical.repository.DiagnosticResultRepository;
+import com.healthcare.clinical.repository.MedicalRecordRepository;
+import com.healthcare.clinical.repository.PrescriptionRepository;
 import com.healthcare.hospital.repository.ArticleRepository;
 import com.healthcare.hospital.repository.BranchRepository;
 import com.healthcare.hospital.repository.DoctorRepository;
@@ -94,17 +97,26 @@ public abstract class AbstractIntegrationTest {
     @Autowired protected DoctorScheduleRepository doctorScheduleRepository;
     @Autowired protected PatientProfileRepository patientProfileRepository;
 
+    // ── Clinical overlay ─────────────────────────────────────────────────────
+    @Autowired protected DiagnosticResultRepository diagnosticResultRepository;
+    @Autowired protected MedicalRecordRepository medicalRecordRepository;
+    @Autowired protected PrescriptionRepository prescriptionRepository;
+
     /**
      * Wipe all user-generated rows before every test so tests are fully independent.
      * Deletion order respects FK constraints (children before parents).
      * Flyway-seeded data (roles, permissions) is intentionally left intact.
      *
-     * <p>NOTE: clinical-domain cleanup (prescriptions, medical records) is intentionally
-     * absent — the {@code clinical} package is Phase 9+ work that does not yet compile,
-     * so it is excluded from the foundation-phase test baseline.
+     * <p>Clinical rows are deleted first when the overlay is present so the same
+     * base remains safe for foundation and clinical integration tests.
      */
     @BeforeEach
     void cleanDatabase() {
+        // Clinical domain (children before patient/doctor/appointment parents)
+        prescriptionRepository.deleteAll();
+        medicalRecordRepository.deleteAll();
+        diagnosticResultRepository.deleteAll();
+
         // Appointment domain (FK dependencies on hospital & patient)
         appointmentRepository.deleteAll();
         doctorScheduleRepository.deleteAll();

@@ -76,7 +76,6 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/health").permitAll()
                 .requestMatchers("/api/v1/hospital/**").permitAll()
                 .requestMatchers("/api/v1/appointments/**").permitAll()
-                .requestMatchers("/api/v1/clinical/**").permitAll()
                 .requestMatchers("/api/v1/ai/**").permitAll()
                 .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()

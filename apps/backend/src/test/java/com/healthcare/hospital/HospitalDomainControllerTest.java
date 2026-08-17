@@ -4,7 +4,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.healthcare.AbstractIntegrationTest;
+import com.healthcare.TestcontainersIntegrationTest;
 import com.healthcare.hospital.entity.Specialty;
 import com.healthcare.hospital.entity.MedicalService;
 import com.healthcare.hospital.entity.Package;
@@ -19,7 +19,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
-class HospitalDomainControllerTest extends AbstractIntegrationTest {
+class HospitalDomainControllerTest extends TestcontainersIntegrationTest {
 
     @Autowired
     private SpecialtyRepository specialtyRepository;

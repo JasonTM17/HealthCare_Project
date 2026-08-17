@@ -2,7 +2,7 @@ package com.healthcare.appointment;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.healthcare.AbstractIntegrationTest;
+import com.healthcare.TestcontainersIntegrationTest;
 import com.healthcare.appointment.dto.ConfirmAppointmentRequest;
 import com.healthcare.appointment.dto.HoldSlotRequest;
 import com.healthcare.hospital.entity.Doctor;
@@ -21,7 +21,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-class AppointmentBookingIntegrationTest extends AbstractIntegrationTest {
+class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;

@@ -3,7 +3,7 @@
 spring:
   jpa:
     hibernate:
-      ddl-auto: none      # Flyway manages schema; Hibernate must not recreate tables
+      ddl-auto: validate  # Flyway manages schema; Hibernate validates every mapping
     open-in-view: false
     properties:
       hibernate:
