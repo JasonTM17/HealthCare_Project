@@ -354,7 +354,7 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
     }
 
     @Test
-    void v10_5FailsBeforeMutatingWhenReservedBranchlessKeyIsOccupied() {
+    void v10_4FailsBeforeMutatingWhenReservedBranchlessKeyIsOccupied() {
         String schema = createMigrationSchema();
         try {
             migrate(schema, "10");
@@ -367,7 +367,7 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
                 "Test address"
             );
 
-            Throwable failure = catchThrowable(() -> migrate(schema, "10.5"));
+            Throwable failure = catchThrowable(() -> migrate(schema, "10.4"));
             assertThat(failure).isNotNull();
             assertThat(allMessages(failure)).contains(
                 "V10.4 preflight failed",
@@ -389,6 +389,7 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
             UUID expiredId = UUID.randomUUID();
             UUID liveId = UUID.randomUUID();
             UUID confirmedId = UUID.randomUUID();
+            UUID blockedPendingId = UUID.randomUUID();
             LocalDate appointmentDate = LocalDate.now().plusDays(5);
             String doctors = table(schema, "doctors");
             String patients = table(schema, "patient_profiles");
@@ -422,6 +423,11 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
                 appointmentDate, LocalTime.of(11, 0), LocalTime.of(12, 0),
                 "CONFIRMED", null
             );
+            insertAppointment(
+                appointments, blockedPendingId, doctorId, patientId, null,
+                appointmentDate, LocalTime.of(11, 30), LocalTime.of(12, 30),
+                "PENDING_CONFIRMATION", OffsetDateTime.now().plusMinutes(10)
+            );
 
             migrate(schema, "10.4");
             migrate(schema, "10.5");
@@ -442,6 +448,13 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
                 "select count(*) from " + appointments + " where id = ? and status = 'CONFIRMED'",
                 Integer.class,
                 confirmedId
+            )).isEqualTo(1);
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + appointments
+                    + " where id = ? and status = 'CANCELLED' and cancellation_reason = ?",
+                Integer.class,
+                blockedPendingId,
+                "Hủy giữ chỗ trùng khi nâng cấp dữ liệu trước V11"
             )).isEqualTo(1);
         } finally {
             dropMigrationSchema(schema);
