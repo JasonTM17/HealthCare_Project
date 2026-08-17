@@ -8,5 +8,5 @@ test("appointment calls to action target the available branch section", async ()
   const page = await readFile(pagePath, "utf8");
 
   assert.match(page, /id="branches"/);
-  assert.match(page, /href="#branches"/);
+  assert.match(page, /href="\/#branches"/);
 });

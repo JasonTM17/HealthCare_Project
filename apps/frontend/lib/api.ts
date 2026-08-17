@@ -168,7 +168,7 @@ export const SEED_PACKAGES: HealthPackage[] = [
 export const SEED_BRANCHES: Branch[] = [
   {
     id: "br-1",
-    name: "Bệnh viện Đa khoa HealthCare — Trụ sở Trung tâm",
+    name: "Bệnh viện Đa khoa HealthCare, Trụ sở Trung tâm",
     slug: "co-so-trung-tam",
     address: "Số 120 Đường Nguyễn Thị Minh Khai, Phường Bến Thành, Quận 1, TP. Hồ Chí Minh",
     phone: "028 3822 1234",
@@ -177,7 +177,7 @@ export const SEED_BRANCHES: Branch[] = [
   },
   {
     id: "br-2",
-    name: "Phòng khám Đa khoa Quốc tế HealthCare — Bình Thạnh",
+    name: "Phòng khám Đa khoa Quốc tế HealthCare, Bình Thạnh",
     slug: "co-so-binh-thanh",
     address: "Số 45 Đường Điện Biên Phủ, Phường 15, Quận Bình Thạnh, TP. Hồ Chí Minh",
     phone: "028 3512 5678",
@@ -186,7 +186,7 @@ export const SEED_BRANCHES: Branch[] = [
   },
   {
     id: "br-3",
-    name: "Bệnh viện Đa khoa HealthCare — Khu Đô thị Thủ Đức",
+    name: "Bệnh viện Đa khoa HealthCare, Khu Đô thị Thủ Đức",
     slug: "co-so-thu-duc",
     address: "Số 88 Đường Võ Văn Ngân, Phường Linh Chiểu, TP. Thủ Đức, TP. Hồ Chí Minh",
     phone: "028 3720 9999",
@@ -347,3 +347,4 @@ function generateFallbackSlots(): TimeSlot[] {
     statusNote: idx === 2 || idx === 5 ? "Đã có người đặt" : "Còn trống",
   }));
 }
+

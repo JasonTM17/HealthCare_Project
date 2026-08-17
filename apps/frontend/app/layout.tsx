@@ -24,13 +24,13 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: {
-    default: "HealthCare — Chăm sóc sức khỏe toàn diện",
+    default: "HealthCare: Chăm sóc sức khỏe toàn diện",
     template: "%s | HealthCare",
   },
   description:
     "Nền tảng y tế số đang được xây dựng cho trải nghiệm bệnh nhân an toàn, dễ hiểu và thân thiện trên mọi thiết bị.",
   keywords: ["y tế", "bệnh viện", "khám bệnh", "đặt lịch", "chuyên khoa"],
-  robots: { index: false, follow: false }, // foundation phase — not for indexing yet
+  robots: { index: false, follow: false }, // foundation phase: not for indexing yet
   openGraph: {
     type: "website",
     locale: "vi_VN",
@@ -50,3 +50,4 @@ export default function RootLayout({
     </html>
   );
 }
+
