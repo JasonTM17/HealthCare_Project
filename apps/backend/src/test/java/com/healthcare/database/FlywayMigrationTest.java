@@ -285,6 +285,74 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
     }
 
     @Test
+    void v10_5RepairsPendingOverlapBeforeV11CreatesConstraints() {
+        String schema = createMigrationSchema();
+        try {
+            migrate(schema, "10");
+            UUID doctorId = UUID.randomUUID();
+            UUID patientId = UUID.randomUUID();
+            UUID canonicalId = UUID.randomUUID();
+            UUID duplicateId = UUID.randomUUID();
+            LocalDate appointmentDate = LocalDate.now().plusDays(3);
+            String doctors = table(schema, "doctors");
+            String patients = table(schema, "patient_profiles");
+            String appointments = table(schema, "appointments");
+
+            jdbcTemplate.update(
+                "insert into " + doctors + " (id, full_name, slug, active) values (?, ?, ?, true)",
+                doctorId, "Pre-V11 repair doctor", "pre-v11-repair-doctor-" + doctorId
+            );
+            jdbcTemplate.update(
+                "insert into " + patients + " (id, full_name, phone) values (?, ?, ?)",
+                patientId, "Pre-V11 repair patient", "090" + Math.abs(patientId.hashCode())
+            );
+            jdbcTemplate.execute("drop index " + identifier(schema) + ".uq_appointments_active_slot");
+            jdbcTemplate.execute(
+                "alter table " + identifier(schema) + ".appointments "
+                    + "drop constraint if exists ex_appointments_active_interval"
+            );
+            insertAppointment(
+                appointments, canonicalId, doctorId, patientId, null,
+                appointmentDate, LocalTime.of(9, 0), LocalTime.of(10, 0),
+                "PENDING_CONFIRMATION", OffsetDateTime.now().plusMinutes(10)
+            );
+            insertAppointment(
+                appointments, duplicateId, doctorId, patientId, null,
+                appointmentDate, LocalTime.of(9, 30), LocalTime.of(10, 30),
+                "PENDING_CONFIRMATION", OffsetDateTime.now().plusMinutes(10)
+            );
+
+            migrate(schema, "10.5");
+
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + appointments + " where status = 'PENDING_CONFIRMATION'",
+                Integer.class
+            )).isEqualTo(1);
+            assertThat(jdbcTemplate.queryForObject(
+                "select id from " + appointments + " where status = 'PENDING_CONFIRMATION'",
+                UUID.class
+            )).isEqualTo(canonicalId);
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + appointments
+                    + " where id = ? and status = 'CANCELLED' and cancellation_reason = ?",
+                Integer.class,
+                duplicateId,
+                "Hủy giữ chỗ trùng khi nâng cấp dữ liệu trước V11"
+            )).isEqualTo(1);
+
+            migrate(schema, "11");
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from pg_indexes where schemaname = ? and indexname = ?",
+                Integer.class,
+                schema,
+                "uq_appointments_active_slot"
+            )).isEqualTo(1);
+        } finally {
+            dropMigrationSchema(schema);
+        }
+    }
+
+    @Test
     void v13PreservesOldestLivePendingHoldAndCancelsLaterDuplicates() {
         String schema = createMigrationSchema();
         try {
