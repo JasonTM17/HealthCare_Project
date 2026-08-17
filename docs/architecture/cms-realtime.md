@@ -33,9 +33,17 @@ bounded and restart-safe; a full replay window falls back to a GET snapshot.
 
 ## Migration ordering
 
-This checkout contains Flyway V1-V12. V10/V11 enforce the branch-aware
-scheduling constraints, and the CMS migration is deliberately
-`V12__cms_content_realtime.sql`; do not renumber it on the integration head.
+This checkout contains Flyway V1-V13. V10/V11 enforce the branch-aware
+scheduling constraints, V12 adds CMS content, and V13 repairs legacy duplicate
+pending holds without rewriting an already-applied migration. Do not renumber
+these migrations on the integration head.
+
+If an existing local volume already applied V12 before V10/V11, first verify a
+database backup and then run one maintenance start with
+`SPRING_FLYWAY_OUT_OF_ORDER=true`; after V10/V11 are recorded, restart with the
+default `false`. This is an explicit recovery override, not the normal Compose
+mode. Never use `repair` or delete `postgres-data` without reviewing the
+database history and backup.
 
 ## Compose seed and verification
 

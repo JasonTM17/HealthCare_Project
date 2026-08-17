@@ -76,6 +76,7 @@ services:
       AI_SERVICE_RUNTIME: compose
       AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL: "false"
       AI_SERVICE_TOKEN:   ${AI_SERVICE_TOKEN:?AI_SERVICE_TOKEN must be set for Compose}
+      SPRING_FLYWAY_OUT_OF_ORDER: ${SPRING_FLYWAY_OUT_OF_ORDER:-false}
       MINIO_ENDPOINT:      http://minio:9000
       MINIO_ACCESS_KEY:    ${MINIO_ROOT_USER:-healthcare}
       MINIO_SECRET_KEY:    ${MINIO_ROOT_PASSWORD:-change-me}
