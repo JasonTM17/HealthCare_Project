@@ -1,10 +1,10 @@
 # HealthCare_Project
 
-HealthCare_Project is a healthcare platform foundation for a Vietnamese hospital-style experience. The current objective is a clean monorepo baseline, not production healthcare features.
+HealthCare_Project is a healthcare platform foundation for a Vietnamese hospital-style experience. It is an educational/local-development project; passing local checks does not establish production healthcare, compliance, or deployment readiness.
 
 ## Status
 
-Foundation work is complete through the public hospital domain (Phase 4). The monorepo has a working auth/RBAC system, appointment booking engine, clinical records overlay, hospital content APIs, a polished frontend catalog, and CI. The repository is on `main`, unpushed.
+The repository currently has auth/RBAC, appointment booking, a clinical records authorization overlay, hospital content APIs, a frontend catalog, a doctor-management admin slice, MinIO file storage baseline, and CI definitions. The repository is on `main`; local changes may still be uncommitted and nothing is claimed as pushed or production-ready.
 
 ## Monorepo Layout
 
@@ -35,7 +35,7 @@ Copy `.env.example` to `.env` for local use and replace placeholder values. Neve
 
 ## Commands
 
-Backend (local profile uses PostgreSQL on `localhost:5433`):
+Backend (local profile uses PostgreSQL on `localhost:5433` and MinIO on `localhost:9000`):
 
 ```bash
 cd apps/backend
@@ -74,6 +74,11 @@ docker compose -f infrastructure/docker-compose.yml config
 docker compose -f infrastructure/docker-compose.yml up
 ```
 
+The Compose backend connects to MinIO at `http://minio:9000`; local host runs use
+`http://localhost:9000`. Keep `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD` aligned
+with the backend's `MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY` values and replace all
+example credentials before any shared or deployed use.
+
 ## Frontend Design Direction
 
 The frontend baseline uses a refined clinical network direction: deep teal, soft mint, warm sand, calm ink, restrained amber, Vietnamese-safe typography, and an appointment-oriented care rail.
@@ -91,6 +96,12 @@ Google Stitch may be used for static design concepts only when API, dependencies
 
 ## Scope Boundaries
 
-The foundation (Phases 1-5) and public hospital domain (Phase 4) are complete: auth/RBAC, JWT access+refresh tokens, appointment booking, clinical records, hospital content APIs, frontend catalog, and CI.
+The foundation and public hospital domain are implemented locally: auth/RBAC,
+JWT access+refresh tokens, appointment booking, clinical records authorization,
+hospital content APIs, frontend catalog, CI, and the current admin/storage
+baselines. Remaining work includes broader scheduling/concurrency, patient and
+doctor portals, complete file metadata/ownership hardening, notifications,
+AI/RAG/recommendations, semantic search, security hardening, performance, UX
+polish, and the final end-to-end demo.
 
 Remaining PROJECT_PLAN.md phases (5-21): admin CMS, doctor scheduling, appointment concurrency, patient/doctor portals, files, notifications, AI foundation/RAG/recommendations, semantic search, security hardening, performance, UX polish, and CI/CD.
