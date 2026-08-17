@@ -361,6 +361,13 @@ export default function Home(): React.ReactElement {
               title="Thông tin mới nhất cho hành trình chăm sóc"
             />
             <CmsLiveSlot className="mt-6" slug="home" slotKey="hero" />
+            <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)]">
+              <CmsLiveSlot hideWhenNotFound slug="home" slotKey="body" />
+              <div className="grid gap-6">
+                <CmsLiveSlot hideWhenNotFound slug="home" slotKey="sidebar" />
+                <CmsLiveSlot hideWhenNotFound slug="home" slotKey="footer" />
+              </div>
+            </div>
           </div>
         </section>
 

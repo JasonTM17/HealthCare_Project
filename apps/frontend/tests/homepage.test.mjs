@@ -17,4 +17,8 @@ test("homepage mounts the published CMS hero slot for realtime updates", async (
   assert.match(page, /import \{ CmsLiveSlot \} from "\.\.\/components\/cms"/);
   assert.match(page, /id="cms-live"/);
   assert.match(page, /<CmsLiveSlot className="mt-6" slug="home" slotKey="hero" \/>/);
+  for (const slot of ["body", "sidebar", "footer"]) {
+    assert.match(page, new RegExp(`CmsLiveSlot[^\\n]*slotKey="${slot}"`));
+  }
+  assert.match(page, /hideWhenNotFound/);
 });

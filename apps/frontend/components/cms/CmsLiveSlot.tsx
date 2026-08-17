@@ -19,6 +19,8 @@ export interface CmsLiveSlotProps {
   pollIntervalMs?: number;
   className?: string;
   showSourceLabel?: boolean;
+  /** Optional slots stay out of the layout until an admin publishes them. */
+  hideWhenNotFound?: boolean;
 }
 
 type LiveTransport = "connecting" | "sse" | "polling";
@@ -39,6 +41,7 @@ export function CmsLiveSlot({
   pollIntervalMs = 15_000,
   className = "",
   showSourceLabel = true,
+  hideWhenNotFound = false,
 }: CmsLiveSlotProps): ReactElement {
   const backendSlotKey = resolveCmsSlotKey(slug, slotKey);
   const [content, setContent] = useState<CmsContent | null>(null);
@@ -115,6 +118,10 @@ export function CmsLiveSlot({
     : transport === "sse"
       ? "Live CMS · change-feed"
       : "Live CMS · đang kết nối";
+
+  if (hideWhenNotFound && !loading && !content && error instanceof CmsApiError && error.kind === "not-found") {
+    return <></>;
+  }
 
   return (
     <section
