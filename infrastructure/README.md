@@ -13,3 +13,9 @@ Compose is fail-closed for the internal AI boundary. Set a non-empty shared
 apply to Compose.
 
 The local stack exposes frontend on port 3000, backend on 8080, AI service on 8000, PostgreSQL on host port 5434 (container port 5432), Redis on 6379, and MinIO on 9000 (console 9001).
+
+The `local-seed` one-shot service waits for the backend health check (after
+Flyway) and runs the fictional PostgreSQL seed once. It defaults to
+`apps/backend/src/main/resources/db/seed/seed-local-data.sql`; set the
+PowerShell `SEED_FILE` environment variable for one run if the larger seed is
+needed. See `docs/architecture/cms-realtime.md` for the rerun/query proof.

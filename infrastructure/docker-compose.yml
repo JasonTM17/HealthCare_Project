@@ -87,11 +87,32 @@ services:
       minio:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/v1/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"' || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
       start_period: 60s
+
+  # ── One-shot PostgreSQL seed ────────────────────────────────────────────────
+  # The seed is mounted only here and runs after backend health, which means
+  # Flyway has completed before any local rows are inserted. Override SEED_FILE
+  # for the larger fictional dataset; never replace the Flyway migrations.
+  local-seed:
+    image: postgres:16-alpine
+    container_name: healthcare-local-seed
+    restart: "no"
+    environment:
+      PGHOST:     postgres
+      PGPORT:     "5432"
+      PGDATABASE: ${POSTGRES_DB:-healthcare}
+      PGUSER:     ${POSTGRES_USER:-healthcare}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-change-me}
+    volumes:
+      - ${SEED_FILE:-../apps/backend/src/main/resources/db/seed/seed-local-data.sql}:/seed/seed.sql:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    command: ["/bin/sh", "-ec", "psql -v ON_ERROR_STOP=1 -f /seed/seed.sql"]
 
   # ── Next.js Frontend ────────────────────────────────────────────────────────
   frontend:

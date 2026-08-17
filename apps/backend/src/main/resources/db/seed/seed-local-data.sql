@@ -100,6 +100,23 @@ INSERT INTO faqs (id, question, answer, active) VALUES
     ('70000000-0000-0000-0000-000000000004', 'Giờ khám bệnh là khi nào?', 'Bệnh viện khám từ 6h30 đến 20h00 tất cả các ngày trong tuần, kể cả ngày lễ.', true)
 ON CONFLICT DO NOTHING;
 
+-- ── CMS content (published fictional frontend component) ─────────────────────
+-- This seed is intentionally payload-only: no HTML, JavaScript, CSS, secrets,
+-- or patient data. Re-running it preserves an admin's later edits by slot key.
+INSERT INTO cms_contents (
+    id, slot_key, component_type, payload, status, version, created_at, updated_at
+) VALUES (
+    '80000000-0000-0000-0000-000000000001',
+    'homepage.hero',
+    'HERO',
+    '{"eyebrow":"Chăm sóc chủ động","title":"Đồng hành cùng sức khỏe gia đình","body":"Đặt lịch khám và tìm hiểu dịch vụ chăm sóc phù hợp với nhu cầu của bạn.","ctaLabel":"Đặt lịch khám","ctaHref":"/dat-lich"}'::jsonb,
+    'PUBLISHED',
+    1,
+    '2026-08-01T08:00:00+07:00',
+    '2026-08-01T08:00:00+07:00'
+)
+ON CONFLICT (slot_key) DO NOTHING;
+
 -- ── Doctor schedules (Mon-Fri, morning + afternoon shifts) ────────────────────
 INSERT INTO doctor_schedules (id, doctor_id, branch_id, day_of_week, start_time, end_time, slot_duration_minutes, effective_from, effective_to, active)
 SELECT gen_random_uuid(), d.id, b.id, shifts.dow, shifts.start_time::time, shifts.end_time::time, 30, '2026-08-01', NULL, true
