@@ -75,6 +75,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/refresh").permitAll()
                 .requestMatchers("/api/v1/health").permitAll()
                 .requestMatchers("/api/v1/hospital/**").permitAll()
+                .requestMatchers("/api/v1/cms/**").permitAll()
+                .requestMatchers("/api/v1/admin/cms/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/v1/appointments/doctors/*/slots").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/appointments/hold").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/appointments/confirm").permitAll()
