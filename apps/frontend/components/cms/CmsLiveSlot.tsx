@@ -1,16 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactElement } from "react";
 import {
   CmsApiError,
   CmsClient,
   defaultCmsClient,
-  type CmsPage,
+  resolveCmsSlotKey,
+  type CmsContent,
   type CmsSlotKey,
 } from "../../lib/cms-client";
 import { CmsSlotRenderer } from "./CmsRenderer";
 
 export interface CmsLiveSlotProps {
+  /** Public route/page identity. `home` maps `hero` to `homepage.hero`. */
   slug: string;
   slotKey: CmsSlotKey;
   client?: CmsClient;
@@ -22,15 +24,10 @@ export interface CmsLiveSlotProps {
 type LiveTransport = "connecting" | "sse" | "polling";
 
 function errorMessage(error: unknown): string {
-  if (error instanceof CmsApiError && error.kind === "not-found") {
-    return "Chưa có nội dung live cho slot này.";
-  }
-  if (error instanceof CmsApiError && error.kind === "auth") {
-    return "CMS yêu cầu xác thực để đọc nội dung live.";
-  }
-  if (error instanceof CmsApiError && error.kind === "forbidden") {
-    return "Bạn không có quyền đọc nội dung live này.";
-  }
+  if (error instanceof CmsApiError && error.kind === "not-found") return "Chưa có nội dung PUBLISHED cho slot này.";
+  if (error instanceof CmsApiError && error.kind === "auth") return "CMS yêu cầu xác thực để đọc nội dung live.";
+  if (error instanceof CmsApiError && error.kind === "forbidden") return "Bạn không có quyền đọc nội dung live này.";
+  if (error instanceof CmsApiError && error.kind === "unavailable") return "Change-feed CMS tạm thời không khả dụng.";
   if (error instanceof Error) return error.message;
   return "Không thể tải nội dung live.";
 }
@@ -42,29 +39,35 @@ export function CmsLiveSlot({
   pollIntervalMs = 15_000,
   className = "",
   showSourceLabel = true,
-}: CmsLiveSlotProps): React.ReactElement {
-  const [page, setPage] = useState<CmsPage | null>(null);
+}: CmsLiveSlotProps): ReactElement {
+  const backendSlotKey = resolveCmsSlotKey(slug, slotKey);
+  const [content, setContent] = useState<CmsContent | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
   const [transport, setTransport] = useState<LiveTransport>("connecting");
   const latestVersion = useRef(0);
+  const latestEventId = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
     let pollTimer: ReturnType<typeof setInterval> | undefined;
     latestVersion.current = 0;
+    latestEventId.current = 0;
 
     const refresh = async (): Promise<void> => {
       try {
-        const nextPage = await client.getPublishedPage(slug);
-        if (cancelled || nextPage.state !== "PUBLISHED") return;
-        if (nextPage.version >= latestVersion.current) {
-          latestVersion.current = nextPage.version;
-          setPage(nextPage);
+        const nextContent = await client.getPublishedContent(backendSlotKey);
+        if (cancelled || nextContent.status !== "PUBLISHED") return;
+        if (nextContent.version >= latestVersion.current) {
+          latestVersion.current = nextContent.version;
+          setContent(nextContent);
         }
         setError(null);
       } catch (nextError) {
-        if (!cancelled) setError(nextError);
+        if (!cancelled) {
+          if (nextError instanceof CmsApiError && nextError.kind === "not-found") setContent(null);
+          setError(nextError);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -73,26 +76,29 @@ export function CmsLiveSlot({
     const startPolling = (): void => {
       if (cancelled || pollTimer) return;
       setTransport("polling");
-      const interval = Math.max(5_000, pollIntervalMs);
-      pollTimer = setInterval(() => void refresh(), interval);
+      pollTimer = setInterval(() => void refresh(), Math.max(5_000, pollIntervalMs));
     };
 
-    const stopFeed = client.subscribeToChanges(slug, {
+    const stopFeed = client.subscribeToChanges({
+      after: latestEventId.current || undefined,
       onChange: (event) => {
-        if (event.page && event.page.state === "PUBLISHED" && event.version >= latestVersion.current) {
+        if (event.slotKey !== backendSlotKey || event.eventId <= latestEventId.current) return;
+        latestEventId.current = event.eventId;
+        if (event.version <= latestVersion.current) return;
+        if (event.published) {
+          void refresh();
+        } else {
           latestVersion.current = event.version;
-          setPage(event.page);
-          setError(null);
+          setContent(null);
+          setError(new CmsApiError("not-found", 404, "Slot hiện không còn PUBLISHED."));
           setLoading(false);
-          return;
         }
-        void refresh();
       },
       onConnected: () => {
         if (!cancelled) setTransport("sse");
       },
       onFallback: startPolling,
-      sinceVersion: latestVersion.current || undefined,
+      onResync: () => void refresh(),
     });
 
     void refresh();
@@ -102,7 +108,7 @@ export function CmsLiveSlot({
       stopFeed();
       if (pollTimer) clearInterval(pollTimer);
     };
-  }, [client, pollIntervalMs, slug]);
+  }, [backendSlotKey, client, pollIntervalMs]);
 
   const sourceLabel = transport === "polling"
     ? "Live CMS · polling dự phòng"
@@ -117,36 +123,29 @@ export function CmsLiveSlot({
       className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6 ${className}`}
       data-cms-live-source="live-backend"
       data-cms-live-slot={slotKey}
-      data-cms-slug={slug}
+      data-cms-backend-slot={backendSlotKey}
     >
       {showSourceLabel ? (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-slate-500">
           <span>{sourceLabel}</span>
-          {page ? <span>Version {page.version}</span> : null}
+          <span>{content ? `Version ${content.version}` : backendSlotKey}</span>
         </div>
       ) : null}
 
-      {error && !page ? (
+      {error && !content ? (
         <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950" role="alert">
           {errorMessage(error)} Không có dữ liệu demo thay thế.
         </p>
       ) : null}
 
-      {error && page ? (
+      {error && content ? (
         <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950" role="status">
-          Nội dung đang hiển thị là version {page.version} gần nhất; lần cập nhật live tiếp theo sẽ thử lại.
+          Đang hiển thị version {content.version} gần nhất; lần đồng bộ live tiếp theo sẽ thử lại.
         </p>
       ) : null}
 
-      {loading && !page ? (
-        <p className="text-sm text-slate-500" role="status">
-          Đang tải nội dung live…
-        </p>
-      ) : null}
-
-      {page ? (
-        <CmsSlotRenderer components={page.slots[slotKey]} slotKey={slotKey} />
-      ) : null}
+      {loading && !content ? <p className="text-sm text-slate-500" role="status">Đang tải nội dung live…</p> : null}
+      {content ? <CmsSlotRenderer content={content} slotKey={slotKey} /> : null}
     </section>
   );
 }

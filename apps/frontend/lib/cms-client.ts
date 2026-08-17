@@ -1,93 +1,93 @@
 /**
- * Typed boundary for the realtime CMS contract.
+ * Typed client for the slot-scoped CMS contract.
  *
- * The current backend exposes legacy hospital/article CRUD, not this page/slot
- * contract. Keep this adapter live-only: callers get an explicit API error
- * while the typed CMS endpoints and change feed are being integrated. There
- * is intentionally no deterministic mock fallback in this module.
+ * The backend stores one validated component per slot. This module is live
+ * only: it never fabricates a page or falls back to deterministic mock data.
  */
 
-export const CMS_PAGE_STATES = ["DRAFT", "PUBLISHED"] as const;
-export type CmsPageState = (typeof CMS_PAGE_STATES)[number];
+export const CMS_PUBLICATION_STATUSES = ["DRAFT", "PUBLISHED"] as const;
+export const CMS_PAGE_STATES = CMS_PUBLICATION_STATUSES;
+export type CmsPublicationStatus = (typeof CMS_PUBLICATION_STATUSES)[number];
+export type CmsPageState = CmsPublicationStatus;
 
+/** Stable UI slots are mapped to backend keys, e.g. home + hero -> homepage.hero. */
 export const CMS_SLOT_KEYS = ["hero", "body", "sidebar", "footer"] as const;
 export type CmsSlotKey = (typeof CMS_SLOT_KEYS)[number];
 
-export const CMS_COMPONENT_KEYS = [
-  "heading",
-  "paragraph",
-  "callout",
-  "link",
-  "image",
+export const CMS_COMPONENT_TYPES = [
+  "HERO",
+  "RICH_TEXT",
+  "CTA_BANNER",
+  "NOTICE",
+  "IMAGE_CARD",
 ] as const;
-export type CmsComponentKey = (typeof CMS_COMPONENT_KEYS)[number];
+export const CMS_COMPONENT_KEYS = CMS_COMPONENT_TYPES;
+export type CmsComponentType = (typeof CMS_COMPONENT_TYPES)[number];
+export type CmsComponentKey = CmsComponentType;
 
-export const CMS_CALLOUT_TONES = ["info", "success", "warning"] as const;
-export type CmsCalloutTone = (typeof CMS_CALLOUT_TONES)[number];
-
-export interface CmsHeadingProps {
-  text: string;
-  level: 1 | 2 | 3;
+export interface CmsHeroPayload {
+  eyebrow?: string;
+  title: string;
+  body?: string;
+  ctaLabel?: string;
+  ctaHref?: string;
+  imageUrl?: string;
 }
 
-export interface CmsParagraphProps {
-  text: string;
-}
-
-export interface CmsCalloutProps {
+export interface CmsRichTextPayload {
   title: string;
   body: string;
-  tone: CmsCalloutTone;
 }
 
-export interface CmsLinkProps {
-  label: string;
-  href: string;
-}
-
-export interface CmsImageProps {
-  src: string;
-  alt: string;
-}
-
-export type CmsComponent =
-  | { id: string; componentKey: "heading"; props: CmsHeadingProps }
-  | { id: string; componentKey: "paragraph"; props: CmsParagraphProps }
-  | { id: string; componentKey: "callout"; props: CmsCalloutProps }
-  | { id: string; componentKey: "link"; props: CmsLinkProps }
-  | { id: string; componentKey: "image"; props: CmsImageProps };
-
-export type CmsSlots = Partial<Record<CmsSlotKey, CmsComponent[]>>;
-
-export interface CmsPage {
-  id: string;
-  slug: string;
+export interface CmsCtaBannerPayload {
   title: string;
-  state: CmsPageState;
+  body: string;
+  ctaLabel: string;
+  ctaHref: string;
+}
+
+export interface CmsNoticePayload {
+  title: string;
+  body: string;
+}
+
+export interface CmsImageCardPayload {
+  title: string;
+  body?: string;
+  imageUrl: string;
+  href?: string;
+}
+
+export type CmsPayload =
+  | CmsHeroPayload
+  | CmsRichTextPayload
+  | CmsCtaBannerPayload
+  | CmsNoticePayload
+  | CmsImageCardPayload;
+
+interface CmsContentBase {
+  slotKey: string;
+  status: CmsPublicationStatus;
   version: number;
   updatedAt: string;
-  publishedAt: string | null;
-  slots: CmsSlots;
 }
 
-export interface CmsDraftInput {
-  title: string;
-  slots: CmsSlots;
-  baseVersion?: number;
+export type CmsContent = CmsContentBase & (
+  | { componentType: "HERO"; payload: CmsHeroPayload }
+  | { componentType: "RICH_TEXT"; payload: CmsRichTextPayload }
+  | { componentType: "CTA_BANNER"; payload: CmsCtaBannerPayload }
+  | { componentType: "NOTICE"; payload: CmsNoticePayload }
+  | { componentType: "IMAGE_CARD"; payload: CmsImageCardPayload }
+);
+
+export interface CmsContentInput {
+  componentType: CmsComponentType;
+  payload: CmsPayload;
+  status: CmsPublicationStatus;
+  expectedVersion: number;
 }
 
-export interface CmsCreateDraftInput extends CmsDraftInput {
-  slug: string;
-}
-
-export interface CmsPublishInput {
-  baseVersion: number;
-}
-
-export interface CmsRollbackInput {
-  targetVersion: number;
-  baseVersion: number;
-}
+export type CmsFieldErrors = Record<string, string>;
 
 export type CmsApiErrorKind =
   | "auth"
@@ -97,9 +97,8 @@ export type CmsApiErrorKind =
   | "not-found"
   | "network"
   | "server"
+  | "unavailable"
   | "unknown";
-
-export type CmsFieldErrors = Record<string, string>;
 
 export class CmsApiError extends Error {
   readonly kind: CmsApiErrorKind;
@@ -127,18 +126,32 @@ export class CmsValidationError extends CmsApiError {
   }
 }
 
-export interface CmsChangeEvent {
-  type: "published" | "updated" | "deleted" | "snapshot";
-  slug: string;
+export interface CmsContentChangedEvent {
+  type: "cms-content-changed";
+  eventId: number;
+  slotKey: string;
   version: number;
+  published: boolean;
   updatedAt: string;
-  page?: CmsPage;
+}
+
+export interface CmsFeedReadyEvent {
+  latestEventId: number;
+  replayLimit: number;
+  snapshotFallback: string;
+}
+
+export interface CmsFeedResyncEvent {
+  latestEventId: number;
+  reason: string;
+  snapshotFallback: string;
 }
 
 export interface CmsChangeSubscriptionOptions {
-  sinceVersion?: number;
-  onChange: (event: CmsChangeEvent) => void;
-  onConnected?: () => void;
+  after?: number;
+  onChange: (event: CmsContentChangedEvent) => void;
+  onConnected?: (ready?: CmsFeedReadyEvent) => void;
+  onResync?: (event: CmsFeedResyncEvent) => void;
   onFallback?: () => void;
 }
 
@@ -154,246 +167,248 @@ const DEFAULT_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ||
   "http://localhost:8080/api/v1";
 
-const MAX_COMPONENT_ID_LENGTH = 120;
+const SLOT_KEY_PATTERN = /^[a-z0-9]+(?:[._-][a-z0-9]+)*$/;
+const MAX_TEXT_LENGTH = 4_000;
+const LINK_FIELDS = new Set(["ctaHref", "href", "imageUrl"]);
+const UNSAFE_TEXT = /(<|>|javascript\s*:|data\s*:)/i;
+
+const PAYLOAD_SCHEMAS: Record<CmsComponentType, {
+  allowed: readonly string[];
+  required: readonly string[];
+}> = {
+  HERO: {
+    allowed: ["eyebrow", "title", "body", "ctaLabel", "ctaHref", "imageUrl"],
+    required: ["title"],
+  },
+  RICH_TEXT: { allowed: ["title", "body"], required: ["title", "body"] },
+  CTA_BANNER: {
+    allowed: ["title", "body", "ctaLabel", "ctaHref"],
+    required: ["title", "body", "ctaLabel", "ctaHref"],
+  },
+  NOTICE: { allowed: ["title", "body"], required: ["title", "body"] },
+  IMAGE_CARD: {
+    allowed: ["title", "body", "imageUrl", "href"],
+    required: ["title", "imageUrl"],
+  },
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readRecord(value: unknown, label: string): Record<string, unknown> {
+  if (!isRecord(value)) throw new CmsValidationError(`${label} phải là object.`);
+  return value;
 }
 
 function hasOwn(value: Record<string, unknown>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(value, key);
 }
 
-function readRecord(value: unknown, label: string): Record<string, unknown> {
-  if (!isRecord(value)) {
-    throw new CmsValidationError(`${label} phải là một object.`);
-  }
-  return value;
+function isOneOf<T extends readonly string[]>(value: unknown, values: T): value is T[number] {
+  return typeof value === "string" && values.includes(value);
 }
 
-function readRequiredString(
+function readRequiredText(
   value: Record<string, unknown>,
   key: string,
   label: string,
-  maxLength: number,
 ): string {
-  const candidate = value[key];
-  if (typeof candidate !== "string" || candidate.trim().length === 0) {
+  if (typeof value[key] !== "string") {
     throw new CmsValidationError(`${label}.${key} phải là chuỗi không rỗng.`, {
-      [key]: "Trường này không được để trống.",
+      [`payload.${key}`]: "Trường này là bắt buộc.",
     });
   }
-  if (candidate.length > maxLength) {
-    throw new CmsValidationError(`${label}.${key} vượt quá ${maxLength} ký tự.`, {
-      [key]: `Tối đa ${maxLength} ký tự.`,
-    });
-  }
-  return candidate;
+  return normalizeText(value[key] as string, `${label}.${key}`);
 }
 
-function readOptionalString(
+function readOptionalText(
   value: Record<string, unknown>,
   key: string,
   label: string,
-  maxLength: number,
 ): string | undefined {
   if (!hasOwn(value, key) || value[key] === undefined) return undefined;
   if (typeof value[key] !== "string") {
     throw new CmsValidationError(`${label}.${key} phải là chuỗi.`);
   }
-  if ((value[key] as string).length > maxLength) {
-    throw new CmsValidationError(`${label}.${key} vượt quá ${maxLength} ký tự.`);
-  }
-  return value[key] as string;
+  return normalizeText(value[key] as string, `${label}.${key}`);
 }
 
-function isOneOf<T extends readonly string[]>(value: unknown, values: T): value is T[number] {
-  return typeof value === "string" && values.includes(value);
+function normalizeText(value: string, label: string): string {
+  const text = value.trim();
+  if (!text || text.length > MAX_TEXT_LENGTH) {
+    throw new CmsValidationError(`${label} có độ dài không hợp lệ.`, {
+      [`payload.${label.split(".").at(-1)}`]: `Từ 1 đến ${MAX_TEXT_LENGTH} ký tự.`,
+    });
+  }
+  if (UNSAFE_TEXT.test(text) || [...text].some((char) => {
+    const code = char.codePointAt(0) ?? 0;
+    return code < 32 && code !== 9 && code !== 10 && code !== 13;
+  })) {
+    throw new CmsValidationError(`${label} chứa markup, scheme hoặc ký tự không an toàn.`);
+  }
+  return text;
 }
 
 export function isSafeCmsUrl(value: string): boolean {
   const candidate = value.trim();
-  if (candidate.startsWith("/") && !candidate.startsWith("//")) return true;
-  if (candidate.startsWith("#")) return true;
-
+  if (candidate.startsWith("/")) {
+    return !candidate.startsWith("//") && !candidate.includes("\\");
+  }
   try {
-    const protocol = new URL(candidate).protocol;
-    return protocol === "http:" || protocol === "https:";
+    const url = new URL(candidate);
+    return url.protocol === "https:" && Boolean(url.host) && !url.username && !url.password;
   } catch {
     return false;
   }
 }
 
-export function assertSafeCmsUrl(value: string, field = "href"): void {
+export function assertSafeCmsUrl(value: string, field: string): void {
   if (!isSafeCmsUrl(value)) {
-    throw new CmsValidationError(`${field} chỉ được dùng URL http(s), đường dẫn nội bộ hoặc anchor.`, {
-      [field]: "URL không an toàn hoặc không được hỗ trợ.",
+    throw new CmsValidationError(`${field} chỉ được dùng đường dẫn nội bộ hoặc HTTPS URL.`, {
+      [`payload.${field}`]: "URL không an toàn hoặc không được hỗ trợ.",
     });
   }
 }
 
-function readComponent(raw: unknown, slotKey: CmsSlotKey, index: number): CmsComponent {
-  const component = readRecord(raw, `slots.${slotKey}[${index}]`);
-  const id = readRequiredString(component, "id", "component", MAX_COMPONENT_ID_LENGTH);
-  const componentKey = component.componentKey;
+function readPayload(raw: unknown, componentType: CmsComponentType): CmsPayload {
+  const payload = readRecord(raw, "payload");
+  const schema = PAYLOAD_SCHEMAS[componentType];
+  const keys = Object.keys(payload);
+  if (keys.length > 12) throw new CmsValidationError("payload có quá nhiều trường.");
 
-  if (!isOneOf(componentKey, CMS_COMPONENT_KEYS)) {
-    throw new CmsValidationError(
-      `slots.${slotKey}[${index}].componentKey không thuộc vocabulary CMS cho phép.`,
-      { [`${slotKey}.${index}.componentKey`]: "Component không được hỗ trợ." },
-    );
+  for (const key of keys) {
+    if (!schema.allowed.includes(key)) {
+      throw new CmsValidationError(`payload.${key} không thuộc schema ${componentType}.`, {
+        [`payload.${key}`]: "Trường không được phép.",
+      });
+    }
+    if (typeof payload[key] !== "string") {
+      throw new CmsValidationError(`payload.${key} phải là chuỗi.`);
+    }
+    const text = normalizeText(payload[key] as string, `payload.${key}`);
+    if (LINK_FIELDS.has(key)) assertSafeCmsUrl(text, key);
+  }
+  for (const required of schema.required) {
+    if (!hasOwn(payload, required)) {
+      throw new CmsValidationError(`payload.${required} là bắt buộc.`, {
+        [`payload.${required}`]: "Trường này là bắt buộc.",
+      });
+    }
   }
 
-  const props = readRecord(component.props, `slots.${slotKey}[${index}].props`);
-
-  switch (componentKey) {
-    case "heading": {
-      const text = readRequiredString(props, "text", "heading.props", 240);
-      const level = props.level;
-      if (level !== 1 && level !== 2 && level !== 3) {
-        throw new CmsValidationError("heading.props.level phải là 1, 2 hoặc 3.");
-      }
-      return { id, componentKey, props: { text, level } };
-    }
-    case "paragraph": {
-      const text = readRequiredString(props, "text", "paragraph.props", 4000);
-      return { id, componentKey, props: { text } };
-    }
-    case "callout": {
-      const title = readRequiredString(props, "title", "callout.props", 240);
-      const body = readRequiredString(props, "body", "callout.props", 1600);
-      const tone = props.tone;
-      if (!isOneOf(tone, CMS_CALLOUT_TONES)) {
-        throw new CmsValidationError("callout.props.tone không hợp lệ.");
-      }
-      return { id, componentKey, props: { title, body, tone } };
-    }
-    case "link": {
-      const label = readRequiredString(props, "label", "link.props", 180);
-      const href = readRequiredString(props, "href", "link.props", 2048);
-      assertSafeCmsUrl(href, "link.props.href");
-      return { id, componentKey, props: { label, href } };
-    }
-    case "image": {
-      const src = readRequiredString(props, "src", "image.props", 2048);
-      const alt = readRequiredString(props, "alt", "image.props", 240);
-      assertSafeCmsUrl(src, "image.props.src");
-      return { id, componentKey, props: { src, alt } };
-    }
+  switch (componentType) {
+    case "HERO":
+      return {
+        eyebrow: readOptionalText(payload, "eyebrow", "payload"),
+        title: readRequiredText(payload, "title", "payload"),
+        body: readOptionalText(payload, "body", "payload"),
+        ctaLabel: readOptionalText(payload, "ctaLabel", "payload"),
+        ctaHref: readOptionalText(payload, "ctaHref", "payload"),
+        imageUrl: readOptionalText(payload, "imageUrl", "payload"),
+      };
+    case "RICH_TEXT":
+      return {
+        title: readRequiredText(payload, "title", "payload"),
+        body: readRequiredText(payload, "body", "payload"),
+      };
+    case "CTA_BANNER":
+      return {
+        title: readRequiredText(payload, "title", "payload"),
+        body: readRequiredText(payload, "body", "payload"),
+        ctaLabel: readRequiredText(payload, "ctaLabel", "payload"),
+        ctaHref: readRequiredText(payload, "ctaHref", "payload"),
+      };
+    case "NOTICE":
+      return {
+        title: readRequiredText(payload, "title", "payload"),
+        body: readRequiredText(payload, "body", "payload"),
+      };
+    case "IMAGE_CARD":
+      return {
+        title: readRequiredText(payload, "title", "payload"),
+        body: readOptionalText(payload, "body", "payload"),
+        imageUrl: readRequiredText(payload, "imageUrl", "payload"),
+        href: readOptionalText(payload, "href", "payload"),
+      };
   }
 }
 
-function parseSlots(raw: unknown): CmsSlots {
-  const slots = readRecord(raw, "slots");
-  const parsed: CmsSlots = {};
-
-  for (const slotKey of CMS_SLOT_KEYS) {
-    if (!hasOwn(slots, slotKey) || slots[slotKey] === undefined) continue;
-    if (!Array.isArray(slots[slotKey])) {
-      throw new CmsValidationError(`slots.${slotKey} phải là một mảng.`);
-    }
-    parsed[slotKey] = (slots[slotKey] as unknown[]).map((component, index) =>
-      readComponent(component, slotKey, index),
-    );
+function validateSlotKey(slotKey: string): string {
+  const normalized = slotKey.trim();
+  if (!normalized || normalized.length > 120 || !SLOT_KEY_PATTERN.test(normalized)) {
+    throw new CmsValidationError("slotKey chỉ được dùng chữ thường, số, dấu chấm, gạch ngang hoặc gạch dưới.", {
+      slotKey: "slotKey không hợp lệ.",
+    });
   }
-
-  return parsed;
+  return normalized;
 }
 
-function unwrapData(raw: unknown): unknown {
-  if (!isRecord(raw)) return raw;
-  return isRecord(raw.data) ? raw.data : raw;
+export function resolveCmsSlotKey(slug: string, slotKey: CmsSlotKey): string {
+  const normalizedSlug = slug.trim().toLowerCase();
+  if (normalizedSlug === "home") return `homepage.${slotKey}`;
+  return validateSlotKey(`${normalizedSlug}.${slotKey}`);
 }
 
-function readIsoDate(value: unknown, label: string, nullable = false): string | null {
-  if (nullable && value === null) return null;
+function readIsoDate(value: unknown, label: string): string {
   if (typeof value !== "string" || Number.isNaN(Date.parse(value))) {
-    throw new CmsValidationError(`${label} phải là ISO datetime${nullable ? " hoặc null" : ""}.`);
+    throw new CmsValidationError(`${label} phải là ISO datetime.`);
   }
   return value;
 }
 
-export function parseCmsPage(raw: unknown): CmsPage {
-  const page = readRecord(unwrapData(raw), "CMS page");
-  const id = readRequiredString(page, "id", "page", 160);
-  const slug = readRequiredString(page, "slug", "page", 220);
-  const title = readRequiredString(page, "title", "page", 240);
-  const state = page.state ?? page.status;
-  if (!isOneOf(state, CMS_PAGE_STATES)) {
-    throw new CmsValidationError("page.state phải là DRAFT hoặc PUBLISHED.");
+export function parseCmsContent(raw: unknown): CmsContent {
+  const source = readRecord(raw, "CMS content");
+  const slotKey = validateSlotKey(String(source.slotKey ?? ""));
+  const componentType = source.componentType;
+  if (!isOneOf(componentType, CMS_COMPONENT_TYPES)) {
+    throw new CmsValidationError("componentType không thuộc CMS vocabulary.");
   }
-  const version = page.version;
+  const status = source.status;
+  if (!isOneOf(status, CMS_PUBLICATION_STATUSES)) {
+    throw new CmsValidationError("status phải là DRAFT hoặc PUBLISHED.");
+  }
+  const version = source.version;
   if (typeof version !== "number" || !Number.isInteger(version) || version < 1) {
-    throw new CmsValidationError("page.version phải là số nguyên dương.");
+    throw new CmsValidationError("version phải là số nguyên dương.");
   }
-  const updatedAt = readIsoDate(page.updatedAt, "page.updatedAt") as string;
-  const publishedAt = readIsoDate(page.publishedAt, "page.publishedAt", true);
-
+  const updatedAt = readIsoDate(source.updatedAt, "updatedAt");
   return {
-    id,
-    slug,
-    title,
-    state,
+    slotKey,
+    componentType,
+    payload: readPayload(source.payload, componentType) as never,
+    status,
     version,
     updatedAt,
-    publishedAt,
-    slots: parseSlots(page.slots),
   };
 }
 
-export function cloneCmsSlots(slots: CmsSlots): CmsSlots {
-  const clone: CmsSlots = {};
-  for (const slotKey of CMS_SLOT_KEYS) {
-    const components = slots[slotKey];
-    if (!components) continue;
-    clone[slotKey] = components.map((component) => ({
-      ...component,
-      props: { ...component.props },
-    })) as CmsComponent[];
-  }
-  return clone;
-}
-
-export function validateCmsDraft(input: CmsDraftInput): CmsFieldErrors {
+export function validateCmsContentInput(input: CmsContentInput): CmsFieldErrors {
   const errors: CmsFieldErrors = {};
-  if (typeof input.title !== "string" || input.title.trim().length === 0) {
-    errors.title = "Tiêu đề không được để trống.";
-  } else if (input.title.length > 240) {
-    errors.title = "Tiêu đề tối đa 240 ký tự.";
+  if (!isOneOf(input.componentType, CMS_COMPONENT_TYPES)) {
+    errors.componentType = "Chọn một component CMS được hỗ trợ.";
   }
-
-  if (input.baseVersion !== undefined &&
-      (!Number.isInteger(input.baseVersion) || input.baseVersion < 1)) {
-    errors.baseVersion = "Phiên bản nền phải là số nguyên dương.";
+  if (!isOneOf(input.status, CMS_PUBLICATION_STATUSES)) {
+    errors.status = "Chọn DRAFT hoặc PUBLISHED.";
   }
-
-  try {
-    parseSlots(input.slots);
-  } catch (error) {
-    if (error instanceof CmsApiError && error.fieldErrors) {
-      Object.assign(errors, error.fieldErrors);
-    } else if (error instanceof Error) {
-      errors.slots = error.message;
-    } else {
-      errors.slots = "Nội dung slot không hợp lệ.";
+  if (!Number.isInteger(input.expectedVersion) || input.expectedVersion < 0) {
+    errors.expectedVersion = "expectedVersion phải là số nguyên không âm.";
+  }
+  if (!errors.componentType) {
+    try {
+      readPayload(input.payload, input.componentType);
+    } catch (error) {
+      if (error instanceof CmsApiError && error.fieldErrors) Object.assign(errors, error.fieldErrors);
+      else errors.payload = error instanceof Error ? error.message : "payload không hợp lệ.";
     }
   }
-
   return errors;
 }
 
-export function assertValidCmsDraft(input: CmsDraftInput): void {
-  const errors = validateCmsDraft(input);
+export function assertValidCmsContentInput(input: CmsContentInput): void {
+  const errors = validateCmsContentInput(input);
   if (Object.keys(errors).length > 0) {
-    throw new CmsValidationError("Nội dung CMS chưa hợp lệ.", errors);
-  }
-}
-
-function validateSlug(slug: string): void {
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
-    throw new CmsValidationError("Slug chỉ được dùng chữ thường, số và dấu gạch ngang.", {
-      slug: "Slug không hợp lệ.",
-    });
+    throw new CmsValidationError("CMS content chưa hợp lệ.", errors);
   }
 }
 
@@ -403,6 +418,7 @@ function errorKindForStatus(status: number): CmsApiErrorKind {
   if (status === 404) return "not-found";
   if (status === 409) return "conflict";
   if (status === 400 || status === 422) return "validation";
+  if (status === 503) return "unavailable";
   if (status >= 500) return "server";
   return "unknown";
 }
@@ -429,37 +445,66 @@ function responseMessage(body: unknown, fallback: string): string {
 }
 
 function responseFieldErrors(body: unknown): CmsFieldErrors | undefined {
-  if (!isRecord(body) || !isRecord(body.fieldErrors)) return undefined;
-  const fields: CmsFieldErrors = {};
-  for (const [key, value] of Object.entries(body.fieldErrors)) {
-    if (typeof value === "string") fields[key] = value;
+  if (!isRecord(body)) return undefined;
+  if (Array.isArray(body.fieldErrors)) {
+    const fields: CmsFieldErrors = {};
+    for (const item of body.fieldErrors) {
+      if (!isRecord(item) || typeof item.field !== "string" || typeof item.message !== "string") continue;
+      fields[item.field] = item.message;
+    }
+    return Object.keys(fields).length ? fields : undefined;
   }
-  return Object.keys(fields).length > 0 ? fields : undefined;
+  if (isRecord(body.fieldErrors)) {
+    const fields: CmsFieldErrors = {};
+    for (const [key, value] of Object.entries(body.fieldErrors)) {
+      if (typeof value === "string") fields[key] = value;
+    }
+    return Object.keys(fields).length ? fields : undefined;
+  }
+  return undefined;
 }
 
-function parseChangeEvent(raw: unknown, slug: string): CmsChangeEvent {
-  const source = readRecord(unwrapData(raw), "CMS change event");
-  const rawPage = isRecord(source.page) ? source.page : undefined;
-  let page: CmsPage | undefined;
-  if (rawPage) page = parseCmsPage(rawPage);
-
-  const rawVersion = page?.version ?? source.version;
-  if (typeof rawVersion !== "number" || !Number.isInteger(rawVersion) || rawVersion < 1) {
-    throw new CmsValidationError("CMS change event thiếu version hợp lệ.");
+function readPositiveInteger(value: unknown, label: string): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+    throw new CmsValidationError(`${label} phải là số nguyên không âm.`);
   }
-  const rawUpdatedAt = page?.updatedAt ?? source.updatedAt;
-  const updatedAt = readIsoDate(rawUpdatedAt, "change.updatedAt") as string;
-  const type = source.type;
-  const normalizedType = isOneOf(type, ["published", "updated", "deleted", "snapshot"] as const)
-    ? type
-    : "updated";
+  return value;
+}
 
+function parseChangedEvent(raw: unknown): CmsContentChangedEvent {
+  const event = readRecord(raw, "cms-content-changed");
+  const slotKey = validateSlotKey(String(event.slotKey ?? ""));
+  const version = readPositiveInteger(event.version, "event.version");
+  const eventId = readPositiveInteger(event.eventId, "event.eventId");
+  if (typeof event.published !== "boolean") {
+    throw new CmsValidationError("event.published phải là boolean.");
+  }
   return {
-    type: normalizedType,
-    slug: typeof source.slug === "string" ? source.slug : slug,
-    version: rawVersion,
-    updatedAt,
-    page,
+    type: "cms-content-changed",
+    eventId,
+    slotKey,
+    version,
+    published: event.published,
+    updatedAt: readIsoDate(event.updatedAt, "event.updatedAt"),
+  };
+}
+
+function parseReadyEvent(raw: unknown): CmsFeedReadyEvent {
+  const event = readRecord(raw, "ready");
+  return {
+    latestEventId: readPositiveInteger(event.latestEventId, "ready.latestEventId"),
+    replayLimit: readPositiveInteger(event.replayLimit, "ready.replayLimit"),
+    snapshotFallback: typeof event.snapshotFallback === "string" ? event.snapshotFallback : "",
+  };
+}
+
+function parseResyncEvent(raw: unknown): CmsFeedResyncEvent {
+  const event = readRecord(raw, "resync");
+  if (typeof event.reason !== "string") throw new CmsValidationError("resync.reason phải là chuỗi.");
+  return {
+    latestEventId: readPositiveInteger(event.latestEventId, "resync.latestEventId"),
+    reason: event.reason,
+    snapshotFallback: typeof event.snapshotFallback === "string" ? event.snapshotFallback : "",
   };
 }
 
@@ -476,14 +521,12 @@ export class CmsClient {
     this.eventSourceFactory = options.eventSourceFactory ?? ((url) => new EventSource(url));
   }
 
-  private pagePath(slug: string): string {
-    validateSlug(slug);
-    return `/cms/pages/${encodeURIComponent(slug)}`;
+  private contentPath(slotKey: string): string {
+    return `/cms/content/${encodeURIComponent(validateSlotKey(slotKey))}`;
   }
 
-  private adminPagePath(slug: string): string {
-    validateSlug(slug);
-    return `/admin/cms/pages/${encodeURIComponent(slug)}`;
+  private adminContentPath(slotKey: string): string {
+    return `/admin/cms/content/${encodeURIComponent(validateSlotKey(slotKey))}`;
   }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -515,131 +558,99 @@ export class CmsClient {
         responseFieldErrors(body),
       );
     }
-
     return body as T;
   }
 
-  private async requestPage(path: string, init?: RequestInit): Promise<CmsPage> {
+  private async requestContent(path: string, init?: RequestInit): Promise<CmsContent> {
     try {
-      return parseCmsPage(await this.request<unknown>(path, init));
+      return parseCmsContent(await this.request<unknown>(path, init));
     } catch (error) {
       if (error instanceof CmsApiError) throw error;
-      throw new CmsApiError("validation", 0, "CMS API trả về dữ liệu không đúng schema.");
+      throw new CmsApiError("validation", 0, "CMS API trả về dữ liệu sai schema.");
     }
   }
 
-  async getPublishedPage(slug: string): Promise<CmsPage> {
-    return this.requestPage(`${this.pagePath(slug)}?state=PUBLISHED`);
+  async getPublishedContent(slotKey: string): Promise<CmsContent> {
+    return this.requestContent(this.contentPath(slotKey));
   }
 
-  async getDraftPage(slug: string): Promise<CmsPage> {
-    return this.requestPage(`${this.adminPagePath(slug)}?state=DRAFT`);
+  async getAdminContent(slotKey: string): Promise<CmsContent> {
+    return this.requestContent(this.adminContentPath(slotKey));
   }
 
-  async createDraft(input: CmsCreateDraftInput): Promise<CmsPage> {
-    validateSlug(input.slug);
-    assertValidCmsDraft(input);
-    return this.requestPage("/admin/cms/pages", {
-      method: "POST",
-      body: JSON.stringify({
-        slug: input.slug,
-        title: input.title,
-        slots: input.slots,
-        baseVersion: input.baseVersion,
-      }),
-    });
-  }
-
-  async saveDraft(slug: string, input: CmsDraftInput): Promise<CmsPage> {
-    assertValidCmsDraft(input);
-    return this.requestPage(`${this.adminPagePath(slug)}/draft`, {
+  async upsertContent(slotKey: string, input: CmsContentInput): Promise<CmsContent> {
+    validateSlotKey(slotKey);
+    assertValidCmsContentInput(input);
+    return this.requestContent(this.adminContentPath(slotKey), {
       method: "PUT",
       body: JSON.stringify({
-        title: input.title,
-        slots: input.slots,
-        baseVersion: input.baseVersion,
+        componentType: input.componentType,
+        payload: input.payload,
+        status: input.status,
+        expectedVersion: input.expectedVersion,
       }),
     });
   }
 
-  async publishPage(slug: string, input: CmsPublishInput): Promise<CmsPage> {
-    validateSlug(slug);
-    if (!Number.isInteger(input.baseVersion) || input.baseVersion < 1) {
-      throw new CmsValidationError("Không thể xuất bản khi chưa có version nền.", {
-        baseVersion: "Version nền không hợp lệ.",
-      });
-    }
-    return this.requestPage(`${this.adminPagePath(slug)}/publish`, {
-      method: "POST",
-      body: JSON.stringify({ baseVersion: input.baseVersion }),
-    });
-  }
-
-  async rollbackPage(slug: string, input: CmsRollbackInput): Promise<CmsPage> {
-    validateSlug(slug);
-    if (!Number.isInteger(input.targetVersion) || input.targetVersion < 1) {
-      throw new CmsValidationError("Version rollback không hợp lệ.", {
-        targetVersion: "Chọn một version dương.",
-      });
-    }
-    if (!Number.isInteger(input.baseVersion) || input.baseVersion < 1) {
-      throw new CmsValidationError("Không thể rollback khi chưa có version nền.", {
-        baseVersion: "Version nền không hợp lệ.",
-      });
-    }
-    return this.requestPage(`${this.adminPagePath(slug)}/rollback`, {
-      method: "POST",
-      body: JSON.stringify({
-        targetVersion: input.targetVersion,
-        baseVersion: input.baseVersion,
-      }),
-    });
-  }
-
-  subscribeToChanges(
-    slug: string,
-    options: CmsChangeSubscriptionOptions,
-  ): () => void {
-    validateSlug(slug);
+  subscribeToChanges(options: CmsChangeSubscriptionOptions): () => void {
+    const query = options.after === undefined ? "" : `?after=${encodeURIComponent(String(options.after))}`;
     if (typeof EventSource === "undefined") {
       options.onFallback?.();
       return () => undefined;
     }
 
-    const query = options.sinceVersion === undefined
-      ? ""
-      : `?sinceVersion=${encodeURIComponent(String(options.sinceVersion))}`;
-    let source: EventSource;
+    let source: EventSource | undefined;
     let closed = false;
     let fallbackNotified = false;
+    const listeners: Array<[string, EventListener]> = [];
 
     const fallback = (): void => {
       if (closed || fallbackNotified) return;
       fallbackNotified = true;
-      source.close();
+      source?.close();
       options.onFallback?.();
+    };
+    const register = (name: string, listener: EventListener): void => {
+      source?.addEventListener(name, listener);
+      listeners.push([name, listener]);
     };
 
     try {
-      source = this.eventSourceFactory(`${this.baseUrl}${this.pagePath(slug)}/changes${query}`);
+      source = this.eventSourceFactory(`${this.baseUrl}/cms/content/events${query}`);
+      source.onopen = () => options.onConnected?.();
+      source.onerror = () => fallback();
+
+      register("ready", (event) => {
+        try {
+          options.onConnected?.(parseReadyEvent((event as MessageEvent<string>).data));
+        } catch {
+          fallback();
+        }
+      });
+      register("cms-content-changed", (event) => {
+        try {
+          options.onChange(parseChangedEvent(JSON.parse((event as MessageEvent<string>).data) as unknown));
+        } catch {
+          fallback();
+        }
+      });
+      register("resync", (event) => {
+        try {
+          options.onResync?.(parseResyncEvent(JSON.parse((event as MessageEvent<string>).data) as unknown));
+        } catch {
+          fallback();
+        }
+      });
+      register("heartbeat", () => undefined);
     } catch {
       options.onFallback?.();
       return () => undefined;
     }
 
-    source.onopen = () => options.onConnected?.();
-    source.onmessage = (message) => {
-      try {
-        options.onChange(parseChangeEvent(JSON.parse(message.data) as unknown, slug));
-      } catch {
-        fallback();
-      }
-    };
-    source.onerror = () => fallback();
-
     return () => {
       closed = true;
-      source.close();
+      for (const [name, listener] of listeners) source?.removeEventListener(name, listener);
+      source?.close();
     };
   }
 }

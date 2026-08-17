@@ -4,55 +4,71 @@ import test from "node:test";
 
 const read = (relativePath) => readFile(new URL(`../${relativePath}`, import.meta.url), "utf8");
 
-test("CMS client documents the typed live/admin boundary and concurrency operations", async () => {
+test("CMS client matches the integrated slot-scoped typed contract", async () => {
   const source = await read("lib/cms-client.ts");
 
   for (const marker of [
-    "CMS_PAGE_STATES",
-    "CMS_SLOT_KEYS",
-    "CMS_COMPONENT_KEYS",
-    "getPublishedPage",
-    "getDraftPage",
-    "saveDraft",
-    "publishPage",
-    "rollbackPage",
-    "subscribeToChanges",
-    "baseVersion",
-    "errorKindForStatus",
+    "CMS_COMPONENT_TYPES",
+    "CmsContentInput",
+    "getPublishedContent",
+    "getAdminContent",
+    "upsertContent",
+    "expectedVersion",
+    "/cms/content/",
+    "/admin/cms/content/",
+    "/cms/content/events",
+    "cms-content-changed",
+    "parseReadyEvent",
+    "parseResyncEvent",
   ]) {
-    assert.ok(source.includes(marker), `missing CMS client marker: ${marker}`);
+    assert.ok(source.includes(marker), `missing CMS contract marker: ${marker}`);
   }
 
   assert.match(source, /status === 401.*auth/s);
   assert.match(source, /status === 403.*forbidden/s);
   assert.match(source, /status === 409.*conflict/s);
-  assert.match(source, /EventSource/);
+  assert.match(source, /expectedVersion: input\.expectedVersion/);
+  assert.match(source, /homepage\.\$\{slotKey\}/);
 });
 
-test("CMS renderer is allowlisted and does not interpret raw HTML", async () => {
+test("CMS renderer is allowlisted and never interprets raw HTML", async () => {
   const source = await read("components/cms/CmsRenderer.tsx");
 
-  for (const componentKey of ["heading", "paragraph", "callout", "link", "image"]) {
-    assert.ok(source.includes(`case "${componentKey}"`), `missing renderer: ${componentKey}`);
+  for (const componentType of ["HERO", "RICH_TEXT", "CTA_BANNER", "NOTICE", "IMAGE_CARD"]) {
+    assert.ok(source.includes(`case "${componentType}"`), `missing renderer: ${componentType}`);
   }
   assert.doesNotMatch(source, /dangerouslySetInnerHTML/);
   assert.match(source, /isSafeCmsUrl/);
-  assert.match(source, /data-cms-slot/);
 });
 
-test("public live slot has SSE and polling fallback without a reload path", async () => {
-  const source = await read("components/cms/CmsLiveSlot.tsx");
+test("public live slot listens to named SSE changes and has polling fallback", async () => {
+  const client = await read("lib/cms-client.ts");
+  const liveSlot = await read("components/cms/CmsLiveSlot.tsx");
 
-  assert.match(source, /subscribeToChanges/);
-  assert.match(source, /setInterval/);
-  assert.match(source, /data-cms-live-source="live-backend"/);
-  assert.doesNotMatch(source, /window\.location\.reload/);
+  assert.match(client, /register\("cms-content-changed"/);
+  assert.match(client, /register\("ready"/);
+  assert.match(client, /register\("resync"/);
+  assert.match(liveSlot, /resolveCmsSlotKey/);
+  assert.match(liveSlot, /setInterval/);
+  assert.match(liveSlot, /data-cms-live-source="live-backend"/);
+  assert.doesNotMatch(liveSlot, /window\.location\.reload/);
 });
 
-test("admin editor exposes protected API, validation, conflict, and rollback states", async () => {
+test("admin editor exposes typed status/version and protected API states", async () => {
   const source = await read("components/cms/CmsEditor.tsx");
 
-  for (const marker of ["401", "403", "409", "400/422", "Tải version mới nhất", "rollbackPage", "Không có nội dung demo"]) {
+  for (const marker of [
+    "expectedVersion",
+    "401",
+    "403",
+    "409",
+    "400/422",
+    "Lưu bản nháp (ẩn công khai)",
+    "Xuất bản",
+    "Khôi phục bản đã tải",
+    "chưa cung cấp history/rollback endpoint",
+  ]) {
     assert.ok(source.includes(marker), `missing editor state: ${marker}`);
   }
+  assert.doesNotMatch(source, /rollbackPage/);
 });

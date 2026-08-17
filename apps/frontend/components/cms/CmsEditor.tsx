@@ -8,28 +8,29 @@ import {
   type ReactElement,
 } from "react";
 import {
-  CMS_CALLOUT_TONES,
-  CMS_COMPONENT_KEYS,
+  CMS_COMPONENT_TYPES,
+  CMS_PUBLICATION_STATUSES,
   CMS_SLOT_KEYS,
   CmsApiError,
   CmsClient,
   CmsValidationError,
-  cloneCmsSlots,
   defaultCmsClient,
-  validateCmsDraft,
-  type CmsComponent,
-  type CmsComponentKey,
-  type CmsDraftInput,
-  type CmsFieldErrors,
-  type CmsPage,
-  type CmsSlots,
+  resolveCmsSlotKey,
+  validateCmsContentInput,
+  type CmsComponentType,
+  type CmsContent,
+  type CmsContentInput,
+  type CmsPayload,
+  type CmsPublicationStatus,
   type CmsSlotKey,
+  type CmsFieldErrors,
 } from "../../lib/cms-client";
-import { CmsSlotRenderer } from "./CmsRenderer";
+import { CmsContentRenderer } from "./CmsRenderer";
 
 interface CmsDraftValues {
-  title: string;
-  slots: CmsSlots;
+  componentType: CmsComponentType;
+  payload: CmsPayload;
+  status: CmsPublicationStatus;
 }
 
 interface CmsEditorProps {
@@ -37,95 +38,86 @@ interface CmsEditorProps {
   client?: CmsClient;
 }
 
-type EditorOperation = "idle" | "loading" | "saving" | "publishing" | "rolling-back";
+type EditorOperation = "idle" | "loading" | "saving" | "publishing";
 
-const COMPONENT_LABELS: Record<CmsComponentKey, string> = {
-  heading: "Tiêu đề",
-  paragraph: "Đoạn văn",
-  callout: "Thông báo",
-  link: "Liên kết",
-  image: "Hình ảnh",
+const COMPONENT_LABELS: Record<CmsComponentType, string> = {
+  HERO: "Hero",
+  RICH_TEXT: "Rich text",
+  CTA_BANNER: "CTA banner",
+  NOTICE: "Notice",
+  IMAGE_CARD: "Image card",
 };
 
-function emptyDraft(): CmsDraftValues {
-  return { title: "", slots: {} };
-}
+const SLOT_LABELS: Record<CmsSlotKey, string> = {
+  hero: "Hero",
+  body: "Nội dung chính",
+  sidebar: "Sidebar",
+  footer: "Footer",
+};
 
-function draftFromPage(page: CmsPage): CmsDraftValues {
-  return { title: page.title, slots: cloneCmsSlots(page.slots) };
-}
-
-let localComponentSequence = 0;
-
-function newComponentId(componentKey: CmsComponentKey): string {
-  localComponentSequence += 1;
-  return `local-${componentKey}-${localComponentSequence}`;
-}
-
-function newComponent(componentKey: CmsComponentKey): CmsComponent {
-  const id = newComponentId(componentKey);
-  switch (componentKey) {
-    case "heading":
-      return { id, componentKey, props: { text: "", level: 2 } };
-    case "paragraph":
-      return { id, componentKey, props: { text: "" } };
-    case "callout":
-      return {
-        id,
-        componentKey,
-        props: { title: "", body: "", tone: "info" },
-      };
-    case "link":
-      return { id, componentKey, props: { label: "", href: "/" } };
-    case "image":
-      return { id, componentKey, props: { src: "", alt: "" } };
+function emptyPayload(componentType: CmsComponentType): CmsPayload {
+  switch (componentType) {
+    case "HERO":
+      return { eyebrow: "", title: "", body: "", ctaLabel: "", ctaHref: "", imageUrl: "" };
+    case "RICH_TEXT":
+      return { title: "", body: "" };
+    case "CTA_BANNER":
+      return { title: "", body: "", ctaLabel: "", ctaHref: "" };
+    case "NOTICE":
+      return { title: "", body: "" };
+    case "IMAGE_CARD":
+      return { title: "", body: "", imageUrl: "", href: "" };
   }
 }
 
-function updateComponentAt(
-  slots: CmsSlots,
-  slotKey: CmsSlotKey,
-  index: number,
-  updater: (component: CmsComponent) => CmsComponent,
-): CmsSlots {
-  const components = slots[slotKey] ?? [];
+function emptyDraft(componentType: CmsComponentType = "HERO"): CmsDraftValues {
+  return { componentType, payload: emptyPayload(componentType), status: "DRAFT" };
+}
+
+function draftFromContent(content: CmsContent): CmsDraftValues {
   return {
-    ...slots,
-    [slotKey]: components.map((component, componentIndex) =>
-      componentIndex === index ? updater(component) : component,
-    ),
+    componentType: content.componentType,
+    payload: { ...content.payload },
+    status: content.status,
   };
+}
+
+function compactPayload(payload: CmsPayload): CmsPayload {
+  const compact = Object.fromEntries(
+    Object.entries(payload).filter(([, value]) => typeof value === "string" && value.trim().length > 0),
+  );
+  return compact as CmsPayload;
+}
+
+function payloadValue(payload: CmsPayload, field: string): string {
+  const value = (payload as unknown as Record<string, unknown>)[field];
+  return typeof value === "string" ? value : "";
 }
 
 function prettyUpdatedAt(value: string | undefined): string {
   if (!value) return "Chưa đồng bộ";
-  return new Intl.DateTimeFormat("vi-VN", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+  return new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
 function asCmsError(error: unknown): CmsApiError {
   if (error instanceof CmsApiError) return error;
-  return new CmsApiError(
-    "network",
-    0,
-    error instanceof Error ? error.message : "Không thể kết nối CMS.",
-  );
+  return new CmsApiError("network", 0, error instanceof Error ? error.message : "Không thể kết nối CMS.");
 }
 
 function apiErrorMessage(error: CmsApiError): string {
   switch (error.kind) {
     case "auth":
-      return "Phiên quản trị không hợp lệ hoặc đã hết hạn (401). Hãy đăng nhập lại trước khi tiếp tục.";
+      return "Phiên quản trị không hợp lệ hoặc đã hết hạn (401). Hãy đăng nhập lại.";
     case "forbidden":
       return "Tài khoản hiện tại không có quyền ADMIN (403). Nội dung chưa được thay đổi.";
     case "validation":
       return `${error.message} (400/422).`;
     case "conflict":
-      return "Bản nháp đã thay đổi ở nơi khác (409). Tải lại version mới nhất trước khi lưu tiếp.";
+      return "Nội dung đã thay đổi ở nơi khác (409). Tải lại slot trước khi ghi đè.";
     case "not-found":
-      return "Chưa tìm thấy trang trong CMS typed contract. Có thể backend CMS đang chờ tích hợp (404).";
+      return "Chưa tìm thấy slot CMS (404). Có thể tạo slot mới bằng expectedVersion = 0 nếu backend đã sẵn sàng.";
+    case "unavailable":
+      return "CMS backend hiện không khả dụng (503). Không có dữ liệu demo thay thế.";
     case "network":
       return `Không thể kết nối live CMS${error.message ? `: ${error.message}` : ""}`;
     default:
@@ -137,150 +129,104 @@ function FieldError({ message }: { message?: string }): ReactElement | null {
   return message ? <p className="mt-1 text-xs text-red-700">{message}</p> : null;
 }
 
-function ComponentFields({
-  component,
-  slotKey,
-  index,
+function TextField({
+  field,
+  label,
+  payload,
+  onChange,
+  multiline = false,
+  required = false,
+  help,
+}: {
+  field: string;
+  label: string;
+  payload: CmsPayload;
+  onChange: (field: string, value: string) => void;
+  multiline?: boolean;
+  required?: boolean;
+  help?: string;
+}): ReactElement {
+  const value = payloadValue(payload, field);
+  const id = `cms-payload-${field}`;
+  return (
+    <label className="text-sm font-semibold text-slate-700" htmlFor={id}>
+      {label}
+      {multiline ? (
+        <textarea
+          aria-describedby={help ? `${id}-help` : undefined}
+          className="mt-1 min-h-28 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm leading-6"
+          id={id}
+          onChange={(event) => onChange(field, event.target.value)}
+          required={required}
+          value={value}
+        />
+      ) : (
+        <input
+          aria-describedby={help ? `${id}-help` : undefined}
+          className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+          id={id}
+          onChange={(event) => onChange(field, event.target.value)}
+          required={required}
+          value={value}
+        />
+      )}
+      {help ? <span className="mt-1 block text-xs font-normal text-slate-500" id={`${id}-help`}>{help}</span> : null}
+    </label>
+  );
+}
+
+function PayloadFields({
+  draft,
   onChange,
 }: {
-  component: CmsComponent;
-  slotKey: CmsSlotKey;
-  index: number;
-  onChange: (
-    slotKey: CmsSlotKey,
-    index: number,
-    updater: (component: CmsComponent) => CmsComponent,
-  ) => void;
+  draft: CmsDraftValues;
+  onChange: (field: string, value: string) => void;
 }): ReactElement {
-  const updateProps = (patch: Record<string, string | number>): void => {
-    onChange(slotKey, index, (current) => ({
-      ...current,
-      props: { ...current.props, ...patch },
-    }) as CmsComponent);
-  };
-
-  switch (component.componentKey) {
-    case "heading":
-      return (
-        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_8rem]">
-          <label className="text-sm font-semibold text-slate-700">
-            Nội dung tiêu đề
-            <input
-              aria-label="Nội dung tiêu đề"
-              className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-              onChange={(event) => updateProps({ text: event.target.value })}
-              value={component.props.text}
-            />
-          </label>
-          <label className="text-sm font-semibold text-slate-700">
-            Cấp heading
-            <select
-              aria-label="Cấp heading"
-              className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-              onChange={(event) => updateProps({ level: Number(event.target.value) })}
-              value={component.props.level}
-            >
-              <option value={1}>H1</option>
-              <option value={2}>H2</option>
-              <option value={3}>H3</option>
-            </select>
-          </label>
-        </div>
-      );
-    case "paragraph":
-      return (
-        <label className="text-sm font-semibold text-slate-700">
-          Nội dung đoạn văn
-          <textarea
-            aria-label="Nội dung đoạn văn"
-            className="mt-1 min-h-32 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm leading-6"
-            onChange={(event) => updateProps({ text: event.target.value })}
-            value={component.props.text}
-          />
-        </label>
-      );
-    case "callout":
+  const common = { payload: draft.payload, onChange };
+  switch (draft.componentType) {
+    case "HERO":
       return (
         <div className="grid gap-3">
-          <label className="text-sm font-semibold text-slate-700">
-            Tiêu đề thông báo
-            <input
-              aria-label="Tiêu đề thông báo"
-              className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-              onChange={(event) => updateProps({ title: event.target.value })}
-              value={component.props.title}
-            />
-          </label>
-          <label className="text-sm font-semibold text-slate-700">
-            Nội dung thông báo
-            <textarea
-              aria-label="Nội dung thông báo"
-              className="mt-1 min-h-24 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm leading-6"
-              onChange={(event) => updateProps({ body: event.target.value })}
-              value={component.props.body}
-            />
-          </label>
-          <label className="text-sm font-semibold text-slate-700">
-            Tone
-            <select
-              aria-label="Tone thông báo"
-              className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-              onChange={(event) => updateProps({ tone: event.target.value })}
-              value={component.props.tone}
-            >
-              {CMS_CALLOUT_TONES.map((tone) => <option key={tone} value={tone}>{tone}</option>)}
-            </select>
-          </label>
+          <TextField {...common} field="eyebrow" label="Eyebrow" />
+          <TextField {...common} field="title" label="Tiêu đề" required />
+          <TextField {...common} field="body" label="Mô tả" multiline />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <TextField {...common} field="ctaLabel" label="Nhãn CTA" />
+            <TextField {...common} field="ctaHref" label="URL CTA" help="Chỉ đường dẫn /... hoặc HTTPS URL." />
+          </div>
+          <TextField {...common} field="imageUrl" label="URL hình ảnh" help="Chỉ đường dẫn /... hoặc HTTPS URL." />
         </div>
       );
-    case "link":
+    case "RICH_TEXT":
       return (
         <div className="grid gap-3">
-          <label className="text-sm font-semibold text-slate-700">
-            Nhãn liên kết
-            <input
-              aria-label="Nhãn liên kết"
-              className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-              onChange={(event) => updateProps({ label: event.target.value })}
-              value={component.props.label}
-            />
-          </label>
-          <label className="text-sm font-semibold text-slate-700">
-            URL an toàn
-            <input
-              aria-describedby={`${component.id}-href-help`}
-              aria-label="URL liên kết"
-              className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 px-3 py-2 font-mono text-sm"
-              onChange={(event) => updateProps({ href: event.target.value })}
-              value={component.props.href}
-            />
-            <span className="mt-1 block text-xs font-normal text-slate-500" id={`${component.id}-href-help`}>
-              Chỉ http(s), đường dẫn nội bộ bắt đầu bằng / hoặc anchor # được lưu.
-            </span>
-          </label>
+          <TextField {...common} field="title" label="Tiêu đề" required />
+          <TextField {...common} field="body" label="Nội dung" multiline required />
         </div>
       );
-    case "image":
+    case "CTA_BANNER":
       return (
         <div className="grid gap-3">
-          <label className="text-sm font-semibold text-slate-700">
-            URL hình ảnh
-            <input
-              aria-label="URL hình ảnh"
-              className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 px-3 py-2 font-mono text-sm"
-              onChange={(event) => updateProps({ src: event.target.value })}
-              value={component.props.src}
-            />
-          </label>
-          <label className="text-sm font-semibold text-slate-700">
-            Mô tả thay thế
-            <input
-              aria-label="Mô tả thay thế hình ảnh"
-              className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-              onChange={(event) => updateProps({ alt: event.target.value })}
-              value={component.props.alt}
-            />
-          </label>
+          <TextField {...common} field="title" label="Tiêu đề" required />
+          <TextField {...common} field="body" label="Nội dung" multiline required />
+          <TextField {...common} field="ctaLabel" label="Nhãn CTA" required />
+          <TextField {...common} field="ctaHref" label="URL CTA" help="Chỉ đường dẫn /... hoặc HTTPS URL." required />
+        </div>
+      );
+    case "NOTICE":
+      return (
+        <div className="grid gap-3">
+          <TextField {...common} field="title" label="Tiêu đề" required />
+          <TextField {...common} field="body" label="Nội dung" multiline required />
+        </div>
+      );
+    case "IMAGE_CARD":
+      return (
+        <div className="grid gap-3">
+          <TextField {...common} field="title" label="Tiêu đề" required />
+          <TextField {...common} field="body" label="Mô tả" multiline />
+          <TextField {...common} field="imageUrl" label="URL hình ảnh" help="Chỉ đường dẫn /... hoặc HTTPS URL." required />
+          <TextField {...common} field="href" label="URL đích" help="Chỉ đường dẫn /... hoặc HTTPS URL." />
         </div>
       );
   }
@@ -291,108 +237,98 @@ export function CmsEditor({
   client = defaultCmsClient,
 }: CmsEditorProps): ReactElement {
   const [slug, setSlug] = useState(initialSlug);
+  const [selectedSlot, setSelectedSlot] = useState<CmsSlotKey>("hero");
   const [loadedSlug, setLoadedSlug] = useState(initialSlug);
-  const [page, setPage] = useState<CmsPage | null>(null);
+  const [loadedSlotKey, setLoadedSlotKey] = useState(resolveCmsSlotKey(initialSlug, "hero"));
+  const [content, setContent] = useState<CmsContent | null>(null);
   const [draft, setDraft] = useState<CmsDraftValues>(emptyDraft);
+  const [loadedSnapshot, setLoadedSnapshot] = useState<CmsDraftValues | null>(null);
   const [operation, setOperation] = useState<EditorOperation>("idle");
   const [apiError, setApiError] = useState<CmsApiError | null>(null);
   const [fieldErrors, setFieldErrors] = useState<CmsFieldErrors>({});
   const [notice, setNotice] = useState<string | null>(null);
-  const [rollbackVersion, setRollbackVersion] = useState("");
 
-  const loadPage = useCallback(async (requestedSlug: string): Promise<void> => {
+  const loadContent = useCallback(async (requestedSlug: string, requestedSlot: CmsSlotKey): Promise<void> => {
     const normalizedSlug = requestedSlug.trim();
+    const backendSlotKey = resolveCmsSlotKey(normalizedSlug, requestedSlot);
     setOperation("loading");
     setApiError(null);
     setFieldErrors({});
     setNotice(null);
-
     try {
-      const loadedPage = await client.getDraftPage(normalizedSlug);
-      setPage(loadedPage);
-      setDraft(draftFromPage(loadedPage));
+      const loadedContent = await client.getAdminContent(backendSlotKey);
+      const loadedDraft = draftFromContent(loadedContent);
+      setContent(loadedContent);
+      setDraft(loadedDraft);
+      setLoadedSnapshot(loadedDraft);
       setLoadedSlug(normalizedSlug);
+      setLoadedSlotKey(backendSlotKey);
     } catch (error) {
       const cmsError = asCmsError(error);
       setApiError(cmsError);
-      setPage(null);
+      setContent(null);
+      setLoadedSnapshot(null);
       setDraft(emptyDraft());
       setLoadedSlug(normalizedSlug);
+      setLoadedSlotKey(backendSlotKey);
     } finally {
       setOperation("idle");
     }
   }, [client]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => void loadPage(initialSlug), 0);
+    const timer = window.setTimeout(() => void loadContent(initialSlug, "hero"), 0);
     return () => window.clearTimeout(timer);
-  }, [initialSlug, loadPage]);
-
-  const updateComponent = (
-    slotKey: CmsSlotKey,
-    index: number,
-    updater: (component: CmsComponent) => CmsComponent,
-  ): void => {
-    setDraft((current) => ({
-      ...current,
-      slots: updateComponentAt(current.slots, slotKey, index, updater),
-    }));
-    setNotice(null);
-  };
-
-  const addComponent = (slotKey: CmsSlotKey, componentKey: CmsComponentKey): void => {
-    setDraft((current) => ({
-      ...current,
-      slots: {
-        ...current.slots,
-        [slotKey]: [...(current.slots[slotKey] ?? []), newComponent(componentKey)],
-      },
-    }));
-    setNotice(null);
-  };
-
-  const removeComponent = (slotKey: CmsSlotKey, index: number): void => {
-    setDraft((current) => ({
-      ...current,
-      slots: {
-        ...current.slots,
-        [slotKey]: (current.slots[slotKey] ?? []).filter((_, componentIndex) => componentIndex !== index),
-      },
-    }));
-    setNotice(null);
-  };
+  }, [initialSlug, loadContent]);
 
   const handleLoad = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
-    void loadPage(slug);
+    void loadContent(slug, selectedSlot);
   };
 
-  const draftInput = (): CmsDraftInput => ({
-    title: draft.title,
-    slots: draft.slots,
-    baseVersion: page?.version,
+  const handleComponentTypeChange = (componentType: CmsComponentType): void => {
+    setDraft((current) => ({ ...current, componentType, payload: emptyPayload(componentType) }));
+    setNotice(null);
+    setFieldErrors({});
+  };
+
+  const handlePayloadChange = (field: string, value: string): void => {
+    setDraft((current) => ({
+      ...current,
+      payload: { ...current.payload, [field]: value } as CmsPayload,
+    }));
+    setNotice(null);
+  };
+
+  const inputFor = (status: CmsPublicationStatus): CmsContentInput => ({
+    componentType: draft.componentType,
+    payload: compactPayload(draft.payload),
+    status,
+    expectedVersion: content?.version ?? 0,
   });
 
-  const handleSave = async (): Promise<void> => {
-    const input = draftInput();
-    const errors = validateCmsDraft(input);
+  const handleUpsert = async (status: CmsPublicationStatus): Promise<void> => {
+    const input = inputFor(status);
+    const errors = validateCmsContentInput(input);
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
-      setApiError(new CmsValidationError("Nội dung CMS chưa hợp lệ.", errors));
+      setApiError(new CmsValidationError("CMS content chưa hợp lệ.", errors));
       return;
     }
 
-    setOperation("saving");
+    setOperation(status === "PUBLISHED" ? "publishing" : "saving");
     setApiError(null);
     setFieldErrors({});
     setNotice(null);
     try {
-      const savedPage = page
-        ? await client.saveDraft(loadedSlug, input)
-        : await client.createDraft({ slug: loadedSlug, ...input });
-      setPage(savedPage);
-      setDraft(draftFromPage(savedPage));
-      setNotice(`Đã lưu bản nháp version ${savedPage.version}.`);
+      const savedContent = await client.upsertContent(loadedSlotKey, input);
+      const savedDraft = draftFromContent(savedContent);
+      setContent(savedContent);
+      setDraft(savedDraft);
+      setLoadedSnapshot(savedDraft);
+      setNotice(savedContent.status === "PUBLISHED"
+        ? `Đã xuất bản ${savedContent.slotKey}, version ${savedContent.version}.`
+        : `Đã lưu bản nháp ẩn công khai, version ${savedContent.version}.`);
     } catch (error) {
       setApiError(asCmsError(error));
     } finally {
@@ -400,71 +336,41 @@ export function CmsEditor({
     }
   };
 
-  const handlePublish = async (): Promise<void> => {
-    if (!page) {
-      setApiError(new CmsValidationError("Hãy lưu bản nháp trước khi xuất bản."));
-      return;
-    }
-    setOperation("publishing");
+  const resetToLoaded = (): void => {
+    const reset = loadedSnapshot ? { ...loadedSnapshot, payload: { ...loadedSnapshot.payload } as CmsPayload } : emptyDraft(draft.componentType);
+    setDraft(reset);
+    setFieldErrors({});
     setApiError(null);
-    setNotice(null);
-    try {
-      const publishedPage = await client.publishPage(loadedSlug, { baseVersion: page.version });
-      setPage(publishedPage);
-      setDraft(draftFromPage(publishedPage));
-      setNotice(`Đã gửi yêu cầu xuất bản version ${publishedPage.version}.`);
-    } catch (error) {
-      setApiError(asCmsError(error));
-    } finally {
-      setOperation("idle");
-    }
-  };
-
-  const handleRollback = async (): Promise<void> => {
-    const targetVersion = Number(rollbackVersion);
-    if (!page || !Number.isInteger(targetVersion) || targetVersion < 1) {
-      setApiError(new CmsValidationError("Nhập version rollback dương và tải bản nháp trước."));
-      return;
-    }
-    setOperation("rolling-back");
-    setApiError(null);
-    setNotice(null);
-    try {
-      const rolledBackPage = await client.rollbackPage(loadedSlug, {
-        targetVersion,
-        baseVersion: page.version,
-      });
-      setPage(rolledBackPage);
-      setDraft(draftFromPage(rolledBackPage));
-      setRollbackVersion("");
-      setNotice(`Đã tạo bản nháp từ version ${rolledBackPage.version}.`);
-    } catch (error) {
-      setApiError(asCmsError(error));
-    } finally {
-      setOperation("idle");
-    }
+    setNotice("Đã khôi phục form về snapshot đã tải; chưa gửi mutation.");
   };
 
   const isBusy = operation !== "idle";
   const authBlocked = apiError?.kind === "auth" || apiError?.kind === "forbidden";
   const canMutate = !authBlocked && !isBusy;
-  const currentState = page?.state ?? "Chưa có bản nháp live";
+  const previewContent = {
+    slotKey: loadedSlotKey,
+    componentType: draft.componentType,
+    payload: compactPayload(draft.payload),
+    status: draft.status,
+    version: content?.version ?? 0,
+    updatedAt: content?.updatedAt ?? "",
+  } as CmsContent;
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <header className="space-y-2">
         <p className="text-xs font-bold uppercase tracking-[0.16em] text-teal-700">CMS nội dung</p>
-        <h1 className="text-3xl font-bold tracking-tight text-slate-950">Chỉnh sửa nội dung theo slot</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-slate-950">Chỉnh sửa một component theo slot</h1>
         <p className="max-w-3xl text-sm leading-6 text-slate-600">
-          Editor này chỉ đọc/ghi typed CMS API. Không có nội dung demo tự động thay thế khi live backend chưa sẵn sàng.
+          Mỗi slot lưu đúng một component typed theo backend contract. Không có nội dung demo tự động thay thế khi live backend chưa sẵn sàng.
         </p>
       </header>
 
       <div className="rounded-2xl border border-teal-200 bg-teal-50 p-4 text-sm leading-6 text-teal-950" role="status">
-        <strong>Nguồn dữ liệu: live backend.</strong> Slot và component dùng vocabulary cố định; liên kết/hình ảnh được kiểm tra URL an toàn trước khi gửi.
+        <strong>Nguồn dữ liệu: live backend.</strong> Payload chỉ dùng field allowlist của component; text được render như text node, không diễn giải HTML/JS.
       </div>
 
-      <form className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end" onSubmit={handleLoad}>
+      <form className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-[minmax(0,1fr)_minmax(10rem,0.5fr)_auto] sm:items-end" onSubmit={handleLoad}>
         <label className="text-sm font-semibold text-slate-700">
           Slug trang
           <input
@@ -475,12 +381,20 @@ export function CmsEditor({
             required
             value={slug}
           />
-          <span className="mt-1 block text-xs font-normal text-slate-500" id="cms-slug-help">
-            Ví dụ: home hoặc about-us. Tải lại sẽ thay thế bản nháp đang chỉnh sửa cục bộ.
-          </span>
+          <span className="mt-1 block text-xs font-normal text-slate-500" id="cms-slug-help">home + hero → homepage.hero</span>
+        </label>
+        <label className="text-sm font-semibold text-slate-700">
+          Slot
+          <select
+            className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+            onChange={(event) => setSelectedSlot(event.target.value as CmsSlotKey)}
+            value={selectedSlot}
+          >
+            {CMS_SLOT_KEYS.map((slotKey) => <option key={slotKey} value={slotKey}>{SLOT_LABELS[slotKey]} · {slotKey}</option>)}
+          </select>
         </label>
         <button className="min-h-11 rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-60" disabled={isBusy} type="submit">
-          {operation === "loading" ? "Đang tải…" : "Tải bản nháp"}
+          {operation === "loading" ? "Đang tải…" : "Tải slot"}
         </button>
       </form>
 
@@ -493,7 +407,7 @@ export function CmsEditor({
             </ul>
           ) : null}
           {apiError.kind === "conflict" ? (
-            <button className="mt-3 min-h-11 rounded-xl bg-red-800 px-4 py-2 text-sm font-bold text-white hover:bg-red-900" onClick={() => void loadPage(loadedSlug)} type="button">
+            <button className="mt-3 min-h-11 rounded-xl bg-red-800 px-4 py-2 text-sm font-bold text-white hover:bg-red-900" onClick={() => void loadContent(loadedSlug, selectedSlot)} type="button">
               Tải version mới nhất
             </button>
           ) : null}
@@ -506,107 +420,54 @@ export function CmsEditor({
         <section aria-labelledby="cms-editor-title" className="min-w-0 space-y-4">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Đang chỉnh sửa: {loadedSlug}</p>
-              <h2 className="text-2xl font-bold text-slate-950" id="cms-editor-title">Bản nháp</h2>
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Đang chỉnh sửa: {loadedSlotKey}</p>
+              <h2 className="text-2xl font-bold text-slate-950" id="cms-editor-title">Typed component</h2>
             </div>
             <dl className="text-right text-xs text-slate-500">
-              <div><dt className="inline font-semibold">Trạng thái: </dt><dd className="inline">{currentState}</dd></div>
-              <div><dt className="inline font-semibold">Version: </dt><dd className="inline">{page?.version ?? "chưa có"}</dd></div>
-              <div><dt className="inline font-semibold">Cập nhật: </dt><dd className="inline">{prettyUpdatedAt(page?.updatedAt)}</dd></div>
+              <div><dt className="inline font-semibold">Trạng thái: </dt><dd className="inline">{content?.status ?? draft.status}</dd></div>
+              <div><dt className="inline font-semibold">Version: </dt><dd className="inline">{content?.version ?? "mới · 0"}</dd></div>
+              <div><dt className="inline font-semibold">Cập nhật: </dt><dd className="inline">{prettyUpdatedAt(content?.updatedAt)}</dd></div>
             </dl>
           </div>
 
-          <label className="block rounded-2xl border border-slate-200 bg-white p-4 shadow-sm text-sm font-semibold text-slate-700">
-            Tên nội dung
-            <input
-              aria-describedby="cms-title-help"
-              className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-              onChange={(event) => {
-                setDraft((current) => ({ ...current, title: event.target.value }));
-                setNotice(null);
-              }}
-              value={draft.title}
-            />
-            <span className="mt-1 block text-xs font-normal text-slate-500" id="cms-title-help">Tối đa 240 ký tự.</span>
-            <FieldError message={fieldErrors.title} />
-          </label>
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" aria-labelledby="component-type-title">
+            <h3 className="font-bold text-slate-950" id="component-type-title">Component type</h3>
+            <label className="mt-3 block text-sm font-semibold text-slate-700">
+              Chọn schema
+              <select
+                className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                onChange={(event) => handleComponentTypeChange(event.target.value as CmsComponentType)}
+                value={draft.componentType}
+              >
+                {CMS_COMPONENT_TYPES.map((componentType) => <option key={componentType} value={componentType}>{COMPONENT_LABELS[componentType]} · {componentType}</option>)}
+              </select>
+            </label>
+          </section>
 
-          {CMS_SLOT_KEYS.map((slotKey) => {
-            const components = draft.slots[slotKey] ?? [];
-            return (
-              <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" key={slotKey}>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-950">Slot: {slotKey}</h3>
-                    <p className="text-xs text-slate-500">Stable slot key · {components.length} component</p>
-                  </div>
-                  <label className="text-xs font-semibold text-slate-600">
-                    <span className="sr-only">Thêm component vào slot {slotKey}</span>
-                    <select
-                      aria-label={`Thêm component vào slot ${slotKey}`}
-                      className="min-h-11 rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                      onChange={(event) => {
-                        if (event.target.value) addComponent(slotKey, event.target.value as CmsComponentKey);
-                        event.target.value = "";
-                      }}
-                      value=""
-                    >
-                      <option value="">+ Thêm component</option>
-                      {CMS_COMPONENT_KEYS.map((componentKey) => <option key={componentKey} value={componentKey}>{COMPONENT_LABELS[componentKey]}</option>)}
-                    </select>
-                  </label>
-                </div>
-
-                {components.length === 0 ? <p className="mt-4 rounded-xl bg-slate-50 p-3 text-sm text-slate-500">Slot đang trống.</p> : null}
-                <div className="mt-4 grid gap-3">
-                  {components.map((component, index) => (
-                    <fieldset className="min-w-0 rounded-xl border border-slate-200 p-3" key={component.id}>
-                      <legend className="px-1 text-xs font-bold uppercase tracking-[0.1em] text-slate-500">
-                        {COMPONENT_LABELS[component.componentKey]} · {component.id}
-                      </legend>
-                      <div className="flex justify-end">
-                        <button className="min-h-10 rounded-lg px-3 py-1 text-xs font-bold text-red-700 hover:bg-red-50" onClick={() => removeComponent(slotKey, index)} type="button">
-                          Xóa component
-                        </button>
-                      </div>
-                      <ComponentFields component={component} index={index} onChange={updateComponent} slotKey={slotKey} />
-                    </fieldset>
-                  ))}
-                </div>
-              </section>
-            );
-          })}
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" aria-labelledby="payload-title">
+            <h3 className="font-bold text-slate-950" id="payload-title">Payload allowlist</h3>
+            <p className="mt-1 text-sm leading-6 text-slate-600">Các field hiển thị phụ thuộc component type. Field rỗng tùy chọn sẽ được bỏ khỏi request.</p>
+            <div className="mt-4"><PayloadFields draft={draft} onChange={handlePayloadChange} /></div>
+            <FieldError message={fieldErrors.payload} />
+          </section>
 
           <div className="flex flex-wrap gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <button className="min-h-11 rounded-xl bg-teal-700 px-4 py-2 text-sm font-bold text-white hover:bg-teal-800 disabled:opacity-60" disabled={!canMutate} onClick={() => void handleSave()} type="button">
-              {operation === "saving" ? "Đang lưu…" : "Lưu bản nháp"}
+            <button className="min-h-11 rounded-xl bg-teal-700 px-4 py-2 text-sm font-bold text-white hover:bg-teal-800 disabled:opacity-60" disabled={!canMutate} onClick={() => void handleUpsert("DRAFT")} type="button">
+              {operation === "saving" ? "Đang lưu…" : "Lưu bản nháp (ẩn công khai)"}
             </button>
-            <button className="min-h-11 rounded-xl border border-teal-700 px-4 py-2 text-sm font-bold text-teal-800 hover:bg-teal-50 disabled:opacity-60" disabled={!canMutate || !page} onClick={() => void handlePublish()} type="button">
+            <button className="min-h-11 rounded-xl border border-teal-700 px-4 py-2 text-sm font-bold text-teal-800 hover:bg-teal-50 disabled:opacity-60" disabled={!canMutate} onClick={() => void handleUpsert("PUBLISHED")} type="button">
               {operation === "publishing" ? "Đang xuất bản…" : "Xuất bản"}
+            </button>
+            <button className="min-h-11 rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60" disabled={isBusy} onClick={resetToLoaded} type="button">
+              Khôi phục bản đã tải
             </button>
           </div>
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" aria-labelledby="cms-rollback-title">
-            <div>
-              <h3 className="font-bold text-slate-950" id="cms-rollback-title">Rollback có kiểm soát</h3>
-              <p className="mt-1 text-sm leading-6 text-slate-600">Nhập version đã được backend ghi nhận. Request vẫn gửi baseVersion hiện tại để tránh ghi đè ngoài ý muốn.</p>
-            </div>
-            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
-              <label className="text-sm font-semibold text-slate-700">
-                Target version
-                <input
-                  className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 px-3 py-2 font-mono text-sm sm:w-48"
-                  inputMode="numeric"
-                  min="1"
-                  onChange={(event) => setRollbackVersion(event.target.value)}
-                  type="number"
-                  value={rollbackVersion}
-                />
-              </label>
-              <button className="min-h-11 rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-60" disabled={!canMutate || !page} onClick={() => void handleRollback()} type="button">
-                {operation === "rolling-back" ? "Đang rollback…" : "Tạo bản nháp từ version"}
-              </button>
-            </div>
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" aria-labelledby="rollback-title">
+            <h3 className="font-bold text-slate-950" id="rollback-title">Rollback-friendly</h3>
+            <p className="mt-1 text-sm leading-6 text-slate-600">
+              Backend contract hiện cung cấp upsert theo version, chưa cung cấp history/rollback endpoint. Nút khôi phục chỉ hoàn tác form cục bộ về snapshot đã tải; không giả lập rollback server.
+            </p>
           </section>
         </section>
 
@@ -614,13 +475,10 @@ export function CmsEditor({
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Safe renderer</p>
             <h2 className="mt-1 text-xl font-bold text-slate-950" id="cms-preview-title">Xem trước</h2>
-            <p className="mt-1 text-sm leading-6 text-slate-600">Preview dùng đúng schema allowlist và text node React, không diễn giải HTML/JS từ CMS.</p>
+            <p className="mt-1 text-sm leading-6 text-slate-600">Preview dùng đúng component schema và không diễn giải raw HTML/JS.</p>
           </div>
           <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
-            {draft.title ? <h2 className="mb-6 text-2xl font-bold tracking-tight text-slate-950">{draft.title}</h2> : <p className="mb-6 text-sm text-slate-500">Chưa có tên nội dung.</p>}
-            {CMS_SLOT_KEYS.map((slotKey) => (
-              <CmsSlotRenderer className="mb-6 last:mb-0" components={draft.slots[slotKey]} key={slotKey} slotKey={slotKey} />
-            ))}
+            <CmsContentRenderer content={previewContent} />
           </article>
         </aside>
       </div>
