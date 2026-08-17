@@ -322,6 +322,7 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
                 "PENDING_CONFIRMATION", OffsetDateTime.now().plusMinutes(10)
             );
 
+            migrate(schema, "10.4");
             migrate(schema, "10.5");
 
             assertThat(jdbcTemplate.queryForObject(
@@ -369,7 +370,7 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
             Throwable failure = catchThrowable(() -> migrate(schema, "10.5"));
             assertThat(failure).isNotNull();
             assertThat(allMessages(failure)).contains(
-                "V10.5 preflight failed",
+                "V10.4 preflight failed",
                 "reserved zero UUID",
                 "never deletes booking data"
             );
@@ -422,6 +423,7 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
                 "CONFIRMED", null
             );
 
+            migrate(schema, "10.4");
             migrate(schema, "10.5");
 
             assertThat(jdbcTemplate.queryForObject(
