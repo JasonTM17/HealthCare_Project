@@ -2,24 +2,26 @@
 
 ## Current Repository State
 
-Status: `PHASE 0 - Repository Discovery` complete enough to plan. Application implementation has not started in this working tree.
+Status: local foundation implemented; bounded clinical and safety repairs are
+complete on `main`. The current repository contains the backend, frontend,
+FastAPI AI/RAG service, infrastructure, committed CI definition, Flyway V1-V7,
+and AgentKit plans. This section supersedes the historical discovery notes that
+were written before application scaffolding existed.
 
 Evidence inspected on 2026-08-17:
 
-- Project instructions exist: `AGENTS.md`, `OPENCODE.md`.
-- AgentKit plan templates exist under `plans/templates/`.
-- One completed historical AgentKit adapter plan exists: `plans/20260815-1600-gemini-harness/`.
-- No application `README.md` exists.
-- No `.git` directory exists in `D:\HealthCare_Project`; Git commands fail with `fatal: not a git repository`.
-- No application folders exist yet: `apps/backend`, `apps/frontend`, `apps/ai-service`, `infrastructure`, and application `docs/architecture` are absent.
-- No backend metadata exists: no `pom.xml`, Maven wrapper, Java source, tests, Flyway migrations, or Spring configuration found.
-- No frontend metadata exists: no root/app `package.json`, Next.js config, TypeScript config, tests, or Tailwind config found.
-- No AI service metadata exists: no `pyproject.toml`, `requirements.txt`, FastAPI source, or pytest tests found.
-- No Docker Compose or application Dockerfiles found.
-- `.opencode/node_modules/` exists and should not be treated as application code; ensure it is ignored before committing.
-- The GitHub URL `https://github.com/JasonTM17/HealthCare_Project` was probed read-only with `git ls-remote`; no refs were returned in this environment. This must be rechecked before connecting a remote.
+- Project instructions and AgentKit configuration exist: `AGENTS.md`,
+  `OPENCODE.md`, `.agentkit/config.yaml`.
+- Backend, frontend, AI service, Docker Compose, migrations, tests, and CI are
+  present under `apps/`, `infrastructure/`, and `.github/workflows/`.
+- The repository is a Git worktree on `main`; the final handoff binds claims to
+  the exact reviewed `HEAD` and reports unrelated dirty/untracked paths.
+- Local foundation checks pass, but no CI run, deployment, compliance, or
+  production-readiness claim follows from them.
 
-Current implementation phase: before Phase 1. The correct next engineering step is repository foundation, not feature coding.
+Current implementation phase: foundation hardening and staged portal/catalog
+follow-up. The clinical repair and adjacent appointment/storage/AI/RAG gates
+are recorded in `plans/260817-1522-clinical-records-and-authorization-repair/`.
 
 ## Architecture
 
