@@ -33,11 +33,9 @@ bounded and restart-safe; a full replay window falls back to a GET snapshot.
 
 ## Migration ordering
 
-This checkout currently contains Flyway V1-V9. The CMS migration is deliberately
-`V12__cms_content_realtime.sql` because the branch-aware scheduling candidate
-owns V10/V11 at `760735cd91b41ca25b009b4661ee55dc2c7482a`. Integrate that
-candidate's V10/V11 before applying CMS V12; do not renumber the CMS migration
-on the eventual integration head.
+This checkout contains Flyway V1-V12. V10/V11 enforce the branch-aware
+scheduling constraints, and the CMS migration is deliberately
+`V12__cms_content_realtime.sql`; do not renumber it on the integration head.
 
 ## Compose seed and verification
 
