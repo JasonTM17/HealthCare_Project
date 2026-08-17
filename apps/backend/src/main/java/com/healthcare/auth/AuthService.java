@@ -110,6 +110,7 @@ public class AuthService {
         return buildAuthResponse(user, accessToken, refreshTokenString);
     }
 
+    @Transactional
     public AuthResponse refreshToken(RefreshTokenRequest request) {
         String token = request.refreshToken();
 
@@ -124,11 +125,11 @@ public class AuthService {
             .orElseThrow(() -> new BadCredentialsException("Refresh token not found"));
 
         if (storedToken.isRevoked() || storedToken.isExpired()) {
-            revokeAllUserTokens(storedToken.getUser());
+            revokeAllUserTokens(userId);
             throw new BadCredentialsException("Refresh token expired or revoked");
         }
 
-        User user = userRepository.findWithRolesByEmail(storedToken.getUser().getEmail())
+        User user = userRepository.findWithRolesById(userId)
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         String accessToken = tokenProvider.generateAccessToken(user.getId(), user.getEmail());
@@ -144,12 +145,12 @@ public class AuthService {
     public void logout(UUID userId) {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        revokeAllUserTokens(user);
+        revokeAllUserTokens(user.getId());
     }
 
     @Transactional
     public void logoutByEmail(String email) {
-        userRepository.findByEmail(email).ifPresent(this::revokeAllUserTokens);
+        userRepository.findByEmail(email).ifPresent(user -> revokeAllUserTokens(user.getId()));
     }
 
     private void saveRefreshToken(User user, String token) {
@@ -161,9 +162,9 @@ public class AuthService {
         refreshTokenRepository.save(refreshToken);
     }
 
-    private void revokeAllUserTokens(User user) {
+    private void revokeAllUserTokens(UUID userId) {
         refreshTokenRepository.findAll().stream()
-            .filter(rt -> rt.getUser().getId().equals(user.getId()) && !rt.isRevoked())
+            .filter(rt -> rt.getUser().getId().equals(userId) && !rt.isRevoked())
             .forEach(rt -> {
                 rt.setRevokedAt(OffsetDateTime.now());
                 refreshTokenRepository.save(rt);
