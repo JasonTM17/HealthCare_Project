@@ -73,6 +73,40 @@ class AiServiceTest {
     }
 
     @Test
+    void semanticSearchUsesBoundedGatewayContract() {
+        server.expect(requestTo("http://ai.test/search?q=headache&top_k=2"))
+            .andExpect(method(HttpMethod.GET))
+            .andRespond(withSuccess("{\"results\":[],\"query\":\"headache\"}", MediaType.APPLICATION_JSON));
+
+        Map<String, Object> response = aiService.search("  headache  ", 2);
+
+        assertThat(response).containsEntry("query", "headache");
+        server.verify();
+    }
+
+    @Test
+    void configuredInputLimitIsEnforcedBeforeUpstreamCall() {
+        ReflectionTestUtils.setField(aiService, "maxInputChars", 4);
+
+        assertThatThrownBy(() -> aiService.symptomCheck(Map.of("symptoms", "đau đầu")))
+            .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                assertThat(exception.getStatusCode()).isEqualTo(BAD_REQUEST));
+    }
+
+    @Test
+    void oversizedUpstreamResponseBecomesBadGateway() {
+        ReflectionTestUtils.setField(aiService, "maxResponseBytes", 10);
+        server.expect(requestTo("http://ai.test/triage"))
+            .andExpect(method(HttpMethod.POST))
+            .andRespond(withSuccess("{\"recommended_specialty\":\"Nội thần kinh\"}", MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> aiService.symptomCheck(Map.of("symptoms", "đau đầu")))
+            .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                assertThat(exception.getStatusCode()).isEqualTo(BAD_GATEWAY));
+        server.verify();
+    }
+
+    @Test
     void missingTokenFailsClosedOutsideExplicitLocalEscapeHatch() {
         ReflectionTestUtils.setField(aiService, "aiServiceRuntime", "staging");
         ReflectionTestUtils.setField(aiService, "allowUnauthenticatedLocal", false);

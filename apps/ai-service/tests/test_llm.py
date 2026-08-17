@@ -58,6 +58,60 @@ def test_resolve_deepseek_success() -> None:
     assert result.urgency_level == "HIGH"
 
 
+def test_remote_provider_uses_configured_timeout() -> None:
+    settings = MagicMock()
+    settings.ai_provider = "deepseek"
+    settings.ai_api_key = "test-key"
+    settings.ai_chat_model = "deepseek-chat"
+    settings.ai_base_url = "https://api.deepseek.com"
+    settings.ai_timeout_seconds = 4.25
+
+    mock_message = MagicMock()
+    mock_message.content = (
+        '{"recommended_specialty":"Thần Kinh & Đột Quỵ",'
+        '"urgency_level":"HIGH","clinical_advice":"advice",'
+        '"suggested_questions":["q1"]}'
+    )
+    mock_completion = MagicMock()
+    mock_completion.choices = [MagicMock(message=mock_message)]
+
+    with patch("openai.OpenAI") as mock_openai:
+        mock_openai.return_value.chat.completions.create.return_value = mock_completion
+        result = resolve_triage("chóng mặt", settings)
+
+    assert result.recommended_specialty == "Thần Kinh & Đột Quỵ"
+    mock_openai.assert_called_once_with(
+        api_key="test-key",
+        base_url="https://api.deepseek.com",
+        timeout=4.25,
+        max_retries=0,
+    )
+
+
+def test_remote_output_with_unknown_fields_falls_back() -> None:
+    fallback = rule_based_triage("đau ngực dữ dội")
+    settings = MagicMock()
+    settings.ai_provider = "deepseek"
+    settings.deepseek_api_key = "test-key"
+    settings.deepseek_model = "deepseek-chat"
+    settings.deepseek_base_url = "https://api.deepseek.com"
+
+    mock_message = MagicMock()
+    mock_message.content = (
+        '{"recommended_specialty":"Thần Kinh & Đột Quỵ",'
+        '"urgency_level":"HIGH","clinical_advice":"advice",'
+        '"suggested_questions":[],"doctor_id":"invented"}'
+    )
+    mock_completion = MagicMock()
+    mock_completion.choices = [MagicMock(message=mock_message)]
+
+    with patch("openai.OpenAI") as mock_openai:
+        mock_openai.return_value.chat.completions.create.return_value = mock_completion
+        result = resolve_triage("đau ngực dữ dội", settings)
+
+    assert result == fallback
+
+
 def test_resolve_deepseek_falls_back_on_error() -> None:
     settings = MagicMock()
     settings.ai_provider = "deepseek"

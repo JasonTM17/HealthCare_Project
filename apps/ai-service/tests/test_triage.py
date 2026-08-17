@@ -1,5 +1,7 @@
 from fastapi.testclient import TestClient
-from app.main import app
+import pytest
+
+from app.main import app, settings
 
 client = TestClient(app)
 
@@ -40,3 +42,12 @@ def test_triage_general_checkup() -> None:
     assert response.status_code == 200
     data = response.json()
     assert data["recommended_specialty"] == "Gói Khám Sức Khỏe Tổng Quát Toàn Diện"
+
+
+def test_triage_enforces_configured_input_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "ai_max_input_chars", 4)
+
+    response = client.post("/triage", json={"symptoms": "đau đầu"})
+
+    assert response.status_code == 413
+    assert "configured limit" in response.json()["detail"]
