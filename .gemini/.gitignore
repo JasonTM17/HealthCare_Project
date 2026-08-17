@@ -1,5 +1,0 @@
-# Gemini CLI runtime artifacts. The adapter definitions remain tracked.
-*.log
-logs/
-tmp/
-sessions/
