@@ -73,7 +73,9 @@ services:
       JWT_REFRESH_TTL:    ${JWT_REFRESH_TTL:-604800}
       CORS_ALLOWED_ORIGINS: http://localhost:3000
       AI_SERVICE_URL:     http://healthcare-ai-service:8000
-      AI_SERVICE_TOKEN:   ${AI_SERVICE_TOKEN:-}
+      AI_SERVICE_RUNTIME: compose
+      AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL: "false"
+      AI_SERVICE_TOKEN:   ${AI_SERVICE_TOKEN:?AI_SERVICE_TOKEN must be set for Compose}
       MINIO_ENDPOINT:      http://minio:9000
       MINIO_ACCESS_KEY:    ${MINIO_ROOT_USER:-healthcare}
       MINIO_SECRET_KEY:    ${MINIO_ROOT_PASSWORD:-change-me}
@@ -117,7 +119,9 @@ services:
       AI_PROVIDER: rule_based_triage
       EMBEDDING_PROVIDER: local
       RAG_INGEST_ENABLED: "false"
-      AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:-}
+      AI_SERVICE_RUNTIME: compose
+      AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL: "false"
+      AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:?AI_SERVICE_TOKEN must be set for Compose}
     ports:
       - "127.0.0.1:8000:8000"
     healthcheck:

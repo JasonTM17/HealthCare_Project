@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Be_Vietnam_Pro, Playfair_Display } from "next/font/google";
+import { Be_Vietnam_Pro, Source_Sans_3 } from "next/font/google";
 import "./styles.css";
 
 const beVietnamPro = Be_Vietnam_Pro({
@@ -9,10 +9,10 @@ const beVietnamPro = Be_Vietnam_Pro({
   display: "swap",
 });
 
-const playfairDisplay = Playfair_Display({
+const sourceSans = Source_Sans_3({
   subsets: ["latin", "vietnamese"],
-  weight: ["700", "800"],
-  variable: "--font-playfair-display",
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-source-sans",
   display: "swap",
 });
 
@@ -44,7 +44,7 @@ export default function RootLayout({
   return (
     <html
       lang="vi"
-      className={`${beVietnamPro.variable} ${playfairDisplay.variable}`}
+      className={`${beVietnamPro.variable} ${sourceSans.variable}`}
     >
       <body>{children}</body>
     </html>

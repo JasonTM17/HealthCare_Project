@@ -1,7 +1,9 @@
 package com.healthcare.scheduling.controller;
 
 import com.healthcare.scheduling.entity.DoctorSchedule;
+import com.healthcare.scheduling.dto.DoctorScheduleRequest;
 import com.healthcare.scheduling.service.DoctorScheduleService;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -26,13 +28,18 @@ public class AdminScheduleController {
     }
 
     @PostMapping("/doctors/{doctorId}/branches/{branchId}")
-    public ResponseEntity<DoctorSchedule> create(@PathVariable UUID doctorId, @PathVariable UUID branchId, @RequestBody DoctorSchedule schedule) {
-        return ResponseEntity.ok(scheduleService.createSchedule(doctorId, branchId, schedule));
+    public ResponseEntity<DoctorSchedule> create(
+            @PathVariable UUID doctorId,
+            @PathVariable UUID branchId,
+            @Valid @RequestBody DoctorScheduleRequest request) {
+        return ResponseEntity.ok(scheduleService.createSchedule(doctorId, branchId, request));
     }
 
     @PutMapping("/{scheduleId}")
-    public ResponseEntity<DoctorSchedule> update(@PathVariable UUID scheduleId, @RequestBody DoctorSchedule schedule) {
-        return ResponseEntity.ok(scheduleService.updateSchedule(scheduleId, schedule));
+    public ResponseEntity<DoctorSchedule> update(
+            @PathVariable UUID scheduleId,
+            @Valid @RequestBody DoctorScheduleRequest request) {
+        return ResponseEntity.ok(scheduleService.updateSchedule(scheduleId, request));
     }
 
     @DeleteMapping("/{scheduleId}")

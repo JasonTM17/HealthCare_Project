@@ -18,6 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
@@ -34,6 +35,8 @@ class AiServiceTest {
         aiService = new AiService(new RestTemplateBuilder(), new ObjectMapper());
         RestTemplate restTemplate = (RestTemplate) ReflectionTestUtils.getField(aiService, "restTemplate");
         ReflectionTestUtils.setField(aiService, "aiServiceUrl", "http://ai.test");
+        ReflectionTestUtils.setField(aiService, "aiServiceRuntime", "local");
+        ReflectionTestUtils.setField(aiService, "allowUnauthenticatedLocal", true);
         server = MockRestServiceServer.bindTo(restTemplate).build();
     }
 
@@ -67,5 +70,15 @@ class AiServiceTest {
             .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
                 assertThat(exception.getStatusCode()).isEqualTo(BAD_GATEWAY));
         server.verify();
+    }
+
+    @Test
+    void missingTokenFailsClosedOutsideExplicitLocalEscapeHatch() {
+        ReflectionTestUtils.setField(aiService, "aiServiceRuntime", "staging");
+        ReflectionTestUtils.setField(aiService, "allowUnauthenticatedLocal", false);
+
+        assertThatThrownBy(() -> aiService.symptomCheck(Map.of("symptoms", "đau đầu")))
+            .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                assertThat(exception.getStatusCode()).isEqualTo(SERVICE_UNAVAILABLE));
     }
 }

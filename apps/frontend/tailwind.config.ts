@@ -81,8 +81,8 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ["var(--font-be-vietnam-pro)", "Segoe UI", "Noto Sans", "sans-serif"],
-        display: ["var(--font-playfair-display)", "Georgia", "serif"],
+        sans: ["var(--font-source-sans)", "Noto Sans", "sans-serif"],
+        display: ["var(--font-be-vietnam-pro)", "Noto Sans", "sans-serif"],
       },
       borderRadius: {
         DEFAULT: "0.25rem",

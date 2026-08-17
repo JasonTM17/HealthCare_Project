@@ -1,19 +1,209 @@
 "use client";
 
-import React, { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
-import Navbar from "../components/Navbar";
-import Footer from "../components/Footer";
-import BookingModal from "../components/BookingModal";
+import React, { useMemo, useState } from "react";
 import AiTriageModal from "../components/AiTriageModal";
+import BookingModal from "../components/BookingModal";
+import Footer from "../components/Footer";
+import Icon, { type IconName } from "../components/UiIcon";
+import Navbar from "../components/Navbar";
 import {
-  SEED_SPECIALTIES,
+  SEED_BRANCHES,
   SEED_DOCTORS,
   SEED_PACKAGES,
-  SEED_BRANCHES,
+  SEED_SPECIALTIES,
 } from "../lib/api";
+import type { Doctor, HealthPackage, Specialty } from "../types/hospital";
 
-export default function Home() {
+const HERO_IMAGE =
+  "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=1600&q=85";
+
+const DEMO_ARTICLES = [
+  {
+    type: "Bài viết demo",
+    title: "Khi nào nên bắt đầu một lần kiểm tra sức khỏe định kỳ?",
+    summary:
+      "Một checklist ngắn giúp bạn chuẩn bị câu hỏi và thông tin cần trao đổi trong lần khám tiếp theo.",
+  },
+  {
+    type: "Bài viết demo",
+    title: "Chuẩn bị gì trước khi đi khám chuyên khoa?",
+    summary:
+      "Từ danh sách thuốc đang dùng đến kết quả cũ, vài bước chuẩn bị giúp cuộc hẹn rõ ràng hơn.",
+  },
+  {
+    type: "Bài viết demo",
+    title: "Đọc đúng hướng dẫn sau buổi thăm khám",
+    summary:
+      "Gợi ý cách ghi lại dặn dò, lịch tái khám và những dấu hiệu cần liên hệ lại với cơ sở y tế.",
+  },
+];
+
+const JOURNEY_STEPS: Array<{ icon: IconName; title: string; description: string }> = [
+  {
+    icon: "calendar",
+    title: "Chọn nhu cầu khám",
+    description: "Tìm theo chuyên khoa, bác sĩ, gói khám hoặc cơ sở phù hợp.",
+  },
+  {
+    icon: "building",
+    title: "Giữ một khung giờ",
+    description: "Chọn ngày, giờ và cơ sở ngay trong luồng đặt lịch hiện có.",
+  },
+  {
+    icon: "stethoscope",
+    title: "Đến cơ sở đã chọn",
+    description: "Mang theo mã lịch hẹn và thông tin cần thiết cho buổi khám.",
+  },
+  {
+    icon: "book-open",
+    title: "Theo dõi hướng dẫn",
+    description: "Tra cứu lại lịch hẹn và các dặn dò sau buổi thăm khám.",
+  },
+];
+
+interface SectionHeadingProps {
+  headingId?: string;
+  title: string;
+  description: string;
+  note?: string;
+  action?: React.ReactNode;
+}
+
+const SectionHeading: React.FC<SectionHeadingProps> = ({
+  headingId,
+  title,
+  description,
+  note,
+  action,
+}) => (
+  <div className="section-heading">
+    <div>
+      {note ? <p className="section-note">{note}</p> : null}
+      <h2 id={headingId}>{title}</h2>
+      <p className="section-description">{description}</p>
+    </div>
+    {action ? <div className="section-heading__action">{action}</div> : null}
+  </div>
+);
+
+const DemoNote: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <p className="demo-note">
+    <Icon name="sparkles" size={15} />
+    <span>{children}</span>
+  </p>
+);
+
+const formatCurrency = (price: number): string =>
+  new Intl.NumberFormat("vi-VN").format(price);
+
+const getInitials = (fullName: string): string => {
+  const parts = fullName
+    .replace(/[.]/g, "")
+    .split(" ")
+    .filter(Boolean);
+  return parts
+    .slice(-2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("");
+};
+
+const getSpecialtyIcon = (specialty: Specialty): IconName => {
+  const name = specialty.name.toLowerCase();
+  if (name.includes("tim")) return "heart";
+  if (name.includes("thần")) return "brain";
+  if (name.includes("tiêu")) return "activity";
+  if (name.includes("sản") || name.includes("nhi")) return "user";
+  if (name.includes("xương")) return "layers";
+  if (name.includes("ung")) return "sparkles";
+  return "stethoscope";
+};
+
+const getDoctorImage = (doctor: Doctor): string | undefined => {
+  // The second seed URL currently returns 404. Keep that fixture honest and use the accessible fallback.
+  if (doctor.id === "doc-2") return undefined;
+  return doctor.photoUrl;
+};
+
+interface DoctorPhotoProps {
+  doctor: Doctor;
+  featured?: boolean;
+}
+
+const DoctorPhoto: React.FC<DoctorPhotoProps> = ({ doctor, featured = false }) => {
+  const photoUrl = getDoctorImage(doctor);
+  return (
+    <div className={`doctor-photo${featured ? " doctor-photo--featured" : ""}`}>
+      {photoUrl ? (
+        <Image
+          alt={`Ảnh minh họa bác sĩ ${doctor.fullName}`}
+          className="doctor-photo__image"
+          fill
+          sizes={featured ? "(max-width: 800px) 100vw, 42vw" : "(max-width: 800px) 100vw, 22vw"}
+          src={photoUrl}
+        />
+      ) : (
+        <div className="doctor-photo__fallback" aria-label={`Ảnh demo của ${doctor.fullName}`}>
+          <Icon name="stethoscope" size={32} />
+          <span>{getInitials(doctor.fullName)}</span>
+        </div>
+      )}
+      <span className="doctor-photo__caption">Ảnh demo local</span>
+    </div>
+  );
+};
+
+interface DoctorCardProps {
+  doctor: Doctor;
+  featured?: boolean;
+  onBook: (doctorId: string) => void;
+}
+
+const DoctorCard: React.FC<DoctorCardProps> = ({ doctor, featured = false, onBook }) => (
+  <article className={`doctor-card${featured ? " doctor-card--featured" : ""}`}>
+    <DoctorPhoto doctor={doctor} featured={featured} />
+    <div className="doctor-card__body">
+      <p className="doctor-specialty">{doctor.specialtyName ?? "Chuyên khoa"}</p>
+      <h3>{doctor.fullName}</h3>
+      <p className="doctor-title">
+        {doctor.title ?? "Bác sĩ chuyên khoa"}
+        {doctor.experienceYears ? ` · ${doctor.experienceYears} năm kinh nghiệm` : ""}
+      </p>
+      <p className="doctor-bio">{doctor.bio}</p>
+      <button className="text-button" onClick={() => onBook(doctor.id)} type="button">
+        Đặt lịch với bác sĩ
+        <Icon name="arrow-up-right" size={17} />
+      </button>
+    </div>
+  </article>
+);
+
+interface PackageRowProps {
+  packageItem: HealthPackage;
+  onBook: (packageId: string) => void;
+}
+
+const PackageRow: React.FC<PackageRowProps> = ({ packageItem, onBook }) => (
+  <article className="package-row">
+    <div>
+      <p className="package-row__price">{formatCurrency(packageItem.price)} VNĐ</p>
+      <h3>{packageItem.name}</h3>
+      <p>{packageItem.description}</p>
+    </div>
+    <div className="package-row__actions">
+      <Link href={`/goi-kham/${packageItem.slug}`} className="text-button">
+        Xem gói
+        <Icon name="arrow-up-right" size={17} />
+      </Link>
+      <button className="outline-button outline-button--small" onClick={() => onBook(packageItem.id)} type="button">
+        Đặt lịch
+      </button>
+    </div>
+  </article>
+);
+
+export default function Home(): React.ReactElement {
   const [isBookingOpen, setIsBookingOpen] = useState<boolean>(false);
   const [isAiTriageOpen, setIsAiTriageOpen] = useState<boolean>(false);
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | undefined>();
@@ -22,7 +212,12 @@ export default function Home() {
   const [selectedBranchId, setSelectedBranchId] = useState<string | undefined>();
   const [searchQuery, setSearchQuery] = useState<string>("");
 
-  const handleOpenBooking = (doctorId?: string, specialtyId?: string, packageId?: string, branchId?: string) => {
+  const handleOpenBooking = (
+    doctorId?: string,
+    specialtyId?: string,
+    packageId?: string,
+    branchId?: string,
+  ): void => {
     setSelectedDoctorId(doctorId);
     setSelectedSpecialtyId(specialtyId);
     setSelectedPackageId(packageId);
@@ -30,562 +225,386 @@ export default function Home() {
     setIsBookingOpen(true);
   };
 
-  const handleAiSpecialtySelect = (specialtyName: string) => {
-    const matched = SEED_SPECIALTIES.find((s) => s.name.includes(specialtyName) || specialtyName.includes(s.name));
-    handleOpenBooking(undefined, matched?.id, undefined);
+  const handleAiSpecialtySelect = (specialtyName: string): void => {
+    const matchedSpecialty = SEED_SPECIALTIES.find(
+      (specialty) =>
+        specialty.name.includes(specialtyName) || specialtyName.includes(specialty.name),
+    );
+    handleOpenBooking(undefined, matchedSpecialty?.id, undefined);
   };
 
-  // Filter specialties and doctors based on search
-  const filteredSpecialties = SEED_SPECIALTIES.filter((s) =>
-    s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.description.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredSpecialties = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return SEED_SPECIALTIES;
+    return SEED_SPECIALTIES.filter(
+      (specialty) =>
+        specialty.name.toLowerCase().includes(query) ||
+        specialty.description.toLowerCase().includes(query),
+    );
+  }, [searchQuery]);
 
-  const filteredDoctors = SEED_DOCTORS.filter((d) =>
-    d.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    d.specialtyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    d.bio.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredDoctors = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return SEED_DOCTORS;
+    return SEED_DOCTORS.filter(
+      (doctor) =>
+        doctor.fullName.toLowerCase().includes(query) ||
+        doctor.specialtyName?.toLowerCase().includes(query) ||
+        doctor.bio.toLowerCase().includes(query),
+    );
+  }, [searchQuery]);
+
+  const featuredPackage = SEED_PACKAGES.find((packageItem) => packageItem.featured) ?? SEED_PACKAGES[0];
+  const supportingPackages = SEED_PACKAGES.filter((packageItem) => packageItem.id !== featuredPackage?.id);
+  const featuredDoctor = filteredDoctors[0];
+  const supportingDoctors = filteredDoctors.slice(1, 4);
 
   return (
-    <div className="min-h-screen flex flex-col bg-sand-100 text-ink font-sans pb-16 sm:pb-0">
+    <div className="site-shell">
       <Navbar
-        onOpenBooking={() => handleOpenBooking()}
         onOpenAiTriage={() => setIsAiTriageOpen(true)}
+        onOpenBooking={() => handleOpenBooking()}
       />
 
-      <main className="flex-1">
-        {/* ── 1. Hero Section with Smart Search & Care Rail ─────────── */}
-        <section className="relative overflow-hidden bg-gradient-to-b from-brand-900 via-brand-800 to-brand-950 text-white py-16 lg:py-24 px-4 sm:px-6">
-          <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:20px_20px] pointer-events-none" />
-
-          <div className="relative max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-            <div className="lg:col-span-7 space-y-6">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-brand-800/80 border border-brand-600/50 text-xs font-semibold text-mint-200">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                <span>Nền tảng Y tế Số: đặt lịch khám chuẩn 30 phút</span>
-              </div>
-
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-tight font-serif">
-                Chăm Sóc Tận Tâm, <br />
-                <span className="text-amber-400">Y Khoa Chuẩn Mực.</span>
+      <main>
+        <section className="hero-section" aria-labelledby="hero-title">
+          <div className="hero-inner">
+            <div className="hero-copy">
+              <p className="hero-kicker">
+                <span className="hero-kicker__line" aria-hidden="true" />
+                Chăm sóc có định hướng
+              </p>
+              <h1 id="hero-title">
+                Để mỗi lần đi khám <span>an tâm hơn.</span>
               </h1>
-
-              <p className="text-base sm:text-lg text-brand-100/90 max-w-2xl leading-relaxed">
-                Hệ sinh thái bệnh viện đa khoa quy tụ đội ngũ chuyên gia đầu ngành, áp dụng kỹ thuật chẩn đoán và điều trị tiên tiến với quy trình đặt khám không chờ đợi.
+              <p className="hero-description">
+                Tìm bác sĩ, chọn cơ sở và đặt lịch trong một hành trình rõ ràng.
               </p>
-              <p className="text-xs text-brand-200/80 max-w-2xl" role="note">
-                Bản demo local · dữ liệu bác sĩ, gói khám và cơ sở đang là nội dung minh họa.
-              </p>
-
-              {/* Quick Search Bar */}
-              <div className="pt-2 max-w-xl">
-                <div className="relative flex items-center bg-white rounded-2xl p-2 shadow-2xl">
-                  <span className="pl-3 text-ink-faint text-lg">🔍</span>
-                  <input
-                    type="text"
-                    placeholder="Tìm theo chuyên khoa, triệu chứng hoặc tên bác sĩ..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full px-3 py-2 text-sm text-ink focus:outline-none placeholder-ink-faint"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleOpenBooking()}
-                    className="px-6 py-2.5 bg-brand-700 hover:bg-brand-800 text-white text-xs font-bold rounded-xl transition-colors whitespace-nowrap cursor-pointer"
-                  >
-                    Đặt hẹn ngay
-                  </button>
-                </div>
+              <div className="hero-actions">
+                <button className="button button--amber" onClick={() => handleOpenBooking()} type="button">
+                  Đặt lịch khám
+                  <Icon name="arrow-up-right" size={18} />
+                </button>
+                <button className="button button--hero-secondary" onClick={() => setIsAiTriageOpen(true)} type="button">
+                  Mô tả triệu chứng
+                  <Icon name="activity" size={18} />
+                </button>
               </div>
-
-              <div className="flex flex-wrap items-center gap-4 text-xs text-brand-200/90 pt-2">
-                <span>✓ Giữ chỗ thời gian thực 10 phút</span>
-                <span>✓ Không thu phí trước</span>
-                <span>✓ Hỗ trợ BHYT & Bảo lãnh trực tiếp</span>
-              </div>
+              <DemoNote>
+                Bản demo local: dữ liệu bác sĩ, gói khám và cơ sở là nội dung minh họa.
+              </DemoNote>
             </div>
 
-            {/* Quick-Access Care Rail */}
-            <div className="lg:col-span-5 grid grid-cols-2 gap-4">
-              <button
-                type="button"
-                onClick={() => handleOpenBooking()}
-                className="p-5 bg-white/10 hover:bg-white/15 border border-white/20 backdrop-blur-md rounded-2xl text-left transition-all hover:-translate-y-1 group cursor-pointer"
-              >
-                <span className="text-3xl mb-3 block">📅</span>
-                <h3 className="font-bold text-white text-base group-hover:text-amber-300 transition-colors">
-                  Đặt Lịch Khám
-                </h3>
-                <p className="text-xs text-brand-200 mt-1">Chọn bác sĩ & giữ slot 30 phút nhanh chóng</p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setIsAiTriageOpen(true)}
-                className="p-5 bg-gradient-to-br from-amber-500/20 to-brand-500/20 hover:from-amber-500/30 hover:to-brand-500/30 border border-amber-400/30 backdrop-blur-md rounded-2xl text-left transition-all hover:-translate-y-1 group cursor-pointer"
-              >
-                <span className="text-3xl mb-3 block">🤖</span>
-                <h3 className="font-bold text-amber-300 text-base group-hover:text-white transition-colors">
-                  AI Triage Triệu Chứng
-                </h3>
-                <p className="text-xs text-brand-200 mt-1">Tư vấn chuyên khoa & hướng dẫn xử trí sơ bộ</p>
-              </button>
-
-              <Link
-                href="/#packages"
-                className="p-5 bg-white/10 hover:bg-white/15 border border-white/20 backdrop-blur-md rounded-2xl text-left transition-all hover:-translate-y-1 group block"
-              >
-                <span className="text-3xl mb-3 block">📦</span>
-                <h3 className="font-bold text-white text-base group-hover:text-amber-300 transition-colors">
-                  Gói Khám Toàn Diện
-                </h3>
-                <p className="text-xs text-brand-200 mt-1">Tầm soát ung thư & kiểm tra định kỳ</p>
-              </Link>
-
-              <Link
-                href="/#branches"
-                className="p-5 bg-white/10 hover:bg-white/15 border border-white/20 backdrop-blur-md rounded-2xl text-left transition-all hover:-translate-y-1 group block"
-              >
-                <span className="text-3xl mb-3 block">🏥</span>
-                <h3 className="font-bold text-white text-base group-hover:text-amber-300 transition-colors">
-                  Cơ Sở & Cấp Cứu
-                </h3>
-                <p className="text-xs text-brand-200 mt-1">Chỉ đường & hotline cấp cứu 24/7</p>
-              </Link>
-            </div>
+            <figure className="hero-visual">
+              <div className="hero-visual__image-wrap">
+                <Image
+                  alt="Không gian chăm sóc y tế sáng và thân thiện"
+                  className="hero-visual__image"
+                  fill
+                  priority
+                  sizes="(max-width: 900px) 100vw, 46vw"
+                  src={HERO_IMAGE}
+                />
+              </div>
+              <figcaption>
+                Ảnh minh họa từ Unsplash. Giao diện và dữ liệu hiện tại phục vụ bản demo local.
+              </figcaption>
+            </figure>
           </div>
         </section>
 
-        {/* ── 2. Key Centers of Excellence (Chuyên Khoa Mũi Nhọn) ───── */}
-        <section id="specialties" className="py-20 px-4 sm:px-6 max-w-7xl mx-auto">
-          <div className="text-center max-w-3xl mx-auto mb-14">
-            <span className="text-xs uppercase tracking-widest font-bold text-brand-700">
-              TRUNG TÂM Y KHOA CHUYÊN SÂU
-            </span>
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-brand-950 mt-2 font-serif">
-              Các Chuyên Khoa Mũi Nhọn
-            </h2>
-            <p className="text-ink-muted text-sm sm:text-base mt-3">
-              Trang bị đồng bộ hệ thống chẩn đoán hình ảnh cao cấp (MRI 1.5 Tesla, CT 128 lát cắt, Nội soi NBI) giúp phát hiện tổn thương ở giai đoạn sớm.
-            </p>
-          </div>
+        <section className="care-section" aria-labelledby="care-title">
+          <div className="care-inner">
+            <div className="care-intro">
+              <p className="section-note">Điểm bắt đầu</p>
+              <h2 id="care-title">Bạn cần tìm gì hôm nay?</h2>
+              <p>Gõ tên bác sĩ hoặc chuyên khoa để lọc nhanh nội dung phù hợp bên dưới.</p>
+            </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {filteredSpecialties.map((sp) => (
-              <div
-                key={sp.id}
-                className="p-6 bg-white border border-mint-100 hover:border-brand-400 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between group"
-              >
-                <div>
-                  <div className="w-14 h-14 rounded-2xl bg-brand-50 text-brand-800 text-3xl flex items-center justify-center mb-4 group-hover:scale-110 group-hover:bg-brand-700 group-hover:text-white transition-all duration-300">
-                    {sp.icon || "🏥"}
-                  </div>
-                  <Link href={`/chuyen-khoa/${sp.slug}`}>
-                    <h3 className="text-lg font-bold text-ink mb-2 group-hover:text-brand-700 transition-colors">
-                      {sp.name}
-                    </h3>
-                  </Link>
-                  <p className="text-xs text-ink-muted leading-relaxed mb-6">
-                    {sp.description}
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <button
-                    type="button"
-                    onClick={() => handleOpenBooking(undefined, sp.id, undefined)}
-                    className="w-full py-2.5 px-4 bg-brand-700 hover:bg-brand-800 text-white text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
-                  >
-                    <span>Đặt lịch khám</span>
-                    <span>→</span>
-                  </button>
-                  <Link
-                    href={`/chuyen-khoa/${sp.slug}`}
-                    className="block text-center text-xs font-semibold text-brand-700 hover:underline py-1"
-                  >
-                    Xem chi tiết chuyên khoa
-                  </Link>
-                </div>
+            <form
+              className="care-search"
+              onSubmit={(event) => {
+                event.preventDefault();
+                handleOpenBooking();
+              }}
+            >
+              <label htmlFor="care-search-input">Tìm bác sĩ hoặc chuyên khoa</label>
+              <div className="care-search__control">
+                <Icon name="search" size={19} />
+                <input
+                  aria-describedby="care-search-help"
+                  id="care-search-input"
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Ví dụ: Tim Mạch, Nhi Khoa..."
+                  type="search"
+                  value={searchQuery}
+                />
+                <button className="button button--primary" type="submit">
+                  Đặt theo nhu cầu
+                </button>
               </div>
-            ))}
-          </div>
-        </section>
+              <p id="care-search-help">Kết quả tìm kiếm chỉ dùng dữ liệu demo local trong phiên này.</p>
+            </form>
 
-        {/* ── 3. Specialist Doctors Showcase ────────────────────────── */}
-        <section id="doctors" className="py-20 px-4 sm:px-6 bg-mint-100/80 border-y border-mint-100">
-          <div className="max-w-7xl mx-auto">
-            <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-4">
-              <div>
-                <span className="text-xs uppercase tracking-widest font-bold text-brand-700">
-                  ĐỘI NGŨ CHUYÊN GIA
+            <div className="care-links" aria-label="Lối tắt chăm sóc">
+              <button className="care-link" onClick={() => handleOpenBooking()} type="button">
+                <span className="care-link__icon"><Icon name="calendar" size={21} /></span>
+                <span>
+                  <strong>Đặt lịch khám</strong>
+                  <small>Chọn bác sĩ và khung giờ</small>
                 </span>
-                <h2 className="text-3xl sm:text-4xl font-extrabold text-brand-950 mt-2 font-serif">
-                  Bác Sĩ Giàu Kinh Nghiệm
-                </h2>
-                <p className="text-ink-muted text-sm mt-2 max-w-2xl">
-                  Đội ngũ Phó Giáo sư, Tiến sĩ, Bác sĩ Chuyên khoa II từng công tác tại các bệnh viện trung ương, tận tâm và thấu hiểu bệnh nhân.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => handleOpenBooking()}
-                className="px-6 py-2.5 bg-brand-700 hover:bg-brand-800 text-white text-xs font-bold rounded-full shadow transition-all self-start md:self-auto cursor-pointer"
-              >
-                Đặt lịch khám →
+                <Icon name="chevron-right" size={18} />
               </button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {filteredDoctors.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="bg-white rounded-2xl overflow-hidden border border-mint-100 shadow-sm hover:shadow-lg transition-all flex flex-col justify-between"
-                >
-                  <div className="p-6">
-                    <div className="w-24 h-24 rounded-full bg-brand-700/10 text-brand-800 mx-auto flex items-center justify-center text-4xl mb-4 border-2 border-brand-200">
-                      👨‍⚕️
-                    </div>
-                    <div className="text-center">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-brand-700 bg-brand-50 px-2.5 py-0.5 rounded-full inline-block mb-1.5">
-                        {doc.specialtyName}
-                      </span>
-                      <h3 className="text-base font-extrabold text-ink">
-                        {doc.fullName}
-                      </h3>
-                      <p className="text-xs text-ink-muted mt-0.5 font-medium">
-                        {doc.title} • {doc.experienceYears} năm kinh nghiệm
-                      </p>
-                      <p className="text-xs text-ink-muted mt-3 line-clamp-3 text-left leading-relaxed">
-                        {doc.bio}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="p-4 bg-sand-100 border-t border-mint-100">
-                    <button
-                      type="button"
-                      onClick={() => handleOpenBooking(doc.id, undefined, undefined)}
-                      className="w-full py-2.5 bg-brand-700 hover:bg-brand-800 text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      <span>📅 Đặt hẹn với bác sĩ</span>
-                    </button>
-                  </div>
-                </div>
-              ))}
+              <button className="care-link care-link--accent" onClick={() => setIsAiTriageOpen(true)} type="button">
+                <span className="care-link__icon"><Icon name="sparkles" size={21} /></span>
+                <span>
+                  <strong>Trợ lý triệu chứng</strong>
+                  <small>Gợi ý chuyên khoa tham khảo</small>
+                </span>
+                <Icon name="chevron-right" size={18} />
+              </button>
+              <Link className="care-link" href="/#branches">
+                <span className="care-link__icon"><Icon name="location" size={21} /></span>
+                <span>
+                  <strong>Cơ sở gần bạn</strong>
+                  <small>Xem địa chỉ và giờ làm việc</small>
+                </span>
+                <Icon name="chevron-right" size={18} />
+              </Link>
             </div>
           </div>
         </section>
 
-        {/* ── 4. Health Packages & Screening ────────────────────────── */}
-        <section id="packages" className="py-20 px-4 sm:px-6 bg-brand-950 text-white">
-          <div className="max-w-7xl mx-auto">
-            <div className="text-center max-w-3xl mx-auto mb-14">
-              <span className="text-xs uppercase tracking-widest font-bold text-amber-300">
-                CHỦ ĐỘNG BẢO VỆ SỨC KHỎE
-              </span>
-              <h2 className="text-3xl sm:text-4xl font-extrabold text-white mt-2 font-serif">
-                Gói Khám Sức Khỏe Toàn Diện
-              </h2>
-              <p className="text-brand-200 text-sm mt-3">
-                Thiết kế khoa học theo từng độ tuổi và nhóm nguy cơ, giúp phát hiện sớm các mầm mống bệnh lý trước khi có triệu chứng.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {SEED_PACKAGES.map((pkg) => (
-                <div
-                  key={pkg.id}
-                  className={`rounded-3xl p-8 flex flex-col justify-between border transition-all ${
-                    pkg.featured
-                      ? "bg-gradient-to-b from-brand-900 to-brand-800 border-amber-400/40 shadow-2xl relative"
-                      : "bg-brand-900/60 border-brand-800 shadow-lg"
-                  }`}
-                >
-                  {pkg.featured && (
-                    <span className="absolute -top-3 right-6 bg-amber-400 text-brand-950 text-[10px] font-extrabold uppercase px-3 py-1 rounded-full tracking-wider shadow">
-                      ĐƯỢC ĐĂNG KÝ NHIỀU NHẤT
-                    </span>
-                  )}
-
-                  <div>
-                    <Link href={`/goi-kham/${pkg.slug}`}>
-                      <h3 className="text-xl font-extrabold text-white mb-2 hover:text-amber-300 transition-colors">
-                        {pkg.name}
-                      </h3>
-                    </Link>
-                    <p className="text-xs text-brand-200 leading-relaxed mb-6">
-                      {pkg.description}
-                    </p>
-
-                    <div className="mb-6 pb-6 border-b border-brand-700/50">
-                      <span className="text-xs text-brand-300">Chi phí trọn gói:</span>
-                      <div className="text-3xl font-extrabold text-amber-300 font-mono mt-1">
-                        {pkg.price.toLocaleString("vi-VN")} <span className="text-sm font-sans">VNĐ</span>
+        <section className="section section--specialties" id="specialties" aria-labelledby="specialties-title">
+          <div className="section-inner">
+            <SectionHeading
+              action={<Link className="section-link" href="/specialties">Xem tất cả chuyên khoa <Icon name="arrow-right" size={17} /></Link>}
+              description="Bắt đầu từ điều bạn đang quan tâm. Mỗi chuyên khoa có thông tin riêng để bạn chuẩn bị tốt hơn cho cuộc hẹn."
+              headingId="specialties-title"
+              note="Danh mục chăm sóc"
+              title="Chuyên khoa cho từng nhu cầu"
+            />
+            <div className="specialty-layout">
+              <aside className="specialty-aside">
+                <div className="specialty-aside__mark"><Icon name="stethoscope" size={28} /></div>
+                <h3>Thông tin rõ ràng trước khi đặt hẹn.</h3>
+                <p>Chọn một chuyên khoa để xem mô tả, bác sĩ liên quan và mở luồng đặt lịch.</p>
+                <DemoNote>Dữ liệu chuyên khoa trong bản demo local.</DemoNote>
+              </aside>
+              <div className="specialty-list">
+                {filteredSpecialties.length > 0 ? filteredSpecialties.slice(0, 8).map((specialty, index) => (
+                  <article className="specialty-row" key={specialty.id}>
+                    <span className="specialty-row__index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+                    <div className="specialty-row__content">
+                      <span className="specialty-row__icon"><Icon name={getSpecialtyIcon(specialty)} size={20} /></span>
+                      <div>
+                        <h3><Link href={`/chuyen-khoa/${specialty.slug}`}>{specialty.name}</Link></h3>
+                        <p>{specialty.description}</p>
                       </div>
                     </div>
+                    <button className="icon-button" aria-label={`Đặt lịch theo chuyên khoa ${specialty.name}`} onClick={() => handleOpenBooking(undefined, specialty.id)} type="button">
+                      <Icon name="arrow-up-right" size={18} />
+                    </button>
+                  </article>
+                )) : (
+                  <div className="empty-state">
+                    <p>Chưa có chuyên khoa khớp với “{searchQuery}”.</p>
+                    <button className="text-button" onClick={() => setSearchQuery("")} type="button">Xóa tìm kiếm <Icon name="x" size={17} /></button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
 
-                    <div className="space-y-2.5 mb-8">
-                      <span className="text-xs font-bold text-brand-200 uppercase tracking-wider block mb-2">
-                        Danh mục nổi bật:
-                      </span>
-                      {pkg.checklist?.map((item, idx) => (
-                        <div key={idx} className="flex items-start gap-2.5 text-xs text-brand-100">
-                          <span className="text-emerald-400 font-bold">✓</span>
-                          <span>{item}</span>
-                        </div>
+        <section className="section section--doctors" id="doctors" aria-labelledby="doctors-title">
+          <div className="section-inner">
+            <SectionHeading
+              action={<button className="section-link section-link--button" onClick={() => handleOpenBooking()} type="button">Đặt lịch với bác sĩ <Icon name="arrow-right" size={17} /></button>}
+              description="Những hồ sơ dưới đây là dữ liệu minh họa để trình bày trải nghiệm tìm bác sĩ trong bản demo."
+              headingId="doctors-title"
+              note="Đội ngũ chuyên gia"
+              title="Một bác sĩ phù hợp có thể bắt đầu từ một câu hỏi"
+            />
+            {featuredDoctor ? (
+              <div className="doctor-layout">
+                <DoctorCard doctor={featuredDoctor} featured onBook={(doctorId) => handleOpenBooking(doctorId)} />
+                <div className="doctor-stack">
+                  {supportingDoctors.map((doctor) => (
+                    <DoctorCard doctor={doctor} key={doctor.id} onBook={(doctorId) => handleOpenBooking(doctorId)} />
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="empty-state empty-state--wide">
+                <p>Chưa có bác sĩ khớp với “{searchQuery}”.</p>
+                <button className="text-button" onClick={() => setSearchQuery("")} type="button">Xóa tìm kiếm <Icon name="x" size={17} /></button>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="section section--packages" id="packages" aria-labelledby="packages-title">
+          <div className="section-inner">
+            <SectionHeading
+              action={<Link className="section-link" href="/packages">Xem danh mục gói khám <Icon name="arrow-right" size={17} /></Link>}
+              description="Các gói khám trong dữ liệu demo được trình bày để bạn xem cấu trúc lựa chọn, hạng mục và luồng đặt lịch."
+              headingId="packages-title"
+              note="Gói khám sức khỏe"
+              title="Chủ động kiểm tra, bắt đầu từ điều phù hợp"
+            />
+            <div className="package-layout">
+              {featuredPackage ? (
+                <article className="package-feature">
+                  <div>
+                    <span className="package-badge">Gợi ý trong dữ liệu demo</span>
+                    <p className="package-feature__eyebrow">Gói nổi bật</p>
+                    <h3>{featuredPackage.name}</h3>
+                    <p>{featuredPackage.description}</p>
+                    <p className="package-feature__price">{formatCurrency(featuredPackage.price)} <span>VNĐ</span></p>
+                    <ul>
+                      {featuredPackage.checklist?.slice(0, 4).map((item) => (
+                        <li key={item}><Icon name="check" size={17} />{item}</li>
                       ))}
+                    </ul>
+                  </div>
+                  <div className="package-feature__actions">
+                    <button className="button button--amber" onClick={() => handleOpenBooking(undefined, undefined, featuredPackage.id)} type="button">
+                      Đặt gói khám này <Icon name="arrow-up-right" size={18} />
+                    </button>
+                    <Link className="text-button text-button--light" href={`/goi-kham/${featuredPackage.slug}`}>Xem chi tiết <Icon name="arrow-right" size={17} /></Link>
+                  </div>
+                </article>
+              ) : null}
+              <div className="package-list">
+                {supportingPackages.map((packageItem) => (
+                  <PackageRow key={packageItem.id} onBook={(packageId) => handleOpenBooking(undefined, undefined, packageId)} packageItem={packageItem} />
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="section section--journey" id="guide" aria-labelledby="journey-title">
+          <div className="section-inner">
+            <div className="journey-layout">
+              <div>
+                <SectionHeading
+                  description="Một trình tự ngắn để người bệnh biết mình cần chuẩn bị gì trước và sau cuộc hẹn."
+                  headingId="journey-title"
+                  note="Hành trình đặt khám"
+                  title="Bốn bước để buổi khám bắt đầu nhẹ nhàng hơn"
+                />
+                <ol className="journey-steps">
+                  {JOURNEY_STEPS.map((step, index) => (
+                    <li className="journey-step" key={step.title}>
+                      <span className="journey-step__number">{index + 1}</span>
+                      <span className="journey-step__icon"><Icon name={step.icon} size={20} /></span>
+                      <span>
+                        <strong>{step.title}</strong>
+                        <small>{step.description}</small>
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+              <aside className="support-panel">
+                <div className="support-panel__icon"><Icon name="shield-check" size={26} /></div>
+                <p className="section-note">Hướng dẫn và bảo hiểm</p>
+                <h3>Chuẩn bị thông tin cần thiết trước khi đến cơ sở.</h3>
+                <p>Thông tin về BHYT, bảo lãnh viện phí và giấy tờ cần mang theo đang được hoàn thiện trong bản demo.</p>
+                <Link className="button button--light" href="/huong-dan">Xem hướng dẫn <Icon name="arrow-up-right" size={18} /></Link>
+              </aside>
+            </div>
+          </div>
+        </section>
+
+        <section className="section section--branches" id="branches" aria-labelledby="branches-title">
+          <div className="section-inner">
+            <SectionHeading
+              action={<Link className="section-link" href="/branches">Xem tất cả cơ sở <Icon name="arrow-right" size={17} /></Link>}
+              description="Chọn cơ sở theo vị trí, giờ làm việc và nhu cầu đặt hẹn của bạn."
+              headingId="branches-title"
+              note="Mạng lưới phục vụ"
+              title="Một cơ sở gần bạn, một cuộc hẹn rõ ràng"
+            />
+            <div className="branch-layout">
+              <div className="branch-intro">
+                <div className="branch-intro__topline"><Icon name="location" size={20} /><span>TP. Hồ Chí Minh</span></div>
+                <h3>Chọn nơi bạn muốn bắt đầu chăm sóc.</h3>
+                <p>Địa chỉ và giờ làm việc dưới đây lấy từ dữ liệu demo local. Hãy kiểm tra lại trước khi đến.</p>
+                <DemoNote>Chưa kết nối bản đồ trực tiếp trong bản demo.</DemoNote>
+                <a className="text-button" href="tel:19001234">Gọi cấp cứu 1900 1234 <Icon name="phone" size={17} /></a>
+              </div>
+              <div className="branch-list">
+                {SEED_BRANCHES.map((branch, index) => (
+                  <article className="branch-row" key={branch.id}>
+                    <span className="branch-row__index">0{index + 1}</span>
+                    <div>
+                      <h3>{branch.name}</h3>
+                      <p><Icon name="location" size={15} />{branch.address}</p>
+                      <p><Icon name="clock" size={15} />{branch.workingHours}</p>
                     </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <button
-                      type="button"
-                      onClick={() => handleOpenBooking(undefined, undefined, pkg.id)}
-                      className="w-full py-3 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-brand-950 text-xs font-extrabold rounded-xl shadow-lg transition-all text-center cursor-pointer"
-                    >
-                      Đăng Ký Gói Khám Này →
-                    </button>
-                    <Link
-                      href={`/goi-kham/${pkg.slug}`}
-                      className="block text-center text-xs text-brand-300 hover:text-white py-1"
-                    >
-                      Xem chi tiết 32 danh mục xét nghiệm
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ── 5. Patient Journey & Direct Billing ───────────────────── */}
-        <section id="guide" className="py-20 px-4 sm:px-6 max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            <div>
-              <span className="text-xs uppercase tracking-widest font-bold text-brand-700">
-                TIỆN ÍCH DÀNH CHO BỆNH NHÂN
-              </span>
-              <h2 className="text-3xl sm:text-4xl font-extrabold text-brand-950 mt-2 font-serif">
-                Quy Trình Khám Nhanh 4 Bước
-              </h2>
-              <p className="text-ink-muted text-sm mt-3 mb-8">
-                Tối ưu hóa thời gian với hệ thống số hóa hồ sơ bệnh án, giúp người bệnh giảm thiểu thời gian chờ đợi tại viện.
-              </p>
-
-              <div className="space-y-4">
-                <div className="flex items-start gap-4 p-4 bg-white border border-mint-100 rounded-2xl">
-                  <span className="w-8 h-8 rounded-full bg-brand-700 text-white font-bold text-sm flex items-center justify-center flex-shrink-0">
-                    1
-                  </span>
-                  <div>
-                    <h4 className="text-sm font-bold text-ink">Đặt hẹn & Nhận mã khám</h4>
-                    <p className="text-xs text-ink-muted mt-0.5">Đặt lịch trực tuyến trong 60 giây và nhận mã lịch hẹn điện tử.</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-4 p-4 bg-white border border-mint-100 rounded-2xl">
-                  <span className="w-8 h-8 rounded-full bg-brand-700 text-white font-bold text-sm flex items-center justify-center flex-shrink-0">
-                    2
-                  </span>
-                  <div>
-                    <h4 className="text-sm font-bold text-ink">Tiếp đón ưu tiên</h4>
-                    <p className="text-xs text-ink-muted mt-0.5">Đến quầy tiếp đón trước 15 phút, quét mã và vào thẳng phòng khám.</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-4 p-4 bg-white border border-mint-100 rounded-2xl">
-                  <span className="w-8 h-8 rounded-full bg-brand-700 text-white font-bold text-sm flex items-center justify-center flex-shrink-0">
-                    3
-                  </span>
-                  <div>
-                    <h4 className="text-sm font-bold text-ink">Thăm khám & Cận lâm sàng</h4>
-                    <p className="text-xs text-ink-muted mt-0.5">Bác sĩ chuyên gia thăm khám kỹ lưỡng và chỉ định xét nghiệm nếu cần.</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-4 p-4 bg-white border border-mint-100 rounded-2xl">
-                  <span className="w-8 h-8 rounded-full bg-brand-700 text-white font-bold text-sm flex items-center justify-center flex-shrink-0">
-                    4
-                  </span>
-                  <div>
-                    <h4 className="text-sm font-bold text-ink">Tư vấn phác đồ & Nhận kết quả số</h4>
-                    <p className="text-xs text-ink-muted mt-0.5">Bác sĩ giải thích phác đồ điều trị, kết quả được lưu trữ số an toàn.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Insurance & Billing Card */}
-            <div className="p-8 bg-gradient-to-br from-ink to-brand-950 text-white rounded-3xl shadow-xl border border-brand-800 space-y-6">
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-brand-800/80 rounded-full text-xs font-semibold text-brand-200">
-                🛡️ BẢO HIỂM Y TẾ & BẢO LÃNH VIỆN PHÍ
-              </div>
-              <h3 className="text-2xl font-bold text-white font-serif">
-                Hợp Tác Toàn Diện Hơn 30 Đối Tác Bảo Hiểm
-              </h3>
-              <p className="text-xs text-brand-200 leading-relaxed">
-                HealthCare hỗ trợ thanh toán bảo hiểm y tế nhà nước và dịch vụ bảo lãnh viện phí trực tiếp cho các công ty bảo hiểm đối tác. Danh sách đối tác đang được hoàn thiện.
-              </p>
-
-              <div className="grid grid-cols-2 gap-3 pt-2 text-xs">
-                <div className="p-3 bg-white/5 border border-white/10 rounded-xl">
-                  <span className="font-bold text-amber-300 block mb-1">BHYT Toàn Quốc</span>
-                  <span className="text-brand-200 text-[11px]">Hưởng đầy đủ quyền lợi theo quy định</span>
-                </div>
-                <div className="p-3 bg-white/5 border border-white/10 rounded-xl">
-                  <span className="font-bold text-amber-300 block mb-1">Bảo Lãnh Nhanh</span>
-                  <span className="text-brand-200 text-[11px]">Xác nhận hạn mức chỉ trong 15 phút</span>
-                </div>
-              </div>
-
-              <div className="pt-2">
-                <Link
-                  href="/huong-dan"
-                  className="block w-full py-3 bg-brand-700 hover:bg-brand-600 text-white text-xs font-bold rounded-xl transition-all text-center"
-                >
-                  Xem Hướng Dẫn Chi Tiết & Đối Tác Bảo Hiểm →
-                </Link>
+                    <div className="branch-row__actions">
+                      <a href={`tel:${branch.phone.replace(/\s/g, "")}`} aria-label={`Gọi ${branch.name}`}>{branch.phone}</a>
+                      <button className="outline-button outline-button--small" onClick={() => handleOpenBooking(undefined, undefined, undefined, branch.id)} type="button">Đặt lịch</button>
+                    </div>
+                  </article>
+                ))}
               </div>
             </div>
           </div>
         </section>
 
-        {/* ── 6. Hospital Network & Branches ───────────────────────── */}
-        <section id="branches" className="py-20 px-4 sm:px-6 bg-mint-100/90 border-t border-mint-100">
-          <div className="max-w-7xl mx-auto">
-            <div className="text-center max-w-3xl mx-auto mb-14">
-              <span className="text-xs uppercase tracking-widest font-bold text-brand-700">
-                MẠNG LƯỚI PHỤC VỤ
-              </span>
-              <h2 className="text-3xl sm:text-4xl font-extrabold text-brand-950 mt-2 font-serif">
-                Hệ Thống Cơ Sở Tại TP. Hồ Chí Minh
-              </h2>
-              <p className="text-ink-muted text-sm mt-3">
-                Vị trí đắc địa tại các quận trung tâm, thuận tiện giao thông và có bãi đỗ xe ô tô rộng rãi.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {SEED_BRANCHES.map((br) => (
-                <div
-                  key={br.id}
-                  className="p-6 bg-white border border-mint-100 rounded-2xl shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
-                >
-                  <div className="space-y-3">
-                    <span className="text-2xl block">🏥</span>
-                    <h3 className="text-base font-bold text-brand-950">
-                      {br.name}
-                    </h3>
-                    <p className="text-xs text-ink-muted leading-relaxed">
-                      📍 {br.address}
-                    </p>
-                    <p className="text-xs text-brand-800 font-semibold">
-                      📞 Hotline: <span className="font-mono">{br.phone}</span>
-                    </p>
-                    <p className="text-xs text-ink-muted">
-                      🕒 {br.workingHours}
-                    </p>
-                  </div>
-
-                  <div className="pt-6">
-                    <button
-                      type="button"
-                      onClick={() => handleOpenBooking(undefined, undefined, undefined, br.id)}
-                      className="w-full py-2 bg-brand-50 hover:bg-brand-700 text-brand-800 hover:text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
-                    >
-                      Đặt lịch khám tại cơ sở này →
-                    </button>
-                  </div>
+        <section className="section section--content" id="articles" aria-labelledby="content-title">
+          <div className="section-inner">
+            <SectionHeading
+              action={<Link className="section-link" href="/articles">Xem cẩm nang <Icon name="arrow-right" size={17} /></Link>}
+              description="Nội dung ngắn, dễ đọc để bạn chuẩn bị câu hỏi và theo dõi hướng dẫn sau buổi khám."
+              headingId="content-title"
+              note="Cẩm nang sức khỏe"
+              title="Kiến thức y khoa trong nhịp sống hằng ngày"
+            />
+            <div className="content-layout">
+              <article className="video-card">
+                <div className="video-card__visual">
+                  <span className="video-card__label">Video demo</span>
+                  <span className="video-card__circle"><Icon name="play" size={22} /></span>
                 </div>
-              ))}
-            </div>
-          </div>
-        </section>
-        {/* ── 7. Health Content & Innovation (Cẩm nang sức khỏe) ───── */}
-        <section id="articles" className="py-20 px-4 sm:px-6 max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-4">
-            <div>
-              <span className="text-xs uppercase tracking-widest font-bold text-brand-700">
-                CẨM NANG SỨC KHỎE
-              </span>
-              <h2 className="text-3xl sm:text-4xl font-extrabold text-brand-950 mt-2 font-serif">
-                Kiến Thức Y Khoa Mỗi Ngày
-              </h2>
-              <p className="text-ink-muted text-sm mt-2 max-w-2xl">
-                Bài viết sức khỏe và cập nhật công nghệ chẩn đoán từ đội ngũ chuyên môn.
-              </p>
-            </div>
-            <Link
-              href="/huong-dan"
-              className="inline-flex items-center gap-1.5 text-sm font-bold text-brand-700 hover:text-brand-500 transition-colors"
-            >
-              Xem thêm nội dung
-              <span aria-hidden>→</span>
-            </Link>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[
-              {
-                title: "Nhận biết sớm 5 dấu hiệu bệnh tim mạch",
-                summary:
-                  "Đau tức ngực khi gắng sức, khó thở về đêm và mệt mỏi bất thường có thể là tín hiệu cần khám tim mạch sớm.",
-              },
-              {
-                title: "Dinh dưỡng hợp lý cho người tăng huyết áp",
-                summary:
-                  "Giảm muối, tăng rau xanh và hạn chế chất béo bão hòa là ba nguyên tắc nền tảng trong ăn uống hằng ngày.",
-              },
-              {
-                title: "Trẻ biếng ăn: hiểu đúng để chăm đúng",
-                summary:
-                  "Biếng ăn có nhiều nguyên nhân khác nhau, từ giai đoạn tăng trưởng đến tâm lý. Cha mẹ nên bình tĩnh tìm hiểu thay vì ép trẻ.",
-              },
-            ].map((article) => (
-              <article
-                key={article.title}
-                className="p-6 bg-white border border-mint-100 rounded-2xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all flex flex-col gap-3"
-              >
-                <span className="text-xs font-bold uppercase tracking-wider text-amber-400">
-                  Chia sẻ chuyên môn
-                </span>
-                <h3 className="text-base font-bold text-brand-950 leading-snug">
-                  {article.title}
-                </h3>
-                <p className="text-xs text-ink-muted leading-relaxed flex-1">
-                  {article.summary}
-                </p>
+                <div className="video-card__body">
+                  <p className="content-meta">Nội dung đang hoàn thiện</p>
+                  <h3>Hướng dẫn chuẩn bị cho một buổi khám hiệu quả</h3>
+                  <p>Thẻ video là placeholder có nhãn rõ ràng, chưa phát nội dung trực tiếp.</p>
+                  <Link className="text-button" href="/articles">Mở danh mục bài viết <Icon name="arrow-up-right" size={17} /></Link>
+                </div>
               </article>
-            ))}
+              <div className="article-list">
+                {DEMO_ARTICLES.map((article, index) => (
+                  <article className="article-row" key={article.title}>
+                    <span className="article-row__index">0{index + 1}</span>
+                    <div>
+                      <p className="content-meta">{article.type}</p>
+                      <h3><Link href="/articles">{article.title}</Link></h3>
+                      <p>{article.summary}</p>
+                    </div>
+                    <Icon name="arrow-up-right" size={18} />
+                  </article>
+                ))}
+              </div>
+            </div>
           </div>
         </section>
 
-        {/* ── 8. Closing CTA Band ────────────────────────────────────── */}
-        <section className="bg-sand-200/60 border-y border-sand-200 py-20 px-4 sm:px-6">
-          <div className="max-w-4xl mx-auto text-center space-y-6">
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-brand-950 font-serif text-balance">
-              Đặt Lịch Hẹn Hôm Nay
-            </h2>
-            <p className="text-ink-muted text-sm sm:text-base max-w-2xl mx-auto">
-              Sức khỏe của bạn rất quan trọng. Đặt lịch với đội ngũ bác sĩ của
-              HealthCare để được tư vấn kịp thời.
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-4 pt-2">
-              <button
-                type="button"
-                onClick={() => handleOpenBooking()}
-                className="px-8 py-3.5 bg-amber-400 hover:bg-amber-500 text-brand-950 text-sm font-extrabold rounded-full shadow-lg hover:shadow-xl transition-all cursor-pointer"
-              >
-                Đặt lịch khám
-              </button>
-              <Link
-                href="/#specialties"
-                className="px-8 py-3.5 border-2 border-brand-700 text-brand-700 hover:bg-brand-50 text-sm font-bold rounded-full transition-colors"
-              >
-                Xem chuyên khoa
-              </Link>
+        <section className="appointment-cta" aria-labelledby="appointment-cta-title">
+          <div className="appointment-cta__inner">
+            <div>
+              <p className="section-note">Bước tiếp theo của bạn</p>
+              <h2 id="appointment-cta-title">Một cuộc hẹn rõ ràng bắt đầu từ hôm nay.</h2>
+              <p>Chọn bác sĩ, cơ sở hoặc gói khám phù hợp. Luồng đặt lịch hiện có vẫn giữ nguyên.</p>
+            </div>
+            <div className="appointment-cta__actions">
+              <button className="button button--amber" onClick={() => handleOpenBooking()} type="button">Đặt lịch khám <Icon name="arrow-up-right" size={18} /></button>
+              <a className="button button--cta-secondary" href="tel:19001234"><Icon name="phone" size={18} />1900 1234</a>
             </div>
           </div>
         </section>
@@ -593,17 +612,16 @@ export default function Home() {
 
       <Footer />
 
-      {/* ── Interactive Modals ─────────────────────────────────────── */}
       <BookingModal
+        key={`${selectedBranchId ?? "default"}:${selectedDoctorId ?? "default"}:${selectedPackageId ?? "default"}:${selectedSpecialtyId ?? "default"}`}
+        initialBranchId={selectedBranchId}
+        initialDoctorId={selectedDoctorId}
+        initialPackageId={selectedPackageId}
+        initialSpecialtyId={selectedSpecialtyId}
         isOpen={isBookingOpen}
         onClose={() => setIsBookingOpen(false)}
-        initialDoctorId={selectedDoctorId}
-        initialSpecialtyId={selectedSpecialtyId}
-        initialPackageId={selectedPackageId}
-        initialBranchId={selectedBranchId}
         packages={SEED_PACKAGES}
       />
-
       <AiTriageModal
         isOpen={isAiTriageOpen}
         onClose={() => setIsAiTriageOpen(false)}
@@ -612,5 +630,3 @@ export default function Home() {
     </div>
   );
 }
-
-

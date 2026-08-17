@@ -26,11 +26,13 @@
   ownership, DTO responses, and negative authorization coverage.
 - Appointment lookup/cancellation requires a linked owner or phone proof;
   slot creation validates doctor status and schedule alignment, uses
-  transaction-scoped PostgreSQL advisory locking, and has a pending/active-slot
-  uniqueness index with expired-hold cleanup.
-- The AI gateway is authenticated at the backend boundary. A shared
-  `AI_SERVICE_TOKEN` also protects direct FastAPI routes when configured;
-  local Compose keeps the token optional and binds port 8000 to loopback.
+  transaction-scoped PostgreSQL advisory locking, and has pending/active-slot
+  uniqueness plus interval exclusion invariants with expired-hold cleanup.
+- The AI gateway is authenticated at the backend boundary. A shared,
+  non-empty `AI_SERVICE_TOKEN` protects direct FastAPI routes and is required
+  by Compose, staging, and non-local runtimes. A bare local process may opt in
+  to unauthenticated development only with the explicit local runtime escape
+  hatch; this is not a production or Compose mode.
 - RAG ingestion is disabled by default and requires a configured token when
   enabled. The in-memory index is a foundation implementation, not a durable
   production knowledge store.

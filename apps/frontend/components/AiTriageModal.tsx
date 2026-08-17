@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { performAiTriage } from "../lib/api";
 import { AiTriageResult } from "../types/hospital";
+import Icon from "./UiIcon";
 
 interface AiTriageModalProps {
   isOpen: boolean;
@@ -60,7 +61,7 @@ export default function AiTriageModal({
         {/* Header */}
         <div className="bg-gradient-to-r from-brand-900 via-brand-800 to-brand-700 text-white px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <span className="text-2xl">🤖</span>
+            <Icon name="sparkles" size={24} />
             <div>
               <h3 id="ai-triage-title" className="text-lg font-bold text-white">
                 Trợ Lý Y Tế AI: Phân Luồng Triệu Chứng
@@ -69,21 +70,24 @@ export default function AiTriageModal({
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+            aria-label="Đóng trợ lý triệu chứng"
           >
-            ✕
+            <Icon name="x" size={17} />
           </button>
         </div>
 
         {/* Body */}
         <div className="p-6 space-y-4">
           <form onSubmit={handleAnalyze} className="space-y-3">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700" htmlFor="triage-symptoms">
               Mô tả cảm giác hoặc triệu chứng khó chịu của bạn:
             </label>
             <textarea
               rows={3}
+              id="triage-symptoms"
               required
               placeholder="Ví dụ: Tôi bị đau thắt ngực trái kèm khó thở khi leo cầu thang 2 ngày nay..."
               value={symptoms}
@@ -94,7 +98,7 @@ export default function AiTriageModal({
               <button
                 type="submit"
                 disabled={loading || !symptoms.trim()}
-                className="px-6 py-2.5 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-bold rounded-full text-xs shadow-md transition-all flex items-center gap-2"
+                className="px-6 py-2.5 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-bold rounded-full text-xs shadow-md transition-colors flex items-center gap-2"
               >
                 {loading ? "⏳ Đang phân tích triệu chứng..." : "✨ Phân tích & Gợi ý chuyên khoa"}
               </button>
@@ -126,7 +130,7 @@ export default function AiTriageModal({
               </div>
 
               <h4 className="text-base font-extrabold text-brand-950">
-                🏥 {result.recommendedSpecialty}
+                <Icon name="stethoscope" size={18} /> {result.recommendedSpecialty}
               </h4>
 
               <p className="text-xs text-gray-700 leading-relaxed bg-white/80 p-3 rounded-lg border border-brand-100">
@@ -140,9 +144,9 @@ export default function AiTriageModal({
                 <button
                   type="button"
                   onClick={handleBookNow}
-                  className="px-5 py-2 bg-brand-700 hover:bg-brand-800 text-white text-xs font-bold rounded-full shadow-md transition-all flex items-center gap-1.5"
+                  className="px-5 py-2 bg-brand-700 hover:bg-brand-800 text-white text-xs font-bold rounded-full shadow-md transition-colors flex items-center gap-1.5"
                 >
-                  <span>Đặt khám chuyên khoa này</span> <span>→</span>
+                  <span>Đặt khám chuyên khoa này</span> <Icon name="arrow-right" size={16} />
                 </button>
               </div>
             </div>

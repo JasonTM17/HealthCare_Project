@@ -82,6 +82,18 @@ def test_ai_service_token_protects_search_routes(monkeypatch: pytest.MonkeyPatch
     assert authorized.status_code == 200
 
 
+def test_ai_service_without_token_fails_closed_when_local_escape_hatch_is_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "ai_service_token", "")
+    monkeypatch.setattr(settings, "ai_service_runtime", "staging")
+    monkeypatch.setattr(settings, "ai_service_allow_unauthenticated_local", False)
+
+    response = client.get("/rag/stats")
+
+    assert response.status_code == 503
+
+
 def _doc(source_id: str, title: str, content: str, embedding: list[float]) -> RagDocument:
     return RagDocument(
         id=f"specialty:{source_id}",

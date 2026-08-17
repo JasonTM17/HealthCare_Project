@@ -17,6 +17,7 @@ import {
   SEED_SPECIALTIES,
   SEED_BRANCHES,
 } from "../lib/api";
+import Icon from "./UiIcon";
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -41,14 +42,15 @@ export default function BookingModal({
   const [step, setStep] = useState<number>(1);
 
   // Form State
+  const defaultDoctor = SEED_DOCTORS.find((doctor) => doctor.id === initialDoctorId) || SEED_DOCTORS[0];
   const [selectedSpecialty, setSelectedSpecialty] = useState<string>(
     initialSpecialtyId || SEED_SPECIALTIES[0].id
   );
   const [selectedDoctor, setSelectedDoctor] = useState<string>(
-    initialDoctorId || SEED_DOCTORS[0].id
+    defaultDoctor.id
   );
   const [selectedBranch, setSelectedBranch] = useState<string>(
-    initialBranchId || SEED_BRANCHES[0].id
+    initialBranchId || defaultDoctor.branchId || SEED_BRANCHES[0].id
   );
   const [selectedPackage, setSelectedPackage] = useState<string>(initialPackageId || "");
   
@@ -118,10 +120,24 @@ export default function BookingModal({
   const currentDoctor = SEED_DOCTORS.find((d) => d.id === selectedDoctor) || SEED_DOCTORS[0];
   const currentSpecialty = SEED_SPECIALTIES.find((s) => s.id === selectedSpecialty) || SEED_SPECIALTIES[0];
   const currentBranch = SEED_BRANCHES.find((b) => b.id === selectedBranch) || SEED_BRANCHES[0];
+  const availableDoctors = SEED_DOCTORS.filter(
+    (doctor) => !doctor.branchId || doctor.branchId === selectedBranch,
+  );
+  const demoSlots = slots.some((slot) => slot.isDemo);
+
+  const handleBranchChange = (branchId: string): void => {
+    setSelectedBranch(branchId);
+    const firstDoctorAtBranch = SEED_DOCTORS.find((doctor) => doctor.branchId === branchId);
+    if (firstDoctorAtBranch) setSelectedDoctor(firstDoctorAtBranch.id);
+  };
 
   // Handle Step 3: Hold Slot
   const handleHoldSlot = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (demoSlots) {
+      setErrorMessage("Lịch đang hiển thị là dữ liệu demo local. Hãy kết nối API lịch hẹn trước khi giữ chỗ.");
+      return;
+    }
     if (!fullName || !phone) {
       setErrorMessage("Vui lòng nhập đầy đủ họ tên và số điện thoại.");
       return;
@@ -198,15 +214,16 @@ export default function BookingModal({
               Hệ thống Đặt lịch Khám bệnh
             </span>
             <h2 id="booking-modal-title" className="text-xl font-bold text-white flex items-center gap-2">
-              <span>📅</span> Đặt lịch trực tuyến nhanh chóng
+              <Icon name="calendar" size={18} /> Đặt lịch trực tuyến nhanh chóng
             </h2>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
             aria-label="Đóng cửa sổ đặt lịch"
           >
-            ✕
+            <Icon name="x" size={17} />
           </button>
         </div>
 
@@ -238,7 +255,7 @@ export default function BookingModal({
         {/* Error Alert */}
         {errorMessage && (
           <div className="mx-6 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-center gap-2">
-            <span>⚠️</span>
+            <Icon name="activity" size={18} />
             <span>{errorMessage}</span>
           </div>
         )}
@@ -254,7 +271,7 @@ export default function BookingModal({
                 </label>
                 <select
                   value={selectedBranch}
-                  onChange={(e) => setSelectedBranch(e.target.value)}
+                  onChange={(e) => handleBranchChange(e.target.value)}
                   className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-600 focus:outline-none text-sm text-gray-900"
                 >
                   {SEED_BRANCHES.map((br) => (
@@ -276,7 +293,7 @@ export default function BookingModal({
                 >
                   {SEED_SPECIALTIES.map((sp) => (
                     <option key={sp.id} value={sp.id}>
-                      {sp.icon} {sp.name}
+                      {sp.name}
                     </option>
                   ))}
                 </select>
@@ -291,7 +308,7 @@ export default function BookingModal({
                   onChange={(e) => setSelectedDoctor(e.target.value)}
                   className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-600 focus:outline-none text-sm text-gray-900 font-medium"
                 >
-                  {SEED_DOCTORS.map((doc) => (
+                  {availableDoctors.map((doc) => (
                     <option key={doc.id} value={doc.id}>
                       {doc.fullName} ({doc.title || doc.specialtyName})
                     </option>
@@ -302,7 +319,7 @@ export default function BookingModal({
               {/* Selected Doctor Summary Card */}
               <div className="p-4 bg-brand-50/50 border border-brand-100 rounded-xl flex items-center gap-4 mt-2">
                 <div className="w-14 h-14 rounded-full bg-brand-700 text-white font-bold text-xl flex items-center justify-center flex-shrink-0">
-                  👨‍⚕️
+                  <Icon name="stethoscope" size={26} />
                 </div>
                 <div>
                   <h4 className="font-bold text-brand-900 text-base">{currentDoctor.fullName}</h4>
@@ -315,7 +332,7 @@ export default function BookingModal({
                 <button
                   type="button"
                   onClick={() => setStep(2)}
-                  className="px-6 py-2.5 bg-brand-700 hover:bg-brand-800 text-white font-semibold rounded-full shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+                  className="px-6 py-2.5 bg-brand-700 hover:bg-brand-800 text-white font-semibold rounded-full shadow-md hover:shadow-lg transition-colors flex items-center gap-2"
                 >
                   Tiếp tục: Chọn ngày giờ khám <span>→</span>
                 </button>
@@ -348,10 +365,15 @@ export default function BookingModal({
                     🟢 Còn trống • ⚪ Đã có người giữ
                   </span>
                 </div>
+                {demoSlots ? (
+                  <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                    Bản demo local: API lịch hẹn chưa trả dữ liệu live, nên các khung giờ bên dưới chỉ để xem giao diện.
+                  </p>
+                ) : null}
 
                 {loadingSlots ? (
                   <div className="py-8 text-center text-sm text-gray-500">
-                    <span className="animate-spin inline-block mr-2">⏳</span> Đang tải lịch khám khả dụng...
+                    <Icon name="clock" size={15} /> Đang tải lịch khám khả dụng...
                   </div>
                 ) : (
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 max-h-48 overflow-y-auto p-1">
@@ -363,7 +385,7 @@ export default function BookingModal({
                           type="button"
                           disabled={!slot.available}
                           onClick={() => setSelectedSlot(slot.startTime)}
-                          className={`p-2.5 rounded-lg text-xs font-semibold border transition-all flex flex-col items-center justify-center gap-0.5 ${
+                          className={`p-2.5 rounded-lg text-xs font-semibold border transition-colors flex flex-col items-center justify-center gap-0.5 ${
                             isSelected
                               ? "bg-brand-700 text-white border-brand-700 shadow-md ring-2 ring-brand-500"
                               : slot.available
@@ -394,9 +416,9 @@ export default function BookingModal({
                 </button>
                 <button
                   type="button"
-                  disabled={!selectedSlot}
+                  disabled={!selectedSlot || demoSlots}
                   onClick={() => setStep(3)}
-                  className="px-6 py-2.5 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-semibold rounded-full shadow-md transition-all flex items-center gap-2"
+                  className="px-6 py-2.5 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-semibold rounded-full shadow-md transition-colors flex items-center gap-2"
                 >
                   Tiếp tục: Điền thông tin <span>→</span>
                 </button>
@@ -481,7 +503,7 @@ export default function BookingModal({
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-6 py-2.5 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-semibold rounded-full shadow-md transition-all flex items-center gap-2"
+                  className="px-6 py-2.5 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-semibold rounded-full shadow-md transition-colors flex items-center gap-2"
                 >
                   {isSubmitting ? (
                     <span>⏳ Đang giữ chỗ...</span>
@@ -501,7 +523,7 @@ export default function BookingModal({
               {!confirmedAppointment ? (
                 <form onSubmit={handleConfirmOtp} className="space-y-4 text-center py-2">
                   <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-900 rounded-full text-xs font-semibold">
-                    <span>⏱️</span> Thời gian giữ chỗ còn lại:{" "}
+                    <Icon name="clock" size={15} /> Thời gian giữ chỗ còn lại:{" "}
                     <span className="font-mono text-amber-700 font-bold">{formatTimer(secondsRemaining)}</span>
                   </div>
 
@@ -542,9 +564,9 @@ export default function BookingModal({
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="px-8 py-2.5 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-bold rounded-full shadow-lg hover:shadow-xl transition-all"
+                      className="px-8 py-2.5 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-bold rounded-full shadow-lg hover:shadow-xl transition-colors"
                     >
-                      {isSubmitting ? "⏳ Đang xác nhận..." : "Hoàn tất Đặt lịch khám ✅"}
+                      {isSubmitting ? "Đang xác nhận..." : "Hoàn tất Đặt lịch khám"}
                     </button>
                   </div>
                 </form>
@@ -602,7 +624,7 @@ export default function BookingModal({
                     </div>
 
                     <div className="mt-3 pt-3 border-t border-brand-700/60 flex items-center justify-between text-[11px] text-brand-200">
-                      <span>🏥 {confirmedAppointment.branchName || "HealthCare TP.HCM"}</span>
+                      <span className="flex items-center gap-1"><Icon name="building" size={14} /> {confirmedAppointment.branchName || "HealthCare TP.HCM"}</span>
                       <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 rounded font-semibold">
                         ĐÃ XÁC NHẬN
                       </span>
@@ -613,7 +635,7 @@ export default function BookingModal({
                     <button
                       type="button"
                       onClick={onClose}
-                      className="px-8 py-2.5 bg-brand-700 hover:bg-brand-800 text-white font-bold rounded-full shadow-md transition-all"
+                      className="px-8 py-2.5 bg-brand-700 hover:bg-brand-800 text-white font-bold rounded-full shadow-md transition-colors"
                     >
                       Đóng cửa sổ & Về trang chủ
                     </button>

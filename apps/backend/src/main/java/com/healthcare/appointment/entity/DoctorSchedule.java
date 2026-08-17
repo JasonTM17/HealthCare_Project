@@ -11,6 +11,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import org.hibernate.annotations.UuidGenerator;
 
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.Objects;
 import java.util.UUID;
@@ -28,12 +29,12 @@ public class DoctorSchedule {
     @JoinColumn(name = "doctor_id", nullable = false)
     private Doctor doctor;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "branch_id")
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "branch_id", nullable = false)
     private Branch branch;
 
     @Column(name = "day_of_week", nullable = false)
-    private int dayOfWeek; // 1 = Monday, 7 = Sunday
+    private int dayOfWeek; // ISO-8601: 1 = Monday, 7 = Sunday
 
     @Column(name = "start_time", nullable = false)
     private LocalTime startTime;
@@ -43,6 +44,12 @@ public class DoctorSchedule {
 
     @Column(name = "slot_duration_minutes", nullable = false)
     private int slotDurationMinutes = 30;
+
+    @Column(name = "effective_from", nullable = false)
+    private LocalDate effectiveFrom;
+
+    @Column(name = "effective_to")
+    private LocalDate effectiveTo;
 
     @Column(name = "active", nullable = false)
     private boolean active = true;
@@ -101,6 +108,22 @@ public class DoctorSchedule {
 
     public void setSlotDurationMinutes(int slotDurationMinutes) {
         this.slotDurationMinutes = slotDurationMinutes;
+    }
+
+    public LocalDate getEffectiveFrom() {
+        return effectiveFrom;
+    }
+
+    public void setEffectiveFrom(LocalDate effectiveFrom) {
+        this.effectiveFrom = effectiveFrom;
+    }
+
+    public LocalDate getEffectiveTo() {
+        return effectiveTo;
+    }
+
+    public void setEffectiveTo(LocalDate effectiveTo) {
+        this.effectiveTo = effectiveTo;
     }
 
     public boolean isActive() {

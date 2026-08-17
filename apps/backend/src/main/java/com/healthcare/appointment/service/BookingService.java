@@ -11,6 +11,7 @@ import com.healthcare.appointment.repository.AppointmentRepository;
 import com.healthcare.appointment.repository.PatientProfileRepository;
 import com.healthcare.hospital.entity.Doctor;
 import com.healthcare.hospital.repository.BranchRepository;
+import com.healthcare.hospital.repository.DoctorBranchRepository;
 import com.healthcare.hospital.repository.DoctorRepository;
 import com.healthcare.hospital.repository.PackageRepository;
 import com.healthcare.hospital.repository.SpecialtyRepository;
@@ -41,6 +42,7 @@ public class BookingService {
     private final AppointmentRepository appointmentRepository;
     private final PatientProfileRepository patientProfileRepository;
     private final DoctorRepository doctorRepository;
+    private final DoctorBranchRepository doctorBranchRepository;
     private final SpecialtyRepository specialtyRepository;
     private final BranchRepository branchRepository;
     private final PackageRepository packageRepository;
@@ -53,6 +55,7 @@ public class BookingService {
     public BookingService(AppointmentRepository appointmentRepository,
                           PatientProfileRepository patientProfileRepository,
                           DoctorRepository doctorRepository,
+                          DoctorBranchRepository doctorBranchRepository,
                           SpecialtyRepository specialtyRepository,
                           BranchRepository branchRepository,
                           PackageRepository packageRepository,
@@ -61,6 +64,7 @@ public class BookingService {
         this.appointmentRepository = appointmentRepository;
         this.patientProfileRepository = patientProfileRepository;
         this.doctorRepository = doctorRepository;
+        this.doctorBranchRepository = doctorBranchRepository;
         this.specialtyRepository = specialtyRepository;
         this.branchRepository = branchRepository;
         this.packageRepository = packageRepository;
@@ -88,8 +92,31 @@ public class BookingService {
         if (!doctor.isActive()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Bác sĩ hiện không nhận lịch khám");
         }
-        if (!scheduleService.isBookableSlot(
-                request.doctorId(), request.branchId(), request.appointmentDate(), request.startTime())) {
+
+        com.healthcare.hospital.entity.Specialty specialty = request.specialtyId() == null
+            ? null
+            : specialtyRepository.findById(request.specialtyId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy chuyên khoa"));
+        com.healthcare.hospital.entity.Branch branch = request.branchId() == null
+            ? null
+            : branchRepository.findById(request.branchId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy cơ sở khám"));
+        if (branch != null && !doctorBranchRepository.existsByDoctorIdAndBranchId(request.doctorId(), branch.getId())) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Bác sĩ không làm việc tại cơ sở khám đã chọn"
+            );
+        }
+
+        com.healthcare.hospital.entity.Package medicalPackage = request.packageId() == null
+            ? null
+            : packageRepository.findById(request.packageId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy gói khám"));
+
+        ScheduleService.BookableSlot bookableSlot = scheduleService.findBookableSlot(
+                request.doctorId(), request.branchId(), request.appointmentDate(), request.startTime())
+            .orElse(null);
+        if (bookableSlot == null) {
             throw new ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
                 "Khung giờ không nằm trong lịch làm việc hoặc đã qua. Vui lòng chọn một slot đang mở."
@@ -100,13 +127,14 @@ public class BookingService {
 
         // Serialize the slot key even when no appointment row exists yet. A row lock
         // alone cannot prevent two first writers from both observing an empty slot.
-        String slotLockKey = request.doctorId() + ":" + request.appointmentDate() + ":" + request.startTime();
+        String slotLockKey = request.doctorId() + ":" + request.appointmentDate();
         appointmentRepository.acquireSlotLock(slotLockKey);
 
         List<Appointment> expired = appointmentRepository.findExpiredPendingConflictsForUpdate(
             request.doctorId(),
             request.appointmentDate(),
             request.startTime(),
+            bookableSlot.endTime(),
             now
         );
         for (Appointment expiredAppointment : expired) {
@@ -123,6 +151,7 @@ public class BookingService {
             request.doctorId(),
             request.appointmentDate(),
             request.startTime(),
+            bookableSlot.endTime(),
             now
         );
 
@@ -150,7 +179,7 @@ public class BookingService {
         appointment.setDoctor(doctor);
         appointment.setAppointmentDate(request.appointmentDate());
         appointment.setStartTime(request.startTime());
-        appointment.setEndTime(request.startTime().plusMinutes(30));
+        appointment.setEndTime(bookableSlot.endTime());
         appointment.setAppointmentTime(
             OffsetDateTime.of(request.appointmentDate(), request.startTime(), now.getOffset())
         );
@@ -160,15 +189,9 @@ public class BookingService {
         appointment.setOtpExpiresAt(holdExpiry);
         appointment.setReasonForVisit(request.reasonForVisit());
 
-        if (request.specialtyId() != null) {
-            specialtyRepository.findById(request.specialtyId()).ifPresent(appointment::setSpecialty);
-        }
-        if (request.branchId() != null) {
-            branchRepository.findById(request.branchId()).ifPresent(appointment::setBranch);
-        }
-        if (request.packageId() != null) {
-            packageRepository.findById(request.packageId()).ifPresent(appointment::setMedicalPackage);
-        }
+        appointment.setSpecialty(specialty);
+        appointment.setBranch(branch);
+        appointment.setMedicalPackage(medicalPackage);
 
         try {
             appointmentRepository.saveAndFlush(appointment);

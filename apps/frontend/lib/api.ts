@@ -17,109 +17,113 @@ const API_BASE_URL =
 // ── Baseline Reference Data (Original, Non-infringing) ─────────────────────────
 export const SEED_SPECIALTIES: Specialty[] = [
   {
-    id: "sp-1",
+    id: "10000000-0000-0000-0000-000000000001",
     name: "Tim Mạch & Can Thiệp Mạch Máu",
     slug: "tim-mach",
     description: "Chẩn đoán, can thiệp và điều trị chuyên sâu các bệnh lý van tim, động mạch vành, rối loạn nhịp.",
     icon: "❤️",
   },
   {
-    id: "sp-2",
+    id: "10000000-0000-0000-0000-000000000003",
     name: "Tiêu Hóa - Gan Mật - Tụy",
     slug: "tieu-hoa",
     description: "Nội soi không đau chuẩn quốc tế, tầm soát sớm ung thư dạ dày - đại tràng, điều trị gan mật.",
     icon: "🫀",
   },
   {
-    id: "sp-3",
+    id: "10000000-0000-0000-0000-000000000002",
     name: "Thần Kinh & Đột Quỵ",
     slug: "than-kinh",
     description: "Cấp cứu can thiệp đột quỵ não 24/7, điều trị đau đầu mạn tính, thoái hóa thần kinh.",
     icon: "🧠",
   },
   {
-    id: "sp-4",
+    id: "10000000-0000-0000-0000-000000000006",
     name: "Sản Phụ Khoa & Sơ Sinh",
     slug: "san-phu-khoa",
     description: "Chăm sóc thai kỳ toàn diện, sinh con chuẩn an toàn y khoa, tầm soát sức khỏe phụ nữ.",
     icon: "🌸",
   },
   {
-    id: "sp-5",
+    id: "10000000-0000-0000-0000-000000000005",
     name: "Nhi Khoa & Tiêm Chủng",
     slug: "nhi-khoa",
     description: "Khám và điều trị bệnh lý sơ sinh - trẻ nhỏ trong không gian thân thiện, an toàn.",
     icon: "🧒",
   },
   {
-    id: "sp-6",
+    id: "10000000-0000-0000-0000-000000000007",
     name: "Cơ Xương Khớp & Phục Hồi Chức Năng",
     slug: "co-xuong-khop",
     description: "Phẫu thuật nội soi khớp, thay khớp nhân tạo và tập vật lý trị liệu hiện đại.",
     icon: "🦴",
   },
   {
-    id: "sp-7",
-    name: "Ung Bướu & Y Học Hạt Nhân",
-    slug: "ung-buou",
-    description: "Tầm soát, hội chẩn đa chuyên khoa và phác đồ điều trị cá thể hóa chuẩn quốc tế.",
-    icon: "🔬",
+    id: "10000000-0000-0000-0000-000000000004",
+    name: "Nội Tổng Hợp",
+    slug: "noi-tong-hop",
+    description: "Khám sàng lọc và quản lý các bệnh mạn tính như tiểu đường, mỡ máu.",
+    icon: "🩺",
   },
   {
-    id: "sp-8",
-    name: "Mắt & Khúc Xạ",
-    slug: "mat",
-    description: "Phẫu thuật Phaco đục thủy tinh thể, điều trị tật khúc xạ và bệnh lý đáy mắt.",
-    icon: "👁️",
+    id: "10000000-0000-0000-0000-000000000008",
+    name: "Tai Mũi Họng",
+    slug: "tai-mui-hong",
+    description: "Khám và điều trị viêm họng, viêm xoang và các rối loạn tai mũi họng thường gặp.",
+    icon: "👂",
   },
 ];
 
 export const SEED_DOCTORS: Doctor[] = [
   {
-    id: "doc-1",
+    id: "30000000-0000-0000-0000-000000000001",
     fullName: "PGS. TS. BS. Nguyễn Văn An",
     slug: "nguyen-van-an",
     title: "Chuyên gia Tim Mạch",
     specialtyName: "Tim Mạch",
     bio: "Hơn 22 năm kinh nghiệm trong lĩnh vực tim mạch can thiệp, nguyên trưởng khoa tim mạch bệnh viện tuyến đầu.",
     experienceYears: 22,
+    branchId: "20000000-0000-0000-0000-000000000001",
     photoUrl: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=400&auto=format&fit=crop&q=80",
   },
   {
-    id: "doc-2",
+    id: "30000000-0000-0000-0000-000000000005",
     fullName: "BS. CKII. Trần Bích Ngọc",
     slug: "tran-bich-ngoc",
     title: "Trưởng khoa Sản Phụ Khoa",
     specialtyName: "Sản Phụ Khoa",
     bio: "Chuyên gia hàng đầu về theo dõi thai kỳ nguy cơ cao và phẫu thuật nội soi phụ khoa.",
     experienceYears: 18,
+    branchId: "20000000-0000-0000-0000-000000000001",
     photoUrl: "https://images.unsplash.com/photo-1594824813589-3221b369c0d3?w=400&auto=format&fit=crop&q=80",
   },
   {
-    id: "doc-3",
+    id: "30000000-0000-0000-0000-000000000003",
     fullName: "TS. BS. Lê Hoàng Minh",
     slug: "le-hoang-minh",
     title: "Chuyên gia Tiêu Hóa - Gan Mật",
     specialtyName: "Tiêu Hóa",
     bio: "Tu nghiệp chuyên sâu tại Nhật Bản và Pháp về kỹ thuật nội soi can thiệp đường tiêu hóa.",
     experienceYears: 16,
+    branchId: "20000000-0000-0000-0000-000000000002",
     photoUrl: "https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=400&auto=format&fit=crop&q=80",
   },
   {
-    id: "doc-4",
+    id: "30000000-0000-0000-0000-000000000004",
     fullName: "BS. CKI. Phạm Quốc Hưng",
     slug: "pham-quoc-hung",
     title: "Bác sĩ Chuyên khoa Nhi",
     specialtyName: "Nhi Khoa",
     bio: "Tận tâm, thấu hiểu tâm lý trẻ nhỏ với hơn 12 năm chăm sóc và điều trị các bệnh lý nhi khoa.",
     experienceYears: 12,
+    branchId: "20000000-0000-0000-0000-000000000002",
     photoUrl: "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=400&auto=format&fit=crop&q=80",
   },
 ];
 
 export const SEED_PACKAGES: HealthPackage[] = [
   {
-    id: "pkg-1",
+    id: "50000000-0000-0000-0000-000000000001",
     name: "Gói Khám Sức Khỏe Tổng Quát Toàn Diện",
     slug: "tong-quat-toan-dien",
     description: "Kiểm tra 32 danh mục xét nghiệm máu, men gan, chức năng thận, siêu âm tim, chụp X-quang và khám chuyên khoa.",
@@ -134,7 +138,7 @@ export const SEED_PACKAGES: HealthPackage[] = [
     ],
   },
   {
-    id: "pkg-2",
+    id: "50000000-0000-0000-0000-000000000002",
     name: "Gói Tầm Soát Tim Mạch & Đột Quỵ Sớm",
     slug: "tam-soat-tim-mach",
     description: "Đánh giá nguy cơ xơ vữa động mạch, siêu âm tim Doppler màu, Holter điện tâm đồ 24h và tư vấn chuyên gia.",
@@ -149,7 +153,7 @@ export const SEED_PACKAGES: HealthPackage[] = [
     ],
   },
   {
-    id: "pkg-3",
+    id: "50000000-0000-0000-0000-000000000003",
     name: "Gói Khám & Tầm Soát Tiêu Hóa Không Đau",
     slug: "tam-soat-tieu-hoa",
     description: "Nội soi dạ dày & đại tràng tiền mê không đau, sinh thiết tìm vi khuẩn HP và tầm soát polyp đại tràng.",
@@ -167,7 +171,7 @@ export const SEED_PACKAGES: HealthPackage[] = [
 
 export const SEED_BRANCHES: Branch[] = [
   {
-    id: "br-1",
+    id: "20000000-0000-0000-0000-000000000001",
     name: "Bệnh viện Đa khoa HealthCare, Trụ sở Trung tâm",
     slug: "co-so-trung-tam",
     address: "Số 120 Đường Nguyễn Thị Minh Khai, Phường Bến Thành, Quận 1, TP. Hồ Chí Minh",
@@ -176,21 +180,12 @@ export const SEED_BRANCHES: Branch[] = [
     emergencyHotline: "1900 1234",
   },
   {
-    id: "br-2",
+    id: "20000000-0000-0000-0000-000000000002",
     name: "Phòng khám Đa khoa Quốc tế HealthCare, Bình Thạnh",
     slug: "co-so-binh-thanh",
     address: "Số 45 Đường Điện Biên Phủ, Phường 15, Quận Bình Thạnh, TP. Hồ Chí Minh",
     phone: "028 3512 5678",
     workingHours: "Thứ 2 - Thứ 7: 07:30 - 17:30",
-    emergencyHotline: "1900 1234",
-  },
-  {
-    id: "br-3",
-    name: "Bệnh viện Đa khoa HealthCare, Khu Đô thị Thủ Đức",
-    slug: "co-so-thu-duc",
-    address: "Số 88 Đường Võ Văn Ngân, Phường Linh Chiểu, TP. Thủ Đức, TP. Hồ Chí Minh",
-    phone: "028 3720 9999",
-    workingHours: "Thứ 2 - Chủ Nhật: 07:00 - 17:00 | Cấp cứu 24/7",
     emergencyHotline: "1900 1234",
   },
 ];
@@ -345,6 +340,7 @@ function generateFallbackSlots(): TimeSlot[] {
     endTime: t.end,
     available: idx !== 2 && idx !== 5, // mock 2 slots taken
     statusNote: idx === 2 || idx === 5 ? "Đã có người đặt" : "Còn trống",
+    isDemo: true,
   }));
 }
 

@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     rag_ingest_enabled: bool = False
     rag_ingest_token: str = ""
     ai_service_token: str = ""
+    ai_service_runtime: str = "non-local"
+    ai_service_allow_unauthenticated_local: bool = False
     # DeepSeek LLM credentials
     deepseek_api_key: str = ""
     deepseek_model: str = "deepseek-chat"
@@ -38,22 +40,30 @@ rag_service = RagService()
 def require_service_auth(
     x_ai_service_token: str | None = Header(default=None, alias="X-AI-Service-Token"),
 ) -> None:
-    """Require a shared token when configured for shared/staging deployments."""
-    if settings.ai_service_token and (
-        not x_ai_service_token
-        or not secrets.compare_digest(x_ai_service_token, settings.ai_service_token)
-    ):
+    """Require a token unless an explicit local-only escape hatch is enabled."""
+    if not settings.ai_service_token:
+        if local_auth_escape_hatch_enabled():
+            return
+        raise HTTPException(status_code=503, detail="AI service authentication is not configured")
+    if not x_ai_service_token or not secrets.compare_digest(x_ai_service_token, settings.ai_service_token):
         raise HTTPException(status_code=401, detail="AI service authentication required")
+
+
+def local_auth_escape_hatch_enabled() -> bool:
+    return settings.ai_service_runtime.lower() == "local" and settings.ai_service_allow_unauthenticated_local
 
 
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
+    auth_configured = bool(settings.ai_service_token)
     return HealthResponse(
-        status="ok",
+        status="ok" if auth_configured or local_auth_escape_hatch_enabled() else "misconfigured",
         service=settings.service_name,
         ai_provider=settings.ai_provider,
         deepseek_configured=bool(settings.deepseek_api_key),
         deepseek_model=settings.deepseek_model if settings.deepseek_api_key else None,
+        service_auth_configured=auth_configured,
+        local_auth_escape_hatch=local_auth_escape_hatch_enabled(),
     )
 
 

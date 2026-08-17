@@ -39,7 +39,8 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
         select a from Appointment a
         where a.doctor.id = :doctorId
           and a.appointmentDate = :appointmentDate
-          and a.startTime = :startTime
+          and a.startTime < :endTime
+          and a.endTime > :startTime
           and (
             a.status in ('CONFIRMED', 'CHECKED_IN', 'IN_PROGRESS')
             or (a.status = 'PENDING_CONFIRMATION' and a.holdExpiresAt > :now)
@@ -49,6 +50,7 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
         @Param("doctorId") UUID doctorId,
         @Param("appointmentDate") LocalDate appointmentDate,
         @Param("startTime") LocalTime startTime,
+        @Param("endTime") LocalTime endTime,
         @Param("now") OffsetDateTime now
     );
 
@@ -57,7 +59,8 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
         select a from Appointment a
         where a.doctor.id = :doctorId
           and a.appointmentDate = :appointmentDate
-          and a.startTime = :startTime
+          and a.startTime < :endTime
+          and a.endTime > :startTime
           and a.status = 'PENDING_CONFIRMATION'
           and (a.holdExpiresAt is null or a.holdExpiresAt <= :now)
     """)
@@ -65,6 +68,7 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
         @Param("doctorId") UUID doctorId,
         @Param("appointmentDate") LocalDate appointmentDate,
         @Param("startTime") LocalTime startTime,
+        @Param("endTime") LocalTime endTime,
         @Param("now") OffsetDateTime now
     );
 

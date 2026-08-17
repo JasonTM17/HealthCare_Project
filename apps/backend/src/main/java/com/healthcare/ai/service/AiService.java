@@ -20,6 +20,7 @@ import java.util.Map;
 
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
 
 @Service
 public class AiService {
@@ -32,6 +33,12 @@ public class AiService {
 
     @Value("${ai.service.token:}")
     private String aiServiceToken;
+
+    @Value("${ai.service.runtime:non-local}")
+    private String aiServiceRuntime = "non-local";
+
+    @Value("${ai.service.allow-unauthenticated-local:false}")
+    private boolean allowUnauthenticatedLocal;
 
     public AiService(RestTemplateBuilder restTemplateBuilder, ObjectMapper objectMapper) {
         this.restTemplate = restTemplateBuilder
@@ -52,6 +59,9 @@ public class AiService {
     }
 
     public boolean isAvailable() {
+        if (!hasServiceAuthConfiguration()) {
+            return false;
+        }
         try {
             restTemplate.getForObject(aiServiceUrl + "/health", String.class);
             return true;
@@ -64,6 +74,12 @@ public class AiService {
         Object symptoms = request == null ? null : request.get("symptoms");
         if (!(symptoms instanceof String text) || text.trim().length() < 2 || text.length() > 10_000) {
             throw new ResponseStatusException(BAD_REQUEST, "Symptoms must be between 2 and 10000 characters");
+        }
+        if (!hasServiceAuthConfiguration()) {
+            throw new ResponseStatusException(
+                SERVICE_UNAVAILABLE,
+                "AI service authentication is not configured"
+            );
         }
 
         try {
@@ -91,5 +107,10 @@ public class AiService {
         } catch (JsonProcessingException e) {
             throw new ResponseStatusException(BAD_GATEWAY, "AI service returned invalid JSON", e);
         }
+    }
+
+    private boolean hasServiceAuthConfiguration() {
+        return (aiServiceToken != null && !aiServiceToken.isBlank())
+            || ("local".equalsIgnoreCase(aiServiceRuntime) && allowUnauthenticatedLocal);
     }
 }

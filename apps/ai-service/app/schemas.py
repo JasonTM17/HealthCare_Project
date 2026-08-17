@@ -8,6 +8,8 @@ class HealthResponse(BaseModel):
     ai_provider: str
     deepseek_configured: bool
     deepseek_model: Optional[str] = None
+    service_auth_configured: bool
+    local_auth_escape_hatch: bool
 
 
 class TriageRequest(BaseModel):

@@ -28,3 +28,8 @@ app:
     username: ${TEST_DB_USERNAME:healthcare}
     password: ${TEST_DB_PASSWORD:change-me}
     driver-class-name: org.postgresql.Driver
+
+ai:
+  service:
+    runtime: local
+    allow-unauthenticated-local: true

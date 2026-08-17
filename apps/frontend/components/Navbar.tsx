@@ -1,164 +1,118 @@
 "use client";
 
-import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import React, { useState } from "react";
+import Icon from "./UiIcon";
 
 interface NavbarProps {
   onOpenBooking: () => void;
   onOpenAiTriage: () => void;
 }
 
-export default function Navbar({ onOpenBooking, onOpenAiTriage }: NavbarProps) {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+const NAV_LINKS = [
+  { label: "Chuyên khoa", href: "/#specialties" },
+  { label: "Gói khám", href: "/#packages" },
+  { label: "Bác sĩ", href: "/#doctors" },
+  { label: "Cơ sở", href: "/#branches" },
+  { label: "Cẩm nang", href: "/articles" },
+];
+
+const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, onOpenAiTriage }) => {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const pathname = usePathname();
 
-  const navLinks = [
-    { label: "Trang Chủ", href: "/" },
-    { label: "Chuyên Khoa", href: "/#specialties" },
-    { label: "Đội Ngũ Bác Sĩ", href: "/#doctors" },
-    { label: "Gói Khám", href: "/#packages" },
-    { label: "Hướng Dẫn Khám & BHYT", href: "/huong-dan" },
-    { label: "Tra Cứu Lịch Hẹn", href: "/tra-cuu" },
-  ];
+  const closeMobileMenu = (): void => setMobileMenuOpen(false);
 
   return (
     <>
-      {/* ── Top Utility Bar (non-sticky; header below is sticky) ────── */}
-      <div className="bg-brand-950 text-brand-100 text-xs py-2 px-4 border-b border-brand-900">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-4 sm:gap-6">
-            <div className="flex items-center gap-1.5 text-amber-400 font-bold">
-              <span className="animate-pulse" aria-hidden>🚨</span>
-              <span>Cấp cứu 24/7: <a href="tel:19001234" className="text-white text-sm font-mono tracking-wider hover:underline">1900 1234</a></span>
-            </div>
-            <span className="hidden md:inline text-brand-600" aria-hidden>|</span>
-            <span className="hidden md:inline text-brand-200">🕒 Khám bệnh: Thứ 2 - Thứ 7 (07:00 - 17:00)</span>
+      <div className="utility-bar">
+        <div className="utility-bar__inner">
+          <div className="utility-bar__left">
+            <a className="utility-hotline" href="tel:19001234">
+              <Icon name="phone" size={15} />
+              <span>Cấp cứu 24/7</span>
+              <strong>1900 1234</strong>
+            </a>
+            <span className="utility-divider" aria-hidden="true" />
+            <span className="utility-hours"><Icon name="clock" size={15} />Khám bệnh: Thứ 2 đến Thứ 7, 07:00 đến 17:00</span>
           </div>
-
-          <div className="flex items-center gap-3 sm:gap-4 text-brand-200 text-[11px] sm:text-xs">
-            <Link href="/#branches" className="hover:text-white transition-colors">
-              🏥 3 Cơ sở TP.HCM
-            </Link>
-            <span className="text-brand-700" aria-hidden>|</span>
-            <button
-              type="button"
-              onClick={onOpenAiTriage}
-              className="inline-flex items-center gap-1 text-amber-400 hover:text-amber-300 font-bold cursor-pointer"
-            >
-              <span aria-hidden>🤖</span> Trợ Lý AI
+          <div className="utility-bar__right">
+            <span className="utility-demo">Bản demo local</span>
+            <button className="utility-ai" onClick={onOpenAiTriage} type="button">
+              <Icon name="sparkles" size={15} /> Trợ lý triệu chứng
             </button>
-            <span className="text-brand-700" aria-hidden>|</span>
-            <Link href="/tra-cuu" className="text-brand-300 hover:text-white font-semibold">
-              🔍 Tra cứu
-            </Link>
+            <Link href="/tra-cuu">Tra cứu lịch hẹn</Link>
           </div>
         </div>
       </div>
 
-      {/* ── Main Navigation Header (sticky) ─────────────────────────── */}
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-brand-100 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-20 flex items-center justify-between gap-4">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-brand-800 to-brand-600 text-white flex items-center justify-center text-2xl font-extrabold shadow-md">
-              +
-            </div>
-            <div>
-              <span className="text-xl font-extrabold tracking-tight text-brand-950 block leading-tight">
-                HealthCare
-              </span>
-              <span className="text-[10px] sm:text-[11px] font-semibold tracking-wider uppercase text-brand-700 block">
-                Hệ Thống Y Tế Đa Khoa
-              </span>
-            </div>
+      <header className="site-nav">
+        <div className="site-nav__inner">
+          <Link aria-label="HealthCare, về trang chủ" className="brand-link" href="/" onClick={closeMobileMenu}>
+            <span className="brand-mark"><Icon name="plus" size={24} /></span>
+            <span className="brand-copy">
+              <strong>HealthCare</strong>
+              <small>Hệ thống y tế đa khoa</small>
+            </span>
           </Link>
 
-          {/* Desktop Navigation */}
-          <nav className="hidden lg:flex items-center gap-6 text-sm font-semibold text-ink-muted">
-            {navLinks.map((link) => {
-              const isActive = pathname === link.href;
+          <nav aria-label="Điều hướng chính" className="desktop-nav">
+            {NAV_LINKS.map((link) => {
+              const isActive = link.href.startsWith("/#") ? pathname === "/" : pathname === link.href;
               return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`transition-colors hover:text-brand-700 ${
-                    isActive ? "text-brand-700 font-bold" : ""
-                  }`}
-                >
+                <Link className={`nav-link${isActive ? " nav-link--active" : ""}`} href={link.href} key={link.href}>
                   {link.label}
                 </Link>
               );
             })}
           </nav>
 
-          {/* Action CTAs */}
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={onOpenAiTriage}
-              className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-brand-800 bg-brand-50 border border-brand-200 rounded-full hover:bg-brand-100 transition-all cursor-pointer"
-            >
-              <span aria-hidden>✨</span> Triage Triệu Chứng
+          <div className="site-nav__actions">
+            <button className="nav-ai-button" onClick={onOpenAiTriage} type="button">
+              <Icon name="sparkles" size={16} />
+              <span>Trợ lý AI</span>
             </button>
-
-            <button
-              type="button"
-              onClick={onOpenBooking}
-              className="px-5 sm:px-6 py-2.5 bg-gradient-to-r from-brand-700 to-brand-800 hover:from-brand-800 hover:to-brand-900 text-white text-xs sm:text-sm font-bold rounded-full shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer"
-            >
-              <span aria-hidden>📅</span> Đặt Lịch Khám
+            <button className="button button--nav" onClick={onOpenBooking} type="button">
+              <Icon name="calendar" size={17} />
+              <span>Đặt lịch khám</span>
             </button>
-
-            {/* Mobile hamburger button */}
             <button
+              aria-expanded={mobileMenuOpen}
+              aria-label={mobileMenuOpen ? "Đóng menu" : "Mở menu"}
+              className="nav-menu-button"
+              onClick={() => setMobileMenuOpen((open) => !open)}
               type="button"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden w-10 h-10 rounded-xl bg-brand-50 hover:bg-brand-100 flex items-center justify-center text-brand-700 text-lg"
-              aria-label="Mở menu"
             >
-              {mobileMenuOpen ? "✕" : "☰"}
+              <Icon name={mobileMenuOpen ? "x" : "menu"} size={22} />
             </button>
           </div>
         </div>
 
-        {/* Mobile Navigation Drawer */}
-        {mobileMenuOpen && (
-          <div className="lg:hidden border-t border-mint-100 bg-white px-4 py-4 space-y-3">
-            {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                onClick={() => setMobileMenuOpen(false)}
-                className="block py-2 text-sm font-semibold text-ink hover:text-brand-700 border-b border-mint-100"
-              >
-                {link.label}
-              </Link>
-            ))}
-            <div className="pt-2 flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  onOpenAiTriage();
-                }}
-                className="w-full py-2.5 bg-brand-50 text-brand-800 font-bold text-xs rounded-xl text-center"
-              >
-                🤖 Trợ lý Y tế AI (Phân luồng triệu chứng)
+        {mobileMenuOpen ? (
+          <div className="mobile-menu">
+            <nav aria-label="Điều hướng trên thiết bị nhỏ">
+              {NAV_LINKS.map((link) => (
+                <Link className="mobile-menu__link" href={link.href} key={link.href} onClick={closeMobileMenu}>
+                  {link.label}
+                  <Icon name="arrow-up-right" size={17} />
+                </Link>
+              ))}
+            </nav>
+            <div className="mobile-menu__actions">
+              <Link className="outline-button" href="/tra-cuu" onClick={closeMobileMenu}>Tra cứu lịch hẹn</Link>
+              <button className="button button--primary" onClick={() => { closeMobileMenu(); onOpenAiTriage(); }} type="button">
+                <Icon name="sparkles" size={17} /> Trợ lý triệu chứng
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  onOpenBooking();
-                }}
-                className="w-full py-2.5 bg-brand-700 text-white font-bold text-xs rounded-xl text-center shadow"
-              >
-                📅 Đặt lịch khám trực tuyến
+              <button className="button button--amber" onClick={() => { closeMobileMenu(); onOpenBooking(); }} type="button">
+                <Icon name="calendar" size={17} /> Đặt lịch khám
               </button>
             </div>
           </div>
-        )}
+        ) : null}
       </header>
     </>
   );
-}
+};
+
+export default Navbar;

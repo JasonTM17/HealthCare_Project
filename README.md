@@ -77,7 +77,9 @@ docker compose -f infrastructure/docker-compose.yml up
 The Compose backend connects to MinIO at `http://minio:9000`; local host runs use
 `http://localhost:9000`. Keep `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD` aligned
 with the backend's `MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY` values and replace all
-example credentials before any shared or deployed use.
+example credentials before any shared or deployed use. Compose also requires a
+non-empty shared `AI_SERVICE_TOKEN`; the unauthenticated local escape hatch is
+only for a bare local process with the explicit local runtime flags.
 
 ## Frontend Design Direction
 

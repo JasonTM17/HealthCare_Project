@@ -15,6 +15,7 @@ export interface Doctor {
   title?: string;
   specialtyName?: string;
   experienceYears?: number;
+  branchId?: string;
 }
 
 export interface Branch {
@@ -50,6 +51,7 @@ export interface TimeSlot {
   endTime: string;   // e.g. "08:30:00"
   available: boolean;
   statusNote: string;
+  isDemo?: boolean;
 }
 
 export interface HoldSlotPayload {

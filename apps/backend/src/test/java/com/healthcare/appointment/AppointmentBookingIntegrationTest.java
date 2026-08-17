@@ -5,9 +5,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.healthcare.TestcontainersIntegrationTest;
 import com.healthcare.appointment.dto.ConfirmAppointmentRequest;
 import com.healthcare.appointment.dto.HoldSlotRequest;
+import com.healthcare.appointment.entity.DoctorSchedule;
 import com.healthcare.appointment.entity.PatientProfile;
+import com.healthcare.hospital.entity.Branch;
 import com.healthcare.hospital.entity.Doctor;
+import com.healthcare.hospital.entity.DoctorBranch;
 import com.healthcare.hospital.entity.Specialty;
+import com.healthcare.scheduling.entity.DoctorScheduleException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,7 +19,9 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.LocalDate;
+import java.time.DayOfWeek;
 import java.time.LocalTime;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -223,6 +229,159 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
     }
 
     @Test
+    void persistedScheduleUsesIsoDayAndEffectiveWindowWithoutDefaultBypass() throws Exception {
+        Branch branch = createBranchForDoctor("effective");
+        LocalDate firstDate = nextDate(DayOfWeek.MONDAY);
+        LocalDate effectiveDate = firstDate.plusWeeks(1);
+        DoctorSchedule persisted = saveSchedule(branch, effectiveDate, 9, 0, 11, 0, 30);
+        persisted.setEffectiveTo(effectiveDate);
+        doctorScheduleRepository.saveAndFlush(persisted);
+
+        mockMvc.perform(get("/api/v1/appointments/doctors/" + doctor.getId() + "/slots")
+                .param("date", firstDate.toString()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$").isArray())
+            .andExpect(jsonPath("$").isEmpty());
+
+        mockMvc.perform(get("/api/v1/appointments/doctors/" + doctor.getId() + "/slots")
+                .param("date", effectiveDate.plusDays(1).toString()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$").isEmpty());
+
+        mockMvc.perform(get("/api/v1/appointments/doctors/" + doctor.getId() + "/slots")
+                .param("date", effectiveDate.toString()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()").value(4))
+            .andExpect(jsonPath("$[0].startTime").value("09:00:00"))
+            .andExpect(jsonPath("$[0].endTime").value("09:30:00"));
+    }
+
+    @Test
+    void customHoursExceptionReplacesPersistedBranchSchedule() throws Exception {
+        Branch branch = createBranchForDoctor("custom-hours");
+        LocalDate targetDate = nextDate(DayOfWeek.WEDNESDAY);
+        saveSchedule(branch, targetDate, 8, 0, 12, 0, 30);
+
+        DoctorScheduleException exception = new DoctorScheduleException();
+        exception.setDoctor(doctor);
+        exception.setBranch(branch);
+        exception.setExceptionDate(targetDate);
+        exception.setType("CUSTOM_HOURS");
+        exception.setCustomStartTime(LocalTime.of(14, 0));
+        exception.setCustomEndTime(LocalTime.of(15, 0));
+        doctorScheduleExceptionRepository.saveAndFlush(exception);
+
+        mockMvc.perform(get("/api/v1/appointments/doctors/" + doctor.getId() + "/slots")
+                .param("date", targetDate.toString()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()").value(2))
+            .andExpect(jsonPath("$[0].startTime").value("14:00:00"));
+    }
+
+    @Test
+    void blockedExceptionRemovesAllSlotsForTheBranchDate() throws Exception {
+        Branch branch = createBranchForDoctor("blocked");
+        LocalDate targetDate = nextDate(DayOfWeek.SATURDAY);
+        saveSchedule(branch, targetDate, 8, 0, 12, 0, 30);
+
+        DoctorScheduleException exception = new DoctorScheduleException();
+        exception.setDoctor(doctor);
+        exception.setBranch(branch);
+        exception.setExceptionDate(targetDate);
+        exception.setType("BLOCKED");
+        doctorScheduleExceptionRepository.saveAndFlush(exception);
+
+        mockMvc.perform(get("/api/v1/appointments/doctors/" + doctor.getId() + "/slots")
+                .param("date", targetDate.toString()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$").isEmpty());
+    }
+
+    @Test
+    void bookingUsesConfiguredDurationAndRejectsOverlappingDifferentStart() throws Exception {
+        Branch branch = createBranchForDoctor("interval");
+        LocalDate targetDate = nextDate(DayOfWeek.THURSDAY);
+        saveSchedule(branch, targetDate, 9, 0, 11, 0, 60);
+        saveSchedule(branch, targetDate, 9, 30, 10, 30, 30);
+
+        HoldSlotRequest first = new HoldSlotRequest(
+            doctor.getId(), targetDate, LocalTime.of(9, 0), "Người Đặt Một", "0907000001", null,
+            "Slot 60 phút", specialty.getId(), branch.getId(), null);
+        MvcResult firstResult = mockMvc.perform(post("/api/v1/appointments/hold")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(first)))
+            .andExpect(status().isCreated())
+            .andReturn();
+        String firstCode = objectMapper.readTree(firstResult.getResponse().getContentAsString())
+            .get("bookingCode").asText();
+
+        mockMvc.perform(get("/api/v1/appointments/" + firstCode).param("phone", "0907000001"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.startTime").value("09:00:00"))
+            .andExpect(jsonPath("$.endTime").value("10:00:00"));
+
+        mockMvc.perform(get("/api/v1/appointments/doctors/" + doctor.getId() + "/slots")
+                .param("date", targetDate.toString()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].available").value(false))
+            .andExpect(jsonPath("$[2].startTime").value("09:30:00"))
+            .andExpect(jsonPath("$[2].available").value(false));
+
+        HoldSlotRequest overlapping = new HoldSlotRequest(
+            doctor.getId(), targetDate, LocalTime.of(9, 30), "Người Đặt Hai", "0907000002", null,
+            "Slot chồng lấn", specialty.getId(), branch.getId(), null);
+        mockMvc.perform(post("/api/v1/appointments/hold")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(overlapping)))
+            .andExpect(status().isConflict());
+    }
+
+    @Test
+    void optionalReferencesRejectMissingResourcesAndUnassignedBranch() throws Exception {
+        LocalDate targetDate = nextDate(DayOfWeek.FRIDAY).plusWeeks(1);
+
+        mockMvc.perform(post("/api/v1/appointments/hold")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new HoldSlotRequest(
+                    doctor.getId(), targetDate, LocalTime.of(9, 0), "Thiếu chuyên khoa", "0907000011", null,
+                    null, UUID.randomUUID(), null, null))))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.message").value("Không tìm thấy chuyên khoa"));
+
+        UUID missingBranchId = UUID.randomUUID();
+        mockMvc.perform(post("/api/v1/appointments/hold")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new HoldSlotRequest(
+                    doctor.getId(), targetDate, LocalTime.of(9, 0), "Thiếu cơ sở", "0907000012", null,
+                    null, specialty.getId(), missingBranchId, null))))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.message").value("Không tìm thấy cơ sở khám"));
+
+        mockMvc.perform(post("/api/v1/appointments/hold")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new HoldSlotRequest(
+                    doctor.getId(), targetDate, LocalTime.of(9, 0), "Thiếu gói", "0907000013", null,
+                    null, specialty.getId(), null, UUID.randomUUID()))))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.message").value("Không tìm thấy gói khám"));
+
+        Branch unassigned = new Branch();
+        unassigned.setName("Unassigned branch");
+        unassigned.setSlug("unassigned-" + UUID.randomUUID());
+        unassigned.setAddress("Test address");
+        unassigned.setActive(true);
+        branchRepository.saveAndFlush(unassigned);
+
+        mockMvc.perform(post("/api/v1/appointments/hold")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new HoldSlotRequest(
+                    doctor.getId(), targetDate, LocalTime.of(9, 0), "Sai liên kết", "0907000014", null,
+                    null, specialty.getId(), unassigned.getId(), null))))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("Bác sĩ không làm việc tại cơ sở khám đã chọn"));
+    }
+
+    @Test
     void malformedHoldPayloadReturnsBadRequest() throws Exception {
         mockMvc.perform(post("/api/v1/appointments/hold")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -313,5 +472,48 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
             .andReturn();
         return "Bearer " + objectMapper.readTree(result.getResponse().getContentAsString())
             .get("accessToken").asText();
+    }
+
+    private Branch createBranchForDoctor(String label) {
+        Branch branch = new Branch();
+        branch.setName("Test branch " + label);
+        branch.setSlug("test-branch-" + label + "-" + UUID.randomUUID());
+        branch.setAddress("Test address");
+        branch.setActive(true);
+        branch = branchRepository.saveAndFlush(branch);
+
+        DoctorBranch doctorBranch = new DoctorBranch();
+        doctorBranch.setDoctor(doctor);
+        doctorBranch.setBranch(branch);
+        doctorBranchRepository.saveAndFlush(doctorBranch);
+        return branch;
+    }
+
+    private DoctorSchedule saveSchedule(
+            Branch branch,
+            LocalDate date,
+            int startHour,
+            int startMinute,
+            int endHour,
+            int endMinute,
+            int duration) {
+        DoctorSchedule schedule = new DoctorSchedule();
+        schedule.setDoctor(doctor);
+        schedule.setBranch(branch);
+        schedule.setDayOfWeek(date.getDayOfWeek().getValue());
+        schedule.setStartTime(LocalTime.of(startHour, startMinute));
+        schedule.setEndTime(LocalTime.of(endHour, endMinute));
+        schedule.setSlotDurationMinutes(duration);
+        schedule.setEffectiveFrom(date);
+        schedule.setActive(true);
+        return doctorScheduleRepository.saveAndFlush(schedule);
+    }
+
+    private LocalDate nextDate(DayOfWeek dayOfWeek) {
+        LocalDate date = LocalDate.now().plusDays(1);
+        while (date.getDayOfWeek() != dayOfWeek) {
+            date = date.plusDays(1);
+        }
+        return date;
     }
 }

@@ -8,6 +8,7 @@ import com.healthcare.clinical.repository.MedicalRecordRepository;
 import com.healthcare.clinical.repository.PrescriptionRepository;
 import com.healthcare.hospital.repository.ArticleRepository;
 import com.healthcare.hospital.repository.BranchRepository;
+import com.healthcare.hospital.repository.DoctorBranchRepository;
 import com.healthcare.hospital.repository.DoctorRepository;
 import com.healthcare.hospital.repository.FaqRepository;
 import com.healthcare.hospital.repository.PackageRepository;
@@ -15,6 +16,7 @@ import com.healthcare.hospital.repository.ServiceRepository;
 import com.healthcare.hospital.repository.SpecialtyRepository;
 import com.healthcare.user.repository.RefreshTokenRepository;
 import com.healthcare.user.repository.UserRepository;
+import com.healthcare.scheduling.repository.DoctorScheduleExceptionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -89,12 +91,14 @@ public abstract class AbstractIntegrationTest {
     @Autowired protected SpecialtyRepository specialtyRepository;
     @Autowired protected DoctorRepository doctorRepository;
     @Autowired protected BranchRepository branchRepository;
+    @Autowired protected DoctorBranchRepository doctorBranchRepository;
     @Autowired protected PackageRepository packageRepository;
     @Autowired protected ArticleRepository articleRepository;
     @Autowired protected FaqRepository faqRepository;
     @Autowired protected ServiceRepository serviceRepository;
     @Autowired protected AppointmentRepository appointmentRepository;
     @Autowired protected DoctorScheduleRepository doctorScheduleRepository;
+    @Autowired protected DoctorScheduleExceptionRepository doctorScheduleExceptionRepository;
     @Autowired protected PatientProfileRepository patientProfileRepository;
 
     // ── Clinical overlay ─────────────────────────────────────────────────────
@@ -119,6 +123,7 @@ public abstract class AbstractIntegrationTest {
 
         // Appointment domain (FK dependencies on hospital & patient)
         appointmentRepository.deleteAll();
+        doctorScheduleExceptionRepository.deleteAll();
         doctorScheduleRepository.deleteAll();
         patientProfileRepository.deleteAll();
 
@@ -127,6 +132,7 @@ public abstract class AbstractIntegrationTest {
         faqRepository.deleteAll();
         packageRepository.deleteAll();
         serviceRepository.deleteAll();
+        doctorBranchRepository.deleteAll();
         doctorRepository.deleteAll();   // doctor_specialties & doctor_branches cascade
         branchRepository.deleteAll();
         specialtyRepository.deleteAll();
