@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.healthcare.AbstractIntegrationTest;
+import com.healthcare.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -19,6 +20,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AuthControllerTest extends AbstractIntegrationTest {
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private UserRepository userRepository;
 
     @Test
     void registerCreatesPatientAndDoesNotExposePasswordHash() throws Exception {
@@ -216,6 +220,35 @@ class AuthControllerTest extends AbstractIntegrationTest {
         mockMvc.perform(post("/api/v1/auth/refresh")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"refreshToken\":\"%s\"}".formatted(refreshToken)))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void disabledUserCannotRefreshTokens() throws Exception {
+        JsonNode registration = register("disabled.refresh@example.com", "Str0ng!Pass", "Disabled Refresh");
+        String refreshToken = registration.get("refreshToken").asText();
+
+        userRepository.findByEmail("disabled.refresh@example.com")
+            .ifPresent(user -> {
+                user.setStatus("DISABLED");
+                userRepository.save(user);
+            });
+
+        mockMvc.perform(post("/api/v1/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"%s\"}".formatted(refreshToken)))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void deletedUserTokenIsRejectedWithUnauthorized() throws Exception {
+        JsonNode registration = register("deleted.user@example.com", "Str0ng!Pass", "Deleted User");
+        String accessToken = registration.get("accessToken").asText();
+
+        userRepository.findByEmail("deleted.user@example.com").ifPresent(userRepository::delete);
+
+        mockMvc.perform(get("/api/v1/users/me")
+                .header("Authorization", "Bearer " + accessToken))
             .andExpect(status().isUnauthorized());
     }
 }

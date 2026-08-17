@@ -32,21 +32,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String token = extractToken(request);
 
         if (StringUtils.hasText(token) && tokenProvider.isValid(token) && tokenProvider.isAccessToken(token)) {
-            UUID userId = tokenProvider.extractUserId(token);
-            UserDetails userDetails = userDetailsService.loadUserByUsername(tokenProvider.extractEmail(token));
+            try {
+                UUID userId = tokenProvider.extractUserId(token);
+                UserDetails userDetails = userDetailsService.loadUserByUsername(tokenProvider.extractEmail(token));
 
-            if (!userDetails.isEnabled()) {
-                filterChain.doFilter(request, response);
-                return;
+                if (!userDetails.isEnabled()) {
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+
+                UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                    userDetails,
+                    null,
+                    userDetails.getAuthorities()
+                );
+                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+            } catch (org.springframework.security.core.userdetails.UsernameNotFoundException e) {
+                // User was deleted after token issuance: treat as unauthenticated (401 via entry point).
+                SecurityContextHolder.clearContext();
             }
-
-            UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                userDetails,
-                null,
-                userDetails.getAuthorities()
-            );
-            authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-            SecurityContextHolder.getContext().setAuthentication(authentication);
         }
 
         filterChain.doFilter(request, response);

@@ -137,6 +137,11 @@ public class AuthService {
         User user = userRepository.findWithRolesById(userId)
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
+        if (!"ACTIVE".equals(user.getStatus())) {
+            revokeAllUserTokens(userId);
+            throw new BadCredentialsException("Account is disabled");
+        }
+
         String accessToken = tokenProvider.generateAccessToken(user.getId(), user.getEmail());
         String newRefreshToken = tokenProvider.generateRefreshToken(user.getId());
 
