@@ -37,6 +37,40 @@ services:
     volumes:
       - minio-data:/data
 
+  backend:
+    build:
+      context: ../apps/backend
+    environment:
+      BACKEND_PORT: 8080
+      DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-healthcare}
+      DATABASE_USERNAME: ${POSTGRES_USER:-healthcare}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
+      CORS_ALLOWED_ORIGINS: http://localhost:3000
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ../apps/frontend
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8080/api/v1
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+  ai-service:
+    build:
+      context: ../apps/ai-service
+    environment:
+      AI_PROVIDER: disabled
+    ports:
+      - "8000:8000"
+
 volumes:
   postgres-data:
   minio-data:

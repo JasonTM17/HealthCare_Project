@@ -1,3 +1,11 @@
 # Infrastructure
 
 Local development infrastructure for HealthCare_Project. This is not production deployment configuration.
+
+Copy the root `.env.example` to `.env` and replace its local-only placeholders before running the complete stack:
+
+```bash
+docker compose -f infrastructure/docker-compose.yml up --build
+```
+
+The local stack exposes frontend on port 3000, backend on 8080, AI service on 8000, PostgreSQL on 5432, Redis on 6379, and MinIO on 9000 (console 9001).
