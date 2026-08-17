@@ -17,6 +17,7 @@ import com.healthcare.clinical.entity.MedicalRecord;
 import com.healthcare.clinical.entity.Prescription;
 import com.healthcare.clinical.entity.PrescriptionItem;
 import com.healthcare.hospital.entity.Doctor;
+import com.healthcare.hospital.repository.DoctorRepository;
 import com.healthcare.security.JwtTokenProvider;
 import com.healthcare.user.entity.Role;
 import com.healthcare.user.entity.User;
@@ -25,6 +26,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -33,19 +35,14 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
-class ClinicalAuthorizationIntegrationTest extends AbstractIntegrationTest {
+@Transactional
+class ClinicalAuthorizationTest extends AbstractIntegrationTest {
 
-    @Autowired
-    private ObjectMapper objectMapper;
-
-    @Autowired
-    private RoleRepository roleRepository;
-
-    @Autowired
-    private PasswordEncoder passwordEncoder;
-
-    @Autowired
-    private JwtTokenProvider tokenProvider;
+    @Autowired private ObjectMapper objectMapper;
+    @Autowired private RoleRepository roleRepository;
+    @Autowired private DoctorRepository doctorRepository;
+    @Autowired private PasswordEncoder passwordEncoder;
+    @Autowired private JwtTokenProvider tokenProvider;
 
     @Test
     void unauthenticatedClinicalReadIsRejected() throws Exception {
@@ -53,7 +50,7 @@ class ClinicalAuthorizationIntegrationTest extends AbstractIntegrationTest {
         MedicalRecord record = createRecord(fixture, true);
 
         mockMvc.perform(get("/api/v1/clinical/records/{id}", record.getId()))
-                .andExpect(status().isUnauthorized());
+            .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -62,18 +59,18 @@ class ClinicalAuthorizationIntegrationTest extends AbstractIntegrationTest {
         MedicalRecord record = createRecord(fixture, true);
 
         mockMvc.perform(get("/api/v1/clinical/records/{id}", record.getId())
-                        .header("Authorization", bearer(fixture.otherPatientUser())))
-                .andExpect(status().isForbidden());
+                .header("Authorization", bearer(fixture.otherPatientUser())))
+            .andExpect(status().isForbidden());
 
         mockMvc.perform(get("/api/v1/clinical/patients/{patientId}/records", fixture.patient().getId())
-                        .header("Authorization", bearer(fixture.otherPatientUser())))
-                .andExpect(status().isForbidden());
+                .header("Authorization", bearer(fixture.otherPatientUser())))
+            .andExpect(status().isForbidden());
 
         mockMvc.perform(get("/api/v1/clinical/records/{id}", record.getId())
-                        .header("Authorization", bearer(fixture.patientUser())))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.patientId").value(fixture.patient().getId().toString()))
-                .andExpect(jsonPath("$.prescriptions[0].medicalRecord").doesNotExist());
+                .header("Authorization", bearer(fixture.patientUser())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.patientId").value(fixture.patient().getId().toString()))
+            .andExpect(jsonPath("$.prescriptions[0].medicalRecord").doesNotExist());
     }
 
     @Test
@@ -82,17 +79,17 @@ class ClinicalAuthorizationIntegrationTest extends AbstractIntegrationTest {
         MedicalRecord record = createRecord(fixture, true);
 
         mockMvc.perform(get("/api/v1/clinical/records/{id}", record.getId())
-                        .header("Authorization", bearer(fixture.otherDoctorUser())))
-                .andExpect(status().isForbidden());
+                .header("Authorization", bearer(fixture.otherDoctorUser())))
+            .andExpect(status().isForbidden());
 
         mockMvc.perform(get("/api/v1/doctor/patients/{patientId}/medical-records", fixture.patient().getId())
-                        .header("Authorization", bearer(fixture.otherDoctorUser())))
-                .andExpect(status().isForbidden());
+                .header("Authorization", bearer(fixture.otherDoctorUser())))
+            .andExpect(status().isForbidden());
 
         mockMvc.perform(get("/api/v1/doctor/patients/{patientId}/medical-records", fixture.patient().getId())
-                        .header("Authorization", bearer(fixture.doctorUser())))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].doctorId").value(fixture.doctor().getId().toString()));
+                .header("Authorization", bearer(fixture.doctorUser())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].doctorId").value(fixture.doctor().getId().toString()));
     }
 
     @Test
@@ -102,22 +99,22 @@ class ClinicalAuthorizationIntegrationTest extends AbstractIntegrationTest {
         String code = record.getPrescriptions().get(0).getPrescriptionCode();
 
         mockMvc.perform(get("/api/v1/clinical/prescriptions/{code}", code)
-                        .header("Authorization", bearer(fixture.otherPatientUser())))
-                .andExpect(status().isForbidden());
+                .header("Authorization", bearer(fixture.otherPatientUser())))
+            .andExpect(status().isForbidden());
 
         mockMvc.perform(get("/api/v1/clinical/prescriptions/{code}", code)
-                        .header("Authorization", bearer(fixture.otherDoctorUser())))
-                .andExpect(status().isForbidden());
+                .header("Authorization", bearer(fixture.otherDoctorUser())))
+            .andExpect(status().isForbidden());
 
         mockMvc.perform(get("/api/v1/clinical/prescriptions/{code}", code)
-                        .header("Authorization", bearer(fixture.patientUser())))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.prescriptionCode").value(code))
-                .andExpect(jsonPath("$.items[0].prescription").doesNotExist());
+                .header("Authorization", bearer(fixture.patientUser())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.prescriptionCode").value(code))
+            .andExpect(jsonPath("$.items[0].prescription").doesNotExist());
 
         mockMvc.perform(get("/api/v1/clinical/prescriptions/{code}", code)
-                        .header("Authorization", bearer(fixture.adminUser())))
-                .andExpect(status().isOk());
+                .header("Authorization", bearer(fixture.adminUser())))
+            .andExpect(status().isOk());
     }
 
     @Test
@@ -125,47 +122,39 @@ class ClinicalAuthorizationIntegrationTest extends AbstractIntegrationTest {
         ClinicalFixture fixture = fixture();
         Appointment appointment = createAppointment(fixture);
         CreateMedicalRecordRequest request = new CreateMedicalRecordRequest(
-                appointment.getId(),
-                fixture.patient().getId(),
-                fixture.doctor().getId(),
-                "J06.9",
-                "Acute upper respiratory infection",
-                "Acute respiratory infection",
-                "Cough and fever",
-                120,
-                80,
-                76,
-                new BigDecimal("36.8"),
-                new BigDecimal("65.00"),
-                new BigDecimal("170.00"),
-                "Rest and fluids",
-                "Follow up if symptoms worsen",
-                LocalDate.now().plusDays(7),
-                List.of(new PrescriptionItemDto(
-                        "Paracetamol",
-                        "Acetaminophen",
-                        "500",
-                        "mg",
-                        "Every 8 hours",
-                        5,
-                        15,
-                        "After meals")),
-                "Take medicine after meals");
+            appointment.getId(),
+            fixture.patient().getId(),
+            fixture.doctor().getId(),
+            "J06.9",
+            "Acute upper respiratory infection",
+            "Acute respiratory infection",
+            "Cough and fever",
+            120, 80, 76,
+            new BigDecimal("36.8"),
+            new BigDecimal("65.00"),
+            new BigDecimal("170.00"),
+            "Rest and fluids",
+            "Follow up if symptoms worsen",
+            LocalDate.now().plusDays(7),
+            List.of(new PrescriptionItemDto(
+                "Paracetamol", "Acetaminophen", "500", "mg",
+                "Every 8 hours", 5, 15, "After meals")),
+            "Take medicine after meals");
 
         mockMvc.perform(post("/api/v1/clinical/records")
-                        .header("Authorization", bearer(fixture.doctorUser()))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.patientId").value(fixture.patient().getId().toString()))
-                .andExpect(jsonPath("$.doctorId").value(fixture.doctor().getId().toString()))
-                .andExpect(jsonPath("$.prescriptions[0].items[0].medicationName").value("Paracetamol"))
-                .andExpect(jsonPath("$.prescriptions[0].items[0].prescription").doesNotExist());
+                .header("Authorization", bearer(fixture.doctorUser()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.patientId").value(fixture.patient().getId().toString()))
+            .andExpect(jsonPath("$.doctorId").value(fixture.doctor().getId().toString()))
+            .andExpect(jsonPath("$.prescriptions[0].items[0].medicationName").value("Paracetamol"))
+            .andExpect(jsonPath("$.prescriptions[0].items[0].prescription").doesNotExist());
 
         assertThat(appointmentRepository.findById(appointment.getId()))
-                .get()
-                .extracting(Appointment::getStatus)
-                .isEqualTo(AppointmentStatus.COMPLETED);
+            .get()
+            .extracting(Appointment::getStatus)
+            .isEqualTo(AppointmentStatus.COMPLETED);
     }
 
     @Test
@@ -173,15 +162,15 @@ class ClinicalAuthorizationIntegrationTest extends AbstractIntegrationTest {
         ClinicalFixture fixture = fixture();
         Appointment appointment = createAppointment(fixture);
         String body = objectMapper.writeValueAsString(new CreateMedicalRecordRequest(
-                appointment.getId(), fixture.patient().getId(), fixture.doctor().getId(),
-                null, null, "Patient supplied diagnosis", null, null, null, null,
-                null, null, null, null, null, null, null, null));
+            appointment.getId(), fixture.patient().getId(), fixture.doctor().getId(),
+            null, null, "Patient supplied diagnosis", null,
+            null, null, null, null, null, null, null, null, null, null, null));
 
         mockMvc.perform(post("/api/v1/clinical/records")
-                        .header("Authorization", bearer(fixture.patientUser()))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andExpect(status().isForbidden());
+                .header("Authorization", bearer(fixture.patientUser()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+            .andExpect(status().isForbidden());
     }
 
     @Test
@@ -189,34 +178,40 @@ class ClinicalAuthorizationIntegrationTest extends AbstractIntegrationTest {
         ClinicalFixture fixture = fixture();
         Appointment appointment = createAppointment(fixture);
         String body = """
-                {
-                  "appointmentId": "%s",
-                  "patientId": "%s",
-                  "doctorId": "%s",
-                  "diagnosis": "Diagnosis",
-                  "prescriptionItems": [{
-                    "medicationName": "",
-                    "dosage": "",
-                    "frequency": "",
-                    "durationDays": 0,
-                    "totalQuantity": 0
-                  }]
-                }
-                """.formatted(appointment.getId(), fixture.patient().getId(), fixture.doctor().getId());
+            {
+              "appointmentId": "%s",
+              "patientId": "%s",
+              "doctorId": "%s",
+              "diagnosis": "Diagnosis",
+              "prescriptionItems": [{
+                "medicationName": "",
+                "dosage": "",
+                "frequency": "",
+                "durationDays": 0,
+                "totalQuantity": 0
+              }]
+            }
+            """.formatted(appointment.getId(), fixture.patient().getId(), fixture.doctor().getId());
 
         mockMvc.perform(post("/api/v1/clinical/records")
-                        .header("Authorization", bearer(fixture.doctorUser()))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andExpect(status().isBadRequest());
+                .header("Authorization", bearer(fixture.doctorUser()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+            .andExpect(status().isBadRequest());
     }
 
+    // ── Fixtures ─────────────────────────────────────────────────────────────
+
     private ClinicalFixture fixture() {
-        User patientUser = createUser("PATIENT", "clinical.patient." + UUID.randomUUID() + "@example.com");
-        User otherPatientUser = createUser("PATIENT", "clinical.other.patient." + UUID.randomUUID() + "@example.com");
-        User doctorUser = createUser("DOCTOR", "clinical.doctor." + UUID.randomUUID() + "@example.com");
-        User otherDoctorUser = createUser("DOCTOR", "clinical.other.doctor." + UUID.randomUUID() + "@example.com");
-        User adminUser = createUser("ADMIN", "clinical.admin." + UUID.randomUUID() + "@example.com");
+        Role patientRole = roleRepository.findByCode("PATIENT").orElseThrow();
+        Role doctorRole = roleRepository.findByCode("DOCTOR").orElseThrow();
+        Role adminRole = roleRepository.findByCode("ADMIN").orElseThrow();
+
+        User patientUser = createUser(patientRole, "clinical.patient." + UUID.randomUUID() + "@example.com");
+        User otherPatientUser = createUser(patientRole, "clinical.other.patient." + UUID.randomUUID() + "@example.com");
+        User doctorUser = createUser(doctorRole, "clinical.doctor." + UUID.randomUUID() + "@example.com");
+        User otherDoctorUser = createUser(doctorRole, "clinical.other.doctor." + UUID.randomUUID() + "@example.com");
+        User adminUser = createUser(adminRole, "clinical.admin." + UUID.randomUUID() + "@example.com");
 
         PatientProfile patient = createPatient(patientUser, "090" + randomDigits());
         PatientProfile otherPatient = createPatient(otherPatientUser, "091" + randomDigits());
@@ -224,16 +219,15 @@ class ClinicalAuthorizationIntegrationTest extends AbstractIntegrationTest {
         Doctor otherDoctor = createDoctor(otherDoctorUser, "clinical-other-doctor-" + UUID.randomUUID());
 
         return new ClinicalFixture(
-                patientUser, otherPatientUser, doctorUser, otherDoctorUser, adminUser,
-                patient, otherPatient, doctor, otherDoctor);
+            patientUser, otherPatientUser, doctorUser, otherDoctorUser, adminUser,
+            patient, otherPatient, doctor, otherDoctor);
     }
 
-    private User createUser(String roleCode, String email) {
-        Role role = roleRepository.findByCode(roleCode).orElseThrow();
+    private User createUser(Role role, String email) {
         User user = new User();
         user.setEmail(email);
         user.setPasswordHash(passwordEncoder.encode("NotUsed!123"));
-        user.setDisplayName(roleCode + " Clinical Test");
+        user.setDisplayName(role.getCode() + " Clinical Test");
         user.setStatus("ACTIVE");
         user.setCreatedAt(OffsetDateTime.now());
         user.setUpdatedAt(OffsetDateTime.now());
@@ -317,14 +311,14 @@ class ClinicalAuthorizationIntegrationTest extends AbstractIntegrationTest {
     }
 
     private record ClinicalFixture(
-            User patientUser,
-            User otherPatientUser,
-            User doctorUser,
-            User otherDoctorUser,
-            User adminUser,
-            PatientProfile patient,
-            PatientProfile otherPatient,
-            Doctor doctor,
-            Doctor otherDoctor) {
+        User patientUser,
+        User otherPatientUser,
+        User doctorUser,
+        User otherDoctorUser,
+        User adminUser,
+        PatientProfile patient,
+        PatientProfile otherPatient,
+        Doctor doctor,
+        Doctor otherDoctor) {
     }
 }
