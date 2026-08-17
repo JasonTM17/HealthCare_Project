@@ -1,6 +1,6 @@
 package com.healthcare.hospital.repository;
 
-import com.healthcare.hospital.entity.Service;
+import com.healthcare.hospital.entity.MedicalService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -10,8 +10,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface ServiceRepository extends JpaRepository<Service, UUID> {
-    Optional<Service> findBySlug(String slug);
+public interface ServiceRepository extends JpaRepository<MedicalService, UUID> {
+    Optional<MedicalService> findBySlug(String slug);
 
-    Page<Service> findByActiveTrue(Pageable pageable);
+    Page<MedicalService> findByActiveTrue(Pageable pageable);
 }

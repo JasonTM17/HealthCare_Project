@@ -11,7 +11,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "services")
-public class Service {
+public class MedicalService {
 
     @Id
     @UuidGenerator

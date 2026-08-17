@@ -111,7 +111,7 @@ public class AuthService {
         return buildAuthResponse(user, accessToken, refreshTokenString);
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = BadCredentialsException.class)
     public AuthResponse refreshToken(RefreshTokenRequest request) {
         String token = request.refreshToken();
 

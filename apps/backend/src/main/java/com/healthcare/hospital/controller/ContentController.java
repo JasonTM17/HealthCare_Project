@@ -3,7 +3,7 @@ package com.healthcare.hospital.controller;
 import com.healthcare.hospital.dto.PackageResponse;
 import com.healthcare.hospital.dto.ServiceResponse;
 import com.healthcare.hospital.entity.Package;
-import com.healthcare.hospital.entity.Service;
+import com.healthcare.hospital.entity.MedicalService;
 import com.healthcare.hospital.repository.PackageRepository;
 import com.healthcare.hospital.repository.ServiceRepository;
 import org.springframework.data.domain.Page;
@@ -36,6 +36,16 @@ public class ContentController {
         return serviceRepository.findBySlug(slug).map(this::toServiceResponse).orElse(null);
     }
 
+    @GetMapping("/hospital/services")
+    public Page<ServiceResponse> listHospitalServices(@PageableDefault(size = 20) Pageable pageable) {
+        return serviceRepository.findByActiveTrue(pageable).map(this::toServiceResponse);
+    }
+
+    @GetMapping("/hospital/services/{slug}")
+    public ServiceResponse getHospitalServiceBySlug(@PathVariable String slug) {
+        return serviceRepository.findBySlug(slug).map(this::toServiceResponse).orElse(null);
+    }
+
     @GetMapping("/packages")
     public Page<PackageResponse> listPackages(@PageableDefault(size = 20) Pageable pageable) {
         return packageRepository.findByActiveTrue(pageable).map(this::toPackageResponse);
@@ -46,7 +56,7 @@ public class ContentController {
         return packageRepository.findBySlug(slug).map(this::toPackageResponse).orElse(null);
     }
 
-    private ServiceResponse toServiceResponse(Service service) {
+    private ServiceResponse toServiceResponse(MedicalService service) {
         return new ServiceResponse(service.getId().toString(), service.getName(), service.getSlug(), service.getDescription());
     }
 
