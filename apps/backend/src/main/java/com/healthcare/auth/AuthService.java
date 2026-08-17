@@ -118,10 +118,14 @@ public class AuthService {
             throw new BadCredentialsException("Invalid refresh token");
         }
 
+        if (!tokenProvider.isRefreshToken(token)) {
+            throw new BadCredentialsException("Invalid refresh token");
+        }
+
         UUID userId = tokenProvider.extractUserId(token);
         String tokenHash = hashToken(token);
 
-        RefreshToken storedToken = refreshTokenRepository.findByTokenHash(tokenHash)
+        RefreshToken storedToken = refreshTokenRepository.findByTokenHashForUpdate(tokenHash)
             .orElseThrow(() -> new BadCredentialsException("Refresh token not found"));
 
         if (storedToken.isRevoked() || storedToken.isExpired()) {
@@ -135,7 +139,8 @@ public class AuthService {
         String accessToken = tokenProvider.generateAccessToken(user.getId(), user.getEmail());
         String newRefreshToken = tokenProvider.generateRefreshToken(user.getId());
 
-        refreshTokenRepository.delete(storedToken);
+        storedToken.setRevokedAt(OffsetDateTime.now());
+        refreshTokenRepository.save(storedToken);
         saveRefreshToken(user, newRefreshToken);
 
         return buildAuthResponse(user, accessToken, newRefreshToken);

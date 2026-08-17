@@ -3,13 +3,13 @@ package com.healthcare.auth;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.healthcare.AbstractIntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
@@ -17,9 +17,7 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest
-@AutoConfigureMockMvc
-class AuthControllerTest {
+class AuthControllerTest extends AbstractIntegrationTest {
     @Autowired
     private MockMvc mockMvc;
 
@@ -152,6 +150,46 @@ class AuthControllerTest {
             .andExpect(status().isUnauthorized());
     }
 
+    @Test
+    void refreshReuseRevokesTheReplacementToken() throws Exception {
+        JsonNode registration = register("reuse.patient@example.com", "Str0ng!Pass", "Reuse Patient");
+        String originalRefreshToken = registration.get("refreshToken").asText();
+        String replacementRefreshToken = refresh(originalRefreshToken).get("refreshToken").asText();
+
+        refreshFails(originalRefreshToken);
+        refreshFails(replacementRefreshToken);
+    }
+
+    @Test
+    void administratorBoundaryRejectsPatientRole() throws Exception {
+        JsonNode registration = register("patient.role@example.com", "Str0ng!Pass", "Patient Role");
+
+        mockMvc.perform(get("/api/v1/users/admin/access")
+                .header("Authorization", "Bearer " + registration.get("accessToken").asText()))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void refreshTokenCannotBeUsedAsAccessToken() throws Exception {
+        JsonNode registration = register("type.guard@example.com", "Str0ng!Pass", "Type Guard");
+        String refreshToken = registration.get("refreshToken").asText();
+
+        mockMvc.perform(get("/api/v1/users/me")
+                .header("Authorization", "Bearer " + refreshToken))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void accessTokenCannotBeUsedForRefresh() throws Exception {
+        JsonNode registration = register("type.guard.refresh@example.com", "Str0ng!Pass", "Type Guard Refresh");
+        String accessToken = registration.get("accessToken").asText();
+
+        mockMvc.perform(post("/api/v1/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"%s\"}".formatted(accessToken)))
+            .andExpect(status().isUnauthorized());
+    }
+
     private JsonNode register(String email, String password, String displayName) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -166,5 +204,22 @@ class AuthControllerTest {
             .andReturn();
 
         return objectMapper.readTree(result.getResponse().getContentAsString());
+    }
+
+    private JsonNode refresh(String refreshToken) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/v1/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"%s\"}".formatted(refreshToken)))
+            .andExpect(status().isOk())
+            .andReturn();
+
+        return objectMapper.readTree(result.getResponse().getContentAsString());
+    }
+
+    private void refreshFails(String refreshToken) throws Exception {
+        mockMvc.perform(post("/api/v1/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"%s\"}".formatted(refreshToken)))
+            .andExpect(status().isUnauthorized());
     }
 }

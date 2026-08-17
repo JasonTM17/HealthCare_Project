@@ -31,7 +31,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         throws ServletException, IOException {
         String token = extractToken(request);
 
-        if (StringUtils.hasText(token) && tokenProvider.isValid(token)) {
+        if (StringUtils.hasText(token) && tokenProvider.isValid(token) && tokenProvider.isAccessToken(token)) {
             UUID userId = tokenProvider.extractUserId(token);
             UserDetails userDetails = userDetailsService.loadUserByUsername(tokenProvider.extractEmail(token));
 

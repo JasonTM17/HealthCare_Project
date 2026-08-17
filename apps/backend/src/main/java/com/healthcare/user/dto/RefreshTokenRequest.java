@@ -1,6 +1,8 @@
 package com.healthcare.user.dto;
 
+import jakarta.validation.constraints.NotBlank;
+
 public record RefreshTokenRequest(
-    String refreshToken
+    @NotBlank String refreshToken
 ) {
 }

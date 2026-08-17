@@ -45,4 +45,10 @@ public class UserController {
             roles
         ));
     }
+
+    @GetMapping("/admin/access")
+    @Operation(summary = "Check administrator access", description = "Foundation authorization boundary for ADMIN role")
+    public ResponseEntity<Void> checkAdministratorAccess() {
+        return ResponseEntity.noContent().build();
+    }
 }
