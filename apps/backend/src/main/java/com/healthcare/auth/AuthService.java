@@ -2,7 +2,6 @@ package com.healthcare.auth;
 
 import com.healthcare.exception.DuplicateResourceException;
 import com.healthcare.exception.ResourceNotFoundException;
-import com.healthcare.security.CustomUserDetailsService;
 import com.healthcare.security.JwtProperties;
 import com.healthcare.security.JwtTokenProvider;
 import com.healthcare.user.dto.AuthResponse;
@@ -15,8 +14,8 @@ import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.RefreshTokenRepository;
 import com.healthcare.user.repository.RoleRepository;
 import com.healthcare.user.repository.UserRepository;
-import io.jsonwebtoken.Claims;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.AccountStatusException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -97,7 +96,7 @@ public class AuthService {
             Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(normalizedEmail, request.password())
             );
-        } catch (BadCredentialsException e) {
+        } catch (BadCredentialsException | AccountStatusException e) {
             throw new BadCredentialsException("Invalid email or password");
         }
 
@@ -123,22 +122,32 @@ public class AuthService {
             throw new BadCredentialsException("Invalid refresh token");
         }
 
-        UUID userId = tokenProvider.extractUserId(token);
+        UUID userId;
+        try {
+            userId = tokenProvider.extractUserId(token);
+        } catch (RuntimeException e) {
+            throw new BadCredentialsException("Invalid refresh token");
+        }
         String tokenHash = hashToken(token);
 
         RefreshToken storedToken = refreshTokenRepository.findByTokenHashForUpdate(tokenHash)
             .orElseThrow(() -> new BadCredentialsException("Refresh token not found"));
 
+        UUID storedUserId = storedToken.getUser().getId();
+        if (!storedUserId.equals(userId)) {
+            throw new BadCredentialsException("Invalid refresh token");
+        }
+
         if (storedToken.isRevoked() || storedToken.isExpired()) {
-            revokeAllUserTokens(userId);
+            revokeAllUserTokens(storedUserId);
             throw new BadCredentialsException("Refresh token expired or revoked");
         }
 
-        User user = userRepository.findWithRolesById(userId)
-            .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        User user = userRepository.findWithRolesById(storedUserId)
+            .orElseThrow(() -> new BadCredentialsException("Invalid refresh token"));
 
         if (!"ACTIVE".equals(user.getStatus())) {
-            revokeAllUserTokens(userId);
+            revokeAllUserTokens(storedUserId);
             throw new BadCredentialsException("Account is disabled");
         }
 

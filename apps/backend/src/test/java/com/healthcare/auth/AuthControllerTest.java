@@ -8,12 +8,25 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.healthcare.TestcontainersIntegrationTest;
+import com.healthcare.security.JwtProperties;
+import com.healthcare.user.entity.RefreshToken;
+import com.healthcare.user.repository.RefreshTokenRepository;
 import com.healthcare.user.repository.UserRepository;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MvcResult;
+
+import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.HexFormat;
+import java.time.Instant;
+import java.util.Date;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -23,6 +36,12 @@ class AuthControllerTest extends TestcontainersIntegrationTest {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private RefreshTokenRepository refreshTokenRepository;
+
+    @Autowired
+    private JwtProperties jwtProperties;
 
     @Test
     void registerCreatesPatientAndDoesNotExposePasswordHash() throws Exception {
@@ -101,6 +120,28 @@ class AuthControllerTest extends TestcontainersIntegrationTest {
     }
 
     @Test
+    void disabledAccountLoginUsesGenericUnauthorizedResponse() throws Exception {
+        register("disabled.login@example.com", "Str0ng!Pass", "Disabled Login");
+
+        userRepository.findByEmail("disabled.login@example.com")
+            .ifPresent(user -> {
+                user.setStatus("DISABLED");
+                userRepository.save(user);
+            });
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "email": "disabled.login@example.com",
+                      "password": "Str0ng!Pass"
+                    }
+                    """))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.message").value("Invalid email or password"));
+    }
+
+    @Test
     void protectedEndpointRequiresAuth() throws Exception {
         mockMvc.perform(post("/api/v1/auth/logout"))
             .andExpect(status().isUnauthorized());
@@ -161,6 +202,22 @@ class AuthControllerTest extends TestcontainersIntegrationTest {
     }
 
     @Test
+    void refreshRejectsWhenStoredSessionOwnerDoesNotMatchSignedSubject() throws Exception {
+        JsonNode registration = register("session.owner@example.com", "Str0ng!Pass", "Session Owner");
+        register("other.owner@example.com", "Str0ng!Pass", "Other Owner");
+        String refreshToken = registration.get("refreshToken").asText();
+
+        RefreshToken storedToken = refreshTokenRepository.findByTokenHash(hashToken(refreshToken)).orElseThrow();
+        storedToken.setUser(userRepository.findByEmail("other.owner@example.com").orElseThrow());
+        refreshTokenRepository.saveAndFlush(storedToken);
+
+        mockMvc.perform(post("/api/v1/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"%s\"}".formatted(refreshToken)))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void administratorBoundaryRejectsPatientRole() throws Exception {
         JsonNode registration = register("patient.role@example.com", "Str0ng!Pass", "Patient Role");
 
@@ -188,6 +245,26 @@ class AuthControllerTest extends TestcontainersIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"refreshToken\":\"%s\"}".formatted(accessToken)))
             .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void structurallyInvalidSignedRefreshTokenReturnsUnauthorized() throws Exception {
+        Instant now = Instant.now();
+        SecretKey key = Keys.hmacShaKeyFor(jwtProperties.secret().getBytes(StandardCharsets.UTF_8));
+        String malformedToken = Jwts.builder()
+            .subject("not-a-uuid")
+            .claim("type", "refresh")
+            .id(UUID.randomUUID().toString())
+            .issuedAt(Date.from(now))
+            .expiration(Date.from(now.plusSeconds(900)))
+            .signWith(key)
+            .compact();
+
+        mockMvc.perform(post("/api/v1/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"%s\"}".formatted(malformedToken)))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.message").value("Invalid email or password"));
     }
 
     private JsonNode register(String email, String password, String displayName) throws Exception {
@@ -221,6 +298,16 @@ class AuthControllerTest extends TestcontainersIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"refreshToken\":\"%s\"}".formatted(refreshToken)))
             .andExpect(status().isUnauthorized());
+    }
+
+    private String hashToken(String token) {
+        try {
+            byte[] hash = MessageDigest.getInstance("SHA-256")
+                .digest(token.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (Exception e) {
+            throw new AssertionError("SHA-256 unavailable", e);
+        }
     }
 
     @Test
