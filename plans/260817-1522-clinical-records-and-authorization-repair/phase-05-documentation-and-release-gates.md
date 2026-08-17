@@ -1,6 +1,6 @@
 ---
 title: "Phase 5: Documentation and release gates"
-status: todo
+status: completed
 ---
 
 # Phase 5: Documentation and release gates
@@ -13,9 +13,9 @@ not authorize a commit, push, PR, deployment, or compliance claim.
 
 ## Requirements
 
-- [ ] README and plan scope remain explicit about clinical overlay status.
-- [ ] Reviewers inspect the exact final worktree identity and changed paths.
-- [ ] Release/ship gate distinguishes local evidence from CI, live provider, and production evidence.
+- [x] README and plan scope remain explicit about clinical overlay status.
+- [x] Reviewers inspect the exact final worktree identity and changed paths.
+- [x] Release/ship gate distinguishes local evidence from CI, live provider, and production evidence.
 
 ## Implementation Steps
 
@@ -25,9 +25,9 @@ not authorize a commit, push, PR, deployment, or compliance claim.
 
 ## Todo
 
-- [ ] Record final exact HEAD and dirty/untracked manifest.
-- [ ] Capture Advisor/Kongming/Wukong/Luna disposition on the frozen result.
-- [ ] Leave push/PR and production readiness explicitly unclaimed.
+- [x] Record final exact HEAD and dirty/untracked manifest in the handoff/review record.
+- [x] Capture Advisor/Kongming/Wukong/Luna disposition on the frozen result.
+- [x] Leave push/PR and production readiness explicitly unclaimed.
 
 ## Success Criteria
 

@@ -37,6 +37,14 @@ export interface HealthPackage {
   checklist?: string[];
 }
 
+export interface Article {
+  id: string;
+  title: string;
+  slug: string;
+  summary: string;
+  publishedAt: string;
+}
+
 export interface TimeSlot {
   startTime: string; // e.g. "08:00:00"
   endTime: string;   // e.g. "08:30:00"

@@ -1,6 +1,6 @@
 ---
 title: "Phase 2: Clinical schema and compile repair"
-status: in-progress
+status: completed
 ---
 
 # Phase 2: Clinical schema and compile repair
@@ -13,9 +13,9 @@ schema must match the JPA mappings without modifying an already-applied V4.
 
 ## Requirements
 
-- [ ] V5 creates medical records, prescriptions, prescription items, and diagnostic results once.
-- [ ] Existing V1-V4 tables remain unchanged and Hibernate mappings validate against V5.
-- [ ] Clinical source compiles with the actual exception package, Doctor model, and repository APIs.
+- [x] V5 creates medical records, prescriptions, prescription items, and diagnostic results once.
+- [x] Existing V1-V4 tables remain unchanged and Hibernate mappings validate against V5.
+- [x] Clinical source compiles with the actual exception package, Doctor model, and repository APIs.
 
 ## Implementation Steps
 
@@ -26,9 +26,9 @@ schema must match the JPA mappings without modifying an already-applied V4.
 
 ## Todo
 
-- [ ] Add the canonical clinical V5 migration.
-- [ ] Repair entity/repository/service/controller compilation.
-- [ ] Record exact compile and schema verification output.
+- [x] Add the canonical clinical V5 migration.
+- [x] Repair entity/repository/service/controller compilation.
+- [x] Record exact compile and schema verification output.
 
 ## Success Criteria
 

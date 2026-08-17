@@ -34,5 +34,7 @@ after Advisor, Kongming, Wukong, and Luna review.
 
 ## Success Criteria
 
-The repair can proceed only against the current main workspace and with the
-clinical source treated as untracked input until the final exact-scope review.
+The repair proceeded against the current main workspace with the clinical
+source treated as untrusted input until the final exact-scope review. The
+result is now part of the reviewed main snapshot; later portal/file-linkage
+work remains outside this bounded repair.

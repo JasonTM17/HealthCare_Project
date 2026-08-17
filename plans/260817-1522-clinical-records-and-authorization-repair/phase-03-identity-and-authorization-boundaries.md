@@ -1,6 +1,6 @@
 ---
 title: "Phase 3: Identity and authorization boundaries"
-status: todo
+status: completed
 ---
 
 # Phase 3: Identity and authorization boundaries
@@ -13,9 +13,9 @@ for missing identity or mismatched ownership.
 
 ## Requirements
 
-- [ ] Patient and doctor profiles have explicit nullable user links for legacy rows.
-- [ ] Clinical routes require authentication and role/object ownership checks.
-- [ ] Controllers return DTOs that expose only the intended clinical fields.
+- [x] Patient and doctor profiles have explicit nullable user links for legacy rows.
+- [x] Clinical routes require authentication and role/object ownership checks.
+- [x] Controllers return DTOs that expose only the intended clinical fields.
 
 ## Implementation Steps
 
@@ -26,9 +26,9 @@ for missing identity or mismatched ownership.
 
 ## Todo
 
-- [ ] Remove clinical `permitAll` and add endpoint-level role/ownership guards.
-- [ ] Implement patient and doctor portal service methods using linked identities.
-- [ ] Add DTO mapping and avoid bidirectional JPA entity responses.
+- [x] Remove clinical `permitAll` and add endpoint-level role/ownership guards.
+- [x] Implement patient and doctor portal service methods using linked identities.
+- [x] Add DTO mapping and avoid bidirectional JPA entity responses.
 
 ## Success Criteria
 

@@ -11,7 +11,7 @@ The repository currently has auth/RBAC, appointment booking, a clinical records 
 ```text
 apps/backend      Spring Boot 3 backend baseline
 apps/frontend     Next.js TypeScript frontend baseline
-apps/ai-service   FastAPI AI service baseline without provider calls
+apps/ai-service   FastAPI AI/RAG service with deterministic fallback
 docs/adr          Architecture decision records
 docs/architecture Architecture notes and diagrams
 infrastructure    Local development infrastructure
@@ -98,10 +98,14 @@ Google Stitch may be used for static design concepts only when API, dependencies
 
 The foundation and public hospital domain are implemented locally: auth/RBAC,
 JWT access+refresh tokens, appointment booking, clinical records authorization,
-hospital content APIs, frontend catalog, CI, and the current admin/storage
-baselines. Remaining work includes broader scheduling/concurrency, patient and
-doctor portals, complete file metadata/ownership hardening, notifications,
-AI/RAG/recommendations, semantic search, security hardening, performance, UX
-polish, and the final end-to-end demo.
+hospital content APIs, frontend catalog, CI, admin/storage baselines,
+notifications, and AI/RAG/search foundations. Remaining work includes broader
+scheduling/concurrency, patient and doctor portals, complete clinical file
+metadata/linkage, stronger semantic retrieval, security hardening, performance,
+UX polish, and the final end-to-end demo.
 
-Remaining PROJECT_PLAN.md phases (5-21): admin CMS, doctor scheduling, appointment concurrency, patient/doctor portals, files, notifications, AI foundation/RAG/recommendations, semantic search, security hardening, performance, UX polish, and CI/CD.
+Remaining PROJECT_PLAN.md phases (5-21) cover broader scheduling/concurrency,
+patient/doctor portals, clinical file metadata/linkage, semantic search,
+security hardening, performance, UX polish, and CI/CD. The current AI/RAG,
+notification, admin, and storage slices are local foundation implementations,
+not production integrations.

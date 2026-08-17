@@ -1,6 +1,6 @@
 ---
 title: "Phase 4: Regression and integration coverage"
-status: todo
+status: completed
 ---
 
 # Phase 4: Regression and integration coverage
@@ -14,9 +14,9 @@ Docker provider.
 
 ## Requirements
 
-- [ ] Backend compile and focused integration tests run against explicitly configured PostgreSQL.
-- [ ] Test cleanup respects clinical foreign keys without widening the foundation test contract.
-- [ ] Frontend lint, typecheck, and tests remain green.
+- [x] Backend compile and focused integration tests run against explicitly configured PostgreSQL.
+- [x] Test cleanup respects clinical foreign keys without widening the foundation test contract.
+- [x] Frontend lint, typecheck, test, and build gates remain green.
 
 ## Implementation Steps
 
@@ -27,9 +27,9 @@ Docker provider.
 
 ## Todo
 
-- [ ] Add deterministic clinical fixtures and negative authorization tests.
-- [ ] Run backend and frontend validation commands.
-- [ ] Mark unavailable Docker/live-service checks honestly as NOT_RUN/BLOCKED.
+- [x] Add deterministic clinical fixtures and negative authorization tests.
+- [x] Run backend and frontend validation commands.
+- [x] Mark unavailable Docker/live-service checks honestly as NOT_RUN/BLOCKED.
 
 ## Success Criteria
 

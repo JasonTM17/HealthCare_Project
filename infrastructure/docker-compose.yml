@@ -112,7 +112,9 @@ services:
     container_name: healthcare-ai-service
     restart: unless-stopped
     environment:
-      AI_PROVIDER: disabled
+      AI_PROVIDER: rule_based_triage
+      EMBEDDING_PROVIDER: local
+      RAG_INGEST_ENABLED: "false"
     ports:
       - "8000:8000"
     healthcheck:
