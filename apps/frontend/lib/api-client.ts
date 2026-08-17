@@ -3,9 +3,10 @@ import type {
   Specialty,
   Branch,
   HealthPackage,
+  Article,
 } from "../types/hospital";
 
-export type { Doctor, Specialty, Branch, HealthPackage };
+export type { Doctor, Specialty, Branch, HealthPackage, Article };
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080/api/v1";
@@ -112,6 +113,19 @@ export async function fetchPackages(
 
 export async function fetchPackageBySlug(slug: string): Promise<HealthPackage> {
   return getJson<HealthPackage>(`/hospital/packages/${slug}`);
+}
+
+// ── Articles ───────────────────────────────────────────────────────────────
+
+export async function fetchArticles(
+  page = 0,
+  size = 50,
+): Promise<Page<Article>> {
+  return getJson<Page<Article>>(`/hospital/articles${toQuery({ page, size })}`);
+}
+
+export async function fetchArticleBySlug(slug: string): Promise<Article> {
+  return getJson<Article>(`/hospital/articles/${slug}`);
 }
 
 // ── Admin: Doctors ──────────────────────────────────────────────────────────
