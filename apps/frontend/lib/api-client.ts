@@ -5,6 +5,8 @@ import type {
   HealthPackage,
 } from "../types/hospital";
 
+export type { Doctor, Specialty, Branch, HealthPackage };
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080/api/v1";
 
@@ -110,4 +112,80 @@ export async function fetchPackages(
 
 export async function fetchPackageBySlug(slug: string): Promise<HealthPackage> {
   return getJson<HealthPackage>(`/hospital/packages/${slug}`);
+}
+
+// ── Admin: Doctors ──────────────────────────────────────────────────────────
+
+export interface AdminDoctorPayload {
+  fullName: string;
+  slug: string;
+  bio?: string | null;
+  photoUrl?: string | null;
+  active: boolean;
+  userId?: string | null;
+}
+
+export async function adminListDoctors(
+  page = 0,
+  size = 50,
+): Promise<Page<Doctor>> {
+  return getJson<Page<Doctor>>(`/admin/doctors${toQuery({ page, size })}`);
+}
+
+export async function adminCreateDoctor(payload: AdminDoctorPayload): Promise<Doctor> {
+  return getJson<Doctor>("/admin/doctors", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function adminUpdateDoctor(
+  slug: string,
+  payload: AdminDoctorPayload,
+): Promise<Doctor> {
+  return getJson<Doctor>(`/admin/doctors/${slug}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function adminDeleteDoctor(slug: string): Promise<void> {
+  await fetch(`${API_BASE_URL}/admin/doctors/${slug}`, { method: "DELETE" });
+}
+
+// ── Admin: Specialties ──────────────────────────────────────────────────────
+
+export interface AdminSpecialtyPayload {
+  name: string;
+  slug: string;
+  description?: string | null;
+  active: boolean;
+}
+
+export async function adminListSpecialties(
+  page = 0,
+  size = 50,
+): Promise<Page<Specialty>> {
+  return getJson<Page<Specialty>>(`/admin/specialties${toQuery({ page, size })}`);
+}
+
+export async function adminCreateSpecialty(payload: AdminSpecialtyPayload): Promise<Specialty> {
+  return getJson<Specialty>("/admin/specialties", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function adminUpdateSpecialty(
+  slug: string,
+  payload: AdminSpecialtyPayload,
+): Promise<Specialty> {
+  return getJson<Specialty>(`/admin/specialties/${slug}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function adminDeleteSpecialty(slug: string): Promise<void> {
+  await fetch(`${API_BASE_URL}/admin/specialties/${slug}`, { method: "DELETE" });
 }
