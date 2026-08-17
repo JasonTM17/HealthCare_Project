@@ -11,6 +11,9 @@ import type {
   Notification,
   Prescription,
   UserProfile,
+  AiTriageCitation,
+  AiTriageProvenance,
+  AiTriageResult,
 } from "../types/hospital";
 
 export type {
@@ -26,6 +29,9 @@ export type {
   Notification,
   Prescription,
   UserProfile,
+  AiTriageCitation,
+  AiTriageProvenance,
+  AiTriageResult,
 };
 
 const API_BASE_URL =
@@ -165,6 +171,100 @@ async function getAuthenticatedJson<T>(path: string, init?: RequestInit): Promis
   const headers = new Headers(init?.headers);
   headers.set("Authorization", `${session.tokenType} ${session.accessToken}`);
   return getJson<T>(path, { ...init, headers });
+}
+
+interface SpecialtyRecommendationResponse {
+  recommended_specialty: unknown;
+  urgency_level: unknown;
+  clinical_advice: unknown;
+  suggested_questions: unknown;
+  disclaimer?: unknown;
+  citations?: unknown;
+  provenance?: unknown;
+}
+
+const AI_SPECIALTY_RECOMMENDATION_PATH = "/ai/specialty-recommendation";
+const AI_URGENCY_LEVELS = ["EMERGENCY", "HIGH", "NORMAL"] as const;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isAiTriageCitation(value: unknown): value is AiTriageCitation {
+  return typeof value === "string" || isRecord(value);
+}
+
+function isAiTriageProvenance(value: unknown): value is AiTriageProvenance {
+  return typeof value === "string" || isRecord(value);
+}
+
+/**
+ * Calls the authenticated backend AI contract. This deliberately has no
+ * client-side fallback: a result is only shown when the backend returns one.
+ */
+export async function recommendSpecialty(symptoms: string): Promise<AiTriageResult> {
+  const normalized = symptoms.trim();
+  if (normalized.length < 2 || normalized.length > 10000) {
+    throw new ApiError(
+      "Mô tả triệu chứng phải dài từ 2 đến 10000 ký tự.",
+      400,
+      AI_SPECIALTY_RECOMMENDATION_PATH,
+    );
+  }
+
+  const response = await getAuthenticatedJson<SpecialtyRecommendationResponse>(
+    AI_SPECIALTY_RECOMMENDATION_PATH,
+    {
+      method: "POST",
+      body: JSON.stringify({ symptoms: normalized }),
+    },
+  );
+
+  if (
+    typeof response.recommended_specialty !== "string" ||
+    typeof response.clinical_advice !== "string" ||
+    !Array.isArray(response.suggested_questions) ||
+    response.suggested_questions.some((question) => typeof question !== "string")
+  ) {
+    throw new ApiError(
+      "Dịch vụ AI trả về dữ liệu không đúng định dạng.",
+      502,
+      AI_SPECIALTY_RECOMMENDATION_PATH,
+    );
+  }
+
+  if (
+    typeof response.urgency_level !== "string" ||
+    !(AI_URGENCY_LEVELS as readonly string[]).includes(response.urgency_level)
+  ) {
+    throw new ApiError(
+      "Dịch vụ AI trả về mức độ ưu tiên không hợp lệ.",
+      502,
+      AI_SPECIALTY_RECOMMENDATION_PATH,
+    );
+  }
+
+  const result: AiTriageResult = {
+    recommendedSpecialty: response.recommended_specialty,
+    urgencyLevel: response.urgency_level as AiTriageResult["urgencyLevel"],
+    advice: response.clinical_advice,
+    suggestedQuestions: response.suggested_questions,
+  };
+
+  if (typeof response.disclaimer === "string" && response.disclaimer.trim()) {
+    result.disclaimer = response.disclaimer;
+  }
+
+  if (Array.isArray(response.citations)) {
+    const citations = response.citations.filter(isAiTriageCitation);
+    if (citations.length > 0) result.citations = citations;
+  }
+
+  if (isAiTriageProvenance(response.provenance)) {
+    result.provenance = response.provenance;
+  }
+
+  return result;
 }
 
 function toQuery(params: Record<string, string | number | undefined>): string {

@@ -8,7 +8,6 @@ import {
   HoldSlotResult,
   ConfirmAppointmentPayload,
   AppointmentDetails,
-  AiTriageResult,
 } from "../types/hospital";
 
 const API_BASE_URL =
@@ -293,52 +292,3 @@ export async function confirmAppointment(
 
   return await res.json();
 }
-
-export async function performAiTriage(symptoms: string): Promise<AiTriageResult> {
-  const lower = symptoms.toLowerCase();
-
-  // Rule-based smart clinical triage baseline
-  if (lower.includes("ngực") || lower.includes("tim") || lower.includes("hồi hộp") || lower.includes("khó thở")) {
-    return {
-      recommendedSpecialty: "Tim Mạch & Can Thiệp Mạch Máu",
-      urgencyLevel: lower.includes("dữ dội") || lower.includes("đau nhói") ? "EMERGENCY" : "HIGH",
-      advice: "Triệu chứng liên quan đến hệ tim mạch. Cần được đo điện tâm đồ và siêu âm tim sớm. Nếu đau ngực lan ra vai/hàm, vui lòng gọi cấp cứu 1900 1234 ngay.",
-      suggestedQuestions: ["Có bị tăng huyết áp không?", "Cơn đau kéo dài bao lâu?"],
-    };
-  }
-
-  if (lower.includes("bụng") || lower.includes("dạ dày") || lower.includes("ợ chua") || lower.includes("buồn nôn") || lower.includes("tiêu")) {
-    return {
-      recommendedSpecialty: "Tiêu Hóa - Gan Mật - Tụy",
-      urgencyLevel: "NORMAL",
-      advice: "Nghi ngờ bệnh lý đường tiêu hóa. Khuyến nghị nhịn ăn trước 6 tiếng nếu có chỉ định nội soi.",
-      suggestedQuestions: ["Đau trước hay sau khi ăn?", "Có tiền sử viêm loét dạ dày không?"],
-    };
-  }
-
-  if (lower.includes("đầu") || lower.includes("chóng mặt") || lower.includes("mất ngủ") || lower.includes("tê bì")) {
-    return {
-      recommendedSpecialty: "Thần Kinh & Đột Quỵ",
-      urgencyLevel: "NORMAL",
-      advice: "Khuyến nghị khám chuyên khoa Thần kinh để kiểm tra lưu huyết não và loại trừ các bệnh lý tiền đình, mạch máu não.",
-      suggestedQuestions: ["Có bị hoa mắt khi thay đổi tư thế không?", "Mất ngủ kéo dài bao lâu?"],
-    };
-  }
-
-  if (lower.includes("khớp") || lower.includes("lưng") || lower.includes("gối") || lower.includes("xương")) {
-    return {
-      recommendedSpecialty: "Cơ Xương Khớp & Phục Hồi Chức Năng",
-      urgencyLevel: "NORMAL",
-      advice: "Nên chụp X-Quang hoặc siêu âm khớp để đánh giá tình trạng thoái hóa hoặc viêm gân khớp.",
-      suggestedQuestions: ["Khớp có bị sưng nóng đỏ không?", "Có cứng khớp vào buổi sáng không?"],
-    };
-  }
-
-  return {
-    recommendedSpecialty: "Gói Khám Sức Khỏe Tổng Quát Toàn Diện",
-    urgencyLevel: "NORMAL",
-    advice: "Dấu hiệu chưa khu trú rõ vào một cơ quan. Bác sĩ Đa khoa tổng quát sẽ thăm khám lâm sàng và chỉ định xét nghiệm phù hợp.",
-    suggestedQuestions: ["Bạn đã kiểm tra sức khỏe định kỳ trong năm nay chưa?"],
-  };
-}
-

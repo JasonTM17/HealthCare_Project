@@ -75,6 +75,21 @@ const config: Config = {
           100: "#d4e6e5",
           200: "#a2b3b3",
         },
+        // Modal and legacy catalog aliases. Keep these named tokens in sync
+        // with the focus-ring classes used by the booking and AI dialogs.
+        brand: {
+          50: "#effbfb",
+          100: "#d6f1f2",
+          200: "#b1edf2",
+          300: "#7fbabf",
+          400: "#5f9ca2",
+          500: "#2a676c",
+          600: "#0f5f65",
+          700: "#0d5c63",
+          800: "#004b50",
+          900: "#003336",
+          950: "#002022",
+        },
         sand: {
           100: "#f3ead8",
           200: "#e6d9b8",

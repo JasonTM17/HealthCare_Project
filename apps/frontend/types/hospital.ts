@@ -102,11 +102,18 @@ export interface AppointmentDetails {
   createdAt: string;
 }
 
+export type AiTriageCitation = string | Record<string, unknown>;
+
+export type AiTriageProvenance = string | Record<string, unknown>;
+
 export interface AiTriageResult {
   recommendedSpecialty: string;
   urgencyLevel: "EMERGENCY" | "HIGH" | "NORMAL";
   advice: string;
   suggestedQuestions: string[];
+  disclaimer?: string;
+  citations?: AiTriageCitation[];
+  provenance?: AiTriageProvenance;
 }
 
 export interface AuthUser {

@@ -254,7 +254,7 @@ export default function BookingModal({
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-200"
             aria-label="Đóng cửa sổ đặt lịch"
           >
             <Icon name="x" size={17} />
@@ -366,7 +366,7 @@ export default function BookingModal({
                 <button
                   type="button"
                   onClick={() => setStep(2)}
-                  className="px-6 py-2.5 bg-brand-700 hover:bg-brand-800 text-white font-semibold rounded-full shadow-md hover:shadow-lg transition-colors flex items-center gap-2"
+                  className="px-6 py-2.5 bg-brand-700 hover:bg-brand-800 text-white font-semibold rounded-full shadow-md hover:shadow-lg transition-colors flex items-center gap-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
                 >
                   Tiếp tục: Chọn ngày giờ khám <span>→</span>
                 </button>
@@ -454,7 +454,7 @@ export default function BookingModal({
                   type="button"
                   disabled={!selectedSlot || !slots.some((slot) => slot.available && slot.startTime === selectedSlot && slot.branchId === selectedBranch)}
                   onClick={() => setStep(3)}
-                  className="px-6 py-2.5 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-semibold rounded-full shadow-md transition-colors flex items-center gap-2"
+                  className="px-6 py-2.5 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-semibold rounded-full shadow-md transition-colors flex items-center gap-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
                 >
                   Tiếp tục: Điền thông tin <span>→</span>
                 </button>
@@ -539,7 +539,7 @@ export default function BookingModal({
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-6 py-2.5 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-semibold rounded-full shadow-md transition-colors flex items-center gap-2"
+                  className="px-6 py-2.5 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-semibold rounded-full shadow-md transition-colors flex items-center gap-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
                 >
                   {isSubmitting ? (
                     <span>⏳ Đang giữ chỗ...</span>
@@ -600,7 +600,7 @@ export default function BookingModal({
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="px-8 py-2.5 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-bold rounded-full shadow-lg hover:shadow-xl transition-colors"
+                      className="px-8 py-2.5 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-bold rounded-full shadow-lg hover:shadow-xl transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
                     >
                       {isSubmitting ? "Đang xác nhận..." : "Hoàn tất Đặt lịch khám"}
                     </button>
@@ -671,7 +671,7 @@ export default function BookingModal({
                     <button
                       type="button"
                       onClick={onClose}
-                      className="px-8 py-2.5 bg-brand-700 hover:bg-brand-800 text-white font-bold rounded-full shadow-md transition-colors"
+                      className="px-8 py-2.5 bg-brand-700 hover:bg-brand-800 text-white font-bold rounded-full shadow-md transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
                     >
                       Đóng cửa sổ & Về trang chủ
                     </button>

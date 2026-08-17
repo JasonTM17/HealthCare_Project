@@ -280,6 +280,30 @@ export default function Home(): React.ReactElement {
               <p className="hero-description">
                 Tìm bác sĩ, chọn cơ sở và đặt lịch trong một hành trình rõ ràng.
               </p>
+              <form
+                className="hero-search"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  document.getElementById("specialties")?.scrollIntoView({ behavior: "smooth" });
+                }}
+              >
+                <label className="sr-only" htmlFor="hero-search-input">
+                  Tìm bác sĩ hoặc chuyên khoa
+                </label>
+                <Icon name="search" size={19} />
+                <input
+                  aria-describedby="hero-search-help"
+                  id="hero-search-input"
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Tìm bác sĩ hoặc chuyên khoa"
+                  type="search"
+                  value={searchQuery}
+                />
+                <button type="submit">Tìm kiếm</button>
+              </form>
+              <p className="hero-search__help" id="hero-search-help">
+                Tìm kiếm trong nội dung demo để chọn hướng đặt lịch phù hợp.
+              </p>
               <div className="hero-actions">
                 <button className="button button--amber" onClick={() => handleOpenBooking()} type="button">
                   Đặt lịch khám
@@ -291,8 +315,22 @@ export default function Home(): React.ReactElement {
                 </button>
               </div>
               <DemoNote>
-                Bản demo local: dữ liệu bác sĩ, gói khám và cơ sở là nội dung minh họa.
+                Bản demo: danh mục hiển thị là dữ liệu minh họa; trợ lý AI gọi backend khi bạn đã đăng nhập.
               </DemoNote>
+              <div className="hero-trust" aria-label="Điểm nhấn của trải nghiệm đặt khám">
+                <div className="hero-trust__item">
+                  <span className="hero-trust__icon"><Icon name="check" size={16} /></span>
+                  <span><strong>Luồng 4 bước</strong><small>Chọn, giữ, xác nhận</small></span>
+                </div>
+                <div className="hero-trust__item">
+                  <span className="hero-trust__icon"><Icon name="building" size={16} /></span>
+                  <span><strong>Chọn đúng cơ sở</strong><small>Hiển thị ngay trong lịch</small></span>
+                </div>
+                <div className="hero-trust__item">
+                  <span className="hero-trust__icon hero-trust__icon--accent"><Icon name="phone" size={16} /></span>
+                  <span><strong>Hỗ trợ khẩn cấp</strong><small>1900 1234</small></span>
+                </div>
+              </div>
             </div>
 
             <figure className="hero-visual">
@@ -359,10 +397,18 @@ export default function Home(): React.ReactElement {
                 <span className="care-link__icon"><Icon name="sparkles" size={21} /></span>
                 <span>
                   <strong>Trợ lý triệu chứng</strong>
-                  <small>Gợi ý chuyên khoa tham khảo</small>
+                  <small>Gợi ý từ backend · cần đăng nhập</small>
                 </span>
                 <Icon name="chevron-right" size={18} />
               </button>
+              <Link className="care-link" href="#packages">
+                <span className="care-link__icon"><Icon name="layers" size={21} /></span>
+                <span>
+                  <strong>Gói khám & dịch vụ</strong>
+                  <small>So sánh lựa chọn theo nhu cầu</small>
+                </span>
+                <Icon name="chevron-right" size={18} />
+              </Link>
               <Link className="care-link" href="/#branches">
                 <span className="care-link__icon"><Icon name="location" size={21} /></span>
                 <span>
@@ -609,6 +655,17 @@ export default function Home(): React.ReactElement {
           </div>
         </section>
       </main>
+
+      <button
+        aria-label="Mở Trợ lý AI để gợi ý chuyên khoa"
+        className="ai-navigator-fab"
+        onClick={() => setIsAiTriageOpen(true)}
+        type="button"
+      >
+        <span className="ai-navigator-fab__icon"><Icon name="sparkles" size={20} /></span>
+        <span className="ai-navigator-fab__copy"><strong>Care Navigator</strong><small>Gợi ý chuyên khoa</small></span>
+        <Icon name="arrow-up-right" size={17} />
+      </button>
 
       <Footer />
 
