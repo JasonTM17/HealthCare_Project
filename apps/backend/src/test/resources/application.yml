@@ -15,3 +15,11 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+
+app:
+  jwt:
+    secret: test-secret-key-that-is-at-least-256-bits-for-hmac-sha256-algorithm-required
+    access-token-ttl: 900
+    refresh-token-ttl: 604800
+  cors:
+    allowed-origins: http://localhost:3000
