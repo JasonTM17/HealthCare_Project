@@ -13,7 +13,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * {@code @Container} on a static field, then reused across all subclasses. Use this
  * base when an isolated, production-identical database is required (e.g. CI with
  * Docker available). Requires a reachable Docker daemon; on environments without
- * Docker, extend {@link AbstractIntegrationTest} instead.
+ * Docker, extend {@code AbstractIntegrationTest} instead.
  *
  * <p>All integration test classes must extend either this class or
  * {@link AbstractIntegrationTest}. Do NOT duplicate {@code @SpringBootTest},

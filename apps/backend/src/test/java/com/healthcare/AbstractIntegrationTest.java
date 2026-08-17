@@ -46,8 +46,8 @@ import org.springframework.test.web.servlet.MockMvc;
  * leaving Flyway-seeded reference data (roles, permissions) intact.
  *
  * <p>All integration test classes must extend either this class or
- * {@link TestcontainersIntegrationTest}. Do NOT duplicate {@code @SpringBootTest} or
- * {@code @AutoConfigureMockMvc} on subclasses.
+ * {@link TestcontainersIntegrationTest}. Do NOT duplicate {@code @SpringBootTest}
+ * or {@code @AutoConfigureMockMvc} on subclasses.
  */
 @SpringBootTest(classes = HealthCareBackendApplication.class)
 @AutoConfigureMockMvc
@@ -79,8 +79,8 @@ public abstract class AbstractIntegrationTest {
     protected MockMvc mockMvc;
 
     // ── Auth domain ───────────────────────────────────────────────────────────
-    @Autowired private UserRepository userRepository;
-    @Autowired private RefreshTokenRepository refreshTokenRepository;
+    @Autowired protected UserRepository userRepository;
+    @Autowired protected RefreshTokenRepository refreshTokenRepository;
 
     // ── Hospital & Appointment domain ────────────────────────────────────────
     @Autowired protected SpecialtyRepository specialtyRepository;
