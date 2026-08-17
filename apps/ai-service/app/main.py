@@ -1,8 +1,12 @@
-from fastapi import FastAPI
+import secrets
+
+from fastapi import FastAPI, Header, HTTPException, Query
 from pydantic_settings import BaseSettings
 from app.schemas import (
     EmbeddingRequest, EmbeddingResponse,
-    HealthResponse, RAGSearchRequest, RAGSearchResponse, RAGSearchResult,
+    HealthResponse, RAGIndexRequest, RAGIndexResponse, RAGSearchRequest,
+    RAGSearchResponse, RAGSearchResult,
+    SemanticSearchResponse, SemanticSearchResult,
     SpecialtyRecommendationRequest,
     TriageRequest, TriageResponse,
 )
@@ -15,6 +19,8 @@ class Settings(BaseSettings):
     service_name: str = "healthcare-ai-service"
     ai_provider: str = "rule_based_triage"
     embedding_provider: str = "local"
+    rag_ingest_enabled: bool = False
+    rag_ingest_token: str = ""
     # DeepSeek LLM credentials
     deepseek_api_key: str = ""
     deepseek_model: str = "deepseek-chat"
@@ -66,18 +72,30 @@ def rag_search(request: RAGSearchRequest) -> RAGSearchResponse:
     ])
 
 
-@app.post("/rag/index")
-def rag_index(payload: dict) -> dict:
-    """Ingest a document into the RAG index. Body: source_type, source_id, title, content."""
-    embedding, _ = embed(payload.get("content", ""), settings)
+@app.post("/rag/index", response_model=RAGIndexResponse)
+def rag_index(
+    payload: RAGIndexRequest,
+    x_rag_ingest_token: str | None = Header(default=None),
+) -> RAGIndexResponse:
+    """Ingest trusted knowledge; disabled and token-protected by default."""
+    if not settings.rag_ingest_enabled:
+        raise HTTPException(status_code=404, detail="RAG ingestion is disabled")
+    if not settings.rag_ingest_token:
+        raise HTTPException(status_code=503, detail="RAG ingestion is not configured")
+    if not x_rag_ingest_token or not secrets.compare_digest(
+        x_rag_ingest_token, settings.rag_ingest_token
+    ):
+        raise HTTPException(status_code=403, detail="Invalid RAG ingestion token")
+
+    embedding, _ = embed(payload.content, settings)
     doc = rag_service.ingest(
-        source_type=payload.get("source_type", "unknown"),
-        source_id=payload.get("source_id", ""),
-        title=payload.get("title", ""),
-        content=payload.get("content", ""),
+        source_type=payload.source_type,
+        source_id=payload.source_id,
+        title=payload.title,
+        content=payload.content,
         embedding=embedding,
     )
-    return {"id": doc.id, "index_size": rag_service.index.size}
+    return RAGIndexResponse(id=doc.id, index_size=rag_service.index.size)
 
 
 @app.post("/recommendations/specialty", response_model=TriageResponse)
@@ -98,8 +116,12 @@ def rag_stats() -> dict:
     return {"documents": rag_service.index.size}
 
 
-@app.get("/search")
-def semantic_search(q: str = "", specialty: str = "", top_k: int = 10) -> dict:
+@app.get("/search", response_model=SemanticSearchResponse)
+def semantic_search(
+    q: str = Query(default="", max_length=10_000),
+    specialty: str = Query(default="", max_length=200),
+    top_k: int = Query(default=10, ge=1, le=20),
+) -> SemanticSearchResponse:
     """Hybrid semantic search over the RAG index.
 
     Keyword ``q`` is embedded and matched against indexed documents. An
@@ -107,20 +129,20 @@ def semantic_search(q: str = "", specialty: str = "", top_k: int = 10) -> dict:
     with source metadata for rendering search results.
     """
     if not q and not specialty:
-        return {"results": []}
+        return SemanticSearchResponse(results=[])
     query_embedding, _ = embed(q or specialty, settings)
     hits = rag_service.search(query_embedding, top_k=top_k * 2)
-    results = []
+    results: list[SemanticSearchResult] = []
     for doc, score in hits:
-        if specialty and doc.source_type == "specialty" and specialty.lower() not in doc.title.lower():
+        if specialty and specialty.lower() not in doc.title.lower():
             continue
-        results.append({
-            "source_type": doc.source_type,
-            "source_id": doc.source_id,
-            "title": doc.title,
-            "content": doc.content,
-            "score": round(score, 4),
-        })
+        results.append(SemanticSearchResult(
+            source_type=doc.source_type,
+            source_id=doc.source_id,
+            title=doc.title,
+            content=doc.content,
+            score=round(score, 4),
+        ))
         if len(results) >= top_k:
             break
-    return {"results": results, "query": q, "specialty": specialty}
+    return SemanticSearchResponse(results=results, query=q, specialty=specialty)

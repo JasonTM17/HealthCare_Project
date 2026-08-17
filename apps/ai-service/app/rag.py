@@ -14,9 +14,6 @@ import math
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from app.schemas import EmbeddingRequest
-
-
 @dataclass
 class RagDocument:
     id: str
@@ -61,6 +58,7 @@ class RagIndex:
     def search(self, query_embedding: List[float], top_k: int = 5) -> List[tuple[RagDocument, float]]:
         if not query_embedding:
             return []
+        top_k = max(1, min(top_k, 100))
         scored = []
         for doc in self._documents.values():
             if not doc.embedding:
@@ -97,7 +95,3 @@ class RagService:
 
     def search(self, query_embedding: List[float], top_k: int = 5) -> List[tuple[RagDocument, float]]:
         return self.index.search(query_embedding, top_k)
-
-
-def build_embedding_request(text: str) -> EmbeddingRequest:
-    return EmbeddingRequest(text=text)
