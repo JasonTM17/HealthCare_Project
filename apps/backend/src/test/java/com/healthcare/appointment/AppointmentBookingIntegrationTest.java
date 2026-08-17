@@ -266,7 +266,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
     void lookupRejectsWrongPhoneProof() throws Exception {
         HoldSlotRequest holdRequest = new HoldSlotRequest(
             doctor.getId(),
-            LocalDate.now().plusDays(5),
+            nextDate(DayOfWeek.MONDAY),
             LocalTime.of(11, 0),
             "Người Dùng Bảo Mật",
             "0912345678",
