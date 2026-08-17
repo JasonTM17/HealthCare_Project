@@ -5,6 +5,7 @@ import Link from "next/link";
 import React, { useMemo, useState } from "react";
 import AiTriageModal from "../components/AiTriageModal";
 import BookingModal from "../components/BookingModal";
+import { CmsLiveSlot } from "../components/cms";
 import Footer from "../components/Footer";
 import Icon, { type IconName } from "../components/UiIcon";
 import Navbar from "../components/Navbar";
@@ -348,6 +349,18 @@ export default function Home(): React.ReactElement {
                 Ảnh minh họa từ Unsplash. Giao diện và dữ liệu hiện tại phục vụ bản demo local.
               </figcaption>
             </figure>
+          </div>
+        </section>
+
+        <section className="section section--cms-live" id="cms-live" aria-labelledby="cms-live-title">
+          <div className="section-inner">
+            <SectionHeading
+              description="Khối này đọc trực tiếp từ CMS. Khi quản trị viên xuất bản thay đổi, nội dung cập nhật qua change-feed mà không cần tải lại trang."
+              headingId="cms-live-title"
+              note="Cập nhật từ bệnh viện"
+              title="Thông tin mới nhất cho hành trình chăm sóc"
+            />
+            <CmsLiveSlot className="mt-6" slug="home" slotKey="hero" />
           </div>
         </section>
 
