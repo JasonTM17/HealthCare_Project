@@ -7,6 +7,7 @@ import {
   ApiError,
   clearAuthSession,
   fetchCurrentUser,
+  fetchPatientAppointments,
   fetchNotifications,
   fetchPatientDiagnosticResults,
   fetchPatientMedicalRecords,
@@ -19,6 +20,7 @@ import {
 import { useAuthSession } from "../../../components/useAuthSession";
 import type {
   AuthUser,
+  AppointmentDetails,
   DiagnosticResult,
   MedicalRecord,
   Notification,
@@ -31,6 +33,7 @@ import {
   LoadingState,
   LoginRequiredState,
 } from "../../../components/PortalStates";
+import PortalAppointments from "../../../components/PortalAppointments";
 
 type Loadable<T> =
   | { status: "loading" }
@@ -38,6 +41,7 @@ type Loadable<T> =
   | { status: "error"; message: string; statusCode?: number };
 
 const initialRecords: Loadable<MedicalRecord[]> = { status: "loading" };
+const initialAppointments: Loadable<Page<AppointmentDetails>> = { status: "loading" };
 const initialPrescriptions: Loadable<Prescription[]> = { status: "loading" };
 const initialDiagnostics: Loadable<DiagnosticResult[]> = { status: "loading" };
 const initialNotifications: Loadable<Page<Notification>> = { status: "loading" };
@@ -104,7 +108,11 @@ function StateContent<T>({
   if (Array.isArray(state.data) && state.data.length === 0) {
     return <EmptyState description={emptyDescription ?? "Chưa có dữ liệu được máy chủ trả về."} title={emptyTitle ?? "Chưa có dữ liệu"} />;
   }
-  if (!Array.isArray(state.data) && (state.data as Partial<Page<unknown>>).empty) {
+  if (
+    !Array.isArray(state.data) &&
+    ((state.data as Partial<Page<unknown>>).empty ||
+      (state.data as Partial<Page<unknown>>).content?.length === 0)
+  ) {
     return <EmptyState description={emptyDescription ?? "Chưa có dữ liệu được máy chủ trả về."} title={emptyTitle ?? "Chưa có dữ liệu"} />;
   }
   return children(state.data);
@@ -119,6 +127,7 @@ export default function PatientDashboardPage() {
       ? "ready"
       : "forbidden";
   const [records, setRecords] = useState<Loadable<MedicalRecord[]>>(initialRecords);
+  const [appointments, setAppointments] = useState<Loadable<Page<AppointmentDetails>>>(initialAppointments);
   const [prescriptions, setPrescriptions] = useState<Loadable<Prescription[]>>(initialPrescriptions);
   const [diagnostics, setDiagnostics] = useState<Loadable<DiagnosticResult[]>>(initialDiagnostics);
   const [notifications, setNotifications] = useState<Loadable<Page<Notification>>>(initialNotifications);
@@ -132,19 +141,21 @@ export default function PatientDashboardPage() {
 
     Promise.allSettled([
       fetchCurrentUser(),
+      fetchPatientAppointments(),
       fetchPatientMedicalRecords(),
       fetchPatientPrescriptions(),
       fetchPatientDiagnosticResults(),
       fetchNotifications(),
-    ]).then(([profileResult, recordsResult, prescriptionsResult, diagnosticsResult, notificationsResult]) => {
+    ]).then(([profileResult, appointmentsResult, recordsResult, prescriptionsResult, diagnosticsResult, notificationsResult]) => {
       if (cancelled) return;
 
-      const results = [profileResult, recordsResult, prescriptionsResult, diagnosticsResult, notificationsResult];
+      const results = [profileResult, appointmentsResult, recordsResult, prescriptionsResult, diagnosticsResult, notificationsResult];
       if (results.some(isUnauthorized)) {
         clearAuthSession();
         return;
       }
 
+      setAppointments(toLoadable(appointmentsResult));
       setRecords(toLoadable(recordsResult));
       setPrescriptions(toLoadable(prescriptionsResult));
       setDiagnostics(toLoadable(diagnosticsResult));
@@ -157,6 +168,7 @@ export default function PatientDashboardPage() {
   }, [reloadKey, session]);
 
   const retry = () => {
+    setAppointments(initialAppointments);
     setRecords(initialRecords);
     setPrescriptions(initialPrescriptions);
     setDiagnostics(initialDiagnostics);
@@ -232,27 +244,35 @@ export default function PatientDashboardPage() {
           </div>
           <div className="portal-hero__actions">
             <Link className="button button--amber" href="/tra-cuu">Tra cứu lịch hẹn</Link>
-            <span className="portal-demo-label">Bản demo local</span>
+            <span className="portal-demo-label">Bản demo local · lịch hẹn từ API</span>
           </div>
         </header>
 
         <section aria-label="Tóm tắt dữ liệu sức khỏe" className="portal-summary-grid">
+          <a className="portal-summary-card" href="#appointments"><span>Lịch hẹn</span><strong>{countOf(appointments)}</strong><small>Khung giờ đã ghi nhận</small></a>
           <a className="portal-summary-card" href="#records"><span>Hồ sơ khám</span><strong>{countOf(records)}</strong><small>Thông tin lâm sàng</small></a>
           <a className="portal-summary-card" href="#prescriptions"><span>Đơn thuốc</span><strong>{countOf(prescriptions)}</strong><small>Đơn đã được kê</small></a>
           <a className="portal-summary-card" href="#diagnostics"><span>Kết quả</span><strong>{countOf(diagnostics)}</strong><small>Cận lâm sàng</small></a>
           <a className="portal-summary-card" href="#notifications"><span>Thông báo chưa đọc</span><strong>{unreadCount === null ? "—" : unreadCount}</strong><small>Trạng thái trong ứng dụng</small></a>
         </section>
 
-        <section className="portal-panel portal-panel--notice" aria-labelledby="appointments-title">
+        <section className="portal-panel" aria-labelledby="appointments-title" id="appointments">
           <div className="portal-panel__heading">
             <div>
-              <p className="section-note">ĐANG CHỜ KẾT NỐI CONTRACT</p>
+              <p className="section-note">LỊCH HẸN ĐÃ XÁC THỰC</p>
               <h2 id="appointments-title">Lịch hẹn của tôi</h2>
             </div>
             <span aria-hidden="true" className="portal-panel__icon">◷</span>
           </div>
-          <p>Cổng backend hiện chưa có endpoint danh sách lịch hẹn theo tài khoản bệnh nhân. Giao diện không dựng dữ liệu thay thế.</p>
-          <Link className="outline-button outline-button--small" href="/tra-cuu">Tra cứu bằng mã đặt lịch và số điện thoại</Link>
+          <p className="portal-panel__intro">Lịch hẹn được tải từ endpoint bệnh nhân đã xác thực và chỉ thuộc về tài khoản hiện tại. Nếu backend candidate chưa được tích hợp, giao diện giữ nguyên trạng thái lỗi/không khả dụng và không dựng dữ liệu mẫu.</p>
+          <StateContent
+            emptyDescription="Khi một lịch hẹn được backend liên kết với tài khoản, thông tin ngày, giờ, bác sĩ và cơ sở sẽ xuất hiện ở đây."
+            emptyTitle="Chưa có lịch hẹn"
+            retry={retry}
+            state={appointments}
+          >
+            {(page) => <PortalAppointments page={page} viewer="patient" />}
+          </StateContent>
         </section>
 
         <div className="portal-grid portal-grid--main">

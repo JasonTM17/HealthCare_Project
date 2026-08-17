@@ -45,10 +45,23 @@ export function ErrorState({
   status?: number;
   onRetry?: () => void;
 }) {
-  const title = status === 403 ? "Bạn không có quyền xem dữ liệu này" : "Không thể tải dữ liệu";
-  const description = status === 403
-    ? "Quyền truy cập được kiểm tra ở phía máy chủ. Hãy dùng đúng tài khoản được liên kết."
-    : message;
+  const isUnauthorized = status === 401;
+  const isForbidden = status === 403;
+  const isUnavailable = status === undefined || status >= 500;
+  const title = isUnauthorized
+    ? "Phiên đăng nhập không còn hiệu lực"
+    : isForbidden
+      ? "Bạn không có quyền xem dữ liệu này"
+      : isUnavailable
+        ? "Dịch vụ tạm thời không khả dụng"
+        : "Không thể tải dữ liệu";
+  const description = isUnauthorized
+    ? "Máy chủ yêu cầu đăng nhập lại trước khi tải dữ liệu được bảo vệ."
+    : isForbidden
+      ? "Quyền truy cập được kiểm tra ở phía máy chủ. Hãy dùng đúng tài khoản được liên kết."
+      : isUnavailable
+        ? "Backend chưa sẵn sàng hoặc kết nối bị gián đoạn. Không có dữ liệu thay thế được tạo trên trình duyệt."
+        : message;
 
   return (
     <div aria-live="assertive" className="portal-state portal-state--error" role="alert">
@@ -56,6 +69,7 @@ export function ErrorState({
       <div>
         <h3>{title}</h3>
         <p>{description}</p>
+        {isUnauthorized ? <Link className="button button--primary" href="/auth/login?next=%2F">Đăng nhập lại</Link> : null}
         {onRetry ? <button className="outline-button outline-button--small" onClick={onRetry} type="button">Thử lại</button> : null}
       </div>
     </div>

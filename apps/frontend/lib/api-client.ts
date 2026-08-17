@@ -11,6 +11,7 @@ import type {
   Notification,
   Prescription,
   UserProfile,
+  AppointmentDetails,
   AiTriageCitation,
   AiTriageProvenance,
   AiTriageResult,
@@ -29,6 +30,7 @@ export type {
   Notification,
   Prescription,
   UserProfile,
+  AppointmentDetails,
   AiTriageCitation,
   AiTriageProvenance,
   AiTriageResult,
@@ -455,6 +457,32 @@ export async function login(payload: LoginPayload): Promise<AuthSession> {
 
 export async function fetchCurrentUser(): Promise<UserProfile> {
   return getAuthenticatedJson<UserProfile>("/users/me");
+}
+
+export async function fetchPatientAppointments(
+  page = 0,
+  size = 20,
+): Promise<Page<AppointmentDetails>> {
+  return getAuthenticatedJson<Page<AppointmentDetails>>(
+    `/patient/appointments${toQuery({ page, size })}`,
+  );
+}
+
+export async function fetchDoctorAppointments(
+  date: string,
+  status?: string,
+  page = 0,
+  size = 50,
+): Promise<Page<AppointmentDetails>> {
+  const normalizedDate = date.trim();
+  const path = "/doctor/appointments";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedDate)) {
+    throw new ApiError("Ngày xem lịch phải có định dạng YYYY-MM-DD.", 400, path);
+  }
+
+  return getAuthenticatedJson<Page<AppointmentDetails>>(
+    `${path}${toQuery({ date: normalizedDate, status, page, size })}`,
+  );
 }
 
 export async function logoutCurrentUser(): Promise<void> {
