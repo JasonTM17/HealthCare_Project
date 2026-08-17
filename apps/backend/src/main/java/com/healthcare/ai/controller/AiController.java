@@ -1,15 +1,13 @@
 package com.healthcare.ai.controller;
 
-import org.springframework.beans.factory.annotation.Value;
+import com.healthcare.ai.service.AiService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.client.RestTemplate;
 
-import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -17,29 +15,22 @@ import java.util.Map;
 @PreAuthorize("hasAnyRole('PATIENT', 'DOCTOR', 'ADMIN')")
 public class AiController {
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final AiService aiService;
 
-    @Value("${ai.service.url:http://localhost:8000}")
-    private String aiServiceUrl;
+    public AiController(AiService aiService) {
+        this.aiService = aiService;
+    }
 
     @PostMapping("/symptom-check")
-    public ResponseEntity<Map<String, Object>> symptomCheck(@RequestBody Map<String, Object> request) {
-        String url = aiServiceUrl + "/api/v1/symptom-check";
-        Map<String, Object> response = restTemplate.postForObject(url, request, Map.class);
-        return ResponseEntity.ok(response);
+    public ResponseEntity<Map<String, Object>> symptomCheck(@RequestBody AiRequest request) {
+        return ResponseEntity.ok(aiService.symptomCheck(Map.of("symptoms", request.symptoms())));
     }
 
     @PostMapping("/specialty-recommendation")
-    public ResponseEntity<Map<String, Object>> specialtyRecommendation(@RequestBody Map<String, Object> request) {
-        String url = aiServiceUrl + "/api/v1/specialty-recommendation";
-        Map<String, Object> response = restTemplate.postForObject(url, request, Map.class);
-        return ResponseEntity.ok(response);
+    public ResponseEntity<Map<String, Object>> specialtyRecommendation(@RequestBody AiRequest request) {
+        return ResponseEntity.ok(aiService.recommendSpecialty(Map.of("symptoms", request.symptoms())));
     }
 
-    @PostMapping("/doctor-recommendation")
-    public ResponseEntity<Map<String, Object>> doctorRecommendation(@RequestBody Map<String, Object> request) {
-        String url = aiServiceUrl + "/api/v1/doctor-recommendation";
-        Map<String, Object> response = restTemplate.postForObject(url, request, Map.class);
-        return ResponseEntity.ok(response);
+    public record AiRequest(String symptoms) {
     }
 }
