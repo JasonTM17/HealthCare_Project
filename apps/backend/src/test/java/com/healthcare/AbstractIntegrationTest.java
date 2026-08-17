@@ -14,6 +14,8 @@ import com.healthcare.hospital.repository.FaqRepository;
 import com.healthcare.hospital.repository.PackageRepository;
 import com.healthcare.hospital.repository.ServiceRepository;
 import com.healthcare.hospital.repository.SpecialtyRepository;
+import com.healthcare.cms.repository.CmsContentChangeRepository;
+import com.healthcare.cms.repository.CmsContentRepository;
 import com.healthcare.user.repository.RefreshTokenRepository;
 import com.healthcare.user.repository.UserRepository;
 import com.healthcare.scheduling.repository.DoctorScheduleExceptionRepository;
@@ -114,6 +116,8 @@ public abstract class AbstractIntegrationTest {
 
     // ── Hospital & Appointment domain ────────────────────────────────────────
     @Autowired protected SpecialtyRepository specialtyRepository;
+    @Autowired protected CmsContentChangeRepository cmsContentChangeRepository;
+    @Autowired protected CmsContentRepository cmsContentRepository;
     @Autowired protected DoctorRepository doctorRepository;
     @Autowired protected BranchRepository branchRepository;
     @Autowired protected DoctorBranchRepository doctorBranchRepository;
@@ -141,6 +145,10 @@ public abstract class AbstractIntegrationTest {
      */
     @BeforeEach
     void cleanDatabase() {
+        // CMS public change rows reference CMS content and must be cleared first.
+        cmsContentChangeRepository.deleteAll();
+        cmsContentRepository.deleteAll();
+
         // Clinical domain (children before patient/doctor/appointment parents)
         prescriptionRepository.deleteAll();
         medicalRecordRepository.deleteAll();

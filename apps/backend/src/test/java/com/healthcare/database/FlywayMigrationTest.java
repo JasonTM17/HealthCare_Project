@@ -64,8 +64,50 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
         assertThat(tables).contains(
             "specialties", "doctors", "branches",
             "services", "packages", "articles", "faqs",
-            "doctor_specialties", "doctor_branches"
+            "doctor_specialties", "doctor_branches",
+            "cms_contents", "cms_content_changes"
         );
+    }
+
+    @Test
+    void localSeedIsFictionalAndIdempotentOnPostgres() {
+        executeSeed("public");
+        executeSeed("public");
+
+        assertThat(jdbcTemplate.queryForObject(
+            "select count(*) from cms_contents where slot_key = 'homepage.hero'",
+            Integer.class
+        )).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+            "select payload ->> 'title' from cms_contents where slot_key = 'homepage.hero'",
+            String.class
+        )).isEqualTo("Đồng hành cùng sức khỏe gia đình");
+        assertThat(jdbcTemplate.queryForObject(
+            "select count(*) from cms_contents where payload::text ilike '%patient%'",
+            Integer.class
+        )).isZero();
+    }
+
+    @Test
+    void localSeedIsFictionalAndIdempotentOnPostgres() {
+        ResourceDatabasePopulator seed = new ResourceDatabasePopulator(
+            new ClassPathResource("db/seed/seed-local-data.sql")
+        );
+        seed.execute(jdbcTemplate.getDataSource());
+        seed.execute(jdbcTemplate.getDataSource());
+
+        assertThat(jdbcTemplate.queryForObject(
+            "select count(*) from cms_contents where slot_key = 'homepage.hero'",
+            Integer.class
+        )).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+            "select payload ->> 'title' from cms_contents where slot_key = 'homepage.hero'",
+            String.class
+        )).isEqualTo("Đồng hành cùng sức khỏe gia đình");
+        assertThat(jdbcTemplate.queryForObject(
+            "select count(*) from cms_contents where payload::text ilike '%patient%'",
+            Integer.class
+        )).isZero();
     }
 
     @Test
