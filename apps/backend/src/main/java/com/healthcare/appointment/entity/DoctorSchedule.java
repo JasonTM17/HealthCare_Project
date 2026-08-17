@@ -16,7 +16,7 @@ import java.time.OffsetDateTime;
 import java.util.Objects;
 import java.util.UUID;
 
-@Entity
+@Entity(name = "AppointmentDoctorSchedule")
 @Table(name = "doctor_schedules")
 public class DoctorSchedule {
 

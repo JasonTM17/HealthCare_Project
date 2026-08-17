@@ -19,45 +19,57 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
  * Base class for all Spring Boot integration tests.
  *
- * <p>Spins up a shared PostgreSQL 16 Testcontainer — started once per JVM run via
- * {@code @Container} on a static field, then reused across all subclasses. This means
- * Flyway migrations run exactly once and Postgres behaves identically to production.
+ * <p>By default this base points the test datasource at the local PostgreSQL
+ * instance (the docker-compose service on {@code localhost:5432/healthcare}), so
+ * the suite runs without Testcontainers and without a Docker daemon. This keeps
+ * the build hermetic on developer machines and CI agents where Docker is absent.
+ *
+ * <p>The connection is overridable via environment variables, so the same tests
+ * can target any Postgres without code changes:
+ * <ul>
+ *   <li>{@code TEST_DB_URL} — JDBC URL (default {@code jdbc:postgresql://localhost:5432/healthcare})</li>
+ *   <li>{@code TEST_DB_USERNAME} — default {@code healthcare}</li>
+ *   <li>{@code TEST_DB_PASSWORD} — default {@code change-me}</li>
+ *   <li>{@code TEST_DB_NAME} — default {@code healthcare}</li>
+ * </ul>
+ *
+ * <p>For an isolated, production-identical Postgres (incl. CI with Docker),
+ * extend {@link TestcontainersIntegrationTest} instead, which spins up a shared
+ * PostgreSQL 16 container.
  *
  * <p>Each test method gets a clean database state via {@link #cleanDatabase()} which
- * deletes all user-generated data (hospital domain + auth) while leaving Flyway-seeded
- * reference data (roles) intact.
+ * deletes all user-generated data (hospital domain + auth + appointments) while
+ * leaving Flyway-seeded reference data (roles, permissions) intact.
  *
- * <p>All integration test classes must extend this class. Do NOT duplicate
- * {@code @SpringBootTest}, {@code @AutoConfigureMockMvc} or {@code @Testcontainers}
- * on subclasses.
+ * <p>All integration test classes must extend either this class or
+ * {@link TestcontainersIntegrationTest}. Do NOT duplicate {@code @SpringBootTest} or
+ * {@code @AutoConfigureMockMvc} on subclasses.
  */
 @SpringBootTest(classes = HealthCareBackendApplication.class)
 @AutoConfigureMockMvc
-@Testcontainers
 public abstract class AbstractIntegrationTest {
 
-    @Container
-    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine")
-            .withDatabaseName("healthcare_test")
-            .withUsername("healthcare_test")
-            .withPassword("healthcare_test")
-            .withReuse(true);
+    private static final String DEFAULT_DB_URL = "jdbc:postgresql://localhost:5432/healthcare";
+    private static final String DEFAULT_DB_USERNAME = "healthcare";
+    private static final String DEFAULT_DB_PASSWORD = "change-me";
+
+    private static final String dbUrl = System.getenv().getOrDefault("TEST_DB_URL", DEFAULT_DB_URL);
+    private static final String dbUsername = System.getenv().getOrDefault("TEST_DB_USERNAME", DEFAULT_DB_USERNAME);
+    private static final String dbPassword = System.getenv().getOrDefault("TEST_DB_PASSWORD", DEFAULT_DB_PASSWORD);
 
     @DynamicPropertySource
     static void configureDataSource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("spring.flyway.url", POSTGRES::getJdbcUrl);
-        registry.add("spring.flyway.user", POSTGRES::getUsername);
-        registry.add("spring.flyway.password", POSTGRES::getPassword);
+        registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
+        registry.add("spring.datasource.url", () -> dbUrl);
+        registry.add("spring.datasource.username", () -> dbUsername);
+        registry.add("spring.datasource.password", () -> dbPassword);
+        registry.add("spring.flyway.url", () -> dbUrl);
+        registry.add("spring.flyway.user", () -> dbUsername);
+        registry.add("spring.flyway.password", () -> dbPassword);
         // Safe test-only secret — not a real credential, never committed as a real value
         registry.add("app.jwt.secret",
                 () -> "test-secret-key-healthcare-project-must-be-32chars");
@@ -86,6 +98,10 @@ public abstract class AbstractIntegrationTest {
      * Wipe all user-generated rows before every test so tests are fully independent.
      * Deletion order respects FK constraints (children before parents).
      * Flyway-seeded data (roles, permissions) is intentionally left intact.
+     *
+     * <p>NOTE: clinical-domain cleanup (prescriptions, medical records) is intentionally
+     * absent — the {@code clinical} package is Phase 9+ work that does not yet compile,
+     * so it is excluded from the foundation-phase test baseline.
      */
     @BeforeEach
     void cleanDatabase() {

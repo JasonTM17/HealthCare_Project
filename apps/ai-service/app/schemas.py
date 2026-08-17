@@ -2,6 +2,14 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 
 
+class HealthResponse(BaseModel):
+    status: str
+    service: str
+    ai_provider: str
+    deepseek_configured: bool
+    deepseek_model: Optional[str] = None
+
+
 class TriageRequest(BaseModel):
     symptoms: str = Field(..., min_length=2, description="Patient reported symptoms")
     age: Optional[int] = Field(None, ge=0, le=120, description="Patient age in years")

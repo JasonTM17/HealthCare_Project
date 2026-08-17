@@ -11,10 +11,10 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
-@Repository
+@Repository("schedulingDoctorScheduleRepository")
 public interface DoctorScheduleRepository extends JpaRepository<DoctorSchedule, UUID> {
 
-    @Query("select s from DoctorSchedule s where s.doctor.id = :doctorId and s.branch.id = :branchId and s.active = true and s.effectiveFrom <= :date and (s.effectiveTo is null or s.effectiveTo >= :date) and s.dayOfWeek = :dayOfWeek")
+    @Query("select s from SchedulingDoctorSchedule s where s.doctor.id = :doctorId and s.branch.id = :branchId and s.active = true and s.effectiveFrom <= :date and (s.effectiveTo is null or s.effectiveTo >= :date) and s.dayOfWeek = :dayOfWeek")
     List<DoctorSchedule> findActiveForDoctorAndBranchOnDay(
         @Param("doctorId") UUID doctorId,
         @Param("branchId") UUID branchId,

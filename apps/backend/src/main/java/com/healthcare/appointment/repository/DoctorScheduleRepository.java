@@ -7,7 +7,7 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.UUID;
 
-@Repository
+@Repository("appointmentDoctorScheduleRepository")
 public interface DoctorScheduleRepository extends JpaRepository<DoctorSchedule, UUID> {
     List<DoctorSchedule> findByDoctorIdAndActiveTrue(UUID doctorId);
     List<DoctorSchedule> findByDoctorIdAndDayOfWeekAndActiveTrue(UUID doctorId, int dayOfWeek);

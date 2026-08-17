@@ -13,7 +13,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.UUID;
 
-@Entity
+@Entity(name = "SchedulingDoctorSchedule")
 @Table(name = "doctor_schedules")
 public class DoctorSchedule {
 
