@@ -7,8 +7,10 @@ CI run is claimed in the local handoff.
 ## Workflow Gates
 
 1. Backend service containers provide PostgreSQL 16 and MinIO. `mvn -B verify`
-   runs from `apps/backend` with the CI database variables, so Flyway migration
-   tests and the Spring integration suite exercise that PostgreSQL service.
+   runs from `apps/backend` with the CI database variables and an explicit
+   cleanup opt-in for the dedicated `healthcare_test` database, so Flyway
+   migration tests and the Spring integration suite exercise that PostgreSQL
+   service.
    `TestcontainersIntegrationTest` is currently a backwards-compatible test
    base-class alias; it does not start a Java Testcontainers container.
    Successful verification uploads the generated backend JAR as a short-lived
@@ -31,9 +33,12 @@ CI run is claimed in the local handoff.
 
 The current local run observed backend 76/76 tests against disposable
 PostgreSQL 16.15 and MinIO services, frontend lint/typecheck/test/build, AI
-pytest 23/23 plus Ruff/mypy, and Compose config validation. Flyway applied V1-V9
-and Hibernate validation passed. Those are local checks, not evidence of a
-GitHub Actions run, deployment, image publication, or production readiness.
+pytest 23/23 plus Ruff/mypy, and Compose config validation. Flyway applied the
+complete migration set present in that frozen parent checkout; the CI gate is
+not capped at V9 and must include V10/V11 when those migrations are present in
+the integration target. Hibernate validation passed. These are local checks,
+not evidence of a GitHub Actions run, deployment, image publication, or
+production readiness.
 The backend integration base uses `TEST_DB_*` to target an external PostgreSQL
 service; Java Testcontainers execution is `NOT_RUN` unless a test explicitly
 starts a Testcontainers container. Local `actionlint` and `yamllint` were not

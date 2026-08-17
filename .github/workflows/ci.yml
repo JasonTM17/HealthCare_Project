@@ -52,6 +52,7 @@ jobs:
         working-directory: apps/backend
         env:
           TEST_DB_URL: jdbc:postgresql://localhost:5432/healthcare_test
+          TEST_DB_ALLOW_CLEANUP: true
           TEST_DB_USERNAME: healthcare_test
           TEST_DB_PASSWORD: healthcare_test
         run: mvn -B verify
