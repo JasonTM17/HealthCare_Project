@@ -1,3 +1,5 @@
+import { readAuthSession } from "./api-client";
+
 /**
  * Typed client for the slot-scoped CMS contract.
  *
@@ -656,3 +658,8 @@ export class CmsClient {
 }
 
 export const defaultCmsClient = new CmsClient();
+
+/** CMS editor client: reads the current browser session for ADMIN requests. */
+export const authenticatedCmsClient = new CmsClient({
+  getAccessToken: () => readAuthSession()?.accessToken ?? null,
+});

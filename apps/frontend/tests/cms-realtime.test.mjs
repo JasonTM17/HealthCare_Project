@@ -56,6 +56,8 @@ test("public live slot listens to named SSE changes and has polling fallback", a
 
 test("admin editor exposes typed status/version and protected API states", async () => {
   const source = await read("components/cms/CmsEditor.tsx");
+  const adminPage = await read("app/admin/content/page.tsx");
+  const client = await read("lib/cms-client.ts");
 
   for (const marker of [
     "expectedVersion",
@@ -71,4 +73,7 @@ test("admin editor exposes typed status/version and protected API states", async
     assert.ok(source.includes(marker), `missing editor state: ${marker}`);
   }
   assert.doesNotMatch(source, /rollbackPage/);
+  assert.match(adminPage, /authenticatedCmsClient/);
+  assert.match(adminPage, /<CmsEditor client=\{authenticatedCmsClient\}/);
+  assert.match(client, /getAccessToken: \(\) => readAuthSession\(\)\?\.accessToken/);
 });
