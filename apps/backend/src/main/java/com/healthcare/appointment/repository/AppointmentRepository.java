@@ -4,6 +4,7 @@ import com.healthcare.appointment.entity.Appointment;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -31,6 +32,35 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
 
     @Query("select a from Appointment a join fetch a.patient join fetch a.doctor left join fetch a.specialty left join fetch a.branch left join fetch a.medicalPackage where a.bookingCode = :bookingCode")
     Optional<Appointment> findByBookingCodeWithDetails(@Param("bookingCode") String bookingCode);
+
+    /**
+     * Portal reads load every to-one field used by the role-specific response
+     * in one query. The patient/doctor id is resolved by the service from the
+     * authenticated principal; it is never supplied by the caller.
+     */
+    @EntityGraph(attributePaths = {"patient", "doctor", "specialty", "branch", "medicalPackage"})
+    @Query("select a from Appointment a where a.patient.id = :patientId")
+    Page<Appointment> findPortalAppointmentsForPatient(
+        @Param("patientId") UUID patientId,
+        Pageable pageable
+    );
+
+    @EntityGraph(attributePaths = {"patient", "doctor", "specialty", "branch", "medicalPackage"})
+    @Query("select a from Appointment a where a.doctor.id = :doctorId and a.appointmentDate = :appointmentDate")
+    Page<Appointment> findPortalAppointmentsForDoctor(
+        @Param("doctorId") UUID doctorId,
+        @Param("appointmentDate") LocalDate appointmentDate,
+        Pageable pageable
+    );
+
+    @EntityGraph(attributePaths = {"patient", "doctor", "specialty", "branch", "medicalPackage"})
+    @Query("select a from Appointment a where a.doctor.id = :doctorId and a.appointmentDate = :appointmentDate and a.status = :status")
+    Page<Appointment> findPortalAppointmentsForDoctorByStatus(
+        @Param("doctorId") UUID doctorId,
+        @Param("appointmentDate") LocalDate appointmentDate,
+        @Param("status") com.healthcare.appointment.entity.AppointmentStatus status,
+        Pageable pageable
+    );
 
     Page<Appointment> findByPatientIdOrderByAppointmentDateDescStartTimeDesc(UUID patientId, Pageable pageable);
 

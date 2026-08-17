@@ -1,9 +1,14 @@
 package com.healthcare.clinical.controller;
 
+import com.healthcare.appointment.dto.PatientAppointmentResponse;
+import com.healthcare.appointment.service.AppointmentPortalService;
 import com.healthcare.clinical.dto.DiagnosticResultResponse;
 import com.healthcare.clinical.dto.MedicalRecordResponse;
 import com.healthcare.clinical.dto.PrescriptionResponse;
 import com.healthcare.clinical.service.ClinicalService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -20,9 +25,20 @@ import java.util.List;
 public class PatientPortalController {
 
     private final ClinicalService clinicalService;
+    private final AppointmentPortalService appointmentPortalService;
 
-    public PatientPortalController(ClinicalService clinicalService) {
+    public PatientPortalController(
+            ClinicalService clinicalService,
+            AppointmentPortalService appointmentPortalService) {
         this.clinicalService = clinicalService;
+        this.appointmentPortalService = appointmentPortalService;
+    }
+
+    @GetMapping("/appointments")
+    public ResponseEntity<Page<PatientAppointmentResponse>> getAppointments(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(appointmentPortalService.getPatientAppointments(userDetails, pageable));
     }
 
     @GetMapping("/medical-records")

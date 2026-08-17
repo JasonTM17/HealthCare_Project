@@ -8,6 +8,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
@@ -67,6 +68,19 @@ public class GlobalExceptionHandler {
             "Validation failed",
             extractPath(request),
             fieldErrors
+        );
+        return ResponseEntity.badRequest().body(error);
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiError> handleMissingRequestParameter(
+            MissingServletRequestParameterException ex,
+            WebRequest request) {
+        ApiError error = new ApiError(
+            400,
+            "Bad Request",
+            "Required request parameter is missing: " + ex.getParameterName(),
+            extractPath(request)
         );
         return ResponseEntity.badRequest().body(error);
     }
