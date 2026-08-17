@@ -1,0 +1,23 @@
+# Test profile — datasource is overridden at runtime by Testcontainers DynamicPropertySource.
+# Only application-level test overrides are set here.
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: none      # Flyway manages schema; Hibernate must not recreate tables
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+# JWT secret injected by DynamicPropertySource in AbstractIntegrationTest.
+# Fallback is a safe test-only placeholder; never used in production.
+app:
+  jwt:
+    access-token-ttl: 900
+    refresh-token-ttl: 604800
+  cors:
+    allowed-origins: "http://localhost:3000"

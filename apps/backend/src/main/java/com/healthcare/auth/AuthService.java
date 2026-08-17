@@ -89,6 +89,7 @@ public class AuthService {
         return buildAuthResponse(user, accessToken, refreshTokenString);
     }
 
+    @Transactional
     public AuthResponse login(LoginRequest request) {
         String normalizedEmail = request.email().toLowerCase().trim();
 
@@ -168,8 +169,7 @@ public class AuthService {
     }
 
     private void revokeAllUserTokens(UUID userId) {
-        refreshTokenRepository.findAll().stream()
-            .filter(rt -> rt.getUser().getId().equals(userId) && !rt.isRevoked())
+        refreshTokenRepository.findAllActiveByUserId(userId)
             .forEach(rt -> {
                 rt.setRevokedAt(OffsetDateTime.now());
                 refreshTokenRepository.save(rt);

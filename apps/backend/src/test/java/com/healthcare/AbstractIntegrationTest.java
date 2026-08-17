@@ -1,5 +1,14 @@
 package com.healthcare;
 
+import com.healthcare.hospital.repository.ArticleRepository;
+import com.healthcare.hospital.repository.BranchRepository;
+import com.healthcare.hospital.repository.DoctorRepository;
+import com.healthcare.hospital.repository.FaqRepository;
+import com.healthcare.hospital.repository.PackageRepository;
+import com.healthcare.hospital.repository.ServiceRepository;
+import com.healthcare.hospital.repository.SpecialtyRepository;
+import com.healthcare.user.repository.RefreshTokenRepository;
+import com.healthcare.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -11,9 +20,6 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import com.healthcare.user.repository.RefreshTokenRepository;
-import com.healthcare.user.repository.UserRepository;
-
 /**
  * Base class for all Spring Boot integration tests.
  *
@@ -22,10 +28,12 @@ import com.healthcare.user.repository.UserRepository;
  * Flyway migrations run exactly once and Postgres behaves identically to production.
  *
  * <p>Each test method gets a clean database state via {@link #cleanDatabase()} which
- * truncates user-generated data while leaving seeded reference data (roles) intact.
+ * deletes all user-generated data (hospital domain + auth) while leaving Flyway-seeded
+ * reference data (roles) intact.
  *
  * <p>All integration test classes must extend this class. Do NOT duplicate
- * {@code @SpringBootTest} or {@code @Testcontainers} on subclasses.
+ * {@code @SpringBootTest}, {@code @AutoConfigureMockMvc} or {@code @Testcontainers}
+ * on subclasses.
  */
 @SpringBootTest(classes = HealthCareBackendApplication.class)
 @AutoConfigureMockMvc
@@ -47,7 +55,7 @@ public abstract class AbstractIntegrationTest {
         registry.add("spring.flyway.url", POSTGRES::getJdbcUrl);
         registry.add("spring.flyway.user", POSTGRES::getUsername);
         registry.add("spring.flyway.password", POSTGRES::getPassword);
-        // Use a deterministic test secret — not a real credential
+        // Safe test-only secret — not a real credential, never committed as a real value
         registry.add("app.jwt.secret",
                 () -> "test-secret-key-healthcare-project-must-be-32chars");
     }
@@ -55,18 +63,36 @@ public abstract class AbstractIntegrationTest {
     @Autowired
     protected MockMvc mockMvc;
 
-    @Autowired
-    private UserRepository userRepository;
+    // ── Auth domain ───────────────────────────────────────────────────────────
+    @Autowired private UserRepository userRepository;
+    @Autowired private RefreshTokenRepository refreshTokenRepository;
 
-    @Autowired
-    private RefreshTokenRepository refreshTokenRepository;
+    // ── Hospital domain ───────────────────────────────────────────────────────
+    @Autowired private SpecialtyRepository specialtyRepository;
+    @Autowired private DoctorRepository doctorRepository;
+    @Autowired private BranchRepository branchRepository;
+    @Autowired private PackageRepository packageRepository;
+    @Autowired private ArticleRepository articleRepository;
+    @Autowired private FaqRepository faqRepository;
+    @Autowired private ServiceRepository serviceRepository;
 
     /**
-     * Wipe user-generated rows before every test so tests are fully independent.
-     * Reference data (roles, permissions) seeded by Flyway is left intact.
+     * Wipe all user-generated rows before every test so tests are fully independent.
+     * Deletion order respects FK constraints (children before parents).
+     * Flyway-seeded data (roles, permissions) is intentionally left intact.
      */
     @BeforeEach
     void cleanDatabase() {
+        // Hospital domain (no FK dependencies on auth)
+        articleRepository.deleteAll();
+        faqRepository.deleteAll();
+        packageRepository.deleteAll();
+        serviceRepository.deleteAll();
+        doctorRepository.deleteAll();   // doctor_specialties & doctor_branches cascade
+        branchRepository.deleteAll();
+        specialtyRepository.deleteAll();
+
+        // Auth domain (refresh_tokens FK on users)
         refreshTokenRepository.deleteAll();
         userRepository.deleteAll();
     }
