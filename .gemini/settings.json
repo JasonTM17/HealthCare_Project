@@ -1,0 +1,8 @@
+{
+  "experimental": {
+    "enableAgents": true
+  },
+  "skills": {
+    "enabled": true
+  }
+}
