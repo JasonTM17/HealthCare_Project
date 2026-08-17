@@ -74,6 +74,9 @@ export default function Home() {
               <p className="text-base sm:text-lg text-brand-100/90 max-w-2xl leading-relaxed">
                 Hệ sinh thái bệnh viện đa khoa quy tụ đội ngũ chuyên gia đầu ngành, áp dụng kỹ thuật chẩn đoán và điều trị tiên tiến với quy trình đặt khám không chờ đợi.
               </p>
+              <p className="text-xs text-brand-200/80 max-w-2xl" role="note">
+                Bản demo local · dữ liệu bác sĩ, gói khám và cơ sở đang là nội dung minh họa.
+              </p>
 
               {/* Quick Search Bar */}
               <div className="pt-2 max-w-xl">

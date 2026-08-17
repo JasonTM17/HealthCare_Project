@@ -8,19 +8,14 @@ import com.healthcare.appointment.dto.HoldSlotRequest;
 import com.healthcare.appointment.entity.PatientProfile;
 import com.healthcare.hospital.entity.Doctor;
 import com.healthcare.hospital.entity.Specialty;
-import com.healthcare.security.JwtTokenProvider;
-import com.healthcare.user.entity.User;
-import com.healthcare.user.repository.RoleRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -37,15 +32,6 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
-
-    @Autowired
-    private RoleRepository roleRepository;
-
-    @Autowired
-    private PasswordEncoder passwordEncoder;
-
-    @Autowired
-    private JwtTokenProvider tokenProvider;
 
     private Doctor doctor;
     private Specialty specialty;
@@ -284,16 +270,19 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
             .getStatus();
     }
 
-    private String patientToken() {
-        User user = new User();
-        user.setEmail("appointment.patient." + UUID.randomUUID() + "@healthcare.local");
-        user.setPasswordHash(passwordEncoder.encode("NotUsed!123"));
-        user.setDisplayName("Appointment Patient");
-        user.setStatus("ACTIVE");
-        user.setCreatedAt(java.time.OffsetDateTime.now());
-        user.setUpdatedAt(java.time.OffsetDateTime.now());
-        user.addRole(roleRepository.findByCode("PATIENT").orElseThrow());
-        user = userRepository.saveAndFlush(user);
-        return "Bearer " + tokenProvider.generateAccessToken(user.getId(), user.getEmail());
+    private String patientToken() throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "email": "appointment.patient.%s@healthcare.local",
+                      "password": "NotUsed!123",
+                      "displayName": "Appointment Patient"
+                    }
+                    """.formatted(java.util.UUID.randomUUID())))
+            .andExpect(status().isOk())
+            .andReturn();
+        return "Bearer " + objectMapper.readTree(result.getResponse().getContentAsString())
+            .get("accessToken").asText();
     }
 }

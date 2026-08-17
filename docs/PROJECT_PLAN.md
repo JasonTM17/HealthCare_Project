@@ -32,7 +32,7 @@ apps/frontend  -> Next.js TypeScript web application
 apps/backend   -> Spring Boot 3 Java 21 modular monolith
 apps/ai-service -> FastAPI AI/RAG service
 
-backend -> PostgreSQL + pgvector
+backend -> PostgreSQL (pgvector remains a future persistence option)
 backend -> Redis
 backend -> MinIO-compatible object storage
 backend -> ai-service over internal REST
@@ -63,7 +63,8 @@ AI service boundaries:
 - Provider abstraction: chat completion and embeddings
 - RAG document ingestion and retrieval
 - Specialty recommendation with safe healthcare guardrails
-- Doctor recommendation through structured intent extraction, with backend verification of doctors/schedules
+- Specialty recommendation through structured intent extraction; doctor/schedule
+  verification remains a backend-owned follow-up
 - Semantic search over active/published hospital knowledge
 
 ## Implementation Phases

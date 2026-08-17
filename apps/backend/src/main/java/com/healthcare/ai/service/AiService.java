@@ -5,6 +5,9 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
@@ -28,7 +31,7 @@ public class AiService {
 
     public AiService(RestTemplateBuilder restTemplateBuilder, ObjectMapper objectMapper) {
         this.restTemplate = restTemplateBuilder
-            .additionalMessageConverters(new StringHttpMessageConverter(StandardCharsets.UTF_8))
+            .messageConverters(new StringHttpMessageConverter(StandardCharsets.UTF_8))
             .build();
         this.objectMapper = objectMapper;
     }
@@ -43,7 +46,7 @@ public class AiService {
 
     public boolean isAvailable() {
         try {
-            restTemplate.getForObject(aiServiceUrl + "/health", Map.class);
+            restTemplate.getForObject(aiServiceUrl + "/health", String.class);
             return true;
         } catch (RestClientException e) {
             return false;
@@ -57,7 +60,14 @@ public class AiService {
         }
 
         try {
-            String raw = restTemplate.postForObject(aiServiceUrl + path, request, String.class);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            String payload = objectMapper.writeValueAsString(request);
+            String raw = restTemplate.postForObject(
+                aiServiceUrl + path,
+                new HttpEntity<>(payload, headers),
+                String.class
+            );
             if (raw == null || raw.isBlank()) {
                 throw new ResponseStatusException(BAD_GATEWAY, "AI service returned an empty response");
             }

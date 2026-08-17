@@ -117,7 +117,7 @@ services:
       EMBEDDING_PROVIDER: local
       RAG_INGEST_ENABLED: "false"
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
       interval: 15s

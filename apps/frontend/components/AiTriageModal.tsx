@@ -65,7 +65,7 @@ export default function AiTriageModal({
               <h3 id="ai-triage-title" className="text-lg font-bold text-white">
                 Trợ Lý Y Tế AI: Phân Luồng Triệu Chứng
               </h3>
-              <p className="text-xs text-brand-200">Gợi ý chuyên khoa và hướng xử trí y tế sơ bộ</p>
+              <p className="text-xs text-brand-200">Bản demo local · gợi ý tham khảo, không thay thế chẩn đoán của bác sĩ</p>
             </div>
           </div>
           <button
