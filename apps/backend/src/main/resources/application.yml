@@ -1,6 +1,21 @@
 spring:
   application:
     name: healthcare-backend
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/healthcare}
+    username: ${DATABASE_USERNAME:healthcare}
+    password: ${DATABASE_PASSWORD:change-me}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
 
 server:
   port: ${BACKEND_PORT:8080}
