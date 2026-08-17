@@ -32,23 +32,30 @@
   transaction-scoped PostgreSQL advisory locking, and has pending/active-slot
   uniqueness plus interval exclusion invariants with expired-hold cleanup.
 - The AI gateway is authenticated at the backend boundary. A shared,
-  non-empty `AI_SERVICE_TOKEN` protects direct FastAPI routes and is required
-  by Compose, staging, and non-local runtimes. A bare local process may opt in
-  to unauthenticated development only with the explicit local runtime escape
-  hatch; this is not a production or Compose mode.
+  non-empty `AI_SERVICE_TOKEN` protects direct FastAPI routes, including AI
+  health, and is required by Compose, staging, and non-local runtimes. A bare
+  local process may opt in to unauthenticated development only with the
+  explicit local runtime escape hatch; this is not a production or Compose
+  mode. Compose sends the token in its AI healthcheck, and the backend health
+  endpoint returns `503` when the AI token is rejected or AI readiness is false.
 - RAG ingestion is disabled by default and requires a configured token when
   enabled. Only active and published content is searchable; ingestion strips
-  HTML to visible text, reuses embeddings by content hash, and returns source
-  identity citations. The in-memory index is a foundation implementation, not
-  a durable production knowledge store.
+  HTML to visible text, reuses embeddings by content hash, retains embedding
+  model/provenance, rejects mixed vector contracts, and bounds the in-memory
+  document count. It returns source identity citations. The in-memory index is
+  a foundation implementation, not a durable production knowledge store.
 - Provider calls use explicit input bounds, no automatic retries, and bounded
   timeouts. Remote recommendation output is schema-validated against the
   allow-listed specialty/urgency contract; doctor, schedule, availability, and
   URL values remain backend-owned.
 - AI readiness is truthful: the AI service returns HTTP 503 for missing
   service authentication or an unconfigured selected remote provider, and the
-  backend gateway forwards its service token and requires an `ok` health JSON
-  status.
+  backend gateway forwards its service token and requires an explicit `ok` plus
+  `ready: true` health JSON status. The internal search hop uses POST and the
+  Uvicorn container disables access logs; public/proxy GET query logging remains
+  an operational configuration limitation. Configured remote providers are
+  explicitly fail-closed at readiness (`remote_probe_required: true`) because
+  this slice performs no live provider liveness probe.
 
 ## Current Non-Goals
 
