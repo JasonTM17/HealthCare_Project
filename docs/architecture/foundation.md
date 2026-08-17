@@ -8,9 +8,11 @@
 - `apps/frontend`: Next.js patient/admin-facing web shell. Static seed data is
   still used in some homepage/demo flows and must not be presented as live
   hospital metrics.
-- `apps/ai-service`: FastAPI triage, embeddings, RAG, specialty recommendation,
-  and semantic-search foundation with deterministic local fallbacks. DeepSeek
-  calls are optional and were not exercised in the local verification.
+- `apps/ai-service`: FastAPI triage, provider-neutral chat/embedding contracts,
+  normalized active-content RAG, structured specialty recommendation, and
+  bounded hybrid semantic search with deterministic local fallbacks. Remote
+  provider calls are optional and were not exercised against a live provider
+  in local verification.
 
 ## Local Dependencies
 
@@ -34,13 +36,20 @@
   to unauthenticated development only with the explicit local runtime escape
   hatch; this is not a production or Compose mode.
 - RAG ingestion is disabled by default and requires a configured token when
-  enabled. The in-memory index is a foundation implementation, not a durable
-  production knowledge store.
+  enabled. Only active and published content is searchable; ingestion strips
+  HTML to visible text, reuses embeddings by content hash, and returns source
+  identity citations. The in-memory index is a foundation implementation, not
+  a durable production knowledge store.
+- Provider calls use explicit input bounds, no automatic retries, and bounded
+  timeouts. Remote recommendation output is schema-validated against the
+  allow-listed specialty/urgency contract; doctor, schedule, availability, and
+  URL values remain backend-owned.
 
 ## Current Non-Goals
 
 - No production deployment, compliance certification, or real patient data.
 - No claim of live CI, live provider execution, or cross-platform runtime
   support from local tests alone.
-- Broader patient/doctor portals, clinical file metadata/linkage, rate limits,
-  durable pgvector storage, and end-to-end demo polish remain future work.
+- Broader patient/doctor portals, clinical file metadata/linkage, AI rate
+  limiting, durable pgvector storage, live provider verification, and
+  end-to-end demo polish remain future work.
