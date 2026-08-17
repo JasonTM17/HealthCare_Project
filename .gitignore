@@ -70,3 +70,14 @@ Thumbs.db
 .gemini/logs/
 .gemini/tmp/
 .gemini/sessions/
+
+# Private AgentKit/runtime source kept on the local workspace only
+.agentkit/
+.agents/
+.claude/
+.codex/
+.gemini/
+.opencode/
+OPENCODE.md
+engineer/
+plans/
