@@ -1,6 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
+import Navbar from "../components/Navbar";
+import Footer from "../components/Footer";
 import BookingModal from "../components/BookingModal";
 import AiTriageModal from "../components/AiTriageModal";
 import {
@@ -44,82 +47,14 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 font-sans">
-      {/* ── 1. Top Emergency & Utility Bar ─────────────────────────── */}
-      <div className="bg-teal-950 text-teal-100 text-xs py-2 px-4 border-b border-teal-900">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2 text-amber-300 font-bold">
-              <span className="animate-pulse">🚨</span>
-              <span>Cấp cứu 24/7: <span className="text-white text-sm font-mono tracking-wider">1900 1234</span></span>
-            </div>
-            <span className="hidden md:inline text-teal-400">|</span>
-            <span className="hidden md:inline">🕒 Khám bệnh: Thứ 2 - Thứ 7 (07:00 - 17:00)</span>
-          </div>
-
-          <div className="flex items-center gap-4 text-teal-200">
-            <a href="#branches" className="hover:text-white transition-colors">
-              🏥 Mạng lưới 3 Cơ sở TP.HCM
-            </a>
-            <span>|</span>
-            <button
-              onClick={() => setIsAiTriageOpen(true)}
-              className="inline-flex items-center gap-1.5 text-amber-300 hover:text-amber-200 font-semibold cursor-pointer"
-            >
-              <span>🤖</span> Trợ lý Y tế AI
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* ── 2. Main Navigation Header ─────────────────────────────── */}
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-teal-100 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-20 flex items-center justify-between gap-4">
-          <a href="#" className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-teal-800 to-teal-600 text-white flex items-center justify-center text-2xl font-extrabold shadow-md">
-              +
-            </div>
-            <div>
-              <span className="text-xl font-extrabold tracking-tight text-teal-950 block leading-tight">
-                HealthCare
-              </span>
-              <span className="text-[11px] font-semibold tracking-wider uppercase text-teal-700 block">
-                Bệnh Viện Đa Khoa Quốc Tế
-              </span>
-            </div>
-          </a>
-
-          <nav className="hidden lg:flex items-center gap-7 text-sm font-semibold text-slate-700" aria-label="Menu chính">
-            <a href="#specialties" className="hover:text-teal-700 transition-colors">Chuyên Khoa</a>
-            <a href="#doctors" className="hover:text-teal-700 transition-colors">Đội Ngũ Bác Sĩ</a>
-            <a href="#packages" className="hover:text-teal-700 transition-colors">Gói Khám</a>
-            <a href="#guide" className="hover:text-teal-700 transition-colors">Hướng Dẫn Khám</a>
-            <a href="#branches" className="hover:text-teal-700 transition-colors">Cơ Sở</a>
-          </nav>
-
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setIsAiTriageOpen(true)}
-              className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-teal-800 bg-teal-50 border border-teal-200 rounded-full hover:bg-teal-100 transition-all cursor-pointer"
-            >
-              <span>✨</span> Triage Triệu Chứng
-            </button>
-            <button
-              type="button"
-              onClick={() => handleOpenBooking()}
-              id="header-booking-cta"
-              className="px-6 py-2.5 bg-gradient-to-r from-teal-700 to-teal-800 hover:from-teal-800 hover:to-teal-900 text-white text-sm font-bold rounded-full shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer"
-            >
-              <span>📅</span> Đặt Lịch Khám
-            </button>
-          </div>
-        </div>
-      </header>
+      <Navbar
+        onOpenBooking={() => handleOpenBooking()}
+        onOpenAiTriage={() => setIsAiTriageOpen(true)}
+      />
 
       <main className="flex-1">
-        {/* ── 3. Hero Section with Smart Search & Care Rail ─────────── */}
+        {/* ── 1. Hero Section with Smart Search & Care Rail ─────────── */}
         <section className="relative overflow-hidden bg-gradient-to-b from-teal-900 via-teal-800 to-teal-950 text-white py-16 lg:py-24 px-4 sm:px-6">
-          {/* Subtle medical grid background pattern */}
           <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:20px_20px] pointer-events-none" />
 
           <div className="relative max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
@@ -192,32 +127,32 @@ export default function Home() {
                 <p className="text-xs text-teal-200 mt-1">Tư vấn chuyên khoa & hướng dẫn xử trí sơ bộ</p>
               </button>
 
-              <a
-                href="#packages"
-                className="p-5 bg-white/10 hover:bg-white/15 border border-white/20 backdrop-blur-md rounded-2xl text-left transition-all hover:-translate-y-1 group"
+              <Link
+                href="/#packages"
+                className="p-5 bg-white/10 hover:bg-white/15 border border-white/20 backdrop-blur-md rounded-2xl text-left transition-all hover:-translate-y-1 group block"
               >
                 <span className="text-3xl mb-3 block">📦</span>
                 <h3 className="font-bold text-white text-base group-hover:text-amber-300 transition-colors">
                   Gói Khám Toàn Diện
                 </h3>
                 <p className="text-xs text-teal-200 mt-1">Tầm soát ung thư & kiểm tra định kỳ</p>
-              </a>
+              </Link>
 
-              <a
-                href="#branches"
-                className="p-5 bg-white/10 hover:bg-white/15 border border-white/20 backdrop-blur-md rounded-2xl text-left transition-all hover:-translate-y-1 group"
+              <Link
+                href="/#branches"
+                className="p-5 bg-white/10 hover:bg-white/15 border border-white/20 backdrop-blur-md rounded-2xl text-left transition-all hover:-translate-y-1 group block"
               >
                 <span className="text-3xl mb-3 block">🏥</span>
                 <h3 className="font-bold text-white text-base group-hover:text-amber-300 transition-colors">
                   Cơ Sở & Cấp Cứu
                 </h3>
                 <p className="text-xs text-teal-200 mt-1">Chỉ đường & hotline cấp cứu 24/7</p>
-              </a>
+              </Link>
             </div>
           </div>
         </section>
 
-        {/* ── 4. Key Centers of Excellence (Chuyên Khoa Mũi Nhọn) ───── */}
+        {/* ── 2. Key Centers of Excellence (Chuyên Khoa Mũi Nhọn) ───── */}
         <section id="specialties" className="py-20 px-4 sm:px-6 max-w-7xl mx-auto">
           <div className="text-center max-w-3xl mx-auto mb-14">
             <span className="text-xs uppercase tracking-widest font-bold text-teal-700">
@@ -241,28 +176,38 @@ export default function Home() {
                   <div className="w-14 h-14 rounded-2xl bg-teal-50 text-teal-800 text-3xl flex items-center justify-center mb-4 group-hover:scale-110 group-hover:bg-teal-700 group-hover:text-white transition-all duration-300">
                     {sp.icon || "🏥"}
                   </div>
-                  <h3 className="text-lg font-bold text-slate-900 mb-2 group-hover:text-teal-700 transition-colors">
-                    {sp.name}
-                  </h3>
+                  <Link href={`/chuyen-khoa/${sp.slug}`}>
+                    <h3 className="text-lg font-bold text-slate-900 mb-2 group-hover:text-teal-700 transition-colors">
+                      {sp.name}
+                    </h3>
+                  </Link>
                   <p className="text-xs text-slate-600 leading-relaxed mb-6">
                     {sp.description}
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => handleOpenBooking(undefined, sp.id, undefined)}
-                  className="w-full py-2.5 px-4 bg-teal-50 hover:bg-teal-700 text-teal-800 hover:text-white text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <span>Đặt lịch khám</span>
-                  <span>→</span>
-                </button>
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenBooking(undefined, sp.id, undefined)}
+                    className="w-full py-2.5 px-4 bg-teal-700 hover:bg-teal-800 text-white text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                  >
+                    <span>Đặt lịch khám</span>
+                    <span>→</span>
+                  </button>
+                  <Link
+                    href={`/chuyen-khoa/${sp.slug}`}
+                    className="block text-center text-xs font-semibold text-teal-700 hover:underline py-1"
+                  >
+                    Xem chi tiết chuyên khoa
+                  </Link>
+                </div>
               </div>
             ))}
           </div>
         </section>
 
-        {/* ── 5. Specialist Doctors Showcase ────────────────────────── */}
+        {/* ── 3. Specialist Doctors Showcase ────────────────────────── */}
         <section id="doctors" className="py-20 px-4 sm:px-6 bg-slate-100/80 border-y border-slate-200">
           <div className="max-w-7xl mx-auto">
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-4">
@@ -328,7 +273,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ── 6. Health Packages & Screening ────────────────────────── */}
+        {/* ── 4. Health Packages & Screening ────────────────────────── */}
         <section id="packages" className="py-20 px-4 sm:px-6 bg-teal-950 text-white">
           <div className="max-w-7xl mx-auto">
             <div className="text-center max-w-3xl mx-auto mb-14">
@@ -360,9 +305,11 @@ export default function Home() {
                   )}
 
                   <div>
-                    <h3 className="text-xl font-extrabold text-white mb-2">
-                      {pkg.name}
-                    </h3>
+                    <Link href={`/goi-kham/${pkg.slug}`}>
+                      <h3 className="text-xl font-extrabold text-white mb-2 hover:text-amber-300 transition-colors">
+                        {pkg.name}
+                      </h3>
+                    </Link>
                     <p className="text-xs text-teal-200 leading-relaxed mb-6">
                       {pkg.description}
                     </p>
@@ -387,20 +334,28 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => handleOpenBooking(undefined, undefined, pkg.id)}
-                    className="w-full py-3 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-teal-950 text-xs font-extrabold rounded-xl shadow-lg transition-all text-center cursor-pointer"
-                  >
-                    Đăng Ký Gói Khám Này →
-                  </button>
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenBooking(undefined, undefined, pkg.id)}
+                      className="w-full py-3 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-teal-950 text-xs font-extrabold rounded-xl shadow-lg transition-all text-center cursor-pointer"
+                    >
+                      Đăng Ký Gói Khám Này →
+                    </button>
+                    <Link
+                      href={`/goi-kham/${pkg.slug}`}
+                      className="block text-center text-xs text-teal-300 hover:text-white py-1"
+                    >
+                      Xem chi tiết 32 danh mục xét nghiệm
+                    </Link>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
         </section>
 
-        {/* ── 7. Patient Journey & Direct Billing ───────────────────── */}
+        {/* ── 5. Patient Journey & Direct Billing ───────────────────── */}
         <section id="guide" className="py-20 px-4 sm:px-6 max-w-7xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
@@ -481,19 +436,18 @@ export default function Home() {
               </div>
 
               <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={() => handleOpenBooking()}
-                  className="w-full py-3 bg-teal-700 hover:bg-teal-600 text-white text-xs font-bold rounded-xl transition-all text-center cursor-pointer"
+                <Link
+                  href="/huong-dan"
+                  className="block w-full py-3 bg-teal-700 hover:bg-teal-600 text-white text-xs font-bold rounded-xl transition-all text-center"
                 >
-                  Tư Vấn Bảo Hiểm & Đặt Khám →
-                </button>
+                  Xem Hướng Dẫn Chi Tiết & Đối Tác Bảo Hiểm →
+                </Link>
               </div>
             </div>
           </div>
         </section>
 
-        {/* ── 8. Hospital Network & Branches ───────────────────────── */}
+        {/* ── 6. Hospital Network & Branches ───────────────────────── */}
         <section id="branches" className="py-20 px-4 sm:px-6 bg-slate-100/90 border-t border-slate-200">
           <div className="max-w-7xl mx-auto">
             <div className="text-center max-w-3xl mx-auto mb-14">
@@ -546,45 +500,9 @@ export default function Home() {
         </section>
       </main>
 
-      {/* ── 9. Footer ─────────────────────────────────────────────── */}
-      <footer className="bg-teal-950 text-teal-200 border-t border-teal-900 py-12 px-4 sm:px-6 text-xs">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
-          <div className="space-y-3 md:col-span-2">
-            <div className="flex items-center gap-2 text-white text-lg font-extrabold">
-              <span className="w-8 h-8 rounded-lg bg-teal-700 text-white flex items-center justify-center font-bold">+</span>
-              HealthCare Vietnam
-            </div>
-            <p className="text-teal-300/80 max-w-md leading-relaxed">
-              Hệ thống Bệnh viện & Phòng khám Đa khoa Quốc tế chuẩn mực. Luôn đồng hành chăm sóc sức khỏe toàn diện cho gia đình bạn.
-            </p>
-            <p className="text-slate-400 text-[11px]">
-              Giấy phép hoạt động khám chữa bệnh số 01234/BYT-GPHĐ do Bộ Y tế cấp.
-            </p>
-          </div>
+      <Footer />
 
-          <div className="space-y-2">
-            <h4 className="text-white font-bold text-sm uppercase tracking-wider mb-2">Chuyên Mục</h4>
-            <p><a href="#specialties" className="hover:text-white transition-colors">Chuyên khoa mũi nhọn</a></p>
-            <p><a href="#doctors" className="hover:text-white transition-colors">Đội ngũ bác sĩ</a></p>
-            <p><a href="#packages" className="hover:text-white transition-colors">Gói khám sức khỏe</a></p>
-            <p><a href="#guide" className="hover:text-white transition-colors">Hướng dẫn bảo hiểm</a></p>
-          </div>
-
-          <div className="space-y-2">
-            <h4 className="text-white font-bold text-sm uppercase tracking-wider mb-2">Liên Hệ Khẩn Cấp</h4>
-            <p className="text-amber-300 font-bold font-mono text-sm">🚨 Cấp cứu: 1900 1234</p>
-            <p className="text-teal-300">📧 contact@healthcare.vn</p>
-            <p className="text-teal-300">📍 TP. Hồ Chí Minh, Việt Nam</p>
-          </div>
-        </div>
-
-        <div className="max-w-7xl mx-auto pt-6 border-t border-teal-900/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-teal-400/80">
-          <span>© 2026 HealthCare Project. Tất cả quyền được bảo lưu.</span>
-          <span>Dữ liệu tuân thủ chuẩn an toàn thông tin y tế.</span>
-        </div>
-      </footer>
-
-      {/* ── 10. Interactive Modals ─────────────────────────────────── */}
+      {/* ── Interactive Modals ─────────────────────────────────────── */}
       <BookingModal
         isOpen={isBookingOpen}
         onClose={() => setIsBookingOpen(false)}
