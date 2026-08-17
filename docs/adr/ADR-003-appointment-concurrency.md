@@ -25,15 +25,21 @@ doctor/branch pair.
   is present, Flyway V10 enforces the `(doctor_id, branch_id)` relationship to
   `doctor_branches`; the same invariant is enforced for schedules and
   exceptions.
-- Active appointment overlap is protected by the existing PostgreSQL advisory
-  lock and V7–V9 active-slot/interval constraints. The invariant is keyed by
-  doctor/date/time rather than branch because one doctor cannot attend two
-  overlapping branches.
+- Active appointment overlap is protected by a transaction-scoped PostgreSQL
+  advisory lock and branch-aware active-slot/interval constraints. V11 rebuilds
+  the V7–V9 unique index and exclusion constraint without editing those already
+  applied migrations. The database key is `(doctor_id, appointment_date,
+  normalized_branch_id, start_time/interval)`, where a reserved zero UUID
+  represents legacy `NULL` branch rows. Explicit branches conflict only with
+  the same branch; branchless rows conflict only with other branchless rows.
+- Booking queries use the same branch scope, and the advisory lock key includes
+  the branch (or an explicit `branchless` token) so separate branch capacity is
+  not serialized under one doctor/date lock.
 - Integration tests use a disposable PostgreSQL 16 Testcontainer by default,
   so Flyway, PostgreSQL constraints, and advisory-lock behavior are exercised
   without mutating a developer's application database. `TEST_DB_URL` is an
-  explicit external-database escape hatch and must point to a dedicated test
-  database.
+  explicit external-database escape hatch for a dedicated test database and
+  requires `TEST_DB_ALLOW_CLEANUP=true` because the base cleans test rows.
 
 ## Consequences
 
@@ -41,6 +47,11 @@ Clients that book a persisted schedule must send the selected `branchId` in
 the hold request. Existing clients that only use the branchless demo schedule
 continue to work. Clients consuming the all-branch slot view must use the
 returned `branchId` together with `startTime`, not `startTime` alone.
+
+V11 reserves the zero UUID for the normalized branchless constraint key. If an
+existing database uses that UUID as a branch identifier, the migration stops
+with an actionable preflight error and does not delete or reassign booking
+data.
 
 This is a local-development foundation, not a claim of production healthcare
 compliance, external notification delivery, or deployment readiness.

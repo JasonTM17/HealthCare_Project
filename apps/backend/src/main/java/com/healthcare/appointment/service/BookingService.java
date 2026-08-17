@@ -127,11 +127,15 @@ public class BookingService {
 
         // Serialize the slot key even when no appointment row exists yet. A row lock
         // alone cannot prevent two first writers from both observing an empty slot.
-        String slotLockKey = request.doctorId() + ":" + request.appointmentDate();
+        String branchLockKey = request.branchId() == null
+            ? "branchless"
+            : request.branchId().toString();
+        String slotLockKey = request.doctorId() + ":" + branchLockKey + ":" + request.appointmentDate();
         appointmentRepository.acquireSlotLock(slotLockKey);
 
         List<Appointment> expired = appointmentRepository.findExpiredPendingConflictsForUpdate(
             request.doctorId(),
+            request.branchId(),
             request.appointmentDate(),
             request.startTime(),
             bookableSlot.endTime(),
@@ -149,6 +153,7 @@ public class BookingService {
         // 1. Concurrency Check with Pessimistic Lock
         List<Appointment> conflicts = appointmentRepository.findActiveConflictsForUpdate(
             request.doctorId(),
+            request.branchId(),
             request.appointmentDate(),
             request.startTime(),
             bookableSlot.endTime(),

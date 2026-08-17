@@ -66,7 +66,14 @@ public class ScheduleService {
         }
 
         OffsetDateTime now = OffsetDateTime.now();
-        List<Appointment> occupiedAppointments = appointmentRepository.findAllOccupiedSlots(doctorId, date, now);
+        Map<UUID, List<Appointment>> occupiedByBranch = new LinkedHashMap<>();
+        for (ScheduleWindow window : windows) {
+            occupiedByBranch.computeIfAbsent(
+                window.branchId(),
+                requestedBranchId -> appointmentRepository.findAllOccupiedSlots(
+                    doctorId, requestedBranchId, date, now)
+            );
+        }
         List<TimeSlotDto> slots = new ArrayList<>();
         LocalTime currentTime = LocalTime.now();
         boolean isToday = date.equals(LocalDate.now());
@@ -81,6 +88,7 @@ public class ScheduleService {
 
                 boolean isPast = isToday && slotStart.isBefore(currentTime.plusMinutes(15));
                 LocalTime currentSlotStart = slotStart;
+                List<Appointment> occupiedAppointments = occupiedByBranch.getOrDefault(window.branchId(), List.of());
                 boolean isOccupied = occupiedAppointments.stream()
                     .anyMatch(appointment -> overlaps(currentSlotStart, slotEnd, appointment));
                 boolean available = !isPast && !isOccupied;

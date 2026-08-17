@@ -104,6 +104,73 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
     }
 
     @Test
+    void branchScopedBookingAllowsSamePendingSlotAtDifferentBranchesButRejectsSameBranch() throws Exception {
+        Branch branchA = createBranchForDoctor("pending-a");
+        Branch branchB = createBranchForDoctor("pending-b");
+        LocalDate targetDate = nextDate(DayOfWeek.MONDAY);
+        saveSchedule(branchA, targetDate, 9, 0, 10, 0, 30);
+        saveSchedule(branchB, targetDate, 9, 0, 10, 0, 30);
+
+        HoldSlotRequest branchAHold = new HoldSlotRequest(
+            doctor.getId(), targetDate, LocalTime.of(9, 0),
+            "Branch A patient", "0907000101", null, "Branch A hold",
+            specialty.getId(), branchA.getId(), null);
+        HoldSlotRequest branchBHold = new HoldSlotRequest(
+            doctor.getId(), targetDate, LocalTime.of(9, 0),
+            "Branch B patient", "0907000102", null, "Branch B hold",
+            specialty.getId(), branchB.getId(), null);
+
+        mockMvc.perform(post("/api/v1/appointments/hold")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(branchAHold)))
+            .andExpect(status().isCreated());
+        mockMvc.perform(post("/api/v1/appointments/hold")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(branchBHold)))
+            .andExpect(status().isCreated());
+        mockMvc.perform(post("/api/v1/appointments/hold")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(branchAHold)))
+            .andExpect(status().isConflict());
+    }
+
+    @Test
+    void branchScopedBookingRejectsOverlappingIntervalOnlyWithinTheSameBranch() throws Exception {
+        Branch branchA = createBranchForDoctor("interval-a");
+        Branch branchB = createBranchForDoctor("interval-b");
+        LocalDate targetDate = nextDate(DayOfWeek.THURSDAY);
+        saveSchedule(branchA, targetDate, 9, 0, 11, 0, 60);
+        saveSchedule(branchA, targetDate, 9, 30, 10, 30, 30);
+        saveSchedule(branchB, targetDate, 9, 30, 10, 30, 30);
+
+        HoldSlotRequest firstBranchAHold = new HoldSlotRequest(
+            doctor.getId(), targetDate, LocalTime.of(9, 0),
+            "Interval A patient", "0907000111", null, "Branch A interval",
+            specialty.getId(), branchA.getId(), null);
+        HoldSlotRequest branchBOverlap = new HoldSlotRequest(
+            doctor.getId(), targetDate, LocalTime.of(9, 30),
+            "Interval B patient", "0907000112", null, "Branch B overlap",
+            specialty.getId(), branchB.getId(), null);
+        HoldSlotRequest branchAOverlap = new HoldSlotRequest(
+            doctor.getId(), targetDate, LocalTime.of(9, 30),
+            "Interval A second patient", "0907000113", null, "Branch A overlap",
+            specialty.getId(), branchA.getId(), null);
+
+        mockMvc.perform(post("/api/v1/appointments/hold")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(firstBranchAHold)))
+            .andExpect(status().isCreated());
+        mockMvc.perform(post("/api/v1/appointments/hold")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(branchBOverlap)))
+            .andExpect(status().isCreated());
+        mockMvc.perform(post("/api/v1/appointments/hold")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(branchAOverlap)))
+            .andExpect(status().isConflict());
+    }
+
+    @Test
     void explicitBranchDoesNotReceiveTheBranchlessDemoFallback() throws Exception {
         Branch branch = createBranchForDoctor("no-default-leak");
         LocalDate targetDate = nextDate(DayOfWeek.TUESDAY);

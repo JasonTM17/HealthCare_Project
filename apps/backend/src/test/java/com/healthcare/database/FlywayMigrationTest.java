@@ -165,6 +165,106 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
     }
 
     @Test
+    void v11ScopesActiveSlotAndIntervalConstraintsByBranchAndNormalizesNull() {
+        String schema = createMigrationSchema();
+        try {
+            migrate(schema, "10");
+            UUID doctorId = UUID.randomUUID();
+            UUID patientId = UUID.randomUUID();
+            UUID branchAId = UUID.randomUUID();
+            UUID branchBId = UUID.randomUUID();
+            String doctors = table(schema, "doctors");
+            String branches = table(schema, "branches");
+            String doctorBranches = table(schema, "doctor_branches");
+            String patients = table(schema, "patient_profiles");
+            String appointments = table(schema, "appointments");
+
+            jdbcTemplate.update(
+                "insert into " + doctors + " (id, full_name, slug, active) values (?, ?, ?, true)",
+                doctorId, "Branch constraint doctor", "branch-constraint-doctor-" + doctorId
+            );
+            jdbcTemplate.update(
+                "insert into " + branches + " (id, name, slug, address, active) values (?, ?, ?, ?, true)",
+                branchAId, "Branch A", "branch-a-" + branchAId, "Test address A"
+            );
+            jdbcTemplate.update(
+                "insert into " + branches + " (id, name, slug, address, active) values (?, ?, ?, ?, true)",
+                branchBId, "Branch B", "branch-b-" + branchBId, "Test address B"
+            );
+            jdbcTemplate.update(
+                "insert into " + doctorBranches + " (id, doctor_id, branch_id) values (?, ?, ?)",
+                UUID.randomUUID(), doctorId, branchAId
+            );
+            jdbcTemplate.update(
+                "insert into " + doctorBranches + " (id, doctor_id, branch_id) values (?, ?, ?)",
+                UUID.randomUUID(), doctorId, branchBId
+            );
+            jdbcTemplate.update(
+                "insert into " + patients + " (id, full_name, phone) values (?, ?, ?)",
+                patientId, "Branch constraint patient", "090" + Math.abs(patientId.hashCode())
+            );
+
+            migrate(schema, "11");
+            LocalDate appointmentDate = LocalDate.now().plusDays(4);
+            OffsetDateTime holdExpiry = OffsetDateTime.now().plusMinutes(10);
+
+            // Exact active slots may coexist at different assigned branches.
+            insertAppointment(
+                appointments, UUID.randomUUID(), doctorId, patientId, branchAId,
+                appointmentDate, LocalTime.of(9, 0), LocalTime.of(10, 0),
+                "CONFIRMED", null
+            );
+            insertAppointment(
+                appointments, UUID.randomUUID(), doctorId, patientId, branchBId,
+                appointmentDate, LocalTime.of(9, 0), LocalTime.of(10, 0),
+                "PENDING_CONFIRMATION", holdExpiry
+            );
+            assertThatThrownBy(() -> insertAppointment(
+                appointments, UUID.randomUUID(), doctorId, patientId, branchAId,
+                appointmentDate, LocalTime.of(9, 0), LocalTime.of(10, 0),
+                "PENDING_CONFIRMATION", holdExpiry
+            )).isInstanceOf(DataAccessException.class);
+
+            // Interval overlap is branch-scoped too: branch B succeeds while
+            // the same overlapping interval at branch A is rejected.
+            insertAppointment(
+                appointments, UUID.randomUUID(), doctorId, patientId, branchAId,
+                appointmentDate, LocalTime.of(13, 0), LocalTime.of(14, 0),
+                "CONFIRMED", null
+            );
+            insertAppointment(
+                appointments, UUID.randomUUID(), doctorId, patientId, branchBId,
+                appointmentDate, LocalTime.of(13, 30), LocalTime.of(14, 30),
+                "PENDING_CONFIRMATION", holdExpiry
+            );
+            assertThatThrownBy(() -> insertAppointment(
+                appointments, UUID.randomUUID(), doctorId, patientId, branchAId,
+                appointmentDate, LocalTime.of(13, 30), LocalTime.of(14, 30),
+                "PENDING_CONFIRMATION", holdExpiry
+            )).isInstanceOf(DataAccessException.class);
+
+            // NULL is a real legacy branchless scope, not an unconstrained key.
+            insertAppointment(
+                appointments, UUID.randomUUID(), doctorId, patientId, null,
+                appointmentDate, LocalTime.of(15, 0), LocalTime.of(15, 30),
+                "CONFIRMED", null
+            );
+            insertAppointment(
+                appointments, UUID.randomUUID(), doctorId, patientId, branchAId,
+                appointmentDate, LocalTime.of(15, 0), LocalTime.of(15, 30),
+                "PENDING_CONFIRMATION", holdExpiry
+            );
+            assertThatThrownBy(() -> insertAppointment(
+                appointments, UUID.randomUUID(), doctorId, patientId, null,
+                appointmentDate, LocalTime.of(15, 0), LocalTime.of(15, 30),
+                "PENDING_CONFIRMATION", holdExpiry
+            )).isInstanceOf(DataAccessException.class);
+        } finally {
+            dropMigrationSchema(schema);
+        }
+    }
+
+    @Test
     void v8PreservesOldestLivePendingHoldAndCancelsLaterDuplicates() {
         String schema = createMigrationSchema();
         try {
@@ -307,6 +407,29 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
                 + "values (?, ?, ?, ?, ?, ?, ?, 'PENDING_CONFIRMATION', ?, ?)",
             id, bookingCode, patientId, doctorId, appointmentDate, startTime,
             appointmentDate.atTime(startTime).atOffset(createdAt.getOffset()), holdExpiresAt, createdAt
+        );
+    }
+
+    private void insertAppointment(
+            String appointments,
+            UUID id,
+            UUID doctorId,
+            UUID patientId,
+            UUID branchId,
+            LocalDate appointmentDate,
+            LocalTime startTime,
+            LocalTime endTime,
+            String status,
+            OffsetDateTime holdExpiresAt) {
+        jdbcTemplate.update(
+            "insert into " + appointments
+                + " (id, booking_code, patient_id, doctor_id, branch_id, appointment_date, "
+                + "start_time, end_time, appointment_time, status, hold_expires_at) "
+                + "values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            id, id.toString().replace("-", ""), patientId, doctorId, branchId,
+            appointmentDate, startTime, endTime,
+            appointmentDate.atTime(startTime).atOffset(java.time.ZoneOffset.UTC),
+            status, holdExpiresAt
         );
     }
 

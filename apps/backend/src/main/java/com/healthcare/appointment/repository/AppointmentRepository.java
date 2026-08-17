@@ -38,6 +38,7 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
     @Query("""
         select a from Appointment a
         where a.doctor.id = :doctorId
+          and ((:branchId is null and a.branch is null) or a.branch.id = :branchId)
           and a.appointmentDate = :appointmentDate
           and a.startTime < :endTime
           and a.endTime > :startTime
@@ -48,6 +49,7 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
     """)
     List<Appointment> findActiveConflictsForUpdate(
         @Param("doctorId") UUID doctorId,
+        @Param("branchId") UUID branchId,
         @Param("appointmentDate") LocalDate appointmentDate,
         @Param("startTime") LocalTime startTime,
         @Param("endTime") LocalTime endTime,
@@ -58,6 +60,7 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
     @Query("""
         select a from Appointment a
         where a.doctor.id = :doctorId
+          and ((:branchId is null and a.branch is null) or a.branch.id = :branchId)
           and a.appointmentDate = :appointmentDate
           and a.startTime < :endTime
           and a.endTime > :startTime
@@ -66,6 +69,7 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
     """)
     List<Appointment> findExpiredPendingConflictsForUpdate(
         @Param("doctorId") UUID doctorId,
+        @Param("branchId") UUID branchId,
         @Param("appointmentDate") LocalDate appointmentDate,
         @Param("startTime") LocalTime startTime,
         @Param("endTime") LocalTime endTime,
@@ -75,6 +79,7 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
     @Query("""
         select a from Appointment a
         where a.doctor.id = :doctorId
+          and ((:branchId is null and a.branch is null) or a.branch.id = :branchId)
           and a.appointmentDate = :appointmentDate
           and (
             a.status in ('CONFIRMED', 'CHECKED_IN', 'IN_PROGRESS')
@@ -83,6 +88,7 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
     """)
     List<Appointment> findAllOccupiedSlots(
         @Param("doctorId") UUID doctorId,
+        @Param("branchId") UUID branchId,
         @Param("appointmentDate") LocalDate appointmentDate,
         @Param("now") OffsetDateTime now
     );
