@@ -10,9 +10,10 @@
   hospital metrics.
 - `apps/ai-service`: FastAPI triage, provider-neutral chat/embedding contracts,
   normalized active-content RAG, structured specialty recommendation, and
-  bounded hybrid semantic search with deterministic local fallbacks. Remote
-  provider calls are optional and were not exercised against a live provider
-  in local verification.
+  bounded hybrid semantic search with explicit provenance. Deterministic local
+  fallback is limited to local/demo/test runtimes; non-local remote-provider
+  failures are fail-closed. Remote calls were not exercised against a live
+  provider in local verification.
 
 ## Local Dependencies
 
@@ -44,6 +45,10 @@
   timeouts. Remote recommendation output is schema-validated against the
   allow-listed specialty/urgency contract; doctor, schedule, availability, and
   URL values remain backend-owned.
+- AI readiness is truthful: the AI service returns HTTP 503 for missing
+  service authentication or an unconfigured selected remote provider, and the
+  backend gateway forwards its service token and requires an `ok` health JSON
+  status.
 
 ## Current Non-Goals
 
@@ -53,3 +58,6 @@
 - Broader patient/doctor portals, clinical file metadata/linkage, AI rate
   limiting, durable pgvector storage, live provider verification, and
   end-to-end demo polish remain future work.
+- The current scope is one fictional hospital and its public catalog. There is
+  no tenant isolation or multi-hospital data model. RAG citations are indexed
+  identities only, not authoritative clinical source URLs.

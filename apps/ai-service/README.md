@@ -2,8 +2,8 @@
 
 FastAPI AI/RAG service foundation. Rule-based triage and deterministic local
 embeddings work without provider credentials. OpenAI-compatible chat and
-embedding providers are opt-in and always fall back to local implementations on
-provider errors.
+embedding providers are opt-in; only local/demo/test runtimes may use a
+deterministic fallback after a remote-provider error.
 
 The provider-neutral contracts are `LLMClient`, `EmbeddingClient`,
 `Retriever`, and `RagServiceContract`. Remote responses are accepted only
@@ -39,21 +39,38 @@ Provider and safety settings are environment-backed:
 ```text
 AI_PROVIDER=rule_based_triage | deepseek | openai
 EMBEDDING_PROVIDER=local | <openai-compatible-provider>
-AI_API_KEY=<placeholder kept outside source control>
-AI_CHAT_MODEL=deepseek-chat
-AI_EMBEDDING_MODEL=text-embedding-3-small
-AI_BASE_URL=https://api.deepseek.com
+AI_API_KEY=
+AI_CHAT_MODEL=
+AI_EMBEDDING_MODEL=
+AI_BASE_URL=
 AI_TIMEOUT_SECONDS=10
 AI_MAX_INPUT_CHARS=10000
 AI_MAX_RETRIEVED_CHUNKS=5
 RAG_MAX_DOCUMENT_CHARS=20000
+
+# Legacy aliases, used only when the corresponding AI_* value is empty.
+DEEPSEEK_API_KEY=
+DEEPSEEK_MODEL=deepseek-chat
+DEEPSEEK_EMBEDDING_MODEL=
+DEEPSEEK_BASE_URL=https://api.deepseek.com
 ```
 
 The hard request bounds are 10,000 characters for patient/query input and
 20,000 characters for knowledge documents. A deployment can lower them with
-the settings above. Provider calls use no automatic retries and a bounded
-timeout; failure returns deterministic triage or local embeddings without
-logging the submitted text.
+the settings above. `AI_CHAT_MODEL`, `AI_EMBEDDING_MODEL`, `AI_BASE_URL`, and
+`AI_API_KEY` take precedence; the corresponding `DEEPSEEK_*` values are
+legacy aliases used only when the provider-neutral value is empty. Empty
+provider-neutral model/base-url values resolve to the safe legacy defaults
+shown above.
+
+Provider calls use no automatic retries and a bounded timeout. In `local`,
+`demo`, or `test` runtime, a remote provider error may return deterministic
+output only with `provenance: "local_fallback"`. In every other runtime, a
+selected remote provider that is missing or unavailable fails with HTTP 503;
+local output is never presented as a successful remote result. `/health`
+returns HTTP 503 when authentication or selected-provider readiness is not
+valid, including a degraded local fallback mode. Patient text and secrets are
+not logged.
 
 Protected AI routes require the same non-empty `AI_SERVICE_TOKEN` in the
 backend and AI service. The backend forwards it as `X-AI-Service-Token`.
@@ -69,4 +86,10 @@ Specialty recommendations carry a visible disclaimer and citations when
 trusted knowledge is available. They do not claim a diagnosis or prescription,
 and they do not return doctor or appointment recommendations; those must be
 resolved by the authenticated backend against active catalog and schedule
-data.
+data. This slice models one fictional hospital/public catalog only; it does
+not provide tenant isolation or a multi-hospital data model.
+
+Citations are deliberately identity-only (`source_type`, `source_id`, and
+`title`) and are not authoritative clinical source URLs. The backend must
+resolve or verify any catalog follow-up; a URL or clinical authority cannot be
+inferred from an AI response.
