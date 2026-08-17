@@ -35,13 +35,16 @@ import org.testcontainers.containers.PostgreSQLContainer;
  *
  * <p>An explicitly supplied {@code TEST_DB_URL} can still target an external
  * PostgreSQL instance. That override is intended for a dedicated throwaway test
- * database because each test method cleans its rows.
+ * database because each test method cleans its rows. It must be paired with
+ * {@code TEST_DB_ALLOW_CLEANUP=true}; without that explicit guard the suite
+ * refuses to start rather than risking deletion from an application database.
  *
  * <p>The external connection is overridable via environment variables:
  * <ul>
  *   <li>{@code TEST_DB_URL} — external JDBC URL (otherwise a disposable container is used)</li>
  *   <li>{@code TEST_DB_USERNAME} — default {@code healthcare}</li>
  *   <li>{@code TEST_DB_PASSWORD} — default {@code change-me}</li>
+ *   <li>{@code TEST_DB_ALLOW_CLEANUP} — must be {@code true} for external URLs</li>
  * </ul>
  *
  * <p>Each test method gets a clean database state via {@link #cleanDatabase()} which
@@ -58,6 +61,9 @@ public abstract class AbstractIntegrationTest {
 
     private static final String externalDbUrl = System.getenv("TEST_DB_URL");
     private static final boolean useExternalDatabase = externalDbUrl != null && !externalDbUrl.isBlank();
+    private static final boolean allowExternalCleanup = "true".equalsIgnoreCase(
+        System.getenv("TEST_DB_ALLOW_CLEANUP")
+    );
     private static final PostgreSQLContainer<?> testDatabase = createTestDatabase();
     private static final String dbUrl = useExternalDatabase ? externalDbUrl : testDatabase.getJdbcUrl();
     private static final String dbUsername = useExternalDatabase
@@ -69,6 +75,12 @@ public abstract class AbstractIntegrationTest {
 
     private static PostgreSQLContainer<?> createTestDatabase() {
         if (useExternalDatabase) {
+            if (!allowExternalCleanup) {
+                throw new IllegalStateException(
+                    "Refusing destructive integration-test cleanup for TEST_DB_URL. "
+                        + "Use a dedicated test database and set TEST_DB_ALLOW_CLEANUP=true explicitly."
+                );
+            }
             return null;
         }
         PostgreSQLContainer<?> container = new PostgreSQLContainer<>("postgres:16-alpine")

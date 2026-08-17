@@ -1,6 +1,7 @@
 # Test datasource is supplied at runtime by AbstractIntegrationTest. By default
 # it is a disposable PostgreSQL Testcontainer; TEST_DB_URL is an explicit
-# external-database escape hatch for dedicated test databases only.
+# external-database escape hatch for dedicated test databases only. External
+# URLs also require TEST_DB_ALLOW_CLEANUP=true because the base cleans rows.
 spring:
   jpa:
     hibernate:

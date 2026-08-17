@@ -104,8 +104,15 @@ ON CONFLICT DO NOTHING;
 INSERT INTO doctor_schedules (id, doctor_id, branch_id, day_of_week, start_time, end_time, slot_duration_minutes, effective_from, effective_to, active)
 SELECT gen_random_uuid(), d.id, b.id, shifts.dow, shifts.start_time::time, shifts.end_time::time, 30, '2026-08-01', NULL, true
 FROM doctors d
-CROSS JOIN (SELECT id FROM branches WHERE slug = 'benh-vien-sai-gon-xanh' LIMIT 1) b
+JOIN doctor_branches db ON db.doctor_id = d.id
+JOIN branches b ON b.id = db.branch_id
 CROSS JOIN (VALUES (1, '08:00:00', '11:30:00'), (2, '08:00:00', '11:30:00'), (3, '08:00:00', '11:30:00'), (4, '08:00:00', '11:30:00'), (5, '08:00:00', '11:30:00')) AS shifts(dow, start_time, end_time)
 WHERE NOT EXISTS (
-    SELECT 1 FROM doctor_schedules s WHERE s.doctor_id = d.id AND s.day_of_week = shifts.dow
+    SELECT 1
+    FROM doctor_schedules s
+    WHERE s.doctor_id = d.id
+      AND s.branch_id = db.branch_id
+      AND s.day_of_week = shifts.dow
+      AND s.start_time = shifts.start_time::time
+      AND s.end_time = shifts.end_time::time
 );
