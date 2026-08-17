@@ -96,3 +96,31 @@ def specialty_recommendation(request: SpecialtyRecommendationRequest) -> TriageR
 @app.get("/rag/stats")
 def rag_stats() -> dict:
     return {"documents": rag_service.index.size}
+
+
+@app.get("/search")
+def semantic_search(q: str = "", specialty: str = "", top_k: int = 10) -> dict:
+    """Hybrid semantic search over the RAG index.
+
+    Keyword ``q`` is embedded and matched against indexed documents. An
+    optional ``specialty`` filter narrows results. Returns the top_k hits
+    with source metadata for rendering search results.
+    """
+    if not q and not specialty:
+        return {"results": []}
+    query_embedding, _ = embed(q or specialty, settings)
+    hits = rag_service.search(query_embedding, top_k=top_k * 2)
+    results = []
+    for doc, score in hits:
+        if specialty and doc.source_type == "specialty" and specialty.lower() not in doc.title.lower():
+            continue
+        results.append({
+            "source_type": doc.source_type,
+            "source_id": doc.source_id,
+            "title": doc.title,
+            "content": doc.content,
+            "score": round(score, 4),
+        })
+        if len(results) >= top_k:
+            break
+    return {"results": results, "query": q, "specialty": specialty}
