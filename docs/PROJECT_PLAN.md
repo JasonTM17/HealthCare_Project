@@ -68,6 +68,8 @@ AI service boundaries:
 
 ### Phase 0 - Repository Discovery
 
+Status: `DONE`.
+
 Status: `DONE` for initial local assessment.
 
 Deliverables:
@@ -83,6 +85,8 @@ Validation:
 - File discovery - `PASS`, no app skeleton found.
 
 ### Phase 1 - Project Foundation
+
+Status: `DONE`.
 
 Goal: establish a clean, version-controlled monorepo skeleton without premature business features.
 
@@ -116,6 +120,8 @@ Acceptance criteria:
 
 ### Phase 2 - Database Foundation
 
+Status: `DONE`.
+
 Goal: establish safe database lifecycle and identity/RBAC persistence.
 
 Required backend work:
@@ -141,6 +147,8 @@ Suggested commits:
 - `test(auth): add repository integration tests`
 
 ### Phase 3 - Authentication and Security
+
+Status: `DONE`.
 
 Goal: secure auth before protected product features.
 
@@ -172,6 +180,8 @@ Suggested commits:
 
 ### Phase 4 - Public Hospital Domain
 
+Status: `DONE`.
+
 Goal: create real hospital content APIs and public pages.
 
 Backend entities:
@@ -200,6 +210,8 @@ Suggested commits:
 - `feat(frontend): add public catalog pages`
 
 ### Phase 5 - Admin CMS
+
+Status: backend + tests `DONE`; admin UI pending.
 
 Goal: allow admins to manage public hospital content securely.
 
