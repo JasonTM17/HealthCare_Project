@@ -15,6 +15,7 @@ interface PublicPageShellProps {
   specialties?: Specialty[];
   branches?: Branch[];
   packages?: HealthPackage[];
+  bookingInitiallyOpen?: boolean;
 }
 
 interface PublicPageActions {
@@ -57,8 +58,8 @@ export function PublicBackLink({ href = "/", children = "← Về trang chính" 
   return <Link className="text-button" href={href}>{children}</Link>;
 }
 
-export function PublicPageShell({ children, doctors = [], specialties = [], branches = [], packages = [] }: PublicPageShellProps) {
-  const [bookingOpen, setBookingOpen] = useState(false);
+export function PublicPageShell({ children, doctors = [], specialties = [], branches = [], packages = [], bookingInitiallyOpen = false }: PublicPageShellProps) {
+  const [bookingOpen, setBookingOpen] = useState(bookingInitiallyOpen);
   const [aiOpen, setAiOpen] = useState(false);
   const [selection, setSelection] = useState<Parameters<PublicPageActions["openBooking"]>[0]>();
 

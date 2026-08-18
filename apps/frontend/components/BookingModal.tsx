@@ -26,6 +26,16 @@ const EMPTY_SPECIALTIES: Specialty[] = [];
 const EMPTY_BRANCHES: Branch[] = [];
 const EMPTY_PACKAGES: HealthPackage[] = [];
 
+const BOOKING_STEPS = [
+  { id: 1, label: "Chuyên khoa" },
+  { id: 2, label: "Cơ sở" },
+  { id: 3, label: "Bác sĩ" },
+  { id: 4, label: "Ngày khám" },
+  { id: 5, label: "Khung giờ" },
+  { id: 6, label: "Thông tin" },
+  { id: 7, label: "Xác nhận" },
+] as const;
+
 interface BookingModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -51,7 +61,8 @@ export default function BookingModal({
   specialties: providedSpecialties = EMPTY_SPECIALTIES,
   branches: providedBranches = EMPTY_BRANCHES,
 }: BookingModalProps) {
-  // Wizard steps: 1 = Choose Doctor/Specialty, 2 = Choose Slot, 3 = Patient Info, 4 = OTP & Confirmation
+  // The public Stitch flow is seven explicit decisions. Backend hold/OTP remain
+  // the final two transitions so every selection is visible and reviewable.
   const [step, setStep] = useState<number>(1);
 
   // Form State. Catalog identities always come from the backend or explicitly
@@ -185,7 +196,7 @@ export default function BookingModal({
 
   // Countdown timer for 10-minute hold lock
   useEffect(() => {
-    if (step === 4 && !confirmedAppointment && secondsRemaining > 0) {
+    if (step === 7 && !confirmedAppointment && secondsRemaining > 0) {
       const timer = setInterval(() => {
         setSecondsRemaining((prev) => prev - 1);
       }, 1000);
@@ -260,7 +271,7 @@ export default function BookingModal({
       setBookingCode(result.bookingCode);
       setHoldExpiresAt(result.holdExpiresAt);
       setSecondsRemaining(600); // 10 minutes
-      setStep(4);
+      setStep(7);
     } catch (err: any) {
       setErrorMessage(err.message || "Không thể giữ chỗ khung giờ này.");
     } finally {
@@ -327,25 +338,22 @@ export default function BookingModal({
 
         {/* Wizard Step Progress */}
         {!confirmedAppointment && (
-          <div className="px-6 py-3 bg-brand-50/70 border-b border-brand-100/60 flex items-center justify-between text-xs font-semibold text-brand-900">
-            <div className={`flex items-center gap-1.5 ${step >= 1 ? "text-brand-700 font-bold" : "text-gray-400"}`}>
-              <span className={`w-5 h-5 rounded-full flex items-center justify-center ${step >= 1 ? "bg-brand-700 text-white" : "bg-gray-200"}`}>1</span>
-              <span>Chuyên khoa & Bác sĩ</span>
-            </div>
-            <span>→</span>
-            <div className={`flex items-center gap-1.5 ${step >= 2 ? "text-brand-700 font-bold" : "text-gray-400"}`}>
-              <span className={`w-5 h-5 rounded-full flex items-center justify-center ${step >= 2 ? "bg-brand-700 text-white" : "bg-gray-200"}`}>2</span>
-              <span>Chọn giờ khám</span>
-            </div>
-            <span>→</span>
-            <div className={`flex items-center gap-1.5 ${step >= 3 ? "text-brand-700 font-bold" : "text-gray-400"}`}>
-              <span className={`w-5 h-5 rounded-full flex items-center justify-center ${step >= 3 ? "bg-brand-700 text-white" : "bg-gray-200"}`}>3</span>
-              <span>Thông tin</span>
-            </div>
-            <span>→</span>
-            <div className={`flex items-center gap-1.5 ${step >= 4 ? "text-brand-700 font-bold" : "text-gray-400"}`}>
-              <span className={`w-5 h-5 rounded-full flex items-center justify-center ${step >= 4 ? "bg-brand-700 text-white" : "bg-gray-200"}`}>4</span>
-              <span>Xác nhận</span>
+          <div className="border-b border-brand-100/60 bg-brand-50/70 px-6 py-3" aria-label="Tiến trình đặt lịch">
+            <div className="flex items-center gap-2 overflow-x-auto text-xs font-semibold text-brand-900">
+              {BOOKING_STEPS.map(({ id, label }, index) => (
+                <React.Fragment key={id}>
+                  {index > 0 ? <span aria-hidden="true" className="text-brand-300">→</span> : null}
+                  <div
+                    className={`flex min-w-max items-center gap-1.5 ${step === id ? "font-bold text-brand-700" : step > id ? "text-brand-500" : "text-gray-400"}`}
+                    aria-current={step === id ? "step" : undefined}
+                  >
+                    <span className={`flex h-5 w-5 items-center justify-center rounded-full ${step >= id ? "bg-brand-700 text-white" : "bg-gray-200 text-gray-500"}`}>
+                      {step > id ? "✓" : id}
+                    </span>
+                    <span>{label}</span>
+                  </div>
+                </React.Fragment>
+              ))}
             </div>
           </div>
         )}
@@ -370,184 +378,165 @@ export default function BookingModal({
               {catalogError}
             </p>
           ) : null}
-          {/* ── STEP 1: Choose Specialty, Doctor, Branch ── */}
+          {/* ── STEP 1: Choose specialty ── */}
           {step === 1 && (
-            <div className="space-y-4">
+            <div className="space-y-5">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Chọn Cơ sở Bệnh viện / Phòng khám
-                </label>
-                <select
-                  value={selectedBranch}
-                  onChange={(e) => handleBranchChange(e.target.value)}
-                  className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-600 focus:outline-none text-sm text-gray-900"
-                >
-                  {branches.map((br) => (
-                    <option key={br.id} value={br.id}>
-                      {br.name}
-                    </option>
-                  ))}
-                </select>
+                <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">01 · Nhu cầu khám</p>
+                <h3 className="text-xl font-bold text-gray-900">Bạn muốn được hỗ trợ ở chuyên khoa nào?</h3>
+                <p className="mt-1 text-sm leading-6 text-gray-600">Chọn đúng catalog active để lịch hẹn được tạo với identity backend hợp lệ.</p>
               </div>
-
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Chọn Chuyên khoa Thăm khám
-                </label>
+                <label className="mb-1 block text-sm font-semibold text-gray-700" htmlFor="booking-specialty">Chuyên khoa</label>
                 <select
+                  id="booking-specialty"
                   value={selectedSpecialty}
                   onChange={(e) => setSelectedSpecialty(e.target.value)}
-                  className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-600 focus:outline-none text-sm text-gray-900"
+                  className="w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
                 >
-                  {specialties.map((sp) => (
-                    <option key={sp.id} value={sp.id}>
-                      {sp.name}
-                    </option>
-                  ))}
+                  {specialties.map((sp) => <option key={sp.id} value={sp.id}>{sp.name}</option>)}
                 </select>
               </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Chọn Bác sĩ Chuyên gia
-                </label>
-                <select
-                  value={selectedDoctor}
-                  onChange={(e) => handleDoctorChange(e.target.value)}
-                  className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-600 focus:outline-none text-sm text-gray-900 font-medium"
-                >
-                  {availableDoctors.map((doc) => (
-                    <option key={doc.id} value={doc.id}>
-                      {doc.fullName} ({doc.title || doc.specialtyName})
-                    </option>
-                  ))}
-                </select>
+              <div className="rounded-xl border border-brand-100 bg-brand-50/60 p-4 text-sm text-brand-950">
+                <strong>{currentSpecialty?.name ?? "Chưa chọn chuyên khoa"}</strong>
+                <p className="mt-1 text-xs leading-5 text-brand-700">{currentSpecialty?.description ?? "Chọn một chuyên khoa để tiếp tục."}</p>
               </div>
-
-              {/* Selected Doctor Summary Card */}
-              <div className="p-4 bg-brand-50/50 border border-brand-100 rounded-xl flex items-center gap-4 mt-2">
-                <div className="w-14 h-14 rounded-full bg-brand-700 text-white font-bold text-xl flex items-center justify-center flex-shrink-0">
-                  <Icon name="stethoscope" size={26} />
-                </div>
-                <div>
-                  <h4 className="font-bold text-brand-900 text-base">{currentDoctor?.fullName ?? "Chưa chọn bác sĩ"}</h4>
-                  <p className="text-xs text-brand-700">{currentDoctor?.title ?? "Chưa có hồ sơ bác sĩ"}{currentDoctor?.experienceYears ? ` • ${currentDoctor.experienceYears} năm kinh nghiệm` : ""}</p>
-                  <p className="text-xs text-gray-500 mt-1 line-clamp-1">{currentDoctor?.bio ?? "Chọn cơ sở và bác sĩ từ danh mục live."}</p>
-                </div>
-              </div>
-
-              <div className="pt-4 flex justify-end">
-                <button
-                  type="button"
-                  disabled={catalogLoading || !currentDoctor || !currentSpecialty || !currentBranch}
-                  onClick={() => setStep(2)}
-                  className="px-6 py-2.5 bg-brand-700 hover:bg-brand-800 text-white font-semibold rounded-full shadow-md hover:shadow-lg transition-colors flex items-center gap-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
-                >
-                  Tiếp tục: Chọn ngày giờ khám <span>→</span>
+              <div className="flex justify-end border-t border-gray-100 pt-4">
+                <button type="button" disabled={catalogLoading || !currentSpecialty} onClick={() => setStep(2)} className="flex items-center gap-2 rounded-full bg-brand-700 px-6 py-2.5 font-semibold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600">
+                  Tiếp tục: Chọn cơ sở <span>→</span>
                 </button>
               </div>
             </div>
           )}
 
-          {/* ── STEP 2: Choose Date & Time Slot ── */}
+          {/* ── STEP 2: Choose branch ── */}
           {step === 2 && (
             <div className="space-y-5">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Chọn Ngày khám mong muốn
-                </label>
-                <input
-                  type="date"
-                  min={selectedDate}
-                  value={selectedDate}
-                  onChange={(e) => handleDateChange(e.target.value)}
-                  className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-600 focus:outline-none text-sm text-gray-900"
-                />
+                <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">02 · Cơ sở</p>
+                <h3 className="text-xl font-bold text-gray-900">Chọn nơi bạn muốn đến khám</h3>
+                <p className="mt-1 text-sm leading-6 text-gray-600">Lịch làm việc và khung giờ sẽ được kiểm tra theo đúng cơ sở này.</p>
               </div>
-
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Khung giờ khám còn trống (30 phút/lượt)
-                  </label>
+                <label className="mb-1 block text-sm font-semibold text-gray-700" htmlFor="booking-branch">Cơ sở bệnh viện / phòng khám</label>
+                <select id="booking-branch" value={selectedBranch} onChange={(e) => handleBranchChange(e.target.value)} className="w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-600">
+                  {branches.map((br) => <option key={br.id} value={br.id}>{br.name}</option>)}
+                </select>
+              </div>
+              <div className="rounded-xl border border-brand-100 bg-brand-50/60 p-4 text-sm text-brand-950">
+                <strong>{currentBranch?.name ?? "Chưa chọn cơ sở"}</strong>
+                <p className="mt-1 text-xs text-brand-700">{currentBranch?.address ?? "Backend chưa cung cấp địa chỉ."}</p>
+                <p className="mt-1 text-xs text-brand-700">{currentBranch?.workingHours ?? "Backend chưa cung cấp giờ làm việc."}</p>
+              </div>
+              <div className="flex items-center justify-between border-t border-gray-100 pt-4">
+                <button type="button" onClick={() => setStep(1)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900">← Quay lại</button>
+                <button type="button" disabled={catalogLoading || !currentBranch} onClick={() => setStep(3)} className="flex items-center gap-2 rounded-full bg-brand-700 px-6 py-2.5 font-semibold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600">
+                  Tiếp tục: Chọn bác sĩ <span>→</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── STEP 3: Choose doctor ── */}
+          {step === 3 && (
+            <div className="space-y-5">
+              <div>
+                <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">03 · Chuyên gia</p>
+                <h3 className="text-xl font-bold text-gray-900">Chọn bác sĩ đồng hành</h3>
+                <p className="mt-1 text-sm leading-6 text-gray-600">Chỉ hiển thị bác sĩ thuộc cơ sở đang được chọn trong catalog live.</p>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-gray-700" htmlFor="booking-doctor">Bác sĩ chuyên gia</label>
+                <select id="booking-doctor" value={selectedDoctor} onChange={(e) => handleDoctorChange(e.target.value)} className="w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-600">
+                  {availableDoctors.map((doc) => <option key={doc.id} value={doc.id}>{doc.fullName} ({doc.title || doc.specialtyName || "Bác sĩ chuyên khoa"})</option>)}
+                </select>
+              </div>
+              <div className="flex items-center gap-4 rounded-xl border border-brand-100 bg-brand-50/60 p-4">
+                <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-brand-700 text-xl font-bold text-white"><Icon name="stethoscope" size={26} /></div>
+                <div>
+                  <h4 className="text-base font-bold text-brand-900">{currentDoctor?.fullName ?? "Chưa chọn bác sĩ"}</h4>
+                  <p className="text-xs text-brand-700">{currentDoctor?.title ?? "Chưa có hồ sơ bác sĩ"}{currentDoctor?.experienceYears ? ` • ${currentDoctor.experienceYears} năm kinh nghiệm` : ""}</p>
+                  <p className="mt-1 line-clamp-2 text-xs text-gray-500">{currentDoctor?.bio ?? "Chọn bác sĩ từ danh mục live."}</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between border-t border-gray-100 pt-4">
+                <button type="button" onClick={() => setStep(2)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900">← Quay lại</button>
+                <button type="button" disabled={catalogLoading || !currentDoctor} onClick={() => setStep(4)} className="flex items-center gap-2 rounded-full bg-brand-700 px-6 py-2.5 font-semibold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600">
+                  Tiếp tục: Chọn ngày <span>→</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── STEP 4: Choose date ── */}
+          {step === 4 && (
+            <div className="space-y-5">
+              <div>
+                <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">04 · Ngày khám</p>
+                <h3 className="text-xl font-bold text-gray-900">Chọn ngày thuận tiện cho bạn</h3>
+                <p className="mt-1 text-sm leading-6 text-gray-600">Ngày trong quá khứ sẽ không được gửi tới backend.</p>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-gray-700" htmlFor="booking-date">Ngày khám mong muốn</label>
+                <input id="booking-date" type="date" min={selectedDate} value={selectedDate} onChange={(e) => handleDateChange(e.target.value)} className="w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-600" />
+              </div>
+              <div className="rounded-xl border border-brand-100 bg-brand-50/60 p-4 text-xs text-brand-900">
+                <p><strong>Bác sĩ:</strong> {currentDoctor?.fullName ?? "Chưa chọn"}</p>
+                <p className="mt-1"><strong>Cơ sở:</strong> {currentBranch?.name ?? "Chưa chọn"}</p>
+              </div>
+              <div className="flex items-center justify-between border-t border-gray-100 pt-4">
+                <button type="button" onClick={() => setStep(3)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900">← Quay lại</button>
+                <button type="button" disabled={!selectedDate || !currentDoctor || !currentBranch} onClick={() => setStep(5)} className="flex items-center gap-2 rounded-full bg-brand-700 px-6 py-2.5 font-semibold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600">
+                  Xem khung giờ <span>→</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── STEP 5: Choose time slot ── */}
+          {step === 5 && (
+            <div className="space-y-5">
+              <div>
+                <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">05 · Khung giờ</p>
+                <h3 className="text-xl font-bold text-gray-900">Chọn một khung giờ còn trống</h3>
+                <p className="mt-1 text-sm leading-6 text-gray-600">Khung giờ được tính từ lịch làm việc thật và sẽ được kiểm tra lại khi giữ chỗ.</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-brand-100 bg-brand-50/60 p-3 text-xs text-brand-900">
+                <span><strong>Ngày:</strong> {selectedDate}</span>
+                <span><strong>Cơ sở:</strong> {currentBranch?.name ?? "Chưa chọn"}</span>
+                <span><strong>Bác sĩ:</strong> {currentDoctor?.fullName ?? "Chưa chọn"}</span>
+              </div>
+              <div>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <label className="block text-sm font-semibold text-gray-700">Khung giờ khám (30 phút/lượt)</label>
                   <span className="flex flex-wrap items-center gap-2 text-xs font-medium text-brand-700" aria-label="Chú giải trạng thái khung giờ">
-                    <span className="inline-flex items-center gap-1.5">
-                      <span aria-hidden="true" className="h-2 w-2 rounded-full bg-emerald-500" />
-                      Còn trống
-                    </span>
+                    <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2 w-2 rounded-full bg-emerald-500" />Còn trống</span>
                     <span aria-hidden="true">•</span>
-                    <span className="inline-flex items-center gap-1.5">
-                      <span aria-hidden="true" className="h-2 w-2 rounded-full bg-slate-300" />
-                      Đã có người giữ
-                    </span>
+                    <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2 w-2 rounded-full bg-slate-300" />Đã có người giữ</span>
                   </span>
                 </div>
-                {loadingSlots ? (
-                  <div aria-live="polite" className="py-8 text-center text-sm text-gray-500" role="status">
-                    <Icon name="clock" size={15} /> Đang tải lịch khám khả dụng...
-                  </div>
-                ) : slotError ? (
-                  <div aria-live="assertive" className="rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700" role="alert">
-                    {slotError}
-                  </div>
-                ) : slots.length === 0 ? (
-                  <div aria-live="polite" className="rounded-lg border border-dashed border-gray-300 px-3 py-6 text-center text-sm text-gray-500" role="status">
-                    Chưa có khung giờ cho bác sĩ, cơ sở và ngày đã chọn.
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 max-h-48 overflow-y-auto p-1">
-                    {slots.map((slot) => {
-                      const isSelected = selectedSlot === slot.startTime;
-                      return (
-                        <button
-                          key={slot.startTime}
-                          type="button"
-                          disabled={!slot.available || slot.branchId !== selectedBranch}
-                          onClick={() => setSelectedSlot(slot.startTime)}
-                          className={`p-2.5 rounded-lg text-xs font-semibold border transition-colors flex flex-col items-center justify-center gap-0.5 ${
-                            isSelected
-                              ? "bg-brand-700 text-white border-brand-700 shadow-md ring-2 ring-brand-500"
-                              : slot.available
-                              ? "bg-white text-gray-800 border-brand-200 hover:border-brand-500 hover:bg-brand-50"
-                              : "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-60"
-                          }`}
-                        >
-                          <span className="text-sm font-bold">
-                            {slot.startTime.slice(0, 5)}
-                          </span>
-                          <span className="text-[10px] opacity-80">
-                            {slot.available ? "Còn trống" : "Đã kín"}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+                {loadingSlots ? <div aria-live="polite" className="py-8 text-center text-sm text-gray-500" role="status"><Icon name="clock" size={15} /> Đang tải lịch khám khả dụng...</div>
+                  : slotError ? <div aria-live="assertive" className="rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700" role="alert">{slotError}</div>
+                  : slots.length === 0 ? <div aria-live="polite" className="rounded-lg border border-dashed border-gray-300 px-3 py-6 text-center text-sm text-gray-500" role="status">Chưa có khung giờ cho bác sĩ, cơ sở và ngày đã chọn.</div>
+                  : <div className="grid max-h-56 grid-cols-3 gap-2.5 overflow-y-auto p-1 sm:grid-cols-4">{slots.map((slot) => { const isSelected = selectedSlot === slot.startTime; return <button key={`${slot.branchId}-${slot.startTime}`} type="button" disabled={!slot.available || slot.branchId !== selectedBranch} onClick={() => setSelectedSlot(slot.startTime)} className={`flex flex-col items-center justify-center gap-0.5 rounded-lg border p-2.5 text-xs font-semibold transition-colors ${isSelected ? "border-brand-700 bg-brand-700 text-white shadow-md ring-2 ring-brand-500" : slot.available ? "border-brand-200 bg-white text-gray-800 hover:border-brand-500 hover:bg-brand-50" : "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 opacity-60"}`}><span className="text-sm font-bold">{slot.startTime.slice(0, 5)}</span><span className="text-[10px] opacity-80">{slot.available ? "Còn trống" : "Đã kín"}</span></button>; })}</div>}
               </div>
-
-              <div className="pt-4 flex items-center justify-between border-t border-gray-100">
-                <button
-                  type="button"
-                  onClick={() => setStep(1)}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium text-sm"
-                >
-                  ← Quay lại
-                </button>
-                <button
-                  type="button"
-                  disabled={!selectedSlot || !slots.some((slot) => slot.available && slot.startTime === selectedSlot && slot.branchId === selectedBranch)}
-                  onClick={() => setStep(3)}
-                  className="px-6 py-2.5 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-semibold rounded-full shadow-md transition-colors flex items-center gap-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
-                >
+              <div className="flex items-center justify-between border-t border-gray-100 pt-4">
+                <button type="button" onClick={() => setStep(4)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900">← Quay lại</button>
+                <button type="button" disabled={!selectedSlot || !slots.some((slot) => slot.available && slot.startTime === selectedSlot && slot.branchId === selectedBranch)} onClick={() => setStep(6)} className="flex items-center gap-2 rounded-full bg-brand-700 px-6 py-2.5 font-semibold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600">
                   Tiếp tục: Điền thông tin <span>→</span>
                 </button>
               </div>
             </div>
           )}
 
-          {/* ── STEP 3: Patient Information Form ── */}
-          {step === 3 && (
+          {/* ── STEP 6: Patient Information Form ── */}
+          {step === 6 && (
             <form onSubmit={handleHoldSlot} className="space-y-4">
+              <div>
+                <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">06 · Thông tin bệnh nhân</p>
+                <h3 className="text-xl font-bold text-gray-900">Cho chúng tôi biết cách liên hệ với bạn</h3>
+                <p className="mt-1 text-sm leading-6 text-gray-600">Thông tin chỉ được gửi khi bạn bấm giữ chỗ và không được đưa vào URL.</p>
+              </div>
               <div className="p-3.5 bg-brand-50/60 border border-brand-100 rounded-xl text-xs text-brand-900 space-y-1">
                 <div className="flex justify-between font-semibold">
                   <span>Bác sĩ: {currentDoctor?.fullName ?? "Chưa chọn"}</span>
@@ -614,7 +603,7 @@ export default function BookingModal({
               <div className="pt-3 flex items-center justify-between border-t border-gray-100">
                 <button
                   type="button"
-                  onClick={() => setStep(2)}
+                  onClick={() => setStep(5)}
                   className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium text-sm"
                 >
                   ← Quay lại
@@ -636,11 +625,15 @@ export default function BookingModal({
             </form>
           )}
 
-          {/* ── STEP 4: OTP Verification & Final E-Card ── */}
-          {step === 4 && (
+          {/* ── STEP 7: OTP Verification & Final E-Card ── */}
+          {step === 7 && (
             <div>
               {!confirmedAppointment ? (
                 <form onSubmit={handleConfirmOtp} className="space-y-4 text-center py-2">
+                  <div>
+                    <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">07 · Xác nhận</p>
+                    <h3 className="text-xl font-bold text-gray-900">Xác nhận lịch hẹn bằng OTP</h3>
+                  </div>
                   <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-900 rounded-full text-xs font-semibold">
                     <Icon name="clock" size={15} /> Thời gian giữ chỗ còn lại:{" "}
                     <span className="font-mono text-amber-700 font-bold">{formatTimer(secondsRemaining)}</span>
@@ -675,7 +668,7 @@ export default function BookingModal({
                   <div className="pt-3 flex items-center justify-between border-t border-gray-100">
                     <button
                       type="button"
-                      onClick={() => setStep(3)}
+                      onClick={() => setStep(6)}
                       className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium text-sm"
                     >
                       ← Sửa thông tin
