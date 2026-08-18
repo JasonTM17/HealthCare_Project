@@ -54,8 +54,10 @@ test("public live slot listens to named SSE changes and has polling fallback", a
   assert.match(liveSlot, /setInterval/);
   assert.match(liveSlot, /scheduleReconnect/);
   assert.match(liveSlot, /reconnectAttempt/);
+  assert.match(liveSlot, /sseConnected/);
   assert.match(liveSlot, /pendingEventIds\.current\.size === 0/);
   assert.match(liveSlot, /startPolling\(\)/);
+  assert.match(liveSlot, /if \(!succeeded && !cancelled\) startPolling\(\)/);
   assert.match(liveSlot, /onResync/);
   assert.match(liveSlot, /data-cms-live-source="live-backend"/);
   assert.doesNotMatch(liveSlot, /window\.location\.reload/);

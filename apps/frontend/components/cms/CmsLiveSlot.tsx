@@ -59,7 +59,9 @@ export function CmsLiveSlot({
     let pollTimer: ReturnType<typeof setInterval> | undefined;
     let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
     let reconnectAttempt = 0;
+    let sseConnected = false;
     let stopFeed: () => void = () => undefined;
+    let stopPolling: () => void = () => undefined;
     latestVersion.current = 0;
     latestEventId.current = 0;
     highestObservedEventId.current = 0;
@@ -80,6 +82,10 @@ export function CmsLiveSlot({
     const resolvePendingEvent = (eventId: number): void => {
       pendingEventIds.current.delete(eventId);
       advanceCursor();
+      if (pendingEventIds.current.size === 0 && sseConnected) {
+        stopPolling();
+        setTransport("sse");
+      }
     };
 
     const refresh = async (): Promise<boolean> => {
@@ -112,11 +118,15 @@ export function CmsLiveSlot({
           pendingEventIds.current.clear();
           advanceCursor();
           setLiveNotice(`Đã đồng bộ ${backendSlotKey}, version ${latestVersion.current}.`);
+          if (sseConnected) {
+            stopPolling();
+            setTransport("sse");
+          }
         });
       }, Math.max(5_000, pollIntervalMs));
     };
 
-    const stopPolling = (): void => {
+    stopPolling = (): void => {
       if (!pollTimer) return;
       clearInterval(pollTimer);
       pollTimer = undefined;
@@ -176,10 +186,18 @@ export function CmsLiveSlot({
         onConnected: () => {
           if (cancelled) return;
           reconnectAttempt = 0;
-          stopPolling();
-          setTransport("sse");
+          sseConnected = true;
+          if (pendingEventIds.current.size === 0) {
+            stopPolling();
+            setTransport("sse");
+          } else {
+            // A reconnect can win the race with a pending HTTP refresh. Keep
+            // polling alive until that event is actually acknowledged.
+            startPolling();
+          }
         },
         onFallback: () => {
+          sseConnected = false;
           startPolling();
           scheduleReconnect();
         },
@@ -190,7 +208,12 @@ export function CmsLiveSlot({
               highestObservedEventId.current = Math.max(highestObservedEventId.current, event.latestEventId);
               latestEventId.current = Math.max(latestEventId.current, event.latestEventId);
               setLiveNotice(`Đã resync nội dung live từ backend, version ${latestVersion.current}.`);
+              if (sseConnected) {
+                stopPolling();
+                setTransport("sse");
+              }
             }
+            if (!succeeded && !cancelled) startPolling();
           });
         },
       });
