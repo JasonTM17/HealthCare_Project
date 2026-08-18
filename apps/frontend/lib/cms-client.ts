@@ -82,10 +82,27 @@ export type CmsContent = CmsContentBase & (
   | { componentType: "IMAGE_CARD"; payload: CmsImageCardPayload }
 );
 
+export interface CmsContentHistoryEntry {
+  eventId: number;
+  slotKey: string;
+  componentType: CmsComponentType | null;
+  status: CmsPublicationStatus | null;
+  payload: CmsPayload | null;
+  version: number;
+  actorEmail: string | null;
+  changedAt: string;
+  rollbackAvailable: boolean;
+}
+
 export interface CmsContentInput {
   componentType: CmsComponentType;
   payload: CmsPayload;
   status: CmsPublicationStatus;
+  expectedVersion: number;
+}
+
+export interface CmsRollbackInput {
+  changeId: number;
   expectedVersion: number;
 }
 
@@ -385,6 +402,37 @@ export function parseCmsContent(raw: unknown): CmsContent {
   };
 }
 
+export function parseCmsContentHistoryEntry(raw: unknown): CmsContentHistoryEntry {
+  const source = readRecord(raw, "CMS history");
+  const componentType = source.componentType === null ? null : source.componentType;
+  if (componentType !== null && !isOneOf(componentType, CMS_COMPONENT_TYPES)) {
+    throw new CmsValidationError("history.componentType không thuộc CMS vocabulary.");
+  }
+  const status = source.status === null ? null : source.status;
+  if (status !== null && !isOneOf(status, CMS_PUBLICATION_STATUSES)) {
+    throw new CmsValidationError("history.status phải là DRAFT hoặc PUBLISHED.");
+  }
+  const rollbackAvailable = source.rollbackAvailable;
+  if (typeof rollbackAvailable !== "boolean") {
+    throw new CmsValidationError("history.rollbackAvailable phải là boolean.");
+  }
+  return {
+    eventId: readPositiveInteger(source.eventId, "history.eventId"),
+    slotKey: readSlotKey(source.slotKey, "history.slotKey"),
+    componentType,
+    status,
+    payload: componentType === null || source.payload === null
+      ? null
+      : readPayload(source.payload, componentType),
+    version: readPositiveInteger(source.version, "history.version"),
+    actorEmail: source.actorEmail === null
+      ? null
+      : typeof source.actorEmail === "string" ? source.actorEmail : null,
+    changedAt: readIsoDate(source.changedAt, "history.changedAt"),
+    rollbackAvailable,
+  };
+}
+
 export function validateCmsContentInput(input: CmsContentInput): CmsFieldErrors {
   const errors: CmsFieldErrors = {};
   if (!isOneOf(input.componentType, CMS_COMPONENT_TYPES)) {
@@ -536,6 +584,10 @@ export class CmsClient {
     return `/admin/cms/content/${encodeURIComponent(validateSlotKey(slotKey))}`;
   }
 
+  private adminHistoryPath(slotKey: string): string {
+    return `${this.adminContentPath(slotKey)}/history`;
+  }
+
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const token = this.getAccessToken ? await this.getAccessToken() : null;
     const headers = new Headers(init.headers);
@@ -609,6 +661,35 @@ export class CmsClient {
         status: input.status,
         expectedVersion: input.expectedVersion,
       }),
+    });
+  }
+
+  async listHistory(slotKey: string, limit = 20): Promise<CmsContentHistoryEntry[]> {
+    validateSlotKey(slotKey);
+    const boundedLimit = Math.min(50, Math.max(1, Math.trunc(limit)));
+    const raw = await this.request<unknown>(`${this.adminHistoryPath(slotKey)}?limit=${boundedLimit}`);
+    if (!Array.isArray(raw)) {
+      throw new CmsApiError("validation", 0, "CMS API không trả về lịch sử hợp lệ.");
+    }
+    try {
+      return raw.map((item) => parseCmsContentHistoryEntry(item));
+    } catch (error) {
+      if (error instanceof CmsApiError) throw error;
+      throw new CmsApiError("validation", 0, "CMS API trả về lịch sử sai schema.");
+    }
+  }
+
+  async rollbackContent(slotKey: string, input: CmsRollbackInput): Promise<CmsContent> {
+    validateSlotKey(slotKey);
+    if (!Number.isSafeInteger(input.changeId) || input.changeId <= 0) {
+      throw new CmsValidationError("changeId phải là số nguyên dương.");
+    }
+    if (!Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 0) {
+      throw new CmsValidationError("expectedVersion phải là số nguyên không âm.");
+    }
+    return this.requestContent(`${this.adminContentPath(slotKey)}/rollback`, {
+      method: "POST",
+      body: JSON.stringify(input),
     });
   }
 

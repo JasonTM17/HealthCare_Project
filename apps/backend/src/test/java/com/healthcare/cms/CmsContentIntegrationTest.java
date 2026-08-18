@@ -20,6 +20,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -188,6 +189,76 @@ class CmsContentIntegrationTest extends AbstractIntegrationTest {
             .doesNotContain("payload")
             .doesNotContain("SSE body");
         assertThat(changeRepository.findTopByOrderByIdDesc()).isPresent();
+    }
+
+    @Test
+    void adminHistoryStoresSnapshotsAndSupportsVersionCheckedRollback() throws Exception {
+        String admin = bearer("ADMIN");
+        String first = request("NOTICE", "PUBLISHED", 0, "{\"title\":\"First\",\"body\":\"Initial\"}");
+        String second = request("NOTICE", "PUBLISHED", 1, "{\"title\":\"Second\",\"body\":\"Current\"}");
+
+        mockMvc.perform(put("/api/v1/admin/cms/content/history-slot")
+                .header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(first))
+            .andExpect(status().isOk());
+        mockMvc.perform(put("/api/v1/admin/cms/content/history-slot")
+                .header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(second))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.version").value(2));
+
+        MvcResult history = mockMvc.perform(get("/api/v1/admin/cms/content/history-slot/history")
+                .header("Authorization", admin))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].payload.title").value("Second"))
+            .andExpect(jsonPath("$[0].actorEmail").value(org.hamcrest.Matchers.containsString("@healthcare.local")))
+            .andExpect(jsonPath("$[0].rollbackAvailable").value(true))
+            .andExpect(jsonPath("$[1].payload.title").value("First"))
+            .andReturn();
+        Number firstChangeIdValue = com.jayway.jsonpath.JsonPath.read(
+            history.getResponse().getContentAsString(),
+            "$[1].eventId"
+        );
+        long firstChangeId = firstChangeIdValue.longValue();
+
+        mockMvc.perform(post("/api/v1/admin/cms/content/history-slot/rollback")
+                .header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"changeId\":%d,\"expectedVersion\":2}".formatted(firstChangeId)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.payload.title").value("First"))
+            .andExpect(jsonPath("$.version").value(3));
+
+        mockMvc.perform(post("/api/v1/admin/cms/content/history-slot/rollback")
+                .header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"changeId\":%d,\"expectedVersion\":2}".formatted(firstChangeId)))
+            .andExpect(status().isConflict());
+    }
+
+    @Test
+    void draftOnlyAuditDoesNotEnterPublicChangeFeed() throws Exception {
+        String admin = bearer("ADMIN");
+        String draft = request("NOTICE", "DRAFT", 0, "{\"title\":\"Private draft\",\"body\":\"Not public\"}");
+
+        mockMvc.perform(put("/api/v1/admin/cms/content/draft-history-slot")
+                .header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(draft))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/admin/cms/content/draft-history-slot/history")
+                .header("Authorization", admin))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].status").value("DRAFT"))
+            .andExpect(jsonPath("$[0].rollbackAvailable").value(true));
+
+        MvcResult result = mockMvc.perform(get("/api/v1/cms/content/events").param("after", "0"))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.request().asyncStarted())
+            .andReturn();
+        assertThat(result.getResponse().getContentAsString()).doesNotContain("draft-history-slot");
     }
 
     private String bearer(String roleCode) {

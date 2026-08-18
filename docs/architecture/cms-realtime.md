@@ -18,6 +18,12 @@ Draft payloads and content bodies are never sent through the feed.
 - `PUT /api/v1/admin/cms/content/{slotKey}` — `ADMIN`-only upsert. New slots
   require `expectedVersion: 0`; subsequent writes must send the current
   version. The response version increments on each committed edit.
+- `GET /api/v1/admin/cms/content/{slotKey}/history?limit=20` — `ADMIN`-only
+  versioned snapshots with actor metadata. Draft-only edits are recorded here
+  but never enter the public SSE cursor.
+- `POST /api/v1/admin/cms/content/{slotKey}/rollback` — `ADMIN`-only restore
+  of a snapshot by `{ changeId, expectedVersion }`. Rollback is an ordinary
+  new version and therefore preserves the optimistic-concurrency contract.
 
 The allowed component types are `HERO`, `RICH_TEXT`, `CTA_BANNER`, `NOTICE`,
 and `IMAGE_CARD`. Each has a fixed allow-list of scalar text fields. The
