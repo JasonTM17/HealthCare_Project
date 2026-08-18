@@ -83,3 +83,36 @@ test("AI and CMS live boundaries fail closed across reconnect and unresolved res
   assert.match(branchDetail, /branch\.phone \?/);
   assert.match(home, /branch\.phone \?/);
 });
+
+test("published article detail consumes the backend body when available", async () => {
+  const [detail, types, response, service] = await Promise.all([
+    read("app/articles/[slug]/page.tsx"),
+    read("types/hospital.ts"),
+    read("../backend/src/main/java/com/healthcare/hospital/dto/ArticleResponse.java"),
+    read("../backend/src/main/java/com/healthcare/hospital/service/ArticleService.java"),
+  ]);
+
+  assert.match(types, /body\?: string/);
+  assert.match(response, /String body/);
+  assert.match(service, /article\.getBody\(\)/);
+  assert.match(detail, /article\.body \?/);
+  assert.match(detail, /article-detail-card__body/);
+});
+
+test("Stitch search and careers screens have live public route owners", async () => {
+  const [search, careers, footer, home] = await Promise.all([
+    read("app/search/SearchPageClient.tsx"),
+    read("app/careers/page.tsx"),
+    read("components/Footer.tsx"),
+    read("app/page.tsx"),
+  ]);
+
+  for (const marker of ["fetchSpecialties", "fetchDoctors", "fetchServices", "fetchPackages", "fetchArticles", "backend active"]) {
+    assert.ok(search.includes(marker), `missing live search marker: ${marker}`);
+  }
+  assert.match(search, /\/search\?q=/);
+  assert.match(careers, /CMS live/);
+  assert.match(careers, /PublicPageShell/);
+  assert.match(footer, /href="\/careers"/);
+  assert.match(home, /router\.push/);
+});

@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import React, { useEffect, useMemo, useState } from "react";
 import AiTriageModal from "../components/AiTriageModal";
 import BookingModal from "../components/BookingModal";
@@ -219,6 +220,7 @@ function CatalogStatus({
 }
 
 export default function Home(): React.ReactElement {
+  const router = useRouter();
   const [isBookingOpen, setIsBookingOpen] = useState<boolean>(false);
   const [isAiTriageOpen, setIsAiTriageOpen] = useState<boolean>(false);
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | undefined>();
@@ -350,7 +352,8 @@ export default function Home(): React.ReactElement {
                 className="hero-search"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  document.getElementById("specialties")?.scrollIntoView({ behavior: "smooth" });
+                  const nextQuery = searchQuery.trim();
+                  router.push(nextQuery ? `/search?q=${encodeURIComponent(nextQuery)}` : "/search");
                 }}
               >
                 <label className="sr-only" htmlFor="hero-search-input">

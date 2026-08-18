@@ -33,12 +33,14 @@ const Footer: React.FC<FooterProps> = ({ branches = [] }) => {
         <Link href="/#packages">Gói khám</Link>
         <Link href="/#doctors">Đội ngũ bác sĩ</Link>
         <Link href="/articles">Cẩm nang sức khỏe</Link>
+        <Link href="/careers">Cơ hội nghề nghiệp</Link>
       </div>
 
       <div className="footer-column">
         <h2>Hỗ trợ</h2>
         <Link href="/huong-dan">Hướng dẫn khám</Link>
         <Link href="/tra-cuu">Tra cứu lịch hẹn</Link>
+        <Link href="/search">Tìm kiếm catalog</Link>
         <Link href="/#branches">Cơ sở và giờ làm việc</Link>
         <Link href="/contact">Kênh liên hệ từ backend</Link>
       </div>
