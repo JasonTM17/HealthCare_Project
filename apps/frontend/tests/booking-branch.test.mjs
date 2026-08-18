@@ -29,7 +29,7 @@ test("branch two selection resets slot identity and passes the selected branch t
   const source = await readFile(modalPath, "utf8");
 
   assert.match(source, /const handleBranchChange = \(branchId: string\)/);
-  assert.match(source, /doctors\.find\(\(doctor\) => doctor\.branchId === branchId\)/);
+  assert.match(source, /doctors\.find\(\(doctor\) =>[\s\S]*doctorMatchesBranch\(doctor, branchId\)/);
   assert.match(source, /fetchDoctorSlots\(selectedDoctor, selectedBranch, selectedDate\)/);
   assert.match(source, /branchId: selectedBranch/);
   assert.match(source, /chosenSlot\.branchId !== selectedBranch/);
