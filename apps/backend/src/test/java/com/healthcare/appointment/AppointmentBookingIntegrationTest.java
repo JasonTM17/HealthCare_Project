@@ -243,6 +243,16 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
             .andExpect(jsonPath("$.status").value("CONFIRMED"))
             .andExpect(jsonPath("$.patientName").value("Trần Thị Bệnh Nhân"));
 
+        mockMvc.perform(post("/api/v1/appointments/confirm")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new ConfirmAppointmentRequest(
+                    bookingCode,
+                    "000000",
+                    null
+                ))))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.message").value("Lịch hẹn này đã được xác nhận"));
+
         // 4. Query appointment details by booking code
         mockMvc.perform(get("/api/v1/appointments/" + bookingCode))
             .andExpect(status().isUnauthorized());

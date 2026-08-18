@@ -61,4 +61,25 @@ class AiControllerTest {
             .containsEntry("recommended_specialty_id", id.toString())
             .containsEntry("recommended_specialty_slug", "tim-mach");
     }
+
+    @Test
+    void doesNotResolvePunctuationOnlyRecommendationToAnArbitrarySpecialty() {
+        AiService aiService = mock(AiService.class);
+        SpecialtyRepository specialtyRepository = mock(SpecialtyRepository.class);
+        Specialty specialty = new Specialty();
+        specialty.setId(UUID.randomUUID());
+        specialty.setName("Tim mạch");
+        specialty.setSlug("tim-mach");
+        specialty.setActive(true);
+        when(aiService.recommendSpecialty(any())).thenReturn(Map.of("recommended_specialty", "!!!"));
+        when(specialtyRepository.findByActiveTrue()).thenReturn(List.of(specialty));
+
+        Map<String, Object> body = new AiController(aiService, specialtyRepository)
+            .specialtyRecommendation(new AiController.AiRequest("đau ngực"))
+            .getBody();
+
+        assertThat(body)
+            .containsEntry("specialty_resolution", "UNRESOLVED")
+            .doesNotContainKeys("recommended_specialty_id", "recommended_specialty_slug");
+    }
 }

@@ -5,6 +5,7 @@ import com.healthcare.hospital.entity.Doctor;
 import com.healthcare.hospital.repository.DoctorRepository;
 import com.healthcare.hospital.repository.DoctorBranchRepository;
 import com.healthcare.hospital.repository.DoctorSpecialtyRepository;
+import com.healthcare.exception.ResourceNotFoundException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -30,10 +31,25 @@ public class DoctorService {
         return doctorRepository.findByActiveTrue(pageable).map(this::toResponse);
     }
 
+    public Page<DoctorResponse> listActive(Pageable pageable, String specialtySlug, String branchSlug, String query) {
+        return doctorRepository.findActiveWithFilters(
+            normalizeFilter(specialtySlug),
+            normalizeFilter(branchSlug),
+            normalizeFilter(query),
+            pageable
+        ).map(this::toResponse);
+    }
+
     public DoctorResponse getBySlug(String slug) {
-        return doctorRepository.findBySlug(slug)
+        return doctorRepository.findBySlugAndActiveTrue(slug)
             .map(this::toResponse)
-            .orElse(null);
+            .orElseThrow(() -> new ResourceNotFoundException("Doctor not found: " + slug));
+    }
+
+    private String normalizeFilter(String value) {
+        if (value == null) return "";
+        String normalized = value.trim();
+        return normalized;
     }
 
     private DoctorResponse toResponse(Doctor doctor) {

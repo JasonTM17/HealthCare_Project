@@ -67,6 +67,7 @@ public class AiController {
     private Specialty resolveSpecialty(Object recommendation) {
         if (!(recommendation instanceof String value) || value.isBlank()) return null;
         String candidate = normalize(value);
+        if (candidate.isBlank()) return null;
         List<Specialty> active = specialtyRepository.findByActiveTrue();
 
         List<Specialty> exact = active.stream()

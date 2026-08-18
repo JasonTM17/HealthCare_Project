@@ -22,7 +22,7 @@ public class SpecialtyService {
     }
 
     public SpecialtyResponse getBySlug(String slug) {
-        return specialtyRepository.findBySlug(slug)
+        return specialtyRepository.findBySlugAndActiveTrue(slug)
             .map(this::toResponse)
             .orElseThrow(() -> new ResourceNotFoundException("Specialty not found: " + slug));
     }

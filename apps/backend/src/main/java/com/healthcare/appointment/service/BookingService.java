@@ -273,7 +273,9 @@ public class BookingService {
         OffsetDateTime now = OffsetDateTime.now();
 
         if (appointment.getStatus() == AppointmentStatus.CONFIRMED) {
-            return toResponse(appointment);
+            // The OTP is cleared after confirmation. Never make this public
+            // endpoint an appointment-detail oracle for a booking code.
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Lịch hẹn này đã được xác nhận");
         }
 
         if (appointment.getStatus() != AppointmentStatus.PENDING_CONFIRMATION) {

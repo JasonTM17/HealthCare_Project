@@ -91,6 +91,13 @@ class CmsContentIntegrationTest extends AbstractIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(unknown))
             .andExpect(status().isBadRequest());
+
+        String singleBackslash = request("HERO", "PUBLISHED", 0, "{\"title\":\"Safe\",\"ctaHref\":\"/care\\\\path\"}");
+        mockMvc.perform(put("/api/v1/admin/cms/content/single-backslash")
+                .header("Authorization", bearer("ADMIN"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(singleBackslash))
+            .andExpect(status().isBadRequest());
     }
 
     @Test

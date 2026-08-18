@@ -9,6 +9,11 @@ import com.healthcare.hospital.entity.Specialty;
 import com.healthcare.hospital.entity.MedicalService;
 import com.healthcare.hospital.entity.Package;
 import com.healthcare.hospital.entity.Article;
+import com.healthcare.hospital.entity.Doctor;
+import com.healthcare.hospital.entity.DoctorBranch;
+import com.healthcare.hospital.entity.DoctorSpecialty;
+import com.healthcare.hospital.entity.Branch;
+import com.healthcare.hospital.repository.DoctorSpecialtyRepository;
 import com.healthcare.hospital.repository.ServiceRepository;
 import com.healthcare.hospital.repository.PackageRepository;
 import com.healthcare.hospital.repository.ArticleRepository;
@@ -32,6 +37,9 @@ class HospitalDomainControllerTest extends TestcontainersIntegrationTest {
 
     @Autowired
     private ArticleRepository articleRepository;
+
+    @Autowired
+    private DoctorSpecialtyRepository doctorSpecialtyRepository;
 
     @Test
     void listSpecialtiesReturnsActiveOnly() throws Exception {
@@ -74,6 +82,70 @@ class HospitalDomainControllerTest extends TestcontainersIntegrationTest {
     @Test
     void getSpecialtyBySlugNotFound() throws Exception {
         mockMvc.perform(get("/api/v1/hospital/specialties/does-not-exist"))
+            .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void publicDetailsRequireActiveRowsAndDoctorFilterUsesCatalogLinks() throws Exception {
+        Specialty activeSpecialty = new Specialty();
+        activeSpecialty.setName("Active specialty");
+        activeSpecialty.setSlug("active-specialty-test");
+        activeSpecialty.setActive(true);
+        specialtyRepository.save(activeSpecialty);
+
+        Specialty inactiveSpecialty = new Specialty();
+        inactiveSpecialty.setName("Inactive specialty");
+        inactiveSpecialty.setSlug("inactive-specialty-test");
+        inactiveSpecialty.setActive(false);
+        specialtyRepository.save(inactiveSpecialty);
+
+        Branch activeBranch = new Branch();
+        activeBranch.setName("Active branch");
+        activeBranch.setSlug("active-branch-test");
+        activeBranch.setAddress("Active address");
+        activeBranch.setActive(true);
+        branchRepository.save(activeBranch);
+
+        Branch inactiveBranch = new Branch();
+        inactiveBranch.setName("Inactive branch");
+        inactiveBranch.setSlug("inactive-branch-test");
+        inactiveBranch.setAddress("Inactive address");
+        inactiveBranch.setActive(false);
+        branchRepository.save(inactiveBranch);
+
+        Doctor activeDoctor = new Doctor();
+        activeDoctor.setFullName("Active doctor");
+        activeDoctor.setSlug("active-doctor-test");
+        activeDoctor.setActive(true);
+        doctorRepository.save(activeDoctor);
+
+        Doctor inactiveDoctor = new Doctor();
+        inactiveDoctor.setFullName("Inactive doctor");
+        inactiveDoctor.setSlug("inactive-doctor-test");
+        inactiveDoctor.setActive(false);
+        doctorRepository.save(inactiveDoctor);
+
+        DoctorSpecialty doctorSpecialty = new DoctorSpecialty();
+        doctorSpecialty.setDoctor(activeDoctor);
+        doctorSpecialty.setSpecialty(activeSpecialty);
+        doctorSpecialtyRepository.save(doctorSpecialty);
+
+        DoctorBranch doctorBranch = new DoctorBranch();
+        doctorBranch.setDoctor(activeDoctor);
+        doctorBranch.setBranch(activeBranch);
+        doctorBranchRepository.save(doctorBranch);
+
+        mockMvc.perform(get("/api/v1/hospital/doctors")
+                .param("specialtySlug", "active-specialty-test"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.totalElements").value(1))
+            .andExpect(jsonPath("$.content[0].slug").value("active-doctor-test"));
+
+        mockMvc.perform(get("/api/v1/hospital/specialties/inactive-specialty-test"))
+            .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/v1/hospital/doctors/inactive-doctor-test"))
+            .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/v1/hospital/branches/inactive-branch-test"))
             .andExpect(status().isNotFound());
     }
 
