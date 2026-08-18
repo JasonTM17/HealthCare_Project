@@ -1,11 +1,15 @@
 package com.healthcare.hospital.entity;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UuidGenerator;
+import org.hibernate.type.SqlTypes;
 
 import java.util.UUID;
 
@@ -29,6 +33,19 @@ public class Branch {
 
     @Column(name = "phone", length = 50)
     private String phone;
+
+    @Column(name = "working_hours", length = 255)
+    private String workingHours;
+
+    @Column(name = "emergency_hotline", length = 50)
+    private String emergencyHotline;
+
+    @Column(name = "map_url", length = 500)
+    private String mapUrl;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "amenities", nullable = false, columnDefinition = "jsonb")
+    private JsonNode amenities = JsonNodeFactory.instance.arrayNode();
 
     @Column(name = "active", nullable = false)
     private boolean active = true;
@@ -71,6 +88,38 @@ public class Branch {
 
     public void setPhone(String phone) {
         this.phone = phone;
+    }
+
+    public String getWorkingHours() {
+        return workingHours;
+    }
+
+    public void setWorkingHours(String workingHours) {
+        this.workingHours = workingHours;
+    }
+
+    public String getEmergencyHotline() {
+        return emergencyHotline;
+    }
+
+    public void setEmergencyHotline(String emergencyHotline) {
+        this.emergencyHotline = emergencyHotline;
+    }
+
+    public String getMapUrl() {
+        return mapUrl;
+    }
+
+    public void setMapUrl(String mapUrl) {
+        this.mapUrl = mapUrl;
+    }
+
+    public JsonNode getAmenities() {
+        return amenities;
+    }
+
+    public void setAmenities(JsonNode amenities) {
+        this.amenities = amenities;
     }
 
     public boolean isActive() {

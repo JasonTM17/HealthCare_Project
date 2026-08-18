@@ -1,4 +1,15 @@
 package com.healthcare.hospital.dto;
 
-public record SpecialtyResponse(String id, String name, String slug, String description) {
+import java.util.List;
+
+public record SpecialtyResponse(
+    String id,
+    String name,
+    String slug,
+    String description,
+    List<String> commonSymptoms,
+    List<String> preparationSteps,
+    String carePathway,
+    List<DoctorSummaryResponse> relatedDoctors
+) {
 }

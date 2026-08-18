@@ -1,6 +1,7 @@
 package com.healthcare.hospital.service;
 
 import com.healthcare.hospital.dto.DoctorResponse;
+import com.healthcare.hospital.dto.DoctorSummaryResponse;
 import com.healthcare.hospital.entity.Doctor;
 import com.healthcare.hospital.repository.DoctorRepository;
 import com.healthcare.hospital.repository.DoctorBranchRepository;
@@ -9,6 +10,8 @@ import com.healthcare.exception.ResourceNotFoundException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 @Service
 public class DoctorService {
@@ -59,10 +62,14 @@ public class DoctorService {
     }
 
     private DoctorResponse toResponse(Doctor doctor) {
-        String branchId = doctorBranchRepository.findFirstByDoctorId(doctor.getId())
+        List<com.healthcare.hospital.entity.DoctorBranch> branchLinks = doctorBranchRepository.findByDoctorId(doctor.getId());
+        List<com.healthcare.hospital.entity.DoctorSpecialty> specialtyLinks = doctorSpecialtyRepository.findByDoctorId(doctor.getId());
+        String branchId = branchLinks.stream()
+            .findFirst()
             .map(link -> link.getBranch().getId().toString())
             .orElse(null);
-        String specialtyName = doctorSpecialtyRepository.findFirstByDoctorId(doctor.getId())
+        String specialtyName = specialtyLinks.stream()
+            .findFirst()
             .map(link -> link.getSpecialty().getName())
             .orElse(null);
 
@@ -71,6 +78,26 @@ public class DoctorService {
             doctor.getFullName(),
             doctor.getSlug(),
             doctor.getBio(),
+            doctor.getPhotoUrl(),
+            specialtyName,
+            branchId,
+            branchLinks.stream().map(link -> link.getBranch().getId().toString()).toList(),
+            branchLinks.stream().map(link -> link.getBranch().getName()).toList(),
+            specialtyLinks.stream().map(link -> link.getSpecialty().getSlug()).toList()
+        );
+    }
+
+    DoctorSummaryResponse toSummary(Doctor doctor) {
+        String branchId = doctorBranchRepository.findFirstByDoctorId(doctor.getId())
+            .map(link -> link.getBranch().getId().toString())
+            .orElse(null);
+        String specialtyName = doctorSpecialtyRepository.findFirstByDoctorId(doctor.getId())
+            .map(link -> link.getSpecialty().getName())
+            .orElse(null);
+        return new DoctorSummaryResponse(
+            doctor.getId().toString(),
+            doctor.getFullName(),
+            doctor.getSlug(),
             doctor.getPhotoUrl(),
             specialtyName,
             branchId

@@ -1,6 +1,7 @@
 package com.healthcare.hospital.dto;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 
 public record ArticleResponse(
     String id,
@@ -8,6 +9,11 @@ public record ArticleResponse(
     String slug,
     String summary,
     String body,
-    OffsetDateTime publishedAt
+    OffsetDateTime publishedAt,
+    String category,
+    String authorName,
+    Integer readingMinutes,
+    String relatedSpecialtySlug,
+    List<ArticleSectionResponse> sections
 ) {
 }

@@ -1,11 +1,15 @@
 package com.healthcare.hospital.entity;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UuidGenerator;
+import org.hibernate.type.SqlTypes;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -30,6 +34,22 @@ public class Article {
 
     @Column(name = "body", length = 8000)
     private String body;
+
+    @Column(name = "category", length = 120)
+    private String category;
+
+    @Column(name = "author_name", length = 160)
+    private String authorName;
+
+    @Column(name = "reading_minutes")
+    private Integer readingMinutes;
+
+    @Column(name = "related_specialty_slug", length = 180)
+    private String relatedSpecialtySlug;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "sections", nullable = false, columnDefinition = "jsonb")
+    private JsonNode sections = JsonNodeFactory.instance.arrayNode();
 
     @Column(name = "published_at")
     private OffsetDateTime publishedAt;
@@ -75,6 +95,46 @@ public class Article {
 
     public void setBody(String body) {
         this.body = body;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public void setCategory(String category) {
+        this.category = category;
+    }
+
+    public String getAuthorName() {
+        return authorName;
+    }
+
+    public void setAuthorName(String authorName) {
+        this.authorName = authorName;
+    }
+
+    public Integer getReadingMinutes() {
+        return readingMinutes;
+    }
+
+    public void setReadingMinutes(Integer readingMinutes) {
+        this.readingMinutes = readingMinutes;
+    }
+
+    public String getRelatedSpecialtySlug() {
+        return relatedSpecialtySlug;
+    }
+
+    public void setRelatedSpecialtySlug(String relatedSpecialtySlug) {
+        this.relatedSpecialtySlug = relatedSpecialtySlug;
+    }
+
+    public JsonNode getSections() {
+        return sections;
+    }
+
+    public void setSections(JsonNode sections) {
+        this.sections = sections;
     }
 
     public OffsetDateTime getPublishedAt() {

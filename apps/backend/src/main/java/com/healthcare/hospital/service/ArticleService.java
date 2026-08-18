@@ -35,7 +35,12 @@ public class ArticleService {
             article.getSlug(),
             article.getSummary(),
             article.getBody(),
-            article.getPublishedAt()
+            article.getPublishedAt(),
+            article.getCategory(),
+            article.getAuthorName(),
+            article.getReadingMinutes(),
+            article.getRelatedSpecialtySlug(),
+            HospitalJsonMapper.articleSections(article.getSections())
         );
     }
 }

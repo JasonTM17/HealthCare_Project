@@ -1,5 +1,7 @@
 package com.healthcare.hospital.dto;
 
+import java.util.List;
+
 public record DoctorResponse(
     String id,
     String fullName,
@@ -7,6 +9,9 @@ public record DoctorResponse(
     String bio,
     String photoUrl,
     String specialtyName,
-    String branchId
+    String branchId,
+    List<String> branchIds,
+    List<String> branchNames,
+    List<String> specialtySlugs
 ) {
 }

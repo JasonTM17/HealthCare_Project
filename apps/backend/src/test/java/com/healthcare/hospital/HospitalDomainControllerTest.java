@@ -4,6 +4,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.healthcare.TestcontainersIntegrationTest;
 import com.healthcare.hospital.entity.Specialty;
 import com.healthcare.hospital.entity.MedicalService;
@@ -209,5 +210,101 @@ class HospitalDomainControllerTest extends TestcontainersIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.totalElements").value(1))
             .andExpect(jsonPath("$.content[0].slug").value("published-article"));
+    }
+
+    @Test
+    void detailPayloadsExposeStructuredStitchContentAndLinkedDoctors() throws Exception {
+        Specialty specialty = new Specialty();
+        specialty.setName("Cardiology detail");
+        specialty.setSlug("cardiology-detail-test");
+        specialty.setDescription("Structured specialty content");
+        specialty.setCommonSymptoms(JsonNodeFactory.instance.arrayNode().add("Chest discomfort"));
+        specialty.setPreparationSteps(JsonNodeFactory.instance.arrayNode().add("Bring prior results"));
+        specialty.setCarePathway("Assessment → diagnostics → follow-up");
+        specialty.setActive(true);
+        specialtyRepository.saveAndFlush(specialty);
+
+        Branch branch = new Branch();
+        branch.setName("Structured branch");
+        branch.setSlug("structured-branch-test");
+        branch.setAddress("Structured address");
+        branch.setWorkingHours("07:00–19:00");
+        branch.setEmergencyHotline("028 1800 0000");
+        branch.setMapUrl("https://maps.example.test/structured-branch");
+        branch.setAmenities(JsonNodeFactory.instance.arrayNode().add("Pharmacy").add("Parking"));
+        branch.setActive(true);
+        branchRepository.saveAndFlush(branch);
+
+        Doctor doctor = new Doctor();
+        doctor.setFullName("Structured doctor");
+        doctor.setSlug("structured-doctor-test");
+        doctor.setActive(true);
+        doctorRepository.saveAndFlush(doctor);
+
+        DoctorSpecialty specialtyLink = new DoctorSpecialty();
+        specialtyLink.setDoctor(doctor);
+        specialtyLink.setSpecialty(specialty);
+        doctorSpecialtyRepository.saveAndFlush(specialtyLink);
+
+        DoctorBranch branchLink = new DoctorBranch();
+        branchLink.setDoctor(doctor);
+        branchLink.setBranch(branch);
+        doctorBranchRepository.saveAndFlush(branchLink);
+
+        Package pkg = new Package();
+        pkg.setName("Structured package");
+        pkg.setSlug("structured-package-test");
+        pkg.setDescription("Package with preparation contract");
+        pkg.setPrice(BigDecimal.valueOf(1250000));
+        pkg.setTargetAudience("Adults with cardiovascular risk");
+        pkg.setDurationDays(1);
+        pkg.setChecklist(JsonNodeFactory.instance.arrayNode().add("Clinical exam").add("ECG"));
+        pkg.setPreparationSteps(JsonNodeFactory.instance.arrayNode().add("Bring medication list"));
+        pkg.setActive(true);
+        packageRepository.saveAndFlush(pkg);
+
+        Article article = new Article();
+        article.setTitle("Structured article");
+        article.setSlug("structured-article-test");
+        article.setSummary("Structured article summary");
+        article.setBody("Fallback article body");
+        article.setPublishedAt(OffsetDateTime.now());
+        article.setCategory("Prevention");
+        article.setAuthorName("Clinical team");
+        article.setReadingMinutes(5);
+        article.setRelatedSpecialtySlug(specialty.getSlug());
+        var articleSections = JsonNodeFactory.instance.arrayNode();
+        articleSections.addObject().put("heading", "First section").put("body", "Section body");
+        article.setSections(articleSections);
+        article.setActive(true);
+        articleRepository.saveAndFlush(article);
+
+        mockMvc.perform(get("/api/v1/hospital/specialties/{slug}", specialty.getSlug()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.commonSymptoms[0]").value("Chest discomfort"))
+            .andExpect(jsonPath("$.preparationSteps[0]").value("Bring prior results"))
+            .andExpect(jsonPath("$.carePathway").value("Assessment → diagnostics → follow-up"))
+            .andExpect(jsonPath("$.relatedDoctors[0].fullName").value("Structured doctor"));
+
+        mockMvc.perform(get("/api/v1/hospital/branches/{slug}", branch.getSlug()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.workingHours").value("07:00–19:00"))
+            .andExpect(jsonPath("$.amenities[0]").value("Pharmacy"))
+            .andExpect(jsonPath("$.doctors[0].fullName").value("Structured doctor"));
+
+        mockMvc.perform(get("/api/v1/hospital/packages/{slug}", pkg.getSlug()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.targetAudience").value("Adults with cardiovascular risk"))
+            .andExpect(jsonPath("$.durationDays").value(1))
+            .andExpect(jsonPath("$.checklist[1]").value("ECG"))
+            .andExpect(jsonPath("$.preparationSteps[0]").value("Bring medication list"));
+
+        mockMvc.perform(get("/api/v1/hospital/articles/{slug}", article.getSlug()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.category").value("Prevention"))
+            .andExpect(jsonPath("$.authorName").value("Clinical team"))
+            .andExpect(jsonPath("$.readingMinutes").value(5))
+            .andExpect(jsonPath("$.relatedSpecialtySlug").value(specialty.getSlug()))
+            .andExpect(jsonPath("$.sections[0].heading").value("First section"));
     }
 }
