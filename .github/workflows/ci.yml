@@ -181,10 +181,12 @@ jobs:
           fi
           initialized=false
           for attempt in $(seq 1 120); do
-            if docker exec "$container" psql -At -U healthcare -d healthcare -c \
-              "SELECT to_regclass('public.articles');" 2>/dev/null | grep -Fxq articles; then
-              initialized=true
-              break
+            if table="$(docker exec "$container" psql -At -U healthcare -d healthcare -c \
+              "SELECT to_regclass('public.articles');" 2>/dev/null)"; then
+              if [ "$table" = articles ]; then
+                initialized=true
+                break
+              fi
             fi
             sleep 1
           done
