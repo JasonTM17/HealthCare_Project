@@ -140,6 +140,7 @@ class CmsContentIntegrationTest extends AbstractIntegrationTest {
         String admin = bearer("ADMIN");
         String first = request("NOTICE", "PUBLISHED", 0, "{\"title\":\"First\",\"body\":\"Initial\"}");
         String second = request("NOTICE", "PUBLISHED", 1, "{\"title\":\"Second\",\"body\":\"Current\"}");
+        String unpublish = request("NOTICE", "DRAFT", 2, "{\"title\":\"Second\",\"body\":\"Current\"}");
 
         mockMvc.perform(put("/api/v1/admin/cms/content/cache-reconcile-slot")
                 .header("Authorization", admin)
@@ -178,6 +179,30 @@ class CmsContentIntegrationTest extends AbstractIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.payload.title").value("Second"))
             .andExpect(jsonPath("$.version").value(2));
+
+        mockMvc.perform(put("/api/v1/admin/cms/content/cache-reconcile-slot")
+                .header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(unpublish))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("DRAFT"))
+            .andExpect(jsonPath("$.version").value(3));
+        cache.put(new CmsContentResponse(
+            "cache-reconcile-slot",
+            CmsComponentType.NOTICE,
+            JsonNodeFactory.instance.objectNode().put("title", "Stale after unpublish"),
+            CmsPublicationStatus.PUBLISHED,
+            2L,
+            OffsetDateTime.now()
+        ));
+        long unpublishEventId = changeRepository.findTopByPublicEventTrueOrderByIdDesc()
+            .orElseThrow()
+            .getId();
+        mockMvc.perform(get("/api/v1/cms/content/cache-reconcile-slot")
+                .param("afterEventId", Long.toString(unpublishEventId)))
+            .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/v1/cms/content/cache-reconcile-slot"))
+            .andExpect(status().isNotFound());
     }
 
     @Test

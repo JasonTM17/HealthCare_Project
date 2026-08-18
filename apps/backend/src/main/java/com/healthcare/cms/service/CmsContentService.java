@@ -25,6 +25,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 @Service
@@ -79,11 +80,19 @@ public class CmsContentService {
             }
         }
 
-        CmsContent content = contentRepository.findBySlotKeyAndStatus(
+        Optional<CmsContent> published = contentRepository.findBySlotKeyAndStatus(
                 validatedSlotKey,
                 CmsPublicationStatus.PUBLISHED
-            )
-            .orElseThrow(() -> new ResourceNotFoundException("Published CMS content not found"));
+            );
+        if (published.isEmpty()) {
+            if (afterEventId != null) {
+                // A forced read can prove an unpublish after this instance
+                // missed Redis; do not let the old cache resurrect the slot.
+                cache.evict(validatedSlotKey);
+            }
+            throw new ResourceNotFoundException("Published CMS content not found");
+        }
+        CmsContent content = published.get();
         CmsContentResponse response = toResponse(content);
         cache.put(response);
         return response;
