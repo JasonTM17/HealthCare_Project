@@ -179,6 +179,19 @@ jobs:
             docker logs "$container"
             exit 1
           fi
+          initialized=false
+          for attempt in $(seq 1 120); do
+            if docker exec "$container" psql -At -U healthcare -d healthcare -c \
+              "SELECT to_regclass('public.articles');" 2>/dev/null | grep -Fxq articles; then
+              initialized=true
+              break
+            fi
+            sleep 1
+          done
+          if [ "$initialized" != true ]; then
+            docker logs "$container"
+            exit 1
+          fi
           counts="$(docker exec "$container" psql -At -F '|' -U healthcare -d healthcare -c \
             "SELECT 'articles', count(*) FROM articles UNION ALL SELECT 'doctors', count(*) FROM doctors UNION ALL SELECT 'packages', count(*) FROM packages UNION ALL SELECT 'users', count(*) FROM users;")"
           grep -Fx 'articles|500' <<<"$counts"
