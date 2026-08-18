@@ -56,6 +56,7 @@ export interface Article {
   title: string;
   slug: string;
   summary: string;
+  body?: string;
   publishedAt: string;
 }
 

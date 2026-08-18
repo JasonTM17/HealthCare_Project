@@ -37,7 +37,7 @@ export default function ArticleDetailPage() {
         {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải bài viết…</p> : null}
         {error ? <p className="catalog-status catalog-status--error" role="alert">{error} Không có bài viết demo thay thế.</p> : null}
         {!loading && !error && !article ? <p className="catalog-status" role="status">Không tìm thấy bài viết đã xuất bản.</p> : null}
-        {article ? <article className="article-detail-card"><p className="section-note">{new Intl.DateTimeFormat("vi-VN", { dateStyle: "long" }).format(new Date(article.publishedAt))}</p><h2>{article.title}</h2><p className="article-detail-card__summary">{article.summary}</p><div className="article-detail-card__notice"><strong>Phạm vi nội dung hiện tại</strong><p>Backend đang trả về tiêu đề và tóm tắt bài viết. Phần nội dung dài chưa nằm trong DTO công khai nên giao diện không tự bịa thêm thông tin y khoa.</p></div><PublicBookingButton>Đặt lịch nếu bạn cần trao đổi trực tiếp</PublicBookingButton></article> : null}
+        {article ? <article className="article-detail-card"><p className="section-note">{new Intl.DateTimeFormat("vi-VN", { dateStyle: "long" }).format(new Date(article.publishedAt))}</p><h2>{article.title}</h2><p className="article-detail-card__summary">{article.summary}</p>{article.body ? <div className="article-detail-card__body"><p>{article.body}</p></div> : <div className="article-detail-card__notice"><strong>Phạm vi nội dung hiện tại</strong><p>Backend chưa cung cấp phần nội dung dài cho bài viết này, nên giao diện không tự bịa thêm thông tin y khoa.</p></div>}<PublicBookingButton>Đặt lịch nếu bạn cần trao đổi trực tiếp</PublicBookingButton></article> : null}
       </div>
     </PublicPageShell>
   );

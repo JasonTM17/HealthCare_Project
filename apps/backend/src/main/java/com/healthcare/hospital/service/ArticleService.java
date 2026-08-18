@@ -34,6 +34,7 @@ public class ArticleService {
             article.getTitle(),
             article.getSlug(),
             article.getSummary(),
+            article.getBody(),
             article.getPublishedAt()
         );
     }
