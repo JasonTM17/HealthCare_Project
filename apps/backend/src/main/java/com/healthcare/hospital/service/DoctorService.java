@@ -3,6 +3,8 @@ package com.healthcare.hospital.service;
 import com.healthcare.hospital.dto.DoctorResponse;
 import com.healthcare.hospital.entity.Doctor;
 import com.healthcare.hospital.repository.DoctorRepository;
+import com.healthcare.hospital.repository.DoctorBranchRepository;
+import com.healthcare.hospital.repository.DoctorSpecialtyRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -11,9 +13,17 @@ import org.springframework.stereotype.Service;
 public class DoctorService {
 
     private final DoctorRepository doctorRepository;
+    private final DoctorBranchRepository doctorBranchRepository;
+    private final DoctorSpecialtyRepository doctorSpecialtyRepository;
 
-    public DoctorService(DoctorRepository doctorRepository) {
+    public DoctorService(
+        DoctorRepository doctorRepository,
+        DoctorBranchRepository doctorBranchRepository,
+        DoctorSpecialtyRepository doctorSpecialtyRepository
+    ) {
         this.doctorRepository = doctorRepository;
+        this.doctorBranchRepository = doctorBranchRepository;
+        this.doctorSpecialtyRepository = doctorSpecialtyRepository;
     }
 
     public Page<DoctorResponse> listActive(Pageable pageable) {
@@ -27,12 +37,21 @@ public class DoctorService {
     }
 
     private DoctorResponse toResponse(Doctor doctor) {
+        String branchId = doctorBranchRepository.findFirstByDoctorId(doctor.getId())
+            .map(link -> link.getBranch().getId().toString())
+            .orElse(null);
+        String specialtyName = doctorSpecialtyRepository.findFirstByDoctorId(doctor.getId())
+            .map(link -> link.getSpecialty().getName())
+            .orElse(null);
+
         return new DoctorResponse(
             doctor.getId().toString(),
             doctor.getFullName(),
             doctor.getSlug(),
             doctor.getBio(),
-            doctor.getPhotoUrl()
+            doctor.getPhotoUrl(),
+            specialtyName,
+            branchId
         );
     }
 }
