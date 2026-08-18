@@ -4,16 +4,13 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { fetchSpecialties, type Page } from "../../lib/api-client";
 import type { Specialty } from "../../types/hospital";
+import { ClinicalIcon } from "../../components/ClinicalIcon";
 import {
   PublicAiButton,
   PublicBackLink,
   PublicBookingButton,
   PublicPageShell,
 } from "../../components/PublicPageShell";
-
-const SPECIALTY_ICONS = [
-  "❤️", "🧠", "🫀", "👁️", "🦴", "🌸", "👶", "🫁", "🦷", "👂",
-];
 
 export default function SpecialtiesPage() {
   const [page, setPage] = useState<Page<Specialty> | null>(null);
@@ -53,10 +50,10 @@ export default function SpecialtiesPage() {
 
         {page && !page.empty ? (
           <div className="catalog-grid catalog-grid--specialties">
-            {page.content.map((specialty, index) => (
+            {page.content.map((specialty) => (
               <article className="catalog-card" key={specialty.id}>
                 <div className="resource-icon resource-icon--small" aria-hidden="true">
-                  {specialty.icon || SPECIALTY_ICONS[index % SPECIALTY_ICONS.length]}
+                  <ClinicalIcon name="specialty" />
                 </div>
                 <span className="resource-chip">Active catalog</span>
                 <h2>{specialty.name}</h2>

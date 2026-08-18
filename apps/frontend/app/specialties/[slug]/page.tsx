@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { fetchSpecialtyBySlug } from "../../../lib/api-client";
 import type { Specialty } from "../../../types/hospital";
+import { ClinicalIcon } from "../../../components/ClinicalIcon";
 import {
   PublicAiButton,
   PublicBackLink,
@@ -53,7 +54,7 @@ export default function SpecialtyDetailPage() {
 
         {specialty ? (
           <article className="resource-hero-card resource-hero-card--teal">
-            <div className="resource-icon" aria-hidden="true">{specialty.icon ?? "✚"}</div>
+            <div className="resource-icon" aria-hidden="true"><ClinicalIcon name="specialty" /></div>
             <div className="resource-hero-card__body">
               <span className="resource-chip">Chuyên khoa active</span>
               <h2>{specialty.name}</h2>

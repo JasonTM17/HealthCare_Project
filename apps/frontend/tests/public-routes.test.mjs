@@ -121,3 +121,24 @@ test("Stitch search and careers screens have live public route owners", async ()
   assert.match(footer, /href="\/careers"/);
   assert.match(home, /router\.push/);
 });
+
+test("catalog surfaces use the shared clinical icon family", async () => {
+  const [icon, specialties, specialtyDetail, branches, branchDetail, services, serviceDetail, styles] = await Promise.all([
+    read("components/ClinicalIcon.tsx"),
+    read("app/specialties/page.tsx"),
+    read("app/specialties/[slug]/page.tsx"),
+    read("app/branches/page.tsx"),
+    read("app/branches/[slug]/page.tsx"),
+    read("app/services/page.tsx"),
+    read("app/services/[slug]/page.tsx"),
+    read("app/styles.css"),
+  ]);
+
+  for (const source of [specialties, specialtyDetail, branches, branchDetail, services, serviceDetail]) {
+    assert.match(source, /ClinicalIcon/);
+    assert.doesNotMatch(source, /[❤️🧠🫀👁️🦴🌸👶🫁🦷👂⌖✚]/u);
+  }
+  assert.match(icon, /ClinicalIconName/);
+  assert.match(styles, /--color-amber-dark/);
+  assert.doesNotMatch(styles, /--color-amber-700/);
+});

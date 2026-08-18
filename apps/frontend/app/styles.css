@@ -653,7 +653,7 @@ main {
 }
 
 .resource-step-card > span {
-  color: var(--color-amber-700);
+  color: var(--color-amber-dark);
   font-family: var(--font-display);
   font-size: 1.5rem;
   font-weight: 700;

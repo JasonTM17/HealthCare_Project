@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { fetchServiceBySlug } from "../../../lib/api-client";
 import type { MedicalService } from "../../../types/hospital";
+import { ClinicalIcon } from "../../../components/ClinicalIcon";
 import { PublicBackLink, PublicBookingButton, PublicPageShell } from "../../../components/PublicPageShell";
 
 export default function ServiceDetailPage() {
@@ -38,7 +39,7 @@ export default function ServiceDetailPage() {
         {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải dịch vụ…</p> : null}
         {error ? <p className="catalog-status catalog-status--error" role="alert">{error} Không có dịch vụ demo thay thế.</p> : null}
         {!loading && !error && !service ? <p className="catalog-status" role="status">Không tìm thấy dịch vụ active.</p> : null}
-        {service ? <article className="resource-hero-card resource-hero-card--teal"><div className="resource-icon" aria-hidden="true">✚</div><div className="resource-hero-card__body"><span className="resource-chip">Dịch vụ active</span><h2>{service.name}</h2><p>{service.description || "Dịch vụ chưa có mô tả chi tiết."}</p><div className="resource-actions"><PublicBookingButton>Trao đổi nhu cầu và đặt lịch</PublicBookingButton><Link className="outline-button outline-button--light" href="/packages">Xem gói khám liên quan</Link></div></div></article> : null}
+        {service ? <article className="resource-hero-card resource-hero-card--teal"><div className="resource-icon" aria-hidden="true"><ClinicalIcon name="service" /></div><div className="resource-hero-card__body"><span className="resource-chip">Dịch vụ active</span><h2>{service.name}</h2><p>{service.description || "Dịch vụ chưa có mô tả chi tiết."}</p><div className="resource-actions"><PublicBookingButton>Trao đổi nhu cầu và đặt lịch</PublicBookingButton><Link className="outline-button outline-button--light" href="/packages">Xem gói khám liên quan</Link></div></div></article> : null}
       </div>
     </PublicPageShell>
   );

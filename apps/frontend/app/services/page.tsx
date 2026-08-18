@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { fetchServices, type Page } from "../../lib/api-client";
 import type { MedicalService } from "../../types/hospital";
+import { ClinicalIcon } from "../../components/ClinicalIcon";
 import { PublicBookingButton, PublicPageShell } from "../../components/PublicPageShell";
 
 export default function ServicesPage() {
@@ -27,7 +28,7 @@ export default function ServicesPage() {
         {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải danh mục dịch vụ…</p> : null}
         {error ? <p className="catalog-status catalog-status--error" role="alert">{error} Không có dịch vụ demo thay thế.</p> : null}
         {!loading && !error && page?.empty ? <p className="catalog-status" role="status">Backend chưa có dịch vụ active.</p> : null}
-        {page && !page.empty ? <div className="catalog-grid">{page.content.map((service) => <article className="catalog-card" key={service.id}><span className="resource-icon resource-icon--small" aria-hidden="true">✚</span><h2>{service.name}</h2><p>{service.description || "Dịch vụ chưa có mô tả chi tiết."}</p><div className="catalog-card__actions"><Link className="text-button" href={`/services/${service.slug}`}>Xem chi tiết →</Link><PublicBookingButton className="outline-button outline-button--small">Trao đổi nhu cầu</PublicBookingButton></div></article>)}</div> : null}
+        {page && !page.empty ? <div className="catalog-grid">{page.content.map((service) => <article className="catalog-card" key={service.id}><span className="resource-icon resource-icon--small" aria-hidden="true"><ClinicalIcon name="service" /></span><h2>{service.name}</h2><p>{service.description || "Dịch vụ chưa có mô tả chi tiết."}</p><div className="catalog-card__actions"><Link className="text-button" href={`/services/${service.slug}`}>Xem chi tiết →</Link><PublicBookingButton className="outline-button outline-button--small">Trao đổi nhu cầu</PublicBookingButton></div></article>)}</div> : null}
       </div>
     </PublicPageShell>
   );
