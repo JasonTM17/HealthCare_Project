@@ -565,6 +565,39 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
     }
 
     @Test
+    void richLocalSeedOverlayPopulatesV15ContentContracts() {
+        String schema = createMigrationSchema();
+        try {
+            migrate(schema, "15");
+            executeSeed(schema);
+            executeRichSeed(schema);
+
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + table(schema, "specialties")
+                    + " where jsonb_array_length(common_symptoms) > 0",
+                Integer.class
+            )).isEqualTo(8);
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + table(schema, "branches")
+                    + " where jsonb_array_length(amenities) > 0",
+                Integer.class
+            )).isEqualTo(2);
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + table(schema, "packages")
+                    + " where jsonb_array_length(checklist) > 0",
+                Integer.class
+            )).isEqualTo(4);
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + table(schema, "articles")
+                    + " where jsonb_array_length(sections) > 0",
+                Integer.class
+            )).isEqualTo(3);
+        } finally {
+            dropMigrationSchema(schema);
+        }
+    }
+
+    @Test
     void clinicalOverlayTablesAndProfileLinksAreMigrated() {
         List<String> tables = jdbcTemplate.queryForList(
             "select table_name from information_schema.tables where table_schema = 'public'",
@@ -644,6 +677,21 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
             );
         } catch (Exception exception) {
             throw new IllegalStateException("Failed to execute local seed in isolated migration schema", exception);
+        }
+    }
+
+    private void executeRichSeed(String schema) {
+        try (Connection connection = dataSource.getConnection()) {
+            connection.createStatement().execute("set search_path to " + identifier(schema));
+            ScriptUtils.executeSqlScript(
+                connection,
+                new EncodedResource(
+                    new ClassPathResource("db/seed/seed-local-rich-content.sql"),
+                    StandardCharsets.UTF_8
+                )
+            );
+        } catch (Exception exception) {
+            throw new IllegalStateException("Failed to execute rich local seed overlay in isolated migration schema", exception);
         }
     }
 

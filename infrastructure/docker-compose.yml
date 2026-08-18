@@ -112,10 +112,11 @@ services:
       PGPASSWORD: ${POSTGRES_PASSWORD:-change-me}
     volumes:
       - ${SEED_FILE:-../apps/backend/src/main/resources/db/seed/seed-local-data.sql}:/seed/seed.sql:ro
+      - ../apps/backend/src/main/resources/db/seed/seed-local-rich-content.sql:/seed/rich-content.sql:ro
     depends_on:
       backend:
         condition: service_healthy
-    command: ["/bin/sh", "-ec", "psql -v ON_ERROR_STOP=1 -f /seed/seed.sql"]
+    command: ["/bin/sh", "-ec", "psql -v ON_ERROR_STOP=1 -f /seed/seed.sql -f /seed/rich-content.sql"]
 
   # ── Next.js Frontend ────────────────────────────────────────────────────────
   frontend:
