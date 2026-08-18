@@ -397,6 +397,22 @@ main {
   color: #8d2020;
 }
 
+.catalog-status--unavailable {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--sp-4);
+  border-color: var(--color-amber);
+  background: oklch(96% 0.035 88);
+  color: var(--color-teal-950);
+}
+
+.catalog-status--unavailable .text-button {
+  flex: 0 0 auto;
+  color: var(--color-teal-950);
+}
+
 .catalog-pagination {
   display: flex;
   align-items: center;

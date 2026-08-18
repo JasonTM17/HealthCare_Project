@@ -12,6 +12,7 @@ import Footer from "../components/Footer";
 import Icon, { type IconName } from "../components/UiIcon";
 import Navbar from "../components/Navbar";
 import {
+  ApiError,
   fetchArticles,
   fetchBranches,
   fetchDoctors,
@@ -207,13 +208,25 @@ function CatalogStatus({
   loading,
   error,
   hasData,
+  unavailable,
+  onRetry,
 }: {
   loading: boolean;
   error: string | null;
   hasData: boolean;
+  unavailable: boolean;
+  onRetry: () => void;
 }): React.ReactElement | null {
   if (loading && !hasData) {
     return <p className="catalog-status catalog-status--loading" role="status">Đang tải dữ liệu từ hệ thống bệnh viện…</p>;
+  }
+  if (unavailable && !hasData) {
+    return (
+      <div className="catalog-status catalog-status--unavailable" role="alert">
+        <span>Catalog bệnh viện tạm thời không khả dụng. Giao diện sẽ giữ nguyên dữ liệu an toàn và không tự dựng nội dung.</span>
+        <button className="text-button" onClick={onRetry} type="button">Thử tải lại</button>
+      </div>
+    );
   }
   if (error && !hasData) {
     return <p className="catalog-status catalog-status--error" role="alert">{error}</p>;
@@ -372,6 +385,8 @@ export default function Home(): React.ReactElement {
   const [catalog, setCatalog] = useState<HomeCatalog | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [catalogUnavailable, setCatalogUnavailable] = useState(false);
+  const [catalogRetryToken, setCatalogRetryToken] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -379,6 +394,7 @@ export default function Home(): React.ReactElement {
       if (cancelled) return;
       setCatalogLoading(true);
       setCatalogError(null);
+      setCatalogUnavailable(false);
       try {
         const [specialties, doctors, packages, branches, articles] = await Promise.all([
           fetchSpecialties(0, 50),
@@ -402,7 +418,10 @@ export default function Home(): React.ReactElement {
           articles: articles.content,
         });
       } catch (error: unknown) {
-        if (!cancelled) setCatalogError(error instanceof Error ? error.message : "Không thể tải catalog từ backend.");
+        if (!cancelled) {
+          setCatalogUnavailable(!(error instanceof ApiError) || error.status >= 500);
+          setCatalogError(error instanceof Error ? error.message : "Không thể tải catalog từ backend.");
+        }
       } finally {
         if (!cancelled) setCatalogLoading(false);
       }
@@ -411,7 +430,9 @@ export default function Home(): React.ReactElement {
       cancelled = true;
       void task;
     };
-  }, []);
+  }, [catalogRetryToken]);
+
+  const retryCatalog = (): void => setCatalogRetryToken((value) => value + 1);
 
   const handleOpenBooking = (
     doctorId?: string,
@@ -618,7 +639,7 @@ export default function Home(): React.ReactElement {
                 <DemoNote>Dữ liệu chuyên khoa được tải từ catalog công khai.</DemoNote>
               </aside>
               <div className="specialty-list">
-                <CatalogStatus error={catalogError} hasData={Boolean(catalog)} loading={catalogLoading} />
+                <CatalogStatus error={catalogError} hasData={Boolean(catalog)} loading={catalogLoading} onRetry={retryCatalog} unavailable={catalogUnavailable} />
                 {!catalogLoading && catalog && filteredSpecialties.length > 0 ? filteredSpecialties.slice(0, 8).map((specialty, index) => (
                   <article className="specialty-row" key={specialty.id}>
                     <span className="specialty-row__index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
@@ -653,7 +674,7 @@ export default function Home(): React.ReactElement {
               note="Đội ngũ chuyên gia"
               title="Một bác sĩ phù hợp có thể bắt đầu từ một câu hỏi"
             />
-            <CatalogStatus error={catalogError} hasData={Boolean(catalog)} loading={catalogLoading} />
+            <CatalogStatus error={catalogError} hasData={Boolean(catalog)} loading={catalogLoading} onRetry={retryCatalog} unavailable={catalogUnavailable} />
             {!catalogLoading && featuredDoctor ? (
               <div className="doctor-layout">
                 <DoctorCard doctor={featuredDoctor} featured onBook={(doctorId) => handleOpenBooking(doctorId)} />
@@ -705,7 +726,7 @@ export default function Home(): React.ReactElement {
               </article>
               ) : null}
               <div className="package-list">
-                <CatalogStatus error={catalogError} hasData={Boolean(catalog)} loading={catalogLoading} />
+                <CatalogStatus error={catalogError} hasData={Boolean(catalog)} loading={catalogLoading} onRetry={retryCatalog} unavailable={catalogUnavailable} />
                 {!catalogLoading && catalog && supportingPackages.map((packageItem) => (
                   <PackageRow key={packageItem.id} onBook={(packageId) => handleOpenBooking(undefined, undefined, packageId)} packageItem={packageItem} />
                 ))}
@@ -766,7 +787,7 @@ export default function Home(): React.ReactElement {
                 {contactPhone ? <a className="text-button" href={`tel:${contactPhone.replace(/\s/g, "")}`}>{emergencyBranch ? "Gọi hotline từ backend" : "Gọi cơ sở"} <Icon name="phone" size={17} /></a> : <Link className="text-button" href="/contact">Xem thông tin liên hệ <Icon name="arrow-up-right" size={17} /></Link>}
               </div>
               <div className="branch-list">
-                <CatalogStatus error={catalogError} hasData={Boolean(catalog)} loading={catalogLoading} />
+                <CatalogStatus error={catalogError} hasData={Boolean(catalog)} loading={catalogLoading} onRetry={retryCatalog} unavailable={catalogUnavailable} />
                 {!catalogLoading && catalog && branches.map((branch, index) => (
                   <article className="branch-row" key={branch.id}>
                     <span className="branch-row__index">0{index + 1}</span>
@@ -809,7 +830,7 @@ export default function Home(): React.ReactElement {
                 </div>
               </article>
               <div className="article-list">
-                <CatalogStatus error={catalogError} hasData={Boolean(catalog)} loading={catalogLoading} />
+                <CatalogStatus error={catalogError} hasData={Boolean(catalog)} loading={catalogLoading} onRetry={retryCatalog} unavailable={catalogUnavailable} />
                 {!catalogLoading && catalog && articles.slice(0, 3).map((article, index) => (
                   <article className="article-row" key={article.id}>
                     <span className="article-row__index">0{index + 1}</span>
