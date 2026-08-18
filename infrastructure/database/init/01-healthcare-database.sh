@@ -31,6 +31,8 @@ migrations="
 /opt/healthcare/migrations/V14__bound_appointment_otp_attempts.sql
 /opt/healthcare/migrations/V15__expand_stitch_content_contracts.sql
 /opt/healthcare/migrations/V16__cms_content_audit_snapshots.sql
+/opt/healthcare/migrations/V17__enforce_published_article_content.sql
+/opt/healthcare/migrations/V18__hash_appointment_otp_codes.sql
 "
 
 for migration in $migrations; do
