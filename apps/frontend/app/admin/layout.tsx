@@ -9,10 +9,14 @@ const AUTH_STORAGE_KEY = "healthcare.auth.session";
 
 const NAV = [
   { href: "/admin", label: "Tổng quan" },
+  { href: "/admin/appointments", label: "Lịch hẹn" },
   { href: "/admin/doctors", label: "Bác sĩ" },
   { href: "/admin/specialties", label: "Chuyên khoa" },
   { href: "/admin/branches", label: "Cơ sở" },
   { href: "/admin/services", label: "Dịch vụ" },
+  { href: "/admin/catalog", label: "Gói & bài viết" },
+  { href: "/admin/schedules", label: "Lịch bác sĩ" },
+  { href: "/admin/content", label: "CMS live" },
 ];
 
 type GateState =
@@ -77,7 +81,7 @@ function AdminAccessGate({ children }: { children: ReactNode }) {
           <AdminState
             tone="forbidden"
             title="Cần đăng nhập để mở CMS"
-            description="Trang quản trị không tải dữ liệu khi chưa có phiên bearer được xác thực. Luồng đăng nhập và lưu phiên chưa có trong frontend baseline này."
+            description="Trang quản trị không tải dữ liệu khi chưa có phiên bearer được xác thực. Hãy đăng nhập bằng tài khoản có role ADMIN."
             action={<Link className="text-sm font-bold text-teal-800 underline underline-offset-4" href="/">Về trang chủ</Link>}
           />
         </div>
@@ -112,13 +116,13 @@ function AdminShell({ children, displayName }: { children: ReactNode; displayNam
         <div className="flex h-full flex-col p-5">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-200">HealthCare CMS</p>
-            <h1 className="mt-2 text-xl font-bold">Quản trị nội dung</h1>
+            <h1 className="mt-2 text-xl font-bold">Quản trị bệnh viện</h1>
             <p className="mt-2 text-xs leading-5 text-slate-400">
               {displayName ? `Xin chào, ${displayName}.` : "Phiên ADMIN đã được nhận diện."}
             </p>
           </div>
 
-          <nav aria-label="Điều hướng quản trị" className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-5 lg:block lg:space-y-2">
+          <nav aria-label="Điều hướng quản trị" className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:block lg:space-y-2">
             {NAV.map((item) => {
               const active = pathname === item.href;
               return (
@@ -150,7 +154,7 @@ function AdminShell({ children, displayName }: { children: ReactNode; displayNam
       <main className="min-w-0 p-4 sm:p-6 lg:ml-64 lg:p-10" id="main-content">
         <div className="mx-auto max-w-7xl">
           <div className="mb-6 rounded-2xl border border-teal-100 bg-teal-50 px-4 py-3 text-sm leading-6 text-teal-950">
-            <strong>Ranh giới dữ liệu:</strong> các bảng công khai chỉ hiển thị bản ghi active. Không có số liệu CMS giả; các contract chưa được expose sẽ được đánh dấu rõ.
+            <strong>Ranh giới dữ liệu:</strong> catalog công khai chỉ hiển thị bản ghi active; dữ liệu lịch hẹn chỉ tải qua endpoint ADMIN có bearer auth.
           </div>
           {children}
         </div>

@@ -17,7 +17,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -54,6 +53,12 @@ public class AiService {
 
     @Value("${ai.service.max-response-bytes:1048576}")
     private int maxResponseBytes = DEFAULT_MAX_RESPONSE_BYTES;
+
+    @Value("${ai.rag-ingest.enabled:false}")
+    private boolean ragIngestEnabled;
+
+    @Value("${ai.rag-ingest.token:}")
+    private String ragIngestToken;
 
     /** Test-friendly constructor with the same safe defaults as production. */
     public AiService(RestTemplateBuilder restTemplateBuilder, ObjectMapper objectMapper) {
@@ -107,14 +112,40 @@ public class AiService {
         }
         ensureServiceAuthConfiguration();
 
-        URI uri = UriComponentsBuilder
-            .fromUriString(endpoint("/search"))
-            .queryParam("q", normalizedQuery)
-            .queryParam("top_k", topK)
-            .build()
-            .encode()
-            .toUri();
-        return exchange(HttpMethod.GET, uri, null);
+        try {
+            String payload = objectMapper.writeValueAsString(
+                Map.of("query", normalizedQuery, "top_k", topK)
+            );
+            return exchange(
+                HttpMethod.POST,
+                URI.create(endpoint("/search")),
+                new HttpEntity<>(payload, headers())
+            );
+        } catch (JsonProcessingException e) {
+            throw new ResponseStatusException(BAD_GATEWAY, "AI request could not be encoded", e);
+        }
+    }
+
+    public boolean isRagIngestConfigured() {
+        return ragIngestEnabled && ragIngestToken != null && !ragIngestToken.isBlank()
+            && hasServiceAuthConfiguration();
+    }
+
+    public Map<String, Object> indexDocument(Map<String, Object> document) {
+        if (!isRagIngestConfigured()) {
+            throw new ResponseStatusException(SERVICE_UNAVAILABLE, "RAG ingestion is not configured");
+        }
+        try {
+            HttpHeaders ingestHeaders = headers();
+            ingestHeaders.set("X-RAG-Ingest-Token", ragIngestToken);
+            return exchange(
+                HttpMethod.POST,
+                URI.create(endpoint("/rag/index")),
+                new HttpEntity<>(objectMapper.writeValueAsString(document), ingestHeaders)
+            );
+        } catch (JsonProcessingException e) {
+            throw new ResponseStatusException(BAD_GATEWAY, "RAG document could not be encoded", e);
+        }
     }
 
     public boolean isAvailable() {

@@ -6,13 +6,19 @@ import PortalChrome from "../../../components/PortalChrome";
 import {
   ApiError,
   clearAuthSession,
+  createDoctorDiagnosticResult,
+  createMedicalRecord,
+  downloadProtectedFile,
   fetchDoctorAppointments,
+  fetchDoctorProfile,
   fetchDoctorPatientDiagnosticResults,
   fetchDoctorPatientMedicalRecords,
   hasRole,
+  updateDoctorAppointmentStatus,
+  uploadDiagnosticFile,
   type Page,
 } from "../../../lib/api-client";
-import type { AppointmentDetails, AuthUser, DiagnosticResult, MedicalRecord } from "../../../types/hospital";
+import type { Doctor, DoctorPortalAppointment, AuthUser, DiagnosticResult, MedicalRecord } from "../../../types/hospital";
 import { EmptyState, ErrorState, ForbiddenState, LoadingState, LoginRequiredState } from "../../../components/PortalStates";
 import PortalAppointments from "../../../components/PortalAppointments";
 import { useAuthSession } from "../../../components/useAuthSession";
@@ -35,12 +41,56 @@ const APPOINTMENT_STATUSES = [
   ["NO_SHOW", "Không đến"],
 ] as const;
 
+interface ClinicalFormValues {
+  appointmentId: string;
+  patientId: string;
+  diagnosis: string;
+  symptomsSummary: string;
+  treatmentPlan: string;
+  doctorNotes: string;
+  followUpDate: string;
+  medicationName: string;
+  dosage: string;
+  unit: string;
+  frequency: string;
+  durationDays: string;
+  totalQuantity: string;
+  usageNote: string;
+  prescriptionAdvice: string;
+}
+
+const EMPTY_CLINICAL_FORM: ClinicalFormValues = {
+  appointmentId: "",
+  patientId: "",
+  diagnosis: "",
+  symptomsSummary: "",
+  treatmentPlan: "",
+  doctorNotes: "",
+  followUpDate: "",
+  medicationName: "",
+  dosage: "",
+  unit: "",
+  frequency: "",
+  durationDays: "",
+  totalQuantity: "",
+  usageNote: "",
+  prescriptionAdvice: "",
+};
+
 function getErrorStatus(error: unknown): number | undefined {
   return error instanceof ApiError ? error.status : undefined;
 }
 
 function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Dữ liệu chưa thể tải. Vui lòng thử lại.";
+  const status = getErrorStatus(error);
+  if (status === 401) return "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
+  if (status === 403) return "Tài khoản hiện tại chưa được phép thực hiện thao tác này.";
+  if (status === 404) return "Không tìm thấy hồ sơ hoặc lịch hẹn phù hợp.";
+  if (status === 409) return "Thông tin đã thay đổi hoặc đã được ghi nhận. Vui lòng tải lại và kiểm tra.";
+  if (status === 400 || status === 422) return "Thông tin chưa hợp lệ. Vui lòng kiểm tra và thử lại.";
+  if (status === 413) return "Tệp đính kèm vượt quá dung lượng cho phép.";
+  if (status === 429) return "Bạn đang thao tác quá nhanh. Vui lòng chờ một lát rồi thử lại.";
+  return "Kết nối đang bị gián đoạn. Vui lòng thử lại sau ít phút.";
 }
 
 function formatDateTime(value: string): string {
@@ -79,11 +129,13 @@ function renderLookupState<T>(
 }
 
 function renderDailyAppointments(
-  state: LookupState<Page<AppointmentDetails>>,
+  state: LookupState<Page<DoctorPortalAppointment>>,
   retry: () => void,
+  onSelectAppointment?: (appointment: DoctorPortalAppointment) => void,
+  onUpdateStatus?: (appointment: DoctorPortalAppointment, status: "CHECKED_IN" | "IN_PROGRESS" | "NO_SHOW") => void,
 ) {
   if (state.status === "idle") {
-    return <EmptyState description="Chọn ngày để tải lịch hẹn được backend cho phép xem." title="Chưa chọn lịch" />;
+    return <EmptyState description="Chọn ngày để xem lịch hẹn được phân công." title="Chưa chọn lịch" />;
   }
   if (state.status === "loading") return <LoadingState label="Đang tải lịch hẹn trong ngày..." />;
   if (state.status === "error") {
@@ -92,7 +144,7 @@ function renderDailyAppointments(
   if (state.data.empty || state.data.content.length === 0) {
     return <EmptyState description="Không có lịch hẹn thuộc ngày và trạng thái đã chọn." title="Ngày này chưa có lịch hẹn" />;
   }
-  return <PortalAppointments page={state.data} viewer="doctor" />;
+  return <PortalAppointments onSelectAppointment={onSelectAppointment} onUpdateStatus={onUpdateStatus} page={state.data} viewer="doctor" />;
 }
 
 export default function DoctorDashboardPage() {
@@ -109,9 +161,20 @@ export default function DoctorDashboardPage() {
   const [diagnostics, setDiagnostics] = useState<LookupState<DiagnosticResult[]>>({ status: "idle" });
   const [dailyDate, setDailyDate] = useState(getTodayIsoDate);
   const [dailyStatus, setDailyStatus] = useState("");
-  const [dailyAppointments, setDailyAppointments] = useState<LookupState<Page<AppointmentDetails>>>({ status: "loading" });
+  const [dailyAppointments, setDailyAppointments] = useState<LookupState<Page<DoctorPortalAppointment>>>({ status: "loading" });
   const [dailyReloadKey, setDailyReloadKey] = useState(0);
   const [lookupError, setLookupError] = useState<string | null>(null);
+  const [doctorProfile, setDoctorProfile] = useState<LookupState<Doctor>>({ status: "loading" });
+  const [clinicalForm, setClinicalForm] = useState<ClinicalFormValues>(EMPTY_CLINICAL_FORM);
+  const [clinicalOperation, setClinicalOperation] = useState<"idle" | "saving">("idle");
+  const [clinicalError, setClinicalError] = useState<string | null>(null);
+  const [clinicalNotice, setClinicalNotice] = useState<string | null>(null);
+  const [appointmentAction, setAppointmentAction] = useState<string | null>(null);
+  const [diagnosticName, setDiagnosticName] = useState("");
+  const [diagnosticValue, setDiagnosticValue] = useState("");
+  const [diagnosticDate, setDiagnosticDate] = useState(getTodayIsoDate);
+  const [diagnosticFile, setDiagnosticFile] = useState<File | null>(null);
+  const [diagnosticOperation, setDiagnosticOperation] = useState<"idle" | "saving">("idle");
 
   useEffect(() => {
     if (!session || !hasRole(session.user, "DOCTOR")) return;
@@ -136,6 +199,17 @@ export default function DoctorDashboardPage() {
       cancelled = true;
     };
   }, [dailyDate, dailyReloadKey, dailyStatus, session]);
+
+  useEffect(() => {
+    if (!session || !hasRole(session.user, "DOCTOR")) return;
+    let cancelled = false;
+    fetchDoctorProfile().then((profile) => {
+      if (!cancelled) setDoctorProfile({ status: "success", data: profile });
+    }).catch((error: unknown) => {
+      if (!cancelled) setDoctorProfile({ status: "error", message: getErrorMessage(error), statusCode: getErrorStatus(error) });
+    });
+    return () => { cancelled = true; };
+  }, [session]);
 
   const loadPatient = async (requestedPatientId: string) => {
     setLookupError(null);
@@ -166,10 +240,128 @@ export default function DoctorDashboardPage() {
     event.preventDefault();
     const requestedPatientId = patientId.trim();
     if (!UUID_PATTERN.test(requestedPatientId)) {
-      setLookupError("Nhập đúng patient ID dạng UUID do quy trình được cấp quyền cung cấp.");
+      setLookupError("Mã hồ sơ chưa đúng định dạng. Vui lòng kiểm tra mã được phân công.");
       return;
     }
     await loadPatient(requestedPatientId);
+  };
+
+  const handleSelectAppointment = (appointment: DoctorPortalAppointment): void => {
+    setClinicalForm((current) => ({
+      ...current,
+      appointmentId: appointment.id,
+      patientId: appointment.patientId,
+    }));
+    setClinicalError(null);
+    setClinicalNotice(`Đã chọn lịch ${appointment.bookingCode} của ${appointment.patientName}.`);
+    window.setTimeout(() => document.getElementById("clinical-entry")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  };
+
+  const handleUpdateAppointmentStatus = async (
+    appointment: DoctorPortalAppointment,
+    status: "CHECKED_IN" | "IN_PROGRESS" | "NO_SHOW",
+  ): Promise<void> => {
+    setAppointmentAction(appointment.id);
+    setClinicalError(null);
+    setClinicalNotice(null);
+    try {
+      await updateDoctorAppointmentStatus(appointment.id, status);
+      setClinicalNotice(`Đã cập nhật lịch ${appointment.bookingCode}.`);
+      setDailyReloadKey((value) => value + 1);
+    } catch (error: unknown) {
+      setClinicalError(getErrorMessage(error));
+    } finally {
+      setAppointmentAction(null);
+    }
+  };
+
+  const handleDownload = async (result: DiagnosticResult): Promise<void> => {
+    if (!result.fileUrl) return;
+    try {
+      await downloadProtectedFile(result.fileUrl, result.testName);
+    } catch (error: unknown) {
+      setLookupError(getErrorMessage(error));
+    }
+  };
+
+  const handleCreateDiagnostic = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
+    event.preventDefault();
+    if (!activePatientId) return;
+    setDiagnosticOperation("saving");
+    setLookupError(null);
+    try {
+      const storedFile = diagnosticFile ? await uploadDiagnosticFile(diagnosticFile, activePatientId) : null;
+      await createDoctorDiagnosticResult(activePatientId, {
+        testName: diagnosticName.trim(),
+        result: diagnosticValue.trim() || undefined,
+        fileId: storedFile?.id,
+        testDate: new Date(`${diagnosticDate}T00:00:00`).toISOString(),
+      });
+      setDiagnosticName("");
+      setDiagnosticValue("");
+      setDiagnosticFile(null);
+      await loadPatient(activePatientId);
+    } catch (error: unknown) {
+      setLookupError(getErrorMessage(error));
+    } finally {
+      setDiagnosticOperation("idle");
+    }
+  };
+
+  const updateClinicalForm = (field: keyof ClinicalFormValues, value: string): void => {
+    setClinicalForm((current) => ({ ...current, [field]: value }));
+    setClinicalError(null);
+  };
+
+  const handleCreateClinicalRecord = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
+    event.preventDefault();
+    setClinicalError(null);
+    setClinicalNotice(null);
+    if (doctorProfile.status !== "success") {
+      setClinicalError("Chưa tải được hồ sơ bác sĩ; chưa thể gửi kết quả khám.");
+      return;
+    }
+    if (!clinicalForm.appointmentId || !clinicalForm.patientId) {
+      setClinicalError("Hãy chọn một lịch hẹn từ danh sách đã xác thực trước khi ghi nhận kết quả.");
+      return;
+    }
+    const medicationFields = [clinicalForm.medicationName, clinicalForm.dosage, clinicalForm.frequency, clinicalForm.durationDays, clinicalForm.totalQuantity];
+    const hasMedication = medicationFields.some((value) => value.trim().length > 0);
+    if (hasMedication && medicationFields.some((value) => value.trim().length === 0)) {
+      setClinicalError("Nếu kê thuốc, hãy điền đủ tên thuốc, liều dùng, tần suất, số ngày và tổng số lượng.");
+      return;
+    }
+    setClinicalOperation("saving");
+    try {
+      await createMedicalRecord({
+        appointmentId: clinicalForm.appointmentId,
+        patientId: clinicalForm.patientId,
+        doctorId: doctorProfile.data.id,
+        diagnosis: clinicalForm.diagnosis.trim(),
+        symptomsSummary: clinicalForm.symptomsSummary.trim() || undefined,
+        treatmentPlan: clinicalForm.treatmentPlan.trim() || undefined,
+        doctorNotes: clinicalForm.doctorNotes.trim() || undefined,
+        followUpDate: clinicalForm.followUpDate || undefined,
+        prescriptionItems: hasMedication ? [{
+          medicationName: clinicalForm.medicationName.trim(),
+          dosage: clinicalForm.dosage.trim(),
+          unit: clinicalForm.unit.trim() || "Viên",
+          frequency: clinicalForm.frequency.trim(),
+          durationDays: Number(clinicalForm.durationDays),
+          totalQuantity: Number(clinicalForm.totalQuantity),
+          usageNote: clinicalForm.usageNote.trim() || undefined,
+        }] : undefined,
+        prescriptionAdvice: clinicalForm.prescriptionAdvice.trim() || undefined,
+      });
+      setClinicalForm(EMPTY_CLINICAL_FORM);
+      setClinicalNotice("Đã ghi nhận kết quả khám và hoàn tất lịch hẹn. Người bệnh có thể xem thông tin mới trong cổng cá nhân.");
+      setDailyReloadKey((value) => value + 1);
+      await loadPatient(clinicalForm.patientId);
+    } catch (error: unknown) {
+      setClinicalError(getErrorMessage(error));
+    } finally {
+      setClinicalOperation("idle");
+    }
   };
 
   if (authState === "unauthenticated") {
@@ -201,9 +393,9 @@ export default function DoctorDashboardPage() {
           <div>
             <p className="section-note">CỔNG BÁC SĨ</p>
             <h1>Không gian làm việc lâm sàng</h1>
-            <p>Chỉ dữ liệu bệnh nhân mà backend xác nhận có quan hệ lâm sàng với tài khoản này mới được hiển thị.</p>
+            <p>Quản lý lịch làm việc và hồ sơ của những người bệnh được phân công cho tài khoản này.</p>
           </div>
-          <span className="portal-demo-label">Bản demo local · lịch hẹn từ API</span>
+          <span className="portal-demo-label">Truy cập theo phân công chuyên môn</span>
         </header>
 
         <section aria-labelledby="daily-title" className="portal-panel" id="daily-appointments">
@@ -211,7 +403,7 @@ export default function DoctorDashboardPage() {
             <div><p className="section-note">LỊCH HẸN ĐÃ XÁC THỰC</p><h2 id="daily-title">Lịch làm việc theo ngày</h2></div>
             <span aria-hidden="true" className="portal-panel__icon">◷</span>
           </div>
-          <p className="portal-panel__intro">Chỉ lịch hẹn được backend xác nhận thuộc hồ sơ bác sĩ hiện tại mới được hiển thị. Khi candidate chưa được tích hợp, giao diện giữ trạng thái lỗi/không khả dụng và không tạo lịch giả.</p>
+          <p className="portal-panel__intro">Danh sách chỉ gồm các lịch hẹn được phân công cho hồ sơ bác sĩ hiện tại.</p>
           <form className="portal-lookup-form" onSubmit={(event) => { event.preventDefault(); retryDailyAppointments(); }}>
             <div>
               <label htmlFor="daily-appointment-date">Ngày xem lịch</label>
@@ -225,7 +417,52 @@ export default function DoctorDashboardPage() {
             </div>
             <button className="button button--primary" type="submit">Tải lịch</button>
           </form>
-          {renderDailyAppointments(dailyAppointments, retryDailyAppointments)}
+          {appointmentAction ? <p aria-live="polite" className="portal-handoff-note">Đang cập nhật trạng thái lịch hẹn…</p> : null}
+          {clinicalError ? <p aria-live="assertive" className="portal-inline-error" role="alert">{clinicalError}</p> : null}
+          {clinicalNotice ? <p aria-live="polite" className="portal-inline-success" role="status">{clinicalNotice}</p> : null}
+          {renderDailyAppointments(dailyAppointments, retryDailyAppointments, handleSelectAppointment, handleUpdateAppointmentStatus)}
+        </section>
+
+        <section aria-labelledby="clinical-entry-title" className="portal-panel" id="clinical-entry">
+          <div className="portal-panel__heading">
+            <div><p className="section-note">GHI NHẬN KHÁM BỆNH</p><h2 id="clinical-entry-title">Ghi nhận kết quả khám</h2></div>
+            <span aria-hidden="true" className="portal-panel__icon">+</span>
+          </div>
+          <p className="portal-panel__intro">Chọn một lịch hẹn trong danh sách phía trên trước khi ghi chẩn đoán, kế hoạch điều trị và đơn thuốc.</p>
+          {doctorProfile.status === "loading" ? <LoadingState label="Đang tải hồ sơ bác sĩ…" /> : null}
+          {doctorProfile.status === "error" ? <ErrorState message={doctorProfile.message} status={doctorProfile.statusCode} /> : null}
+          {doctorProfile.status === "success" ? (
+            <form className="portal-clinical-form" onSubmit={handleCreateClinicalRecord}>
+              <div className="portal-clinical-form__context">
+                <label>Mã hồ sơ bệnh nhân<input readOnly value={clinicalForm.patientId} /></label>
+                <label>Mã lịch hẹn<input readOnly value={clinicalForm.appointmentId} /></label>
+              </div>
+              {!clinicalForm.appointmentId ? <p className="portal-handoff-note">Chưa chọn lịch hẹn. Hãy bấm “Ghi nhận kết quả khám” trên một lịch hợp lệ.</p> : null}
+              <label>Chẩn đoán *<input required maxLength={4000} onChange={(event) => updateClinicalForm("diagnosis", event.target.value)} value={clinicalForm.diagnosis} /></label>
+              <label>Triệu chứng<textarea maxLength={4000} onChange={(event) => updateClinicalForm("symptomsSummary", event.target.value)} value={clinicalForm.symptomsSummary} /></label>
+              <div className="portal-clinical-form__grid">
+                <label>Kế hoạch điều trị<textarea maxLength={4000} onChange={(event) => updateClinicalForm("treatmentPlan", event.target.value)} value={clinicalForm.treatmentPlan} /></label>
+                <label>Ghi chú bác sĩ<textarea maxLength={4000} onChange={(event) => updateClinicalForm("doctorNotes", event.target.value)} value={clinicalForm.doctorNotes} /></label>
+              </div>
+              <label>Ngày tái khám<input onChange={(event) => updateClinicalForm("followUpDate", event.target.value)} type="date" value={clinicalForm.followUpDate} /></label>
+              <fieldset className="portal-clinical-form__fieldset">
+                <legend>Kê một thuốc (tuỳ chọn)</legend>
+                <div className="portal-clinical-form__grid">
+                  <label>Tên thuốc<input onChange={(event) => updateClinicalForm("medicationName", event.target.value)} value={clinicalForm.medicationName} /></label>
+                  <label>Liều dùng<input onChange={(event) => updateClinicalForm("dosage", event.target.value)} value={clinicalForm.dosage} /></label>
+                  <label>Tần suất<input onChange={(event) => updateClinicalForm("frequency", event.target.value)} placeholder="Ví dụ: 2 lần/ngày" value={clinicalForm.frequency} /></label>
+                  <label>Đơn vị<input onChange={(event) => updateClinicalForm("unit", event.target.value)} placeholder="Viên" value={clinicalForm.unit} /></label>
+                  <label>Số ngày<input min="1" onChange={(event) => updateClinicalForm("durationDays", event.target.value)} type="number" value={clinicalForm.durationDays} /></label>
+                  <label>Tổng số lượng<input min="1" onChange={(event) => updateClinicalForm("totalQuantity", event.target.value)} type="number" value={clinicalForm.totalQuantity} /></label>
+                </div>
+                <label>Dặn dò dùng thuốc<textarea onChange={(event) => updateClinicalForm("usageNote", event.target.value)} value={clinicalForm.usageNote} /></label>
+                <label>Dặn dò chung<textarea onChange={(event) => updateClinicalForm("prescriptionAdvice", event.target.value)} value={clinicalForm.prescriptionAdvice} /></label>
+              </fieldset>
+              {clinicalError ? <p aria-live="assertive" className="portal-inline-error" role="alert">{clinicalError}</p> : null}
+              {clinicalNotice ? <p aria-live="polite" className="portal-inline-success" role="status">{clinicalNotice}</p> : null}
+              <button className="button button--primary" disabled={clinicalOperation === "saving" || !clinicalForm.appointmentId} type="submit">{clinicalOperation === "saving" ? "Đang gửi…" : "Lưu kết quả và hoàn tất lịch"}</button>
+            </form>
+          ) : null}
         </section>
 
         <section aria-labelledby="lookup-title" className="portal-panel">
@@ -233,21 +470,21 @@ export default function DoctorDashboardPage() {
             <div><p className="section-note">QUYỀN TRUY CẬP LÂM SÀNG</p><h2 id="lookup-title">Tra cứu bệnh nhân đã được phân công</h2></div>
             <span aria-hidden="true" className="portal-panel__icon">⌕</span>
           </div>
-          <p className="portal-panel__intro">Nhập patient ID từ quy trình được cấp quyền. API sẽ tự kiểm tra quan hệ bác sĩ - bệnh nhân; không dùng tên, số điện thoại hoặc dữ liệu đoán.</p>
+          <p className="portal-panel__intro">Nhập mã hồ sơ được cung cấp trong quy trình phân công để xem thông tin phù hợp với quyền của bạn.</p>
           <form className="portal-lookup-form" onSubmit={handleLookup}>
             <div>
-              <label htmlFor="patient-id">Patient ID (UUID)</label>
+              <label htmlFor="patient-id">Mã hồ sơ bệnh nhân</label>
               <input
                 aria-describedby="patient-id-help"
                 id="patient-id"
                 onChange={(event) => setPatientId(event.target.value)}
-                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                placeholder="Nhập mã hồ sơ được phân công"
                 spellCheck={false}
                 value={patientId}
               />
               <small id="patient-id-help">Dữ liệu chỉ được yêu cầu khi đã có cơ sở truy cập hợp lệ.</small>
             </div>
-            <button className="button button--primary" type="submit">Tải hồ sơ được phép xem</button>
+            <button className="button button--primary" type="submit">Mở hồ sơ</button>
           </form>
           {lookupError ? <p aria-live="assertive" className="portal-inline-error" role="alert">{lookupError}</p> : null}
         </section>
@@ -261,8 +498,8 @@ export default function DoctorDashboardPage() {
               </div>
               {renderLookupState(
                 records,
-                "Chưa có hồ sơ được trả về",
-                "Không có hồ sơ thuộc quan hệ lâm sàng này hoặc dữ liệu chưa được cập nhật.",
+                "Chưa có hồ sơ khám",
+                "Người bệnh này chưa có hồ sơ khám phù hợp hoặc thông tin đang được cập nhật.",
                 retry,
                 (items) => (
                   <div className="portal-record-list">
@@ -287,10 +524,19 @@ export default function DoctorDashboardPage() {
                 <div><p className="section-note">CẬN LÂM SÀNG</p><h2 id="doctor-diagnostics-title">Kết quả chẩn đoán</h2></div>
                 <span aria-hidden="true" className="portal-panel__icon">⌁</span>
               </div>
+              <form className="portal-clinical-form" onSubmit={handleCreateDiagnostic}>
+                <div className="portal-clinical-form__grid">
+                  <label>Tên xét nghiệm *<input maxLength={200} onChange={(event) => setDiagnosticName(event.target.value)} required value={diagnosticName} /></label>
+                  <label>Ngày thực hiện<input max={getTodayIsoDate()} onChange={(event) => setDiagnosticDate(event.target.value)} required type="date" value={diagnosticDate} /></label>
+                </div>
+                <label>Kết quả<textarea maxLength={4000} onChange={(event) => setDiagnosticValue(event.target.value)} value={diagnosticValue} /></label>
+                <label>Tệp đính kèm (tuỳ chọn)<input accept="application/pdf,image/jpeg,image/png" onChange={(event) => setDiagnosticFile(event.target.files?.[0] ?? null)} type="file" /></label>
+                <button className="button button--primary" disabled={diagnosticOperation === "saving"} type="submit">{diagnosticOperation === "saving" ? "Đang công bố…" : "Công bố kết quả"}</button>
+              </form>
               {renderLookupState(
                 diagnostics,
-                "Chưa có kết quả được trả về",
-                "Kết quả chỉ xuất hiện khi thuộc quan hệ bác sĩ - bệnh nhân được backend cho phép.",
+                "Chưa có kết quả chẩn đoán",
+                "Kết quả sẽ xuất hiện sau khi được ghi nhận cho người bệnh đang phụ trách.",
                 retry,
                 (items) => (
                   <div className="portal-diagnostic-grid">
@@ -299,7 +545,7 @@ export default function DoctorDashboardPage() {
                         <div className="portal-record__meta"><span>{formatDate(result.testDate)}</span><span>{result.doctorName ?? "Chưa có bác sĩ"}</span></div>
                         <h3>{result.testName}</h3>
                         <p>{result.result}</p>
-                        {result.fileUrl ? <a className="text-button" href={result.fileUrl} rel="noreferrer" target="_blank">Mở tệp kết quả ↗</a> : <small>Chưa có tệp đính kèm.</small>}
+                        {result.fileUrl ? <button className="text-button" onClick={() => handleDownload(result)} type="button">Tải tệp kết quả ↓</button> : <small>Chưa có tệp đính kèm.</small>}
                       </article>
                     ))}
                   </div>
@@ -309,7 +555,7 @@ export default function DoctorDashboardPage() {
           </div>
         ) : null}
 
-        <p className="portal-disclaimer">Giao diện này chỉ đọc dữ liệu clinical portal đã có contract. Tạo/cập nhật hồ sơ khám, đơn thuốc và luồng hoàn tất lượt khám cần một delivery riêng với endpoint và quyền tương ứng.</p>
+        <p className="portal-disclaimer">Thông tin lâm sàng chỉ được hiển thị và cập nhật trong phạm vi người bệnh được phân công. Hãy kiểm tra đúng hồ sơ và lịch hẹn trước khi lưu.</p>
       </div>
     </PortalChrome>
   );

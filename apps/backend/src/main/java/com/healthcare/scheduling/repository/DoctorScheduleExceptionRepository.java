@@ -3,6 +3,8 @@ package com.healthcare.scheduling.repository;
 import com.healthcare.scheduling.entity.DoctorScheduleException;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
@@ -12,6 +14,10 @@ import java.util.UUID;
 
 @Repository
 public interface DoctorScheduleExceptionRepository extends JpaRepository<DoctorScheduleException, UUID> {
+
+    @Query(value = "select e from DoctorScheduleException e join fetch e.doctor join fetch e.branch",
+        countQuery = "select count(e) from DoctorScheduleException e")
+    Page<DoctorScheduleException> findAllWithDetails(Pageable pageable);
 
     @Query("select e from DoctorScheduleException e where e.doctor.id = :doctorId and e.branch.id = :branchId and e.exceptionDate = :date")
     List<DoctorScheduleException> findForDoctorAndBranchOnDate(

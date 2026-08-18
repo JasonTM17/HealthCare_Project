@@ -36,7 +36,7 @@ export default function PortalChrome({ role, user, children }: PortalChromeProps
     try {
       await logoutCurrentUser();
     } catch {
-      // The local session is cleared by logoutCurrentUser even if the server is unavailable.
+      // logoutCurrentUser clears the browser session even when remote sign-out is unavailable.
     } finally {
       router.replace("/auth/login");
     }
@@ -81,7 +81,7 @@ export default function PortalChrome({ role, user, children }: PortalChromeProps
       </header>
       <main className="portal-main">{children}</main>
       <footer className="portal-footer">
-        Dữ liệu hiển thị theo quyền của tài khoản hiện tại. HealthCare là bản demo giáo dục local.
+        Thông tin sức khỏe được bảo vệ và chỉ hiển thị theo quyền của tài khoản hiện tại.
       </footer>
     </div>
   );

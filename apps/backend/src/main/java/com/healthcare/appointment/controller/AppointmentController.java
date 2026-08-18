@@ -5,6 +5,7 @@ import com.healthcare.appointment.dto.CancelAppointmentRequest;
 import com.healthcare.appointment.dto.ConfirmAppointmentRequest;
 import com.healthcare.appointment.dto.HoldSlotRequest;
 import com.healthcare.appointment.dto.HoldSlotResponse;
+import com.healthcare.appointment.dto.RescheduleAppointmentRequest;
 import com.healthcare.appointment.dto.TimeSlotDto;
 import com.healthcare.appointment.service.BookingService;
 import com.healthcare.appointment.service.ScheduleService;
@@ -83,5 +84,14 @@ public class AppointmentController {
         String reason = request != null ? request.reason() : null;
         String phone = request != null ? request.phone() : null;
         return ResponseEntity.ok(bookingService.cancelAppointment(bookingCode, reason, phone, userDetails));
+    }
+
+    @PostMapping("/{bookingCode}/reschedule")
+    @Operation(summary = "Reschedule a confirmed appointment to another available slot")
+    public ResponseEntity<AppointmentResponse> rescheduleAppointment(
+            @PathVariable String bookingCode,
+            @Valid @RequestBody RescheduleAppointmentRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(bookingService.rescheduleAppointment(bookingCode, request, userDetails));
     }
 }

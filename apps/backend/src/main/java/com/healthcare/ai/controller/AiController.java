@@ -1,6 +1,8 @@
 package com.healthcare.ai.controller;
 
 import com.healthcare.ai.service.AiService;
+import com.healthcare.hospital.entity.Specialty;
+import com.healthcare.hospital.repository.SpecialtyRepository;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -15,6 +17,10 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Map;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.text.Normalizer;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
@@ -24,9 +30,11 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 public class AiController {
 
     private final AiService aiService;
+    private final SpecialtyRepository specialtyRepository;
 
-    public AiController(AiService aiService) {
+    public AiController(AiService aiService, SpecialtyRepository specialtyRepository) {
         this.aiService = aiService;
+        this.specialtyRepository = specialtyRepository;
     }
 
     @PostMapping("/symptom-check")
@@ -36,7 +44,51 @@ public class AiController {
 
     @PostMapping("/specialty-recommendation")
     public ResponseEntity<Map<String, Object>> specialtyRecommendation(@Valid @RequestBody AiRequest request) {
-        return ResponseEntity.ok(aiService.recommendSpecialty(Map.of("symptoms", request.symptoms())));
+        Map<String, Object> result = new LinkedHashMap<>(
+            aiService.recommendSpecialty(Map.of("symptoms", request.symptoms()))
+        );
+        // Never trust an upstream model/provider identity. The only identity
+        // allowed to cross this boundary is the one resolved from active SQL
+        // catalog rows below.
+        result.remove("recommended_specialty_id");
+        result.remove("recommended_specialty_slug");
+        result.remove("specialty_resolution");
+        Specialty resolved = resolveSpecialty(result.get("recommended_specialty"));
+        if (resolved == null) {
+            result.put("specialty_resolution", "UNRESOLVED");
+        } else {
+            result.put("specialty_resolution", "RESOLVED");
+            result.put("recommended_specialty_id", resolved.getId().toString());
+            result.put("recommended_specialty_slug", resolved.getSlug());
+        }
+        return ResponseEntity.ok(result);
+    }
+
+    private Specialty resolveSpecialty(Object recommendation) {
+        if (!(recommendation instanceof String value) || value.isBlank()) return null;
+        String candidate = normalize(value);
+        if (candidate.isBlank()) return null;
+        List<Specialty> active = specialtyRepository.findByActiveTrue();
+
+        List<Specialty> exact = active.stream()
+            .filter(item -> normalize(item.getName()).equals(candidate)
+                || normalize(item.getSlug()).equals(candidate))
+            .toList();
+        if (exact.size() == 1) return exact.get(0);
+
+        List<Specialty> contained = active.stream()
+            .filter(item -> normalize(item.getName()).contains(candidate)
+                || candidate.contains(normalize(item.getName())))
+            .toList();
+        return contained.size() == 1 ? contained.get(0) : null;
+    }
+
+    private String normalize(String value) {
+        return Normalizer.normalize(value, Normalizer.Form.NFD)
+            .replaceAll("\\p{M}", "")
+            .toLowerCase(Locale.ROOT)
+            .replaceAll("[^a-z0-9]+", " ")
+            .trim();
     }
 
     @GetMapping("/search")

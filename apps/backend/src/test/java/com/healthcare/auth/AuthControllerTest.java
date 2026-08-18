@@ -67,6 +67,26 @@ class AuthControllerTest extends TestcontainersIntegrationTest {
     }
 
     @Test
+    void registrationWithPhoneCreatesLinkedPatientProfile() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "email": "portal.patient@example.com",
+                      "password": "Str0ng!Pass",
+                      "displayName": "Portal Patient",
+                      "phone": "090 123-4567"
+                    }
+                    """))
+            .andExpect(status().isOk());
+
+        var user = userRepository.findByEmail("portal.patient@example.com").orElseThrow();
+        var profile = patientProfileRepository.findByUserId(user.getId()).orElseThrow();
+        assertThat(profile.getPhone()).isEqualTo("0901234567");
+        assertThat(profile.getFullName()).isEqualTo("Portal Patient");
+    }
+
+    @Test
     void duplicateEmailReturnsConflict() throws Exception {
         String body = """
             {

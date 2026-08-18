@@ -104,7 +104,7 @@ public class CmsPayloadValidator {
 
     private boolean isSafeLink(String value) {
         if (value.startsWith("/")) {
-            return !value.startsWith("//") && !value.contains("\\\\");
+            return !value.startsWith("//") && !value.contains("\\");
         }
         try {
             URI uri = new URI(value);

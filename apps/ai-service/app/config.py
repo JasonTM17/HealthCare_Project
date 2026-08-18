@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     ai_max_input_chars: int = Field(default=10_000, ge=2, le=10_000)
     ai_max_retrieved_chunks: int = Field(default=5, ge=1, le=20)
     rag_max_document_chars: int = Field(default=20_000, ge=1, le=20_000)
+    rag_max_documents: int = Field(default=1_000, ge=1, le=10_000)
 
     # RAG ingestion is a separate, explicitly protected capability.
     rag_ingest_enabled: bool = False
@@ -53,6 +54,8 @@ class Settings(BaseSettings):
     def apply_legacy_provider_aliases(self) -> "Settings":
         """Use legacy values only when the provider-neutral value is empty."""
 
+        if self.ai_provider.strip().casefold() != "deepseek":
+            return self
         if not self.ai_api_key.strip():
             self.ai_api_key = self.deepseek_api_key
         if not self.ai_chat_model.strip():

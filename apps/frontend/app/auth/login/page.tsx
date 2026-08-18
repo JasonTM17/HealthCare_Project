@@ -33,7 +33,9 @@ export default function LoginPage() {
             ? "/patient/dashboard"
             : hasRole(session.user, "DOCTOR")
               ? "/doctor/dashboard"
-              : "/";
+              : hasRole(session.user, "ADMIN")
+                ? "/admin"
+                : "/";
       router.replace(target);
     } catch (error) {
       if (error instanceof ApiError && error.status >= 500) {
@@ -95,7 +97,7 @@ export default function LoginPage() {
         </form>
 
         <p className="auth-card__note">
-          Chưa có tài khoản? Đăng ký hiện vẫn do backend quản lý; bản giao diện này chưa tự tạo tài khoản bác sĩ.
+          Chưa có tài khoản bệnh nhân? <Link href="/auth/register">Đăng ký tại đây</Link>. Tài khoản bác sĩ và quản trị viên do cơ sở y tế cấp.
         </p>
       </section>
     </main>

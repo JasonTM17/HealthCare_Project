@@ -46,6 +46,7 @@ temp/
 # Local service data and uploads
 .data/
 data/local/
+apps/backend/data/
 postgres-data/
 redis-data/
 minio-data/

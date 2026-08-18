@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.healthcare.AbstractIntegrationTest;
 import com.healthcare.security.JwtTokenProvider;
 import com.healthcare.user.entity.User;
+import com.healthcare.appointment.entity.PatientProfile;
 import com.healthcare.user.repository.RoleRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -37,7 +38,28 @@ class FileStorageIntegrationTest extends AbstractIntegrationTest {
     }
 
     private String patientToken() {
-        return tokenToken("PATIENT");
+        return createPatientAuth().token();
+    }
+
+    private record PatientAuth(String token, PatientProfile profile) {}
+
+    private PatientAuth createPatientAuth() {
+        User user = new User();
+        user.setEmail("file.patient." + UUID.randomUUID() + "@healthcare.local");
+        user.setPasswordHash(passwordEncoder.encode("NotUsed!123"));
+        user.setDisplayName("File Patient");
+        user.setStatus("ACTIVE");
+        user.setCreatedAt(java.time.OffsetDateTime.now());
+        user.setUpdatedAt(java.time.OffsetDateTime.now());
+        user.addRole(roleRepository.findByCode("PATIENT").orElseThrow());
+        user = userRepository.saveAndFlush(user);
+        PatientProfile profile = new PatientProfile();
+        profile.setFullName("File Patient");
+        profile.setPhone("09" + String.format("%08d", Math.abs(UUID.randomUUID().hashCode()) % 100_000_000));
+        profile.setEmail(user.getEmail());
+        profile.setUserId(user.getId());
+        profile = patientProfileRepository.saveAndFlush(profile);
+        return new PatientAuth("Bearer " + tokenProvider.generateAccessToken(user.getId(), user.getEmail()), profile);
     }
 
     private String tokenToken(String roleCode) {
@@ -159,6 +181,25 @@ class FileStorageIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(get("/api/v1/files/00000000-0000-0000-0000-000000000000-file.txt")
                 .header("Authorization", patientToken()))
             .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void patientCanDownloadFileLinkedToOwnProfile() throws Exception {
+        PatientAuth patient = createPatientAuth();
+        MockMultipartFile file = new MockMultipartFile(
+            "file", "patient-result.pdf", MediaType.APPLICATION_PDF_VALUE, "result".getBytes());
+        String result = mockMvc.perform(multipart("/api/v1/files/upload")
+                .file(file)
+                .param("patientId", patient.profile().getId().toString())
+                .param("purpose", "DIAGNOSTIC_RESULT")
+                .header("Authorization", adminToken()))
+            .andExpect(status().isOk())
+            .andReturn().getResponse().getContentAsString();
+        String objectName = objectMapper.readTree(result).get("objectName").asText();
+
+        mockMvc.perform(get("/api/v1/files/" + objectName)
+                .header("Authorization", patient.token()))
+            .andExpect(status().isOk());
     }
 
     @Test

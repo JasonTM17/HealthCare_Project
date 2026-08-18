@@ -14,10 +14,11 @@ from app.providers import (
     REMOTE_CHAT_PROVIDERS,
     merge_provenance,
     provider_configured,
+    provider_secret,
+    remote_provider_requested,
     runtime_allows_local_fallback,
-    secret_setting,
 )
-from app.rag import RagService
+from app.rag import EmbeddingContractError, RagService
 from app.schemas import (
     Citation,
     EmbeddingRequest,
@@ -30,6 +31,7 @@ from app.schemas import (
     RAGSearchResult,
     ProviderProvenance,
     SOURCE_TYPES,
+    SemanticSearchRequest,
     SemanticSearchResponse,
     SemanticSearchResult,
     SpecialtyRecommendationRequest,
@@ -43,7 +45,7 @@ settings = Settings()
 app = FastAPI(title="HealthCare AI Service", version="0.1.0")
 
 # Shared in-memory RAG index for the foundation phase.
-rag_service = RagService()
+rag_service = RagService(max_documents=settings.rag_max_documents)
 
 
 def _embedding_parts(value: object) -> tuple[list[float], str, ProviderProvenance]:
@@ -65,6 +67,12 @@ def _embedding_parts(value: object) -> tuple[list[float], str, ProviderProvenanc
 async def provider_unavailable_handler(request: Request, exc: ProviderUnavailable) -> JSONResponse:
     del request, exc
     return JSONResponse(status_code=503, content={"detail": "AI provider unavailable"})
+
+
+@app.exception_handler(EmbeddingContractError)
+async def embedding_contract_handler(request: Request, exc: EmbeddingContractError) -> JSONResponse:
+    del request, exc
+    return JSONResponse(status_code=503, content={"detail": "AI embedding contract unavailable"})
 
 
 def _configured_secret(value: object) -> bool:
@@ -108,44 +116,52 @@ def local_auth_escape_hatch_enabled() -> bool:
     )
 
 
-@app.get("/health", response_model=HealthResponse)
+@app.get("/health", response_model=HealthResponse, dependencies=[Depends(require_service_auth)])
 def health(response: Response) -> HealthResponse:
-    api_key_configured = _configured_secret(secret_setting(settings, "ai_api_key", "deepseek_api_key"))
-    auth_configured = _configured_secret(settings.ai_service_token)
     chat_provider = settings.ai_provider.strip().casefold()
+    api_key_configured = _configured_secret(provider_secret(settings, chat_provider))
+    auth_configured = _configured_secret(settings.ai_service_token)
     provider_ready = (
         chat_provider in LOCAL_CHAT_PROVIDERS | REMOTE_CHAT_PROVIDERS
         and provider_configured(
             settings,
             "ai_provider",
             LOCAL_CHAT_PROVIDERS,
-            "ai_api_key",
-            "deepseek_api_key",
         )
         and provider_configured(
             settings,
             "embedding_provider",
             LOCAL_EMBEDDING_PROVIDERS,
-            "ai_api_key",
-            "deepseek_api_key",
         )
     )
     fallback_allowed = runtime_allows_local_fallback(settings)
+    remote_probe_required = remote_provider_requested(
+        settings,
+        "ai_provider",
+        LOCAL_CHAT_PROVIDERS,
+    ) or remote_provider_requested(
+        settings,
+        "embedding_provider",
+        LOCAL_EMBEDDING_PROVIDERS,
+    )
     auth_ready = auth_configured or local_auth_escape_hatch_enabled()
-    ready = auth_ready and provider_ready
+    ready = auth_ready and provider_ready and not remote_probe_required
     status = "ok" if ready else "degraded" if fallback_allowed and auth_ready else "misconfigured"
     response.status_code = 200 if ready else 503
     return HealthResponse(
         status=status,
         service=settings.service_name,
         ai_provider=settings.ai_provider,
-        deepseek_configured=api_key_configured,
-        deepseek_model=(settings.ai_chat_model or settings.deepseek_model) if api_key_configured else None,
+        deepseek_configured=chat_provider == "deepseek" and api_key_configured,
+        deepseek_model=(settings.ai_chat_model or settings.deepseek_model)
+        if chat_provider == "deepseek" and api_key_configured
+        else None,
         service_auth_configured=auth_configured,
         local_auth_escape_hatch=local_auth_escape_hatch_enabled(),
         ready=ready,
         provider_configured=provider_ready,
         fallback_allowed=fallback_allowed,
+        remote_probe_required=remote_probe_required,
     )
 
 
@@ -169,11 +185,13 @@ def embeddings(request: EmbeddingRequest) -> EmbeddingResponse:
 @app.post("/rag/search", response_model=RAGSearchResponse, dependencies=[Depends(require_service_auth)])
 def rag_search(request: RAGSearchRequest) -> RAGSearchResponse:
     query = _enforce_input_limit(request.query, label="RAG query", setting_name="ai_max_input_chars")
-    query_embedding, _, provenance = _embedding_parts(embed(query, settings))
+    query_embedding, query_model, provenance = _embedding_parts(embed(query, settings))
     hits = rag_service.search(
         query_embedding,
         top_k=min(request.top_k, settings.ai_max_retrieved_chunks),
         query_text=query,
+        embedding_model=query_model,
+        embedding_provenance=provenance,
     )
     return RAGSearchResponse(
         results=[
@@ -213,8 +231,8 @@ def rag_index(
         label="RAG document",
         setting_name="rag_max_document_chars",
     )
-    def embed_document(normalized_content: str) -> list[float]:
-        return _embedding_parts(embed(normalized_content, settings))[0]
+    def embed_document(normalized_content: str) -> tuple[list[float], str, ProviderProvenance]:
+        return _embedding_parts(embed(normalized_content, settings))
 
     doc = rag_service.ingest(
         source_type=payload.source_type,
@@ -244,11 +262,13 @@ def specialty_recommendation(request: SpecialtyRecommendationRequest) -> Special
         label="Symptoms",
         setting_name="ai_max_input_chars",
     )
-    query_embedding, _, embedding_provenance = _embedding_parts(embed(symptoms, settings))
+    query_embedding, query_model, embedding_provenance = _embedding_parts(embed(symptoms, settings))
     hits = rag_service.search(
         query_embedding,
         top_k=min(3, settings.ai_max_retrieved_chunks),
         query_text=symptoms,
+        embedding_model=query_model,
+        embedding_provenance=embedding_provenance,
     )
     if hits:
         # Keep the existing provider contract stable.  Retrieved content is
@@ -256,13 +276,17 @@ def specialty_recommendation(request: SpecialtyRecommendationRequest) -> Special
         # identities, never from model-generated URLs or IDs.
         context = [f"{doc.title}: {doc.content}" for doc, _ in hits[:2]]
         response = resolve_triage(symptoms, settings, context=context)
-        citations = [
+        recommendation_provenance = merge_provenance(
+            response.provenance,
+            embedding_provenance,
+        )
+        citations = [] if recommendation_provenance == "local_fallback" else [
             _citation(doc.source_type, doc.source_id, doc.title) for doc, _ in hits[:2]
         ]
         return SpecialtyRecommendationResponse(
             **response.model_dump(exclude={"citations", "provenance"}),
             citations=citations,
-            provenance=merge_provenance(response.provenance, embedding_provenance),
+            provenance=recommendation_provenance,
         )
     response = resolve_triage(symptoms, settings)
     return SpecialtyRecommendationResponse(
@@ -276,30 +300,21 @@ def rag_stats() -> dict[str, int]:
     return {"documents": rag_service.index.size}
 
 
-@app.get("/search", response_model=SemanticSearchResponse)
-def semantic_search(
-    q: str = Query(default="", max_length=10_000),
-    specialty: str = Query(default="", max_length=200),
-    top_k: int = Query(default=10, ge=1, le=20),
-    _service_auth: None = Depends(require_service_auth),
-) -> SemanticSearchResponse:
-    """Hybrid semantic search over the RAG index.
+def _semantic_search(query_input: str, specialty_input: str, top_k: int) -> SemanticSearchResponse:
+    """Run bounded search while keeping free text out of the internal URL shape."""
 
-    Keyword ``q`` is embedded and matched against indexed documents.  An
-    optional ``specialty`` filter narrows results.  Results remain bounded and
-    carry only source identities that can be verified by the backend.
-    """
-
-    query = _enforce_input_limit(q, label="Search query", setting_name="ai_max_input_chars")
-    specialty_filter = specialty.strip()
+    query = _enforce_input_limit(query_input, label="Search query", setting_name="ai_max_input_chars")
+    specialty_filter = specialty_input.strip()
     if not query and not specialty_filter:
         return SemanticSearchResponse(results=[])
     search_text = query or specialty_filter
-    query_embedding, _, provenance = _embedding_parts(embed(search_text, settings))
+    query_embedding, query_model, provenance = _embedding_parts(embed(search_text, settings))
     hits = rag_service.search(
         query_embedding,
         top_k=min(top_k * 2, settings.ai_max_retrieved_chunks),
         query_text=search_text,
+        embedding_model=query_model,
+        embedding_provenance=provenance,
     )
     results: list[SemanticSearchResult] = []
     for doc, score in hits:
@@ -323,3 +338,25 @@ def semantic_search(
         specialty=specialty_filter,
         provenance=provenance,
     )
+
+
+@app.get("/search", response_model=SemanticSearchResponse)
+def semantic_search(
+    q: str = Query(default="", max_length=10_000),
+    specialty: str = Query(default="", max_length=200),
+    top_k: int = Query(default=10, ge=1, le=20),
+    _service_auth: None = Depends(require_service_auth),
+) -> SemanticSearchResponse:
+    """Backward-compatible GET search for local callers."""
+
+    return _semantic_search(q, specialty, top_k)
+
+
+@app.post("/search", response_model=SemanticSearchResponse)
+def semantic_search_post(
+    request: SemanticSearchRequest,
+    _service_auth: None = Depends(require_service_auth),
+) -> SemanticSearchResponse:
+    """Preferred internal search shape; query text stays in the request body."""
+
+    return _semantic_search(request.query, request.specialty, request.top_k)

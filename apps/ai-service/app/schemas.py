@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 MAX_INPUT_CHARS = 10_000
 MAX_DOCUMENT_CHARS = 20_000
 MAX_RETRIEVED_CHUNKS = 20
+MAX_EMBEDDING_DIMENSION = 4_096
 
 SOURCE_TYPES = Literal["specialty", "doctor", "service", "package", "article", "faq"]
 ProviderProvenance = Literal["local_provider", "remote_provider", "local_fallback"]
@@ -42,6 +43,7 @@ class HealthResponse(BaseModel):
     ready: bool = True
     provider_configured: bool = True
     fallback_allowed: bool = False
+    remote_probe_required: bool = False
 
 
 class TriageRequest(BaseModel):
@@ -127,7 +129,7 @@ class EmbeddingRequest(BaseModel):
 
 
 class EmbeddingResponse(BaseModel):
-    embedding: list[float]
+    embedding: list[float] = Field(..., min_length=1, max_length=MAX_EMBEDDING_DIMENSION)
     model: str
     provenance: ProviderProvenance = "local_provider"
 
@@ -196,6 +198,15 @@ class SemanticSearchResponse(BaseModel):
     query: str = ""
     specialty: str = ""
     provenance: ProviderProvenance = "local_provider"
+
+
+class SemanticSearchRequest(BaseModel):
+    query: str = Field(default="", max_length=MAX_INPUT_CHARS)
+    specialty: str = Field(default="", max_length=200)
+    top_k: int = Field(default=10, ge=1, le=MAX_RETRIEVED_CHUNKS)
+
+    _trim_query = field_validator("query", mode="before")(_trim_text)
+    _trim_specialty = field_validator("specialty", mode="before")(_trim_text)
 
 
 class SpecialtyRecommendationRequest(BaseModel):

@@ -1,6 +1,8 @@
 package com.healthcare.appointment;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -17,6 +19,7 @@ import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.RoleRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -68,6 +71,36 @@ class AppointmentPortalIntegrationTest extends AbstractIntegrationTest {
             .andExpect(jsonPath("$.content[0].patientEmail").doesNotExist())
             .andExpect(jsonPath("$.content[0].otpCode").doesNotExist())
             .andExpect(jsonPath("$.content[0].otpExpiresAt").doesNotExist());
+    }
+
+    @Test
+    void patientCanReadAndUpdateOwnProfileWithoutChangingIdentityFields() throws Exception {
+        User patientUser = createUser("PATIENT", "portal.profile.patient." + UUID.randomUUID() + "@example.com");
+        PatientProfile patient = createPatient(patientUser, "097" + randomDigits());
+
+        mockMvc.perform(put("/api/v1/patient/profile")
+                .header("Authorization", bearer(patientUser))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "fullName": "Nguyen Van Updated",
+                      "dateOfBirth": "1990-05-20",
+                      "gender": "MALE",
+                      "address": "Ho Chi Minh City",
+                      "emergencyContactName": "Emergency Contact",
+                      "emergencyContactPhone": "0901234567"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value(patient.getId().toString()))
+            .andExpect(jsonPath("$.fullName").value("Nguyen Van Updated"))
+            .andExpect(jsonPath("$.phone").value(patient.getPhone()))
+            .andExpect(jsonPath("$.gender").value("MALE"));
+
+        mockMvc.perform(get("/api/v1/patient/profile")
+                .header("Authorization", bearer(patientUser)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.address").value("Ho Chi Minh City"));
     }
 
     @Test
@@ -156,6 +189,77 @@ class AppointmentPortalIntegrationTest extends AbstractIntegrationTest {
             .andExpect(jsonPath("$.content.length()").value(0))
             .andExpect(jsonPath("$.totalElements").value(0))
             .andExpect(jsonPath("$.totalPages").value(0));
+    }
+
+    @Test
+    void assignedDoctorCanAdvanceAppointmentLifecycleInOrder() throws Exception {
+        User patientUser = createUser("PATIENT", "portal.workflow.patient." + UUID.randomUUID() + "@example.com");
+        User doctorUser = createUser("DOCTOR", "portal.workflow.doctor." + UUID.randomUUID() + "@example.com");
+        PatientProfile patient = createPatient(patientUser, "094" + randomDigits());
+        Doctor doctor = createDoctor(doctorUser, "portal-workflow-doctor-" + UUID.randomUUID());
+        Branch branch = createBranch("portal-workflow-branch-" + UUID.randomUUID());
+        assignDoctorToBranch(doctor, branch);
+        Appointment appointment = createAppointment(
+            patient, doctor, branch, LocalDate.now(), LocalTime.of(9, 0), AppointmentStatus.CONFIRMED);
+
+        mockMvc.perform(patch("/api/v1/doctor/appointments/" + appointment.getId() + "/status")
+                .header("Authorization", bearer(doctorUser))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\":\"CHECKED_IN\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("CHECKED_IN"));
+
+        mockMvc.perform(patch("/api/v1/doctor/appointments/" + appointment.getId() + "/status")
+                .header("Authorization", bearer(doctorUser))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\":\"IN_PROGRESS\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("IN_PROGRESS"));
+    }
+
+    @Test
+    void doctorCannotSkipLifecycleOrUpdateAnotherDoctorsAppointment() throws Exception {
+        User patientUser = createUser("PATIENT", "portal.workflow.guard.patient." + UUID.randomUUID() + "@example.com");
+        User doctorUser = createUser("DOCTOR", "portal.workflow.guard.doctor." + UUID.randomUUID() + "@example.com");
+        User otherDoctorUser = createUser("DOCTOR", "portal.workflow.guard.other." + UUID.randomUUID() + "@example.com");
+        PatientProfile patient = createPatient(patientUser, "095" + randomDigits());
+        Doctor doctor = createDoctor(doctorUser, "portal-workflow-guard-" + UUID.randomUUID());
+        createDoctor(otherDoctorUser, "portal-workflow-other-" + UUID.randomUUID());
+        Branch branch = createBranch("portal-workflow-guard-branch-" + UUID.randomUUID());
+        assignDoctorToBranch(doctor, branch);
+        Appointment appointment = createAppointment(
+            patient, doctor, branch, LocalDate.now(), LocalTime.of(9, 0), AppointmentStatus.CONFIRMED);
+
+        mockMvc.perform(patch("/api/v1/doctor/appointments/" + appointment.getId() + "/status")
+                .header("Authorization", bearer(doctorUser))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\":\"IN_PROGRESS\"}"))
+            .andExpect(status().isConflict());
+
+        mockMvc.perform(patch("/api/v1/doctor/appointments/" + appointment.getId() + "/status")
+                .header("Authorization", bearer(otherDoctorUser))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\":\"CHECKED_IN\"}"))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void doctorCanMarkPastConfirmedAppointmentAsNoShow() throws Exception {
+        User patientUser = createUser("PATIENT", "portal.noshow.patient." + UUID.randomUUID() + "@example.com");
+        User doctorUser = createUser("DOCTOR", "portal.noshow.doctor." + UUID.randomUUID() + "@example.com");
+        PatientProfile patient = createPatient(patientUser, "096" + randomDigits());
+        Doctor doctor = createDoctor(doctorUser, "portal-noshow-doctor-" + UUID.randomUUID());
+        Branch branch = createBranch("portal-noshow-branch-" + UUID.randomUUID());
+        assignDoctorToBranch(doctor, branch);
+        Appointment appointment = createAppointment(
+            patient, doctor, branch, LocalDate.now().minusDays(1), LocalTime.of(9, 0), AppointmentStatus.CONFIRMED);
+
+        mockMvc.perform(patch("/api/v1/doctor/appointments/" + appointment.getId() + "/status")
+                .header("Authorization", bearer(doctorUser))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\":\"NO_SHOW\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("NO_SHOW"));
     }
 
     private User createUser(String roleCode, String email) {

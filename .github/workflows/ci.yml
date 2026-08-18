@@ -28,18 +28,6 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-      minio:
-        image: minio/minio:RELEASE.2025-07-23T15-54-02Z
-        env:
-          MINIO_ROOT_USER: healthcare
-          MINIO_ROOT_PASSWORD: change-me
-        ports:
-          - 9000:9000
-        options: >-
-          --health-cmd "curl -fsS http://localhost:9000/minio/health/live || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
     steps:
       - uses: actions/checkout@v4
         with:
@@ -48,6 +36,21 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
+      - name: Start MinIO
+        run: |
+          set -euo pipefail
+          docker run --detach --name healthcare-ci-minio --network host \
+            --env MINIO_ROOT_USER=healthcare \
+            --env MINIO_ROOT_PASSWORD=change-me \
+            minio/minio:RELEASE.2025-07-23T15-54-02Z server /data
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://localhost:9000/minio/health/live >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs healthcare-ci-minio
+          exit 1
       - name: Build and test backend
         working-directory: apps/backend
         env:
@@ -55,7 +58,10 @@ jobs:
           TEST_DB_ALLOW_CLEANUP: true
           TEST_DB_USERNAME: healthcare_test
           TEST_DB_PASSWORD: healthcare_test
-        run: mvn -B verify
+        run: ./mvnw -B verify
+      - name: Stop MinIO
+        if: always()
+        run: docker rm --force healthcare-ci-minio || true
       - name: Upload backend build artifact
         if: success()
         uses: actions/upload-artifact@v4
@@ -99,6 +105,7 @@ jobs:
           name: frontend-next-build
           path: apps/frontend/.next
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 7
 
   ai-service:
@@ -132,12 +139,66 @@ jobs:
     env:
       JWT_SECRET: ci-only-jwt-secret-with-no-production-value
       AI_SERVICE_TOKEN: ci-only-ai-service-token
+      RAG_INGEST_TOKEN: ci-only-rag-ingest-token
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
       - name: Validate Compose configuration
         run: docker compose -f infrastructure/docker-compose.yml config --quiet
+
+  database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build database fixture image
+        run: docker build --file infrastructure/database/Dockerfile --tag healthcare-project-database:ci .
+      - name: Initialize and verify large dataset
+        shell: bash
+        run: |
+          set -euo pipefail
+          container=healthcare-database-ci
+          cleanup() { docker rm --force "$container" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          docker run --detach --name "$container" --tmpfs /var/lib/postgresql/data:rw \
+            --env POSTGRES_DB=healthcare \
+            --env POSTGRES_USER=healthcare \
+            --env POSTGRES_PASSWORD=ci-only \
+            healthcare-project-database:ci >/dev/null
+          ready=false
+          for attempt in $(seq 1 60); do
+            if docker exec "$container" pg_isready -U healthcare -d healthcare >/dev/null 2>&1; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" != true ]; then
+            docker logs "$container"
+            exit 1
+          fi
+          verified=false
+          for attempt in $(seq 1 180); do
+            if counts="$(docker exec "$container" psql -At -F '|' -U healthcare -d healthcare -c \
+              "SELECT 'articles', count(*) FROM articles UNION ALL SELECT 'doctors', count(*) FROM doctors UNION ALL SELECT 'packages', count(*) FROM packages UNION ALL SELECT 'users', count(*) FROM users;" 2>/dev/null)"; then
+              if grep -Fx 'articles|500' <<<"$counts" >/dev/null \
+                && grep -Fx 'doctors|500' <<<"$counts" >/dev/null \
+                && grep -Fx 'packages|100' <<<"$counts" >/dev/null \
+                && grep -Fx 'users|1000' <<<"$counts" >/dev/null; then
+                printf '%s\n' "$counts"
+                verified=true
+                break
+              fi
+            fi
+            sleep 1
+          done
+          if [ "$verified" != true ]; then
+            docker logs "$container"
+            exit 1
+          fi
 
   hygiene:
     runs-on: ubuntu-latest

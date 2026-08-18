@@ -19,6 +19,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -33,11 +34,14 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final ObjectMapper objectMapper;
     private final Environment environment;
+    private final RequestRateLimitFilter requestRateLimitFilter;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter, ObjectMapper objectMapper, Environment environment) {
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter, ObjectMapper objectMapper, Environment environment,
+            RequestRateLimitFilter requestRateLimitFilter) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.objectMapper = objectMapper;
         this.environment = environment;
+        this.requestRateLimitFilter = requestRateLimitFilter;
     }
 
     @Bean
@@ -77,20 +81,32 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/hospital/**").permitAll()
                 .requestMatchers("/api/v1/cms/**").permitAll()
                 .requestMatchers("/api/v1/admin/cms/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/v1/careers/jobs/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/v1/careers/jobs/*/applications").permitAll()
+                .requestMatchers("/api/v1/admin/careers/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/v1/appointments/doctors/*/slots").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/appointments/hold").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/appointments/confirm").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/appointments/*").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/appointments/*/cancel").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/v1/appointments/*/reschedule").permitAll()
                 .requestMatchers("/api/v1/ai/**").authenticated()
                 .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
-                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").hasRole("ADMIN")
                 .requestMatchers("/api/v1/users/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
             )
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterBefore(requestRateLimitFilter, JwtAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    @Bean
+    public FilterRegistrationBean<RequestRateLimitFilter> disableContainerRateLimitRegistration() {
+        FilterRegistrationBean<RequestRateLimitFilter> registration = new FilterRegistrationBean<>(requestRateLimitFilter);
+        registration.setEnabled(false);
+        return registration;
     }
 
     @Bean

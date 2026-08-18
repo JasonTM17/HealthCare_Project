@@ -2,26 +2,26 @@
 
 ## Current Repository State
 
-Status: local foundation implemented; bounded clinical and safety repairs are
-complete on `main`. The current repository contains the backend, frontend,
-FastAPI AI/RAG service, infrastructure, committed CI definition, Flyway V1-V8,
-and AgentKit plans. This section supersedes the historical discovery notes that
-were written before application scaffolding existed.
+Status: local MVP implementation complete through code/build/unit/browser-smoke
+gates. Full PostgreSQL/MinIO integration and role-by-role E2E execution remain
+pending until the local Docker engine is available. The repository contains the
+backend, frontend, FastAPI AI/RAG service, infrastructure, CI, Flyway migrations,
+local role accounts, runbook, and regression tests.
 
-Evidence inspected on 2026-08-17:
+Evidence updated on 2026-08-18:
 
 - Project instructions and AgentKit configuration exist: `AGENTS.md`,
   `OPENCODE.md`, `.agentkit/config.yaml`.
 - Backend, frontend, AI service, Docker Compose, migrations, tests, and CI are
   present under `apps/`, `infrastructure/`, and `.github/workflows/`.
-- The repository is a Git worktree on `main`; the final handoff binds claims to
-  the exact reviewed `HEAD` and reports unrelated dirty/untracked paths.
+- This copied workspace has no `.git` metadata, so no branch, commit, remote, or
+  clean-worktree claim is made.
 - Local foundation checks pass, but no CI run, deployment, compliance, or
   production-readiness claim follows from them.
 
-Current implementation phase: foundation hardening and staged portal/catalog
-follow-up. The clinical repair and adjacent appointment/storage/AI/RAG gates
-are recorded in `plans/260817-1522-clinical-records-and-authorization-repair/`.
+Current implementation phase: final environment-gated E2E verification. Admin
+operations now include authenticated appointment visibility in addition to
+catalog, schedules, and schedule exceptions.
 
 ## Architecture
 
@@ -70,8 +70,6 @@ AI service boundaries:
 ## Implementation Phases
 
 ### Phase 0 - Repository Discovery
-
-Status: `DONE`.
 
 Status: `DONE` for initial local assessment.
 
@@ -214,7 +212,7 @@ Suggested commits:
 
 ### Phase 5 - Admin CMS
 
-Status: backend + tests `DONE`; admin UI pending.
+Status: `DONE` for MVP.
 
 Goal: allow admins to manage public hospital content securely.
 
@@ -232,6 +230,9 @@ Required tests:
 - Validation and slug conflict cases.
 
 ### Phase 6 - Doctor Scheduling
+
+Status: `DONE` for MVP, including recurring schedules, overlap rejection,
+branch/date exceptions, dynamic slots, admin API and UI.
 
 Goal: implement recurring schedules and availability calculation.
 
@@ -253,6 +254,8 @@ Required ADR:
 
 ### Phase 7 - Appointment System
 
+Status: `DONE` for MVP.
+
 Goal: implement booking, cancellation, rescheduling, and state transitions with database-enforced integrity.
 
 Core rules:
@@ -273,6 +276,9 @@ Required tests:
 
 ### Phase 8 - Patient Portal
 
+Status: `DONE` for MVP. Related resources are grouped on the authenticated
+dashboard rather than split into one route per resource.
+
 Goal: patients can manage their own health journey safely.
 
 Routes:
@@ -286,6 +292,8 @@ Rules:
 - Frontend must handle unauthorized/forbidden/empty states.
 
 ### Phase 9 - Doctor Portal and Clinical Workflow
+
+Status: `DONE` for MVP.
 
 Goal: doctors can see assigned appointments and create permitted clinical records.
 
@@ -303,6 +311,8 @@ Rules:
 - Do not claim legal EHR compliance; document educational scope.
 
 ### Phase 10 - Files and Diagnostic Results
+
+Status: `DONE` for MVP.
 
 Goal: add secure object storage for medical documents and media.
 
@@ -322,6 +332,8 @@ Required tests:
 
 ### Phase 11 - Notifications
 
+Status: `DONE` for MVP.
+
 Goal: add in-app notifications for important user events.
 
 Events:
@@ -335,6 +347,8 @@ Rules:
 - Email is optional and should not block core flows.
 
 ### Phase 12 - AI Foundation
+
+Status: `DONE` for MVP.
 
 Goal: create safe provider abstraction before RAG/recommendations.
 
@@ -364,6 +378,10 @@ Suggested commits:
 
 ### Phase 13 - RAG
 
+Status: `DONE` for the single-instance MVP. The backend periodically mirrors
+bounded active/published catalog documents through a separate protected ingest
+token; durable multi-instance vector persistence remains a production gate.
+
 Goal: implement grounded hospital assistant over trusted application data.
 
 Data model:
@@ -387,6 +405,9 @@ Required tests:
 
 ### Phase 14 - AI Recommendations
 
+Status: `DONE` for specialty recommendation. Doctor identity and availability
+remain resolved only from the relational backend.
+
 Goal: safely recommend specialties and doctors using verified application data.
 
 Rules:
@@ -398,6 +419,9 @@ Rules:
 - No fabricated doctors or availability.
 
 ### Phase 15 - Semantic Search
+
+Status: `DONE` for MVP with public keyword filtering plus authenticated semantic
+results from the protected RAG service.
 
 Goal: support hybrid keyword/vector search for public hospital knowledge.
 
@@ -412,6 +436,8 @@ Rules:
 - Search only active/published resources.
 
 ### Phase 16 - AI Frontend
+
+Status: `DONE` for MVP.
 
 Goal: integrate AI assistant into the product without presenting it as a physician.
 
@@ -430,6 +456,12 @@ Optional design support:
 
 ### Phase 17 - Security Hardening
 
+Status: `DONE` for basic MVP hardening: JWT/refresh rotation, object-level RBAC,
+CORS, bounded uploads, negative authorization tests, protected AI ingest,
+per-process rate limiting, and CI secret hygiene. Distributed edge limiting,
+password recovery, penetration testing, and compliance review remain production
+gates.
+
 Goal: explicitly review and harden security boundaries.
 
 Audit areas:
@@ -444,6 +476,10 @@ Required gates:
 
 ### Phase 18 - Performance
 
+Status: `DONE` for bounded MVP review. Pagination, bounded AI inputs/results,
+database indexes and bounded file reads are present; formal load testing remains
+a deployment gate.
+
 Goal: remove obvious bottlenecks based on evidence.
 
 Review:
@@ -456,6 +492,9 @@ Rules:
 - Define cache invalidation before using Redis for mutable content.
 
 ### Phase 19 - UX Polish
+
+Status: `DONE` for MVP across responsive public, auth, patient, doctor, admin and
+AI surfaces, with browser smoke evidence.
 
 Goal: make the demo coherent, responsive, and accessible.
 
@@ -470,6 +509,10 @@ Rules:
 
 ### Phase 20 - CI/CD
 
+Status: `DONE` for CI/build artifacts and Compose validation. Publishing the
+application images and deploying to a production platform are intentionally not
+claimed.
+
 Goal: add automated verification for all services.
 
 Minimum checks:
@@ -480,6 +523,10 @@ Minimum checks:
 - Docker build checks when stable.
 
 ### Phase 21 - Final End-to-End Demo
+
+Status: `PENDING ENVIRONMENT GATE`. Docker Desktop is installed, but Windows WSL
+2 must be enabled and the machine restarted before PostgreSQL/MinIO/backend
+integration tests and the complete 12-step demo can be executed.
 
 Goal: prove the primary story works end-to-end.
 
@@ -504,19 +551,15 @@ Demo flow:
 - Historical Gemini harness plan is completed but unrelated to the hospital application.
 - Initial project plan exists in `docs/PROJECT_PLAN.md`.
 
-## Missing Components
+## Remaining external gates
 
-- Git repository initialization or verified remote clone/connection.
-- Application README and contributor guide.
-- Root `.gitignore`.
-- Backend application.
-- Frontend application.
-- AI service.
-- Docker Compose and Dockerfiles.
-- Database migrations and seed data.
-- CI pipeline.
-- Tests.
-- ADRs and architecture/database/API docs.
+- Enable WSL 2/restart Windows, start Docker, then run the complete integration
+  and 12-step role-based E2E flow from `docs/LOCAL_RUNBOOK.md`.
+- Connect/initialize a Git repository if source-control delivery is required;
+  this workspace currently has no `.git` metadata.
+- Production-only work: TLS/ingress, secrets manager, durable distributed RAG,
+  backups and restore drill, observability/on-call, load test, penetration test,
+  privacy/compliance assessment and deployment ownership.
 
 ## Technical Risks
 
@@ -659,15 +702,18 @@ Commit discipline:
 
 ## Immediate Next Steps
 
-1. Resolve Git state: initialize repository or clone/connect the GitHub remote safely.
-2. Add root `.gitignore`, `README.md`, `CONTRIBUTING.md`, `.env.example`, and base docs folders.
-3. Bootstrap backend, frontend, and AI service in separate logical commits.
-4. Add Docker Compose infrastructure once service skeletons exist.
-5. Start Phase 2 only after Phase 1 checks pass.
+1. Run `wsl --install` from elevated PowerShell, restart Windows, and wait for
+   Docker Desktop to become ready.
+2. Follow `docs/LOCAL_RUNBOOK.md` to start, seed, and health-check the stack.
+3. Execute the documented 12-step role-based demo and `mvnw verify` with
+   Testcontainers available.
+4. Initialize or reconnect Git only if source-control delivery is required.
 
-## Open Questions
+## Decisions for the local MVP
 
-- Should this existing folder become the Git repository, or should the GitHub repository be cloned into a clean folder and this AgentKit adapter content reconciled afterward?
-- Does the team require `develop`, or should the project use trunk-based development with short-lived feature branches?
-- Should frontend auth use HTTP-only cookie tokens from the start, or bearer tokens for simpler university demo operations? Recommendation: HTTP-only cookie if time permits, bearer only if explicitly accepted and documented.
-- Should AI service use a real provider during demo, or support a documented fake/local provider for offline grading? Recommendation: provider abstraction with fake provider for tests and optional real provider via env.
+- Auth uses short-lived bearer access tokens plus rotated refresh tokens; moving
+  browser auth to secure HTTP-only cookies remains a production hardening option.
+- The AI service supports deterministic local mode for offline demonstration and
+  configurable providers through environment variables.
+- Git branch/remote policy is outside this copied workspace because `.git`
+  metadata is absent.

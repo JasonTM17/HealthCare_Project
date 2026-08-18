@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 
-from app.llm import rule_based_triage, resolve_triage, RULE_BASED
+from app.llm import build_llm_client, rule_based_triage, resolve_triage, RULE_BASED
 from app.providers import ProviderUnavailable
 
 
@@ -89,6 +89,19 @@ def test_remote_provider_uses_configured_timeout() -> None:
         timeout=4.25,
         max_retries=0,
     )
+
+
+def test_openai_provider_does_not_use_deepseek_alias_credentials_or_defaults() -> None:
+    settings = MagicMock()
+    settings.ai_provider = "openai"
+    settings.ai_api_key = ""
+    settings.deepseek_api_key = "legacy-key"
+    settings.ai_chat_model = ""
+    settings.deepseek_model = "deepseek-chat"
+    settings.ai_base_url = ""
+    settings.deepseek_base_url = "https://api.deepseek.com"
+
+    assert build_llm_client(settings) is None
 
 
 def test_remote_output_with_unknown_fields_falls_back() -> None:

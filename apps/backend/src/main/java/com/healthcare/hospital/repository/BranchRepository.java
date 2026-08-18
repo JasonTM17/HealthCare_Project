@@ -13,5 +13,7 @@ import java.util.UUID;
 public interface BranchRepository extends JpaRepository<Branch, UUID> {
     Optional<Branch> findBySlug(String slug);
 
+    Optional<Branch> findBySlugAndActiveTrue(String slug);
+
     Page<Branch> findByActiveTrue(Pageable pageable);
 }

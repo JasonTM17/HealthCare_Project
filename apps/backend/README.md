@@ -20,3 +20,25 @@ The AI gateway fails closed when `AI_SERVICE_TOKEN` is missing. For a bare
 local process only, explicitly set `AI_SERVICE_RUNTIME=local` and
 `AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL=true`; Compose/staging/non-local
 runtimes require a non-empty shared token.
+
+## Appointment rescheduling
+
+Confirmed appointments can be moved without changing their booking code:
+
+```http
+POST /api/v1/appointments/{bookingCode}/reschedule
+Content-Type: application/json
+
+{
+  "appointmentDate": "2026-08-24",
+  "startTime": "10:00:00",
+  "branchId": null,
+  "phone": "0901234567"
+}
+```
+
+Authenticated patients may omit `phone`; anonymous local booking flows must
+provide the phone number attached to the appointment. The operation accepts
+only `CONFIRMED` appointments, validates the doctor's schedule and branch,
+and returns HTTP `409` without changing the original appointment when the
+target interval is occupied.

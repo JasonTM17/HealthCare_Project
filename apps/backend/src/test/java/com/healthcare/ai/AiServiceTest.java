@@ -19,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
+import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
@@ -76,8 +77,9 @@ class AiServiceTest {
 
     @Test
     void semanticSearchUsesBoundedGatewayContract() {
-        server.expect(requestTo("http://ai.test/search?q=headache&top_k=2"))
-            .andExpect(method(HttpMethod.GET))
+        server.expect(requestTo("http://ai.test/search"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(content().json("{\"query\":\"headache\",\"top_k\":2}"))
             .andRespond(withSuccess("{\"results\":[],\"query\":\"headache\"}", MediaType.APPLICATION_JSON));
 
         Map<String, Object> response = aiService.search("  headache  ", 2);
@@ -149,6 +151,18 @@ class AiServiceTest {
         server.expect(requestTo("http://ai.test/health"))
             .andExpect(method(HttpMethod.GET))
             .andRespond(withStatus(SERVICE_UNAVAILABLE));
+
+        assertThat(aiService.isAvailable()).isFalse();
+        server.verify();
+    }
+
+    @Test
+    void availabilityRejectsHealthTokenMismatch() {
+        ReflectionTestUtils.setField(aiService, "aiServiceToken", "shared-service-token");
+        server.expect(requestTo("http://ai.test/health"))
+            .andExpect(method(HttpMethod.GET))
+            .andExpect(header("X-AI-Service-Token", "shared-service-token"))
+            .andRespond(withStatus(UNAUTHORIZED));
 
         assertThat(aiService.isAvailable()).isFalse();
         server.verify();

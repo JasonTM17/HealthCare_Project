@@ -68,6 +68,16 @@ public class ContentController {
     }
 
     private PackageResponse toPackageResponse(Package pkg) {
-        return new PackageResponse(pkg.getId().toString(), pkg.getName(), pkg.getSlug(), pkg.getDescription(), pkg.getPrice());
+        return new PackageResponse(
+            pkg.getId().toString(),
+            pkg.getName(),
+            pkg.getSlug(),
+            pkg.getDescription(),
+            pkg.getPrice(),
+            pkg.getTargetAudience(),
+            pkg.getDurationDays(),
+            com.healthcare.hospital.service.HospitalJsonMapper.strings(pkg.getChecklist()),
+            com.healthcare.hospital.service.HospitalJsonMapper.strings(pkg.getPreparationSteps())
+        );
     }
 }

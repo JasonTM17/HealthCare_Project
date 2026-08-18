@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useState, useEffect, useRef } from "react";
 import {
   Doctor,
   Specialty,
@@ -13,11 +13,52 @@ import {
   fetchDoctorSlots,
   holdAppointmentSlot,
   confirmAppointment,
-  SEED_DOCTORS,
-  SEED_SPECIALTIES,
-  SEED_BRANCHES,
 } from "../lib/api";
+import {
+  fetchBranches,
+  fetchDoctors,
+  fetchSpecialties,
+} from "../lib/api-client";
 import Icon from "./UiIcon";
+
+const EMPTY_DOCTORS: Doctor[] = [];
+const EMPTY_SPECIALTIES: Specialty[] = [];
+const EMPTY_BRANCHES: Branch[] = [];
+const EMPTY_PACKAGES: HealthPackage[] = [];
+
+function nextBookingDate(): string {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getSecondsUntil(expiry: string): number {
+  const remaining = Math.ceil((Date.parse(expiry) - Date.now()) / 1000);
+  return Number.isFinite(remaining) ? Math.max(0, remaining) : 600;
+}
+
+function doctorWorksAtBranch(doctor: Doctor, branchId: string): boolean {
+  if (!branchId) return true;
+  if (doctor.branchIds && doctor.branchIds.length > 0) {
+    return doctor.branchIds.includes(branchId);
+  }
+  return !doctor.branchId || doctor.branchId === branchId;
+}
+
+function doctorTreatsSpecialty(doctor: Doctor | undefined, specialty?: Specialty): boolean {
+  if (!doctor) return false;
+  if (!specialty) return true;
+  if (doctor.specialtySlugs && doctor.specialtySlugs.length > 0) {
+    return doctor.specialtySlugs.includes(specialty.slug);
+  }
+  if (doctor.specialtyName) {
+    return doctor.specialtyName.localeCompare(specialty.name, "vi", { sensitivity: "base" }) === 0;
+  }
+  return true;
+}
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -27,6 +68,9 @@ interface BookingModalProps {
   initialPackageId?: string;
   initialBranchId?: string;
   packages?: HealthPackage[];
+  doctors?: Doctor[];
+  specialties?: Specialty[];
+  branches?: Branch[];
 }
 
 export default function BookingModal({
@@ -36,37 +80,37 @@ export default function BookingModal({
   initialSpecialtyId,
   initialPackageId,
   initialBranchId,
-  packages = [],
+  packages = EMPTY_PACKAGES,
+  doctors: providedDoctors = EMPTY_DOCTORS,
+  specialties: providedSpecialties = EMPTY_SPECIALTIES,
+  branches: providedBranches = EMPTY_BRANCHES,
 }: BookingModalProps) {
   // Wizard steps: 1 = Choose Doctor/Specialty, 2 = Choose Slot, 3 = Patient Info, 4 = OTP & Confirmation
   const [step, setStep] = useState<number>(1);
 
-  // Form State
-  const defaultDoctor = SEED_DOCTORS.find((doctor) => doctor.id === initialDoctorId) || SEED_DOCTORS[0];
-  const requestedBranchId = initialBranchId || defaultDoctor.branchId || SEED_BRANCHES[0].id;
-  const branchDoctor = defaultDoctor.branchId === requestedBranchId
-    ? defaultDoctor
-    : SEED_DOCTORS.find((doctor) => doctor.branchId === requestedBranchId) || defaultDoctor;
-  const [selectedSpecialty, setSelectedSpecialty] = useState<string>(
-    initialSpecialtyId || SEED_SPECIALTIES[0].id
-  );
-  const [selectedDoctor, setSelectedDoctor] = useState<string>(
-    branchDoctor.id
-  );
-  const [selectedBranch, setSelectedBranch] = useState<string>(
-    requestedBranchId
-  );
+  // Form State. Catalog identities always come from the backend or explicitly
+  // passed live responses; this modal never creates a booking from fixtures.
+  const [loadedDoctors, setLoadedDoctors] = useState<Doctor[]>([]);
+  const [loadedSpecialties, setLoadedSpecialties] = useState<Specialty[]>([]);
+  const [loadedBranches, setLoadedBranches] = useState<Branch[]>([]);
+  const doctors = providedDoctors.length > 0 ? providedDoctors : loadedDoctors;
+  const specialties = providedSpecialties.length > 0 ? providedSpecialties : loadedSpecialties;
+  const branches = providedBranches.length > 0 ? providedBranches : loadedBranches;
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState<string>("");
+  const [catalogRequest, setCatalogRequest] = useState(0);
+  const [selectedSpecialty, setSelectedSpecialty] = useState<string>(initialSpecialtyId || "");
+  const [selectedDoctor, setSelectedDoctor] = useState<string>(initialDoctorId || "");
+  const [selectedBranch, setSelectedBranch] = useState<string>(initialBranchId || "");
   const [selectedPackage, setSelectedPackage] = useState<string>(initialPackageId || "");
   
-  const [selectedDate, setSelectedDate] = useState<string>(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    return d.toISOString().split("T")[0];
-  });
+  const [earliestBookingDate, setEarliestBookingDate] = useState(nextBookingDate);
+  const [selectedDate, setSelectedDate] = useState<string>(nextBookingDate);
   const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<string>("");
   const [loadingSlots, setLoadingSlots] = useState<boolean>(false);
   const [slotError, setSlotError] = useState<string>("");
+  const [slotRequest, setSlotRequest] = useState(0);
 
   // Patient Info
   const [fullName, setFullName] = useState<string>("");
@@ -77,11 +121,154 @@ export default function BookingModal({
   // Hold & OTP State
   const [bookingCode, setBookingCode] = useState<string>("");
   const [otpCode, setOtpCode] = useState<string>("");
-  const [holdExpiresAt, setHoldExpiresAt] = useState<string>("");
   const [secondsRemaining, setSecondsRemaining] = useState<number>(600);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [confirmedAppointment, setConfirmedAppointment] = useState<AppointmentDetails | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const nextDate = nextBookingDate();
+    const resetTask = Promise.resolve().then(() => {
+      setStep(1);
+      setSelectedBranch(initialBranchId ?? "");
+      setSelectedSpecialty(initialSpecialtyId ?? "");
+      setSelectedDoctor(initialDoctorId ?? "");
+      setSelectedPackage(initialPackageId ?? "");
+      setEarliestBookingDate(nextDate);
+      setSelectedDate(nextDate);
+      setSlots([]);
+      setSelectedSlot("");
+      setLoadingSlots(false);
+      setSlotError("");
+      setFullName("");
+      setPhone("");
+      setEmail("");
+      setReasonForVisit("");
+      setBookingCode("");
+      setOtpCode("");
+      setSecondsRemaining(600);
+      setIsSubmitting(false);
+      setErrorMessage("");
+      setConfirmedAppointment(null);
+      dialogRef.current?.focus();
+    });
+
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseRef.current();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      void resetTask;
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousBodyOverflow;
+      if (previouslyFocused?.isConnected) previouslyFocused.focus();
+    };
+  }, [initialBranchId, initialDoctorId, initialPackageId, initialSpecialtyId, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const needsDoctors = providedDoctors.length === 0;
+    const needsSpecialties = providedSpecialties.length === 0;
+    const needsBranches = providedBranches.length === 0;
+
+    let cancelled = false;
+    const task = Promise.resolve().then(async () => {
+      if (cancelled) return;
+      setCatalogLoading(true);
+      setCatalogError("");
+      const [doctorResult, specialtyResult, branchResult] = await Promise.allSettled([
+        needsDoctors ? fetchDoctors({ page: 0, size: 100 }) : Promise.resolve(null),
+        needsSpecialties ? fetchSpecialties(0, 100) : Promise.resolve(null),
+        needsBranches ? fetchBranches(0, 100) : Promise.resolve(null),
+      ]);
+      if (cancelled) return;
+
+      const missing: string[] = [];
+      if (needsDoctors) {
+        if (doctorResult.status === "fulfilled" && doctorResult.value) {
+          setLoadedDoctors(doctorResult.value.content);
+          if (doctorResult.value.content.length === 0) missing.push("danh sách bác sĩ");
+        } else {
+          missing.push("bác sĩ");
+        }
+      }
+      if (needsSpecialties) {
+        if (specialtyResult.status === "fulfilled" && specialtyResult.value) {
+          setLoadedSpecialties(specialtyResult.value.content);
+          if (specialtyResult.value.content.length === 0) missing.push("danh sách chuyên khoa");
+        } else {
+          missing.push("chuyên khoa");
+        }
+      }
+      if (needsBranches) {
+        if (branchResult.status === "fulfilled" && branchResult.value) {
+          setLoadedBranches(branchResult.value.content);
+          if (branchResult.value.content.length === 0) missing.push("danh sách cơ sở khám");
+        } else {
+          missing.push("cơ sở khám");
+        }
+      }
+
+      setCatalogError(missing.length > 0
+        ? `Chưa thể tải ${missing.join(", ")}. Vui lòng kiểm tra kết nối và thử lại.`
+        : "");
+      setCatalogLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+      void task;
+    };
+  }, [catalogRequest, isOpen, providedBranches.length, providedDoctors.length, providedSpecialties.length]);
+
+  const syncSelection = useCallback(() => {
+    if (!isOpen) return;
+    const firstBranch = branches.find((branch) => branch.id === initialBranchId) ?? branches[0];
+    const nextBranchId = firstBranch?.id ?? "";
+    const doctorsAtBranch = doctors.filter((doctor) => doctorWorksAtBranch(doctor, nextBranchId));
+    const specialtySlugsAtBranch = new Set(doctorsAtBranch.flatMap((doctor) => doctor.specialtySlugs ?? []));
+    const specialtiesAtBranch = specialtySlugsAtBranch.size > 0
+      ? specialties.filter((specialty) => specialtySlugsAtBranch.has(specialty.slug))
+      : specialties;
+    const requestedDoctor = doctorsAtBranch.find((doctor) => doctor.id === initialDoctorId);
+    const requestedSpecialty = specialtiesAtBranch.find((specialty) => specialty.id === initialSpecialtyId);
+    const requestedDoctorSpecialty = specialtiesAtBranch.find((specialty) => doctorTreatsSpecialty(requestedDoctor, specialty));
+    const preferredSpecialty = requestedSpecialty
+      ?? requestedDoctorSpecialty
+      ?? specialtiesAtBranch[0];
+    const matchingDoctors = doctorsAtBranch.filter((doctor) => doctorTreatsSpecialty(doctor, preferredSpecialty));
+    const firstDoctor = matchingDoctors.find((doctor) => doctor.id === requestedDoctor?.id)
+      ?? matchingDoctors[0]
+      ?? doctorsAtBranch[0];
+    setSelectedBranch(nextBranchId);
+    setSelectedDoctor(firstDoctor?.id ?? "");
+    setSelectedSpecialty(preferredSpecialty?.id ?? "");
+    setSelectedPackage(packages.some((item) => item.id === initialPackageId) ? initialPackageId ?? "" : "");
+  }, [branches, doctors, initialBranchId, initialDoctorId, initialPackageId, initialSpecialtyId, isOpen, packages, specialties]);
+
+  useEffect(() => {
+    const task = Promise.resolve().then(syncSelection);
+    return () => void task;
+  }, [syncSelection]);
 
   // Load doctor slots when doctor or date changes
   useEffect(() => {
@@ -103,10 +290,10 @@ export default function BookingModal({
         const firstAvailable = data.find((slot) => slot.available && slot.branchId === selectedBranch);
         setSlots(data);
         if (firstAvailable) setSelectedSlot(firstAvailable.startTime);
-      } catch (error) {
+      } catch {
         if (!ignore) {
           setSlots([]);
-          setSlotError(error instanceof Error ? error.message : "Không thể tải lịch khám.");
+          setSlotError("Tạm thời chưa thể tải khung giờ khám. Vui lòng thử lại.");
         }
       } finally {
         if (!ignore) setLoadingSlots(false);
@@ -117,7 +304,7 @@ export default function BookingModal({
     return () => {
       ignore = true;
     };
-  }, [selectedDoctor, selectedBranch, selectedDate]);
+  }, [selectedDoctor, selectedBranch, selectedDate, slotRequest]);
 
   // Countdown timer for 10-minute hold lock
   useEffect(() => {
@@ -131,19 +318,40 @@ export default function BookingModal({
 
   if (!isOpen) return null;
 
-  const currentDoctor = SEED_DOCTORS.find((d) => d.id === selectedDoctor) || SEED_DOCTORS[0];
-  const currentSpecialty = SEED_SPECIALTIES.find((s) => s.id === selectedSpecialty) || SEED_SPECIALTIES[0];
-  const currentBranch = SEED_BRANCHES.find((b) => b.id === selectedBranch) || SEED_BRANCHES[0];
-  const availableDoctors = SEED_DOCTORS.filter(
-    (doctor) => !doctor.branchId || doctor.branchId === selectedBranch,
-  );
+  const doctorsAtBranch = doctors.filter((doctor) => doctorWorksAtBranch(doctor, selectedBranch));
+  const specialtySlugsAtBranch = new Set(doctorsAtBranch.flatMap((doctor) => doctor.specialtySlugs ?? []));
+  const availableSpecialties = specialtySlugsAtBranch.size > 0
+    ? specialties.filter((specialty) => specialtySlugsAtBranch.has(specialty.slug))
+    : specialties;
+  const currentSpecialty = specialties.find((specialty) => specialty.id === selectedSpecialty);
+  const availableDoctors = doctorsAtBranch.filter((doctor) => doctorTreatsSpecialty(doctor, currentSpecialty));
+  const currentDoctor = availableDoctors.find((doctor) => doctor.id === selectedDoctor);
+  const currentBranch = branches.find((branch) => branch.id === selectedBranch);
   const handleBranchChange = (branchId: string): void => {
     setSelectedBranch(branchId);
     setSlots([]);
     setSelectedSlot("");
     setSlotError("");
-    const firstDoctorAtBranch = SEED_DOCTORS.find((doctor) => doctor.branchId === branchId);
-    setSelectedDoctor(firstDoctorAtBranch?.id || "");
+    const nextDoctorsAtBranch = doctors.filter((doctor) => doctorWorksAtBranch(doctor, branchId));
+    const nextSpecialtySlugs = new Set(nextDoctorsAtBranch.flatMap((doctor) => doctor.specialtySlugs ?? []));
+    const nextSpecialties = nextSpecialtySlugs.size > 0
+      ? specialties.filter((specialty) => nextSpecialtySlugs.has(specialty.slug))
+      : specialties;
+    const nextSpecialty = nextSpecialties.find((specialty) => specialty.id === selectedSpecialty)
+      ?? nextSpecialties[0];
+    const firstDoctorAtBranch = nextDoctorsAtBranch.find((doctor) => doctorTreatsSpecialty(doctor, nextSpecialty));
+    setSelectedSpecialty(nextSpecialty?.id ?? "");
+    setSelectedDoctor(firstDoctorAtBranch?.id ?? "");
+  };
+
+  const handleSpecialtyChange = (specialtyId: string): void => {
+    const specialty = specialties.find((item) => item.id === specialtyId);
+    const firstMatchingDoctor = doctorsAtBranch.find((doctor) => doctorTreatsSpecialty(doctor, specialty));
+    setSelectedSpecialty(specialtyId);
+    setSelectedDoctor(firstMatchingDoctor?.id ?? "");
+    setSlots([]);
+    setSelectedSlot("");
+    setSlotError("");
   };
 
   const handleDoctorChange = (doctorId: string): void => {
@@ -168,12 +376,20 @@ export default function BookingModal({
       setErrorMessage("Khung giờ không còn thuộc cơ sở đang chọn. Vui lòng tải lại và chọn khung giờ khác.");
       return;
     }
-    if (currentDoctor.branchId && currentDoctor.branchId !== selectedBranch) {
+    if (!currentDoctor || !doctorWorksAtBranch(currentDoctor, selectedBranch)) {
       setErrorMessage("Bác sĩ không thuộc cơ sở đang chọn. Vui lòng chọn lại bác sĩ.");
       return;
     }
-    if (!fullName || !phone) {
+    if (!currentSpecialty || !doctorTreatsSpecialty(currentDoctor, currentSpecialty)) {
+      setErrorMessage("Bác sĩ không khám chuyên khoa đang chọn. Vui lòng chọn lại.");
+      return;
+    }
+    if (!fullName.trim() || !phone.trim()) {
       setErrorMessage("Vui lòng nhập đầy đủ họ tên và số điện thoại.");
+      return;
+    }
+    if (!/^[+0-9() .-]{7,20}$/.test(phone.trim())) {
+      setErrorMessage("Số điện thoại chưa đúng định dạng. Vui lòng kiểm tra lại.");
       return;
     }
     setErrorMessage("");
@@ -187,18 +403,19 @@ export default function BookingModal({
         packageId: selectedPackage || undefined,
         appointmentDate: selectedDate,
         startTime: chosenSlot.startTime,
-        fullName,
-        phone,
-        email: email || undefined,
-        reasonForVisit: reasonForVisit || undefined,
+        fullName: fullName.trim(),
+        phone: phone.trim(),
+        email: email.trim() || undefined,
+        reasonForVisit: reasonForVisit.trim() || undefined,
       });
 
       setBookingCode(result.bookingCode);
-      setHoldExpiresAt(result.holdExpiresAt);
-      setSecondsRemaining(600); // 10 minutes
+      setSecondsRemaining(getSecondsUntil(result.holdExpiresAt));
       setStep(4);
-    } catch (err: any) {
-      setErrorMessage(err.message || "Không thể giữ chỗ khung giờ này.");
+    } catch (error) {
+      setErrorMessage(error instanceof Error
+        ? error.message
+        : "Khung giờ vừa thay đổi hoặc chưa thể giữ chỗ. Vui lòng chọn lại.");
     } finally {
       setIsSubmitting(false);
     }
@@ -207,8 +424,12 @@ export default function BookingModal({
   // Handle Step 4: Confirm OTP
   const handleConfirmOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!otpCode) {
-      setErrorMessage("Vui lòng nhập mã OTP xác thực.");
+    if (!/^\d{6}$/.test(otpCode.trim())) {
+      setErrorMessage("Mã OTP phải gồm đúng 6 chữ số.");
+      return;
+    }
+    if (secondsRemaining <= 0) {
+      setErrorMessage("Thời gian giữ chỗ đã hết. Vui lòng quay lại chọn khung giờ mới.");
       return;
     }
     setErrorMessage("");
@@ -220,8 +441,10 @@ export default function BookingModal({
         otpCode: otpCode.trim(),
       });
       setConfirmedAppointment(details);
-    } catch (err: any) {
-      setErrorMessage(err.message || "Mã OTP không chính xác.");
+    } catch (error) {
+      setErrorMessage(error instanceof Error
+        ? error.message
+        : "Chưa thể xác nhận mã. Vui lòng kiểm tra và thử lại.");
     } finally {
       setIsSubmitting(false);
     }
@@ -235,17 +458,22 @@ export default function BookingModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn"
+      ref={dialogRef}
+      tabIndex={-1}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn outline-none"
       role="dialog"
       aria-modal="true"
       aria-labelledby="booking-modal-title"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onCloseRef.current();
+      }}
     >
       <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-brand-100 flex flex-col max-h-[92vh]">
         {/* Modal Header */}
-        <div className="bg-gradient-to-r from-brand-800 to-brand-700 text-white px-6 py-4 flex items-center justify-between">
+        <div className="bg-brand-800 text-white px-6 py-4 flex items-center justify-between">
           <div>
             <span className="text-xs uppercase tracking-widest text-brand-200 font-semibold">
-              Hệ thống Đặt lịch Khám bệnh
+              Hệ thống đặt lịch khám
             </span>
             <h2 id="booking-modal-title" className="text-xl font-bold text-white flex items-center gap-2">
               <Icon name="calendar" size={18} /> Đặt lịch trực tuyến nhanh chóng
@@ -263,23 +491,23 @@ export default function BookingModal({
 
         {/* Wizard Step Progress */}
         {!confirmedAppointment && (
-          <div className="px-6 py-3 bg-brand-50/70 border-b border-brand-100/60 flex items-center justify-between text-xs font-semibold text-brand-900">
-            <div className={`flex items-center gap-1.5 ${step >= 1 ? "text-brand-700 font-bold" : "text-gray-400"}`}>
+          <div aria-label="Tiến trình đặt lịch" className="px-6 py-3 bg-brand-50/70 border-b border-brand-100/60 flex items-center justify-between text-xs font-semibold text-brand-900">
+            <div aria-current={step === 1 ? "step" : undefined} className={`flex items-center gap-1.5 ${step >= 1 ? "text-brand-700 font-bold" : "text-gray-400"}`}>
               <span className={`w-5 h-5 rounded-full flex items-center justify-center ${step >= 1 ? "bg-brand-700 text-white" : "bg-gray-200"}`}>1</span>
-              <span>Chuyên khoa & Bác sĩ</span>
+              <span>Chuyên khoa và bác sĩ</span>
             </div>
             <span>→</span>
-            <div className={`flex items-center gap-1.5 ${step >= 2 ? "text-brand-700 font-bold" : "text-gray-400"}`}>
+            <div aria-current={step === 2 ? "step" : undefined} className={`flex items-center gap-1.5 ${step >= 2 ? "text-brand-700 font-bold" : "text-gray-400"}`}>
               <span className={`w-5 h-5 rounded-full flex items-center justify-center ${step >= 2 ? "bg-brand-700 text-white" : "bg-gray-200"}`}>2</span>
               <span>Chọn giờ khám</span>
             </div>
             <span>→</span>
-            <div className={`flex items-center gap-1.5 ${step >= 3 ? "text-brand-700 font-bold" : "text-gray-400"}`}>
+            <div aria-current={step === 3 ? "step" : undefined} className={`flex items-center gap-1.5 ${step >= 3 ? "text-brand-700 font-bold" : "text-gray-400"}`}>
               <span className={`w-5 h-5 rounded-full flex items-center justify-center ${step >= 3 ? "bg-brand-700 text-white" : "bg-gray-200"}`}>3</span>
               <span>Thông tin</span>
             </div>
             <span>→</span>
-            <div className={`flex items-center gap-1.5 ${step >= 4 ? "text-brand-700 font-bold" : "text-gray-400"}`}>
+            <div aria-current={step === 4 ? "step" : undefined} className={`flex items-center gap-1.5 ${step >= 4 ? "text-brand-700 font-bold" : "text-gray-400"}`}>
               <span className={`w-5 h-5 rounded-full flex items-center justify-center ${step >= 4 ? "bg-brand-700 text-white" : "bg-gray-200"}`}>4</span>
               <span>Xác nhận</span>
             </div>
@@ -288,7 +516,7 @@ export default function BookingModal({
 
         {/* Error Alert */}
         {errorMessage && (
-          <div className="mx-6 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-center gap-2">
+          <div aria-atomic="true" aria-live="assertive" className="mx-6 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-center gap-2" role="alert">
             <Icon name="activity" size={18} />
             <span>{errorMessage}</span>
           </div>
@@ -296,19 +524,43 @@ export default function BookingModal({
 
         {/* Modal Body */}
         <div className="p-6 overflow-y-auto flex-1">
+          {catalogLoading ? (
+            <p className="mb-4 rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm text-teal-950" role="status">
+              Đang tải thông tin bác sĩ, chuyên khoa và cơ sở…
+            </p>
+          ) : null}
+          {catalogError ? (
+            <div aria-live="assertive" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-900" role="alert">
+              <p className="font-semibold">Danh mục đặt lịch chưa tải đầy đủ</p>
+              <p className="mt-1">{catalogError}</p>
+              <button
+                type="button"
+                disabled={catalogLoading}
+                onClick={() => setCatalogRequest((request) => request + 1)}
+                className="mt-3 inline-flex items-center gap-2 rounded-full border border-red-300 bg-white px-4 py-2 font-semibold text-red-800 transition-colors hover:bg-red-100 disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300"
+              >
+                <Icon name="activity" size={15} /> Thử tải lại
+              </button>
+            </div>
+          ) : null}
           {/* ── STEP 1: Choose Specialty, Doctor, Branch ── */}
           {step === 1 && (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Chọn Cơ sở Bệnh viện / Phòng khám
+                <label className="block text-sm font-semibold text-gray-700 mb-1" htmlFor="booking-branch">
+                  Cơ sở khám
                 </label>
                 <select
+                  id="booking-branch"
                   value={selectedBranch}
                   onChange={(e) => handleBranchChange(e.target.value)}
+                  disabled={catalogLoading || branches.length === 0}
                   className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-600 focus:outline-none text-sm text-gray-900"
                 >
-                  {SEED_BRANCHES.map((br) => (
+                  <option value="" disabled>
+                    {catalogLoading ? "Đang tải cơ sở khám…" : "Chọn bệnh viện hoặc phòng khám"}
+                  </option>
+                  {branches.map((br) => (
                     <option key={br.id} value={br.id}>
                       {br.name}
                     </option>
@@ -317,15 +569,20 @@ export default function BookingModal({
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Chọn Chuyên khoa Thăm khám
+                <label className="block text-sm font-semibold text-gray-700 mb-1" htmlFor="booking-specialty">
+                  Chuyên khoa
                 </label>
                 <select
+                  id="booking-specialty"
                   value={selectedSpecialty}
-                  onChange={(e) => setSelectedSpecialty(e.target.value)}
+                  onChange={(e) => handleSpecialtyChange(e.target.value)}
+                  disabled={catalogLoading || availableSpecialties.length === 0}
                   className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-600 focus:outline-none text-sm text-gray-900"
                 >
-                  {SEED_SPECIALTIES.map((sp) => (
+                  <option value="" disabled>
+                    {catalogLoading ? "Đang tải chuyên khoa…" : "Chọn chuyên khoa cần khám"}
+                  </option>
+                  {availableSpecialties.map((sp) => (
                     <option key={sp.id} value={sp.id}>
                       {sp.name}
                     </option>
@@ -334,20 +591,30 @@ export default function BookingModal({
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Chọn Bác sĩ Chuyên gia
+                <label className="block text-sm font-semibold text-gray-700 mb-1" htmlFor="booking-doctor">
+                  Bác sĩ
                 </label>
                 <select
+                  id="booking-doctor"
                   value={selectedDoctor}
                   onChange={(e) => handleDoctorChange(e.target.value)}
+                  disabled={catalogLoading || availableDoctors.length === 0}
                   className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-600 focus:outline-none text-sm text-gray-900 font-medium"
                 >
+                  <option value="" disabled>
+                    {catalogLoading ? "Đang tải danh sách bác sĩ…" : "Chọn bác sĩ phù hợp"}
+                  </option>
                   {availableDoctors.map((doc) => (
                     <option key={doc.id} value={doc.id}>
-                      {doc.fullName} ({doc.title || doc.specialtyName})
+                      {doc.fullName}{doc.title || doc.specialtyName ? ` — ${doc.title || doc.specialtyName}` : ""}
                     </option>
                   ))}
                 </select>
+                {!catalogLoading && selectedBranch && selectedSpecialty && availableDoctors.length === 0 ? (
+                  <p className="mt-1.5 text-xs text-amber-800" role="status">
+                    Chưa có bác sĩ nhận lịch cho chuyên khoa này tại cơ sở đã chọn.
+                  </p>
+                ) : null}
               </div>
 
               {/* Selected Doctor Summary Card */}
@@ -356,19 +623,20 @@ export default function BookingModal({
                   <Icon name="stethoscope" size={26} />
                 </div>
                 <div>
-                  <h4 className="font-bold text-brand-900 text-base">{currentDoctor.fullName}</h4>
-                  <p className="text-xs text-brand-700">{currentDoctor.title} • {currentDoctor.experienceYears} năm kinh nghiệm</p>
-                  <p className="text-xs text-gray-500 mt-1 line-clamp-1">{currentDoctor.bio}</p>
+                  <h4 className="font-bold text-brand-900 text-base">{currentDoctor?.fullName ?? "Chưa chọn bác sĩ"}</h4>
+                  <p className="text-xs text-brand-700">{currentDoctor?.title ?? "Chưa có hồ sơ bác sĩ"}{currentDoctor?.experienceYears ? ` • ${currentDoctor.experienceYears} năm kinh nghiệm` : ""}</p>
+                  <p className="text-xs text-gray-500 mt-1 line-clamp-2">{currentDoctor?.bio ?? "Hãy chọn cơ sở, chuyên khoa và bác sĩ để xem thông tin."}</p>
                 </div>
               </div>
 
               <div className="pt-4 flex justify-end">
                 <button
                   type="button"
+                  disabled={catalogLoading || !currentDoctor || !currentSpecialty || !currentBranch}
                   onClick={() => setStep(2)}
                   className="px-6 py-2.5 bg-brand-700 hover:bg-brand-800 text-white font-semibold rounded-full shadow-md hover:shadow-lg transition-colors flex items-center gap-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
                 >
-                  Tiếp tục: Chọn ngày giờ khám <span>→</span>
+                  Tiếp tục: Chọn ngày, giờ khám <span>→</span>
                 </button>
               </div>
             </div>
@@ -378,12 +646,13 @@ export default function BookingModal({
           {step === 2 && (
             <div className="space-y-5">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Chọn Ngày khám mong muốn
+                <label className="block text-sm font-semibold text-gray-700 mb-1" htmlFor="booking-date">
+                  Ngày khám mong muốn
                 </label>
                 <input
+                  id="booking-date"
                   type="date"
-                  min={selectedDate}
+                  min={earliestBookingDate}
                   value={selectedDate}
                   onChange={(e) => handleDateChange(e.target.value)}
                   className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-600 focus:outline-none text-sm text-gray-900"
@@ -392,11 +661,19 @@ export default function BookingModal({
 
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-semibold text-gray-700">
+                  <span className="block text-sm font-semibold text-gray-700" id="booking-slots-label">
                     Khung giờ khám còn trống (30 phút/lượt)
-                  </label>
-                  <span className="text-xs text-brand-700 font-medium">
-                    🟢 Còn trống • ⚪ Đã có người giữ
+                  </span>
+                  <span className="flex flex-wrap items-center gap-2 text-xs font-medium text-brand-700" aria-label="Chú giải trạng thái khung giờ">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span aria-hidden="true" className="h-2 w-2 rounded-full bg-emerald-500" />
+                      Còn trống
+                    </span>
+                    <span aria-hidden="true">•</span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span aria-hidden="true" className="h-2 w-2 rounded-full bg-slate-300" />
+                      Đã có người giữ
+                    </span>
                   </span>
                 </div>
                 {loadingSlots ? (
@@ -405,7 +682,14 @@ export default function BookingModal({
                   </div>
                 ) : slotError ? (
                   <div aria-live="assertive" className="rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700" role="alert">
-                    {slotError}
+                    <p>{slotError}</p>
+                    <button
+                      type="button"
+                      onClick={() => setSlotRequest((request) => request + 1)}
+                      className="mt-2 rounded-full border border-red-300 bg-white px-3 py-1.5 font-semibold text-red-800 hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300"
+                    >
+                      Thử tải lại khung giờ
+                    </button>
                   </div>
                 ) : slots.length === 0 ? (
                   <div aria-live="polite" className="rounded-lg border border-dashed border-gray-300 px-3 py-6 text-center text-sm text-gray-500" role="status">
@@ -456,7 +740,7 @@ export default function BookingModal({
                   onClick={() => setStep(3)}
                   className="px-6 py-2.5 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-semibold rounded-full shadow-md transition-colors flex items-center gap-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
                 >
-                  Tiếp tục: Điền thông tin <span>→</span>
+                  Tiếp tục: Nhập thông tin <span>→</span>
                 </button>
               </div>
             </div>
@@ -467,17 +751,18 @@ export default function BookingModal({
             <form onSubmit={handleHoldSlot} className="space-y-4">
               <div className="p-3.5 bg-brand-50/60 border border-brand-100 rounded-xl text-xs text-brand-900 space-y-1">
                 <div className="flex justify-between font-semibold">
-                  <span>Bác sĩ: {currentDoctor.fullName}</span>
+                  <span>Bác sĩ: {currentDoctor?.fullName ?? "Chưa chọn"}</span>
                   <span>Ngày: {selectedDate} ({selectedSlot.slice(0, 5)})</span>
                 </div>
-                <div className="text-brand-700">{currentBranch.name}</div>
+                <div className="text-brand-700">{currentBranch?.name ?? "Chưa chọn cơ sở"}</div>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                <label className="block text-sm font-semibold text-gray-700 mb-1" htmlFor="booking-full-name">
                   Họ và tên bệnh nhân <span className="text-red-500">*</span>
                 </label>
                 <input
+                  id="booking-full-name"
                   type="text"
                   required
                   placeholder="Ví dụ: Nguyễn Văn An"
@@ -489,10 +774,11 @@ export default function BookingModal({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1" htmlFor="booking-phone">
                     Số điện thoại liên hệ <span className="text-red-500">*</span>
                   </label>
                   <input
+                    id="booking-phone"
                     type="tel"
                     required
                     placeholder="0901234567"
@@ -502,10 +788,11 @@ export default function BookingModal({
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    Địa chỉ Email (Nhận phiếu khám)
+                  <label className="block text-sm font-semibold text-gray-700 mb-1" htmlFor="booking-email">
+                    Email nhận phiếu khám
                   </label>
                   <input
+                    id="booking-email"
                     type="email"
                     placeholder="patient@example.com"
                     value={email}
@@ -516,12 +803,13 @@ export default function BookingModal({
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Triệu chứng hoặc lý do khám bệnh
+                <label className="block text-sm font-semibold text-gray-700 mb-1" htmlFor="booking-reason">
+                  Lý do khám hoặc triệu chứng đang gặp
                 </label>
                 <textarea
+                  id="booking-reason"
                   rows={2}
-                  placeholder="Mô tả sơ bộ triệu chứng (đau đầu, sốt, khó thở...) để bác sĩ chuẩn bị trước..."
+                  placeholder="Mô tả ngắn gọn triệu chứng và thời điểm bắt đầu để bác sĩ chuẩn bị trước."
                   value={reasonForVisit}
                   onChange={(e) => setReasonForVisit(e.target.value)}
                   className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-600 focus:outline-none text-sm text-gray-900"
@@ -542,10 +830,10 @@ export default function BookingModal({
                   className="px-6 py-2.5 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-semibold rounded-full shadow-md transition-colors flex items-center gap-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
                 >
                   {isSubmitting ? (
-                    <span>⏳ Đang giữ chỗ...</span>
+                    <span className="inline-flex items-center gap-2"><Icon name="clock" size={15} /> Đang giữ chỗ...</span>
                   ) : (
                     <>
-                      <span>Giữ chỗ & Nhận mã OTP</span> <span>→</span>
+                      <span>Giữ chỗ và nhận mã OTP</span> <span>→</span>
                     </>
                   )}
                 </button>
@@ -566,19 +854,28 @@ export default function BookingModal({
                   <div className="p-4 bg-brand-50/60 border border-brand-100 rounded-xl text-left text-xs space-y-1.5">
                     <p className="font-bold text-brand-950 text-sm">Mã giữ chỗ: {bookingCode}</p>
                     <p className="text-gray-600">Bệnh nhân: <span className="font-semibold text-gray-900">{fullName}</span> ({phone})</p>
-                    <p className="text-gray-600">Bác sĩ: <span className="font-semibold text-gray-900">{currentDoctor.fullName}</span></p>
+                    <p className="text-gray-600">Bác sĩ: <span className="font-semibold text-gray-900">{currentDoctor?.fullName ?? "Chưa chọn"}</span></p>
                     <p className="text-gray-600">Thời gian: <span className="font-semibold text-gray-900">{selectedDate} vào lúc {selectedSlot.slice(0, 5)}</span></p>
                   </div>
 
                   <div className="py-2">
-                    <label className="block text-sm font-bold text-gray-800 mb-1.5">
+                    <label className="block text-sm font-bold text-gray-800 mb-1.5" htmlFor="booking-otp">
                       Nhập mã OTP 6 số xác thực
                     </label>
-                    <p className="text-xs text-gray-500 mb-3">
-                      (Môi trường Demo/Test: Sử dụng mã cố định <span className="font-mono font-bold text-brand-700 bg-brand-100 px-1.5 py-0.5 rounded">123456</span>)
-                    </p>
+                    {process.env.NODE_ENV !== "production" ? (
+                      <p className="text-xs text-gray-500 mb-3">
+                        Môi trường phát triển dùng mã thử nghiệm <span className="font-mono font-bold text-brand-700 bg-brand-100 px-1.5 py-0.5 rounded">123456</span>.
+                      </p>
+                    ) : (
+                      <p className="text-xs text-gray-500 mb-3">
+                        Nhập mã xác thực được gửi đến thông tin liên hệ của bạn.
+                      </p>
+                    )}
                     <input
+                      id="booking-otp"
                       type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
                       maxLength={6}
                       required
                       autoFocus
@@ -599,10 +896,14 @@ export default function BookingModal({
                     </button>
                     <button
                       type="submit"
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || secondsRemaining <= 0}
                       className="px-8 py-2.5 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-bold rounded-full shadow-lg hover:shadow-xl transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
                     >
-                      {isSubmitting ? "Đang xác nhận..." : "Hoàn tất Đặt lịch khám"}
+                      {secondsRemaining <= 0
+                        ? "Thời gian giữ chỗ đã hết"
+                        : isSubmitting
+                          ? "Đang xác nhận…"
+                          : "Xác nhận lịch khám"}
                     </button>
                   </div>
                 </form>
@@ -613,14 +914,14 @@ export default function BookingModal({
                     ✓
                   </div>
                   <h3 className="text-2xl font-bold text-brand-900">
-                    Đặt Lịch Khám Thành Công!
+                    Đặt lịch khám thành công
                   </h3>
                   <p className="text-xs text-gray-600 max-w-md mx-auto">
                     Thông tin lịch hẹn đã được lưu vào hệ thống bệnh viện. Vui lòng xuất trình mã lịch hẹn tại quầy tiếp đón khi đến khám.
                   </p>
 
                   {/* E-Card Ticket */}
-                  <div className="p-5 bg-gradient-to-br from-brand-900 to-brand-800 text-white rounded-2xl text-left shadow-xl relative overflow-hidden">
+                  <div className="p-5 bg-brand-900 text-white rounded-2xl text-left shadow-xl relative overflow-hidden">
                     <div className="flex justify-between items-start border-b border-brand-700/60 pb-3 mb-3">
                       <div>
                         <span className="text-[10px] uppercase tracking-wider text-brand-300 font-bold">PHIẾU KHÁM BỆNH ĐIỆN TỬ</span>
@@ -673,7 +974,7 @@ export default function BookingModal({
                       onClick={onClose}
                       className="px-8 py-2.5 bg-brand-700 hover:bg-brand-800 text-white font-bold rounded-full shadow-md transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
                     >
-                      Đóng cửa sổ & Về trang chủ
+                      Đóng và về trang chủ
                     </button>
                   </div>
                 </div>
@@ -685,6 +986,3 @@ export default function BookingModal({
     </div>
   );
 }
-
-
-

@@ -1,0 +1,41 @@
+spring:
+  datasource:
+    # File-backed H2 keeps local demo data between restarts. PostgreSQL mode plus
+    # the JSONB compatibility domain lets Hibernate use the production entity
+    # mappings without changing them or weakening the normal PostgreSQL profile.
+    url: ${STANDALONE_DATABASE_URL:jdbc:h2:file:./data/healthcare-standalone;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;INIT=CREATE DOMAIN IF NOT EXISTS jsonb AS JSON}
+    username: ${STANDALONE_DATABASE_USERNAME:sa}
+    password: ${STANDALONE_DATABASE_PASSWORD:}
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    # Production migrations intentionally remain PostgreSQL-only. Hibernate owns
+    # only this disposable/local schema; the default and local profiles still run
+    # and validate the real Flyway history.
+    enabled: false
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:standalone-only-local-jwt-secret-change-before-sharing-2026}
+    access-token-ttl: ${JWT_ACCESS_TTL:900}
+    refresh-token-ttl: ${JWT_REFRESH_TTL:604800}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+  booking:
+    # The public booking flow may use 123456 only in this explicitly local profile.
+    allow-test-otp: ${ALLOW_TEST_OTP:true}
+
+ai:
+  service:
+    runtime: local
+    allow-unauthenticated-local: false
+
+server:
+  port: ${BACKEND_PORT:8080}

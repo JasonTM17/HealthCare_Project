@@ -32,7 +32,11 @@ public class PackageService {
             pkg.getName(),
             pkg.getSlug(),
             pkg.getDescription(),
-            pkg.getPrice()
+            pkg.getPrice(),
+            pkg.getTargetAudience(),
+            pkg.getDurationDays(),
+            HospitalJsonMapper.strings(pkg.getChecklist()),
+            HospitalJsonMapper.strings(pkg.getPreparationSteps())
         );
     }
 }

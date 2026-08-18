@@ -1,9 +1,22 @@
+export interface DoctorSummary {
+  id: string;
+  fullName: string;
+  slug: string;
+  photoUrl?: string | null;
+  specialtyName?: string | null;
+  branchId?: string | null;
+}
+
 export interface Specialty {
   id: string;
   name: string;
   slug: string;
   description: string;
   icon?: string;
+  commonSymptoms?: string[];
+  preparationSteps?: string[];
+  carePathway?: string | null;
+  relatedDoctors?: DoctorSummary[];
 }
 
 export interface Doctor {
@@ -16,6 +29,9 @@ export interface Doctor {
   specialtyName?: string;
   experienceYears?: number;
   branchId?: string;
+  branchIds?: string[];
+  branchNames?: string[];
+  specialtySlugs?: string[];
 }
 
 export interface Branch {
@@ -23,9 +39,12 @@ export interface Branch {
   name: string;
   slug: string;
   address: string;
-  phone: string;
+  phone?: string | null;
   workingHours?: string;
   emergencyHotline?: string;
+  mapUrl?: string | null;
+  amenities?: string[];
+  doctors?: DoctorSummary[];
 }
 
 export interface HealthPackage {
@@ -36,6 +55,57 @@ export interface HealthPackage {
   price: number;
   featured?: boolean;
   checklist?: string[];
+  targetAudience?: string | null;
+  durationDays?: number | null;
+  preparationSteps?: string[];
+}
+
+export interface MedicalService {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+}
+
+export interface Faq {
+  id: string;
+  question: string;
+  answer: string;
+}
+
+export type EmploymentType = "FULL_TIME" | "PART_TIME" | "CONTRACT" | "INTERNSHIP";
+
+export interface JobPosition {
+  id: string;
+  slug: string;
+  title: string;
+  department: string;
+  location: string;
+  employmentType: EmploymentType;
+  employmentTypeLabel: string;
+  summary: string;
+  responsibilities: string[];
+  requirements: string[];
+  benefits: string[];
+  deadline?: string | null;
+  featured: boolean;
+}
+
+export interface JobApplicationPayload {
+  fullName: string;
+  email: string;
+  phone: string;
+  yearsExperience?: number | null;
+  coverLetter: string;
+  resumeUrl?: string;
+  privacyConsent: boolean;
+}
+
+export interface JobApplicationReceipt {
+  applicationCode: string;
+  jobTitle: string;
+  submittedAt: string;
+  message: string;
 }
 
 export interface Article {
@@ -43,7 +113,18 @@ export interface Article {
   title: string;
   slug: string;
   summary: string;
+  body?: string;
   publishedAt: string;
+  category?: string | null;
+  authorName?: string | null;
+  readingMinutes?: number | null;
+  relatedSpecialtySlug?: string | null;
+  sections?: ArticleSection[];
+}
+
+export interface ArticleSection {
+  heading: string;
+  body: string;
 }
 
 export interface TimeSlot {
@@ -102,18 +183,67 @@ export interface AppointmentDetails {
   createdAt: string;
 }
 
+interface PortalAppointmentBase {
+  id: string;
+  bookingCode: string;
+  specialtyName?: string;
+  branchId?: string;
+  branchName?: string;
+  branchAddress?: string;
+  packageName?: string;
+  appointmentDate: string;
+  startTime: string;
+  endTime: string;
+  status: string;
+  reasonForVisit?: string;
+  createdAt: string;
+}
+
+/** Exact JSON shape returned by GET /patient/appointments. */
+export interface PatientPortalAppointment extends PortalAppointmentBase {
+  doctorId: string;
+  doctorName: string;
+  paymentStatus: string;
+}
+
+/** Exact JSON shape returned by GET /doctor/appointments. */
+export interface DoctorPortalAppointment extends PortalAppointmentBase {
+  patientId: string;
+  patientName: string;
+}
+
+export type PortalAppointment = PatientPortalAppointment | DoctorPortalAppointment;
+
 export type AiTriageCitation = string | Record<string, unknown>;
 
 export type AiTriageProvenance = string | Record<string, unknown>;
 
 export interface AiTriageResult {
   recommendedSpecialty: string;
+  recommendedSpecialtyId?: string;
+  specialtyResolution?: "RESOLVED" | "UNRESOLVED";
   urgencyLevel: "EMERGENCY" | "HIGH" | "NORMAL";
   advice: string;
   suggestedQuestions: string[];
   disclaimer?: string;
   citations?: AiTriageCitation[];
   provenance?: AiTriageProvenance;
+}
+
+export interface SemanticSearchResult {
+  source_type: "specialty" | "doctor" | "service" | "package" | "article" | "faq";
+  source_id: string;
+  title: string;
+  content: string;
+  score: number;
+  citation: AiTriageCitation;
+}
+
+export interface SemanticSearchResponse {
+  results: SemanticSearchResult[];
+  query: string;
+  specialty: string;
+  provenance: string;
 }
 
 export interface AuthUser {
@@ -133,6 +263,33 @@ export interface AuthSession {
 
 export interface UserProfile extends AuthUser {
   status: string;
+}
+
+export type PatientGender = "MALE" | "FEMALE" | "OTHER" | "UNSPECIFIED";
+
+export interface PatientProfile {
+  id: string;
+  fullName: string;
+  phone: string;
+  email?: string | null;
+  dateOfBirth?: string | null;
+  gender?: PatientGender | null;
+  address?: string | null;
+  emergencyContactName?: string | null;
+  emergencyContactPhone?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface StoredFile {
+  id: string;
+  objectName: string;
+  patientId?: string | null;
+  originalFilename: string;
+  contentType: string;
+  sizeBytes: number;
+  purpose: "GENERAL" | "DIAGNOSTIC_RESULT" | "MEDICAL_RECORD";
+  downloadUrl: string;
+  createdAt: string;
 }
 
 export interface PrescriptionItem {
@@ -195,6 +352,7 @@ export interface DiagnosticResult {
   doctorName?: string | null;
   testName: string;
   result: string;
+  fileId?: string | null;
   fileUrl?: string | null;
   testDate: string;
 }
@@ -208,4 +366,32 @@ export interface Notification {
   read: boolean;
   createdAt: string;
   readAt?: string | null;
+}
+
+export interface DoctorSchedule {
+  id: string;
+  doctorId: string;
+  doctorName: string;
+  branchId: string;
+  branchName: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  slotDurationMinutes: number;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+  active: boolean;
+}
+
+export interface DoctorScheduleException {
+  id: string;
+  doctorId: string;
+  doctorName: string;
+  branchId: string;
+  branchName: string;
+  exceptionDate: string;
+  type: "CUSTOM_HOURS" | "BLOCKED" | "LEAVE";
+  customStartTime?: string | null;
+  customEndTime?: string | null;
+  reason?: string | null;
 }

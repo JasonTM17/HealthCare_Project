@@ -36,8 +36,8 @@ public class ClinicalController {
     }
 
     @PostMapping("/records")
-    @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
-    @Operation(summary = "Doctor creates a clinical medical record and prescription")
+    @PreAuthorize("hasRole('DOCTOR')")
+    @Operation(summary = "Assigned doctor completes an in-progress visit with a medical record and optional prescription")
     public ResponseEntity<MedicalRecordResponse> createRecord(
             @Valid @RequestBody CreateMedicalRecordRequest request,
             @AuthenticationPrincipal UserDetails userDetails) {

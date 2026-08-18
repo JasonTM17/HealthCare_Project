@@ -6,16 +6,22 @@ import com.healthcare.appointment.repository.PatientProfileRepository;
 import com.healthcare.clinical.repository.DiagnosticResultRepository;
 import com.healthcare.clinical.repository.MedicalRecordRepository;
 import com.healthcare.clinical.repository.PrescriptionRepository;
+import com.healthcare.career.repository.JobApplicationRepository;
+import com.healthcare.career.repository.JobPositionRepository;
 import com.healthcare.hospital.repository.ArticleRepository;
 import com.healthcare.hospital.repository.BranchRepository;
 import com.healthcare.hospital.repository.DoctorBranchRepository;
 import com.healthcare.hospital.repository.DoctorRepository;
+import com.healthcare.hospital.repository.DoctorSpecialtyRepository;
 import com.healthcare.hospital.repository.FaqRepository;
 import com.healthcare.hospital.repository.PackageRepository;
 import com.healthcare.hospital.repository.ServiceRepository;
 import com.healthcare.hospital.repository.SpecialtyRepository;
+import com.healthcare.cms.repository.CmsContentChangeRepository;
+import com.healthcare.cms.repository.CmsContentRepository;
 import com.healthcare.user.repository.RefreshTokenRepository;
 import com.healthcare.user.repository.UserRepository;
+import com.healthcare.storage.repository.StoredFileRepository;
 import com.healthcare.scheduling.repository.DoctorScheduleExceptionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -103,6 +109,7 @@ public abstract class AbstractIntegrationTest {
         // Safe test-only secret — not a real credential, never committed as a real value
         registry.add("app.jwt.secret",
                 () -> "test-secret-key-healthcare-project-must-be-32chars");
+        registry.add("app.security.rate-limit.enabled", () -> "false");
     }
 
     @Autowired
@@ -114,7 +121,10 @@ public abstract class AbstractIntegrationTest {
 
     // ── Hospital & Appointment domain ────────────────────────────────────────
     @Autowired protected SpecialtyRepository specialtyRepository;
+    @Autowired protected CmsContentChangeRepository cmsContentChangeRepository;
+    @Autowired protected CmsContentRepository cmsContentRepository;
     @Autowired protected DoctorRepository doctorRepository;
+    @Autowired protected DoctorSpecialtyRepository doctorSpecialtyRepository;
     @Autowired protected BranchRepository branchRepository;
     @Autowired protected DoctorBranchRepository doctorBranchRepository;
     @Autowired protected PackageRepository packageRepository;
@@ -130,6 +140,9 @@ public abstract class AbstractIntegrationTest {
     @Autowired protected DiagnosticResultRepository diagnosticResultRepository;
     @Autowired protected MedicalRecordRepository medicalRecordRepository;
     @Autowired protected PrescriptionRepository prescriptionRepository;
+    @Autowired protected StoredFileRepository storedFileRepository;
+    @Autowired protected JobApplicationRepository jobApplicationRepository;
+    @Autowired protected JobPositionRepository jobPositionRepository;
 
     /**
      * Wipe all user-generated rows before every test so tests are fully independent.
@@ -141,10 +154,19 @@ public abstract class AbstractIntegrationTest {
      */
     @BeforeEach
     void cleanDatabase() {
+        // CMS public change rows reference CMS content and must be cleared first.
+        cmsContentChangeRepository.deleteAll();
+        cmsContentRepository.deleteAll();
+
         // Clinical domain (children before patient/doctor/appointment parents)
         prescriptionRepository.deleteAll();
         medicalRecordRepository.deleteAll();
         diagnosticResultRepository.deleteAll();
+        storedFileRepository.deleteAll();
+
+        // Recruitment applications contain candidate data and reference openings.
+        jobApplicationRepository.deleteAll();
+        jobPositionRepository.deleteAll();
 
         // Appointment domain (FK dependencies on hospital & patient)
         appointmentRepository.deleteAll();
@@ -158,7 +180,8 @@ public abstract class AbstractIntegrationTest {
         packageRepository.deleteAll();
         serviceRepository.deleteAll();
         doctorBranchRepository.deleteAll();
-        doctorRepository.deleteAll();   // doctor_specialties & doctor_branches cascade
+        doctorSpecialtyRepository.deleteAll();
+        doctorRepository.deleteAll();
         branchRepository.deleteAll();
         specialtyRepository.deleteAll();
 

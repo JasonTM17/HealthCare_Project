@@ -64,8 +64,29 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
         assertThat(tables).contains(
             "specialties", "doctors", "branches",
             "services", "packages", "articles", "faqs",
-            "doctor_specialties", "doctor_branches"
+            "doctor_specialties", "doctor_branches",
+            "cms_contents", "cms_content_changes",
+            "job_positions", "job_applications"
         );
+    }
+
+    @Test
+    void localSeedIsFictionalAndIdempotentOnPostgres() {
+        executeSeed("public");
+        executeSeed("public");
+
+        assertThat(jdbcTemplate.queryForObject(
+            "select count(*) from cms_contents where slot_key = 'homepage.hero'",
+            Integer.class
+        )).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+            "select payload ->> 'title' from cms_contents where slot_key = 'homepage.hero'",
+            String.class
+        )).isEqualTo("Đồng hành cùng sức khỏe gia đình");
+        assertThat(jdbcTemplate.queryForObject(
+            "select count(*) from cms_contents where payload::text ilike '%patient%'",
+            Integer.class
+        )).isZero();
     }
 
     @Test
@@ -265,10 +286,187 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
     }
 
     @Test
-    void v8PreservesOldestLivePendingHoldAndCancelsLaterDuplicates() {
+    void v10_5RepairsPendingOverlapBeforeV11CreatesConstraints() {
         String schema = createMigrationSchema();
         try {
-            migrate(schema, "7");
+            migrate(schema, "10");
+            UUID doctorId = UUID.randomUUID();
+            UUID patientId = UUID.randomUUID();
+            UUID canonicalId = UUID.randomUUID();
+            UUID duplicateId = UUID.randomUUID();
+            LocalDate appointmentDate = LocalDate.now().plusDays(3);
+            String doctors = table(schema, "doctors");
+            String patients = table(schema, "patient_profiles");
+            String appointments = table(schema, "appointments");
+
+            jdbcTemplate.update(
+                "insert into " + doctors + " (id, full_name, slug, active) values (?, ?, ?, true)",
+                doctorId, "Pre-V11 repair doctor", "pre-v11-repair-doctor-" + doctorId
+            );
+            jdbcTemplate.update(
+                "insert into " + patients + " (id, full_name, phone) values (?, ?, ?)",
+                patientId, "Pre-V11 repair patient", "090" + Math.abs(patientId.hashCode())
+            );
+            jdbcTemplate.execute("drop index " + identifier(schema) + ".uq_appointments_active_slot");
+            jdbcTemplate.execute(
+                "alter table " + identifier(schema) + ".appointments "
+                    + "drop constraint if exists ex_appointments_active_interval"
+            );
+            insertAppointment(
+                appointments, canonicalId, doctorId, patientId, null,
+                appointmentDate, LocalTime.of(9, 0), LocalTime.of(10, 0),
+                "PENDING_CONFIRMATION", OffsetDateTime.now().plusMinutes(10)
+            );
+            insertAppointment(
+                appointments, duplicateId, doctorId, patientId, null,
+                appointmentDate, LocalTime.of(9, 30), LocalTime.of(10, 30),
+                "PENDING_CONFIRMATION", OffsetDateTime.now().plusMinutes(10)
+            );
+
+            migrate(schema, "10.4");
+            migrate(schema, "10.5");
+
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + appointments + " where status = 'PENDING_CONFIRMATION'",
+                Integer.class
+            )).isEqualTo(1);
+            assertThat(jdbcTemplate.queryForObject(
+                "select id from " + appointments + " where status = 'PENDING_CONFIRMATION'",
+                UUID.class
+            )).isEqualTo(canonicalId);
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + appointments
+                    + " where id = ? and status = 'CANCELLED' and cancellation_reason = ?",
+                Integer.class,
+                duplicateId,
+                "Hủy giữ chỗ trùng khi nâng cấp dữ liệu trước V11"
+            )).isEqualTo(1);
+
+            migrate(schema, "11");
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from pg_indexes where schemaname = ? and indexname = ?",
+                Integer.class,
+                schema,
+                "uq_appointments_active_slot"
+            )).isEqualTo(1);
+        } finally {
+            dropMigrationSchema(schema);
+        }
+    }
+
+    @Test
+    void v10_4FailsBeforeMutatingWhenReservedBranchlessKeyIsOccupied() {
+        String schema = createMigrationSchema();
+        try {
+            migrate(schema, "10");
+            String branches = table(schema, "branches");
+            jdbcTemplate.update(
+                "insert into " + branches + " (id, name, slug, address, active) values (?, ?, ?, ?, true)",
+                UUID.fromString("00000000-0000-0000-0000-000000000000"),
+                "Reserved key collision",
+                "reserved-key-collision-" + UUID.randomUUID(),
+                "Test address"
+            );
+
+            Throwable failure = catchThrowable(() -> migrate(schema, "10.4"));
+            assertThat(failure).isNotNull();
+            assertThat(allMessages(failure)).contains(
+                "V10.4 preflight failed",
+                "reserved zero UUID",
+                "never deletes booking data"
+            );
+        } finally {
+            dropMigrationSchema(schema);
+        }
+    }
+
+    @Test
+    void v10_5CancelsExpiredAndPendingConflictsBeforeSelectingLiveHold() {
+        String schema = createMigrationSchema();
+        try {
+            migrate(schema, "10");
+            UUID doctorId = UUID.randomUUID();
+            UUID patientId = UUID.randomUUID();
+            UUID expiredId = UUID.randomUUID();
+            UUID liveId = UUID.randomUUID();
+            UUID confirmedId = UUID.randomUUID();
+            UUID blockedPendingId = UUID.randomUUID();
+            LocalDate appointmentDate = LocalDate.now().plusDays(5);
+            String doctors = table(schema, "doctors");
+            String patients = table(schema, "patient_profiles");
+            String appointments = table(schema, "appointments");
+
+            jdbcTemplate.update(
+                "insert into " + doctors + " (id, full_name, slug, active) values (?, ?, ?, true)",
+                doctorId, "Pre-V11 policy doctor", "pre-v11-policy-doctor-" + doctorId
+            );
+            jdbcTemplate.update(
+                "insert into " + patients + " (id, full_name, phone) values (?, ?, ?)",
+                patientId, "Pre-V11 policy patient", "090" + Math.abs(patientId.hashCode())
+            );
+            jdbcTemplate.execute("drop index " + identifier(schema) + ".uq_appointments_active_slot");
+            jdbcTemplate.execute(
+                "alter table " + identifier(schema) + ".appointments "
+                    + "drop constraint if exists ex_appointments_active_interval"
+            );
+            insertAppointment(
+                appointments, expiredId, doctorId, patientId, null,
+                appointmentDate, LocalTime.of(9, 0), LocalTime.of(10, 0),
+                "PENDING_CONFIRMATION", OffsetDateTime.now().minusMinutes(1)
+            );
+            insertAppointment(
+                appointments, liveId, doctorId, patientId, null,
+                appointmentDate, LocalTime.of(9, 30), LocalTime.of(10, 30),
+                "PENDING_CONFIRMATION", OffsetDateTime.now().plusMinutes(10)
+            );
+            insertAppointment(
+                appointments, confirmedId, doctorId, patientId, null,
+                appointmentDate, LocalTime.of(11, 0), LocalTime.of(12, 0),
+                "CONFIRMED", null
+            );
+            insertAppointment(
+                appointments, blockedPendingId, doctorId, patientId, null,
+                appointmentDate, LocalTime.of(11, 30), LocalTime.of(12, 30),
+                "PENDING_CONFIRMATION", OffsetDateTime.now().plusMinutes(10)
+            );
+
+            migrate(schema, "10.4");
+            migrate(schema, "10.5");
+
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + appointments
+                    + " where id = ? and status = 'CANCELLED' and cancellation_reason = ?",
+                Integer.class,
+                expiredId,
+                "Hết thời gian giữ chỗ (Quá 10 phút)"
+            )).isEqualTo(1);
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + appointments + " where id = ? and status = 'PENDING_CONFIRMATION'",
+                Integer.class,
+                liveId
+            )).isEqualTo(1);
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + appointments + " where id = ? and status = 'CONFIRMED'",
+                Integer.class,
+                confirmedId
+            )).isEqualTo(1);
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + appointments
+                    + " where id = ? and status = 'CANCELLED' and cancellation_reason = ?",
+                Integer.class,
+                blockedPendingId,
+                "Hủy giữ chỗ trùng khi nâng cấp dữ liệu trước V11"
+            )).isEqualTo(1);
+        } finally {
+            dropMigrationSchema(schema);
+        }
+    }
+
+    @Test
+    void v13PreservesOldestLivePendingHoldAndCancelsLaterDuplicates() {
+        String schema = createMigrationSchema();
+        try {
+            migrate(schema, "12");
             UUID doctorId = UUID.randomUUID();
             UUID patientId = UUID.randomUUID();
             UUID canonicalId = UUID.randomUUID();
@@ -288,18 +486,23 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
                 "insert into " + patients + " (id, full_name, phone) values (?, ?, ?)",
                 patientId, "Duplicate hold patient", "090" + Math.abs(patientId.hashCode())
             );
-            insertPendingAppointment(
-                appointments, canonicalId, canonicalId.toString().replace("-", ""),
-                doctorId, patientId, appointmentDate, startTime,
-                now.plusMinutes(10), now.minusMinutes(2)
+            jdbcTemplate.execute("drop index " + identifier(schema) + ".uq_appointments_active_slot");
+            jdbcTemplate.execute(
+                "alter table " + identifier(schema) + ".appointments "
+                    + "drop constraint if exists ex_appointments_active_interval"
             );
-            insertPendingAppointment(
-                appointments, duplicateId, duplicateId.toString().replace("-", ""),
-                doctorId, patientId, appointmentDate, startTime,
-                now.plusMinutes(10), now.minusMinutes(1)
+            insertAppointment(
+                appointments, canonicalId, doctorId, patientId, null,
+                appointmentDate, startTime, startTime.plusHours(1),
+                "PENDING_CONFIRMATION", now.plusMinutes(10)
+            );
+            insertAppointment(
+                appointments, duplicateId, doctorId, patientId, null,
+                appointmentDate, startTime, startTime.plusHours(1),
+                "PENDING_CONFIRMATION", now.plusMinutes(10)
             );
 
-            migrate(schema, "8");
+            migrate(schema, "13");
 
             assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from " + appointments + " where status = 'PENDING_CONFIRMATION'",
@@ -331,7 +534,7 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
     void localSeedSchedulesFollowDoctorBranchAssignments() {
         String schema = createMigrationSchema();
         try {
-            migrate(schema, "10");
+            migrate(schema, "19");
             executeSeed(schema);
             String schedules = table(schema, "doctor_schedules");
             String doctors = table(schema, "doctors");
@@ -388,26 +591,6 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
         );
 
         assertThat(roles).containsExactly("ADMIN", "DOCTOR", "PATIENT");
-    }
-
-    private void insertPendingAppointment(
-            String appointments,
-            UUID id,
-            String bookingCode,
-            UUID doctorId,
-            UUID patientId,
-            LocalDate appointmentDate,
-            LocalTime startTime,
-            OffsetDateTime holdExpiresAt,
-            OffsetDateTime createdAt) {
-        jdbcTemplate.update(
-            "insert into " + appointments
-                + " (id, booking_code, patient_id, doctor_id, appointment_date, start_time, "
-                + "appointment_time, status, hold_expires_at, created_at) "
-                + "values (?, ?, ?, ?, ?, ?, ?, 'PENDING_CONFIRMATION', ?, ?)",
-            id, bookingCode, patientId, doctorId, appointmentDate, startTime,
-            appointmentDate.atTime(startTime).atOffset(createdAt.getOffset()), holdExpiresAt, createdAt
-        );
     }
 
     private void insertAppointment(

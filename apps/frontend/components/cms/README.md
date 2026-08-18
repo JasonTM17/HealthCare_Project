@@ -1,39 +1,62 @@
 # CMS realtime frontend boundary
 
-This directory is the frontend adapter boundary for typed page content. The
-current repository backend has legacy hospital/article CRUD, but it does not
-yet expose this page/slot/version/change-feed contract. The editor and live
-slot therefore use the live API only and show an explicit integration-pending
-state when the contract is unavailable; they never substitute mock content.
+This directory consumes the integrated slot-scoped CMS contract. The backend
+stores exactly one typed component per `slotKey`; it does not expose the older
+page/slug, page-history, or rollback API. The frontend is live-only and never
+substitutes mock content.
 
-## Contract expected by `CmsClient`
+## Backend contract
 
-All responses are either a `CmsPage` object or `{ "data": CmsPage }`:
+All content responses have this shape:
 
-| Operation | Method and path | Auth | Body/query |
+```json
+{
+  "slotKey": "homepage.hero",
+  "componentType": "HERO",
+  "payload": { "title": "..." },
+  "status": "PUBLISHED",
+  "version": 1,
+  "updatedAt": "2026-08-17T00:00:00Z"
+}
+```
+
+| Operation | Method and path | Auth | Request |
 | --- | --- | --- | --- |
-| Read published page | `GET /cms/pages/{slug}?state=PUBLISHED` | Public | — |
-| Read draft page | `GET /admin/cms/pages/{slug}?state=DRAFT` | `ADMIN` | — |
-| Create draft | `POST /admin/cms/pages` | `ADMIN` | `slug`, `title`, `slots`, optional `baseVersion` |
-| Save draft | `PUT /admin/cms/pages/{slug}/draft` | `ADMIN` | `title`, `slots`, `baseVersion` |
-| Publish | `POST /admin/cms/pages/{slug}/publish` | `ADMIN` | `baseVersion` |
-| Roll back | `POST /admin/cms/pages/{slug}/rollback` | `ADMIN` | `targetVersion`, `baseVersion` |
-| Published change feed | `GET /cms/pages/{slug}/changes?sinceVersion=N` | Public | SSE messages |
+| Public read | `GET /api/v1/cms/content/{slotKey}` | Public | — |
+| Admin inventory | `GET /api/v1/admin/cms/content` | `ADMIN` | — |
+| Admin read | `GET /api/v1/admin/cms/content/{slotKey}` | `ADMIN` | — |
+| Admin upsert | `PUT /api/v1/admin/cms/content/{slotKey}` | `ADMIN` | `{ componentType, payload, status, expectedVersion }` |
+| Realtime feed | `GET /api/v1/cms/content/events` | Public | Optional `after` query or `Last-Event-ID` header |
 
-`CmsPage` contains `id`, `slug`, `title`, `state` (`DRAFT` or `PUBLISHED`),
-positive integer `version`, ISO `updatedAt`, nullable ISO `publishedAt`, and a
-`slots` map. Stable slot keys are `hero`, `body`, `sidebar`, and `footer`.
-Stable component keys are `heading`, `paragraph`, `callout`, `link`, and
-`image`. The renderer does not accept raw HTML or executable content.
+`componentType` is one of `HERO`, `RICH_TEXT`, `CTA_BANNER`, `NOTICE`, or
+`IMAGE_CARD`. `status` is `DRAFT` or `PUBLISHED`. Every mutation is guarded
+by `expectedVersion`; use `0` when creating a slot. A stale version is shown
+as a conflict and is never retried automatically.
 
-The change feed may send `{ type, slug, version, updatedAt }` or include a
-validated `page` snapshot. If EventSource is unavailable or fails, the public
-slot polls the published read endpoint without reloading the page.
+Payload fields are allowlisted by component type and must be plain strings.
+Links and image URLs are limited to relative paths or HTTPS URLs. The renderer
+does not accept or interpret raw HTML/JS.
 
-Set `NEXT_PUBLIC_CMS_API_BASE_URL` to the API base (including `/api/v1` when
-needed). Admin calls receive a bearer token from the `CmsClient` option and
-also include same-origin credentials for cookie-based sessions.
+The SSE endpoint emits named `ready`, `heartbeat`, `cms-content-changed`, and
+`resync` events. Public slots multiplex changes through one EventSource per
+`CmsClient`, filter them by backend slot key, and poll the public read endpoint
+when the stream is unavailable. Reconnects use bounded exponential backoff with
+jitter, and the stream closes when its last slot unmounts. A `home`
+public slot maps as follows:
 
-The direct editor route is `/admin/content`. A public consumer can mount
-`<CmsLiveSlot slug="home" slotKey="hero" />` from `components/cms` when the
-typed backend contract is available.
+```tsx
+<CmsLiveSlot slug="home" slotKey="hero" /> // homepage.hero
+```
+
+`PublicPageShell` mounts supplemental route-scoped `hero` and `body` slots for
+public routes. For example, `careers.hero` and `careers.body` are shown on
+`/careers`; missing slots stay hidden and do not invent page copy. Seeded
+route slots provide CMS-managed context rather than duplicating the page's
+static heading. The homepage keeps its composed slot layout in `app/page.tsx`.
+The admin content screen reads the inventory endpoint and exposes
+published/draft slots as quick selections before allowing a manual slug entry.
+
+Set `NEXT_PUBLIC_CMS_API_BASE_URL` to the API base (including `/api/v1`). Admin
+requests can receive a bearer token through the `CmsClient` option and also
+send same-origin credentials for cookie sessions. The direct admin editor is
+available at `/admin/content`.

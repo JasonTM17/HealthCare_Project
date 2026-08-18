@@ -5,11 +5,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.healthcare.TestcontainersIntegrationTest;
 import com.healthcare.appointment.dto.ConfirmAppointmentRequest;
 import com.healthcare.appointment.dto.HoldSlotRequest;
+import com.healthcare.appointment.dto.RescheduleAppointmentRequest;
 import com.healthcare.appointment.entity.DoctorSchedule;
 import com.healthcare.appointment.entity.PatientProfile;
 import com.healthcare.hospital.entity.Branch;
 import com.healthcare.hospital.entity.Doctor;
 import com.healthcare.hospital.entity.DoctorBranch;
+import com.healthcare.hospital.entity.DoctorSpecialty;
 import com.healthcare.hospital.entity.Specialty;
 import com.healthcare.scheduling.entity.DoctorScheduleException;
 import org.junit.jupiter.api.BeforeEach;
@@ -56,6 +58,30 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         doctor.setBio("Chuyên gia Tim Mạch 15 năm kinh nghiệm");
         doctor.setActive(true);
         doctor = doctorRepository.save(doctor);
+
+        DoctorSpecialty doctorSpecialty = new DoctorSpecialty();
+        doctorSpecialty.setDoctor(doctor);
+        doctorSpecialty.setSpecialty(specialty);
+        doctorSpecialtyRepository.save(doctorSpecialty);
+    }
+
+    @Test
+    void holdRejectsSpecialtyThatIsNotAssignedToDoctor() throws Exception {
+        Specialty unrelated = new Specialty();
+        unrelated.setName("Chuyên khoa không thuộc bác sĩ");
+        unrelated.setSlug("unrelated-" + UUID.randomUUID());
+        unrelated.setActive(true);
+        unrelated = specialtyRepository.save(unrelated);
+
+        HoldSlotRequest request = new HoldSlotRequest(
+            doctor.getId(), LocalDate.now().plusDays(2), LocalTime.of(9, 0),
+            "Bệnh nhân kiểm thử", "0907000199", null, "Kiểm thử invariant",
+            unrelated.getId(), null, null);
+
+        mockMvc.perform(post("/api/v1/appointments/hold")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -243,6 +269,16 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
             .andExpect(jsonPath("$.status").value("CONFIRMED"))
             .andExpect(jsonPath("$.patientName").value("Trần Thị Bệnh Nhân"));
 
+        mockMvc.perform(post("/api/v1/appointments/confirm")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new ConfirmAppointmentRequest(
+                    bookingCode,
+                    "000000",
+                    null
+                ))))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.message").value("Lịch hẹn này đã được xác nhận"));
+
         // 4. Query appointment details by booking code
         mockMvc.perform(get("/api/v1/appointments/" + bookingCode))
             .andExpect(status().isUnauthorized());
@@ -263,10 +299,80 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
     }
 
     @Test
+    void confirmedAppointmentCanBeRescheduledToAvailableSlot() throws Exception {
+        LocalDate originalDate = nextDate(DayOfWeek.MONDAY);
+        LocalDate targetDate = nextDate(DayOfWeek.TUESDAY);
+        String phone = "0907000201";
+        String bookingCode = createConfirmedAppointment(originalDate, LocalTime.of(9, 0), phone);
+
+        RescheduleAppointmentRequest request = new RescheduleAppointmentRequest(
+            targetDate,
+            LocalTime.of(10, 0),
+            null,
+            phone
+        );
+
+        mockMvc.perform(post("/api/v1/appointments/" + bookingCode + "/reschedule")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.bookingCode").value(bookingCode))
+            .andExpect(jsonPath("$.appointmentDate").value(targetDate.toString()))
+            .andExpect(jsonPath("$.startTime").value("10:00:00"))
+            .andExpect(jsonPath("$.endTime").value("10:30:00"))
+            .andExpect(jsonPath("$.status").value("CONFIRMED"));
+    }
+
+    @Test
+    void failedReschedulePreservesOriginalAppointment() throws Exception {
+        LocalDate originalDate = nextDate(DayOfWeek.WEDNESDAY);
+        LocalDate occupiedDate = nextDate(DayOfWeek.THURSDAY);
+        String originalPhone = "0907000202";
+        String originalCode = createConfirmedAppointment(originalDate, LocalTime.of(9, 0), originalPhone);
+        createConfirmedAppointment(occupiedDate, LocalTime.of(10, 0), "0907000203");
+
+        RescheduleAppointmentRequest request = new RescheduleAppointmentRequest(
+            occupiedDate,
+            LocalTime.of(10, 0),
+            null,
+            originalPhone
+        );
+
+        mockMvc.perform(post("/api/v1/appointments/" + originalCode + "/reschedule")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isConflict());
+
+        mockMvc.perform(get("/api/v1/appointments/" + originalCode).param("phone", originalPhone))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.appointmentDate").value(originalDate.toString()))
+            .andExpect(jsonPath("$.startTime").value("09:00:00"))
+            .andExpect(jsonPath("$.status").value("CONFIRMED"));
+    }
+
+    @Test
+    void rescheduleRequiresCorrectPhoneProof() throws Exception {
+        LocalDate originalDate = nextDate(DayOfWeek.FRIDAY);
+        String bookingCode = createConfirmedAppointment(originalDate, LocalTime.of(9, 0), "0907000204");
+
+        RescheduleAppointmentRequest request = new RescheduleAppointmentRequest(
+            nextDate(DayOfWeek.SATURDAY),
+            LocalTime.of(10, 0),
+            null,
+            "0900000000"
+        );
+
+        mockMvc.perform(post("/api/v1/appointments/" + bookingCode + "/reschedule")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void lookupRejectsWrongPhoneProof() throws Exception {
         HoldSlotRequest holdRequest = new HoldSlotRequest(
             doctor.getId(),
-            LocalDate.now().plusDays(5),
+            nextDate(DayOfWeek.MONDAY),
             LocalTime.of(11, 0),
             "Người Dùng Bảo Mật",
             "0912345678",
@@ -323,9 +429,25 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
             null
         );
 
+        for (int attempt = 1; attempt <= 4; attempt++) {
+            mockMvc.perform(post("/api/v1/appointments/confirm")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(invalidConfirm)))
+                .andExpect(status().isBadRequest());
+        }
+
         mockMvc.perform(post("/api/v1/appointments/confirm")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(invalidConfirm)))
+            .andExpect(status().isTooManyRequests());
+
+        mockMvc.perform(post("/api/v1/appointments/confirm")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new ConfirmAppointmentRequest(
+                    bookingCode,
+                    "123456",
+                    null
+                ))))
             .andExpect(status().isBadRequest());
     }
 
@@ -578,6 +700,38 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
             .andReturn()
             .getResponse()
             .getStatus();
+    }
+
+    private String createConfirmedAppointment(LocalDate date, LocalTime startTime, String phone) throws Exception {
+        HoldSlotRequest holdRequest = new HoldSlotRequest(
+            doctor.getId(),
+            date,
+            startTime,
+            "Bệnh Nhân Đổi Lịch",
+            phone,
+            null,
+            "Kiểm tra tính năng đổi lịch",
+            specialty.getId(),
+            null,
+            null
+        );
+        MvcResult holdResult = mockMvc.perform(post("/api/v1/appointments/hold")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(holdRequest)))
+            .andExpect(status().isCreated())
+            .andReturn();
+        String bookingCode = objectMapper.readTree(holdResult.getResponse().getContentAsString())
+            .get("bookingCode").asText();
+
+        mockMvc.perform(post("/api/v1/appointments/confirm")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new ConfirmAppointmentRequest(
+                    bookingCode,
+                    "123456",
+                    null
+                ))))
+            .andExpect(status().isOk());
+        return bookingCode;
     }
 
     private String patientToken() throws Exception {

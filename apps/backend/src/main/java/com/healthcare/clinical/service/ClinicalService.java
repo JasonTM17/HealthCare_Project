@@ -6,6 +6,7 @@ import com.healthcare.appointment.entity.PatientProfile;
 import com.healthcare.appointment.repository.AppointmentRepository;
 import com.healthcare.appointment.repository.PatientProfileRepository;
 import com.healthcare.clinical.dto.CreateMedicalRecordRequest;
+import com.healthcare.clinical.dto.CreateDiagnosticResultRequest;
 import com.healthcare.clinical.dto.DiagnosticResultResponse;
 import com.healthcare.clinical.dto.MedicalRecordResponse;
 import com.healthcare.clinical.dto.PrescriptionItemDto;
@@ -24,6 +25,11 @@ import com.healthcare.hospital.repository.DoctorRepository;
 import com.healthcare.security.HealthcareUserPrincipal;
 import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.UserRepository;
+import com.healthcare.storage.entity.StoredFile;
+import com.healthcare.storage.entity.StoredFilePurpose;
+import com.healthcare.storage.repository.StoredFileRepository;
+import com.healthcare.notification.entity.Notification.EventType;
+import com.healthcare.notification.service.NotificationService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
@@ -49,6 +55,8 @@ public class ClinicalService {
     private final DoctorRepository doctorRepository;
     private final AppointmentRepository appointmentRepository;
     private final UserRepository userRepository;
+    private final StoredFileRepository storedFileRepository;
+    private final NotificationService notificationService;
 
     public ClinicalService(
             MedicalRecordRepository medicalRecordRepository,
@@ -57,7 +65,9 @@ public class ClinicalService {
             PatientProfileRepository patientProfileRepository,
             DoctorRepository doctorRepository,
             AppointmentRepository appointmentRepository,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            StoredFileRepository storedFileRepository,
+            NotificationService notificationService) {
         this.medicalRecordRepository = medicalRecordRepository;
         this.prescriptionRepository = prescriptionRepository;
         this.diagnosticResultRepository = diagnosticResultRepository;
@@ -65,6 +75,8 @@ public class ClinicalService {
         this.doctorRepository = doctorRepository;
         this.appointmentRepository = appointmentRepository;
         this.userRepository = userRepository;
+        this.storedFileRepository = storedFileRepository;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -72,29 +84,26 @@ public class ClinicalService {
             CreateMedicalRecordRequest request,
             UserDetails principal) {
         requireAuthenticated(principal);
-        boolean admin = hasRole(principal, "ADMIN");
 
         PatientProfile patient = patientProfileRepository.findById(request.patientId())
                 .orElseThrow(() -> new ResourceNotFoundException("Patient not found with ID: " + request.patientId()));
         Doctor doctor = doctorRepository.findById(request.doctorId())
                 .orElseThrow(() -> new ResourceNotFoundException("Doctor not found with ID: " + request.doctorId()));
 
-        if (!admin) {
-            if (!hasRole(principal, "DOCTOR")) {
-                throw new AccessDeniedException("Only a doctor or administrator can create a medical record");
-            }
-            Doctor linkedDoctor = requireLinkedDoctor(principal);
-            if (!linkedDoctor.getId().equals(doctor.getId())) {
-                throw new AccessDeniedException("The authenticated doctor is not assigned to this record");
-            }
-            if (request.appointmentId() == null) {
-                throw new BusinessException(400, "A doctor must complete an appointment before creating a record");
-            }
+        if (!hasRole(principal, "DOCTOR")) {
+            throw new AccessDeniedException("Only a doctor can create a medical record");
+        }
+        Doctor linkedDoctor = requireLinkedDoctor(principal);
+        if (!linkedDoctor.getId().equals(doctor.getId())) {
+            throw new AccessDeniedException("The authenticated doctor is not assigned to this record");
+        }
+        if (request.appointmentId() == null) {
+            throw new BusinessException(400, "A doctor must complete an appointment before creating a record");
         }
 
         Appointment appointment = null;
         if (request.appointmentId() != null) {
-            appointment = appointmentRepository.findById(request.appointmentId())
+            appointment = appointmentRepository.findByIdWithDetailsForUpdate(request.appointmentId())
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Appointment not found with ID: " + request.appointmentId()));
 
@@ -105,12 +114,8 @@ public class ClinicalService {
             if (medicalRecordRepository.findByAppointmentId(appointment.getId()).isPresent()) {
                 throw new BusinessException(409, "A medical record already exists for this appointment");
             }
-            if (!EnumSet.of(
-                            AppointmentStatus.CONFIRMED,
-                            AppointmentStatus.CHECKED_IN,
-                            AppointmentStatus.IN_PROGRESS)
-                    .contains(appointment.getStatus())) {
-                throw new BusinessException(409, "Appointment is not ready to be completed");
+            if (appointment.getStatus() != AppointmentStatus.IN_PROGRESS) {
+                throw new BusinessException(409, "Appointment must be in progress before it can be completed");
             }
         }
 
@@ -252,6 +257,52 @@ public class ClinicalService {
                 .toList();
     }
 
+    @Transactional
+    public DiagnosticResultResponse createDiagnosticResult(
+            UUID patientId,
+            CreateDiagnosticResultRequest request,
+            UserDetails principal) {
+        Doctor doctor = requireLinkedDoctor(principal);
+        ensureDoctorCanAccessPatient(patientId, doctor.getId());
+        PatientProfile patient = patientProfileRepository.findById(patientId)
+            .orElseThrow(() -> new ResourceNotFoundException("Patient not found with ID: " + patientId));
+
+        StoredFile storedFile = null;
+        if (request.fileId() != null) {
+            storedFile = storedFileRepository.findById(request.fileId())
+                .orElseThrow(() -> new ResourceNotFoundException("Stored file not found with ID: " + request.fileId()));
+            if (storedFile.getPurpose() != StoredFilePurpose.DIAGNOSTIC_RESULT) {
+                throw new BusinessException(400, "The attached file must use DIAGNOSTIC_RESULT purpose");
+            }
+            if (storedFile.getPatient() == null || !storedFile.getPatient().getId().equals(patientId)) {
+                throw new AccessDeniedException("The attached file does not belong to this patient");
+            }
+            if (diagnosticResultRepository.existsByStoredFileId(storedFile.getId())) {
+                throw new BusinessException(409, "The attached file is already linked to a diagnostic result");
+            }
+        }
+
+        DiagnosticResult diagnostic = new DiagnosticResult();
+        diagnostic.setPatient(patient);
+        diagnostic.setDoctor(doctor);
+        diagnostic.setTestName(request.testName().trim());
+        diagnostic.setResult(request.result() == null ? null : request.result().trim());
+        diagnostic.setStoredFile(storedFile);
+        diagnostic.setTestDate(request.testDate() == null ? java.time.OffsetDateTime.now() : request.testDate());
+        DiagnosticResult saved = diagnosticResultRepository.saveAndFlush(diagnostic);
+
+        if (patient.getUserId() != null) {
+            notificationService.create(
+                patient.getUserId(),
+                EventType.DIAGNOSTIC_RESULT_AVAILABLE,
+                "Có kết quả chẩn đoán mới",
+                "Kết quả " + saved.getTestName() + " đã sẵn sàng trong hồ sơ của bạn.",
+                saved.getId()
+            );
+        }
+        return mapToDiagnosticResponse(saved);
+    }
+
     private void authorizeRecord(MedicalRecord record, UserDetails principal) {
         requireAuthenticated(principal);
         if (hasRole(principal, "ADMIN")) {
@@ -293,7 +344,18 @@ public class ClinicalService {
     }
 
     private void ensureDoctorCanAccessPatient(UUID patientId, UUID doctorId) {
-        if (!medicalRecordRepository.existsByPatientIdAndDoctorId(patientId, doctorId)) {
+        boolean hasRecord = medicalRecordRepository.existsByPatientIdAndDoctorId(patientId, doctorId);
+        boolean hasAssignedVisit = appointmentRepository.existsByPatientIdAndDoctorIdAndStatusIn(
+            patientId,
+            doctorId,
+            EnumSet.of(
+                AppointmentStatus.CONFIRMED,
+                AppointmentStatus.CHECKED_IN,
+                AppointmentStatus.IN_PROGRESS,
+                AppointmentStatus.COMPLETED
+            )
+        );
+        if (!hasRecord && !hasAssignedVisit) {
             throw new AccessDeniedException("The doctor has no clinical relationship with this patient");
         }
     }
@@ -398,6 +460,7 @@ public class ClinicalService {
     }
 
     private DiagnosticResultResponse mapToDiagnosticResponse(DiagnosticResult diagnostic) {
+        StoredFile storedFile = diagnostic.getStoredFile();
         return new DiagnosticResultResponse(
                 diagnostic.getId(),
                 diagnostic.getPatient().getId(),
@@ -406,7 +469,10 @@ public class ClinicalService {
                 diagnostic.getDoctor() != null ? diagnostic.getDoctor().getFullName() : null,
                 diagnostic.getTestName(),
                 diagnostic.getResult(),
-                diagnostic.getFileUrl(),
+                storedFile == null ? null : storedFile.getId(),
+                storedFile == null
+                    ? diagnostic.getFileUrl()
+                    : "/api/v1/files/" + storedFile.getObjectKey(),
                 diagnostic.getTestDate()
         );
     }

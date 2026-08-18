@@ -1,11 +1,15 @@
 package com.healthcare.hospital.entity;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UuidGenerator;
+import org.hibernate.type.SqlTypes;
 
 import java.util.UUID;
 
@@ -26,6 +30,17 @@ public class Specialty {
 
     @Column(name = "description", length = 2000)
     private String description;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "common_symptoms", nullable = false, columnDefinition = "jsonb")
+    private JsonNode commonSymptoms = JsonNodeFactory.instance.arrayNode();
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "preparation_steps", nullable = false, columnDefinition = "jsonb")
+    private JsonNode preparationSteps = JsonNodeFactory.instance.arrayNode();
+
+    @Column(name = "care_pathway", columnDefinition = "text")
+    private String carePathway;
 
     @Column(name = "active", nullable = false)
     private boolean active = true;
@@ -60,6 +75,30 @@ public class Specialty {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public JsonNode getCommonSymptoms() {
+        return commonSymptoms;
+    }
+
+    public void setCommonSymptoms(JsonNode commonSymptoms) {
+        this.commonSymptoms = commonSymptoms;
+    }
+
+    public JsonNode getPreparationSteps() {
+        return preparationSteps;
+    }
+
+    public void setPreparationSteps(JsonNode preparationSteps) {
+        this.preparationSteps = preparationSteps;
+    }
+
+    public String getCarePathway() {
+        return carePathway;
+    }
+
+    public void setCarePathway(String carePathway) {
+        this.carePathway = carePathway;
     }
 
     public boolean isActive() {

@@ -5,7 +5,6 @@ import { useState, type FormEvent } from "react";
 import { ApiError, recommendSpecialty } from "../lib/api-client";
 import type {
   AiTriageCitation,
-  AiTriageProvenance,
   AiTriageResult,
 } from "../types/hospital";
 import Icon from "./UiIcon";
@@ -13,7 +12,7 @@ import Icon from "./UiIcon";
 interface AiTriageModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelectSpecialtyForBooking: (specialtyName: string) => void;
+  onSelectSpecialtyForBooking: (specialtyName: string, specialtyId?: string) => void;
 }
 
 type TriageErrorKind = "login" | "forbidden" | "unavailable" | "error";
@@ -23,20 +22,20 @@ const TRIAGE_ERROR_COPY: Record<
   { title: string; description: string }
 > = {
   login: {
-    title: "Cần đăng nhập (401)",
-    description: "Đăng nhập để gửi mô tả triệu chứng tới dịch vụ AI của hệ thống.",
+    title: "Vui lòng đăng nhập",
+    description: "Đăng nhập để sử dụng công cụ hỗ trợ chọn chuyên khoa.",
   },
   forbidden: {
-    title: "Không có quyền truy cập (403)",
-    description: "Tài khoản hiện tại chưa được phép sử dụng trợ lý triệu chứng.",
+    title: "Chưa thể sử dụng tính năng này",
+    description: "Tài khoản hiện tại chưa được cấp quyền sử dụng công cụ hỗ trợ.",
   },
   unavailable: {
-    title: "Dịch vụ AI tạm thời không khả dụng",
-    description: "Chưa thể nhận kết quả từ backend. Không có kết quả thay thế được tạo trên trình duyệt.",
+    title: "Tạm thời chưa thể xử lý",
+    description: "Vui lòng thử lại sau hoặc chọn chuyên khoa trực tiếp từ danh mục.",
   },
   error: {
-    title: "Không thể nhận kết quả AI",
-    description: "Phản hồi từ dịch vụ AI chưa hợp lệ. Vui lòng thử lại sau.",
+    title: "Chưa thể đưa ra gợi ý",
+    description: "Vui lòng kiểm tra nội dung mô tả và thử lại.",
   },
 };
 
@@ -68,7 +67,7 @@ function scalarLabel(value: Record<string, unknown>): string {
   );
   return scalarEntries.length > 0
     ? scalarEntries.map(([key, candidate]) => `${key}: ${String(candidate)}`).join(" · ")
-    : "Thông tin nguồn từ backend";
+    : "Nguồn tham khảo";
 }
 
 function citationDetails(citation: AiTriageCitation): { label: string; href?: string } {
@@ -78,10 +77,6 @@ function citationDetails(citation: AiTriageCitation): { label: string; href?: st
     ? citation.url
     : undefined;
   return { label: scalarLabel(citation), href };
-}
-
-function provenanceLabel(provenance: AiTriageProvenance): string {
-  return typeof provenance === "string" ? provenance : scalarLabel(provenance);
 }
 
 export default function AiTriageModal({
@@ -121,7 +116,7 @@ export default function AiTriageModal({
 
   const handleBookNow = () => {
     if (result) {
-      onSelectSpecialtyForBooking(result.recommendedSpecialty);
+      onSelectSpecialtyForBooking(result.recommendedSpecialty, result.recommendedSpecialtyId);
       onClose();
     }
   };
@@ -136,15 +131,15 @@ export default function AiTriageModal({
       aria-labelledby="ai-triage-title"
     >
       <div className="relative flex max-h-[92vh] w-full max-w-lg flex-col overflow-y-auto rounded-2xl border border-brand-100 bg-white shadow-2xl">
-        <div className="flex items-center justify-between bg-gradient-to-r from-brand-900 via-brand-800 to-brand-700 px-6 py-4 text-white">
+        <div className="flex items-center justify-between bg-brand-900 px-6 py-4 text-white">
           <div className="flex items-center gap-2.5">
-            <Icon name="sparkles" size={24} />
+            <Icon name="stethoscope" size={24} />
             <div>
               <h3 id="ai-triage-title" className="text-lg font-bold text-white">
-                Trợ Lý Y Tế AI: Phân Luồng Triệu Chứng
+                Hỗ trợ chọn chuyên khoa
               </h3>
               <p className="text-xs text-brand-200">
-                Bản demo · kết quả từ dịch vụ AI, không thay thế chẩn đoán của bác sĩ
+                Gợi ý chỉ mang tính tham khảo, không thay thế chẩn đoán của bác sĩ
               </p>
             </div>
           </div>
@@ -175,15 +170,15 @@ export default function AiTriageModal({
               aria-describedby="triage-privacy-note"
             />
             <p id="triage-privacy-note" className="text-[11px] leading-relaxed text-gray-500">
-              Nội dung chỉ được gửi tới backend khi bạn bấm phân tích; không đưa triệu chứng vào URL hoặc log của giao diện.
+              Nội dung chỉ được xử lý khi bạn chủ động yêu cầu gợi ý và không xuất hiện trong đường dẫn trang.
             </p>
             <div className="flex justify-end">
               <button
                 type="submit"
                 disabled={loading || !symptoms.trim()}
-                className="flex items-center gap-2 rounded-full bg-brand-700 px-6 py-2.5 text-xs font-bold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
+                className="flex items-center gap-2 rounded-lg bg-brand-700 px-6 py-2.5 text-xs font-bold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
               >
-                {loading ? "⏳ Đang gửi tới dịch vụ AI..." : "✨ Phân tích & Gợi ý chuyên khoa"}
+                {loading ? <><Icon name="clock" size={15} /> Đang xem xét thông tin...</> : <><Icon name="stethoscope" size={15} /> Xem gợi ý chuyên khoa</>}
               </button>
             </div>
           </form>
@@ -230,8 +225,14 @@ export default function AiTriageModal({
                 <Icon name="stethoscope" size={18} /> {result.recommendedSpecialty}
               </h4>
 
-              <p className="rounded-lg border border-brand-100 bg-white/80 p-3 text-xs leading-relaxed text-gray-700">
-                💡 <span className="font-semibold">Lời khuyên từ dịch vụ AI:</span> {result.advice}
+              <p className="text-[11px] text-gray-600">
+                {result.recommendedSpecialtyId && result.specialtyResolution === "RESOLVED"
+                  ? "Chuyên khoa này hiện có trong danh mục đặt lịch."
+                  : "Bạn có thể mở biểu mẫu đặt lịch và tự chọn chuyên khoa phù hợp."}
+              </p>
+
+              <p className="flex items-start gap-2 rounded-lg border border-brand-100 bg-white/80 p-3 text-xs leading-relaxed text-gray-700">
+                <Icon name="stethoscope" size={15} /> <span><span className="font-semibold">Thông tin tham khảo:</span> {result.advice}</span>
               </p>
 
               {result.suggestedQuestions.length > 0 ? (
@@ -245,7 +246,7 @@ export default function AiTriageModal({
 
               {result.citations?.length ? (
                 <div className="border-t border-brand-100 pt-3 text-[11px] text-gray-600">
-                  <p className="font-bold text-brand-900">Nguồn tham khảo từ backend</p>
+                  <p className="font-bold text-brand-900">Nguồn tham khảo</p>
                   <ul className="mt-1 list-disc space-y-1 pl-4">
                     {result.citations.map((citation, index) => {
                       const details = citationDetails(citation);
@@ -263,14 +264,8 @@ export default function AiTriageModal({
                 </div>
               ) : null}
 
-              {result.provenance ? (
-                <p className="text-[11px] text-gray-500">
-                  <span className="font-semibold text-gray-700">Provenance:</span> {provenanceLabel(result.provenance)}
-                </p>
-              ) : null}
-
-              <p className="rounded-lg bg-white/70 p-3 text-[11px] leading-relaxed text-gray-600">
-                ⚠️ {result.disclaimer ?? "Kết quả chỉ mang tính tham khảo và không thay thế thăm khám trực tiếp."}
+              <p className="flex items-start gap-2 rounded-lg bg-white/70 p-3 text-[11px] leading-relaxed text-gray-600">
+                <Icon name="alert-triangle" size={14} /> <span>{result.disclaimer ?? "Kết quả chỉ mang tính tham khảo và không thay thế thăm khám trực tiếp."}</span>
               </p>
 
               <div className="flex flex-col gap-3 border-t border-brand-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
@@ -278,7 +273,7 @@ export default function AiTriageModal({
                 <button
                   type="button"
                   onClick={handleBookNow}
-                  className="flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-brand-700 px-5 py-2 text-xs font-bold text-white shadow-md transition-colors hover:bg-brand-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
+                  className="flex min-h-11 items-center justify-center gap-1.5 rounded-lg bg-brand-700 px-5 py-2 text-xs font-bold text-white shadow-md transition-colors hover:bg-brand-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
                 >
                   <span>Đặt khám chuyên khoa này</span> <Icon name="arrow-right" size={16} />
                 </button>

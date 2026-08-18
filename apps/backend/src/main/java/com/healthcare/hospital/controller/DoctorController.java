@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @RestController
 @RequestMapping("/api/v1/hospital/doctors")
@@ -21,8 +22,13 @@ public class DoctorController {
     }
 
     @GetMapping
-    public Page<DoctorResponse> list(@PageableDefault(size = 20) Pageable pageable) {
-        return doctorService.listActive(pageable);
+    public Page<DoctorResponse> list(
+        @PageableDefault(size = 20) Pageable pageable,
+        @RequestParam(required = false) String specialtySlug,
+        @RequestParam(required = false) String branchSlug,
+        @RequestParam(required = false) String q
+    ) {
+        return doctorService.listActive(pageable, specialtySlug, branchSlug, q);
     }
 
     @GetMapping("/{slug}")

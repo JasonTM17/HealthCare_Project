@@ -11,12 +11,12 @@ from app.providers import (
     LOCAL_EMBEDDING_PROVIDERS,
     ProviderUnavailable,
     float_setting,
+    provider_secret,
     remote_provider_requested,
     runtime_allows_local_fallback,
-    secret_setting,
     string_setting,
 )
-from app.schemas import ProviderProvenance
+from app.schemas import MAX_EMBEDDING_DIMENSION, ProviderProvenance
 
 DIMENSION = 384
 
@@ -85,8 +85,13 @@ class OpenAIEmbeddingClient:
         response = client.embeddings.create(model=self.model, input=text)
         if not response.data or not response.data[0].embedding:
             raise ValueError("embedding provider returned no vector")
+        vector = [float(value) for value in response.data[0].embedding]
+        if len(vector) > MAX_EMBEDDING_DIMENSION or any(
+            not math.isfinite(value) for value in vector
+        ):
+            raise ValueError("embedding provider returned an invalid vector")
         return EmbeddingResult(
-            [float(value) for value in response.data[0].embedding],
+            vector,
             self.model,
             "remote_provider",
         )
@@ -96,10 +101,16 @@ def build_embedding_client(settings: Any) -> EmbeddingClient:
     """Resolve the configured provider without exposing credentials."""
 
     provider = string_setting(settings, "embedding_provider", "local").lower()
-    api_key = secret_setting(settings, "ai_api_key", "deepseek_api_key")
+    api_key = provider_secret(settings, provider)
     if provider not in LOCAL_EMBEDDING_PROVIDERS and api_key:
         model = string_setting(settings, "ai_embedding_model") or "text-embedding-3-small"
-        base_url = string_setting(settings, "ai_base_url") or "https://api.deepseek.com"
+        base_url = string_setting(settings, "ai_base_url")
+        if provider == "deepseek":
+            base_url = base_url or string_setting(
+                settings, "deepseek_base_url", "https://api.deepseek.com"
+            )
+        else:
+            base_url = base_url or "https://api.openai.com/v1"
         return OpenAIEmbeddingClient(
             api_key=api_key,
             base_url=base_url,
@@ -123,7 +134,8 @@ def embed(text: str, settings: Any) -> EmbeddingResult:
         LOCAL_EMBEDDING_PROVIDERS,
     )
     allow_fallback = runtime_allows_local_fallback(settings)
-    api_key = secret_setting(settings, "ai_api_key", "deepseek_api_key")
+    provider = string_setting(settings, "embedding_provider", "local").lower()
+    api_key = provider_secret(settings, provider)
     if remote_requested and not api_key:
         if allow_fallback:
             local = LocalEmbeddingClient().embed(text)

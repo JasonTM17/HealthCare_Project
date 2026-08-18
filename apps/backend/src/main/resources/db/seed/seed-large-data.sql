@@ -44,8 +44,12 @@ INSERT INTO roles (id, code, name) VALUES
 ON CONFLICT (code) DO NOTHING;
 
 -- ── Specialties (30) ──────────────────────────────────────────────────────────
-INSERT INTO specialties (id, name, slug, description, active)
-SELECT gen_random_uuid(), name, slug, description, true
+INSERT INTO specialties (id, name, slug, description, common_symptoms, preparation_steps, care_pathway, active)
+SELECT gen_random_uuid(), name, slug, description,
+       jsonb_build_array('Triệu chứng liên quan đến ' || lower(name), 'Mệt mỏi kéo dài'),
+       jsonb_build_array('Mang theo kết quả khám cũ nếu có', 'Ghi lại thuốc đang sử dụng'),
+       'Tiếp nhận → khám chuyên khoa → cận lâm sàng khi cần → tư vấn theo dõi.',
+       true
 FROM (VALUES
     ('Tim mạch','tim-mach','Khám và điều trị bệnh lý tim, mạch máu, tăng huyết áp.'),
     ('Thần kinh','than-kinh','Khám và điều trị đau đầu, rối loạn giấc ngủ, bệnh lý thần kinh.'),
@@ -81,12 +85,16 @@ FROM (VALUES
 ON CONFLICT (slug) DO NOTHING;
 
 -- ── Branches (20) ─────────────────────────────────────────────────────────────
-INSERT INTO branches (id, name, slug, address, phone, active)
+INSERT INTO branches (id, name, slug, address, phone, working_hours, emergency_hotline, map_url, amenities, active)
 SELECT gen_random_uuid(),
        'Bệnh viện Đa khoa Sài Gòn Xanh - Cơ sở ' || s.idx,
        'cs-' || s.idx || '-' || md5(random()::text),
        (s.idx || ' Đường số ' || (s.idx % 30 + 1) || ', Quận ' || (s.idx % 12 + 1) || ', TP. Hồ Chí Minh'),
        '028 ' || lpad((38000000 + s.idx)::text, 8, '0'),
+       '06:30–20:00, tất cả các ngày',
+       '028 1800 ' || lpad(s.idx::text, 4, '0'),
+       'https://maps.google.com/?q=HealthCare+Branch+' || s.idx,
+       jsonb_build_array('Quầy tiếp đón', 'Khu lấy mẫu', 'Wi-Fi miễn phí'),
        true
 FROM generate_series(1, 20) AS s(idx)
 ON CONFLICT (slug) DO NOTHING;
@@ -116,25 +124,37 @@ FROM generate_series(1, 200) AS i
 ON CONFLICT (slug) DO NOTHING;
 
 -- ── Packages (100) ────────────────────────────────────────────────────────────
-INSERT INTO packages (id, name, slug, description, price, active)
+INSERT INTO packages (id, name, slug, description, price, target_audience, duration_days, checklist, preparation_steps, active)
 SELECT gen_random_uuid(),
        'Gói khám sức khỏe cấp ' || c || ' #' || i,
        'goi-' || i || '-' || md5(random()::text),
        'Gói khám toàn diện bao gồm xét nghiệm, chẩn đoán hình ảnh và tư vấn chuyên sâu.',
        (500000 + (i * 12345))::numeric(12,2),
+       'Người trưởng thành cần kiểm tra sức khỏe định kỳ',
+       1 + (i % 3),
+       jsonb_build_array('Khám lâm sàng', 'Xét nghiệm cơ bản', 'Tư vấn kết quả'),
+       jsonb_build_array('Mang theo giấy tờ tùy thân', 'Đến trước giờ hẹn 15 phút'),
        (i % 20 <> 0)
 FROM generate_series(1, 100) AS i,
      LATERAL (SELECT chr(64 + 1 + (i % 3)) AS c) AS lvl
 ON CONFLICT (slug) DO NOTHING;
 
 -- ── Articles (500) ────────────────────────────────────────────────────────────
-INSERT INTO articles (id, title, slug, summary, body, published_at, active)
+INSERT INTO articles (id, title, slug, summary, body, published_at, category, author_name, reading_minutes, related_specialty_slug, sections, active)
 SELECT gen_random_uuid(),
        'Bài viết y khoa số ' || i || ': ' || md5(random()::text),
        'bv-' || i || '-' || md5(random()::text),
        'Tóm tắt nội dung y khoa hữu ích cho bệnh nhân và người nhà.',
        'Nội dung chi tiết về phòng bệnh, sớm nhận biết triệu chứng và khi nào nên đi khám bác sĩ chuyên khoa.',
        now() - ((i % 180) || ' days')::interval,
+       CASE WHEN i % 3 = 0 THEN 'Tim mạch' WHEN i % 3 = 1 THEN 'Sức khỏe gia đình' ELSE 'Dinh dưỡng' END,
+       'Đội ngũ chuyên môn',
+       4 + (i % 6),
+       CASE WHEN i % 3 = 0 THEN 'tim-mach' WHEN i % 3 = 1 THEN 'nhi-khoa' ELSE 'noi-tong-hop' END,
+       jsonb_build_array(
+           jsonb_build_object('heading', 'Tổng quan', 'body', 'Thông tin được biên soạn để giúp người đọc nhận biết rủi ro sức khỏe và chuẩn bị câu hỏi khi đi khám.'),
+           jsonb_build_object('heading', 'Gợi ý tiếp theo', 'body', 'Hãy trao đổi với nhân viên y tế nếu triệu chứng kéo dài, nặng lên hoặc ảnh hưởng sinh hoạt.' )
+       ),
        (i % 15 <> 0)
 FROM generate_series(1, 500) AS i
 ON CONFLICT (slug) DO NOTHING;
@@ -252,5 +272,91 @@ SELECT gen_random_uuid(), p.id, d.id,
 FROM generate_series(1, 100) AS i,
      LATERAL (SELECT id FROM patient_profiles ORDER BY random() LIMIT 1) p,
      LATERAL (SELECT id FROM doctors ORDER BY random() LIMIT 1) d;
+
+INSERT INTO cms_contents (
+    id, slot_key, component_type, payload, status, version, created_at, updated_at
+) VALUES
+(
+    '80000000-0000-0000-0000-000000000001',
+    'homepage.hero',
+    'HERO',
+    '{"eyebrow":"Chăm sóc chủ động","title":"Đồng hành cùng sức khỏe gia đình","body":"Đặt lịch khám và tìm hiểu dịch vụ chăm sóc phù hợp với nhu cầu của bạn.","ctaLabel":"Đặt lịch khám","ctaHref":"/dat-lich"}'::jsonb,
+    'PUBLISHED',
+    1,
+    now(),
+    now()
+),
+(
+    '80000000-0000-0000-0000-000000000002',
+    'careers.hero',
+    'HERO',
+    '{"eyebrow":"CMS tuyển dụng","title":"Thông tin tuyển dụng đang được cập nhật","body":"Đây là vùng nội dung do quản trị viên xuất bản trực tiếp. Các vai trò cụ thể chỉ xuất hiện khi có dữ liệu được duyệt.","ctaLabel":"Liên hệ tuyển dụng","ctaHref":"/contact"}'::jsonb,
+    'PUBLISHED',
+    1,
+    now(),
+    now()
+),
+(
+    '80000000-0000-0000-0000-000000000003',
+    'careers.body',
+    'RICH_TEXT',
+    '{"title":"Theo dõi thay đổi từ quản trị viên","body":"Mỗi lần xuất bản có version để đội ngũ và người dùng nhìn thấy cùng một nội dung. Bản demo không tự dựng vị trí hoặc cam kết quyền lợi khi backend chưa cung cấp dữ liệu."}'::jsonb,
+    'PUBLISHED',
+    1,
+    now(),
+    now()
+),
+(
+    '80000000-0000-0000-0000-000000000004',
+    'search.hero',
+    'HERO',
+    '{"eyebrow":"Catalog active","title":"Tìm kiếm theo dữ liệu đã xuất bản","body":"CMS cung cấp ngữ cảnh cho màn hình; kết quả bên dưới vẫn được lọc trực tiếp từ chuyên khoa, bác sĩ, dịch vụ, gói khám và cẩm nang của backend."}'::jsonb,
+    'PUBLISHED',
+    1,
+    now(),
+    now()
+),
+(
+    '80000000-0000-0000-0000-000000000005',
+    'homepage.body',
+    'RICH_TEXT',
+    '{"title":"Hành trình chăm sóc được cập nhật","body":"Thông tin mới từ quản trị viên sẽ xuất hiện tại đây theo version đã xuất bản. Dữ liệu chuyên khoa, bác sĩ và cơ sở vẫn được đọc trực tiếp từ catalog backend."}'::jsonb,
+    'PUBLISHED',
+    1,
+    now(),
+    now()
+)
+ON CONFLICT (slot_key) DO NOTHING;
+
+-- ── Public career openings ──────────────────────────────────────────────────
+INSERT INTO job_positions (
+    id, slug, title, department, location, employment_type, summary,
+    responsibilities, requirements, benefits, featured, active
+)
+SELECT gen_random_uuid(), slug, title, department, location, employment_type, summary,
+       responsibilities, requirements, benefits, featured, true
+FROM (VALUES
+    ('dieu-duong-da-khoa', 'Điều dưỡng đa khoa', 'Khối Điều dưỡng', 'Bệnh viện An Tâm Trung tâm', 'FULL_TIME',
+     'Phối hợp cùng bác sĩ và đội ngũ chăm sóc để hỗ trợ người bệnh trong suốt quá trình thăm khám, điều trị.',
+     E'Tiếp nhận, theo dõi và thực hiện chăm sóc người bệnh theo phân công\nThực hiện đúng quy trình an toàn người bệnh và kiểm soát nhiễm khuẩn\nGhi nhận thông tin chăm sóc đầy đủ, phối hợp bàn giao giữa các ca',
+     E'Tốt nghiệp Cao đẳng hoặc Đại học chuyên ngành Điều dưỡng\nCó giấy phép hành nghề phù hợp theo quy định hiện hành\nGiao tiếp rõ ràng, tôn trọng người bệnh và phối hợp nhóm tốt',
+     E'Quy trình hội nhập và hướng dẫn công việc rõ ràng\nTham gia đào tạo chuyên môn theo kế hoạch của bệnh viện\nChế độ làm việc và phúc lợi theo chính sách hiện hành', true),
+    ('ky-thuat-vien-xet-nghiem', 'Kỹ thuật viên xét nghiệm', 'Khối Cận lâm sàng', 'Bệnh viện An Tâm Trung tâm', 'FULL_TIME',
+     'Thực hiện các bước tiếp nhận và xử lý mẫu xét nghiệm, góp phần bảo đảm kết quả chính xác và đúng thời gian.',
+     E'Tiếp nhận, kiểm tra và xử lý mẫu theo quy trình chuyên môn\nVận hành thiết bị trong phạm vi được phân công và ghi nhận kiểm soát chất lượng\nPhối hợp trả kết quả và báo cáo các tình huống cần lưu ý',
+     E'Tốt nghiệp chuyên ngành Kỹ thuật xét nghiệm y học\nCẩn trọng, có khả năng làm việc theo quy trình và theo ca\nƯu tiên ứng viên có giấy phép hành nghề phù hợp',
+     E'Được hướng dẫn quy trình và hệ thống chất lượng khi nhận việc\nCơ hội học hỏi trong môi trường phối hợp đa chuyên khoa\nChế độ làm việc và phúc lợi theo chính sách hiện hành', false),
+    ('chuyen-vien-cham-soc-khach-hang', 'Chuyên viên chăm sóc khách hàng', 'Trải nghiệm người bệnh', 'Phòng khám An Tâm Thảo Điền', 'FULL_TIME',
+     'Hướng dẫn người bệnh và thân nhân tiếp cận đúng dịch vụ, lịch khám và kênh hỗ trợ tại cơ sở.',
+     E'Tiếp nhận nhu cầu, hướng dẫn thủ tục và điều phối thông tin tại quầy\nGiải đáp trong phạm vi được phân công, chuyển tiếp đúng bộ phận khi cần\nGhi nhận phản hồi để cải thiện trải nghiệm người bệnh',
+     E'Tốt nghiệp Trung cấp, Cao đẳng hoặc Đại học\nGiọng nói rõ ràng, giao tiếp điềm tĩnh và chủ động\nCó thể sử dụng các công cụ văn phòng cơ bản',
+     E'Được đào tạo về quy trình tiếp đón và bảo mật thông tin\nMôi trường làm việc phối hợp và tôn trọng\nChế độ làm việc và phúc lợi theo chính sách hiện hành', false),
+    ('thuc-tap-sinh-hanh-chinh-nhan-su', 'Thực tập sinh Hành chính – Nhân sự', 'Hành chính – Nhân sự', 'Văn phòng An Tâm Trung tâm', 'INTERNSHIP',
+     'Hỗ trợ các công việc hành chính, lưu trữ và trải nghiệm nhân viên dưới sự hướng dẫn của phụ trách bộ phận.',
+     E'Hỗ trợ chuẩn bị hồ sơ, biểu mẫu và sắp xếp tài liệu\nPhối hợp tổ chức hoạt động nội bộ theo kế hoạch\nCập nhật tiến độ công việc và bảo mật thông tin được tiếp cận',
+     E'Sinh viên năm cuối các ngành Quản trị nhân lực, Hành chính hoặc ngành liên quan\nCẩn thận, đúng hẹn và sẵn sàng học hỏi\nSử dụng được các công cụ văn phòng cơ bản',
+     E'Có người hướng dẫn trong thời gian thực tập\nĐược tiếp cận quy trình vận hành trong môi trường bệnh viện\nXác nhận thực tập theo quy định khi hoàn thành', false)
+) AS seed(slug, title, department, location, employment_type, summary, responsibilities, requirements, benefits, featured)
+ON CONFLICT (slug) DO NOTHING;
 
 COMMIT;

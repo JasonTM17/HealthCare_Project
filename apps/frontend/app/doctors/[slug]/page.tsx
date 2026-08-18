@@ -1,64 +1,98 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import Link from "next/link";
+import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { fetchDoctorBySlug } from "../../../lib/api-client";
 import type { Doctor } from "../../../types/hospital";
+import {
+  PublicAiButton,
+  PublicBackLink,
+  PublicBookingButton,
+  PublicPageShell,
+} from "../../../components/PublicPageShell";
 
-export default function DoctorDetailPage({ params }: { params: { slug: string } }) {
+function initials(name: string): string {
+  return name.split(/\s+/).filter(Boolean).slice(-2).map((part) => part[0]).join("").toUpperCase();
+}
+
+export default function DoctorDetailPage() {
+  const params = useParams<{ slug: string }>();
   const [doctor, setDoctor] = useState<Doctor | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    fetchDoctorBySlug(params.slug)
-      .then((data) => {
-        if (!cancelled) setDoctor(data);
+    const task = Promise.resolve()
+      .then(() => {
+        if (cancelled) return undefined;
+        setDoctor(null);
+        setLoading(true);
+        setError(null);
+        return fetchDoctorBySlug(params.slug);
       })
-      .catch((e) => {
-        if (!cancelled) setError(e.message);
+      .then((data) => { if (data !== undefined && !cancelled) setDoctor(data); })
+      .catch(() => {
+        if (!cancelled) setError("Tạm thời chưa thể tải hồ sơ bác sĩ. Vui lòng thử lại sau.");
       })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+      .finally(() => { if (!cancelled) setLoading(false); });
+    void task;
+    return () => { cancelled = true; };
   }, [params.slug]);
 
   return (
-    <main className="section">
-      <Link href="/doctors" className="text-sm text-teal-700 hover:underline">
-        ← Quay lại danh sách bác sĩ
-      </Link>
+    <PublicPageShell>
+      <div className="resource-page section-inner">
+        <PublicBackLink href="/doctors">← Quay lại danh sách bác sĩ</PublicBackLink>
+        <header className="resource-page__header">
+          <p className="section-note">Hồ sơ bác sĩ</p>
+          <h1>Bác sĩ đồng hành cùng bạn</h1>
+          <p>Tìm hiểu chuyên môn, kinh nghiệm và chọn cơ sở, ngày khám thuận tiện với bạn.</p>
+        </header>
 
-      {loading && <p className="text-slate-500 mt-4">Đang tải...</p>}
-      {error && <p className="text-red-600 mt-4">Lỗi: {error}</p>}
+        {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải hồ sơ bác sĩ…</p> : null}
+        {error ? <p className="catalog-status catalog-status--error" role="alert">{error}</p> : null}
+        {!loading && !error && !doctor ? <p className="catalog-status" role="status">Không tìm thấy hồ sơ bác sĩ này.</p> : null}
 
-      {doctor && (
-        <div className="mt-6 p-8 bg-white border border-slate-200 rounded-2xl shadow-sm">
-          <div className="w-24 h-24 rounded-full bg-teal-700/10 text-teal-800 mx-auto flex items-center justify-center text-4xl mb-4">
-            👨‍⚕️
+        {doctor ? (
+          <article className="resource-hero-card">
+            <div className="resource-avatar" aria-hidden="true">{initials(doctor.fullName)}</div>
+            <div className="resource-hero-card__body">
+              <div className="resource-chip-row">
+                {doctor.specialtyName ? <span className="resource-chip">{doctor.specialtyName}</span> : null}
+                {doctor.experienceYears ? <span className="resource-chip resource-chip--warm">{doctor.experienceYears} năm kinh nghiệm</span> : null}
+              </div>
+              <h2>{doctor.fullName}</h2>
+              <p className="resource-lead">{doctor.title ?? "Bác sĩ chuyên khoa"}</p>
+              <p>{doctor.bio || "Hồ sơ chưa có phần giới thiệu chi tiết."}</p>
+              <div className="resource-actions">
+                <PublicBookingButton selection={{ doctorId: doctor.id }}>Đặt lịch với bác sĩ</PublicBookingButton>
+                <PublicAiButton className="outline-button">Hỗ trợ chọn chuyên khoa</PublicAiButton>
+              </div>
+            </div>
+          </article>
+        ) : null}
+
+        {doctor ? (
+          <div className="resource-grid resource-grid--two">
+            <section className="resource-panel">
+              <p className="section-note">Chuẩn bị cuộc hẹn</p>
+              <h2>Điều cần biết trước khi đặt lịch</h2>
+              <ul className="resource-list">
+                <li>Chọn đúng cơ sở thuộc lịch làm việc của bác sĩ.</li>
+                <li>Khung giờ được xác nhận sau khi hệ thống giữ chỗ thành công.</li>
+                <li>Hãy mang theo mã lịch hẹn khi đến cơ sở.</li>
+              </ul>
+            </section>
+            <section className="resource-panel resource-panel--accent">
+              <p className="section-note">Lưu ý an toàn</p>
+              <h2>Trợ lý chọn khoa chỉ mang tính tham khảo</h2>
+              <p>Gợi ý trực tuyến không phải chẩn đoán và không thay thế việc thăm khám trực tiếp với bác sĩ.</p>
+              <PublicBookingButton className="outline-button outline-button--dark">Mở luồng đặt lịch</PublicBookingButton>
+            </section>
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 text-center">
-            {doctor.fullName}
-          </h1>
-          {doctor.bio && (
-            <p className="text-sm text-slate-600 mt-4 max-w-2xl mx-auto text-center leading-relaxed">
-              {doctor.bio}
-            </p>
-          )}
-          <div className="text-center mt-6">
-            <Link
-              href="/"
-              className="inline-block px-6 py-2.5 bg-teal-700 hover:bg-teal-800 text-white text-sm font-bold rounded-xl transition-colors"
-            >
-              Đặt lịch khám
-            </Link>
-          </div>
-        </div>
-      )}
-    </main>
+        ) : null}
+      </div>
+    </PublicPageShell>
   );
 }

@@ -60,3 +60,20 @@ def test_remote_embedding_failure_fails_closed_outside_local_runtime() -> None:
     with patch("openai.OpenAI", side_effect=RuntimeError("provider down")):
         with pytest.raises(ProviderUnavailable):
             embed("đau đầu", settings)
+
+
+def test_openai_embedding_does_not_use_deepseek_alias_credentials() -> None:
+    settings = SimpleNamespace(
+        ai_provider="openai",
+        embedding_provider="openai",
+        ai_api_key="",
+        deepseek_api_key="legacy-key",
+        ai_embedding_model="",
+        deepseek_embedding_model="legacy-embedding",
+        ai_base_url="",
+        deepseek_base_url="https://api.deepseek.com",
+        ai_service_runtime="production",
+    )
+
+    with pytest.raises(ProviderUnavailable):
+        embed("đau đầu", settings)

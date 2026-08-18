@@ -38,6 +38,10 @@ public class DiagnosticResult {
     @Column(name = "file_url", length = 500)
     private String fileUrl;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "stored_file_id")
+    private com.healthcare.storage.entity.StoredFile storedFile;
+
     @Column(name = "test_date", nullable = false)
     private OffsetDateTime testDate = OffsetDateTime.now();
 
@@ -87,6 +91,14 @@ public class DiagnosticResult {
 
     public void setFileUrl(String fileUrl) {
         this.fileUrl = fileUrl;
+    }
+
+    public com.healthcare.storage.entity.StoredFile getStoredFile() {
+        return storedFile;
+    }
+
+    public void setStoredFile(com.healthcare.storage.entity.StoredFile storedFile) {
+        this.storedFile = storedFile;
     }
 
     public OffsetDateTime getTestDate() {

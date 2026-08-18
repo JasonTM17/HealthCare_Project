@@ -1,59 +1,100 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { fetchSpecialtyBySlug } from "../../../lib/api-client";
 import type { Specialty } from "../../../types/hospital";
+import { ClinicalIcon } from "../../../components/ClinicalIcon";
+import {
+  PublicAiButton,
+  PublicBackLink,
+  PublicBookingButton,
+  PublicPageShell,
+} from "../../../components/PublicPageShell";
 
-export default function SpecialtyDetailPage({ params }: { params: { slug: string } }) {
+export default function SpecialtyDetailPage() {
+  const params = useParams<{ slug: string }>();
   const [specialty, setSpecialty] = useState<Specialty | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    fetchSpecialtyBySlug(params.slug)
-      .then((data) => {
-        if (!cancelled) setSpecialty(data);
+    const task = Promise.resolve()
+      .then(() => {
+        if (cancelled) return undefined;
+        setSpecialty(null);
+        setLoading(true);
+        setError(null);
+        return fetchSpecialtyBySlug(params.slug);
       })
-      .catch((e) => {
-        if (!cancelled) setError(e.message);
+      .then((data) => { if (data !== undefined && !cancelled) setSpecialty(data); })
+      .catch(() => {
+        if (!cancelled) setError("Tạm thời chưa thể tải thông tin chuyên khoa. Vui lòng thử lại sau.");
       })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+      .finally(() => { if (!cancelled) setLoading(false); });
+    void task;
+    return () => { cancelled = true; };
   }, [params.slug]);
 
   return (
-    <main className="section">
-      <Link href="/specialties" className="text-sm text-teal-700 hover:underline">
-        ← Quay lại chuyên khoa
-      </Link>
+    <PublicPageShell>
+      <div className="resource-page section-inner">
+        <PublicBackLink href="/specialties">← Quay lại danh sách chuyên khoa</PublicBackLink>
+        <header className="resource-page__header">
+          <p className="section-note">Thông tin chuyên khoa</p>
+          <h1>Bắt đầu từ điều bạn đang quan tâm</h1>
+          <p>Tìm hiểu phạm vi chăm sóc, cách chuẩn bị và đội ngũ bác sĩ phù hợp với nhu cầu của bạn.</p>
+        </header>
 
-      {loading && <p className="text-slate-500 mt-4">Đang tải...</p>}
-      {error && <p className="text-red-600 mt-4">Lỗi: {error}</p>}
+        {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải chuyên khoa…</p> : null}
+        {error ? <p className="catalog-status catalog-status--error" role="alert">{error}</p> : null}
+        {!loading && !error && !specialty ? <p className="catalog-status" role="status">Không tìm thấy thông tin chuyên khoa này.</p> : null}
 
-      {specialty && (
-        <div className="mt-6 p-8 bg-white border border-slate-200 rounded-2xl shadow-sm">
-          <h1 className="text-2xl font-bold text-slate-900">{specialty.name}</h1>
-          {specialty.description && (
-            <p className="text-sm text-slate-600 mt-4 leading-relaxed">
-              {specialty.description}
-            </p>
-          )}
-          <div className="mt-6">
-            <Link
-              href="/doctors"
-              className="inline-block px-6 py-2.5 bg-teal-700 hover:bg-teal-800 text-white text-sm font-bold rounded-xl transition-colors"
-            >
-              Xem bác sĩ chuyên khoa này
-            </Link>
+        {specialty ? (
+          <article className="resource-hero-card resource-hero-card--teal">
+            <div className="resource-icon" aria-hidden="true"><ClinicalIcon name="specialty" /></div>
+            <div className="resource-hero-card__body">
+              <span className="resource-chip">Chuyên khoa</span>
+              <h2>{specialty.name}</h2>
+              <p className="resource-lead">Thông tin định hướng để chuẩn bị câu hỏi trước buổi khám.</p>
+              <p>{specialty.description || "Chuyên khoa chưa có phần mô tả chi tiết."}</p>
+              <div className="resource-actions">
+                <PublicBookingButton selection={{ specialtyId: specialty.id }}>Đặt lịch theo chuyên khoa</PublicBookingButton>
+                <Link className="outline-button outline-button--light" href={`/doctors?specialty=${encodeURIComponent(specialty.slug)}`}>Xem bác sĩ liên quan</Link>
+              </div>
+            </div>
+          </article>
+        ) : null}
+
+        {specialty ? (
+          <div className="resource-grid resource-grid--two">
+            <section className="resource-panel">
+              <p className="section-note">Hành trình chăm sóc</p>
+              <h2>Từ triệu chứng tới cuộc hẹn</h2>
+              <ol className="resource-steps">
+                <li><strong>Mô tả điều bạn đang quan tâm</strong><span>AI chỉ gợi ý hướng, không chẩn đoán.</span></li>
+                <li><strong>Kiểm tra hồ sơ bác sĩ</strong><span>Chọn theo chuyên môn và cơ sở thuận tiện.</span></li>
+                <li><strong>Giữ khung giờ</strong><span>Hệ thống kiểm tra cơ sở và khung giờ trước khi xác nhận.</span></li>
+              </ol>
+            </section>
+            <section className="resource-panel resource-panel--accent">
+              <p className="section-note">Bước tiếp theo</p>
+              <h2>Bạn đã sẵn sàng chọn ngày khám?</h2>
+              <p>Khung giờ thực tế chỉ hiển thị sau khi chọn bác sĩ, cơ sở và ngày.</p>
+              <PublicAiButton className="outline-button">Hỗ trợ chọn chuyên khoa</PublicAiButton>
+            </section>
           </div>
-        </div>
-      )}
-    </main>
+        ) : null}
+
+        {specialty ? <div className="resource-grid resource-grid--two">
+          <section className="resource-panel"><p className="section-note">Triệu chứng thường gặp</p><h2>Điều bạn có thể chuẩn bị</h2>{specialty.commonSymptoms?.length ? <ul className="resource-list">{specialty.commonSymptoms.map((symptom) => <li key={symptom}>{symptom}</li>)}</ul> : <p className="resource-muted">Nội dung tham khảo đang được cập nhật.</p>}<p className="section-note resource-detail-block__label">Trước buổi khám</p>{specialty.preparationSteps?.length ? <ul className="resource-list">{specialty.preparationSteps.map((step) => <li key={step}>{step}</li>)}</ul> : <p className="resource-muted">Hướng dẫn chuẩn bị đang được cập nhật.</p>}</section>
+          <section className="resource-panel resource-panel--accent"><p className="section-note">Lộ trình tham khảo</p><h2>Lộ trình chăm sóc</h2>{specialty.carePathway ? <p className="resource-pathway">{specialty.carePathway}</p> : <p className="resource-muted">Lộ trình chăm sóc đang được cập nhật.</p>}</section>
+        </div> : null}
+
+        {specialty ? <section className="resource-panel resource-panel--wide"><p className="section-note">Bác sĩ theo chuyên khoa</p><h2>Đội ngũ phù hợp với chuyên khoa</h2>{specialty.relatedDoctors?.length ? <div className="resource-doctor-grid resource-doctor-grid--wide">{specialty.relatedDoctors.map((doctor) => <Link className="resource-doctor-card" href={`/doctors/${doctor.slug}`} key={doctor.id}><strong>{doctor.fullName}</strong><span>{doctor.specialtyName || specialty.name}</span><span className="text-button">Mở hồ sơ bác sĩ →</span></Link>)}</div> : <p className="resource-muted">Danh sách bác sĩ phù hợp đang được cập nhật.</p>}</section> : null}
+      </div>
+    </PublicPageShell>
   );
 }

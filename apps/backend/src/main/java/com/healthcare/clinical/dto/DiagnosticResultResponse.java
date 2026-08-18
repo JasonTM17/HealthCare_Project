@@ -11,6 +11,7 @@ public record DiagnosticResultResponse(
         String doctorName,
         String testName,
         String result,
+        UUID fileId,
         String fileUrl,
         OffsetDateTime testDate
 ) {

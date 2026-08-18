@@ -11,6 +11,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
+import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.server.ResponseStatusException;
@@ -22,6 +24,14 @@ import java.util.List;
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler({AsyncRequestNotUsableException.class, AsyncRequestTimeoutException.class})
+    public ResponseEntity<Void> handleCompletedAsyncRequest(Exception ex, WebRequest request) {
+        // SSE disconnects/timeouts are normal lifecycle events. In particular, never send
+        // the JSON ApiError envelope after text/event-stream has already been selected.
+        log.debug("Async response completed for {}: {}", extractPath(request), ex.getMessage());
+        return ResponseEntity.noContent().build();
+    }
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiError> handleBusinessException(BusinessException ex, WebRequest request) {
@@ -65,7 +75,7 @@ public class GlobalExceptionHandler {
         ApiError error = new ApiError(
             400,
             "Bad Request",
-            "Validation failed",
+            "Thông tin gửi lên chưa hợp lệ.",
             extractPath(request),
             fieldErrors
         );

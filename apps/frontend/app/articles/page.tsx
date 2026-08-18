@@ -1,63 +1,34 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { fetchArticles, type Page } from "../../lib/api-client";
 import type { Article } from "../../types/hospital";
+import { PublicPageShell } from "../../components/PublicPageShell";
 
 export default function ArticlesPage() {
-  const [articles, setArticles] = useState<Page<Article> | null>(null);
+  const [page, setPage] = useState<Page<Article> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     fetchArticles(0, 50)
-      .then((data) => {
-        if (!cancelled) setArticles(data);
-      })
-      .catch((e) => {
-        if (!cancelled) setError(e.message);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+      .then((data) => { if (!cancelled) setPage(data); })
+      .catch(() => { if (!cancelled) setError("Tạm thời chưa thể tải cẩm nang sức khỏe. Vui lòng thử lại sau."); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, []);
 
   return (
-    <main className="section">
-      <h2>Bài Viết Y Khoa</h2>
-      <p className="text-slate-600">
-        Cập nhật kiến thức và thông tin sức khỏe mới nhất.
-      </p>
-
-      {loading && <p className="text-slate-500">Đang tải...</p>}
-      {error && <p className="text-red-600">Lỗi: {error}</p>}
-
-      {articles && (
-        <>
-          {articles.empty ? (
-            <p className="text-slate-500">Chưa có bài viết.</p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
-              {articles.content.map((article) => (
-                <div
-                  key={article.id}
-                  className="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm"
-                >
-                  <span className="text-2xl block mb-3">🩺</span>
-                  <h3 className="text-base font-bold text-slate-900">{article.title}</h3>
-                  <p className="text-xs text-slate-600 leading-relaxed mt-1">
-                    {article.summary}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-        </>
-      )}
-    </main>
+    <PublicPageShell>
+      <div className="catalog-page section-inner">
+        <header className="resource-page__header"><p className="section-note">Cẩm nang sức khỏe</p><h1>Kiến thức y khoa trong nhịp sống hằng ngày</h1><p>Những nội dung tham khảo giúp bạn chủ động tìm hiểu và chuẩn bị câu hỏi trước khi gặp bác sĩ.</p></header>
+        {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải cẩm nang…</p> : null}
+        {error ? <p className="catalog-status catalog-status--error" role="alert">{error}</p> : null}
+        {!loading && !error && page?.empty ? <p className="catalog-status" role="status">Cẩm nang sức khỏe đang được cập nhật.</p> : null}
+        {page && !page.empty ? <div className="catalog-grid catalog-grid--articles">{page.content.map((article) => <article className="catalog-card" key={article.id}><p className="section-note">{new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium" }).format(new Date(article.publishedAt))}</p><h2>{article.title}</h2><p>{article.summary}</p><Link className="text-button" href={`/articles/${article.slug}`}>Đọc bài viết →</Link></article>)}</div> : null}
+      </div>
+    </PublicPageShell>
   );
 }
