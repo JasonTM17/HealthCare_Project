@@ -681,7 +681,7 @@ export default function Home(): React.ReactElement {
                       <p><Icon name="clock" size={15} />{branch.workingHours ?? "Backend chưa cung cấp giờ làm việc."}</p>
                     </div>
                     <div className="branch-row__actions">
-                      <a href={`tel:${branch.phone.replace(/\s/g, "")}`} aria-label={`Gọi ${branch.name}`}>{branch.phone}</a>
+                      {branch.phone ? <a href={`tel:${branch.phone.replace(/\s/g, "")}`} aria-label={`Gọi ${branch.name}`}>{branch.phone}</a> : <span className="resource-muted">Backend chưa cung cấp số điện thoại.</span>}
                       <button className="outline-button outline-button--small" onClick={() => handleOpenBooking(undefined, undefined, undefined, branch.id)} type="button">Đặt lịch</button>
                     </div>
                   </article>

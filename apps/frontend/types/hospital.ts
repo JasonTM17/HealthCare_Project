@@ -23,7 +23,7 @@ export interface Branch {
   name: string;
   slug: string;
   address: string;
-  phone: string;
+  phone?: string | null;
   workingHours?: string;
   emergencyHotline?: string;
 }

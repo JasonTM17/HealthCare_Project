@@ -58,14 +58,28 @@ test("CMS booking CTA has a real landing route and public chrome avoids invented
 });
 
 test("AI and CMS live boundaries fail closed across reconnect and unresolved results", async () => {
-  const [client, liveSlot, tracking] = await Promise.all([
+  const [client, liveSlot, tracking, doctors, specialties, branchDetail, home] = await Promise.all([
     read("lib/api-client.ts"),
     read("components/cms/CmsLiveSlot.tsx"),
     read("app/tra-cuu/page.tsx"),
+    read("app/doctors/DoctorsPageClient.tsx"),
+    read("app/specialties/page.tsx"),
+    read("app/branches/[slug]/page.tsx"),
+    read("app/page.tsx"),
   ]);
 
   assert.match(client, /result\.specialtyResolution === "RESOLVED"/);
   assert.match(liveSlot, /after: latestEventId\.current/);
-  assert.match(liveSlot, /Math\.max\(latestEventId\.current, event\.eventId\)/);
+  assert.match(liveSlot, /acknowledgedEventIds/);
+  assert.match(liveSlot, /pendingEventIds/);
+  assert.match(liveSlot, /resolvePendingEvent/);
+  assert.match(liveSlot, /Đã đồng bộ/);
   assert.doesNotMatch(tracking, /30 đơn vị|15 phút|Hỗ trợ BHYT|Thẻ BHYT/);
+  assert.match(doctors, /specialtySlug/);
+  assert.match(doctors, /specialtySlug/);
+  assert.match(doctors, /PublicPageShell/);
+  assert.match(specialties, /PublicBookingButton/);
+  assert.match(specialties, /PublicPageShell/);
+  assert.match(branchDetail, /branch\.phone \?/);
+  assert.match(home, /branch\.phone \?/);
 });

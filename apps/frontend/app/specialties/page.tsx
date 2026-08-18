@@ -1,9 +1,15 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { fetchSpecialties, type Page } from "../../lib/api-client";
 import type { Specialty } from "../../types/hospital";
+import {
+  PublicAiButton,
+  PublicBackLink,
+  PublicBookingButton,
+  PublicPageShell,
+} from "../../components/PublicPageShell";
 
 const SPECIALTY_ICONS = [
   "❤️", "🧠", "🫀", "👁️", "🦴", "🌸", "👶", "🫁", "🦷", "👂",
@@ -20,8 +26,8 @@ export default function SpecialtiesPage() {
       .then((data) => {
         if (!cancelled) setPage(data);
       })
-      .catch((e) => {
-        if (!cancelled) setError(e.message);
+      .catch((reason: unknown) => {
+        if (!cancelled) setError(reason instanceof Error ? reason.message : "Không thể tải chuyên khoa.");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -32,44 +38,45 @@ export default function SpecialtiesPage() {
   }, []);
 
   return (
-    <main className="section">
-      <h2>Chuyên Khoa Mũi Nhọn</h2>
-      <p className="text-slate-600">
-        Trang bị đồng bộ hệ thống chẩn đoán hình ảnh cao cấp, đội ngũ chuyên gia đầu ngành.
-      </p>
+    <PublicPageShell>
+      <div className="catalog-page section-inner">
+        <PublicBackLink href="/">← Về trang chính</PublicBackLink>
+        <header className="resource-page__header">
+          <p className="section-note">Care Rail · chuyên khoa</p>
+          <h1>Chuyên khoa bắt đầu từ điều bạn đang quan tâm</h1>
+          <p>Danh sách active được đọc trực tiếp từ catalog backend. Mở hồ sơ để xem mô tả, bác sĩ liên quan và đặt lịch theo đúng identity SQL.</p>
+        </header>
 
-      {loading && <p className="text-slate-500">Đang tải...</p>}
-      {error && <p className="text-red-600">Lỗi: {error}</p>}
+        {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải chuyên khoa…</p> : null}
+        {error ? <p className="catalog-status catalog-status--error" role="alert">{error} Không có dữ liệu demo thay thế.</p> : null}
+        {!loading && !error && page?.empty ? <p className="catalog-status" role="status">Backend chưa có chuyên khoa active.</p> : null}
 
-      {page && (
-        <>
-          {page.empty ? (
-            <p className="text-slate-500">Chưa có chuyên khoa.</p>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-6">
-              {page.content.map((sp, idx) => (
-                <Link
-                  key={sp.id}
-                  href={`/specialties/${sp.slug}`}
-                  className="p-6 bg-white border border-slate-200 hover:border-teal-400 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between group"
-                >
-                  <div>
-                    <div className="w-14 h-14 rounded-2xl bg-teal-50 text-teal-800 text-3xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                      {sp.icon || SPECIALTY_ICONS[idx % SPECIALTY_ICONS.length]}
-                    </div>
-                    <h3 className="text-lg font-bold text-slate-900 mb-2 group-hover:text-teal-700 transition-colors">
-                      {sp.name}
-                    </h3>
-                    <p className="text-xs text-slate-600 leading-relaxed">
-                      {sp.description}
-                    </p>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </>
-      )}
-    </main>
+        {page && !page.empty ? (
+          <div className="catalog-grid catalog-grid--specialties">
+            {page.content.map((specialty, index) => (
+              <article className="catalog-card" key={specialty.id}>
+                <div className="resource-icon resource-icon--small" aria-hidden="true">
+                  {specialty.icon || SPECIALTY_ICONS[index % SPECIALTY_ICONS.length]}
+                </div>
+                <span className="resource-chip">Active catalog</span>
+                <h2>{specialty.name}</h2>
+                <p>{specialty.description || "Chuyên khoa chưa có phần mô tả chi tiết."}</p>
+                <div className="catalog-card__actions">
+                  <Link className="text-button" href={`/specialties/${specialty.slug}`}>Xem chuyên khoa →</Link>
+                  <PublicBookingButton className="outline-button outline-button--small" selection={{ specialtyId: specialty.id }}>Đặt lịch</PublicBookingButton>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : null}
+
+        <section className="resource-panel resource-panel--accent">
+          <p className="section-note">Care Navigator</p>
+          <h2>Chưa biết bắt đầu ở đâu?</h2>
+          <p>AI chỉ gợi ý hướng trao đổi dựa trên nội dung bạn nhập; không chẩn đoán và không tự tạo identity đặt lịch.</p>
+          <PublicAiButton>Mở trợ lý triệu chứng</PublicAiButton>
+        </section>
+      </div>
+    </PublicPageShell>
   );
 }

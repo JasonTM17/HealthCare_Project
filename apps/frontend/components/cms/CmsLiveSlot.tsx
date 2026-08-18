@@ -48,8 +48,11 @@ export function CmsLiveSlot({
   const [error, setError] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
   const [transport, setTransport] = useState<LiveTransport>("connecting");
+  const [liveNotice, setLiveNotice] = useState<string | null>(null);
   const latestVersion = useRef(0);
   const latestEventId = useRef(0);
+  const acknowledgedEventIds = useRef<Set<number>>(new Set());
+  const pendingEventIds = useRef<Set<number>>(new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -59,6 +62,29 @@ export function CmsLiveSlot({
     let stopFeed: () => void = () => undefined;
     latestVersion.current = 0;
     latestEventId.current = 0;
+    acknowledgedEventIds.current.clear();
+    pendingEventIds.current.clear();
+    void Promise.resolve().then(() => {
+      if (!cancelled) setLiveNotice(null);
+    });
+
+    const acknowledgeEvent = (eventId: number): void => {
+      acknowledgedEventIds.current.add(eventId);
+      let nextEventId = latestEventId.current + 1;
+      while (
+        acknowledgedEventIds.current.has(nextEventId)
+        && !pendingEventIds.current.has(nextEventId)
+      ) {
+        acknowledgedEventIds.current.delete(nextEventId);
+        latestEventId.current = nextEventId;
+        nextEventId += 1;
+      }
+    };
+
+    const resolvePendingEvent = (eventId: number): void => {
+      pendingEventIds.current.delete(eventId);
+      acknowledgeEvent(eventId);
+    };
 
     const refresh = async (): Promise<boolean> => {
       try {
@@ -112,21 +138,31 @@ export function CmsLiveSlot({
         // dropping the event that triggered the failed refresh.
         after: latestEventId.current,
         onChange: (event) => {
-          if (event.slotKey !== backendSlotKey || event.eventId <= latestEventId.current) return;
+          if (event.eventId <= latestEventId.current) return;
+          if (event.slotKey !== backendSlotKey) {
+            // The change feed is global. Acknowledging unrelated IDs lets the
+            // cursor advance, while pending relevant IDs still block it.
+            acknowledgeEvent(event.eventId);
+            return;
+          }
           if (event.version <= latestVersion.current) {
-            latestEventId.current = event.eventId;
+            acknowledgeEvent(event.eventId);
             return;
           }
           if (event.published) {
+            pendingEventIds.current.add(event.eventId);
             void refresh().then((succeeded) => {
-              if (succeeded && !cancelled) latestEventId.current = Math.max(latestEventId.current, event.eventId);
+              if (succeeded && !cancelled) {
+                setLiveNotice(`Đã đồng bộ ${backendSlotKey}, version ${latestVersion.current}.`);
+                resolvePendingEvent(event.eventId);
+              }
             });
           } else {
-            latestEventId.current = event.eventId;
             latestVersion.current = event.version;
             setContent(null);
             setError(new CmsApiError("not-found", 404, "Slot hiện không còn PUBLISHED."));
             setLoading(false);
+            acknowledgeEvent(event.eventId);
           }
         },
         onConnected: () => {
@@ -141,7 +177,12 @@ export function CmsLiveSlot({
         },
         onResync: (event) => {
           void refresh().then((succeeded) => {
-            if (succeeded && !cancelled) latestEventId.current = Math.max(latestEventId.current, event.latestEventId);
+            if (succeeded && !cancelled) {
+              pendingEventIds.current.clear();
+              acknowledgedEventIds.current.clear();
+              latestEventId.current = Math.max(latestEventId.current, event.latestEventId);
+              setLiveNotice(`Đã resync nội dung live từ backend, version ${latestVersion.current}.`);
+            }
           });
         },
       });
@@ -196,6 +237,8 @@ export function CmsLiveSlot({
           Đang hiển thị version {content.version} gần nhất; lần đồng bộ live tiếp theo sẽ thử lại.
         </p>
       ) : null}
+
+      {liveNotice ? <p className="mb-4 rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm text-teal-950" role="status">{liveNotice}</p> : null}
 
       {loading && !content ? <p className="text-sm text-slate-500" role="status">Đang tải nội dung live…</p> : null}
       {content ? <CmsSlotRenderer content={content} slotKey={slotKey} /> : null}
