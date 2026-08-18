@@ -80,6 +80,8 @@ public class CmsContentService {
             }
         }
 
+        CmsPublishedContentCache.ReadToken readToken = cache.beginRead(validatedSlotKey);
+
         Optional<CmsContent> published = contentRepository.findBySlotKeyAndStatus(
                 validatedSlotKey,
                 CmsPublicationStatus.PUBLISHED
@@ -94,7 +96,7 @@ public class CmsContentService {
         }
         CmsContent content = published.get();
         CmsContentResponse response = toResponse(content);
-        cache.put(response);
+        cache.put(readToken, response);
         return response;
     }
 
@@ -105,7 +107,6 @@ public class CmsContentService {
             .stream()
             .map(this::toResponse)
             .toList();
-        responses.forEach(cache::put);
         return responses;
     }
 
