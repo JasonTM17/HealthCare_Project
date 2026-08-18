@@ -13,7 +13,7 @@ import Icon from "./UiIcon";
 interface AiTriageModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelectSpecialtyForBooking: (specialtyName: string) => void;
+  onSelectSpecialtyForBooking: (specialtyName: string, specialtyId?: string) => void;
 }
 
 type TriageErrorKind = "login" | "forbidden" | "unavailable" | "error";
@@ -121,7 +121,7 @@ export default function AiTriageModal({
 
   const handleBookNow = () => {
     if (result) {
-      onSelectSpecialtyForBooking(result.recommendedSpecialty);
+      onSelectSpecialtyForBooking(result.recommendedSpecialty, result.recommendedSpecialtyId);
       onClose();
     }
   };
@@ -229,6 +229,12 @@ export default function AiTriageModal({
               <h4 className="flex items-center gap-2 text-base font-extrabold text-brand-950">
                 <Icon name="stethoscope" size={18} /> {result.recommendedSpecialty}
               </h4>
+
+              <p className="text-[11px] text-gray-600">
+                {result.recommendedSpecialtyId && result.specialtyResolution === "RESOLVED"
+                  ? "Đề xuất đã được backend đối chiếu với chuyên khoa active."
+                  : "Đề xuất chưa được đối chiếu với catalog active; nút đặt lịch sẽ mở luồng chung để bạn tự chọn."}
+              </p>
 
               <p className="rounded-lg border border-brand-100 bg-white/80 p-3 text-xs leading-relaxed text-gray-700">
                 💡 <span className="font-semibold">Lời khuyên từ dịch vụ AI:</span> {result.advice}

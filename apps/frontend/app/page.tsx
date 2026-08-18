@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import AiTriageModal from "../components/AiTriageModal";
 import BookingModal from "../components/BookingModal";
 import { CmsLiveSlot } from "../components/cms";
@@ -10,36 +10,17 @@ import Footer from "../components/Footer";
 import Icon, { type IconName } from "../components/UiIcon";
 import Navbar from "../components/Navbar";
 import {
-  SEED_BRANCHES,
-  SEED_DOCTORS,
-  SEED_PACKAGES,
-  SEED_SPECIALTIES,
-} from "../lib/api";
-import type { Doctor, HealthPackage, Specialty } from "../types/hospital";
+  fetchArticles,
+  fetchBranches,
+  fetchDoctors,
+  fetchPackages,
+  fetchSpecialties,
+  type Page,
+} from "../lib/api-client";
+import type { Article, Branch, Doctor, HealthPackage, Specialty } from "../types/hospital";
 
 const HERO_IMAGE =
   "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=1600&q=85";
-
-const DEMO_ARTICLES = [
-  {
-    type: "Bài viết demo",
-    title: "Khi nào nên bắt đầu một lần kiểm tra sức khỏe định kỳ?",
-    summary:
-      "Một checklist ngắn giúp bạn chuẩn bị câu hỏi và thông tin cần trao đổi trong lần khám tiếp theo.",
-  },
-  {
-    type: "Bài viết demo",
-    title: "Chuẩn bị gì trước khi đi khám chuyên khoa?",
-    summary:
-      "Từ danh sách thuốc đang dùng đến kết quả cũ, vài bước chuẩn bị giúp cuộc hẹn rõ ràng hơn.",
-  },
-  {
-    type: "Bài viết demo",
-    title: "Đọc đúng hướng dẫn sau buổi thăm khám",
-    summary:
-      "Gợi ý cách ghi lại dặn dò, lịch tái khám và những dấu hiệu cần liên hệ lại với cơ sở y tế.",
-  },
-];
 
 const JOURNEY_STEPS: Array<{ icon: IconName; title: string; description: string }> = [
   {
@@ -98,6 +79,13 @@ const DemoNote: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 
 const formatCurrency = (price: number): string =>
   new Intl.NumberFormat("vi-VN").format(price);
+
+const formatPublishedAt = (value: string): string => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? "Đã xuất bản"
+    : new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium" }).format(date);
+};
 
 const getInitials = (fullName: string): string => {
   const parts = fullName
@@ -204,6 +192,32 @@ const PackageRow: React.FC<PackageRowProps> = ({ packageItem, onBook }) => (
   </article>
 );
 
+interface HomeCatalog {
+  specialties: Specialty[];
+  doctors: Doctor[];
+  packages: HealthPackage[];
+  branches: Branch[];
+  articles: Article[];
+}
+
+function CatalogStatus({
+  loading,
+  error,
+  hasData,
+}: {
+  loading: boolean;
+  error: string | null;
+  hasData: boolean;
+}): React.ReactElement | null {
+  if (loading && !hasData) {
+    return <p className="catalog-status catalog-status--loading" role="status">Đang tải dữ liệu từ hệ thống bệnh viện…</p>;
+  }
+  if (error && !hasData) {
+    return <p className="catalog-status catalog-status--error" role="alert">{error}</p>;
+  }
+  return null;
+}
+
 export default function Home(): React.ReactElement {
   const [isBookingOpen, setIsBookingOpen] = useState<boolean>(false);
   const [isAiTriageOpen, setIsAiTriageOpen] = useState<boolean>(false);
@@ -212,6 +226,49 @@ export default function Home(): React.ReactElement {
   const [selectedPackageId, setSelectedPackageId] = useState<string | undefined>();
   const [selectedBranchId, setSelectedBranchId] = useState<string | undefined>();
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [catalog, setCatalog] = useState<HomeCatalog | null>(null);
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const task = Promise.resolve().then(async () => {
+      if (cancelled) return;
+      setCatalogLoading(true);
+      setCatalogError(null);
+      try {
+        const [specialties, doctors, packages, branches, articles] = await Promise.all([
+          fetchSpecialties(0, 50),
+          fetchDoctors({ page: 0, size: 50 }),
+          fetchPackages(0, 50),
+          fetchBranches(0, 50),
+          fetchArticles(0, 6),
+        ] as [
+          Promise<Page<Specialty>>,
+          Promise<Page<Doctor>>,
+          Promise<Page<HealthPackage>>,
+          Promise<Page<Branch>>,
+          Promise<Page<Article>>,
+        ]);
+        if (cancelled) return;
+        setCatalog({
+          specialties: specialties.content,
+          doctors: doctors.content,
+          packages: packages.content,
+          branches: branches.content,
+          articles: articles.content,
+        });
+      } catch (error: unknown) {
+        if (!cancelled) setCatalogError(error instanceof Error ? error.message : "Không thể tải catalog từ backend.");
+      } finally {
+        if (!cancelled) setCatalogLoading(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+      void task;
+    };
+  }, []);
 
   const handleOpenBooking = (
     doctorId?: string,
@@ -226,37 +283,41 @@ export default function Home(): React.ReactElement {
     setIsBookingOpen(true);
   };
 
-  const handleAiSpecialtySelect = (specialtyName: string): void => {
-    const matchedSpecialty = SEED_SPECIALTIES.find(
-      (specialty) =>
-        specialty.name.includes(specialtyName) || specialtyName.includes(specialty.name),
-    );
+  const handleAiSpecialtySelect = (_specialtyName: string, specialtyId?: string): void => {
+    const matchedSpecialty = specialtyId
+      ? (catalog?.specialties ?? []).find((specialty) => specialty.id === specialtyId)
+      : undefined;
     handleOpenBooking(undefined, matchedSpecialty?.id, undefined);
   };
 
   const filteredSpecialties = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return SEED_SPECIALTIES;
-    return SEED_SPECIALTIES.filter(
+    const specialties = catalog?.specialties ?? [];
+    if (!query) return specialties;
+    return specialties.filter(
       (specialty) =>
         specialty.name.toLowerCase().includes(query) ||
         specialty.description.toLowerCase().includes(query),
     );
-  }, [searchQuery]);
+  }, [catalog?.specialties, searchQuery]);
 
   const filteredDoctors = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return SEED_DOCTORS;
-    return SEED_DOCTORS.filter(
+    const doctors = catalog?.doctors ?? [];
+    if (!query) return doctors;
+    return doctors.filter(
       (doctor) =>
         doctor.fullName.toLowerCase().includes(query) ||
         doctor.specialtyName?.toLowerCase().includes(query) ||
         doctor.bio.toLowerCase().includes(query),
     );
-  }, [searchQuery]);
+  }, [catalog?.doctors, searchQuery]);
 
-  const featuredPackage = SEED_PACKAGES.find((packageItem) => packageItem.featured) ?? SEED_PACKAGES[0];
-  const supportingPackages = SEED_PACKAGES.filter((packageItem) => packageItem.id !== featuredPackage?.id);
+  const packages = catalog?.packages ?? [];
+  const branches = catalog?.branches ?? [];
+  const articles = catalog?.articles ?? [];
+  const featuredPackage = packages.find((packageItem) => packageItem.featured) ?? packages[0];
+  const supportingPackages = packages.filter((packageItem) => packageItem.id !== featuredPackage?.id);
   const featuredDoctor = filteredDoctors[0];
   const supportingDoctors = filteredDoctors.slice(1, 4);
 
@@ -303,7 +364,7 @@ export default function Home(): React.ReactElement {
                 <button type="submit">Tìm kiếm</button>
               </form>
               <p className="hero-search__help" id="hero-search-help">
-                Tìm kiếm trong nội dung demo để chọn hướng đặt lịch phù hợp.
+                Tìm trong catalog đang được cung cấp bởi backend để chọn hướng đặt lịch phù hợp.
               </p>
               <div className="hero-actions">
                 <button className="button button--amber" onClick={() => handleOpenBooking()} type="button">
@@ -316,7 +377,7 @@ export default function Home(): React.ReactElement {
                 </button>
               </div>
               <DemoNote>
-                Bản demo: danh mục hiển thị là dữ liệu minh họa; trợ lý AI gọi backend khi bạn đã đăng nhập.
+                Catalog công khai lấy từ backend; trợ lý AI gọi backend khi bạn đã đăng nhập.
               </DemoNote>
               <div className="hero-trust" aria-label="Điểm nhấn của trải nghiệm đặt khám">
                 <div className="hero-trust__item">
@@ -401,7 +462,7 @@ export default function Home(): React.ReactElement {
                   Đặt theo nhu cầu
                 </button>
               </div>
-              <p id="care-search-help">Kết quả tìm kiếm chỉ dùng dữ liệu demo local trong phiên này.</p>
+              <p id="care-search-help">Kết quả tìm kiếm được lọc từ catalog công khai hiện tại.</p>
             </form>
 
             <div className="care-links" aria-label="Lối tắt chăm sóc">
@@ -455,16 +516,17 @@ export default function Home(): React.ReactElement {
                 <div className="specialty-aside__mark"><Icon name="stethoscope" size={28} /></div>
                 <h3>Thông tin rõ ràng trước khi đặt hẹn.</h3>
                 <p>Chọn một chuyên khoa để xem mô tả, bác sĩ liên quan và mở luồng đặt lịch.</p>
-                <DemoNote>Dữ liệu chuyên khoa trong bản demo local.</DemoNote>
+                <DemoNote>Dữ liệu chuyên khoa được tải từ catalog công khai.</DemoNote>
               </aside>
               <div className="specialty-list">
-                {filteredSpecialties.length > 0 ? filteredSpecialties.slice(0, 8).map((specialty, index) => (
+                <CatalogStatus error={catalogError} hasData={Boolean(catalog)} loading={catalogLoading} />
+                {!catalogLoading && catalog && filteredSpecialties.length > 0 ? filteredSpecialties.slice(0, 8).map((specialty, index) => (
                   <article className="specialty-row" key={specialty.id}>
                     <span className="specialty-row__index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
                     <div className="specialty-row__content">
                       <span className="specialty-row__icon"><Icon name={getSpecialtyIcon(specialty)} size={20} /></span>
                       <div>
-                        <h3><Link href={`/chuyen-khoa/${specialty.slug}`}>{specialty.name}</Link></h3>
+                        <h3><Link href={`/specialties/${specialty.slug}`}>{specialty.name}</Link></h3>
                         <p>{specialty.description}</p>
                       </div>
                     </div>
@@ -472,12 +534,12 @@ export default function Home(): React.ReactElement {
                       <Icon name="arrow-up-right" size={18} />
                     </button>
                   </article>
-                )) : (
+                )) : !catalogLoading && catalog ? (
                   <div className="empty-state">
-                    <p>Chưa có chuyên khoa khớp với “{searchQuery}”.</p>
+                    <p>{searchQuery ? `Chưa có chuyên khoa khớp với “${searchQuery}”.` : "Backend chưa có chuyên khoa active."}</p>
                     <button className="text-button" onClick={() => setSearchQuery("")} type="button">Xóa tìm kiếm <Icon name="x" size={17} /></button>
                   </div>
-                )}
+                ) : null}
               </div>
             </div>
           </div>
@@ -487,12 +549,13 @@ export default function Home(): React.ReactElement {
           <div className="section-inner">
             <SectionHeading
               action={<button className="section-link section-link--button" onClick={() => handleOpenBooking()} type="button">Đặt lịch với bác sĩ <Icon name="arrow-right" size={17} /></button>}
-              description="Những hồ sơ dưới đây là dữ liệu minh họa để trình bày trải nghiệm tìm bác sĩ trong bản demo."
+              description="Hồ sơ được lấy từ catalog backend để bạn chọn đúng chuyên môn và mở luồng đặt lịch."
               headingId="doctors-title"
               note="Đội ngũ chuyên gia"
               title="Một bác sĩ phù hợp có thể bắt đầu từ một câu hỏi"
             />
-            {featuredDoctor ? (
+            <CatalogStatus error={catalogError} hasData={Boolean(catalog)} loading={catalogLoading} />
+            {!catalogLoading && featuredDoctor ? (
               <div className="doctor-layout">
                 <DoctorCard doctor={featuredDoctor} featured onBook={(doctorId) => handleOpenBooking(doctorId)} />
                 <div className="doctor-stack">
@@ -503,7 +566,7 @@ export default function Home(): React.ReactElement {
               </div>
             ) : (
               <div className="empty-state empty-state--wide">
-                <p>Chưa có bác sĩ khớp với “{searchQuery}”.</p>
+                <p>{catalog ? (searchQuery ? `Chưa có bác sĩ khớp với “${searchQuery}”.` : "Backend chưa có bác sĩ active.") : ""}</p>
                 <button className="text-button" onClick={() => setSearchQuery("")} type="button">Xóa tìm kiếm <Icon name="x" size={17} /></button>
               </div>
             )}
@@ -514,7 +577,7 @@ export default function Home(): React.ReactElement {
           <div className="section-inner">
             <SectionHeading
               action={<Link className="section-link" href="/packages">Xem danh mục gói khám <Icon name="arrow-right" size={17} /></Link>}
-              description="Các gói khám trong dữ liệu demo được trình bày để bạn xem cấu trúc lựa chọn, hạng mục và luồng đặt lịch."
+              description="Các gói khám active được lấy từ backend; giá và mô tả hiển thị đúng theo contract công khai."
               headingId="packages-title"
               note="Gói khám sức khỏe"
               title="Chủ động kiểm tra, bắt đầu từ điều phù hợp"
@@ -523,7 +586,7 @@ export default function Home(): React.ReactElement {
               {featuredPackage ? (
                 <article className="package-feature">
                   <div>
-                    <span className="package-badge">Gợi ý trong dữ liệu demo</span>
+                    <span className="package-badge">Từ catalog backend</span>
                     <p className="package-feature__eyebrow">Gói nổi bật</p>
                     <h3>{featuredPackage.name}</h3>
                     <p>{featuredPackage.description}</p>
@@ -538,12 +601,13 @@ export default function Home(): React.ReactElement {
                     <button className="button button--amber" onClick={() => handleOpenBooking(undefined, undefined, featuredPackage.id)} type="button">
                       Đặt gói khám này <Icon name="arrow-up-right" size={18} />
                     </button>
-                    <Link className="text-button text-button--light" href={`/goi-kham/${featuredPackage.slug}`}>Xem chi tiết <Icon name="arrow-right" size={17} /></Link>
+                    <Link className="text-button text-button--light" href={`/packages/${featuredPackage.slug}`}>Xem chi tiết <Icon name="arrow-right" size={17} /></Link>
                   </div>
-                </article>
+              </article>
               ) : null}
               <div className="package-list">
-                {supportingPackages.map((packageItem) => (
+                <CatalogStatus error={catalogError} hasData={Boolean(catalog)} loading={catalogLoading} />
+                {!catalogLoading && catalog && supportingPackages.map((packageItem) => (
                   <PackageRow key={packageItem.id} onBook={(packageId) => handleOpenBooking(undefined, undefined, packageId)} packageItem={packageItem} />
                 ))}
               </div>
@@ -578,7 +642,7 @@ export default function Home(): React.ReactElement {
                 <div className="support-panel__icon"><Icon name="shield-check" size={26} /></div>
                 <p className="section-note">Hướng dẫn và bảo hiểm</p>
                 <h3>Chuẩn bị thông tin cần thiết trước khi đến cơ sở.</h3>
-                <p>Thông tin về BHYT, bảo lãnh viện phí và giấy tờ cần mang theo đang được hoàn thiện trong bản demo.</p>
+                <p>Thông tin về BHYT, bảo lãnh viện phí và giấy tờ cần mang theo được trình bày rõ trong hướng dẫn dành cho người bệnh.</p>
                 <Link className="button button--light" href="/huong-dan">Xem hướng dẫn <Icon name="arrow-up-right" size={18} /></Link>
               </aside>
             </div>
@@ -598,12 +662,13 @@ export default function Home(): React.ReactElement {
               <div className="branch-intro">
                 <div className="branch-intro__topline"><Icon name="location" size={20} /><span>TP. Hồ Chí Minh</span></div>
                 <h3>Chọn nơi bạn muốn bắt đầu chăm sóc.</h3>
-                <p>Địa chỉ và giờ làm việc dưới đây lấy từ dữ liệu demo local. Hãy kiểm tra lại trước khi đến.</p>
+                <p>Địa chỉ và giờ làm việc lấy từ catalog backend. Hãy kiểm tra lại trước khi đến.</p>
                 <DemoNote>Chưa kết nối bản đồ trực tiếp trong bản demo.</DemoNote>
                 <a className="text-button" href="tel:19001234">Gọi cấp cứu 1900 1234 <Icon name="phone" size={17} /></a>
               </div>
               <div className="branch-list">
-                {SEED_BRANCHES.map((branch, index) => (
+                <CatalogStatus error={catalogError} hasData={Boolean(catalog)} loading={catalogLoading} />
+                {!catalogLoading && catalog && branches.map((branch, index) => (
                   <article className="branch-row" key={branch.id}>
                     <span className="branch-row__index">0{index + 1}</span>
                     <div>
@@ -634,23 +699,24 @@ export default function Home(): React.ReactElement {
             <div className="content-layout">
               <article className="video-card">
                 <div className="video-card__visual">
-                  <span className="video-card__label">Video demo</span>
+                  <span className="video-card__label">Gợi ý đọc</span>
                   <span className="video-card__circle"><Icon name="play" size={22} /></span>
                 </div>
                 <div className="video-card__body">
-                  <p className="content-meta">Nội dung đang hoàn thiện</p>
-                  <h3>Hướng dẫn chuẩn bị cho một buổi khám hiệu quả</h3>
-                  <p>Thẻ video là placeholder có nhãn rõ ràng, chưa phát nội dung trực tiếp.</p>
+                  <p className="content-meta">Từ cẩm nang backend</p>
+                  <h3>{articles[0]?.title ?? "Cẩm nang sức khỏe đang được cập nhật"}</h3>
+                  <p>{articles[0]?.summary ?? "Khi backend chưa có bài viết, danh mục sẽ hiển thị trạng thái trống rõ ràng."}</p>
                   <Link className="text-button" href="/articles">Mở danh mục bài viết <Icon name="arrow-up-right" size={17} /></Link>
                 </div>
               </article>
               <div className="article-list">
-                {DEMO_ARTICLES.map((article, index) => (
-                  <article className="article-row" key={article.title}>
+                <CatalogStatus error={catalogError} hasData={Boolean(catalog)} loading={catalogLoading} />
+                {!catalogLoading && catalog && articles.slice(0, 3).map((article, index) => (
+                  <article className="article-row" key={article.id}>
                     <span className="article-row__index">0{index + 1}</span>
                     <div>
-                      <p className="content-meta">{article.type}</p>
-                      <h3><Link href="/articles">{article.title}</Link></h3>
+                      <p className="content-meta">{formatPublishedAt(article.publishedAt)}</p>
+                      <h3><Link href={`/articles/${article.slug}`}>{article.title}</Link></h3>
                       <p>{article.summary}</p>
                     </div>
                     <Icon name="arrow-up-right" size={18} />
@@ -697,7 +763,10 @@ export default function Home(): React.ReactElement {
         initialSpecialtyId={selectedSpecialtyId}
         isOpen={isBookingOpen}
         onClose={() => setIsBookingOpen(false)}
-        packages={SEED_PACKAGES}
+        branches={branches}
+        doctors={catalog?.doctors ?? []}
+        packages={packages}
+        specialties={catalog?.specialties ?? []}
       />
       <AiTriageModal
         isOpen={isAiTriageOpen}

@@ -38,6 +38,19 @@ export interface HealthPackage {
   checklist?: string[];
 }
 
+export interface MedicalService {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+}
+
+export interface Faq {
+  id: string;
+  question: string;
+  answer: string;
+}
+
 export interface Article {
   id: string;
   title: string;
@@ -139,6 +152,8 @@ export type AiTriageProvenance = string | Record<string, unknown>;
 
 export interface AiTriageResult {
   recommendedSpecialty: string;
+  recommendedSpecialtyId?: string;
+  specialtyResolution?: "RESOLVED" | "UNRESOLVED";
   urgencyLevel: "EMERGENCY" | "HIGH" | "NORMAL";
   advice: string;
   suggestedQuestions: string[];

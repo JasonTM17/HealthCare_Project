@@ -19,21 +19,17 @@ test("slot client carries branch identity and rejects mismatched responses", asy
   assert.match(types, /export interface HoldSlotPayload \{[\s\S]*branchId: string;/);
 });
 
-test("booking fallback doctors keep the SQL seed identities", async () => {
+test("booking catalog no longer carries frontend seed identities", async () => {
   const source = await readFile(apiPath, "utf8");
 
-  assert.match(source, /nguyen-minh-khoi/);
-  assert.match(source, /tran-thu-ha/);
-  assert.match(source, /le-van-duc/);
-  assert.match(source, /pham-hoang-yen/);
-  assert.doesNotMatch(source, /nguyen-van-an|tran-bich-ngoc|le-hoang-minh|pham-quoc-hung/);
+  assert.doesNotMatch(source, /SEED_|nguyen-minh-khoi|tran-thu-ha|le-van-duc|pham-hoang-yen/);
 });
 
 test("branch two selection resets slot identity and passes the selected branch to hold", async () => {
   const source = await readFile(modalPath, "utf8");
 
   assert.match(source, /const handleBranchChange = \(branchId: string\)/);
-  assert.match(source, /SEED_DOCTORS\.find\(\(doctor\) => doctor\.branchId === branchId\)/);
+  assert.match(source, /doctors\.find\(\(doctor\) => doctor\.branchId === branchId\)/);
   assert.match(source, /fetchDoctorSlots\(selectedDoctor, selectedBranch, selectedDate\)/);
   assert.match(source, /branchId: selectedBranch/);
   assert.match(source, /chosenSlot\.branchId !== selectedBranch/);

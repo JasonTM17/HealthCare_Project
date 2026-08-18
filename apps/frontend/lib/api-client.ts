@@ -6,6 +6,8 @@ import type {
   Specialty,
   Branch,
   HealthPackage,
+  MedicalService,
+  Faq,
   Article,
   MedicalRecord,
   Notification,
@@ -27,6 +29,8 @@ export type {
   Specialty,
   Branch,
   HealthPackage,
+  MedicalService,
+  Faq,
   Article,
   MedicalRecord,
   Notification,
@@ -181,6 +185,8 @@ async function getAuthenticatedJson<T>(path: string, init?: RequestInit): Promis
 
 interface SpecialtyRecommendationResponse {
   recommended_specialty: unknown;
+  recommended_specialty_id?: unknown;
+  specialty_resolution?: unknown;
   urgency_level: unknown;
   clinical_advice: unknown;
   suggested_questions: unknown;
@@ -256,6 +262,13 @@ export async function recommendSpecialty(symptoms: string): Promise<AiTriageResu
     advice: response.clinical_advice,
     suggestedQuestions: response.suggested_questions,
   };
+
+  if (typeof response.recommended_specialty_id === "string" && response.recommended_specialty_id.trim()) {
+    result.recommendedSpecialtyId = response.recommended_specialty_id;
+  }
+  if (response.specialty_resolution === "RESOLVED" || response.specialty_resolution === "UNRESOLVED") {
+    result.specialtyResolution = response.specialty_resolution;
+  }
 
   if (typeof response.disclaimer === "string" && response.disclaimer.trim()) {
     result.disclaimer = response.disclaimer;
@@ -352,6 +365,55 @@ export async function fetchPackages(
 
 export async function fetchPackageBySlug(slug: string): Promise<HealthPackage> {
   return getJson<HealthPackage>(`/hospital/packages/${slug}`);
+}
+
+// ── Services and FAQs ───────────────────────────────────────────────────────
+
+export async function fetchServices(
+  page = 0,
+  size = 50,
+): Promise<Page<MedicalService>> {
+  return getJson<Page<MedicalService>>(
+    `/hospital/services${toQuery({ page, size })}`,
+  );
+}
+
+export async function fetchServiceBySlug(slug: string): Promise<MedicalService> {
+  return getJson<MedicalService>(`/hospital/services/${encodeURIComponent(slug)}`);
+}
+
+export async function fetchFaqs(
+  page = 0,
+  size = 50,
+): Promise<Page<Faq>> {
+  return getJson<Page<Faq>>(`/hospital/faqs${toQuery({ page, size })}`);
+}
+
+// ── Admin: Services ─────────────────────────────────────────────────────────
+
+export interface AdminServicePayload {
+  name: string;
+  slug: string;
+  description?: string | null;
+  active: boolean;
+}
+
+export async function adminCreateService(payload: AdminServicePayload): Promise<MedicalService> {
+  return getAuthenticatedJson<MedicalService>("/admin/services", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function adminUpdateService(slug: string, payload: AdminServicePayload): Promise<MedicalService> {
+  return getAuthenticatedJson<MedicalService>(`/admin/services/${encodeURIComponent(slug)}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function adminDeleteService(slug: string): Promise<void> {
+  await getAuthenticatedJson<void>(`/admin/services/${encodeURIComponent(slug)}`, { method: "DELETE" });
 }
 
 // ── Articles ───────────────────────────────────────────────────────────────
