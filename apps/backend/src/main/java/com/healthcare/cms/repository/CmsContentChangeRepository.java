@@ -16,8 +16,7 @@ public interface CmsContentChangeRepository extends JpaRepository<CmsContentChan
     @Query("select c from CmsContentChange c where c.id > :afterId and c.publicEvent = true order by c.id asc")
     List<CmsContentChange> findAfterId(@Param("afterId") long afterId, Pageable pageable);
 
-    @Query("select c from CmsContentChange c where c.publicEvent = true order by c.id desc")
-    Optional<CmsContentChange> findTopByOrderByIdDesc();
+    Optional<CmsContentChange> findTopByPublicEventTrueOrderByIdDesc();
 
     List<CmsContentChange> findBySlotKeyOrderByIdDesc(String slotKey, Pageable pageable);
 

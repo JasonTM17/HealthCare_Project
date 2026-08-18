@@ -9,7 +9,11 @@ Draft payloads and content bodies are never sent through the feed.
 ## API contract
 
 - `GET /api/v1/cms/content` — published snapshots for all slots.
-- `GET /api/v1/cms/content/{slotKey}` — one published snapshot.
+- `GET /api/v1/cms/content/{slotKey}` — one published snapshot. A read with
+  `?afterEventId=<durable-feed-cursor>` explicitly bypasses the backend's
+  in-process snapshot cache and is used for heartbeat/reconnect reconciliation;
+  this prevents a backend that missed Redis Pub/Sub from acknowledging a new
+  cursor with stale content.
 - `GET /api/v1/cms/content/events` — public SSE feed. `Last-Event-ID` or the
   `after` query parameter requests replay. Replay is capped at 50 events;
   older cursors receive `resync` and must refetch the snapshot endpoint.

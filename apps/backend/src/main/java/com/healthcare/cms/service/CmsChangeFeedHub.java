@@ -155,7 +155,7 @@ public class CmsChangeFeedHub {
     }
 
     private long latestEventId() {
-        return changeRepository.findTopByOrderByIdDesc()
+        return changeRepository.findTopByPublicEventTrueOrderByIdDesc()
             .map(CmsContentChange::getId)
             .orElse(0L);
     }

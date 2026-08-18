@@ -55,10 +55,28 @@ public class CmsContentService {
 
     @Transactional(readOnly = true)
     public CmsContentResponse getPublished(String slotKey) {
+        return getPublished(slotKey, null);
+    }
+
+    /**
+     * Reads a published snapshot. A non-null feed cursor is an explicit
+     * reconciliation read: bypass the local cache so a backend that missed a
+     * Redis event cannot acknowledge a newer durable cursor with stale data.
+     */
+    @Transactional(readOnly = true)
+    public CmsContentResponse getPublished(String slotKey, Long afterEventId) {
         String validatedSlotKey = validateSlotKey(slotKey);
-        CmsContentResponse cached = cache.get(validatedSlotKey);
-        if (cached != null) {
-            return cached;
+        if (afterEventId != null) {
+            if (afterEventId < 0L) {
+                throw new com.healthcare.cms.exception.CmsPayloadValidationException(
+                    "afterEventId must be a non-negative feed cursor"
+                );
+            }
+        } else {
+            CmsContentResponse cached = cache.get(validatedSlotKey);
+            if (cached != null) {
+                return cached;
+            }
         }
 
         CmsContent content = contentRepository.findBySlotKeyAndStatus(

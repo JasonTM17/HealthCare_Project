@@ -102,9 +102,17 @@ export function CmsLiveSlot({
       return Math.max(0, ...pendingEventVersions.current.values());
     };
 
-    const refresh = async (minimumVersion = 0): Promise<RefreshResult> => {
+    const pendingEventCursor = (): number | undefined => {
+      if (pendingEventIds.current.size === 0) return undefined;
+      return Math.max(...pendingEventIds.current);
+    };
+
+    const refresh = async (minimumVersion = 0, afterEventId?: number): Promise<RefreshResult> => {
       try {
-        const nextContent = await client.getPublishedContent(backendSlotKey);
+        const nextContent = await client.getPublishedContent(
+          backendSlotKey,
+          afterEventId === undefined ? undefined : { afterEventId },
+        );
         if (cancelled || nextContent.status !== "PUBLISHED") return "failed";
         if (nextContent.version < minimumVersion) {
           setError(new CmsApiError(
@@ -139,7 +147,7 @@ export function CmsLiveSlot({
       setTransport("polling");
       pollTimer = setInterval(() => {
         const minimumVersion = pendingVersionFloor();
-        void refresh(minimumVersion).then((result) => {
+        void refresh(minimumVersion, pendingEventCursor()).then((result) => {
           if (
             result === "failed"
             || (result === "not-found" && minimumVersion > 0)
@@ -198,7 +206,7 @@ export function CmsLiveSlot({
           if (event.published) {
             pendingEventIds.current.add(event.eventId);
             pendingEventVersions.current.set(event.eventId, event.version);
-            void refresh(event.version).then((result) => {
+            void refresh(event.version, event.eventId).then((result) => {
               if (result === "updated" && !cancelled) {
                 setLiveNotice(`Đã đồng bộ ${backendSlotKey}, version ${latestVersion.current}.`);
                 resolvePendingEvent(event.eventId);
@@ -235,7 +243,7 @@ export function CmsLiveSlot({
           scheduleReconnect();
         },
         onResync: (event) => {
-          void refresh(pendingVersionFloor()).then((result) => {
+          void refresh(pendingVersionFloor(), event.latestEventId).then((result) => {
             if (result !== "failed" && !cancelled) {
               pendingEventIds.current.clear();
               pendingEventVersions.current.clear();
@@ -252,7 +260,7 @@ export function CmsLiveSlot({
         },
         onHeartbeat: (heartbeat) => {
           if (heartbeat.latestEventId <= latestEventId.current) return;
-          void refresh().then((result) => {
+          void refresh(0, heartbeat.latestEventId).then((result) => {
             if (cancelled) return;
             if (result === "failed") {
               // The durable cursor proves that a broker event may have been

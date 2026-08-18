@@ -106,6 +106,11 @@ export interface CmsRollbackInput {
   expectedVersion: number;
 }
 
+export interface CmsPublishedContentReadOptions {
+  /** Durable SSE cursor that requires a cache-bypassing reconciliation read. */
+  afterEventId?: number;
+}
+
 export type CmsFieldErrors = Record<string, string>;
 
 export type CmsApiErrorKind =
@@ -590,8 +595,13 @@ export class CmsClient {
     this.eventSourceFactory = options.eventSourceFactory ?? ((url) => new EventSource(url));
   }
 
-  private contentPath(slotKey: string): string {
-    return `/cms/content/${encodeURIComponent(validateSlotKey(slotKey))}`;
+  private contentPath(slotKey: string, options?: CmsPublishedContentReadOptions): string {
+    const path = `/cms/content/${encodeURIComponent(validateSlotKey(slotKey))}`;
+    if (options?.afterEventId === undefined) return path;
+    if (!Number.isSafeInteger(options.afterEventId) || options.afterEventId < 0) {
+      throw new CmsValidationError("afterEventId phải là số nguyên không âm.");
+    }
+    return `${path}?afterEventId=${encodeURIComponent(String(options.afterEventId))}`;
   }
 
   private adminContentPath(slotKey: string): string {
@@ -643,8 +653,11 @@ export class CmsClient {
     }
   }
 
-  async getPublishedContent(slotKey: string): Promise<CmsContent> {
-    return this.requestContent(this.contentPath(slotKey));
+  async getPublishedContent(
+    slotKey: string,
+    options?: CmsPublishedContentReadOptions,
+  ): Promise<CmsContent> {
+    return this.requestContent(this.contentPath(slotKey, options));
   }
 
   async getAdminContent(slotKey: string): Promise<CmsContent> {

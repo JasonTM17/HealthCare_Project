@@ -1,6 +1,10 @@
 package com.healthcare.cms;
 
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.healthcare.AbstractIntegrationTest;
+import com.healthcare.cms.dto.CmsContentResponse;
+import com.healthcare.cms.entity.CmsComponentType;
+import com.healthcare.cms.entity.CmsPublicationStatus;
 import com.healthcare.cms.repository.CmsContentChangeRepository;
 import com.healthcare.cms.service.CmsPublishedContentCache;
 import com.healthcare.security.JwtTokenProvider;
@@ -132,6 +136,51 @@ class CmsContentIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void feedCursorReconciliationBypassesAStalePublishedCache() throws Exception {
+        String admin = bearer("ADMIN");
+        String first = request("NOTICE", "PUBLISHED", 0, "{\"title\":\"First\",\"body\":\"Initial\"}");
+        String second = request("NOTICE", "PUBLISHED", 1, "{\"title\":\"Second\",\"body\":\"Current\"}");
+
+        mockMvc.perform(put("/api/v1/admin/cms/content/cache-reconcile-slot")
+                .header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(first))
+            .andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/cms/content/cache-reconcile-slot"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.payload.title").value("First"));
+
+        mockMvc.perform(put("/api/v1/admin/cms/content/cache-reconcile-slot")
+                .header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(second))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.version").value(2));
+
+        cache.put(new CmsContentResponse(
+            "cache-reconcile-slot",
+            CmsComponentType.NOTICE,
+            JsonNodeFactory.instance.objectNode().put("title", "Stale"),
+            CmsPublicationStatus.PUBLISHED,
+            1L,
+            OffsetDateTime.now()
+        ));
+        mockMvc.perform(get("/api/v1/cms/content/cache-reconcile-slot"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.payload.title").value("Stale"))
+            .andExpect(jsonPath("$.version").value(1));
+
+        long latestEventId = changeRepository.findTopByPublicEventTrueOrderByIdDesc()
+            .orElseThrow()
+            .getId();
+        mockMvc.perform(get("/api/v1/cms/content/cache-reconcile-slot")
+                .param("afterEventId", Long.toString(latestEventId)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.payload.title").value("Second"))
+            .andExpect(jsonPath("$.version").value(2));
+    }
+
+    @Test
     void draftIsHiddenUntilPublishedAndUnpublishRemovesIt() throws Exception {
         String draft = request("RICH_TEXT", "DRAFT", 0, "{\"title\":\"Draft title\",\"body\":\"Draft body\"}");
         String publish = request("RICH_TEXT", "PUBLISHED", 1, "{\"title\":\"Published title\",\"body\":\"Published body\"}");
@@ -188,7 +237,7 @@ class CmsContentIntegrationTest extends AbstractIntegrationTest {
             .contains("\"version\":1")
             .doesNotContain("payload")
             .doesNotContain("SSE body");
-        assertThat(changeRepository.findTopByOrderByIdDesc()).isPresent();
+        assertThat(changeRepository.findTopByPublicEventTrueOrderByIdDesc()).isPresent();
     }
 
     @Test
