@@ -9,6 +9,7 @@ import {
   type CmsContent,
   type CmsSlotKey,
 } from "../../lib/cms-client";
+import { CmsReconciliationLedger } from "../../lib/cms-reconciliation.mjs";
 import { CmsSlotRenderer } from "./CmsRenderer";
 
 export interface CmsLiveSlotProps {
@@ -57,10 +58,6 @@ export function CmsLiveSlot({
   const [transport, setTransport] = useState<LiveTransport>("connecting");
   const [liveNotice, setLiveNotice] = useState<string | null>(null);
   const latestVersion = useRef(0);
-  const latestEventId = useRef(0);
-  const highestObservedEventId = useRef(0);
-  const pendingEventIds = useRef<Set<number>>(new Set());
-  const pendingEventVersions = useRef<Map<number, number>>(new Map());
 
   useEffect(() => {
     let cancelled = false;
@@ -68,57 +65,38 @@ export function CmsLiveSlot({
     let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
     let reconnectAttempt = 0;
     let sseConnected = false;
-    let reconciliationCursor = 0;
+    const reconciliation = new CmsReconciliationLedger();
     let stopFeed: () => void = () => undefined;
     let stopPolling: () => void = () => undefined;
     latestVersion.current = 0;
-    latestEventId.current = 0;
-    highestObservedEventId.current = 0;
-    pendingEventIds.current.clear();
-    pendingEventVersions.current.clear();
     void Promise.resolve().then(() => {
       if (!cancelled) setLiveNotice(null);
     });
 
-    const advanceCursor = (): void => {
-      if (reconciliationCursor > 0) return;
-      const pendingIds = [...pendingEventIds.current];
-      const earliestPendingId = pendingIds.length > 0 ? Math.min(...pendingIds) : undefined;
-      const safeCursor = earliestPendingId === undefined
-        ? highestObservedEventId.current
-        : earliestPendingId - 1;
-      latestEventId.current = Math.max(latestEventId.current, safeCursor);
-    };
-
     const resolvePendingEvent = (eventId: number): void => {
-      pendingEventIds.current.delete(eventId);
-      pendingEventVersions.current.delete(eventId);
-      advanceCursor();
-      if (pendingEventIds.current.size === 0 && reconciliationCursor === 0 && sseConnected) {
+      reconciliation.resolvePending(eventId);
+      if (reconciliation.pendingEventIds.size === 0
+        && reconciliation.reconciliationCursor === 0
+        && sseConnected) {
         stopPolling();
         setTransport("sse");
       }
     };
 
     const pendingVersionFloor = (): number => {
-      return Math.max(0, ...pendingEventVersions.current.values());
+      return reconciliation.pendingVersionFloor();
     };
 
     const pendingEventCursor = (): number | undefined => {
-      const pendingCursor = pendingEventIds.current.size === 0
-        ? 0
-        : Math.max(...pendingEventIds.current);
-      const cursor = Math.max(reconciliationCursor, pendingCursor);
-      return cursor > 0 ? cursor : undefined;
+      return reconciliation.pendingEventCursor();
     };
 
     const beginReconciliation = (eventId: number): void => {
-      reconciliationCursor = Math.max(reconciliationCursor, eventId);
+      reconciliation.beginReconciliation(eventId);
     };
 
-    const finishReconciliation = (eventId: number): void => {
-      highestObservedEventId.current = Math.max(highestObservedEventId.current, eventId);
-      if (reconciliationCursor <= eventId) reconciliationCursor = 0;
+    const finishReconciliation = (eventId: number): boolean => {
+      return reconciliation.acknowledgeThrough(eventId);
     };
 
     const refresh = async (minimumVersion = 0, afterEventId?: number): Promise<RefreshResult> => {
@@ -163,26 +141,25 @@ export function CmsLiveSlot({
       pollTimer = setInterval(() => {
         const minimumVersion = pendingVersionFloor();
         const afterEventId = pendingEventCursor();
-        const hasPendingReconciliation = pendingEventIds.current.size > 0 || reconciliationCursor > 0;
+        const hasPendingReconciliation = reconciliation.hasPendingWork;
         void refresh(minimumVersion, afterEventId).then((result) => {
           if (
             result === "failed"
             || (result === "not-found" && minimumVersion > 0)
             || cancelled
             || !hasPendingReconciliation
+            || afterEventId === undefined
           ) return;
-          if (reconciliationCursor > 0) {
-            highestObservedEventId.current = Math.max(
-              highestObservedEventId.current,
-              reconciliationCursor,
-            );
-            reconciliationCursor = 0;
+          if (!finishReconciliation(afterEventId)) {
+            // A newer heartbeat/event won the race. Keep the polling loop
+            // alive and retry with the newer authoritative cursor.
+            startPolling();
+            return;
           }
-          pendingEventIds.current.clear();
-          pendingEventVersions.current.clear();
-          advanceCursor();
           setLiveNotice(`Đã đồng bộ ${backendSlotKey}, version ${latestVersion.current}.`);
-          if (sseConnected) {
+          if (sseConnected
+            && reconciliation.pendingEventIds.size === 0
+            && reconciliation.reconciliationCursor === 0) {
             stopPolling();
             setTransport("sse");
           }
@@ -213,23 +190,27 @@ export function CmsLiveSlot({
         // Keep zero explicit so a reconnect after a failed first refresh asks
         // the backend to replay from the beginning instead of silently
         // dropping the event that triggered the failed refresh.
-        after: latestEventId.current,
+        after: reconciliation.latestEventId,
         onChange: (event) => {
-          if (event.eventId <= latestEventId.current) return;
-          highestObservedEventId.current = Math.max(highestObservedEventId.current, event.eventId);
+          if (event.eventId <= reconciliation.latestEventId) return;
+          const hasEventGap = reconciliation.observe(event.eventId);
+          if (hasEventGap) {
+            beginReconciliation(event.eventId);
+            startPolling();
+          }
           if (event.slotKey !== backendSlotKey) {
             // The change feed is global. Acknowledging unrelated IDs lets the
-            // cursor advance, while pending relevant IDs still block it.
-            advanceCursor();
+            // contiguous cursor advance, while pending relevant IDs still
+            // block it. A gap is reconciled through the durable snapshot.
+            reconciliation.advanceCursor();
             return;
           }
           if (event.version <= latestVersion.current) {
-            advanceCursor();
+            reconciliation.advanceCursor();
             return;
           }
           if (event.published) {
-            pendingEventIds.current.add(event.eventId);
-            pendingEventVersions.current.set(event.eventId, event.version);
+            reconciliation.markPending(event.eventId, event.version);
             void refresh(event.version, event.eventId).then((result) => {
               if (result === "updated" && !cancelled) {
                 setLiveNotice(`Đã đồng bộ ${backendSlotKey}, version ${latestVersion.current}.`);
@@ -245,14 +226,15 @@ export function CmsLiveSlot({
             setContent(null);
             setError(new CmsApiError("not-found", 404, "Slot hiện không còn PUBLISHED."));
             setLoading(false);
-            advanceCursor();
+            reconciliation.advanceCursor();
           }
         },
         onConnected: () => {
           if (cancelled) return;
           reconnectAttempt = 0;
           sseConnected = true;
-          if (pendingEventIds.current.size === 0 && reconciliationCursor === 0) {
+          if (reconciliation.pendingEventIds.size === 0
+            && reconciliation.reconciliationCursor === 0) {
             stopPolling();
             setTransport("sse");
           } else {
@@ -268,14 +250,17 @@ export function CmsLiveSlot({
         },
         onResync: (event) => {
           beginReconciliation(event.latestEventId);
+          startPolling();
           void refresh(pendingVersionFloor(), event.latestEventId).then((result) => {
             if (result !== "failed" && !cancelled) {
-              pendingEventIds.current.clear();
-              pendingEventVersions.current.clear();
-              finishReconciliation(event.latestEventId);
-              latestEventId.current = Math.max(latestEventId.current, event.latestEventId);
+              if (!finishReconciliation(event.latestEventId)) {
+                startPolling();
+                return;
+              }
               setLiveNotice(`Đã resync nội dung live từ backend, version ${latestVersion.current}.`);
-              if (sseConnected) {
+              if (sseConnected
+                && reconciliation.pendingEventIds.size === 0
+                && reconciliation.reconciliationCursor === 0) {
                 stopPolling();
                 setTransport("sse");
               }
@@ -284,8 +269,9 @@ export function CmsLiveSlot({
           });
         },
         onHeartbeat: (heartbeat) => {
-          if (heartbeat.latestEventId <= latestEventId.current) return;
+          if (heartbeat.latestEventId <= reconciliation.latestEventId) return;
           beginReconciliation(heartbeat.latestEventId);
+          startPolling();
           void refresh(0, heartbeat.latestEventId).then((result) => {
             if (cancelled) return;
             if (result === "failed") {
@@ -294,13 +280,14 @@ export function CmsLiveSlot({
               startPolling();
               return;
             }
-            pendingEventIds.current.clear();
-            pendingEventVersions.current.clear();
-            finishReconciliation(heartbeat.latestEventId);
-            latestEventId.current = Math.max(latestEventId.current, heartbeat.latestEventId);
-            advanceCursor();
+            if (!finishReconciliation(heartbeat.latestEventId)) {
+              startPolling();
+              return;
+            }
             setLiveNotice("Đã kiểm tra lại nội dung live, version " + latestVersion.current + ".");
-            if (sseConnected) {
+            if (sseConnected
+              && reconciliation.pendingEventIds.size === 0
+              && reconciliation.reconciliationCursor === 0) {
               stopPolling();
               setTransport("sse");
             }

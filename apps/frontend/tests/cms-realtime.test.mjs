@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { CmsReconciliationLedger } from "../lib/cms-reconciliation.mjs";
 
 const read = (relativePath) => readFile(new URL(`../${relativePath}`, import.meta.url), "utf8");
 
@@ -65,10 +66,10 @@ test("public live slot listens to named SSE changes and has polling fallback", a
   assert.match(liveSlot, /scheduleReconnect/);
   assert.match(liveSlot, /reconnectAttempt/);
   assert.match(liveSlot, /sseConnected/);
-  assert.match(liveSlot, /pendingEventVersions/);
+  assert.match(liveSlot, /pendingVersionFloor/);
   assert.match(liveSlot, /refresh\(event\.version, event\.eventId\)/);
   assert.match(liveSlot, /refresh\(pendingVersionFloor\(\), event\.latestEventId\)/);
-  assert.match(liveSlot, /pendingEventIds\.current\.size === 0/);
+  assert.match(liveSlot, /reconciliation\.pendingEventIds\.size === 0/);
   assert.match(liveSlot, /startPolling\(\)/);
   assert.match(liveSlot, /if \(result === "failed" && !cancelled\) startPolling\(\)/);
   assert.match(liveSlot, /onResync/);
@@ -76,12 +77,42 @@ test("public live slot listens to named SSE changes and has polling fallback", a
   assert.match(liveSlot, /heartbeat\.latestEventId/);
   assert.match(liveSlot, /refresh\(0, heartbeat\.latestEventId\)/);
   assert.match(liveSlot, /setError\(new CmsApiError\("not-found", 404/);
+  assert.match(liveSlot, /CmsReconciliationLedger/);
+  assert.match(liveSlot, /reconciliation\.observe\(event\.eventId\)/);
+  assert.match(liveSlot, /acknowledgeThrough/);
+  assert.match(liveSlot, /if \(!finishReconciliation\(event\.latestEventId\)\)/);
+  assert.match(liveSlot, /reconciliation\.pendingEventIds\.size === 0/);
   assert.match(liveSlot, /reconciliationCursor/);
   assert.match(liveSlot, /refresh\(minimumVersion, afterEventId\)/);
-  assert.match(liveSlot, /pendingEventIds\.current\.size === 0 && reconciliationCursor === 0/);
+  assert.match(liveSlot, /reconciliation\.pendingEventIds\.size === 0\s+&& reconciliation\.reconciliationCursor === 0/);
   assert.match(liveSlot, /result !== "failed"/);
   assert.match(liveSlot, /data-cms-live-source="live-backend"/);
   assert.doesNotMatch(liveSlot, /window\.location\.reload/);
+});
+
+test("CMS reconciliation ledger preserves contiguous order across reordered events and requests", () => {
+  const events = new CmsReconciliationLedger(10);
+
+  // An unrelated event 12 may arrive before relevant event 11. The client
+  // must not acknowledge the gap or discard event 11 as already handled.
+  assert.equal(events.observe(12), true);
+  events.advanceCursor();
+  assert.equal(events.latestEventId, 10);
+  assert.equal(events.observe(11), false);
+  events.markPending(11, 7);
+  events.advanceCursor();
+  assert.equal(events.latestEventId, 10);
+  events.resolvePending(11);
+  assert.equal(events.latestEventId, 12);
+
+  // A stale request must not clear a newer reconciliation target.
+  events.beginReconciliation(12);
+  events.beginReconciliation(13);
+  assert.equal(events.acknowledgeThrough(12), false);
+  assert.equal(events.reconciliationCursor, 13);
+  assert.equal(events.acknowledgeThrough(13), true);
+  assert.equal(events.latestEventId, 13);
+  assert.equal(events.reconciliationCursor, 0);
 });
 
 test("admin editor exposes typed status/version and protected API states", async () => {
