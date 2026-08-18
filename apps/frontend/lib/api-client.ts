@@ -264,11 +264,17 @@ export async function recommendSpecialty(symptoms: string): Promise<AiTriageResu
     suggestedQuestions: response.suggested_questions,
   };
 
-  if (typeof response.recommended_specialty_id === "string" && UUID_PATTERN.test(response.recommended_specialty_id)) {
-    result.recommendedSpecialtyId = response.recommended_specialty_id;
-  }
   if (response.specialty_resolution === "RESOLVED" || response.specialty_resolution === "UNRESOLVED") {
     result.specialtyResolution = response.specialty_resolution;
+  }
+  // A provider response may contain a syntactically valid but untrusted ID.
+  // Only the backend's explicit SQL resolution may cross into booking.
+  if (
+    result.specialtyResolution === "RESOLVED" &&
+    typeof response.recommended_specialty_id === "string" &&
+    UUID_PATTERN.test(response.recommended_specialty_id)
+  ) {
+    result.recommendedSpecialtyId = response.recommended_specialty_id;
   }
 
   if (typeof response.disclaimer === "string" && response.disclaimer.trim()) {

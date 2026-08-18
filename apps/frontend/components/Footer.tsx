@@ -1,8 +1,18 @@
 import Link from "next/link";
 import React from "react";
+import type { Branch } from "../types/hospital";
 import Icon from "./UiIcon";
 
-const Footer: React.FC = () => (
+interface FooterProps {
+  branches?: Branch[];
+}
+
+const Footer: React.FC<FooterProps> = ({ branches = [] }) => {
+  const emergencyBranch = branches.find((branch) => Boolean(branch.emergencyHotline));
+  const contactBranch = branches.find((branch) => Boolean(branch.phone));
+  const contactPhone = emergencyBranch?.emergencyHotline ?? contactBranch?.phone;
+
+  return (
   <footer className="site-footer">
     <div className="site-footer__inner">
       <div className="footer-brand">
@@ -30,13 +40,17 @@ const Footer: React.FC = () => (
         <Link href="/huong-dan">Hướng dẫn khám</Link>
         <Link href="/tra-cuu">Tra cứu lịch hẹn</Link>
         <Link href="/#branches">Cơ sở và giờ làm việc</Link>
-        <a href="mailto:contact@healthcare.vn">contact@healthcare.vn</a>
+        <Link href="/contact">Kênh liên hệ từ backend</Link>
       </div>
 
       <div className="footer-contact">
-        <h2>Liên hệ khẩn cấp</h2>
-        <a className="footer-hotline" href="tel:19001234"><Icon name="phone" size={18} />1900 1234</a>
-        <p>Trực 24/7 cho tình huống cần hỗ trợ khẩn cấp.</p>
+        <h2>{emergencyBranch ? "Hotline từ backend" : "Liên hệ cơ sở"}</h2>
+        {contactPhone ? (
+          <a className="footer-hotline" href={`tel:${contactPhone.replace(/\s/g, "")}`}><Icon name="phone" size={18} />{contactPhone}</a>
+        ) : (
+          <p>Backend chưa cung cấp số điện thoại cho khu vực này.</p>
+        )}
+        <p>{emergencyBranch ? `Số điện thoại lấy từ ${emergencyBranch.name}.` : "Địa chỉ và số điện thoại được đọc từ branch active."}</p>
         <Link className="text-button text-button--light" href="/#branches">Xem cơ sở <Icon name="arrow-up-right" size={17} /></Link>
       </div>
     </div>
@@ -49,9 +63,10 @@ const Footer: React.FC = () => (
     <nav aria-label="Lối tắt trên thiết bị nhỏ" className="mobile-care-rail">
       <Link href="/#packages"><Icon name="layers" size={19} /><span>Gói khám</span></Link>
       <Link href="/#specialties"><Icon name="stethoscope" size={19} /><span>Chuyên khoa</span></Link>
-      <a href="tel:19001234"><Icon name="phone" size={19} /><span>Gọi ngay</span></a>
+      {contactPhone ? <a href={`tel:${contactPhone.replace(/\s/g, "")}`}><Icon name="phone" size={19} /><span>Gọi cơ sở</span></a> : <Link href="/contact"><Icon name="location" size={19} /><span>Liên hệ</span></Link>}
     </nav>
   </footer>
-);
+  );
+};
 
 export default Footer;

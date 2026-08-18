@@ -316,6 +316,9 @@ export default function Home(): React.ReactElement {
   const packages = catalog?.packages ?? [];
   const branches = catalog?.branches ?? [];
   const articles = catalog?.articles ?? [];
+  const emergencyBranch = branches.find((branch) => Boolean(branch.emergencyHotline));
+  const contactBranch = branches.find((branch) => Boolean(branch.phone));
+  const contactPhone = emergencyBranch?.emergencyHotline ?? contactBranch?.phone;
   const featuredPackage = packages.find((packageItem) => packageItem.featured) ?? packages[0];
   const supportingPackages = packages.filter((packageItem) => packageItem.id !== featuredPackage?.id);
   const featuredDoctor = filteredDoctors[0];
@@ -324,6 +327,7 @@ export default function Home(): React.ReactElement {
   return (
     <div className="site-shell">
       <Navbar
+        branches={branches}
         onOpenAiTriage={() => setIsAiTriageOpen(true)}
         onOpenBooking={() => handleOpenBooking()}
       />
@@ -390,7 +394,7 @@ export default function Home(): React.ReactElement {
                 </div>
                 <div className="hero-trust__item">
                   <span className="hero-trust__icon hero-trust__icon--accent"><Icon name="phone" size={16} /></span>
-                  <span><strong>Hỗ trợ khẩn cấp</strong><small>1900 1234</small></span>
+                  <span><strong>{emergencyBranch ? "Hotline từ backend" : "Liên hệ cơ sở"}</strong><small>{contactPhone ?? "Chưa cung cấp số điện thoại"}</small></span>
                 </div>
               </div>
             </div>
@@ -664,7 +668,7 @@ export default function Home(): React.ReactElement {
                 <h3>Chọn nơi bạn muốn bắt đầu chăm sóc.</h3>
                 <p>Địa chỉ và giờ làm việc lấy từ catalog backend. Hãy kiểm tra lại trước khi đến.</p>
                 <DemoNote>Chưa kết nối bản đồ trực tiếp trong bản demo.</DemoNote>
-                <a className="text-button" href="tel:19001234">Gọi cấp cứu 1900 1234 <Icon name="phone" size={17} /></a>
+                {contactPhone ? <a className="text-button" href={`tel:${contactPhone.replace(/\s/g, "")}`}>{emergencyBranch ? "Gọi hotline từ backend" : "Gọi cơ sở"} <Icon name="phone" size={17} /></a> : <Link className="text-button" href="/contact">Xem thông tin liên hệ <Icon name="arrow-up-right" size={17} /></Link>}
               </div>
               <div className="branch-list">
                 <CatalogStatus error={catalogError} hasData={Boolean(catalog)} loading={catalogLoading} />
@@ -674,7 +678,7 @@ export default function Home(): React.ReactElement {
                     <div>
                       <h3>{branch.name}</h3>
                       <p><Icon name="location" size={15} />{branch.address}</p>
-                      <p><Icon name="clock" size={15} />{branch.workingHours}</p>
+                      <p><Icon name="clock" size={15} />{branch.workingHours ?? "Backend chưa cung cấp giờ làm việc."}</p>
                     </div>
                     <div className="branch-row__actions">
                       <a href={`tel:${branch.phone.replace(/\s/g, "")}`} aria-label={`Gọi ${branch.name}`}>{branch.phone}</a>
@@ -736,7 +740,7 @@ export default function Home(): React.ReactElement {
             </div>
             <div className="appointment-cta__actions">
               <button className="button button--amber" onClick={() => handleOpenBooking()} type="button">Đặt lịch khám <Icon name="arrow-up-right" size={18} /></button>
-              <a className="button button--cta-secondary" href="tel:19001234"><Icon name="phone" size={18} />1900 1234</a>
+              {contactPhone ? <a className="button button--cta-secondary" href={`tel:${contactPhone.replace(/\s/g, "")}`}><Icon name="phone" size={18} />{contactPhone}</a> : <Link className="button button--cta-secondary" href="/contact"><Icon name="location" size={18} />Thông tin liên hệ</Link>}
             </div>
           </div>
         </section>
@@ -753,7 +757,7 @@ export default function Home(): React.ReactElement {
         <Icon name="arrow-up-right" size={17} />
       </button>
 
-      <Footer />
+      <Footer branches={branches} />
 
       <BookingModal
         key={`${selectedBranchId ?? "default"}:${selectedDoctorId ?? "default"}:${selectedPackageId ?? "default"}:${selectedSpecialtyId ?? "default"}`}

@@ -72,9 +72,9 @@ export function PublicPageShell({ children, doctors = [], specialties = [], bran
   return (
     <PublicPageActionsContext.Provider value={actions}>
       <div className="site-shell">
-        <Navbar onOpenAiTriage={() => setAiOpen(true)} onOpenBooking={() => actions.openBooking()} />
+        <Navbar branches={branches} onOpenAiTriage={() => setAiOpen(true)} onOpenBooking={() => actions.openBooking()} />
         <main>{children}</main>
-        <Footer />
+        <Footer branches={branches} />
         <BookingModal
           branches={branches}
           doctors={doctors}

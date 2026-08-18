@@ -253,10 +253,7 @@ export default function TraCuuPage() {
                 <div>
                   <span className="text-xs text-ink-faint font-bold block mb-1">HÌNH THỨC THANH TOÁN</span>
                   <p className="text-xs text-ink-muted mt-2">
-                    Thanh toán trực tiếp tại quầy thu ngân bệnh viện khi tiếp đón.
-                  </p>
-                  <p className="text-xs text-emerald-700 font-semibold mt-1">
-                    ✓ Hỗ trợ BHYT & Hơn 30 đơn vị bảo lãnh viện phí
+                    Phương thức thanh toán và bảo lãnh cần được xác nhận với cơ sở; backend chưa cung cấp policy cho lịch hẹn này.
                   </p>
                 </div>
               </div>
@@ -264,9 +261,9 @@ export default function TraCuuPage() {
               {/* Patient Guidelines Box */}
               <div className="p-4 bg-sand-100 border border-mint-100 rounded-2xl text-xs text-ink-muted space-y-1.5">
                 <span className="font-bold text-ink block">📌 Hướng dẫn khi đến khám:</span>
-                <p>1. Vui lòng có mặt tại Quầy Tiếp Đón trước giờ khám 15 phút.</p>
-                <p>2. Mang theo CCCD/Hộ chiếu và Thẻ BHYT (nếu có).</p>
-                <p>3. Xuất trình Mã lịch hẹn <span className="font-mono font-bold text-brand-900">{appointment.bookingCode}</span> để được in số thứ tự ưu tiên.</p>
+                <p>1. Mang theo mã lịch hẹn <span className="font-mono font-bold text-brand-900">{appointment.bookingCode}</span> khi đến cơ sở.</p>
+                <p>2. Giấy tờ, thời gian có mặt và quy định tiếp đón cần được xác nhận lại với cơ sở.</p>
+                <p>3. Không dùng trang tra cứu này như hướng dẫn y khoa hoặc cam kết bảo hiểm.</p>
               </div>
 
               {/* Actions */}

@@ -107,7 +107,10 @@ export function CmsLiveSlot({
       if (cancelled) return;
       setTransport("connecting");
       stopFeed = client.subscribeToChanges({
-        after: latestEventId.current || undefined,
+        // Keep zero explicit so a reconnect after a failed first refresh asks
+        // the backend to replay from the beginning instead of silently
+        // dropping the event that triggered the failed refresh.
+        after: latestEventId.current,
         onChange: (event) => {
           if (event.slotKey !== backendSlotKey || event.eventId <= latestEventId.current) return;
           if (event.version <= latestVersion.current) {
@@ -116,7 +119,7 @@ export function CmsLiveSlot({
           }
           if (event.published) {
             void refresh().then((succeeded) => {
-              if (succeeded && !cancelled) latestEventId.current = event.eventId;
+              if (succeeded && !cancelled) latestEventId.current = Math.max(latestEventId.current, event.eventId);
             });
           } else {
             latestEventId.current = event.eventId;

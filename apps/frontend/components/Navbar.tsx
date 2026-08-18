@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React, { useState } from "react";
+import type { Branch } from "../types/hospital";
 import Icon from "./UiIcon";
 
 interface NavbarProps {
   onOpenBooking: () => void;
   onOpenAiTriage: () => void;
+  branches?: Branch[];
 }
 
 const NAV_LINKS = [
@@ -18,9 +20,12 @@ const NAV_LINKS = [
   { label: "Cẩm nang", href: "/articles" },
 ];
 
-const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, onOpenAiTriage }) => {
+const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, onOpenAiTriage, branches = [] }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const pathname = usePathname();
+  const emergencyBranch = branches.find((branch) => Boolean(branch.emergencyHotline));
+  const contactBranch = branches.find((branch) => Boolean(branch.phone));
+  const contactPhone = emergencyBranch?.emergencyHotline ?? contactBranch?.phone;
 
   const closeMobileMenu = (): void => setMobileMenuOpen(false);
 
@@ -29,13 +34,20 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, onOpenAiTriage }) => {
       <div className="utility-bar">
         <div className="utility-bar__inner">
           <div className="utility-bar__left">
-            <a className="utility-hotline" href="tel:19001234">
-              <Icon name="phone" size={15} />
-              <span>Cấp cứu 24/7</span>
-              <strong>1900 1234</strong>
-            </a>
+            {contactPhone ? (
+              <a className="utility-hotline" href={`tel:${contactPhone.replace(/\s/g, "")}`}>
+                <Icon name="phone" size={15} />
+                <span>{emergencyBranch ? "Hotline từ backend" : "Gọi cơ sở"}</span>
+                <strong>{contactPhone}</strong>
+              </a>
+            ) : (
+              <Link className="utility-hotline" href="/contact">
+                <Icon name="location" size={15} />
+                <span>Liên hệ cơ sở</span>
+              </Link>
+            )}
             <span className="utility-divider" aria-hidden="true" />
-            <span className="utility-hours"><Icon name="clock" size={15} />Khám bệnh: Thứ 2 đến Thứ 7, 07:00 đến 17:00</span>
+            <Link className="utility-hours" href="/branches"><Icon name="clock" size={15} />Giờ làm việc từ backend</Link>
           </div>
           <div className="utility-bar__right">
             <span className="utility-demo">Bản demo local</span>
