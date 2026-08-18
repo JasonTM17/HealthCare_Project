@@ -68,6 +68,7 @@ export function CmsLiveSlot({
     let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
     let reconnectAttempt = 0;
     let sseConnected = false;
+    let reconciliationCursor = 0;
     let stopFeed: () => void = () => undefined;
     let stopPolling: () => void = () => undefined;
     latestVersion.current = 0;
@@ -80,6 +81,7 @@ export function CmsLiveSlot({
     });
 
     const advanceCursor = (): void => {
+      if (reconciliationCursor > 0) return;
       const pendingIds = [...pendingEventIds.current];
       const earliestPendingId = pendingIds.length > 0 ? Math.min(...pendingIds) : undefined;
       const safeCursor = earliestPendingId === undefined
@@ -103,8 +105,20 @@ export function CmsLiveSlot({
     };
 
     const pendingEventCursor = (): number | undefined => {
-      if (pendingEventIds.current.size === 0) return undefined;
-      return Math.max(...pendingEventIds.current);
+      const pendingCursor = pendingEventIds.current.size === 0
+        ? 0
+        : Math.max(...pendingEventIds.current);
+      const cursor = Math.max(reconciliationCursor, pendingCursor);
+      return cursor > 0 ? cursor : undefined;
+    };
+
+    const beginReconciliation = (eventId: number): void => {
+      reconciliationCursor = Math.max(reconciliationCursor, eventId);
+    };
+
+    const finishReconciliation = (eventId: number): void => {
+      highestObservedEventId.current = Math.max(highestObservedEventId.current, eventId);
+      if (reconciliationCursor <= eventId) reconciliationCursor = 0;
     };
 
     const refresh = async (minimumVersion = 0, afterEventId?: number): Promise<RefreshResult> => {
@@ -148,13 +162,22 @@ export function CmsLiveSlot({
       setTransport("polling");
       pollTimer = setInterval(() => {
         const minimumVersion = pendingVersionFloor();
-        void refresh(minimumVersion, pendingEventCursor()).then((result) => {
+        const afterEventId = pendingEventCursor();
+        const hasPendingReconciliation = pendingEventIds.current.size > 0 || reconciliationCursor > 0;
+        void refresh(minimumVersion, afterEventId).then((result) => {
           if (
             result === "failed"
             || (result === "not-found" && minimumVersion > 0)
             || cancelled
-            || pendingEventIds.current.size === 0
+            || !hasPendingReconciliation
           ) return;
+          if (reconciliationCursor > 0) {
+            highestObservedEventId.current = Math.max(
+              highestObservedEventId.current,
+              reconciliationCursor,
+            );
+            reconciliationCursor = 0;
+          }
           pendingEventIds.current.clear();
           pendingEventVersions.current.clear();
           advanceCursor();
@@ -244,11 +267,12 @@ export function CmsLiveSlot({
           scheduleReconnect();
         },
         onResync: (event) => {
+          beginReconciliation(event.latestEventId);
           void refresh(pendingVersionFloor(), event.latestEventId).then((result) => {
             if (result !== "failed" && !cancelled) {
               pendingEventIds.current.clear();
               pendingEventVersions.current.clear();
-              highestObservedEventId.current = Math.max(highestObservedEventId.current, event.latestEventId);
+              finishReconciliation(event.latestEventId);
               latestEventId.current = Math.max(latestEventId.current, event.latestEventId);
               setLiveNotice(`Đã resync nội dung live từ backend, version ${latestVersion.current}.`);
               if (sseConnected) {
@@ -261,6 +285,7 @@ export function CmsLiveSlot({
         },
         onHeartbeat: (heartbeat) => {
           if (heartbeat.latestEventId <= latestEventId.current) return;
+          beginReconciliation(heartbeat.latestEventId);
           void refresh(0, heartbeat.latestEventId).then((result) => {
             if (cancelled) return;
             if (result === "failed") {
@@ -271,10 +296,7 @@ export function CmsLiveSlot({
             }
             pendingEventIds.current.clear();
             pendingEventVersions.current.clear();
-            highestObservedEventId.current = Math.max(
-              highestObservedEventId.current,
-              heartbeat.latestEventId,
-            );
+            finishReconciliation(heartbeat.latestEventId);
             latestEventId.current = Math.max(latestEventId.current, heartbeat.latestEventId);
             advanceCursor();
             setLiveNotice("Đã kiểm tra lại nội dung live, version " + latestVersion.current + ".");
