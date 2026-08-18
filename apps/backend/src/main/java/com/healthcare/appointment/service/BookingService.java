@@ -304,14 +304,14 @@ public class BookingService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Lịch hẹn này không ở trạng thái chờ xác nhận");
         }
 
-        if (appointment.getHoldExpiresAt() != null && now.isAfter(appointment.getHoldExpiresAt())) {
+        if (appointment.getHoldExpiresAt() != null && !now.isBefore(appointment.getHoldExpiresAt())) {
             appointment.setStatus(AppointmentStatus.CANCELLED);
             appointment.setCancellationReason("Hết thời gian giữ chỗ (Quá 10 phút)");
             appointmentRepository.save(appointment);
             throw new ResponseStatusException(HttpStatus.GONE, "Thời gian giữ chỗ đã hết hạn. Vui lòng thực hiện đặt lại.");
         }
 
-        if (appointment.getOtpExpiresAt() != null && now.isAfter(appointment.getOtpExpiresAt())) {
+        if (appointment.getOtpExpiresAt() != null && !now.isBefore(appointment.getOtpExpiresAt())) {
             appointment.setStatus(AppointmentStatus.CANCELLED);
             appointment.setCancellationReason("Mã OTP đã hết hạn");
             appointment.setHoldExpiresAt(null);
