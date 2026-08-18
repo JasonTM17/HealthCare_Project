@@ -153,7 +153,7 @@ export default function TraCuuPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-bold rounded-xl text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full py-3 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-bold rounded-xl text-sm shadow-md transition-colors flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {loading ? <><Icon name="clock" size={16} /> Đang tra cứu...</> : <><Icon name="search" size={16} /> Tra Cứu Ngay</>}
                 </button>

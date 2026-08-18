@@ -93,18 +93,11 @@ export default function AiTriageModal({
   const [loading, setLoading] = useState<boolean>(false);
   const [result, setResult] = useState<AiTriageResult | null>(null);
   const [errorKind, setErrorKind] = useState<TriageErrorKind | null>(null);
+  const [lastSubmittedSymptoms, setLastSubmittedSymptoms] = useState<string>("");
 
   if (!isOpen) return null;
 
-  const handleAnalyze = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const normalizedSymptoms = symptoms.trim();
-    if (!normalizedSymptoms) {
-      setErrorKind("error");
-      setResult(null);
-      return;
-    }
-
+  const analyzeSymptoms = async (normalizedSymptoms: string) => {
     setLoading(true);
     setResult(null);
     setErrorKind(null);
@@ -117,6 +110,23 @@ export default function AiTriageModal({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleAnalyze = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const normalizedSymptoms = symptoms.trim();
+    if (!normalizedSymptoms) {
+      setErrorKind("error");
+      setResult(null);
+      return;
+    }
+    setLastSubmittedSymptoms(normalizedSymptoms);
+    await analyzeSymptoms(normalizedSymptoms);
+  };
+
+  const handleRetry = async () => {
+    if (!lastSubmittedSymptoms) return;
+    await analyzeSymptoms(lastSubmittedSymptoms);
   };
 
   const handleBookNow = () => {
@@ -199,6 +209,16 @@ export default function AiTriageModal({
                 >
                   Đăng nhập để tiếp tục
                 </Link>
+              ) : null}
+              {errorKind === "unavailable" || errorKind === "error" ? (
+                <button
+                  type="button"
+                  onClick={handleRetry}
+                  disabled={loading || !lastSubmittedSymptoms}
+                  className="inline-flex min-h-11 items-center gap-2 rounded-full border border-red-300 bg-white px-4 py-2 text-xs font-bold text-red-800 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400 focus-visible:ring-2 focus-visible:ring-red-500"
+                >
+                  <Icon name="activity" size={15} /> Thử lại với mô tả vừa gửi
+                </button>
               ) : null}
             </div>
           ) : null}
