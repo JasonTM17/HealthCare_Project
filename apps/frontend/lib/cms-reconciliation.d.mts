@@ -10,7 +10,7 @@ export declare class CmsReconciliationLedger {
   resolvePending(eventId: number): void;
   beginReconciliation(eventId: number): void;
   pendingVersionFloor(): number;
-  pendingEventCursor(): number | undefined;
+  pendingEventCursor(): number;
   acknowledgeThrough(eventId: number): boolean;
   advanceCursor(): void;
 }

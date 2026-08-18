@@ -85,6 +85,7 @@ test("public live slot listens to named SSE changes and has polling fallback", a
   assert.match(liveSlot, /readReconciliationCursor/);
   assert.match(liveSlot, /invalidateRefreshes\(\)/);
   assert.match(liveSlot, /unpublish event is authoritative immediately/);
+  assert.match(liveSlot, /void refresh\(0, reconciliation\.latestEventId\)/);
   assert.match(liveSlot, /if \(!finishReconciliation\(event\.latestEventId\)\)/);
   assert.match(liveSlot, /reconciliation\.pendingEventIds\.size === 0/);
   assert.match(liveSlot, /reconciliationCursor/);
@@ -109,6 +110,11 @@ test("CMS reconciliation ledger preserves contiguous order across reordered even
   assert.equal(events.latestEventId, 10);
   events.resolvePending(11);
   assert.equal(events.latestEventId, 12);
+
+  const gap = new CmsReconciliationLedger(10);
+  gap.observe(12);
+  gap.beginReconciliation(12);
+  assert.equal(gap.pendingEventCursor(), 12);
 
   // A stale request must not clear a newer reconciliation target.
   events.beginReconciliation(12);

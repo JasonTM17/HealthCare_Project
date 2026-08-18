@@ -88,7 +88,7 @@ export function CmsLiveSlot({
       return reconciliation.pendingVersionFloor();
     };
 
-    const pendingEventCursor = (): number | undefined => {
+    const pendingEventCursor = (): number => {
       return reconciliation.pendingEventCursor();
     };
 
@@ -159,10 +159,8 @@ export function CmsLiveSlot({
         void refresh(minimumVersion, afterEventId).then((result) => {
           if (
             result === "failed"
-            || (result === "not-found" && minimumVersion > 0)
             || cancelled
             || !hasPendingReconciliation
-            || afterEventId === undefined
           ) return;
           if (!finishReconciliation(afterEventId)) {
             // A newer heartbeat/event won the race. Keep the polling loop
@@ -315,7 +313,9 @@ export function CmsLiveSlot({
 
     startFeed();
 
-    void refresh();
+    // Even the first/fallback snapshot bypasses a potentially stale
+    // per-instance cache. The durable cursor is the cache-coherence boundary.
+    void refresh(0, reconciliation.latestEventId);
 
     return () => {
       cancelled = true;

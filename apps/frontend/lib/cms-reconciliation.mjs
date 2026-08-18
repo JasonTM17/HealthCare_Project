@@ -55,8 +55,7 @@ export class CmsReconciliationLedger {
     const pendingCursor = this._pendingEventIds.size === 0
       ? 0
       : Math.max(...this._pendingEventIds);
-    const cursor = Math.max(this.reconciliationCursor, pendingCursor);
-    return cursor > 0 ? cursor : undefined;
+    return Math.max(this.latestEventId, this.reconciliationCursor, pendingCursor);
   }
 
   /**
