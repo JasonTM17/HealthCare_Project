@@ -76,6 +76,9 @@ services:
       AI_SERVICE_RUNTIME: compose
       AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL: "false"
       AI_SERVICE_TOKEN:   ${AI_SERVICE_TOKEN:?AI_SERVICE_TOKEN must be set for Compose}
+      CMS_DISTRIBUTED_REALTIME_ENABLED: "true"
+      REDIS_HOST:         redis
+      REDIS_PORT:         "6379"
       SPRING_FLYWAY_OUT_OF_ORDER: ${SPRING_FLYWAY_OUT_OF_ORDER:-false}
       MINIO_ENDPOINT:      http://minio:9000
       MINIO_ACCESS_KEY:    ${MINIO_ROOT_USER:-healthcare}
@@ -88,6 +91,8 @@ services:
       minio:
         condition: service_healthy
       ai-service:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"' || exit 1"]

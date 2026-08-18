@@ -28,8 +28,14 @@ arbitrary HTML/JS/CSS field, secret field, or patient-data field in the model.
 Public responses use `Cache-Control: no-store`. The backend's small in-process
 published snapshot cache is evicted and the SSE event is broadcast from an
 `AFTER_COMMIT` transaction listener, so a rollback cannot invalidate or notify
-the public view. The durable `cms_content_changes` cursor makes reconnects
-bounded and restart-safe; a full replay window falls back to a GET snapshot.
+the public view. When `CMS_DISTRIBUTED_REALTIME_ENABLED=true`, the same
+post-commit metadata is fanned out through Redis Pub/Sub to every backend
+instance; the origin instance ignores its own broker echo. Redis carries only a
+low-latency signal, never the content body: PostgreSQL's durable
+`cms_content_changes` cursor remains the source for reconnect/replay, and the
+frontend's bounded polling fallback covers transient broker or SSE failures.
+Set a unique `CMS_INSTANCE_ID` per backend instance when deploying more than
+one replica. A full replay window falls back to a GET snapshot.
 
 ## Migration ordering
 
