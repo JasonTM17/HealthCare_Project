@@ -8,9 +8,12 @@ Copy the root `.env.example` to `.env` and replace its local-only placeholders b
 docker compose -f infrastructure/docker-compose.yml up --build
 ```
 
-Compose is fail-closed for the internal AI boundary. Set a non-empty shared
-`AI_SERVICE_TOKEN` in `.env`; the local bare-process escape hatch does not
-apply to Compose.
+Compose uses tracked local-only fallbacks for the AI and JWT boundaries when
+their variables are empty, so a fresh local stack is reproducible:
+`local-development-token-not-for-production` and
+`local-jwt-secret-not-for-production`. Replace both with private values before
+any shared or non-demo run; the local bare-process escape hatch does not apply
+to Compose.
 
 The local Compose booking journey defaults `APP_BOOKING_ALLOW_TEST_OTP=true`
 because this repository does not include an SMS provider; use `123456` only in
@@ -34,14 +37,19 @@ overwrite admin edits. It defaults to
 PowerShell `SEED_FILE` environment variable for one run if the larger seed is
 needed. See `docs/architecture/cms-realtime.md` for the rerun/query proof.
 
+The large fixture also creates recurring Monday-Friday morning and afternoon
+doctor schedules, so branch-aware booking remains executable while pagination
+and search are exercised.
+
 ## Large database fixture
 
 The tracked `seed-large-data.sql` is a generator of fictional local-development
 data, not a production dump or real patient data. A clean PostgreSQL 16 run
-produces approximately 6,900 rows across the hospital, identity, and clinical
-tables, including 500 doctors, 200 services, 100 packages, 500 articles, 1,000
-users, and 450 prescription items. Relationship counts vary slightly because
-the seed intentionally samples links randomly.
+produces approximately 14,000 rows across the hospital, scheduling, identity,
+and clinical tables, including 500 doctors, 200 services, 100 packages, 500
+articles, 1,000 users, about 7,500 recurring doctor schedules, and 450
+prescription items. Relationship counts vary slightly because the seed
+intentionally samples links randomly.
 
 Use the larger dataset with the existing Flyway-managed local stack:
 

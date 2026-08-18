@@ -4,7 +4,7 @@
 
 ```bash
 cp .env.example .env
-# Set AI_SERVICE_TOKEN and strong local-only values in .env before starting.
+# Replace the local AI/JWT values and set strong local-only values before sharing.
 docker compose -f infrastructure/docker-compose.yml up --build
 ```
 

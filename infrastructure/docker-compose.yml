@@ -68,14 +68,14 @@ services:
       DATABASE_URL:       jdbc:postgresql://postgres:5432/${POSTGRES_DB:-healthcare}
       DATABASE_USERNAME:  ${POSTGRES_USER:-healthcare}
       DATABASE_PASSWORD:  ${POSTGRES_PASSWORD:-change-me}
-      JWT_SECRET:         ${JWT_SECRET:?JWT_SECRET must be set in .env}
+      JWT_SECRET:         ${JWT_SECRET:-local-jwt-secret-not-for-production}
       JWT_ACCESS_TTL:     ${JWT_ACCESS_TTL:-900}
       JWT_REFRESH_TTL:    ${JWT_REFRESH_TTL:-604800}
       CORS_ALLOWED_ORIGINS: http://localhost:3000
       AI_SERVICE_URL:     http://healthcare-ai-service:8000
       AI_SERVICE_RUNTIME: compose
       AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL: "false"
-      AI_SERVICE_TOKEN:   ${AI_SERVICE_TOKEN:?AI_SERVICE_TOKEN must be set for Compose}
+      AI_SERVICE_TOKEN:   ${AI_SERVICE_TOKEN:-local-development-token-not-for-production}
       # Local Compose has no SMS provider, so the demo flow accepts 123456.
       # Set APP_BOOKING_ALLOW_TEST_OTP=false when a real OTP provider is wired.
       APP_BOOKING_ALLOW_TEST_OTP: ${APP_BOOKING_ALLOW_TEST_OTP:-true}
@@ -154,7 +154,7 @@ services:
       RAG_INGEST_ENABLED: "false"
       AI_SERVICE_RUNTIME: compose
       AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL: "false"
-      AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:?AI_SERVICE_TOKEN must be set for Compose}
+      AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:-local-development-token-not-for-production}
     ports:
       - "127.0.0.1:8000:8000"
     healthcheck:
