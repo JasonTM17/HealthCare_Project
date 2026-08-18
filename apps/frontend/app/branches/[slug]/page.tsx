@@ -17,6 +17,7 @@ export default function BranchDetailPage() {
     const task = Promise.resolve()
       .then(() => {
         if (cancelled) return undefined;
+        setBranch(null);
         setLoading(true);
         setError(null);
         return fetchBranchBySlug(slug);

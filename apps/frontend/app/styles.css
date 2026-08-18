@@ -615,6 +615,54 @@ main {
   font-size: 0.875rem;
 }
 
+.resource-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: var(--sp-6);
+  color: var(--color-ink-soft);
+  font-size: 0.8125rem;
+}
+
+.resource-breadcrumb a {
+  color: var(--color-teal-700);
+  font-weight: 700;
+}
+
+.resource-steps--grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: var(--sp-6);
+  padding: 0;
+}
+
+.resource-step-card {
+  display: grid;
+  gap: 0.65rem;
+  min-height: 12rem;
+  padding: var(--sp-5);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-paper-bright);
+}
+
+.resource-step-card > span {
+  color: var(--color-amber-700);
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.resource-step-card strong {
+  color: var(--color-teal-950);
+}
+
+.resource-step-card p {
+  margin: 0;
+  color: var(--color-ink-muted);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
 .resource-details {
   display: grid;
   gap: var(--sp-4);
@@ -647,6 +695,19 @@ main {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--sp-5);
+}
+
+.catalog-grid--compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.catalog-card__metric {
+  display: block;
+  margin-top: var(--sp-3);
+  color: var(--color-teal-950);
+  font-family: var(--font-display);
+  font-size: 2.5rem;
+  line-height: 1;
 }
 
 .catalog-grid--packages {
@@ -761,7 +822,8 @@ main {
   .resource-hero-card,
   .resource-grid--two,
   .catalog-grid,
-  .catalog-grid--packages {
+  .catalog-grid--packages,
+  .catalog-grid--compact {
     grid-template-columns: 1fr;
   }
 
@@ -2588,6 +2650,10 @@ main {
 
   .section-description {
     font-size: 1rem;
+  }
+
+  .resource-steps--grid {
+    grid-template-columns: 1fr;
   }
 
   .hero-inner {

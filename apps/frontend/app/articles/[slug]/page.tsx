@@ -17,6 +17,7 @@ export default function ArticleDetailPage() {
     const task = Promise.resolve()
       .then(() => {
         if (cancelled) return undefined;
+        setArticle(null);
         setLoading(true);
         setError(null);
         return fetchArticleBySlug(slug);

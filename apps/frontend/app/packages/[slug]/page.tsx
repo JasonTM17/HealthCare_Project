@@ -19,6 +19,7 @@ export default function PackageDetailPage() {
     const task = Promise.resolve()
       .then(() => {
         if (cancelled) return undefined;
+        setItem(null);
         setLoading(true);
         setError(null);
         return fetchPackageBySlug(slug);

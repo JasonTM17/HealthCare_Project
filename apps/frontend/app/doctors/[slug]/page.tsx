@@ -26,6 +26,7 @@ export default function DoctorDetailPage() {
     const task = Promise.resolve()
       .then(() => {
         if (cancelled) return undefined;
+        setDoctor(null);
         setLoading(true);
         setError(null);
         return fetchDoctorBySlug(params.slug);

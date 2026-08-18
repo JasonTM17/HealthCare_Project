@@ -47,6 +47,12 @@ public class AiController {
         Map<String, Object> result = new LinkedHashMap<>(
             aiService.recommendSpecialty(Map.of("symptoms", request.symptoms()))
         );
+        // Never trust an upstream model/provider identity. The only identity
+        // allowed to cross this boundary is the one resolved from active SQL
+        // catalog rows below.
+        result.remove("recommended_specialty_id");
+        result.remove("recommended_specialty_slug");
+        result.remove("specialty_resolution");
         Specialty resolved = resolveSpecialty(result.get("recommended_specialty"));
         if (resolved == null) {
             result.put("specialty_resolution", "UNRESOLVED");

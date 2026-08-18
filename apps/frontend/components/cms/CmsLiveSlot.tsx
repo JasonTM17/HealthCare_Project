@@ -60,20 +60,22 @@ export function CmsLiveSlot({
     latestVersion.current = 0;
     latestEventId.current = 0;
 
-    const refresh = async (): Promise<void> => {
+    const refresh = async (): Promise<boolean> => {
       try {
         const nextContent = await client.getPublishedContent(backendSlotKey);
-        if (cancelled || nextContent.status !== "PUBLISHED") return;
+        if (cancelled || nextContent.status !== "PUBLISHED") return false;
         if (nextContent.version >= latestVersion.current) {
           latestVersion.current = nextContent.version;
           setContent(nextContent);
         }
         setError(null);
+        return true;
       } catch (nextError) {
         if (!cancelled) {
           if (nextError instanceof CmsApiError && nextError.kind === "not-found") setContent(null);
           setError(nextError);
         }
+        return false;
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -108,11 +110,16 @@ export function CmsLiveSlot({
         after: latestEventId.current || undefined,
         onChange: (event) => {
           if (event.slotKey !== backendSlotKey || event.eventId <= latestEventId.current) return;
-          latestEventId.current = event.eventId;
-          if (event.version <= latestVersion.current) return;
+          if (event.version <= latestVersion.current) {
+            latestEventId.current = event.eventId;
+            return;
+          }
           if (event.published) {
-            void refresh();
+            void refresh().then((succeeded) => {
+              if (succeeded && !cancelled) latestEventId.current = event.eventId;
+            });
           } else {
+            latestEventId.current = event.eventId;
             latestVersion.current = event.version;
             setContent(null);
             setError(new CmsApiError("not-found", 404, "Slot hiện không còn PUBLISHED."));
@@ -130,8 +137,9 @@ export function CmsLiveSlot({
           scheduleReconnect();
         },
         onResync: (event) => {
-          latestEventId.current = Math.max(latestEventId.current, event.latestEventId);
-          void refresh();
+          void refresh().then((succeeded) => {
+            if (succeeded && !cancelled) latestEventId.current = Math.max(latestEventId.current, event.latestEventId);
+          });
         },
       });
     };

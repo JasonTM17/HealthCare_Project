@@ -18,6 +18,7 @@ export default function ServiceDetailPage() {
     const task = Promise.resolve()
       .then(() => {
         if (cancelled) return undefined;
+        setService(null);
         setLoading(true);
         setError(null);
         return fetchServiceBySlug(slug);

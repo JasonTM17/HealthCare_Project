@@ -23,6 +23,7 @@ export default function SpecialtyDetailPage() {
     const task = Promise.resolve()
       .then(() => {
         if (cancelled) return undefined;
+        setSpecialty(null);
         setLoading(true);
         setError(null);
         return fetchSpecialtyBySlug(params.slug);
