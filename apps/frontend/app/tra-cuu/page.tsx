@@ -180,7 +180,7 @@ export default function TraCuuPage() {
         {appointment && (
           <div className="bg-white rounded-3xl overflow-hidden border border-brand-100 shadow-xl animate-fadeIn">
             {/* Header Status Bar */}
-            <div className="bg-gradient-to-r from-brand-900 to-brand-800 text-white p-6 flex flex-wrap items-center justify-between gap-4">
+            <div className="bg-brand-900 text-white p-6 flex flex-wrap items-center justify-between gap-4">
               <div>
                 <span className="text-[10px] text-brand-300 font-bold uppercase tracking-wider block">
                   PHIẾU KHÁM BỆNH ĐIỆN TỬ

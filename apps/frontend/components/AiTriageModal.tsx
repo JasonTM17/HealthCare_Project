@@ -136,7 +136,7 @@ export default function AiTriageModal({
       aria-labelledby="ai-triage-title"
     >
       <div className="relative flex max-h-[92vh] w-full max-w-lg flex-col overflow-y-auto rounded-2xl border border-brand-100 bg-white shadow-2xl">
-        <div className="flex items-center justify-between bg-gradient-to-r from-brand-900 via-brand-800 to-brand-700 px-6 py-4 text-white">
+        <div className="flex items-center justify-between bg-brand-900 px-6 py-4 text-white">
           <div className="flex items-center gap-2.5">
             <Icon name="sparkles" size={24} />
             <div>

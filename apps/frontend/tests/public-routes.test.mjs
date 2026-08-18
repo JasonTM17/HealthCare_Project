@@ -79,6 +79,8 @@ test("AI and CMS live boundaries fail closed across reconnect and unresolved res
   assert.match(liveSlot, /pendingEventIds/);
   assert.match(liveSlot, /resolvePendingEvent/);
   assert.match(liveSlot, /Đã đồng bộ/);
+  assert.match(liveSlot, /cms-live-slot__fallback-note/);
+  assert.match(liveSlot, /Đang hiển thị giao diện có sẵn/);
   assert.doesNotMatch(tracking, /30 đơn vị|15 phút|Hỗ trợ BHYT|Thẻ BHYT/);
   assert.match(doctors, /specialtySlug/);
   assert.match(doctors, /specialtySlug/);
@@ -165,11 +167,12 @@ test("catalog surfaces use the shared clinical icon family", async () => {
 });
 
 test("booking, AI, and appointment tracking states use the icon family", async () => {
-  const [icons, booking, triage, tracking] = await Promise.all([
+  const [icons, booking, triage, tracking, styles] = await Promise.all([
     read("components/UiIcon.tsx"),
     read("components/BookingModal.tsx"),
     read("components/AiTriageModal.tsx"),
     read("app/tra-cuu/page.tsx"),
+    read("app/styles.css"),
   ]);
 
   for (const source of [booking, triage, tracking]) {
@@ -177,5 +180,8 @@ test("booking, AI, and appointment tracking states use the icon family", async (
   }
   for (const marker of ["alert-triangle", "mail", "printer", "clock", "search"]) {
     assert.match(icons, new RegExp(marker));
+  }
+  for (const source of [booking, triage, tracking, styles]) {
+    assert.doesNotMatch(source, /gradient/);
   }
 });

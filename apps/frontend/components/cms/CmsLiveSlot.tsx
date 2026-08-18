@@ -271,6 +271,11 @@ export function CmsLiveSlot({
           data-cms-live-slot={slotKey}
           data-cms-live-source="live-backend"
         >
+          {error ? (
+            <p className="cms-live-slot__fallback-note" role="status">
+              {errorMessage(error)} Đang hiển thị giao diện có sẵn trong lúc CMS đồng bộ lại.
+            </p>
+          ) : null}
           {fallback}
         </div>
       );
@@ -288,7 +293,11 @@ export function CmsLiveSlot({
         data-cms-live-slot={slotKey}
         data-cms-live-source="live-backend"
       >
-        {error ? <span className="sr-only" role="status">{errorMessage(error)}</span> : null}
+        {error ? (
+          <p className="cms-live-slot__fallback-note" role="status">
+            {errorMessage(error)} Đang hiển thị giao diện có sẵn trong lúc CMS đồng bộ lại.
+          </p>
+        ) : null}
         {fallback}
       </div>
     );

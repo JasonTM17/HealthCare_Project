@@ -306,7 +306,7 @@ export default function BookingModal({
     >
       <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-brand-100 flex flex-col max-h-[92vh]">
         {/* Modal Header */}
-        <div className="bg-gradient-to-r from-brand-800 to-brand-700 text-white px-6 py-4 flex items-center justify-between">
+        <div className="bg-brand-800 text-white px-6 py-4 flex items-center justify-between">
           <div>
             <span className="text-xs uppercase tracking-widest text-brand-200 font-semibold">
               Hệ thống Đặt lịch Khám bệnh
@@ -703,7 +703,7 @@ export default function BookingModal({
                   </p>
 
                   {/* E-Card Ticket */}
-                  <div className="p-5 bg-gradient-to-br from-brand-900 to-brand-800 text-white rounded-2xl text-left shadow-xl relative overflow-hidden">
+                  <div className="p-5 bg-brand-900 text-white rounded-2xl text-left shadow-xl relative overflow-hidden">
                     <div className="flex justify-between items-start border-b border-brand-700/60 pb-3 mb-3">
                       <div>
                         <span className="text-[10px] uppercase tracking-wider text-brand-300 font-bold">PHIẾU KHÁM BỆNH ĐIỆN TỬ</span>

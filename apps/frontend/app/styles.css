@@ -3051,9 +3051,18 @@ main {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  background:
-    radial-gradient(circle at 100% 0%, oklch(92% 0.04 174 / 0.55), transparent 32rem),
-    var(--color-paper);
+  background: var(--color-paper);
+}
+
+.cms-live-slot__fallback-note {
+  margin: 0 0 var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid oklch(78% 0.08 75);
+  border-radius: var(--radius-sm);
+  background: oklch(97% 0.035 90);
+  color: oklch(32% 0.07 75);
+  font-size: 0.875rem;
+  font-weight: 700;
 }
 
 .portal-header {
@@ -3761,9 +3770,7 @@ main {
   display: grid;
   place-items: center;
   padding: var(--sp-6);
-  background:
-    radial-gradient(circle at 15% 15%, oklch(90% 0.07 174 / 0.62), transparent 30rem),
-    var(--color-paper);
+  background: var(--color-paper);
 }
 
 .auth-card {
