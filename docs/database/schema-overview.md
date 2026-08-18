@@ -66,7 +66,9 @@ Additional roles such as `STAFF` or `SUPER_ADMIN` require concrete use cases bef
 fictional local data for pagination, search, and performance checks. It is
 idempotent for the domain tables it owns and must run after the migration set.
 The seed is intentionally not a production snapshot and contains no real
-patient information.
+patient information. It includes recurring weekday morning and afternoon
+windows for active doctor/branch relationships so the large catalog remains
+executable by the branch-aware booking flow.
 
 The database package build copies the 18 SQL migrations into a PostgreSQL 16
 image, executes them in Flyway version order, and then runs the large seed on a

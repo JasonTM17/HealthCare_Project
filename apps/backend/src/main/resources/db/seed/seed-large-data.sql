@@ -4,7 +4,7 @@
 --
 -- Scale (approx): specialties 30, branches 20, doctors 500, services 200,
 -- packages 100, articles 500, faqs 150, doctor_specialties 1500,
--- doctor_branches 750, users 1000.
+-- doctor_branches 750, doctor_schedules about 7500, users 1000.
 --
 -- Idempotent: truncates domain tables (roles/permissions preserved) then
 -- regenerates. Safe to re-run. Password hash is a BCrypt stub valid only for
@@ -189,6 +189,31 @@ JOIN LATERAL (
     LIMIT 1 + (abs(hashtext(d.id::text)) % 2)
 ) b ON true
 ON CONFLICT (doctor_id, branch_id) DO NOTHING;
+
+-- ── Doctor schedules (weekday morning + afternoon for every branch link) ─────
+-- Keep the large fixture bookable as well as searchable: every active doctor /
+-- branch relationship receives deterministic recurring windows for Monday-Friday.
+INSERT INTO doctor_schedules (
+    id, doctor_id, branch_id, day_of_week, start_time, end_time,
+    slot_duration_minutes, effective_from, effective_to, active
+)
+SELECT gen_random_uuid(), db.doctor_id, db.branch_id,
+       shifts.day_of_week, shifts.start_time::time, shifts.end_time::time,
+       30, DATE '2026-01-01', NULL, true
+FROM doctor_branches db
+JOIN doctors d ON d.id = db.doctor_id AND d.active = true
+CROSS JOIN (VALUES
+    (1, '08:00:00', '11:30:00'),
+    (1, '13:30:00', '17:00:00'),
+    (2, '08:00:00', '11:30:00'),
+    (2, '13:30:00', '17:00:00'),
+    (3, '08:00:00', '11:30:00'),
+    (3, '13:30:00', '17:00:00'),
+    (4, '08:00:00', '11:30:00'),
+    (4, '13:30:00', '17:00:00'),
+    (5, '08:00:00', '11:30:00'),
+    (5, '13:30:00', '17:00:00')
+) AS shifts(day_of_week, start_time, end_time);
 
 -- ── Users (1000) ──────────────────────────────────────────────────────────────
 -- BCrypt hash of "LocalDev!Pass2026" — local dev only, never a real secret.
