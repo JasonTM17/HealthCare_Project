@@ -52,6 +52,31 @@ INSERT INTO doctor_branches (id, doctor_id, branch_id) VALUES
     (gen_random_uuid(), '30000000-0000-0000-0000-000000000006', '20000000-0000-0000-0000-000000000001')
 ON CONFLICT DO NOTHING;
 
+-- ── Local ADMIN fixture ──────────────────────────────────────────────────────
+-- Credentials are for this fictional local seed only; never reuse them outside
+-- the demo stack. Password: LocalDev!Pass2026
+INSERT INTO users (id, email, password_hash, display_name, status, created_at, updated_at)
+VALUES (
+    '00000000-0000-0000-0000-000000001001',
+    'admin@healthcare.local',
+    '$2a$10$p/9xnUieR.4HwifRfQ70Ye8kKFwmmWllJIqTRC49C82meV48Y8mn6',
+    'Quản trị viên local',
+    'ACTIVE',
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP
+)
+ON CONFLICT (email) DO UPDATE SET
+    password_hash = EXCLUDED.password_hash,
+    display_name = EXCLUDED.display_name,
+    status = EXCLUDED.status,
+    updated_at = CURRENT_TIMESTAMP;
+
+INSERT INTO user_roles (user_id, role_id)
+SELECT '00000000-0000-0000-0000-000000001001', id
+FROM roles
+WHERE code = 'ADMIN'
+ON CONFLICT DO NOTHING;
+
 -- ── Services ──────────────────────────────────────────────────────────────────
 INSERT INTO services (id, name, slug, description, active) VALUES
     ('40000000-0000-0000-0000-000000000001', 'Khám tổng quát', 'kham-tong-quat', 'Khám lâm sàng, xét nghiệm cơ bản và tư vấn sức khỏe.', true),

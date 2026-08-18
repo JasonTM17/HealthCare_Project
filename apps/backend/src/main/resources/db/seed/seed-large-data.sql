@@ -203,6 +203,25 @@ SELECT gen_random_uuid(),
 FROM generate_series(1, 1000) AS i
 ON CONFLICT (email) DO NOTHING;
 
+-- Deterministic local ADMIN fixture for CMS verification.
+-- Credentials are for this fictional local seed only; never reuse them outside
+-- the demo stack. Password: LocalDev!Pass2026
+INSERT INTO users (id, email, password_hash, display_name, status, created_at, updated_at)
+VALUES (
+    '00000000-0000-0000-0000-000000001001',
+    'admin@healthcare.local',
+    '$2a$10$p/9xnUieR.4HwifRfQ70Ye8kKFwmmWllJIqTRC49C82meV48Y8mn6',
+    'Quản trị viên local',
+    'ACTIVE',
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP
+)
+ON CONFLICT (email) DO UPDATE SET
+    password_hash = EXCLUDED.password_hash,
+    display_name = EXCLUDED.display_name,
+    status = EXCLUDED.status,
+    updated_at = CURRENT_TIMESTAMP;
+
 -- ── Patient profiles (avg 1 per 2 users ≈ 500) ───────────────────────────────
 INSERT INTO patient_profiles (id, user_id, full_name, phone, email)
 SELECT gen_random_uuid(), u.id, u.display_name, '09' || lpad((abs(hashtext(u.id::text)) % 100000000)::text, 8, '0'), u.email
@@ -229,6 +248,12 @@ SELECT u.id, r.id
 FROM users u
 JOIN roles r ON r.code = 'ADMIN'
 WHERE (abs(hashtext(u.id::text)) % 50 = 0)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO user_roles (user_id, role_id)
+SELECT '00000000-0000-0000-0000-000000001001', id
+FROM roles
+WHERE code = 'ADMIN'
 ON CONFLICT DO NOTHING;
 
 -- ── Clinical medical records (200) ───────────────────────────────────────────

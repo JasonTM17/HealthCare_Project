@@ -19,6 +19,11 @@ real OTP delivery provider.
 
 The local stack exposes frontend on port 3000, backend on 8080, AI service on 8000, PostgreSQL on host port 5434 (container port 5432), Redis on 6379, and MinIO on 9000 (console 9001).
 
+The local seed includes the fictional ADMIN fixture `admin@healthcare.local`
+with password `LocalDev!Pass2026` so the CMS publish-to-user flow can be tested.
+This credential is local-only and must be replaced/disabled before any shared or
+non-demo deployment.
+
 The `local-seed` one-shot service waits for the backend health check (after
 Flyway), runs the backward-compatible base seed, then applies the V15 rich
 content overlay for the Stitch detail screens. The schema also includes V16
