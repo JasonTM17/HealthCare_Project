@@ -38,6 +38,7 @@ public class BookingService {
 
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final int HOLD_DURATION_MINUTES = 10;
+    private static final int MAX_OTP_ATTEMPTS = 5;
 
     private final AppointmentRepository appointmentRepository;
     private final PatientProfileRepository patientProfileRepository;
@@ -192,6 +193,7 @@ public class BookingService {
         appointment.setHoldExpiresAt(holdExpiry);
         appointment.setOtpCode(otpCode);
         appointment.setOtpExpiresAt(holdExpiry);
+        appointment.setOtpAttempts(0);
         appointment.setReasonForVisit(request.reasonForVisit());
 
         appointment.setSpecialty(specialty);
@@ -263,9 +265,9 @@ public class BookingService {
     /**
      * Verifies OTP and permanently confirms the booking.
      */
-    @Transactional
+    @Transactional(noRollbackFor = ResponseStatusException.class)
     public AppointmentResponse confirmAppointment(ConfirmAppointmentRequest request) {
-        Appointment appointment = appointmentRepository.findByBookingCodeWithDetails(request.bookingCode().trim())
+        Appointment appointment = appointmentRepository.findByBookingCodeWithDetailsForUpdate(request.bookingCode().trim())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy mã đặt lịch"));
 
         OffsetDateTime now = OffsetDateTime.now();
@@ -288,12 +290,28 @@ public class BookingService {
         // Verify OTP. The fixed test code is available only in the test profile.
         String inputOtp = request.otpCode().trim();
         if (!inputOtp.equals(appointment.getOtpCode()) && !(allowTestOtp && inputOtp.equals("123456"))) {
+            int attempts = appointment.getOtpAttempts() + 1;
+            appointment.setOtpAttempts(attempts);
+            if (attempts >= MAX_OTP_ATTEMPTS) {
+                appointment.setStatus(AppointmentStatus.CANCELLED);
+                appointment.setCancellationReason("Quá số lần nhập OTP không hợp lệ");
+                appointment.setHoldExpiresAt(null);
+                appointment.setOtpCode(null);
+                appointment.setOtpExpiresAt(null);
+                appointmentRepository.saveAndFlush(appointment);
+                throw new ResponseStatusException(
+                    HttpStatus.TOO_MANY_REQUESTS,
+                    "Đã vượt quá số lần nhập OTP. Vui lòng đặt lại lịch hẹn."
+                );
+            }
+            appointmentRepository.saveAndFlush(appointment);
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Mã xác thực OTP không chính xác");
         }
 
         appointment.setStatus(AppointmentStatus.CONFIRMED);
         appointment.setHoldExpiresAt(null);
         appointment.setOtpCode(null);
+        appointment.setOtpExpiresAt(null);
         if (request.notes() != null && !request.notes().isBlank()) {
             appointment.setNotes(request.notes().trim());
         }
@@ -330,7 +348,7 @@ public class BookingService {
             String reason,
             String phone,
             UserDetails principal) {
-        Appointment appointment = appointmentRepository.findByBookingCodeWithDetails(bookingCode.trim())
+        Appointment appointment = appointmentRepository.findByBookingCodeWithDetailsForUpdate(bookingCode.trim())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy lịch khám"));
 
         authorizeAppointment(appointment, phone, principal);
@@ -341,6 +359,9 @@ public class BookingService {
 
         appointment.setStatus(AppointmentStatus.CANCELLED);
         appointment.setCancellationReason(reason != null ? reason.trim() : "Bệnh nhân yêu cầu hủy");
+        appointment.setHoldExpiresAt(null);
+        appointment.setOtpCode(null);
+        appointment.setOtpExpiresAt(null);
         appointmentRepository.save(appointment);
         return toResponse(appointment);
     }

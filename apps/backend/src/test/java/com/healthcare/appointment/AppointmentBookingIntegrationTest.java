@@ -323,9 +323,25 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
             null
         );
 
+        for (int attempt = 1; attempt <= 4; attempt++) {
+            mockMvc.perform(post("/api/v1/appointments/confirm")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(invalidConfirm)))
+                .andExpect(status().isBadRequest());
+        }
+
         mockMvc.perform(post("/api/v1/appointments/confirm")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(invalidConfirm)))
+            .andExpect(status().isTooManyRequests());
+
+        mockMvc.perform(post("/api/v1/appointments/confirm")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new ConfirmAppointmentRequest(
+                    bookingCode,
+                    "123456",
+                    null
+                ))))
             .andExpect(status().isBadRequest());
     }
 

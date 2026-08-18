@@ -85,6 +85,9 @@ public class Appointment {
     @Column(name = "otp_expires_at")
     private OffsetDateTime otpExpiresAt;
 
+    @Column(name = "otp_attempts", nullable = false)
+    private int otpAttempts;
+
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt = OffsetDateTime.now();
 
@@ -242,6 +245,14 @@ public class Appointment {
 
     public void setOtpExpiresAt(OffsetDateTime otpExpiresAt) {
         this.otpExpiresAt = otpExpiresAt;
+    }
+
+    public int getOtpAttempts() {
+        return otpAttempts;
+    }
+
+    public void setOtpAttempts(int otpAttempts) {
+        this.otpAttempts = otpAttempts;
     }
 
     public OffsetDateTime getCreatedAt() {

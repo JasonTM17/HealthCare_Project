@@ -34,6 +34,15 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
     Optional<Appointment> findByBookingCodeWithDetails(@Param("bookingCode") String bookingCode);
 
     /**
+     * Serializes confirm/cancel transitions for one booking. A plain read here
+     * allows two state transitions to observe the same PENDING row and then
+     * overwrite each other.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select a from Appointment a join fetch a.patient join fetch a.doctor left join fetch a.specialty left join fetch a.branch left join fetch a.medicalPackage where a.bookingCode = :bookingCode")
+    Optional<Appointment> findByBookingCodeWithDetailsForUpdate(@Param("bookingCode") String bookingCode);
+
+    /**
      * Portal reads load every to-one field used by the role-specific response
      * in one query. The patient/doctor id is resolved by the service from the
      * authenticated principal; it is never supplied by the caller.
