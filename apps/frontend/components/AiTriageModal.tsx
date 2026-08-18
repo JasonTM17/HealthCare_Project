@@ -183,7 +183,7 @@ export default function AiTriageModal({
                 disabled={loading || !symptoms.trim()}
                 className="flex items-center gap-2 rounded-full bg-brand-700 px-6 py-2.5 text-xs font-bold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
               >
-                {loading ? "⏳ Đang gửi tới dịch vụ AI..." : "✨ Phân tích & Gợi ý chuyên khoa"}
+                {loading ? <><Icon name="clock" size={15} /> Đang gửi tới dịch vụ AI...</> : <><Icon name="sparkles" size={15} /> Phân tích & Gợi ý chuyên khoa</>}
               </button>
             </div>
           </form>
@@ -236,8 +236,8 @@ export default function AiTriageModal({
                   : "Đề xuất chưa được đối chiếu với catalog active; nút đặt lịch sẽ mở luồng chung để bạn tự chọn."}
               </p>
 
-              <p className="rounded-lg border border-brand-100 bg-white/80 p-3 text-xs leading-relaxed text-gray-700">
-                💡 <span className="font-semibold">Lời khuyên từ dịch vụ AI:</span> {result.advice}
+              <p className="flex items-start gap-2 rounded-lg border border-brand-100 bg-white/80 p-3 text-xs leading-relaxed text-gray-700">
+                <Icon name="sparkles" size={15} /> <span><span className="font-semibold">Lời khuyên từ dịch vụ AI:</span> {result.advice}</span>
               </p>
 
               {result.suggestedQuestions.length > 0 ? (
@@ -275,8 +275,8 @@ export default function AiTriageModal({
                 </p>
               ) : null}
 
-              <p className="rounded-lg bg-white/70 p-3 text-[11px] leading-relaxed text-gray-600">
-                ⚠️ {result.disclaimer ?? "Kết quả chỉ mang tính tham khảo và không thay thế thăm khám trực tiếp."}
+              <p className="flex items-start gap-2 rounded-lg bg-white/70 p-3 text-[11px] leading-relaxed text-gray-600">
+                <Icon name="alert-triangle" size={14} /> <span>{result.disclaimer ?? "Kết quả chỉ mang tính tham khảo và không thay thế thăm khám trực tiếp."}</span>
               </p>
 
               <div className="flex flex-col gap-3 border-t border-brand-100 pt-3 sm:flex-row sm:items-center sm:justify-between">

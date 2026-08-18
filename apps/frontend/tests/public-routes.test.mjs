@@ -142,3 +142,19 @@ test("catalog surfaces use the shared clinical icon family", async () => {
   assert.match(styles, /--color-amber-dark/);
   assert.doesNotMatch(styles, /--color-amber-700/);
 });
+
+test("booking, AI, and appointment tracking states use the icon family", async () => {
+  const [icons, booking, triage, tracking] = await Promise.all([
+    read("components/UiIcon.tsx"),
+    read("components/BookingModal.tsx"),
+    read("components/AiTriageModal.tsx"),
+    read("app/tra-cuu/page.tsx"),
+  ]);
+
+  for (const source of [booking, triage, tracking]) {
+    assert.doesNotMatch(source, /[🟢⚪⏳💡⚠️🔍📞📧📅🏥👨‍⚕️📌🖨️]/u);
+  }
+  for (const marker of ["alert-triangle", "mail", "printer", "clock", "search"]) {
+    assert.match(icons, new RegExp(marker));
+  }
+});

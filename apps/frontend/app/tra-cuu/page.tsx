@@ -6,6 +6,7 @@ import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
 import BookingModal from "../../components/BookingModal";
 import AiTriageModal from "../../components/AiTriageModal";
+import Icon from "../../components/UiIcon";
 import { AppointmentDetails } from "../../types/hospital";
 
 const API_BASE_URL =
@@ -154,7 +155,7 @@ export default function TraCuuPage() {
                   disabled={loading}
                   className="w-full py-3 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-bold rounded-xl text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  {loading ? "⏳ Đang tra cứu..." : "🔍 Tra Cứu Ngay"}
+                  {loading ? <><Icon name="clock" size={16} /> Đang tra cứu...</> : <><Icon name="search" size={16} /> Tra Cứu Ngay</>}
                 </button>
               </div>
             </div>
@@ -162,14 +163,14 @@ export default function TraCuuPage() {
 
           {errorMessage && (
             <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center gap-2">
-              <span>⚠️</span>
+              <Icon name="alert-triangle" size={16} />
               <span>{errorMessage}</span>
             </div>
           )}
 
           {cancelSuccess && (
             <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-semibold flex items-center gap-2">
-              <span>✓</span>
+              <Icon name="check" size={16} />
               <span>Lịch hẹn đã được hủy thành công theo yêu cầu của bạn.</span>
             </div>
           )}
@@ -199,10 +200,10 @@ export default function TraCuuPage() {
                 }`}
               >
                 {appointment.status === "CONFIRMED"
-                  ? "✓ ĐÃ XÁC NHẬN"
+                  ? "ĐÃ XÁC NHẬN"
                   : appointment.status === "CANCELLED"
-                  ? "✕ ĐÃ HỦY LỊCH"
-                  : "⏳ CHỜ XÁC NHẬN"}
+                  ? "ĐÃ HỦY LỊCH"
+                  : "CHỜ XÁC NHẬN"}
               </span>
             </div>
 
@@ -212,9 +213,9 @@ export default function TraCuuPage() {
                 <div>
                   <span className="text-xs text-ink-faint font-bold block mb-1">THÔNG TIN BỆNH NHÂN</span>
                   <p className="font-extrabold text-ink text-base">{appointment.patientName}</p>
-                  <p className="text-xs text-ink-muted mt-1">📞 Số điện thoại: {appointment.patientPhone}</p>
+                  <p className="flex items-center gap-1.5 text-xs text-ink-muted mt-1"><Icon name="phone" size={14} /> Số điện thoại: {appointment.patientPhone}</p>
                   {appointment.patientEmail && (
-                    <p className="text-xs text-ink-muted">📧 Email: {appointment.patientEmail}</p>
+                    <p className="flex items-center gap-1.5 text-xs text-ink-muted"><Icon name="mail" size={14} /> Email: {appointment.patientEmail}</p>
                   )}
                   {appointment.reasonForVisit && (
                     <p className="text-xs text-brand-800 bg-brand-50 p-2.5 rounded-lg mt-2">
@@ -228,10 +229,10 @@ export default function TraCuuPage() {
                   <div className="p-3 bg-amber-50/80 border border-amber-200/60 rounded-xl mb-2">
                     <p className="text-xs text-amber-900 font-semibold">Ngày khám:</p>
                     <p className="text-base font-extrabold text-amber-950">
-                      📅 {appointment.appointmentDate} (Khung giờ: {appointment.startTime.slice(0, 5)} - {appointment.endTime.slice(0, 5)})
+                      <span className="inline-flex items-center gap-1.5"><Icon name="calendar" size={15} /> {appointment.appointmentDate} (Khung giờ: {appointment.startTime.slice(0, 5)} - {appointment.endTime.slice(0, 5)})</span>
                     </p>
                   </div>
-                  <p className="text-xs font-semibold text-ink">🏥 {appointment.branchName}</p>
+                  <p className="flex items-center gap-1.5 text-xs font-semibold text-ink"><Icon name="building" size={15} /> {appointment.branchName}</p>
                   <p className="text-xs text-ink-muted mt-0.5">{appointment.branchAddress}</p>
                 </div>
               </div>
@@ -241,7 +242,7 @@ export default function TraCuuPage() {
                   <span className="text-xs text-ink-faint font-bold block mb-1">BÁC SĨ PHỤ TRÁCH</span>
                   <div className="flex items-center gap-3 mt-2">
                     <div className="w-12 h-12 rounded-full bg-brand-100 text-brand-800 flex items-center justify-center text-xl font-bold">
-                      👨‍⚕️
+                      <Icon name="stethoscope" size={22} />
                     </div>
                     <div>
                       <p className="font-bold text-ink">{appointment.doctorName}</p>
@@ -260,7 +261,7 @@ export default function TraCuuPage() {
 
               {/* Patient Guidelines Box */}
               <div className="p-4 bg-sand-100 border border-mint-100 rounded-2xl text-xs text-ink-muted space-y-1.5">
-                <span className="font-bold text-ink block">📌 Hướng dẫn khi đến khám:</span>
+                <span className="flex items-center gap-1.5 font-bold text-ink"><Icon name="book-open" size={15} /> Hướng dẫn khi đến khám:</span>
                 <p>1. Mang theo mã lịch hẹn <span className="font-mono font-bold text-brand-900">{appointment.bookingCode}</span> khi đến cơ sở.</p>
                 <p>2. Giấy tờ, thời gian có mặt và quy định tiếp đón cần được xác nhận lại với cơ sở.</p>
                 <p>3. Không dùng trang tra cứu này như hướng dẫn y khoa hoặc cam kết bảo hiểm.</p>
@@ -273,7 +274,7 @@ export default function TraCuuPage() {
                   onClick={() => window.print()}
                   className="px-5 py-2.5 bg-mint-100 hover:bg-mint-200 text-ink-muted text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5"
                 >
-                  🖨️ In Phiếu Khám
+                  <Icon name="printer" size={15} /> In Phiếu Khám
                 </button>
 
                 {appointment.status === "CONFIRMED" && (
@@ -295,7 +296,7 @@ export default function TraCuuPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
             <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-red-100 space-y-4">
               <h3 className="text-lg font-bold text-red-700 flex items-center gap-2">
-                <span>⚠️</span> Xác Nhận Hủy Lịch Khám
+                <Icon name="alert-triangle" size={16} /> Xác Nhận Hủy Lịch Khám
               </h3>
               <p className="text-xs text-ink-muted leading-relaxed">
                 Bạn có chắc chắn muốn hủy lịch hẹn mã <span className="font-mono font-bold text-ink">{appointment?.bookingCode}</span> với {appointment?.doctorName} vào ngày {appointment?.appointmentDate}?

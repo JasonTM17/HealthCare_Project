@@ -470,8 +470,16 @@ export default function BookingModal({
                   <label className="block text-sm font-semibold text-gray-700">
                     Khung giờ khám còn trống (30 phút/lượt)
                   </label>
-                  <span className="text-xs text-brand-700 font-medium">
-                    🟢 Còn trống • ⚪ Đã có người giữ
+                  <span className="flex flex-wrap items-center gap-2 text-xs font-medium text-brand-700" aria-label="Chú giải trạng thái khung giờ">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span aria-hidden="true" className="h-2 w-2 rounded-full bg-emerald-500" />
+                      Còn trống
+                    </span>
+                    <span aria-hidden="true">•</span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span aria-hidden="true" className="h-2 w-2 rounded-full bg-slate-300" />
+                      Đã có người giữ
+                    </span>
                   </span>
                 </div>
                 {loadingSlots ? (
@@ -617,7 +625,7 @@ export default function BookingModal({
                   className="px-6 py-2.5 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-semibold rounded-full shadow-md transition-colors flex items-center gap-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
                 >
                   {isSubmitting ? (
-                    <span>⏳ Đang giữ chỗ...</span>
+                    <span className="inline-flex items-center gap-2"><Icon name="clock" size={15} /> Đang giữ chỗ...</span>
                   ) : (
                     <>
                       <span>Giữ chỗ & Nhận mã OTP</span> <span>→</span>
