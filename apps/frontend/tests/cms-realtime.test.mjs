@@ -92,4 +92,6 @@ test("admin editor exposes typed status/version and protected API states", async
   assert.match(adminPage, /authenticatedCmsClient/);
   assert.match(adminPage, /<CmsEditor client=\{authenticatedCmsClient\}/);
   assert.match(client, /getAccessToken: \(\) => readAuthSession\(\)\?\.accessToken/);
+  assert.match(source, /setSelectedSlot\(requestedSlot\)/);
+  assert.match(source, /loadedSelection\?\.slot/);
 });

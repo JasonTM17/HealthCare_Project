@@ -266,6 +266,8 @@ export function CmsEditor({
   const loadContent = useCallback(async (requestedSlug: string, requestedSlot: CmsSlotKey): Promise<void> => {
     const normalizedSlug = requestedSlug.trim();
     const backendSlotKey = resolveCmsSlotKey(normalizedSlug, requestedSlot);
+    setSlug(normalizedSlug);
+    setSelectedSlot(requestedSlot);
     setOperation("loading");
     setApiError(null);
     setFieldErrors({});
@@ -391,6 +393,7 @@ export function CmsEditor({
     version: content?.version ?? 0,
     updatedAt: content?.updatedAt ?? "",
   } as CmsContent;
+  const loadedSelection = slotSelection(loadedSlotKey);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -470,7 +473,7 @@ export function CmsEditor({
             </ul>
           ) : null}
           {apiError.kind === "conflict" ? (
-            <button className="mt-3 min-h-11 rounded-xl bg-red-800 px-4 py-2 text-sm font-bold text-white hover:bg-red-900" onClick={() => void loadContent(loadedSlug, selectedSlot)} type="button">
+            <button className="mt-3 min-h-11 rounded-xl bg-red-800 px-4 py-2 text-sm font-bold text-white hover:bg-red-900" onClick={() => void loadContent(loadedSelection?.slug ?? loadedSlug, loadedSelection?.slot ?? selectedSlot)} type="button">
               Tải version mới nhất
             </button>
           ) : null}

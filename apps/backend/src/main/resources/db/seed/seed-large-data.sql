@@ -257,6 +257,16 @@ INSERT INTO cms_contents (
     id, slot_key, component_type, payload, status, version, created_at, updated_at
 ) VALUES
 (
+    '80000000-0000-0000-0000-000000000001',
+    'homepage.hero',
+    'HERO',
+    '{"eyebrow":"Chăm sóc chủ động","title":"Đồng hành cùng sức khỏe gia đình","body":"Đặt lịch khám và tìm hiểu dịch vụ chăm sóc phù hợp với nhu cầu của bạn.","ctaLabel":"Đặt lịch khám","ctaHref":"/dat-lich"}'::jsonb,
+    'PUBLISHED',
+    1,
+    now(),
+    now()
+),
+(
     '80000000-0000-0000-0000-000000000002',
     'careers.hero',
     'HERO',

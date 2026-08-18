@@ -42,12 +42,13 @@ test("contact and guidance pages do not invent branch, insurance, or FAQ data", 
 });
 
 test("CMS booking CTA has a real landing route and public chrome avoids invented hotlines", async () => {
-  const [booking, navbar, footer, home, seed] = await Promise.all([
+  const [booking, navbar, footer, home, seed, largeSeed] = await Promise.all([
     read("app/dat-lich/page.tsx"),
     read("components/Navbar.tsx"),
     read("components/Footer.tsx"),
     read("app/page.tsx"),
     read("../backend/src/main/resources/db/seed/seed-local-data.sql"),
+    read("../backend/src/main/resources/db/seed/seed-large-data.sql"),
   ]);
 
   assert.match(booking, /PublicBookingButton/);
@@ -55,6 +56,10 @@ test("CMS booking CTA has a real landing route and public chrome avoids invented
   for (const source of [navbar, footer, home]) assert.doesNotMatch(source, /1900\s*1234|contact@healthcare\.vn/);
   assert.match(navbar, /Giờ làm việc từ backend/);
   assert.match(footer, /Backend chưa cung cấp số điện thoại/);
+  assert.match(largeSeed, /homepage\.hero/);
+  for (const slot of ["careers.hero", "careers.body", "search.hero"]) {
+    assert.match(largeSeed, new RegExp(slot.replace(".", "\\.")));
+  }
 });
 
 test("AI and CMS live boundaries fail closed across reconnect and unresolved results", async () => {
