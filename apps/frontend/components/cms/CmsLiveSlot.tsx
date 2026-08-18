@@ -100,6 +100,10 @@ export function CmsLiveSlot({
       return reconciliation.acknowledgeThrough(eventId);
     };
 
+    const invalidateRefreshes = (): void => {
+      refreshGeneration += 1;
+    };
+
     const refresh = async (minimumVersion = 0, afterEventId?: number): Promise<RefreshResult> => {
       const readGeneration = ++refreshGeneration;
       const readReconciliationCursor = reconciliation.reconciliationCursor;
@@ -232,6 +236,9 @@ export function CmsLiveSlot({
               }
             });
           } else {
+            // An unpublish event is authoritative immediately. Invalidate any
+            // older GET so its late 200 response cannot resurrect this slot.
+            invalidateRefreshes();
             latestVersion.current = event.version;
             setContent(null);
             setError(new CmsApiError("not-found", 404, "Slot hiện không còn PUBLISHED."));
