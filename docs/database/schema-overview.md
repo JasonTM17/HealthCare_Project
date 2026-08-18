@@ -55,3 +55,19 @@ The foundation seeds only roles required by the near-term product scope:
 - `ADMIN`
 
 Additional roles such as `STAFF` or `SUPER_ADMIN` require concrete use cases before migration.
+
+## Large local fixture
+
+`apps/backend/src/main/resources/db/seed/seed-large-data.sql` generates
+fictional local data for pagination, search, and performance checks. It is
+idempotent for the domain tables it owns and must run after the migration set.
+The seed is intentionally not a production snapshot and contains no real
+patient information.
+
+The database package build copies the 15 SQL migrations into a PostgreSQL 16
+image, executes them in Flyway version order, and then runs the large seed on a
+fresh `PGDATA`. Because this standalone image does not maintain
+`flyway_schema_history`, it must not replace the application-managed Compose
+database for Spring Boot startup. Use the package for a ready-to-query fixture;
+use [`infrastructure/docker-compose.yml`](../../infrastructure/docker-compose.yml)
+for the normal Flyway lifecycle.
