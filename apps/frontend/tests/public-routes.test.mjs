@@ -70,7 +70,7 @@ test("AI and CMS live boundaries fail closed across reconnect and unresolved res
 
   assert.match(client, /result\.specialtyResolution === "RESOLVED"/);
   assert.match(liveSlot, /after: latestEventId\.current/);
-  assert.match(liveSlot, /acknowledgedEventIds/);
+  assert.match(liveSlot, /highestObservedEventId/);
   assert.match(liveSlot, /pendingEventIds/);
   assert.match(liveSlot, /resolvePendingEvent/);
   assert.match(liveSlot, /Đã đồng bộ/);

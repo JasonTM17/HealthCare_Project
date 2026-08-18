@@ -51,7 +51,7 @@ export function CmsLiveSlot({
   const [liveNotice, setLiveNotice] = useState<string | null>(null);
   const latestVersion = useRef(0);
   const latestEventId = useRef(0);
-  const acknowledgedEventIds = useRef<Set<number>>(new Set());
+  const highestObservedEventId = useRef(0);
   const pendingEventIds = useRef<Set<number>>(new Set());
 
   useEffect(() => {
@@ -62,28 +62,24 @@ export function CmsLiveSlot({
     let stopFeed: () => void = () => undefined;
     latestVersion.current = 0;
     latestEventId.current = 0;
-    acknowledgedEventIds.current.clear();
+    highestObservedEventId.current = 0;
     pendingEventIds.current.clear();
     void Promise.resolve().then(() => {
       if (!cancelled) setLiveNotice(null);
     });
 
-    const acknowledgeEvent = (eventId: number): void => {
-      acknowledgedEventIds.current.add(eventId);
-      let nextEventId = latestEventId.current + 1;
-      while (
-        acknowledgedEventIds.current.has(nextEventId)
-        && !pendingEventIds.current.has(nextEventId)
-      ) {
-        acknowledgedEventIds.current.delete(nextEventId);
-        latestEventId.current = nextEventId;
-        nextEventId += 1;
-      }
+    const advanceCursor = (): void => {
+      const pendingIds = [...pendingEventIds.current];
+      const earliestPendingId = pendingIds.length > 0 ? Math.min(...pendingIds) : undefined;
+      const safeCursor = earliestPendingId === undefined
+        ? highestObservedEventId.current
+        : earliestPendingId - 1;
+      latestEventId.current = Math.max(latestEventId.current, safeCursor);
     };
 
     const resolvePendingEvent = (eventId: number): void => {
       pendingEventIds.current.delete(eventId);
-      acknowledgeEvent(eventId);
+      advanceCursor();
     };
 
     const refresh = async (): Promise<boolean> => {
@@ -139,14 +135,15 @@ export function CmsLiveSlot({
         after: latestEventId.current,
         onChange: (event) => {
           if (event.eventId <= latestEventId.current) return;
+          highestObservedEventId.current = Math.max(highestObservedEventId.current, event.eventId);
           if (event.slotKey !== backendSlotKey) {
             // The change feed is global. Acknowledging unrelated IDs lets the
             // cursor advance, while pending relevant IDs still block it.
-            acknowledgeEvent(event.eventId);
+            advanceCursor();
             return;
           }
           if (event.version <= latestVersion.current) {
-            acknowledgeEvent(event.eventId);
+            advanceCursor();
             return;
           }
           if (event.published) {
@@ -162,7 +159,7 @@ export function CmsLiveSlot({
             setContent(null);
             setError(new CmsApiError("not-found", 404, "Slot hiện không còn PUBLISHED."));
             setLoading(false);
-            acknowledgeEvent(event.eventId);
+            advanceCursor();
           }
         },
         onConnected: () => {
@@ -179,7 +176,7 @@ export function CmsLiveSlot({
           void refresh().then((succeeded) => {
             if (succeeded && !cancelled) {
               pendingEventIds.current.clear();
-              acknowledgedEventIds.current.clear();
+              highestObservedEventId.current = Math.max(highestObservedEventId.current, event.latestEventId);
               latestEventId.current = Math.max(latestEventId.current, event.latestEventId);
               setLiveNotice(`Đã resync nội dung live từ backend, version ${latestVersion.current}.`);
             }
