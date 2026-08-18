@@ -15,4 +15,6 @@ public interface DoctorSpecialtyRepository extends JpaRepository<DoctorSpecialty
     List<DoctorSpecialty> findBySpecialtyId(UUID specialtyId);
 
     Optional<DoctorSpecialty> findFirstByDoctorId(UUID doctorId);
+
+    boolean existsByDoctorIdAndSpecialtyId(UUID doctorId, UUID specialtyId);
 }

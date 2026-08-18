@@ -15,5 +15,7 @@ public interface BranchRepository extends JpaRepository<Branch, UUID> {
 
     Optional<Branch> findBySlugAndActiveTrue(String slug);
 
+    Optional<Branch> findByIdAndActiveTrue(UUID id);
+
     Page<Branch> findByActiveTrue(Pageable pageable);
 }

@@ -572,6 +572,18 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
             executeSeed(schema);
             executeRichSeed(schema);
 
+            jdbcTemplate.update(
+                "update " + table(schema, "specialties")
+                    + " set common_symptoms = '[\"Admin-owned symptom\"]'::jsonb"
+                    + " where slug = 'tim-mach'"
+            );
+            jdbcTemplate.update(
+                "update " + table(schema, "packages")
+                    + " set checklist = '[\"Admin-owned checklist\"]'::jsonb"
+                    + " where slug = 'goi-kham-co-ban'"
+            );
+            executeRichSeed(schema);
+
             assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from " + table(schema, "specialties")
                     + " where jsonb_array_length(common_symptoms) > 0",
@@ -592,6 +604,16 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
                     + " where jsonb_array_length(sections) > 0",
                 Integer.class
             )).isEqualTo(3);
+            assertThat(jdbcTemplate.queryForObject(
+                "select common_symptoms ->> 0 from " + table(schema, "specialties")
+                    + " where slug = 'tim-mach'",
+                String.class
+            )).isEqualTo("Admin-owned symptom");
+            assertThat(jdbcTemplate.queryForObject(
+                "select checklist ->> 0 from " + table(schema, "packages")
+                    + " where slug = 'goi-kham-co-ban'",
+                String.class
+            )).isEqualTo("Admin-owned checklist");
         } finally {
             dropMigrationSchema(schema);
         }

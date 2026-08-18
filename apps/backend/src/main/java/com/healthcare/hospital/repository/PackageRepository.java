@@ -15,5 +15,7 @@ public interface PackageRepository extends JpaRepository<Package, UUID> {
 
     Optional<Package> findBySlugAndActiveTrue(String slug);
 
+    Optional<Package> findByIdAndActiveTrue(UUID id);
+
     Page<Package> findByActiveTrue(Pageable pageable);
 }

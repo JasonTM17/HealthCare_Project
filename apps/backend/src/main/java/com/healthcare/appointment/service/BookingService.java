@@ -13,6 +13,7 @@ import com.healthcare.hospital.entity.Doctor;
 import com.healthcare.hospital.repository.BranchRepository;
 import com.healthcare.hospital.repository.DoctorBranchRepository;
 import com.healthcare.hospital.repository.DoctorRepository;
+import com.healthcare.hospital.repository.DoctorSpecialtyRepository;
 import com.healthcare.hospital.repository.PackageRepository;
 import com.healthcare.hospital.repository.SpecialtyRepository;
 import com.healthcare.user.entity.User;
@@ -44,6 +45,7 @@ public class BookingService {
     private final PatientProfileRepository patientProfileRepository;
     private final DoctorRepository doctorRepository;
     private final DoctorBranchRepository doctorBranchRepository;
+    private final DoctorSpecialtyRepository doctorSpecialtyRepository;
     private final SpecialtyRepository specialtyRepository;
     private final BranchRepository branchRepository;
     private final PackageRepository packageRepository;
@@ -57,6 +59,7 @@ public class BookingService {
                           PatientProfileRepository patientProfileRepository,
                           DoctorRepository doctorRepository,
                           DoctorBranchRepository doctorBranchRepository,
+                          DoctorSpecialtyRepository doctorSpecialtyRepository,
                           SpecialtyRepository specialtyRepository,
                           BranchRepository branchRepository,
                           PackageRepository packageRepository,
@@ -66,6 +69,7 @@ public class BookingService {
         this.patientProfileRepository = patientProfileRepository;
         this.doctorRepository = doctorRepository;
         this.doctorBranchRepository = doctorBranchRepository;
+        this.doctorSpecialtyRepository = doctorSpecialtyRepository;
         this.specialtyRepository = specialtyRepository;
         this.branchRepository = branchRepository;
         this.packageRepository = packageRepository;
@@ -96,12 +100,21 @@ public class BookingService {
 
         com.healthcare.hospital.entity.Specialty specialty = request.specialtyId() == null
             ? null
-            : specialtyRepository.findById(request.specialtyId())
+            : specialtyRepository.findByIdAndActiveTrue(request.specialtyId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy chuyên khoa"));
         com.healthcare.hospital.entity.Branch branch = request.branchId() == null
             ? null
-            : branchRepository.findById(request.branchId())
+            : branchRepository.findByIdAndActiveTrue(request.branchId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy cơ sở khám"));
+        if (specialty != null && !doctorSpecialtyRepository.existsByDoctorIdAndSpecialtyId(
+            request.doctorId(),
+            specialty.getId()
+        )) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Bác sĩ không thuộc chuyên khoa đã chọn"
+            );
+        }
         if (branch != null && !doctorBranchRepository.existsByDoctorIdAndBranchId(request.doctorId(), branch.getId())) {
             throw new ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
@@ -111,7 +124,7 @@ public class BookingService {
 
         com.healthcare.hospital.entity.Package medicalPackage = request.packageId() == null
             ? null
-            : packageRepository.findById(request.packageId())
+            : packageRepository.findByIdAndActiveTrue(request.packageId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy gói khám"));
 
         ScheduleService.BookableSlot bookableSlot = scheduleService.findBookableSlot(

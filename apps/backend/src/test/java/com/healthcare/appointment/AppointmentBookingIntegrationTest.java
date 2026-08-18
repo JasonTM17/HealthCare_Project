@@ -10,6 +10,7 @@ import com.healthcare.appointment.entity.PatientProfile;
 import com.healthcare.hospital.entity.Branch;
 import com.healthcare.hospital.entity.Doctor;
 import com.healthcare.hospital.entity.DoctorBranch;
+import com.healthcare.hospital.entity.DoctorSpecialty;
 import com.healthcare.hospital.entity.Specialty;
 import com.healthcare.scheduling.entity.DoctorScheduleException;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,6 +22,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import java.time.LocalDate;
 import java.time.DayOfWeek;
 import java.time.LocalTime;
+import java.math.BigDecimal;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -39,6 +41,9 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private com.healthcare.hospital.repository.DoctorSpecialtyRepository doctorSpecialtyRepository;
+
     private Doctor doctor;
     private Specialty specialty;
 
@@ -56,6 +61,11 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         doctor.setBio("Chuyên gia Tim Mạch 15 năm kinh nghiệm");
         doctor.setActive(true);
         doctor = doctorRepository.save(doctor);
+
+        DoctorSpecialty link = new DoctorSpecialty();
+        link.setDoctor(doctor);
+        link.setSpecialty(specialty);
+        doctorSpecialtyRepository.saveAndFlush(link);
     }
 
     @Test
@@ -190,6 +200,74 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void bookingRejectsInactiveOrMismatchedSpecialtyBeforeCreatingAppointment() throws Exception {
+        Specialty inactive = new Specialty();
+        inactive.setName("Inactive specialty");
+        inactive.setSlug("inactive-specialty-" + UUID.randomUUID());
+        inactive.setActive(false);
+        inactive = specialtyRepository.saveAndFlush(inactive);
+
+        HoldSlotRequest inactiveRequest = new HoldSlotRequest(
+            doctor.getId(), LocalDate.now().plusDays(3), LocalTime.of(9, 0),
+            "Inactive specialty patient", "0907000199", null, null,
+            inactive.getId(), null, null);
+
+        mockMvc.perform(post("/api/v1/appointments/hold")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(inactiveRequest)))
+            .andExpect(status().isNotFound());
+
+        Specialty otherActive = new Specialty();
+        otherActive.setName("Unassigned specialty");
+        otherActive.setSlug("unassigned-specialty-" + UUID.randomUUID());
+        otherActive.setActive(true);
+        otherActive = specialtyRepository.saveAndFlush(otherActive);
+
+        HoldSlotRequest mismatchedRequest = new HoldSlotRequest(
+            doctor.getId(), LocalDate.now().plusDays(3), LocalTime.of(9, 0),
+            "Mismatched specialty patient", "0907000198", null, null,
+            otherActive.getId(), null, null);
+
+        mockMvc.perform(post("/api/v1/appointments/hold")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(mismatchedRequest)))
+            .andExpect(status().isBadRequest());
+
+        Branch inactiveBranch = new Branch();
+        inactiveBranch.setName("Inactive branch");
+        inactiveBranch.setSlug("inactive-branch-" + UUID.randomUUID());
+        inactiveBranch.setAddress("No longer open");
+        inactiveBranch.setActive(false);
+        inactiveBranch = branchRepository.saveAndFlush(inactiveBranch);
+        HoldSlotRequest inactiveBranchRequest = new HoldSlotRequest(
+            doctor.getId(), LocalDate.now().plusDays(3), LocalTime.of(9, 0),
+            "Inactive branch patient", "0907000197", null, null,
+            specialty.getId(), inactiveBranch.getId(), null);
+
+        mockMvc.perform(post("/api/v1/appointments/hold")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(inactiveBranchRequest)))
+            .andExpect(status().isNotFound());
+
+        com.healthcare.hospital.entity.Package inactivePackage = new com.healthcare.hospital.entity.Package();
+        inactivePackage.setName("Inactive package");
+        inactivePackage.setSlug("inactive-package-" + UUID.randomUUID());
+        inactivePackage.setDescription("No longer bookable");
+        inactivePackage.setPrice(BigDecimal.ONE);
+        inactivePackage.setActive(false);
+        inactivePackage = packageRepository.saveAndFlush(inactivePackage);
+        HoldSlotRequest inactivePackageRequest = new HoldSlotRequest(
+            doctor.getId(), LocalDate.now().plusDays(3), LocalTime.of(9, 0),
+            "Inactive package patient", "0907000196", null, null,
+            specialty.getId(), null, inactivePackage.getId());
+
+        mockMvc.perform(post("/api/v1/appointments/hold")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(inactivePackageRequest)))
+            .andExpect(status().isNotFound());
     }
 
     @Test

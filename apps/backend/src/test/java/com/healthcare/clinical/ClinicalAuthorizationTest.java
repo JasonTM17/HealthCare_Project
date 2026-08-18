@@ -169,6 +169,45 @@ class ClinicalAuthorizationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void duplicateMedicalRecordReturnsConflictInsteadOfGenericDatabaseError() throws Exception {
+        ClinicalFixture fixture = fixture();
+        Appointment appointment = createAppointment(fixture);
+        CreateMedicalRecordRequest request = new CreateMedicalRecordRequest(
+            appointment.getId(),
+            fixture.patient().getId(),
+            fixture.doctor().getId(),
+            null,
+            null,
+            "Duplicate prevention diagnosis",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
+        String body = objectMapper.writeValueAsString(request);
+
+        mockMvc.perform(post("/api/v1/clinical/records")
+                .header("Authorization", bearer(fixture.doctorUser()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+            .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/v1/clinical/records")
+                .header("Authorization", bearer(fixture.doctorUser()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.message").value("A medical record already exists for this appointment"));
+    }
+
+    @Test
     void patientCannotCreateClinicalRecord() throws Exception {
         ClinicalFixture fixture = fixture();
         Appointment appointment = createAppointment(fixture);
