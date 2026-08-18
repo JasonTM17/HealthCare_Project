@@ -361,7 +361,7 @@ function readIsoDate(value: unknown, label: string): string {
 
 export function parseCmsContent(raw: unknown): CmsContent {
   const source = readRecord(raw, "CMS content");
-  const slotKey = validateSlotKey(String(source.slotKey ?? ""));
+  const slotKey = readSlotKey(source.slotKey, "slotKey");
   const componentType = source.componentType;
   if (!isOneOf(componentType, CMS_COMPONENT_TYPES)) {
     throw new CmsValidationError("componentType không thuộc CMS vocabulary.");
@@ -371,7 +371,7 @@ export function parseCmsContent(raw: unknown): CmsContent {
     throw new CmsValidationError("status phải là DRAFT hoặc PUBLISHED.");
   }
   const version = source.version;
-  if (typeof version !== "number" || !Number.isInteger(version) || version < 1) {
+  if (typeof version !== "number" || !Number.isSafeInteger(version) || version < 1) {
     throw new CmsValidationError("version phải là số nguyên dương.");
   }
   const updatedAt = readIsoDate(source.updatedAt, "updatedAt");
@@ -393,7 +393,7 @@ export function validateCmsContentInput(input: CmsContentInput): CmsFieldErrors 
   if (!isOneOf(input.status, CMS_PUBLICATION_STATUSES)) {
     errors.status = "Chọn DRAFT hoặc PUBLISHED.";
   }
-  if (!Number.isInteger(input.expectedVersion) || input.expectedVersion < 0) {
+  if (!Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 0) {
     errors.expectedVersion = "expectedVersion phải là số nguyên không âm.";
   }
   if (!errors.componentType) {
@@ -467,15 +467,20 @@ function responseFieldErrors(body: unknown): CmsFieldErrors | undefined {
 }
 
 function readPositiveInteger(value: unknown, label: string): number {
-  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
     throw new CmsValidationError(`${label} phải là số nguyên không âm.`);
   }
   return value;
 }
 
+function readSlotKey(value: unknown, label: string): string {
+  if (typeof value !== "string") throw new CmsValidationError(`${label} phải là chuỗi.`);
+  return validateSlotKey(value);
+}
+
 function parseChangedEvent(raw: unknown): CmsContentChangedEvent {
   const event = readRecord(raw, "cms-content-changed");
-  const slotKey = validateSlotKey(String(event.slotKey ?? ""));
+  const slotKey = readSlotKey(event.slotKey, "event.slotKey");
   const version = readPositiveInteger(event.version, "event.version");
   const eventId = readPositiveInteger(event.eventId, "event.eventId");
   if (typeof event.published !== "boolean") {

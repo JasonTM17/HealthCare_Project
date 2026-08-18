@@ -53,6 +53,7 @@ export function CmsLiveSlot({
   const latestEventId = useRef(0);
   const highestObservedEventId = useRef(0);
   const pendingEventIds = useRef<Set<number>>(new Set());
+  const pendingEventVersions = useRef<Map<number, number>>(new Map());
 
   useEffect(() => {
     let cancelled = false;
@@ -66,6 +67,7 @@ export function CmsLiveSlot({
     latestEventId.current = 0;
     highestObservedEventId.current = 0;
     pendingEventIds.current.clear();
+    pendingEventVersions.current.clear();
     void Promise.resolve().then(() => {
       if (!cancelled) setLiveNotice(null);
     });
@@ -81,6 +83,7 @@ export function CmsLiveSlot({
 
     const resolvePendingEvent = (eventId: number): void => {
       pendingEventIds.current.delete(eventId);
+      pendingEventVersions.current.delete(eventId);
       advanceCursor();
       if (pendingEventIds.current.size === 0 && sseConnected) {
         stopPolling();
@@ -88,10 +91,22 @@ export function CmsLiveSlot({
       }
     };
 
-    const refresh = async (): Promise<boolean> => {
+    const pendingVersionFloor = (): number => {
+      return Math.max(0, ...pendingEventVersions.current.values());
+    };
+
+    const refresh = async (minimumVersion = 0): Promise<boolean> => {
       try {
         const nextContent = await client.getPublishedContent(backendSlotKey);
         if (cancelled || nextContent.status !== "PUBLISHED") return false;
+        if (nextContent.version < minimumVersion) {
+          setError(new CmsApiError(
+            "unavailable",
+            503,
+            `CMS mới trả version ${nextContent.version}; đang chờ version ${minimumVersion}.`,
+          ));
+          return false;
+        }
         if (nextContent.version >= latestVersion.current) {
           latestVersion.current = nextContent.version;
           setContent(nextContent);
@@ -113,9 +128,10 @@ export function CmsLiveSlot({
       if (cancelled || pollTimer) return;
       setTransport("polling");
       pollTimer = setInterval(() => {
-        void refresh().then((succeeded) => {
+        void refresh(pendingVersionFloor()).then((succeeded) => {
           if (!succeeded || cancelled || pendingEventIds.current.size === 0) return;
           pendingEventIds.current.clear();
+          pendingEventVersions.current.clear();
           advanceCursor();
           setLiveNotice(`Đã đồng bộ ${backendSlotKey}, version ${latestVersion.current}.`);
           if (sseConnected) {
@@ -165,7 +181,8 @@ export function CmsLiveSlot({
           }
           if (event.published) {
             pendingEventIds.current.add(event.eventId);
-            void refresh().then((succeeded) => {
+            pendingEventVersions.current.set(event.eventId, event.version);
+            void refresh(event.version).then((succeeded) => {
               if (succeeded && !cancelled) {
                 setLiveNotice(`Đã đồng bộ ${backendSlotKey}, version ${latestVersion.current}.`);
                 resolvePendingEvent(event.eventId);
@@ -202,9 +219,10 @@ export function CmsLiveSlot({
           scheduleReconnect();
         },
         onResync: (event) => {
-          void refresh().then((succeeded) => {
+          void refresh(pendingVersionFloor()).then((succeeded) => {
             if (succeeded && !cancelled) {
               pendingEventIds.current.clear();
+              pendingEventVersions.current.clear();
               highestObservedEventId.current = Math.max(highestObservedEventId.current, event.latestEventId);
               latestEventId.current = Math.max(latestEventId.current, event.latestEventId);
               setLiveNotice(`Đã resync nội dung live từ backend, version ${latestVersion.current}.`);
