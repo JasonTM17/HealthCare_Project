@@ -534,7 +534,7 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
     void localSeedSchedulesFollowDoctorBranchAssignments() {
         String schema = createMigrationSchema();
         try {
-            migrate(schema, "19");
+            migrate(schema, "20");
             executeSeed(schema);
             String schedules = table(schema, "doctor_schedules");
             String doctors = table(schema, "doctors");
@@ -560,6 +560,61 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
                     + "and b.slug = 'phong-kham-thao-dien'",
                 Integer.class
             )).isEqualTo(10);
+        } finally {
+            dropMigrationSchema(schema);
+        }
+    }
+
+    @Test
+    void richLocalSeedOverlayPopulatesV15ContentContracts() {
+        String schema = createMigrationSchema();
+        try {
+            migrate(schema, "15");
+            executeSeed(schema);
+            executeRichSeed(schema);
+
+            jdbcTemplate.update(
+                "update " + table(schema, "specialties")
+                    + " set common_symptoms = '[\"Admin-owned symptom\"]'::jsonb"
+                    + " where slug = 'tim-mach'"
+            );
+            jdbcTemplate.update(
+                "update " + table(schema, "packages")
+                    + " set checklist = '[\"Admin-owned checklist\"]'::jsonb"
+                    + " where slug = 'goi-kham-co-ban'"
+            );
+            executeRichSeed(schema);
+
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + table(schema, "specialties")
+                    + " where jsonb_array_length(common_symptoms) > 0",
+                Integer.class
+            )).isEqualTo(8);
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + table(schema, "branches")
+                    + " where jsonb_array_length(amenities) > 0",
+                Integer.class
+            )).isEqualTo(2);
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + table(schema, "packages")
+                    + " where jsonb_array_length(checklist) > 0",
+                Integer.class
+            )).isEqualTo(4);
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + table(schema, "articles")
+                    + " where jsonb_array_length(sections) > 0",
+                Integer.class
+            )).isEqualTo(3);
+            assertThat(jdbcTemplate.queryForObject(
+                "select common_symptoms ->> 0 from " + table(schema, "specialties")
+                    + " where slug = 'tim-mach'",
+                String.class
+            )).isEqualTo("Admin-owned symptom");
+            assertThat(jdbcTemplate.queryForObject(
+                "select checklist ->> 0 from " + table(schema, "packages")
+                    + " where slug = 'goi-kham-co-ban'",
+                String.class
+            )).isEqualTo("Admin-owned checklist");
         } finally {
             dropMigrationSchema(schema);
         }
@@ -645,6 +700,21 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
             );
         } catch (Exception exception) {
             throw new IllegalStateException("Failed to execute local seed in isolated migration schema", exception);
+        }
+    }
+
+    private void executeRichSeed(String schema) {
+        try (Connection connection = dataSource.getConnection()) {
+            connection.createStatement().execute("set search_path to " + identifier(schema));
+            ScriptUtils.executeSqlScript(
+                connection,
+                new EncodedResource(
+                    new ClassPathResource("db/seed/seed-local-rich-content.sql"),
+                    StandardCharsets.UTF_8
+                )
+            );
+        } catch (Exception exception) {
+            throw new IllegalStateException("Failed to execute rich local seed overlay in isolated migration schema", exception);
         }
     }
 

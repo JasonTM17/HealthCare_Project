@@ -77,13 +77,16 @@ services:
       APP_SECURITY_RATE_LIMIT_AUTH_LIMIT: ${APP_SECURITY_RATE_LIMIT_AUTH_LIMIT:-20}
       APP_SECURITY_RATE_LIMIT_APPOINTMENT_LIMIT: ${APP_SECURITY_RATE_LIMIT_APPOINTMENT_LIMIT:-60}
       APP_SECURITY_RATE_LIMIT_AI_LIMIT: ${APP_SECURITY_RATE_LIMIT_AI_LIMIT:-30}
-      APP_BOOKING_ALLOW_TEST_OTP: "true"
+      APP_BOOKING_ALLOW_TEST_OTP: ${APP_BOOKING_ALLOW_TEST_OTP:-false}
       AI_SERVICE_URL:     http://healthcare-ai-service:8000
       AI_SERVICE_RUNTIME: compose
       AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL: "false"
       AI_SERVICE_TOKEN:   ${AI_SERVICE_TOKEN:?AI_SERVICE_TOKEN must be set for Compose}
       AI_RAG_INGEST_ENABLED: "true"
       AI_RAG_INGEST_TOKEN: ${RAG_INGEST_TOKEN:?RAG_INGEST_TOKEN must be set for Compose}
+      CMS_DISTRIBUTED_REALTIME_ENABLED: "true"
+      REDIS_HOST:         redis
+      REDIS_PORT:         "6379"
       SPRING_FLYWAY_OUT_OF_ORDER: ${SPRING_FLYWAY_OUT_OF_ORDER:-false}
       MINIO_ENDPOINT:      http://minio:9000
       MINIO_ACCESS_KEY:    ${MINIO_ROOT_USER:-healthcare}
@@ -96,6 +99,8 @@ services:
       minio:
         condition: service_healthy
       ai-service:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"' || exit 1"]
@@ -120,10 +125,11 @@ services:
       PGPASSWORD: ${POSTGRES_PASSWORD:-change-me}
     volumes:
       - ${SEED_FILE:-../apps/backend/src/main/resources/db/seed/seed-local-data.sql}:/seed/seed.sql:ro
+      - ../apps/backend/src/main/resources/db/seed/seed-local-rich-content.sql:/seed/rich-content.sql:ro
     depends_on:
       backend:
         condition: service_healthy
-    command: ["/bin/sh", "-ec", "psql -v ON_ERROR_STOP=1 -f /seed/seed.sql"]
+    command: ["/bin/sh", "-ec", "psql -v ON_ERROR_STOP=1 -f /seed/seed.sql -f /seed/rich-content.sql"]
 
   # ── Next.js Frontend ────────────────────────────────────────────────────────
   frontend:

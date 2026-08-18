@@ -9,6 +9,7 @@ import {
   type CmsContent,
   type CmsSlotKey,
 } from "../../lib/cms-client";
+import { CmsReconciliationLedger } from "../../lib/cms-reconciliation.mjs";
 import { CmsSlotRenderer } from "./CmsRenderer";
 
 export interface CmsLiveSlotProps {
@@ -28,6 +29,7 @@ export interface CmsLiveSlotProps {
 }
 
 type LiveTransport = "connecting" | "sse" | "polling";
+type RefreshResult = "updated" | "not-found" | "failed";
 
 function errorMessage(error: unknown): string {
   if (error instanceof CmsApiError && error.kind === "not-found") return "Chưa có nội dung PUBLISHED cho slot này.";
@@ -56,75 +58,92 @@ export function CmsLiveSlot({
   const [transport, setTransport] = useState<LiveTransport>("connecting");
   const [liveNotice, setLiveNotice] = useState<string | null>(null);
   const latestVersion = useRef(0);
-  const latestEventId = useRef(0);
-  const highestObservedEventId = useRef(0);
-  const pendingEventIds = useRef<Set<number>>(new Set());
-  const pendingEventVersions = useRef<Map<number, number>>(new Map());
 
   useEffect(() => {
     let cancelled = false;
     let pollTimer: ReturnType<typeof setInterval> | undefined;
     let sseConnected = false;
+    const reconciliation = new CmsReconciliationLedger();
+    let refreshGeneration = 0;
     let stopFeed: () => void = () => undefined;
     let stopPolling: () => void = () => undefined;
     latestVersion.current = 0;
-    latestEventId.current = 0;
-    highestObservedEventId.current = 0;
-    pendingEventIds.current.clear();
-    pendingEventVersions.current.clear();
     void Promise.resolve().then(() => {
       if (!cancelled) setLiveNotice(null);
     });
 
-    const advanceCursor = (): void => {
-      const pendingIds = [...pendingEventIds.current];
-      const earliestPendingId = pendingIds.length > 0 ? Math.min(...pendingIds) : undefined;
-      const safeCursor = earliestPendingId === undefined
-        ? highestObservedEventId.current
-        : earliestPendingId - 1;
-      latestEventId.current = Math.max(latestEventId.current, safeCursor);
-    };
-
     const resolvePendingEvent = (eventId: number): void => {
-      pendingEventIds.current.delete(eventId);
-      pendingEventVersions.current.delete(eventId);
-      advanceCursor();
-      if (pendingEventIds.current.size === 0 && sseConnected) {
+      reconciliation.resolvePending(eventId);
+      if (reconciliation.pendingEventIds.size === 0
+        && reconciliation.reconciliationCursor === 0
+        && sseConnected) {
         stopPolling();
         setTransport("sse");
       }
     };
 
     const pendingVersionFloor = (): number => {
-      return Math.max(0, ...pendingEventVersions.current.values());
+      return reconciliation.pendingVersionFloor();
     };
 
-    const refresh = async (minimumVersion = 0): Promise<boolean> => {
+    const pendingEventCursor = (): number => {
+      return reconciliation.pendingEventCursor();
+    };
+
+    const beginReconciliation = (eventId: number): void => {
+      reconciliation.beginReconciliation(eventId);
+    };
+
+    const finishReconciliation = (eventId: number): boolean => {
+      return reconciliation.acknowledgeThrough(eventId);
+    };
+
+    const invalidateRefreshes = (): void => {
+      refreshGeneration += 1;
+    };
+
+    const refresh = async (minimumVersion = 0, afterEventId?: number): Promise<RefreshResult> => {
+      const readGeneration = ++refreshGeneration;
+      const readReconciliationCursor = reconciliation.reconciliationCursor;
+      const isAuthoritativeRead = (): boolean => {
+        if (cancelled || readGeneration !== refreshGeneration) return false;
+        if (afterEventId !== undefined) {
+          return reconciliation.reconciliationCursor <= afterEventId;
+        }
+        return reconciliation.reconciliationCursor <= readReconciliationCursor;
+      };
+
       try {
-        const nextContent = await client.getPublishedContent(backendSlotKey);
-        if (cancelled || nextContent.status !== "PUBLISHED") return false;
+        const nextContent = await client.getPublishedContent(
+          backendSlotKey,
+          afterEventId === undefined ? undefined : { afterEventId },
+        );
+        if (!isAuthoritativeRead() || nextContent.status !== "PUBLISHED") return "failed";
         if (nextContent.version < minimumVersion) {
           setError(new CmsApiError(
             "unavailable",
             503,
             `CMS mới trả version ${nextContent.version}; đang chờ version ${minimumVersion}.`,
           ));
-          return false;
+          return "failed";
         }
         if (nextContent.version >= latestVersion.current) {
           latestVersion.current = nextContent.version;
           setContent(nextContent);
         }
         setError(null);
-        return true;
+        return "updated";
       } catch (nextError) {
-        if (!cancelled) {
-          if (nextError instanceof CmsApiError && nextError.kind === "not-found") setContent(null);
-          setError(nextError);
+        if (!isAuthoritativeRead()) return "failed";
+        if (nextError instanceof CmsApiError && nextError.kind === "not-found") {
+          setContent(null);
+          setError(new CmsApiError("not-found", 404, "Slot hiện không còn PUBLISHED."));
+          return "not-found";
         }
-        return false;
+        setError(nextError);
+        return "failed";
       } finally {
-        if (!cancelled) setLoading(false);
+        if (isAuthoritativeRead()) setLoading(false);
       }
     };
 
@@ -132,13 +151,25 @@ export function CmsLiveSlot({
       if (cancelled || pollTimer) return;
       setTransport("polling");
       pollTimer = setInterval(() => {
-        void refresh(pendingVersionFloor()).then((succeeded) => {
-          if (!succeeded || cancelled || pendingEventIds.current.size === 0) return;
-          pendingEventIds.current.clear();
-          pendingEventVersions.current.clear();
-          advanceCursor();
+        const minimumVersion = pendingVersionFloor();
+        const afterEventId = pendingEventCursor();
+        const hasPendingReconciliation = reconciliation.hasPendingWork;
+        void refresh(minimumVersion, afterEventId).then((result) => {
+          if (
+            result === "failed"
+            || cancelled
+            || !hasPendingReconciliation
+          ) return;
+          if (!finishReconciliation(afterEventId)) {
+            // A newer heartbeat/event won the race. Keep the polling loop
+            // alive and retry with the newer authoritative cursor.
+            startPolling();
+            return;
+          }
           setLiveNotice(`Đã đồng bộ ${backendSlotKey}, version ${latestVersion.current}.`);
-          if (sseConnected) {
+          if (sseConnected
+            && reconciliation.pendingEventIds.size === 0
+            && reconciliation.reconciliationCursor === 0) {
             stopPolling();
             setTransport("sse");
           }
@@ -153,31 +184,35 @@ export function CmsLiveSlot({
     };
 
     // CmsClient multiplexes every live slot onto one EventSource and owns its
-    // bounded reconnect policy. This effect only manages this slot's snapshot
-    // and polling fallback, so StrictMode cleanup cannot leave orphan streams.
+    // bounded reconnect policy. This effect only owns this slot's durable
+    // reconciliation and polling fallback.
     stopFeed = client.subscribeToChanges({
         // Keep zero explicit so a reconnect after a failed first refresh asks
         // the backend to replay from the beginning instead of silently
         // dropping the event that triggered the failed refresh.
-        after: latestEventId.current,
+        after: reconciliation.latestEventId,
         onChange: (event) => {
-          if (event.eventId <= latestEventId.current) return;
-          highestObservedEventId.current = Math.max(highestObservedEventId.current, event.eventId);
+          if (event.eventId <= reconciliation.latestEventId) return;
+          const hasEventGap = reconciliation.observe(event.eventId);
+          if (hasEventGap) {
+            beginReconciliation(event.eventId);
+            startPolling();
+          }
           if (event.slotKey !== backendSlotKey) {
             // The change feed is global. Acknowledging unrelated IDs lets the
-            // cursor advance, while pending relevant IDs still block it.
-            advanceCursor();
+            // contiguous cursor advance, while pending relevant IDs still
+            // block it. A gap is reconciled through the durable snapshot.
+            reconciliation.advanceCursor();
             return;
           }
           if (event.version <= latestVersion.current) {
-            advanceCursor();
+            reconciliation.advanceCursor();
             return;
           }
           if (event.published) {
-            pendingEventIds.current.add(event.eventId);
-            pendingEventVersions.current.set(event.eventId, event.version);
-            void refresh(event.version).then((succeeded) => {
-              if (succeeded && !cancelled) {
+            reconciliation.markPending(event.eventId, event.version);
+            void refresh(event.version, event.eventId).then((result) => {
+              if (result === "updated" && !cancelled) {
                 setLiveNotice(`Đã đồng bộ ${backendSlotKey}, version ${latestVersion.current}.`);
                 resolvePendingEvent(event.eventId);
               } else if (!cancelled) {
@@ -187,17 +222,21 @@ export function CmsLiveSlot({
               }
             });
           } else {
+            // An unpublish event is authoritative immediately. Invalidate any
+            // older GET so its late 200 response cannot resurrect this slot.
+            invalidateRefreshes();
             latestVersion.current = event.version;
             setContent(null);
             setError(new CmsApiError("not-found", 404, "Slot hiện không còn PUBLISHED."));
             setLoading(false);
-            advanceCursor();
+            reconciliation.advanceCursor();
           }
         },
         onConnected: () => {
           if (cancelled) return;
           sseConnected = true;
-          if (pendingEventIds.current.size === 0) {
+          if (reconciliation.pendingEventIds.size === 0
+            && reconciliation.reconciliationCursor === 0) {
             stopPolling();
             setTransport("sse");
           } else {
@@ -211,24 +250,55 @@ export function CmsLiveSlot({
           startPolling();
         },
         onResync: (event) => {
-          void refresh(pendingVersionFloor()).then((succeeded) => {
-            if (succeeded && !cancelled) {
-              pendingEventIds.current.clear();
-              pendingEventVersions.current.clear();
-              highestObservedEventId.current = Math.max(highestObservedEventId.current, event.latestEventId);
-              latestEventId.current = Math.max(latestEventId.current, event.latestEventId);
+          beginReconciliation(event.latestEventId);
+          startPolling();
+          void refresh(pendingVersionFloor(), event.latestEventId).then((result) => {
+            if (result !== "failed" && !cancelled) {
+              if (!finishReconciliation(event.latestEventId)) {
+                startPolling();
+                return;
+              }
               setLiveNotice(`Đã resync nội dung live từ backend, version ${latestVersion.current}.`);
-              if (sseConnected) {
+              if (sseConnected
+                && reconciliation.pendingEventIds.size === 0
+                && reconciliation.reconciliationCursor === 0) {
                 stopPolling();
                 setTransport("sse");
               }
             }
-            if (!succeeded && !cancelled) startPolling();
+            if (result === "failed" && !cancelled) startPolling();
+          });
+        },
+        onHeartbeat: (heartbeat) => {
+          if (heartbeat.latestEventId <= reconciliation.latestEventId) return;
+          beginReconciliation(heartbeat.latestEventId);
+          startPolling();
+          void refresh(0, heartbeat.latestEventId).then((result) => {
+            if (cancelled) return;
+            if (result === "failed") {
+              // The durable cursor proves that a broker event may have been
+              // missed; keep bounded polling active until the snapshot reads.
+              startPolling();
+              return;
+            }
+            if (!finishReconciliation(heartbeat.latestEventId)) {
+              startPolling();
+              return;
+            }
+            setLiveNotice("Đã kiểm tra lại nội dung live, version " + latestVersion.current + ".");
+            if (sseConnected
+              && reconciliation.pendingEventIds.size === 0
+              && reconciliation.reconciliationCursor === 0) {
+              stopPolling();
+              setTransport("sse");
+            }
           });
         },
       });
 
-    void refresh();
+    // Even the first/fallback snapshot bypasses a potentially stale
+    // per-instance cache. The durable cursor is the cache-coherence boundary.
+    void refresh(0, reconciliation.latestEventId);
 
     return () => {
       cancelled = true;
@@ -243,29 +313,33 @@ export function CmsLiveSlot({
       ? "Live CMS · change-feed"
       : "Live CMS · đang kết nối";
 
-  // Optional public slots must be invisible until published content exists.
-  // In particular, the homepage hero uses a grid-aligned fallback: inserting
-  // an operational status paragraph before that fallback creates an extra grid
-  // item and breaks the composition whenever CMS is unavailable.
-  if (!content && hideWhenNotFound) {
-    if (fallback === undefined) return <></>;
-    return (
-      <div
-        className={className}
-        data-cms-backend-slot={backendSlotKey}
-        data-cms-live-slot={slotKey}
-        data-cms-live-source="live-backend"
-      >
-        {fallback}
-      </div>
-    );
+  if (hideWhenNotFound && !loading && !content && error instanceof CmsApiError && error.kind === "not-found") {
+    if (fallback !== undefined) {
+      return (
+        <div
+          aria-busy={loading}
+          className={className}
+          data-cms-backend-slot={backendSlotKey}
+          data-cms-live-slot={slotKey}
+          data-cms-live-source="live-backend"
+        >
+          {error ? (
+            <p className="cms-live-slot__fallback-note" role="status">
+              {errorMessage(error)} Đang hiển thị giao diện có sẵn trong lúc CMS đồng bộ lại.
+            </p>
+          ) : null}
+          {fallback}
+        </div>
+      );
+    }
+    return <></>;
   }
 
   if (!content && fallback !== undefined) {
     return (
       <div
-        aria-busy={hideWhenNotFound ? undefined : loading}
-        aria-label={hideWhenNotFound ? undefined : `Nội dung live ${slotKey}`}
+        aria-busy={loading}
+        aria-label={`Nội dung live ${slotKey}`}
         className={className}
         data-cms-backend-slot={backendSlotKey}
         data-cms-live-slot={slotKey}
@@ -284,26 +358,26 @@ export function CmsLiveSlot({
   if (content && renderContent) {
     return (
       <div
-        aria-busy={hideWhenNotFound ? undefined : loading}
-        aria-label={hideWhenNotFound ? undefined : `Nội dung live ${slotKey}`}
+        aria-busy={loading}
+        aria-label={`Nội dung live ${slotKey}`}
         className={className}
         data-cms-backend-slot={backendSlotKey}
         data-cms-live-slot={slotKey}
         data-cms-live-source="live-backend"
         data-cms-version={content.version}
       >
-        {showSourceLabel && !hideWhenNotFound ? (
+        {showSourceLabel ? (
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-slate-500">
             <span>{sourceLabel}</span>
             <span>Version {content.version}</span>
           </div>
         ) : null}
-        {!hideWhenNotFound && error && content ? (
+        {error && content ? (
           <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950" role="status">
             Đang hiển thị version {content.version} gần nhất; lần đồng bộ live tiếp theo sẽ thử lại.
           </p>
         ) : null}
-        {!hideWhenNotFound && liveNotice ? <p className="mb-4 rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm text-teal-950" role="status">{liveNotice}</p> : null}
+        {liveNotice ? <p className="mb-4 rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm text-teal-950" role="status">{liveNotice}</p> : null}
         {renderContent(content)}
       </div>
     );
@@ -311,35 +385,35 @@ export function CmsLiveSlot({
 
   return (
     <section
-      aria-busy={hideWhenNotFound ? undefined : loading}
-      aria-label={hideWhenNotFound ? undefined : `Nội dung live ${slotKey}`}
+      aria-busy={loading}
+      aria-label={`Nội dung live ${slotKey}`}
       className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6 ${className}`}
       data-cms-live-source="live-backend"
       data-cms-live-slot={slotKey}
       data-cms-backend-slot={backendSlotKey}
     >
-      {showSourceLabel && !hideWhenNotFound ? (
+      {showSourceLabel ? (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-slate-500">
           <span>{sourceLabel}</span>
           <span>{content ? `Version ${content.version}` : backendSlotKey}</span>
         </div>
       ) : null}
 
-      {!hideWhenNotFound && error && !content ? (
+      {error && !content ? (
         <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950" role="alert">
           {errorMessage(error)} Không có dữ liệu demo thay thế.
         </p>
       ) : null}
 
-      {!hideWhenNotFound && error && content ? (
+      {error && content ? (
         <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950" role="status">
           Đang hiển thị version {content.version} gần nhất; lần đồng bộ live tiếp theo sẽ thử lại.
         </p>
       ) : null}
 
-      {!hideWhenNotFound && liveNotice ? <p className="mb-4 rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm text-teal-950" role="status">{liveNotice}</p> : null}
+      {liveNotice ? <p className="mb-4 rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm text-teal-950" role="status">{liveNotice}</p> : null}
 
-      {!hideWhenNotFound && loading && !content ? <p className="text-sm text-slate-500" role="status">Đang tải nội dung live…</p> : null}
+      {loading && !content ? <p className="text-sm text-slate-500" role="status">Đang tải nội dung live…</p> : null}
       {content ? <CmsSlotRenderer content={content} slotKey={slotKey} /> : null}
     </section>
   );

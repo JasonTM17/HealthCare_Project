@@ -3,6 +3,7 @@ package com.healthcare.clinical.repository;
 import com.healthcare.clinical.entity.MedicalRecord;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import jakarta.persistence.LockModeType;
 
 @Repository
 public interface MedicalRecordRepository extends JpaRepository<MedicalRecord, UUID> {
@@ -18,6 +20,7 @@ public interface MedicalRecordRepository extends JpaRepository<MedicalRecord, UU
     @Query("select m from MedicalRecord m join fetch m.patient join fetch m.doctor left join fetch m.appointment where m.id = :id")
     Optional<MedicalRecord> findByIdWithDetails(@Param("id") UUID id);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<MedicalRecord> findByAppointmentId(UUID appointmentId);
 
     Page<MedicalRecord> findByPatientIdOrderByCreatedAtDesc(UUID patientId, Pageable pageable);

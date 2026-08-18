@@ -32,6 +32,7 @@ import com.healthcare.notification.entity.Notification.EventType;
 import com.healthcare.notification.service.NotificationService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
@@ -165,7 +166,15 @@ public class ClinicalService {
         if (appointment != null) {
             appointment.setStatus(AppointmentStatus.COMPLETED);
         }
-        return mapToResponse(medicalRecordRepository.save(record));
+        try {
+            return mapToResponse(medicalRecordRepository.saveAndFlush(record));
+        } catch (DataIntegrityViolationException exception) {
+            // appointment_id is UNIQUE at PostgreSQL. When two doctors submit
+            // the same appointment concurrently, the losing transaction must
+            // surface the same domain conflict as the pre-check path instead
+            // of leaking a generic 500.
+            throw new BusinessException(409, "A medical record already exists for this appointment");
+        }
     }
 
     @Transactional(readOnly = true)

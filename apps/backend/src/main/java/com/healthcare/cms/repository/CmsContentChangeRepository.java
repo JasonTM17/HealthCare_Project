@@ -13,8 +13,14 @@ import java.util.Optional;
 @Repository
 public interface CmsContentChangeRepository extends JpaRepository<CmsContentChange, Long> {
 
-    @Query("select c from CmsContentChange c where c.id > :afterId order by c.id asc")
+    @Query("select c from CmsContentChange c where c.id > :afterId and c.publicEvent = true order by c.id asc")
     List<CmsContentChange> findAfterId(@Param("afterId") long afterId, Pageable pageable);
 
-    Optional<CmsContentChange> findTopByOrderByIdDesc();
+    Optional<CmsContentChange> findTopByPublicEventTrueOrderByIdDesc();
+
+    Optional<CmsContentChange> findTopBySlotKeyAndPublicEventTrueOrderByIdDesc(String slotKey);
+
+    List<CmsContentChange> findBySlotKeyOrderByIdDesc(String slotKey, Pageable pageable);
+
+    Optional<CmsContentChange> findByIdAndSlotKey(Long id, String slotKey);
 }

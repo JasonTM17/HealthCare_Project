@@ -21,7 +21,7 @@ public class PackageService {
     }
 
     public PackageResponse getBySlug(String slug) {
-        return packageRepository.findBySlug(slug)
+        return packageRepository.findBySlugAndActiveTrue(slug)
             .map(this::toResponse)
             .orElse(null);
     }

@@ -3,22 +3,29 @@ package com.healthcare.cms.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.healthcare.cms.dto.CmsContentRequest;
 import com.healthcare.cms.dto.CmsContentResponse;
+import com.healthcare.cms.dto.CmsContentHistoryResponse;
+import com.healthcare.cms.dto.CmsRollbackRequest;
+import com.healthcare.cms.entity.CmsComponentType;
 import com.healthcare.cms.entity.CmsContent;
 import com.healthcare.cms.entity.CmsContentChange;
 import com.healthcare.cms.entity.CmsPublicationStatus;
 import com.healthcare.cms.exception.CmsVersionConflictException;
 import com.healthcare.cms.repository.CmsContentChangeRepository;
 import com.healthcare.cms.repository.CmsContentRepository;
+import org.springframework.data.domain.PageRequest;
 import com.healthcare.exception.DuplicateResourceException;
+import com.healthcare.exception.BusinessException;
 import com.healthcare.exception.ResourceNotFoundException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.core.userdetails.UserDetails;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 @Service
@@ -49,19 +56,58 @@ public class CmsContentService {
 
     @Transactional(readOnly = true)
     public CmsContentResponse getPublished(String slotKey) {
+        return getPublished(slotKey, null);
+    }
+
+    /**
+     * Reads a published snapshot. A non-null feed cursor is an explicit
+     * reconciliation read: bypass the local cache so a backend that missed a
+     * Redis event cannot acknowledge a newer durable cursor with stale data.
+     * Normal cache hits are also checked against the latest durable public
+     * event for this slot, which keeps a missed cross-instance eviction from
+     * serving an old in-process snapshot indefinitely.
+     */
+    @Transactional(readOnly = true)
+    public CmsContentResponse getPublished(String slotKey, Long afterEventId) {
         String validatedSlotKey = validateSlotKey(slotKey);
-        CmsContentResponse cached = cache.get(validatedSlotKey);
-        if (cached != null) {
-            return cached;
+        long latestPublicEventId = changeRepository
+            .findTopBySlotKeyAndPublicEventTrueOrderByIdDesc(validatedSlotKey)
+            .map(CmsContentChange::getId)
+            .orElse(0L);
+        if (afterEventId != null) {
+            if (afterEventId < 0L) {
+                throw new com.healthcare.cms.exception.CmsPayloadValidationException(
+                    "afterEventId must be a non-negative feed cursor"
+                );
+            }
+        } else {
+            CmsPublishedContentCache.CachedContent cached = cache.getEntry(validatedSlotKey);
+            if (cached != null && cached.eventId() >= latestPublicEventId) {
+                return cached.response();
+            }
+            if (cached != null) {
+                cache.evict(validatedSlotKey);
+            }
         }
 
-        CmsContent content = contentRepository.findBySlotKeyAndStatus(
+        CmsPublishedContentCache.ReadToken readToken = cache.beginRead(validatedSlotKey);
+
+        Optional<CmsContent> published = contentRepository.findBySlotKeyAndStatus(
                 validatedSlotKey,
                 CmsPublicationStatus.PUBLISHED
-            )
-            .orElseThrow(() -> new ResourceNotFoundException("Published CMS content not found"));
+            );
+        if (published.isEmpty()) {
+            if (afterEventId != null) {
+                // A forced read can prove an unpublish after this instance
+                // missed Redis; do not let the old cache resurrect the slot.
+                cache.evict(validatedSlotKey);
+            }
+            throw new ResourceNotFoundException("Published CMS content not found");
+        }
+        CmsContent content = published.get();
         CmsContentResponse response = toResponse(content);
-        cache.put(response);
+        long cacheEventId = Math.max(latestPublicEventId, afterEventId == null ? 0L : afterEventId);
+        cache.put(readToken, response, cacheEventId);
         return response;
     }
 
@@ -72,7 +118,6 @@ public class CmsContentService {
             .stream()
             .map(this::toResponse)
             .toList();
-        responses.forEach(cache::put);
         return responses;
     }
 
@@ -89,12 +134,13 @@ public class CmsContentService {
     }
 
     @Transactional
-    public CmsContentResponse upsert(String slotKey, CmsContentRequest request) {
+    public CmsContentResponse upsert(String slotKey, CmsContentRequest request, UserDetails actor) {
         String validatedSlotKey = validateSlotKey(slotKey);
         JsonNode sanitizedPayload = payloadValidator.validateAndSanitize(request.componentType(), request.payload());
         long expectedVersion = request.expectedVersion();
         CmsContent existing = contentRepository.findBySlotKey(validatedSlotKey).orElse(null);
         boolean previouslyPublished = existing != null && existing.getStatus() == CmsPublicationStatus.PUBLISHED;
+        JsonNode previousPayload = copy(existing == null ? null : existing.getPayload());
 
         if (existing == null) {
             if (expectedVersion != 0L) {
@@ -130,14 +176,20 @@ public class CmsContentService {
         }
 
         boolean currentlyPublished = existing.getStatus() == CmsPublicationStatus.PUBLISHED;
-        if (previouslyPublished || currentlyPublished) {
-            CmsContentChange change = new CmsContentChange();
-            change.setContentId(existing.getId());
-            change.setSlotKey(existing.getSlotKey());
-            change.setContentVersion(existing.getVersion());
-            change.setPublished(currentlyPublished);
-            change.setChangedAt(existing.getUpdatedAt());
-            CmsContentChange savedChange = changeRepository.saveAndFlush(change);
+        CmsContentChange change = new CmsContentChange();
+        change.setContentId(existing.getId());
+        change.setSlotKey(existing.getSlotKey());
+        change.setContentVersion(existing.getVersion());
+        change.setPublished(currentlyPublished);
+        change.setPublicEvent(previouslyPublished || currentlyPublished);
+        change.setActorEmail(actor == null ? "system" : actor.getUsername());
+        change.setComponentType(existing.getComponentType());
+        change.setStatus(existing.getStatus());
+        change.setPayload(copy(existing.getPayload()));
+        change.setPreviousPayload(previousPayload);
+        change.setChangedAt(existing.getUpdatedAt());
+        CmsContentChange savedChange = changeRepository.saveAndFlush(change);
+        if (savedChange.isPublicEvent()) {
             eventPublisher.publishEvent(new CmsContentChangedEvent(
                 savedChange.getId(),
                 savedChange.getSlotKey(),
@@ -147,6 +199,56 @@ public class CmsContentService {
             ));
         }
         return toResponse(existing);
+    }
+
+    @Transactional(readOnly = true)
+    public List<CmsContentHistoryResponse> history(String slotKey, int limit) {
+        String validatedSlotKey = validateSlotKey(slotKey);
+        int boundedLimit = Math.min(Math.max(limit, 1), 50);
+        return changeRepository.findBySlotKeyOrderByIdDesc(validatedSlotKey, PageRequest.of(0, boundedLimit))
+            .stream()
+            .map(this::toHistoryResponse)
+            .toList();
+    }
+
+    @Transactional
+    public CmsContentResponse rollback(
+        String slotKey,
+        CmsRollbackRequest request,
+        UserDetails actor
+    ) {
+        String validatedSlotKey = validateSlotKey(slotKey);
+        CmsContentChange history = changeRepository.findByIdAndSlotKey(request.changeId(), validatedSlotKey)
+            .orElseThrow(() -> new ResourceNotFoundException("CMS history entry not found"));
+        if (history.getComponentType() == null || history.getStatus() == null || history.getPayload() == null) {
+            throw new BusinessException(409, "History entry predates rollback snapshots");
+        }
+
+        CmsContentRequest restore = new CmsContentRequest(
+            history.getComponentType(),
+            copy(history.getPayload()),
+            history.getStatus(),
+            request.expectedVersion()
+        );
+        return upsert(validatedSlotKey, restore, actor);
+    }
+
+    private CmsContentHistoryResponse toHistoryResponse(CmsContentChange change) {
+        return new CmsContentHistoryResponse(
+            change.getId(),
+            change.getSlotKey(),
+            change.getComponentType(),
+            change.getStatus(),
+            copy(change.getPayload()),
+            change.getContentVersion(),
+            change.getActorEmail(),
+            change.getChangedAt(),
+            change.getComponentType() != null && change.getStatus() != null && change.getPayload() != null
+        );
+    }
+
+    private JsonNode copy(JsonNode value) {
+        return value == null ? null : value.deepCopy();
     }
 
     private CmsContentResponse toResponse(CmsContent content) {

@@ -19,6 +19,7 @@ import {
   validateCmsContentInput,
   type CmsComponentType,
   type CmsContent,
+  type CmsContentHistoryEntry,
   type CmsContentInput,
   type CmsPayload,
   type CmsPublicationStatus,
@@ -262,6 +263,9 @@ export function CmsEditor({
   const [availableContent, setAvailableContent] = useState<CmsContent[]>([]);
   const [inventoryLoading, setInventoryLoading] = useState(true);
   const [inventoryError, setInventoryError] = useState<string | null>(null);
+  const [history, setHistory] = useState<CmsContentHistoryEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
 
   const loadContent = useCallback(async (requestedSlug: string, requestedSlot: CmsSlotKey): Promise<void> => {
     const normalizedSlug = requestedSlug.trim();
@@ -280,6 +284,16 @@ export function CmsEditor({
       setLoadedSnapshot(loadedDraft);
       setLoadedSlug(normalizedSlug);
       setLoadedSlotKey(backendSlotKey);
+      setHistoryLoading(true);
+      setHistoryError(null);
+      try {
+        setHistory(await client.listHistory(backendSlotKey));
+      } catch (historyLoadError) {
+        setHistory([]);
+        setHistoryError(apiErrorMessage(asCmsError(historyLoadError)));
+      } finally {
+        setHistoryLoading(false);
+      }
     } catch (error) {
       const cmsError = asCmsError(error);
       setApiError(cmsError);
@@ -288,6 +302,8 @@ export function CmsEditor({
       setDraft(emptyDraft());
       setLoadedSlug(normalizedSlug);
       setLoadedSlotKey(backendSlotKey);
+      setHistory([]);
+      setHistoryError(null);
     } finally {
       setOperation("idle");
     }
@@ -364,9 +380,42 @@ export function CmsEditor({
         ...current.filter((item) => item.slotKey !== savedContent.slotKey),
         savedContent,
       ].sort((left, right) => left.slotKey.localeCompare(right.slotKey)));
+      try {
+        setHistory(await client.listHistory(savedContent.slotKey));
+        setHistoryError(null);
+      } catch (historyLoadError) {
+        setHistoryError(apiErrorMessage(asCmsError(historyLoadError)));
+      }
       setNotice(savedContent.status === "PUBLISHED"
         ? `Đã xuất bản ${savedContent.slotKey}, version ${savedContent.version}.`
         : `Đã lưu bản nháp ẩn công khai, version ${savedContent.version}.`);
+    } catch (error) {
+      setApiError(asCmsError(error));
+    } finally {
+      setOperation("idle");
+    }
+  };
+
+  const handleRollback = async (entry: CmsContentHistoryEntry): Promise<void> => {
+    if (!entry.rollbackAvailable || !content) return;
+    setOperation("saving");
+    setApiError(null);
+    setNotice(null);
+    try {
+      const savedContent = await client.rollbackContent(loadedSlotKey, {
+        changeId: entry.eventId,
+        expectedVersion: content.version,
+      });
+      const savedDraft = draftFromContent(savedContent);
+      setContent(savedContent);
+      setDraft(savedDraft);
+      setLoadedSnapshot(savedDraft);
+      setHistory(await client.listHistory(savedContent.slotKey));
+      setAvailableContent((current) => [
+        ...current.filter((item) => item.slotKey !== savedContent.slotKey),
+        savedContent,
+      ].sort((left, right) => left.slotKey.localeCompare(right.slotKey)));
+      setNotice(`Đã rollback ${savedContent.slotKey} về snapshot event #${entry.eventId}, version mới ${savedContent.version}.`);
     } catch (error) {
       setApiError(asCmsError(error));
     } finally {
@@ -530,10 +579,37 @@ export function CmsEditor({
           </div>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" aria-labelledby="rollback-title">
-            <h3 className="font-bold text-slate-950" id="rollback-title">Rollback-friendly</h3>
-            <p className="mt-1 text-sm leading-6 text-slate-600">
-              Backend contract hiện cung cấp upsert theo version, chưa cung cấp history/rollback endpoint. Nút khôi phục chỉ hoàn tác form cục bộ về snapshot đã tải; không giả lập rollback server.
-            </p>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="font-bold text-slate-950" id="rollback-title">Lịch sử & rollback server</h3>
+                <p className="mt-1 text-sm leading-6 text-slate-600">
+                  Mỗi lần lưu được ghi actor, version và snapshot. Rollback tạo version mới, vẫn yêu cầu expectedVersion hiện tại để không ghi đè thay đổi của quản trị viên khác.
+                </p>
+              </div>
+              {historyLoading ? <span className="text-xs font-semibold text-slate-500">Đang tải lịch sử…</span> : null}
+            </div>
+            {historyError ? <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950" role="status">{historyError}</p> : null}
+            {!historyLoading && !historyError && history.length === 0 ? <p className="mt-3 text-sm text-slate-600">Chưa có history snapshot cho slot này.</p> : null}
+            {history.length > 0 ? (
+              <ol className="mt-4 space-y-3">
+                {history.map((entry) => (
+                  <li className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-3" key={entry.eventId}>
+                    <div className="min-w-0 text-sm">
+                      <p className="font-semibold text-slate-900">Event #{entry.eventId} · v{entry.version} · {entry.status ?? "legacy"}</p>
+                      <p className="mt-1 text-xs text-slate-500">{entry.actorEmail ?? "actor không xác định"} · {prettyUpdatedAt(entry.changedAt)}</p>
+                    </div>
+                    <button
+                      className="min-h-11 rounded-xl border border-amber-300 px-3 py-2 text-sm font-bold text-amber-900 hover:bg-amber-50 disabled:opacity-60"
+                      disabled={!canMutate || entry.version === content?.version || !entry.rollbackAvailable}
+                      onClick={() => void handleRollback(entry)}
+                      type="button"
+                    >
+                      {operation === "saving" ? "Đang rollback…" : "Rollback snapshot"}
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            ) : null}
           </section>
         </section>
 

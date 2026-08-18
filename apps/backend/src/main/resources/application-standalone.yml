@@ -37,5 +37,13 @@ ai:
     runtime: local
     allow-unauthenticated-local: false
 
+# Redis only fans CMS changes out between multiple production instances. The
+# single-process standalone profile keeps the in-memory feed and must remain
+# healthy when Redis is not installed on a developer machine.
+management:
+  health:
+    redis:
+      enabled: false
+
 server:
   port: ${BACKEND_PORT:8080}

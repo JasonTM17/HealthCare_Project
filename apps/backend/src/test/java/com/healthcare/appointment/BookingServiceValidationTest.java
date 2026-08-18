@@ -48,7 +48,7 @@ class BookingServiceValidationTest {
         Doctor doctor = new Doctor(); doctor.setId(doctorId); doctor.setActive(true);
         Specialty specialty = new Specialty(); specialty.setId(specialtyId); specialty.setActive(true);
         when(doctors.findById(doctorId)).thenReturn(Optional.of(doctor));
-        when(specialties.findById(specialtyId)).thenReturn(Optional.of(specialty));
+        when(specialties.findByIdAndActiveTrue(specialtyId)).thenReturn(Optional.of(specialty));
         when(doctorSpecialties.existsByDoctorIdAndSpecialtyId(doctorId, specialtyId)).thenReturn(false);
 
         BookingService service = new BookingService(

@@ -48,7 +48,7 @@ public class CmsChangeFeedHub {
 
     @Autowired
     public CmsChangeFeedHub(CmsContentChangeRepository changeRepository) {
-        this(changeRepository, timeout -> new SseEmitter(timeout));
+        this(changeRepository, SseEmitter::new);
     }
 
     CmsChangeFeedHub(
@@ -113,9 +113,8 @@ public class CmsChangeFeedHub {
                     }
                 }
             } catch (IOException | RuntimeException ex) {
-                // A disconnected SSE client is an expected transport event. Sending the
-                // exception through MVC's JSON exception handler would try to serialize an
-                // ApiError into an already text/event-stream response.
+                // A disconnected SSE client is an expected transport event. Dispatching
+                // the exception would make MVC serialize a JSON error into this stream.
                 closeQuietly(connectionId, emitter);
             }
             return emitter;
@@ -136,7 +135,17 @@ public class CmsChangeFeedHub {
 
     private void sendHeartbeats() {
         synchronized (streamLock) {
-            CmsHeartbeatResponse heartbeat = new CmsHeartbeatResponse(OffsetDateTime.now(ZoneOffset.UTC));
+            long latestEventId;
+            try {
+                latestEventId = latestEventId();
+            } catch (RuntimeException exception) {
+                // Keep the scheduler alive if PostgreSQL is briefly unavailable.
+                return;
+            }
+            CmsHeartbeatResponse heartbeat = new CmsHeartbeatResponse(
+                OffsetDateTime.now(ZoneOffset.UTC),
+                latestEventId
+            );
             emitters.forEach((connectionId, emitter) -> {
                 try {
                     send(emitter, "heartbeat", null, heartbeat);
@@ -158,9 +167,13 @@ public class CmsChangeFeedHub {
                     "retryAfterMillis", CAPACITY_RETRY_MILLIS
                 ), MediaType.APPLICATION_JSON));
         } catch (IOException | RuntimeException ignored) {
-            // There is no registered connection to clean up for this short-lived emitter.
+            // This short-lived emitter was never registered, so there is nothing to remove.
         } finally {
-            emitter.complete();
+            try {
+                emitter.complete();
+            } catch (RuntimeException ignored) {
+                // The servlet container may already have completed the response.
+            }
         }
         return emitter;
     }
@@ -183,7 +196,7 @@ public class CmsChangeFeedHub {
     }
 
     private long latestEventId() {
-        return changeRepository.findTopByOrderByIdDesc()
+        return changeRepository.findTopByPublicEventTrueOrderByIdDesc()
             .map(CmsContentChange::getId)
             .orElse(0L);
     }

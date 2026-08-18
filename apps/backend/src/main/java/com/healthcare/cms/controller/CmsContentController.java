@@ -36,10 +36,13 @@ public class CmsContentController {
     }
 
     @GetMapping("/{slotKey}")
-    public ResponseEntity<CmsContentResponse> getPublished(@PathVariable String slotKey) {
+    public ResponseEntity<CmsContentResponse> getPublished(
+        @PathVariable String slotKey,
+        @RequestParam(value = "afterEventId", required = false) Long afterEventId
+    ) {
         return ResponseEntity.ok()
             .cacheControl(CacheControl.noStore())
-            .body(contentService.getPublished(slotKey));
+            .body(contentService.getPublished(slotKey, afterEventId));
     }
 
     @GetMapping(value = "/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)

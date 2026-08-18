@@ -29,6 +29,12 @@ migrations="
 /opt/healthcare/migrations/V12__cms_content_realtime.sql
 /opt/healthcare/migrations/V13__repair_legacy_pending_slot_duplicates.sql
 /opt/healthcare/migrations/V14__bound_appointment_otp_attempts.sql
+/opt/healthcare/migrations/V15__expand_stitch_content_contracts.sql
+/opt/healthcare/migrations/V16__cms_content_audit_snapshots.sql
+/opt/healthcare/migrations/V17__secure_file_metadata.sql
+/opt/healthcare/migrations/V18__appointment_reminder_delivery.sql
+/opt/healthcare/migrations/V19__patient_profile_details.sql
+/opt/healthcare/migrations/V20__careers_and_job_applications.sql
 "
 
 for migration in $migrations; do

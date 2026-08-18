@@ -31,7 +31,7 @@ test("careers page is backed by live openings and a complete application workflo
 
 test("career backend persists applications and protects recruiter review endpoints", async () => {
   const [migration, controller, adminController, security, service, seeder] = await Promise.all([
-    read("../backend/src/main/resources/db/migration/V19__careers_and_job_applications.sql"),
+    read("../backend/src/main/resources/db/migration/V20__careers_and_job_applications.sql"),
     read("../backend/src/main/java/com/healthcare/career/controller/CareerController.java"),
     read("../backend/src/main/java/com/healthcare/career/controller/AdminCareerController.java"),
     read("../backend/src/main/java/com/healthcare/security/SecurityConfig.java"),

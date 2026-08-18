@@ -9,7 +9,11 @@ Draft payloads and content bodies are never sent through the feed.
 ## API contract
 
 - `GET /api/v1/cms/content` — published snapshots for all slots.
-- `GET /api/v1/cms/content/{slotKey}` — one published snapshot.
+- `GET /api/v1/cms/content/{slotKey}` — one published snapshot. A read with
+  `?afterEventId=<durable-feed-cursor>` explicitly bypasses the backend's
+  in-process snapshot cache and is used for heartbeat/reconnect reconciliation;
+  this prevents a backend that missed Redis Pub/Sub from acknowledging a new
+  cursor with stale content.
 - `GET /api/v1/cms/content/events` — public SSE feed. `Last-Event-ID` or the
   `after` query parameter requests replay. Replay is capped at 50 events;
   older cursors receive `resync` and must refetch the snapshot endpoint.
@@ -18,6 +22,12 @@ Draft payloads and content bodies are never sent through the feed.
 - `PUT /api/v1/admin/cms/content/{slotKey}` — `ADMIN`-only upsert. New slots
   require `expectedVersion: 0`; subsequent writes must send the current
   version. The response version increments on each committed edit.
+- `GET /api/v1/admin/cms/content/{slotKey}/history?limit=20` — `ADMIN`-only
+  versioned snapshots with actor metadata. Draft-only edits are recorded here
+  but never enter the public SSE cursor.
+- `POST /api/v1/admin/cms/content/{slotKey}/rollback` — `ADMIN`-only restore
+  of a snapshot by `{ changeId, expectedVersion }`. Rollback is an ordinary
+  new version and therefore preserves the optimistic-concurrency contract.
 
 The allowed component types are `HERO`, `RICH_TEXT`, `CTA_BANNER`, `NOTICE`,
 and `IMAGE_CARD`. Each has a fixed allow-list of scalar text fields. The
@@ -27,19 +37,29 @@ arbitrary HTML/JS/CSS field, secret field, or patient-data field in the model.
 
 Public responses use `Cache-Control: no-store`. The backend's small in-process
 published snapshot cache is evicted and the SSE event is broadcast from an
-`AFTER_COMMIT` transaction listener, so a rollback cannot invalidate or notify
-the public view. The durable `cms_content_changes` cursor makes reconnects
-bounded and restart-safe; a full replay window falls back to a GET snapshot.
+`AFTER_COMMIT` transaction listener, including rollback because rollback creates
+a new committed version. When `CMS_DISTRIBUTED_REALTIME_ENABLED=true`, the same
+post-commit metadata is fanned out through Redis Pub/Sub to every backend
+instance; the origin instance ignores its own broker echo. Redis carries only a
+low-latency signal, never the content body: PostgreSQL's durable
+`cms_content_changes` cursor remains the source for reconnect/replay, and the
+SSE heartbeat includes the latest durable event cursor so the frontend can
+reconcile a missed broker event even while the SSE connection remains open.
+Bounded polling remains the fallback for failed reconciliation or SSE failures.
+Set a unique `CMS_INSTANCE_ID` per backend instance when deploying more than
+one replica. A full replay window falls back to a GET snapshot.
 
 ## Migration ordering
 
-This checkout contains Flyway V1-V13 plus the `10.4` and `10.5` ordering
+This checkout contains Flyway V1-V16 plus the `10.4` and `10.5` ordering
 points. V10 enforces branch assignments, V10.4 first rejects a real zero-UUID
 branch and cancels expired holds, V10.5 then repairs overlapping legacy
 pending holds before V11 creates branch-aware scheduling constraints, V12 adds
-CMS content, and V13 provides an idempotent repair for volumes that already
-reached V12. No migration rewrites an already-applied migration; do not
-renumber these migrations on the integration head.
+CMS content, V13 provides an idempotent repair for volumes that already
+reached V12, V14 bounds appointment OTP attempts, V15 expands structured
+detail content, and V16 adds actor-aware CMS audit snapshots and rollback
+metadata. No migration rewrites an already-applied migration; do not renumber
+these migrations on the integration head.
 
 If an existing local volume already applied V12 before V10/V11, first verify a
 database backup and then run one maintenance start with

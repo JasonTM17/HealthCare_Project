@@ -16,6 +16,8 @@ public interface SpecialtyRepository extends JpaRepository<Specialty, UUID> {
 
     Optional<Specialty> findBySlugAndActiveTrue(String slug);
 
+    Optional<Specialty> findByIdAndActiveTrue(UUID id);
+
     Page<Specialty> findByActiveTrue(Pageable pageable);
 
     List<Specialty> findByActiveTrue();

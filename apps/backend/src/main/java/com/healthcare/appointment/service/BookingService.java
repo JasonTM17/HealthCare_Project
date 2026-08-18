@@ -130,7 +130,7 @@ public class BookingService {
 
         com.healthcare.hospital.entity.Specialty specialty = request.specialtyId() == null
             ? null
-            : specialtyRepository.findById(request.specialtyId())
+            : specialtyRepository.findByIdAndActiveTrue(request.specialtyId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy chuyên khoa"));
         if (specialty != null && (!specialty.isActive()
                 || !doctorSpecialtyRepository.existsByDoctorIdAndSpecialtyId(doctor.getId(), specialty.getId()))) {
@@ -141,7 +141,7 @@ public class BookingService {
         }
         com.healthcare.hospital.entity.Branch branch = request.branchId() == null
             ? null
-            : branchRepository.findById(request.branchId())
+            : branchRepository.findByIdAndActiveTrue(request.branchId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy cơ sở khám"));
         if (branch != null && !doctorBranchRepository.existsByDoctorIdAndBranchId(request.doctorId(), branch.getId())) {
             throw new ResponseStatusException(
@@ -155,7 +155,7 @@ public class BookingService {
 
         com.healthcare.hospital.entity.Package medicalPackage = request.packageId() == null
             ? null
-            : packageRepository.findById(request.packageId())
+            : packageRepository.findByIdAndActiveTrue(request.packageId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy gói khám"));
         if (medicalPackage != null && !medicalPackage.isActive()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Gói khám hiện không nhận đặt lịch");

@@ -1,6 +1,10 @@
 package com.healthcare.cms;
 
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.healthcare.AbstractIntegrationTest;
+import com.healthcare.cms.dto.CmsContentResponse;
+import com.healthcare.cms.entity.CmsComponentType;
+import com.healthcare.cms.entity.CmsPublicationStatus;
 import com.healthcare.cms.repository.CmsContentChangeRepository;
 import com.healthcare.cms.service.CmsPublishedContentCache;
 import com.healthcare.security.JwtTokenProvider;
@@ -20,6 +24,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -131,6 +136,79 @@ class CmsContentIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void feedCursorReconciliationBypassesAStalePublishedCache() throws Exception {
+        String admin = bearer("ADMIN");
+        String first = request("NOTICE", "PUBLISHED", 0, "{\"title\":\"First\",\"body\":\"Initial\"}");
+        String second = request("NOTICE", "PUBLISHED", 1, "{\"title\":\"Second\",\"body\":\"Current\"}");
+        String unpublish = request("NOTICE", "DRAFT", 2, "{\"title\":\"Second\",\"body\":\"Current\"}");
+
+        mockMvc.perform(put("/api/v1/admin/cms/content/cache-reconcile-slot")
+                .header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(first))
+            .andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/cms/content/cache-reconcile-slot"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.payload.title").value("First"));
+
+        mockMvc.perform(put("/api/v1/admin/cms/content/cache-reconcile-slot")
+                .header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(second))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.version").value(2));
+
+        long currentEventId = changeRepository.findTopByPublicEventTrueOrderByIdDesc()
+            .orElseThrow()
+            .getId();
+        cache.put(new CmsContentResponse(
+            "cache-reconcile-slot",
+            CmsComponentType.NOTICE,
+            JsonNodeFactory.instance.objectNode().put("title", "Stale"),
+            CmsPublicationStatus.PUBLISHED,
+            1L,
+            OffsetDateTime.now()
+        ), currentEventId);
+        mockMvc.perform(get("/api/v1/cms/content/cache-reconcile-slot"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.payload.title").value("Stale"))
+            .andExpect(jsonPath("$.version").value(1));
+
+        long latestEventId = changeRepository.findTopByPublicEventTrueOrderByIdDesc()
+            .orElseThrow()
+            .getId();
+        mockMvc.perform(get("/api/v1/cms/content/cache-reconcile-slot")
+                .param("afterEventId", Long.toString(latestEventId)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.payload.title").value("Second"))
+            .andExpect(jsonPath("$.version").value(2));
+
+        mockMvc.perform(put("/api/v1/admin/cms/content/cache-reconcile-slot")
+                .header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(unpublish))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("DRAFT"))
+            .andExpect(jsonPath("$.version").value(3));
+        long unpublishEventId = changeRepository.findTopByPublicEventTrueOrderByIdDesc()
+            .orElseThrow()
+            .getId();
+        cache.put(new CmsContentResponse(
+            "cache-reconcile-slot",
+            CmsComponentType.NOTICE,
+            JsonNodeFactory.instance.objectNode().put("title", "Stale after unpublish"),
+            CmsPublicationStatus.PUBLISHED,
+            2L,
+            OffsetDateTime.now()
+        ), unpublishEventId);
+        mockMvc.perform(get("/api/v1/cms/content/cache-reconcile-slot")
+                .param("afterEventId", Long.toString(unpublishEventId)))
+            .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/v1/cms/content/cache-reconcile-slot"))
+            .andExpect(status().isNotFound());
+    }
+
+    @Test
     void draftIsHiddenUntilPublishedAndUnpublishRemovesIt() throws Exception {
         String draft = request("RICH_TEXT", "DRAFT", 0, "{\"title\":\"Draft title\",\"body\":\"Draft body\"}");
         String publish = request("RICH_TEXT", "PUBLISHED", 1, "{\"title\":\"Published title\",\"body\":\"Published body\"}");
@@ -187,7 +265,77 @@ class CmsContentIntegrationTest extends AbstractIntegrationTest {
             .contains("\"version\":1")
             .doesNotContain("payload")
             .doesNotContain("SSE body");
-        assertThat(changeRepository.findTopByOrderByIdDesc()).isPresent();
+        assertThat(changeRepository.findTopByPublicEventTrueOrderByIdDesc()).isPresent();
+    }
+
+    @Test
+    void adminHistoryStoresSnapshotsAndSupportsVersionCheckedRollback() throws Exception {
+        String admin = bearer("ADMIN");
+        String first = request("NOTICE", "PUBLISHED", 0, "{\"title\":\"First\",\"body\":\"Initial\"}");
+        String second = request("NOTICE", "PUBLISHED", 1, "{\"title\":\"Second\",\"body\":\"Current\"}");
+
+        mockMvc.perform(put("/api/v1/admin/cms/content/history-slot")
+                .header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(first))
+            .andExpect(status().isOk());
+        mockMvc.perform(put("/api/v1/admin/cms/content/history-slot")
+                .header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(second))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.version").value(2));
+
+        MvcResult history = mockMvc.perform(get("/api/v1/admin/cms/content/history-slot/history")
+                .header("Authorization", admin))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].payload.title").value("Second"))
+            .andExpect(jsonPath("$[0].actorEmail").value(org.hamcrest.Matchers.containsString("@healthcare.local")))
+            .andExpect(jsonPath("$[0].rollbackAvailable").value(true))
+            .andExpect(jsonPath("$[1].payload.title").value("First"))
+            .andReturn();
+        Number firstChangeIdValue = com.jayway.jsonpath.JsonPath.read(
+            history.getResponse().getContentAsString(),
+            "$[1].eventId"
+        );
+        long firstChangeId = firstChangeIdValue.longValue();
+
+        mockMvc.perform(post("/api/v1/admin/cms/content/history-slot/rollback")
+                .header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"changeId\":%d,\"expectedVersion\":2}".formatted(firstChangeId)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.payload.title").value("First"))
+            .andExpect(jsonPath("$.version").value(3));
+
+        mockMvc.perform(post("/api/v1/admin/cms/content/history-slot/rollback")
+                .header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"changeId\":%d,\"expectedVersion\":2}".formatted(firstChangeId)))
+            .andExpect(status().isConflict());
+    }
+
+    @Test
+    void draftOnlyAuditDoesNotEnterPublicChangeFeed() throws Exception {
+        String admin = bearer("ADMIN");
+        String draft = request("NOTICE", "DRAFT", 0, "{\"title\":\"Private draft\",\"body\":\"Not public\"}");
+
+        mockMvc.perform(put("/api/v1/admin/cms/content/draft-history-slot")
+                .header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(draft))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/admin/cms/content/draft-history-slot/history")
+                .header("Authorization", admin))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].status").value("DRAFT"))
+            .andExpect(jsonPath("$[0].rollbackAvailable").value(true));
+
+        MvcResult result = mockMvc.perform(get("/api/v1/cms/content/events").param("after", "0"))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.request().asyncStarted())
+            .andReturn();
+        assertThat(result.getResponse().getContentAsString()).doesNotContain("draft-history-slot");
     }
 
     private String bearer(String roleCode) {

@@ -82,11 +82,33 @@ export type CmsContent = CmsContentBase & (
   | { componentType: "IMAGE_CARD"; payload: CmsImageCardPayload }
 );
 
+export interface CmsContentHistoryEntry {
+  eventId: number;
+  slotKey: string;
+  componentType: CmsComponentType | null;
+  status: CmsPublicationStatus | null;
+  payload: CmsPayload | null;
+  version: number;
+  actorEmail: string | null;
+  changedAt: string;
+  rollbackAvailable: boolean;
+}
+
 export interface CmsContentInput {
   componentType: CmsComponentType;
   payload: CmsPayload;
   status: CmsPublicationStatus;
   expectedVersion: number;
+}
+
+export interface CmsRollbackInput {
+  changeId: number;
+  expectedVersion: number;
+}
+
+export interface CmsPublishedContentReadOptions {
+  /** Durable SSE cursor that requires a cache-bypassing reconciliation read. */
+  afterEventId?: number;
 }
 
 export type CmsFieldErrors = Record<string, string>;
@@ -149,11 +171,17 @@ export interface CmsFeedResyncEvent {
   snapshotFallback: string;
 }
 
+export interface CmsHeartbeatEvent {
+  at: string;
+  latestEventId: number;
+}
+
 export interface CmsChangeSubscriptionOptions {
   after?: number;
   onChange: (event: CmsContentChangedEvent) => void;
   onConnected?: (ready?: CmsFeedReadyEvent) => void;
   onResync?: (event: CmsFeedResyncEvent) => void;
+  onHeartbeat?: (event: CmsHeartbeatEvent) => void;
   onFallback?: () => void;
 }
 
@@ -385,6 +413,37 @@ export function parseCmsContent(raw: unknown): CmsContent {
   };
 }
 
+export function parseCmsContentHistoryEntry(raw: unknown): CmsContentHistoryEntry {
+  const source = readRecord(raw, "CMS history");
+  const componentType = source.componentType === null ? null : source.componentType;
+  if (componentType !== null && !isOneOf(componentType, CMS_COMPONENT_TYPES)) {
+    throw new CmsValidationError("history.componentType không thuộc CMS vocabulary.");
+  }
+  const status = source.status === null ? null : source.status;
+  if (status !== null && !isOneOf(status, CMS_PUBLICATION_STATUSES)) {
+    throw new CmsValidationError("history.status phải là DRAFT hoặc PUBLISHED.");
+  }
+  const rollbackAvailable = source.rollbackAvailable;
+  if (typeof rollbackAvailable !== "boolean") {
+    throw new CmsValidationError("history.rollbackAvailable phải là boolean.");
+  }
+  return {
+    eventId: readPositiveInteger(source.eventId, "history.eventId"),
+    slotKey: readSlotKey(source.slotKey, "history.slotKey"),
+    componentType,
+    status,
+    payload: componentType === null || source.payload === null
+      ? null
+      : readPayload(source.payload, componentType),
+    version: readPositiveInteger(source.version, "history.version"),
+    actorEmail: source.actorEmail === null
+      ? null
+      : typeof source.actorEmail === "string" ? source.actorEmail : null,
+    changedAt: readIsoDate(source.changedAt, "history.changedAt"),
+    rollbackAvailable,
+  };
+}
+
 export function validateCmsContentInput(input: CmsContentInput): CmsFieldErrors {
   const errors: CmsFieldErrors = {};
   if (!isOneOf(input.componentType, CMS_COMPONENT_TYPES)) {
@@ -515,6 +574,14 @@ function parseResyncEvent(raw: unknown): CmsFeedResyncEvent {
   };
 }
 
+function parseHeartbeatEvent(raw: unknown): CmsHeartbeatEvent {
+  const event = readRecord(raw, "heartbeat");
+  return {
+    at: readIsoDate(event.at, "heartbeat.at"),
+    latestEventId: readPositiveInteger(event.latestEventId, "heartbeat.latestEventId"),
+  };
+}
+
 export class CmsClient {
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof fetch;
@@ -538,12 +605,21 @@ export class CmsClient {
     this.supportsEventSource = options.eventSourceFactory !== undefined || typeof EventSource !== "undefined";
   }
 
-  private contentPath(slotKey: string): string {
-    return `/cms/content/${encodeURIComponent(validateSlotKey(slotKey))}`;
+  private contentPath(slotKey: string, options?: CmsPublishedContentReadOptions): string {
+    const path = `/cms/content/${encodeURIComponent(validateSlotKey(slotKey))}`;
+    if (options?.afterEventId === undefined) return path;
+    if (!Number.isSafeInteger(options.afterEventId) || options.afterEventId < 0) {
+      throw new CmsValidationError("afterEventId phải là số nguyên không âm.");
+    }
+    return `${path}?afterEventId=${encodeURIComponent(String(options.afterEventId))}`;
   }
 
   private adminContentPath(slotKey: string): string {
     return `/admin/cms/content/${encodeURIComponent(validateSlotKey(slotKey))}`;
+  }
+
+  private adminHistoryPath(slotKey: string): string {
+    return `${this.adminContentPath(slotKey)}/history`;
   }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -587,8 +663,11 @@ export class CmsClient {
     }
   }
 
-  async getPublishedContent(slotKey: string): Promise<CmsContent> {
-    return this.requestContent(this.contentPath(slotKey));
+  async getPublishedContent(
+    slotKey: string,
+    options?: CmsPublishedContentReadOptions,
+  ): Promise<CmsContent> {
+    return this.requestContent(this.contentPath(slotKey, options));
   }
 
   async getAdminContent(slotKey: string): Promise<CmsContent> {
@@ -622,6 +701,35 @@ export class CmsClient {
     });
   }
 
+  async listHistory(slotKey: string, limit = 20): Promise<CmsContentHistoryEntry[]> {
+    validateSlotKey(slotKey);
+    const boundedLimit = Math.min(50, Math.max(1, Math.trunc(limit)));
+    const raw = await this.request<unknown>(`${this.adminHistoryPath(slotKey)}?limit=${boundedLimit}`);
+    if (!Array.isArray(raw)) {
+      throw new CmsApiError("validation", 0, "CMS API không trả về lịch sử hợp lệ.");
+    }
+    try {
+      return raw.map((item) => parseCmsContentHistoryEntry(item));
+    } catch (error) {
+      if (error instanceof CmsApiError) throw error;
+      throw new CmsApiError("validation", 0, "CMS API trả về lịch sử sai schema.");
+    }
+  }
+
+  async rollbackContent(slotKey: string, input: CmsRollbackInput): Promise<CmsContent> {
+    validateSlotKey(slotKey);
+    if (!Number.isSafeInteger(input.changeId) || input.changeId <= 0) {
+      throw new CmsValidationError("changeId phải là số nguyên dương.");
+    }
+    if (!Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 0) {
+      throw new CmsValidationError("expectedVersion phải là số nguyên không âm.");
+    }
+    return this.requestContent(`${this.adminContentPath(slotKey)}/rollback`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
   subscribeToChanges(options: CmsChangeSubscriptionOptions): () => void {
     if (!this.supportsEventSource) {
       options.onFallback?.();
@@ -637,21 +745,25 @@ export class CmsClient {
     if (this.changeReady && this.changeSource) {
       const ready = this.changeReady;
       void Promise.resolve().then(() => {
-        if (this.changeSubscribers.has(subscriptionId)) options.onConnected?.(ready);
+        if (this.changeSubscribers.has(subscriptionId)) {
+          options.onConnected?.(ready);
+        }
       });
     }
     this.openSharedChangeFeed();
 
     return () => {
       this.changeSubscribers.delete(subscriptionId);
-      if (this.changeSubscribers.size === 0) this.stopSharedChangeFeed();
+      if (this.changeSubscribers.size === 0) {
+        this.stopSharedChangeFeed();
+      }
     };
   }
 
   /**
-   * Multiplex every slot through one browser EventSource. Besides avoiding an SSE
-   * connection per component, this leaves HTTP/1.1 connection capacity available
-   * for the doctors/packages/branches catalog requests needed to render the page.
+   * Multiplex every live slot through one browser EventSource. This avoids
+   * exhausting the HTTP/1.1 per-origin connection pool while preserving the
+   * durable global feed cursor used by the reconciliation layer.
    */
   private openSharedChangeFeed(): void {
     if (this.changeSubscribers.size === 0 || this.changeSource || this.changeReconnectTimer) return;
@@ -677,7 +789,9 @@ export class CmsClient {
 
     source.onopen = () => {
       if (this.changeSource !== source) return;
-      for (const subscriber of this.changeSubscribers.values()) subscriber.onConnected?.();
+      for (const subscriber of this.changeSubscribers.values()) {
+        subscriber.onConnected?.();
+      }
     };
     source.onerror = () => this.failSharedChangeFeed(source);
 
@@ -685,14 +799,15 @@ export class CmsClient {
       try {
         const ready = parseReadyEvent(JSON.parse((event as MessageEvent<string>).data) as unknown);
         this.changeReady = ready;
-        // With an explicit cursor the server sends replay events immediately after
-        // `ready`; advance only as those events arrive so a mid-replay reconnect
-        // cannot skip a change. A cursor-less fresh stream can adopt the snapshot.
+        // With an explicit cursor, advance only as replayed events arrive. A
+        // reconnect during replay must not skip an event that was not emitted.
         if (requestedCursor === undefined) {
           this.changeCursor = Math.max(this.changeCursor ?? 0, ready.latestEventId);
         }
         this.changeReconnectAttempt = 0;
-        for (const subscriber of this.changeSubscribers.values()) subscriber.onConnected?.(ready);
+        for (const subscriber of this.changeSubscribers.values()) {
+          subscriber.onConnected?.(ready);
+        }
       } catch {
         this.failSharedChangeFeed(source);
       }
@@ -701,7 +816,9 @@ export class CmsClient {
       try {
         const change = parseChangedEvent(JSON.parse((event as MessageEvent<string>).data) as unknown);
         this.changeCursor = Math.max(this.changeCursor ?? 0, change.eventId);
-        for (const subscriber of this.changeSubscribers.values()) subscriber.onChange(change);
+        for (const subscriber of this.changeSubscribers.values()) {
+          subscriber.onChange(change);
+        }
       } catch {
         this.failSharedChangeFeed(source);
       }
@@ -710,13 +827,26 @@ export class CmsClient {
       try {
         const resync = parseResyncEvent(JSON.parse((event as MessageEvent<string>).data) as unknown);
         this.changeCursor = Math.max(this.changeCursor ?? 0, resync.latestEventId);
-        for (const subscriber of this.changeSubscribers.values()) subscriber.onResync?.(resync);
+        for (const subscriber of this.changeSubscribers.values()) {
+          subscriber.onResync?.(resync);
+        }
+      } catch {
+        this.failSharedChangeFeed(source);
+      }
+    });
+    register("heartbeat", (event) => {
+      try {
+        const heartbeat = parseHeartbeatEvent(JSON.parse((event as MessageEvent<string>).data) as unknown);
+        // A heartbeat may reveal a Redis event missed by this instance. Do not
+        // advance the replay cursor until the actual event or a resync arrives.
+        for (const subscriber of this.changeSubscribers.values()) {
+          subscriber.onHeartbeat?.(heartbeat);
+        }
       } catch {
         this.failSharedChangeFeed(source);
       }
     });
     register("unavailable", () => this.failSharedChangeFeed(source));
-    register("heartbeat", () => undefined);
   }
 
   private failSharedChangeFeed(source: EventSource): void {
@@ -727,7 +857,9 @@ export class CmsClient {
   }
 
   private notifyFeedFallback(): void {
-    for (const subscriber of this.changeSubscribers.values()) subscriber.onFallback?.();
+    for (const subscriber of this.changeSubscribers.values()) {
+      subscriber.onFallback?.();
+    }
   }
 
   private scheduleSharedReconnect(): void {
