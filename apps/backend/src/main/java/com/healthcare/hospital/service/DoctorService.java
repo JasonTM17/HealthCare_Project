@@ -46,6 +46,12 @@ public class DoctorService {
             .orElseThrow(() -> new ResourceNotFoundException("Doctor not found: " + slug));
     }
 
+    public DoctorResponse getByUserId(java.util.UUID userId) {
+        return doctorRepository.findByUserId(userId)
+            .map(this::toResponse)
+            .orElseThrow(() -> new ResourceNotFoundException("Doctor profile not found for the authenticated user"));
+    }
+
     private String normalizeFilter(String value) {
         if (value == null) return "";
         String normalized = value.trim();

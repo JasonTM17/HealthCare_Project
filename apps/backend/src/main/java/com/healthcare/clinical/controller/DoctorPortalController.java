@@ -5,6 +5,9 @@ import com.healthcare.appointment.service.AppointmentPortalService;
 import com.healthcare.clinical.dto.DiagnosticResultResponse;
 import com.healthcare.clinical.dto.MedicalRecordResponse;
 import com.healthcare.clinical.service.ClinicalService;
+import com.healthcare.hospital.dto.DoctorResponse;
+import com.healthcare.hospital.service.DoctorService;
+import com.healthcare.security.HealthcareUserPrincipal;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -28,12 +31,24 @@ public class DoctorPortalController {
 
     private final ClinicalService clinicalService;
     private final AppointmentPortalService appointmentPortalService;
+    private final DoctorService doctorService;
 
     public DoctorPortalController(
             ClinicalService clinicalService,
-            AppointmentPortalService appointmentPortalService) {
+            AppointmentPortalService appointmentPortalService,
+            DoctorService doctorService) {
         this.clinicalService = clinicalService;
         this.appointmentPortalService = appointmentPortalService;
+        this.doctorService = doctorService;
+    }
+
+    @GetMapping("/profile")
+    public ResponseEntity<DoctorResponse> getProfile(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        if (!(userDetails instanceof HealthcareUserPrincipal principal)) {
+            throw new org.springframework.security.access.AccessDeniedException("Authenticated doctor profile is unavailable");
+        }
+        return ResponseEntity.ok(doctorService.getByUserId(principal.getUserId()));
     }
 
     @GetMapping("/appointments")

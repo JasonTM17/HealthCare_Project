@@ -93,6 +93,17 @@ class ClinicalAuthorizationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void linkedDoctorCanReadOwnProfile() throws Exception {
+        ClinicalFixture fixture = fixture();
+
+        mockMvc.perform(get("/api/v1/doctor/profile")
+                .header("Authorization", bearer(fixture.doctorUser())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value(fixture.doctor().getId().toString()))
+            .andExpect(jsonPath("$.fullName").value(fixture.doctor().getFullName()));
+    }
+
+    @Test
     void prescriptionIsVisibleOnlyToOwningPatientAssignedDoctorOrAdmin() throws Exception {
         ClinicalFixture fixture = fixture();
         MedicalRecord record = createRecord(fixture, true);

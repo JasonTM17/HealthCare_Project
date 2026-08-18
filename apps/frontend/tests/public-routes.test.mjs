@@ -124,6 +124,25 @@ test("Stitch search and careers screens have live public route owners", async ()
   assert.match(home, /CmsContentRenderer/);
 });
 
+test("doctor portal exposes the typed clinical write workflow", async () => {
+  const [dashboard, appointments, client, controller, service] = await Promise.all([
+    read("app/doctor/dashboard/page.tsx"),
+    read("components/PortalAppointments.tsx"),
+    read("lib/api-client.ts"),
+    read("../backend/src/main/java/com/healthcare/clinical/controller/ClinicalController.java"),
+    read("../backend/src/main/java/com/healthcare/clinical/service/ClinicalService.java"),
+  ]);
+
+  assert.match(dashboard, /fetchDoctorProfile/);
+  assert.match(dashboard, /createMedicalRecord/);
+  assert.match(dashboard, /Ghi nhận kết quả khám/);
+  assert.match(appointments, /onSelectAppointment/);
+  assert.match(client, /POST/);
+  assert.match(client, /"\/clinical\/records"/);
+  assert.match(controller, /@PostMapping\("\/records"\)/);
+  assert.match(service, /appointment\.setStatus\(AppointmentStatus\.COMPLETED\)/);
+});
+
 test("catalog surfaces use the shared clinical icon family", async () => {
   const [icon, specialties, specialtyDetail, branches, branchDetail, services, serviceDetail, styles] = await Promise.all([
     read("components/ClinicalIcon.tsx"),

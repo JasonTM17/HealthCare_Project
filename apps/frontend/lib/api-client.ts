@@ -12,6 +12,7 @@ import type {
   MedicalRecord,
   Notification,
   Prescription,
+  PrescriptionItem,
   UserProfile,
   AppointmentDetails,
   PatientPortalAppointment,
@@ -35,6 +36,7 @@ export type {
   MedicalRecord,
   Notification,
   Prescription,
+  PrescriptionItem,
   UserProfile,
   AppointmentDetails,
   PatientPortalAppointment,
@@ -582,6 +584,30 @@ export async function fetchDoctorAppointments(
   return getAuthenticatedJson<Page<DoctorPortalAppointment>>(
     `${path}${toQuery({ date: normalizedDate, status, page, size })}`,
   );
+}
+
+export async function fetchDoctorProfile(): Promise<Doctor> {
+  return getAuthenticatedJson<Doctor>("/doctor/profile");
+}
+
+export interface CreateMedicalRecordPayload {
+  appointmentId: string;
+  patientId: string;
+  doctorId: string;
+  diagnosis: string;
+  symptomsSummary?: string;
+  treatmentPlan?: string;
+  doctorNotes?: string;
+  followUpDate?: string;
+  prescriptionItems?: PrescriptionItem[];
+  prescriptionAdvice?: string;
+}
+
+export async function createMedicalRecord(payload: CreateMedicalRecordPayload): Promise<MedicalRecord> {
+  return getAuthenticatedJson<MedicalRecord>("/clinical/records", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function logoutCurrentUser(): Promise<void> {

@@ -1,7 +1,17 @@
 import type { Page } from "../lib/api-client";
-import type { PortalAppointment } from "../types/hospital";
+import type { DoctorPortalAppointment, PatientPortalAppointment } from "../types/hospital";
 
-type AppointmentViewer = "patient" | "doctor";
+type PortalAppointmentsProps =
+  | {
+      page: Page<PatientPortalAppointment>;
+      viewer: "patient";
+      onSelectAppointment?: never;
+    }
+  | {
+      page: Page<DoctorPortalAppointment>;
+      viewer: "doctor";
+      onSelectAppointment?: (appointment: DoctorPortalAppointment) => void;
+    };
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING_CONFIRMATION: "Chờ xác nhận",
@@ -31,10 +41,8 @@ function statusLabel(status: string): string {
 export default function PortalAppointments({
   page,
   viewer,
-}: {
-  page: Page<PortalAppointment>;
-  viewer: AppointmentViewer;
-}) {
+  onSelectAppointment,
+}: PortalAppointmentsProps) {
   return (
     <div aria-label={viewer === "patient" ? "Danh sách lịch hẹn của bệnh nhân" : "Lịch hẹn trong ngày của bác sĩ"} className="portal-appointment-list">
       {page.content.map((appointment) => (
@@ -60,6 +68,13 @@ export default function PortalAppointments({
             {appointment.packageName ? <div><dt>Gói khám</dt><dd>{appointment.packageName}</dd></div> : null}
             <div><dt>Mã lịch hẹn</dt><dd>{appointment.bookingCode}</dd></div>
           </dl>
+          {viewer === "doctor" && onSelectAppointment ? (
+            <button className="outline-button outline-button--small" onClick={() => {
+              if ("patientId" in appointment) onSelectAppointment(appointment);
+            }} type="button">
+              Ghi nhận kết quả khám
+            </button>
+          ) : null}
         </article>
       ))}
     </div>
