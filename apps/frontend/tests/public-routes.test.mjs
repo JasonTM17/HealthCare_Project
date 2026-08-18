@@ -57,7 +57,7 @@ test("CMS booking CTA has a real landing route and public chrome avoids invented
   assert.match(navbar, /Giờ làm việc từ backend/);
   assert.match(footer, /Backend chưa cung cấp số điện thoại/);
   assert.match(largeSeed, /homepage\.hero/);
-  for (const slot of ["careers.hero", "careers.body", "search.hero"]) {
+  for (const slot of ["careers.hero", "careers.body", "search.hero", "homepage.body"]) {
     assert.match(largeSeed, new RegExp(slot.replace(".", "\\.")));
   }
 });
@@ -120,6 +120,8 @@ test("Stitch search and careers screens have live public route owners", async ()
   assert.match(careers, /PublicPageShell/);
   assert.match(footer, /href="\/careers"/);
   assert.match(home, /router\.push/);
+  assert.match(home, /data-cms-managed/);
+  assert.match(home, /CmsContentRenderer/);
 });
 
 test("catalog surfaces use the shared clinical icon family", async () => {

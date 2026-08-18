@@ -295,6 +295,16 @@ INSERT INTO cms_contents (
     1,
     now(),
     now()
+),
+(
+    '80000000-0000-0000-0000-000000000005',
+    'homepage.body',
+    'RICH_TEXT',
+    '{"title":"Hành trình chăm sóc được cập nhật","body":"Thông tin mới từ quản trị viên sẽ xuất hiện tại đây theo version đã xuất bản. Dữ liệu chuyên khoa, bác sĩ và cơ sở vẫn được đọc trực tiếp từ catalog backend."}'::jsonb,
+    'PUBLISHED',
+    1,
+    now(),
+    now()
 )
 ON CONFLICT (slot_key) DO NOTHING;
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactElement } from "react";
+import { useEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
 import {
   CmsApiError,
   CmsClient,
@@ -21,6 +21,10 @@ export interface CmsLiveSlotProps {
   showSourceLabel?: boolean;
   /** Optional slots stay out of the layout until an admin publishes them. */
   hideWhenNotFound?: boolean;
+  /** Render a published component in the page's native layout instead of the generic CMS card. */
+  renderContent?: (content: CmsContent) => ReactNode;
+  /** Keep the native page composition visible while the live slot is loading or unavailable. */
+  fallback?: ReactNode;
 }
 
 type LiveTransport = "connecting" | "sse" | "polling";
@@ -42,6 +46,8 @@ export function CmsLiveSlot({
   className = "",
   showSourceLabel = true,
   hideWhenNotFound = false,
+  renderContent,
+  fallback,
 }: CmsLiveSlotProps): ReactElement {
   const backendSlotKey = resolveCmsSlotKey(slug, slotKey);
   const [content, setContent] = useState<CmsContent | null>(null);
@@ -256,7 +262,64 @@ export function CmsLiveSlot({
       : "Live CMS · đang kết nối";
 
   if (hideWhenNotFound && !loading && !content && error instanceof CmsApiError && error.kind === "not-found") {
+    if (fallback !== undefined) {
+      return (
+        <div
+          aria-busy={loading}
+          className={className}
+          data-cms-backend-slot={backendSlotKey}
+          data-cms-live-slot={slotKey}
+          data-cms-live-source="live-backend"
+        >
+          {fallback}
+        </div>
+      );
+    }
     return <></>;
+  }
+
+  if (!content && fallback !== undefined) {
+    return (
+      <div
+        aria-busy={loading}
+        aria-label={`Nội dung live ${slotKey}`}
+        className={className}
+        data-cms-backend-slot={backendSlotKey}
+        data-cms-live-slot={slotKey}
+        data-cms-live-source="live-backend"
+      >
+        {error ? <span className="sr-only" role="status">{errorMessage(error)}</span> : null}
+        {fallback}
+      </div>
+    );
+  }
+
+  if (content && renderContent) {
+    return (
+      <div
+        aria-busy={loading}
+        aria-label={`Nội dung live ${slotKey}`}
+        className={className}
+        data-cms-backend-slot={backendSlotKey}
+        data-cms-live-slot={slotKey}
+        data-cms-live-source="live-backend"
+        data-cms-version={content.version}
+      >
+        {showSourceLabel ? (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-slate-500">
+            <span>{sourceLabel}</span>
+            <span>Version {content.version}</span>
+          </div>
+        ) : null}
+        {error && content ? (
+          <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950" role="status">
+            Đang hiển thị version {content.version} gần nhất; lần đồng bộ live tiếp theo sẽ thử lại.
+          </p>
+        ) : null}
+        {liveNotice ? <p className="mb-4 rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm text-teal-950" role="status">{liveNotice}</p> : null}
+        {renderContent(content)}
+      </div>
+    );
   }
 
   return (

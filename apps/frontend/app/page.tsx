@@ -7,6 +7,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import AiTriageModal from "../components/AiTriageModal";
 import BookingModal from "../components/BookingModal";
 import { CmsLiveSlot } from "../components/cms";
+import { CmsContentRenderer } from "../components/cms/CmsRenderer";
 import Footer from "../components/Footer";
 import Icon, { type IconName } from "../components/UiIcon";
 import Navbar from "../components/Navbar";
@@ -18,6 +19,7 @@ import {
   fetchSpecialties,
   type Page,
 } from "../lib/api-client";
+import { isSafeCmsUrl, type CmsContent, type CmsHeroPayload } from "../lib/cms-client";
 import type { Article, Branch, Doctor, HealthPackage, Specialty } from "../types/hospital";
 
 const HERO_IMAGE =
@@ -219,6 +221,145 @@ function CatalogStatus({
   return null;
 }
 
+interface HomeHeroCopyProps {
+  searchQuery: string;
+  setSearchQuery: (value: string) => void;
+  onSearchSubmit: () => void;
+  onBooking: () => void;
+  onOpenAi: () => void;
+  hasEmergencyBranch: boolean;
+  contactPhone?: string;
+  cmsHero?: CmsHeroPayload;
+}
+
+function HomeHeroCopy({
+  searchQuery,
+  setSearchQuery,
+  onSearchSubmit,
+  onBooking,
+  onOpenAi,
+  hasEmergencyBranch,
+  contactPhone,
+  cmsHero,
+}: HomeHeroCopyProps): React.ReactElement {
+  const cmsCta = cmsHero?.ctaLabel && cmsHero.ctaHref && isSafeCmsUrl(cmsHero.ctaHref)
+    ? { label: cmsHero.ctaLabel, href: cmsHero.ctaHref }
+    : null;
+
+  return (
+    <div className="hero-copy" data-cms-managed={cmsHero ? "hero-copy" : undefined}>
+      <p className="hero-kicker">
+        <span className="hero-kicker__line" aria-hidden="true" />
+        {cmsHero?.eyebrow ?? "Chăm sóc có định hướng"}
+      </p>
+      <h1 id="hero-title">
+        {cmsHero?.title ?? <>Để mỗi lần đi khám <span>an tâm hơn.</span></>}
+      </h1>
+      <p className="hero-description">
+        {cmsHero?.body ?? "Tìm bác sĩ, chọn cơ sở và đặt lịch trong một hành trình rõ ràng."}
+      </p>
+      <form className="hero-search" onSubmit={(event) => { event.preventDefault(); onSearchSubmit(); }}>
+        <label className="sr-only" htmlFor="hero-search-input">
+          Tìm bác sĩ hoặc chuyên khoa
+        </label>
+        <Icon name="search" size={19} />
+        <input
+          aria-describedby="hero-search-help"
+          id="hero-search-input"
+          onChange={(event) => setSearchQuery(event.target.value)}
+          placeholder="Tìm bác sĩ hoặc chuyên khoa"
+          type="search"
+          value={searchQuery}
+        />
+        <button type="submit">Tìm kiếm</button>
+      </form>
+      <p className="hero-search__help" id="hero-search-help">
+        Tìm trong catalog đang được cung cấp bởi backend để chọn hướng đặt lịch phù hợp.
+      </p>
+      <div className="hero-actions">
+        {cmsCta ? (
+          <a className="button button--amber" href={cmsCta.href}>
+            {cmsCta.label}
+            <Icon name="arrow-up-right" size={18} />
+          </a>
+        ) : (
+          <button className="button button--amber" onClick={onBooking} type="button">
+            Đặt lịch khám
+            <Icon name="arrow-up-right" size={18} />
+          </button>
+        )}
+        <button className="button button--hero-secondary" onClick={onOpenAi} type="button">
+          Mô tả triệu chứng
+          <Icon name="activity" size={18} />
+        </button>
+      </div>
+      <DemoNote>
+        {cmsHero ? "Nội dung hero do quản trị viên xuất bản; catalog và trợ lý AI vẫn gọi backend." : "Catalog công khai lấy từ backend; trợ lý AI gọi backend khi bạn đã đăng nhập."}
+      </DemoNote>
+      <div className="hero-trust" aria-label="Điểm nhấn của trải nghiệm đặt khám">
+        <div className="hero-trust__item">
+          <span className="hero-trust__icon"><Icon name="check" size={16} /></span>
+          <span><strong>Luồng 4 bước</strong><small>Chọn, giữ, xác nhận</small></span>
+        </div>
+        <div className="hero-trust__item">
+          <span className="hero-trust__icon"><Icon name="building" size={16} /></span>
+          <span><strong>Chọn đúng cơ sở</strong><small>Hiển thị ngay trong lịch</small></span>
+        </div>
+        <div className="hero-trust__item">
+          <span className="hero-trust__icon hero-trust__icon--accent"><Icon name="phone" size={16} /></span>
+          <span><strong>{hasEmergencyBranch ? "Hotline từ backend" : "Liên hệ cơ sở"}</strong><small>{contactPhone ?? "Chưa cung cấp số điện thoại"}</small></span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HomeHeroVisual({ imageUrl }: { imageUrl?: string }): React.ReactElement {
+  const safeCmsImage = imageUrl && isSafeCmsUrl(imageUrl) ? imageUrl : null;
+
+  return (
+    <figure className="hero-visual">
+      <div className="hero-visual__image-wrap">
+        {safeCmsImage ? (
+          // CMS image URLs are validated before rendering; using img keeps the admin-configured HTTPS asset compatible with any CDN.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            alt="Không gian chăm sóc y tế sáng và thân thiện"
+            className="hero-visual__image"
+            decoding="async"
+            loading="eager"
+            src={safeCmsImage}
+          />
+        ) : (
+          <Image
+            alt="Không gian chăm sóc y tế sáng và thân thiện"
+            className="hero-visual__image"
+            fill
+            priority
+            sizes="(max-width: 900px) 100vw, 46vw"
+            src={HERO_IMAGE}
+          />
+        )}
+      </div>
+      <figcaption>
+        {safeCmsImage ? "Ảnh hero do quản trị viên xuất bản từ CMS." : "Ảnh minh họa từ Unsplash. Giao diện và dữ liệu hiện tại phục vụ bản demo local."}
+      </figcaption>
+    </figure>
+  );
+}
+
+function HomeHeroComposition({
+  cmsHero,
+  ...heroProps
+}: HomeHeroCopyProps): React.ReactElement {
+  return (
+    <>
+      <HomeHeroCopy {...heroProps} cmsHero={cmsHero} />
+      <HomeHeroVisual imageUrl={cmsHero?.imageUrl} />
+    </>
+  );
+}
+
 export default function Home(): React.ReactElement {
   const router = useRouter();
   const [isBookingOpen, setIsBookingOpen] = useState<boolean>(false);
@@ -292,6 +433,11 @@ export default function Home(): React.ReactElement {
     handleOpenBooking(undefined, matchedSpecialty?.id, undefined);
   };
 
+  const handleHeroSearchSubmit = (): void => {
+    const nextQuery = searchQuery.trim();
+    router.push(nextQuery ? `/search?q=${encodeURIComponent(nextQuery)}` : "/search");
+  };
+
   const filteredSpecialties = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     const specialties = catalog?.specialties ?? [];
@@ -320,11 +466,20 @@ export default function Home(): React.ReactElement {
   const articles = catalog?.articles ?? [];
   const emergencyBranch = branches.find((branch) => Boolean(branch.emergencyHotline));
   const contactBranch = branches.find((branch) => Boolean(branch.phone));
-  const contactPhone = emergencyBranch?.emergencyHotline ?? contactBranch?.phone;
+  const contactPhone = emergencyBranch?.emergencyHotline ?? contactBranch?.phone ?? undefined;
   const featuredPackage = packages.find((packageItem) => packageItem.featured) ?? packages[0];
   const supportingPackages = packages.filter((packageItem) => packageItem.id !== featuredPackage?.id);
   const featuredDoctor = filteredDoctors[0];
   const supportingDoctors = filteredDoctors.slice(1, 4);
+  const homeHeroProps: HomeHeroCopyProps = {
+    searchQuery,
+    setSearchQuery,
+    onSearchSubmit: handleHeroSearchSubmit,
+    onBooking: () => handleOpenBooking(),
+    onOpenAi: () => setIsAiTriageOpen(true),
+    hasEmergencyBranch: Boolean(emergencyBranch),
+    contactPhone,
+  };
 
   return (
     <div className="site-shell">
@@ -336,99 +491,36 @@ export default function Home(): React.ReactElement {
 
       <main>
         <section className="hero-section" aria-labelledby="hero-title">
-          <div className="hero-inner">
-            <div className="hero-copy">
-              <p className="hero-kicker">
-                <span className="hero-kicker__line" aria-hidden="true" />
-                Chăm sóc có định hướng
-              </p>
-              <h1 id="hero-title">
-                Để mỗi lần đi khám <span>an tâm hơn.</span>
-              </h1>
-              <p className="hero-description">
-                Tìm bác sĩ, chọn cơ sở và đặt lịch trong một hành trình rõ ràng.
-              </p>
-              <form
-                className="hero-search"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  const nextQuery = searchQuery.trim();
-                  router.push(nextQuery ? `/search?q=${encodeURIComponent(nextQuery)}` : "/search");
-                }}
-              >
-                <label className="sr-only" htmlFor="hero-search-input">
-                  Tìm bác sĩ hoặc chuyên khoa
-                </label>
-                <Icon name="search" size={19} />
-                <input
-                  aria-describedby="hero-search-help"
-                  id="hero-search-input"
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Tìm bác sĩ hoặc chuyên khoa"
-                  type="search"
-                  value={searchQuery}
-                />
-                <button type="submit">Tìm kiếm</button>
-              </form>
-              <p className="hero-search__help" id="hero-search-help">
-                Tìm trong catalog đang được cung cấp bởi backend để chọn hướng đặt lịch phù hợp.
-              </p>
-              <div className="hero-actions">
-                <button className="button button--amber" onClick={() => handleOpenBooking()} type="button">
-                  Đặt lịch khám
-                  <Icon name="arrow-up-right" size={18} />
-                </button>
-                <button className="button button--hero-secondary" onClick={() => setIsAiTriageOpen(true)} type="button">
-                  Mô tả triệu chứng
-                  <Icon name="activity" size={18} />
-                </button>
-              </div>
-              <DemoNote>
-                Catalog công khai lấy từ backend; trợ lý AI gọi backend khi bạn đã đăng nhập.
-              </DemoNote>
-              <div className="hero-trust" aria-label="Điểm nhấn của trải nghiệm đặt khám">
-                <div className="hero-trust__item">
-                  <span className="hero-trust__icon"><Icon name="check" size={16} /></span>
-                  <span><strong>Luồng 4 bước</strong><small>Chọn, giữ, xác nhận</small></span>
-                </div>
-                <div className="hero-trust__item">
-                  <span className="hero-trust__icon"><Icon name="building" size={16} /></span>
-                  <span><strong>Chọn đúng cơ sở</strong><small>Hiển thị ngay trong lịch</small></span>
-                </div>
-                <div className="hero-trust__item">
-                  <span className="hero-trust__icon hero-trust__icon--accent"><Icon name="phone" size={16} /></span>
-                  <span><strong>{emergencyBranch ? "Hotline từ backend" : "Liên hệ cơ sở"}</strong><small>{contactPhone ?? "Chưa cung cấp số điện thoại"}</small></span>
-                </div>
-              </div>
-            </div>
-
-            <figure className="hero-visual">
-              <div className="hero-visual__image-wrap">
-                <Image
-                  alt="Không gian chăm sóc y tế sáng và thân thiện"
-                  className="hero-visual__image"
-                  fill
-                  priority
-                  sizes="(max-width: 900px) 100vw, 46vw"
-                  src={HERO_IMAGE}
-                />
-              </div>
-              <figcaption>
-                Ảnh minh họa từ Unsplash. Giao diện và dữ liệu hiện tại phục vụ bản demo local.
-              </figcaption>
-            </figure>
-          </div>
+          <CmsLiveSlot
+            className="hero-inner"
+            fallback={<HomeHeroComposition {...homeHeroProps} />}
+            hideWhenNotFound
+            renderContent={(content: CmsContent) => (
+              content.componentType === "HERO" ? (
+                <HomeHeroComposition {...homeHeroProps} cmsHero={content.payload} />
+              ) : (
+                <>
+                  <div className="hero-copy">
+                    <CmsContentRenderer content={content} />
+                  </div>
+                  <HomeHeroVisual />
+                </>
+              )
+            )}
+            showSourceLabel={false}
+            slotKey="hero"
+            slug="home"
+          />
         </section>
 
         <section className="section section--cms-live" id="cms-live" aria-labelledby="cms-live-title">
           <div className="section-inner">
             <SectionHeading
-              description="Khối này đọc trực tiếp từ CMS. Khi quản trị viên xuất bản thay đổi, nội dung cập nhật qua change-feed mà không cần tải lại trang."
+              description="Hero phía trên và các khối bổ sung đọc trực tiếp từ CMS. Khi quản trị viên xuất bản thay đổi, nội dung cập nhật qua change-feed mà không cần tải lại trang."
               headingId="cms-live-title"
               note="Cập nhật từ bệnh viện"
               title="Thông tin mới nhất cho hành trình chăm sóc"
             />
-            <CmsLiveSlot className="mt-6" slug="home" slotKey="hero" />
             <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)]">
               <CmsLiveSlot hideWhenNotFound slug="home" slotKey="body" />
               <div className="grid gap-6">
