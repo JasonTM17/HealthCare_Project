@@ -4,7 +4,7 @@ HealthCare_Project is a healthcare platform foundation for a Vietnamese hospital
 
 ## Status
 
-The repository currently has auth/RBAC, appointment booking, a clinical records authorization overlay, hospital content APIs, a frontend catalog, a doctor-management admin slice, MinIO file storage baseline, and CI definitions. The repository is on `main`; local changes may still be uncommitted and nothing is claimed as pushed or production-ready.
+The repository currently has auth/RBAC, branch-aware appointment booking, bounded OTP confirmation, a clinical records authorization overlay, hospital content APIs, a frontend catalog, a doctor-management admin slice, MinIO file storage baseline, and CI definitions. The current integration is pushed to `origin/main`; CI, browser E2E, provider, backup/restore, and production-readiness claims remain separate gates.
 
 ## Monorepo Layout
 
@@ -35,7 +35,7 @@ Copy `.env.example` to `.env` for local use and replace placeholder values. Neve
 
 ## Commands
 
-Backend (local profile uses PostgreSQL on `localhost:5433` and MinIO on `localhost:9000`):
+Backend (local profile uses PostgreSQL on `localhost:5434` and MinIO on `localhost:9000`):
 
 ```bash
 cd apps/backend
@@ -74,12 +74,17 @@ docker compose -f infrastructure/docker-compose.yml config
 docker compose -f infrastructure/docker-compose.yml up
 ```
 
+Compose requires a non-empty `AI_SERVICE_TOKEN`; set it in the local `.env` before
+running the stack. The checked-in defaults are for disposable local development
+only, and a successful `config` or local health check does not prove a deployed
+or multi-instance environment.
+
 The Compose backend connects to MinIO at `http://minio:9000`; local host runs use
 `http://localhost:9000`. Keep `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD` aligned
 with the backend's `MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY` values and replace all
-example credentials before any shared or deployed use. Compose also requires a
-non-empty shared `AI_SERVICE_TOKEN`; the unauthenticated local escape hatch is
-only for a bare local process with the explicit local runtime flags.
+example credentials before any shared or deployed use. The unauthenticated local
+escape hatch is only for a bare local process with the explicit local runtime
+flags.
 
 ## Frontend Design Direction
 
@@ -106,7 +111,7 @@ scheduling/concurrency, patient and doctor portals, complete clinical file
 metadata/linkage, stronger semantic retrieval, security hardening, performance,
 UX polish, and the final end-to-end demo.
 
-Remaining PROJECT_PLAN.md phases (5-21) cover broader scheduling/concurrency,
+Remaining PROJECT_PLAN.md phases (5-21) cover multi-instance CMS delivery,
 patient/doctor portals, clinical file metadata/linkage, semantic search,
 security hardening, performance, UX polish, and CI/CD. The current AI/RAG,
 notification, admin, and storage slices are local foundation implementations,
