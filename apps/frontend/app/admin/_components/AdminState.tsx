@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-type AdminStateTone = "loading" | "error" | "empty" | "forbidden" | "unavailable" | "success";
+type AdminStateTone = "loading" | "error" | "empty" | "forbidden" | "unavailable" | "success" | "info";
 
 const TONE_STYLES: Record<AdminStateTone, { mark: string; panel: string; markPanel: string }> = {
   loading: {
@@ -32,6 +32,11 @@ const TONE_STYLES: Record<AdminStateTone, { mark: string; panel: string; markPan
     mark: "✓",
     panel: "border-emerald-200 bg-emerald-50 text-emerald-950",
     markPanel: "bg-emerald-100 text-emerald-800",
+  },
+  info: {
+    mark: "i",
+    panel: "border-teal-200 bg-teal-50 text-teal-950",
+    markPanel: "bg-teal-100 text-teal-800",
   },
 };
 

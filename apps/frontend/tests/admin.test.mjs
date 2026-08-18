@@ -60,15 +60,19 @@ test("doctor and specialty screens cover loading, empty, error, and admin mutati
   }
 });
 
-test("branch and service screens state missing frontend contracts without mock content", async () => {
+test("branch and service screens expose typed read/write contracts without mock content", async () => {
   const [branches, services] = await Promise.all([
     source("branches/page.tsx"),
     source("services/page.tsx"),
   ]);
 
-  assert.match(branches, /tone="unavailable"/);
-  assert.match(branches, /shared frontend API client/);
-  assert.match(services, /tone="unavailable"/);
-  assert.match(services, /Không gọi endpoint trực tiếp/);
+  assert.match(branches, /adminCreateBranch/);
+  assert.match(branches, /adminUpdateBranch/);
+  assert.match(branches, /adminDeleteBranch/);
+  assert.match(branches, /PUBLIC ACTIVE READ/);
+  assert.match(services, /adminCreateService/);
+  assert.match(services, /adminUpdateService/);
+  assert.match(services, /adminDeleteService/);
+  assert.match(services, /PUBLIC ACTIVE READ/);
   assert.doesNotMatch(services, /SEED_|mock|fake/i);
 });

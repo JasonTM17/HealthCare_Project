@@ -391,6 +391,32 @@ export async function fetchFaqs(
 
 // ── Admin: Services ─────────────────────────────────────────────────────────
 
+export interface AdminBranchPayload {
+  name: string;
+  slug: string;
+  address: string;
+  phone?: string | null;
+  active: boolean;
+}
+
+export async function adminCreateBranch(payload: AdminBranchPayload): Promise<Branch> {
+  return getAuthenticatedJson<Branch>("/admin/branches", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function adminUpdateBranch(slug: string, payload: AdminBranchPayload): Promise<Branch> {
+  return getAuthenticatedJson<Branch>(`/admin/branches/${encodeURIComponent(slug)}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function adminDeleteBranch(slug: string): Promise<void> {
+  await getAuthenticatedJson<void>(`/admin/branches/${encodeURIComponent(slug)}`, { method: "DELETE" });
+}
+
 export interface AdminServicePayload {
   name: string;
   slug: string;

@@ -133,7 +133,7 @@ export default function AdminDashboard() {
           <ul className="mt-5 space-y-4 text-sm leading-6 text-slate-700">
             <li className="flex gap-3"><span className="font-bold text-emerald-700">✓</span><span><strong>Bác sĩ và chuyên khoa:</strong> form bám theo helper admin đang có; backend là nguồn quyết định quyền và validation. Baseline client chưa tự gắn bearer, nên 401/403 được hiển thị thay vì báo thành công giả.</span></li>
             <li className="flex gap-3"><span className="font-bold text-amber-700">i</span><span><strong>Danh sách:</strong> backend chưa có GET /admin/... nên bảng chỉ đọc bản ghi active từ public catalog.</span></li>
-            <li className="flex gap-3"><span className="font-bold text-slate-500">i</span><span><strong>Cơ sở và dịch vụ:</strong> backend có mutation route nhưng shared frontend client chưa expose contract; trang tương ứng hiển thị unavailable, không tạo dữ liệu giả.</span></li>
+            <li className="flex gap-3"><span className="font-bold text-slate-500">i</span><span><strong>Cơ sở và dịch vụ:</strong> đã có typed read/write contract trong frontend; backend vẫn giữ quyền xác nhận phiên ADMIN và trạng thái active.</span></li>
           </ul>
         </div>
         <div className="rounded-2xl border border-teal-100 bg-teal-50 p-6">

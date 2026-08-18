@@ -147,7 +147,7 @@ export default function AdminDoctorsPage() {
           </div>
 
           <div className="mt-4">
-            <AdminState tone="unavailable" title="Auth transport chưa hoàn thiện ở baseline" description="Các helper admin hiện chưa gắn Authorization từ phiên browser. Form vẫn phản ánh đúng request contract; nếu backend trả 401/403, trang sẽ giữ nguyên trạng thái lỗi." />
+            <AdminState tone="info" title="Backend giữ quyền quyết định" description="Phiên ADMIN được gửi trong Authorization ở shared API client. Nếu backend trả 401/403, form sẽ giữ nguyên trạng thái lỗi và không giả lập thành công." />
           </div>
 
           <form className="mt-5 space-y-4" onSubmit={handleSubmit}>

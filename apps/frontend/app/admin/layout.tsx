@@ -13,6 +13,7 @@ const NAV = [
   { href: "/admin/specialties", label: "Chuyên khoa" },
   { href: "/admin/branches", label: "Cơ sở" },
   { href: "/admin/services", label: "Dịch vụ" },
+  { href: "/admin/content", label: "CMS live" },
 ];
 
 type GateState =
@@ -77,7 +78,7 @@ function AdminAccessGate({ children }: { children: ReactNode }) {
           <AdminState
             tone="forbidden"
             title="Cần đăng nhập để mở CMS"
-            description="Trang quản trị không tải dữ liệu khi chưa có phiên bearer được xác thực. Luồng đăng nhập và lưu phiên chưa có trong frontend baseline này."
+            description="Trang quản trị không tải dữ liệu khi chưa có phiên bearer được xác thực. Hãy đăng nhập bằng tài khoản có role ADMIN."
             action={<Link className="text-sm font-bold text-teal-800 underline underline-offset-4" href="/">Về trang chủ</Link>}
           />
         </div>
@@ -118,7 +119,7 @@ function AdminShell({ children, displayName }: { children: ReactNode; displayNam
             </p>
           </div>
 
-          <nav aria-label="Điều hướng quản trị" className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-5 lg:block lg:space-y-2">
+          <nav aria-label="Điều hướng quản trị" className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:block lg:space-y-2">
             {NAV.map((item) => {
               const active = pathname === item.href;
               return (
