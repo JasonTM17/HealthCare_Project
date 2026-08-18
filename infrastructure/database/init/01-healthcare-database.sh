@@ -30,6 +30,7 @@ migrations="
 /opt/healthcare/migrations/V13__repair_legacy_pending_slot_duplicates.sql
 /opt/healthcare/migrations/V14__bound_appointment_otp_attempts.sql
 /opt/healthcare/migrations/V15__expand_stitch_content_contracts.sql
+/opt/healthcare/migrations/V16__cms_content_audit_snapshots.sql
 "
 
 for migration in $migrations; do

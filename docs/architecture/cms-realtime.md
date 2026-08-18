@@ -45,13 +45,15 @@ one replica. A full replay window falls back to a GET snapshot.
 
 ## Migration ordering
 
-This checkout contains Flyway V1-V13 plus the `10.4` and `10.5` ordering
+This checkout contains Flyway V1-V16 plus the `10.4` and `10.5` ordering
 points. V10 enforces branch assignments, V10.4 first rejects a real zero-UUID
 branch and cancels expired holds, V10.5 then repairs overlapping legacy
 pending holds before V11 creates branch-aware scheduling constraints, V12 adds
-CMS content, and V13 provides an idempotent repair for volumes that already
-reached V12. No migration rewrites an already-applied migration; do not
-renumber these migrations on the integration head.
+CMS content, V13 provides an idempotent repair for volumes that already
+reached V12, V14 bounds appointment OTP attempts, V15 expands structured
+detail content, and V16 adds actor-aware CMS audit snapshots and rollback
+metadata. No migration rewrites an already-applied migration; do not renumber
+these migrations on the integration head.
 
 If an existing local volume already applied V12 before V10/V11, first verify a
 database backup and then run one maintenance start with

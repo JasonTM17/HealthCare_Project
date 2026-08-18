@@ -186,7 +186,10 @@ jobs:
               if grep -Fx 'articles|500' <<<"$counts" >/dev/null \
                 && grep -Fx 'doctors|500' <<<"$counts" >/dev/null \
                 && grep -Fx 'packages|100' <<<"$counts" >/dev/null \
-                && grep -Fx 'users|1000' <<<"$counts" >/dev/null; then
+                && grep -Fx 'users|1000' <<<"$counts" >/dev/null \
+                && [ "$(docker exec "$container" psql -At -U healthcare -d healthcare -c \
+                  "SELECT count(*) FROM information_schema.columns WHERE table_name = 'cms_content_changes' AND column_name IN ('actor_email','payload','previous_payload','public_event');" \
+                  2>/dev/null)" = 4 ]; then
                 printf '%s\n' "$counts"
                 verified=true
                 break

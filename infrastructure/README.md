@@ -16,7 +16,8 @@ The local stack exposes frontend on port 3000, backend on 8080, AI service on 80
 
 The `local-seed` one-shot service waits for the backend health check (after
 Flyway), runs the backward-compatible base seed, then applies the V15 rich
-content overlay for the Stitch detail screens. The overlay only fills empty
+content overlay for the Stitch detail screens. The schema also includes V16
+CMS audit snapshot columns. The overlay only fills empty
 new fields, so rerunning it does not overwrite admin edits. It defaults to
 `apps/backend/src/main/resources/db/seed/seed-local-data.sql`; set the
 PowerShell `SEED_FILE` environment variable for one run if the larger seed is
