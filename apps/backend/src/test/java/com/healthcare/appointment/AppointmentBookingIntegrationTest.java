@@ -294,6 +294,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
                 .content(objectMapper.writeValueAsString(holdRequest)))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.bookingCode").exists())
+            .andExpect(jsonPath("$.otpExpiresAt").exists())
             .andExpect(jsonPath("$.otpRequired").value(true))
             .andReturn();
 
@@ -340,6 +341,8 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.bookingCode").value(bookingCode))
             .andExpect(jsonPath("$.doctorName").value("BS. CKII Nguyễn Văn An"))
+            .andExpect(jsonPath("$.patientPhone").value("090****567"))
+            .andExpect(jsonPath("$.reasonForVisit").value(org.hamcrest.Matchers.nullValue()))
             .andExpect(jsonPath("$.status").value("CONFIRMED"));
 
         // 5. Cancel appointment
@@ -380,7 +383,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
 
     @Test
     void confirmAppointmentFailsWithInvalidOtp() throws Exception {
-        LocalDate appointmentDate = LocalDate.now().plusDays(4);
+        LocalDate appointmentDate = nextDate(DayOfWeek.MONDAY);
         LocalTime startTime = LocalTime.of(10, 0);
 
         HoldSlotRequest holdRequest = new HoldSlotRequest(

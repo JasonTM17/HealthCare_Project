@@ -116,6 +116,7 @@ export interface HoldSlotPayload {
 export interface HoldSlotResult {
   bookingCode: string;
   holdExpiresAt: string;
+  otpExpiresAt: string;
   message: string;
   otpRequired: boolean;
 }
