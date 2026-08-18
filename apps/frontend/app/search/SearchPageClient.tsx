@@ -35,6 +35,10 @@ function matches(query: string, values: Array<string | undefined>): boolean {
   return values.some((value) => value && normalize(value).includes(query));
 }
 
+function settledContent<T>(result: PromiseSettledResult<Page<T>>): T[] {
+  return result.status === "fulfilled" ? result.value.content : [];
+}
+
 function ResultSection({
   eyebrow,
   title,
@@ -63,22 +67,27 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
+    Promise.allSettled([
       fetchSpecialties(0, 100),
       fetchDoctors({ page: 0, size: 100 }),
       fetchServices(0, 100),
       fetchPackages(0, 100),
       fetchArticles(0, 100),
-    ])
-      .then(([specialties, doctors, services, packages, articles]) => {
+    ] as const)
+      .then((responses) => {
         if (cancelled) return;
+        const [specialties, doctors, services, packages, articles] = responses;
+        const failedCount = responses.filter((response) => response.status === "rejected").length;
         setCatalog({
-          specialties: (specialties as Page<Specialty>).content,
-          doctors: (doctors as Page<Doctor>).content,
-          services: (services as Page<MedicalService>).content,
-          packages: (packages as Page<HealthPackage>).content,
-          articles: (articles as Page<Article>).content,
+          specialties: settledContent(specialties),
+          doctors: settledContent(doctors),
+          services: settledContent(services),
+          packages: settledContent(packages),
+          articles: settledContent(articles),
         });
+        setError(failedCount > 0
+          ? `Không tải được ${failedCount}/5 nhóm catalog; các kết quả còn lại vẫn lấy trực tiếp từ backend.`
+          : null);
       })
       .catch((reason: unknown) => {
         if (!cancelled) setError(reason instanceof Error ? reason.message : "Không thể tải catalog tìm kiếm.");
@@ -136,11 +145,11 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
         </form>
 
         {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải catalog tìm kiếm…</p> : null}
-        {error ? <p className="catalog-status catalog-status--error" role="alert">{error} Không có kết quả demo thay thế.</p> : null}
-        {!loading && !error && !normalize(query) ? <section className="resource-panel resource-panel--accent"><h2>Nhập một từ khóa để bắt đầu</h2><p>Hệ thống sẽ lọc theo dữ liệu active đã xuất bản, sau đó đưa bạn về đúng trang chuyên khoa, bác sĩ hoặc nội dung.</p></section> : null}
-        {!loading && !error && result && resultCount === 0 ? <p className="catalog-status" role="status">Không tìm thấy kết quả khớp với “{query.trim()}”.</p> : null}
+        {error ? <p className="catalog-status catalog-status--error" role="alert">{error} Không có dữ liệu tĩnh thay thế.</p> : null}
+        {!loading && !normalize(query) ? <section className="resource-panel resource-panel--accent"><h2>Nhập một từ khóa để bắt đầu</h2><p>Hệ thống sẽ lọc theo dữ liệu active đã xuất bản, sau đó đưa bạn về đúng trang chuyên khoa, bác sĩ hoặc nội dung.</p></section> : null}
+        {!loading && result && resultCount === 0 ? <p className="catalog-status" role="status">{error ? "Chưa có nhóm catalog nào sẵn sàng để tìm kiếm." : `Không tìm thấy kết quả khớp với “${query.trim()}”.`}</p> : null}
 
-        {!loading && !error && result && resultCount > 0 ? (
+        {!loading && result && resultCount > 0 ? (
           <div className="search-results" aria-live="polite">
             <p className="search-results__count">{resultCount} kết quả từ catalog active</p>
             {result.specialties.length > 0 ? <ResultSection eyebrow="Care Rail" title="Chuyên khoa"><div className="search-result-list">{result.specialties.map((item) => <Link className="search-result" href={`/specialties/${item.slug}`} key={item.id}><span className="resource-chip">Chuyên khoa</span><strong>{item.name}</strong><p>{item.description}</p></Link>)}</div></ResultSection> : null}

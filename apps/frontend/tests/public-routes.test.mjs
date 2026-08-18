@@ -107,7 +107,7 @@ test("Stitch search and careers screens have live public route owners", async ()
     read("app/page.tsx"),
   ]);
 
-  for (const marker of ["fetchSpecialties", "fetchDoctors", "fetchServices", "fetchPackages", "fetchArticles", "backend active"]) {
+  for (const marker of ["fetchSpecialties", "fetchDoctors", "fetchServices", "fetchPackages", "fetchArticles", "Promise.allSettled", "settledContent", "backend active"]) {
     assert.ok(search.includes(marker), `missing live search marker: ${marker}`);
   }
   assert.match(search, /\/search\?q=/);
