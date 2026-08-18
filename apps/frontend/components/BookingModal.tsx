@@ -117,7 +117,9 @@ export default function BookingModal({
   const [bookingCode, setBookingCode] = useState<string>("");
   const [otpCode, setOtpCode] = useState<string>("");
   const [holdExpiresAt, setHoldExpiresAt] = useState<string>("");
+  const [otpExpiresAt, setOtpExpiresAt] = useState<string>("");
   const [secondsRemaining, setSecondsRemaining] = useState<number>(600);
+  const [otpSecondsRemaining, setOtpSecondsRemaining] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [confirmedAppointment, setConfirmedAppointment] = useState<AppointmentDetails | null>(null);
@@ -234,6 +236,22 @@ export default function BookingModal({
     return () => clearInterval(timer);
   }, [step, holdExpiresAt, confirmedAppointment]);
 
+  useEffect(() => {
+    if (step !== 7 || !otpExpiresAt || confirmedAppointment) return;
+
+    const updateOtpRemaining = () => {
+      const expiry = Date.parse(otpExpiresAt);
+      const remaining = Number.isNaN(expiry)
+        ? 0
+        : Math.max(0, Math.ceil((expiry - Date.now()) / 1000));
+      setOtpSecondsRemaining(remaining);
+    };
+
+    updateOtpRemaining();
+    const timer = setInterval(updateOtpRemaining, 1000);
+    return () => clearInterval(timer);
+  }, [step, otpExpiresAt, confirmedAppointment]);
+
   if (!isOpen) return null;
 
   const currentDoctor = doctors.find((doctor) => doctor.id === selectedDoctor);
@@ -243,13 +261,16 @@ export default function BookingModal({
     (doctor) => doctorMatchesBranch(doctor, selectedBranch) && doctorMatchesSpecialty(doctor, currentSpecialty),
   );
   const holdExpired = Boolean(bookingCode && holdExpiresAt && !confirmedAppointment && secondsRemaining <= 0);
+  const otpExpired = Boolean(bookingCode && otpExpiresAt && !confirmedAppointment && otpSecondsRemaining <= 0);
 
   const restartSlotSelection = (): void => {
     setStep(5);
     setBookingCode("");
     setHoldExpiresAt("");
+    setOtpExpiresAt("");
     setOtpCode("");
     setSecondsRemaining(0);
+    setOtpSecondsRemaining(0);
     setErrorMessage("");
     setSelectedSlot("");
     setSlots([]);
@@ -332,9 +353,11 @@ export default function BookingModal({
 
       setBookingCode(result.bookingCode);
       setHoldExpiresAt(result.holdExpiresAt);
+      setOtpExpiresAt(result.otpExpiresAt);
       // The expiry effect computes the first value from the server timestamp
       // once step 7 mounts, keeping this event handler side-effect free.
       setSecondsRemaining(0);
+      setOtpSecondsRemaining(0);
       setStep(7);
     } catch (err: any) {
       setErrorMessage(err.message || "Không thể giữ chỗ khung giờ này.");
@@ -348,6 +371,10 @@ export default function BookingModal({
     e.preventDefault();
     if (holdExpired) {
       setErrorMessage("Thời gian giữ chỗ đã hết. Vui lòng chọn lại khung giờ để tiếp tục.");
+      return;
+    }
+    if (otpExpired) {
+      setErrorMessage("Mã OTP đã hết hạn. Vui lòng chọn lại khung giờ để nhận mã mới.");
       return;
     }
     if (!otpCode) {
@@ -702,9 +729,14 @@ export default function BookingModal({
                     <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">07 · Xác nhận</p>
                     <h3 className="text-xl font-bold text-gray-900">Xác nhận lịch hẹn bằng OTP</h3>
                   </div>
-                  <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-900 rounded-full text-xs font-semibold">
-                    <Icon name="clock" size={15} />
-                    {holdExpired ? "Thời gian giữ chỗ đã hết" : <>Thời gian giữ chỗ còn lại:{" "}<span className="font-mono text-amber-700 font-bold">{formatTimer(secondsRemaining)}</span></>}
+                  <div className="flex flex-wrap justify-center gap-2 text-xs font-semibold">
+                    <span className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-amber-900">
+                      <Icon name="clock" size={15} />
+                      {holdExpired ? "Thời gian giữ chỗ đã hết" : <>Giữ chỗ còn lại:{" "}<span className="font-mono font-bold text-amber-700">{formatTimer(secondsRemaining)}</span></>}
+                    </span>
+                    <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 ${otpExpired ? "border-red-200 bg-red-50 text-red-900" : "border-brand-200 bg-brand-50 text-brand-900"}`}>
+                      OTP còn hiệu lực:{" "}<span className="font-mono font-bold">{otpExpired ? "00:00" : formatTimer(otpSecondsRemaining)}</span>
+                    </span>
                   </div>
 
                   {holdExpired ? (
@@ -713,6 +745,16 @@ export default function BookingModal({
                       <p className="mt-1 text-xs leading-5">Thời gian hiển thị được tính từ mốc hết hạn do backend trả về. Hãy tải lại danh sách và chọn khung giờ khác.</p>
                       <button type="button" onClick={restartSlotSelection} className="mt-3 rounded-full border border-red-300 bg-white px-4 py-2 text-xs font-bold text-red-800 transition-colors hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400 focus-visible:ring-2 focus-visible:ring-red-500">
                         Tải lại khung giờ
+                      </button>
+                    </div>
+                  ) : null}
+
+                  {otpExpired && !holdExpired ? (
+                    <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-left text-sm text-red-900" role="alert" aria-live="assertive">
+                      <p className="font-bold">Mã OTP đã hết hiệu lực.</p>
+                      <p className="mt-1 text-xs leading-5">Backend đã tách thời hạn OTP khỏi thời hạn giữ chỗ. Hãy chọn lại một khung giờ để nhận mã mới.</p>
+                      <button type="button" onClick={restartSlotSelection} className="mt-3 rounded-full border border-red-300 bg-white px-4 py-2 text-xs font-bold text-red-800 transition-colors hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400 focus-visible:ring-2 focus-visible:ring-red-500">
+                        Chọn lại khung giờ
                       </button>
                     </div>
                   ) : null}
@@ -739,7 +781,7 @@ export default function BookingModal({
                       placeholder="123456"
                       value={otpCode}
                       onChange={(e) => setOtpCode(e.target.value)}
-                      disabled={holdExpired || isSubmitting}
+                      disabled={holdExpired || otpExpired || isSubmitting}
                       className="w-48 text-center p-3 text-2xl font-mono tracking-widest bg-gray-50 border-2 border-brand-600 rounded-xl focus:ring-4 focus:ring-brand-100 focus:outline-none"
                     />
                   </div>
@@ -754,7 +796,7 @@ export default function BookingModal({
                     </button>
                     <button
                       type="submit"
-                      disabled={isSubmitting || holdExpired}
+                      disabled={isSubmitting || holdExpired || otpExpired}
                       className="px-8 py-2.5 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-bold rounded-full shadow-lg hover:shadow-xl transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
                     >
                       {isSubmitting ? "Đang xác nhận..." : "Hoàn tất Đặt lịch khám"}

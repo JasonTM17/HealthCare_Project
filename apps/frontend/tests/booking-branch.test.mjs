@@ -43,3 +43,13 @@ test("booking slot UI exposes loading, error, and empty states", async () => {
   assert.match(source, /role="alert"/);
   assert.match(source, /Chưa có khung giờ cho bác sĩ/);
 });
+
+test("booking UI keeps the server hold and OTP expiries separate", async () => {
+  const source = await readFile(modalPath, "utf8");
+
+  assert.match(source, /const \[otpExpiresAt, setOtpExpiresAt\]/);
+  assert.match(source, /setOtpExpiresAt\(result\.otpExpiresAt\)/);
+  assert.match(source, /const otpExpired = Boolean/);
+  assert.match(source, /if \(otpExpired\)/);
+  assert.match(source, /OTP còn hiệu lực/);
+});
