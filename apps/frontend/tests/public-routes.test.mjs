@@ -102,8 +102,33 @@ test("published article detail consumes the backend body when available", async 
   assert.match(types, /body\?: string/);
   assert.match(response, /String body/);
   assert.match(service, /article\.getBody\(\)/);
-  assert.match(detail, /article\.body \?/);
+  assert.match(detail, /article\?\.body/);
   assert.match(detail, /article-detail-card__body/);
+});
+
+test("Stitch detail screens render backend-owned structured content", async () => {
+  const [packageDetail, articleDetail, branchDetail, specialtyDetail, types, migration] = await Promise.all([
+    read("app/packages/[slug]/page.tsx"),
+    read("app/articles/[slug]/page.tsx"),
+    read("app/branches/[slug]/page.tsx"),
+    read("app/specialties/[slug]/page.tsx"),
+    read("types/hospital.ts"),
+    read("../backend/src/main/resources/db/migration/V15__expand_stitch_content_contracts.sql"),
+  ]);
+
+  assert.match(packageDetail, /targetAudience/);
+  assert.match(packageDetail, /preparationSteps/);
+  assert.match(articleDetail, /structuredSections/);
+  assert.match(articleDetail, /relatedSpecialtySlug/);
+  assert.match(branchDetail, /branch\.amenities/);
+  assert.match(branchDetail, /branch\.doctors/);
+  assert.match(specialtyDetail, /commonSymptoms/);
+  assert.match(specialtyDetail, /relatedDoctors/);
+  for (const field of ["targetAudience", "preparationSteps", "relatedSpecialtySlug", "amenities", "relatedDoctors"]) {
+    assert.match(types, new RegExp(field));
+  }
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS sections/);
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS care_pathway/);
 });
 
 test("Stitch search and careers screens have live public route owners", async () => {

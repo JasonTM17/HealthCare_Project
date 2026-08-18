@@ -1,9 +1,22 @@
+export interface DoctorSummary {
+  id: string;
+  fullName: string;
+  slug: string;
+  photoUrl?: string | null;
+  specialtyName?: string | null;
+  branchId?: string | null;
+}
+
 export interface Specialty {
   id: string;
   name: string;
   slug: string;
   description: string;
   icon?: string;
+  commonSymptoms?: string[];
+  preparationSteps?: string[];
+  carePathway?: string | null;
+  relatedDoctors?: DoctorSummary[];
 }
 
 export interface Doctor {
@@ -16,6 +29,9 @@ export interface Doctor {
   specialtyName?: string;
   experienceYears?: number;
   branchId?: string;
+  branchIds?: string[];
+  branchNames?: string[];
+  specialtySlugs?: string[];
 }
 
 export interface Branch {
@@ -26,6 +42,9 @@ export interface Branch {
   phone?: string | null;
   workingHours?: string;
   emergencyHotline?: string;
+  mapUrl?: string | null;
+  amenities?: string[];
+  doctors?: DoctorSummary[];
 }
 
 export interface HealthPackage {
@@ -36,6 +55,9 @@ export interface HealthPackage {
   price: number;
   featured?: boolean;
   checklist?: string[];
+  targetAudience?: string | null;
+  durationDays?: number | null;
+  preparationSteps?: string[];
 }
 
 export interface MedicalService {
@@ -58,6 +80,16 @@ export interface Article {
   summary: string;
   body?: string;
   publishedAt: string;
+  category?: string | null;
+  authorName?: string | null;
+  readingMinutes?: number | null;
+  relatedSpecialtySlug?: string | null;
+  sections?: ArticleSection[];
+}
+
+export interface ArticleSection {
+  heading: string;
+  body: string;
 }
 
 export interface TimeSlot {

@@ -87,6 +87,13 @@ export default function SpecialtyDetailPage() {
             </section>
           </div>
         ) : null}
+
+        {specialty ? <div className="resource-grid resource-grid--two">
+          <section className="resource-panel"><p className="section-note">Triệu chứng thường gặp</p><h2>Điều bạn có thể chuẩn bị</h2>{specialty.commonSymptoms?.length ? <ul className="resource-list">{specialty.commonSymptoms.map((symptom) => <li key={symptom}>{symptom}</li>)}</ul> : <p className="resource-muted">Backend chưa cung cấp nhóm triệu chứng tham khảo cho chuyên khoa này.</p>}<p className="section-note resource-detail-block__label">Trước buổi khám</p>{specialty.preparationSteps?.length ? <ul className="resource-list">{specialty.preparationSteps.map((step) => <li key={step}>{step}</li>)}</ul> : <p className="resource-muted">Backend chưa cung cấp hướng dẫn chuẩn bị.</p>}</section>
+          <section className="resource-panel resource-panel--accent"><p className="section-note">Care pathway · backend</p><h2>Lộ trình chăm sóc</h2>{specialty.carePathway ? <p className="resource-pathway">{specialty.carePathway}</p> : <p className="resource-muted">Backend chưa cung cấp lộ trình chăm sóc cho chuyên khoa này.</p>}</section>
+        </div> : null}
+
+        {specialty ? <section className="resource-panel resource-panel--wide"><p className="section-note">Bác sĩ liên quan · catalog active</p><h2>Đội ngũ phù hợp với chuyên khoa</h2>{specialty.relatedDoctors?.length ? <div className="resource-doctor-grid resource-doctor-grid--wide">{specialty.relatedDoctors.map((doctor) => <Link className="resource-doctor-card" href={`/doctors/${doctor.slug}`} key={doctor.id}><strong>{doctor.fullName}</strong><span>{doctor.specialtyName || specialty.name}</span><span className="text-button">Mở hồ sơ bác sĩ →</span></Link>)}</div> : <p className="resource-muted">Backend chưa trả về bác sĩ liên quan cho chuyên khoa này.</p>}</section> : null}
       </div>
     </PublicPageShell>
   );

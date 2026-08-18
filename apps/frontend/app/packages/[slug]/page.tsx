@@ -51,7 +51,20 @@ export default function PackageDetailPage() {
               <h2>{item.name}</h2>
               <p className="resource-price">{currency(item.price)} <span>VNĐ</span></p>
               <p>{item.description || "Gói khám chưa có mô tả chi tiết."}</p>
-              {item.checklist?.length ? <ul className="resource-list">{item.checklist.map((entry) => <li key={entry}>{entry}</li>)}</ul> : <p className="resource-muted">Backend hiện chưa trả về checklist dịch vụ cho gói này.</p>}
+              {item.targetAudience || item.durationDays ? (
+                <dl className="resource-meta-grid">
+                  {item.targetAudience ? <div><dt>Phù hợp với</dt><dd>{item.targetAudience}</dd></div> : null}
+                  {item.durationDays ? <div><dt>Thời lượng dự kiến</dt><dd>{item.durationDays} ngày</dd></div> : null}
+                </dl>
+              ) : null}
+              <section className="resource-detail-block">
+                <p className="section-note">Nội dung gói</p>
+                {item.checklist?.length ? <ul className="resource-list">{item.checklist.map((entry) => <li key={entry}>{entry}</li>)}</ul> : <p className="resource-muted">Backend hiện chưa trả về checklist dịch vụ cho gói này.</p>}
+              </section>
+              <section className="resource-detail-block">
+                <p className="section-note">Chuẩn bị trước khi đến</p>
+                {item.preparationSteps?.length ? <ul className="resource-list">{item.preparationSteps.map((entry) => <li key={entry}>{entry}</li>)}</ul> : <p className="resource-muted">Backend hiện chưa trả về hướng dẫn chuẩn bị cho gói này.</p>}
+              </section>
               <div className="resource-actions"><PublicBookingButton selection={{ packageId: item.id }}>Đặt lịch với gói này</PublicBookingButton></div>
             </div>
           </article>

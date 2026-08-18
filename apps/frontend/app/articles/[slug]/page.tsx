@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { fetchArticleBySlug } from "../../../lib/api-client";
@@ -29,6 +30,9 @@ export default function ArticleDetailPage() {
     return () => { cancelled = true; };
   }, [slug]);
 
+  const structuredSections = article?.sections?.filter((section) => section.heading.trim() || section.body.trim()) ?? [];
+  const bodyParagraphs = article?.body?.split(/\n\s*\n/).map((paragraph) => paragraph.trim()).filter(Boolean) ?? [];
+
   return (
     <PublicPageShell>
       <div className="resource-page section-inner">
@@ -37,7 +41,19 @@ export default function ArticleDetailPage() {
         {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải bài viết…</p> : null}
         {error ? <p className="catalog-status catalog-status--error" role="alert">{error} Không có bài viết demo thay thế.</p> : null}
         {!loading && !error && !article ? <p className="catalog-status" role="status">Không tìm thấy bài viết đã xuất bản.</p> : null}
-        {article ? <article className="article-detail-card"><p className="section-note">{new Intl.DateTimeFormat("vi-VN", { dateStyle: "long" }).format(new Date(article.publishedAt))}</p><h2>{article.title}</h2><p className="article-detail-card__summary">{article.summary}</p>{article.body ? <div className="article-detail-card__body"><p>{article.body}</p></div> : <div className="article-detail-card__notice"><strong>Phạm vi nội dung hiện tại</strong><p>Backend chưa cung cấp phần nội dung dài cho bài viết này, nên giao diện không tự bịa thêm thông tin y khoa.</p></div>}<PublicBookingButton>Đặt lịch nếu bạn cần trao đổi trực tiếp</PublicBookingButton></article> : null}
+        {article ? <article className="article-detail-card">
+          <p className="section-note">{new Intl.DateTimeFormat("vi-VN", { dateStyle: "long" }).format(new Date(article.publishedAt))}</p>
+          <h2>{article.title}</h2>
+          {article.category || article.authorName || article.readingMinutes ? <div className="article-detail-card__meta">
+            {article.category ? <span>{article.category}</span> : null}
+            {article.authorName ? <span>{article.authorName}</span> : null}
+            {article.readingMinutes ? <span>{article.readingMinutes} phút đọc</span> : null}
+          </div> : null}
+          <p className="article-detail-card__summary">{article.summary}</p>
+          {article.relatedSpecialtySlug ? <p><Link className="text-button" href={`/specialties/${article.relatedSpecialtySlug}`}>Xem chuyên khoa liên quan →</Link></p> : null}
+          {structuredSections.length ? <div className="article-detail-card__body article-detail-card__sections">{structuredSections.map((section, index) => <section key={`${section.heading}-${index}`}><h3>{section.heading}</h3><p>{section.body}</p></section>)}</div> : bodyParagraphs.length ? <div className="article-detail-card__body">{bodyParagraphs.map((paragraph, index) => <p key={`${paragraph.slice(0, 24)}-${index}`}>{paragraph}</p>)}</div> : <div className="article-detail-card__notice"><strong>Phạm vi nội dung hiện tại</strong><p>Backend chưa cung cấp phần nội dung dài cho bài viết này, nên giao diện không tự bịa thêm thông tin y khoa.</p></div>}
+          <PublicBookingButton>Đặt lịch nếu bạn cần trao đổi trực tiếp</PublicBookingButton>
+        </article> : null}
       </div>
     </PublicPageShell>
   );
