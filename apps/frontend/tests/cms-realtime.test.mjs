@@ -75,6 +75,7 @@ test("public live slot listens to named SSE changes and has polling fallback", a
   assert.match(liveSlot, /onHeartbeat/);
   assert.match(liveSlot, /heartbeat\.latestEventId/);
   assert.match(liveSlot, /refresh\(0, heartbeat\.latestEventId\)/);
+  assert.match(liveSlot, /setError\(new CmsApiError\("not-found", 404/);
   assert.match(liveSlot, /result !== "failed"/);
   assert.match(liveSlot, /data-cms-live-source="live-backend"/);
   assert.doesNotMatch(liveSlot, /window\.location\.reload/);

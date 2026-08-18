@@ -132,6 +132,7 @@ export function CmsLiveSlot({
         if (!cancelled) {
           if (nextError instanceof CmsApiError && nextError.kind === "not-found") {
             setContent(null);
+            setError(new CmsApiError("not-found", 404, "Slot hiện không còn PUBLISHED."));
             return "not-found";
           }
           setError(nextError);
