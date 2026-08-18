@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { fetchSpecialties, type Page } from "../../lib/api-client";
 import type { Specialty } from "../../types/hospital";
 import { ClinicalIcon } from "../../components/ClinicalIcon";
+import CatalogPagination from "../../components/CatalogPagination";
 import {
   PublicAiButton,
   PublicBackLink,
@@ -13,15 +14,21 @@ import {
 } from "../../components/PublicPageShell";
 
 export default function SpecialtiesPage() {
+  const [currentPage, setCurrentPage] = useState(0);
   const [page, setPage] = useState<Page<Specialty> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    fetchSpecialties(0, 50)
+    const task = Promise.resolve().then(() => {
+      if (cancelled) return undefined;
+      setLoading(true);
+      setError(null);
+      return fetchSpecialties(currentPage, 12);
+    })
       .then((data) => {
-        if (!cancelled) setPage(data);
+        if (data !== undefined && !cancelled) setPage(data);
       })
       .catch((reason: unknown) => {
         if (!cancelled) setError(reason instanceof Error ? reason.message : "Không thể tải chuyên khoa.");
@@ -29,10 +36,11 @@ export default function SpecialtiesPage() {
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
+    void task;
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [currentPage]);
 
   return (
     <PublicPageShell>
@@ -49,22 +57,26 @@ export default function SpecialtiesPage() {
         {!loading && !error && page?.empty ? <p className="catalog-status" role="status">Backend chưa có chuyên khoa active.</p> : null}
 
         {page && !page.empty ? (
-          <div className="catalog-grid catalog-grid--specialties">
-            {page.content.map((specialty) => (
-              <article className="catalog-card" key={specialty.id}>
-                <div className="resource-icon resource-icon--small" aria-hidden="true">
-                  <ClinicalIcon name="specialty" />
-                </div>
-                <span className="resource-chip">Active catalog</span>
-                <h2>{specialty.name}</h2>
-                <p>{specialty.description || "Chuyên khoa chưa có phần mô tả chi tiết."}</p>
-                <div className="catalog-card__actions">
-                  <Link className="text-button" href={`/specialties/${specialty.slug}`}>Xem chuyên khoa →</Link>
-                  <PublicBookingButton className="outline-button outline-button--small" selection={{ specialtyId: specialty.id }}>Đặt lịch</PublicBookingButton>
-                </div>
-              </article>
-            ))}
-          </div>
+          <>
+            <p className="catalog-meta">{page.totalElements} chuyên khoa · Trang {page.number + 1}/{page.totalPages}</p>
+            <div className="catalog-grid catalog-grid--specialties">
+              {page.content.map((specialty) => (
+                <article className="catalog-card" key={specialty.id}>
+                  <div className="resource-icon resource-icon--small" aria-hidden="true">
+                    <ClinicalIcon name="specialty" />
+                  </div>
+                  <span className="resource-chip">Active catalog</span>
+                  <h2>{specialty.name}</h2>
+                  <p>{specialty.description || "Chuyên khoa chưa có phần mô tả chi tiết."}</p>
+                  <div className="catalog-card__actions">
+                    <Link className="text-button" href={`/specialties/${specialty.slug}`}>Xem chuyên khoa →</Link>
+                    <PublicBookingButton className="outline-button outline-button--small" selection={{ specialtyId: specialty.id }}>Đặt lịch</PublicBookingButton>
+                  </div>
+                </article>
+              ))}
+            </div>
+            <CatalogPagination label="Phân trang chuyên khoa" onPageChange={setCurrentPage} page={page} />
+          </>
         ) : null}
 
         <section className="resource-panel resource-panel--accent">

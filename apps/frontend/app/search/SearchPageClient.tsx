@@ -7,11 +7,11 @@ import { PublicBackLink, PublicBookingButton, PublicPageShell } from "../../comp
 import Icon from "../../components/UiIcon";
 import {
   fetchArticles,
+  fetchAllContent,
   fetchDoctors,
   fetchPackages,
   fetchServices,
   fetchSpecialties,
-  type Page,
 } from "../../lib/api-client";
 import type { Article, Doctor, HealthPackage, MedicalService, Specialty } from "../../types/hospital";
 
@@ -35,8 +35,8 @@ function matches(query: string, values: Array<string | undefined>): boolean {
   return values.some((value) => value && normalize(value).includes(query));
 }
 
-function settledContent<T>(result: PromiseSettledResult<Page<T>>): T[] {
-  return result.status === "fulfilled" ? result.value.content : [];
+function settledContent<T>(result: PromiseSettledResult<T[]>): T[] {
+  return result.status === "fulfilled" ? result.value : [];
 }
 
 function ResultSection({
@@ -68,11 +68,11 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
   useEffect(() => {
     let cancelled = false;
     Promise.allSettled([
-      fetchSpecialties(0, 100),
-      fetchDoctors({ page: 0, size: 100 }),
-      fetchServices(0, 100),
-      fetchPackages(0, 100),
-      fetchArticles(0, 100),
+      fetchAllContent((page, size) => fetchSpecialties(page, size)),
+      fetchAllContent((page, size) => fetchDoctors({ page, size })),
+      fetchAllContent((page, size) => fetchServices(page, size)),
+      fetchAllContent((page, size) => fetchPackages(page, size)),
+      fetchAllContent((page, size) => fetchArticles(page, size)),
     ] as const)
       .then((responses) => {
         if (cancelled) return;
