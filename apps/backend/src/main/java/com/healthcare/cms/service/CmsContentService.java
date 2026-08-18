@@ -106,8 +106,11 @@ public class CmsContentService {
         }
         CmsContent content = published.get();
         CmsContentResponse response = toResponse(content);
-        long cacheEventId = Math.max(latestPublicEventId, afterEventId == null ? 0L : afterEventId);
-        cache.put(readToken, response, cacheEventId);
+        // The request cursor proves only that this read bypassed the local cache;
+        // it is not evidence that the response includes a future durable event.
+        // Persist only the server-observed watermark so a client cannot poison
+        // normal cache reads with an arbitrarily large afterEventId.
+        cache.put(readToken, response, latestPublicEventId);
         return response;
     }
 

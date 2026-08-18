@@ -209,6 +209,34 @@ class CmsContentIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void futureFeedCursorCannotPoisonPublishedCacheWatermark() throws Exception {
+        String admin = bearer("ADMIN");
+        String publish = request("NOTICE", "PUBLISHED", 0, "{\"title\":\"Current\",\"body\":\"Published\"}");
+        String unpublish = request("NOTICE", "DRAFT", 1, "{\"title\":\"Current\",\"body\":\"Published\"}");
+
+        mockMvc.perform(put("/api/v1/admin/cms/content/future-cursor-slot")
+                .header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(publish))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/cms/content/future-cursor-slot")
+                .param("afterEventId", Long.toString(Long.MAX_VALUE)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.payload.title").value("Current"));
+
+        mockMvc.perform(put("/api/v1/admin/cms/content/future-cursor-slot")
+                .header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(unpublish))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("DRAFT"));
+
+        mockMvc.perform(get("/api/v1/cms/content/future-cursor-slot"))
+            .andExpect(status().isNotFound());
+    }
+
+    @Test
     void draftIsHiddenUntilPublishedAndUnpublishRemovesIt() throws Exception {
         String draft = request("RICH_TEXT", "DRAFT", 0, "{\"title\":\"Draft title\",\"body\":\"Draft body\"}");
         String publish = request("RICH_TEXT", "PUBLISHED", 1, "{\"title\":\"Published title\",\"body\":\"Published body\"}");
