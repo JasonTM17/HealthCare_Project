@@ -18,6 +18,8 @@ public interface CmsContentChangeRepository extends JpaRepository<CmsContentChan
 
     Optional<CmsContentChange> findTopByPublicEventTrueOrderByIdDesc();
 
+    Optional<CmsContentChange> findTopBySlotKeyAndPublicEventTrueOrderByIdDesc(String slotKey);
+
     List<CmsContentChange> findBySlotKeyOrderByIdDesc(String slotKey, Pageable pageable);
 
     Optional<CmsContentChange> findByIdAndSlotKey(Long id, String slotKey);

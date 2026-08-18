@@ -63,10 +63,17 @@ public class CmsContentService {
      * Reads a published snapshot. A non-null feed cursor is an explicit
      * reconciliation read: bypass the local cache so a backend that missed a
      * Redis event cannot acknowledge a newer durable cursor with stale data.
+     * Normal cache hits are also checked against the latest durable public
+     * event for this slot, which keeps a missed cross-instance eviction from
+     * serving an old in-process snapshot indefinitely.
      */
     @Transactional(readOnly = true)
     public CmsContentResponse getPublished(String slotKey, Long afterEventId) {
         String validatedSlotKey = validateSlotKey(slotKey);
+        long latestPublicEventId = changeRepository
+            .findTopBySlotKeyAndPublicEventTrueOrderByIdDesc(validatedSlotKey)
+            .map(CmsContentChange::getId)
+            .orElse(0L);
         if (afterEventId != null) {
             if (afterEventId < 0L) {
                 throw new com.healthcare.cms.exception.CmsPayloadValidationException(
@@ -74,9 +81,12 @@ public class CmsContentService {
                 );
             }
         } else {
-            CmsContentResponse cached = cache.get(validatedSlotKey);
+            CmsPublishedContentCache.CachedContent cached = cache.getEntry(validatedSlotKey);
+            if (cached != null && cached.eventId() >= latestPublicEventId) {
+                return cached.response();
+            }
             if (cached != null) {
-                return cached;
+                cache.evict(validatedSlotKey);
             }
         }
 
@@ -96,7 +106,8 @@ public class CmsContentService {
         }
         CmsContent content = published.get();
         CmsContentResponse response = toResponse(content);
-        cache.put(readToken, response);
+        long cacheEventId = Math.max(latestPublicEventId, afterEventId == null ? 0L : afterEventId);
+        cache.put(readToken, response, cacheEventId);
         return response;
     }
 

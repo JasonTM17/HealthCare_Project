@@ -22,7 +22,7 @@ class CmsPublishedContentCacheTest {
         CmsContentResponse staleResponse = response("old");
 
         cache.evict(SLOT_KEY);
-        cache.put(staleRead, staleResponse);
+        cache.put(staleRead, staleResponse, 1L);
 
         assertNull(cache.get(SLOT_KEY));
     }
@@ -34,7 +34,7 @@ class CmsPublishedContentCacheTest {
         CmsPublishedContentCache.ReadToken currentRead = cache.beginRead(SLOT_KEY);
         CmsContentResponse currentResponse = response("current");
 
-        cache.put(currentRead, currentResponse);
+        cache.put(currentRead, currentResponse, 1L);
 
         assertSame(currentResponse, cache.get(SLOT_KEY));
     }

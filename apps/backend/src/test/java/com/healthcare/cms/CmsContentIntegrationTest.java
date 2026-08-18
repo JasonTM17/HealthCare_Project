@@ -158,6 +158,9 @@ class CmsContentIntegrationTest extends AbstractIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.version").value(2));
 
+        long currentEventId = changeRepository.findTopByPublicEventTrueOrderByIdDesc()
+            .orElseThrow()
+            .getId();
         cache.put(new CmsContentResponse(
             "cache-reconcile-slot",
             CmsComponentType.NOTICE,
@@ -165,7 +168,7 @@ class CmsContentIntegrationTest extends AbstractIntegrationTest {
             CmsPublicationStatus.PUBLISHED,
             1L,
             OffsetDateTime.now()
-        ));
+        ), currentEventId);
         mockMvc.perform(get("/api/v1/cms/content/cache-reconcile-slot"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.payload.title").value("Stale"))
@@ -187,6 +190,9 @@ class CmsContentIntegrationTest extends AbstractIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("DRAFT"))
             .andExpect(jsonPath("$.version").value(3));
+        long unpublishEventId = changeRepository.findTopByPublicEventTrueOrderByIdDesc()
+            .orElseThrow()
+            .getId();
         cache.put(new CmsContentResponse(
             "cache-reconcile-slot",
             CmsComponentType.NOTICE,
@@ -194,10 +200,7 @@ class CmsContentIntegrationTest extends AbstractIntegrationTest {
             CmsPublicationStatus.PUBLISHED,
             2L,
             OffsetDateTime.now()
-        ));
-        long unpublishEventId = changeRepository.findTopByPublicEventTrueOrderByIdDesc()
-            .orElseThrow()
-            .getId();
+        ), unpublishEventId);
         mockMvc.perform(get("/api/v1/cms/content/cache-reconcile-slot")
                 .param("afterEventId", Long.toString(unpublishEventId)))
             .andExpect(status().isNotFound());
