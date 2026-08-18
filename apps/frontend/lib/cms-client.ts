@@ -166,11 +166,17 @@ export interface CmsFeedResyncEvent {
   snapshotFallback: string;
 }
 
+export interface CmsHeartbeatEvent {
+  at: string;
+  latestEventId: number;
+}
+
 export interface CmsChangeSubscriptionOptions {
   after?: number;
   onChange: (event: CmsContentChangedEvent) => void;
   onConnected?: (ready?: CmsFeedReadyEvent) => void;
   onResync?: (event: CmsFeedResyncEvent) => void;
+  onHeartbeat?: (event: CmsHeartbeatEvent) => void;
   onFallback?: () => void;
 }
 
@@ -563,6 +569,14 @@ function parseResyncEvent(raw: unknown): CmsFeedResyncEvent {
   };
 }
 
+function parseHeartbeatEvent(raw: unknown): CmsHeartbeatEvent {
+  const event = readRecord(raw, "heartbeat");
+  return {
+    at: readIsoDate(event.at, "heartbeat.at"),
+    latestEventId: readPositiveInteger(event.latestEventId, "heartbeat.latestEventId"),
+  };
+}
+
 export class CmsClient {
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof fetch;
@@ -742,7 +756,13 @@ export class CmsClient {
           fallback();
         }
       });
-      register("heartbeat", () => undefined);
+      register("heartbeat", (event) => {
+        try {
+          options.onHeartbeat?.(parseHeartbeatEvent(JSON.parse((event as MessageEvent<string>).data) as unknown));
+        } catch {
+          fallback();
+        }
+      });
     } catch {
       options.onFallback?.();
       return () => undefined;

@@ -124,7 +124,17 @@ public class CmsChangeFeedHub {
 
     private void sendHeartbeats() {
         synchronized (streamLock) {
-            CmsHeartbeatResponse heartbeat = new CmsHeartbeatResponse(OffsetDateTime.now(ZoneOffset.UTC));
+            long latestEventId;
+            try {
+                latestEventId = latestEventId();
+            } catch (RuntimeException exception) {
+                // Keep the scheduler alive if PostgreSQL is briefly unavailable.
+                return;
+            }
+            CmsHeartbeatResponse heartbeat = new CmsHeartbeatResponse(
+                OffsetDateTime.now(ZoneOffset.UTC),
+                latestEventId
+            );
             emitters.forEach((connectionId, emitter) -> {
                 try {
                     send(emitter, "heartbeat", null, heartbeat);

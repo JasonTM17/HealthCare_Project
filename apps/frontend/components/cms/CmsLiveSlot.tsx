@@ -28,6 +28,7 @@ export interface CmsLiveSlotProps {
 }
 
 type LiveTransport = "connecting" | "sse" | "polling";
+type RefreshResult = "updated" | "not-found" | "failed";
 
 function errorMessage(error: unknown): string {
   if (error instanceof CmsApiError && error.kind === "not-found") return "Chưa có nội dung PUBLISHED cho slot này.";
@@ -101,30 +102,33 @@ export function CmsLiveSlot({
       return Math.max(0, ...pendingEventVersions.current.values());
     };
 
-    const refresh = async (minimumVersion = 0): Promise<boolean> => {
+    const refresh = async (minimumVersion = 0): Promise<RefreshResult> => {
       try {
         const nextContent = await client.getPublishedContent(backendSlotKey);
-        if (cancelled || nextContent.status !== "PUBLISHED") return false;
+        if (cancelled || nextContent.status !== "PUBLISHED") return "failed";
         if (nextContent.version < minimumVersion) {
           setError(new CmsApiError(
             "unavailable",
             503,
             `CMS mới trả version ${nextContent.version}; đang chờ version ${minimumVersion}.`,
           ));
-          return false;
+          return "failed";
         }
         if (nextContent.version >= latestVersion.current) {
           latestVersion.current = nextContent.version;
           setContent(nextContent);
         }
         setError(null);
-        return true;
+        return "updated";
       } catch (nextError) {
         if (!cancelled) {
-          if (nextError instanceof CmsApiError && nextError.kind === "not-found") setContent(null);
+          if (nextError instanceof CmsApiError && nextError.kind === "not-found") {
+            setContent(null);
+            return "not-found";
+          }
           setError(nextError);
         }
-        return false;
+        return "failed";
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -134,8 +138,14 @@ export function CmsLiveSlot({
       if (cancelled || pollTimer) return;
       setTransport("polling");
       pollTimer = setInterval(() => {
-        void refresh(pendingVersionFloor()).then((succeeded) => {
-          if (!succeeded || cancelled || pendingEventIds.current.size === 0) return;
+        const minimumVersion = pendingVersionFloor();
+        void refresh(minimumVersion).then((result) => {
+          if (
+            result === "failed"
+            || (result === "not-found" && minimumVersion > 0)
+            || cancelled
+            || pendingEventIds.current.size === 0
+          ) return;
           pendingEventIds.current.clear();
           pendingEventVersions.current.clear();
           advanceCursor();
@@ -188,8 +198,8 @@ export function CmsLiveSlot({
           if (event.published) {
             pendingEventIds.current.add(event.eventId);
             pendingEventVersions.current.set(event.eventId, event.version);
-            void refresh(event.version).then((succeeded) => {
-              if (succeeded && !cancelled) {
+            void refresh(event.version).then((result) => {
+              if (result === "updated" && !cancelled) {
                 setLiveNotice(`Đã đồng bộ ${backendSlotKey}, version ${latestVersion.current}.`);
                 resolvePendingEvent(event.eventId);
               } else if (!cancelled) {
@@ -225,8 +235,8 @@ export function CmsLiveSlot({
           scheduleReconnect();
         },
         onResync: (event) => {
-          void refresh(pendingVersionFloor()).then((succeeded) => {
-            if (succeeded && !cancelled) {
+          void refresh(pendingVersionFloor()).then((result) => {
+            if (result !== "failed" && !cancelled) {
               pendingEventIds.current.clear();
               pendingEventVersions.current.clear();
               highestObservedEventId.current = Math.max(highestObservedEventId.current, event.latestEventId);
@@ -237,7 +247,32 @@ export function CmsLiveSlot({
                 setTransport("sse");
               }
             }
-            if (!succeeded && !cancelled) startPolling();
+            if (result === "failed" && !cancelled) startPolling();
+          });
+        },
+        onHeartbeat: (heartbeat) => {
+          if (heartbeat.latestEventId <= latestEventId.current) return;
+          void refresh().then((result) => {
+            if (cancelled) return;
+            if (result === "failed") {
+              // The durable cursor proves that a broker event may have been
+              // missed; keep bounded polling active until the snapshot reads.
+              startPolling();
+              return;
+            }
+            pendingEventIds.current.clear();
+            pendingEventVersions.current.clear();
+            highestObservedEventId.current = Math.max(
+              highestObservedEventId.current,
+              heartbeat.latestEventId,
+            );
+            latestEventId.current = Math.max(latestEventId.current, heartbeat.latestEventId);
+            advanceCursor();
+            setLiveNotice("Đã kiểm tra lại nội dung live, version " + latestVersion.current + ".");
+            if (sseConnected) {
+              stopPolling();
+              setTransport("sse");
+            }
           });
         },
       });

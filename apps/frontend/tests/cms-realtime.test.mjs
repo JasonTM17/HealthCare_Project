@@ -24,6 +24,8 @@ test("CMS client matches the integrated slot-scoped typed contract", async () =>
     "cms-content-changed",
     "parseReadyEvent",
     "parseResyncEvent",
+    "parseHeartbeatEvent",
+    "latestEventId",
   ]) {
     assert.ok(source.includes(marker), `missing CMS contract marker: ${marker}`);
   }
@@ -52,6 +54,8 @@ test("public live slot listens to named SSE changes and has polling fallback", a
   assert.match(client, /register\("cms-content-changed"/);
   assert.match(client, /register\("ready"/);
   assert.match(client, /register\("resync"/);
+  assert.match(client, /register\("heartbeat"/);
+  assert.match(client, /onHeartbeat/);
   assert.match(client, /parseReadyEvent\(JSON\.parse/);
   assert.match(client, /readSlotKey/);
   assert.match(client, /Number\.isSafeInteger/);
@@ -65,8 +69,11 @@ test("public live slot listens to named SSE changes and has polling fallback", a
   assert.match(liveSlot, /refresh\(pendingVersionFloor\(\)/);
   assert.match(liveSlot, /pendingEventIds\.current\.size === 0/);
   assert.match(liveSlot, /startPolling\(\)/);
-  assert.match(liveSlot, /if \(!succeeded && !cancelled\) startPolling\(\)/);
+  assert.match(liveSlot, /if \(result === "failed" && !cancelled\) startPolling\(\)/);
   assert.match(liveSlot, /onResync/);
+  assert.match(liveSlot, /onHeartbeat/);
+  assert.match(liveSlot, /heartbeat\.latestEventId/);
+  assert.match(liveSlot, /result !== "failed"/);
   assert.match(liveSlot, /data-cms-live-source="live-backend"/);
   assert.doesNotMatch(liveSlot, /window\.location\.reload/);
 });
