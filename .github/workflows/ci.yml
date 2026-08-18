@@ -179,27 +179,25 @@ jobs:
             docker logs "$container"
             exit 1
           fi
-          initialized=false
-          for attempt in $(seq 1 120); do
-            if table="$(docker exec "$container" psql -At -U healthcare -d healthcare -c \
-              "SELECT to_regclass('public.articles');" 2>/dev/null)"; then
-              if [ "$table" = articles ]; then
-                initialized=true
+          verified=false
+          for attempt in $(seq 1 180); do
+            if counts="$(docker exec "$container" psql -At -F '|' -U healthcare -d healthcare -c \
+              "SELECT 'articles', count(*) FROM articles UNION ALL SELECT 'doctors', count(*) FROM doctors UNION ALL SELECT 'packages', count(*) FROM packages UNION ALL SELECT 'users', count(*) FROM users;" 2>/dev/null)"; then
+              if grep -Fx 'articles|500' <<<"$counts" >/dev/null \
+                && grep -Fx 'doctors|500' <<<"$counts" >/dev/null \
+                && grep -Fx 'packages|100' <<<"$counts" >/dev/null \
+                && grep -Fx 'users|1000' <<<"$counts" >/dev/null; then
+                printf '%s\n' "$counts"
+                verified=true
                 break
               fi
             fi
             sleep 1
           done
-          if [ "$initialized" != true ]; then
+          if [ "$verified" != true ]; then
             docker logs "$container"
             exit 1
           fi
-          counts="$(docker exec "$container" psql -At -F '|' -U healthcare -d healthcare -c \
-            "SELECT 'articles', count(*) FROM articles UNION ALL SELECT 'doctors', count(*) FROM doctors UNION ALL SELECT 'packages', count(*) FROM packages UNION ALL SELECT 'users', count(*) FROM users;")"
-          grep -Fx 'articles|500' <<<"$counts"
-          grep -Fx 'doctors|500' <<<"$counts"
-          grep -Fx 'packages|100' <<<"$counts"
-          grep -Fx 'users|1000' <<<"$counts"
 
   hygiene:
     runs-on: ubuntu-latest
