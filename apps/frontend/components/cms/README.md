@@ -23,6 +23,7 @@ All content responses have this shape:
 | Operation | Method and path | Auth | Request |
 | --- | --- | --- | --- |
 | Public read | `GET /api/v1/cms/content/{slotKey}` | Public | — |
+| Admin inventory | `GET /api/v1/admin/cms/content` | `ADMIN` | — |
 | Admin read | `GET /api/v1/admin/cms/content/{slotKey}` | `ADMIN` | — |
 | Admin upsert | `PUT /api/v1/admin/cms/content/{slotKey}` | `ADMIN` | `{ componentType, payload, status, expectedVersion }` |
 | Realtime feed | `GET /api/v1/cms/content/events` | Public | Optional `after` query or `Last-Event-ID` header |
@@ -44,6 +45,13 @@ public slot maps as follows:
 ```tsx
 <CmsLiveSlot slug="home" slotKey="hero" /> // homepage.hero
 ```
+
+`PublicPageShell` mounts route-scoped `hero` and `body` slots for public
+routes. For example, `careers.hero` and `careers.body` are shown on
+`/careers`; missing slots stay hidden and do not invent page copy. The
+homepage keeps its composed slot layout in `app/page.tsx`. The admin content
+screen reads the inventory endpoint and exposes published/draft slots as
+quick selections before allowing a manual slug entry.
 
 Set `NEXT_PUBLIC_CMS_API_BASE_URL` to the API base (including `/api/v1`). Admin
 requests can receive a bearer token through the `CmsClient` option and also
