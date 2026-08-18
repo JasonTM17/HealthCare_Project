@@ -99,6 +99,18 @@ function prettyUpdatedAt(value: string | undefined): string {
   return new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
+function slotSelection(slotKey: string): { slug: string; slot: CmsSlotKey } | null {
+  const normalized = slotKey.trim().toLowerCase();
+  if (normalized === "homepage.hero") return { slug: "home", slot: "hero" };
+  const separator = normalized.lastIndexOf(".");
+  if (separator <= 0) return null;
+  const slug = normalized.slice(0, separator);
+  const slot = normalized.slice(separator + 1);
+  return CMS_SLOT_KEYS.includes(slot as CmsSlotKey)
+    ? { slug, slot: slot as CmsSlotKey }
+    : null;
+}
+
 function asCmsError(error: unknown): CmsApiError {
   if (error instanceof CmsApiError) return error;
   return new CmsApiError("network", 0, error instanceof Error ? error.message : "Không thể kết nối CMS.");
@@ -247,6 +259,9 @@ export function CmsEditor({
   const [apiError, setApiError] = useState<CmsApiError | null>(null);
   const [fieldErrors, setFieldErrors] = useState<CmsFieldErrors>({});
   const [notice, setNotice] = useState<string | null>(null);
+  const [availableContent, setAvailableContent] = useState<CmsContent[]>([]);
+  const [inventoryLoading, setInventoryLoading] = useState(true);
+  const [inventoryError, setInventoryError] = useState<string | null>(null);
 
   const loadContent = useCallback(async (requestedSlug: string, requestedSlot: CmsSlotKey): Promise<void> => {
     const normalizedSlug = requestedSlug.trim();
@@ -276,10 +291,27 @@ export function CmsEditor({
     }
   }, [client]);
 
+  const loadAvailableContent = useCallback(async (): Promise<void> => {
+    setInventoryLoading(true);
+    setInventoryError(null);
+    try {
+      const slots = await client.listAdminContent();
+      setAvailableContent(slots.sort((left, right) => left.slotKey.localeCompare(right.slotKey)));
+    } catch (error) {
+      setInventoryError(apiErrorMessage(asCmsError(error)));
+    } finally {
+      setInventoryLoading(false);
+    }
+  }, [client]);
+
   useEffect(() => {
     const timer = window.setTimeout(() => void loadContent(initialSlug, "hero"), 0);
-    return () => window.clearTimeout(timer);
-  }, [initialSlug, loadContent]);
+    const inventoryTimer = window.setTimeout(() => void loadAvailableContent(), 0);
+    return () => {
+      window.clearTimeout(timer);
+      window.clearTimeout(inventoryTimer);
+    };
+  }, [initialSlug, loadAvailableContent, loadContent]);
 
   const handleLoad = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
@@ -326,6 +358,10 @@ export function CmsEditor({
       setContent(savedContent);
       setDraft(savedDraft);
       setLoadedSnapshot(savedDraft);
+      setAvailableContent((current) => [
+        ...current.filter((item) => item.slotKey !== savedContent.slotKey),
+        savedContent,
+      ].sort((left, right) => left.slotKey.localeCompare(right.slotKey)));
       setNotice(savedContent.status === "PUBLISHED"
         ? `Đã xuất bản ${savedContent.slotKey}, version ${savedContent.version}.`
         : `Đã lưu bản nháp ẩn công khai, version ${savedContent.version}.`);
@@ -397,6 +433,33 @@ export function CmsEditor({
           {operation === "loading" ? "Đang tải…" : "Tải slot"}
         </button>
       </form>
+
+      <section aria-labelledby="cms-slot-directory-title" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Slot directory</p>
+            <h2 className="mt-1 text-xl font-bold text-slate-950" id="cms-slot-directory-title">Các component CMS đã có trong backend</h2>
+          </div>
+          <button className="min-h-11 rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60" disabled={inventoryLoading} onClick={() => void loadAvailableContent()} type="button">
+            {inventoryLoading ? "Đang đọc…" : "Làm mới danh mục"}
+          </button>
+        </div>
+        {inventoryError ? <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-950" role="status">{inventoryError} Có thể nhập slug thủ công nếu phiên ADMIN đã sẵn sàng.</p> : null}
+        {!inventoryLoading && !inventoryError && availableContent.length === 0 ? <p className="mt-3 text-sm text-slate-600">Chưa có slot CMS nào được trả về. Hãy nhập slug route và tải slot để tạo component đầu tiên.</p> : null}
+        {availableContent.length > 0 ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {availableContent.map((item) => {
+              const selection = slotSelection(item.slotKey);
+              return selection ? (
+                <button className="min-h-11 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 text-left text-sm font-semibold text-teal-950 hover:bg-teal-100" key={item.slotKey} onClick={() => void loadContent(selection.slug, selection.slot)} type="button">
+                  <span className="block font-mono text-xs">{item.slotKey}</span>
+                  <span className="block text-xs font-normal text-teal-800">{item.componentType} · v{item.version} · {item.status}</span>
+                </button>
+              ) : null;
+            })}
+          </div>
+        ) : null}
+      </section>
 
       {apiError ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-950" role="alert">

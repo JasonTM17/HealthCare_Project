@@ -253,4 +253,39 @@ FROM generate_series(1, 100) AS i,
      LATERAL (SELECT id FROM patient_profiles ORDER BY random() LIMIT 1) p,
      LATERAL (SELECT id FROM doctors ORDER BY random() LIMIT 1) d;
 
+INSERT INTO cms_contents (
+    id, slot_key, component_type, payload, status, version, created_at, updated_at
+) VALUES
+(
+    '80000000-0000-0000-0000-000000000002',
+    'careers.hero',
+    'HERO',
+    '{"eyebrow":"Cơ hội nghề nghiệp","title":"Cùng xây dựng một hành trình chăm sóc tử tế","body":"Các vị trí và thông điệp tuyển dụng được quản trị từ CMS. Hãy xem nội dung đã xuất bản trước khi gửi hồ sơ.","ctaLabel":"Liên hệ tuyển dụng","ctaHref":"/contact"}'::jsonb,
+    'PUBLISHED',
+    1,
+    now(),
+    now()
+),
+(
+    '80000000-0000-0000-0000-000000000003',
+    'careers.body',
+    'RICH_TEXT',
+    '{"title":"Môi trường làm việc minh bạch","body":"Thông tin tuyển dụng, phạm vi vai trò và cách ứng tuyển cần được cập nhật bởi quản trị viên. Bản demo này không tự dựng vị trí đang tuyển hoặc cam kết quyền lợi khi backend chưa xuất bản dữ liệu."}'::jsonb,
+    'PUBLISHED',
+    1,
+    now(),
+    now()
+),
+(
+    '80000000-0000-0000-0000-000000000004',
+    'search.hero',
+    'HERO',
+    '{"eyebrow":"Tìm kiếm toàn hệ thống","title":"Tìm đúng điểm bắt đầu cho nhu cầu chăm sóc","body":"Kết quả được tổng hợp từ catalog active của backend, gồm chuyên khoa, bác sĩ, dịch vụ, gói khám và cẩm nang."}'::jsonb,
+    'PUBLISHED',
+    1,
+    now(),
+    now()
+)
+ON CONFLICT (slot_key) DO NOTHING;
+
 COMMIT;

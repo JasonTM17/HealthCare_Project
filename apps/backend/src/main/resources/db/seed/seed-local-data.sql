@@ -117,6 +117,41 @@ INSERT INTO cms_contents (
 )
 ON CONFLICT (slot_key) DO NOTHING;
 
+INSERT INTO cms_contents (
+    id, slot_key, component_type, payload, status, version, created_at, updated_at
+) VALUES
+(
+    '80000000-0000-0000-0000-000000000002',
+    'careers.hero',
+    'HERO',
+    '{"eyebrow":"Cơ hội nghề nghiệp","title":"Cùng xây dựng một hành trình chăm sóc tử tế","body":"Các vị trí và thông điệp tuyển dụng được quản trị từ CMS. Hãy xem nội dung đã xuất bản trước khi gửi hồ sơ.","ctaLabel":"Liên hệ tuyển dụng","ctaHref":"/contact"}'::jsonb,
+    'PUBLISHED',
+    1,
+    '2026-08-01T08:00:00+07:00',
+    '2026-08-01T08:00:00+07:00'
+),
+(
+    '80000000-0000-0000-0000-000000000003',
+    'careers.body',
+    'RICH_TEXT',
+    '{"title":"Môi trường làm việc minh bạch","body":"Thông tin tuyển dụng, phạm vi vai trò và cách ứng tuyển cần được cập nhật bởi quản trị viên. Bản demo này không tự dựng vị trí đang tuyển hoặc cam kết quyền lợi khi backend chưa xuất bản dữ liệu."}'::jsonb,
+    'PUBLISHED',
+    1,
+    '2026-08-01T08:00:00+07:00',
+    '2026-08-01T08:00:00+07:00'
+),
+(
+    '80000000-0000-0000-0000-000000000004',
+    'search.hero',
+    'HERO',
+    '{"eyebrow":"Tìm kiếm toàn hệ thống","title":"Tìm đúng điểm bắt đầu cho nhu cầu chăm sóc","body":"Kết quả được tổng hợp từ catalog active của backend, gồm chuyên khoa, bác sĩ, dịch vụ, gói khám và cẩm nang."}'::jsonb,
+    'PUBLISHED',
+    1,
+    '2026-08-01T08:00:00+07:00',
+    '2026-08-01T08:00:00+07:00'
+)
+ON CONFLICT (slot_key) DO NOTHING;
+
 -- ── Doctor schedules (Mon-Fri, morning + afternoon shifts) ────────────────────
 INSERT INTO doctor_schedules (id, doctor_id, branch_id, day_of_week, start_time, end_time, slot_duration_minutes, effective_from, effective_to, active)
 SELECT gen_random_uuid(), d.id, b.id, shifts.dow, shifts.start_time::time, shifts.end_time::time, 30, '2026-08-01', NULL, true

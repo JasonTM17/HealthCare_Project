@@ -12,6 +12,7 @@ test("CMS client matches the integrated slot-scoped typed contract", async () =>
     "CmsContentInput",
     "getPublishedContent",
     "getAdminContent",
+    "listAdminContent",
     "upsertContent",
     "expectedVersion",
     "/cms/content/",
@@ -72,6 +73,8 @@ test("admin editor exposes typed status/version and protected API states", async
     "Xuất bản",
     "Khôi phục bản đã tải",
     "chưa cung cấp history/rollback endpoint",
+    "Các component CMS đã có trong backend",
+    "loadAvailableContent",
   ]) {
     assert.ok(source.includes(marker), `missing editor state: ${marker}`);
   }

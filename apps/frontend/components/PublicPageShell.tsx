@@ -6,6 +6,7 @@ import AiTriageModal from "./AiTriageModal";
 import BookingModal from "./BookingModal";
 import Footer from "./Footer";
 import Navbar from "./Navbar";
+import { RouteCmsSlots } from "./cms";
 import type { Branch, Doctor, HealthPackage, Specialty } from "../types/hospital";
 
 interface PublicPageShellProps {
@@ -73,7 +74,7 @@ export function PublicPageShell({ children, doctors = [], specialties = [], bran
     <PublicPageActionsContext.Provider value={actions}>
       <div className="site-shell">
         <Navbar branches={branches} onOpenAiTriage={() => setAiOpen(true)} onOpenBooking={() => actions.openBooking()} />
-        <main>{children}</main>
+        <main><RouteCmsSlots />{children}</main>
         <Footer branches={branches} />
         <BookingModal
           branches={branches}

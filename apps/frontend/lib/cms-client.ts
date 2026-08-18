@@ -580,6 +580,19 @@ export class CmsClient {
     return this.requestContent(this.adminContentPath(slotKey));
   }
 
+  async listAdminContent(): Promise<CmsContent[]> {
+    const raw = await this.request<unknown>("/admin/cms/content");
+    if (!Array.isArray(raw)) {
+      throw new CmsApiError("validation", 0, "CMS API không trả về danh sách slot hợp lệ.");
+    }
+    try {
+      return raw.map((item) => parseCmsContent(item));
+    } catch (error) {
+      if (error instanceof CmsApiError) throw error;
+      throw new CmsApiError("validation", 0, "CMS API trả về slot sai schema.");
+    }
+  }
+
   async upsertContent(slotKey: string, input: CmsContentInput): Promise<CmsContent> {
     validateSlotKey(slotKey);
     assertValidCmsContentInput(input);
