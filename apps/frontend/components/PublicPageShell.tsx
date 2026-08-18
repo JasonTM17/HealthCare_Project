@@ -93,8 +93,9 @@ export function PublicPageShell({ children, doctors = [], specialties = [], bran
           isOpen={aiOpen}
           onClose={() => setAiOpen(false)}
           onSelectSpecialtyForBooking={(_specialtyName, specialtyId) => {
-            const specialty = specialtyId ? specialties.find((item) => item.id === specialtyId) : undefined;
-            actions.openBooking(specialty ? { specialtyId: specialty.id } : undefined);
+            // Keep the AI resolver's backend identity even when this shell did
+            // not preload the full specialty catalog.
+            actions.openBooking(specialtyId ? { specialtyId } : undefined);
             setAiOpen(false);
           }}
         />

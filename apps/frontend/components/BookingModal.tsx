@@ -36,6 +36,22 @@ const BOOKING_STEPS = [
   { id: 7, label: "Xác nhận" },
 ] as const;
 
+function doctorMatchesBranch(doctor: Doctor, branchId: string): boolean {
+  if (!branchId) return true;
+  if (doctor.branchIds && doctor.branchIds.length > 0) {
+    return doctor.branchIds.includes(branchId);
+  }
+  return !doctor.branchId || doctor.branchId === branchId;
+}
+
+function doctorMatchesSpecialty(doctor: Doctor, specialty?: Specialty): boolean {
+  if (!specialty) return true;
+  if (doctor.specialtySlugs && doctor.specialtySlugs.length > 0) {
+    return doctor.specialtySlugs.includes(specialty.slug);
+  }
+  return !doctor.specialtyName || doctor.specialtyName === specialty.name;
+}
+
 interface BookingModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -89,6 +105,7 @@ export default function BookingModal({
   const [selectedSlot, setSelectedSlot] = useState<string>("");
   const [loadingSlots, setLoadingSlots] = useState<boolean>(false);
   const [slotError, setSlotError] = useState<string>("");
+  const [slotRefreshNonce, setSlotRefreshNonce] = useState<number>(0);
 
   // Patient Info
   const [fullName, setFullName] = useState<string>("");
@@ -142,14 +159,19 @@ export default function BookingModal({
     if (!isOpen) return;
     const firstBranch = branches.find((branch) => branch.id === initialBranchId) ?? branches[0];
     const nextBranchId = firstBranch?.id ?? "";
-    const firstDoctor = doctors.find((doctor) => doctor.id === initialDoctorId && (!nextBranchId || doctor.branchId === nextBranchId))
-      ?? doctors.find((doctor) => doctor.branchId === nextBranchId)
+    const nextSpecialtyId = specialties.some((specialty) => specialty.id === initialSpecialtyId)
+      ? initialSpecialtyId ?? ""
+      : specialties[0]?.id ?? "";
+    const nextSpecialty = specialties.find((specialty) => specialty.id === nextSpecialtyId);
+    const firstDoctor = doctors.find((doctor) => doctor.id === initialDoctorId
+      && doctorMatchesBranch(doctor, nextBranchId)
+      && doctorMatchesSpecialty(doctor, nextSpecialty))
+      ?? doctors.find((doctor) => doctorMatchesBranch(doctor, nextBranchId)
+        && doctorMatchesSpecialty(doctor, nextSpecialty))
       ?? doctors[0];
     setSelectedBranch(nextBranchId);
     setSelectedDoctor(firstDoctor?.id ?? "");
-    setSelectedSpecialty(specialties.some((specialty) => specialty.id === initialSpecialtyId)
-      ? initialSpecialtyId ?? ""
-      : specialties[0]?.id ?? "");
+    setSelectedSpecialty(nextSpecialtyId);
     setSelectedPackage(packages.some((item) => item.id === initialPackageId) ? initialPackageId ?? "" : "");
   }, [branches, doctors, initialBranchId, initialDoctorId, initialPackageId, initialSpecialtyId, isOpen, packages, specialties]);
 
@@ -192,17 +214,25 @@ export default function BookingModal({
     return () => {
       ignore = true;
     };
-  }, [selectedDoctor, selectedBranch, selectedDate]);
+  }, [selectedDoctor, selectedBranch, selectedDate, slotRefreshNonce]);
 
-  // Countdown timer for 10-minute hold lock
+  // Count down from the server-authoritative expiry instead of a client-side
+  // decrement. Tab suspension and clock drift must not extend a hold.
   useEffect(() => {
-    if (step === 7 && !confirmedAppointment && secondsRemaining > 0) {
-      const timer = setInterval(() => {
-        setSecondsRemaining((prev) => prev - 1);
-      }, 1000);
-      return () => clearInterval(timer);
-    }
-  }, [step, confirmedAppointment, secondsRemaining]);
+    if (step !== 7 || !holdExpiresAt || confirmedAppointment) return;
+
+    const updateRemaining = () => {
+      const expiry = Date.parse(holdExpiresAt);
+      const remaining = Number.isNaN(expiry)
+        ? 0
+        : Math.max(0, Math.ceil((expiry - Date.now()) / 1000));
+      setSecondsRemaining(remaining);
+    };
+
+    updateRemaining();
+    const timer = setInterval(updateRemaining, 1000);
+    return () => clearInterval(timer);
+  }, [step, holdExpiresAt, confirmedAppointment]);
 
   if (!isOpen) return null;
 
@@ -210,14 +240,44 @@ export default function BookingModal({
   const currentSpecialty = specialties.find((specialty) => specialty.id === selectedSpecialty);
   const currentBranch = branches.find((branch) => branch.id === selectedBranch);
   const availableDoctors = doctors.filter(
-    (doctor) => !doctor.branchId || doctor.branchId === selectedBranch,
+    (doctor) => doctorMatchesBranch(doctor, selectedBranch) && doctorMatchesSpecialty(doctor, currentSpecialty),
   );
+  const holdExpired = Boolean(bookingCode && holdExpiresAt && !confirmedAppointment && secondsRemaining <= 0);
+
+  const restartSlotSelection = (): void => {
+    setStep(5);
+    setBookingCode("");
+    setHoldExpiresAt("");
+    setOtpCode("");
+    setSecondsRemaining(0);
+    setErrorMessage("");
+    setSelectedSlot("");
+    setSlots([]);
+    setSlotRefreshNonce((value) => value + 1);
+  };
+
+  const handleSpecialtyChange = (specialtyId: string): void => {
+    const nextSpecialty = specialties.find((specialty) => specialty.id === specialtyId);
+    const doctorsForSelection = doctors.filter((doctor) =>
+      doctorMatchesBranch(doctor, selectedBranch) && doctorMatchesSpecialty(doctor, nextSpecialty),
+    );
+    setSelectedSpecialty(specialtyId);
+    if (!doctorsForSelection.some((doctor) => doctor.id === selectedDoctor)) {
+      setSelectedDoctor(doctorsForSelection[0]?.id ?? "");
+    }
+    setSlots([]);
+    setSelectedSlot("");
+    setSlotError("");
+  };
+
   const handleBranchChange = (branchId: string): void => {
     setSelectedBranch(branchId);
     setSlots([]);
     setSelectedSlot("");
     setSlotError("");
-    const firstDoctorAtBranch = doctors.find((doctor) => doctor.branchId === branchId);
+    const firstDoctorAtBranch = doctors.find((doctor) =>
+      doctorMatchesBranch(doctor, branchId) && doctorMatchesSpecialty(doctor, currentSpecialty),
+    );
     setSelectedDoctor(firstDoctorAtBranch?.id || "");
   };
 
@@ -243,7 +303,9 @@ export default function BookingModal({
       setErrorMessage("Khung giờ không còn thuộc cơ sở đang chọn. Vui lòng tải lại và chọn khung giờ khác.");
       return;
     }
-    if (!currentDoctor || (currentDoctor.branchId && currentDoctor.branchId !== selectedBranch)) {
+    if (!currentDoctor
+      || !doctorMatchesBranch(currentDoctor, selectedBranch)
+      || !doctorMatchesSpecialty(currentDoctor, currentSpecialty)) {
       setErrorMessage("Bác sĩ không thuộc cơ sở đang chọn. Vui lòng chọn lại bác sĩ.");
       return;
     }
@@ -270,7 +332,9 @@ export default function BookingModal({
 
       setBookingCode(result.bookingCode);
       setHoldExpiresAt(result.holdExpiresAt);
-      setSecondsRemaining(600); // 10 minutes
+      // The expiry effect computes the first value from the server timestamp
+      // once step 7 mounts, keeping this event handler side-effect free.
+      setSecondsRemaining(0);
       setStep(7);
     } catch (err: any) {
       setErrorMessage(err.message || "Không thể giữ chỗ khung giờ này.");
@@ -282,6 +346,10 @@ export default function BookingModal({
   // Handle Step 4: Confirm OTP
   const handleConfirmOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (holdExpired) {
+      setErrorMessage("Thời gian giữ chỗ đã hết. Vui lòng chọn lại khung giờ để tiếp tục.");
+      return;
+    }
     if (!otpCode) {
       setErrorMessage("Vui lòng nhập mã OTP xác thực.");
       return;
@@ -391,7 +459,7 @@ export default function BookingModal({
                 <select
                   id="booking-specialty"
                   value={selectedSpecialty}
-                  onChange={(e) => setSelectedSpecialty(e.target.value)}
+                  onChange={(e) => handleSpecialtyChange(e.target.value)}
                   className="w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
                 >
                   {specialties.map((sp) => <option key={sp.id} value={sp.id}>{sp.name}</option>)}
@@ -635,9 +703,19 @@ export default function BookingModal({
                     <h3 className="text-xl font-bold text-gray-900">Xác nhận lịch hẹn bằng OTP</h3>
                   </div>
                   <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-900 rounded-full text-xs font-semibold">
-                    <Icon name="clock" size={15} /> Thời gian giữ chỗ còn lại:{" "}
-                    <span className="font-mono text-amber-700 font-bold">{formatTimer(secondsRemaining)}</span>
+                    <Icon name="clock" size={15} />
+                    {holdExpired ? "Thời gian giữ chỗ đã hết" : <>Thời gian giữ chỗ còn lại:{" "}<span className="font-mono text-amber-700 font-bold">{formatTimer(secondsRemaining)}</span></>}
                   </div>
+
+                  {holdExpired ? (
+                    <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-left text-sm text-red-900" role="alert" aria-live="assertive">
+                      <p className="font-bold">Khung giờ này không còn được giữ.</p>
+                      <p className="mt-1 text-xs leading-5">Thời gian hiển thị được tính từ mốc hết hạn do backend trả về. Hãy tải lại danh sách và chọn khung giờ khác.</p>
+                      <button type="button" onClick={restartSlotSelection} className="mt-3 rounded-full border border-red-300 bg-white px-4 py-2 text-xs font-bold text-red-800 transition-colors hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400 focus-visible:ring-2 focus-visible:ring-red-500">
+                        Tải lại khung giờ
+                      </button>
+                    </div>
+                  ) : null}
 
                   <div className="p-4 bg-brand-50/60 border border-brand-100 rounded-xl text-left text-xs space-y-1.5">
                     <p className="font-bold text-brand-950 text-sm">Mã giữ chỗ: {bookingCode}</p>
@@ -661,6 +739,7 @@ export default function BookingModal({
                       placeholder="123456"
                       value={otpCode}
                       onChange={(e) => setOtpCode(e.target.value)}
+                      disabled={holdExpired || isSubmitting}
                       className="w-48 text-center p-3 text-2xl font-mono tracking-widest bg-gray-50 border-2 border-brand-600 rounded-xl focus:ring-4 focus:ring-brand-100 focus:outline-none"
                     />
                   </div>
@@ -668,14 +747,14 @@ export default function BookingModal({
                   <div className="pt-3 flex items-center justify-between border-t border-gray-100">
                     <button
                       type="button"
-                      onClick={() => setStep(6)}
+                      onClick={holdExpired ? restartSlotSelection : () => setStep(6)}
                       className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium text-sm"
                     >
-                      ← Sửa thông tin
+                      {holdExpired ? "← Chọn lại khung giờ" : "← Sửa thông tin"}
                     </button>
                     <button
                       type="submit"
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || holdExpired}
                       className="px-8 py-2.5 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-bold rounded-full shadow-lg hover:shadow-xl transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
                     >
                       {isSubmitting ? "Đang xác nhận..." : "Hoàn tất Đặt lịch khám"}
