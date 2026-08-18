@@ -80,6 +80,9 @@ test("public live slot listens to named SSE changes and has polling fallback", a
   assert.match(liveSlot, /CmsReconciliationLedger/);
   assert.match(liveSlot, /reconciliation\.observe\(event\.eventId\)/);
   assert.match(liveSlot, /acknowledgeThrough/);
+  assert.match(liveSlot, /refreshGeneration/);
+  assert.match(liveSlot, /readGeneration !== refreshGeneration/);
+  assert.match(liveSlot, /readReconciliationCursor/);
   assert.match(liveSlot, /if \(!finishReconciliation\(event\.latestEventId\)\)/);
   assert.match(liveSlot, /reconciliation\.pendingEventIds\.size === 0/);
   assert.match(liveSlot, /reconciliationCursor/);

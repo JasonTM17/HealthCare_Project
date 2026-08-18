@@ -66,6 +66,7 @@ export function CmsLiveSlot({
     let reconnectAttempt = 0;
     let sseConnected = false;
     const reconciliation = new CmsReconciliationLedger();
+    let refreshGeneration = 0;
     let stopFeed: () => void = () => undefined;
     let stopPolling: () => void = () => undefined;
     latestVersion.current = 0;
@@ -100,12 +101,22 @@ export function CmsLiveSlot({
     };
 
     const refresh = async (minimumVersion = 0, afterEventId?: number): Promise<RefreshResult> => {
+      const readGeneration = ++refreshGeneration;
+      const readReconciliationCursor = reconciliation.reconciliationCursor;
+      const isAuthoritativeRead = (): boolean => {
+        if (cancelled || readGeneration !== refreshGeneration) return false;
+        if (afterEventId !== undefined) {
+          return reconciliation.reconciliationCursor <= afterEventId;
+        }
+        return reconciliation.reconciliationCursor <= readReconciliationCursor;
+      };
+
       try {
         const nextContent = await client.getPublishedContent(
           backendSlotKey,
           afterEventId === undefined ? undefined : { afterEventId },
         );
-        if (cancelled || nextContent.status !== "PUBLISHED") return "failed";
+        if (!isAuthoritativeRead() || nextContent.status !== "PUBLISHED") return "failed";
         if (nextContent.version < minimumVersion) {
           setError(new CmsApiError(
             "unavailable",
@@ -121,17 +132,16 @@ export function CmsLiveSlot({
         setError(null);
         return "updated";
       } catch (nextError) {
-        if (!cancelled) {
-          if (nextError instanceof CmsApiError && nextError.kind === "not-found") {
-            setContent(null);
-            setError(new CmsApiError("not-found", 404, "Slot hiện không còn PUBLISHED."));
-            return "not-found";
-          }
-          setError(nextError);
+        if (!isAuthoritativeRead()) return "failed";
+        if (nextError instanceof CmsApiError && nextError.kind === "not-found") {
+          setContent(null);
+          setError(new CmsApiError("not-found", 404, "Slot hiện không còn PUBLISHED."));
+          return "not-found";
         }
+        setError(nextError);
         return "failed";
       } finally {
-        if (!cancelled) setLoading(false);
+        if (isAuthoritativeRead()) setLoading(false);
       }
     };
 
