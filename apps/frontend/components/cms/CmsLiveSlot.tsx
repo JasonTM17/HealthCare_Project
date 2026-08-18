@@ -54,6 +54,9 @@ export function CmsLiveSlot({
   useEffect(() => {
     let cancelled = false;
     let pollTimer: ReturnType<typeof setInterval> | undefined;
+    let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+    let reconnectAttempt = 0;
+    let stopFeed: () => void = () => undefined;
     latestVersion.current = 0;
     latestEventId.current = 0;
 
@@ -82,34 +85,66 @@ export function CmsLiveSlot({
       pollTimer = setInterval(() => void refresh(), Math.max(5_000, pollIntervalMs));
     };
 
-    const stopFeed = client.subscribeToChanges({
-      after: latestEventId.current || undefined,
-      onChange: (event) => {
-        if (event.slotKey !== backendSlotKey || event.eventId <= latestEventId.current) return;
-        latestEventId.current = event.eventId;
-        if (event.version <= latestVersion.current) return;
-        if (event.published) {
+    const stopPolling = (): void => {
+      if (!pollTimer) return;
+      clearInterval(pollTimer);
+      pollTimer = undefined;
+    };
+
+    const scheduleReconnect = (): void => {
+      if (cancelled || reconnectTimer) return;
+      const delay = Math.min(30_000, 1_000 * (2 ** reconnectAttempt));
+      reconnectAttempt = Math.min(reconnectAttempt + 1, 5);
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = undefined;
+        startFeed();
+      }, delay);
+    };
+
+    const startFeed = (): void => {
+      if (cancelled) return;
+      setTransport("connecting");
+      stopFeed = client.subscribeToChanges({
+        after: latestEventId.current || undefined,
+        onChange: (event) => {
+          if (event.slotKey !== backendSlotKey || event.eventId <= latestEventId.current) return;
+          latestEventId.current = event.eventId;
+          if (event.version <= latestVersion.current) return;
+          if (event.published) {
+            void refresh();
+          } else {
+            latestVersion.current = event.version;
+            setContent(null);
+            setError(new CmsApiError("not-found", 404, "Slot hiện không còn PUBLISHED."));
+            setLoading(false);
+          }
+        },
+        onConnected: () => {
+          if (cancelled) return;
+          reconnectAttempt = 0;
+          stopPolling();
+          setTransport("sse");
+        },
+        onFallback: () => {
+          startPolling();
+          scheduleReconnect();
+        },
+        onResync: (event) => {
+          latestEventId.current = Math.max(latestEventId.current, event.latestEventId);
           void refresh();
-        } else {
-          latestVersion.current = event.version;
-          setContent(null);
-          setError(new CmsApiError("not-found", 404, "Slot hiện không còn PUBLISHED."));
-          setLoading(false);
-        }
-      },
-      onConnected: () => {
-        if (!cancelled) setTransport("sse");
-      },
-      onFallback: startPolling,
-      onResync: () => void refresh(),
-    });
+        },
+      });
+    };
+
+    startFeed();
 
     void refresh();
 
     return () => {
       cancelled = true;
       stopFeed();
-      if (pollTimer) clearInterval(pollTimer);
+      stopPolling();
+      if (reconnectTimer) clearTimeout(reconnectTimer);
     };
   }, [backendSlotKey, client, pollIntervalMs]);
 
