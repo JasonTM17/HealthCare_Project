@@ -637,7 +637,7 @@ export class CmsClient {
 
       register("ready", (event) => {
         try {
-          options.onConnected?.(parseReadyEvent((event as MessageEvent<string>).data));
+          options.onConnected?.(parseReadyEvent(JSON.parse((event as MessageEvent<string>).data) as unknown));
         } catch {
           fallback();
         }

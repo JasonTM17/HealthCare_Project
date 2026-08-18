@@ -106,7 +106,14 @@ export function CmsLiveSlot({
     const startPolling = (): void => {
       if (cancelled || pollTimer) return;
       setTransport("polling");
-      pollTimer = setInterval(() => void refresh(), Math.max(5_000, pollIntervalMs));
+      pollTimer = setInterval(() => {
+        void refresh().then((succeeded) => {
+          if (!succeeded || cancelled || pendingEventIds.current.size === 0) return;
+          pendingEventIds.current.clear();
+          advanceCursor();
+          setLiveNotice(`Đã đồng bộ ${backendSlotKey}, version ${latestVersion.current}.`);
+        });
+      }, Math.max(5_000, pollIntervalMs));
     };
 
     const stopPolling = (): void => {
@@ -152,6 +159,10 @@ export function CmsLiveSlot({
               if (succeeded && !cancelled) {
                 setLiveNotice(`Đã đồng bộ ${backendSlotKey}, version ${latestVersion.current}.`);
                 resolvePendingEvent(event.eventId);
+              } else if (!cancelled) {
+                // Keep the event pending, but switch to bounded polling so a
+                // transient read error cannot permanently stall the cursor.
+                startPolling();
               }
             });
           } else {
