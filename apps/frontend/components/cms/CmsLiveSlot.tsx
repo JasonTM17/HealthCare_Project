@@ -94,7 +94,7 @@ export function CmsLiveSlot({
       pendingEventIds.current.delete(eventId);
       pendingEventVersions.current.delete(eventId);
       advanceCursor();
-      if (pendingEventIds.current.size === 0 && sseConnected) {
+      if (pendingEventIds.current.size === 0 && reconciliationCursor === 0 && sseConnected) {
         stopPolling();
         setTransport("sse");
       }
@@ -252,7 +252,7 @@ export function CmsLiveSlot({
           if (cancelled) return;
           reconnectAttempt = 0;
           sseConnected = true;
-          if (pendingEventIds.current.size === 0) {
+          if (pendingEventIds.current.size === 0 && reconciliationCursor === 0) {
             stopPolling();
             setTransport("sse");
           } else {
