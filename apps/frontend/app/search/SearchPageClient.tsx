@@ -10,10 +10,12 @@ import {
   fetchAllContent,
   fetchDoctors,
   fetchPackages,
+  fetchSemanticSearch,
   fetchServices,
   fetchSpecialties,
+  readAuthSession,
 } from "../../lib/api-client";
-import type { Article, Doctor, HealthPackage, MedicalService, Specialty } from "../../types/hospital";
+import type { Article, Doctor, HealthPackage, MedicalService, SemanticSearchResponse, Specialty } from "../../types/hospital";
 
 interface SearchPageClientProps {
   initialQuery: string;
@@ -37,6 +39,18 @@ function matches(query: string, values: Array<string | undefined>): boolean {
 
 function settledContent<T>(result: PromiseSettledResult<T[]>): T[] {
   return result.status === "fulfilled" ? result.value : [];
+}
+
+function semanticSourceLabel(sourceType: SemanticSearchResponse["results"][number]["source_type"]): string {
+  const labels: Record<SemanticSearchResponse["results"][number]["source_type"], string> = {
+    specialty: "Chuyên khoa",
+    doctor: "Bác sĩ",
+    service: "Dịch vụ",
+    package: "Gói khám",
+    article: "Cẩm nang",
+    faq: "Hỏi đáp",
+  };
+  return labels[sourceType];
 }
 
 function ResultSection({
@@ -64,6 +78,10 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
   const [catalog, setCatalog] = useState<SearchCatalog | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [submittedQuery, setSubmittedQuery] = useState(initialQuery.trim());
+  const [semantic, setSemantic] = useState<SemanticSearchResponse | null>(null);
+  const [semanticLoading, setSemanticLoading] = useState(false);
+  const [semanticError, setSemanticError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -98,6 +116,31 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    if (!submittedQuery || !readAuthSession()) return;
+
+    let cancelled = false;
+    void Promise.resolve()
+      .then(() => {
+        if (!cancelled) {
+          setSemanticLoading(true);
+          setSemanticError(null);
+        }
+        return fetchSemanticSearch(submittedQuery);
+      })
+      .then((response) => {
+        if (!cancelled) setSemantic(response);
+      })
+      .catch(() => {
+        if (!cancelled) setSemanticError("Tạm thời chưa thể mở rộng kết quả tìm kiếm. Vui lòng thử lại sau.");
+      })
+      .finally(() => {
+        if (!cancelled) setSemanticLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [submittedQuery]);
+
   const result = useMemo(() => {
     const normalizedQuery = normalize(query);
     if (!catalog || !normalizedQuery) return null;
@@ -117,6 +160,9 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
   const submitSearch = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
     const nextQuery = query.trim();
+    setSubmittedQuery(nextQuery);
+    setSemantic(null);
+    setSemanticError(null);
     router.replace(nextQuery ? `/search?q=${encodeURIComponent(nextQuery)}` : "/search");
   };
 
@@ -146,6 +192,25 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
 
         {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải catalog tìm kiếm…</p> : null}
         {error ? <p className="catalog-status catalog-status--error" role="alert">{error} Không có dữ liệu tĩnh thay thế.</p> : null}
+        {!readAuthSession() && normalize(query) ? <p className="catalog-status">Đăng nhập để nhận thêm gợi ý nội dung liên quan đến nhu cầu của bạn.</p> : null}
+        {semanticLoading ? <p className="catalog-status catalog-status--loading" role="status">Đang tìm thêm nội dung liên quan…</p> : null}
+        {semanticError ? <p className="catalog-status catalog-status--error" role="alert">{semanticError}</p> : null}
+        {semantic?.results.length ? (
+          <section className="search-results__section" aria-labelledby="semantic-results">
+            <div className="section-heading search-results__heading">
+              <div><p className="section-note">Gợi ý mở rộng</p><h2 id="semantic-results">Có thể bạn cũng quan tâm</h2></div>
+            </div>
+            <div className="search-result-list">
+              {semantic.results.map((item) => (
+                <article className="search-result" key={`${item.source_type}-${item.source_id}`}>
+                  <span className="resource-chip">{semanticSourceLabel(item.source_type)}</span>
+                  <strong>{item.title}</strong>
+                  <p>{item.content}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+        ) : null}
         {!loading && !normalize(query) ? <section className="resource-panel resource-panel--accent"><h2>Nhập một từ khóa để bắt đầu</h2><p>Hệ thống sẽ lọc theo dữ liệu active đã xuất bản, sau đó đưa bạn về đúng trang chuyên khoa, bác sĩ hoặc nội dung.</p></section> : null}
         {!loading && result && resultCount === 0 ? <p className="catalog-status" role="status">{error ? "Chưa có nhóm catalog nào sẵn sàng để tìm kiếm." : `Không tìm thấy kết quả khớp với “${query.trim()}”.`}</p> : null}
 

@@ -24,7 +24,7 @@ export default function ArticleDetailPage() {
         return fetchArticleBySlug(slug);
       })
       .then((data) => { if (data !== undefined && !cancelled) setArticle(data); })
-      .catch((reason: unknown) => { if (!cancelled) setError(reason instanceof Error ? reason.message : "Không thể tải bài viết."); })
+      .catch(() => { if (!cancelled) setError("Tạm thời chưa thể tải bài viết. Vui lòng thử lại sau."); })
       .finally(() => { if (!cancelled) setLoading(false); });
     void task;
     return () => { cancelled = true; };
@@ -37,9 +37,9 @@ export default function ArticleDetailPage() {
     <PublicPageShell>
       <div className="resource-page section-inner">
         <PublicBackLink href="/articles">← Quay lại cẩm nang sức khỏe</PublicBackLink>
-        <header className="resource-page__header"><p className="section-note">Cẩm nang · nội dung đã xuất bản</p><h1>Kiến thức y khoa trong nhịp sống hằng ngày</h1><p>Chỉ hiển thị nội dung mà API bài viết công khai trả về.</p></header>
+        <header className="resource-page__header"><p className="section-note">Cẩm nang sức khỏe</p><h1>Kiến thức y khoa trong nhịp sống hằng ngày</h1><p>Thông tin tham khảo giúp bạn chủ động chuẩn bị câu hỏi và chăm sóc sức khỏe tốt hơn.</p></header>
         {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải bài viết…</p> : null}
-        {error ? <p className="catalog-status catalog-status--error" role="alert">{error} Không có bài viết demo thay thế.</p> : null}
+        {error ? <p className="catalog-status catalog-status--error" role="alert">{error}</p> : null}
         {!loading && !error && !article ? <p className="catalog-status" role="status">Không tìm thấy bài viết đã xuất bản.</p> : null}
         {article ? <article className="article-detail-card">
           <p className="section-note">{new Intl.DateTimeFormat("vi-VN", { dateStyle: "long" }).format(new Date(article.publishedAt))}</p>
@@ -51,7 +51,7 @@ export default function ArticleDetailPage() {
           </div> : null}
           <p className="article-detail-card__summary">{article.summary}</p>
           {article.relatedSpecialtySlug ? <p><Link className="text-button" href={`/specialties/${article.relatedSpecialtySlug}`}>Xem chuyên khoa liên quan →</Link></p> : null}
-          {structuredSections.length ? <div className="article-detail-card__body article-detail-card__sections">{structuredSections.map((section, index) => <section key={`${section.heading}-${index}`}><h3>{section.heading}</h3><p>{section.body}</p></section>)}</div> : bodyParagraphs.length ? <div className="article-detail-card__body">{bodyParagraphs.map((paragraph, index) => <p key={`${paragraph.slice(0, 24)}-${index}`}>{paragraph}</p>)}</div> : <div className="article-detail-card__notice"><strong>Phạm vi nội dung hiện tại</strong><p>Backend chưa cung cấp phần nội dung dài cho bài viết này, nên giao diện không tự bịa thêm thông tin y khoa.</p></div>}
+          {structuredSections.length ? <div className="article-detail-card__body article-detail-card__sections">{structuredSections.map((section, index) => <section key={`${section.heading}-${index}`}><h3>{section.heading}</h3><p>{section.body}</p></section>)}</div> : bodyParagraphs.length ? <div className="article-detail-card__body">{bodyParagraphs.map((paragraph, index) => <p key={`${paragraph.slice(0, 24)}-${index}`}>{paragraph}</p>)}</div> : <div className="article-detail-card__notice"><strong>Nội dung đang được cập nhật</strong><p>Phần thông tin chi tiết của bài viết sẽ sớm được bổ sung.</p></div>}
           <PublicBookingButton>Đặt lịch nếu bạn cần trao đổi trực tiếp</PublicBookingButton>
         </article> : null}
       </div>

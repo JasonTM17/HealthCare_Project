@@ -1,0 +1,1108 @@
+/* Distinctive public-site details: editorial framing, a care-line motif and quiet motion. */
+
+.public-scroll-progress {
+  --public-scroll-progress: 0;
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 120;
+  width: 100%;
+  height: 3px;
+  pointer-events: none;
+  background: #c6a86b;
+  transform: scaleX(var(--public-scroll-progress));
+  transform-origin: left center;
+}
+
+.site-shell .site-nav,
+.site-shell .site-nav__inner,
+.site-shell .brand-mark,
+.site-shell .brand-copy small {
+  transition:
+    min-height 240ms ease,
+    box-shadow 240ms ease,
+    border-color 240ms ease,
+    transform 240ms ease,
+    opacity 240ms ease;
+}
+
+.site-shell .site-nav.site-nav--scrolled {
+  border-bottom-color: #c7d7d7;
+  box-shadow: 0 10px 28px rgb(18 63 82 / 11%);
+}
+
+.site-shell .site-nav.site-nav--scrolled .site-nav__inner {
+  min-height: 68px;
+}
+
+.site-shell .site-nav.site-nav--scrolled .brand-mark {
+  transform: scale(0.92);
+}
+
+.site-shell .site-nav.site-nav--scrolled .brand-copy small {
+  opacity: 0.72;
+}
+
+/* Hero: an asymmetric editorial crop with a single recurring care line. */
+.site-shell .hero-section {
+  position: relative;
+  isolation: isolate;
+  background: #edf6f3;
+}
+
+.site-shell .hero-section::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 50%;
+  z-index: -1;
+  display: block;
+  width: 1px;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  background: rgb(18 63 82 / 8%);
+  pointer-events: none;
+}
+
+.site-shell .hero-inner {
+  grid-template-columns: minmax(0, 0.78fr) minmax(32rem, 1.22fr);
+  gap: clamp(2.5rem, 5.5vw, 5.5rem);
+  min-height: 650px;
+  padding-top: 4.5rem;
+  padding-bottom: 6.75rem;
+}
+
+.site-shell .hero-copy {
+  position: relative;
+  z-index: 2;
+  max-width: 33rem;
+}
+
+.site-shell .hero-kicker {
+  gap: 0.75rem;
+  color: #6d5a30;
+}
+
+.site-shell .hero-kicker__line {
+  display: block;
+  width: 2.4rem;
+  height: 1px;
+  flex: 0 0 auto;
+  background: #b89a5f;
+}
+
+.site-shell .hero-copy h1 {
+  max-width: 10.5ch;
+  font-size: clamp(3.25rem, 5.1vw, 4.85rem);
+  line-height: 1.01;
+}
+
+.site-shell .hero-copy h1 span {
+  color: var(--hospital-teal-dark);
+}
+
+.site-shell .hero-description {
+  max-width: 29rem;
+  margin-top: 1.25rem;
+}
+
+.site-shell .hero-actions {
+  margin-top: 1.35rem;
+}
+
+.site-shell .hero-actions .button svg,
+.site-shell .care-link > svg:last-child,
+.site-shell .section-link svg,
+.site-shell .text-button svg,
+.site-shell .care-experience__moments article > svg {
+  transition: transform 220ms ease;
+}
+
+.site-shell .hero-actions .button:hover svg,
+.site-shell .care-link:hover > svg:last-child,
+.site-shell .section-link:hover svg,
+.site-shell .text-button:hover svg,
+.site-shell .care-experience__moments article:hover > svg {
+  transform: translate(3px, -1px);
+}
+
+.site-shell .hero-trust {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+}
+
+.site-shell .hero-search {
+  margin-top: 1.35rem;
+  box-shadow: 0 12px 30px rgb(22 77 82 / 9%);
+}
+
+.site-shell .hero-visual {
+  position: relative;
+  align-self: stretch;
+}
+
+.site-shell .hero-visual__image-wrap {
+  min-height: 555px;
+  overflow: hidden;
+  border-radius: 3px 8rem 3px 3px;
+  box-shadow: 0 28px 60px rgb(18 63 82 / 18%);
+}
+
+.site-shell .hero-visual__image {
+  object-position: 51% center;
+  transform-origin: center center;
+}
+
+.site-shell .hero-visual__index {
+  position: absolute;
+  top: 1.2rem;
+  right: 2rem;
+  z-index: 2;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-shadow: 0 1px 8px rgb(18 63 82 / 45%);
+}
+
+.site-shell .hero-visual__care-line {
+  position: absolute;
+  top: 31%;
+  left: 0;
+  z-index: 2;
+  width: clamp(4rem, 12vw, 8.5rem);
+  height: 1px;
+  background: #e1c98e;
+}
+
+.site-shell .hero-visual__care-line span {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  width: 9px;
+  height: 9px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #c6a86b;
+  box-shadow: 0 0 0 4px rgb(198 168 107 / 24%);
+  transform: translate(50%, -50%);
+}
+
+.site-shell .hero-visual__floating-label {
+  position: absolute;
+  bottom: 2rem;
+  left: -2.4rem;
+  z-index: 3;
+  min-width: 17rem;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 1rem 1.15rem;
+  border-left: 3px solid #c6a86b;
+  background: #fff;
+  color: var(--hospital-navy);
+  box-shadow: 0 18px 40px rgb(18 63 82 / 21%);
+}
+
+.site-shell .hero-visual__floating-label > span {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--hospital-mint);
+  color: var(--hospital-teal);
+}
+
+.site-shell .hero-visual__floating-label p {
+  display: grid;
+  gap: 0.1rem;
+  margin: 0;
+}
+
+.site-shell .hero-visual__floating-label small {
+  color: var(--hospital-muted);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.site-shell .hero-visual__floating-label strong {
+  max-width: 15rem;
+  font-size: 0.84rem;
+  line-height: 1.35;
+}
+
+.site-shell .hero-visual figcaption {
+  position: absolute;
+  right: 1rem;
+  bottom: 0.7rem;
+  z-index: 3;
+  margin: 0;
+  color: rgb(255 255 255 / 88%);
+  font-size: 0.6rem;
+  text-shadow: 0 1px 5px rgb(18 63 82 / 70%);
+}
+
+.site-shell .hero-visual figcaption a {
+  color: inherit;
+}
+
+/* The quick actions become a connected care rail instead of four isolated cards. */
+.site-shell .care-links {
+  position: relative;
+  overflow: hidden;
+  border-radius: 4px;
+}
+
+.site-shell .care-links::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 3;
+  height: 2px;
+  background: #c6a86b;
+}
+
+.site-shell .care-links::after {
+  content: "";
+  position: absolute;
+  top: -2px;
+  left: 0;
+  z-index: 4;
+  width: 18%;
+  height: 6px;
+  border-radius: 999px;
+  background: #fff1c8;
+  opacity: 0.72;
+  transform: translateX(-110%);
+}
+
+.site-shell .care-link,
+.site-shell .care-link + .care-link {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  transition: color 220ms ease, background-color 220ms ease, transform 220ms ease;
+}
+
+.site-shell .care-link::before {
+  content: "";
+  position: absolute;
+  inset: auto 1.2rem 0;
+  z-index: -1;
+  height: 2px;
+  background: var(--hospital-teal);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 280ms ease;
+}
+
+.site-shell .care-link:hover::before,
+.site-shell .care-link:focus-visible::before {
+  transform: scaleX(1);
+}
+
+.site-shell .care-link__icon {
+  transition: color 220ms ease, background-color 220ms ease, transform 220ms ease;
+}
+
+.site-shell .care-link:hover .care-link__icon,
+.site-shell .care-link:focus-visible .care-link__icon {
+  transform: translateY(-3px);
+}
+
+/* Evergreen experience section: visible even while catalog data is unavailable. */
+.site-shell .care-experience {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  margin-top: 5rem;
+  border-top: 1px solid #c6a86b;
+  background: #103747;
+  color: #fff;
+}
+
+.site-shell .care-experience::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: max(1.5rem, calc((100vw - 74rem) / 2));
+  z-index: -1;
+  width: 1px;
+  background: rgb(255 255 255 / 11%);
+}
+
+.site-shell .care-experience__inner {
+  display: grid;
+  grid-template-columns: minmax(26rem, 1.03fr) minmax(0, 0.97fr);
+  align-items: center;
+  gap: clamp(3rem, 7vw, 6.5rem);
+  padding-top: clamp(5.75rem, 8vw, 8rem);
+  padding-bottom: clamp(5.75rem, 8vw, 8rem);
+}
+
+.site-shell .care-experience__visual {
+  position: relative;
+  min-height: 590px;
+}
+
+.site-shell .care-experience__primary-photo,
+.site-shell .care-experience__secondary-photo {
+  position: absolute;
+  overflow: hidden;
+  margin: 0;
+  background: #dce9e7;
+}
+
+.site-shell .care-experience__primary-photo {
+  inset: 0 auto auto 0;
+  width: 80%;
+  height: 88%;
+  border-radius: 2px 5rem 2px 2px;
+}
+
+.site-shell .care-experience__secondary-photo {
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  width: 46%;
+  height: 44%;
+  border: 7px solid #103747;
+  border-radius: 2px;
+  box-shadow: 0 22px 42px rgb(3 25 34 / 34%);
+}
+
+.site-shell .care-experience__image {
+  object-fit: cover;
+  transition: transform 700ms ease, filter 700ms ease;
+}
+
+.site-shell .care-experience__primary-photo .care-experience__image {
+  object-position: 46% center;
+}
+
+.site-shell .care-experience__secondary-photo .care-experience__image {
+  object-position: center;
+}
+
+.site-shell .care-experience__primary-photo:hover .care-experience__image,
+.site-shell .care-experience__secondary-photo:hover .care-experience__image {
+  filter: saturate(0.94) contrast(1.02);
+  transform: scale(1.025);
+}
+
+.site-shell .care-experience__badge {
+  position: absolute;
+  top: 4rem;
+  right: 0;
+  z-index: 3;
+  width: min(16rem, 47%);
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 1rem;
+  border-left: 3px solid #c6a86b;
+  background: #fff;
+  color: var(--hospital-navy);
+  box-shadow: 0 16px 34px rgb(3 25 34 / 26%);
+}
+
+.site-shell .care-experience__badge > span {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--hospital-mint);
+  color: var(--hospital-teal);
+}
+
+.site-shell .care-experience__badge p {
+  display: grid;
+  gap: 0.1rem;
+  margin: 0;
+}
+
+.site-shell .care-experience__badge strong {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+}
+
+.site-shell .care-experience__badge small {
+  color: var(--hospital-muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.site-shell .care-experience__signal {
+  position: absolute;
+  top: 1.5rem;
+  left: calc(80% - 0.2rem);
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.site-shell .care-experience__signal span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #d9bd7d;
+  opacity: 0.35;
+}
+
+.site-shell .care-experience__credit {
+  position: absolute;
+  bottom: 0.35rem;
+  left: 0.5rem;
+  z-index: 3;
+  margin: 0;
+  color: rgb(255 255 255 / 72%);
+  font-size: 0.58rem;
+  text-shadow: 0 1px 5px rgb(3 25 34 / 70%);
+}
+
+.site-shell .care-experience__credit a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.site-shell .care-experience__copy {
+  position: relative;
+  z-index: 2;
+}
+
+.site-shell .care-experience__copy .section-note {
+  color: #d9bd7d;
+}
+
+.site-shell .care-experience__copy h2 {
+  max-width: 11ch;
+  margin: 0;
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: clamp(2.7rem, 4.8vw, 4.6rem);
+  font-weight: 750;
+  letter-spacing: -0.05em;
+  line-height: 1.02;
+  text-wrap: balance;
+}
+
+.site-shell .care-experience__lead {
+  max-width: 37rem;
+  margin: 1.4rem 0 0;
+  color: #c8dcdf;
+  font-size: 1.04rem;
+  line-height: 1.75;
+}
+
+.site-shell .care-experience__moments {
+  margin-top: 2.4rem;
+  border-top: 1px solid rgb(255 255 255 / 20%);
+}
+
+.site-shell .care-experience__moments article {
+  display: grid;
+  grid-template-columns: 2.3rem minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 1rem;
+  padding: 1.25rem 0;
+  border-bottom: 1px solid rgb(255 255 255 / 20%);
+}
+
+.site-shell .care-experience__moments article > span {
+  padding-top: 0.2rem;
+  color: #d9bd7d;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.site-shell .care-experience__moments h3 {
+  margin: 0;
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+}
+
+.site-shell .care-experience__moments p {
+  margin: 0.35rem 0 0;
+  color: #b8ced2;
+  font-size: 0.83rem;
+  line-height: 1.6;
+}
+
+.site-shell .care-experience__moments article > svg {
+  margin-top: 0.15rem;
+  color: #8ed4c9;
+}
+
+.site-shell .care-experience__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1.25rem;
+  margin-top: 2rem;
+}
+
+.site-shell .button--experience {
+  padding: 0 1.35rem;
+  border: 1px solid #fff;
+  background: #fff;
+  color: #103747;
+}
+
+.site-shell .button--experience:hover {
+  border-color: #dcebea;
+  background: #dcebea;
+  color: #103747;
+}
+
+.site-shell .text-button--experience,
+.site-shell .text-button--experience:hover {
+  color: #bce4dc;
+}
+
+/* Section rhythm and restrained interaction on content that follows. */
+.site-shell .section-heading {
+  position: relative;
+  padding-top: 1rem;
+}
+
+.site-shell .section-heading::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 2.5rem;
+  height: 1px;
+  background: #c6a86b;
+  transform-origin: left center;
+}
+
+.site-shell .doctor-card,
+.site-shell .package-row,
+.site-shell .branch-row,
+.site-shell .article-row,
+.site-shell .catalog-card,
+.site-shell .resource-panel {
+  transition: border-color 240ms ease, box-shadow 240ms ease, transform 240ms ease;
+}
+
+.site-shell .doctor-card:hover,
+.site-shell .catalog-card:hover,
+.site-shell .resource-panel:hover {
+  border-color: #b6cdcc;
+  box-shadow: 0 16px 34px rgb(20 61 75 / 10%);
+  transform: translateY(-3px);
+}
+
+.site-shell .package-row:hover,
+.site-shell .branch-row:hover,
+.site-shell .article-row:hover {
+  transform: translateX(4px);
+}
+
+/* Progressive enhancement: elements remain readable without script. */
+.public-motion-enabled .public-motion-candidate.is-motion-visible:not(.is-motion-immediate) {
+  animation: hc-section-arrive 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--public-motion-delay, 0ms);
+}
+
+.public-motion-enabled .section-heading.public-motion-candidate.is-motion-visible:not(.is-motion-immediate)::before {
+  animation: hc-line-draw 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--public-motion-delay, 0ms);
+}
+
+.public-motion-enabled .site-shell .hero-copy > * {
+  animation: hc-hero-arrive 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.public-motion-enabled .site-shell .hero-copy > :nth-child(2) {
+  animation-delay: 70ms;
+}
+
+.public-motion-enabled .site-shell .hero-copy > :nth-child(3) {
+  animation-delay: 130ms;
+}
+
+.public-motion-enabled .site-shell .hero-copy > :nth-child(n + 4) {
+  animation-delay: 190ms;
+}
+
+.public-motion-enabled .site-shell .hero-visual__image {
+  animation: hc-photo-breathe 12s ease-in-out 700ms infinite alternate;
+}
+
+.public-motion-enabled .site-shell .hero-visual__floating-label,
+.public-motion-enabled .site-shell .care-experience__badge {
+  animation: hc-quiet-float 5.2s ease-in-out 1s infinite alternate;
+}
+
+.public-motion-enabled .site-shell .care-links::after {
+  animation: hc-care-pulse 7s ease-in-out 1.2s infinite;
+}
+
+.public-motion-enabled .site-shell .care-experience__signal span {
+  animation: hc-signal 1.8s ease-in-out infinite;
+}
+
+.public-motion-enabled .site-shell .care-experience__signal span:nth-child(2) {
+  animation-delay: 180ms;
+}
+
+.public-motion-enabled .site-shell .care-experience__signal span:nth-child(3) {
+  animation-delay: 360ms;
+}
+
+@keyframes hc-section-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes hc-line-draw {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@keyframes hc-hero-arrive {
+  from {
+    transform: translateY(12px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes hc-photo-breathe {
+  from { transform: scale(1); }
+  to { transform: scale(1.025); }
+}
+
+@keyframes hc-quiet-float {
+  from { transform: translateY(0); }
+  to { transform: translateY(-5px); }
+}
+
+@keyframes hc-care-pulse {
+  0%, 10% {
+    opacity: 0;
+    transform: translateX(-110%);
+  }
+  22%, 68% { opacity: 0.72; }
+  82%, 100% {
+    opacity: 0;
+    transform: translateX(570%);
+  }
+}
+
+@keyframes hc-signal {
+  0%, 100% {
+    opacity: 0.32;
+    transform: scale(0.8);
+  }
+  48% {
+    opacity: 1;
+    transform: scale(1.25);
+  }
+}
+
+@media (max-width: 1120px) {
+  .site-shell .hero-inner {
+    grid-template-columns: minmax(0, 0.88fr) minmax(25rem, 1.12fr);
+    gap: 3rem;
+  }
+
+  .site-shell .hero-visual__floating-label {
+    left: -1.25rem;
+  }
+
+  .site-shell .care-experience__inner {
+    grid-template-columns: minmax(23rem, 0.95fr) minmax(0, 1.05fr);
+    gap: 3.5rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .site-shell .hero-section::before {
+    display: none;
+  }
+
+  .site-shell .hero-inner {
+    grid-template-columns: 1fr;
+    gap: 2.5rem;
+    padding-top: 3.4rem;
+    padding-bottom: 6rem;
+  }
+
+  .site-shell .hero-copy {
+    max-width: 41rem;
+  }
+
+  .site-shell .hero-copy h1 {
+    max-width: 11ch;
+  }
+
+  .site-shell .hero-visual {
+    width: min(100%, 43rem);
+  }
+
+  .site-shell .hero-visual__image-wrap {
+    min-height: 31rem;
+  }
+
+  .site-shell .care-experience__inner {
+    grid-template-columns: 1fr;
+    gap: 4.5rem;
+  }
+
+  .site-shell .care-experience__visual {
+    width: min(100%, 42rem);
+  }
+}
+
+@media (max-width: 640px) {
+  .public-scroll-progress {
+    height: 2px;
+  }
+
+  .site-shell .site-nav.site-nav--scrolled .site-nav__inner {
+    min-height: 60px;
+  }
+
+  .site-shell .hero-inner {
+    gap: 1.5rem;
+    padding-top: 2.1rem;
+    padding-bottom: 4.6rem;
+  }
+
+  .site-shell .hero-kicker {
+    margin-bottom: 0.8rem;
+    font-size: 0.66rem;
+  }
+
+  .site-shell .hero-kicker__line {
+    width: 1.75rem;
+  }
+
+  .site-shell .hero-copy h1 {
+    max-width: 10ch;
+    font-size: clamp(2.55rem, 12.5vw, 3.25rem);
+  }
+
+  .site-shell .hero-description {
+    margin-top: 0.85rem;
+    font-size: 0.92rem;
+    line-height: 1.58;
+  }
+
+  .site-shell .hero-actions {
+    width: auto;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem;
+    margin-top: 1rem;
+  }
+
+  .site-shell .hero-actions .button {
+    width: 100%;
+    min-height: 44px;
+    gap: 0.35rem;
+    justify-content: center;
+    padding-inline: 0.7rem;
+    font-size: 0.75rem;
+  }
+
+  .site-shell .hero-actions .button svg {
+    width: 15px;
+  }
+
+  .site-shell .hero-trust {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem;
+    margin-top: 0.85rem;
+    padding-top: 0.85rem;
+  }
+
+  .site-shell .hero-trust__item:nth-child(3) {
+    display: none;
+  }
+
+  .site-shell .hero-trust__item strong {
+    font-size: 0.66rem;
+  }
+
+  .site-shell .hero-trust__item small {
+    font-size: 0.6rem;
+  }
+
+  .site-shell .hero-search {
+    min-height: 50px;
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.45rem;
+    margin-top: 1rem;
+    padding: 0.35rem 0.35rem 0.35rem 0.7rem;
+  }
+
+  .site-shell .hero-search > svg {
+    margin: 0;
+  }
+
+  .site-shell .hero-search input {
+    min-height: 40px;
+    font-size: 0.8rem;
+  }
+
+  .site-shell .hero-search button {
+    width: auto;
+    min-height: 40px;
+    margin: 0;
+    padding-inline: 0.75rem;
+    font-size: 0.72rem;
+  }
+
+  .site-shell .hero-search__help {
+    display: none;
+  }
+
+  .site-shell .hero-visual__image-wrap {
+    min-height: 19rem;
+    border-radius: 2px 4rem 2px 2px;
+  }
+
+  .site-shell .hero-visual__floating-label {
+    right: 0.75rem;
+    bottom: 0.8rem;
+    left: 0.75rem;
+    min-width: 0;
+    padding: 0.75rem 0.85rem;
+  }
+
+  .site-shell .hero-visual__floating-label > span {
+    width: 34px;
+    height: 34px;
+  }
+
+  .site-shell .hero-visual__floating-label small {
+    font-size: 0.56rem;
+  }
+
+  .site-shell .hero-visual__floating-label strong {
+    font-size: 0.73rem;
+  }
+
+  .site-shell .hero-visual__index {
+    top: 0.9rem;
+    right: 1.2rem;
+  }
+
+  .site-shell .hero-visual figcaption {
+    display: none;
+  }
+
+  .site-shell .care-section {
+    overflow: hidden;
+    margin-top: -2rem;
+  }
+
+  .site-shell .care-inner {
+    width: 100%;
+    padding-left: 1rem;
+  }
+
+  .site-shell .care-links {
+    width: 100%;
+    display: flex;
+    gap: 0.75rem;
+    overflow-x: auto;
+    padding: 0.25rem 1rem 0.9rem 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    scroll-padding-left: 1rem;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+
+  .site-shell .care-links::-webkit-scrollbar {
+    display: none;
+  }
+
+  .site-shell .care-links::before,
+  .site-shell .care-links::after {
+    display: none;
+  }
+
+  .site-shell .care-link,
+  .site-shell .care-link + .care-link,
+  .site-shell .care-link:nth-child(2n),
+  .site-shell .care-link:nth-last-child(-n + 2) {
+    min-height: 104px;
+    flex: 0 0 min(78vw, 19rem);
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    align-content: center;
+    padding: 0.95rem 1rem;
+    border: 1px solid var(--hospital-border);
+    border-radius: 4px;
+    background: #fff;
+    box-shadow: 0 10px 24px rgb(20 61 75 / 9%);
+    scroll-snap-align: start;
+  }
+
+  .site-shell .care-link:hover {
+    padding-left: 1rem;
+  }
+
+  .site-shell .care-link > svg:last-child {
+    display: block;
+  }
+
+  .site-shell .care-link strong {
+    font-size: 0.86rem;
+  }
+
+  .site-shell .care-link small {
+    font-size: 0.7rem;
+  }
+
+  .site-shell .care-experience {
+    margin-top: 3.5rem;
+  }
+
+  .site-shell .care-experience::before {
+    left: 1rem;
+  }
+
+  .site-shell .care-experience__inner {
+    gap: 3.25rem;
+    padding-top: 4.5rem;
+    padding-bottom: 4.5rem;
+  }
+
+  .site-shell .care-experience__visual {
+    min-height: 430px;
+  }
+
+  .site-shell .care-experience__primary-photo {
+    width: 84%;
+    height: 86%;
+    border-radius: 2px 3.5rem 2px 2px;
+  }
+
+  .site-shell .care-experience__secondary-photo {
+    width: 45%;
+    height: 43%;
+    border-width: 5px;
+  }
+
+  .site-shell .care-experience__badge {
+    top: 2.25rem;
+    width: min(14rem, 51%);
+    gap: 0.55rem;
+    padding: 0.7rem;
+  }
+
+  .site-shell .care-experience__badge > span {
+    width: 32px;
+    height: 32px;
+  }
+
+  .site-shell .care-experience__badge strong {
+    font-size: 0.8rem;
+  }
+
+  .site-shell .care-experience__badge small {
+    font-size: 0.58rem;
+  }
+
+  .site-shell .care-experience__signal {
+    top: 1rem;
+  }
+
+  .site-shell .care-experience__copy h2 {
+    font-size: clamp(2.5rem, 12vw, 3.3rem);
+  }
+
+  .site-shell .care-experience__lead {
+    margin-top: 1rem;
+    font-size: 0.94rem;
+  }
+
+  .site-shell .care-experience__moments {
+    margin-top: 1.8rem;
+  }
+
+  .site-shell .care-experience__moments article {
+    grid-template-columns: 1.8rem minmax(0, 1fr) auto;
+    gap: 0.7rem;
+  }
+
+  .site-shell .care-experience__actions,
+  .site-shell .care-experience__actions > * {
+    width: 100%;
+  }
+
+  .site-shell .care-experience__actions > * {
+    justify-content: space-between;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .public-scroll-progress,
+  .site-shell .site-nav,
+  .site-shell .site-nav__inner,
+  .site-shell .brand-mark,
+  .site-shell .care-link,
+  .site-shell .care-link::before,
+  .site-shell .care-link__icon,
+  .site-shell .hero-actions .button svg,
+  .site-shell .care-link > svg:last-child,
+  .site-shell .section-link svg,
+  .site-shell .text-button svg,
+  .site-shell .care-experience__image,
+  .site-shell .care-experience__moments article > svg,
+  .site-shell .doctor-card,
+  .site-shell .package-row,
+  .site-shell .branch-row,
+  .site-shell .article-row,
+  .site-shell .catalog-card,
+  .site-shell .resource-panel {
+    transition: none !important;
+  }
+
+  .public-motion-enabled .public-motion-candidate,
+  .public-motion-enabled .site-shell .hero-copy > *,
+  .public-motion-enabled .site-shell .hero-visual__image,
+  .public-motion-enabled .site-shell .hero-visual__floating-label,
+  .public-motion-enabled .site-shell .care-experience__badge,
+  .public-motion-enabled .site-shell .care-links::after,
+  .public-motion-enabled .site-shell .care-experience__signal span {
+    animation: none !important;
+  }
+
+  .site-shell .doctor-card:hover,
+  .site-shell .catalog-card:hover,
+  .site-shell .resource-panel:hover,
+  .site-shell .package-row:hover,
+  .site-shell .branch-row:hover,
+  .site-shell .article-row:hover,
+  .site-shell .care-link:hover .care-link__icon,
+  .site-shell .care-link:focus-visible .care-link__icon {
+    transform: none;
+  }
+}

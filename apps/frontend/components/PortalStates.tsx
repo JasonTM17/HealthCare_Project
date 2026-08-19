@@ -56,12 +56,14 @@ export function ErrorState({
         ? "Dịch vụ tạm thời không khả dụng"
         : "Không thể tải dữ liệu";
   const description = isUnauthorized
-    ? "Máy chủ yêu cầu đăng nhập lại trước khi tải dữ liệu được bảo vệ."
+    ? "Vui lòng đăng nhập lại để tiếp tục xem thông tin của bạn."
     : isForbidden
-      ? "Quyền truy cập được kiểm tra ở phía máy chủ. Hãy dùng đúng tài khoản được liên kết."
+      ? "Tài khoản hiện tại chưa được phép xem nội dung này."
       : isUnavailable
-        ? "Backend chưa sẵn sàng hoặc kết nối bị gián đoạn. Không có dữ liệu thay thế được tạo trên trình duyệt."
-        : message;
+        ? "Kết nối đang bị gián đoạn. Vui lòng thử lại sau ít phút."
+        : message.trim()
+          ? "Yêu cầu chưa thể hoàn tất. Vui lòng kiểm tra thông tin và thử lại."
+          : "Dữ liệu tạm thời chưa thể hiển thị. Vui lòng thử lại.";
 
   return (
     <div aria-live="assertive" className="portal-state portal-state--error" role="alert">
@@ -82,7 +84,7 @@ export function LoginRequiredState({ nextPath }: { nextPath: string }) {
       <span aria-hidden="true" className="portal-state__mark">↗</span>
       <div>
         <h2>Đăng nhập để mở cổng thông tin</h2>
-        <p>Thông tin sức khỏe chỉ được tải sau khi máy chủ xác thực tài khoản của bạn.</p>
+        <p>Thông tin sức khỏe chỉ hiển thị sau khi bạn đăng nhập bằng tài khoản phù hợp.</p>
         <Link className="button button--primary" href={`/auth/login?next=${encodeURIComponent(nextPath)}`}>
           Đăng nhập
         </Link>

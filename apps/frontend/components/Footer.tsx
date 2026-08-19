@@ -1,6 +1,7 @@
 import Link from "next/link";
 import React from "react";
 import type { Branch } from "../types/hospital";
+import BrandMark from "./BrandMark";
 import Icon from "./UiIcon";
 
 interface FooterProps {
@@ -16,56 +17,56 @@ const Footer: React.FC<FooterProps> = ({ branches = [] }) => {
   <footer className="site-footer">
     <div className="site-footer__inner">
       <div className="footer-brand">
-        <Link className="brand-link brand-link--footer" href="/">
-          <span className="brand-mark"><Icon name="plus" size={24} /></span>
-          <span className="brand-copy">
-            <strong>HealthCare</strong>
-            <small>Hệ thống y tế đa khoa</small>
-          </span>
+        <Link aria-label="HealthCare, về trang chủ" className="brand-link brand-link--footer" href="/">
+          <BrandMark tone="inverse" />
         </Link>
-        <p>Chăm sóc có định hướng, thông tin rõ ràng và một điểm bắt đầu dễ tiếp cận cho mỗi người bệnh.</p>
-        <p className="footer-demo-note">Bản demo giáo dục. Nội dung liên hệ, giấy phép và dữ liệu y tế đang được hoàn thiện.</p>
+        <p>Đồng hành cùng bạn từ bước chọn chuyên khoa, đặt lịch đến theo dõi hướng dẫn sau thăm khám.</p>
+        <ul className="footer-assurances" aria-label="Cam kết hỗ trợ">
+          <li><Icon name="shield-check" size={14} /> Bảo mật thông tin</li>
+          <li><Icon name="stethoscope" size={14} /> Hỗ trợ đúng chuyên khoa</li>
+        </ul>
       </div>
 
-      <div className="footer-column">
+      <nav aria-label="Khám phá HealthCare" className="footer-column">
         <h2>Khám phá</h2>
         <Link href="/#specialties">Chuyên khoa</Link>
         <Link href="/#packages">Gói khám</Link>
         <Link href="/#doctors">Đội ngũ bác sĩ</Link>
         <Link href="/articles">Cẩm nang sức khỏe</Link>
         <Link href="/careers">Cơ hội nghề nghiệp</Link>
-      </div>
+      </nav>
 
-      <div className="footer-column">
+      <nav aria-label="Hỗ trợ người bệnh" className="footer-column">
         <h2>Hỗ trợ</h2>
         <Link href="/huong-dan">Hướng dẫn khám</Link>
         <Link href="/tra-cuu">Tra cứu lịch hẹn</Link>
-        <Link href="/search">Tìm kiếm catalog</Link>
+        <Link href="/search">Tìm bác sĩ và dịch vụ</Link>
         <Link href="/#branches">Cơ sở và giờ làm việc</Link>
-        <Link href="/contact">Kênh liên hệ từ backend</Link>
-      </div>
+        <Link href="/contact">Liên hệ bệnh viện</Link>
+      </nav>
 
-      <div className="footer-contact">
-        <h2>{emergencyBranch ? "Hotline từ backend" : "Liên hệ cơ sở"}</h2>
+      <aside className="footer-contact">
+        <p className="footer-contact__eyebrow">Kết nối trực tiếp</p>
+        <h2>{emergencyBranch ? "Hotline cấp cứu" : "Liên hệ bệnh viện"}</h2>
         {contactPhone ? (
           <a className="footer-hotline" href={`tel:${contactPhone.replace(/\s/g, "")}`}><Icon name="phone" size={18} />{contactPhone}</a>
         ) : (
-          <p>Backend chưa cung cấp số điện thoại cho khu vực này.</p>
+          <p>Thông tin điện thoại đang được cập nhật.</p>
         )}
-        <p>{emergencyBranch ? `Số điện thoại lấy từ ${emergencyBranch.name}.` : "Địa chỉ và số điện thoại được đọc từ branch active."}</p>
+        <p>{emergencyBranch ? `Tiếp nhận hỗ trợ tại ${emergencyBranch.name}.` : "Xem địa chỉ, giờ làm việc và kênh liên hệ của từng cơ sở."}</p>
         <Link className="text-button text-button--light" href="/#branches">Xem cơ sở <Icon name="arrow-up-right" size={17} /></Link>
-      </div>
+      </aside>
     </div>
 
     <div className="site-footer__bottom">
-      <span>© 2026 HealthCare Project</span>
-      <span>Bản demo local, chưa phải sản phẩm y tế chính thức.</span>
+      <span>© 2026 HealthCare. Bảo lưu mọi quyền.</span>
+      <span>Thông tin trên website không thay thế chẩn đoán hoặc tư vấn trực tiếp từ bác sĩ.</span>
     </div>
 
     <nav aria-label="Lối tắt trên thiết bị nhỏ" className="mobile-care-rail">
-      <Link href="/#packages"><Icon name="layers" size={19} /><span>Gói khám</span></Link>
-      <Link href="/#specialties"><Icon name="stethoscope" size={19} /><span>Chuyên khoa</span></Link>
-      {contactPhone ? <a href={`tel:${contactPhone.replace(/\s/g, "")}`}><Icon name="phone" size={19} /><span>Gọi cơ sở</span></a> : <Link href="/contact"><Icon name="location" size={19} /><span>Liên hệ</span></Link>}
+      {contactPhone ? <a href={`tel:${contactPhone.replace(/\s/g, "")}`}><Icon name="phone" size={19} /><span>Gọi ngay</span></a> : <Link href="/contact"><Icon name="phone" size={19} /><span>Liên hệ</span></Link>}
+      <Link className="mobile-care-rail__primary" href="/dat-lich"><Icon name="calendar" size={19} /><span>Đặt lịch</span></Link>
+      <Link href="/tra-cuu"><Icon name="search" size={19} /><span>Tra cứu</span></Link>
     </nav>
   </footer>
   );

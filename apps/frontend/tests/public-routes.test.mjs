@@ -32,13 +32,15 @@ test("contact and guidance pages do not invent branch, insurance, or FAQ data", 
 
   assert.match(contact, /fetchBranches/);
   assert.match(contact, /catalog-status--loading/);
-  assert.match(contact, /Backend chưa có cơ sở active/);
+  assert.match(contact, /Thông tin cơ sở đang được cập nhật/);
   assert.doesNotMatch(contact, /1900 1234/);
   assert.match(guidance, /fetchFaqs/);
   assert.match(guidance, /fetchBranches/);
   assert.doesNotMatch(guidance, /insurancePartners|Đối tác bảo hiểm/);
   assert.match(about, /fetchDoctors/);
-  assert.match(about, /Snapshot catalog/);
+  assert.match(about, /Mạng lưới HealthCare/);
+  assert.match(about, /about-introduction\.mp4/);
+  assert.match(about, /Thước phim giới thiệu/);
 });
 
 test("homepage exposes a distinct unavailable catalog state with a retry path", async () => {
@@ -62,8 +64,8 @@ test("CMS booking CTA has a real landing route and public chrome avoids invented
   assert.match(booking, /PublicBookingButton/);
   assert.match(seed, /ctaHref.*\/dat-lich/);
   for (const source of [navbar, footer, home]) assert.doesNotMatch(source, /1900\s*1234|contact@healthcare\.vn/);
-  assert.match(navbar, /Giờ làm việc từ backend/);
-  assert.match(footer, /Backend chưa cung cấp số điện thoại/);
+  assert.match(navbar, /Xem giờ làm việc/);
+  assert.match(footer, /Thông tin điện thoại đang được cập nhật/);
   assert.match(largeSeed, /homepage\.hero/);
   for (const slot of ["careers.hero", "careers.body", "search.hero", "homepage.body"]) {
     assert.match(largeSeed, new RegExp(slot.replace(".", "\\.")));
@@ -84,6 +86,7 @@ test("AI and CMS live boundaries fail closed across reconnect and unresolved res
   assert.match(client, /result\.specialtyResolution === "RESOLVED"/);
   assert.match(liveSlot, /after: reconciliation\.latestEventId/);
   assert.match(liveSlot, /CmsReconciliationLedger/);
+  assert.match(liveSlot, /reconciliation\.observe/);
   assert.match(liveSlot, /pendingEventIds/);
   assert.match(liveSlot, /resolvePendingEvent/);
   assert.match(liveSlot, /Đã đồng bộ/);
@@ -147,11 +150,12 @@ test("Stitch search and careers screens have live public route owners", async ()
     read("app/page.tsx"),
   ]);
 
-  for (const marker of ["fetchSpecialties", "fetchDoctors", "fetchServices", "fetchPackages", "fetchArticles", "Promise.allSettled", "settledContent", "backend active"]) {
+  for (const marker of ["fetchSpecialties", "fetchDoctors", "fetchServices", "fetchPackages", "fetchArticles", "Promise.allSettled", "settledContent"]) {
     assert.ok(search.includes(marker), `missing live search marker: ${marker}`);
   }
   assert.match(search, /\/search\?q=/);
-  assert.match(careers, /CMS live/);
+  assert.match(careers, /Cơ hội nghề nghiệp tại HealthCare/);
+  assert.match(careers, /fetchCareerPositions/);
   assert.match(careers, /PublicPageShell/);
   assert.match(footer, /href="\/careers"/);
   assert.match(home, /router\.push/);

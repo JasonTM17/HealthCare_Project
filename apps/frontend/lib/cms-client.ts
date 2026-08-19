@@ -587,12 +587,22 @@ export class CmsClient {
   private readonly fetchImpl: typeof fetch;
   private readonly getAccessToken?: CmsClientOptions["getAccessToken"];
   private readonly eventSourceFactory: (url: string) => EventSource;
+  private readonly supportsEventSource: boolean;
+  private readonly changeSubscribers = new Map<number, CmsChangeSubscriptionOptions>();
+  private nextChangeSubscriberId = 0;
+  private changeSource: EventSource | undefined;
+  private changeSourceListeners: Array<[string, EventListener]> = [];
+  private changeReconnectTimer: ReturnType<typeof setTimeout> | undefined;
+  private changeReconnectAttempt = 0;
+  private changeCursor: number | undefined;
+  private changeReady: CmsFeedReadyEvent | undefined;
 
   constructor(options: CmsClientOptions = {}) {
     this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, "");
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
     this.getAccessToken = options.getAccessToken;
     this.eventSourceFactory = options.eventSourceFactory ?? ((url) => new EventSource(url));
+    this.supportsEventSource = options.eventSourceFactory !== undefined || typeof EventSource !== "undefined";
   }
 
   private contentPath(slotKey: string, options?: CmsPublishedContentReadOptions): string {
@@ -721,71 +731,169 @@ export class CmsClient {
   }
 
   subscribeToChanges(options: CmsChangeSubscriptionOptions): () => void {
-    const query = options.after === undefined ? "" : `?after=${encodeURIComponent(String(options.after))}`;
-    if (typeof EventSource === "undefined") {
+    if (!this.supportsEventSource) {
       options.onFallback?.();
       return () => undefined;
     }
 
-    let source: EventSource | undefined;
-    let closed = false;
-    let fallbackNotified = false;
-    const listeners: Array<[string, EventListener]> = [];
-
-    const fallback = (): void => {
-      if (closed || fallbackNotified) return;
-      fallbackNotified = true;
-      source?.close();
-      options.onFallback?.();
-    };
-    const register = (name: string, listener: EventListener): void => {
-      source?.addEventListener(name, listener);
-      listeners.push([name, listener]);
-    };
-
-    try {
-      source = this.eventSourceFactory(`${this.baseUrl}/cms/content/events${query}`);
-      source.onopen = () => options.onConnected?.();
-      source.onerror = () => fallback();
-
-      register("ready", (event) => {
-        try {
-          options.onConnected?.(parseReadyEvent(JSON.parse((event as MessageEvent<string>).data) as unknown));
-        } catch {
-          fallback();
-        }
-      });
-      register("cms-content-changed", (event) => {
-        try {
-          options.onChange(parseChangedEvent(JSON.parse((event as MessageEvent<string>).data) as unknown));
-        } catch {
-          fallback();
-        }
-      });
-      register("resync", (event) => {
-        try {
-          options.onResync?.(parseResyncEvent(JSON.parse((event as MessageEvent<string>).data) as unknown));
-        } catch {
-          fallback();
-        }
-      });
-      register("heartbeat", (event) => {
-        try {
-          options.onHeartbeat?.(parseHeartbeatEvent(JSON.parse((event as MessageEvent<string>).data) as unknown));
-        } catch {
-          fallback();
-        }
-      });
-    } catch {
-      options.onFallback?.();
-      return () => undefined;
+    const subscriptionId = ++this.nextChangeSubscriberId;
+    this.changeSubscribers.set(subscriptionId, options);
+    if (this.changeSubscribers.size === 1) {
+      this.changeCursor = options.after;
     }
+
+    if (this.changeReady && this.changeSource) {
+      const ready = this.changeReady;
+      void Promise.resolve().then(() => {
+        if (this.changeSubscribers.has(subscriptionId)) {
+          options.onConnected?.(ready);
+        }
+      });
+    }
+    this.openSharedChangeFeed();
 
     return () => {
-      closed = true;
-      for (const [name, listener] of listeners) source?.removeEventListener(name, listener);
-      source?.close();
+      this.changeSubscribers.delete(subscriptionId);
+      if (this.changeSubscribers.size === 0) {
+        this.stopSharedChangeFeed();
+      }
     };
+  }
+
+  /**
+   * Multiplex every live slot through one browser EventSource. This avoids
+   * exhausting the HTTP/1.1 per-origin connection pool while preserving the
+   * durable global feed cursor used by the reconciliation layer.
+   */
+  private openSharedChangeFeed(): void {
+    if (this.changeSubscribers.size === 0 || this.changeSource || this.changeReconnectTimer) return;
+
+    const requestedCursor = this.changeCursor;
+    const query = requestedCursor === undefined
+      ? ""
+      : `?after=${encodeURIComponent(String(requestedCursor))}`;
+    let source: EventSource;
+    try {
+      source = this.eventSourceFactory(`${this.baseUrl}/cms/content/events${query}`);
+    } catch {
+      this.notifyFeedFallback();
+      this.scheduleSharedReconnect();
+      return;
+    }
+
+    this.changeSource = source;
+    const register = (name: string, listener: EventListener): void => {
+      source.addEventListener(name, listener);
+      this.changeSourceListeners.push([name, listener]);
+    };
+
+    source.onopen = () => {
+      if (this.changeSource !== source) return;
+      for (const subscriber of this.changeSubscribers.values()) {
+        subscriber.onConnected?.();
+      }
+    };
+    source.onerror = () => this.failSharedChangeFeed(source);
+
+    register("ready", (event) => {
+      try {
+        const ready = parseReadyEvent(JSON.parse((event as MessageEvent<string>).data) as unknown);
+        this.changeReady = ready;
+        // With an explicit cursor, advance only as replayed events arrive. A
+        // reconnect during replay must not skip an event that was not emitted.
+        if (requestedCursor === undefined) {
+          this.changeCursor = Math.max(this.changeCursor ?? 0, ready.latestEventId);
+        }
+        this.changeReconnectAttempt = 0;
+        for (const subscriber of this.changeSubscribers.values()) {
+          subscriber.onConnected?.(ready);
+        }
+      } catch {
+        this.failSharedChangeFeed(source);
+      }
+    });
+    register("cms-content-changed", (event) => {
+      try {
+        const change = parseChangedEvent(JSON.parse((event as MessageEvent<string>).data) as unknown);
+        this.changeCursor = Math.max(this.changeCursor ?? 0, change.eventId);
+        for (const subscriber of this.changeSubscribers.values()) {
+          subscriber.onChange(change);
+        }
+      } catch {
+        this.failSharedChangeFeed(source);
+      }
+    });
+    register("resync", (event) => {
+      try {
+        const resync = parseResyncEvent(JSON.parse((event as MessageEvent<string>).data) as unknown);
+        this.changeCursor = Math.max(this.changeCursor ?? 0, resync.latestEventId);
+        for (const subscriber of this.changeSubscribers.values()) {
+          subscriber.onResync?.(resync);
+        }
+      } catch {
+        this.failSharedChangeFeed(source);
+      }
+    });
+    register("heartbeat", (event) => {
+      try {
+        const heartbeat = parseHeartbeatEvent(JSON.parse((event as MessageEvent<string>).data) as unknown);
+        // A heartbeat may reveal a Redis event missed by this instance. Do not
+        // advance the replay cursor until the actual event or a resync arrives.
+        for (const subscriber of this.changeSubscribers.values()) {
+          subscriber.onHeartbeat?.(heartbeat);
+        }
+      } catch {
+        this.failSharedChangeFeed(source);
+      }
+    });
+    register("unavailable", () => this.failSharedChangeFeed(source));
+  }
+
+  private failSharedChangeFeed(source: EventSource): void {
+    if (this.changeSource !== source) return;
+    this.disposeChangeSource();
+    this.notifyFeedFallback();
+    this.scheduleSharedReconnect();
+  }
+
+  private notifyFeedFallback(): void {
+    for (const subscriber of this.changeSubscribers.values()) {
+      subscriber.onFallback?.();
+    }
+  }
+
+  private scheduleSharedReconnect(): void {
+    if (this.changeSubscribers.size === 0 || this.changeReconnectTimer) return;
+    const baseDelay = Math.min(30_000, 1_000 * (2 ** this.changeReconnectAttempt));
+    const jitter = Math.floor(Math.random() * Math.max(250, baseDelay * 0.25));
+    const delay = Math.min(30_000, baseDelay + jitter);
+    this.changeReconnectAttempt = Math.min(this.changeReconnectAttempt + 1, 5);
+    this.changeReconnectTimer = setTimeout(() => {
+      this.changeReconnectTimer = undefined;
+      this.openSharedChangeFeed();
+    }, delay);
+  }
+
+  private disposeChangeSource(): void {
+    const source = this.changeSource;
+    this.changeSource = undefined;
+    if (!source) return;
+    source.onopen = null;
+    source.onerror = null;
+    for (const [name, listener] of this.changeSourceListeners) {
+      source.removeEventListener(name, listener);
+    }
+    this.changeSourceListeners = [];
+    source.close();
+  }
+
+  private stopSharedChangeFeed(): void {
+    this.disposeChangeSource();
+    if (this.changeReconnectTimer) clearTimeout(this.changeReconnectTimer);
+    this.changeReconnectTimer = undefined;
+    this.changeReconnectAttempt = 0;
+    this.changeCursor = undefined;
+    this.changeReady = undefined;
   }
 }
 

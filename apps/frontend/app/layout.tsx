@@ -1,6 +1,28 @@
 import type { Metadata, Viewport } from "next";
 import { Be_Vietnam_Pro, Inter } from "next/font/google";
 import "./styles.css";
+import "./effects.css";
+import "./typography.css";
+import "./branches/maps.css";
+import "./brand-experience.css";
+import BrandSplash from "../components/BrandSplash";
+
+const brandIntroBootstrap = `
+(function () {
+  var root = document.documentElement;
+  var key = "healthcare-brand-intro-v1";
+  var seen = false;
+  try {
+    seen = window.sessionStorage.getItem(key) === "1";
+    if (!seen) window.sessionStorage.setItem(key, "1");
+  } catch (_) {}
+  root.dataset.brandIntro = seen ? "seen" : "pending";
+  if (!seen) {
+    window.setTimeout(function () {
+      if (root.dataset.brandIntro !== "seen") root.dataset.brandIntro = "seen";
+    }, 1800);
+  }
+})();`;
 
 const beVietnamPro = Be_Vietnam_Pro({
   subsets: ["latin", "vietnamese"],
@@ -19,16 +41,16 @@ const inter = Inter({
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#0d5c63",
+  themeColor: "#087b78",
 };
 
 export const metadata: Metadata = {
   title: {
-    default: "HealthCare: Chăm sóc sức khỏe toàn diện",
+    default: "HealthCare | Bệnh viện đa khoa",
     template: "%s | HealthCare",
   },
   description:
-    "Nền tảng y tế số đang được xây dựng cho trải nghiệm bệnh nhân an toàn, dễ hiểu và thân thiện trên mọi thiết bị.",
+    "Tìm hiểu chuyên khoa, bác sĩ, cơ sở và chủ động đặt lịch khám tại HealthCare.",
   keywords: ["y tế", "bệnh viện", "khám bệnh", "đặt lịch", "chuyên khoa"],
   robots: { index: false, follow: false }, // foundation phase: not for indexing yet
   openGraph: {
@@ -45,9 +67,10 @@ export default function RootLayout({
     <html
       lang="vi"
       className={`${beVietnamPro.variable} ${inter.variable}`}
+      suppressHydrationWarning
     >
-      <body>{children}</body>
+      <head><script dangerouslySetInnerHTML={{ __html: brandIntroBootstrap }} /></head>
+      <body><BrandSplash />{children}</body>
     </html>
   );
 }
-

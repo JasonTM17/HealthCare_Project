@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import type { Branch } from "../types/hospital";
+import BrandMark from "./BrandMark";
 import Icon from "./UiIcon";
 
 interface NavbarProps {
@@ -13,10 +14,11 @@ interface NavbarProps {
 }
 
 const NAV_LINKS = [
-  { label: "Chuyên khoa", href: "/#specialties" },
-  { label: "Gói khám", href: "/#packages" },
-  { label: "Bác sĩ", href: "/#doctors" },
-  { label: "Cơ sở", href: "/#branches" },
+  { label: "Giới thiệu", href: "/about" },
+  { label: "Chuyên khoa", href: "/specialties" },
+  { label: "Bác sĩ", href: "/doctors" },
+  { label: "Gói khám", href: "/packages" },
+  { label: "Cơ sở", href: "/branches" },
   { label: "Cẩm nang", href: "/articles" },
 ];
 
@@ -29,15 +31,25 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, onOpenAiTriage, branches
 
   const closeMobileMenu = (): void => setMobileMenuOpen(false);
 
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const closeOnEscape = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") setMobileMenuOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [mobileMenuOpen]);
+
   return (
     <>
+      <a className="skip-link" href="#main-content">Bỏ qua điều hướng</a>
       <div className="utility-bar">
         <div className="utility-bar__inner">
           <div className="utility-bar__left">
             {contactPhone ? (
               <a className="utility-hotline" href={`tel:${contactPhone.replace(/\s/g, "")}`}>
                 <Icon name="phone" size={15} />
-                <span>{emergencyBranch ? "Hotline từ backend" : "Gọi cơ sở"}</span>
+                <span>{emergencyBranch ? "Cấp cứu" : "Hotline"}</span>
                 <strong>{contactPhone}</strong>
               </a>
             ) : (
@@ -47,13 +59,10 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, onOpenAiTriage, branches
               </Link>
             )}
             <span className="utility-divider" aria-hidden="true" />
-            <Link className="utility-hours" href="/branches"><Icon name="clock" size={15} />Giờ làm việc từ backend</Link>
+            <Link className="utility-hours" href="/branches"><Icon name="clock" size={15} />Xem giờ làm việc</Link>
           </div>
           <div className="utility-bar__right">
-            <span className="utility-demo">Bản demo local</span>
-            <button className="utility-ai" onClick={onOpenAiTriage} type="button">
-              <Icon name="sparkles" size={15} /> Trợ lý triệu chứng
-            </button>
+            <Link href="/huong-dan">Hướng dẫn khách hàng</Link>
             <Link href="/tra-cuu">Tra cứu lịch hẹn</Link>
           </div>
         </div>
@@ -62,18 +71,14 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, onOpenAiTriage, branches
       <header className="site-nav">
         <div className="site-nav__inner">
           <Link aria-label="HealthCare, về trang chủ" className="brand-link" href="/" onClick={closeMobileMenu}>
-            <span className="brand-mark"><Icon name="plus" size={24} /></span>
-            <span className="brand-copy">
-              <strong>HealthCare</strong>
-              <small>Hệ thống y tế đa khoa</small>
-            </span>
+            <BrandMark />
           </Link>
 
           <nav aria-label="Điều hướng chính" className="desktop-nav">
             {NAV_LINKS.map((link) => {
-              const isActive = link.href.startsWith("/#") ? pathname === "/" : pathname === link.href;
+              const isActive = pathname === link.href || pathname.startsWith(`${link.href}/`);
               return (
-                <Link className={`nav-link${isActive ? " nav-link--active" : ""}`} href={link.href} key={link.href}>
+                <Link aria-current={isActive ? "page" : undefined} className={`nav-link${isActive ? " nav-link--active" : ""}`} href={link.href} key={link.href}>
                   {link.label}
                 </Link>
               );
@@ -82,8 +87,8 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, onOpenAiTriage, branches
 
           <div className="site-nav__actions">
             <button className="nav-ai-button" onClick={onOpenAiTriage} type="button">
-              <Icon name="sparkles" size={16} />
-              <span>Trợ lý AI</span>
+              <Icon name="stethoscope" size={16} />
+              <span>Chọn chuyên khoa</span>
             </button>
             <button className="button button--nav" onClick={onOpenBooking} type="button">
               <Icon name="calendar" size={17} />
@@ -91,6 +96,7 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, onOpenAiTriage, branches
             </button>
             <button
               aria-expanded={mobileMenuOpen}
+              aria-controls="mobile-navigation"
               aria-label={mobileMenuOpen ? "Đóng menu" : "Mở menu"}
               className="nav-menu-button"
               onClick={() => setMobileMenuOpen((open) => !open)}
@@ -102,19 +108,22 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, onOpenAiTriage, branches
         </div>
 
         {mobileMenuOpen ? (
-          <div className="mobile-menu">
+          <div className="mobile-menu" id="mobile-navigation">
             <nav aria-label="Điều hướng trên thiết bị nhỏ">
-              {NAV_LINKS.map((link) => (
-                <Link className="mobile-menu__link" href={link.href} key={link.href} onClick={closeMobileMenu}>
-                  {link.label}
-                  <Icon name="arrow-up-right" size={17} />
-                </Link>
-              ))}
+              {NAV_LINKS.map((link) => {
+                const isActive = pathname === link.href || pathname.startsWith(`${link.href}/`);
+                return (
+                  <Link aria-current={isActive ? "page" : undefined} className="mobile-menu__link" href={link.href} key={link.href} onClick={closeMobileMenu}>
+                    {link.label}
+                    <Icon name="arrow-up-right" size={17} />
+                  </Link>
+                );
+              })}
             </nav>
             <div className="mobile-menu__actions">
               <Link className="outline-button" href="/tra-cuu" onClick={closeMobileMenu}>Tra cứu lịch hẹn</Link>
-              <button className="button button--primary" onClick={() => { closeMobileMenu(); onOpenAiTriage(); }} type="button">
-                <Icon name="sparkles" size={17} /> Trợ lý triệu chứng
+              <button className="outline-button" onClick={() => { closeMobileMenu(); onOpenAiTriage(); }} type="button">
+                <Icon name="stethoscope" size={17} /> Hỗ trợ chọn chuyên khoa
               </button>
               <button className="button button--amber" onClick={() => { closeMobileMenu(); onOpenBooking(); }} type="button">
                 <Icon name="calendar" size={17} /> Đặt lịch khám

@@ -25,7 +25,7 @@ export default function ServiceDetailPage() {
         return fetchServiceBySlug(slug);
       })
       .then((data) => { if (data !== undefined && !cancelled) setService(data); })
-      .catch((reason: unknown) => { if (!cancelled) setError(reason instanceof Error ? reason.message : "Không thể tải dịch vụ."); })
+      .catch(() => { if (!cancelled) setError("Tạm thời chưa thể tải thông tin dịch vụ. Vui lòng thử lại sau."); })
       .finally(() => { if (!cancelled) setLoading(false); });
     void task;
     return () => { cancelled = true; };
@@ -35,11 +35,11 @@ export default function ServiceDetailPage() {
     <PublicPageShell>
       <div className="resource-page section-inner">
         <PublicBackLink href="/services">← Quay lại danh mục dịch vụ</PublicBackLink>
-        <header className="resource-page__header"><p className="section-note">Dịch vụ · catalog backend</p><h1>Dịch vụ chăm sóc theo nhu cầu</h1><p>Danh mục active được quản trị ở backend; không có nội dung tĩnh thay thế khi API lỗi.</p></header>
+        <header className="resource-page__header"><p className="section-note">Dịch vụ y tế</p><h1>Dịch vụ chăm sóc theo nhu cầu</h1><p>Tìm hiểu thông tin dịch vụ và đặt lịch trao đổi với đội ngũ chuyên môn.</p></header>
         {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải dịch vụ…</p> : null}
-        {error ? <p className="catalog-status catalog-status--error" role="alert">{error} Không có dịch vụ demo thay thế.</p> : null}
-        {!loading && !error && !service ? <p className="catalog-status" role="status">Không tìm thấy dịch vụ active.</p> : null}
-        {service ? <article className="resource-hero-card resource-hero-card--teal"><div className="resource-icon" aria-hidden="true"><ClinicalIcon name="service" /></div><div className="resource-hero-card__body"><span className="resource-chip">Dịch vụ active</span><h2>{service.name}</h2><p>{service.description || "Dịch vụ chưa có mô tả chi tiết."}</p><div className="resource-actions"><PublicBookingButton>Trao đổi nhu cầu và đặt lịch</PublicBookingButton><Link className="outline-button outline-button--light" href="/packages">Xem gói khám liên quan</Link></div></div></article> : null}
+        {error ? <p className="catalog-status catalog-status--error" role="alert">{error}</p> : null}
+        {!loading && !error && !service ? <p className="catalog-status" role="status">Không tìm thấy thông tin dịch vụ này.</p> : null}
+        {service ? <article className="resource-hero-card resource-hero-card--teal"><div className="resource-icon" aria-hidden="true"><ClinicalIcon name="service" /></div><div className="resource-hero-card__body"><span className="resource-chip">Dịch vụ</span><h2>{service.name}</h2><p>{service.description || "Thông tin chi tiết của dịch vụ đang được cập nhật."}</p><div className="resource-actions"><PublicBookingButton>Trao đổi nhu cầu và đặt lịch</PublicBookingButton><Link className="outline-button outline-button--light" href="/packages">Xem gói khám liên quan</Link></div></div></article> : null}
       </div>
     </PublicPageShell>
   );

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { fetchBranches, fetchDoctors, fetchSpecialties } from "../../lib/api-client";
+import { adminListAppointments, fetchBranches, fetchDoctors, fetchSpecialties } from "../../lib/api-client";
 import AdminState from "./_components/AdminState";
 import { describeAdminError } from "./_lib/errors";
 
@@ -15,29 +15,33 @@ type SnapshotMap = {
   doctors: Snapshot;
   specialties: Snapshot;
   branches: Snapshot;
+  appointments: Snapshot;
 };
 
 const INITIAL_SNAPSHOTS: SnapshotMap = {
   doctors: { status: "loading" },
   specialties: { status: "loading" },
   branches: { status: "loading" },
+  appointments: { status: "loading" },
 };
 
 function SnapshotCard({
   href,
   label,
   snapshot,
+  successNote,
 }: {
   href: string;
   label: string;
   snapshot: Snapshot;
+  successNote?: string;
 }) {
   let value = "—";
   let note = "Đang tải dữ liệu thật…";
 
   if (snapshot.status === "success") {
     value = snapshot.count.toLocaleString("vi-VN");
-    note = snapshot.count === 0 ? "Chưa có bản ghi active" : "Bản ghi active trong catalog công khai";
+    note = successNote ?? (snapshot.count === 0 ? "Chưa có bản ghi active" : "Bản ghi active trong catalog công khai");
   }
 
   if (snapshot.status === "error") {
@@ -68,6 +72,7 @@ export default function AdminDashboard() {
       fetchDoctors({ page: 0, size: 1 }),
       fetchSpecialties(0, 1),
       fetchBranches(0, 1),
+      adminListAppointments({ page: 0, size: 1 }),
     ]);
 
     const toSnapshot = (result: PromiseSettledResult<{ totalElements: number }>): Snapshot => {
@@ -79,6 +84,7 @@ export default function AdminDashboard() {
       doctors: toSnapshot(results[0]),
       specialties: toSnapshot(results[1]),
       branches: toSnapshot(results[2]),
+      appointments: toSnapshot(results[3]),
     });
   }, []);
 
@@ -93,10 +99,10 @@ export default function AdminDashboard() {
     <div>
       <header className="flex flex-col gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">CMS NỘI DUNG CÔNG KHAI</p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">Điều hành nội dung bệnh viện</h1>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">BẢNG ĐIỀU HÀNH</p>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">Điều hành bệnh viện</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-            Theo dõi catalog đang hiển thị và mở đúng màn hình quản trị. Các con số bên dưới lấy từ public read API, không phải số liệu vận hành suy đoán.
+            Theo dõi lịch hẹn vận hành và catalog đang hiển thị. Mọi con số đều được tải từ backend theo đúng quyền của phiên hiện tại.
           </p>
         </div>
         <span className="w-fit rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900">Bản demo local</span>
@@ -105,8 +111,8 @@ export default function AdminDashboard() {
       <section aria-labelledby="catalog-summary-title" className="mt-8">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">ẢNH CHỤP CATALOG</p>
-            <h2 className="mt-1 text-xl font-bold text-slate-900" id="catalog-summary-title">Nội dung đang active</h2>
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">ẢNH CHỤP HỆ THỐNG</p>
+            <h2 className="mt-1 text-xl font-bold text-slate-900" id="catalog-summary-title">Dữ liệu hiện tại</h2>
           </div>
           <button className="w-fit text-sm font-bold text-teal-800 underline underline-offset-4" onClick={() => void load()} type="button">
             Làm mới
@@ -123,6 +129,7 @@ export default function AdminDashboard() {
           <SnapshotCard href="/admin/doctors" label="Bác sĩ" snapshot={snapshots.doctors} />
           <SnapshotCard href="/admin/specialties" label="Chuyên khoa" snapshot={snapshots.specialties} />
           <SnapshotCard href="/admin/branches" label="Cơ sở" snapshot={snapshots.branches} />
+          <SnapshotCard href="/admin/appointments" label="Tổng lịch hẹn" snapshot={snapshots.appointments} successNote="Bản ghi vận hành qua endpoint ADMIN" />
         </div>
       </section>
 
@@ -131,16 +138,16 @@ export default function AdminDashboard() {
           <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">TRẠNG THÁI TÍCH HỢP</p>
           <h2 className="mt-1 text-xl font-bold text-slate-900" id="contract-title">Điều gì có thể làm trong baseline này?</h2>
           <ul className="mt-5 space-y-4 text-sm leading-6 text-slate-700">
-            <li className="flex gap-3"><span className="font-bold text-emerald-700">✓</span><span><strong>Bác sĩ và chuyên khoa:</strong> form bám theo helper admin đang có; backend là nguồn quyết định quyền và validation. Baseline client chưa tự gắn bearer, nên 401/403 được hiển thị thay vì báo thành công giả.</span></li>
-            <li className="flex gap-3"><span className="font-bold text-amber-700">i</span><span><strong>Danh sách:</strong> backend chưa có GET /admin/... nên bảng chỉ đọc bản ghi active từ public catalog.</span></li>
-            <li className="flex gap-3"><span className="font-bold text-slate-500">i</span><span><strong>Cơ sở và dịch vụ:</strong> đã có typed read/write contract trong frontend; backend vẫn giữ quyền xác nhận phiên ADMIN và trạng thái active.</span></li>
+            <li className="flex gap-3"><span className="font-bold text-emerald-700">✓</span><span><strong>Lịch hẹn:</strong> xem dữ liệu vận hành có phân trang, lọc ngày và trạng thái qua endpoint chỉ dành cho ADMIN.</span></li>
+            <li className="flex gap-3"><span className="font-bold text-emerald-700">✓</span><span><strong>Catalog:</strong> bác sĩ, chuyên khoa, cơ sở, dịch vụ, gói khám, FAQ và bài viết có contract quản trị có xác thực.</span></li>
+            <li className="flex gap-3"><span className="font-bold text-slate-500">i</span><span><strong>Phân quyền lâm sàng:</strong> admin chỉ quan sát lịch hẹn; tiếp nhận và hoàn tất hồ sơ vẫn thuộc workflow bác sĩ.</span></li>
           </ul>
         </div>
         <div className="rounded-2xl border border-teal-100 bg-teal-50 p-6">
           <p className="text-xs font-bold uppercase tracking-[0.16em] text-teal-800">AN TOÀN NỘI DUNG</p>
           <h2 className="mt-1 text-xl font-bold text-teal-950">Kiểm soát trước khi xuất bản</h2>
           <p className="mt-3 text-sm leading-6 text-teal-950/80">
-            CMS này không hiển thị số bệnh nhân, lịch hẹn hay chỉ số lâm sàng. Mọi thao tác ghi vẫn phải qua backend và role ADMIN; lỗi 401/403 được giữ nguyên thành trạng thái hướng dẫn.
+            Trang lịch hẹn chỉ hiển thị dữ liệu cần cho vận hành và không mở quyền sửa trạng thái lâm sàng. Mọi thao tác ghi vẫn phải qua backend đúng role; lỗi 401/403 được giữ nguyên thành trạng thái hướng dẫn.
           </p>
         </div>
       </section>

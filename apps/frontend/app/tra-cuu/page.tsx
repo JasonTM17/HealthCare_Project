@@ -47,16 +47,17 @@ export default function TraCuuPage() {
         `${API_BASE_URL}/appointments/${bookingCodeInput.trim()}?phone=${encodeURIComponent(phoneInput.trim())}`
       );
       if (!res.ok) {
-        throw new Error(
-          "Không tìm thấy lịch hẹn với mã này. Vui lòng kiểm tra lại mã đã nhận qua tin nhắn/email."
+        setErrorMessage(
+          res.status === 404
+            ? "Không tìm thấy lịch hẹn. Vui lòng kiểm tra lại mã và số điện thoại đã dùng khi đặt lịch."
+            : "Tạm thời chưa thể tra cứu lịch hẹn. Vui lòng thử lại sau."
         );
+        return;
       }
       const data: AppointmentDetails = await res.json();
       setAppointment(data);
-    } catch (err: unknown) {
-      setErrorMessage(
-        err instanceof Error ? err.message : "Không tìm thấy lịch hẹn hoặc thông tin xác thực không đúng."
-      );
+    } catch {
+      setErrorMessage("Tạm thời chưa thể tra cứu lịch hẹn. Vui lòng kiểm tra kết nối và thử lại sau.");
     } finally {
       setLoading(false);
     }
@@ -76,14 +77,20 @@ export default function TraCuuPage() {
         }),
       });
       if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.message || "Không thể hủy lịch hẹn.");
+        setErrorMessage(
+          res.status === 404
+            ? "Không tìm thấy lịch hẹn cần hủy. Vui lòng tra cứu lại thông tin."
+            : res.status === 409
+              ? "Lịch hẹn này không còn có thể hủy trực tuyến. Vui lòng liên hệ cơ sở để được hỗ trợ."
+              : "Tạm thời chưa thể hủy lịch hẹn. Vui lòng thử lại sau."
+        );
+        return;
       }
       setAppointment({ ...appointment, status: "CANCELLED" });
       setCancelSuccess(true);
       setShowCancelDialog(false);
-    } catch (err: unknown) {
-      setErrorMessage(err instanceof Error ? err.message : "Không thể hủy lịch hẹn.");
+    } catch {
+      setErrorMessage("Tạm thời chưa thể hủy lịch hẹn. Vui lòng kiểm tra kết nối và thử lại sau.");
     } finally {
       setLoading(false);
     }
@@ -254,7 +261,7 @@ export default function TraCuuPage() {
                 <div>
                   <span className="text-xs text-ink-faint font-bold block mb-1">HÌNH THỨC THANH TOÁN</span>
                   <p className="text-xs text-ink-muted mt-2">
-                    Phương thức thanh toán và bảo lãnh cần được xác nhận với cơ sở; backend chưa cung cấp policy cho lịch hẹn này.
+                    Phương thức thanh toán và bảo lãnh có thể khác nhau theo từng cơ sở. Vui lòng xác nhận trước khi đến khám.
                   </p>
                 </div>
               </div>
@@ -349,7 +356,6 @@ export default function TraCuuPage() {
     </div>
   );
 }
-
 
 
 

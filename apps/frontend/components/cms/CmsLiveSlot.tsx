@@ -62,8 +62,6 @@ export function CmsLiveSlot({
   useEffect(() => {
     let cancelled = false;
     let pollTimer: ReturnType<typeof setInterval> | undefined;
-    let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
-    let reconnectAttempt = 0;
     let sseConnected = false;
     const reconciliation = new CmsReconciliationLedger();
     let refreshGeneration = 0;
@@ -185,20 +183,10 @@ export function CmsLiveSlot({
       pollTimer = undefined;
     };
 
-    const scheduleReconnect = (): void => {
-      if (cancelled || reconnectTimer) return;
-      const delay = Math.min(30_000, 1_000 * (2 ** reconnectAttempt));
-      reconnectAttempt = Math.min(reconnectAttempt + 1, 5);
-      reconnectTimer = setTimeout(() => {
-        reconnectTimer = undefined;
-        startFeed();
-      }, delay);
-    };
-
-    const startFeed = (): void => {
-      if (cancelled) return;
-      setTransport("connecting");
-      stopFeed = client.subscribeToChanges({
+    // CmsClient multiplexes every live slot onto one EventSource and owns its
+    // bounded reconnect policy. This effect only owns this slot's durable
+    // reconciliation and polling fallback.
+    stopFeed = client.subscribeToChanges({
         // Keep zero explicit so a reconnect after a failed first refresh asks
         // the backend to replay from the beginning instead of silently
         // dropping the event that triggered the failed refresh.
@@ -246,7 +234,6 @@ export function CmsLiveSlot({
         },
         onConnected: () => {
           if (cancelled) return;
-          reconnectAttempt = 0;
           sseConnected = true;
           if (reconciliation.pendingEventIds.size === 0
             && reconciliation.reconciliationCursor === 0) {
@@ -261,7 +248,6 @@ export function CmsLiveSlot({
         onFallback: () => {
           sseConnected = false;
           startPolling();
-          scheduleReconnect();
         },
         onResync: (event) => {
           beginReconciliation(event.latestEventId);
@@ -309,9 +295,6 @@ export function CmsLiveSlot({
           });
         },
       });
-    };
-
-    startFeed();
 
     // Even the first/fallback snapshot bypasses a potentially stale
     // per-instance cache. The durable cursor is the cache-coherence boundary.
@@ -321,7 +304,6 @@ export function CmsLiveSlot({
       cancelled = true;
       stopFeed();
       stopPolling();
-      if (reconnectTimer) clearTimeout(reconnectTimer);
     };
   }, [backendSlotKey, client, pollIntervalMs]);
 

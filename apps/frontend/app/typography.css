@@ -1,0 +1,268 @@
+/* Vietnamese typography layer.
+ * Loaded after the visual styles so Vietnamese diacritics keep consistent
+ * shapes, weight and spacing across the public site, portals and dialogs.
+ */
+
+:root {
+  --font-vietnamese-ui: var(--font-be-vietnam-pro), var(--font-inter);
+}
+
+html[lang="vi"] {
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+html[lang="vi"] body,
+html[lang="vi"] button,
+html[lang="vi"] input,
+html[lang="vi"] select,
+html[lang="vi"] textarea {
+  font-family: var(--font-vietnamese-ui);
+  font-kerning: normal;
+  font-variant-ligatures: common-ligatures contextual;
+}
+
+html[lang="vi"] body {
+  color: var(--color-ink);
+  letter-spacing: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html[lang="vi"] :where(p, li, dd, label, input, select, textarea, button, a) {
+  overflow-wrap: break-word;
+}
+
+html[lang="vi"] :where(p, li, dd) {
+  text-wrap: pretty;
+}
+
+html[lang="vi"] :where(h1, h2, h3, h4, strong) {
+  font-kerning: normal;
+  text-rendering: optimizeLegibility;
+}
+
+/* Public navigation: use real loaded weights instead of synthetic 650. */
+.site-shell .nav-link,
+.site-shell .mobile-menu__link,
+.site-shell .nav-ai-button,
+.site-shell .button--nav {
+  font-family: var(--font-vietnamese-ui);
+  font-weight: 600;
+  letter-spacing: -0.008em;
+  line-height: 1.35;
+}
+
+.site-shell .nav-link {
+  color: #344f59;
+  font-size: 0.9375rem;
+  white-space: nowrap;
+}
+
+.site-shell .nav-link:hover,
+.site-shell .nav-link--active {
+  color: #075f5e;
+  font-weight: 700;
+}
+
+.site-shell .brand-copy strong {
+  font-weight: 700;
+  letter-spacing: -0.018em;
+  line-height: 1.25;
+}
+
+.site-shell .brand-copy small,
+.site-shell .section-note,
+.site-shell .hero-kicker {
+  letter-spacing: 0.055em;
+  line-height: 1.5;
+}
+
+.site-shell .utility-bar,
+.site-shell .utility-bar a,
+.site-shell .utility-bar button {
+  letter-spacing: 0;
+  line-height: 1.45;
+}
+
+/* Keep large Vietnamese headings compact without crowding tone marks. */
+.site-shell .hero-copy h1,
+.site-shell .about-hero__copy h1,
+.site-shell .care-experience__copy h2,
+.site-shell .resource-page__header h1,
+.site-shell .catalog-hero h1,
+.portal-hero h1,
+.auth-card h1 {
+  font-family: var(--font-vietnamese-ui);
+  font-weight: 700;
+  letter-spacing: -0.028em;
+}
+
+.site-shell .section-heading h2,
+.site-shell .care-intro h2,
+.site-shell .appointment-cta h2,
+.site-shell .about-section h2,
+.portal-panel h2,
+.portal-panel h3 {
+  font-family: var(--font-vietnamese-ui);
+  letter-spacing: -0.02em;
+}
+
+.site-shell .section-description,
+.site-shell .hero-description,
+.site-shell .care-experience__lead,
+.site-shell .care-experience__moments p,
+.site-shell .resource-page__header > p:last-child {
+  letter-spacing: 0;
+  line-height: 1.7;
+}
+
+/* Booking wizard: clearer Vietnamese labels, status text and controls. */
+[role="dialog"][aria-labelledby="booking-modal-title"] {
+  font-family: var(--font-vietnamese-ui);
+  color: #243c46;
+  text-rendering: optimizeLegibility;
+}
+
+#booking-modal-title {
+  font-family: var(--font-vietnamese-ui);
+  font-size: 1.375rem;
+  font-weight: 700;
+  letter-spacing: -0.018em;
+  line-height: 1.4;
+  text-wrap: balance;
+}
+
+[role="dialog"][aria-labelledby="booking-modal-title"] .uppercase.tracking-widest {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.075em;
+  line-height: 1.5;
+}
+
+[role="dialog"][aria-labelledby="booking-modal-title"] .text-xs {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+[role="dialog"][aria-labelledby="booking-modal-title"] .text-sm {
+  font-size: 0.9375rem;
+  line-height: 1.55;
+}
+
+[role="dialog"][aria-labelledby="booking-modal-title"] label {
+  color: #304954;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.006em;
+  line-height: 1.5;
+}
+
+[role="dialog"][aria-labelledby="booking-modal-title"] input,
+[role="dialog"][aria-labelledby="booking-modal-title"] select,
+[role="dialog"][aria-labelledby="booking-modal-title"] textarea {
+  min-height: 3rem;
+  color: #1f3741;
+  font-size: 1rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.5;
+}
+
+[role="dialog"][aria-labelledby="booking-modal-title"] textarea {
+  min-height: 5.75rem;
+}
+
+[role="dialog"][aria-labelledby="booking-modal-title"] input::placeholder,
+[role="dialog"][aria-labelledby="booking-modal-title"] textarea::placeholder {
+  color: #657982;
+  opacity: 1;
+}
+
+[role="dialog"][aria-labelledby="booking-modal-title"] button {
+  font-weight: 600;
+  letter-spacing: -0.006em;
+  line-height: 1.4;
+}
+
+[role="dialog"][aria-labelledby="booking-modal-title"] .font-bold,
+[role="dialog"][aria-labelledby="booking-modal-title"] .font-extrabold {
+  font-weight: 700;
+}
+
+[role="dialog"][aria-labelledby="booking-modal-title"] .text-gray-400 {
+  color: #657781;
+}
+
+[role="dialog"][aria-labelledby="booking-modal-title"] .text-gray-500 {
+  color: #566d77;
+}
+
+[role="dialog"][aria-labelledby="booking-modal-title"] [role="alert"] {
+  color: #8a2e2e;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.55;
+}
+
+/* Step labels stay on one line and become horizontally readable on phones. */
+[role="dialog"][aria-labelledby="booking-modal-title"] .text-brand-900.text-xs.font-semibold {
+  gap: 0.7rem;
+  justify-content: flex-start;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: none;
+}
+
+[role="dialog"][aria-labelledby="booking-modal-title"] .text-brand-900.text-xs.font-semibold::-webkit-scrollbar {
+  display: none;
+}
+
+[role="dialog"][aria-labelledby="booking-modal-title"] .text-brand-900.text-xs.font-semibold > * {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 640px) {
+  .site-shell .brand-copy strong {
+    font-size: 1.05rem;
+  }
+
+  .site-shell .mobile-menu__link {
+    font-size: 1rem;
+    line-height: 1.45;
+  }
+
+  #booking-modal-title {
+    font-size: 1.125rem;
+    line-height: 1.35;
+  }
+
+  [role="dialog"][aria-labelledby="booking-modal-title"] .uppercase.tracking-widest {
+    font-size: 0.7rem;
+    letter-spacing: 0.055em;
+  }
+
+  [role="dialog"][aria-labelledby="booking-modal-title"] label,
+  [role="dialog"][aria-labelledby="booking-modal-title"] .text-sm {
+    font-size: 0.875rem;
+  }
+
+  [role="dialog"][aria-labelledby="booking-modal-title"] input,
+  [role="dialog"][aria-labelledby="booking-modal-title"] select,
+  [role="dialog"][aria-labelledby="booking-modal-title"] textarea {
+    font-size: 1rem;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .site-shell .nav-link,
+  .site-shell .section-description,
+  .site-shell .hero-description {
+    color: #263f49;
+  }
+
+  [role="dialog"][aria-labelledby="booking-modal-title"] .text-gray-400,
+  [role="dialog"][aria-labelledby="booking-modal-title"] .text-gray-500 {
+    color: #405963;
+  }
+}

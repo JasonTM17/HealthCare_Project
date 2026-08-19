@@ -38,8 +38,10 @@ Links and image URLs are limited to relative paths or HTTPS URLs. The renderer
 does not accept or interpret raw HTML/JS.
 
 The SSE endpoint emits named `ready`, `heartbeat`, `cms-content-changed`, and
-`resync` events. The public slot filters changes by backend slot key and polls
-the public read endpoint when EventSource is unavailable or fails. A `home`
+`resync` events. Public slots multiplex changes through one EventSource per
+`CmsClient`, filter them by backend slot key, and poll the public read endpoint
+when the stream is unavailable. Reconnects use bounded exponential backoff with
+jitter, and the stream closes when its last slot unmounts. A `home`
 public slot maps as follows:
 
 ```tsx

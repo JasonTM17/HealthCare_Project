@@ -53,8 +53,8 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
       .then((data) => {
         if (data !== undefined && !cancelled) setPage(data);
       })
-      .catch((reason: unknown) => {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : "Không thể tải danh sách bác sĩ.");
+      .catch(() => {
+        if (!cancelled) setError("Tạm thời chưa thể tải danh sách bác sĩ. Vui lòng thử lại sau.");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -77,9 +77,9 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
       <div className="catalog-page section-inner">
         <PublicBackLink href="/">← Về trang chính</PublicBackLink>
         <header className="resource-page__header">
-          <p className="section-note">Care Rail · đội ngũ chuyên gia</p>
+          <p className="section-note">Đội ngũ bác sĩ</p>
           <h1>Bác sĩ đồng hành cùng bạn</h1>
-          <p>Hồ sơ active được lấy từ backend; cơ sở và khung giờ thực tế chỉ được kiểm tra trong luồng đặt lịch.</p>
+          <p>Tìm hiểu chuyên môn và kinh nghiệm để lựa chọn bác sĩ phù hợp với nhu cầu chăm sóc.</p>
         </header>
 
         {filterLabel ? (
@@ -90,8 +90,8 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
         ) : null}
 
         {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải hồ sơ bác sĩ…</p> : null}
-        {error ? <p className="catalog-status catalog-status--error" role="alert">{error} Không có hồ sơ demo thay thế.</p> : null}
-        {!loading && !error && page?.empty ? <p className="catalog-status" role="status">Không có bác sĩ active phù hợp với bộ lọc này.</p> : null}
+        {error ? <p className="catalog-status catalog-status--error" role="alert">{error}</p> : null}
+        {!loading && !error && page?.empty ? <p className="catalog-status" role="status">Chưa tìm thấy bác sĩ phù hợp với lựa chọn này.</p> : null}
 
         {page && !page.empty ? (
           <>

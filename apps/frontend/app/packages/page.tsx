@@ -1,13 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { fetchPackages, type Page } from "../../lib/api-client";
 import type { HealthPackage } from "../../types/hospital";
 import { PublicBookingButton, PublicPageShell } from "../../components/PublicPageShell";
 import CatalogPagination from "../../components/CatalogPagination";
-
-const currency = (price: number) => new Intl.NumberFormat("vi-VN").format(price);
+import PackageVisualCard, { packageVisualStyles } from "../../components/PackageVisualCard";
 
 export default function PackagesPage() {
   const [currentPage, setCurrentPage] = useState(0);
@@ -33,11 +31,41 @@ export default function PackagesPage() {
   return (
     <PublicPageShell packages={page?.content ?? []}>
       <div className="catalog-page section-inner">
-        <header className="resource-page__header"><p className="section-note">Care Rail · gói khám</p><h1>Chủ động kiểm tra, bắt đầu từ điều phù hợp</h1><p>So sánh các lựa chọn active trong catalog backend. Giá và mô tả không được thay thế bằng dữ liệu tĩnh khi API lỗi.</p></header>
+        <header className={packageVisualStyles.catalogIntro}>
+          <div>
+            <p className="section-note">Gói khám sức khỏe</p>
+            <h1>Chủ động kiểm tra, bắt đầu từ điều phù hợp</h1>
+            <p>Đối chiếu đối tượng phù hợp, hạng mục chính và chi phí của từng gói trước khi đặt lịch.</p>
+          </div>
+          <aside className={packageVisualStyles.catalogGuide} aria-label="Hướng dẫn chọn gói khám">
+            <strong>Một lựa chọn rõ ràng hơn</strong>
+            <p>Mở từng gói để xem đầy đủ nội dung và hướng dẫn chuẩn bị trước khi đến bệnh viện.</p>
+          </aside>
+        </header>
         {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải danh mục gói khám…</p> : null}
         {error ? <p className="catalog-status catalog-status--error" role="alert">{error} Không có gói khám demo thay thế.</p> : null}
-        {!loading && !error && page?.empty ? <p className="catalog-status" role="status">Backend chưa có gói khám active.</p> : null}
-        {page && !page.empty ? <><p className="catalog-meta">{page.totalElements} gói khám · Trang {page.number + 1}/{page.totalPages}</p><div className="catalog-grid catalog-grid--packages">{page.content.map((item) => <article className="catalog-card" key={item.id}><div className="catalog-card__topline"><span className="resource-chip resource-chip--warm">{item.featured ? "Được đề xuất" : "Gói khám"}</span><span className="catalog-card__price">{currency(item.price)} VNĐ</span></div><h2>{item.name}</h2><p>{item.description}</p><div className="catalog-card__actions"><Link className="text-button" href={`/packages/${item.slug}`}>Xem chi tiết →</Link><PublicBookingButton className="outline-button outline-button--small" selection={{ packageId: item.id }}>Đặt lịch</PublicBookingButton></div></article>)}</div><CatalogPagination label="Phân trang gói khám" onPageChange={setCurrentPage} page={page} /></> : null}
+        {!loading && !error && page?.empty ? <p className="catalog-status" role="status">Danh sách gói khám đang được cập nhật.</p> : null}
+        {page && !page.empty ? (
+          <>
+            <p className="catalog-meta">{page.totalElements} gói khám · Trang {page.number + 1}/{page.totalPages}</p>
+            <div className={packageVisualStyles.catalogGrid}>
+              {page.content.map((item, index) => (
+                <PackageVisualCard
+                  bookingAction={(
+                    <PublicBookingButton className={packageVisualStyles.bookButton} selection={{ packageId: item.id }}>
+                      Đặt lịch
+                    </PublicBookingButton>
+                  )}
+                  headingLevel="h2"
+                  key={item.id}
+                  packageItem={item}
+                  priority={index < 2}
+                />
+              ))}
+            </div>
+            <CatalogPagination label="Phân trang gói khám" onPageChange={setCurrentPage} page={page} />
+          </>
+        ) : null}
       </div>
     </PublicPageShell>
   );

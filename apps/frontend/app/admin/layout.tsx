@@ -9,10 +9,13 @@ const AUTH_STORAGE_KEY = "healthcare.auth.session";
 
 const NAV = [
   { href: "/admin", label: "Tổng quan" },
+  { href: "/admin/appointments", label: "Lịch hẹn" },
   { href: "/admin/doctors", label: "Bác sĩ" },
   { href: "/admin/specialties", label: "Chuyên khoa" },
   { href: "/admin/branches", label: "Cơ sở" },
   { href: "/admin/services", label: "Dịch vụ" },
+  { href: "/admin/catalog", label: "Gói & bài viết" },
+  { href: "/admin/schedules", label: "Lịch bác sĩ" },
   { href: "/admin/content", label: "CMS live" },
 ];
 
@@ -113,7 +116,7 @@ function AdminShell({ children, displayName }: { children: ReactNode; displayNam
         <div className="flex h-full flex-col p-5">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-200">HealthCare CMS</p>
-            <h1 className="mt-2 text-xl font-bold">Quản trị nội dung</h1>
+            <h1 className="mt-2 text-xl font-bold">Quản trị bệnh viện</h1>
             <p className="mt-2 text-xs leading-5 text-slate-400">
               {displayName ? `Xin chào, ${displayName}.` : "Phiên ADMIN đã được nhận diện."}
             </p>
@@ -151,7 +154,7 @@ function AdminShell({ children, displayName }: { children: ReactNode; displayNam
       <main className="min-w-0 p-4 sm:p-6 lg:ml-64 lg:p-10" id="main-content">
         <div className="mx-auto max-w-7xl">
           <div className="mb-6 rounded-2xl border border-teal-100 bg-teal-50 px-4 py-3 text-sm leading-6 text-teal-950">
-            <strong>Ranh giới dữ liệu:</strong> các bảng công khai chỉ hiển thị bản ghi active. Không có số liệu CMS giả; các contract chưa được expose sẽ được đánh dấu rõ.
+            <strong>Ranh giới dữ liệu:</strong> catalog công khai chỉ hiển thị bản ghi active; dữ liệu lịch hẹn chỉ tải qua endpoint ADMIN có bearer auth.
           </div>
           {children}
         </div>

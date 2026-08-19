@@ -9,7 +9,7 @@ function routeCmsSlug(pathname: string): string | null {
   if (segments.length === 0) return null;
 
   const route = segments[0];
-  if (["admin", "auth", "doctor", "patient"].includes(route)) return null;
+  if (["admin", "auth", "doctor", "patient", "careers"].includes(route)) return null;
   if (["bac-si", "chuyen-khoa", "goi-kham"].includes(route)) return null;
   return route;
 }
@@ -26,10 +26,22 @@ export function RouteCmsSlots(): ReactElement | null {
   if (!slug) return null;
 
   return (
-    <div aria-label="Nội dung live do quản trị viên xuất bản" className="route-cms-slots">
-      <CmsLiveSlot hideWhenNotFound slug={slug} slotKey="hero" />
-      <CmsLiveSlot hideWhenNotFound={true} slug={slug} slotKey="body" />
-    </div>
+    <>
+      <CmsLiveSlot
+        className="route-cms-slots"
+        hideWhenNotFound
+        showSourceLabel={false}
+        slug={slug}
+        slotKey="hero"
+      />
+      <CmsLiveSlot
+        className="route-cms-slots"
+        hideWhenNotFound
+        showSourceLabel={false}
+        slug={slug}
+        slotKey="body"
+      />
+    </>
   );
 }
 

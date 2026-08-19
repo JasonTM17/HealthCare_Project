@@ -73,6 +73,41 @@ export interface Faq {
   answer: string;
 }
 
+export type EmploymentType = "FULL_TIME" | "PART_TIME" | "CONTRACT" | "INTERNSHIP";
+
+export interface JobPosition {
+  id: string;
+  slug: string;
+  title: string;
+  department: string;
+  location: string;
+  employmentType: EmploymentType;
+  employmentTypeLabel: string;
+  summary: string;
+  responsibilities: string[];
+  requirements: string[];
+  benefits: string[];
+  deadline?: string | null;
+  featured: boolean;
+}
+
+export interface JobApplicationPayload {
+  fullName: string;
+  email: string;
+  phone: string;
+  yearsExperience?: number | null;
+  coverLetter: string;
+  resumeUrl?: string;
+  privacyConsent: boolean;
+}
+
+export interface JobApplicationReceipt {
+  applicationCode: string;
+  jobTitle: string;
+  submittedAt: string;
+  message: string;
+}
+
 export interface Article {
   id: string;
   title: string;
@@ -196,6 +231,22 @@ export interface AiTriageResult {
   provenance?: AiTriageProvenance;
 }
 
+export interface SemanticSearchResult {
+  source_type: "specialty" | "doctor" | "service" | "package" | "article" | "faq";
+  source_id: string;
+  title: string;
+  content: string;
+  score: number;
+  citation: AiTriageCitation;
+}
+
+export interface SemanticSearchResponse {
+  results: SemanticSearchResult[];
+  query: string;
+  specialty: string;
+  provenance: string;
+}
+
 export interface AuthUser {
   id: string;
   email: string;
@@ -213,6 +264,33 @@ export interface AuthSession {
 
 export interface UserProfile extends AuthUser {
   status: string;
+}
+
+export type PatientGender = "MALE" | "FEMALE" | "OTHER" | "UNSPECIFIED";
+
+export interface PatientProfile {
+  id: string;
+  fullName: string;
+  phone: string;
+  email?: string | null;
+  dateOfBirth?: string | null;
+  gender?: PatientGender | null;
+  address?: string | null;
+  emergencyContactName?: string | null;
+  emergencyContactPhone?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface StoredFile {
+  id: string;
+  objectName: string;
+  patientId?: string | null;
+  originalFilename: string;
+  contentType: string;
+  sizeBytes: number;
+  purpose: "GENERAL" | "DIAGNOSTIC_RESULT" | "MEDICAL_RECORD";
+  downloadUrl: string;
+  createdAt: string;
 }
 
 export interface PrescriptionItem {
@@ -275,6 +353,7 @@ export interface DiagnosticResult {
   doctorName?: string | null;
   testName: string;
   result: string;
+  fileId?: string | null;
   fileUrl?: string | null;
   testDate: string;
 }
@@ -288,4 +367,32 @@ export interface Notification {
   read: boolean;
   createdAt: string;
   readAt?: string | null;
+}
+
+export interface DoctorSchedule {
+  id: string;
+  doctorId: string;
+  doctorName: string;
+  branchId: string;
+  branchName: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  slotDurationMinutes: number;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+  active: boolean;
+}
+
+export interface DoctorScheduleException {
+  id: string;
+  doctorId: string;
+  doctorName: string;
+  branchId: string;
+  branchName: string;
+  exceptionDate: string;
+  type: "CUSTOM_HOURS" | "BLOCKED" | "LEAVE";
+  customStartTime?: string | null;
+  customEndTime?: string | null;
+  reason?: string | null;
 }

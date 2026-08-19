@@ -4125,3 +4125,1240 @@ main {
     padding-inline: 1rem;
   }
 }
+
+/* Hospital public-site redesign — restrained, editorial and patient-first. */
+.site-shell {
+  --hospital-navy: #123f52;
+  --hospital-teal: #087b78;
+  --hospital-teal-dark: #075f5e;
+  --hospital-mint: #e8f4f2;
+  --hospital-surface: #f4f8f8;
+  --hospital-border: #d8e4e4;
+  --hospital-text: #243c46;
+  --hospital-muted: #5f737b;
+  background: #fff;
+}
+
+.site-shell .skip-link {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.75rem;
+  z-index: 100;
+  padding: 0.65rem 0.9rem;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--hospital-navy);
+  font-weight: 700;
+  box-shadow: 0 6px 18px rgb(20 61 75 / 18%);
+  transform: translateY(-150%);
+}
+
+.site-shell .skip-link:focus {
+  transform: translateY(0);
+}
+
+.site-shell .section-inner,
+.site-shell .hero-inner,
+.site-shell .care-inner,
+.site-shell .appointment-cta__inner,
+.site-shell .site-nav__inner,
+.site-shell .utility-bar__inner,
+.site-shell .site-footer__inner,
+.site-shell .site-footer__bottom {
+  width: min(calc(100% - 3rem), 74rem);
+}
+
+.site-shell .utility-bar {
+  border-bottom: 1px solid rgb(255 255 255 / 14%);
+  background: var(--hospital-navy);
+  color: #fff;
+}
+
+.site-shell .utility-bar__inner {
+  min-height: 38px;
+}
+
+.site-shell .utility-bar__right,
+.site-shell .utility-hours {
+  color: #d8e8e9;
+}
+
+.site-shell .utility-hotline strong {
+  color: #fff;
+}
+
+.site-shell .utility-hotline svg {
+  color: #ffcc68;
+}
+
+.site-shell .site-nav {
+  border-bottom: 1px solid var(--hospital-border);
+  background: rgb(255 255 255 / 97%);
+  box-shadow: 0 3px 14px rgb(20 61 75 / 5%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.site-shell .site-nav__inner {
+  min-height: 78px;
+}
+
+.site-shell .brand-link {
+  gap: 0.75rem;
+}
+
+.site-shell .brand-mark {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: var(--hospital-teal);
+  box-shadow: none;
+}
+
+.site-shell .brand-copy strong {
+  color: var(--hospital-navy);
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.site-shell .brand-copy small {
+  color: var(--hospital-teal-dark);
+  font-size: 0.625rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.site-shell .desktop-nav {
+  gap: 1.25rem;
+}
+
+.site-shell .nav-link {
+  color: #405962;
+  font-size: 0.875rem;
+  font-weight: 650;
+}
+
+.site-shell .nav-link::after {
+  bottom: 1px;
+  height: 2px;
+  border-radius: 0;
+  background: var(--hospital-teal);
+}
+
+.site-shell .nav-link:hover,
+.site-shell .nav-link--active {
+  color: var(--hospital-teal-dark);
+}
+
+.site-shell .nav-ai-button {
+  min-height: 42px;
+  padding-inline: 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--hospital-teal-dark);
+}
+
+.site-shell .nav-ai-button:hover {
+  border-color: var(--hospital-border);
+  background: var(--hospital-surface);
+}
+
+.site-shell .button,
+.site-shell .outline-button {
+  border-radius: 8px;
+}
+
+.site-shell .button--nav,
+.site-shell .button--primary {
+  background: var(--hospital-teal);
+}
+
+.site-shell .button--nav:hover,
+.site-shell .button--primary:hover {
+  background: var(--hospital-teal-dark);
+}
+
+.site-shell .resource-page .button--amber,
+.site-shell .catalog-page .button--amber {
+  background: var(--hospital-teal);
+  color: #fff;
+  box-shadow: none;
+}
+
+.site-shell .resource-page .button--amber:hover,
+.site-shell .catalog-page .button--amber:hover {
+  background: var(--hospital-teal-dark);
+}
+
+.site-shell .hero-section {
+  overflow: hidden;
+  border-bottom: 1px solid var(--hospital-border);
+  background: #eef7f5;
+  color: var(--hospital-text);
+}
+
+.site-shell .hero-section::before,
+.site-shell .hero-section::after {
+  display: none;
+}
+
+.site-shell .hero-inner {
+  grid-template-columns: minmax(0, 0.92fr) minmax(28rem, 1.08fr);
+  gap: clamp(2rem, 5vw, 4.75rem);
+  min-height: 590px;
+  padding-top: 3.5rem;
+  padding-bottom: 5.75rem;
+}
+
+.site-shell .hero-copy {
+  max-width: 34rem;
+}
+
+.site-shell .hero-kicker {
+  gap: 0;
+  margin-bottom: 1.1rem;
+  color: var(--hospital-teal-dark);
+  font-size: 0.75rem;
+  letter-spacing: 0.11em;
+}
+
+.site-shell .hero-kicker__line {
+  display: none;
+}
+
+.site-shell .hero-copy h1 {
+  max-width: 11.5ch;
+  color: var(--hospital-navy);
+  font-size: clamp(2.75rem, 4.4vw, 4.15rem);
+  font-weight: 750;
+  letter-spacing: -0.045em;
+  line-height: 1.06;
+}
+
+.site-shell .hero-copy h1 span {
+  color: var(--hospital-teal);
+}
+
+.site-shell .hero-description {
+  max-width: 31rem;
+  margin-top: 1.35rem;
+  color: var(--hospital-muted);
+  font-size: 1.05rem;
+  line-height: 1.7;
+}
+
+.site-shell .hero-search {
+  min-height: 56px;
+  margin-top: 1.75rem;
+  border: 1px solid #cbdcdc;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--hospital-teal);
+  box-shadow: 0 8px 22px rgb(22 77 82 / 7%);
+}
+
+.site-shell .hero-search:focus-within {
+  border-color: var(--hospital-teal);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgb(8 123 120 / 13%);
+}
+
+.site-shell .hero-search input {
+  color: var(--hospital-text);
+}
+
+.site-shell .hero-search input::placeholder {
+  color: #809299;
+}
+
+.site-shell .hero-search button {
+  min-height: 46px;
+  border-radius: 6px;
+  background: var(--hospital-teal);
+  color: #fff;
+}
+
+.site-shell .hero-search button:hover {
+  background: var(--hospital-teal-dark);
+}
+
+.site-shell .hero-search__help {
+  color: #71868d;
+}
+
+.site-shell .hero-actions {
+  margin-top: 1.5rem;
+}
+
+.site-shell .hero-actions .button--amber {
+  background: var(--hospital-teal);
+  color: #fff;
+}
+
+.site-shell .hero-actions .button--amber:hover {
+  background: var(--hospital-teal-dark);
+}
+
+.site-shell .button--hero-secondary {
+  border: 1px solid #aac5c5;
+  background: transparent;
+  color: var(--hospital-teal-dark);
+}
+
+.site-shell .button--hero-secondary:hover {
+  border-color: var(--hospital-teal);
+  background: #fff;
+}
+
+.site-shell .hero-trust {
+  gap: 1rem;
+  margin-top: 1.65rem;
+  padding-top: 1.15rem;
+  border-top-color: #cbdcdb;
+}
+
+.site-shell .hero-trust__item {
+  color: var(--hospital-text);
+}
+
+.site-shell .hero-trust__item strong {
+  font-size: 0.72rem;
+}
+
+.site-shell .hero-trust__item small {
+  color: #70848b;
+  font-size: 0.65rem;
+}
+
+.site-shell .hero-trust__icon {
+  width: 28px;
+  height: 28px;
+  border-color: #bdd3d2;
+  background: #fff;
+  color: var(--hospital-teal);
+}
+
+.site-shell .hero-trust__icon--accent {
+  color: #b53b3b;
+}
+
+.site-shell .hero-visual__image-wrap {
+  min-height: 500px;
+  border: 0;
+  border-radius: 12px;
+  background: #dce9e7;
+  box-shadow: 0 18px 40px rgb(18 63 82 / 14%);
+}
+
+.site-shell .hero-visual__image {
+  filter: saturate(0.9) contrast(1.02);
+  object-position: center;
+}
+
+.site-shell .hero-visual figcaption {
+  margin-top: 0.55rem;
+  color: #71848b;
+  font-size: 0.68rem;
+}
+
+.site-shell .hero-visual figcaption a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.site-shell .cms-live-region:not(:has([data-cms-live-slot])) {
+  display: none;
+}
+
+.site-shell .cms-live-region {
+  padding: 3.5rem 0 1rem;
+  background: #fff;
+}
+
+.site-shell .cms-live-region__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(18rem, 0.65fr);
+  gap: 1.5rem;
+}
+
+.site-shell .cms-live-region__aside {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.site-shell .care-section {
+  position: relative;
+  z-index: 4;
+  margin-top: -2.75rem;
+  border: 0;
+  background: transparent;
+}
+
+.site-shell .care-inner {
+  display: block;
+  padding: 0;
+}
+
+.site-shell .care-links {
+  grid-column: auto;
+  overflow: hidden;
+  border: 1px solid var(--hospital-border);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 13px 32px rgb(20 61 75 / 11%);
+}
+
+.site-shell .care-link,
+.site-shell .care-link + .care-link {
+  min-height: 98px;
+  padding: 1.15rem 1.25rem;
+  border-right: 1px solid var(--hospital-border);
+  color: var(--hospital-text);
+}
+
+.site-shell .care-link:last-child {
+  border-right: 0;
+}
+
+.site-shell .care-link:hover {
+  padding-left: 1.25rem;
+  background: var(--hospital-surface);
+  color: var(--hospital-teal-dark);
+}
+
+.site-shell .care-link__icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  background: var(--hospital-mint);
+  color: var(--hospital-teal);
+}
+
+.site-shell .care-link--emergency,
+.site-shell .care-link--emergency:hover {
+  color: #9e2f35;
+}
+
+.site-shell .care-link--emergency .care-link__icon {
+  background: #fbe9e9;
+  color: #b2373d;
+}
+
+.site-shell .section {
+  padding: 5rem 0;
+}
+
+.site-shell .section--unavailable {
+  display: none;
+}
+
+.site-shell .home-data-notice {
+  margin-top: 3.25rem;
+  margin-bottom: 1rem;
+  padding: 0.9rem 1rem;
+  border-left: 3px solid var(--hospital-teal);
+  background: var(--hospital-surface);
+  color: var(--hospital-muted);
+  font-size: 0.875rem;
+}
+
+.site-shell .section-heading {
+  align-items: end;
+  margin-bottom: 2.5rem;
+}
+
+.site-shell .section-heading > div:first-child {
+  max-width: 44rem;
+}
+
+.site-shell .section-heading h2,
+.site-shell .appointment-cta h2 {
+  color: var(--hospital-navy);
+  font-size: clamp(2rem, 3vw, 2.55rem);
+  letter-spacing: -0.035em;
+}
+
+.site-shell .section-note {
+  margin-bottom: 0.7rem;
+  color: var(--hospital-teal-dark);
+  font-size: 0.72rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.site-shell .section-description {
+  max-width: 60ch;
+  margin-top: 0.8rem;
+  color: var(--hospital-muted);
+  font-size: 1rem;
+}
+
+.site-shell .section-link,
+.site-shell .text-button {
+  color: var(--hospital-teal-dark);
+}
+
+.site-shell .section--specialties,
+.site-shell .section--packages,
+.site-shell .section--content {
+  background: #fff;
+}
+
+.site-shell .section--doctors,
+.site-shell .section--journey,
+.site-shell .section--branches {
+  background: var(--hospital-surface);
+}
+
+.site-shell .specialty-layout {
+  grid-template-columns: minmax(15rem, 0.65fr) minmax(0, 1.7fr);
+  gap: 2.5rem;
+}
+
+.site-shell .specialty-aside {
+  top: 7.5rem;
+  padding: 2rem;
+  border-radius: 10px;
+  background: var(--hospital-navy);
+  color: #fff;
+}
+
+.site-shell .specialty-aside__mark {
+  border-radius: 8px;
+  background: #fff;
+  color: var(--hospital-teal);
+}
+
+.site-shell .specialty-aside h3 {
+  max-width: 16ch;
+  color: #fff;
+  font-size: 1.65rem;
+}
+
+.site-shell .specialty-aside > p:not(.demo-note) {
+  color: #d2e2e5;
+}
+
+.site-shell .specialty-list {
+  border-top-color: var(--hospital-border);
+}
+
+.site-shell .specialty-row {
+  grid-template-columns: minmax(0, 1fr) 44px;
+  padding: 1.25rem 0;
+  border-bottom-color: var(--hospital-border);
+}
+
+.site-shell .specialty-row__index {
+  display: none;
+}
+
+.site-shell .specialty-row__icon {
+  border-radius: 8px;
+  background: var(--hospital-mint);
+}
+
+.site-shell .specialty-row h3 {
+  color: var(--hospital-navy);
+  font-size: 1.05rem;
+}
+
+.site-shell .specialty-row p {
+  color: var(--hospital-muted);
+}
+
+.site-shell .doctor-layout {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1.25rem;
+}
+
+.site-shell .doctor-stack {
+  display: contents;
+}
+
+.site-shell .doctor-card,
+.site-shell .doctor-card--featured {
+  border: 1px solid var(--hospital-border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--hospital-text);
+  box-shadow: 0 7px 18px rgb(20 61 75 / 6%);
+}
+
+.site-shell .doctor-card:hover {
+  box-shadow: 0 12px 25px rgb(20 61 75 / 11%);
+  transform: translateY(-3px);
+}
+
+.site-shell .doctor-photo,
+.site-shell .doctor-photo--featured {
+  min-height: 15.5rem;
+}
+
+.site-shell .doctor-card__body,
+.site-shell .doctor-card--featured .doctor-card__body {
+  padding: 1.25rem;
+}
+
+.site-shell .doctor-specialty,
+.site-shell .doctor-card--featured .doctor-specialty {
+  color: var(--hospital-teal-dark);
+}
+
+.site-shell .doctor-card h3,
+.site-shell .doctor-card--featured h3 {
+  color: var(--hospital-navy);
+  font-size: 1.15rem;
+}
+
+.site-shell .doctor-title,
+.site-shell .doctor-card--featured .doctor-title,
+.site-shell .doctor-bio,
+.site-shell .doctor-card--featured .doctor-bio {
+  color: var(--hospital-muted);
+}
+
+.site-shell .doctor-bio {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.site-shell .doctor-card .text-button,
+.site-shell .doctor-card--featured .text-button {
+  color: var(--hospital-teal-dark);
+}
+
+.site-shell .package-layout {
+  gap: 2.75rem;
+}
+
+.site-shell .package-feature {
+  border-radius: 10px;
+  background: var(--hospital-navy);
+  box-shadow: none;
+}
+
+.site-shell .package-badge {
+  border-radius: 4px;
+  background: #fff;
+  color: var(--hospital-teal-dark);
+}
+
+.site-shell .package-feature__eyebrow,
+.site-shell .package-feature__price,
+.site-shell .package-feature li svg {
+  color: #8ed4c9;
+}
+
+.site-shell .package-row {
+  border-bottom-color: var(--hospital-border);
+}
+
+.site-shell .package-row h3 {
+  color: var(--hospital-navy);
+}
+
+.site-shell .journey-step__icon,
+.site-shell .support-panel__icon {
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.site-shell .support-panel {
+  border-radius: 10px;
+  background: var(--hospital-teal-dark);
+}
+
+.site-shell .support-panel__icon {
+  background: #fff;
+  color: var(--hospital-teal);
+}
+
+.site-shell .support-panel .section-note {
+  color: #b9e3db;
+}
+
+.site-shell .branch-intro {
+  border-color: var(--hospital-border);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.site-shell .branch-intro h3,
+.site-shell .branch-row h3,
+.site-shell .article-row h3 {
+  color: var(--hospital-navy);
+}
+
+.site-shell .branch-list,
+.site-shell .branch-row,
+.site-shell .article-list,
+.site-shell .article-row {
+  border-color: var(--hospital-border);
+}
+
+.site-shell .video-card {
+  border-radius: 10px;
+  background: var(--hospital-navy);
+  box-shadow: none;
+}
+
+.site-shell .video-card__visual {
+  min-height: 11rem;
+  background: #176c70;
+}
+
+.site-shell .video-card__label,
+.site-shell .video-card .content-meta {
+  color: #b9e3db;
+}
+
+.site-shell .appointment-cta {
+  padding: 4.5rem 0;
+  background: var(--hospital-teal-dark);
+}
+
+.site-shell .appointment-cta h2 {
+  color: #fff;
+}
+
+.site-shell .appointment-cta .section-note {
+  color: #b9e3db;
+}
+
+.site-shell .appointment-cta .button--amber {
+  background: #fff;
+  color: var(--hospital-teal-dark);
+}
+
+.site-shell .appointment-cta .button--amber:hover {
+  background: #edf6f4;
+}
+
+.site-shell .ai-navigator-fab {
+  display: none;
+}
+
+.site-shell .site-footer {
+  padding-top: 4.5rem;
+  background: #103747;
+}
+
+.site-shell .site-footer__inner {
+  grid-template-columns: minmax(0, 1.7fr) repeat(2, minmax(8rem, 0.8fr)) minmax(12rem, 1fr);
+  gap: 2.75rem;
+}
+
+.site-shell .brand-link--footer .brand-mark {
+  background: #fff;
+  color: var(--hospital-teal);
+}
+
+.site-shell .brand-link--footer .brand-copy small {
+  color: #a9d6d2;
+}
+
+.site-shell .footer-hotline {
+  color: #fff;
+}
+
+@media (max-width: 1120px) {
+  .site-shell .desktop-nav {
+    gap: 0.8rem;
+  }
+
+  .site-shell .nav-link {
+    font-size: 0.82rem;
+  }
+
+  .site-shell .hero-inner {
+    grid-template-columns: minmax(0, 1fr) minmax(23rem, 0.9fr);
+    gap: 2.25rem;
+  }
+
+  .site-shell .doctor-layout {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .site-shell .hero-inner {
+    grid-template-columns: 1fr;
+    min-height: auto;
+    padding-top: 3.25rem;
+    padding-bottom: 5.5rem;
+  }
+
+  .site-shell .hero-copy {
+    max-width: 42rem;
+  }
+
+  .site-shell .hero-copy h1 {
+    max-width: 13ch;
+  }
+
+  .site-shell .hero-visual__image-wrap {
+    min-height: 24rem;
+  }
+
+  .site-shell .care-links {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .site-shell .care-link:nth-child(2) {
+    border-right: 0;
+  }
+
+  .site-shell .care-link:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--hospital-border);
+  }
+
+  .site-shell .specialty-layout,
+  .site-shell .journey-layout,
+  .site-shell .branch-layout,
+  .site-shell .content-layout,
+  .site-shell .cms-live-region__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .site-shell .site-footer__inner {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .site-shell .section-inner,
+  .site-shell .hero-inner,
+  .site-shell .care-inner,
+  .site-shell .appointment-cta__inner,
+  .site-shell .site-nav__inner,
+  .site-shell .utility-bar__inner,
+  .site-shell .site-footer__inner,
+  .site-shell .site-footer__bottom {
+    width: min(calc(100% - 2rem), 74rem);
+  }
+
+  .site-shell .utility-bar__inner {
+    min-height: 40px;
+  }
+
+  .site-shell .utility-hotline span {
+    font-size: 0.75rem;
+  }
+
+  .site-shell .site-nav__inner {
+    min-height: 66px;
+  }
+
+  .site-shell .brand-mark {
+    width: 36px;
+    height: 36px;
+  }
+
+  .site-shell .brand-copy strong {
+    font-size: 1rem;
+  }
+
+  .site-shell .hero-inner {
+    gap: 2rem;
+    padding-top: 2.5rem;
+    padding-bottom: 4.75rem;
+  }
+
+  .site-shell .hero-copy h1 {
+    max-width: 12ch;
+    font-size: clamp(2.3rem, 11vw, 3.2rem);
+  }
+
+  .site-shell .hero-description {
+    font-size: 0.98rem;
+  }
+
+  .site-shell .hero-search {
+    padding: 0.45rem;
+  }
+
+  .site-shell .hero-search > svg {
+    margin-top: 0.85rem;
+  }
+
+  .site-shell .hero-visual__image-wrap {
+    min-height: 18rem;
+    border-radius: 8px;
+  }
+
+  .site-shell .hero-trust {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .site-shell .care-section {
+    margin-top: -2.25rem;
+  }
+
+  .site-shell .care-links {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .site-shell .care-link,
+  .site-shell .care-link + .care-link {
+    min-height: 118px;
+    grid-template-columns: 38px 1fr;
+    align-content: center;
+    padding: 0.9rem;
+    border-right: 1px solid var(--hospital-border);
+    border-bottom: 1px solid var(--hospital-border);
+  }
+
+  .site-shell .care-link:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .site-shell .care-link:nth-last-child(-n + 2) {
+    border-bottom: 0;
+  }
+
+  .site-shell .care-link:hover {
+    padding-left: 0.9rem;
+  }
+
+  .site-shell .care-link > svg:last-child {
+    display: none;
+  }
+
+  .site-shell .care-link__icon {
+    width: 38px;
+    height: 38px;
+  }
+
+  .site-shell .care-link strong {
+    font-size: 0.85rem;
+  }
+
+  .site-shell .care-link small {
+    font-size: 0.72rem;
+  }
+
+  .site-shell .section {
+    padding: 4rem 0;
+  }
+
+  .site-shell .section-heading {
+    align-items: flex-start;
+    margin-bottom: 2rem;
+  }
+
+  .site-shell .section-heading h2,
+  .site-shell .appointment-cta h2 {
+    font-size: clamp(1.8rem, 8vw, 2.2rem);
+  }
+
+  .site-shell .specialty-aside,
+  .site-shell .support-panel,
+  .site-shell .branch-intro,
+  .site-shell .package-feature,
+  .site-shell .video-card__body {
+    padding: 1.5rem;
+  }
+
+  .site-shell .specialty-row {
+    grid-template-columns: minmax(0, 1fr) 40px;
+  }
+
+  .site-shell .doctor-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .site-shell .doctor-photo,
+  .site-shell .doctor-photo--featured {
+    min-height: 20rem;
+  }
+
+  .site-shell .appointment-cta {
+    padding: 3.5rem 0;
+  }
+
+  .site-shell .site-footer {
+    padding-top: 3.5rem;
+  }
+
+  .site-shell .site-footer__inner {
+    grid-template-columns: 1fr;
+  }
+
+  .site-shell .mobile-care-rail {
+    border-top-color: var(--hospital-border);
+    background: #fff;
+    box-shadow: 0 -8px 22px rgb(20 61 75 / 10%);
+  }
+
+  .site-shell .mobile-care-rail a,
+  .site-shell .mobile-care-rail a:first-child {
+    color: var(--hospital-teal-dark);
+  }
+
+  .site-shell .mobile-care-rail .mobile-care-rail__primary {
+    margin-block: -0.85rem 0;
+    border-radius: 8px 8px 0 0;
+    background: var(--hospital-teal);
+    color: #fff;
+  }
+}
+
+/* About page follows the same editorial visual language as the homepage. */
+.site-shell .about-page {
+  padding-bottom: 5rem;
+}
+
+.site-shell .about-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(28rem, 1.15fr);
+  align-items: center;
+  gap: clamp(2rem, 5vw, 4.5rem);
+  padding: 3.75rem 0 5rem;
+}
+
+.site-shell .about-hero__copy h1 {
+  max-width: 12ch;
+  margin: 0;
+  color: var(--hospital-navy);
+  font-family: var(--font-display);
+  font-size: clamp(2.6rem, 4.5vw, 4rem);
+  font-weight: 750;
+  letter-spacing: -0.045em;
+  line-height: 1.06;
+}
+
+.site-shell .about-hero__copy > p:not(.section-note) {
+  max-width: 34rem;
+  margin: 1.35rem 0 1.75rem;
+  color: var(--hospital-muted);
+  font-size: 1.05rem;
+  line-height: 1.7;
+}
+
+.site-shell .about-hero__visual {
+  margin: 0;
+}
+
+.site-shell .about-hero__image-wrap {
+  position: relative;
+  min-height: 29rem;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--hospital-mint);
+  box-shadow: 0 18px 38px rgb(18 63 82 / 12%);
+}
+
+.site-shell .about-hero__image {
+  object-fit: cover;
+}
+
+.site-shell .about-hero__visual figcaption {
+  margin-top: 0.55rem;
+  color: #71848b;
+  font-size: 0.68rem;
+}
+
+.site-shell .about-hero__visual figcaption a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.site-shell .about-values {
+  display: grid;
+  grid-template-columns: minmax(16rem, 0.72fr) minmax(0, 1.55fr);
+  gap: 3.5rem;
+  padding: 5rem 0;
+  border-top: 1px solid var(--hospital-border);
+}
+
+.site-shell .about-values h2,
+.site-shell .about-network h2,
+.site-shell .about-closing h2 {
+  margin: 0;
+  color: var(--hospital-navy);
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 3vw, 2.55rem);
+  letter-spacing: -0.035em;
+  line-height: 1.12;
+}
+
+.site-shell .about-values__list {
+  border-top: 1px solid var(--hospital-border);
+}
+
+.site-shell .about-values__list article {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(9rem, 0.65fr) minmax(0, 1.35fr);
+  gap: 1.25rem;
+  padding: 1.5rem 0;
+  border-bottom: 1px solid var(--hospital-border);
+}
+
+.site-shell .about-values__list span {
+  color: var(--hospital-teal);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.site-shell .about-values__list h3 {
+  margin: 0;
+  color: var(--hospital-navy);
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+}
+
+.site-shell .about-values__list p {
+  margin: 0;
+  color: var(--hospital-muted);
+  font-size: 0.9rem;
+}
+
+.site-shell .about-network {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(24rem, 0.85fr);
+  align-items: center;
+  gap: 3rem;
+  padding: 3.25rem;
+  border-radius: 10px;
+  background: var(--hospital-navy);
+  color: #fff;
+}
+
+.site-shell .about-network .section-note {
+  color: #9ed9d0;
+}
+
+.site-shell .about-network h2 {
+  max-width: 18ch;
+  color: #fff;
+}
+
+.site-shell .about-network > div > p:last-child {
+  max-width: 34rem;
+  margin: 1rem 0 0;
+  color: #d1e1e5;
+}
+
+.site-shell .about-network__status {
+  margin: 0;
+  padding: 1rem;
+  border-left: 3px solid #8ed4c9;
+  color: #dcebee;
+}
+
+.site-shell .about-network__metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  border: 1px solid rgb(255 255 255 / 22%);
+}
+
+.site-shell .about-network__metrics div {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 0.2rem;
+  padding: 1.5rem 1rem;
+  border-right: 1px solid rgb(255 255 255 / 22%);
+}
+
+.site-shell .about-network__metrics div:last-child {
+  border-right: 0;
+}
+
+.site-shell .about-network__metrics dt {
+  color: #c6dadd;
+  font-size: 0.75rem;
+}
+
+.site-shell .about-network__metrics dd {
+  margin: 0;
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 750;
+}
+
+.site-shell .about-closing {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+  padding: 4.5rem 0 0;
+}
+
+@media (max-width: 900px) {
+  .site-shell .about-hero,
+  .site-shell .about-values,
+  .site-shell .about-network {
+    grid-template-columns: 1fr;
+  }
+
+  .site-shell .about-hero__copy h1 {
+    max-width: 14ch;
+  }
+
+  .site-shell .about-network {
+    padding: 2.5rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .site-shell .about-hero {
+    gap: 2.25rem;
+    padding: 2.75rem 0 4rem;
+  }
+
+  .site-shell .about-hero__copy h1 {
+    font-size: clamp(2.25rem, 11vw, 3rem);
+  }
+
+  .site-shell .about-hero__image-wrap {
+    min-height: 18rem;
+  }
+
+  .site-shell .about-values {
+    gap: 2rem;
+    padding: 4rem 0;
+  }
+
+  .site-shell .about-values__list article {
+    grid-template-columns: 2rem 1fr;
+  }
+
+  .site-shell .about-values__list p {
+    grid-column: 2;
+  }
+
+  .site-shell .about-network {
+    padding: 1.5rem;
+  }
+
+  .site-shell .about-network__metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .site-shell .about-network__metrics div {
+    border-right: 0;
+    border-bottom: 1px solid rgb(255 255 255 / 22%);
+  }
+
+  .site-shell .about-network__metrics div:last-child {
+    border-bottom: 0;
+  }
+
+  .site-shell .about-closing {
+    align-items: flex-start;
+    flex-direction: column;
+    padding-top: 3.5rem;
+  }
+
+  .site-shell .about-closing .resource-actions,
+  .site-shell .about-closing .resource-actions > * {
+    width: 100%;
+  }
+}

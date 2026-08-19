@@ -32,8 +32,8 @@ export default function DoctorDetailPage() {
         return fetchDoctorBySlug(params.slug);
       })
       .then((data) => { if (data !== undefined && !cancelled) setDoctor(data); })
-      .catch((reason: unknown) => {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : "Không thể tải hồ sơ bác sĩ.");
+      .catch(() => {
+        if (!cancelled) setError("Tạm thời chưa thể tải hồ sơ bác sĩ. Vui lòng thử lại sau.");
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     void task;
@@ -45,14 +45,14 @@ export default function DoctorDetailPage() {
       <div className="resource-page section-inner">
         <PublicBackLink href="/doctors">← Quay lại danh sách bác sĩ</PublicBackLink>
         <header className="resource-page__header">
-          <p className="section-note">Hồ sơ chuyên gia · catalog backend</p>
+          <p className="section-note">Hồ sơ bác sĩ</p>
           <h1>Bác sĩ đồng hành cùng bạn</h1>
-          <p>Thông tin được hiển thị từ hồ sơ active; lịch còn trống sẽ được kiểm tra theo cơ sở và ngày bạn chọn.</p>
+          <p>Tìm hiểu chuyên môn, kinh nghiệm và chọn cơ sở, ngày khám thuận tiện với bạn.</p>
         </header>
 
         {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải hồ sơ bác sĩ…</p> : null}
-        {error ? <p className="catalog-status catalog-status--error" role="alert">{error} Không có hồ sơ demo thay thế.</p> : null}
-        {!loading && !error && !doctor ? <p className="catalog-status" role="status">Không tìm thấy hồ sơ active cho đường dẫn này.</p> : null}
+        {error ? <p className="catalog-status catalog-status--error" role="alert">{error}</p> : null}
+        {!loading && !error && !doctor ? <p className="catalog-status" role="status">Không tìm thấy hồ sơ bác sĩ này.</p> : null}
 
         {doctor ? (
           <article className="resource-hero-card">
@@ -67,7 +67,7 @@ export default function DoctorDetailPage() {
               <p>{doctor.bio || "Hồ sơ chưa có phần giới thiệu chi tiết."}</p>
               <div className="resource-actions">
                 <PublicBookingButton selection={{ doctorId: doctor.id }}>Đặt lịch với bác sĩ</PublicBookingButton>
-                <PublicAiButton className="outline-button">Mô tả triệu chứng trước khi đặt</PublicAiButton>
+                <PublicAiButton className="outline-button">Hỗ trợ chọn chuyên khoa</PublicAiButton>
               </div>
             </div>
           </article>
@@ -80,14 +80,14 @@ export default function DoctorDetailPage() {
               <h2>Điều cần biết trước khi đặt lịch</h2>
               <ul className="resource-list">
                 <li>Chọn đúng cơ sở thuộc lịch làm việc của bác sĩ.</li>
-                <li>Khung giờ chỉ được xác nhận sau khi backend giữ chỗ thành công.</li>
+                <li>Khung giờ được xác nhận sau khi hệ thống giữ chỗ thành công.</li>
                 <li>Hãy mang theo mã lịch hẹn khi đến cơ sở.</li>
               </ul>
             </section>
             <section className="resource-panel resource-panel--accent">
-              <p className="section-note">Ranh giới an toàn</p>
-              <h2>Trợ lý AI chỉ gợi ý hướng chăm sóc</h2>
-              <p>AI không chẩn đoán, không thay thế bác sĩ và không tự tạo lịch. Mọi identity đặt lịch đều lấy từ catalog backend.</p>
+              <p className="section-note">Lưu ý an toàn</p>
+              <h2>Trợ lý chọn khoa chỉ mang tính tham khảo</h2>
+              <p>Gợi ý trực tuyến không phải chẩn đoán và không thay thế việc thăm khám trực tiếp với bác sĩ.</p>
               <PublicBookingButton className="outline-button outline-button--dark">Mở luồng đặt lịch</PublicBookingButton>
             </section>
           </div>

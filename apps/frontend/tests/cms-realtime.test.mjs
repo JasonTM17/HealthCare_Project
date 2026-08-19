@@ -61,10 +61,16 @@ test("public live slot listens to named SSE changes and has polling fallback", a
   assert.match(client, /parseReadyEvent\(JSON\.parse/);
   assert.match(client, /readSlotKey/);
   assert.match(client, /Number\.isSafeInteger/);
+  assert.match(client, /changeSubscribers/);
+  assert.match(client, /openSharedChangeFeed/);
+  assert.match(client, /scheduleSharedReconnect/);
+  assert.match(client, /Math\.random/);
+  assert.match(client, /Math\.min\(30_000/);
+  assert.match(client, /register\("unavailable"/);
+  assert.match(client, /this\.changeSubscribers\.size === 0/);
   assert.match(liveSlot, /resolveCmsSlotKey/);
   assert.match(liveSlot, /setInterval/);
-  assert.match(liveSlot, /scheduleReconnect/);
-  assert.match(liveSlot, /reconnectAttempt/);
+  assert.match(liveSlot, /client\.subscribeToChanges/);
   assert.match(liveSlot, /sseConnected/);
   assert.match(liveSlot, /pendingVersionFloor/);
   assert.match(liveSlot, /refresh\(event\.version, event\.eventId\)/);
@@ -93,6 +99,9 @@ test("public live slot listens to named SSE changes and has polling fallback", a
   assert.match(liveSlot, /reconciliation\.pendingEventIds\.size === 0\s+&& reconciliation\.reconciliationCursor === 0/);
   assert.match(liveSlot, /result !== "failed"/);
   assert.match(liveSlot, /data-cms-live-source="live-backend"/);
+  assert.doesNotMatch(liveSlot, /scheduleReconnect/);
+  assert.doesNotMatch(liveSlot, /reconnectTimer/);
+  assert.doesNotMatch(liveSlot, /reconnectAttempt/);
   assert.doesNotMatch(liveSlot, /window\.location\.reload/);
 });
 

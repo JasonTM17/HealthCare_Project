@@ -6,11 +6,15 @@ type PortalAppointmentsProps =
       page: Page<PatientPortalAppointment>;
       viewer: "patient";
       onSelectAppointment?: never;
+      onUpdateStatus?: never;
+      onReschedule?: (appointment: PatientPortalAppointment) => void;
     }
   | {
       page: Page<DoctorPortalAppointment>;
       viewer: "doctor";
       onSelectAppointment?: (appointment: DoctorPortalAppointment) => void;
+      onUpdateStatus?: (appointment: DoctorPortalAppointment, status: "CHECKED_IN" | "IN_PROGRESS" | "NO_SHOW") => void;
+      onReschedule?: never;
     };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -42,6 +46,8 @@ export default function PortalAppointments({
   page,
   viewer,
   onSelectAppointment,
+  onUpdateStatus,
+  onReschedule,
 }: PortalAppointmentsProps) {
   return (
     <div aria-label={viewer === "patient" ? "Danh sách lịch hẹn của bệnh nhân" : "Lịch hẹn trong ngày của bác sĩ"} className="portal-appointment-list">
@@ -68,12 +74,27 @@ export default function PortalAppointments({
             {appointment.packageName ? <div><dt>Gói khám</dt><dd>{appointment.packageName}</dd></div> : null}
             <div><dt>Mã lịch hẹn</dt><dd>{appointment.bookingCode}</dd></div>
           </dl>
-          {viewer === "doctor" && onSelectAppointment ? (
-            <button className="outline-button outline-button--small" onClick={() => {
-              if ("patientId" in appointment) onSelectAppointment(appointment);
-            }} type="button">
-              Ghi nhận kết quả khám
-            </button>
+          {viewer === "doctor" && "patientId" in appointment ? (
+            <div className="portal-appointment__actions">
+              {appointment.status === "CONFIRMED" && onUpdateStatus ? (
+                <>
+                  <button className="outline-button outline-button--small" onClick={() => onUpdateStatus(appointment, "CHECKED_IN")} type="button">Tiếp nhận</button>
+                  <button className="text-button" onClick={() => onUpdateStatus(appointment, "NO_SHOW")} type="button">Không đến</button>
+                </>
+              ) : null}
+              {appointment.status === "CHECKED_IN" && onUpdateStatus ? (
+                <>
+                  <button className="outline-button outline-button--small" onClick={() => onUpdateStatus(appointment, "IN_PROGRESS")} type="button">Bắt đầu khám</button>
+                  <button className="text-button" onClick={() => onUpdateStatus(appointment, "NO_SHOW")} type="button">Không đến</button>
+                </>
+              ) : null}
+              {appointment.status === "IN_PROGRESS" && onSelectAppointment ? (
+                <button className="button button--primary" onClick={() => onSelectAppointment(appointment)} type="button">Ghi nhận kết quả khám</button>
+              ) : null}
+            </div>
+          ) : null}
+          {viewer === "patient" && "doctorId" in appointment && appointment.status === "CONFIRMED" && onReschedule ? (
+            <button className="outline-button outline-button--small" onClick={() => onReschedule(appointment)} type="button">Đổi lịch</button>
           ) : null}
         </article>
       ))}

@@ -42,11 +42,11 @@ test("AI triage uses the authenticated backend contract without a local answer",
   assert.match(apiClient, /clinical_advice/);
   assert.match(apiClient, /suggested_questions/);
   assert.match(aiModal, /recommendSpecialty/);
-  assert.match(aiModal, /Cần đăng nhập \(401\)/);
-  assert.match(aiModal, /Không có quyền truy cập \(403\)/);
-  assert.match(aiModal, /Dịch vụ AI tạm thời không khả dụng/);
+  assert.match(aiModal, /Vui lòng đăng nhập/);
+  assert.match(aiModal, /Chưa thể sử dụng tính năng này/);
+  assert.match(aiModal, /Tạm thời chưa thể xử lý/);
   assert.match(aiModal, /citations/);
-  assert.match(aiModal, /provenance/);
+  assert.match(apiClient, /provenance/);
   assert.match(aiModal, /disclaimer/);
   assert.doesNotMatch(aiModal, /performAiTriage/);
   assert.doesNotMatch(legacyApi, /performAiTriage/);

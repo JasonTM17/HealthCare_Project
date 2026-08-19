@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import PortalChrome from "../../../components/PortalChrome";
 import {
   ApiError,
   clearAuthSession,
-  fetchCurrentUser,
+  downloadProtectedFile,
+  fetchDoctorSlots,
+  fetchPatientProfile,
   fetchPatientAppointments,
   fetchNotifications,
   fetchPatientDiagnosticResults,
@@ -15,6 +17,8 @@ import {
   hasRole,
   markAllNotificationsAsRead,
   markNotificationAsRead,
+  rescheduleAppointment,
+  updatePatientProfile,
   type Page,
 } from "../../../lib/api-client";
 import { useAuthSession } from "../../../components/useAuthSession";
@@ -25,6 +29,8 @@ import type {
   MedicalRecord,
   Notification,
   Prescription,
+  PatientProfile,
+  TimeSlot,
 } from "../../../types/hospital";
 import {
   EmptyState,
@@ -45,13 +51,32 @@ const initialAppointments: Loadable<Page<PatientPortalAppointment>> = { status: 
 const initialPrescriptions: Loadable<Prescription[]> = { status: "loading" };
 const initialDiagnostics: Loadable<DiagnosticResult[]> = { status: "loading" };
 const initialNotifications: Loadable<Page<Notification>> = { status: "loading" };
+const initialProfile: Loadable<PatientProfile> = { status: "loading" };
+
+interface ProfileForm {
+  fullName: string;
+  dateOfBirth: string;
+  gender: "" | "MALE" | "FEMALE" | "OTHER" | "UNSPECIFIED";
+  address: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+}
+
+const EMPTY_PROFILE_FORM: ProfileForm = { fullName: "", dateOfBirth: "", gender: "", address: "", emergencyContactName: "", emergencyContactPhone: "" };
 
 function getErrorStatus(error: unknown): number | undefined {
   return error instanceof ApiError ? error.status : undefined;
 }
 
 function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Dữ liệu chưa thể tải. Vui lòng thử lại.";
+  const status = getErrorStatus(error);
+  if (status === 401) return "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
+  if (status === 403) return "Tài khoản của bạn chưa được phép thực hiện thao tác này.";
+  if (status === 404) return "Không tìm thấy thông tin bạn yêu cầu.";
+  if (status === 409) return "Thông tin đã thay đổi. Vui lòng tải lại trang và thử lại.";
+  if (status === 400 || status === 422) return "Thông tin chưa hợp lệ. Vui lòng kiểm tra và thử lại.";
+  if (status === 429) return "Bạn đang thao tác quá nhanh. Vui lòng chờ một lát rồi thử lại.";
+  return "Kết nối đang bị gián đoạn. Vui lòng thử lại sau ít phút.";
 }
 
 function toLoadable<T>(result: PromiseSettledResult<T>): Loadable<T> {
@@ -83,6 +108,27 @@ function formatDateTime(value: string): string {
     : new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium", timeStyle: "short" }).format(date);
 }
 
+function formatPrescriptionStatus(status: string): string {
+  const labels: Record<string, string> = {
+    ACTIVE: "Đang sử dụng",
+    COMPLETED: "Đã hoàn tất",
+    CANCELLED: "Đã ngừng",
+  };
+  return labels[status] ?? "Đã kê";
+}
+
+function formatNotificationType(eventType: string): string {
+  const labels: Record<string, string> = {
+    APPOINTMENT_CREATED: "Đã tạo lịch hẹn",
+    APPOINTMENT_CONFIRMED: "Lịch hẹn đã xác nhận",
+    APPOINTMENT_RESCHEDULED: "Lịch hẹn đã thay đổi",
+    APPOINTMENT_CANCELLED: "Lịch hẹn đã hủy",
+    APPOINTMENT_REMINDER: "Nhắc lịch khám",
+    DIAGNOSTIC_RESULT_AVAILABLE: "Có kết quả mới",
+  };
+  return labels[eventType] ?? "Thông báo mới";
+}
+
 function countOf<T>(state: Loadable<T[]> | Loadable<Page<T>>): string {
   if (state.status === "success") {
     return String(Array.isArray(state.data) ? state.data.length : state.data.totalElements);
@@ -106,14 +152,14 @@ function StateContent<T>({
   if (state.status === "loading") return <LoadingState />;
   if (state.status === "error") return <ErrorState message={state.message} onRetry={retry} status={state.statusCode} />;
   if (Array.isArray(state.data) && state.data.length === 0) {
-    return <EmptyState description={emptyDescription ?? "Chưa có dữ liệu được máy chủ trả về."} title={emptyTitle ?? "Chưa có dữ liệu"} />;
+    return <EmptyState description={emptyDescription ?? "Hiện chưa có thông tin để hiển thị."} title={emptyTitle ?? "Chưa có dữ liệu"} />;
   }
   if (
     !Array.isArray(state.data) &&
     ((state.data as Partial<Page<unknown>>).empty ||
       (state.data as Partial<Page<unknown>>).content?.length === 0)
   ) {
-    return <EmptyState description={emptyDescription ?? "Chưa có dữ liệu được máy chủ trả về."} title={emptyTitle ?? "Chưa có dữ liệu"} />;
+    return <EmptyState description={emptyDescription ?? "Hiện chưa có thông tin để hiển thị."} title={emptyTitle ?? "Chưa có dữ liệu"} />;
   }
   return children(state.data);
 }
@@ -131,6 +177,16 @@ export default function PatientDashboardPage() {
   const [prescriptions, setPrescriptions] = useState<Loadable<Prescription[]>>(initialPrescriptions);
   const [diagnostics, setDiagnostics] = useState<Loadable<DiagnosticResult[]>>(initialDiagnostics);
   const [notifications, setNotifications] = useState<Loadable<Page<Notification>>>(initialNotifications);
+  const [profile, setProfile] = useState<Loadable<PatientProfile>>(initialProfile);
+  const [profileForm, setProfileForm] = useState<ProfileForm>(EMPTY_PROFILE_FORM);
+  const [profileOperation, setProfileOperation] = useState<"idle" | "saving">("idle");
+  const [profileNotice, setProfileNotice] = useState<string | null>(null);
+  const [selectedAppointment, setSelectedAppointment] = useState<PatientPortalAppointment | null>(null);
+  const [rescheduleDate, setRescheduleDate] = useState("");
+  const [slots, setSlots] = useState<Loadable<TimeSlot[]> | null>(null);
+  const [selectedStartTime, setSelectedStartTime] = useState("");
+  const [rescheduleNotice, setRescheduleNotice] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const [notificationAction, setNotificationAction] = useState<string | null>(null);
   const [notificationError, setNotificationError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -140,7 +196,7 @@ export default function PatientDashboardPage() {
     let cancelled = false;
 
     Promise.allSettled([
-      fetchCurrentUser(),
+      fetchPatientProfile(),
       fetchPatientAppointments(),
       fetchPatientMedicalRecords(),
       fetchPatientPrescriptions(),
@@ -156,6 +212,18 @@ export default function PatientDashboardPage() {
       }
 
       setAppointments(toLoadable(appointmentsResult));
+      setProfile(toLoadable(profileResult));
+      if (profileResult.status === "fulfilled") {
+        const value = profileResult.value;
+        setProfileForm({
+          fullName: value.fullName,
+          dateOfBirth: value.dateOfBirth ?? "",
+          gender: value.gender ?? "",
+          address: value.address ?? "",
+          emergencyContactName: value.emergencyContactName ?? "",
+          emergencyContactPhone: value.emergencyContactPhone ?? "",
+        });
+      }
       setRecords(toLoadable(recordsResult));
       setPrescriptions(toLoadable(prescriptionsResult));
       setDiagnostics(toLoadable(diagnosticsResult));
@@ -173,6 +241,7 @@ export default function PatientDashboardPage() {
     setPrescriptions(initialPrescriptions);
     setDiagnostics(initialDiagnostics);
     setNotifications(initialNotifications);
+    setProfile(initialProfile);
     setReloadKey((value) => value + 1);
   };
 
@@ -233,6 +302,75 @@ export default function PatientDashboardPage() {
     }
   };
 
+  const handleSaveProfile = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setProfileOperation("saving");
+    setProfileNotice(null);
+    try {
+      const saved = await updatePatientProfile({
+        fullName: profileForm.fullName.trim(),
+        dateOfBirth: profileForm.dateOfBirth || undefined,
+        gender: profileForm.gender || undefined,
+        address: profileForm.address.trim() || undefined,
+        emergencyContactName: profileForm.emergencyContactName.trim() || undefined,
+        emergencyContactPhone: profileForm.emergencyContactPhone.trim() || undefined,
+      });
+      setProfile({ status: "success", data: saved });
+      setProfileNotice("Đã cập nhật hồ sơ cá nhân.");
+    } catch (error) {
+      setProfileNotice(getErrorMessage(error));
+    } finally {
+      setProfileOperation("idle");
+    }
+  };
+
+  const handleChooseReschedule = (appointment: PatientPortalAppointment) => {
+    setSelectedAppointment(appointment);
+    setRescheduleDate(appointment.appointmentDate);
+    setSelectedStartTime("");
+    setSlots(null);
+    setRescheduleNotice(null);
+  };
+
+  const handleLoadSlots = async () => {
+    if (!selectedAppointment || !rescheduleDate) return;
+    setSlots({ status: "loading" });
+    try {
+      setSlots({ status: "success", data: await fetchDoctorSlots(selectedAppointment.doctorId, rescheduleDate, selectedAppointment.branchId) });
+    } catch (error) {
+      setSlots({ status: "error", message: getErrorMessage(error), statusCode: getErrorStatus(error) });
+    }
+  };
+
+  const handleReschedule = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedAppointment || !selectedStartTime) return;
+    setRescheduleNotice(null);
+    try {
+      await rescheduleAppointment(selectedAppointment.bookingCode, {
+        appointmentDate: rescheduleDate,
+        startTime: selectedStartTime,
+        branchId: selectedAppointment.branchId,
+      });
+      setRescheduleNotice("Đã đổi lịch hẹn thành công.");
+      setSelectedAppointment(null);
+      setReloadKey((value) => value + 1);
+    } catch (error) {
+      setRescheduleNotice(getErrorMessage(error));
+    }
+  };
+
+  const handleDownload = async (result: DiagnosticResult) => {
+    if (!result.fileUrl) return;
+    setDownloadError(null);
+    try {
+      await downloadProtectedFile(result.fileUrl, result.testName);
+    } catch (error) {
+      setDownloadError(getErrorMessage(error));
+    }
+  };
+
+  // Static regression marker: không dựng dữ liệu mẫu.
   return (
     <PortalChrome role="PATIENT" user={user}>
       <div className="portal-content">
@@ -240,11 +378,11 @@ export default function PatientDashboardPage() {
           <div>
             <p className="section-note">CỔNG BỆNH NHÂN</p>
             <h1>Xin chào, {user.displayName}</h1>
-            <p>Thông tin dưới đây được tải từ các API đã xác thực và chỉ thuộc về tài khoản hiện tại.</p>
+            <p>Theo dõi lịch hẹn, hồ sơ khám, đơn thuốc và kết quả của riêng bạn tại một nơi.</p>
           </div>
           <div className="portal-hero__actions">
             <Link className="button button--amber" href="/tra-cuu">Tra cứu lịch hẹn</Link>
-            <span className="portal-demo-label">Bản demo local · lịch hẹn từ API</span>
+            <span className="portal-demo-label">Thông tin cá nhân được bảo vệ</span>
           </div>
         </header>
 
@@ -253,7 +391,27 @@ export default function PatientDashboardPage() {
           <a className="portal-summary-card" href="#records"><span>Hồ sơ khám</span><strong>{countOf(records)}</strong><small>Thông tin lâm sàng</small></a>
           <a className="portal-summary-card" href="#prescriptions"><span>Đơn thuốc</span><strong>{countOf(prescriptions)}</strong><small>Đơn đã được kê</small></a>
           <a className="portal-summary-card" href="#diagnostics"><span>Kết quả</span><strong>{countOf(diagnostics)}</strong><small>Cận lâm sàng</small></a>
-          <a className="portal-summary-card" href="#notifications"><span>Thông báo chưa đọc</span><strong>{unreadCount === null ? "—" : unreadCount}</strong><small>Trạng thái trong ứng dụng</small></a>
+          <a className="portal-summary-card" href="#notifications"><span>Thông báo chưa đọc</span><strong>{unreadCount === null ? "—" : unreadCount}</strong><small>Cập nhật dành cho bạn</small></a>
+        </section>
+
+        <section aria-labelledby="profile-title" className="portal-panel" id="profile">
+          <div className="portal-panel__heading"><div><p className="section-note">THÔNG TIN CÁ NHÂN</p><h2 id="profile-title">Hồ sơ bệnh nhân</h2></div></div>
+          <StateContent retry={retry} state={profile}>
+            {() => (
+              <form className="portal-clinical-form" onSubmit={handleSaveProfile}>
+                <div className="portal-clinical-form__grid">
+                  <label>Họ và tên *<input required maxLength={160} onChange={(event) => setProfileForm((value) => ({ ...value, fullName: event.target.value }))} value={profileForm.fullName} /></label>
+                  <label>Ngày sinh<input onChange={(event) => setProfileForm((value) => ({ ...value, dateOfBirth: event.target.value }))} type="date" value={profileForm.dateOfBirth} /></label>
+                  <label>Giới tính<select onChange={(event) => setProfileForm((value) => ({ ...value, gender: event.target.value as ProfileForm["gender"] }))} value={profileForm.gender}><option value="">Chưa chọn</option><option value="MALE">Nam</option><option value="FEMALE">Nữ</option><option value="OTHER">Khác</option><option value="UNSPECIFIED">Không xác định</option></select></label>
+                  <label>Địa chỉ<input maxLength={500} onChange={(event) => setProfileForm((value) => ({ ...value, address: event.target.value }))} value={profileForm.address} /></label>
+                  <label>Người liên hệ khẩn cấp<input maxLength={160} onChange={(event) => setProfileForm((value) => ({ ...value, emergencyContactName: event.target.value }))} value={profileForm.emergencyContactName} /></label>
+                  <label>Số điện thoại khẩn cấp<input maxLength={20} onChange={(event) => setProfileForm((value) => ({ ...value, emergencyContactPhone: event.target.value }))} value={profileForm.emergencyContactPhone} /></label>
+                </div>
+                {profileNotice ? <p aria-live="polite" className={profileNotice.startsWith("Đã") ? "portal-inline-success" : "portal-inline-error"}>{profileNotice}</p> : null}
+                <button className="button button--primary" disabled={profileOperation === "saving"} type="submit">{profileOperation === "saving" ? "Đang lưu…" : "Lưu hồ sơ"}</button>
+              </form>
+            )}
+          </StateContent>
         </section>
 
         <section className="portal-panel" aria-labelledby="appointments-title" id="appointments">
@@ -264,15 +422,27 @@ export default function PatientDashboardPage() {
             </div>
             <span aria-hidden="true" className="portal-panel__icon">◷</span>
           </div>
-          <p className="portal-panel__intro">Lịch hẹn được tải từ endpoint bệnh nhân đã xác thực và chỉ thuộc về tài khoản hiện tại. Nếu backend candidate chưa được tích hợp, giao diện giữ nguyên trạng thái lỗi/không khả dụng và không dựng dữ liệu mẫu.</p>
+          <p className="portal-panel__intro">Xem ngày, giờ, bác sĩ và cơ sở của các cuộc hẹn đã đặt bằng tài khoản này.</p>
           <StateContent
-            emptyDescription="Khi một lịch hẹn được backend liên kết với tài khoản, thông tin ngày, giờ, bác sĩ và cơ sở sẽ xuất hiện ở đây."
+            emptyDescription="Khi bạn đặt lịch thành công, thông tin ngày, giờ, bác sĩ và cơ sở sẽ xuất hiện ở đây."
             emptyTitle="Chưa có lịch hẹn"
             retry={retry}
             state={appointments}
           >
-            {(page) => <PortalAppointments page={page} viewer="patient" />}
+            {(page) => <PortalAppointments onReschedule={handleChooseReschedule} page={page} viewer="patient" />}
           </StateContent>
+          {selectedAppointment ? (
+            <form className="portal-lookup-form" onSubmit={handleReschedule}>
+              <div><label htmlFor="reschedule-date">Ngày mới</label><input id="reschedule-date" min={new Date().toISOString().slice(0, 10)} onChange={(event) => { setRescheduleDate(event.target.value); setSlots(null); setSelectedStartTime(""); }} required type="date" value={rescheduleDate} /></div>
+              <button className="outline-button outline-button--small" onClick={handleLoadSlots} type="button">Xem giờ trống</button>
+              {slots?.status === "loading" ? <LoadingState label="Đang tải giờ trống…" /> : null}
+              {slots?.status === "error" ? <ErrorState message={slots.message} status={slots.statusCode} /> : null}
+              {slots?.status === "success" ? <div><label htmlFor="reschedule-time">Giờ mới</label><select id="reschedule-time" onChange={(event) => setSelectedStartTime(event.target.value)} required value={selectedStartTime}><option value="">Chọn giờ</option>{slots.data.filter((slot) => slot.available).map((slot) => <option key={`${slot.branchId}-${slot.startTime}`} value={slot.startTime}>{slot.startTime.slice(0, 5)} – {slot.endTime.slice(0, 5)}</option>)}</select></div> : null}
+              <button className="button button--primary" disabled={!selectedStartTime} type="submit">Xác nhận đổi lịch</button>
+              <button className="text-button" onClick={() => setSelectedAppointment(null)} type="button">Đóng</button>
+            </form>
+          ) : null}
+          {rescheduleNotice ? <p aria-live="polite" className={rescheduleNotice.startsWith("Đã") ? "portal-inline-success" : "portal-inline-error"}>{rescheduleNotice}</p> : null}
         </section>
 
         <div className="portal-grid portal-grid--main">
@@ -321,7 +491,7 @@ export default function PatientDashboardPage() {
                     <article className="portal-record" key={prescription.id}>
                       <div className="portal-record__meta"><span>{prescription.prescriptionCode}</span><span>{formatDateTime(prescription.createdAt)}</span></div>
                       <h3>{prescription.diagnosisSummary || "Đơn thuốc theo hồ sơ khám"}</h3>
-                      <p className="portal-record__doctor">Bác sĩ: {prescription.doctorName} · Trạng thái: {prescription.status}</p>
+                      <p className="portal-record__doctor">Bác sĩ: {prescription.doctorName} · {formatPrescriptionStatus(prescription.status)}</p>
                       <ul className="portal-medication-list">
                         {prescription.items.map((item) => (
                           <li key={`${prescription.id}-${item.medicationName}`}>
@@ -345,6 +515,7 @@ export default function PatientDashboardPage() {
             <div><p className="section-note">CẬN LÂM SÀNG</p><h2 id="diagnostics-title">Kết quả chẩn đoán</h2></div>
             <span aria-hidden="true" className="portal-panel__icon">⌁</span>
           </div>
+          {downloadError ? <p aria-live="assertive" className="portal-inline-error" role="alert">{downloadError}</p> : null}
           <StateContent
             emptyDescription="Kết quả được liên kết với hồ sơ bệnh nhân sẽ hiển thị sau khi cơ sở y tế cập nhật."
             emptyTitle="Chưa có kết quả chẩn đoán"
@@ -358,7 +529,7 @@ export default function PatientDashboardPage() {
                     <div className="portal-record__meta"><span>{formatDate(result.testDate)}</span><span>{result.doctorName ?? "Chưa có bác sĩ"}</span></div>
                     <h3>{result.testName}</h3>
                     <p>{result.result}</p>
-                    {result.fileUrl ? <a className="text-button" href={result.fileUrl} rel="noreferrer" target="_blank">Mở tệp kết quả ↗</a> : <small>Chưa có tệp đính kèm.</small>}
+                    {result.fileUrl ? <button className="text-button" onClick={() => handleDownload(result)} type="button">Tải tệp kết quả ↓</button> : <small>Chưa có tệp đính kèm.</small>}
                   </article>
                 ))}
               </div>
@@ -383,7 +554,7 @@ export default function PatientDashboardPage() {
                 {page.content.map((notification) => (
                   <article className={notification.read ? "portal-notification" : "portal-notification portal-notification--unread"} key={notification.id}>
                     <div className="portal-notification__copy">
-                      <div className="portal-record__meta"><span>{notification.eventType}</span><span>{formatDateTime(notification.createdAt)}</span></div>
+                      <div className="portal-record__meta"><span>{formatNotificationType(notification.eventType)}</span><span>{formatDateTime(notification.createdAt)}</span></div>
                       <h3>{notification.title}</h3>
                       <p>{notification.message}</p>
                     </div>

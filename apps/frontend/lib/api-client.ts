@@ -14,12 +14,22 @@ import type {
   Prescription,
   PrescriptionItem,
   UserProfile,
+  PatientProfile,
+  PatientGender,
+  StoredFile,
+  TimeSlot,
+  DoctorSchedule,
+  SemanticSearchResponse,
+  DoctorScheduleException,
   AppointmentDetails,
   PatientPortalAppointment,
   DoctorPortalAppointment,
   AiTriageCitation,
   AiTriageProvenance,
   AiTriageResult,
+  JobPosition,
+  JobApplicationPayload,
+  JobApplicationReceipt,
 } from "../types/hospital";
 
 export type {
@@ -38,16 +48,27 @@ export type {
   Prescription,
   PrescriptionItem,
   UserProfile,
+  PatientProfile,
+  PatientGender,
+  StoredFile,
+  TimeSlot,
+  DoctorSchedule,
+  SemanticSearchResponse,
+  DoctorScheduleException,
   AppointmentDetails,
   PatientPortalAppointment,
   DoctorPortalAppointment,
   AiTriageCitation,
   AiTriageProvenance,
   AiTriageResult,
+  JobPosition,
+  JobApplicationPayload,
+  JobApplicationReceipt,
 };
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080/api/v1";
+const API_REQUEST_TIMEOUT_MS = 12_000;
 
 /** Spring Data page envelope. */
 export interface Page<T> {
@@ -88,10 +109,26 @@ export class ApiError extends Error {
 }
 
 async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers },
-  });
+  const requestController = new AbortController();
+  const callerSignal = init?.signal;
+  const abortFromCaller = () => requestController.abort(callerSignal?.reason);
+  if (callerSignal?.aborted) abortFromCaller();
+  else callerSignal?.addEventListener("abort", abortFromCaller, { once: true });
+
+  const timeoutId = setTimeout(() => requestController.abort(), API_REQUEST_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      headers: { "Content-Type": "application/json", ...init?.headers },
+      signal: requestController.signal,
+    });
+  } catch {
+    throw new ApiError("Không thể kết nối đến hệ thống. Vui lòng thử lại sau.", 0, path);
+  } finally {
+    clearTimeout(timeoutId);
+    callerSignal?.removeEventListener("abort", abortFromCaller);
+  }
   if (!res.ok) {
     const responseText = await res.text();
     let message = `Không thể tải dữ liệu (mã ${res.status}).`;
@@ -412,6 +449,59 @@ export async function fetchFaqs(
   return getJson<Page<Faq>>(`/hospital/faqs${toQuery({ page, size })}`);
 }
 
+// ── Careers ─────────────────────────────────────────────────────────────────
+
+export interface CareerFilter {
+  page?: number;
+  size?: number;
+  department?: string;
+  location?: string;
+}
+
+export async function fetchCareerPositions(filter: CareerFilter = {}): Promise<Page<JobPosition>> {
+  return getJson<Page<JobPosition>>(`/careers/jobs${toQuery({
+    page: filter.page ?? 0,
+    size: filter.size ?? 50,
+    department: filter.department,
+    location: filter.location,
+  })}`);
+}
+
+export async function submitJobApplication(
+  slug: string,
+  payload: JobApplicationPayload,
+): Promise<JobApplicationReceipt> {
+  return getJson<JobApplicationReceipt>(
+    `/careers/jobs/${encodeURIComponent(slug)}/applications`,
+    { method: "POST", body: JSON.stringify(payload) },
+  );
+}
+
+export interface AdminPackagePayload { name: string; slug: string; description?: string | null; price: number; active: boolean }
+export interface AdminFaqPayload { question: string; answer: string; active: boolean }
+export interface AdminArticlePayload { title: string; slug: string; summary?: string | null; body?: string | null; active: boolean }
+
+export const adminCreatePackage = (payload: AdminPackagePayload) => getAuthenticatedJson<HealthPackage>("/admin/packages", { method: "POST", body: JSON.stringify(payload) });
+export const adminUpdatePackage = (slug: string, payload: AdminPackagePayload) => getAuthenticatedJson<HealthPackage>(`/admin/packages/${encodeURIComponent(slug)}`, { method: "PUT", body: JSON.stringify(payload) });
+export const adminDeletePackage = (slug: string) => getAuthenticatedJson<void>(`/admin/packages/${encodeURIComponent(slug)}`, { method: "DELETE" });
+export const adminCreateFaq = (payload: AdminFaqPayload) => getAuthenticatedJson<Faq>("/admin/faqs", { method: "POST", body: JSON.stringify(payload) });
+export const adminUpdateFaq = (id: string, payload: AdminFaqPayload) => getAuthenticatedJson<Faq>(`/admin/faqs/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(payload) });
+export const adminDeleteFaq = (id: string) => getAuthenticatedJson<void>(`/admin/faqs/${encodeURIComponent(id)}`, { method: "DELETE" });
+export const adminCreateArticle = (payload: AdminArticlePayload) => getAuthenticatedJson<Article>("/admin/articles", { method: "POST", body: JSON.stringify(payload) });
+export const adminUpdateArticle = (slug: string, payload: AdminArticlePayload) => getAuthenticatedJson<Article>(`/admin/articles/${encodeURIComponent(slug)}`, { method: "PUT", body: JSON.stringify(payload) });
+export const adminDeleteArticle = (slug: string) => getAuthenticatedJson<void>(`/admin/articles/${encodeURIComponent(slug)}`, { method: "DELETE" });
+
+export interface AdminSchedulePayload { dayOfWeek: number; startTime: string; endTime: string; slotDurationMinutes: number; effectiveFrom: string; effectiveTo?: string | null; active: boolean }
+export const adminListSchedules = (page = 0, size = 100) => getAuthenticatedJson<Page<DoctorSchedule>>(`/admin/schedules${toQuery({ page, size })}`);
+export const adminCreateSchedule = (doctorId: string, branchId: string, payload: AdminSchedulePayload) => getAuthenticatedJson<DoctorSchedule>(`/admin/schedules/doctors/${encodeURIComponent(doctorId)}/branches/${encodeURIComponent(branchId)}`, { method: "POST", body: JSON.stringify(payload) });
+export const adminUpdateSchedule = (id: string, payload: AdminSchedulePayload) => getAuthenticatedJson<DoctorSchedule>(`/admin/schedules/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(payload) });
+export const adminDeleteSchedule = (id: string) => getAuthenticatedJson<void>(`/admin/schedules/${encodeURIComponent(id)}`, { method: "DELETE" });
+export interface AdminScheduleExceptionPayload { exceptionDate: string; type: "CUSTOM_HOURS" | "BLOCKED" | "LEAVE"; customStartTime?: string | null; customEndTime?: string | null; reason?: string | null }
+export const adminListScheduleExceptions = (page = 0, size = 100) => getAuthenticatedJson<Page<DoctorScheduleException>>(`/admin/schedules/exceptions${toQuery({ page, size })}`);
+export const adminCreateScheduleException = (doctorId: string, branchId: string, payload: AdminScheduleExceptionPayload) => getAuthenticatedJson<DoctorScheduleException>(`/admin/schedules/exceptions/doctors/${encodeURIComponent(doctorId)}/branches/${encodeURIComponent(branchId)}`, { method: "POST", body: JSON.stringify(payload) });
+export const adminUpdateScheduleException = (id: string, payload: AdminScheduleExceptionPayload) => getAuthenticatedJson<DoctorScheduleException>(`/admin/schedules/exceptions/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(payload) });
+export const adminDeleteScheduleException = (id: string) => getAuthenticatedJson<void>(`/admin/schedules/exceptions/${encodeURIComponent(id)}`, { method: "DELETE" });
+
 // ── Admin: Services ─────────────────────────────────────────────────────────
 
 export interface AdminBranchPayload {
@@ -561,6 +651,22 @@ export interface LoginPayload {
   password: string;
 }
 
+export interface RegisterPayload {
+  email: string;
+  password: string;
+  displayName: string;
+  phone: string;
+}
+
+export async function register(payload: RegisterPayload): Promise<AuthSession> {
+  const session = await getJson<AuthSession>("/auth/register", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  storeAuthSession(session);
+  return session;
+}
+
 export async function login(payload: LoginPayload): Promise<AuthSession> {
   const session = await getJson<AuthSession>("/auth/login", {
     method: "POST",
@@ -583,6 +689,73 @@ export async function fetchPatientAppointments(
   );
 }
 
+export async function adminListAppointments(
+  filters: { date?: string; status?: string; page?: number; size?: number } = {},
+): Promise<Page<AppointmentDetails>> {
+  return getAuthenticatedJson<Page<AppointmentDetails>>(
+    `/admin/appointments${toQuery({
+      date: filters.date,
+      status: filters.status,
+      page: filters.page ?? 0,
+      size: filters.size ?? 20,
+    })}`,
+  );
+}
+
+export async function fetchPatientProfile(): Promise<PatientProfile> {
+  return getAuthenticatedJson<PatientProfile>("/patient/profile");
+}
+
+export interface UpdatePatientProfilePayload {
+  fullName: string;
+  dateOfBirth?: string;
+  gender?: PatientGender;
+  address?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+}
+
+export async function updatePatientProfile(payload: UpdatePatientProfilePayload): Promise<PatientProfile> {
+  return getAuthenticatedJson<PatientProfile>("/patient/profile", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export interface RescheduleAppointmentPayload {
+  appointmentDate: string;
+  startTime: string;
+  branchId?: string;
+}
+
+export async function rescheduleAppointment(
+  bookingCode: string,
+  payload: RescheduleAppointmentPayload,
+): Promise<AppointmentDetails> {
+  return getAuthenticatedJson<AppointmentDetails>(
+    `/appointments/${encodeURIComponent(bookingCode)}/reschedule`,
+    { method: "POST", body: JSON.stringify(payload) },
+  );
+}
+
+export async function fetchDoctorSlots(
+  doctorId: string,
+  date: string,
+  branchId?: string,
+): Promise<TimeSlot[]> {
+  return getJson<TimeSlot[]>(
+    `/appointments/doctors/${encodeURIComponent(doctorId)}/slots${toQuery({ date, branchId })}`,
+  );
+}
+
+export async function fetchSemanticSearch(query: string, topK = 10): Promise<SemanticSearchResponse> {
+  const normalized = query.trim();
+  if (!normalized) throw new ApiError("Từ khóa tìm kiếm không được để trống.", 400, "/ai/search");
+  return getAuthenticatedJson<SemanticSearchResponse>(
+    `/ai/search${toQuery({ q: normalized, top_k: Math.max(1, Math.min(topK, 20)) })}`,
+  );
+}
+
 export async function fetchDoctorAppointments(
   date: string,
   status?: string,
@@ -602,6 +775,16 @@ export async function fetchDoctorAppointments(
 
 export async function fetchDoctorProfile(): Promise<Doctor> {
   return getAuthenticatedJson<Doctor>("/doctor/profile");
+}
+
+export async function updateDoctorAppointmentStatus(
+  appointmentId: string,
+  status: "CHECKED_IN" | "IN_PROGRESS" | "NO_SHOW",
+): Promise<DoctorPortalAppointment> {
+  return getAuthenticatedJson<DoctorPortalAppointment>(
+    `/doctor/appointments/${encodeURIComponent(appointmentId)}/status`,
+    { method: "PATCH", body: JSON.stringify({ status }) },
+  );
 }
 
 export interface CreateMedicalRecordPayload {
@@ -679,4 +862,54 @@ export async function fetchDoctorPatientDiagnosticResults(
   return getAuthenticatedJson<DiagnosticResult[]>(
     `/doctor/patients/${encodeURIComponent(patientId)}/diagnostic-results`,
   );
+}
+
+export async function uploadDiagnosticFile(file: File, patientId: string): Promise<StoredFile> {
+  const session = readAuthSession();
+  const path = "/files/upload";
+  if (!session) throw new ApiError("Bạn cần đăng nhập để tải tệp lên.", 401, path);
+  const form = new FormData();
+  form.set("file", file);
+  form.set("patientId", patientId);
+  form.set("purpose", "DIAGNOSTIC_RESULT");
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    headers: { Authorization: `${session.tokenType} ${session.accessToken}` },
+    body: form,
+  });
+  if (!response.ok) throw new ApiError((await response.text()) || "Không thể tải tệp lên.", response.status, path);
+  return response.json() as Promise<StoredFile>;
+}
+
+export interface CreateDiagnosticResultPayload {
+  testName: string;
+  result?: string;
+  fileId?: string;
+  testDate?: string;
+}
+
+export async function createDoctorDiagnosticResult(
+  patientId: string,
+  payload: CreateDiagnosticResultPayload,
+): Promise<DiagnosticResult> {
+  return getAuthenticatedJson<DiagnosticResult>(
+    `/doctor/patients/${encodeURIComponent(patientId)}/diagnostic-results`,
+    { method: "POST", body: JSON.stringify(payload) },
+  );
+}
+
+export async function downloadProtectedFile(fileUrl: string, filename = "ket-qua"): Promise<void> {
+  const session = readAuthSession();
+  if (!session) throw new ApiError("Bạn cần đăng nhập để tải tệp.", 401, fileUrl);
+  const normalizedPath = fileUrl.startsWith("/api/v1") ? fileUrl.slice("/api/v1".length) : fileUrl;
+  const response = await fetch(`${API_BASE_URL}${normalizedPath}`, {
+    headers: { Authorization: `${session.tokenType} ${session.accessToken}` },
+  });
+  if (!response.ok) throw new ApiError("Không thể tải tệp kết quả.", response.status, normalizedPath);
+  const blobUrl = URL.createObjectURL(await response.blob());
+  const anchor = document.createElement("a");
+  anchor.href = blobUrl;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(blobUrl);
 }
