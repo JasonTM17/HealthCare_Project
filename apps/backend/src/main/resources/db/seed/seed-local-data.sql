@@ -13,10 +13,15 @@ INSERT INTO users (id, email, password_hash, display_name, status) VALUES
     ('90000000-0000-0000-0000-000000000003', 'patient@healthcare.local', '$2b$10$OG9QfyAPA/hWfWauU7lXvemQNUnFPcVj/rIuE2zzocw7rtOKoQdfa', 'Bệnh nhân Local', 'ACTIVE')
 ON CONFLICT (email) DO NOTHING;
 
-INSERT INTO user_roles (user_id, role_id) VALUES
-    ('90000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000003'),
-    ('90000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000002'),
-    ('90000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001')
+INSERT INTO user_roles (user_id, role_id)
+SELECT u.id, r.id
+FROM (VALUES
+    ('admin@healthcare.local', 'ADMIN'),
+    ('doctor@healthcare.local', 'DOCTOR'),
+    ('patient@healthcare.local', 'PATIENT')
+) AS demo_accounts(email, role_code)
+JOIN users u ON u.email = demo_accounts.email
+JOIN roles r ON r.code = demo_accounts.role_code
 ON CONFLICT DO NOTHING;
 
 -- ── Specialties ───────────────────────────────────────────────────────────────
@@ -55,12 +60,12 @@ INSERT INTO doctors (id, full_name, slug, bio, photo_url, active) VALUES
 ON CONFLICT (slug) DO NOTHING;
 
 -- ── Doctor ↔ Specialty links ──────────────────────────────────────────────────
-UPDATE doctors SET user_id = '90000000-0000-0000-0000-000000000002'
+UPDATE doctors SET user_id = (SELECT id FROM users WHERE email = 'doctor@healthcare.local')
 WHERE id = '30000000-0000-0000-0000-000000000001' AND user_id IS NULL;
 
 INSERT INTO patient_profiles (id, full_name, phone, email, user_id)
-VALUES ('90000000-0000-0000-0000-000000000004', 'Bệnh nhân Local', '0900000001', 'patient@healthcare.local', '90000000-0000-0000-0000-000000000003')
-ON CONFLICT (phone) DO UPDATE SET user_id = COALESCE(patient_profiles.user_id, EXCLUDED.user_id);
+VALUES ('90000000-0000-0000-0000-000000000004', 'Bệnh nhân Local', '0900000001', 'patient@healthcare.local', (SELECT id FROM users WHERE email = 'patient@healthcare.local'))
+ON CONFLICT (phone) DO UPDATE SET user_id = EXCLUDED.user_id;
 
 INSERT INTO doctor_specialties (id, doctor_id, specialty_id)
 SELECT md5(format('doctor-specialty:%s:%s', links.doctor_id, s.id))::uuid,
