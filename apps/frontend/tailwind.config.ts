@@ -96,7 +96,7 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ["var(--font-source-sans)", "Noto Sans", "sans-serif"],
+        sans: ["var(--font-inter)", "Noto Sans", "sans-serif"],
         display: ["var(--font-be-vietnam-pro)", "Noto Sans", "sans-serif"],
       },
       borderRadius: {

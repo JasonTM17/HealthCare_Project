@@ -36,6 +36,7 @@ export function RouteCmsSlots(): ReactElement | null {
       <CmsLiveSlot
         className="route-cms-slot"
         hideWhenNotFound
+        hideWhileLoading
         showSourceLabel={false}
         slug={slug}
         slotKey="hero"
@@ -43,6 +44,7 @@ export function RouteCmsSlots(): ReactElement | null {
       <CmsLiveSlot
         className="route-cms-slot"
         hideWhenNotFound
+        hideWhileLoading
         showSourceLabel={false}
         slug={slug}
         slotKey="body"
@@ -50,6 +52,7 @@ export function RouteCmsSlots(): ReactElement | null {
       <CmsLiveSlot
         className="route-cms-slot"
         hideWhenNotFound
+        hideWhileLoading
         showSourceLabel={false}
         slug={slug}
         slotKey="sidebar"
@@ -57,6 +60,7 @@ export function RouteCmsSlots(): ReactElement | null {
       <CmsLiveSlot
         className="route-cms-slot"
         hideWhenNotFound
+        hideWhileLoading
         showSourceLabel={false}
         slug={slug}
         slotKey="footer"

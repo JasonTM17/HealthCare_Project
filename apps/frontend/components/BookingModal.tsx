@@ -21,6 +21,7 @@ import {
 } from "../lib/api-client";
 import { businessDate } from "../lib/business-time";
 import Icon from "./UiIcon";
+import useDialogFocus from "./useDialogFocus";
 
 const EMPTY_DOCTORS: Doctor[] = [];
 const EMPTY_SPECIALTIES: Specialty[] = [];
@@ -122,6 +123,9 @@ export default function BookingModal({
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [confirmedAppointment, setConfirmedAppointment] = useState<AppointmentDetails | null>(null);
   const bookingSessionRef = useRef(0);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useDialogFocus(dialogRef, isOpen, onClose);
 
   const resetBookingState = useCallback(() => {
     setStep(1);
@@ -444,12 +448,13 @@ export default function BookingModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn"
+      className="dialog-layer fixed inset-0 flex items-center justify-center p-4 animate-fadeIn"
       role="dialog"
       aria-modal="true"
       aria-labelledby="booking-modal-title"
+      onMouseDown={(event) => { if (event.target === event.currentTarget) closeBooking(); }}
     >
-      <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-brand-100 flex flex-col max-h-[92vh]">
+      <div className="booking-panel relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-brand-100 flex flex-col max-h-[92vh]" ref={dialogRef}>
         {/* Modal Header */}
         <div className="bg-brand-800 text-white px-6 py-4 flex items-center justify-between">
           <div>

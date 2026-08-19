@@ -38,6 +38,7 @@
   --sp-2: 0.5rem;
   --sp-3: 0.75rem;
   --sp-4: 1rem;
+  --sp-5: 1.25rem;
   --sp-6: 1.5rem;
   --sp-8: 2rem;
   --sp-12: 3rem;
@@ -845,8 +846,8 @@ main {
 
 .catalog-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--sp-5);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-6);
 }
 
 .catalog-grid--compact {
@@ -5526,5 +5527,63 @@ main {
   .site-shell .about-closing .resource-actions,
   .site-shell .about-closing .resource-actions > * {
     width: 100%;
+  }
+}
+
+/* Final interaction layer for the Stitch-aligned public shell. */
+.site-shell main#main-content:focus {
+  outline: none;
+}
+
+.dialog-layer {
+  z-index: 90;
+  background: rgb(0 28 30 / 0.76);
+  backdrop-filter: blur(5px);
+}
+
+.booking-panel,
+.ai-triage-panel {
+  border-color: var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-paper-bright);
+  box-shadow: var(--shadow-lift);
+}
+
+.ai-triage-panel__header {
+  background: var(--color-teal-950);
+}
+
+.ai-triage-panel__content {
+  background: var(--color-paper-bright);
+}
+
+.site-shell .section--unavailable {
+  display: block;
+}
+
+.site-shell .ai-navigator-fab {
+  display: inline-flex;
+  z-index: 45;
+}
+
+@media (max-width: 640px) {
+  .mobile-care-rail {
+    z-index: 40;
+  }
+
+  .site-shell .ai-navigator-fab {
+    display: none;
+  }
+
+  .dialog-layer {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .booking-panel,
+  .ai-triage-panel {
+    max-height: calc(100dvh - 0.5rem);
+    border-bottom: 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   }
 }

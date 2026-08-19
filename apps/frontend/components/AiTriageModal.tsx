@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { ApiError, recommendSpecialty } from "../lib/api-client";
 import type {
   AiTriageCitation,
   AiTriageResult,
 } from "../types/hospital";
 import Icon from "./UiIcon";
+import useDialogFocus from "./useDialogFocus";
 
 interface AiTriageModalProps {
   isOpen: boolean;
@@ -89,6 +90,9 @@ export default function AiTriageModal({
   const [result, setResult] = useState<AiTriageResult | null>(null);
   const [errorKind, setErrorKind] = useState<TriageErrorKind | null>(null);
   const [lastSubmittedSymptoms, setLastSubmittedSymptoms] = useState<string>("");
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useDialogFocus(dialogRef, isOpen, onClose);
 
   if (!isOpen) return null;
 
@@ -135,13 +139,14 @@ export default function AiTriageModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-fadeIn"
+      className="dialog-layer ai-triage-layer fixed inset-0 flex items-center justify-center p-4 animate-fadeIn"
       role="dialog"
       aria-modal="true"
       aria-labelledby="ai-triage-title"
+      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
     >
-      <div className="relative flex max-h-[92vh] w-full max-w-lg flex-col overflow-y-auto rounded-2xl border border-brand-100 bg-white shadow-2xl">
-        <div className="flex items-center justify-between bg-brand-900 px-6 py-4 text-white">
+      <div className="ai-triage-panel relative flex max-h-[92vh] w-full max-w-lg flex-col overflow-y-auto rounded-2xl border border-brand-100 bg-white shadow-2xl" ref={dialogRef}>
+        <div className="ai-triage-panel__header flex items-center justify-between bg-brand-900 px-6 py-4 text-white">
           <div className="flex items-center gap-2.5">
             <Icon name="stethoscope" size={24} />
             <div>
@@ -163,7 +168,7 @@ export default function AiTriageModal({
           </button>
         </div>
 
-        <div className="space-y-4 p-6">
+        <div className="ai-triage-panel__content space-y-4 p-6">
           <form onSubmit={handleAnalyze} className="space-y-3" aria-busy={loading}>
             <label className="block text-xs font-bold uppercase tracking-wider text-gray-700" htmlFor="triage-symptoms">
               Mô tả cảm giác hoặc triệu chứng khó chịu của bạn:
