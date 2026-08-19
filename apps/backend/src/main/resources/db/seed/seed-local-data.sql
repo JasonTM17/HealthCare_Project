@@ -185,7 +185,7 @@ INSERT INTO cms_contents (
     '80000000-0000-0000-0000-000000000002',
     'careers.hero',
     'HERO',
-    '{"eyebrow":"Cơ hội nghề nghiệp tại HealthCare","title":"Cùng chăm sóc người bệnh bằng năng lực và sự tử tế","body":"Khám phá môi trường làm việc đề cao an toàn, phối hợp liên chuyên môn và sự phát triển bền vững của mỗi thành viên.","ctaLabel":"Xem vị trí đang tuyển","ctaHref":"#vi-tri-dang-tuyen"}'::jsonb,
+    '{"eyebrow":"Cơ hội nghề nghiệp tại HealthCare","title":"Cùng chăm sóc người bệnh bằng năng lực và sự tử tế","body":"Khám phá môi trường làm việc đề cao an toàn, phối hợp liên chuyên môn và sự phát triển bền vững của mỗi thành viên.","ctaLabel":"Xem vị trí đang tuyển","ctaHref":"/careers#vi-tri-dang-tuyen"}'::jsonb,
     'PUBLISHED',
     1,
     '2026-08-01T08:00:00+07:00',

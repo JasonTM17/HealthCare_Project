@@ -83,6 +83,7 @@ test("CMS booking CTA has a real landing route and public chrome avoids invented
   assert.match(navbar, /Xem giờ làm việc/);
   assert.match(footer, /Thông tin điện thoại đang được cập nhật/);
   assert.match(largeSeed, /homepage\.hero/);
+  for (const seedContent of [seed, largeSeed]) assert.match(seedContent, /\/careers#vi-tri-dang-tuyen/);
   for (const slot of ["careers.hero", "careers.body", "search.hero", "homepage.body"]) {
     assert.match(largeSeed, new RegExp(slot.replace(".", "\\.")));
   }
