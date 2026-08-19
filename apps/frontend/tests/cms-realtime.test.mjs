@@ -168,4 +168,10 @@ test("admin editor exposes typed status/version and protected API states", async
   assert.match(source, /setSelectedSlot\(requestedSlot\)/);
   assert.match(source, /loadedSelection\?\.slot/);
   assert.match(source, /disabled=\{isBusy\}/);
+  assert.match(source, /PayloadFields disabled=\{isBusy\}/);
+  assert.match(source, /invalidateInventory\(\);/);
+  assert.match(source, /inventoryGenerationRef\.current \+= 1/);
+  assert.match(source, /setHistoryLoading\(true\);[\s\S]*listHistory\(savedContent\.slotKey\)/);
+  assert.match(source, /catch \(historyLoadError\)[\s\S]*setHistoryError\(apiErrorMessage/);
+  assert.match(source, /setNotice\(`Đã rollback/);
 });

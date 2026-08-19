@@ -170,6 +170,7 @@ function TextField({
   multiline = false,
   required = false,
   help,
+  disabled = false,
 }: {
   field: string;
   label: string;
@@ -178,6 +179,7 @@ function TextField({
   multiline?: boolean;
   required?: boolean;
   help?: string;
+  disabled?: boolean;
 }): ReactElement {
   const value = payloadValue(payload, field);
   const id = `cms-payload-${field}`;
@@ -191,6 +193,7 @@ function TextField({
           id={id}
           onChange={(event) => onChange(field, event.target.value)}
           required={required}
+          disabled={disabled}
           value={value}
         />
       ) : (
@@ -200,6 +203,7 @@ function TextField({
           id={id}
           onChange={(event) => onChange(field, event.target.value)}
           required={required}
+          disabled={disabled}
           value={value}
         />
       )}
@@ -211,11 +215,13 @@ function TextField({
 function PayloadFields({
   draft,
   onChange,
+  disabled = false,
 }: {
   draft: CmsDraftValues;
   onChange: (field: string, value: string) => void;
+  disabled?: boolean;
 }): ReactElement {
-  const common = { payload: draft.payload, onChange };
+  const common = { payload: draft.payload, onChange, disabled };
   switch (draft.componentType) {
     case "HERO":
       return (
@@ -290,6 +296,11 @@ export function CmsEditor({
   // history reads. Any newer slot operation makes every older response inert.
   const contentOperationRef = useRef(0);
   const inventoryGenerationRef = useRef(0);
+
+  const invalidateInventory = (): void => {
+    inventoryGenerationRef.current += 1;
+    setInventoryLoading(false);
+  };
 
   const loadContent = useCallback(async (requestedSlug: string, requestedSlot: CmsSlotKey): Promise<void> => {
     const operationGeneration = contentOperationRef.current + 1;
@@ -408,6 +419,7 @@ export function CmsEditor({
     const operationGeneration = contentOperationRef.current + 1;
     contentOperationRef.current = operationGeneration;
     const isCurrentOperation = (): boolean => contentOperationRef.current === operationGeneration;
+    invalidateInventory();
     setOperation(status === "PUBLISHED" ? "publishing" : "saving");
     setApiError(null);
     setFieldErrors({});
@@ -449,6 +461,7 @@ export function CmsEditor({
     const operationGeneration = contentOperationRef.current + 1;
     contentOperationRef.current = operationGeneration;
     const isCurrentOperation = (): boolean => contentOperationRef.current === operationGeneration;
+    invalidateInventory();
     setOperation("saving");
     setApiError(null);
     setNotice(null);
@@ -462,13 +475,23 @@ export function CmsEditor({
       setContent(savedContent);
       setDraft(savedDraft);
       setLoadedSnapshot(savedDraft);
-      const savedHistory = await client.listHistory(savedContent.slotKey);
-      if (!isCurrentOperation()) return;
-      setHistory(savedHistory);
       setAvailableContent((current) => [
         ...current.filter((item) => item.slotKey !== savedContent.slotKey),
         savedContent,
       ].sort((left, right) => left.slotKey.localeCompare(right.slotKey)));
+      setHistoryLoading(true);
+      setHistoryError(null);
+      try {
+        const savedHistory = await client.listHistory(savedContent.slotKey);
+        if (!isCurrentOperation()) return;
+        setHistory(savedHistory);
+      } catch (historyLoadError) {
+        if (!isCurrentOperation()) return;
+        setHistoryError(apiErrorMessage(asCmsError(historyLoadError)));
+      } finally {
+        if (isCurrentOperation()) setHistoryLoading(false);
+      }
+      if (!isCurrentOperation()) return;
       setNotice(`Đã rollback ${savedContent.slotKey} về snapshot event #${entry.eventId}, version mới ${savedContent.version}.`);
     } catch (error) {
       if (!isCurrentOperation()) return;
@@ -522,6 +545,7 @@ export function CmsEditor({
             onChange={(event) => setSlug(event.target.value)}
             pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
             required
+            disabled={isBusy}
             value={slug}
           />
           <span className="mt-1 block text-xs font-normal text-slate-500" id="cms-slug-help">home + hero → homepage.hero</span>
@@ -531,6 +555,7 @@ export function CmsEditor({
           <select
             className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
             onChange={(event) => setSelectedSlot(event.target.value as CmsSlotKey)}
+            disabled={isBusy}
             value={selectedSlot}
           >
             {CMS_SLOT_KEYS.map((slotKey) => <option key={slotKey} value={slotKey}>{SLOT_LABELS[slotKey]} · {slotKey}</option>)}
@@ -554,6 +579,7 @@ export function CmsEditor({
               className={`min-h-11 rounded-xl border px-3 py-2 text-left text-sm font-semibold transition-colors ${slug === routeSlug ? "border-teal-700 bg-teal-50 text-teal-950" : "border-slate-300 text-slate-700 hover:bg-slate-50"}`}
               key={routeSlug}
               onClick={() => setSlug(routeSlug)}
+              disabled={isBusy}
               type="button"
             >
               {label}
@@ -629,6 +655,7 @@ export function CmsEditor({
               <select
                 className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
                 onChange={(event) => handleComponentTypeChange(event.target.value as CmsComponentType)}
+                disabled={isBusy}
                 value={draft.componentType}
               >
                 {CMS_COMPONENT_TYPES.map((componentType) => <option key={componentType} value={componentType}>{COMPONENT_LABELS[componentType]} · {componentType}</option>)}
@@ -639,7 +666,7 @@ export function CmsEditor({
           <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" aria-labelledby="payload-title">
             <h3 className="font-bold text-slate-950" id="payload-title">Payload allowlist</h3>
             <p className="mt-1 text-sm leading-6 text-slate-600">Các field hiển thị phụ thuộc component type. Field rỗng tùy chọn sẽ được bỏ khỏi request.</p>
-            <div className="mt-4"><PayloadFields draft={draft} onChange={handlePayloadChange} /></div>
+            <div className="mt-4"><PayloadFields disabled={isBusy} draft={draft} onChange={handlePayloadChange} /></div>
             <FieldError message={fieldErrors.payload} />
           </section>
 
