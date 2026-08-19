@@ -23,15 +23,18 @@ real OTP delivery provider.
 The local stack exposes frontend on port 3000, backend on 8080, AI service on 8000, PostgreSQL on host port 5434 (container port 5432), Redis on 6379, and MinIO on 9000 (console 9001).
 
 The local seed includes the fictional ADMIN fixture `admin@healthcare.local`
-with password `LocalDev!Pass2026` so the CMS publish-to-user flow can be tested.
+with the documented local demo password from `docs/LOCAL_RUNBOOK.md` so the CMS
+publish-to-user flow can be tested.
 This credential is local-only and must be replaced/disabled before any shared or
 non-demo deployment.
 
 The `local-seed` one-shot service waits for the backend health check (after
 Flyway), runs the backward-compatible base seed, then applies the V15 rich
 content overlay for the Stitch detail screens. The schema also includes V16
-CMS audit snapshots, V17 published-article guards, and V18 hashed appointment
-OTP storage. The overlay only fills empty new fields, so rerunning it does not
+CMS audit snapshots, V17 published-article guards, V18 hashed appointment OTP
+storage, V19 secure file metadata, V20 appointment reminder delivery, V21
+patient profile details, and V22 careers and job applications. The overlay only
+fills empty new fields, so rerunning it does not
 overwrite admin edits. It defaults to
 `apps/backend/src/main/resources/db/seed/seed-local-data.sql`; set the
 PowerShell `SEED_FILE` environment variable for one run if the larger seed is

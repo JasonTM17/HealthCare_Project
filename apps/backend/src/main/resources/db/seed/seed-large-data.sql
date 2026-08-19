@@ -218,11 +218,12 @@ CROSS JOIN (VALUES
 ON CONFLICT (id) DO NOTHING;
 
 -- ── Users (1000) ──────────────────────────────────────────────────────────────
--- BCrypt hash of "LocalDev!Pass2026" — local dev only, never a real secret.
+-- BCrypt hash of the documented local demo password — local dev only,
+-- never a real secret.
 INSERT INTO users (id, email, password_hash, display_name, status, created_at, updated_at)
 SELECT md5(format('large-user:%s', i))::uuid,
        'user' || i || '@healthcare.local',
-       '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy',
+       '$2b$10$OG9QfyAPA/hWfWauU7lXvemQNUnFPcVj/rIuE2zzocw7rtOKoQdfa',
        'Bệnh nhân ' || i,
        CASE WHEN (i % 50 = 0) THEN 'DISABLED' ELSE 'ACTIVE' END,
        TIMESTAMPTZ '2026-01-01T08:00:00+07:00' - ((i % 365) || ' days')::interval,
@@ -232,12 +233,13 @@ ON CONFLICT (email) DO NOTHING;
 
 -- Deterministic local ADMIN fixture for CMS verification.
 -- Credentials are for this fictional local seed only; never reuse them outside
--- the demo stack. Password: LocalDev!Pass2026
+-- the demo stack. It uses the same local demo password as the base seed and
+-- LOCAL_RUNBOOK.md.
 INSERT INTO users (id, email, password_hash, display_name, status, created_at, updated_at)
 VALUES (
     '90000000-0000-0000-0000-000000000001',
     'admin@healthcare.local',
-    '$2a$10$p/9xnUieR.4HwifRfQ70Ye8kKFwmmWllJIqTRC49C82meV48Y8mn6',
+    '$2b$10$OG9QfyAPA/hWfWauU7lXvemQNUnFPcVj/rIuE2zzocw7rtOKoQdfa',
     'Quản trị viên local',
     'ACTIVE',
     TIMESTAMPTZ '2026-01-01T08:00:00+07:00',
