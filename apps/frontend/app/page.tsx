@@ -376,6 +376,9 @@ export default function Home(): React.ReactElement {
       setCatalogLoading(true);
       setCatalogError(null);
       setCatalogUnavailable(false);
+      // A retry is a new authoritative snapshot. Clear the old catalog so a
+      // failed response cannot leave stale booking identities actionable.
+      setCatalog(null);
       try {
         const [specialties, doctors, packages, branches, articles] = await Promise.all([
           fetchSpecialties(0, 50),

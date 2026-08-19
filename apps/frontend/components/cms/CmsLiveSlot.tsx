@@ -68,8 +68,17 @@ export function CmsLiveSlot({
     let stopFeed: () => void = () => undefined;
     let stopPolling: () => void = () => undefined;
     latestVersion.current = 0;
+    // The same component instance can be reused when the public route changes.
+    // Do not expose the previous route's published content while the new slot
+    // is loading or when its first authoritative read fails.
     void Promise.resolve().then(() => {
-      if (!cancelled) setLiveNotice(null);
+      if (!cancelled) {
+        setContent(null);
+        setError(null);
+        setLoading(true);
+        setTransport("connecting");
+        setLiveNotice(null);
+      }
     });
 
     const resolvePendingEvent = (eventId: number): void => {

@@ -64,6 +64,7 @@ test("homepage exposes a distinct unavailable catalog state with a retry path", 
   assert.match(home, /catalog-status--unavailable/);
   assert.match(home, /Thử tải lại/);
   assert.match(home, /error\.status >= 500/);
+  assert.match(home, /setCatalog\(null\)/);
 });
 
 test("CMS booking CTA has a real landing route and public chrome avoids invented hotlines", async () => {
