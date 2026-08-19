@@ -61,36 +61,47 @@ ON CONFLICT (slug) DO NOTHING;
 
 -- ── Doctor ↔ Specialty links ──────────────────────────────────────────────────
 UPDATE doctors SET user_id = (SELECT id FROM users WHERE email = 'doctor@healthcare.local')
-WHERE id = '30000000-0000-0000-0000-000000000001' AND user_id IS NULL;
+WHERE slug = 'nguyen-minh-khoi' AND user_id IS NULL;
 
+-- Resolve the demo profile by its user identity. If an unrelated profile
+-- already owns the demo phone, leave it untouched instead of rebinding it.
 INSERT INTO patient_profiles (id, full_name, phone, email, user_id)
-VALUES ('90000000-0000-0000-0000-000000000004', 'Bệnh nhân Local', '0900000001', 'patient@healthcare.local', (SELECT id FROM users WHERE email = 'patient@healthcare.local'))
-ON CONFLICT (phone) DO UPDATE SET user_id = EXCLUDED.user_id;
+SELECT '90000000-0000-0000-0000-000000000004', 'Bệnh nhân Local', '0900000001', 'patient@healthcare.local', u.id
+FROM users u
+WHERE u.email = 'patient@healthcare.local'
+  AND NOT EXISTS (SELECT 1 FROM patient_profiles p WHERE p.user_id = u.id)
+  AND NOT EXISTS (SELECT 1 FROM patient_profiles p WHERE p.phone = '0900000001')
+ON CONFLICT DO NOTHING;
 
 INSERT INTO doctor_specialties (id, doctor_id, specialty_id)
-SELECT md5(format('doctor-specialty:%s:%s', links.doctor_id, s.id))::uuid,
-       links.doctor_id,
+SELECT md5(format('doctor-specialty:%s:%s', d.id, s.id))::uuid,
+       d.id,
        s.id
 FROM (VALUES
-    ('30000000-0000-0000-0000-000000000001'::uuid, 'tim-mach'),
-    ('30000000-0000-0000-0000-000000000002'::uuid, 'than-kinh'),
-    ('30000000-0000-0000-0000-000000000003'::uuid, 'tieu-hoa'),
-    ('30000000-0000-0000-0000-000000000004'::uuid, 'nhi-khoa'),
-    ('30000000-0000-0000-0000-000000000005'::uuid, 'san-phu-khoa'),
-    ('30000000-0000-0000-0000-000000000006'::uuid, 'co-xuong-khop')
-) AS links(doctor_id, specialty_slug)
-JOIN doctors d ON d.id = links.doctor_id
+    ('nguyen-minh-khoi', 'tim-mach'),
+    ('tran-thu-ha', 'than-kinh'),
+    ('le-van-duc', 'tieu-hoa'),
+    ('pham-hoang-yen', 'nhi-khoa'),
+    ('vo-thi-mai', 'san-phu-khoa'),
+    ('do-quang-huy', 'co-xuong-khop')
+) AS links(doctor_slug, specialty_slug)
+JOIN doctors d ON d.slug = links.doctor_slug
 JOIN specialties s ON s.slug = links.specialty_slug
 ON CONFLICT DO NOTHING;
 
 -- ── Doctor ↔ Branch links ─────────────────────────────────────────────────────
-INSERT INTO doctor_branches (id, doctor_id, branch_id) VALUES
-    (md5('doctor-branch:30000000-0000-0000-0000-000000000001:20000000-0000-0000-0000-000000000001')::uuid, '30000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001'),
-    (md5('doctor-branch:30000000-0000-0000-0000-000000000002:20000000-0000-0000-0000-000000000001')::uuid, '30000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000001'),
-    (md5('doctor-branch:30000000-0000-0000-0000-000000000003:20000000-0000-0000-0000-000000000002')::uuid, '30000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000002'),
-    (md5('doctor-branch:30000000-0000-0000-0000-000000000004:20000000-0000-0000-0000-000000000002')::uuid, '30000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000002'),
-    (md5('doctor-branch:30000000-0000-0000-0000-000000000005:20000000-0000-0000-0000-000000000001')::uuid, '30000000-0000-0000-0000-000000000005', '20000000-0000-0000-0000-000000000001'),
-    (md5('doctor-branch:30000000-0000-0000-0000-000000000006:20000000-0000-0000-0000-000000000001')::uuid, '30000000-0000-0000-0000-000000000006', '20000000-0000-0000-0000-000000000001')
+INSERT INTO doctor_branches (id, doctor_id, branch_id)
+SELECT md5(format('doctor-branch:%s:%s', d.id, b.id))::uuid, d.id, b.id
+FROM (VALUES
+    ('nguyen-minh-khoi', 'benh-vien-sai-gon-xanh'),
+    ('tran-thu-ha', 'benh-vien-sai-gon-xanh'),
+    ('le-van-duc', 'phong-kham-thao-dien'),
+    ('pham-hoang-yen', 'phong-kham-thao-dien'),
+    ('vo-thi-mai', 'benh-vien-sai-gon-xanh'),
+    ('do-quang-huy', 'benh-vien-sai-gon-xanh')
+) AS links(doctor_slug, branch_slug)
+JOIN doctors d ON d.slug = links.doctor_slug
+JOIN branches b ON b.slug = links.branch_slug
 ON CONFLICT DO NOTHING;
 
 -- ── Services ──────────────────────────────────────────────────────────────────
