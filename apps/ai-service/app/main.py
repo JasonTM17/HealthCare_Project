@@ -247,7 +247,6 @@ def rag_delete(
     """Remove one trusted catalog source from the searchable index."""
 
     require_rag_ingest_token(x_rag_ingest_token)
-    document_id = f"{payload.source_type}:{payload.source_id}"
     existed = any(
         source_type == payload.source_type and source_id == payload.source_id
         for source_type, source_id in rag_service.sources()

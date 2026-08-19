@@ -16,7 +16,7 @@ from html.parser import HTMLParser
 from threading import RLock
 from typing import Callable, Collection, List, Optional, Protocol
 
-from app.schemas import MAX_EMBEDDING_DIMENSION, ProviderProvenance
+from app.schemas import MAX_EMBEDDING_DIMENSION, ProviderProvenance, SOURCE_TYPES
 
 
 MAX_DOCUMENT_CHARS = 20_000
@@ -139,7 +139,7 @@ def _keyword_similarity(query: str, doc: "RagDocument") -> float:
 @dataclass
 class RagDocument:
     id: str
-    source_type: str  # specialty, doctor, service, package, article, faq
+    source_type: SOURCE_TYPES
     source_id: str
     title: str
     content: str
@@ -276,12 +276,12 @@ class RagServiceContract(Protocol):
 
     index: RagIndex
 
-    def sources(self) -> list[tuple[str, str]]:
+    def sources(self) -> list[tuple[SOURCE_TYPES, str]]:
         """Return the source identities currently present in the index."""
 
     def ingest(
         self,
-        source_type: str,
+        source_type: SOURCE_TYPES,
         source_id: str,
         title: str,
         content: str,
@@ -326,7 +326,7 @@ class RagService:
 
     def ingest(
         self,
-        source_type: str,
+        source_type: SOURCE_TYPES,
         source_id: str,
         title: str,
         content: str,
@@ -400,6 +400,7 @@ class RagService:
                 if tombstone_revision is not None and revision <= tombstone_revision:
                     return existing or document
                 if existing_revision is not None and revision < existing_revision:
+                    assert existing is not None
                     return existing
 
         # Inactive or unpublished records are tombstoned from the searchable
@@ -450,6 +451,7 @@ class RagService:
                 if current_tombstone is not None and revision <= current_tombstone:
                     return current or document
                 if current_revision is not None and revision < current_revision:
+                    assert current is not None
                     return current
                 if current_tombstone is not None and revision > current_tombstone:
                     self._tombstones.pop(document_id, None)
@@ -458,7 +460,7 @@ class RagService:
 
     def remove(
         self,
-        source_type: str,
+        source_type: SOURCE_TYPES,
         source_id: str,
         revision: int | None = None,
         *,
@@ -496,7 +498,7 @@ class RagService:
             return None
         return revision if revision >= 0 else None
 
-    def sources(self) -> list[tuple[str, str]]:
+    def sources(self) -> list[tuple[SOURCE_TYPES, str]]:
         with self._revision_lock:
             return [(document.source_type, document.source_id) for document in self.index.documents]
 

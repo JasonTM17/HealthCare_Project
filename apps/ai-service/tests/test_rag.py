@@ -69,7 +69,9 @@ def test_sync_revision_tombstone_rejects_stale_resurrection() -> None:
         [1.0, 0.0],
         metadata={"_sync_revision": "12"},
     )
-    assert service.index.get("specialty:cardio").title == "Tim mạch mới"
+    document = service.index.get("specialty:cardio")
+    assert document is not None
+    assert document.title == "Tim mạch mới"
 
 
 def test_sync_revision_guard_rechecks_after_concurrent_delete() -> None:
@@ -144,7 +146,9 @@ def test_sync_revision_guard_survives_delete_then_newer_ingest() -> None:
         release_newer.set()
         newer.result(timeout=2)
 
-    assert service.index.get("specialty:cardio").title == "Tim mạch mới"
+    document = service.index.get("specialty:cardio")
+    assert document is not None
+    assert document.title == "Tim mạch mới"
 
 
 def test_index_search_waits_for_mutation_lock() -> None:
