@@ -2,15 +2,12 @@
 
 import React, { useRef, useState } from "react";
 import Link from "next/link";
-import Navbar from "../../components/Navbar";
-import Footer from "../../components/Footer";
-import BookingModal from "../../components/BookingModal";
-import AiTriageModal from "../../components/AiTriageModal";
 import Icon from "../../components/UiIcon";
+import { PublicPageShell } from "../../components/PublicPageShell";
 import { AppointmentDetails } from "../../types/hospital";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080/api/v1";
+  process.env.NEXT_PUBLIC_API_BASE_URL || "/api/v1";
 
 export default function TraCuuPage() {
   const [bookingCodeInput, setBookingCodeInput] = useState("");
@@ -22,10 +19,6 @@ export default function TraCuuPage() {
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [cancelSuccess, setCancelSuccess] = useState(false);
   const lookupRequestRef = useRef(0);
-
-  // Modals
-  const [isBookingOpen, setIsBookingOpen] = useState(false);
-  const [isAiTriageOpen, setIsAiTriageOpen] = useState(false);
 
   const handleLookup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,13 +95,8 @@ export default function TraCuuPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-sand-100 text-ink font-sans">
-      <Navbar
-        onOpenBooking={() => setIsBookingOpen(true)}
-        onOpenAiTriage={() => setIsAiTriageOpen(true)}
-      />
-
-      <main className="flex-1 py-12 px-4 sm:px-6 max-w-4xl mx-auto w-full">
+    <PublicPageShell>
+      <section className="py-12 px-4 sm:px-6 max-w-4xl mx-auto w-full">
         {/* Breadcrumb */}
         <div className="text-xs text-ink-muted mb-6 flex items-center gap-2">
           <Link href="/" className="hover:text-brand-700">Trang chủ</Link>
@@ -344,23 +332,8 @@ export default function TraCuuPage() {
             </div>
           </div>
         )}
-      </main>
-
-      <Footer />
-
-      {isBookingOpen ? (
-        <BookingModal
-          isOpen
-          onClose={() => setIsBookingOpen(false)}
-        />
-      ) : null}
-
-      <AiTriageModal
-        isOpen={isAiTriageOpen}
-        onClose={() => setIsAiTriageOpen(false)}
-        onSelectSpecialtyForBooking={() => setIsBookingOpen(true)}
-      />
-    </div>
+      </section>
+    </PublicPageShell>
   );
 }
 

@@ -137,7 +137,10 @@ services:
     container_name: healthcare-frontend
     restart: unless-stopped
     environment:
-      NEXT_PUBLIC_API_BASE_URL: http://localhost:8080/api/v1
+      # Keep browser traffic same-origin. Next forwards this path over the
+      # Compose network, so the browser never needs to resolve a container or
+      # host-local backend address.
+      BACKEND_INTERNAL_URL: http://backend:8080
     ports:
       - "3000:3000"
     depends_on:
