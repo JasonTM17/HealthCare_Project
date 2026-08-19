@@ -25,6 +25,23 @@ const EMPTY_DOCTORS: Doctor[] = [];
 const EMPTY_SPECIALTIES: Specialty[] = [];
 const EMPTY_BRANCHES: Branch[] = [];
 const EMPTY_PACKAGES: HealthPackage[] = [];
+const BUSINESS_TIME_ZONE = "Asia/Ho_Chi_Minh";
+
+function businessDate(offsetDays = 0): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: BUSINESS_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const date = new Date(Date.UTC(
+    Number(values.year),
+    Number(values.month) - 1,
+    Number(values.day) + offsetDays,
+  ));
+  return date.toISOString().slice(0, 10);
+}
 
 const BOOKING_STEPS = [
   { id: 1, label: "Chuyên khoa" },
@@ -97,9 +114,7 @@ export default function BookingModal({
   const [selectedPackage, setSelectedPackage] = useState<string>(initialPackageId || "");
   
   const [selectedDate, setSelectedDate] = useState<string>(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    return d.toISOString().split("T")[0];
+    return businessDate(1);
   });
   const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<string>("");
@@ -126,15 +141,12 @@ export default function BookingModal({
   const bookingSessionRef = useRef(0);
 
   const resetBookingState = useCallback(() => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
     setStep(1);
     setSelectedSpecialty(initialSpecialtyId || "");
     setSelectedDoctor(initialDoctorId || "");
     setSelectedBranch(initialBranchId || "");
     setSelectedPackage(initialPackageId || "");
-    setSelectedDate(tomorrow.toISOString().split("T")[0]);
+    setSelectedDate(businessDate(1));
     setSlots([]);
     setSelectedSlot("");
     setSlotError("");
@@ -299,6 +311,7 @@ export default function BookingModal({
   const otpExpired = Boolean(bookingCode && otpExpiresAt && !confirmedAppointment && otpSecondsRemaining <= 0);
 
   const restartSlotSelection = (): void => {
+    bookingSessionRef.current += 1;
     setStep(5);
     setBookingCode("");
     setHoldExpiresAt("");
