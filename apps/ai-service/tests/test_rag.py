@@ -36,6 +36,40 @@ def test_service_ingest_and_remove() -> None:
     assert service.index.size == 0
 
 
+def test_sync_revision_tombstone_rejects_stale_resurrection() -> None:
+    service = RagService()
+    service.ingest(
+        "specialty",
+        "cardio",
+        "Tim mạch",
+        "Khám tim mạch.",
+        [1.0, 0.0],
+        metadata={"_sync_revision": "10"},
+    )
+    service.remove("specialty", "cardio", revision=11)
+
+    stale = service.ingest(
+        "specialty",
+        "cardio",
+        "Tim mạch cũ",
+        "Nội dung cũ.",
+        [1.0, 0.0],
+        metadata={"_sync_revision": "10"},
+    )
+    assert stale.title == "Tim mạch cũ"
+    assert service.index.size == 0
+
+    service.ingest(
+        "specialty",
+        "cardio",
+        "Tim mạch mới",
+        "Nội dung mới.",
+        [1.0, 0.0],
+        metadata={"_sync_revision": "12"},
+    )
+    assert service.index.get("specialty:cardio").title == "Tim mạch mới"
+
+
 def test_ingest_normalizes_visible_content_and_reuses_embedding() -> None:
     service = RagService()
     calls: list[str] = []

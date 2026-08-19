@@ -252,7 +252,7 @@ def rag_delete(
         source_type == payload.source_type and source_id == payload.source_id
         for source_type, source_id in rag_service.sources()
     )
-    rag_service.remove(payload.source_type, payload.source_id)
+    rag_service.remove(payload.source_type, payload.source_id, revision=payload.revision)
     return RAGDeleteResponse(removed=existed, index_size=rag_service.index.size)
 
 
@@ -287,7 +287,7 @@ def rag_index(
     return RAGIndexResponse(
         id=doc.id,
         index_size=rag_service.index.size,
-        indexed=doc.searchable,
+        indexed=rag_service.index.get(doc.id) is not None,
     )
 
 

@@ -170,11 +170,18 @@ public class AiService {
     }
 
     public Map<String, Object> removeIndexedDocument(String sourceType, String sourceId) {
+        return removeIndexedDocument(sourceType, sourceId, null);
+    }
+
+    public Map<String, Object> removeIndexedDocument(String sourceType, String sourceId, Long revision) {
         if (!isRagIngestConfigured()) {
             throw new ResponseStatusException(SERVICE_UNAVAILABLE, "RAG ingestion is not configured");
         }
         try {
-            Map<String, Object> payload = Map.of("source_type", sourceType, "source_id", sourceId);
+            Map<String, Object> payload = new java.util.LinkedHashMap<>();
+            payload.put("source_type", sourceType);
+            payload.put("source_id", sourceId);
+            if (revision != null) payload.put("revision", revision);
             return exchange(
                 HttpMethod.POST,
                 URI.create(endpoint("/rag/delete")),

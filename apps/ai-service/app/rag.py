@@ -20,6 +20,7 @@ from app.schemas import MAX_EMBEDDING_DIMENSION, ProviderProvenance
 
 MAX_DOCUMENT_CHARS = 20_000
 MAX_RAG_DOCUMENTS = 1_000
+SYNC_REVISION_METADATA_KEY = "_sync_revision"
 _IGNORED_HTML_TAGS = frozenset({"script", "style", "noscript", "template"})
 
 
@@ -308,6 +309,7 @@ class RagService:
         max_documents: int = MAX_RAG_DOCUMENTS,
     ) -> None:
         self.index = index or RagIndex(max_documents=max_documents)
+        self._tombstones: dict[str, int] = {}
 
     def ingest(
         self,
@@ -335,6 +337,8 @@ class RagService:
         content_hash = hashlib.sha256(normalized_content.encode("utf-8")).hexdigest()
         document_metadata = dict(metadata or {})
         existing = self.index.get(document_id)
+        revision = self._revision(document_metadata)
+        tombstone_revision = self._tombstones.get(document_id)
 
         document = RagDocument(
             id=document_id,
@@ -351,10 +355,24 @@ class RagService:
             metadata=document_metadata,
         )
 
+        # A sync revision prevents an older in-flight request from resurrecting
+        # a source after a newer delete. Direct local/test calls without a
+        # revision retain the legacy replace behavior.
+        if revision is None:
+            self._tombstones.pop(document_id, None)
+        else:
+            existing_revision = self._revision(existing.metadata) if existing else None
+            if tombstone_revision is not None and revision <= tombstone_revision:
+                return existing or document
+            if existing_revision is not None and revision < existing_revision:
+                return existing
+            if tombstone_revision is not None and revision > tombstone_revision:
+                self._tombstones.pop(document_id, None)
+
         # Inactive or unpublished records are tombstoned from the searchable
-        # index.  This prevents stale public knowledge from remaining visible.
+        # index. This prevents stale public knowledge from remaining visible.
         if not document.searchable:
-            self.index.remove(document_id)
+            self.remove(source_type, source_id, revision=revision)
             return document
 
         # Reuse a prior vector when only metadata/title/publication state
@@ -389,8 +407,31 @@ class RagService:
         self.index.add(document)
         return document
 
-    def remove(self, source_type: str, source_id: str) -> None:
-        self.index.remove(f"{source_type}:{source_id}")
+    def remove(self, source_type: str, source_id: str, revision: int | None = None) -> None:
+        document_id = f"{source_type}:{source_id}"
+        existing = self.index.get(document_id)
+        if revision is not None:
+            current_revision = self._revision(existing.metadata) if existing else None
+            known_revision = max(
+                revision,
+                self._tombstones.get(document_id, revision),
+                current_revision if current_revision is not None else revision,
+            )
+            if current_revision is not None and revision < current_revision:
+                return
+            self._tombstones[document_id] = known_revision
+        self.index.remove(document_id)
+
+    @staticmethod
+    def _revision(metadata: dict[str, str]) -> int | None:
+        raw_revision = metadata.get(SYNC_REVISION_METADATA_KEY)
+        if raw_revision is None:
+            return None
+        try:
+            revision = int(raw_revision)
+        except (TypeError, ValueError):
+            return None
+        return revision if revision >= 0 else None
 
     def sources(self) -> list[tuple[str, str]]:
         return [(document.source_type, document.source_id) for document in self.index.documents]
