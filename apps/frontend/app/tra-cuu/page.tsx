@@ -39,7 +39,8 @@ export default function TraCuuPage() {
 
     try {
       const res = await fetch(
-        `${API_BASE_URL}/appointments/${bookingCodeInput.trim()}?phone=${encodeURIComponent(phoneInput.trim())}`
+        `${API_BASE_URL}/appointments/${encodeURIComponent(bookingCodeInput.trim())}?phone=${encodeURIComponent(phoneInput.trim())}`,
+        { cache: "no-store" },
       );
       if (!res.ok) {
         if (requestId !== lookupRequestRef.current) return;
@@ -66,7 +67,7 @@ export default function TraCuuPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/appointments/${appointment.bookingCode}/cancel`, {
+      const res = await fetch(`${API_BASE_URL}/appointments/${encodeURIComponent(appointment.bookingCode)}/cancel`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

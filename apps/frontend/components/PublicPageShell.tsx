@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { useEffect } from "react";
 import { fetchBranches } from "../lib/api-client";
@@ -8,7 +9,7 @@ import AiTriageModal from "./AiTriageModal";
 import BookingModal from "./BookingModal";
 import Footer from "./Footer";
 import Navbar from "./Navbar";
-import { RouteCmsSlots } from "./cms";
+import { routeCmsSlug, RouteCmsSlots } from "./cms";
 import type { Branch, Doctor, HealthPackage, Specialty } from "../types/hospital";
 
 interface PublicPageShellProps {
@@ -62,6 +63,7 @@ export function PublicBackLink({ href = "/", children = "← Về trang chính" 
 }
 
 export function PublicPageShell({ children, doctors = [], specialties = [], branches = EMPTY_BRANCHES, packages = [], bookingInitiallyOpen = false }: PublicPageShellProps) {
+  const pathname = usePathname();
   const [bookingOpen, setBookingOpen] = useState(bookingInitiallyOpen);
   const [aiOpen, setAiOpen] = useState(false);
   const [selection, setSelection] = useState<Parameters<PublicPageActions["openBooking"]>[0]>();
@@ -87,6 +89,8 @@ export function PublicPageShell({ children, doctors = [], specialties = [], bran
   }, [branches]);
 
   const effectiveBranches = branches.length > 0 ? branches : shellBranches;
+  const cmsSlug = routeCmsSlug(pathname);
+  const emergencyBranch = effectiveBranches.find((branch) => Boolean(branch.emergencyHotline));
 
   const actions: PublicPageActions = {
     openBooking: (nextSelection) => {
@@ -100,8 +104,8 @@ export function PublicPageShell({ children, doctors = [], specialties = [], bran
     <PublicPageActionsContext.Provider value={actions}>
       <div className="site-shell">
         <Navbar branches={effectiveBranches} onOpenAiTriage={() => setAiOpen(true)} onOpenBooking={() => actions.openBooking()} />
-        <main id="main-content" tabIndex={-1}><RouteCmsSlots />{children}</main>
-        <Footer branches={effectiveBranches} />
+        <main id="main-content" tabIndex={-1}>{children}<RouteCmsSlots /></main>
+        <Footer branches={effectiveBranches} cmsSlug={cmsSlug ?? undefined} />
         {bookingOpen ? (
           <BookingModal
             branches={effectiveBranches}
@@ -117,6 +121,7 @@ export function PublicPageShell({ children, doctors = [], specialties = [], bran
           />
         ) : null}
         <AiTriageModal
+          emergencyContact={emergencyBranch?.emergencyHotline}
           isOpen={aiOpen}
           onClose={() => setAiOpen(false)}
           onSelectSpecialtyForBooking={(_specialtyName, specialtyId) => {

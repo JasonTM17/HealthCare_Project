@@ -3,12 +3,16 @@ import React from "react";
 import type { Branch } from "../types/hospital";
 import BrandMark from "./BrandMark";
 import Icon from "./UiIcon";
+import CmsLiveSlot from "./cms/CmsLiveSlot";
+import { CmsContentRenderer } from "./cms/CmsRenderer";
 
 interface FooterProps {
   branches?: Branch[];
+  /** Public route identity for the typed footer slot; omitted on private shells. */
+  cmsSlug?: string;
 }
 
-const Footer: React.FC<FooterProps> = ({ branches = [] }) => {
+const Footer: React.FC<FooterProps> = ({ branches = [], cmsSlug }) => {
   const emergencyBranch = branches.find((branch) => Boolean(branch.emergencyHotline));
   const contactBranch = branches.find((branch) => Boolean(branch.phone));
   const contactPhone = emergencyBranch?.emergencyHotline ?? contactBranch?.phone;
@@ -57,6 +61,18 @@ const Footer: React.FC<FooterProps> = ({ branches = [] }) => {
         <Link className="text-button text-button--light" href="/#branches">Xem cơ sở <Icon name="arrow-up-right" size={17} /></Link>
       </aside>
     </div>
+
+    {cmsSlug ? (
+      <CmsLiveSlot
+        className="site-footer__cms"
+        hideWhenNotFound
+        hideWhileLoading
+        renderContent={(content) => <CmsContentRenderer content={content} />}
+        showSourceLabel={false}
+        slug={cmsSlug}
+        slotKey="footer"
+      />
+    ) : null}
 
     <div className="site-footer__bottom">
       <span>© 2026 HealthCare. Bảo lưu mọi quyền.</span>

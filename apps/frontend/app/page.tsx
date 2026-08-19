@@ -430,10 +430,10 @@ export default function Home(): React.ReactElement {
   };
 
   const handleAiSpecialtySelect = (_specialtyName: string, specialtyId?: string): void => {
-    const matchedSpecialty = specialtyId
-      ? (catalog?.specialties ?? []).find((specialty) => specialty.id === specialtyId)
-      : undefined;
-    handleOpenBooking(undefined, matchedSpecialty?.id, undefined);
+    // Preserve the backend identity even when the homepage catalog is still
+    // loading or unavailable. BookingModal will reconcile it after its own
+    // authoritative catalog read instead of silently opening an unfiltered flow.
+    handleOpenBooking(undefined, specialtyId, undefined);
   };
 
   const handleHeroSearchSubmit = (): void => {
@@ -491,7 +491,7 @@ export default function Home(): React.ReactElement {
         onOpenBooking={() => handleOpenBooking()}
       />
 
-      <main>
+      <main id="main-content" tabIndex={-1}>
         <section className="hero-section" aria-labelledby="hero-title">
           <CmsLiveSlot
             className="hero-inner"
@@ -527,7 +527,6 @@ export default function Home(): React.ReactElement {
               <CmsLiveSlot hideWhenNotFound slug="home" slotKey="body" />
               <div className="grid gap-6">
                 <CmsLiveSlot hideWhenNotFound slug="home" slotKey="sidebar" />
-                <CmsLiveSlot hideWhenNotFound slug="home" slotKey="footer" />
               </div>
             </div>
           </div>
@@ -850,7 +849,7 @@ export default function Home(): React.ReactElement {
         <Icon name="arrow-up-right" size={17} />
       </button>
 
-      <Footer branches={branches} />
+      <Footer branches={branches} cmsSlug="home" />
 
       {isBookingOpen ? (
         <BookingModal
@@ -868,6 +867,7 @@ export default function Home(): React.ReactElement {
         />
       ) : null}
       <AiTriageModal
+        emergencyContact={emergencyBranch?.emergencyHotline}
         isOpen={isAiTriageOpen}
         onClose={() => setIsAiTriageOpen(false)}
         onSelectSpecialtyForBooking={handleAiSpecialtySelect}

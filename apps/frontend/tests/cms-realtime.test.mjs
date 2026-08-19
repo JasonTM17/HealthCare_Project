@@ -154,6 +154,8 @@ test("admin editor exposes typed status/version and protected API states", async
     "rollbackContent",
     "Các component CMS đã có trong backend",
     "loadAvailableContent",
+    "loadGenerationRef",
+    "isCurrentRequest",
   ]) {
     assert.ok(source.includes(marker), `missing editor state: ${marker}`);
   }

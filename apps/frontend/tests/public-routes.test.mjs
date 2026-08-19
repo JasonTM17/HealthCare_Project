@@ -168,11 +168,12 @@ test("Stitch detail screens render backend-owned structured content", async () =
 });
 
 test("Stitch search and careers screens have live public route owners", async () => {
-  const [search, careers, footer, home] = await Promise.all([
+  const [search, careers, footer, home, lookup] = await Promise.all([
     read("app/search/SearchPageClient.tsx"),
     read("app/careers/page.tsx"),
     read("components/Footer.tsx"),
     read("app/page.tsx"),
+    read("app/tra-cuu/page.tsx"),
   ]);
 
   for (const marker of ["fetchSpecialties", "fetchDoctors", "fetchServices", "fetchPackages", "fetchArticles", "Promise.allSettled", "settledContent"]) {
@@ -190,17 +191,24 @@ test("Stitch search and careers screens have live public route owners", async ()
   assert.match(home, /router\.push/);
   assert.match(home, /data-cms-managed/);
   assert.match(home, /CmsContentRenderer/);
+  assert.match(lookup, /appointments\/\$\{encodeURIComponent\(bookingCodeInput\.trim\(\)\)\}/);
+  assert.match(lookup, /cache: "no-store"/);
 });
 
 test("every public page family keeps the route-level CMS composition point", async () => {
-  const routeCms = await read("components/cms/RouteCmsSlots.tsx");
+  const [routeCms, footer] = await Promise.all([
+    read("components/cms/RouteCmsSlots.tsx"),
+    read("components/Footer.tsx"),
+  ]);
 
-  assert.match(routeCms, /\["admin", "auth", "doctor", "patient", "careers"\]/);
+  assert.match(routeCms, /\["admin", "auth", "doctor", "patient"\]/);
   assert.match(routeCms, /Careers owns its hero/);
   assert.match(routeCms, /Dynamic detail/);
-  for (const slot of ["hero", "body", "sidebar", "footer"]) {
+  for (const slot of ["hero", "body", "sidebar"]) {
     assert.match(routeCms, new RegExp(`slotKey="${slot}"`));
   }
+  assert.match(footer, /cmsSlug\?/);
+  assert.match(footer, /slotKey="footer"/);
 });
 
 test("doctor portal exposes the typed clinical write workflow", async () => {

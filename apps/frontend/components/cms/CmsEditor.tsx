@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
   type FormEvent,
   type ReactElement,
@@ -285,8 +286,12 @@ export function CmsEditor({
   const [history, setHistory] = useState<CmsContentHistoryEntry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
+  const loadGenerationRef = useRef(0);
 
   const loadContent = useCallback(async (requestedSlug: string, requestedSlot: CmsSlotKey): Promise<void> => {
+    const requestGeneration = loadGenerationRef.current + 1;
+    loadGenerationRef.current = requestGeneration;
+    const isCurrentRequest = (): boolean => loadGenerationRef.current === requestGeneration;
     const normalizedSlug = requestedSlug.trim();
     const backendSlotKey = resolveCmsSlotKey(normalizedSlug, requestedSlot);
     setSlug(normalizedSlug);
@@ -295,8 +300,12 @@ export function CmsEditor({
     setApiError(null);
     setFieldErrors({});
     setNotice(null);
+    setHistory([]);
+    setHistoryLoading(false);
+    setHistoryError(null);
     try {
       const loadedContent = await client.getAdminContent(backendSlotKey);
+      if (!isCurrentRequest()) return;
       const loadedDraft = draftFromContent(loadedContent);
       setContent(loadedContent);
       setDraft(loadedDraft);
@@ -304,16 +313,19 @@ export function CmsEditor({
       setLoadedSlug(normalizedSlug);
       setLoadedSlotKey(backendSlotKey);
       setHistoryLoading(true);
-      setHistoryError(null);
       try {
-        setHistory(await client.listHistory(backendSlotKey));
+        const loadedHistory = await client.listHistory(backendSlotKey);
+        if (!isCurrentRequest()) return;
+        setHistory(loadedHistory);
       } catch (historyLoadError) {
+        if (!isCurrentRequest()) return;
         setHistory([]);
         setHistoryError(apiErrorMessage(asCmsError(historyLoadError)));
       } finally {
-        setHistoryLoading(false);
+        if (isCurrentRequest()) setHistoryLoading(false);
       }
     } catch (error) {
+      if (!isCurrentRequest()) return;
       const cmsError = asCmsError(error);
       setApiError(cmsError);
       setContent(null);
@@ -324,7 +336,7 @@ export function CmsEditor({
       setHistory([]);
       setHistoryError(null);
     } finally {
-      setOperation("idle");
+      if (isCurrentRequest()) setOperation("idle");
     }
   }, [client]);
 
