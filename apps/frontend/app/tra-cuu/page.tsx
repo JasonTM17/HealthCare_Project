@@ -4,6 +4,7 @@ import React, { useRef, useState } from "react";
 import Link from "next/link";
 import Icon from "../../components/UiIcon";
 import { PublicPageShell } from "../../components/PublicPageShell";
+import useDialogFocus from "../../components/useDialogFocus";
 import { AppointmentDetails } from "../../types/hospital";
 
 const API_BASE_URL =
@@ -19,9 +20,17 @@ export default function TraCuuPage() {
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [cancelSuccess, setCancelSuccess] = useState(false);
   const lookupRequestRef = useRef(0);
+  const cancelDialogRef = useRef<HTMLDivElement>(null);
+
+  useDialogFocus(cancelDialogRef, showCancelDialog, () => setShowCancelDialog(false));
 
   const handleLookup = async (e: React.FormEvent) => {
     e.preventDefault();
+    const requestId = ++lookupRequestRef.current;
+    setAppointment(null);
+    setCancelSuccess(false);
+    setErrorMessage("");
+    setLoading(false);
     if (!bookingCodeInput.trim()) {
       setErrorMessage("Vui lòng nhập Mã lịch hẹn");
       return;
@@ -32,10 +41,6 @@ export default function TraCuuPage() {
     }
 
     setLoading(true);
-    setErrorMessage("");
-    setAppointment(null);
-    setCancelSuccess(false);
-    const requestId = ++lookupRequestRef.current;
 
     try {
       const res = await fetch(
@@ -294,19 +299,27 @@ export default function TraCuuPage() {
 
         {/* Cancellation Confirmation Dialog */}
         {showCancelDialog && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-            <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-red-100 space-y-4">
-              <h3 className="text-lg font-bold text-red-700 flex items-center gap-2">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn" role="presentation">
+            <div
+              aria-describedby="cancel-dialog-description"
+              aria-labelledby="cancel-dialog-title"
+              aria-modal="true"
+              className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-red-100 space-y-4"
+              ref={cancelDialogRef}
+              role="dialog"
+            >
+              <h3 className="text-lg font-bold text-red-700 flex items-center gap-2" id="cancel-dialog-title">
                 <Icon name="alert-triangle" size={16} /> Xác Nhận Hủy Lịch Khám
               </h3>
-              <p className="text-xs text-ink-muted leading-relaxed">
+              <p className="text-xs text-ink-muted leading-relaxed" id="cancel-dialog-description">
                 Bạn có chắc chắn muốn hủy lịch hẹn mã <span className="font-mono font-bold text-ink">{appointment?.bookingCode}</span> với {appointment?.doctorName} vào ngày {appointment?.appointmentDate}?
               </p>
               <div>
-                <label className="block text-xs font-semibold text-ink-muted mb-1">
+                <label className="block text-xs font-semibold text-ink-muted mb-1" htmlFor="cancel-reason">
                   Lý do hủy (không bắt buộc):
                 </label>
                 <input
+                  id="cancel-reason"
                   type="text"
                   placeholder="Ví dụ: Thay đổi lịch công tác..."
                   value={cancelReason}
@@ -317,6 +330,7 @@ export default function TraCuuPage() {
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
+                  disabled={loading}
                   onClick={() => setShowCancelDialog(false)}
                   className="px-4 py-2 text-xs font-bold text-ink-muted hover:bg-mint-100 rounded-lg"
                 >
@@ -324,6 +338,7 @@ export default function TraCuuPage() {
                 </button>
                 <button
                   type="button"
+                  disabled={loading}
                   onClick={handleCancelAppointment}
                   className="px-5 py-2 text-xs font-bold bg-red-600 hover:bg-red-700 text-white rounded-lg shadow"
                 >

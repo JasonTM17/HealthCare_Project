@@ -5,6 +5,7 @@ import BrandMark from "./BrandMark";
 import Icon from "./UiIcon";
 import CmsLiveSlot from "./cms/CmsLiveSlot";
 import { CmsContentRenderer } from "./cms/CmsRenderer";
+import { safeTelephoneHref } from "../lib/phone";
 
 interface FooterProps {
   branches?: Branch[];
@@ -16,6 +17,7 @@ const Footer: React.FC<FooterProps> = ({ branches = [], cmsSlug }) => {
   const emergencyBranch = branches.find((branch) => Boolean(branch.emergencyHotline));
   const contactBranch = branches.find((branch) => Boolean(branch.phone));
   const contactPhone = emergencyBranch?.emergencyHotline ?? contactBranch?.phone;
+  const contactHref = safeTelephoneHref(contactPhone);
 
   return (
   <footer className="site-footer">
@@ -52,8 +54,8 @@ const Footer: React.FC<FooterProps> = ({ branches = [], cmsSlug }) => {
       <aside className="footer-contact">
         <p className="footer-contact__eyebrow">Kết nối trực tiếp</p>
         <h2>{emergencyBranch ? "Hotline cấp cứu" : "Liên hệ bệnh viện"}</h2>
-        {contactPhone ? (
-          <a className="footer-hotline" href={`tel:${contactPhone.replace(/\s/g, "")}`}><Icon name="phone" size={18} />{contactPhone}</a>
+        {contactHref ? (
+          <a className="footer-hotline" href={contactHref}><Icon name="phone" size={18} />{contactPhone}</a>
         ) : (
           <p>Thông tin điện thoại đang được cập nhật.</p>
         )}
@@ -80,7 +82,7 @@ const Footer: React.FC<FooterProps> = ({ branches = [], cmsSlug }) => {
     </div>
 
     <nav aria-label="Lối tắt trên thiết bị nhỏ" className="mobile-care-rail">
-      {contactPhone ? <a href={`tel:${contactPhone.replace(/\s/g, "")}`}><Icon name="phone" size={19} /><span>Gọi ngay</span></a> : <Link href="/contact"><Icon name="phone" size={19} /><span>Liên hệ</span></Link>}
+      {contactHref ? <a href={contactHref}><Icon name="phone" size={19} /><span>Gọi ngay</span></a> : <Link href="/contact"><Icon name="phone" size={19} /><span>Liên hệ</span></Link>}
       <Link className="mobile-care-rail__primary" href="/dat-lich"><Icon name="calendar" size={19} /><span>Đặt lịch</span></Link>
       <Link href="/tra-cuu"><Icon name="search" size={19} /><span>Tra cứu</span></Link>
     </nav>

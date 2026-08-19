@@ -6,6 +6,7 @@ import React, { useEffect, useRef, useState } from "react";
 import type { Branch } from "../types/hospital";
 import BrandMark from "./BrandMark";
 import Icon from "./UiIcon";
+import { safeTelephoneHref } from "../lib/phone";
 
 interface NavbarProps {
   onOpenBooking: () => void;
@@ -30,6 +31,7 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, onOpenAiTriage, branches
   const emergencyBranch = branches.find((branch) => Boolean(branch.emergencyHotline));
   const contactBranch = branches.find((branch) => Boolean(branch.phone));
   const contactPhone = emergencyBranch?.emergencyHotline ?? contactBranch?.phone;
+  const contactHref = safeTelephoneHref(contactPhone);
 
   const closeMobileMenu = (): void => setMobileMenuOpen(false);
 
@@ -83,8 +85,8 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, onOpenAiTriage, branches
       <div className="utility-bar">
         <div className="utility-bar__inner">
           <div className="utility-bar__left">
-            {contactPhone ? (
-              <a className="utility-hotline" href={`tel:${contactPhone.replace(/\s/g, "")}`}>
+            {contactHref ? (
+              <a className="utility-hotline" href={contactHref}>
                 <Icon name="phone" size={15} />
                 <span>{emergencyBranch ? "Cấp cứu" : "Hotline"}</span>
                 <strong>{contactPhone}</strong>

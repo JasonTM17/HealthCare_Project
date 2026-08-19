@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRef, useState, type FormEvent } from "react";
 import { ApiError, recommendSpecialty } from "../lib/api-client";
+import { safeTelephoneHref } from "../lib/phone";
 import type {
   AiTriageCitation,
   AiTriageResult,
@@ -81,15 +82,6 @@ function citationDetails(citation: AiTriageCitation): { label: string; href?: st
   return { label: scalarLabel(citation), href };
 }
 
-function safeTelephoneHref(value?: string): string | null {
-  const trimmed = value?.trim() ?? "";
-  // Validate the source before normalizing. Stripping arbitrary characters
-  // first would turn `javascript:123456` into an unsafe `tel:123456` action.
-  if (!trimmed || !/^\+?[0-9][0-9\s().-]{5,24}$/.test(trimmed)) return null;
-  const normalized = trimmed.replace(/[\s().-]/g, "");
-  return /^\+?\d{6,15}$/.test(normalized) ? `tel:${normalized}` : null;
-}
-
 export default function AiTriageModal({
   isOpen,
   onClose,
@@ -144,7 +136,12 @@ export default function AiTriageModal({
   };
 
   const handleBookNow = () => {
-    if (result && result.urgencyLevel !== "EMERGENCY") {
+    if (
+      result
+      && result.urgencyLevel !== "EMERGENCY"
+      && result.specialtyResolution === "RESOLVED"
+      && result.recommendedSpecialtyId
+    ) {
       onSelectSpecialtyForBooking(result.recommendedSpecialty, result.recommendedSpecialtyId);
       onClose();
     }
@@ -274,7 +271,7 @@ export default function AiTriageModal({
               <p className="text-[11px] text-gray-600">
                 {result.recommendedSpecialtyId && result.specialtyResolution === "RESOLVED"
                   ? "Chuyên khoa này hiện có trong danh mục đặt lịch."
-                  : "Bạn có thể mở biểu mẫu đặt lịch và tự chọn chuyên khoa phù hợp."}
+                  : "AI chưa xác nhận được identity trong catalog live; hãy chọn chuyên khoa trực tiếp từ danh mục."}
               </p>
 
               <p className="flex items-start gap-2 rounded-lg border border-brand-100 bg-white/80 p-3 text-xs leading-relaxed text-gray-700">
@@ -341,13 +338,23 @@ export default function AiTriageModal({
               ) : (
                 <div className="flex flex-col gap-3 border-t border-brand-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
                   <span className="text-[11px] text-gray-500">Hãy trao đổi lại với nhân viên y tế trước khi quyết định.</span>
-                  <button
-                    type="button"
-                    onClick={handleBookNow}
-                    className="flex min-h-11 items-center justify-center gap-1.5 rounded-lg bg-brand-700 px-5 py-2 text-xs font-bold text-white shadow-md transition-colors hover:bg-brand-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
-                  >
-                    <span>Đặt khám chuyên khoa này</span> <Icon name="arrow-right" size={16} />
-                  </button>
+                  {result.specialtyResolution === "RESOLVED" && result.recommendedSpecialtyId ? (
+                    <button
+                      type="button"
+                      onClick={handleBookNow}
+                      className="flex min-h-11 items-center justify-center gap-1.5 rounded-lg bg-brand-700 px-5 py-2 text-xs font-bold text-white shadow-md transition-colors hover:bg-brand-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
+                    >
+                      <span>Đặt khám chuyên khoa này</span> <Icon name="arrow-right" size={16} />
+                    </button>
+                  ) : (
+                    <Link
+                      className="flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-brand-300 bg-white px-5 py-2 text-xs font-bold text-brand-800 hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
+                      href="/specialties"
+                      onClick={onClose}
+                    >
+                      Chọn trong danh mục <Icon name="arrow-right" size={16} />
+                    </Link>
+                  )}
                 </div>
               )}
             </div>

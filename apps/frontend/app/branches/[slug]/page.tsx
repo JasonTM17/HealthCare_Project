@@ -11,6 +11,7 @@ import {
   PublicPageShell,
 } from "../../../components/PublicPageShell";
 import { fetchBranchBySlug } from "../../../lib/api-client";
+import { safeTelephoneHref } from "../../../lib/phone";
 import type { Branch } from "../../../types/hospital";
 
 export default function BranchDetailPage() {
@@ -47,6 +48,10 @@ export default function BranchDetailPage() {
       cancelled = true;
     };
   }, [retryCount, slug]);
+
+  const phoneHref = safeTelephoneHref(branch?.phone);
+  const emergencyHref = safeTelephoneHref(branch?.emergencyHotline);
+  const callHref = emergencyHref ?? phoneHref;
 
   return (
     <PublicPageShell branches={branch ? [branch] : []}>
@@ -101,8 +106,8 @@ export default function BranchDetailPage() {
                 <div>
                   <dt>Điện thoại</dt>
                   <dd>
-                    {branch.phone ? (
-                      <a href={`tel:${branch.phone.replace(/\s/g, "")}`}>{branch.phone}</a>
+                    {phoneHref ? (
+                      <a href={phoneHref}>{branch.phone}</a>
                     ) : (
                       <span className="resource-muted">Số điện thoại đang được cập nhật.</span>
                     )}
@@ -127,10 +132,10 @@ export default function BranchDetailPage() {
                 <PublicBookingButton selection={{ branchId: branch.id }}>
                   Đặt lịch tại cơ sở này
                 </PublicBookingButton>
-                {branch.emergencyHotline || branch.phone ? (
+                {callHref ? (
                   <a
                     className="outline-button"
-                    href={`tel:${(branch.emergencyHotline || branch.phone || "").replace(/\s/g, "")}`}
+                    href={callHref}
                   >
                     Gọi cơ sở
                   </a>

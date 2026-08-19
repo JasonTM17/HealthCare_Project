@@ -126,6 +126,10 @@ export default function BookingModal({
   const bookingSessionRef = useRef(0);
   const dialogRef = useRef<HTMLDivElement>(null);
 
+  const invalidateBookingSession = useCallback(() => {
+    bookingSessionRef.current += 1;
+  }, []);
+
   useDialogFocus(dialogRef, isOpen, onClose);
 
   const resetBookingState = useCallback(() => {
@@ -155,10 +159,10 @@ export default function BookingModal({
   }, [initialBranchId, initialDoctorId, initialPackageId, initialSpecialtyId]);
 
   const closeBooking = useCallback(() => {
-    bookingSessionRef.current += 1;
+    invalidateBookingSession();
     resetBookingState();
     onClose();
-  }, [onClose, resetBookingState]);
+  }, [invalidateBookingSession, onClose, resetBookingState]);
 
   useEffect(() => {
     if (!isOpen || (doctors.length > 0 && specialties.length > 0 && branches.length > 0)) return;
@@ -306,8 +310,14 @@ export default function BookingModal({
   const holdExpired = Boolean(bookingCode && holdExpiresAt && !confirmedAppointment && secondsRemaining <= 0);
   const otpExpired = Boolean(bookingCode && otpExpiresAt && !confirmedAppointment && otpSecondsRemaining <= 0);
 
+  const navigateToStep = (nextStep: number): void => {
+    if (isSubmitting) return;
+    invalidateBookingSession();
+    setStep(nextStep);
+  };
+
   const restartSlotSelection = (): void => {
-    bookingSessionRef.current += 1;
+    invalidateBookingSession();
     setStep(5);
     setBookingCode("");
     setHoldExpiresAt("");
@@ -322,6 +332,7 @@ export default function BookingModal({
   };
 
   const handleSpecialtyChange = (specialtyId: string): void => {
+    invalidateBookingSession();
     const nextSpecialty = specialties.find((specialty) => specialty.id === specialtyId);
     const doctorsForSelection = doctors.filter((doctor) =>
       doctorMatchesBranch(doctor, selectedBranch) && doctorMatchesSpecialty(doctor, nextSpecialty),
@@ -337,6 +348,7 @@ export default function BookingModal({
   };
 
   const handleBranchChange = (branchId: string): void => {
+    invalidateBookingSession();
     setSelectedBranch(branchId);
     setSlots([]);
     setSelectedSlot("");
@@ -348,6 +360,7 @@ export default function BookingModal({
   };
 
   const handleDoctorChange = (doctorId: string): void => {
+    invalidateBookingSession();
     setSelectedDoctor(doctorId);
     setSlots([]);
     setSelectedSlot("");
@@ -355,10 +368,16 @@ export default function BookingModal({
   };
 
   const handleDateChange = (date: string): void => {
+    invalidateBookingSession();
     setSelectedDate(date);
     setSlots([]);
     setSelectedSlot("");
     setSlotError("");
+  };
+
+  const handleSlotChange = (slotTime: string): void => {
+    invalidateBookingSession();
+    setSelectedSlot(slotTime);
   };
 
   // Handle Step 3: Hold Slot
@@ -366,7 +385,7 @@ export default function BookingModal({
     e.preventDefault();
     if (!currentSpecialty || !selectedSpecialty) {
       setErrorMessage("Chuyên khoa không còn hợp lệ trong catalog live. Vui lòng chọn lại trước khi giữ lịch.");
-      setStep(1);
+      navigateToStep(1);
       return;
     }
     const chosenSlot = slots.find((slot) => slot.startTime === selectedSlot);
@@ -551,6 +570,7 @@ export default function BookingModal({
                   id="booking-specialty"
                   value={selectedSpecialty}
                   onChange={(e) => handleSpecialtyChange(e.target.value)}
+                  disabled={isSubmitting}
                   className="w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
                 >
                   {specialties.map((sp) => <option key={sp.id} value={sp.id}>{sp.name}</option>)}
@@ -561,7 +581,7 @@ export default function BookingModal({
                 <p className="mt-1 text-xs leading-5 text-brand-700">{currentSpecialty?.description ?? "Chọn một chuyên khoa để tiếp tục."}</p>
               </div>
               <div className="flex justify-end border-t border-gray-100 pt-4">
-                <button type="button" disabled={catalogLoading || !currentSpecialty} onClick={() => setStep(2)} className="flex items-center gap-2 rounded-full bg-brand-700 px-6 py-2.5 font-semibold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600">
+                <button type="button" disabled={isSubmitting || catalogLoading || !currentSpecialty} onClick={() => navigateToStep(2)} className="flex items-center gap-2 rounded-full bg-brand-700 px-6 py-2.5 font-semibold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600">
                   Tiếp tục: Chọn cơ sở <span>→</span>
                 </button>
               </div>
@@ -578,7 +598,7 @@ export default function BookingModal({
               </div>
               <div>
                 <label className="mb-1 block text-sm font-semibold text-gray-700" htmlFor="booking-branch">Cơ sở bệnh viện / phòng khám</label>
-                <select id="booking-branch" value={selectedBranch} onChange={(e) => handleBranchChange(e.target.value)} className="w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-600">
+                <select id="booking-branch" value={selectedBranch} onChange={(e) => handleBranchChange(e.target.value)} disabled={isSubmitting} className="w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-600">
                   {branches.map((br) => <option key={br.id} value={br.id}>{br.name}</option>)}
                 </select>
               </div>
@@ -588,8 +608,8 @@ export default function BookingModal({
                 <p className="mt-1 text-xs text-brand-700">{currentBranch?.workingHours ?? "Backend chưa cung cấp giờ làm việc."}</p>
               </div>
               <div className="flex items-center justify-between border-t border-gray-100 pt-4">
-                <button type="button" onClick={() => setStep(1)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900">← Quay lại</button>
-                <button type="button" disabled={catalogLoading || !currentBranch} onClick={() => setStep(3)} className="flex items-center gap-2 rounded-full bg-brand-700 px-6 py-2.5 font-semibold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600">
+                <button type="button" disabled={isSubmitting} onClick={() => navigateToStep(1)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 disabled:opacity-50">← Quay lại</button>
+                <button type="button" disabled={isSubmitting || catalogLoading || !currentBranch} onClick={() => navigateToStep(3)} className="flex items-center gap-2 rounded-full bg-brand-700 px-6 py-2.5 font-semibold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600">
                   Tiếp tục: Chọn bác sĩ <span>→</span>
                 </button>
               </div>
@@ -606,7 +626,7 @@ export default function BookingModal({
               </div>
               <div>
                 <label className="mb-1 block text-sm font-semibold text-gray-700" htmlFor="booking-doctor">Bác sĩ chuyên gia</label>
-                <select id="booking-doctor" value={selectedDoctor} onChange={(e) => handleDoctorChange(e.target.value)} className="w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-600">
+                <select id="booking-doctor" value={selectedDoctor} onChange={(e) => handleDoctorChange(e.target.value)} disabled={isSubmitting} className="w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-600">
                   {availableDoctors.map((doc) => <option key={doc.id} value={doc.id}>{doc.fullName} ({doc.title || doc.specialtyName || "Bác sĩ chuyên khoa"})</option>)}
                 </select>
               </div>
@@ -619,8 +639,8 @@ export default function BookingModal({
                 </div>
               </div>
               <div className="flex items-center justify-between border-t border-gray-100 pt-4">
-                <button type="button" onClick={() => setStep(2)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900">← Quay lại</button>
-                <button type="button" disabled={catalogLoading || !currentDoctor} onClick={() => setStep(4)} className="flex items-center gap-2 rounded-full bg-brand-700 px-6 py-2.5 font-semibold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600">
+                <button type="button" disabled={isSubmitting} onClick={() => navigateToStep(2)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 disabled:opacity-50">← Quay lại</button>
+                <button type="button" disabled={isSubmitting || catalogLoading || !currentDoctor} onClick={() => navigateToStep(4)} className="flex items-center gap-2 rounded-full bg-brand-700 px-6 py-2.5 font-semibold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600">
                   Tiếp tục: Chọn ngày <span>→</span>
                 </button>
               </div>
@@ -637,15 +657,15 @@ export default function BookingModal({
               </div>
               <div>
                 <label className="mb-1 block text-sm font-semibold text-gray-700" htmlFor="booking-date">Ngày khám mong muốn</label>
-                <input id="booking-date" type="date" min={selectedDate} value={selectedDate} onChange={(e) => handleDateChange(e.target.value)} className="w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-600" />
+                <input id="booking-date" type="date" min={selectedDate} value={selectedDate} onChange={(e) => handleDateChange(e.target.value)} disabled={isSubmitting} className="w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-600" />
               </div>
               <div className="rounded-xl border border-brand-100 bg-brand-50/60 p-4 text-xs text-brand-900">
                 <p><strong>Bác sĩ:</strong> {currentDoctor?.fullName ?? "Chưa chọn"}</p>
                 <p className="mt-1"><strong>Cơ sở:</strong> {currentBranch?.name ?? "Chưa chọn"}</p>
               </div>
               <div className="flex items-center justify-between border-t border-gray-100 pt-4">
-                <button type="button" onClick={() => setStep(3)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900">← Quay lại</button>
-                <button type="button" disabled={!selectedDate || !currentDoctor || !currentBranch} onClick={() => setStep(5)} className="flex items-center gap-2 rounded-full bg-brand-700 px-6 py-2.5 font-semibold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600">
+                <button type="button" disabled={isSubmitting} onClick={() => navigateToStep(3)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 disabled:opacity-50">← Quay lại</button>
+                <button type="button" disabled={isSubmitting || !selectedDate || !currentDoctor || !currentBranch} onClick={() => navigateToStep(5)} className="flex items-center gap-2 rounded-full bg-brand-700 px-6 py-2.5 font-semibold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600">
                   Xem khung giờ <span>→</span>
                 </button>
               </div>
@@ -677,11 +697,11 @@ export default function BookingModal({
                 {loadingSlots ? <div aria-live="polite" className="py-8 text-center text-sm text-gray-500" role="status"><Icon name="clock" size={15} /> Đang tải lịch khám khả dụng...</div>
                   : slotError ? <div aria-live="assertive" className="rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700" role="alert">{slotError}</div>
                   : slots.length === 0 ? <div aria-live="polite" className="rounded-lg border border-dashed border-gray-300 px-3 py-6 text-center text-sm text-gray-500" role="status">Chưa có khung giờ cho bác sĩ, cơ sở và ngày đã chọn.</div>
-                  : <div className="grid max-h-56 grid-cols-3 gap-2.5 overflow-y-auto p-1 sm:grid-cols-4">{slots.map((slot) => { const isSelected = selectedSlot === slot.startTime; return <button key={`${slot.branchId}-${slot.startTime}`} type="button" disabled={!slot.available || slot.branchId !== selectedBranch} onClick={() => setSelectedSlot(slot.startTime)} className={`flex flex-col items-center justify-center gap-0.5 rounded-lg border p-2.5 text-xs font-semibold transition-colors ${isSelected ? "border-brand-700 bg-brand-700 text-white shadow-md ring-2 ring-brand-500" : slot.available ? "border-brand-200 bg-white text-gray-800 hover:border-brand-500 hover:bg-brand-50" : "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 opacity-60"}`}><span className="text-sm font-bold">{slot.startTime.slice(0, 5)}</span><span className="text-[10px] opacity-80">{slot.available ? "Còn trống" : "Đã kín"}</span></button>; })}</div>}
+                   : <div className="grid max-h-56 grid-cols-3 gap-2.5 overflow-y-auto p-1 sm:grid-cols-4">{slots.map((slot) => { const isSelected = selectedSlot === slot.startTime; return <button key={`${slot.branchId}-${slot.startTime}`} type="button" disabled={isSubmitting || !slot.available || slot.branchId !== selectedBranch} onClick={() => handleSlotChange(slot.startTime)} className={`flex flex-col items-center justify-center gap-0.5 rounded-lg border p-2.5 text-xs font-semibold transition-colors ${isSelected ? "border-brand-700 bg-brand-700 text-white shadow-md ring-2 ring-brand-500" : slot.available ? "border-brand-200 bg-white text-gray-800 hover:border-brand-500 hover:bg-brand-50" : "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 opacity-60"}`}><span className="text-sm font-bold">{slot.startTime.slice(0, 5)}</span><span className="text-[10px] opacity-80">{slot.available ? "Còn trống" : "Đã kín"}</span></button>; })}</div>}
               </div>
               <div className="flex items-center justify-between border-t border-gray-100 pt-4">
-                <button type="button" onClick={() => setStep(4)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900">← Quay lại</button>
-                <button type="button" disabled={!selectedSlot || !slots.some((slot) => slot.available && slot.startTime === selectedSlot && slot.branchId === selectedBranch)} onClick={() => setStep(6)} className="flex items-center gap-2 rounded-full bg-brand-700 px-6 py-2.5 font-semibold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600">
+                <button type="button" disabled={isSubmitting} onClick={() => navigateToStep(4)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 disabled:opacity-50">← Quay lại</button>
+                <button type="button" disabled={isSubmitting || !selectedSlot || !slots.some((slot) => slot.available && slot.startTime === selectedSlot && slot.branchId === selectedBranch)} onClick={() => navigateToStep(6)} className="flex items-center gap-2 rounded-full bg-brand-700 px-6 py-2.5 font-semibold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600">
                   Tiếp tục: Điền thông tin <span>→</span>
                 </button>
               </div>
@@ -705,56 +725,64 @@ export default function BookingModal({
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                <label className="block text-sm font-semibold text-gray-700 mb-1" htmlFor="booking-full-name">
                   Họ và tên bệnh nhân <span className="text-red-500">*</span>
                 </label>
                 <input
+                  id="booking-full-name"
                   type="text"
                   required
                   placeholder="Ví dụ: Nguyễn Văn An"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
+                  disabled={isSubmitting}
                   className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-600 focus:outline-none text-sm text-gray-900"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1" htmlFor="booking-phone">
                     Số điện thoại liên hệ <span className="text-red-500">*</span>
                   </label>
                   <input
+                    id="booking-phone"
                     type="tel"
                     required
                     placeholder="0901234567"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
+                    disabled={isSubmitting}
                     className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-600 focus:outline-none text-sm text-gray-900"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1" htmlFor="booking-email">
                     Địa chỉ Email (Nhận phiếu khám)
                   </label>
                   <input
+                    id="booking-email"
                     type="email"
                     placeholder="patient@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    disabled={isSubmitting}
                     className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-600 focus:outline-none text-sm text-gray-900"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                <label className="block text-sm font-semibold text-gray-700 mb-1" htmlFor="booking-reason">
                   Triệu chứng hoặc lý do khám bệnh
                 </label>
                 <textarea
+                  id="booking-reason"
                   rows={2}
                   placeholder="Mô tả sơ bộ triệu chứng (đau đầu, sốt, khó thở...) để bác sĩ chuẩn bị trước..."
                   value={reasonForVisit}
                   onChange={(e) => setReasonForVisit(e.target.value)}
+                  disabled={isSubmitting}
                   className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-600 focus:outline-none text-sm text-gray-900"
                 />
               </div>
@@ -762,8 +790,9 @@ export default function BookingModal({
               <div className="pt-3 flex items-center justify-between border-t border-gray-100">
                 <button
                   type="button"
-                  onClick={() => setStep(5)}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium text-sm"
+                  onClick={() => navigateToStep(5)}
+                  disabled={isSubmitting}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium text-sm disabled:opacity-50"
                 >
                   ← Quay lại
                 </button>
@@ -807,7 +836,7 @@ export default function BookingModal({
                     <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-left text-sm text-red-900" role="alert" aria-live="assertive">
                       <p className="font-bold">Khung giờ này không còn được giữ.</p>
                       <p className="mt-1 text-xs leading-5">Thời gian hiển thị được tính từ mốc hết hạn do backend trả về. Hãy tải lại danh sách và chọn khung giờ khác.</p>
-                      <button type="button" onClick={restartSlotSelection} className="mt-3 rounded-full border border-red-300 bg-white px-4 py-2 text-xs font-bold text-red-800 transition-colors hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400 focus-visible:ring-2 focus-visible:ring-red-500">
+                      <button type="button" disabled={isSubmitting} onClick={restartSlotSelection} className="mt-3 rounded-full border border-red-300 bg-white px-4 py-2 text-xs font-bold text-red-800 transition-colors hover:bg-red-100 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400 focus-visible:ring-2 focus-visible:ring-red-500">
                         Tải lại khung giờ
                       </button>
                     </div>
@@ -817,7 +846,7 @@ export default function BookingModal({
                     <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-left text-sm text-red-900" role="alert" aria-live="assertive">
                       <p className="font-bold">Mã OTP đã hết hiệu lực.</p>
                       <p className="mt-1 text-xs leading-5">Backend đã tách thời hạn OTP khỏi thời hạn giữ chỗ. Hãy chọn lại một khung giờ để nhận mã mới.</p>
-                      <button type="button" onClick={restartSlotSelection} className="mt-3 rounded-full border border-red-300 bg-white px-4 py-2 text-xs font-bold text-red-800 transition-colors hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400 focus-visible:ring-2 focus-visible:ring-red-500">
+                      <button type="button" disabled={isSubmitting} onClick={restartSlotSelection} className="mt-3 rounded-full border border-red-300 bg-white px-4 py-2 text-xs font-bold text-red-800 transition-colors hover:bg-red-100 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400 focus-visible:ring-2 focus-visible:ring-red-500">
                         Chọn lại khung giờ
                       </button>
                     </div>
@@ -831,13 +860,14 @@ export default function BookingModal({
                   </div>
 
                   <div className="py-2">
-                    <label className="block text-sm font-bold text-gray-800 mb-1.5">
+                    <label className="block text-sm font-bold text-gray-800 mb-1.5" htmlFor="booking-otp">
                       Nhập mã OTP 6 số xác thực
                     </label>
                     <p className="text-xs text-gray-500 mb-3">
                       (Môi trường Demo/Test: Sử dụng mã cố định <span className="font-mono font-bold text-brand-700 bg-brand-100 px-1.5 py-0.5 rounded">123456</span>)
                     </p>
                     <input
+                      id="booking-otp"
                       type="text"
                       maxLength={6}
                       required
@@ -853,8 +883,9 @@ export default function BookingModal({
                   <div className="pt-3 flex items-center justify-between border-t border-gray-100">
                     <button
                       type="button"
-                      onClick={holdExpired ? restartSlotSelection : () => setStep(6)}
-                      className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium text-sm"
+                      onClick={holdExpired ? restartSlotSelection : () => navigateToStep(6)}
+                      disabled={isSubmitting}
+                      className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium text-sm disabled:opacity-50"
                     >
                       {holdExpired ? "← Chọn lại khung giờ" : "← Sửa thông tin"}
                     </button>

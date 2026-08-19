@@ -26,6 +26,7 @@ import {
 } from "../lib/api-client";
 import { formatBusinessDate } from "../lib/business-time";
 import { isSafeCmsUrl, type CmsContent, type CmsHeroPayload } from "../lib/cms-client";
+import { safeTelephoneHref } from "../lib/phone";
 import type { Article, Branch, Doctor, HealthPackage, Specialty } from "../types/hospital";
 
 const HERO_IMAGE =
@@ -470,6 +471,7 @@ export default function Home(): React.ReactElement {
   const emergencyBranch = branches.find((branch) => Boolean(branch.emergencyHotline));
   const contactBranch = branches.find((branch) => Boolean(branch.phone));
   const contactPhone = emergencyBranch?.emergencyHotline ?? contactBranch?.phone ?? undefined;
+  const contactHref = safeTelephoneHref(contactPhone);
   const featuredDoctor = filteredDoctors[0];
   const supportingDoctors = filteredDoctors.slice(1, 4);
   const homeHeroProps: HomeHeroCopyProps = {
@@ -759,7 +761,7 @@ export default function Home(): React.ReactElement {
                 <div className="branch-intro__topline"><Icon name="location" size={20} /><span>TP. Hồ Chí Minh</span></div>
                 <h3>Chọn nơi bạn muốn bắt đầu chăm sóc.</h3>
                 <p>Địa chỉ và giờ làm việc lấy từ catalog công khai. Hãy kiểm tra lại trước khi đến.</p>
-                {contactPhone ? <a className="text-button" href={`tel:${contactPhone.replace(/\s/g, "")}`}>{emergencyBranch ? "Gọi hotline cấp cứu" : "Gọi cơ sở"} <Icon name="phone" size={17} /></a> : <Link className="text-button" href="/contact">Xem thông tin liên hệ <Icon name="arrow-up-right" size={17} /></Link>}
+                {contactHref ? <a className="text-button" href={contactHref}>{emergencyBranch ? "Gọi hotline cấp cứu" : "Gọi cơ sở"} <Icon name="phone" size={17} /></a> : <Link className="text-button" href="/contact">Xem thông tin liên hệ <Icon name="arrow-up-right" size={17} /></Link>}
               </div>
               <div className="branch-list">
                 <CatalogStatus error={catalogError} hasData={Boolean(catalog)} loading={catalogLoading} onRetry={retryCatalog} unavailable={catalogUnavailable} />
@@ -772,7 +774,7 @@ export default function Home(): React.ReactElement {
                       <p><Icon name="clock" size={15} />{branch.workingHours ?? "Giờ làm việc đang cập nhật."}</p>
                     </div>
                     <div className="branch-row__actions">
-                      {branch.phone ? <a href={`tel:${branch.phone.replace(/\s/g, "")}`} aria-label={`Gọi ${branch.name}`}>{branch.phone}</a> : <span className="resource-muted">Số điện thoại đang cập nhật.</span>}
+                      {safeTelephoneHref(branch.phone) ? <a href={safeTelephoneHref(branch.phone) ?? undefined} aria-label={`Gọi ${branch.name}`}>{branch.phone}</a> : <span className="resource-muted">Số điện thoại đang cập nhật.</span>}
                       <BranchMap address={branch.address} branchName={branch.name} className="branch-row__map-link" variant="link" />
                       <button className="outline-button outline-button--small" onClick={() => handleOpenBooking(undefined, undefined, undefined, branch.id)} type="button">Đặt lịch</button>
                     </div>
@@ -832,7 +834,7 @@ export default function Home(): React.ReactElement {
             </div>
             <div className="appointment-cta__actions">
               <button className="button button--amber" onClick={() => handleOpenBooking()} type="button">Đặt lịch khám <Icon name="arrow-up-right" size={18} /></button>
-              {contactPhone ? <a className="button button--cta-secondary" href={`tel:${contactPhone.replace(/\s/g, "")}`}><Icon name="phone" size={18} />{contactPhone}</a> : <Link className="button button--cta-secondary" href="/contact"><Icon name="location" size={18} />Thông tin liên hệ</Link>}
+              {contactHref ? <a className="button button--cta-secondary" href={contactHref}><Icon name="phone" size={18} />{contactPhone}</a> : <Link className="button button--cta-secondary" href="/contact"><Icon name="location" size={18} />Thông tin liên hệ</Link>}
             </div>
           </div>
         </section>

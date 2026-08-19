@@ -47,6 +47,18 @@ test("branch two selection resets slot identity and passes the selected branch t
   assert.match(source, /setSelectedSlot\(""\)/);
 });
 
+test("booking invalidates pending responses across navigation and labels patient fields", async () => {
+  const source = await readFile(modalPath, "utf8");
+
+  assert.match(source, /bookingSessionRef/);
+  assert.match(source, /invalidateBookingSession/);
+  assert.match(source, /navigateToStep/);
+  assert.match(source, /disabled=\{isSubmitting\}/);
+  for (const field of ["booking-full-name", "booking-phone", "booking-email", "booking-reason", "booking-otp"]) {
+    assert.match(source, new RegExp(field));
+  }
+});
+
 test("booking slot UI exposes loading, error, and empty states", async () => {
   const source = await readFile(modalPath, "utf8");
 

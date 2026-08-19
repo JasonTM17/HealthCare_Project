@@ -58,6 +58,24 @@ test("contact and guidance pages do not invent branch, insurance, or FAQ data", 
   assert.match(about, /Thước phim giới thiệu/);
 });
 
+test("public phone actions validate backend values before creating tel links", async () => {
+  const sources = await Promise.all([
+    read("lib/phone.ts"),
+    read("components/Navbar.tsx"),
+    read("components/Footer.tsx"),
+    read("app/page.tsx"),
+    read("app/branches/[slug]/page.tsx"),
+    read("app/contact/page.tsx"),
+  ]);
+
+  assert.match(sources[0], /safeTelephoneHref/);
+  assert.match(sources[0], /\^\\\+\?\[0-9\]/);
+  for (const source of sources.slice(1)) {
+    assert.match(source, /safeTelephoneHref/);
+    assert.doesNotMatch(source, /href=.*tel:\$\{|replace\(\/\\\\s\/g/);
+  }
+});
+
 test("homepage exposes a distinct unavailable catalog state with a retry path", async () => {
   const home = await read("app/page.tsx");
   assert.match(home, /catalogUnavailable/);
@@ -123,8 +141,12 @@ test("AI and CMS live boundaries fail closed across reconnect and unresolved res
   assert.match(doctors, /PublicPageShell/);
   assert.match(specialties, /PublicBookingButton/);
   assert.match(specialties, /PublicPageShell/);
-  assert.match(branchDetail, /branch\.phone \?/);
-  assert.match(home, /branch\.phone \?/);
+  assert.match(branchDetail, /phoneHref/);
+  assert.match(home, /safeTelephoneHref\(branch\.phone\)/);
+  assert.match(tracking, /useDialogFocus/);
+  assert.match(tracking, /role="dialog"/);
+  assert.match(tracking, /cancel-dialog-title/);
+  assert.match(tracking, /const requestId = \+\+lookupRequestRef\.current;[\s\S]*setAppointment\(null\)/);
 });
 
 test("published article detail consumes the backend body when available", async () => {
