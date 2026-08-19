@@ -298,7 +298,13 @@ export function CmsLiveSlot({
 
     // Even the first/fallback snapshot bypasses a potentially stale
     // per-instance cache. The durable cursor is the cache-coherence boundary.
-    void refresh(0, reconciliation.latestEventId);
+    void refresh(0, reconciliation.latestEventId).then((result) => {
+      if (result === "failed" && !cancelled) {
+        // A healthy SSE connection does not prove the initial snapshot was
+        // readable. Keep bounded polling alive until the first read succeeds.
+        startPolling();
+      }
+    });
 
     return () => {
       cancelled = true;

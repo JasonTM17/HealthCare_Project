@@ -88,10 +88,11 @@ test("CMS booking CTA has a real landing route and public chrome avoids invented
 });
 
 test("AI and CMS live boundaries fail closed across reconnect and unresolved results", async () => {
-  const [client, liveSlot, tracking, doctors, specialties, branchDetail, home] = await Promise.all([
+  const [client, liveSlot, tracking, bookingModal, doctors, specialties, branchDetail, home] = await Promise.all([
     read("lib/api-client.ts"),
     read("components/cms/CmsLiveSlot.tsx"),
     read("app/tra-cuu/page.tsx"),
+    read("components/BookingModal.tsx"),
     read("app/doctors/DoctorsPageClient.tsx"),
     read("app/specialties/page.tsx"),
     read("app/branches/[slug]/page.tsx"),
@@ -104,10 +105,14 @@ test("AI and CMS live boundaries fail closed across reconnect and unresolved res
   assert.match(liveSlot, /reconciliation\.observe/);
   assert.match(liveSlot, /pendingEventIds/);
   assert.match(liveSlot, /resolvePendingEvent/);
+  assert.match(liveSlot, /result === "failed" && !cancelled/);
   assert.match(liveSlot, /Đã đồng bộ/);
   assert.match(liveSlot, /cms-live-slot__fallback-note/);
   assert.match(liveSlot, /Đang hiển thị giao diện có sẵn/);
   assert.doesNotMatch(tracking, /30 đơn vị|15 phút|Hỗ trợ BHYT|Thẻ BHYT/);
+  assert.match(tracking, /lookupRequestRef/);
+  assert.match(bookingModal, /bookingSessionRef/);
+  assert.match(bookingModal, /setConfirmedAppointment\(null\)/);
   assert.match(doctors, /specialtySlug/);
   assert.match(doctors, /specialtySlug/);
   assert.match(doctors, /PublicPageShell/);

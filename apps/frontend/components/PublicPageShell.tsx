@@ -77,18 +77,20 @@ export function PublicPageShell({ children, doctors = [], specialties = [], bran
         <Navbar branches={branches} onOpenAiTriage={() => setAiOpen(true)} onOpenBooking={() => actions.openBooking()} />
         <main><RouteCmsSlots />{children}</main>
         <Footer branches={branches} />
-        <BookingModal
-          branches={branches}
-          doctors={doctors}
-          initialBranchId={selection?.branchId}
-          initialDoctorId={selection?.doctorId}
-          initialPackageId={selection?.packageId}
-          initialSpecialtyId={selection?.specialtyId}
-          isOpen={bookingOpen}
-          onClose={() => setBookingOpen(false)}
-          packages={packages}
-          specialties={specialties}
-        />
+        {bookingOpen ? (
+          <BookingModal
+            branches={branches}
+            doctors={doctors}
+            initialBranchId={selection?.branchId}
+            initialDoctorId={selection?.doctorId}
+            initialPackageId={selection?.packageId}
+            initialSpecialtyId={selection?.specialtyId}
+            isOpen
+            onClose={() => setBookingOpen(false)}
+            packages={packages}
+            specialties={specialties}
+          />
+        ) : null}
         <AiTriageModal
           isOpen={aiOpen}
           onClose={() => setAiOpen(false)}

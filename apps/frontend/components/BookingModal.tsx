@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useState, useEffect } from "react";
+import React, { useCallback, useRef, useState, useEffect } from "react";
 import {
   Doctor,
   Specialty,
@@ -123,6 +123,41 @@ export default function BookingModal({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [confirmedAppointment, setConfirmedAppointment] = useState<AppointmentDetails | null>(null);
+  const bookingSessionRef = useRef(0);
+
+  const resetBookingState = useCallback(() => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    setStep(1);
+    setSelectedSpecialty(initialSpecialtyId || "");
+    setSelectedDoctor(initialDoctorId || "");
+    setSelectedBranch(initialBranchId || "");
+    setSelectedPackage(initialPackageId || "");
+    setSelectedDate(tomorrow.toISOString().split("T")[0]);
+    setSlots([]);
+    setSelectedSlot("");
+    setSlotError("");
+    setFullName("");
+    setPhone("");
+    setEmail("");
+    setReasonForVisit("");
+    setBookingCode("");
+    setOtpCode("");
+    setHoldExpiresAt("");
+    setOtpExpiresAt("");
+    setSecondsRemaining(600);
+    setOtpSecondsRemaining(0);
+    setIsSubmitting(false);
+    setErrorMessage("");
+    setConfirmedAppointment(null);
+  }, [initialBranchId, initialDoctorId, initialPackageId, initialSpecialtyId]);
+
+  const closeBooking = useCallback(() => {
+    bookingSessionRef.current += 1;
+    resetBookingState();
+    onClose();
+  }, [onClose, resetBookingState]);
 
   useEffect(() => {
     if (!isOpen || (doctors.length > 0 && specialties.length > 0 && branches.length > 0)) return;
@@ -336,6 +371,7 @@ export default function BookingModal({
     }
     setErrorMessage("");
     setIsSubmitting(true);
+    const bookingSession = bookingSessionRef.current;
 
     try {
       const result = await holdAppointmentSlot({
@@ -350,6 +386,7 @@ export default function BookingModal({
         email: email || undefined,
         reasonForVisit: reasonForVisit || undefined,
       });
+      if (bookingSession !== bookingSessionRef.current) return;
 
       setBookingCode(result.bookingCode);
       setHoldExpiresAt(result.holdExpiresAt);
@@ -360,9 +397,11 @@ export default function BookingModal({
       setOtpSecondsRemaining(0);
       setStep(7);
     } catch (err: any) {
-      setErrorMessage(err.message || "Không thể giữ chỗ khung giờ này.");
+      if (bookingSession === bookingSessionRef.current) {
+        setErrorMessage(err.message || "Không thể giữ chỗ khung giờ này.");
+      }
     } finally {
-      setIsSubmitting(false);
+      if (bookingSession === bookingSessionRef.current) setIsSubmitting(false);
     }
   };
 
@@ -383,17 +422,21 @@ export default function BookingModal({
     }
     setErrorMessage("");
     setIsSubmitting(true);
+    const bookingSession = bookingSessionRef.current;
 
     try {
       const details = await confirmAppointment({
         bookingCode,
         otpCode: otpCode.trim(),
       });
+      if (bookingSession !== bookingSessionRef.current) return;
       setConfirmedAppointment(details);
     } catch (err: any) {
-      setErrorMessage(err.message || "Mã OTP không chính xác.");
+      if (bookingSession === bookingSessionRef.current) {
+        setErrorMessage(err.message || "Mã OTP không chính xác.");
+      }
     } finally {
-      setIsSubmitting(false);
+      if (bookingSession === bookingSessionRef.current) setIsSubmitting(false);
     }
   };
 
@@ -423,7 +466,7 @@ export default function BookingModal({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={closeBooking}
             className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-200"
             aria-label="Đóng cửa sổ đặt lịch"
           >
@@ -867,7 +910,7 @@ export default function BookingModal({
                   <div className="pt-3">
                     <button
                       type="button"
-                      onClick={onClose}
+                      onClick={closeBooking}
                       className="px-8 py-2.5 bg-brand-700 hover:bg-brand-800 text-white font-bold rounded-full shadow-md transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
                     >
                       Đóng cửa sổ & Về trang chủ

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import Link from "next/link";
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
@@ -21,6 +21,7 @@ export default function TraCuuPage() {
   const [cancelReason, setCancelReason] = useState("");
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [cancelSuccess, setCancelSuccess] = useState(false);
+  const lookupRequestRef = useRef(0);
 
   // Modals
   const [isBookingOpen, setIsBookingOpen] = useState(false);
@@ -41,12 +42,14 @@ export default function TraCuuPage() {
     setErrorMessage("");
     setAppointment(null);
     setCancelSuccess(false);
+    const requestId = ++lookupRequestRef.current;
 
     try {
       const res = await fetch(
         `${API_BASE_URL}/appointments/${bookingCodeInput.trim()}?phone=${encodeURIComponent(phoneInput.trim())}`
       );
       if (!res.ok) {
+        if (requestId !== lookupRequestRef.current) return;
         setErrorMessage(
           res.status === 404
             ? "Không tìm thấy lịch hẹn. Vui lòng kiểm tra lại mã và số điện thoại đã dùng khi đặt lịch."
@@ -55,11 +58,13 @@ export default function TraCuuPage() {
         return;
       }
       const data: AppointmentDetails = await res.json();
+      if (requestId !== lookupRequestRef.current) return;
       setAppointment(data);
     } catch {
+      if (requestId !== lookupRequestRef.current) return;
       setErrorMessage("Tạm thời chưa thể tra cứu lịch hẹn. Vui lòng kiểm tra kết nối và thử lại sau.");
     } finally {
-      setLoading(false);
+      if (requestId === lookupRequestRef.current) setLoading(false);
     }
   };
 
@@ -343,10 +348,12 @@ export default function TraCuuPage() {
 
       <Footer />
 
-      <BookingModal
-        isOpen={isBookingOpen}
-        onClose={() => setIsBookingOpen(false)}
-      />
+      {isBookingOpen ? (
+        <BookingModal
+          isOpen
+          onClose={() => setIsBookingOpen(false)}
+        />
+      ) : null}
 
       <AiTriageModal
         isOpen={isAiTriageOpen}

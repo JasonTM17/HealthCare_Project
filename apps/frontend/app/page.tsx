@@ -851,19 +851,21 @@ export default function Home(): React.ReactElement {
 
       <Footer branches={branches} />
 
-      <BookingModal
-        key={`${selectedBranchId ?? "default"}:${selectedDoctorId ?? "default"}:${selectedPackageId ?? "default"}:${selectedSpecialtyId ?? "default"}`}
-        initialBranchId={selectedBranchId}
-        initialDoctorId={selectedDoctorId}
-        initialPackageId={selectedPackageId}
-        initialSpecialtyId={selectedSpecialtyId}
-        isOpen={isBookingOpen}
-        onClose={() => setIsBookingOpen(false)}
-        branches={branches}
-        doctors={catalog?.doctors ?? []}
-        packages={packages}
-        specialties={catalog?.specialties ?? []}
-      />
+      {isBookingOpen ? (
+        <BookingModal
+          key={`${selectedBranchId ?? "default"}:${selectedDoctorId ?? "default"}:${selectedPackageId ?? "default"}:${selectedSpecialtyId ?? "default"}`}
+          initialBranchId={selectedBranchId}
+          initialDoctorId={selectedDoctorId}
+          initialPackageId={selectedPackageId}
+          initialSpecialtyId={selectedSpecialtyId}
+          isOpen
+          onClose={() => setIsBookingOpen(false)}
+          branches={branches}
+          doctors={catalog?.doctors ?? []}
+          packages={packages}
+          specialties={catalog?.specialties ?? []}
+        />
+      ) : null}
       <AiTriageModal
         isOpen={isAiTriageOpen}
         onClose={() => setIsAiTriageOpen(false)}
