@@ -181,6 +181,10 @@ test("Stitch search and careers screens have live public route owners", async ()
   assert.match(careers, /Cơ hội nghề nghiệp tại HealthCare/);
   assert.match(careers, /fetchCareerPositions/);
   assert.match(careers, /PublicPageShell/);
+  assert.match(careers, /CmsLiveSlot/);
+  assert.match(careers, /slug="careers"/);
+  assert.match(careers, /slotKey="hero"/);
+  assert.match(careers, /slotKey="body"/);
   assert.match(footer, /href="\/careers"/);
   assert.match(home, /router\.push/);
   assert.match(home, /data-cms-managed/);
@@ -190,8 +194,8 @@ test("Stitch search and careers screens have live public route owners", async ()
 test("every public page family keeps the route-level CMS composition point", async () => {
   const routeCms = await read("components/cms/RouteCmsSlots.tsx");
 
-  assert.match(routeCms, /\["admin", "auth", "doctor", "patient"\]/);
-  assert.doesNotMatch(routeCms, /\["admin", "auth", "doctor", "patient", "careers"\]/);
+  assert.match(routeCms, /\["admin", "auth", "doctor", "patient", "careers"\]/);
+  assert.match(routeCms, /Careers owns its hero/);
   assert.match(routeCms, /Dynamic detail/);
   for (const slot of ["hero", "body", "sidebar", "footer"]) {
     assert.match(routeCms, new RegExp(`slotKey="${slot}"`));

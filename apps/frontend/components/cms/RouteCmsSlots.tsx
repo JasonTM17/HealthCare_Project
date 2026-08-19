@@ -10,10 +10,10 @@ function routeCmsSlug(pathname: string): string | null {
 
   const route = segments[0];
   // Keep private/authenticated workspaces out of the public CMS surface. Every
-  // other route, including catalog/detail and careers pages, is a valid public
-  // composition target so an admin can publish the same route-level hero/body
-  // contract across the whole patient-facing information architecture.
-  if (["admin", "auth", "doctor", "patient"].includes(route)) return null;
+  // other route is a valid public composition target. Careers owns its hero
+  // and body slots inside its native composition so CMS content cannot be
+  // rendered a second time above the bespoke recruitment experience.
+  if (["admin", "auth", "doctor", "patient", "careers"].includes(route)) return null;
   return route;
 }
 

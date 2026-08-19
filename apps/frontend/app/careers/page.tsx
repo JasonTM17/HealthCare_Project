@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Icon from "../../components/UiIcon";
 import { PublicPageShell } from "../../components/PublicPageShell";
+import CmsLiveSlot from "../../components/cms/CmsLiveSlot";
 import { fetchCareerPositions } from "../../lib/api-client";
 import { formatBusinessDate } from "../../lib/business-time";
+import type { CmsContent, CmsHeroPayload } from "../../lib/cms-client";
 import type { JobPosition } from "../../types/hospital";
 import CareerApplicationDialog from "./CareerApplicationDialog";
 import styles from "./careers.module.css";
@@ -13,6 +15,76 @@ import styles from "./careers.module.css";
 function formatDeadline(value?: string | null): string | null {
   if (!value) return null;
   return /^\d{4}-\d{2}-\d{2}$/.test(value) ? formatBusinessDate(value) : null;
+}
+
+const DEFAULT_HERO: CmsHeroPayload = {
+  eyebrow: "Cơ hội nghề nghiệp tại HealthCare",
+  title: "Làm nghề bằng chuyên môn, đồng hành bằng sự tử tế",
+  body: "Mỗi vai trò đều góp phần tạo nên một hành trình chăm sóc an toàn, rõ ràng và tôn trọng người bệnh. Hãy chọn vị trí phù hợp với kinh nghiệm của bạn và gửi hồ sơ trực tiếp tại đây.",
+  ctaLabel: "Xem vị trí đang tuyển",
+  ctaHref: "#vi-tri-dang-tuyen",
+};
+
+function CareerHero({ content, loading, positionCount }: {
+  content: CmsHeroPayload;
+  loading: boolean;
+  positionCount: number;
+}): React.ReactElement {
+  return (
+    <section className={styles.hero}>
+      <div className={`${styles.inner} ${styles.heroGrid}`}>
+        <div className={styles.heroCopy}>
+          {content.eyebrow ? <span className={styles.eyebrow}>{content.eyebrow}</span> : null}
+          <h1>{content.title}</h1>
+          {content.body ? <p>{content.body}</p> : null}
+          <div className={styles.heroActions}>
+            {content.ctaLabel && content.ctaHref ? (
+              <a className={styles.primaryButton} href={content.ctaHref}>
+                {content.ctaLabel} <Icon name="arrow-right" size={18} />
+              </a>
+            ) : null}
+            <Link className={styles.secondaryButton} href="/about">Tìm hiểu về bệnh viện</Link>
+          </div>
+        </div>
+        <div className={styles.heroVisual} aria-label="Hành trình gia nhập đội ngũ HealthCare">
+          <div className={styles.heroBadge}>
+            <span>{loading ? "—" : positionCount}</span>
+            <p>vị trí đang nhận hồ sơ</p>
+          </div>
+          <div className={styles.pathCard}>
+            <span className={styles.pathIcon}><Icon name="user" size={22} /></span>
+            <div><strong>Chọn vị trí</strong><small>Đọc kỹ phạm vi công việc</small></div>
+          </div>
+          <div className={styles.pathLine} aria-hidden="true" />
+          <div className={styles.pathCard}>
+            <span className={styles.pathIcon}><Icon name="mail" size={22} /></span>
+            <div><strong>Gửi hồ sơ</strong><small>Nhận mã tiếp nhận ngay</small></div>
+          </div>
+          <div className={styles.pathLine} aria-hidden="true" />
+          <div className={styles.pathCard}>
+            <span className={styles.pathIcon}><Icon name="heart" size={22} /></span>
+            <div><strong>Trao đổi phù hợp</strong><small>Đội ngũ tuyển dụng chủ động liên hệ</small></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function CareerCmsBody({ content }: { content: CmsContent }): React.ReactElement {
+  const payload = content.payload;
+  return (
+    <section className={`${styles.inner} ${styles.cmsBody}`} aria-labelledby="career-cms-body-title">
+      <div>
+        <span className={styles.eyebrow}>Thông tin dành cho ứng viên</span>
+        <h2 id="career-cms-body-title">{payload.title}</h2>
+        {payload.body ? <p>{payload.body}</p> : null}
+      </div>
+      {"ctaLabel" in payload && payload.ctaLabel && "ctaHref" in payload && payload.ctaHref ? (
+        <a className={styles.secondaryButton} href={payload.ctaHref}>{payload.ctaLabel} <Icon name="arrow-right" size={18} /></a>
+      ) : null}
+    </section>
+  );
 }
 
 export default function CareersPage(): React.ReactElement {
@@ -57,44 +129,20 @@ export default function CareersPage(): React.ReactElement {
   return (
     <PublicPageShell>
       <div className={styles.page}>
-        <section className={styles.hero}>
-          <div className={`${styles.inner} ${styles.heroGrid}`}>
-            <div className={styles.heroCopy}>
-              <span className={styles.eyebrow}>Cơ hội nghề nghiệp tại HealthCare</span>
-              <h1>Làm nghề bằng chuyên môn, đồng hành bằng sự tử tế</h1>
-              <p>
-                Mỗi vai trò đều góp phần tạo nên một hành trình chăm sóc an toàn, rõ ràng và tôn trọng người bệnh.
-                Hãy chọn vị trí phù hợp với kinh nghiệm của bạn và gửi hồ sơ trực tiếp tại đây.
-              </p>
-              <div className={styles.heroActions}>
-                <a className={styles.primaryButton} href="#vi-tri-dang-tuyen">
-                  Xem vị trí đang tuyển <Icon name="arrow-right" size={18} />
-                </a>
-                <Link className={styles.secondaryButton} href="/about">Tìm hiểu về bệnh viện</Link>
-              </div>
-            </div>
-            <div className={styles.heroVisual} aria-label="Hành trình gia nhập đội ngũ HealthCare">
-              <div className={styles.heroBadge}>
-                <span>{loading ? "—" : positions.length}</span>
-                <p>vị trí đang nhận hồ sơ</p>
-              </div>
-              <div className={styles.pathCard}>
-                <span className={styles.pathIcon}><Icon name="user" size={22} /></span>
-                <div><strong>Chọn vị trí</strong><small>Đọc kỹ phạm vi công việc</small></div>
-              </div>
-              <div className={styles.pathLine} aria-hidden="true" />
-              <div className={styles.pathCard}>
-                <span className={styles.pathIcon}><Icon name="mail" size={22} /></span>
-                <div><strong>Gửi hồ sơ</strong><small>Nhận mã tiếp nhận ngay</small></div>
-              </div>
-              <div className={styles.pathLine} aria-hidden="true" />
-              <div className={styles.pathCard}>
-                <span className={styles.pathIcon}><Icon name="heart" size={22} /></span>
-                <div><strong>Trao đổi phù hợp</strong><small>Đội ngũ tuyển dụng chủ động liên hệ</small></div>
-              </div>
-            </div>
-          </div>
-        </section>
+        <CmsLiveSlot
+          fallback={<CareerHero content={DEFAULT_HERO} loading={loading} positionCount={positions.length} />}
+          hideWhenNotFound
+          renderContent={(content) => (
+            <CareerHero
+              content={content.componentType === "HERO" ? content.payload : DEFAULT_HERO}
+              loading={loading}
+              positionCount={positions.length}
+            />
+          )}
+          showSourceLabel={false}
+          slug="careers"
+          slotKey="hero"
+        />
 
         <section className={`${styles.inner} ${styles.values}`} aria-labelledby="career-values-title">
           <div className={styles.sectionIntro}>
@@ -120,6 +168,16 @@ export default function CareersPage(): React.ReactElement {
             </article>
           </div>
         </section>
+
+        <CmsLiveSlot
+          className={styles.cmsLiveSlot}
+          hideWhenNotFound
+          hideWhileLoading
+          renderContent={(content) => <CareerCmsBody content={content} />}
+          showSourceLabel={false}
+          slug="careers"
+          slotKey="body"
+        />
 
         <section className={styles.openings} id="vi-tri-dang-tuyen" aria-labelledby="openings-title">
           <div className={styles.inner}>

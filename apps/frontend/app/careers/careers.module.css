@@ -207,6 +207,21 @@
 .valueCard h3 { margin: 1.3rem 0 0.55rem; color: var(--career-navy); font-size: 1.15rem; }
 .valueCard p { margin: 0; color: #5b7279; line-height: 1.7; }
 
+.cmsLiveSlot { background: #f8fbfa; }
+
+.cmsBody {
+  display: flex;
+  gap: 2rem;
+  align-items: center;
+  justify-content: space-between;
+  padding-block: 1.5rem;
+  border-block: 1px solid #d7e4e2;
+}
+
+.cmsBody > div { max-width: 48rem; }
+.cmsBody h2 { margin: 0.55rem 0 0; color: var(--career-navy); font-size: clamp(1.45rem, 2.8vw, 2.1rem); letter-spacing: -0.025em; }
+.cmsBody p { margin: 0.7rem 0 0; color: #587078; line-height: 1.7; }
+
 .openings { padding-block: clamp(5rem, 9vw, 8rem); background: #f4f7f5; }
 
 .openingsHeading {
@@ -405,6 +420,7 @@
   .heroCopy h1 { max-width: 18ch; }
   .heroVisual { max-width: 34rem; }
   .openingsHeading { align-items: start; flex-direction: column; }
+  .cmsBody { align-items: start; flex-direction: column; }
   .filters { width: 100%; }
   .filters label { flex: 1; }
   .filters select { width: 100%; min-width: 0; }
