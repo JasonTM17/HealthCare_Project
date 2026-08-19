@@ -76,6 +76,8 @@ services:
       AI_SERVICE_RUNTIME: compose
       AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL: "false"
       AI_SERVICE_TOKEN:   ${AI_SERVICE_TOKEN:-local-development-token-not-for-production}
+      AI_RAG_INGEST_ENABLED: ${RAG_INGEST_ENABLED:-false}
+      AI_RAG_INGEST_TOKEN:   ${RAG_INGEST_TOKEN:-}
       # Local Compose has no SMS provider, so the demo flow accepts 123456.
       # Set APP_BOOKING_ALLOW_TEST_OTP=false when a real OTP provider is wired.
       APP_BOOKING_ALLOW_TEST_OTP: ${APP_BOOKING_ALLOW_TEST_OTP:-true}
@@ -120,11 +122,12 @@ services:
       PGPASSWORD: ${POSTGRES_PASSWORD:-change-me}
     volumes:
       - ${SEED_FILE:-../apps/backend/src/main/resources/db/seed/seed-local-data.sql}:/seed/seed.sql:ro
+      - ../apps/backend/src/main/resources/db/seed/seed-local-careers.sql:/seed/careers.sql:ro
       - ../apps/backend/src/main/resources/db/seed/seed-local-rich-content.sql:/seed/rich-content.sql:ro
     depends_on:
       backend:
         condition: service_healthy
-    command: ["/bin/sh", "-ec", "psql -v ON_ERROR_STOP=1 -f /seed/seed.sql -f /seed/rich-content.sql"]
+    command: ["/bin/sh", "-ec", "psql -v ON_ERROR_STOP=1 -f /seed/seed.sql -f /seed/careers.sql -f /seed/rich-content.sql"]
 
   # ── Next.js Frontend ────────────────────────────────────────────────────────
   frontend:
@@ -151,7 +154,8 @@ services:
     environment:
       AI_PROVIDER: rule_based_triage
       EMBEDDING_PROVIDER: local
-      RAG_INGEST_ENABLED: "false"
+      RAG_INGEST_ENABLED: ${RAG_INGEST_ENABLED:-false}
+      RAG_INGEST_TOKEN: ${RAG_INGEST_TOKEN:-}
       AI_SERVICE_RUNTIME: compose
       AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL: "false"
       AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:-local-development-token-not-for-production}
