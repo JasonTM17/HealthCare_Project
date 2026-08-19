@@ -14,6 +14,9 @@ test("AI triage fails closed for emergency results and announces live answers", 
 
   assert.match(modal, /emergencyContact\?/);
   assert.match(modal, /safeTelephoneHref/);
+  assert.match(modal, /Validate the source before normalizing/);
+  assert.match(modal, /trimmed\.replace/);
+  assert.doesNotMatch(modal, /value\?\.trim\(\)\.replace/);
   assert.match(modal, /result\.urgencyLevel !== "EMERGENCY"/);
   assert.match(modal, /role=\{result\.urgencyLevel === "EMERGENCY" \? "alert" : "status"\}/);
   assert.match(modal, /aria-live=\{result\.urgencyLevel === "EMERGENCY" \? "assertive" : "polite"\}/);

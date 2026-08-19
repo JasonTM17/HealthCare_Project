@@ -82,7 +82,11 @@ function citationDetails(citation: AiTriageCitation): { label: string; href?: st
 }
 
 function safeTelephoneHref(value?: string): string | null {
-  const normalized = value?.trim().replace(/[^\d+]/g, "") ?? "";
+  const trimmed = value?.trim() ?? "";
+  // Validate the source before normalizing. Stripping arbitrary characters
+  // first would turn `javascript:123456` into an unsafe `tel:123456` action.
+  if (!trimmed || !/^\+?[0-9][0-9\s().-]{5,24}$/.test(trimmed)) return null;
+  const normalized = trimmed.replace(/[\s().-]/g, "");
   return /^\+?\d{6,15}$/.test(normalized) ? `tel:${normalized}` : null;
 }
 

@@ -286,12 +286,15 @@ export function CmsEditor({
   const [history, setHistory] = useState<CmsContentHistoryEntry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
-  const loadGenerationRef = useRef(0);
+  // A single content epoch serializes slot loads, saves, rollbacks, and their
+  // history reads. Any newer slot operation makes every older response inert.
+  const contentOperationRef = useRef(0);
+  const inventoryGenerationRef = useRef(0);
 
   const loadContent = useCallback(async (requestedSlug: string, requestedSlot: CmsSlotKey): Promise<void> => {
-    const requestGeneration = loadGenerationRef.current + 1;
-    loadGenerationRef.current = requestGeneration;
-    const isCurrentRequest = (): boolean => loadGenerationRef.current === requestGeneration;
+    const operationGeneration = contentOperationRef.current + 1;
+    contentOperationRef.current = operationGeneration;
+    const isCurrentOperation = (): boolean => contentOperationRef.current === operationGeneration;
     const normalizedSlug = requestedSlug.trim();
     const backendSlotKey = resolveCmsSlotKey(normalizedSlug, requestedSlot);
     setSlug(normalizedSlug);
@@ -305,7 +308,7 @@ export function CmsEditor({
     setHistoryError(null);
     try {
       const loadedContent = await client.getAdminContent(backendSlotKey);
-      if (!isCurrentRequest()) return;
+      if (!isCurrentOperation()) return;
       const loadedDraft = draftFromContent(loadedContent);
       setContent(loadedContent);
       setDraft(loadedDraft);
@@ -315,17 +318,17 @@ export function CmsEditor({
       setHistoryLoading(true);
       try {
         const loadedHistory = await client.listHistory(backendSlotKey);
-        if (!isCurrentRequest()) return;
+        if (!isCurrentOperation()) return;
         setHistory(loadedHistory);
       } catch (historyLoadError) {
-        if (!isCurrentRequest()) return;
+        if (!isCurrentOperation()) return;
         setHistory([]);
         setHistoryError(apiErrorMessage(asCmsError(historyLoadError)));
       } finally {
-        if (isCurrentRequest()) setHistoryLoading(false);
+        if (isCurrentOperation()) setHistoryLoading(false);
       }
     } catch (error) {
-      if (!isCurrentRequest()) return;
+      if (!isCurrentOperation()) return;
       const cmsError = asCmsError(error);
       setApiError(cmsError);
       setContent(null);
@@ -336,20 +339,25 @@ export function CmsEditor({
       setHistory([]);
       setHistoryError(null);
     } finally {
-      if (isCurrentRequest()) setOperation("idle");
+      if (isCurrentOperation()) setOperation("idle");
     }
   }, [client]);
 
   const loadAvailableContent = useCallback(async (): Promise<void> => {
+    const requestGeneration = inventoryGenerationRef.current + 1;
+    inventoryGenerationRef.current = requestGeneration;
+    const isCurrentInventoryRequest = (): boolean => inventoryGenerationRef.current === requestGeneration;
     setInventoryLoading(true);
     setInventoryError(null);
     try {
       const slots = await client.listAdminContent();
+      if (!isCurrentInventoryRequest()) return;
       setAvailableContent(slots.sort((left, right) => left.slotKey.localeCompare(right.slotKey)));
     } catch (error) {
+      if (!isCurrentInventoryRequest()) return;
       setInventoryError(apiErrorMessage(asCmsError(error)));
     } finally {
-      setInventoryLoading(false);
+      if (isCurrentInventoryRequest()) setInventoryLoading(false);
     }
   }, [client]);
 
@@ -397,12 +405,16 @@ export function CmsEditor({
       return;
     }
 
+    const operationGeneration = contentOperationRef.current + 1;
+    contentOperationRef.current = operationGeneration;
+    const isCurrentOperation = (): boolean => contentOperationRef.current === operationGeneration;
     setOperation(status === "PUBLISHED" ? "publishing" : "saving");
     setApiError(null);
     setFieldErrors({});
     setNotice(null);
     try {
       const savedContent = await client.upsertContent(loadedSlotKey, input);
+      if (!isCurrentOperation()) return;
       const savedDraft = draftFromContent(savedContent);
       setContent(savedContent);
       setDraft(savedDraft);
@@ -412,23 +424,31 @@ export function CmsEditor({
         savedContent,
       ].sort((left, right) => left.slotKey.localeCompare(right.slotKey)));
       try {
-        setHistory(await client.listHistory(savedContent.slotKey));
+        const savedHistory = await client.listHistory(savedContent.slotKey);
+        if (!isCurrentOperation()) return;
+        setHistory(savedHistory);
         setHistoryError(null);
       } catch (historyLoadError) {
+        if (!isCurrentOperation()) return;
         setHistoryError(apiErrorMessage(asCmsError(historyLoadError)));
       }
+      if (!isCurrentOperation()) return;
       setNotice(savedContent.status === "PUBLISHED"
         ? `Đã xuất bản ${savedContent.slotKey}, version ${savedContent.version}.`
         : `Đã lưu bản nháp ẩn công khai, version ${savedContent.version}.`);
     } catch (error) {
+      if (!isCurrentOperation()) return;
       setApiError(asCmsError(error));
     } finally {
-      setOperation("idle");
+      if (isCurrentOperation()) setOperation("idle");
     }
   };
 
   const handleRollback = async (entry: CmsContentHistoryEntry): Promise<void> => {
     if (!entry.rollbackAvailable || !content) return;
+    const operationGeneration = contentOperationRef.current + 1;
+    contentOperationRef.current = operationGeneration;
+    const isCurrentOperation = (): boolean => contentOperationRef.current === operationGeneration;
     setOperation("saving");
     setApiError(null);
     setNotice(null);
@@ -437,20 +457,24 @@ export function CmsEditor({
         changeId: entry.eventId,
         expectedVersion: content.version,
       });
+      if (!isCurrentOperation()) return;
       const savedDraft = draftFromContent(savedContent);
       setContent(savedContent);
       setDraft(savedDraft);
       setLoadedSnapshot(savedDraft);
-      setHistory(await client.listHistory(savedContent.slotKey));
+      const savedHistory = await client.listHistory(savedContent.slotKey);
+      if (!isCurrentOperation()) return;
+      setHistory(savedHistory);
       setAvailableContent((current) => [
         ...current.filter((item) => item.slotKey !== savedContent.slotKey),
         savedContent,
       ].sort((left, right) => left.slotKey.localeCompare(right.slotKey)));
       setNotice(`Đã rollback ${savedContent.slotKey} về snapshot event #${entry.eventId}, version mới ${savedContent.version}.`);
     } catch (error) {
+      if (!isCurrentOperation()) return;
       setApiError(asCmsError(error));
     } finally {
-      setOperation("idle");
+      if (isCurrentOperation()) setOperation("idle");
     }
   };
 
@@ -545,7 +569,7 @@ export function CmsEditor({
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Slot directory</p>
             <h2 className="mt-1 text-xl font-bold text-slate-950" id="cms-slot-directory-title">Các component CMS đã có trong backend</h2>
           </div>
-          <button className="min-h-11 rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60" disabled={inventoryLoading} onClick={() => void loadAvailableContent()} type="button">
+          <button className="min-h-11 rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60" disabled={inventoryLoading || isBusy} onClick={() => void loadAvailableContent()} type="button">
             {inventoryLoading ? "Đang đọc…" : "Làm mới danh mục"}
           </button>
         </div>
@@ -556,7 +580,7 @@ export function CmsEditor({
             {availableContent.map((item) => {
               const selection = slotSelection(item.slotKey);
               return selection ? (
-                <button className="min-h-11 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 text-left text-sm font-semibold text-teal-950 hover:bg-teal-100" key={item.slotKey} onClick={() => void loadContent(selection.slug, selection.slot)} type="button">
+                <button className="min-h-11 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 text-left text-sm font-semibold text-teal-950 hover:bg-teal-100 disabled:opacity-60" disabled={isBusy} key={item.slotKey} onClick={() => void loadContent(selection.slug, selection.slot)} type="button">
                   <span className="block font-mono text-xs">{item.slotKey}</span>
                   <span className="block text-xs font-normal text-teal-800">{item.componentType} · v{item.version} · {item.status}</span>
                 </button>
@@ -575,7 +599,7 @@ export function CmsEditor({
             </ul>
           ) : null}
           {apiError.kind === "conflict" ? (
-            <button className="mt-3 min-h-11 rounded-xl bg-red-800 px-4 py-2 text-sm font-bold text-white hover:bg-red-900" onClick={() => void loadContent(loadedSelection?.slug ?? loadedSlug, loadedSelection?.slot ?? selectedSlot)} type="button">
+            <button className="mt-3 min-h-11 rounded-xl bg-red-800 px-4 py-2 text-sm font-bold text-white hover:bg-red-900 disabled:opacity-60" disabled={isBusy} onClick={() => void loadContent(loadedSelection?.slug ?? loadedSlug, loadedSelection?.slot ?? selectedSlot)} type="button">
               Tải version mới nhất
             </button>
           ) : null}

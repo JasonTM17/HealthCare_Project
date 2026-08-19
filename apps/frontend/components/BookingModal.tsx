@@ -92,6 +92,7 @@ export default function BookingModal({
   const branches = providedBranches.length > 0 ? providedBranches : loadedBranches;
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState<string>("");
+  const [selectionError, setSelectionError] = useState<string>("");
   const [selectedSpecialty, setSelectedSpecialty] = useState<string>(initialSpecialtyId || "");
   const [selectedDoctor, setSelectedDoctor] = useState<string>(initialDoctorId || "");
   const [selectedBranch, setSelectedBranch] = useState<string>(initialBranchId || "");
@@ -149,6 +150,7 @@ export default function BookingModal({
     setOtpSecondsRemaining(0);
     setIsSubmitting(false);
     setErrorMessage("");
+    setSelectionError("");
     setConfirmedAppointment(null);
   }, [initialBranchId, initialDoctorId, initialPackageId, initialSpecialtyId]);
 
@@ -195,9 +197,16 @@ export default function BookingModal({
     if (!isOpen) return;
     const firstBranch = branches.find((branch) => branch.id === initialBranchId) ?? branches[0];
     const nextBranchId = firstBranch?.id ?? "";
-    const nextSpecialtyId = specialties.some((specialty) => specialty.id === initialSpecialtyId)
-      ? initialSpecialtyId ?? ""
-      : specialties[0]?.id ?? "";
+    const requestedSpecialtyId = initialSpecialtyId?.trim() ?? "";
+    const requestedSpecialty = specialties.find((specialty) => specialty.id === requestedSpecialtyId);
+    const nextSpecialtyId = requestedSpecialty
+      ? requestedSpecialty.id
+      : requestedSpecialtyId
+        ? ""
+        : specialties[0]?.id ?? "";
+    setSelectionError(requestedSpecialtyId && !requestedSpecialty
+      ? "Chuyên khoa từ trợ lý không còn trong catalog live. Vui lòng chọn lại chuyên khoa trước khi tiếp tục."
+      : "");
     const nextSpecialty = specialties.find((specialty) => specialty.id === nextSpecialtyId);
     const firstDoctor = doctors.find((doctor) => doctor.id === initialDoctorId
       && doctorMatchesBranch(doctor, nextBranchId)
@@ -318,6 +327,7 @@ export default function BookingModal({
       doctorMatchesBranch(doctor, selectedBranch) && doctorMatchesSpecialty(doctor, nextSpecialty),
     );
     setSelectedSpecialty(specialtyId);
+    setSelectionError("");
     if (!doctorsForSelection.some((doctor) => doctor.id === selectedDoctor)) {
       setSelectedDoctor(doctorsForSelection[0]?.id ?? "");
     }
@@ -354,6 +364,11 @@ export default function BookingModal({
   // Handle Step 3: Hold Slot
   const handleHoldSlot = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentSpecialty || !selectedSpecialty) {
+      setErrorMessage("Chuyên khoa không còn hợp lệ trong catalog live. Vui lòng chọn lại trước khi giữ lịch.");
+      setStep(1);
+      return;
+    }
     const chosenSlot = slots.find((slot) => slot.startTime === selectedSlot);
     if (!chosenSlot || !chosenSlot.available || chosenSlot.branchId !== selectedBranch) {
       setErrorMessage("Khung giờ không còn thuộc cơ sở đang chọn. Vui lòng tải lại và chọn khung giờ khác.");
@@ -515,6 +530,11 @@ export default function BookingModal({
           {catalogError ? (
             <p className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-900" role="alert">
               {catalogError}
+            </p>
+          ) : null}
+          {selectionError ? (
+            <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950" role="alert">
+              {selectionError}
             </p>
           ) : null}
           {/* ── STEP 1: Choose specialty ── */}

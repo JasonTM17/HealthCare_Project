@@ -154,8 +154,10 @@ test("admin editor exposes typed status/version and protected API states", async
     "rollbackContent",
     "Các component CMS đã có trong backend",
     "loadAvailableContent",
-    "loadGenerationRef",
-    "isCurrentRequest",
+    "contentOperationRef",
+    "inventoryGenerationRef",
+    "isCurrentOperation",
+    "isCurrentInventoryRequest",
   ]) {
     assert.ok(source.includes(marker), `missing editor state: ${marker}`);
   }
@@ -165,4 +167,5 @@ test("admin editor exposes typed status/version and protected API states", async
   assert.match(client, /getAccessToken: \(\) => readAuthSession\(\)\?\.accessToken/);
   assert.match(source, /setSelectedSlot\(requestedSlot\)/);
   assert.match(source, /loadedSelection\?\.slot/);
+  assert.match(source, /disabled=\{isBusy\}/);
 });

@@ -25,6 +25,17 @@ test("booking catalog no longer carries frontend seed identities", async () => {
   assert.doesNotMatch(source, /SEED_|nguyen-minh-khoi|tran-thu-ha|le-van-duc|pham-hoang-yen/);
 });
 
+test("AI specialty identity fails closed when the live booking catalog is stale", async () => {
+  const source = await readFile(modalPath, "utf8");
+
+  assert.match(source, /requestedSpecialtyId/);
+  assert.match(source, /requestedSpecialtyId && !requestedSpecialty/);
+  assert.match(source, /Chuyên khoa từ trợ lý không còn trong catalog live/);
+  assert.match(source, /if \(!currentSpecialty \|\| !selectedSpecialty\)/);
+  assert.match(source, /setStep\(1\)/);
+  assert.doesNotMatch(source, /specialties\.some\(\(specialty\) => specialty\.id === initialSpecialtyId\)/);
+});
+
 test("branch two selection resets slot identity and passes the selected branch to hold", async () => {
   const source = await readFile(modalPath, "utf8");
 
