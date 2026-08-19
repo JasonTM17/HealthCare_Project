@@ -147,6 +147,10 @@ main {
   margin: var(--sp-8) auto 0;
 }
 
+.route-cms-slots:empty {
+  display: none;
+}
+
 .section-inner,
 .hero-inner,
 .care-inner,

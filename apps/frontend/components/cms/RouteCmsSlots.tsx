@@ -32,22 +32,36 @@ export function RouteCmsSlots(): ReactElement | null {
   if (!slug) return null;
 
   return (
-    <>
+    <div aria-label="Các vùng nội dung live của trang" className="route-cms-slots">
       <CmsLiveSlot
-        className="route-cms-slots"
+        className="route-cms-slot"
         hideWhenNotFound
         showSourceLabel={false}
         slug={slug}
         slotKey="hero"
       />
       <CmsLiveSlot
-        className="route-cms-slots"
+        className="route-cms-slot"
         hideWhenNotFound
         showSourceLabel={false}
         slug={slug}
         slotKey="body"
       />
-    </>
+      <CmsLiveSlot
+        className="route-cms-slot"
+        hideWhenNotFound
+        showSourceLabel={false}
+        slug={slug}
+        slotKey="sidebar"
+      />
+      <CmsLiveSlot
+        className="route-cms-slot"
+        hideWhenNotFound
+        showSourceLabel={false}
+        slug={slug}
+        slotKey="footer"
+      />
+    </div>
   );
 }
 

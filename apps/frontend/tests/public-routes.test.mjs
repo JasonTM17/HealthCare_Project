@@ -192,8 +192,9 @@ test("every public page family keeps the route-level CMS composition point", asy
   assert.match(routeCms, /\["admin", "auth", "doctor", "patient"\]/);
   assert.doesNotMatch(routeCms, /\["admin", "auth", "doctor", "patient", "careers"\]/);
   assert.match(routeCms, /Dynamic detail/);
-  assert.match(routeCms, /slotKey="hero"/);
-  assert.match(routeCms, /slotKey="body"/);
+  for (const slot of ["hero", "body", "sidebar", "footer"]) {
+    assert.match(routeCms, new RegExp(`slotKey="${slot}"`));
+  }
 });
 
 test("doctor portal exposes the typed clinical write workflow", async () => {
