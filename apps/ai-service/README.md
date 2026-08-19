@@ -34,6 +34,13 @@ again only when its normalized content hash changes. Search combines bounded
 keyword/vector relevance and returns citations containing the stored source
 type, source ID, and title only.
 
+The backend catalog mirror is eventually consistent: it runs on the configured
+schedule (five minutes by default) and removes SQL-deleted sources when a
+catalog type fits within `ai.rag-ingest.max-catalog-items`. If a type is larger
+than that safety bound, the sync keeps existing indexed rows instead of risking
+false deletion; this is a documented local-MVP limitation, not a durable
+multi-instance knowledge-store guarantee.
+
 Provider and safety settings are environment-backed:
 
 ```text

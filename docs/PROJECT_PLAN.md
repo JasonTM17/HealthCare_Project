@@ -381,7 +381,10 @@ Suggested commits:
 
 Status: `DONE` for the single-instance MVP. The backend periodically mirrors
 bounded active/published catalog documents through a separate protected ingest
-token; durable multi-instance vector persistence remains a production gate.
+token and tombstones deleted sources when the bounded catalog snapshot is
+complete; the five-minute eventual-consistency window and large-catalog safety
+bound are explicit local-MVP limitations. Durable multi-instance vector
+persistence remains a production gate.
 
 Goal: implement grounded hospital assistant over trusted application data.
 
