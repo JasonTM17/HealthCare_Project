@@ -63,6 +63,7 @@ export function CmsLiveSlot({
     let cancelled = false;
     let pollTimer: ReturnType<typeof setInterval> | undefined;
     let sseConnected = false;
+    let initialSnapshotReady = false;
     const reconciliation = new CmsReconciliationLedger();
     let refreshGeneration = 0;
     let stopFeed: () => void = () => undefined;
@@ -141,12 +142,14 @@ export function CmsLiveSlot({
           setContent(nextContent);
         }
         setError(null);
+        initialSnapshotReady = true;
         return "updated";
       } catch (nextError) {
         if (!isAuthoritativeRead()) return "failed";
         if (nextError instanceof CmsApiError && nextError.kind === "not-found") {
           setContent(null);
           setError(new CmsApiError("not-found", 404, "Slot hiện không còn PUBLISHED."));
+          initialSnapshotReady = true;
           return "not-found";
         }
         setError(nextError);
@@ -167,8 +170,17 @@ export function CmsLiveSlot({
           if (
             result === "failed"
             || cancelled
-            || !hasPendingReconciliation
           ) return;
+          if (!hasPendingReconciliation) {
+            if (initialSnapshotReady
+              && sseConnected
+              && reconciliation.pendingEventIds.size === 0
+              && reconciliation.reconciliationCursor === 0) {
+              stopPolling();
+              setTransport("sse");
+            }
+            return;
+          }
           if (!finishReconciliation(afterEventId)) {
             // A newer heartbeat/event won the race. Keep the polling loop
             // alive and retry with the newer authoritative cursor.
@@ -245,7 +257,8 @@ export function CmsLiveSlot({
           if (cancelled) return;
           sseConnected = true;
           if (reconciliation.pendingEventIds.size === 0
-            && reconciliation.reconciliationCursor === 0) {
+            && reconciliation.reconciliationCursor === 0
+            && initialSnapshotReady) {
             stopPolling();
             setTransport("sse");
           } else {
@@ -312,6 +325,13 @@ export function CmsLiveSlot({
         // A healthy SSE connection does not prove the initial snapshot was
         // readable. Keep bounded polling alive until the first read succeeds.
         startPolling();
+      } else if (!cancelled
+        && initialSnapshotReady
+        && sseConnected
+        && reconciliation.pendingEventIds.size === 0
+        && reconciliation.reconciliationCursor === 0) {
+        stopPolling();
+        setTransport("sse");
       }
     });
 

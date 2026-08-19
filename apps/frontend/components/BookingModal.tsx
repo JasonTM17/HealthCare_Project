@@ -19,30 +19,13 @@ import {
   fetchDoctors,
   fetchSpecialties,
 } from "../lib/api-client";
+import { businessDate } from "../lib/business-time";
 import Icon from "./UiIcon";
 
 const EMPTY_DOCTORS: Doctor[] = [];
 const EMPTY_SPECIALTIES: Specialty[] = [];
 const EMPTY_BRANCHES: Branch[] = [];
 const EMPTY_PACKAGES: HealthPackage[] = [];
-const BUSINESS_TIME_ZONE = "Asia/Ho_Chi_Minh";
-
-function businessDate(offsetDays = 0): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: BUSINESS_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  const date = new Date(Date.UTC(
-    Number(values.year),
-    Number(values.month) - 1,
-    Number(values.day) + offsetDays,
-  ));
-  return date.toISOString().slice(0, 10);
-}
-
 const BOOKING_STEPS = [
   { id: 1, label: "Chuyên khoa" },
   { id: 2, label: "Cơ sở" },

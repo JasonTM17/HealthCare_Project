@@ -113,7 +113,7 @@ test("AI and CMS live boundaries fail closed across reconnect and unresolved res
   assert.doesNotMatch(tracking, /30 đơn vị|15 phút|Hỗ trợ BHYT|Thẻ BHYT/);
   assert.match(tracking, /lookupRequestRef/);
   assert.match(bookingModal, /bookingSessionRef/);
-  assert.match(bookingModal, /BUSINESS_TIME_ZONE/);
+  assert.match(bookingModal, /business-time/);
   assert.match(bookingModal, /businessDate\(1\)/);
   assert.match(bookingModal, /setConfirmedAppointment\(null\)/);
   assert.match(doctors, /specialtySlug/);
