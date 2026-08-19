@@ -47,12 +47,29 @@ public class BookingRateLimiter {
         Long count = null;
         try {
             count = redisTemplate.opsForValue().increment(key);
-            if (count != null && count == 1L) {
-                redisTemplate.expire(key, WINDOW);
+            if (count == null) {
+                throw new IllegalStateException("Redis did not return a rate-limit count");
+            }
+            Long ttl = redisTemplate.getExpire(key);
+            if (ttl == null || ttl < 0L) {
+                Boolean expirySet = redisTemplate.expire(key, WINDOW);
+                if (!Boolean.TRUE.equals(expirySet)) {
+                    throw new IllegalStateException("Redis did not set a rate-limit expiry");
+                }
             }
         } catch (RuntimeException ignored) {
             // A Redis outage must not make the public booking endpoint fail
             // open. The local fallback is deliberately smaller and bounded.
+            try {
+                // Do not leave a counter without a TTL: a later Redis recovery
+                // must not turn one transient expiry failure into a permanent
+                // throttle. If deletion also fails, the next Redis call will
+                // repair the missing TTL before evaluating the count.
+                redisTemplate.delete(key);
+            } catch (RuntimeException ignoredCleanup) {
+                // Fall through to the bounded local fallback.
+            }
+            count = null;
         }
 
         if (count == null) {

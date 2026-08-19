@@ -39,6 +39,7 @@ import java.security.SecureRandom;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 
@@ -49,6 +50,7 @@ public class BookingService {
     private static final int HOLD_DURATION_MINUTES = 10;
     private static final int OTP_DURATION_MINUTES = 5;
     private static final int MAX_OTP_ATTEMPTS = 5;
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     private final AppointmentRepository appointmentRepository;
     private final PatientProfileRepository patientProfileRepository;
@@ -195,7 +197,7 @@ public class BookingService {
             );
         }
 
-        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime now = OffsetDateTime.now(BUSINESS_ZONE);
 
         // Serialize the slot key even when no appointment row exists yet. A row lock
         // alone cannot prevent two first writers from both observing an empty slot.
@@ -259,7 +261,7 @@ public class BookingService {
         appointment.setStartTime(request.startTime());
         appointment.setEndTime(bookableSlot.endTime());
         appointment.setAppointmentTime(
-            OffsetDateTime.of(request.appointmentDate(), request.startTime(), now.getOffset())
+            OffsetDateTime.of(request.appointmentDate(), request.startTime(), BUSINESS_ZONE.getRules().getOffset(now.toInstant()))
         );
         appointment.setStatus(AppointmentStatus.PENDING_CONFIRMATION);
         appointment.setHoldExpiresAt(holdExpiry);
@@ -350,7 +352,7 @@ public class BookingService {
         Appointment appointment = appointmentRepository.findByBookingCodeWithDetailsForUpdate(request.bookingCode().trim())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy mã đặt lịch"));
 
-        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime now = OffsetDateTime.now(BUSINESS_ZONE);
 
         if (appointment.getStatus() == AppointmentStatus.CONFIRMED) {
             // The OTP is cleared after confirmation. Never make this public
@@ -524,7 +526,7 @@ public class BookingService {
         String slotLockKey = appointment.getDoctor().getId() + ":" + branchLockKey + ":" + request.appointmentDate();
         slotLocker.acquire(slotLockKey);
 
-        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime now = OffsetDateTime.now(BUSINESS_ZONE);
         List<Appointment> expired = appointmentRepository.findExpiredPendingConflictsForUpdate(
             appointment.getDoctor().getId(),
             branchId,
@@ -565,7 +567,7 @@ public class BookingService {
         appointment.setAppointmentTime(OffsetDateTime.of(
             request.appointmentDate(),
             request.startTime(),
-            now.getOffset()
+            BUSINESS_ZONE.getRules().getOffset(now.toInstant())
         ));
         appointment.setReminderSentAt(null);
 

@@ -10,10 +10,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.List;
 
 @Service
 public class AppointmentReminderService {
+
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     private final AppointmentRepository appointmentRepository;
     private final NotificationService notificationService;
@@ -31,7 +34,7 @@ public class AppointmentReminderService {
     @Scheduled(fixedDelayString = "${app.booking.reminder-scan-ms:60000}")
     @Transactional
     public int sendDueReminders() {
-        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime now = OffsetDateTime.now(BUSINESS_ZONE);
         OffsetDateTime windowEnd = now.plusHours(Math.max(1, reminderLeadHours));
         List<Appointment> dueAppointments = appointmentRepository.lockDueReminders(now, windowEnd);
 
