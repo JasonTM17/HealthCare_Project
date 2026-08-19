@@ -134,12 +134,13 @@ services:
     build:
       context: ../apps/frontend
       dockerfile: Dockerfile
+      args:
+        BACKEND_INTERNAL_URL: http://backend:8080
     container_name: healthcare-frontend
     restart: unless-stopped
     environment:
-      # Keep browser traffic same-origin. Next forwards this path over the
-      # Compose network, so the browser never needs to resolve a container or
-      # host-local backend address.
+      # Keep browser traffic same-origin. Rewrites are compiled in the build
+      # stage, while this value keeps the same contract visible at runtime.
       BACKEND_INTERNAL_URL: http://backend:8080
     ports:
       - "3000:3000"
