@@ -186,6 +186,16 @@ test("Stitch search and careers screens have live public route owners", async ()
   assert.match(home, /CmsContentRenderer/);
 });
 
+test("every public page family keeps the route-level CMS composition point", async () => {
+  const routeCms = await read("components/cms/RouteCmsSlots.tsx");
+
+  assert.match(routeCms, /\["admin", "auth", "doctor", "patient"\]/);
+  assert.doesNotMatch(routeCms, /\["admin", "auth", "doctor", "patient", "careers"\]/);
+  assert.match(routeCms, /Dynamic detail/);
+  assert.match(routeCms, /slotKey="hero"/);
+  assert.match(routeCms, /slotKey="body"/);
+});
+
 test("doctor portal exposes the typed clinical write workflow", async () => {
   const [dashboard, appointments, client, controller, service] = await Promise.all([
     read("app/doctor/dashboard/page.tsx"),
