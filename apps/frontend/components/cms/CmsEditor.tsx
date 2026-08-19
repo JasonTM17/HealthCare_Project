@@ -57,6 +57,24 @@ const SLOT_LABELS: Record<CmsSlotKey, string> = {
   footer: "Footer",
 };
 
+const CMS_ROUTE_PRESETS = [
+  ["home", "Trang chủ"],
+  ["about", "Về HealthCare"],
+  ["branches", "Mạng lưới cơ sở"],
+  ["specialties", "Chuyên khoa"],
+  ["doctors", "Bác sĩ"],
+  ["services", "Dịch vụ"],
+  ["packages", "Gói khám"],
+  ["articles", "Cẩm nang"],
+  ["careers", "Tuyển dụng"],
+  ["search", "Tìm kiếm"],
+  ["dat-lich", "Đặt lịch"],
+  ["contact", "Liên hệ"],
+  ["faq", "FAQ"],
+  ["huong-dan", "Hướng dẫn"],
+  ["tra-cuu", "Tra cứu"],
+] as const;
+
 function emptyPayload(componentType: CmsComponentType): CmsPayload {
   switch (componentType) {
     case "HERO":
@@ -486,6 +504,28 @@ export function CmsEditor({
           {operation === "loading" ? "Đang tải…" : "Tải slot"}
         </button>
       </form>
+
+      <section aria-labelledby="cms-route-directory-title" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Public route directory</p>
+          <h2 className="mt-1 text-lg font-bold text-slate-950" id="cms-route-directory-title">Chọn nhanh vùng trang cần quản trị</h2>
+          <p className="mt-1 text-sm leading-6 text-slate-600">Chọn nhóm trang, giữ slot và bấm “Tải slot” để đọc version live hiện tại. Trang chi tiết dùng chung slot theo nhóm route.</p>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {CMS_ROUTE_PRESETS.map(([routeSlug, label]) => (
+            <button
+              aria-pressed={slug === routeSlug}
+              className={`min-h-11 rounded-xl border px-3 py-2 text-left text-sm font-semibold transition-colors ${slug === routeSlug ? "border-teal-700 bg-teal-50 text-teal-950" : "border-slate-300 text-slate-700 hover:bg-slate-50"}`}
+              key={routeSlug}
+              onClick={() => setSlug(routeSlug)}
+              type="button"
+            >
+              {label}
+              <span className="ml-2 font-mono text-xs font-normal opacity-70">/{routeSlug}</span>
+            </button>
+          ))}
+        </div>
+      </section>
 
       <section aria-labelledby="cms-slot-directory-title" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-end justify-between gap-3">
