@@ -71,6 +71,6 @@ public class NotificationService {
 
     @Transactional
     public int markAllAsRead(UserDetails principal) {
-        return notificationRepository.markAllAsRead(resolveUser(principal).getId());
+        return notificationRepository.markAllAsRead(resolveUser(principal).getId(), OffsetDateTime.now());
     }
 }

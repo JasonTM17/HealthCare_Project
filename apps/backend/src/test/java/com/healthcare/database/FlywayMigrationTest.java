@@ -65,7 +65,8 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
             "specialties", "doctors", "branches",
             "services", "packages", "articles", "faqs",
             "doctor_specialties", "doctor_branches",
-            "cms_contents", "cms_content_changes"
+            "cms_contents", "cms_content_changes",
+            "job_positions", "job_applications"
         );
     }
 
@@ -533,7 +534,7 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
     void localSeedSchedulesFollowDoctorBranchAssignments() {
         String schema = createMigrationSchema();
         try {
-            migrate(schema, "12");
+            migrate(schema, "22");
             executeSeed(schema);
             String schedules = table(schema, "doctor_schedules");
             String doctors = table(schema, "doctors");

@@ -222,6 +222,21 @@ def test_rag_ingest_is_disabled_or_token_protected(monkeypatch: pytest.MonkeyPat
     assert accepted.status_code == 200
     assert accepted.json()["id"] == "specialty:cardio"
 
+    sources = client.get(
+        "/rag/sources",
+        headers={"X-RAG-Ingest-Token": "test-ingest-token"},
+    )
+    assert sources.status_code == 200
+    assert sources.json()["sources"] == [{"source_type": "specialty", "source_id": "cardio"}]
+
+    deleted = client.post(
+        "/rag/delete",
+        json={"source_type": "specialty", "source_id": "cardio"},
+        headers={"X-RAG-Ingest-Token": "test-ingest-token"},
+    )
+    assert deleted.status_code == 200
+    assert deleted.json() == {"removed": True, "index_size": 0}
+
 
 def test_rag_ingest_skips_inactive_source(monkeypatch: pytest.MonkeyPatch) -> None:
     rag_service.index = __import__("app.rag", fromlist=["RagIndex"]).RagIndex()

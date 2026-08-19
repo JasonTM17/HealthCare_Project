@@ -12,4 +12,6 @@ public interface DiagnosticResultRepository extends JpaRepository<DiagnosticResu
     List<DiagnosticResult> findByPatientIdOrderByTestDateDesc(UUID patientId);
 
     List<DiagnosticResult> findByPatientIdAndDoctorIdOrderByTestDateDesc(UUID patientId, UUID doctorId);
+
+    boolean existsByStoredFileId(UUID storedFileId);
 }

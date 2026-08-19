@@ -1,8 +1,10 @@
 package com.healthcare.clinical.controller;
 
 import com.healthcare.appointment.dto.DoctorAppointmentResponse;
+import com.healthcare.appointment.dto.UpdateAppointmentStatusRequest;
 import com.healthcare.appointment.service.AppointmentPortalService;
 import com.healthcare.clinical.dto.DiagnosticResultResponse;
+import com.healthcare.clinical.dto.CreateDiagnosticResultRequest;
 import com.healthcare.clinical.dto.MedicalRecordResponse;
 import com.healthcare.clinical.service.ClinicalService;
 import com.healthcare.hospital.dto.DoctorResponse;
@@ -17,12 +19,16 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.UUID;
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/v1/doctor")
@@ -61,6 +67,15 @@ public class DoctorPortalController {
             appointmentPortalService.getDoctorAppointments(date, status, userDetails, pageable));
     }
 
+    @PatchMapping("/appointments/{appointmentId}/status")
+    public ResponseEntity<DoctorAppointmentResponse> updateAppointmentStatus(
+            @PathVariable UUID appointmentId,
+            @Valid @RequestBody UpdateAppointmentStatusRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(
+            appointmentPortalService.updateDoctorAppointmentStatus(appointmentId, request.status(), userDetails));
+    }
+
     @GetMapping("/patients/{patientId}/medical-records")
     public ResponseEntity<List<MedicalRecordResponse>> getPatientRecords(
             @PathVariable UUID patientId,
@@ -73,5 +88,14 @@ public class DoctorPortalController {
             @PathVariable UUID patientId,
             @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(clinicalService.getDoctorPatientDiagnostics(patientId, userDetails));
+    }
+
+    @PostMapping("/patients/{patientId}/diagnostic-results")
+    public ResponseEntity<DiagnosticResultResponse> createPatientDiagnostic(
+            @PathVariable UUID patientId,
+            @Valid @RequestBody CreateDiagnosticResultRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED)
+            .body(clinicalService.createDiagnosticResult(patientId, request, userDetails));
     }
 }

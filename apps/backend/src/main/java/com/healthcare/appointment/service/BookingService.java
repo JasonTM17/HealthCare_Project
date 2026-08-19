@@ -4,6 +4,7 @@ import com.healthcare.appointment.dto.AppointmentResponse;
 import com.healthcare.appointment.dto.ConfirmAppointmentRequest;
 import com.healthcare.appointment.dto.HoldSlotRequest;
 import com.healthcare.appointment.dto.HoldSlotResponse;
+import com.healthcare.appointment.dto.RescheduleAppointmentRequest;
 import com.healthcare.appointment.entity.Appointment;
 import com.healthcare.appointment.entity.AppointmentStatus;
 import com.healthcare.appointment.entity.PatientProfile;
@@ -16,12 +17,16 @@ import com.healthcare.hospital.repository.DoctorRepository;
 import com.healthcare.hospital.repository.DoctorSpecialtyRepository;
 import com.healthcare.hospital.repository.PackageRepository;
 import com.healthcare.hospital.repository.SpecialtyRepository;
+import com.healthcare.notification.entity.Notification.EventType;
+import com.healthcare.notification.service.NotificationService;
 import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -56,10 +61,13 @@ public class BookingService {
     private final UserRepository userRepository;
     private final ScheduleService scheduleService;
     private final PasswordEncoder passwordEncoder;
+    private final NotificationService notificationService;
+    private final AppointmentSlotLocker slotLocker;
 
     @Value("${app.booking.allow-test-otp:false}")
     private boolean allowTestOtp;
 
+    @Autowired
     public BookingService(AppointmentRepository appointmentRepository,
                           PatientProfileRepository patientProfileRepository,
                           DoctorRepository doctorRepository,
@@ -70,7 +78,9 @@ public class BookingService {
                           PackageRepository packageRepository,
                           UserRepository userRepository,
                           ScheduleService scheduleService,
-                          PasswordEncoder passwordEncoder) {
+                          PasswordEncoder passwordEncoder,
+                          NotificationService notificationService,
+                          AppointmentSlotLocker slotLocker) {
         this.appointmentRepository = appointmentRepository;
         this.patientProfileRepository = patientProfileRepository;
         this.doctorRepository = doctorRepository;
@@ -82,6 +92,47 @@ public class BookingService {
         this.userRepository = userRepository;
         this.scheduleService = scheduleService;
         this.passwordEncoder = passwordEncoder;
+        this.notificationService = notificationService;
+        this.slotLocker = slotLocker;
+    }
+
+    /** Backward-compatible constructor for focused unit tests. */
+    public BookingService(AppointmentRepository appointmentRepository,
+                          PatientProfileRepository patientProfileRepository,
+                          DoctorRepository doctorRepository,
+                          DoctorBranchRepository doctorBranchRepository,
+                          DoctorSpecialtyRepository doctorSpecialtyRepository,
+                          SpecialtyRepository specialtyRepository,
+                          BranchRepository branchRepository,
+                          PackageRepository packageRepository,
+                          UserRepository userRepository,
+                          ScheduleService scheduleService,
+                          PasswordEncoder passwordEncoder) {
+        this(
+            appointmentRepository, patientProfileRepository, doctorRepository, doctorBranchRepository,
+            doctorSpecialtyRepository, specialtyRepository, branchRepository, packageRepository,
+            userRepository, scheduleService, passwordEncoder, null, appointmentRepository::acquireSlotLock
+        );
+    }
+
+    /** Backward-compatible constructor used by lightweight validation tests. */
+    public BookingService(AppointmentRepository appointmentRepository,
+                          PatientProfileRepository patientProfileRepository,
+                          DoctorRepository doctorRepository,
+                          DoctorBranchRepository doctorBranchRepository,
+                          DoctorSpecialtyRepository doctorSpecialtyRepository,
+                          SpecialtyRepository specialtyRepository,
+                          BranchRepository branchRepository,
+                          PackageRepository packageRepository,
+                          UserRepository userRepository,
+                          ScheduleService scheduleService,
+                          NotificationService notificationService) {
+        this(
+            appointmentRepository, patientProfileRepository, doctorRepository, doctorBranchRepository,
+            doctorSpecialtyRepository, specialtyRepository, branchRepository, packageRepository,
+            userRepository, scheduleService, new BCryptPasswordEncoder(), notificationService,
+            appointmentRepository::acquireSlotLock
+        );
     }
 
     /**
@@ -152,7 +203,7 @@ public class BookingService {
             ? "branchless"
             : request.branchId().toString();
         String slotLockKey = request.doctorId() + ":" + branchLockKey + ":" + request.appointmentDate();
-        appointmentRepository.acquireSlotLock(slotLockKey);
+        slotLocker.acquire(slotLockKey);
 
         List<Appointment> expired = appointmentRepository.findExpiredPendingConflictsForUpdate(
             request.doctorId(),
@@ -230,6 +281,13 @@ public class BookingService {
                 exception
             );
         }
+        notifyPatient(
+            appointment,
+            EventType.APPOINTMENT_CREATED,
+            "Đã tạo yêu cầu đặt lịch",
+            "Lịch khám " + appointment.getBookingCode() + " đang được giữ trong "
+                + HOLD_DURATION_MINUTES + " phút để chờ xác nhận."
+        );
 
         return new HoldSlotResponse(
             bookingCode,
@@ -359,6 +417,12 @@ public class BookingService {
                 exception
             );
         }
+        notifyPatient(
+            appointment,
+            EventType.APPOINTMENT_CONFIRMED,
+            "Lịch khám đã được xác nhận",
+            "Lịch khám " + appointment.getBookingCode() + " đã được xác nhận."
+        );
         return toResponse(appointment);
     }
 
@@ -397,7 +461,142 @@ public class BookingService {
         appointment.setOtpCode(null);
         appointment.setOtpExpiresAt(null);
         appointmentRepository.save(appointment);
+        notifyPatient(
+            appointment,
+            EventType.APPOINTMENT_CANCELLED,
+            "Lịch khám đã được hủy",
+            "Lịch khám " + appointment.getBookingCode() + " đã được hủy."
+        );
         return principal == null ? toPublicResponse(appointment) : toResponse(appointment);
+    }
+
+    /**
+     * Atomically moves a confirmed appointment to another configured, free slot.
+     * Validation happens before mutating the existing appointment.
+     */
+    @Transactional
+    public AppointmentResponse rescheduleAppointment(
+            String bookingCode,
+            RescheduleAppointmentRequest request,
+            UserDetails principal) {
+        Appointment appointment = appointmentRepository.findByBookingCodeWithDetailsForUpdate(bookingCode.trim())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy lịch khám"));
+
+        authorizeAppointment(appointment, request.phone(), principal);
+
+        if (appointment.getStatus() != AppointmentStatus.CONFIRMED) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Chỉ có thể đổi lịch khám đang ở trạng thái đã xác nhận"
+            );
+        }
+
+        UUID branchId = request.branchId();
+        if (branchId != null) {
+            branchRepository.findByIdAndActiveTrue(branchId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy cơ sở khám"));
+            if (!doctorBranchRepository.existsByDoctorIdAndBranchId(appointment.getDoctor().getId(), branchId)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bác sĩ không làm việc tại cơ sở khám đã chọn");
+            }
+        }
+
+        UUID currentBranchId = appointment.getBranch() == null ? null : appointment.getBranch().getId();
+        if (appointment.getAppointmentDate().equals(request.appointmentDate())
+                && appointment.getStartTime().equals(request.startTime())
+                && java.util.Objects.equals(currentBranchId, branchId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Khung giờ mới trùng với lịch khám hiện tại");
+        }
+
+        ScheduleService.BookableSlot targetSlot = scheduleService.findBookableSlot(
+                appointment.getDoctor().getId(), branchId, request.appointmentDate(), request.startTime())
+            .orElseThrow(() -> new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Khung giờ mới không nằm trong lịch làm việc hoặc đã qua"
+            ));
+
+        String branchLockKey = branchId == null ? "branchless" : branchId.toString();
+        String slotLockKey = appointment.getDoctor().getId() + ":" + branchLockKey + ":" + request.appointmentDate();
+        slotLocker.acquire(slotLockKey);
+
+        OffsetDateTime now = OffsetDateTime.now();
+        List<Appointment> expired = appointmentRepository.findExpiredPendingConflictsForUpdate(
+            appointment.getDoctor().getId(),
+            branchId,
+            request.appointmentDate(),
+            request.startTime(),
+            targetSlot.endTime(),
+            now
+        );
+        for (Appointment expiredAppointment : expired) {
+            expiredAppointment.setStatus(AppointmentStatus.CANCELLED);
+            expiredAppointment.setCancellationReason("Hết thời gian giữ chỗ (Quá 10 phút)");
+        }
+        if (!expired.isEmpty()) {
+            appointmentRepository.saveAll(expired);
+            appointmentRepository.flush();
+        }
+
+        boolean occupied = appointmentRepository.findActiveConflictsForUpdate(
+                appointment.getDoctor().getId(),
+                branchId,
+                request.appointmentDate(),
+                request.startTime(),
+                targetSlot.endTime(),
+                now
+            ).stream()
+            .anyMatch(conflict -> !conflict.getId().equals(appointment.getId()));
+        if (occupied) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Khung giờ mới vừa có người đặt hoặc đang được giữ chỗ. Vui lòng chọn khung giờ khác."
+            );
+        }
+
+        appointment.setBranch(branchId == null ? null : branchRepository.getReferenceById(branchId));
+        appointment.setAppointmentDate(request.appointmentDate());
+        appointment.setStartTime(request.startTime());
+        appointment.setEndTime(targetSlot.endTime());
+        appointment.setAppointmentTime(OffsetDateTime.of(
+            request.appointmentDate(),
+            request.startTime(),
+            now.getOffset()
+        ));
+        appointment.setReminderSentAt(null);
+
+        try {
+            appointmentRepository.saveAndFlush(appointment);
+        } catch (DataIntegrityViolationException exception) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Khung giờ mới vừa có người đặt hoặc đang được giữ chỗ. Vui lòng chọn khung giờ khác.",
+                exception
+            );
+        }
+
+        notifyPatient(
+            appointment,
+            EventType.APPOINTMENT_RESCHEDULED,
+            "Lịch khám đã được thay đổi",
+            "Lịch khám " + appointment.getBookingCode() + " đã chuyển sang "
+                + appointment.getAppointmentDate() + " lúc " + appointment.getStartTime() + "."
+        );
+        return toResponse(appointment);
+    }
+
+    private void notifyPatient(
+            Appointment appointment,
+            EventType eventType,
+            String title,
+            String message) {
+        if (notificationService != null && appointment.getPatient().getUserId() != null) {
+            notificationService.create(
+                appointment.getPatient().getUserId(),
+                eventType,
+                title,
+                message,
+                appointment.getId()
+            );
+        }
     }
 
     private String generateBookingCode(LocalDate date) {

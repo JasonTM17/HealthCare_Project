@@ -6,9 +6,9 @@ import com.healthcare.cms.dto.CmsReadyResponse;
 import com.healthcare.cms.dto.CmsResyncResponse;
 import com.healthcare.cms.entity.CmsContentChange;
 import com.healthcare.cms.repository.CmsContentChangeRepository;
-import com.healthcare.exception.BusinessException;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -24,16 +24,19 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongFunction;
 
 @Component
 public class CmsChangeFeedHub {
 
     public static final int REPLAY_LIMIT = 50;
     private static final int MAX_CONNECTIONS = 256;
-    private static final long EMITTER_TIMEOUT_MILLIS = 45_000L;
+    private static final long EMITTER_TIMEOUT_MILLIS = TimeUnit.MINUTES.toMillis(30);
     private static final long HEARTBEAT_INTERVAL_MILLIS = 15_000L;
+    private static final long CAPACITY_RETRY_MILLIS = 5_000L;
 
     private final CmsContentChangeRepository changeRepository;
+    private final LongFunction<SseEmitter> emitterFactory;
     private final Map<Long, SseEmitter> emitters = new ConcurrentHashMap<>();
     private final AtomicLong connectionIds = new AtomicLong();
     private final Object streamLock = new Object();
@@ -43,8 +46,16 @@ public class CmsChangeFeedHub {
         return thread;
     });
 
+    @Autowired
     public CmsChangeFeedHub(CmsContentChangeRepository changeRepository) {
+        this(changeRepository, SseEmitter::new);
+    }
+
+    CmsChangeFeedHub(
+            CmsContentChangeRepository changeRepository,
+            LongFunction<SseEmitter> emitterFactory) {
         this.changeRepository = changeRepository;
+        this.emitterFactory = emitterFactory;
     }
 
     @PostConstruct
@@ -65,14 +76,14 @@ public class CmsChangeFeedHub {
     public SseEmitter open(Long afterEventId) {
         synchronized (streamLock) {
             if (emitters.size() >= MAX_CONNECTIONS) {
-                throw new BusinessException(503, "CMS change feed capacity is temporarily full");
+                return capacityUnavailableEmitter();
             }
 
             long connectionId = connectionIds.incrementAndGet();
-            SseEmitter emitter = new SseEmitter(EMITTER_TIMEOUT_MILLIS);
+            SseEmitter emitter = emitterFactory.apply(EMITTER_TIMEOUT_MILLIS);
             Runnable remove = () -> emitters.remove(connectionId);
             emitter.onCompletion(remove);
-            emitter.onTimeout(remove);
+            emitter.onTimeout(() -> closeQuietly(connectionId, emitter));
             emitter.onError(error -> remove.run());
             emitters.put(connectionId, emitter);
 
@@ -102,8 +113,9 @@ public class CmsChangeFeedHub {
                     }
                 }
             } catch (IOException | RuntimeException ex) {
-                emitters.remove(connectionId);
-                emitter.completeWithError(ex);
+                // A disconnected SSE client is an expected transport event. Dispatching
+                // the exception would make MVC serialize a JSON error into this stream.
+                closeQuietly(connectionId, emitter);
             }
             return emitter;
         }
@@ -115,8 +127,7 @@ public class CmsChangeFeedHub {
                 try {
                     send(emitter, "cms-content-changed", Long.toString(change.eventId()), change);
                 } catch (IOException | RuntimeException ex) {
-                    emitters.remove(connectionId);
-                    emitter.completeWithError(ex);
+                    closeQuietly(connectionId, emitter);
                 }
             });
         }
@@ -139,10 +150,40 @@ public class CmsChangeFeedHub {
                 try {
                     send(emitter, "heartbeat", null, heartbeat);
                 } catch (IOException | RuntimeException ex) {
-                    emitters.remove(connectionId);
-                    emitter.completeWithError(ex);
+                    closeQuietly(connectionId, emitter);
                 }
             });
+        }
+    }
+
+    private SseEmitter capacityUnavailableEmitter() {
+        SseEmitter emitter = emitterFactory.apply(CAPACITY_RETRY_MILLIS);
+        try {
+            emitter.send(SseEmitter.event()
+                .name("unavailable")
+                .reconnectTime(CAPACITY_RETRY_MILLIS)
+                .data(Map.of(
+                    "reason", "capacity",
+                    "retryAfterMillis", CAPACITY_RETRY_MILLIS
+                ), MediaType.APPLICATION_JSON));
+        } catch (IOException | RuntimeException ignored) {
+            // This short-lived emitter was never registered, so there is nothing to remove.
+        } finally {
+            try {
+                emitter.complete();
+            } catch (RuntimeException ignored) {
+                // The servlet container may already have completed the response.
+            }
+        }
+        return emitter;
+    }
+
+    private void closeQuietly(long connectionId, SseEmitter emitter) {
+        emitters.remove(connectionId);
+        try {
+            emitter.complete();
+        } catch (RuntimeException ignored) {
+            // The servlet container may already have completed a disconnected response.
         }
     }
 

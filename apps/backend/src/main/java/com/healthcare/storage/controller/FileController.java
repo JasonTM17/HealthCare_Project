@@ -1,6 +1,9 @@
 package com.healthcare.storage.controller;
 
 import com.healthcare.storage.service.FileStorageService;
+import com.healthcare.storage.dto.StoredFileResponse;
+import com.healthcare.storage.entity.StoredFile;
+import com.healthcare.storage.entity.StoredFilePurpose;
 import org.springframework.http.ContentDisposition;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
@@ -20,7 +23,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/files")
@@ -34,22 +37,28 @@ public class FileController {
 
     @PostMapping("/upload")
     @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR')")
-    public ResponseEntity<Map<String, String>> upload(
+    public ResponseEntity<StoredFileResponse> upload(
             @RequestParam("file") MultipartFile file,
+            @RequestParam(required = false) UUID patientId,
+            @RequestParam(defaultValue = "GENERAL") StoredFilePurpose purpose,
             @AuthenticationPrincipal UserDetails userDetails) throws Exception {
-        String objectName = fileStorageService.upload(file, userDetails);
-        return ResponseEntity.ok(Map.of("objectName", objectName));
+        StoredFile storedFile = fileStorageService.upload(file, patientId, purpose, userDetails);
+        return ResponseEntity.ok(StoredFileResponse.from(storedFile));
     }
 
     @GetMapping("/{objectName}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'PATIENT')")
     public ResponseEntity<Resource> download(
             @PathVariable String objectName,
             @AuthenticationPrincipal UserDetails userDetails) throws Exception {
         byte[] data = fileStorageService.download(objectName, userDetails);
-        String filename = "download";
+        StoredFile metadata = fileStorageService.findMetadata(objectName).orElse(null);
+        String filename = metadata == null ? "download" : metadata.getOriginalFilename();
+        MediaType contentType = metadata == null
+            ? MediaType.APPLICATION_OCTET_STREAM
+            : MediaType.parseMediaType(metadata.getContentType());
         return ResponseEntity.ok()
-            .contentType(MediaType.APPLICATION_OCTET_STREAM)
+            .contentType(contentType)
             .header(HttpHeaders.CONTENT_DISPOSITION,
                 ContentDisposition.attachment().filename(filename, StandardCharsets.UTF_8).build().toString())
             .body(new ByteArrayResource(data));

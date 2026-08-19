@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Repository
@@ -19,7 +20,7 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
     long countByUserIdAndReadFalse(UUID userId);
 
     @Modifying
-    @Query("update Notification n set n.read = true, n.readAt = current_timestamp " +
+    @Query("update Notification n set n.read = true, n.readAt = :readAt " +
            "where n.user.id = :userId and n.read = false")
-    int markAllAsRead(@Param("userId") UUID userId);
+    int markAllAsRead(@Param("userId") UUID userId, @Param("readAt") OffsetDateTime readAt);
 }

@@ -42,6 +42,10 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
     @Query("select a from Appointment a join fetch a.patient join fetch a.doctor left join fetch a.specialty left join fetch a.branch left join fetch a.medicalPackage where a.bookingCode = :bookingCode")
     Optional<Appointment> findByBookingCodeWithDetailsForUpdate(@Param("bookingCode") String bookingCode);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select a from Appointment a join fetch a.patient join fetch a.doctor left join fetch a.specialty left join fetch a.branch left join fetch a.medicalPackage where a.id = :id")
+    Optional<Appointment> findByIdWithDetailsForUpdate(@Param("id") UUID id);
+
     /**
      * Portal reads load every to-one field used by the role-specific response
      * in one query. The patient/doctor id is resolved by the service from the
@@ -71,7 +75,25 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
         Pageable pageable
     );
 
+    @EntityGraph(attributePaths = {"patient", "doctor", "specialty", "branch", "medicalPackage"})
+    @Query("""
+        select a from Appointment a
+        where (:appointmentDate is null or a.appointmentDate = :appointmentDate)
+          and (:status is null or a.status = :status)
+    """)
+    Page<Appointment> findAdminAppointments(
+        @Param("appointmentDate") LocalDate appointmentDate,
+        @Param("status") com.healthcare.appointment.entity.AppointmentStatus status,
+        Pageable pageable
+    );
+
     Page<Appointment> findByPatientIdOrderByAppointmentDateDescStartTimeDesc(UUID patientId, Pageable pageable);
+
+    boolean existsByPatientIdAndDoctorIdAndStatusIn(
+        UUID patientId,
+        UUID doctorId,
+        java.util.Collection<com.healthcare.appointment.entity.AppointmentStatus> statuses
+    );
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
@@ -130,5 +152,20 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
         @Param("branchId") UUID branchId,
         @Param("appointmentDate") LocalDate appointmentDate,
         @Param("now") OffsetDateTime now
+    );
+
+    @Query(value = """
+        SELECT * FROM appointments
+        WHERE status = 'CONFIRMED'
+          AND reminder_sent_at IS NULL
+          AND appointment_time >= :windowStart
+          AND appointment_time < :windowEnd
+        ORDER BY appointment_time
+        LIMIT 100
+        FOR UPDATE SKIP LOCKED
+    """, nativeQuery = true)
+    List<Appointment> lockDueReminders(
+        @Param("windowStart") OffsetDateTime windowStart,
+        @Param("windowEnd") OffsetDateTime windowEnd
     );
 }

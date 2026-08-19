@@ -220,6 +220,11 @@ class RagIndex:
     def size(self) -> int:
         return len(self._documents)
 
+    @property
+    def documents(self) -> tuple[RagDocument, ...]:
+        """Return a stable snapshot for bounded reconciliation operations."""
+        return tuple(self._documents.values())
+
     def search(
         self,
         query_embedding: List[float],
@@ -260,6 +265,9 @@ class RagServiceContract(Protocol):
     """Service-level contract for swapping the in-memory index later."""
 
     index: RagIndex
+
+    def sources(self) -> list[tuple[str, str]]:
+        """Return the source identities currently present in the index."""
 
     def ingest(
         self,
@@ -383,6 +391,9 @@ class RagService:
 
     def remove(self, source_type: str, source_id: str) -> None:
         self.index.remove(f"{source_type}:{source_id}")
+
+    def sources(self) -> list[tuple[str, str]]:
+        return [(document.source_type, document.source_id) for document in self.index.documents]
 
     def search(
         self,

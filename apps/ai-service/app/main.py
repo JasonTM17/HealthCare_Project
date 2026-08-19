@@ -24,11 +24,15 @@ from app.schemas import (
     EmbeddingRequest,
     EmbeddingResponse,
     HealthResponse,
+    RAGDeleteRequest,
+    RAGDeleteResponse,
     RAGIndexRequest,
     RAGIndexResponse,
     RAGSearchRequest,
     RAGSearchResponse,
     RAGSearchResult,
+    RAGSourcesResponse,
+    RAGSource,
     ProviderProvenance,
     SOURCE_TYPES,
     SemanticSearchRequest,
@@ -209,6 +213,49 @@ def rag_search(request: RAGSearchRequest) -> RAGSearchResponse:
     )
 
 
+def require_rag_ingest_token(token: str | None) -> None:
+    if not settings.rag_ingest_enabled:
+        raise HTTPException(status_code=404, detail="RAG ingestion is disabled")
+    if not _configured_secret(settings.rag_ingest_token):
+        raise HTTPException(status_code=503, detail="RAG ingestion is not configured")
+    if not token or not secrets.compare_digest(token, settings.rag_ingest_token):
+        raise HTTPException(status_code=403, detail="Invalid RAG ingestion token")
+
+
+@app.get("/rag/sources", response_model=RAGSourcesResponse)
+def rag_sources(
+    x_rag_ingest_token: str | None = Header(default=None),
+    _service_auth: None = Depends(require_service_auth),
+) -> RAGSourcesResponse:
+    """Expose source identities so a trusted catalog sync can tombstone deletes."""
+
+    require_rag_ingest_token(x_rag_ingest_token)
+    return RAGSourcesResponse(
+        sources=[
+            RAGSource(source_type=source_type, source_id=source_id)
+            for source_type, source_id in rag_service.sources()
+        ]
+    )
+
+
+@app.post("/rag/delete", response_model=RAGDeleteResponse)
+def rag_delete(
+    payload: RAGDeleteRequest,
+    x_rag_ingest_token: str | None = Header(default=None),
+    _service_auth: None = Depends(require_service_auth),
+) -> RAGDeleteResponse:
+    """Remove one trusted catalog source from the searchable index."""
+
+    require_rag_ingest_token(x_rag_ingest_token)
+    document_id = f"{payload.source_type}:{payload.source_id}"
+    existed = any(
+        source_type == payload.source_type and source_id == payload.source_id
+        for source_type, source_id in rag_service.sources()
+    )
+    rag_service.remove(payload.source_type, payload.source_id)
+    return RAGDeleteResponse(removed=existed, index_size=rag_service.index.size)
+
+
 @app.post("/rag/index", response_model=RAGIndexResponse)
 def rag_index(
     payload: RAGIndexRequest,
@@ -217,14 +264,7 @@ def rag_index(
 ) -> RAGIndexResponse:
     """Ingest trusted knowledge; disabled and token-protected by default."""
 
-    if not settings.rag_ingest_enabled:
-        raise HTTPException(status_code=404, detail="RAG ingestion is disabled")
-    if not _configured_secret(settings.rag_ingest_token):
-        raise HTTPException(status_code=503, detail="RAG ingestion is not configured")
-    if not x_rag_ingest_token or not secrets.compare_digest(
-        x_rag_ingest_token, settings.rag_ingest_token
-    ):
-        raise HTTPException(status_code=403, detail="Invalid RAG ingestion token")
+    require_rag_ingest_token(x_rag_ingest_token)
 
     content = _enforce_input_limit(
         payload.content,

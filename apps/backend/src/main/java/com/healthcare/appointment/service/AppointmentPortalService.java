@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Locale;
@@ -94,6 +95,59 @@ public class AppointmentPortalService {
                 doctor.getId(), appointmentDate, appointmentStatus, safePageable);
 
         return appointments.map(this::toDoctorResponse);
+    }
+
+    @Transactional
+    public DoctorAppointmentResponse updateDoctorAppointmentStatus(
+            UUID appointmentId,
+            AppointmentStatus targetStatus,
+            UserDetails principal) {
+        Doctor doctor = requireLinkedDoctor(principal);
+        Appointment appointment = appointmentRepository.findByIdWithDetailsForUpdate(appointmentId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy lịch khám"));
+        if (!appointment.getDoctor().getId().equals(doctor.getId())) {
+            throw new AccessDeniedException("Bác sĩ không được phân công lịch khám này");
+        }
+
+        AppointmentStatus currentStatus = appointment.getStatus();
+        if (targetStatus == currentStatus) {
+            return toDoctorResponse(appointment);
+        }
+        boolean allowed = switch (currentStatus) {
+            case CONFIRMED -> targetStatus == AppointmentStatus.CHECKED_IN
+                || targetStatus == AppointmentStatus.NO_SHOW;
+            case CHECKED_IN -> targetStatus == AppointmentStatus.IN_PROGRESS
+                || targetStatus == AppointmentStatus.NO_SHOW;
+            default -> false;
+        };
+        if (!allowed) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Không thể chuyển trạng thái lịch khám từ " + currentStatus + " sang " + targetStatus
+            );
+        }
+
+        LocalDate today = LocalDate.now();
+        if ((targetStatus == AppointmentStatus.CHECKED_IN || targetStatus == AppointmentStatus.IN_PROGRESS)
+                && !appointment.getAppointmentDate().equals(today)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Chỉ có thể tiếp nhận lịch khám trong ngày hôm nay");
+        }
+        if (targetStatus == AppointmentStatus.NO_SHOW) {
+            LocalTime endTime = appointment.getEndTime() == null
+                ? appointment.getStartTime().plusMinutes(30)
+                : appointment.getEndTime();
+            boolean visitHasEnded = appointment.getAppointmentDate().isBefore(today)
+                || (appointment.getAppointmentDate().equals(today) && !LocalTime.now().isBefore(endTime));
+            if (!visitHasEnded) {
+                throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Chỉ có thể đánh dấu vắng mặt sau khi khung giờ khám kết thúc"
+                );
+            }
+        }
+
+        appointment.setStatus(targetStatus);
+        return toDoctorResponse(appointmentRepository.saveAndFlush(appointment));
     }
 
     private PatientProfile requireLinkedPatient(UserDetails principal) {

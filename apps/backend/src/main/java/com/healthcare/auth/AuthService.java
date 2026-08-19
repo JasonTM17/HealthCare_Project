@@ -14,6 +14,8 @@ import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.RefreshTokenRepository;
 import com.healthcare.user.repository.RoleRepository;
 import com.healthcare.user.repository.UserRepository;
+import com.healthcare.appointment.entity.PatientProfile;
+import com.healthcare.appointment.repository.PatientProfileRepository;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AccountStatusException;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -42,6 +44,7 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider tokenProvider;
     private final JwtProperties jwtProperties;
+    private final PatientProfileRepository patientProfileRepository;
 
     public AuthService(UserRepository userRepository,
                        RoleRepository roleRepository,
@@ -49,7 +52,8 @@ public class AuthService {
                        PasswordEncoder passwordEncoder,
                        AuthenticationManager authenticationManager,
                        JwtTokenProvider tokenProvider,
-                       JwtProperties jwtProperties) {
+                       JwtProperties jwtProperties,
+                       PatientProfileRepository patientProfileRepository) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.refreshTokenRepository = refreshTokenRepository;
@@ -57,6 +61,7 @@ public class AuthService {
         this.authenticationManager = authenticationManager;
         this.tokenProvider = tokenProvider;
         this.jwtProperties = jwtProperties;
+        this.patientProfileRepository = patientProfileRepository;
     }
 
     @Transactional
@@ -65,6 +70,10 @@ public class AuthService {
 
         if (userRepository.existsByEmail(normalizedEmail)) {
             throw new DuplicateResourceException("Email already registered: " + normalizedEmail);
+        }
+        String normalizedPhone = normalizePhone(request.phone());
+        if (normalizedPhone != null && patientProfileRepository.findByPhone(normalizedPhone).isPresent()) {
+            throw new DuplicateResourceException("Phone number already registered");
         }
 
         Role patientRole = roleRepository.findByCode("PATIENT")
@@ -80,6 +89,15 @@ public class AuthService {
         user.addRole(patientRole);
 
         user = userRepository.save(user);
+
+        if (normalizedPhone != null) {
+            PatientProfile profile = new PatientProfile();
+            profile.setFullName(request.displayName().trim());
+            profile.setPhone(normalizedPhone);
+            profile.setEmail(normalizedEmail);
+            profile.setUserId(user.getId());
+            patientProfileRepository.save(profile);
+        }
 
         String accessToken = tokenProvider.generateAccessToken(user.getId(), user.getEmail());
         String refreshTokenString = tokenProvider.generateRefreshToken(user.getId());
@@ -217,5 +235,12 @@ public class AuthService {
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 algorithm not available", e);
         }
+    }
+
+    private String normalizePhone(String phone) {
+        if (phone == null || phone.isBlank()) {
+            return null;
+        }
+        return phone.trim().replaceAll("[\\s().-]", "");
     }
 }

@@ -33,6 +33,10 @@ migrations="
 /opt/healthcare/migrations/V16__cms_content_audit_snapshots.sql
 /opt/healthcare/migrations/V17__enforce_published_article_content.sql
 /opt/healthcare/migrations/V18__hash_appointment_otp_codes.sql
+/opt/healthcare/migrations/V19__secure_file_metadata.sql
+/opt/healthcare/migrations/V20__appointment_reminder_delivery.sql
+/opt/healthcare/migrations/V21__patient_profile_details.sql
+/opt/healthcare/migrations/V22__careers_and_job_applications.sql
 "
 
 for migration in $migrations; do
@@ -40,3 +44,4 @@ for migration in $migrations; do
 done
 
 run_sql /opt/healthcare/seed/seed-large-data.sql
+run_sql /opt/healthcare/seed/seed-local-careers.sql

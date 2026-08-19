@@ -224,6 +224,78 @@ class ClinicalAuthorizationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void confirmedAppointmentMustBeStartedBeforeRecordCreation() throws Exception {
+        ClinicalFixture fixture = fixture();
+        Appointment appointment = createAppointment(fixture);
+        appointment.setStatus(AppointmentStatus.CONFIRMED);
+        appointmentRepository.saveAndFlush(appointment);
+        String body = objectMapper.writeValueAsString(new CreateMedicalRecordRequest(
+            appointment.getId(), fixture.patient().getId(), fixture.doctor().getId(),
+            null, null, "Diagnosis before visit start", null,
+            null, null, null, null, null, null, null, null, null, null, null));
+
+        mockMvc.perform(post("/api/v1/clinical/records")
+                .header("Authorization", bearer(fixture.doctorUser()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+            .andExpect(status().isConflict());
+    }
+
+    @Test
+    void administratorCannotAuthorClinicalRecord() throws Exception {
+        ClinicalFixture fixture = fixture();
+        Appointment appointment = createAppointment(fixture);
+        String body = objectMapper.writeValueAsString(new CreateMedicalRecordRequest(
+            appointment.getId(), fixture.patient().getId(), fixture.doctor().getId(),
+            null, null, "Administrator supplied diagnosis", null,
+            null, null, null, null, null, null, null, null, null, null, null));
+
+        mockMvc.perform(post("/api/v1/clinical/records")
+                .header("Authorization", bearer(fixture.adminUser()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void assignedDoctorCanPublishDiagnosticResultVisibleToPatient() throws Exception {
+        ClinicalFixture fixture = fixture();
+        createAppointment(fixture);
+        String body = """
+            {
+              "testName": "Complete blood count",
+              "result": "Within reference range"
+            }
+            """;
+
+        mockMvc.perform(post("/api/v1/doctor/patients/{patientId}/diagnostic-results", fixture.patient().getId())
+                .header("Authorization", bearer(fixture.doctorUser()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.patientId").value(fixture.patient().getId().toString()))
+            .andExpect(jsonPath("$.doctorId").value(fixture.doctor().getId().toString()))
+            .andExpect(jsonPath("$.testName").value("Complete blood count"));
+
+        mockMvc.perform(get("/api/v1/patient/diagnostic-results")
+                .header("Authorization", bearer(fixture.patientUser())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].testName").value("Complete blood count"));
+    }
+
+    @Test
+    void unrelatedDoctorCannotPublishDiagnosticResult() throws Exception {
+        ClinicalFixture fixture = fixture();
+        createAppointment(fixture);
+
+        mockMvc.perform(post("/api/v1/doctor/patients/{patientId}/diagnostic-results", fixture.patient().getId())
+                .header("Authorization", bearer(fixture.otherDoctorUser()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"testName\":\"Unauthorized result\"}"))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
     void invalidNestedPrescriptionItemIsRejected() throws Exception {
         ClinicalFixture fixture = fixture();
         Appointment appointment = createAppointment(fixture);
@@ -304,7 +376,7 @@ class ClinicalAuthorizationTest extends AbstractIntegrationTest {
     }
 
     private Appointment createAppointment(ClinicalFixture fixture) {
-        LocalDate date = LocalDate.now().plusDays(2);
+        LocalDate date = LocalDate.now();
         LocalTime start = LocalTime.of(9, 0);
         Appointment appointment = new Appointment();
         appointment.setBookingCode("CLIN-" + UUID.randomUUID().toString().replace("-", "").substring(0, 20));
@@ -314,7 +386,7 @@ class ClinicalAuthorizationTest extends AbstractIntegrationTest {
         appointment.setStartTime(start);
         appointment.setEndTime(start.plusMinutes(30));
         appointment.setAppointmentTime(OffsetDateTime.of(date, start, OffsetDateTime.now().getOffset()));
-        appointment.setStatus(AppointmentStatus.CONFIRMED);
+        appointment.setStatus(AppointmentStatus.IN_PROGRESS);
         appointment.setPaymentStatus("UNPAID");
         appointment.setReasonForVisit("Clinical test visit");
         return appointmentRepository.saveAndFlush(appointment);

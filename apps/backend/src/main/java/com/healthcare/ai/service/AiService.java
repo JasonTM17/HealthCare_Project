@@ -25,6 +25,7 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.net.URI;
+import java.util.List;
 import java.util.Map;
 
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
@@ -58,6 +59,12 @@ public class AiService {
 
     @Value("${ai.service.max-response-bytes:1048576}")
     private int maxResponseBytes = DEFAULT_MAX_RESPONSE_BYTES;
+
+    @Value("${ai.rag-ingest.enabled:false}")
+    private boolean ragIngestEnabled;
+
+    @Value("${ai.rag-ingest.token:}")
+    private String ragIngestToken;
 
     /** Test-friendly constructor with the same safe defaults as production. */
     public AiService(RestTemplateBuilder restTemplateBuilder, ObjectMapper objectMapper) {
@@ -124,6 +131,64 @@ public class AiService {
         } catch (JsonProcessingException e) {
             throw new ResponseStatusException(BAD_GATEWAY, "AI request could not be encoded", e);
         }
+    }
+
+    public boolean isRagIngestConfigured() {
+        return ragIngestEnabled && ragIngestToken != null && !ragIngestToken.isBlank()
+            && hasServiceAuthConfiguration();
+    }
+
+    public Map<String, Object> indexDocument(Map<String, Object> document) {
+        if (!isRagIngestConfigured()) {
+            throw new ResponseStatusException(SERVICE_UNAVAILABLE, "RAG ingestion is not configured");
+        }
+        try {
+            HttpHeaders ingestHeaders = headers();
+            ingestHeaders.set("X-RAG-Ingest-Token", ragIngestToken);
+            return exchange(
+                HttpMethod.POST,
+                URI.create(endpoint("/rag/index")),
+                new HttpEntity<>(objectMapper.writeValueAsString(document), ingestHeaders)
+            );
+        } catch (JsonProcessingException e) {
+            throw new ResponseStatusException(BAD_GATEWAY, "RAG document could not be encoded", e);
+        }
+    }
+
+    public List<Map<String, Object>> listIndexedDocuments() {
+        if (!isRagIngestConfigured()) {
+            throw new ResponseStatusException(SERVICE_UNAVAILABLE, "RAG ingestion is not configured");
+        }
+        Map<String, Object> response = exchange(
+            HttpMethod.GET,
+            URI.create(endpoint("/rag/sources")),
+            new HttpEntity<>(ragHeaders())
+        );
+        Object sources = response.get("sources");
+        if (sources == null) return List.of();
+        return objectMapper.convertValue(sources, new TypeReference<List<Map<String, Object>>>() { });
+    }
+
+    public Map<String, Object> removeIndexedDocument(String sourceType, String sourceId) {
+        if (!isRagIngestConfigured()) {
+            throw new ResponseStatusException(SERVICE_UNAVAILABLE, "RAG ingestion is not configured");
+        }
+        try {
+            Map<String, Object> payload = Map.of("source_type", sourceType, "source_id", sourceId);
+            return exchange(
+                HttpMethod.POST,
+                URI.create(endpoint("/rag/delete")),
+                new HttpEntity<>(objectMapper.writeValueAsString(payload), ragHeaders())
+            );
+        } catch (JsonProcessingException e) {
+            throw new ResponseStatusException(BAD_GATEWAY, "RAG deletion could not be encoded", e);
+        }
+    }
+
+    private HttpHeaders ragHeaders() {
+        HttpHeaders headers = headers();
+        headers.set("X-RAG-Ingest-Token", ragIngestToken);
+        return headers;
     }
 
     public boolean isAvailable() {

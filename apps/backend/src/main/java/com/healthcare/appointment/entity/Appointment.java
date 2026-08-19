@@ -88,6 +88,9 @@ public class Appointment {
     @Column(name = "otp_attempts", nullable = false)
     private int otpAttempts;
 
+    @Column(name = "reminder_sent_at")
+    private OffsetDateTime reminderSentAt;
+
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt = OffsetDateTime.now();
 
@@ -253,6 +256,14 @@ public class Appointment {
 
     public void setOtpAttempts(int otpAttempts) {
         this.otpAttempts = otpAttempts;
+    }
+
+    public OffsetDateTime getReminderSentAt() {
+        return reminderSentAt;
+    }
+
+    public void setReminderSentAt(OffsetDateTime reminderSentAt) {
+        this.reminderSentAt = reminderSentAt;
     }
 
     public OffsetDateTime getCreatedAt() {

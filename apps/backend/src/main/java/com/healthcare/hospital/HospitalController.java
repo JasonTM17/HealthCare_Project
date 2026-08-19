@@ -29,7 +29,7 @@ import org.springframework.web.bind.annotation.RequestParam;
  * <p>Provides read-only access to specialties, doctors, branches (facilities),
  * health-care packages, published articles, and FAQs.
  *
- * <p>All data is placeholder/seed until the admin CMS phase supplies real content.
+ * <p>Responses come from the active/published catalog managed through the admin APIs.
  */
 @Tag(name = "Hospital Domain", description = "Public read-only hospital domain endpoints")
 public class HospitalController {
