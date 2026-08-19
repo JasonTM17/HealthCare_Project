@@ -196,6 +196,8 @@ class HospitalDomainControllerTest extends TestcontainersIntegrationTest {
         Article published = new Article();
         published.setTitle("Published article");
         published.setSlug("published-article");
+        published.setSummary("Published article summary");
+        published.setBody("Published article body");
         published.setActive(true);
         published.setPublishedAt(OffsetDateTime.now());
         articleRepository.save(published);

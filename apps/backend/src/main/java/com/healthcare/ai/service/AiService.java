@@ -13,10 +13,14 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.ByteArrayHttpMessageConverter;
 import org.springframework.http.converter.StringHttpMessageConverter;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -32,6 +36,7 @@ public class AiService {
 
     private static final int DEFAULT_MAX_INPUT_CHARS = 10_000;
     private static final int DEFAULT_MAX_RESPONSE_BYTES = 1_048_576;
+    private static final Logger log = LoggerFactory.getLogger(AiService.class);
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
@@ -87,6 +92,7 @@ public class AiService {
         Duration readTimeout
     ) {
         this.restTemplate = restTemplateBuilder
+            .requestFactory(SimpleClientHttpRequestFactory::new)
             .setConnectTimeout(connectTimeout)
             .setReadTimeout(readTimeout)
             .messageConverters(
@@ -209,7 +215,11 @@ public class AiService {
             }
             String body = new String(raw, StandardCharsets.UTF_8);
             return objectMapper.readValue(body, new TypeReference<Map<String, Object>>() { });
+        } catch (RestClientResponseException e) {
+            log.warn("AI upstream returned HTTP {} for {}", e.getStatusCode().value(), uri.getPath());
+            throw new ResponseStatusException(BAD_GATEWAY, "AI service is unavailable", e);
         } catch (RestClientException e) {
+            log.warn("AI upstream request failed for {}: {}", uri.getPath(), e.getClass().getSimpleName());
             throw new ResponseStatusException(BAD_GATEWAY, "AI service is unavailable", e);
         } catch (JsonProcessingException e) {
             throw new ResponseStatusException(BAD_GATEWAY, "AI service returned invalid JSON", e);

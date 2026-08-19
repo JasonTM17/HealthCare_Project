@@ -72,5 +72,14 @@ conflict handling; it never renders raw HTML or JavaScript.
 | AI | FastAPI service behind backend auth/token boundary; rule-based local provider in Compose |
 | Persistence | Flyway PostgreSQL schema; Compose also provides Redis and MinIO for local infrastructure |
 
+The public detail contracts are backed by Flyway V15-V18 and the local rich-content
+overlay: specialties expose symptoms, preparation, care pathway, and related
+doctors; branches expose hours, emergency hotline, map, amenities, and linked
+doctors; packages expose audience, duration, checklist, and preparation; and
+articles expose category, author, reading time, related specialty, and typed
+sections. The rich-content assertions continue to validate the V15 contracts,
+while the full base seed runs after the complete migration chain through V22
+because it also contains careers fixtures.
+
 This matrix does not claim browser, multi-instance, provider, backup/restore,
 or production deployment evidence. Those remain explicit acceptance gates.

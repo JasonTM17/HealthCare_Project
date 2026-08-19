@@ -534,7 +534,7 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
     void localSeedSchedulesFollowDoctorBranchAssignments() {
         String schema = createMigrationSchema();
         try {
-            migrate(schema, "20");
+            migrateLatest(schema);
             executeSeed(schema);
             String schedules = table(schema, "doctor_schedules");
             String doctors = table(schema, "doctors");
@@ -569,7 +569,10 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
     void richLocalSeedOverlayPopulatesV15ContentContracts() {
         String schema = createMigrationSchema();
         try {
-            migrate(schema, "15");
+            // The assertions below exercise the detail columns introduced by
+            // V15, while the full local seed now also owns careers data added
+            // in V22. Apply the complete migration chain before loading it.
+            migrateLatest(schema);
             executeSeed(schema);
             executeRichSeed(schema);
 
@@ -684,6 +687,16 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
             .schemas(schema)
             .defaultSchema(schema)
             .target(MigrationVersion.fromVersion(target))
+            .load()
+            .migrate();
+    }
+
+    private void migrateLatest(String schema) {
+        Flyway.configure()
+            .dataSource(dataSource)
+            .locations("classpath:db/migration")
+            .schemas(schema)
+            .defaultSchema(schema)
             .load()
             .migrate();
     }

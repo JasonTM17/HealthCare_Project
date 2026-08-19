@@ -43,6 +43,14 @@ test("contact and guidance pages do not invent branch, insurance, or FAQ data", 
   assert.match(about, /Thước phim giới thiệu/);
 });
 
+test("homepage exposes a distinct unavailable catalog state with a retry path", async () => {
+  const home = await read("app/page.tsx");
+  assert.match(home, /catalogUnavailable/);
+  assert.match(home, /catalog-status--unavailable/);
+  assert.match(home, /Thử tải lại/);
+  assert.match(home, /error\.status >= 500/);
+});
+
 test("CMS booking CTA has a real landing route and public chrome avoids invented hotlines", async () => {
   const [booking, navbar, footer, home, seed, largeSeed] = await Promise.all([
     read("app/dat-lich/page.tsx"),

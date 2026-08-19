@@ -29,9 +29,7 @@ public class AdminArticleService {
         article.setSummary(request.summary());
         article.setBody(request.body());
         article.setActive(request.active());
-        if (request.active()) {
-            article.setPublishedAt(OffsetDateTime.now());
-        }
+        article.setPublishedAt(request.active() ? OffsetDateTime.now() : null);
         return articleRepository.save(article);
     }
 
@@ -47,6 +45,7 @@ public class AdminArticleService {
         article.setSummary(request.summary());
         article.setBody(request.body());
         article.setActive(request.active());
+        article.setPublishedAt(request.active() ? OffsetDateTime.now() : null);
         return articleRepository.save(article);
     }
 

@@ -4,7 +4,7 @@
 --
 -- Scale (approx): specialties 30, branches 20, doctors 500, services 200,
 -- packages 100, articles 500, faqs 150, doctor_specialties 1500,
--- doctor_branches 750, users 1000.
+-- doctor_branches 750, doctor_schedules about 7500, users 1000.
 --
 -- Idempotent: truncates domain tables (roles/permissions preserved) then
 -- regenerates. Safe to re-run. Password hash is a BCrypt stub valid only for
@@ -190,6 +190,31 @@ JOIN LATERAL (
 ) b ON true
 ON CONFLICT (doctor_id, branch_id) DO NOTHING;
 
+-- ── Doctor schedules (weekday morning + afternoon for every branch link) ─────
+-- Keep the large fixture bookable as well as searchable: every active doctor /
+-- branch relationship receives deterministic recurring windows for Monday-Friday.
+INSERT INTO doctor_schedules (
+    id, doctor_id, branch_id, day_of_week, start_time, end_time,
+    slot_duration_minutes, effective_from, effective_to, active
+)
+SELECT gen_random_uuid(), db.doctor_id, db.branch_id,
+       shifts.day_of_week, shifts.start_time::time, shifts.end_time::time,
+       30, DATE '2026-01-01', NULL, true
+FROM doctor_branches db
+JOIN doctors d ON d.id = db.doctor_id AND d.active = true
+CROSS JOIN (VALUES
+    (1, '08:00:00', '11:30:00'),
+    (1, '13:30:00', '17:00:00'),
+    (2, '08:00:00', '11:30:00'),
+    (2, '13:30:00', '17:00:00'),
+    (3, '08:00:00', '11:30:00'),
+    (3, '13:30:00', '17:00:00'),
+    (4, '08:00:00', '11:30:00'),
+    (4, '13:30:00', '17:00:00'),
+    (5, '08:00:00', '11:30:00'),
+    (5, '13:30:00', '17:00:00')
+) AS shifts(day_of_week, start_time, end_time);
+
 -- ── Users (1000) ──────────────────────────────────────────────────────────────
 -- BCrypt hash of "LocalDev!Pass2026" — local dev only, never a real secret.
 INSERT INTO users (id, email, password_hash, display_name, status, created_at, updated_at)
@@ -202,6 +227,25 @@ SELECT gen_random_uuid(),
        now()
 FROM generate_series(1, 1000) AS i
 ON CONFLICT (email) DO NOTHING;
+
+-- Deterministic local ADMIN fixture for CMS verification.
+-- Credentials are for this fictional local seed only; never reuse them outside
+-- the demo stack. Password: LocalDev!Pass2026
+INSERT INTO users (id, email, password_hash, display_name, status, created_at, updated_at)
+VALUES (
+    '00000000-0000-0000-0000-000000001001',
+    'admin@healthcare.local',
+    '$2a$10$p/9xnUieR.4HwifRfQ70Ye8kKFwmmWllJIqTRC49C82meV48Y8mn6',
+    'Quản trị viên local',
+    'ACTIVE',
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP
+)
+ON CONFLICT (email) DO UPDATE SET
+    password_hash = EXCLUDED.password_hash,
+    display_name = EXCLUDED.display_name,
+    status = EXCLUDED.status,
+    updated_at = CURRENT_TIMESTAMP;
 
 -- ── Patient profiles (avg 1 per 2 users ≈ 500) ───────────────────────────────
 INSERT INTO patient_profiles (id, user_id, full_name, phone, email)
@@ -229,6 +273,12 @@ SELECT u.id, r.id
 FROM users u
 JOIN roles r ON r.code = 'ADMIN'
 WHERE (abs(hashtext(u.id::text)) % 50 = 0)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO user_roles (user_id, role_id)
+SELECT '00000000-0000-0000-0000-000000001001', id
+FROM roles
+WHERE code = 'ADMIN'
 ON CONFLICT DO NOTHING;
 
 -- ── Clinical medical records (200) ───────────────────────────────────────────

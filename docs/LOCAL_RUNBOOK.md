@@ -41,13 +41,13 @@ is denied by the admin appointment endpoint. To verify an already-running stack:
 
 The one-shot `local-seed` container runs after Flyway and backend health. It
 creates fictional catalog data, recurring schedules, and these disposable local
-accounts (all use password `LocalDemo!2026`):
+accounts:
 
-| Role | Email |
-| --- | --- |
-| Admin | `admin@healthcare.local` |
-| Doctor | `doctor@healthcare.local` |
-| Patient | `patient@healthcare.local` |
+| Role | Email | Password |
+| --- | --- | --- |
+| Admin | `admin@healthcare.local` | `LocalDev!Pass2026` |
+| Doctor | `doctor@healthcare.local` | `LocalDemo!2026` |
+| Patient | `patient@healthcare.local` | `LocalDemo!2026` |
 
 Never reuse these credentials outside the local seed.
 

@@ -29,9 +29,9 @@ test("branch two selection resets slot identity and passes the selected branch t
   const source = await readFile(modalPath, "utf8");
 
   assert.match(source, /const handleBranchChange = \(branchId: string\)/);
-  assert.match(source, /doctorWorksAtBranch\(doctor, branchId\)/);
+  assert.match(source, /doctors\.find\(\(doctor\) =>[\s\S]*doctorMatchesBranch\(doctor, branchId\)/);
   assert.match(source, /doctor\.branchIds\.includes\(branchId\)/);
-  assert.match(source, /doctorTreatsSpecialty\(doctor, nextSpecialty\)/);
+  assert.match(source, /doctorMatchesSpecialty\(doctor, currentSpecialty\)/);
   assert.match(source, /fetchDoctorSlots\(selectedDoctor, selectedBranch, selectedDate\)/);
   assert.match(source, /branchId: selectedBranch/);
   assert.match(source, /chosenSlot\.branchId !== selectedBranch/);
@@ -68,6 +68,16 @@ test("booking input and OTP validation match the backend contract", async () => 
   assert.match(source, /secondsRemaining <= 0/);
 });
 
+test("booking UI keeps the server hold and OTP expiries separate", async () => {
+  const source = await readFile(modalPath, "utf8");
+
+  assert.match(source, /const \[otpExpiresAt, setOtpExpiresAt\]/);
+  assert.match(source, /setOtpExpiresAt\(result\.otpExpiresAt\)/);
+  assert.match(source, /const otpExpired = Boolean/);
+  assert.match(source, /if \(otpExpired\)/);
+  assert.match(source, /OTP còn hiệu lực/);
+});
+
 test("booking dialog resets, manages focus, and only closes from the real backdrop", async () => {
   const source = await readFile(modalPath, "utf8");
 
@@ -76,7 +86,7 @@ test("booking dialog resets, manages focus, and only closes from the real backdr
   assert.match(source, /document\.addEventListener\("keydown", handleKeyDown\)/);
   assert.match(source, /event\.key === "Escape"/);
   assert.match(source, /previouslyFocused\?\.isConnected/);
-  assert.match(source, /dialogRef\.current\?\.focus\(\)/);
+  assert.match(source, /\(focusableElements\(\)\[0\] \?\? dialog\)\.focus\(\)/);
   assert.match(source, /event\.target === event\.currentTarget/);
   assert.match(source, /setConfirmedAppointment\(null\)/);
   assert.match(source, /setFullName\(""\)/);
@@ -109,7 +119,9 @@ test("booking dialog uses natural Vietnamese sentence case", async () => {
 
   for (const text of [
     "Hệ thống đặt lịch khám",
-    "Chuyên khoa và bác sĩ",
+    "Chuyên khoa",
+    "Cơ sở",
+    "Bác sĩ",
     "Giữ chỗ và nhận mã OTP",
     "Đặt lịch khám thành công",
     "Đóng và về trang chủ",
@@ -137,7 +149,7 @@ test("booking form fields have stable accessible labels and progress state", asy
     assert.match(source, new RegExp(`htmlFor="${fieldId}"`));
     assert.match(source, new RegExp(`id="${fieldId}"`));
   }
-  assert.match(source, /aria-current=\{step === 1 \? "step" : undefined\}/);
-  assert.match(source, /aria-current=\{step === 4 \? "step" : undefined\}/);
+  assert.match(source, /const BOOKING_STEPS = \[[\s\S]*\{ id: 7, label: "Xác nhận" \}/);
+  assert.match(source, /aria-current=\{step === id \? "step" : undefined\}/);
   assert.match(source, /aria-live="assertive"[\s\S]*role="alert"/);
 });

@@ -4,6 +4,7 @@ import com.healthcare.appointment.dto.HoldSlotRequest;
 import com.healthcare.appointment.repository.AppointmentRepository;
 import com.healthcare.appointment.repository.PatientProfileRepository;
 import com.healthcare.appointment.service.BookingService;
+import com.healthcare.appointment.service.AppointmentSlotLocker;
 import com.healthcare.appointment.service.ScheduleService;
 import com.healthcare.hospital.entity.Doctor;
 import com.healthcare.hospital.entity.Specialty;
@@ -16,6 +17,7 @@ import com.healthcare.hospital.repository.SpecialtyRepository;
 import com.healthcare.notification.service.NotificationService;
 import com.healthcare.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
@@ -42,6 +44,8 @@ class BookingServiceValidationTest {
         UserRepository users = mock(UserRepository.class);
         ScheduleService schedules = mock(ScheduleService.class);
         NotificationService notifications = mock(NotificationService.class);
+        AppointmentSlotLocker slotLocker = mock(AppointmentSlotLocker.class);
+        PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
 
         UUID doctorId = UUID.randomUUID();
         UUID specialtyId = UUID.randomUUID();
@@ -53,7 +57,7 @@ class BookingServiceValidationTest {
 
         BookingService service = new BookingService(
             appointments, patients, doctors, doctorBranches, doctorSpecialties, specialties,
-            branches, packages, users, schedules, notifications);
+            branches, packages, users, schedules, notifications, slotLocker, passwordEncoder);
         HoldSlotRequest request = new HoldSlotRequest(
             doctorId, LocalDate.now().plusDays(1), LocalTime.of(9, 0),
             "Bệnh nhân", "0900000001", null, null, specialtyId, null, null);

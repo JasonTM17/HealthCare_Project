@@ -82,6 +82,20 @@ export interface Page<T> {
   empty: boolean;
 }
 
+/** Load every backend page for bounded catalog/search surfaces. */
+export async function fetchAllContent<T>(
+  fetchPage: (page: number, size: number) => Promise<Page<T>>,
+  size = 100,
+): Promise<T[]> {
+  const firstPage = await fetchPage(0, size);
+  if (firstPage.totalPages <= 1) return firstPage.content;
+
+  const remainingPages = await Promise.all(
+    Array.from({ length: firstPage.totalPages - 1 }, (_, index) => fetchPage(index + 1, size)),
+  );
+  return [firstPage, ...remainingPages].flatMap((page) => page.content);
+}
+
 export class ApiError extends Error {
   readonly status: number;
   readonly path: string;

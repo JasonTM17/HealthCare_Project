@@ -7,13 +7,13 @@ import { PublicBackLink, PublicBookingButton, PublicPageShell } from "../../comp
 import Icon from "../../components/UiIcon";
 import {
   fetchArticles,
+  fetchAllContent,
   fetchDoctors,
   fetchPackages,
+  fetchSemanticSearch,
   fetchServices,
   fetchSpecialties,
-  fetchSemanticSearch,
   readAuthSession,
-  type Page,
 } from "../../lib/api-client";
 import type { Article, Doctor, HealthPackage, MedicalService, SemanticSearchResponse, Specialty } from "../../types/hospital";
 
@@ -37,8 +37,8 @@ function matches(query: string, values: Array<string | undefined>): boolean {
   return values.some((value) => value && normalize(value).includes(query));
 }
 
-function settledContent<T>(result: PromiseSettledResult<Page<T>>): T[] {
-  return result.status === "fulfilled" ? result.value.content : [];
+function settledContent<T>(result: PromiseSettledResult<T[]>): T[] {
+  return result.status === "fulfilled" ? result.value : [];
 }
 
 function semanticSourceLabel(sourceType: SemanticSearchResponse["results"][number]["source_type"]): string {
@@ -86,11 +86,11 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
   useEffect(() => {
     let cancelled = false;
     Promise.allSettled([
-      fetchSpecialties(0, 100),
-      fetchDoctors({ page: 0, size: 100 }),
-      fetchServices(0, 100),
-      fetchPackages(0, 100),
-      fetchArticles(0, 100),
+      fetchAllContent((page, size) => fetchSpecialties(page, size)),
+      fetchAllContent((page, size) => fetchDoctors({ page, size })),
+      fetchAllContent((page, size) => fetchServices(page, size)),
+      fetchAllContent((page, size) => fetchPackages(page, size)),
+      fetchAllContent((page, size) => fetchArticles(page, size)),
     ] as const)
       .then((responses) => {
         if (cancelled) return;
@@ -104,11 +104,11 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
           articles: settledContent(articles),
         });
         setError(failedCount > 0
-          ? "Một phần thông tin tạm thời chưa thể hiển thị. Bạn vẫn có thể xem các kết quả còn lại."
+          ? `Một phần thông tin tạm thời chưa thể hiển thị (${failedCount}/5 nhóm). Bạn vẫn có thể xem các kết quả còn lại.`
           : null);
       })
-      .catch(() => {
-        if (!cancelled) setError("Tạm thời chưa thể tải dữ liệu tìm kiếm. Vui lòng thử lại sau.");
+      .catch((reason: unknown) => {
+        if (!cancelled) setError(reason instanceof Error ? reason.message : "Không thể tải catalog tìm kiếm.");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -117,20 +117,22 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
   }, []);
 
   useEffect(() => {
-    if (!submittedQuery || !readAuthSession()) {
-      return;
-    }
+    if (!submittedQuery || !readAuthSession()) return;
+
     let cancelled = false;
-    Promise.resolve().then(() => {
-      if (!cancelled) setSemanticLoading(true);
+    const task = Promise.resolve().then(() => {
+      if (cancelled) return undefined;
+      setSemanticLoading(true);
+      setSemanticError(null);
       return fetchSemanticSearch(submittedQuery);
     }).then((response) => {
-      if (!cancelled) setSemantic(response);
+      if (response !== undefined && !cancelled) setSemantic(response);
     }).catch(() => {
       if (!cancelled) setSemanticError("Tạm thời chưa thể mở rộng kết quả tìm kiếm. Vui lòng thử lại sau.");
     }).finally(() => {
       if (!cancelled) setSemanticLoading(false);
     });
+    void task;
     return () => { cancelled = true; };
   }, [submittedQuery]);
 

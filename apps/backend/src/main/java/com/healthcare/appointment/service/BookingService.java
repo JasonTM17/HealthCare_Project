@@ -22,15 +22,17 @@ import com.healthcare.notification.service.NotificationService;
 import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -43,6 +45,7 @@ public class BookingService {
 
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final int HOLD_DURATION_MINUTES = 10;
+    private static final int OTP_DURATION_MINUTES = 5;
     private static final int MAX_OTP_ATTEMPTS = 5;
 
     private final AppointmentRepository appointmentRepository;
@@ -57,11 +60,11 @@ public class BookingService {
     private final ScheduleService scheduleService;
     private final NotificationService notificationService;
     private final AppointmentSlotLocker slotLocker;
+    private final PasswordEncoder passwordEncoder;
 
     @Value("${app.booking.allow-test-otp:false}")
     private boolean allowTestOtp;
 
-    @Autowired
     public BookingService(AppointmentRepository appointmentRepository,
                           PatientProfileRepository patientProfileRepository,
                           DoctorRepository doctorRepository,
@@ -73,7 +76,8 @@ public class BookingService {
                           UserRepository userRepository,
                           ScheduleService scheduleService,
                           NotificationService notificationService,
-                          AppointmentSlotLocker slotLocker) {
+                          AppointmentSlotLocker slotLocker,
+                          PasswordEncoder passwordEncoder) {
         this.appointmentRepository = appointmentRepository;
         this.patientProfileRepository = patientProfileRepository;
         this.doctorRepository = doctorRepository;
@@ -86,25 +90,7 @@ public class BookingService {
         this.scheduleService = scheduleService;
         this.notificationService = notificationService;
         this.slotLocker = slotLocker;
-    }
-
-    /** Backward-compatible constructor for focused unit tests. */
-    public BookingService(AppointmentRepository appointmentRepository,
-                          PatientProfileRepository patientProfileRepository,
-                          DoctorRepository doctorRepository,
-                          DoctorBranchRepository doctorBranchRepository,
-                          DoctorSpecialtyRepository doctorSpecialtyRepository,
-                          SpecialtyRepository specialtyRepository,
-                          BranchRepository branchRepository,
-                          PackageRepository packageRepository,
-                          UserRepository userRepository,
-                          ScheduleService scheduleService,
-                          NotificationService notificationService) {
-        this(
-            appointmentRepository, patientProfileRepository, doctorRepository, doctorBranchRepository,
-            doctorSpecialtyRepository, specialtyRepository, branchRepository, packageRepository,
-            userRepository, scheduleService, notificationService, appointmentRepository::acquireSlotLock
-        );
+        this.passwordEncoder = passwordEncoder;
     }
 
     /**
@@ -222,6 +208,7 @@ public class BookingService {
         // 3. Create Appointment with Hold Lock
         String bookingCode = generateBookingCode(request.appointmentDate());
         OffsetDateTime holdExpiry = now.plusMinutes(HOLD_DURATION_MINUTES);
+        OffsetDateTime otpExpiry = now.plusMinutes(OTP_DURATION_MINUTES);
 
         // Generate 6-digit OTP (Mock 123456 is also accepted in dev/test)
         String otpCode = String.format("%06d", RANDOM.nextInt(1000000));
@@ -238,8 +225,8 @@ public class BookingService {
         );
         appointment.setStatus(AppointmentStatus.PENDING_CONFIRMATION);
         appointment.setHoldExpiresAt(holdExpiry);
-        appointment.setOtpCode(otpCode);
-        appointment.setOtpExpiresAt(holdExpiry);
+        appointment.setOtpCode(passwordEncoder.encode(otpCode));
+        appointment.setOtpExpiresAt(otpExpiry);
         appointment.setOtpAttempts(0);
         appointment.setReasonForVisit(request.reasonForVisit());
 
@@ -268,7 +255,8 @@ public class BookingService {
         return new HoldSlotResponse(
             bookingCode,
             holdExpiry,
-            "Đã giữ chỗ thành công trong " + HOLD_DURATION_MINUTES + " phút. Vui lòng nhập mã OTP để xác nhận đặt khám.",
+            otpExpiry,
+            "Đã giữ chỗ thành công trong " + HOLD_DURATION_MINUTES + " phút. Mã OTP có hiệu lực trong " + OTP_DURATION_MINUTES + " phút.",
             true
         );
     }
@@ -337,16 +325,26 @@ public class BookingService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Lịch hẹn này không ở trạng thái chờ xác nhận");
         }
 
-        if (appointment.getHoldExpiresAt() != null && now.isAfter(appointment.getHoldExpiresAt())) {
+        if (appointment.getHoldExpiresAt() != null && !now.isBefore(appointment.getHoldExpiresAt())) {
             appointment.setStatus(AppointmentStatus.CANCELLED);
             appointment.setCancellationReason("Hết thời gian giữ chỗ (Quá 10 phút)");
             appointmentRepository.save(appointment);
             throw new ResponseStatusException(HttpStatus.GONE, "Thời gian giữ chỗ đã hết hạn. Vui lòng thực hiện đặt lại.");
         }
 
+        if (appointment.getOtpExpiresAt() != null && !now.isBefore(appointment.getOtpExpiresAt())) {
+            appointment.setStatus(AppointmentStatus.CANCELLED);
+            appointment.setCancellationReason("Mã OTP đã hết hạn");
+            appointment.setHoldExpiresAt(null);
+            appointment.setOtpCode(null);
+            appointment.setOtpExpiresAt(null);
+            appointmentRepository.saveAndFlush(appointment);
+            throw new ResponseStatusException(HttpStatus.GONE, "Mã OTP đã hết hạn. Vui lòng thực hiện đặt lại lịch.");
+        }
+
         // Verify OTP. The fixed test code is available only in the test profile.
         String inputOtp = request.otpCode().trim();
-        if (!inputOtp.equals(appointment.getOtpCode()) && !(allowTestOtp && inputOtp.equals("123456"))) {
+        if (!matchesOtp(inputOtp, appointment.getOtpCode()) && !(allowTestOtp && inputOtp.equals("123456"))) {
             int attempts = appointment.getOtpAttempts() + 1;
             appointment.setOtpAttempts(attempts);
             if (attempts >= MAX_OTP_ATTEMPTS) {
@@ -388,7 +386,9 @@ public class BookingService {
             "Lịch khám đã được xác nhận",
             "Lịch khám " + appointment.getBookingCode() + " đã được xác nhận."
         );
-        return toResponse(appointment);
+        // Confirm is a public OTP endpoint. A valid OTP confirms control of
+        // the booking, but must not expose the patient's email or visit reason.
+        return toPublicResponse(appointment);
     }
 
     /**
@@ -399,7 +399,7 @@ public class BookingService {
         Appointment appointment = appointmentRepository.findByBookingCodeWithDetails(bookingCode.trim())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy lịch khám với mã: " + bookingCode));
         authorizeAppointment(appointment, phone, principal);
-        return toResponse(appointment);
+        return principal == null ? toPublicResponse(appointment) : toResponse(appointment);
     }
 
     /**
@@ -416,14 +416,11 @@ public class BookingService {
 
         authorizeAppointment(appointment, phone, principal);
 
-        if (appointment.getStatus() == AppointmentStatus.CANCELLED) {
-            return toResponse(appointment);
-        }
         if (appointment.getStatus() != AppointmentStatus.PENDING_CONFIRMATION
                 && appointment.getStatus() != AppointmentStatus.CONFIRMED) {
             throw new ResponseStatusException(
-                HttpStatus.CONFLICT,
-                "Không thể hủy lịch khám ở trạng thái " + appointment.getStatus()
+                HttpStatus.BAD_REQUEST,
+                "Chỉ có thể hủy lịch khám đang chờ xác nhận hoặc đã xác nhận"
             );
         }
 
@@ -439,7 +436,7 @@ public class BookingService {
             "Lịch khám đã được hủy",
             "Lịch khám " + appointment.getBookingCode() + " đã được hủy."
         );
-        return toResponse(appointment);
+        return responseForViewer(appointment, principal);
     }
 
     /**
@@ -463,10 +460,14 @@ public class BookingService {
                 "Chỉ có thể đổi lịch khám đang ở trạng thái đã xác nhận"
             );
         }
+        if (!appointment.getDoctor().isActive()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Bác sĩ hiện không nhận lịch khám");
+        }
 
         UUID branchId = request.branchId();
+        com.healthcare.hospital.entity.Branch targetBranch = null;
         if (branchId != null) {
-            branchRepository.findById(branchId)
+            targetBranch = branchRepository.findByIdAndActiveTrue(branchId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy cơ sở khám"));
             if (!doctorBranchRepository.existsByDoctorIdAndBranchId(appointment.getDoctor().getId(), branchId)) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bác sĩ không làm việc tại cơ sở khám đã chọn");
@@ -525,7 +526,7 @@ public class BookingService {
             );
         }
 
-        appointment.setBranch(branchId == null ? null : branchRepository.getReferenceById(branchId));
+        appointment.setBranch(targetBranch);
         appointment.setAppointmentDate(request.appointmentDate());
         appointment.setStartTime(request.startTime());
         appointment.setEndTime(targetSlot.endTime());
@@ -553,7 +554,7 @@ public class BookingService {
             "Lịch khám " + appointment.getBookingCode() + " đã chuyển sang "
                 + appointment.getAppointmentDate() + " lúc " + appointment.getStartTime() + "."
         );
-        return toResponse(appointment);
+        return responseForViewer(appointment, principal);
     }
 
     private void notifyPatient(
@@ -621,6 +622,23 @@ public class BookingService {
         return phone.replaceAll("[^0-9+]", "");
     }
 
+    private boolean matchesOtp(String inputOtp, String storedOtp) {
+        if (storedOtp == null || storedOtp.isBlank()) return false;
+        if (storedOtp.startsWith("$2a$") || storedOtp.startsWith("$2b$") || storedOtp.startsWith("$2y$")) {
+            return passwordEncoder.matches(inputOtp, storedOtp);
+        }
+        // One-release compatibility for pending rows created before V18. New
+        // holds always store a BCrypt hash and never write this legacy form.
+        return MessageDigest.isEqual(
+            inputOtp.getBytes(StandardCharsets.UTF_8),
+            storedOtp.getBytes(StandardCharsets.UTF_8)
+        );
+    }
+
+    private AppointmentResponse responseForViewer(Appointment appointment, UserDetails principal) {
+        return principal == null ? toPublicResponse(appointment) : toResponse(appointment);
+    }
+
     private AppointmentResponse toResponse(Appointment a) {
         return new AppointmentResponse(
             a.getId(),
@@ -643,5 +661,34 @@ public class BookingService {
             a.getReasonForVisit(),
             a.getCreatedAt()
         );
+    }
+
+    private AppointmentResponse toPublicResponse(Appointment a) {
+        return new AppointmentResponse(
+            a.getId(),
+            a.getBookingCode(),
+            a.getPatient().getFullName(),
+            maskPhone(a.getPatient().getPhone()),
+            null,
+            a.getDoctor().getId(),
+            a.getDoctor().getFullName(),
+            "Bác sĩ chuyên khoa",
+            a.getSpecialty() != null ? a.getSpecialty().getName() : "Đa khoa",
+            a.getBranch() != null ? a.getBranch().getName() : "Bệnh viện Đa khoa",
+            a.getBranch() != null ? a.getBranch().getAddress() : "TP. Hồ Chí Minh",
+            a.getMedicalPackage() != null ? a.getMedicalPackage().getName() : null,
+            a.getAppointmentDate(),
+            a.getStartTime(),
+            a.getEndTime(),
+            a.getStatus(),
+            a.getPaymentStatus(),
+            null,
+            a.getCreatedAt()
+        );
+    }
+
+    private String maskPhone(String phone) {
+        if (phone == null || phone.length() < 7) return "***";
+        return phone.substring(0, 3) + "****" + phone.substring(phone.length() - 3);
     }
 }

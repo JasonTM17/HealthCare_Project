@@ -8,26 +8,49 @@ Copy the root `.env.example` to `.env` and replace its local-only placeholders b
 docker compose -f infrastructure/docker-compose.yml up --build
 ```
 
-Compose is fail-closed for the internal AI boundary. Set a non-empty shared
-`AI_SERVICE_TOKEN` in `.env`; the local bare-process escape hatch does not
-apply to Compose.
+Compose uses tracked local-only fallbacks for the AI and JWT boundaries when
+their variables are empty, so a fresh local stack is reproducible:
+`local-development-token-not-for-production` and
+`local-jwt-secret-not-for-production`. Replace both with private values before
+any shared or non-demo run; the local bare-process escape hatch does not apply
+to Compose.
+
+The local Compose booking journey defaults `APP_BOOKING_ALLOW_TEST_OTP=true`
+because this repository does not include an SMS provider; use `123456` only in
+the local demo. Set it to `false` before any non-demo deployment and connect a
+real OTP delivery provider.
 
 The local stack exposes frontend on port 3000, backend on 8080, AI service on 8000, PostgreSQL on host port 5434 (container port 5432), Redis on 6379, and MinIO on 9000 (console 9001).
 
+The local seed includes the fictional ADMIN fixture `admin@healthcare.local`
+with password `LocalDev!Pass2026` so the CMS publish-to-user flow can be tested.
+This credential is local-only and must be replaced/disabled before any shared or
+non-demo deployment.
+
 The `local-seed` one-shot service waits for the backend health check (after
-Flyway) and runs the fictional PostgreSQL seed once. It defaults to
+Flyway), runs the backward-compatible base seed, then applies the V15 rich
+content overlay for the Stitch detail screens. The schema also includes V16
+CMS audit snapshots and all later article, OTP, storage, reminder, profile and
+recruitment migrations. The overlay only fills empty new fields, so rerunning
+it does not overwrite admin edits. It defaults to
 `apps/backend/src/main/resources/db/seed/seed-local-data.sql`; set the
 PowerShell `SEED_FILE` environment variable for one run if the larger seed is
 needed. See `docs/architecture/cms-realtime.md` for the rerun/query proof.
+
+The large fixture also creates recurring Monday-Friday morning and afternoon
+doctor schedules, so branch-aware booking remains executable while pagination
+and search are exercised.
 
 ## Large database fixture
 
 The tracked `seed-large-data.sql` is a generator of fictional local-development
 data, not a production dump or real patient data. A clean PostgreSQL 16 run
-produces approximately 6,900 rows across the hospital, identity, and clinical
-tables, including 500 doctors, 200 services, 100 packages, 500 articles, 1,000
-users, and 450 prescription items. Relationship counts vary slightly because
-the seed intentionally samples links randomly.
+produces approximately 14,000 rows across the hospital, scheduling, identity,
+and clinical tables, including 500 doctors, 200 services, 100 packages, 500
+articles, 1,001 users (including the local admin fixture), about 7,500 recurring
+doctor schedules, and 450
+prescription items. Relationship counts vary slightly because the seed
+intentionally samples links randomly.
 
 Use the larger dataset with the existing Flyway-managed local stack:
 

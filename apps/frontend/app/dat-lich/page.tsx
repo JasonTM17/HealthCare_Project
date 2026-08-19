@@ -5,7 +5,7 @@ import { PublicAiButton, PublicBookingButton, PublicPageShell } from "../../comp
 
 export default function BookingLandingPage() {
   return (
-    <PublicPageShell>
+    <PublicPageShell bookingInitiallyOpen>
       <div className="resource-page section-inner" id="dat-lich">
         <div className="resource-breadcrumb"><Link href="/">Trang chủ</Link><span>/</span><span>Đặt lịch</span></div>
         <header className="resource-page__header">

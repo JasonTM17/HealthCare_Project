@@ -4,19 +4,31 @@
 -- real hospital brand. Safe to run repeatedly: upserts are idempotent by slug.
 -- ==============================================================================
 
--- All three local demo accounts use password: LocalDemo!2026
+-- Local demo credentials:
+--   admin@healthcare.local   / LocalDev!Pass2026
+--   doctor@healthcare.local  / LocalDemo!2026
+--   patient@healthcare.local / LocalDemo!2026
 -- These credentials belong only to the disposable local seed and must never be
 -- reused in a shared or deployed environment.
 INSERT INTO users (id, email, password_hash, display_name, status) VALUES
-    ('90000000-0000-0000-0000-000000000001', 'admin@healthcare.local', '$2b$10$OG9QfyAPA/hWfWauU7lXvemQNUnFPcVj/rIuE2zzocw7rtOKoQdfa', 'Quản trị viên Local', 'ACTIVE'),
+    ('90000000-0000-0000-0000-000000000001', 'admin@healthcare.local', '$2a$10$p/9xnUieR.4HwifRfQ70Ye8kKFwmmWllJIqTRC49C82meV48Y8mn6', 'Quản trị viên Local', 'ACTIVE'),
     ('90000000-0000-0000-0000-000000000002', 'doctor@healthcare.local', '$2b$10$OG9QfyAPA/hWfWauU7lXvemQNUnFPcVj/rIuE2zzocw7rtOKoQdfa', 'Bác sĩ Local', 'ACTIVE'),
     ('90000000-0000-0000-0000-000000000003', 'patient@healthcare.local', '$2b$10$OG9QfyAPA/hWfWauU7lXvemQNUnFPcVj/rIuE2zzocw7rtOKoQdfa', 'Bệnh nhân Local', 'ACTIVE')
-ON CONFLICT (email) DO NOTHING;
+ON CONFLICT (email) DO UPDATE SET
+    password_hash = EXCLUDED.password_hash,
+    display_name = EXCLUDED.display_name,
+    status = EXCLUDED.status,
+    updated_at = CURRENT_TIMESTAMP;
 
-INSERT INTO user_roles (user_id, role_id) VALUES
-    ('90000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000003'),
-    ('90000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000002'),
-    ('90000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001')
+INSERT INTO user_roles (user_id, role_id)
+SELECT users.id, roles.id
+FROM (VALUES
+    ('admin@healthcare.local', 'ADMIN'),
+    ('doctor@healthcare.local', 'DOCTOR'),
+    ('patient@healthcare.local', 'PATIENT')
+) AS local_accounts(email, role_code)
+JOIN users ON users.email = local_accounts.email
+JOIN roles ON roles.code = local_accounts.role_code
 ON CONFLICT DO NOTHING;
 
 -- ── Specialties ───────────────────────────────────────────────────────────────

@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
+import { useEffect } from "react";
+import { fetchBranches } from "../lib/api-client";
 import AiTriageModal from "./AiTriageModal";
 import BookingModal from "./BookingModal";
 import Footer from "./Footer";
@@ -9,7 +11,6 @@ import Navbar from "./Navbar";
 import PublicMotion from "./PublicMotion";
 import { RouteCmsSlots } from "./cms";
 import type { Branch, Doctor, HealthPackage, Specialty } from "../types/hospital";
-import { fetchBranches } from "../lib/api-client";
 
 interface PublicPageShellProps {
   children: ReactNode;
@@ -17,9 +18,8 @@ interface PublicPageShellProps {
   specialties?: Specialty[];
   branches?: Branch[];
   packages?: HealthPackage[];
+  bookingInitiallyOpen?: boolean;
 }
-
-const EMPTY_BRANCHES: Branch[] = [];
 
 interface PublicPageActions {
   openBooking: (selection?: {
@@ -32,6 +32,7 @@ interface PublicPageActions {
 }
 
 const PublicPageActionsContext = createContext<PublicPageActions | null>(null);
+const EMPTY_BRANCHES: Branch[] = [];
 
 export function usePublicPageActions(): PublicPageActions {
   const actions = useContext(PublicPageActionsContext);
@@ -52,7 +53,7 @@ export function PublicBookingButton({
   return <button className={className} onClick={() => openBooking(selection)} type="button">{children}</button>;
 }
 
-export function PublicAiButton({ children = "Hỗ trợ chọn chuyên khoa", className = "outline-button" }: { children?: ReactNode; className?: string }) {
+export function PublicAiButton({ children = "Trợ lý triệu chứng", className = "outline-button" }: { children?: ReactNode; className?: string }) {
   const { openAi } = usePublicPageActions();
   return <button className={className} onClick={openAi} type="button">{children}</button>;
 }
@@ -61,11 +62,11 @@ export function PublicBackLink({ href = "/", children = "← Về trang chính" 
   return <Link className="text-button" href={href}>{children}</Link>;
 }
 
-export function PublicPageShell({ children, doctors = [], specialties = [], branches = EMPTY_BRANCHES, packages = [] }: PublicPageShellProps) {
-  const [bookingOpen, setBookingOpen] = useState(false);
+export function PublicPageShell({ children, doctors = [], specialties = [], branches = EMPTY_BRANCHES, packages = [], bookingInitiallyOpen = false }: PublicPageShellProps) {
+  const [bookingOpen, setBookingOpen] = useState(bookingInitiallyOpen);
   const [aiOpen, setAiOpen] = useState(false);
   const [selection, setSelection] = useState<Parameters<PublicPageActions["openBooking"]>[0]>();
-  const [chromeBranches, setChromeBranches] = useState<Branch[]>([]);
+  const [shellBranches, setShellBranches] = useState<Branch[]>(EMPTY_BRANCHES);
 
   useEffect(() => {
     if (branches.length > 0) {
@@ -73,17 +74,20 @@ export function PublicPageShell({ children, doctors = [], specialties = [], bran
     }
 
     let cancelled = false;
-    void fetchBranches(0, 50)
+    void fetchBranches(0, 100)
       .then((page) => {
-        if (!cancelled) setChromeBranches(page.content);
+        if (!cancelled) setShellBranches(page.content);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        // The page keeps its existing shell when the optional contact catalog is unavailable.
+      });
+
     return () => {
       cancelled = true;
     };
   }, [branches]);
 
-  const effectiveBranches = branches.length > 0 ? branches : chromeBranches;
+  const effectiveBranches = branches.length > 0 ? branches : shellBranches;
 
   const actions: PublicPageActions = {
     openBooking: (nextSelection) => {
@@ -98,26 +102,29 @@ export function PublicPageShell({ children, doctors = [], specialties = [], bran
       <div className="site-shell">
         <PublicMotion />
         <Navbar branches={effectiveBranches} onOpenAiTriage={() => setAiOpen(true)} onOpenBooking={() => actions.openBooking()} />
-        <main id="main-content"><RouteCmsSlots />{children}</main>
+        <main id="main-content" tabIndex={-1}><RouteCmsSlots />{children}</main>
         <Footer branches={effectiveBranches} />
-        <BookingModal
-          branches={effectiveBranches}
-          doctors={doctors}
-          initialBranchId={selection?.branchId}
-          initialDoctorId={selection?.doctorId}
-          initialPackageId={selection?.packageId}
-          initialSpecialtyId={selection?.specialtyId}
-          isOpen={bookingOpen}
-          onClose={() => setBookingOpen(false)}
-          packages={packages}
-          specialties={specialties}
-        />
+        {bookingOpen ? (
+          <BookingModal
+            branches={effectiveBranches}
+            doctors={doctors}
+            initialBranchId={selection?.branchId}
+            initialDoctorId={selection?.doctorId}
+            initialPackageId={selection?.packageId}
+            initialSpecialtyId={selection?.specialtyId}
+            isOpen
+            onClose={() => setBookingOpen(false)}
+            packages={packages}
+            specialties={specialties}
+          />
+        ) : null}
         <AiTriageModal
           isOpen={aiOpen}
           onClose={() => setAiOpen(false)}
           onSelectSpecialtyForBooking={(_specialtyName, specialtyId) => {
-            const specialty = specialtyId ? specialties.find((item) => item.id === specialtyId) : undefined;
-            actions.openBooking(specialty ? { specialtyId: specialty.id } : undefined);
+            // Keep the AI resolver's backend identity even when this shell did
+            // not preload the full specialty catalog.
+            actions.openBooking(specialtyId ? { specialtyId } : undefined);
             setAiOpen(false);
           }}
         />
