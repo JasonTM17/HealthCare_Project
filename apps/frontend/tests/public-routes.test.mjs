@@ -23,6 +23,21 @@ test("canonical resource details clear stale records and expose complete async s
   }
 });
 
+test("paginated catalog routes clear stale pages before a retry", async () => {
+  const routes = [
+    ["app/specialties/page.tsx", "setPage(null)"],
+    ["app/services/page.tsx", "setPage(null)"],
+    ["app/packages/page.tsx", "setPage(null)"],
+    ["app/branches/page.tsx", "setPage(null)"],
+  ];
+
+  for (const [path, clearMarker] of routes) {
+    const source = await read(path);
+    assert.match(source, /catalog-status--error/);
+    assert.match(source, new RegExp(clearMarker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+});
+
 test("contact and guidance pages do not invent branch, insurance, or FAQ data", async () => {
   const [contact, guidance, about] = await Promise.all([
     read("app/contact/page.tsx"),

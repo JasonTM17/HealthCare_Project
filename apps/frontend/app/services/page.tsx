@@ -20,6 +20,7 @@ export default function ServicesPage() {
       if (cancelled) return undefined;
       setLoading(true);
       setError(null);
+      setPage(null);
       return fetchServices(currentPage, 12);
     })
       .then((data) => { if (data !== undefined && !cancelled) setPage(data); })

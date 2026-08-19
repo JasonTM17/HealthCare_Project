@@ -19,6 +19,7 @@ export default function PackagesPage() {
       if (cancelled) return undefined;
       setLoading(true);
       setError(null);
+      setPage(null);
       return fetchPackages(currentPage, 8);
     })
       .then((data) => { if (data !== undefined && !cancelled) setPage(data); })

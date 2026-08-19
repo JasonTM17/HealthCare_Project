@@ -25,6 +25,7 @@ export default function SpecialtiesPage() {
       if (cancelled) return undefined;
       setLoading(true);
       setError(null);
+      setPage(null);
       return fetchSpecialties(currentPage, 12);
     })
       .then((data) => {

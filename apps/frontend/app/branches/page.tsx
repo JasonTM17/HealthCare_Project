@@ -23,6 +23,7 @@ export default function BranchesPage() {
     async function loadBranches() {
       setLoading(true);
       setError(null);
+      setPage(null);
 
       try {
         const data = await fetchBranches(0, 50);
