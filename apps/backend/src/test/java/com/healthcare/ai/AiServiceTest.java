@@ -2,6 +2,7 @@ package com.healthcare.ai;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.healthcare.ai.service.AiService;
+import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.web.client.RestTemplateBuilder;
@@ -13,6 +14,9 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Map;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -54,6 +58,39 @@ class AiServiceTest {
 
         assertThat(response).containsEntry("recommended_specialty", "Nội thần kinh");
         server.verify();
+    }
+
+    @Test
+    void liveGatewayUsesHttp11InsteadOfH2cUpgrade() throws Exception {
+        AtomicReference<String> upgradeHeader = new AtomicReference<>();
+        HttpServer httpServer = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+        httpServer.createContext("/triage", exchange -> {
+            upgradeHeader.set(exchange.getRequestHeaders().getFirst("Upgrade"));
+            byte[] response = "{\"recommended_specialty\":\"Nội thần kinh\"}"
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, response.length);
+            try (OutputStream output = exchange.getResponseBody()) {
+                output.write(response);
+            }
+        });
+        httpServer.start();
+
+        try {
+            AiService liveService = new AiService(new RestTemplateBuilder(), new ObjectMapper());
+            ReflectionTestUtils.setField(
+                liveService,
+                "aiServiceUrl",
+                "http://localhost:" + httpServer.getAddress().getPort()
+            );
+            ReflectionTestUtils.setField(liveService, "aiServiceToken", "shared-service-token");
+
+            assertThat(liveService.symptomCheck(Map.of("symptoms", "đau đầu")))
+                .containsEntry("recommended_specialty", "Nội thần kinh");
+            assertThat(upgradeHeader.get()).isNull();
+        } finally {
+            httpServer.stop(0);
+        }
     }
 
     @Test
