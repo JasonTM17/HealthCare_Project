@@ -48,13 +48,15 @@ public slot maps as follows:
 <CmsLiveSlot slug="home" slotKey="hero" /> // homepage.hero
 ```
 
-`PublicPageShell` mounts supplemental route-scoped `hero` and `body` slots for
-public routes. For example, `careers.hero` and `careers.body` are shown on
-`/careers`; missing slots stay hidden and do not invent page copy. Seeded
-route slots provide CMS-managed context rather than duplicating the page's
-static heading. The homepage keeps its composed slot layout in `app/page.tsx`.
-The admin content screen reads the inventory endpoint and exposes
-published/draft slots as quick selections before allowing a manual slug entry.
+`PublicPageShell` mounts supplemental route-scoped `hero`, `body`, `sidebar`,
+and `footer` slots for every public route family, including catalog detail
+pages and `/careers`. For example, `careers.hero` and `careers.body` are shown
+on `/careers`; missing slots stay hidden and do not invent page copy. Dynamic
+detail pages intentionally use their top-level family key (for example
+`doctors.hero`) so the admin can manage a consistent collection surface. The
+homepage keeps its composed slots in `app/page.tsx`. The admin content screen
+offers a public route directory plus inventory quick selections before allowing
+a manual slug entry.
 
 Set `NEXT_PUBLIC_CMS_API_BASE_URL` to the API base (including `/api/v1`). Admin
 requests can receive a bearer token through the `CmsClient` option and also
