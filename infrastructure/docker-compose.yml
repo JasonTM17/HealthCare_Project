@@ -156,6 +156,7 @@ services:
       EMBEDDING_PROVIDER: local
       RAG_INGEST_ENABLED: ${RAG_INGEST_ENABLED:-false}
       RAG_INGEST_TOKEN: ${RAG_INGEST_TOKEN:-}
+      RAG_MAX_DOCUMENTS: ${RAG_MAX_DOCUMENTS:-5000}
       AI_SERVICE_RUNTIME: compose
       AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL: "false"
       AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:-local-development-token-not-for-production}

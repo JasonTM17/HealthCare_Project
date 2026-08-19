@@ -55,7 +55,7 @@ AI_TIMEOUT_SECONDS=10
 AI_MAX_INPUT_CHARS=10000
 AI_MAX_RETRIEVED_CHUNKS=5
 RAG_MAX_DOCUMENT_CHARS=20000
-RAG_MAX_DOCUMENTS=1000
+RAG_MAX_DOCUMENTS=5000
 
 # Legacy aliases, used only for AI_PROVIDER=deepseek when the corresponding
 # AI_* value is empty.
@@ -75,7 +75,7 @@ are ignored; configure the provider-neutral key/model/base URL explicitly.
 
 Embedding vectors are capped at 4,096 dimensions. Indexed documents retain
 their embedding model and provenance, reject mixed model/provenance/dimension
-contracts, and are bounded by `RAG_MAX_DOCUMENTS` (1,000 by default).
+contracts, and are bounded by `RAG_MAX_DOCUMENTS` (5,000 by default).
 
 Provider calls use no automatic retries and a bounded timeout. In `local`,
 `demo`, or `test` runtime, a remote provider error may return deterministic

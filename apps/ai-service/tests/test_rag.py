@@ -1,6 +1,8 @@
 """Tests for the RAG index, search, and specialty recommendation."""
 
 import pytest
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
 from unittest.mock import patch
 from fastapi.testclient import TestClient
 
@@ -68,6 +70,34 @@ def test_sync_revision_tombstone_rejects_stale_resurrection() -> None:
         metadata={"_sync_revision": "12"},
     )
     assert service.index.get("specialty:cardio").title == "Tim mạch mới"
+
+
+def test_sync_revision_guard_rechecks_after_concurrent_delete() -> None:
+    service = RagService()
+    embedding_started = Event()
+    release_embedding = Event()
+
+    def delayed_embedder(_: str) -> list[float]:
+        embedding_started.set()
+        assert release_embedding.wait(timeout=2)
+        return [1.0, 0.0]
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        pending = executor.submit(
+            service.ingest,
+            "specialty",
+            "cardio",
+            "Tim mạch cũ",
+            "Nội dung cũ.",
+            metadata={"_sync_revision": "10"},
+            embedder=delayed_embedder,
+        )
+        assert embedding_started.wait(timeout=2)
+        service.remove("specialty", "cardio", revision=11)
+        release_embedding.set()
+        pending.result(timeout=2)
+
+    assert service.index.size == 0
 
 
 def test_ingest_normalizes_visible_content_and_reuses_embedding() -> None:

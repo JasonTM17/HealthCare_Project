@@ -13,13 +13,14 @@ import math
 import re
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
+from threading import RLock
 from typing import Callable, Collection, List, Optional, Protocol
 
 from app.schemas import MAX_EMBEDDING_DIMENSION, ProviderProvenance
 
 
 MAX_DOCUMENT_CHARS = 20_000
-MAX_RAG_DOCUMENTS = 1_000
+MAX_RAG_DOCUMENTS = 5_000
 SYNC_REVISION_METADATA_KEY = "_sync_revision"
 _IGNORED_HTML_TAGS = frozenset({"script", "style", "noscript", "template"})
 
@@ -309,6 +310,7 @@ class RagService:
         max_documents: int = MAX_RAG_DOCUMENTS,
     ) -> None:
         self.index = index or RagIndex(max_documents=max_documents)
+        self._revision_lock = RLock()
         self._tombstones: dict[str, int] = {}
 
     def ingest(
@@ -336,9 +338,10 @@ class RagService:
         document_id = f"{source_type}:{source_id}"
         content_hash = hashlib.sha256(normalized_content.encode("utf-8")).hexdigest()
         document_metadata = dict(metadata or {})
-        existing = self.index.get(document_id)
         revision = self._revision(document_metadata)
-        tombstone_revision = self._tombstones.get(document_id)
+        with self._revision_lock:
+            existing = self.index.get(document_id)
+            tombstone_revision = self._tombstones.get(document_id)
 
         document = RagDocument(
             id=document_id,
@@ -358,16 +361,17 @@ class RagService:
         # A sync revision prevents an older in-flight request from resurrecting
         # a source after a newer delete. Direct local/test calls without a
         # revision retain the legacy replace behavior.
-        if revision is None:
-            self._tombstones.pop(document_id, None)
-        else:
-            existing_revision = self._revision(existing.metadata) if existing else None
-            if tombstone_revision is not None and revision <= tombstone_revision:
-                return existing or document
-            if existing_revision is not None and revision < existing_revision:
-                return existing
-            if tombstone_revision is not None and revision > tombstone_revision:
+        with self._revision_lock:
+            if revision is None:
                 self._tombstones.pop(document_id, None)
+            else:
+                existing_revision = self._revision(existing.metadata) if existing else None
+                if tombstone_revision is not None and revision <= tombstone_revision:
+                    return existing or document
+                if existing_revision is not None and revision < existing_revision:
+                    return existing
+                if tombstone_revision is not None and revision > tombstone_revision:
+                    self._tombstones.pop(document_id, None)
 
         # Inactive or unpublished records are tombstoned from the searchable
         # index. This prevents stale public knowledge from remaining visible.
@@ -404,23 +408,38 @@ class RagService:
                 default_provenance=embedding_provenance,
             )
 
-        self.index.add(document)
+        # Embedding may run outside this lock. Re-check the revision after it
+        # completes so a newer delete/update cannot be overwritten by an older
+        # in-flight request.
+        with self._revision_lock:
+            current = self.index.get(document_id)
+            if revision is not None:
+                current_revision = self._revision(current.metadata) if current else None
+                current_tombstone = self._tombstones.get(document_id)
+                if current_tombstone is not None and revision <= current_tombstone:
+                    return current or document
+                if current_revision is not None and revision < current_revision:
+                    return current
+                if current_tombstone is not None and revision > current_tombstone:
+                    self._tombstones.pop(document_id, None)
+            self.index.add(document)
         return document
 
     def remove(self, source_type: str, source_id: str, revision: int | None = None) -> None:
         document_id = f"{source_type}:{source_id}"
-        existing = self.index.get(document_id)
-        if revision is not None:
-            current_revision = self._revision(existing.metadata) if existing else None
-            known_revision = max(
-                revision,
-                self._tombstones.get(document_id, revision),
-                current_revision if current_revision is not None else revision,
-            )
-            if current_revision is not None and revision < current_revision:
-                return
-            self._tombstones[document_id] = known_revision
-        self.index.remove(document_id)
+        with self._revision_lock:
+            existing = self.index.get(document_id)
+            if revision is not None:
+                current_revision = self._revision(existing.metadata) if existing else None
+                known_revision = max(
+                    revision,
+                    self._tombstones.get(document_id, revision),
+                    current_revision if current_revision is not None else revision,
+                )
+                if current_revision is not None and revision < current_revision:
+                    return
+                self._tombstones[document_id] = known_revision
+            self.index.remove(document_id)
 
     @staticmethod
     def _revision(metadata: dict[str, str]) -> int | None:
