@@ -4294,15 +4294,15 @@ main {
 
 /* Hospital public-site redesign — restrained, editorial and patient-first. */
 .site-shell {
-  --hospital-navy: #123f52;
-  --hospital-teal: #087b78;
-  --hospital-teal-dark: #075f5e;
-  --hospital-mint: #e8f4f2;
-  --hospital-surface: #f4f8f8;
-  --hospital-border: #d8e4e4;
-  --hospital-text: #243c46;
-  --hospital-muted: #5f737b;
-  background: #fff;
+  --hospital-navy: var(--color-teal-900);
+  --hospital-teal: var(--color-teal-800);
+  --hospital-teal-dark: var(--color-teal-950);
+  --hospital-mint: var(--color-soft-mint);
+  --hospital-surface: var(--color-mint-light);
+  --hospital-border: var(--color-line);
+  --hospital-text: var(--color-ink);
+  --hospital-muted: var(--color-ink-muted);
+  background: var(--color-warm-sand);
 }
 
 .site-shell .skip-link {
@@ -4331,7 +4331,7 @@ main {
 .site-shell .utility-bar__inner,
 .site-shell .site-footer__inner,
 .site-shell .site-footer__bottom {
-  width: min(calc(100% - 3rem), 74rem);
+  width: min(calc(100% - 8rem), 80rem);
 }
 
 .site-shell .utility-bar {
@@ -5104,7 +5104,7 @@ main {
   .site-shell .utility-bar__inner,
   .site-shell .site-footer__inner,
   .site-shell .site-footer__bottom {
-    width: min(calc(100% - 2rem), 74rem);
+    width: min(calc(100% - 2rem), 80rem);
   }
 
   .site-shell .utility-bar__inner {
