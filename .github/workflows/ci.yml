@@ -58,7 +58,7 @@ jobs:
           TEST_DB_ALLOW_CLEANUP: true
           TEST_DB_USERNAME: healthcare_test
           TEST_DB_PASSWORD: healthcare_test
-        run: mvn -B verify
+        run: ./mvnw -B verify
       - name: Stop MinIO
         if: always()
         run: docker rm --force healthcare-ci-minio || true
@@ -139,6 +139,7 @@ jobs:
     env:
       JWT_SECRET: ci-only-jwt-secret-with-no-production-value
       AI_SERVICE_TOKEN: ci-only-ai-service-token
+      RAG_INGEST_TOKEN: ci-only-rag-ingest-token
     steps:
       - uses: actions/checkout@v4
         with:

@@ -1,10 +1,10 @@
 # HealthCare_Project
 
-HealthCare_Project is a healthcare platform foundation for a Vietnamese hospital-style experience. It is an educational/local-development project; passing local checks does not establish production healthcare, compliance, or deployment readiness.
+HealthCare_Project is a healthcare MVP for a Vietnamese hospital-style experience. It is an educational/local-development project; passing local checks does not establish production healthcare, compliance, or deployment readiness.
 
 ## Status
 
-The repository currently has auth/RBAC, branch-aware appointment booking, bounded OTP confirmation, a clinical records authorization overlay, hospital content APIs, a frontend catalog, a doctor-management admin slice, MinIO file storage baseline, and CI definitions. The current integration is pushed to `origin/main`; CI, browser E2E, provider, backup/restore, and production-readiness claims remain separate gates.
+The repository currently has auth/RBAC, branch-aware booking and rescheduling, bounded OTP confirmation, appointment lifecycle/reminders, patient and doctor portals, authorized clinical records and diagnostic files, complete hospital catalog administration, recurring schedule administration, AI/RAG/search guardrails, MinIO metadata, and CI definitions. Backend, AI, frontend static, typecheck, lint, build, and Compose-configuration checks pass; live browser smoke, full Compose E2E, backup/restore drills, external AI provider validation, compliance, and production deployment remain separate gates.
 
 ## Monorepo Layout
 
@@ -39,8 +39,8 @@ Backend (local profile uses PostgreSQL on `localhost:5434` and MinIO on `localho
 
 ```bash
 cd apps/backend
-mvn test
-mvn spring-boot:run -Dspring-boot.run.profiles=local
+./mvnw test
+./mvnw spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
 Frontend:
@@ -74,6 +74,17 @@ docker compose -f infrastructure/docker-compose.yml config
 docker compose -f infrastructure/docker-compose.yml up
 ```
 
+For the Windows setup, local demo accounts, health checks, and troubleshooting,
+see [docs/LOCAL_RUNBOOK.md](docs/LOCAL_RUNBOOK.md).
+
+After Docker Desktop is ready, Windows users can build, seed, and run the
+automated role-based smoke verification with the command below. If `.env` is
+missing, the helper creates it with random disposable JWT/AI/RAG secrets.
+
+```powershell
+.\scripts\start-and-verify-local-mvp.ps1
+```
+
 Compose requires a non-empty `AI_SERVICE_TOKEN`; set it in the local `.env` before
 running the stack. The checked-in defaults are for disposable local development
 only, and a successful `config` or local health check does not prove a deployed
@@ -101,18 +112,21 @@ Google Stitch may be used for static design concepts only when API, dependencies
 - Add `.gitignore` before generating dependencies or local service data.
 - Report secret presence as `present` or `missing`; never print values.
 
+## MVP workflows
+
+- Patient: register/login, book/confirm/look up/cancel/reschedule, maintain profile, read reminders, records, prescriptions and protected diagnostic files.
+- Doctor: view assigned daily appointments, check in/start/no-show, create the clinical record that completes a visit, upload and publish diagnostic results.
+- Admin: inspect operational appointments and manage doctors, specialties, branches, services, packages, FAQs, articles, live CMS content, recurring schedules and schedule exceptions.
+- AI: authenticated specialty triage and semantic retrieval with bounded inputs, explicit citations/provenance, protected ingest and production fail-closed behavior.
+
 ## Scope Boundaries
 
-The foundation and public hospital domain are implemented locally: auth/RBAC,
-JWT access+refresh tokens, appointment booking, clinical records authorization,
-hospital content APIs, frontend catalog, CI, admin/storage baselines,
-notifications, and AI/RAG/search foundations. Remaining work includes broader
-scheduling/concurrency, patient and doctor portals, complete clinical file
-metadata/linkage, stronger semantic retrieval, security hardening, performance,
-UX polish, and the final end-to-end demo.
+The MVP domain is implemented locally. This repository is not a certified medical
+device or a production hospital system. Production adoption still requires a
+real secrets manager, TLS/ingress, durable multi-instance RAG persistence,
+observability and alerting, backups with restore drills, load testing, security
+review, privacy/compliance review, and operational ownership.
 
-Remaining PROJECT_PLAN.md phases (5-21) cover multi-instance CMS delivery,
-patient/doctor portals, clinical file metadata/linkage, semantic search,
-security hardening, performance, UX polish, and CI/CD. The current AI/RAG,
-notification, admin, and storage slices are local foundation implementations,
-not production integrations.
+The implementation status and production-only gates are tracked in
+`docs/PROJECT_PLAN.md`; local MVP completion must not be interpreted as medical,
+privacy, security, or operational certification.
