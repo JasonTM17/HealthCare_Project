@@ -79,7 +79,7 @@ public class Appointment {
     @Column(name = "hold_expires_at")
     private OffsetDateTime holdExpiresAt;
 
-    @Column(name = "otp_code", length = 10)
+    @Column(name = "otp_code", length = 100)
     private String otpCode;
 
     @Column(name = "otp_expires_at")

@@ -106,7 +106,9 @@ public class AppointmentController {
     public ResponseEntity<AppointmentResponse> rescheduleAppointment(
             @PathVariable String bookingCode,
             @Valid @RequestBody RescheduleAppointmentRequest request,
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @AuthenticationPrincipal UserDetails userDetails,
+            HttpServletRequest httpRequest) {
+        bookingRateLimiter.check("reschedule", httpRequest, bookingCode);
         return ResponseEntity.ok(bookingService.rescheduleAppointment(bookingCode, request, userDetails));
     }
 }

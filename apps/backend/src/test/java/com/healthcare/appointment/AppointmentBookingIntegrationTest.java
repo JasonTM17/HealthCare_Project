@@ -6,6 +6,7 @@ import com.healthcare.TestcontainersIntegrationTest;
 import com.healthcare.appointment.dto.ConfirmAppointmentRequest;
 import com.healthcare.appointment.dto.HoldSlotRequest;
 import com.healthcare.appointment.dto.RescheduleAppointmentRequest;
+import com.healthcare.appointment.entity.Appointment;
 import com.healthcare.appointment.entity.DoctorSchedule;
 import com.healthcare.appointment.entity.PatientProfile;
 import com.healthcare.hospital.entity.Branch;
@@ -340,7 +341,10 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.bookingCode").value(bookingCode))
             .andExpect(jsonPath("$.status").value("CONFIRMED"))
-            .andExpect(jsonPath("$.patientName").value("Trần Thị Bệnh Nhân"));
+            .andExpect(jsonPath("$.patientName").value("Trần Thị Bệnh Nhân"))
+            .andExpect(jsonPath("$.patientPhone").value("090****567"))
+            .andExpect(jsonPath("$.patientEmail").doesNotExist())
+            .andExpect(jsonPath("$.reasonForVisit").doesNotExist());
 
         mockMvc.perform(post("/api/v1/appointments/confirm")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -395,7 +399,24 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
             .andExpect(jsonPath("$.appointmentDate").value(targetDate.toString()))
             .andExpect(jsonPath("$.startTime").value("10:00:00"))
             .andExpect(jsonPath("$.endTime").value("10:30:00"))
-            .andExpect(jsonPath("$.status").value("CONFIRMED"));
+            .andExpect(jsonPath("$.status").value("CONFIRMED"))
+            .andExpect(jsonPath("$.patientPhone").value("090****201"))
+            .andExpect(jsonPath("$.patientEmail").doesNotExist())
+            .andExpect(jsonPath("$.reasonForVisit").doesNotExist());
+    }
+
+    @Test
+    void cannotCancelAppointmentAfterVisitHasStarted() throws Exception {
+        String bookingCode = createConfirmedAppointment(
+            nextDate(DayOfWeek.MONDAY), LocalTime.of(11, 0), "0907000205");
+        Appointment appointment = appointmentRepository.findByBookingCode(bookingCode).orElseThrow();
+        appointment.setStatus(com.healthcare.appointment.entity.AppointmentStatus.CHECKED_IN);
+        appointmentRepository.saveAndFlush(appointment);
+
+        mockMvc.perform(post("/api/v1/appointments/" + bookingCode + "/cancel")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"reason\":\"Không còn nhu cầu\",\"phone\":\"0907000205\"}"))
+            .andExpect(status().isBadRequest());
     }
 
     @Test

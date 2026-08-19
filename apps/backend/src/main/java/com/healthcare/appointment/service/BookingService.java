@@ -423,7 +423,9 @@ public class BookingService {
             "Lịch khám đã được xác nhận",
             "Lịch khám " + appointment.getBookingCode() + " đã được xác nhận."
         );
-        return toResponse(appointment);
+        // OTP proves control of this booking, but this public endpoint must not
+        // turn an authenticated caller into a full appointment-detail reader.
+        return toPublicResponse(appointment);
     }
 
     /**
@@ -451,8 +453,12 @@ public class BookingService {
 
         authorizeAppointment(appointment, phone, principal);
 
-        if (appointment.getStatus() == AppointmentStatus.COMPLETED) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Không thể hủy lịch khám đã hoàn tất");
+        if (appointment.getStatus() != AppointmentStatus.PENDING_CONFIRMATION
+                && appointment.getStatus() != AppointmentStatus.CONFIRMED) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Chỉ có thể hủy lịch khám đang chờ xác nhận hoặc đã xác nhận"
+            );
         }
 
         appointment.setStatus(AppointmentStatus.CANCELLED);
@@ -580,7 +586,7 @@ public class BookingService {
             "Lịch khám " + appointment.getBookingCode() + " đã chuyển sang "
                 + appointment.getAppointmentDate() + " lúc " + appointment.getStartTime() + "."
         );
-        return toResponse(appointment);
+        return principal == null ? toPublicResponse(appointment) : toResponse(appointment);
     }
 
     private void notifyPatient(
