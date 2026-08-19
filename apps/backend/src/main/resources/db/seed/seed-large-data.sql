@@ -214,7 +214,8 @@ CROSS JOIN (VALUES
     (4, '13:30:00', '17:00:00'),
     (5, '08:00:00', '11:30:00'),
     (5, '13:30:00', '17:00:00')
-) AS shifts(day_of_week, start_time, end_time);
+) AS shifts(day_of_week, start_time, end_time)
+ON CONFLICT (id) DO NOTHING;
 
 -- ── Users (1000) ──────────────────────────────────────────────────────────────
 -- BCrypt hash of "LocalDev!Pass2026" — local dev only, never a real secret.
@@ -234,19 +235,19 @@ ON CONFLICT (email) DO NOTHING;
 -- the demo stack. Password: LocalDev!Pass2026
 INSERT INTO users (id, email, password_hash, display_name, status, created_at, updated_at)
 VALUES (
-    '00000000-0000-0000-0000-000000001001',
+    '90000000-0000-0000-0000-000000000001',
     'admin@healthcare.local',
     '$2a$10$p/9xnUieR.4HwifRfQ70Ye8kKFwmmWllJIqTRC49C82meV48Y8mn6',
     'Quản trị viên local',
     'ACTIVE',
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP
+    TIMESTAMPTZ '2026-01-01T08:00:00+07:00',
+    TIMESTAMPTZ '2026-01-01T08:00:00+07:00'
 )
 ON CONFLICT (email) DO UPDATE SET
     password_hash = EXCLUDED.password_hash,
     display_name = EXCLUDED.display_name,
     status = EXCLUDED.status,
-    updated_at = CURRENT_TIMESTAMP;
+    updated_at = EXCLUDED.updated_at;
 
 -- ── Patient profiles (avg 1 per 2 users ≈ 500) ───────────────────────────────
 INSERT INTO patient_profiles (id, user_id, full_name, phone, email)
@@ -277,7 +278,7 @@ WHERE (abs(hashtext(u.id::text)) % 50 = 0)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO user_roles (user_id, role_id)
-SELECT '00000000-0000-0000-0000-000000001001', id
+SELECT '90000000-0000-0000-0000-000000000001', id
 FROM roles
 WHERE code = 'ADMIN'
 ON CONFLICT DO NOTHING;
@@ -293,13 +294,15 @@ SELECT md5(format('large-medical-record:%s', i))::uuid, NULL, p.id, d.id,
        TIMESTAMPTZ '2026-06-01T08:00:00+07:00'
 FROM generate_series(1, 200) AS i,
      LATERAL (SELECT id FROM patient_profiles ORDER BY md5('large-medical-record:' || i::text || ':' || patient_profiles.id::text) LIMIT 1) p,
-     LATERAL (SELECT id FROM doctors ORDER BY md5('large-medical-record:' || i::text || ':' || doctors.id::text) LIMIT 1) d;
+     LATERAL (SELECT id FROM doctors ORDER BY md5('large-medical-record:' || i::text || ':' || doctors.id::text) LIMIT 1) d
+ON CONFLICT (id) DO NOTHING;
 
 -- ── Prescriptions (150) ──────────────────────────────────────────────────────
 INSERT INTO prescriptions (id, medical_record_id, prescription_code, patient_id, doctor_id, diagnosis_summary, status, created_at, updated_at)
 SELECT md5(format('large-prescription:%s', i))::uuid, mr.id, 'RX-2026-' || lpad(i::text, 4, '0'), mr.patient_id, mr.doctor_id, 'Đơn thuốc theo bệnh án', 'ACTIVE', mr.created_at, mr.created_at
 FROM generate_series(1, 150) AS i,
-     LATERAL (SELECT id, patient_id, doctor_id, created_at FROM medical_records ORDER BY md5('large-prescription:' || i::text || ':' || medical_records.id::text) LIMIT 1) mr;
+     LATERAL (SELECT id, patient_id, doctor_id, created_at FROM medical_records ORDER BY md5('large-prescription:' || i::text || ':' || medical_records.id::text) LIMIT 1) mr
+ON CONFLICT (id) DO NOTHING;
 
 -- ── Prescription items (avg 3 per prescription ≈ 450) ───────────────────────
 INSERT INTO prescription_items (id, prescription_id, medication_name, dosage, unit, frequency, duration_days, total_quantity, created_at)
@@ -312,7 +315,8 @@ SELECT md5(format('large-prescription-item:%s:%s', rx.id, i))::uuid, rx.id,
        10 + (i % 20),
        rx.created_at
 FROM prescriptions rx
-CROSS JOIN generate_series(1, 3) AS i;
+CROSS JOIN generate_series(1, 3) AS i
+ON CONFLICT (id) DO NOTHING;
 
 -- ── Diagnostic results (100) ─────────────────────────────────────────────────
 INSERT INTO diagnostic_results (id, patient_id, doctor_id, test_name, result, test_date)
@@ -322,7 +326,8 @@ SELECT md5(format('large-diagnostic:%s', i))::uuid, p.id, d.id,
        TIMESTAMPTZ '2026-07-01T08:00:00+07:00' - ((i % 90) || ' days')::interval
 FROM generate_series(1, 100) AS i,
      LATERAL (SELECT id FROM patient_profiles ORDER BY md5('large-diagnostic:' || i::text || ':' || patient_profiles.id::text) LIMIT 1) p,
-     LATERAL (SELECT id FROM doctors ORDER BY md5('large-diagnostic:' || i::text || ':' || doctors.id::text) LIMIT 1) d;
+     LATERAL (SELECT id FROM doctors ORDER BY md5('large-diagnostic:' || i::text || ':' || doctors.id::text) LIMIT 1) d
+ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO cms_contents (
     id, slot_key, component_type, payload, status, version, created_at, updated_at

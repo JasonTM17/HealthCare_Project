@@ -62,13 +62,20 @@ INSERT INTO patient_profiles (id, full_name, phone, email, user_id)
 VALUES ('90000000-0000-0000-0000-000000000004', 'Bệnh nhân Local', '0900000001', 'patient@healthcare.local', '90000000-0000-0000-0000-000000000003')
 ON CONFLICT (phone) DO UPDATE SET user_id = COALESCE(patient_profiles.user_id, EXCLUDED.user_id);
 
-INSERT INTO doctor_specialties (id, doctor_id, specialty_id) VALUES
-    (md5('doctor-specialty:30000000-0000-0000-0000-000000000001:10000000-0000-0000-0000-000000000001')::uuid, '30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001'),
-    (md5('doctor-specialty:30000000-0000-0000-0000-000000000002:10000000-0000-0000-0000-000000000002')::uuid, '30000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002'),
-    (md5('doctor-specialty:30000000-0000-0000-0000-000000000003:10000000-0000-0000-0000-000000000003')::uuid, '30000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000003'),
-    (md5('doctor-specialty:30000000-0000-0000-0000-000000000004:10000000-0000-0000-0000-000000000005')::uuid, '30000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000005'),
-    (md5('doctor-specialty:30000000-0000-0000-0000-000000000005:10000000-0000-0000-0000-000000000006')::uuid, '30000000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000006'),
-    (md5('doctor-specialty:30000000-0000-0000-0000-000000000006:10000000-0000-0000-0000-000000000007')::uuid, '30000000-0000-0000-0000-000000000006', '10000000-0000-0000-0000-000000000007')
+INSERT INTO doctor_specialties (id, doctor_id, specialty_id)
+SELECT md5(format('doctor-specialty:%s:%s', links.doctor_id, s.id))::uuid,
+       links.doctor_id,
+       s.id
+FROM (VALUES
+    ('30000000-0000-0000-0000-000000000001'::uuid, 'tim-mach'),
+    ('30000000-0000-0000-0000-000000000002'::uuid, 'than-kinh'),
+    ('30000000-0000-0000-0000-000000000003'::uuid, 'tieu-hoa'),
+    ('30000000-0000-0000-0000-000000000004'::uuid, 'nhi-khoa'),
+    ('30000000-0000-0000-0000-000000000005'::uuid, 'san-phu-khoa'),
+    ('30000000-0000-0000-0000-000000000006'::uuid, 'co-xuong-khop')
+) AS links(doctor_id, specialty_slug)
+JOIN doctors d ON d.id = links.doctor_id
+JOIN specialties s ON s.slug = links.specialty_slug
 ON CONFLICT DO NOTHING;
 
 -- ── Doctor ↔ Branch links ─────────────────────────────────────────────────────
