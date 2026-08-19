@@ -5,15 +5,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Icon from "../../components/UiIcon";
 import { PublicPageShell } from "../../components/PublicPageShell";
 import { fetchCareerPositions } from "../../lib/api-client";
+import { formatBusinessDate } from "../../lib/business-time";
 import type { JobPosition } from "../../types/hospital";
 import CareerApplicationDialog from "./CareerApplicationDialog";
 import styles from "./careers.module.css";
 
 function formatDeadline(value?: string | null): string | null {
   if (!value) return null;
-  const [year, month, day] = value.split("-").map(Number);
-  if (!year || !month || !day) return null;
-  return new Intl.DateTimeFormat("vi-VN").format(new Date(year, month - 1, day));
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? formatBusinessDate(value) : null;
 }
 
 export default function CareersPage(): React.ReactElement {

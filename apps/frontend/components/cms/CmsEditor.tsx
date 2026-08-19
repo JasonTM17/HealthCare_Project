@@ -27,6 +27,7 @@ import {
   type CmsFieldErrors,
 } from "../../lib/cms-client";
 import { CmsContentRenderer } from "./CmsRenderer";
+import { formatBusinessDateTime } from "../../lib/business-time";
 
 interface CmsDraftValues {
   componentType: CmsComponentType;
@@ -97,7 +98,7 @@ function payloadValue(payload: CmsPayload, field: string): string {
 
 function prettyUpdatedAt(value: string | undefined): string {
   if (!value) return "Chưa đồng bộ";
-  return new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  return formatBusinessDateTime(value);
 }
 
 function slotSelection(slotKey: string): { slug: string; slot: CmsSlotKey } | null {

@@ -24,6 +24,7 @@ import {
   fetchSpecialties,
   type Page,
 } from "../lib/api-client";
+import { formatBusinessDate } from "../lib/business-time";
 import { isSafeCmsUrl, type CmsContent, type CmsHeroPayload } from "../lib/cms-client";
 import type { Article, Branch, Doctor, HealthPackage, Specialty } from "../types/hospital";
 
@@ -86,10 +87,7 @@ const DemoNote: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 );
 
 const formatPublishedAt = (value: string): string => {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? "Đã xuất bản"
-    : new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium" }).format(date);
+  return value ? formatBusinessDate(value) : "Đã xuất bản";
 };
 
 const getInitials = (fullName: string): string => {
