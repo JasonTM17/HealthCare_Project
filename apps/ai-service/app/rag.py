@@ -179,53 +179,60 @@ class RagIndex:
         if max_documents < 1:
             raise ValueError("max_documents must be positive")
         self._documents: dict[str, RagDocument] = {}
+        self._lock = RLock()
         self.max_documents = max_documents
 
     def _reference_contract(self) -> tuple[int, str, ProviderProvenance] | None:
-        for document in self._documents.values():
-            if document.searchable and document.embedding:
-                return (
-                    len(document.embedding),
-                    document.embedding_model,
-                    document.embedding_provenance,
-                )
+        with self._lock:
+            for document in self._documents.values():
+                if document.searchable and document.embedding:
+                    return (
+                        len(document.embedding),
+                        document.embedding_model,
+                        document.embedding_provenance,
+                    )
         return None
 
     def add(self, doc: RagDocument) -> None:
-        if not doc.searchable:
-            self.remove(doc.id)
-            return
+        with self._lock:
+            if not doc.searchable:
+                self.remove(doc.id)
+                return
 
-        vector, model, provenance = _normalize_embedding(
-            doc.embedding,
-            default_model=doc.embedding_model,
-            default_provenance=doc.embedding_provenance,
-        )
-        reference = self._reference_contract()
-        contract = (len(vector), model, provenance)
-        if reference and contract != reference:
-            raise EmbeddingContractError("embedding model, provenance, or dimension is incompatible")
-        if doc.id not in self._documents and self.size >= self.max_documents:
-            raise EmbeddingContractError("RAG document limit reached")
-        doc.embedding = vector
-        doc.embedding_model = model
-        doc.embedding_provenance = provenance
-        self._documents[doc.id] = doc
+            vector, model, provenance = _normalize_embedding(
+                doc.embedding,
+                default_model=doc.embedding_model,
+                default_provenance=doc.embedding_provenance,
+            )
+            reference = self._reference_contract()
+            contract = (len(vector), model, provenance)
+            if reference and contract != reference:
+                raise EmbeddingContractError("embedding model, provenance, or dimension is incompatible")
+            if doc.id not in self._documents and self.size >= self.max_documents:
+                raise EmbeddingContractError("RAG document limit reached")
+            doc.embedding = vector
+            doc.embedding_model = model
+            doc.embedding_provenance = provenance
+            self._documents[doc.id] = doc
 
     def remove(self, doc_id: str) -> None:
-        self._documents.pop(doc_id, None)
+        with self._lock:
+            self._documents.pop(doc_id, None)
 
     def get(self, doc_id: str) -> Optional[RagDocument]:
-        return self._documents.get(doc_id)
+        with self._lock:
+            return self._documents.get(doc_id)
 
     @property
     def size(self) -> int:
-        return len(self._documents)
+        with self._lock:
+            return len(self._documents)
 
     @property
     def documents(self) -> tuple[RagDocument, ...]:
         """Return a stable snapshot for bounded reconciliation operations."""
-        return tuple(self._documents.values())
+        with self._lock:
+            return tuple(self._documents.values())
 
     def search(
         self,
@@ -237,30 +244,31 @@ class RagIndex:
         embedding_model: str = "provided",
         embedding_provenance: ProviderProvenance = "local_provider",
     ) -> List[tuple[RagDocument, float]]:
-        if not query_embedding:
-            return []
-        normalized_query, query_model, query_provenance = _normalize_embedding(
-            query_embedding,
-            default_model=embedding_model,
-            default_provenance=embedding_provenance,
-        )
-        reference = self._reference_contract()
-        if reference and (len(normalized_query), query_model, query_provenance) != reference:
-            raise EmbeddingContractError("query embedding is incompatible with the indexed vectors")
-        top_k = max(1, min(top_k, 100))
-        allowed_source_types = set(source_types) if source_types else None
-        scored: list[tuple[RagDocument, float]] = []
-        for doc in self._documents.values():
-            if not doc.searchable or not doc.embedding:
-                continue
-            if allowed_source_types and doc.source_type not in allowed_source_types:
-                continue
-            vector_score = max(0.0, _cosine_similarity(normalized_query, doc.embedding))
-            lexical_score = _keyword_similarity(query_text, doc) if query_text else 0.0
-            score = 0.75 * vector_score + 0.25 * lexical_score if query_text else vector_score
-            scored.append((doc, score))
-        scored.sort(key=lambda item: (item[1], item[0].id), reverse=True)
-        return scored[:top_k]
+        with self._lock:
+            if not query_embedding:
+                return []
+            normalized_query, query_model, query_provenance = _normalize_embedding(
+                query_embedding,
+                default_model=embedding_model,
+                default_provenance=embedding_provenance,
+            )
+            reference = self._reference_contract()
+            if reference and (len(normalized_query), query_model, query_provenance) != reference:
+                raise EmbeddingContractError("query embedding is incompatible with the indexed vectors")
+            top_k = max(1, min(top_k, 100))
+            allowed_source_types = set(source_types) if source_types else None
+            scored: list[tuple[RagDocument, float]] = []
+            for doc in self._documents.values():
+                if not doc.searchable or not doc.embedding:
+                    continue
+                if allowed_source_types and doc.source_type not in allowed_source_types:
+                    continue
+                vector_score = max(0.0, _cosine_similarity(normalized_query, doc.embedding))
+                lexical_score = _keyword_similarity(query_text, doc) if query_text else 0.0
+                score = 0.75 * vector_score + 0.25 * lexical_score if query_text else vector_score
+                scored.append((doc, score))
+            scored.sort(key=lambda item: (item[1], item[0].id), reverse=True)
+            return scored[:top_k]
 
 
 class RagServiceContract(Protocol):
@@ -312,6 +320,9 @@ class RagService:
         self.index = index or RagIndex(max_documents=max_documents)
         self._revision_lock = RLock()
         self._tombstones: dict[str, int] = {}
+        self._latest_revisions: dict[str, int] = {}
+        self._operation_sequence = 0
+        self._latest_operations: dict[str, int] = {}
 
     def ingest(
         self,
@@ -342,6 +353,27 @@ class RagService:
         with self._revision_lock:
             existing = self.index.get(document_id)
             tombstone_revision = self._tombstones.get(document_id)
+            existing_revision = self._revision(existing.metadata) if existing else None
+            latest_revision = self._latest_revisions.get(document_id)
+            if revision is not None:
+                known_revision = max(
+                    revision if tombstone_revision is None else tombstone_revision,
+                    existing_revision if existing_revision is not None else revision,
+                    latest_revision if latest_revision is not None else revision,
+                )
+                if revision < known_revision:
+                    return existing or RagDocument(
+                        id=document_id,
+                        source_type=source_type,
+                        source_id=source_id,
+                        title=normalized_title,
+                        content=normalized_content,
+                        metadata=document_metadata,
+                    )
+                self._latest_revisions[document_id] = revision
+            self._operation_sequence += 1
+            operation_token = self._operation_sequence
+            self._latest_operations[document_id] = operation_token
 
         document = RagDocument(
             id=document_id,
@@ -365,18 +397,15 @@ class RagService:
             if revision is None:
                 self._tombstones.pop(document_id, None)
             else:
-                existing_revision = self._revision(existing.metadata) if existing else None
                 if tombstone_revision is not None and revision <= tombstone_revision:
                     return existing or document
                 if existing_revision is not None and revision < existing_revision:
                     return existing
-                if tombstone_revision is not None and revision > tombstone_revision:
-                    self._tombstones.pop(document_id, None)
 
         # Inactive or unpublished records are tombstoned from the searchable
         # index. This prevents stale public knowledge from remaining visible.
         if not document.searchable:
-            self.remove(source_type, source_id, revision=revision)
+            self.remove(source_type, source_id, revision=revision, operation_token=operation_token)
             return document
 
         # Reuse a prior vector when only metadata/title/publication state
@@ -413,6 +442,8 @@ class RagService:
         # in-flight request.
         with self._revision_lock:
             current = self.index.get(document_id)
+            if self._latest_operations.get(document_id) != operation_token:
+                return current or document
             if revision is not None:
                 current_revision = self._revision(current.metadata) if current else None
                 current_tombstone = self._tombstones.get(document_id)
@@ -425,20 +456,33 @@ class RagService:
             self.index.add(document)
         return document
 
-    def remove(self, source_type: str, source_id: str, revision: int | None = None) -> None:
+    def remove(
+        self,
+        source_type: str,
+        source_id: str,
+        revision: int | None = None,
+        *,
+        operation_token: int | None = None,
+    ) -> None:
         document_id = f"{source_type}:{source_id}"
         with self._revision_lock:
             existing = self.index.get(document_id)
             if revision is not None:
                 current_revision = self._revision(existing.metadata) if existing else None
+                latest_revision = self._latest_revisions.get(document_id)
                 known_revision = max(
-                    revision,
                     self._tombstones.get(document_id, revision),
                     current_revision if current_revision is not None else revision,
+                    latest_revision if latest_revision is not None else revision,
                 )
-                if current_revision is not None and revision < current_revision:
+                if revision < known_revision:
                     return
+                self._latest_revisions[document_id] = revision
                 self._tombstones[document_id] = known_revision
+            if operation_token is None:
+                self._operation_sequence += 1
+                operation_token = self._operation_sequence
+                self._latest_operations[document_id] = operation_token
             self.index.remove(document_id)
 
     @staticmethod
@@ -453,7 +497,8 @@ class RagService:
         return revision if revision >= 0 else None
 
     def sources(self) -> list[tuple[str, str]]:
-        return [(document.source_type, document.source_id) for document in self.index.documents]
+        with self._revision_lock:
+            return [(document.source_type, document.source_id) for document in self.index.documents]
 
     def search(
         self,
@@ -465,11 +510,12 @@ class RagService:
         embedding_model: str = "provided",
         embedding_provenance: ProviderProvenance = "local_provider",
     ) -> List[tuple[RagDocument, float]]:
-        return self.index.search(
-            query_embedding,
-            top_k,
-            query_text=query_text,
-            source_types=source_types,
-            embedding_model=embedding_model,
-            embedding_provenance=embedding_provenance,
-        )
+        with self._revision_lock:
+            return self.index.search(
+                query_embedding,
+                top_k,
+                query_text=query_text,
+                source_types=source_types,
+                embedding_model=embedding_model,
+                embedding_provenance=embedding_provenance,
+            )
