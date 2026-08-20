@@ -341,7 +341,7 @@ function HomeHeroVisual({ imageUrl }: { imageUrl?: string }): React.ReactElement
         <p><small>Đồng hành liền mạch</small><strong>Từ đặt lịch đến sau thăm khám</strong></p>
       </div>
       <figcaption>
-        {safeCmsImage ? "Hình ảnh hoạt động do quản trị viên xuất bản." : "Ảnh minh họa từ Unsplash."}
+        {safeCmsImage ? "Hình ảnh hoạt động do quản trị viên xuất bản." : "Ảnh minh họa từ Pexels."}
       </figcaption>
     </figure>
   );
