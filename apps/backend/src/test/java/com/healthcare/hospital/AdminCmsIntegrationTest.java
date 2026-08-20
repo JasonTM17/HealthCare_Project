@@ -9,8 +9,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.healthcare.AbstractIntegrationTest;
+import com.healthcare.hospital.dto.ArticleRequest;
 import com.healthcare.hospital.dto.BranchRequest;
 import com.healthcare.hospital.dto.DoctorRequest;
+import com.healthcare.hospital.dto.FaqRequest;
+import com.healthcare.hospital.dto.PackageRequest;
 import com.healthcare.hospital.dto.ServiceRequest;
 import com.healthcare.hospital.dto.SpecialtyRequest;
 import com.healthcare.security.JwtTokenProvider;
@@ -22,6 +25,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @Transactional
@@ -67,6 +71,30 @@ class AdminCmsIntegrationTest extends AbstractIntegrationTest {
 
     private ServiceRequest service(String name, String slug, boolean active) {
         return new ServiceRequest(name, slug, "Admin catalog contract test", active);
+    }
+
+    private PackageRequest healthPackage(String name, String slug, boolean active) {
+        return new PackageRequest(
+            name,
+            slug,
+            "Admin catalog contract test",
+            new BigDecimal("150000"),
+            active
+        );
+    }
+
+    private FaqRequest faq(String question, boolean active) {
+        return new FaqRequest(question, "Admin catalog contract answer", active);
+    }
+
+    private ArticleRequest article(String title, String slug, boolean active) {
+        return new ArticleRequest(
+            title,
+            slug,
+            "Admin catalog contract summary",
+            "Admin catalog contract body",
+            active
+        );
     }
 
     @Test
@@ -132,6 +160,50 @@ class AdminCmsIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void adminCanListRemainingCatalogIncludingInactiveAndUnpublishedRecords() throws Exception {
+        String adminBearer = bearer("ADMIN");
+        String packageSlug = "admin-list-package-" + UUID.randomUUID();
+        String articleSlug = "admin-list-article-" + UUID.randomUUID();
+        String question = "Admin list FAQ " + UUID.randomUUID();
+
+        mockMvc.perform(post("/api/v1/admin/packages")
+                        .header("Authorization", adminBearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(healthPackage("Admin List Package", packageSlug, false))))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/admin/faqs")
+                        .header("Authorization", adminBearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(faq(question, false))))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/admin/articles")
+                        .header("Authorization", adminBearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(article("Admin List Article", articleSlug, false))))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/admin/packages?page=0&size=20")
+                .header("Authorization", adminBearer))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content[0].slug").value(packageSlug))
+            .andExpect(jsonPath("$.content[0].active").value(false));
+
+        mockMvc.perform(get("/api/v1/admin/faqs?page=0&size=20")
+                .header("Authorization", adminBearer))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content[0].question").value(question))
+            .andExpect(jsonPath("$.content[0].active").value(false));
+
+        mockMvc.perform(get("/api/v1/admin/articles?page=0&size=20")
+                .header("Authorization", adminBearer))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content[0].slug").value(articleSlug))
+            .andExpect(jsonPath("$.content[0].active").value(false));
+    }
+
+    @Test
     void adminCatalogListRequiresAdminRole() throws Exception {
         mockMvc.perform(get("/api/v1/admin/doctors"))
             .andExpect(status().isUnauthorized());
@@ -140,6 +212,12 @@ class AdminCmsIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(get("/api/v1/admin/branches"))
             .andExpect(status().isUnauthorized());
         mockMvc.perform(get("/api/v1/admin/services"))
+            .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/admin/packages"))
+            .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/admin/faqs"))
+            .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/admin/articles"))
             .andExpect(status().isUnauthorized());
 
         String patientBearer = bearer("PATIENT");
@@ -153,6 +231,15 @@ class AdminCmsIntegrationTest extends AbstractIntegrationTest {
                 .header("Authorization", patientBearer))
             .andExpect(status().isForbidden());
         mockMvc.perform(get("/api/v1/admin/services")
+                .header("Authorization", patientBearer))
+            .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/v1/admin/packages")
+                .header("Authorization", patientBearer))
+            .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/v1/admin/faqs")
+                .header("Authorization", patientBearer))
+            .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/v1/admin/articles")
                 .header("Authorization", patientBearer))
             .andExpect(status().isForbidden());
     }
