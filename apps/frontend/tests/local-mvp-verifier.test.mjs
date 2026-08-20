@@ -9,7 +9,7 @@ test("clinical local verifier binds confirmation and terminal status to the same
 
   assert.match(verifier, /eventType -eq "APPOINTMENT_CONFIRMED"/);
   assert.match(verifier, /SE Asia Standard Time/);
-  assert.match(verifier, /status -ne "COMPLETED"/);
+  assert.match(verifier, /completedAppointment\.status -ne "COMPLETED"/);
   assert.match(verifier, /clinical:check-in\+in-progress\+record\+completed\+own-patient-visible/);
 });
 
