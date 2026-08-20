@@ -110,6 +110,52 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
     }
 
     @Test
+    void largeSeedPersistsDurableCmsEventsForRealtimeBootstrap() {
+        String schema = createMigrationSchema();
+        try {
+            migrateLatest(schema);
+            executeLargeSeed(schema);
+            executeLargeSeed(schema);
+
+            String contents = table(schema, "cms_contents");
+            String changes = table(schema, "cms_content_changes");
+            String seededSlots = "('homepage.hero','homepage.body','careers.hero','careers.body','search.hero')";
+
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + contents + " where slot_key in " + seededSlots,
+                Integer.class
+            )).isEqualTo(5);
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + changes
+                    + " where slot_key in " + seededSlots
+                    + " and content_version = 1 and published = true and public_event = true"
+                    + " and actor_email = 'seed@healthcare.local'",
+                Integer.class
+            )).isEqualTo(5);
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from ("
+                    + "select content_id, content_version, count(*)"
+                    + " from " + changes
+                    + " where slot_key in " + seededSlots
+                    + " and public_event = true"
+                    + " group by content_id, content_version having count(*) > 1"
+                    + ") duplicate_seed_events",
+                Integer.class
+            )).isZero();
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + changes + " change"
+                    + " left join " + contents + " content on content.id = change.content_id"
+                    + " where change.slot_key in " + seededSlots
+                    + " and change.public_event = true"
+                    + " and content.id is null",
+                Integer.class
+            )).isZero();
+        } finally {
+            dropMigrationSchema(schema);
+        }
+    }
+
+    @Test
     void localCareerSeedIsIdempotentAfterV22() {
         String schema = createMigrationSchema();
         try {
@@ -804,6 +850,21 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
             );
         } catch (Exception exception) {
             throw new IllegalStateException("Failed to execute local seed in isolated migration schema", exception);
+        }
+    }
+
+    private void executeLargeSeed(String schema) {
+        try (Connection connection = dataSource.getConnection()) {
+            connection.createStatement().execute("set search_path to " + identifier(schema));
+            ScriptUtils.executeSqlScript(
+                connection,
+                new EncodedResource(
+                    new ClassPathResource("db/seed/seed-large-data.sql"),
+                    StandardCharsets.UTF_8
+                )
+            );
+        } catch (Exception exception) {
+            throw new IllegalStateException("Failed to execute large seed in isolated migration schema", exception);
         }
     }
 
