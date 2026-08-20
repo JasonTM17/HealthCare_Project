@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -175,6 +175,107 @@ Expect-Throws -Action { Assert-ContainerRevision -ContainerName 'healthcare-back
 
 $env:FAKE_DOCKER_MODE = 'empty'
 Expect-Throws -Action { Assert-ContainerRevision -ContainerName 'healthcare-backend' -Revision $revision -DockerExecutable $dockerExe } -FailureMessage 'Assert-ContainerRevision should fail on empty labels'
+`.trimStart(),
+      "utf8",
+    );
+
+    const result = runPowerShell(runner);
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`.trim());
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test("local MVP launcher restores BUILD_VCS_REF when snapshot cleanup fails", async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "healthcare-launcher-cleanup-"));
+  try {
+    const launcherRoot = path.join(tempRoot, "repo");
+    const scriptsRoot = path.join(launcherRoot, "scripts");
+    const helperBin = path.join(tempRoot, "bin");
+    const archiveSource = path.join(helperBin, "archive-source");
+    const helperPath = path.join(scriptsRoot, "local-mvp-provenance.ps1");
+    const launcherPath = path.join(scriptsRoot, "start-and-verify-local-mvp.ps1");
+    const verifierPath = path.join(scriptsRoot, "verify-local-mvp.ps1");
+    const fakeGit = path.join(helperBin, "git.ps1");
+    const fakeDocker = path.join(helperBin, "docker.ps1");
+    const runner = path.join(tempRoot, "runner.ps1");
+    const [helperSource, launcherSource] = await Promise.all([
+      readFile(path.join(repoRoot, "scripts", "local-mvp-provenance.ps1"), "utf8"),
+      readFile(path.join(repoRoot, "scripts", "start-and-verify-local-mvp.ps1"), "utf8"),
+    ]);
+
+    await mkdir(scriptsRoot, { recursive: true });
+    await mkdir(path.join(archiveSource, "infrastructure"), { recursive: true });
+    await writeFile(path.join(archiveSource, "infrastructure", "docker-compose.yml"), "services: {}\n", "utf8");
+    await writeFile(path.join(launcherRoot, ".env"), "RAG_INGEST_ENABLED=true\nRAG_INGEST_TOKEN=unit-test-token\n", "utf8");
+
+    await writeFile(
+      fakeGit,
+      `
+param([Parameter(ValueFromRemainingArguments = $true)][string[]]$RemainingArgs)
+
+if ($RemainingArgs.Count -lt 3 -or $RemainingArgs[0] -ne '-C') { exit 9 }
+
+switch ($RemainingArgs[2]) {
+    'rev-parse' { '0123456789abcdef0123456789abcdef01234567'; exit 0 }
+    'status' { exit 0 }
+    'archive' {
+        $outputOption = $RemainingArgs | Where-Object { $_ -like '--output=*' } | Select-Object -First 1
+        if ([string]::IsNullOrWhiteSpace($outputOption)) { exit 7 }
+        $archivePath = $outputOption.Substring('--output='.Length)
+        Compress-Archive -Path (Join-Path $PSScriptRoot 'archive-source/*') -DestinationPath $archivePath -Force
+        exit 0
+    }
+    default { exit 8 }
+}
+`.trimStart(),
+      "utf8",
+    );
+
+    await writeFile(
+      fakeDocker,
+      `
+param([Parameter(ValueFromRemainingArguments = $true)][string[]]$RemainingArgs)
+
+switch ($RemainingArgs[0]) {
+    'desktop' { 'running'; exit 0 }
+    'compose' { exit 0 }
+    'wait' { '0'; exit 0 }
+    default { exit 0 }
+}
+`.trimStart(),
+      "utf8",
+    );
+
+    const escapedGit = fakeGit.replace(/'/g, "''");
+    const escapedDocker = fakeDocker.replace(/'/g, "''");
+    await writeFile(
+      helperPath,
+      `${helperSource}\nfunction Resolve-ExecutablePath {\n    param([string]$CommandName, [string]$ConfiguredPath)\n    if ($CommandName -eq 'git') { return '${escapedGit}' }\n    if ($CommandName -eq 'docker') { return '${escapedDocker}' }\n    throw \"Unexpected executable: $CommandName\"\n}\nfunction Remove-ImmutableBuildSnapshot {\n    param([string]$RepositoryRoot, [string]$SnapshotRoot)\n    throw 'simulated snapshot cleanup failure'\n}\n`,
+      "utf8",
+    );
+    await writeFile(launcherPath, launcherSource, "utf8");
+    await writeFile(verifierPath, "param([string]$DockerPath, [string]$ExpectedRevision)\nexit 0\n", "utf8");
+
+    await writeFile(
+      runner,
+      `
+$ErrorActionPreference = 'Stop'
+$env:BUILD_VCS_REF = 'caller-value'
+$launcher = '${launcherPath.replace(/'/g, "''")}'
+$envFile = '${path.join(launcherRoot, ".env").replace(/'/g, "''")}'
+$docker = '${escapedDocker}'
+$caught = $false
+try {
+    & $launcher -EnvFile $envFile -DockerPath $docker
+} catch {
+    $caught = $true
+}
+
+if (-not $caught) { throw 'The simulated cleanup failure should reach the caller' }
+if ($env:BUILD_VCS_REF -ne 'caller-value') {
+    throw "BUILD_VCS_REF was not restored after cleanup failure: $env:BUILD_VCS_REF"
+}
 `.trimStart(),
       "utf8",
     );
