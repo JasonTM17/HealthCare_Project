@@ -73,6 +73,11 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
     @Test
     void localSeedIsFictionalAndIdempotentOnPostgres() {
         executeSeed("public");
+
+        jdbcTemplate.update(
+            "update users set password_hash = ?, display_name = ?, status = ? where email = ?",
+            "stale-demo-hash", "Stale administrator", "DISABLED", "admin@healthcare.local"
+        );
         executeSeed("public");
 
         assertThat(jdbcTemplate.queryForObject(
@@ -87,6 +92,14 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
             "select count(*) from cms_contents where payload::text ilike '%patient%'",
             Integer.class
         )).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+            "select password_hash from users where email = 'admin@healthcare.local'",
+            String.class
+        )).isEqualTo("$2b$10$OG9QfyAPA/hWfWauU7lXvemQNUnFPcVj/rIuE2zzocw7rtOKoQdfa");
+        assertThat(jdbcTemplate.queryForObject(
+            "select display_name || '|' || status from users where email = 'admin@healthcare.local'",
+            String.class
+        )).isEqualTo("Quản trị viên Local|ACTIVE");
     }
 
     @Test
