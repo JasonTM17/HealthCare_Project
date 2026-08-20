@@ -10,6 +10,7 @@ $repositoryRoot = Split-Path -Parent $PSScriptRoot
 if (-not $EnvFile) { $EnvFile = Join-Path $repositoryRoot ".env" }
 $composeFile = Join-Path $repositoryRoot "infrastructure\docker-compose.yml"
 $verifier = Join-Path $PSScriptRoot "verify-local-mvp.ps1"
+. (Join-Path $PSScriptRoot "local-mvp-provenance.ps1")
 
 function Set-EnvironmentValue {
     param(
@@ -40,19 +41,6 @@ function Get-EnvironmentValue {
 
 function New-DisposableSecret([int]$ByteCount) {
     return [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes($ByteCount))
-}
-
-function Get-SourceRevision {
-    $git = Get-Command git -ErrorAction SilentlyContinue
-    if (-not $git) { return "unknown" }
-
-    $revisionOutput = & $git.Source -C $repositoryRoot rev-parse HEAD 2>$null
-    $gitExitCode = $LASTEXITCODE
-    if ($gitExitCode -ne 0 -or -not $revisionOutput) { return "unknown" }
-
-    $revision = ($revisionOutput | Select-Object -First 1).Trim()
-    if ($revision -notmatch '^[0-9a-f]{40}$') { return "unknown" }
-    return $revision
 }
 
 if (-not (Test-Path -LiteralPath $DockerPath -PathType Leaf)) {
@@ -108,7 +96,9 @@ if ($prepareEnvironment) {
 
 if ($PrepareOnly) { return }
 
-$buildRevision = Get-SourceRevision
+Assert-CleanBuildContext -RepositoryRoot $repositoryRoot
+$buildRevision = Get-SourceRevision -RepositoryRoot $repositoryRoot
+Assert-ExpectedRevision -Revision $buildRevision
 $previousBuildRevision = $env:BUILD_VCS_REF
 $hadBuildRevision = Test-Path Env:\BUILD_VCS_REF
 $env:BUILD_VCS_REF = $buildRevision
@@ -120,6 +110,7 @@ try {
 
     & $DockerPath compose --env-file $EnvFile -f $composeFile up --build -d
     if ($LASTEXITCODE -ne 0) { throw "Docker Compose failed to start the stack" }
+    Assert-CleanBuildContext -RepositoryRoot $repositoryRoot
 
     $seedExit = (& $DockerPath wait healthcare-local-seed 2>&1 | Select-Object -Last 1).Trim()
     if ($seedExit -ne "0") {
@@ -130,8 +121,7 @@ try {
     $lastError = $null
     for ($attempt = 1; $attempt -le 45; $attempt++) {
         try {
-            $verifierParameters = @{ DockerPath = $DockerPath }
-            if ($buildRevision -ne "unknown") { $verifierParameters.ExpectedRevision = $buildRevision }
+            $verifierParameters = @{ DockerPath = $DockerPath; ExpectedRevision = $buildRevision }
             & $verifier @verifierParameters
             if ($LASTEXITCODE -ne 0) { throw "Verifier returned exit code $LASTEXITCODE" }
             return

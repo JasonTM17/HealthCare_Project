@@ -10,6 +10,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $checks = [System.Collections.Generic.List[string]]::new()
+. (Join-Path $PSScriptRoot "local-mvp-provenance.ps1")
 
 function Invoke-JsonApi {
     param(
@@ -39,19 +40,6 @@ function Get-HospitalBusinessDate {
     return [TimeZoneInfo]::ConvertTime([DateTimeOffset]::UtcNow, $hospitalTimeZone).Date
 }
 
-function Assert-ContainerRevision {
-    param(
-        [Parameter(Mandatory)] [string]$ContainerName,
-        [Parameter(Mandatory)] [string]$Revision,
-        [Parameter(Mandatory)] [string]$DockerExecutable
-    )
-
-    $observedRevision = (& $DockerExecutable inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' $ContainerName 2>$null | Select-Object -First 1).Trim()
-    if ($LASTEXITCODE -ne 0 -or $observedRevision -ne $Revision) {
-        throw "Container $ContainerName is not labeled with the expected source revision"
-    }
-}
-
 if ($ExpectedRevision) {
     if (-not $DockerPath) {
         $docker = Get-Command docker -ErrorAction SilentlyContinue
@@ -59,6 +47,7 @@ if ($ExpectedRevision) {
         $DockerPath = $docker.Source
     }
 
+    Assert-ExpectedRevision -Revision $ExpectedRevision
     foreach ($container in @("healthcare-backend", "healthcare-frontend", "healthcare-ai-service")) {
         Assert-ContainerRevision -ContainerName $container -Revision $ExpectedRevision -DockerExecutable $DockerPath
     }
