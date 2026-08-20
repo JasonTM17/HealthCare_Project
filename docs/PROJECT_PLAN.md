@@ -529,9 +529,12 @@ Minimum checks:
 
 ### Phase 21 - Final End-to-End Demo
 
-Status: `PENDING ENVIRONMENT GATE`. Docker Desktop is installed, but Windows WSL
-2 must be enabled and the machine restarted before PostgreSQL/MinIO/backend
-integration tests and the complete 12-step demo can be executed.
+Status: `IN PROGRESS`. The local Compose stack, PostgreSQL/Flyway seed, AI
+catalog sync, booking confirmation, role-scoped appointment views, and admin
+authorization have runtime evidence. The complete same-day clinical lifecycle
+has a dedicated verifier mode but still requires a genuine available slot on
+the day it runs; browser, backup/restore, multi-instance, provider, and
+production gates remain separate.
 
 Goal: prove the primary story works end-to-end.
 
@@ -549,6 +552,9 @@ Demo flow:
 10. Patient sees permitted medical information.
 11. Notification appears.
 12. Admin sees appropriate operational data.
+
+Run `scripts/verify-local-mvp.ps1 -RequireClinicalFlow` when a same-day local
+slot is available to prove steps 6 through 12 without fabricating timestamps.
 
 ## Completed Components
 
