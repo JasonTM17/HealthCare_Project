@@ -62,8 +62,6 @@ public class BookingService {
     private final PackageRepository packageRepository;
     private final UserRepository userRepository;
     private final ScheduleService scheduleService;
-    private final NotificationService notificationService;
-    private final AppointmentSlotLocker slotLocker;
     private final PasswordEncoder passwordEncoder;
     private final NotificationService notificationService;
     private final AppointmentSlotLocker slotLocker;
@@ -95,8 +93,6 @@ public class BookingService {
         this.packageRepository = packageRepository;
         this.userRepository = userRepository;
         this.scheduleService = scheduleService;
-        this.notificationService = notificationService;
-        this.slotLocker = slotLocker;
         this.passwordEncoder = passwordEncoder;
         this.notificationService = notificationService;
         this.slotLocker = slotLocker;
@@ -291,14 +287,6 @@ public class BookingService {
                 exception
             );
         }
-        notifyPatient(
-            appointment,
-            EventType.APPOINTMENT_CREATED,
-            "Đã tạo yêu cầu đặt lịch",
-            "Lịch khám " + appointment.getBookingCode() + " đang được giữ trong "
-                + HOLD_DURATION_MINUTES + " phút để chờ xác nhận."
-        );
-
         notifyPatient(
             appointment,
             EventType.APPOINTMENT_CREATED,
