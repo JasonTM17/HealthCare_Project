@@ -25,11 +25,13 @@ docker compose -f infrastructure/docker-compose.yml up --build
 Alternatively, when `.env` is absent, the Windows helper creates a git-ignored
 disposable full-MVP environment with generated JWT/AI/RAG secrets, then builds
 the stack, waits for the idempotent seed, forces an ADMIN-authorized RAG catalog
-sync, labels the rebuilt backend/frontend/AI images with the checked-out Git
-revision, and runs the automated patient/doctor/admin booking smoke flow. It
-fails closed if Git cannot provide a 40-character revision or if the working
-tree has tracked or untracked source changes before or after the build. It does
-not alter an existing `.env`: the existing file must explicitly enable RAG and
+sync, snapshots the checked-out Git revision into a temporary tracked-source
+build context, labels the rebuilt backend/frontend/AI images with that revision,
+and runs the automated patient/doctor/admin booking smoke flow. It fails closed
+if Git cannot provide a 40-character revision, if the source identity changes
+during the build, or if the working tree has tracked or untracked source changes
+before or after the build. The temporary snapshot is removed after verification.
+It does not alter an existing `.env`: the existing file must explicitly enable RAG and
 contain a nonempty RAG token. Compose defaults remain fail-closed.
 
 ```powershell
