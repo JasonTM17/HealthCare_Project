@@ -22,6 +22,14 @@ docker compose -f infrastructure/docker-compose.yml config --quiet
 docker compose -f infrastructure/docker-compose.yml up --build
 ```
 
+The default host ports are frontend `3000`, backend `8080`, AI service `8000`,
+PostgreSQL `5434`, Redis `6379`, and MinIO `9000`/`9001`. For an isolated run
+beside another checkout, set `FRONTEND_HOST_PORT`, `BACKEND_HOST_PORT`,
+`AI_SERVICE_HOST_PORT`, `POSTGRES_HOST_PORT`, `REDIS_HOST_PORT`,
+`MINIO_API_HOST_PORT`, and `MINIO_CONSOLE_HOST_PORT` before starting Compose.
+The Compose services intentionally avoid fixed `container_name` values so
+containers and volumes remain scoped to the current Compose project.
+
 Alternatively, when `.env` is absent, the Windows helper creates a git-ignored
 disposable full-MVP environment with generated JWT/AI/RAG secrets, then builds
 the stack, waits for the idempotent seed, forces an ADMIN-authorized RAG catalog
@@ -71,10 +79,11 @@ not prove browser rendering, cross-patient runtime isolation, or the source SHA
 of an already-running Docker image. Keep the browser and authorization checks
 in the role-based checklist below as separate gates.
 
-The helper verifies that the three Healthcare containers carry the same Git
-revision it built. A direct `docker compose up --build` remains supported, but
-uses the explicit `unknown` provenance default and cannot establish an exact
-source-to-image runtime proof on its own.
+The helper verifies that the backend, frontend, and AI service containers for
+the current Compose project carry the same Git revision it built. A direct
+`docker compose up --build` remains supported, but uses the explicit `unknown`
+provenance default and cannot establish an exact source-to-image runtime proof
+on its own.
 
 The one-shot `local-seed` container runs after Flyway and backend health. It
 creates fictional catalog data, recurring schedules, and these disposable local

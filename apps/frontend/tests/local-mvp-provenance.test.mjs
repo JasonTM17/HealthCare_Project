@@ -239,7 +239,12 @@ param([Parameter(ValueFromRemainingArguments = $true)][string[]]$RemainingArgs)
 
 switch ($RemainingArgs[0]) {
     'desktop' { 'running'; exit 0 }
-    'compose' { exit 0 }
+    'compose' {
+        if ($RemainingArgs -contains 'ps' -and $RemainingArgs -contains 'local-seed') {
+            'fake-local-seed-container'; exit 0
+        }
+        exit 0
+    }
     'wait' { '0'; exit 0 }
     default { exit 0 }
 }
