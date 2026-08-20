@@ -33,6 +33,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -411,6 +412,9 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         LocalDate targetDate = nextDate(DayOfWeek.TUESDAY);
         String phone = "0907000206";
         String bookingCode = createConfirmedAppointment(originalDate, LocalTime.of(9, 0), phone);
+        Appointment original = appointmentRepository.findByBookingCode(bookingCode).orElseThrow();
+        LocalTime originalEndTime = original.getEndTime();
+        java.time.OffsetDateTime originalAppointmentTime = original.getAppointmentTime();
 
         doctor.setActive(false);
         doctorRepository.saveAndFlush(doctor);
@@ -432,6 +436,14 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
             .andExpect(jsonPath("$.appointmentDate").value(originalDate.toString()))
             .andExpect(jsonPath("$.startTime").value("09:00:00"))
             .andExpect(jsonPath("$.status").value("CONFIRMED"));
+
+        Appointment unchanged = appointmentRepository.findByBookingCode(bookingCode).orElseThrow();
+        assertEquals(originalDate, unchanged.getAppointmentDate());
+        assertEquals(LocalTime.of(9, 0), unchanged.getStartTime());
+        assertEquals(originalEndTime, unchanged.getEndTime());
+        assertEquals(originalAppointmentTime, unchanged.getAppointmentTime());
+        assertNull(unchanged.getBranch());
+        assertNull(unchanged.getReminderSentAt());
     }
 
     @Test
