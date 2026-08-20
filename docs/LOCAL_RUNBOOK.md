@@ -48,6 +48,17 @@ is denied by the admin appointment endpoint. To verify an already-running stack:
 .\scripts\verify-local-mvp.ps1
 ```
 
+For the full same-day clinical lifecycle (doctor check-in, in-progress visit,
+medical-record creation, and patient-portal authorization), run during a day
+with a real available local slot:
+
+```powershell
+.\scripts\verify-local-mvp.ps1 -RequireClinicalFlow
+```
+
+This mode intentionally fails when there is no available same-day slot. It does
+not fabricate a visit date or bypass the doctor status-transition rules.
+
 The one-shot `local-seed` container runs after Flyway and backend health. It
 creates fictional catalog data, recurring schedules, and these disposable local
 accounts (all use password `LocalDemo!2026`):

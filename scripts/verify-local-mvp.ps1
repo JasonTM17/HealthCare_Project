@@ -2,7 +2,8 @@
 param(
     [string]$ApiBaseUrl = "http://localhost:8080/api/v1",
     [string]$FrontendUrl = "http://localhost:3000",
-    [string]$DemoPassword = "LocalDemo!2026"
+    [string]$DemoPassword = "LocalDemo!2026",
+    [switch]$RequireClinicalFlow
 )
 
 $ErrorActionPreference = "Stop"
@@ -71,13 +72,19 @@ if (-not $bookingSpecialty) { throw "Demo doctor is not connected to an active s
 $selectedDate = $null
 $selectedSlot = $null
 $branchId = $demoDoctor.branchIds[0]
-for ($offset = 0; $offset -le 21 -and -not $selectedSlot; $offset++) {
+$maxSlotOffset = if ($RequireClinicalFlow) { 0 } else { 21 }
+for ($offset = 0; $offset -le $maxSlotOffset -and -not $selectedSlot; $offset++) {
     $candidateDate = (Get-Date).Date.AddDays($offset).ToString("yyyy-MM-dd")
     $slots = Invoke-JsonApi -Uri "$ApiBaseUrl/appointments/doctors/$($demoDoctor.id)/slots?date=$candidateDate&branchId=$branchId"
     $slot = $slots | Where-Object { $_.available } | Select-Object -First 1
     if ($slot) { $selectedDate = $candidateDate; $selectedSlot = $slot }
 }
-if (-not $selectedSlot) { throw "No available slot found for the demo doctor in the next 21 days" }
+if (-not $selectedSlot) {
+    if ($RequireClinicalFlow) {
+        throw "No available slot found for the demo doctor today; the clinical lifecycle requires a same-day appointment. Retry during an available local schedule."
+    }
+    throw "No available slot found for the demo doctor in the next 21 days"
+}
 
 $hold = Invoke-JsonApi -Uri "$ApiBaseUrl/appointments/hold" -Method POST -Token $patientToken -Body @{
     doctorId = $demoDoctor.id
@@ -108,6 +115,46 @@ foreach ($view in @($patientAppointments, $doctorAppointments, $adminAppointment
 }
 $checks.Add("appointments:patient+doctor+admin-visible")
 
+$patientNotifications = Invoke-JsonApi -Uri "$ApiBaseUrl/notifications?size=100" -Token $patientToken
+if (-not ($patientNotifications.content | Where-Object { $_.referenceId -eq $confirmed.id })) {
+    throw "Patient notification is missing for the confirmed booking"
+}
+$checks.Add("notifications:patient-booking-visible")
+
+if ($RequireClinicalFlow) {
+    $doctorAppointment = $doctorAppointments.content | Where-Object { $_.bookingCode -eq $confirmed.bookingCode } | Select-Object -First 1
+    if (-not $doctorAppointment -or -not $doctorAppointment.patientId) {
+        throw "Doctor appointment view is missing the patient identity required for the clinical flow"
+    }
+    $patientProfile = Invoke-JsonApi -Uri "$ApiBaseUrl/patient/profile" -Token $patientToken
+    if ($doctorAppointment.patientId -ne $patientProfile.id) {
+        throw "Doctor appointment patient identity does not match the authenticated patient profile"
+    }
+
+    $checkedIn = Invoke-JsonApi -Uri "$ApiBaseUrl/doctor/appointments/$($doctorAppointment.id)/status" -Method PATCH -Token $doctorToken -Body @{ status = "CHECKED_IN" }
+    if ($checkedIn.status -ne "CHECKED_IN") { throw "Doctor check-in transition failed" }
+    $inProgress = Invoke-JsonApi -Uri "$ApiBaseUrl/doctor/appointments/$($doctorAppointment.id)/status" -Method PATCH -Token $doctorToken -Body @{ status = "IN_PROGRESS" }
+    if ($inProgress.status -ne "IN_PROGRESS") { throw "Doctor in-progress transition failed" }
+
+    $record = Invoke-JsonApi -Uri "$ApiBaseUrl/clinical/records" -Method POST -Token $doctorToken -Body @{
+        appointmentId = $doctorAppointment.id
+        patientId = $patientProfile.id
+        doctorId = $doctorProfile.id
+        diagnosis = "E2E local verification - headache and dizziness"
+        symptomsSummary = "Automated same-day clinical verification"
+        treatmentPlan = "Follow the clinician's verified local care plan"
+        doctorNotes = "Created by the local MVP verifier"
+    }
+    if ($record.appointmentId -ne $doctorAppointment.id -or $record.patientId -ne $patientProfile.id) {
+        throw "Clinical record did not retain the verified appointment and patient identity"
+    }
+    $patientRecords = Invoke-JsonApi -Uri "$ApiBaseUrl/patient/medical-records" -Token $patientToken
+    if (-not ($patientRecords | Where-Object { $_.id -eq $record.id })) {
+        throw "Patient portal does not expose the newly authorized clinical record"
+    }
+    $checks.Add("clinical:check-in+in-progress+record+patient-visible")
+}
+
 try {
     Invoke-JsonApi -Uri "$ApiBaseUrl/admin/appointments" -Token $patientToken | Out-Null
     throw "Patient token unexpectedly accessed the ADMIN appointment endpoint"
@@ -120,5 +167,6 @@ $checks.Add("authorization:patient-denied-admin")
     Status = "PASS"
     BookingCode = $confirmed.bookingCode
     AppointmentDate = $selectedDate
+    ClinicalFlowRequired = [bool]$RequireClinicalFlow
     Checks = $checks -join ", "
 } | Format-List
