@@ -120,19 +120,24 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
     if (!submittedQuery || !readAuthSession()) return;
 
     let cancelled = false;
-    const task = Promise.resolve().then(() => {
-      if (cancelled) return undefined;
-      setSemanticLoading(true);
-      setSemanticError(null);
-      return fetchSemanticSearch(submittedQuery);
-    }).then((response) => {
-      if (response !== undefined && !cancelled) setSemantic(response);
-    }).catch(() => {
-      if (!cancelled) setSemanticError("Tạm thời chưa thể mở rộng kết quả tìm kiếm. Vui lòng thử lại sau.");
-    }).finally(() => {
-      if (!cancelled) setSemanticLoading(false);
-    });
-    void task;
+    void Promise.resolve()
+      .then(() => {
+        if (!cancelled) {
+          setSemanticLoading(true);
+          setSemanticError(null);
+        }
+        return fetchSemanticSearch(submittedQuery);
+      })
+      .then((response) => {
+        if (!cancelled) setSemantic(response);
+      })
+      .catch(() => {
+        if (!cancelled) setSemanticError("Tạm thời chưa thể mở rộng kết quả tìm kiếm. Vui lòng thử lại sau.");
+      })
+      .finally(() => {
+        if (!cancelled) setSemanticLoading(false);
+      });
+
     return () => { cancelled = true; };
   }, [submittedQuery]);
 
@@ -185,14 +190,29 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
           <p>Bạn có thể nhập tên bác sĩ, chuyên khoa, dịch vụ hoặc chủ đề sức khỏe cần tìm hiểu.</p>
         </form>
 
-        {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tìm thông tin phù hợp…</p> : null}
-        {error ? <p className="catalog-status catalog-status--error" role="alert">{error}</p> : null}
+        {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải catalog tìm kiếm…</p> : null}
+        {error ? <p className="catalog-status catalog-status--error" role="alert">{error} Không có dữ liệu tĩnh thay thế.</p> : null}
         {!readAuthSession() && normalize(query) ? <p className="catalog-status">Đăng nhập để nhận thêm gợi ý nội dung liên quan đến nhu cầu của bạn.</p> : null}
         {semanticLoading ? <p className="catalog-status catalog-status--loading" role="status">Đang tìm thêm nội dung liên quan…</p> : null}
         {semanticError ? <p className="catalog-status catalog-status--error" role="alert">{semanticError}</p> : null}
-        {semantic?.results.length ? <section className="search-results__section" aria-labelledby="semantic-results"><div className="section-heading search-results__heading"><div><p className="section-note">Gợi ý mở rộng</p><h2 id="semantic-results">Có thể bạn cũng quan tâm</h2></div></div><div className="search-result-list">{semantic.results.map((item) => <article className="search-result" key={`${item.source_type}-${item.source_id}`}><span className="resource-chip">{semanticSourceLabel(item.source_type)}</span><strong>{item.title}</strong><p>{item.content}</p></article>)}</div></section> : null}
-        {!loading && !normalize(query) ? <section className="resource-panel resource-panel--accent"><h2>Nhập một từ khóa để bắt đầu</h2><p>Chúng tôi sẽ giúp bạn tìm đến chuyên khoa, bác sĩ, dịch vụ hoặc nội dung phù hợp.</p></section> : null}
-        {!loading && result && resultCount === 0 ? <p className="catalog-status" role="status">{error ? "Một số nội dung chưa sẵn sàng. Vui lòng thử lại sau." : `Không tìm thấy kết quả khớp với “${query.trim()}”.`}</p> : null}
+        {semantic?.results.length ? (
+          <section className="search-results__section" aria-labelledby="semantic-results">
+            <div className="section-heading search-results__heading">
+              <div><p className="section-note">Gợi ý mở rộng</p><h2 id="semantic-results">Có thể bạn cũng quan tâm</h2></div>
+            </div>
+            <div className="search-result-list">
+              {semantic.results.map((item) => (
+                <article className="search-result" key={`${item.source_type}-${item.source_id}`}>
+                  <span className="resource-chip">{semanticSourceLabel(item.source_type)}</span>
+                  <strong>{item.title}</strong>
+                  <p>{item.content}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+        ) : null}
+        {!loading && !normalize(query) ? <section className="resource-panel resource-panel--accent"><h2>Nhập một từ khóa để bắt đầu</h2><p>Hệ thống sẽ lọc theo dữ liệu active đã xuất bản, sau đó đưa bạn về đúng trang chuyên khoa, bác sĩ hoặc nội dung.</p></section> : null}
+        {!loading && result && resultCount === 0 ? <p className="catalog-status" role="status">{error ? "Chưa có nhóm catalog nào sẵn sàng để tìm kiếm." : `Không tìm thấy kết quả khớp với “${query.trim()}”.`}</p> : null}
 
         {!loading && result && resultCount > 0 ? (
           <div className="search-results" aria-live="polite">

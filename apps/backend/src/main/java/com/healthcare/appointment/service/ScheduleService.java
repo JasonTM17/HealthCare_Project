@@ -16,6 +16,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -30,6 +31,7 @@ import java.util.UUID;
 public class ScheduleService {
 
     private static final int DEFAULT_SLOT_DURATION_MINUTES = 30;
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     private final DoctorScheduleRepository doctorScheduleRepository;
     private final DoctorScheduleExceptionRepository exceptionRepository;
@@ -56,7 +58,8 @@ public class ScheduleService {
      * from different branches for one slot.
      */
     public List<TimeSlotDto> getAvailableSlots(UUID doctorId, UUID branchId, LocalDate date) {
-        if (date == null || date.isBefore(LocalDate.now())) {
+        LocalDate today = LocalDate.now(BUSINESS_ZONE);
+        if (date == null || date.isBefore(today)) {
             return Collections.emptyList();
         }
 
@@ -65,7 +68,7 @@ public class ScheduleService {
             return Collections.emptyList();
         }
 
-        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime now = OffsetDateTime.now(BUSINESS_ZONE);
         Map<UUID, List<Appointment>> occupiedByBranch = new LinkedHashMap<>();
         for (ScheduleWindow window : windows) {
             occupiedByBranch.computeIfAbsent(
@@ -75,8 +78,8 @@ public class ScheduleService {
             );
         }
         List<TimeSlotDto> slots = new ArrayList<>();
-        LocalTime currentTime = LocalTime.now();
-        boolean isToday = date.equals(LocalDate.now());
+        LocalTime currentTime = LocalTime.now(BUSINESS_ZONE);
+        boolean isToday = date.equals(today);
 
         for (ScheduleWindow window : windows) {
             LocalTime slotStart = window.startTime();
@@ -110,11 +113,12 @@ public class ScheduleService {
             UUID branchId,
             LocalDate date,
             LocalTime requestedStart) {
-        if (date == null || requestedStart == null || date.isBefore(LocalDate.now())) {
+        LocalDate today = LocalDate.now(BUSINESS_ZONE);
+        if (date == null || requestedStart == null || date.isBefore(today)) {
             return Optional.empty();
         }
-        if (date.equals(LocalDate.now())
-                && LocalDateTime.of(date, requestedStart).isBefore(LocalDateTime.now().plusMinutes(15))) {
+        if (date.equals(today)
+                && LocalDateTime.of(date, requestedStart).isBefore(LocalDateTime.now(BUSINESS_ZONE).plusMinutes(15))) {
             return Optional.empty();
         }
 

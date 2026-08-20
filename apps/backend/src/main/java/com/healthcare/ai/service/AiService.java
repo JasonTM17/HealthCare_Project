@@ -25,6 +25,7 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.net.URI;
+import java.util.List;
 import java.util.Map;
 
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
@@ -152,6 +153,49 @@ public class AiService {
         } catch (JsonProcessingException e) {
             throw new ResponseStatusException(BAD_GATEWAY, "RAG document could not be encoded", e);
         }
+    }
+
+    public List<Map<String, Object>> listIndexedDocuments() {
+        if (!isRagIngestConfigured()) {
+            throw new ResponseStatusException(SERVICE_UNAVAILABLE, "RAG ingestion is not configured");
+        }
+        Map<String, Object> response = exchange(
+            HttpMethod.GET,
+            URI.create(endpoint("/rag/sources")),
+            new HttpEntity<>(ragHeaders())
+        );
+        Object sources = response.get("sources");
+        if (sources == null) return List.of();
+        return objectMapper.convertValue(sources, new TypeReference<List<Map<String, Object>>>() { });
+    }
+
+    public Map<String, Object> removeIndexedDocument(String sourceType, String sourceId) {
+        return removeIndexedDocument(sourceType, sourceId, null);
+    }
+
+    public Map<String, Object> removeIndexedDocument(String sourceType, String sourceId, Long revision) {
+        if (!isRagIngestConfigured()) {
+            throw new ResponseStatusException(SERVICE_UNAVAILABLE, "RAG ingestion is not configured");
+        }
+        try {
+            Map<String, Object> payload = new java.util.LinkedHashMap<>();
+            payload.put("source_type", sourceType);
+            payload.put("source_id", sourceId);
+            if (revision != null) payload.put("revision", revision);
+            return exchange(
+                HttpMethod.POST,
+                URI.create(endpoint("/rag/delete")),
+                new HttpEntity<>(objectMapper.writeValueAsString(payload), ragHeaders())
+            );
+        } catch (JsonProcessingException e) {
+            throw new ResponseStatusException(BAD_GATEWAY, "RAG deletion could not be encoded", e);
+        }
+    }
+
+    private HttpHeaders ragHeaders() {
+        HttpHeaders headers = headers();
+        headers.set("X-RAG-Ingest-Token", ragIngestToken);
+        return headers;
     }
 
     public boolean isAvailable() {

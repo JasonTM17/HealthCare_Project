@@ -22,6 +22,8 @@ export interface CmsLiveSlotProps {
   showSourceLabel?: boolean;
   /** Optional slots stay out of the layout until an admin publishes them. */
   hideWhenNotFound?: boolean;
+  /** Optional route slots should not reserve layout space during their first read. */
+  hideWhileLoading?: boolean;
   /** Render a published component in the page's native layout instead of the generic CMS card. */
   renderContent?: (content: CmsContent) => ReactNode;
   /** Keep the native page composition visible while the live slot is loading or unavailable. */
@@ -48,6 +50,7 @@ export function CmsLiveSlot({
   className = "",
   showSourceLabel = true,
   hideWhenNotFound = false,
+  hideWhileLoading = false,
   renderContent,
   fallback,
 }: CmsLiveSlotProps): ReactElement {
@@ -63,13 +66,23 @@ export function CmsLiveSlot({
     let cancelled = false;
     let pollTimer: ReturnType<typeof setInterval> | undefined;
     let sseConnected = false;
+    let initialSnapshotReady = false;
     const reconciliation = new CmsReconciliationLedger();
     let refreshGeneration = 0;
     let stopFeed: () => void = () => undefined;
     let stopPolling: () => void = () => undefined;
     latestVersion.current = 0;
+    // The same component instance can be reused when the public route changes.
+    // Do not expose the previous route's published content while the new slot
+    // is loading or when its first authoritative read fails.
     void Promise.resolve().then(() => {
-      if (!cancelled) setLiveNotice(null);
+      if (!cancelled) {
+        setContent(null);
+        setError(null);
+        setLoading(true);
+        setTransport("connecting");
+        setLiveNotice(null);
+      }
     });
 
     const resolvePendingEvent = (eventId: number): void => {
@@ -132,12 +145,14 @@ export function CmsLiveSlot({
           setContent(nextContent);
         }
         setError(null);
+        initialSnapshotReady = true;
         return "updated";
       } catch (nextError) {
         if (!isAuthoritativeRead()) return "failed";
         if (nextError instanceof CmsApiError && nextError.kind === "not-found") {
           setContent(null);
           setError(new CmsApiError("not-found", 404, "Slot hiện không còn PUBLISHED."));
+          initialSnapshotReady = true;
           return "not-found";
         }
         setError(nextError);
@@ -158,8 +173,17 @@ export function CmsLiveSlot({
           if (
             result === "failed"
             || cancelled
-            || !hasPendingReconciliation
           ) return;
+          if (!hasPendingReconciliation) {
+            if (initialSnapshotReady
+              && sseConnected
+              && reconciliation.pendingEventIds.size === 0
+              && reconciliation.reconciliationCursor === 0) {
+              stopPolling();
+              setTransport("sse");
+            }
+            return;
+          }
           if (!finishReconciliation(afterEventId)) {
             // A newer heartbeat/event won the race. Keep the polling loop
             // alive and retry with the newer authoritative cursor.
@@ -236,7 +260,8 @@ export function CmsLiveSlot({
           if (cancelled) return;
           sseConnected = true;
           if (reconciliation.pendingEventIds.size === 0
-            && reconciliation.reconciliationCursor === 0) {
+            && reconciliation.reconciliationCursor === 0
+            && initialSnapshotReady) {
             stopPolling();
             setTransport("sse");
           } else {
@@ -298,7 +323,20 @@ export function CmsLiveSlot({
 
     // Even the first/fallback snapshot bypasses a potentially stale
     // per-instance cache. The durable cursor is the cache-coherence boundary.
-    void refresh(0, reconciliation.latestEventId);
+    void refresh(0, reconciliation.latestEventId).then((result) => {
+      if (result === "failed" && !cancelled) {
+        // A healthy SSE connection does not prove the initial snapshot was
+        // readable. Keep bounded polling alive until the first read succeeds.
+        startPolling();
+      } else if (!cancelled
+        && initialSnapshotReady
+        && sseConnected
+        && reconciliation.pendingEventIds.size === 0
+        && reconciliation.reconciliationCursor === 0) {
+        stopPolling();
+        setTransport("sse");
+      }
+    });
 
     return () => {
       cancelled = true;
@@ -306,6 +344,8 @@ export function CmsLiveSlot({
       stopPolling();
     };
   }, [backendSlotKey, client, pollIntervalMs]);
+
+  if (hideWhileLoading && loading && !content && !error) return <></>;
 
   const sourceLabel = transport === "polling"
     ? "Live CMS · polling dự phòng"

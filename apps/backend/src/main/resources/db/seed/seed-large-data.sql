@@ -4,7 +4,8 @@
 --
 -- Scale (approx): specialties 30, branches 20, doctors 500, services 200,
 -- packages 100, articles 500, faqs 150, doctor_specialties 1500,
--- doctor_branches 750, doctor_schedules about 7500, users 1000.
+-- doctor_branches 750, doctor_schedules about 7500, users 1001 (1,000
+-- synthetic users plus the deterministic local CMS admin fixture).
 --
 -- Idempotent: truncates domain tables (roles/permissions preserved) then
 -- regenerates. Safe to re-run. Password hash is a BCrypt stub valid only for
@@ -45,7 +46,7 @@ ON CONFLICT (code) DO NOTHING;
 
 -- ── Specialties (30) ──────────────────────────────────────────────────────────
 INSERT INTO specialties (id, name, slug, description, common_symptoms, preparation_steps, care_pathway, active)
-SELECT gen_random_uuid(), name, slug, description,
+SELECT md5('large-specialty:' || slug)::uuid, name, slug, description,
        jsonb_build_array('Triệu chứng liên quan đến ' || lower(name), 'Mệt mỏi kéo dài'),
        jsonb_build_array('Mang theo kết quả khám cũ nếu có', 'Ghi lại thuốc đang sử dụng'),
        'Tiếp nhận → khám chuyên khoa → cận lâm sàng khi cần → tư vấn theo dõi.',
@@ -86,9 +87,9 @@ ON CONFLICT (slug) DO NOTHING;
 
 -- ── Branches (20) ─────────────────────────────────────────────────────────────
 INSERT INTO branches (id, name, slug, address, phone, working_hours, emergency_hotline, map_url, amenities, active)
-SELECT gen_random_uuid(),
+SELECT md5(format('large-branch:%s', s.idx))::uuid,
        'Bệnh viện Đa khoa Sài Gòn Xanh - Cơ sở ' || s.idx,
-       'cs-' || s.idx || '-' || md5(random()::text),
+       'cs-' || s.idx,
        (s.idx || ' Đường số ' || (s.idx % 30 + 1) || ', Quận ' || (s.idx % 12 + 1) || ', TP. Hồ Chí Minh'),
        '028 ' || lpad((38000000 + s.idx)::text, 8, '0'),
        '06:30–20:00, tất cả các ngày',
@@ -101,9 +102,9 @@ ON CONFLICT (slug) DO NOTHING;
 
 -- ── Doctors (500) ─────────────────────────────────────────────────────────────
 INSERT INTO doctors (id, full_name, slug, bio, photo_url, active)
-SELECT gen_random_uuid(),
+SELECT md5(format('large-doctor:%s', gs.idx))::uuid,
        names.ho[1 + (gs.idx % 5)] || ' ' || names.dem[1 + ((gs.idx * 3) % 6)] || ' ' || names.ten[1 + ((gs.idx * 7) % 8)],
-       'bs-' || gs.idx || '-' || md5(random()::text),
+       'bs-' || gs.idx,
        'Bác sĩ chuyên khoa với ' || (8 + (gs.idx % 15)) || ' năm kinh nghiệm điều trị và chăm sóc bệnh nhân.',
        NULL,
        (gs.idx % 20 <> 0)  -- 5% inactive to exercise active filters
@@ -115,9 +116,9 @@ ON CONFLICT (slug) DO NOTHING;
 
 -- ── Services (200) ────────────────────────────────────────────────────────────
 INSERT INTO services (id, name, slug, description, active)
-SELECT gen_random_uuid(),
-       'Dịch vụ y tế ' || i || ' - ' || md5(random()::text),
-       'dv-' || i || '-' || md5(random()::text),
+SELECT md5(format('large-service:%s', i))::uuid,
+       'Dịch vụ y tế ' || i,
+       'dv-' || i,
        'Dịch vụ khám, tư vấn và điều trị chuyên sâu, trang bị thiết bị hiện đại.',
        (i % 25 <> 0)
 FROM generate_series(1, 200) AS i
@@ -125,9 +126,9 @@ ON CONFLICT (slug) DO NOTHING;
 
 -- ── Packages (100) ────────────────────────────────────────────────────────────
 INSERT INTO packages (id, name, slug, description, price, target_audience, duration_days, checklist, preparation_steps, active)
-SELECT gen_random_uuid(),
+SELECT md5(format('large-package:%s', i))::uuid,
        'Gói khám sức khỏe cấp ' || c || ' #' || i,
-       'goi-' || i || '-' || md5(random()::text),
+       'goi-' || i,
        'Gói khám toàn diện bao gồm xét nghiệm, chẩn đoán hình ảnh và tư vấn chuyên sâu.',
        (500000 + (i * 12345))::numeric(12,2),
        'Người trưởng thành cần kiểm tra sức khỏe định kỳ',
@@ -141,12 +142,12 @@ ON CONFLICT (slug) DO NOTHING;
 
 -- ── Articles (500) ────────────────────────────────────────────────────────────
 INSERT INTO articles (id, title, slug, summary, body, published_at, category, author_name, reading_minutes, related_specialty_slug, sections, active)
-SELECT gen_random_uuid(),
-       'Bài viết y khoa số ' || i || ': ' || md5(random()::text),
-       'bv-' || i || '-' || md5(random()::text),
+SELECT md5(format('large-article:%s', i))::uuid,
+       'Bài viết y khoa số ' || i,
+       'bv-' || i,
        'Tóm tắt nội dung y khoa hữu ích cho bệnh nhân và người nhà.',
        'Nội dung chi tiết về phòng bệnh, sớm nhận biết triệu chứng và khi nào nên đi khám bác sĩ chuyên khoa.',
-       now() - ((i % 180) || ' days')::interval,
+       TIMESTAMPTZ '2026-08-01T08:00:00+07:00' - ((i % 180) || ' days')::interval,
        CASE WHEN i % 3 = 0 THEN 'Tim mạch' WHEN i % 3 = 1 THEN 'Sức khỏe gia đình' ELSE 'Dinh dưỡng' END,
        'Đội ngũ chuyên môn',
        4 + (i % 6),
@@ -161,7 +162,7 @@ ON CONFLICT (slug) DO NOTHING;
 
 -- ── FAQs (150) ────────────────────────────────────────────────────────────────
 INSERT INTO faqs (id, question, answer, active)
-SELECT gen_random_uuid(),
+SELECT md5(format('large-faq:%s', i))::uuid,
        'Câu hỏi thường gặp số ' || i || ': làm thế nào để được hỗ trợ y tế phù hợp?',
        'Bệnh viện hỗ trợ qua nhiều kênh: đặt lịch trực tuyến, gọi điện thoại hoặc đến trực tiếp quầy lễ tân.',
        (i % 30 <> 0)
@@ -170,22 +171,22 @@ ON CONFLICT DO NOTHING;
 
 -- ── Doctor ↔ Specialty (avg 2-3 per doctor ≈ 1250) ───────────────────────────
 INSERT INTO doctor_specialties (id, doctor_id, specialty_id)
-SELECT gen_random_uuid(), d.id, s.id
+SELECT md5(format('large-doctor-specialty:%s:%s', d.id, s.id))::uuid, d.id, s.id
 FROM doctors d
 JOIN LATERAL (
     SELECT id FROM specialties
-    ORDER BY random()
+    ORDER BY md5(d.id::text || ':' || specialties.id::text)
     LIMIT 2 + (abs(hashtext(d.id::text)) % 2)
 ) s ON true
 ON CONFLICT (doctor_id, specialty_id) DO NOTHING;
 
 -- ── Doctor ↔ Branch (avg 1-2 per doctor ≈ 750) ───────────────────────────────
 INSERT INTO doctor_branches (id, doctor_id, branch_id)
-SELECT gen_random_uuid(), d.id, b.id
+SELECT md5(format('large-doctor-branch:%s:%s', d.id, b.id))::uuid, d.id, b.id
 FROM doctors d
 JOIN LATERAL (
     SELECT id FROM branches
-    ORDER BY random()
+    ORDER BY md5(d.id::text || ':' || branches.id::text)
     LIMIT 1 + (abs(hashtext(d.id::text)) % 2)
 ) b ON true
 ON CONFLICT (doctor_id, branch_id) DO NOTHING;
@@ -197,7 +198,8 @@ INSERT INTO doctor_schedules (
     id, doctor_id, branch_id, day_of_week, start_time, end_time,
     slot_duration_minutes, effective_from, effective_to, active
 )
-SELECT gen_random_uuid(), db.doctor_id, db.branch_id,
+SELECT md5(format('large-schedule:%s:%s:%s:%s:%s', db.doctor_id, db.branch_id, shifts.day_of_week, shifts.start_time, shifts.end_time))::uuid,
+       db.doctor_id, db.branch_id,
        shifts.day_of_week, shifts.start_time::time, shifts.end_time::time,
        30, DATE '2026-01-01', NULL, true
 FROM doctor_branches db
@@ -213,43 +215,46 @@ CROSS JOIN (VALUES
     (4, '13:30:00', '17:00:00'),
     (5, '08:00:00', '11:30:00'),
     (5, '13:30:00', '17:00:00')
-) AS shifts(day_of_week, start_time, end_time);
+) AS shifts(day_of_week, start_time, end_time)
+ON CONFLICT (id) DO NOTHING;
 
--- ── Users (1000) ──────────────────────────────────────────────────────────────
--- BCrypt hash of "LocalDev!Pass2026" — local dev only, never a real secret.
+-- ── Users (1001: 1000 synthetic + 1 local admin) ─────────────────────────────
+-- BCrypt hash of the documented local demo password — local dev only,
+-- never a real secret.
 INSERT INTO users (id, email, password_hash, display_name, status, created_at, updated_at)
-SELECT gen_random_uuid(),
+SELECT md5(format('large-user:%s', i))::uuid,
        'user' || i || '@healthcare.local',
-       '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy',
+       '$2b$10$OG9QfyAPA/hWfWauU7lXvemQNUnFPcVj/rIuE2zzocw7rtOKoQdfa',
        'Bệnh nhân ' || i,
        CASE WHEN (i % 50 = 0) THEN 'DISABLED' ELSE 'ACTIVE' END,
-       now() - ((i % 365) || ' days')::interval,
-       now()
+       TIMESTAMPTZ '2026-01-01T08:00:00+07:00' - ((i % 365) || ' days')::interval,
+       TIMESTAMPTZ '2026-01-01T08:00:00+07:00'
 FROM generate_series(1, 1000) AS i
 ON CONFLICT (email) DO NOTHING;
 
 -- Deterministic local ADMIN fixture for CMS verification.
 -- Credentials are for this fictional local seed only; never reuse them outside
--- the demo stack. Password: LocalDev!Pass2026
+-- the demo stack. It uses the same local demo password as the base seed and
+-- LOCAL_RUNBOOK.md.
 INSERT INTO users (id, email, password_hash, display_name, status, created_at, updated_at)
 VALUES (
-    '00000000-0000-0000-0000-000000001001',
+    '90000000-0000-0000-0000-000000000001',
     'admin@healthcare.local',
-    '$2a$10$p/9xnUieR.4HwifRfQ70Ye8kKFwmmWllJIqTRC49C82meV48Y8mn6',
+    '$2b$10$OG9QfyAPA/hWfWauU7lXvemQNUnFPcVj/rIuE2zzocw7rtOKoQdfa',
     'Quản trị viên local',
     'ACTIVE',
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP
+    TIMESTAMPTZ '2026-01-01T08:00:00+07:00',
+    TIMESTAMPTZ '2026-01-01T08:00:00+07:00'
 )
 ON CONFLICT (email) DO UPDATE SET
     password_hash = EXCLUDED.password_hash,
     display_name = EXCLUDED.display_name,
     status = EXCLUDED.status,
-    updated_at = CURRENT_TIMESTAMP;
+    updated_at = EXCLUDED.updated_at;
 
 -- ── Patient profiles (avg 1 per 2 users ≈ 500) ───────────────────────────────
 INSERT INTO patient_profiles (id, user_id, full_name, phone, email)
-SELECT gen_random_uuid(), u.id, u.display_name, '09' || lpad((abs(hashtext(u.id::text)) % 100000000)::text, 8, '0'), u.email
+SELECT md5('large-patient:' || u.id::text)::uuid, u.id, u.display_name, '09' || lpad((abs(hashtext(u.id::text)) % 100000000)::text, 8, '0'), u.email
 FROM users u
 WHERE (abs(hashtext(u.id::text)) % 2 = 0)
 ON CONFLICT DO NOTHING;
@@ -276,33 +281,35 @@ WHERE (abs(hashtext(u.id::text)) % 50 = 0)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO user_roles (user_id, role_id)
-SELECT '00000000-0000-0000-0000-000000001001', id
+SELECT '90000000-0000-0000-0000-000000000001', id
 FROM roles
 WHERE code = 'ADMIN'
 ON CONFLICT DO NOTHING;
 
 -- ── Clinical medical records (200) ───────────────────────────────────────────
 INSERT INTO medical_records (id, appointment_id, patient_id, doctor_id, icd10_code, icd10_name, diagnosis, symptoms_summary, created_at, updated_at)
-SELECT gen_random_uuid(), NULL, p.id, d.id,
+SELECT md5(format('large-medical-record:%s', i))::uuid, NULL, p.id, d.id,
        'ICD-' || (i % 99 + 1),
        'Chẩn đoán y khoa số ' || i,
        'Chẩn đoán lâm sàng mẫu cho bệnh nhân ' || i,
        'Tóm tắt triệu chứng mẫu số ' || i,
-       now() - ((i % 180) || ' days')::interval,
-       now()
+       TIMESTAMPTZ '2026-06-01T08:00:00+07:00' - ((i % 180) || ' days')::interval,
+       TIMESTAMPTZ '2026-06-01T08:00:00+07:00'
 FROM generate_series(1, 200) AS i,
-     LATERAL (SELECT id FROM patient_profiles ORDER BY random() LIMIT 1) p,
-     LATERAL (SELECT id FROM doctors ORDER BY random() LIMIT 1) d;
+     LATERAL (SELECT id FROM patient_profiles ORDER BY md5('large-medical-record:' || i::text || ':' || patient_profiles.id::text) LIMIT 1) p,
+     LATERAL (SELECT id FROM doctors ORDER BY md5('large-medical-record:' || i::text || ':' || doctors.id::text) LIMIT 1) d
+ON CONFLICT (id) DO NOTHING;
 
 -- ── Prescriptions (150) ──────────────────────────────────────────────────────
 INSERT INTO prescriptions (id, medical_record_id, prescription_code, patient_id, doctor_id, diagnosis_summary, status, created_at, updated_at)
-SELECT gen_random_uuid(), mr.id, 'RX-2026-' || lpad(i::text, 4, '0'), mr.patient_id, mr.doctor_id, 'Đơn thuốc theo bệnh án', 'ACTIVE', mr.created_at, mr.created_at
+SELECT md5(format('large-prescription:%s', i))::uuid, mr.id, 'RX-2026-' || lpad(i::text, 4, '0'), mr.patient_id, mr.doctor_id, 'Đơn thuốc theo bệnh án', 'ACTIVE', mr.created_at, mr.created_at
 FROM generate_series(1, 150) AS i,
-     LATERAL (SELECT id, patient_id, doctor_id, created_at FROM medical_records ORDER BY random() LIMIT 1) mr;
+     LATERAL (SELECT id, patient_id, doctor_id, created_at FROM medical_records ORDER BY md5('large-prescription:' || i::text || ':' || medical_records.id::text) LIMIT 1) mr
+ON CONFLICT (id) DO NOTHING;
 
 -- ── Prescription items (avg 3 per prescription ≈ 450) ───────────────────────
 INSERT INTO prescription_items (id, prescription_id, medication_name, dosage, unit, frequency, duration_days, total_quantity, created_at)
-SELECT gen_random_uuid(), rx.id,
+SELECT md5(format('large-prescription-item:%s:%s', rx.id, i))::uuid, rx.id,
        'Thuốc ' || (i % 20 + 1),
        (5 + (i % 5) * 50) || 'mg',
        'Viên',
@@ -311,17 +318,19 @@ SELECT gen_random_uuid(), rx.id,
        10 + (i % 20),
        rx.created_at
 FROM prescriptions rx
-CROSS JOIN generate_series(1, 3) AS i;
+CROSS JOIN generate_series(1, 3) AS i
+ON CONFLICT (id) DO NOTHING;
 
 -- ── Diagnostic results (100) ─────────────────────────────────────────────────
 INSERT INTO diagnostic_results (id, patient_id, doctor_id, test_name, result, test_date)
-SELECT gen_random_uuid(), p.id, d.id,
+SELECT md5(format('large-diagnostic:%s', i))::uuid, p.id, d.id,
        'Xét nghiệm ' || (i % 15 + 1),
        'Kết quả bình thường, chưa có dấu hiệu bất thường.',
-       now() - ((i % 90) || ' days')::interval
+       TIMESTAMPTZ '2026-07-01T08:00:00+07:00' - ((i % 90) || ' days')::interval
 FROM generate_series(1, 100) AS i,
-     LATERAL (SELECT id FROM patient_profiles ORDER BY random() LIMIT 1) p,
-     LATERAL (SELECT id FROM doctors ORDER BY random() LIMIT 1) d;
+     LATERAL (SELECT id FROM patient_profiles ORDER BY md5('large-diagnostic:' || i::text || ':' || patient_profiles.id::text) LIMIT 1) p,
+     LATERAL (SELECT id FROM doctors ORDER BY md5('large-diagnostic:' || i::text || ':' || doctors.id::text) LIMIT 1) d
+ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO cms_contents (
     id, slot_key, component_type, payload, status, version, created_at, updated_at
@@ -333,28 +342,28 @@ INSERT INTO cms_contents (
     '{"eyebrow":"Chăm sóc chủ động","title":"Đồng hành cùng sức khỏe gia đình","body":"Đặt lịch khám và tìm hiểu dịch vụ chăm sóc phù hợp với nhu cầu của bạn.","ctaLabel":"Đặt lịch khám","ctaHref":"/dat-lich"}'::jsonb,
     'PUBLISHED',
     1,
-    now(),
-    now()
+    TIMESTAMPTZ '2026-08-01T08:00:00+07:00',
+    TIMESTAMPTZ '2026-08-01T08:00:00+07:00'
 ),
 (
     '80000000-0000-0000-0000-000000000002',
     'careers.hero',
     'HERO',
-    '{"eyebrow":"CMS tuyển dụng","title":"Thông tin tuyển dụng đang được cập nhật","body":"Đây là vùng nội dung do quản trị viên xuất bản trực tiếp. Các vai trò cụ thể chỉ xuất hiện khi có dữ liệu được duyệt.","ctaLabel":"Liên hệ tuyển dụng","ctaHref":"/contact"}'::jsonb,
+    '{"eyebrow":"Cơ hội nghề nghiệp tại HealthCare","title":"Cùng chăm sóc người bệnh bằng năng lực và sự tử tế","body":"Khám phá môi trường làm việc đề cao an toàn, phối hợp liên chuyên môn và sự phát triển bền vững của mỗi thành viên.","ctaLabel":"Xem vị trí đang tuyển","ctaHref":"/careers#vi-tri-dang-tuyen"}'::jsonb,
     'PUBLISHED',
     1,
-    now(),
-    now()
+    TIMESTAMPTZ '2026-08-01T08:00:00+07:00',
+    TIMESTAMPTZ '2026-08-01T08:00:00+07:00'
 ),
 (
     '80000000-0000-0000-0000-000000000003',
     'careers.body',
     'RICH_TEXT',
-    '{"title":"Theo dõi thay đổi từ quản trị viên","body":"Mỗi lần xuất bản có version để đội ngũ và người dùng nhìn thấy cùng một nội dung. Bản demo không tự dựng vị trí hoặc cam kết quyền lợi khi backend chưa cung cấp dữ liệu."}'::jsonb,
+    '{"title":"Điều chúng tôi mong đợi ở đồng đội","body":"Chúng tôi trân trọng tinh thần học hỏi, giao tiếp rõ ràng và cam kết đặt an toàn của người bệnh lên hàng đầu trong mọi vai trò."}'::jsonb,
     'PUBLISHED',
     1,
-    now(),
-    now()
+    TIMESTAMPTZ '2026-08-01T08:00:00+07:00',
+    TIMESTAMPTZ '2026-08-01T08:00:00+07:00'
 ),
 (
     '80000000-0000-0000-0000-000000000004',
@@ -363,8 +372,8 @@ INSERT INTO cms_contents (
     '{"eyebrow":"Catalog active","title":"Tìm kiếm theo dữ liệu đã xuất bản","body":"CMS cung cấp ngữ cảnh cho màn hình; kết quả bên dưới vẫn được lọc trực tiếp từ chuyên khoa, bác sĩ, dịch vụ, gói khám và cẩm nang của backend."}'::jsonb,
     'PUBLISHED',
     1,
-    now(),
-    now()
+    TIMESTAMPTZ '2026-08-01T08:00:00+07:00',
+    TIMESTAMPTZ '2026-08-01T08:00:00+07:00'
 ),
 (
     '80000000-0000-0000-0000-000000000005',
@@ -373,8 +382,8 @@ INSERT INTO cms_contents (
     '{"title":"Hành trình chăm sóc được cập nhật","body":"Thông tin mới từ quản trị viên sẽ xuất hiện tại đây theo version đã xuất bản. Dữ liệu chuyên khoa, bác sĩ và cơ sở vẫn được đọc trực tiếp từ catalog backend."}'::jsonb,
     'PUBLISHED',
     1,
-    now(),
-    now()
+    TIMESTAMPTZ '2026-08-01T08:00:00+07:00',
+    TIMESTAMPTZ '2026-08-01T08:00:00+07:00'
 )
 ON CONFLICT (slot_key) DO NOTHING;
 

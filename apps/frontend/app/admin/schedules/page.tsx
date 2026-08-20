@@ -8,8 +8,9 @@ import {
 } from "../../../lib/api-client";
 import AdminState from "../_components/AdminState";
 import { describeAdminError } from "../_lib/errors";
+import { businessDate } from "../../../lib/business-time";
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => businessDate();
 const EMPTY = { doctorId: "", branchId: "", dayOfWeek: "1", startTime: "08:00", endTime: "12:00", slotDurationMinutes: "30", effectiveFrom: today(), effectiveTo: "", active: true };
 const EMPTY_EXCEPTION = { doctorId: "", branchId: "", exceptionDate: today(), type: "LEAVE" as "LEAVE" | "BLOCKED" | "CUSTOM_HOURS", customStartTime: "", customEndTime: "", reason: "" };
 const inputClass = "mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm";

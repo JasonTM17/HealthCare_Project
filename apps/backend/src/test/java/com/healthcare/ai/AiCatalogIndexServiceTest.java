@@ -63,7 +63,13 @@ class AiCatalogIndexServiceTest {
             .containsEntry("active", true)
             .containsEntry("published", true);
         assertThat(payload.getValue().get("content").toString()).contains("đau đầu");
-        assertThat(payload.getValue().get("metadata")).isEqualTo(Map.of("slug", "than-kinh"));
+        assertThat(payload.getValue().get("metadata"))
+            .isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, String> metadata = (Map<String, String>) payload.getValue().get("metadata");
+        assertThat(metadata)
+            .containsEntry("slug", "than-kinh")
+            .containsKey("_sync_revision");
         assertThat(processed).isEqualTo(1);
     }
 }

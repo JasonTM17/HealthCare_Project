@@ -35,11 +35,6 @@ if (-not (Test-Path -LiteralPath $EnvFile -PathType Leaf)) {
     Write-Host "Created a disposable local .env with generated JWT/AI/RAG secrets."
 }
 
-$previousRagIngestEnabled = [Environment]::GetEnvironmentVariable("RAG_INGEST_ENABLED", "Process")
-$previousBackendRagIngestEnabled = [Environment]::GetEnvironmentVariable("AI_RAG_INGEST_ENABLED", "Process")
-[Environment]::SetEnvironmentVariable("RAG_INGEST_ENABLED", "true", "Process")
-[Environment]::SetEnvironmentVariable("AI_RAG_INGEST_ENABLED", "true", "Process")
-
 Push-Location $repositoryRoot
 try {
     & $DockerPath compose --env-file $EnvFile -f $composeFile config --quiet
@@ -68,6 +63,4 @@ try {
     throw "Stack did not pass verification within 90 seconds: $($lastError.Exception.Message)"
 } finally {
     Pop-Location
-    [Environment]::SetEnvironmentVariable("RAG_INGEST_ENABLED", $previousRagIngestEnabled, "Process")
-    [Environment]::SetEnvironmentVariable("AI_RAG_INGEST_ENABLED", $previousBackendRagIngestEnabled, "Process")
 }

@@ -4,31 +4,24 @@
 -- real hospital brand. Safe to run repeatedly: upserts are idempotent by slug.
 -- ==============================================================================
 
--- Local demo credentials:
---   admin@healthcare.local   / LocalDev!Pass2026
---   doctor@healthcare.local  / LocalDemo!2026
---   patient@healthcare.local / LocalDemo!2026
+-- All three local demo accounts use password: LocalDemo!2026
 -- These credentials belong only to the disposable local seed and must never be
 -- reused in a shared or deployed environment.
 INSERT INTO users (id, email, password_hash, display_name, status) VALUES
-    ('90000000-0000-0000-0000-000000000001', 'admin@healthcare.local', '$2a$10$p/9xnUieR.4HwifRfQ70Ye8kKFwmmWllJIqTRC49C82meV48Y8mn6', 'Quản trị viên Local', 'ACTIVE'),
+    ('90000000-0000-0000-0000-000000000001', 'admin@healthcare.local', '$2b$10$OG9QfyAPA/hWfWauU7lXvemQNUnFPcVj/rIuE2zzocw7rtOKoQdfa', 'Quản trị viên Local', 'ACTIVE'),
     ('90000000-0000-0000-0000-000000000002', 'doctor@healthcare.local', '$2b$10$OG9QfyAPA/hWfWauU7lXvemQNUnFPcVj/rIuE2zzocw7rtOKoQdfa', 'Bác sĩ Local', 'ACTIVE'),
     ('90000000-0000-0000-0000-000000000003', 'patient@healthcare.local', '$2b$10$OG9QfyAPA/hWfWauU7lXvemQNUnFPcVj/rIuE2zzocw7rtOKoQdfa', 'Bệnh nhân Local', 'ACTIVE')
-ON CONFLICT (email) DO UPDATE SET
-    password_hash = EXCLUDED.password_hash,
-    display_name = EXCLUDED.display_name,
-    status = EXCLUDED.status,
-    updated_at = CURRENT_TIMESTAMP;
+ON CONFLICT (email) DO NOTHING;
 
 INSERT INTO user_roles (user_id, role_id)
-SELECT users.id, roles.id
+SELECT u.id, r.id
 FROM (VALUES
     ('admin@healthcare.local', 'ADMIN'),
     ('doctor@healthcare.local', 'DOCTOR'),
     ('patient@healthcare.local', 'PATIENT')
-) AS local_accounts(email, role_code)
-JOIN users ON users.email = local_accounts.email
-JOIN roles ON roles.code = local_accounts.role_code
+) AS demo_accounts(email, role_code)
+JOIN users u ON u.email = demo_accounts.email
+JOIN roles r ON r.code = demo_accounts.role_code
 ON CONFLICT DO NOTHING;
 
 -- ── Specialties ───────────────────────────────────────────────────────────────
@@ -67,30 +60,48 @@ INSERT INTO doctors (id, full_name, slug, bio, photo_url, active) VALUES
 ON CONFLICT (slug) DO NOTHING;
 
 -- ── Doctor ↔ Specialty links ──────────────────────────────────────────────────
-UPDATE doctors SET user_id = '90000000-0000-0000-0000-000000000002'
-WHERE id = '30000000-0000-0000-0000-000000000001' AND user_id IS NULL;
+UPDATE doctors SET user_id = (SELECT id FROM users WHERE email = 'doctor@healthcare.local')
+WHERE slug = 'nguyen-minh-khoi' AND user_id IS NULL;
 
+-- Resolve the demo profile by its user identity. If an unrelated profile
+-- already owns the demo phone, leave it untouched instead of rebinding it.
 INSERT INTO patient_profiles (id, full_name, phone, email, user_id)
-VALUES ('90000000-0000-0000-0000-000000000004', 'Bệnh nhân Local', '0900000001', 'patient@healthcare.local', '90000000-0000-0000-0000-000000000003')
-ON CONFLICT (phone) DO UPDATE SET user_id = COALESCE(patient_profiles.user_id, EXCLUDED.user_id);
+SELECT '90000000-0000-0000-0000-000000000004', 'Bệnh nhân Local', '0900000001', 'patient@healthcare.local', u.id
+FROM users u
+WHERE u.email = 'patient@healthcare.local'
+  AND NOT EXISTS (SELECT 1 FROM patient_profiles p WHERE p.user_id = u.id)
+  AND NOT EXISTS (SELECT 1 FROM patient_profiles p WHERE p.phone = '0900000001')
+ON CONFLICT DO NOTHING;
 
-INSERT INTO doctor_specialties (id, doctor_id, specialty_id) VALUES
-    (gen_random_uuid(), '30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001'),
-    (gen_random_uuid(), '30000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002'),
-    (gen_random_uuid(), '30000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000003'),
-    (gen_random_uuid(), '30000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000005'),
-    (gen_random_uuid(), '30000000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000006'),
-    (gen_random_uuid(), '30000000-0000-0000-0000-000000000006', '10000000-0000-0000-0000-000000000007')
+INSERT INTO doctor_specialties (id, doctor_id, specialty_id)
+SELECT md5(format('doctor-specialty:%s:%s', d.id, s.id))::uuid,
+       d.id,
+       s.id
+FROM (VALUES
+    ('nguyen-minh-khoi', 'tim-mach'),
+    ('tran-thu-ha', 'than-kinh'),
+    ('le-van-duc', 'tieu-hoa'),
+    ('pham-hoang-yen', 'nhi-khoa'),
+    ('vo-thi-mai', 'san-phu-khoa'),
+    ('do-quang-huy', 'co-xuong-khop')
+) AS links(doctor_slug, specialty_slug)
+JOIN doctors d ON d.slug = links.doctor_slug
+JOIN specialties s ON s.slug = links.specialty_slug
 ON CONFLICT DO NOTHING;
 
 -- ── Doctor ↔ Branch links ─────────────────────────────────────────────────────
-INSERT INTO doctor_branches (id, doctor_id, branch_id) VALUES
-    (gen_random_uuid(), '30000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001'),
-    (gen_random_uuid(), '30000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000001'),
-    (gen_random_uuid(), '30000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000002'),
-    (gen_random_uuid(), '30000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000002'),
-    (gen_random_uuid(), '30000000-0000-0000-0000-000000000005', '20000000-0000-0000-0000-000000000001'),
-    (gen_random_uuid(), '30000000-0000-0000-0000-000000000006', '20000000-0000-0000-0000-000000000001')
+INSERT INTO doctor_branches (id, doctor_id, branch_id)
+SELECT md5(format('doctor-branch:%s:%s', d.id, b.id))::uuid, d.id, b.id
+FROM (VALUES
+    ('nguyen-minh-khoi', 'benh-vien-sai-gon-xanh'),
+    ('tran-thu-ha', 'benh-vien-sai-gon-xanh'),
+    ('le-van-duc', 'phong-kham-thao-dien'),
+    ('pham-hoang-yen', 'phong-kham-thao-dien'),
+    ('vo-thi-mai', 'benh-vien-sai-gon-xanh'),
+    ('do-quang-huy', 'benh-vien-sai-gon-xanh')
+) AS links(doctor_slug, branch_slug)
+JOIN doctors d ON d.slug = links.doctor_slug
+JOIN branches b ON b.slug = links.branch_slug
 ON CONFLICT DO NOTHING;
 
 -- ── Services ──────────────────────────────────────────────────────────────────
@@ -174,7 +185,7 @@ INSERT INTO cms_contents (
     '80000000-0000-0000-0000-000000000002',
     'careers.hero',
     'HERO',
-    '{"eyebrow":"CMS tuyển dụng","title":"Thông tin tuyển dụng đang được cập nhật","body":"Đây là vùng nội dung do quản trị viên xuất bản trực tiếp. Các vai trò cụ thể chỉ xuất hiện khi có dữ liệu được duyệt.","ctaLabel":"Liên hệ tuyển dụng","ctaHref":"/contact"}'::jsonb,
+    '{"eyebrow":"Cơ hội nghề nghiệp tại HealthCare","title":"Cùng chăm sóc người bệnh bằng năng lực và sự tử tế","body":"Khám phá môi trường làm việc đề cao an toàn, phối hợp liên chuyên môn và sự phát triển bền vững của mỗi thành viên.","ctaLabel":"Xem vị trí đang tuyển","ctaHref":"/careers#vi-tri-dang-tuyen"}'::jsonb,
     'PUBLISHED',
     1,
     '2026-08-01T08:00:00+07:00',
@@ -184,7 +195,7 @@ INSERT INTO cms_contents (
     '80000000-0000-0000-0000-000000000003',
     'careers.body',
     'RICH_TEXT',
-    '{"title":"Theo dõi thay đổi từ quản trị viên","body":"Mỗi lần xuất bản có version để đội ngũ và người dùng nhìn thấy cùng một nội dung. Bản demo không tự dựng vị trí hoặc cam kết quyền lợi khi backend chưa cung cấp dữ liệu."}'::jsonb,
+    '{"title":"Điều chúng tôi mong đợi ở đồng đội","body":"Chúng tôi trân trọng tinh thần học hỏi, giao tiếp rõ ràng và cam kết đặt an toàn của người bệnh lên hàng đầu trong mọi vai trò."}'::jsonb,
     'PUBLISHED',
     1,
     '2026-08-01T08:00:00+07:00',
@@ -257,12 +268,13 @@ ON CONFLICT (slug) DO NOTHING;
 
 -- ── Doctor schedules (Mon-Fri, morning + afternoon shifts) ────────────────────
 INSERT INTO doctor_schedules (id, doctor_id, branch_id, day_of_week, start_time, end_time, slot_duration_minutes, effective_from, effective_to, active)
-SELECT gen_random_uuid(), d.id, b.id, shifts.dow, shifts.start_time::time, shifts.end_time::time, 30, '2026-08-01', NULL, true
+SELECT md5(format('schedule:%s:%s:%s:%s:%s', d.id, b.id, shifts.dow, shifts.start_time, shifts.end_time))::uuid,
+       d.id, b.id, shifts.dow, shifts.start_time::time, shifts.end_time::time, 30, '2026-08-01', NULL, true
 FROM doctors d
 JOIN doctor_branches db ON db.doctor_id = d.id
 JOIN branches b ON b.id = db.branch_id
 CROSS JOIN (VALUES (1, '08:00:00', '11:30:00'), (2, '08:00:00', '11:30:00'), (3, '08:00:00', '11:30:00'), (4, '08:00:00', '11:30:00'), (5, '08:00:00', '11:30:00')) AS shifts(dow, start_time, end_time)
-WHERE NOT EXISTS (
+    WHERE NOT EXISTS (
     SELECT 1
     FROM doctor_schedules s
     WHERE s.doctor_id = d.id

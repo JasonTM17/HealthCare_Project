@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import type { Branch } from "../types/hospital";
 import BrandMark from "./BrandMark";
 import Icon from "./UiIcon";
+import { safeTelephoneHref } from "../lib/phone";
 
 interface NavbarProps {
   onOpenBooking: () => void;
@@ -24,20 +25,58 @@ const NAV_LINKS = [
 
 const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, onOpenAiTriage, branches = [] }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
+  const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
   const pathname = usePathname();
   const emergencyBranch = branches.find((branch) => Boolean(branch.emergencyHotline));
   const contactBranch = branches.find((branch) => Boolean(branch.phone));
   const contactPhone = emergencyBranch?.emergencyHotline ?? contactBranch?.phone;
+  const contactHref = safeTelephoneHref(contactPhone);
 
   const closeMobileMenu = (): void => setMobileMenuOpen(false);
 
   useEffect(() => {
     if (!mobileMenuOpen) return;
-    const closeOnEscape = (event: KeyboardEvent): void => {
-      if (event.key === "Escape") setMobileMenuOpen(false);
+    const menu = mobileMenuRef.current;
+    if (!menu) return;
+
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const menuButton = mobileMenuButtonRef.current;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusableSelector = "a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex=\"-1\"])";
+    const getFocusable = (): HTMLElement[] => Array.from(menu.querySelectorAll<HTMLElement>(focusableSelector));
+    const focusFrame = window.requestAnimationFrame(() => getFocusable()[0]?.focus());
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMobileMenuOpen(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = getFocusable();
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      if (previouslyFocused?.isConnected) previouslyFocused.focus();
+      else menuButton?.focus();
+    };
   }, [mobileMenuOpen]);
 
   return (
@@ -46,8 +85,8 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, onOpenAiTriage, branches
       <div className="utility-bar">
         <div className="utility-bar__inner">
           <div className="utility-bar__left">
-            {contactPhone ? (
-              <a className="utility-hotline" href={`tel:${contactPhone.replace(/\s/g, "")}`}>
+            {contactHref ? (
+              <a className="utility-hotline" href={contactHref}>
                 <Icon name="phone" size={15} />
                 <span>{emergencyBranch ? "Cấp cứu" : "Hotline"}</span>
                 <strong>{contactPhone}</strong>
@@ -100,6 +139,7 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, onOpenAiTriage, branches
               aria-label={mobileMenuOpen ? "Đóng menu" : "Mở menu"}
               className="nav-menu-button"
               onClick={() => setMobileMenuOpen((open) => !open)}
+              ref={mobileMenuButtonRef}
               type="button"
             >
               <Icon name={mobileMenuOpen ? "x" : "menu"} size={22} />
@@ -108,7 +148,7 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, onOpenAiTriage, branches
         </div>
 
         {mobileMenuOpen ? (
-          <div className="mobile-menu" id="mobile-navigation">
+          <div aria-label="Menu điều hướng" aria-modal="true" className="mobile-menu" id="mobile-navigation" ref={mobileMenuRef} role="dialog">
             <nav aria-label="Điều hướng trên thiết bị nhỏ">
               {NAV_LINKS.map((link) => {
                 const isActive = pathname === link.href || pathname.startsWith(`${link.href}/`);
