@@ -20,7 +20,14 @@ because this repository does not include an SMS provider; use `123456` only in
 the local demo. Set it to `false` before any non-demo deployment and connect a
 real OTP delivery provider.
 
-The local stack exposes frontend on port 3000, backend on 8080, AI service on 8000, PostgreSQL on host port 5434 (container port 5432), Redis on 6379, and MinIO on 9000 (console 9001).
+The local stack exposes frontend on port 3000, backend on 8080, AI service on
+8000, PostgreSQL on host port 5434 (container port 5432), Redis on 6379, and
+MinIO on 9000 (console 9001). Override `FRONTEND_HOST_PORT`,
+`BACKEND_HOST_PORT`, `AI_SERVICE_HOST_PORT`, `POSTGRES_HOST_PORT`,
+`REDIS_HOST_PORT`, `MINIO_API_HOST_PORT`, and `MINIO_CONSOLE_HOST_PORT` for an
+isolated local run when another worktree or stack already owns the defaults.
+Compose container and volume names stay project-scoped; do not add fixed
+`container_name` values when collecting runtime proof from multiple worktrees.
 
 The local seed includes the fictional ADMIN fixture `admin@healthcare.local`
 with the documented local demo password from `docs/LOCAL_RUNBOOK.md` so the CMS
