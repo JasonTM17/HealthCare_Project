@@ -30,7 +30,7 @@ function runPowerShell(scriptPath) {
   });
 }
 
-test("local MVP provenance helpers fail closed on dirty, invalid, and mismatched inputs", async () => {
+test("local MVP provenance helpers fail closed on dirty, identity drift, invalid, and mismatched inputs", async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), "healthcare-provenance-"));
   try {
     const helperBin = path.join(tempRoot, "bin");
@@ -38,9 +38,12 @@ test("local MVP provenance helpers fail closed on dirty, invalid, and mismatched
     const runner = path.join(tempRoot, "runner.ps1");
     const fakeGit = path.join(helperBin, "git.ps1");
     const fakeDocker = path.join(helperBin, "docker.ps1");
+    const archiveSource = path.join(helperBin, "archive-source");
 
     await mkdir(helperBin, { recursive: true });
     await mkdir(repo, { recursive: true });
+    await mkdir(path.join(archiveSource, "infrastructure"), { recursive: true });
+    await writeFile(path.join(archiveSource, "infrastructure", "docker-compose.yml"), "services: {}\n", "utf8");
 
     await writeFile(
       fakeGit,
@@ -56,6 +59,7 @@ switch ($RemainingArgs[2]) {
         switch ($env:FAKE_GIT_MODE) {
             'invalid' { 'not-a-sha'; exit 0 }
             'fail' { exit 1 }
+            'switched' { 'fedcba9876543210fedcba9876543210fedcba98'; exit 0 }
             default { '0123456789abcdef0123456789abcdef01234567'; exit 0 }
         }
     }
@@ -65,6 +69,15 @@ switch ($RemainingArgs[2]) {
             'fail' { exit 1 }
             default { exit 0 }
         }
+    }
+    'archive' {
+        $outputOption = $RemainingArgs | Where-Object { $_ -like '--output=*' } | Select-Object -First 1
+        if ([string]::IsNullOrWhiteSpace($outputOption)) { exit 7 }
+        if ($RemainingArgs[-1] -ne $env:FAKE_EXPECTED_REVISION) { exit 6 }
+        $archivePath = $outputOption.Substring('--output='.Length)
+        $archiveSource = Join-Path $PSScriptRoot 'archive-source'
+        Compress-Archive -Path (Join-Path $archiveSource '*') -DestinationPath $archivePath -Force
+        exit 0
     }
     default {
         exit 8
@@ -135,6 +148,21 @@ Assert-CleanBuildContext -RepositoryRoot $repoRoot -GitExecutable $gitExe
 
 $env:FAKE_GIT_MODE = 'dirty'
 Expect-Throws -Action { Assert-CleanBuildContext -RepositoryRoot $repoRoot -GitExecutable $gitExe } -FailureMessage 'Assert-CleanBuildContext should fail on dirty output'
+
+$env:FAKE_GIT_MODE = 'valid'
+$env:FAKE_EXPECTED_REVISION = $revision
+$snapshotRoot = New-ImmutableBuildSnapshot -RepositoryRoot $repoRoot -Revision $revision -GitExecutable $gitExe
+if (-not (Test-Path -LiteralPath (Join-Path $snapshotRoot 'infrastructure/docker-compose.yml') -PathType Leaf)) {
+    throw 'New-ImmutableBuildSnapshot should materialize the archived source tree'
+}
+Remove-ImmutableBuildSnapshot -RepositoryRoot $repoRoot -SnapshotRoot $snapshotRoot
+if (Test-Path -LiteralPath $snapshotRoot) {
+    throw 'Remove-ImmutableBuildSnapshot should remove only its generated snapshot'
+}
+Expect-Throws -Action { Remove-ImmutableBuildSnapshot -RepositoryRoot $repoRoot -SnapshotRoot $repoRoot } -FailureMessage 'Remove-ImmutableBuildSnapshot should reject an arbitrary repository path'
+
+$env:FAKE_GIT_MODE = 'switched'
+Expect-Throws -Action { Assert-SourceRevisionMatches -RepositoryRoot $repoRoot -ExpectedRevision $revision -GitExecutable $gitExe } -FailureMessage 'Assert-SourceRevisionMatches should fail when clean HEAD changes'
 
 Assert-ExpectedRevision -Revision $revision
 Expect-Throws -Action { Assert-ExpectedRevision -Revision 'unknown' } -FailureMessage 'Assert-ExpectedRevision should fail on malformed revisions'

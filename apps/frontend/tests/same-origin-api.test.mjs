@@ -37,12 +37,14 @@ test("Compose routes same-origin frontend traffic through the backend service", 
   assert.match(nextConfig, /destination:\s*`\$\{backendOrigin\}\/api\/v1\/:path\*`/);
 });
 
-test("local MVP helper binds rebuilt application images to the Git source revision", async () => {
-  const [compose, backendDockerfile, frontendDockerfile, aiDockerfile, helper, verifier, provenance] = await Promise.all([
+test("local MVP helper binds rebuilt application images to an immutable Git source revision", async () => {
+  const [compose, backendDockerfile, frontendDockerfile, aiDockerfile, backendDockerignore, aiDockerignore, helper, verifier, provenance] = await Promise.all([
     read("../../infrastructure/docker-compose.yml"),
     read("../../apps/backend/Dockerfile"),
     read("Dockerfile"),
     read("../../apps/ai-service/Dockerfile"),
+    read("../../apps/backend/.dockerignore"),
+    read("../../apps/ai-service/.dockerignore"),
     read("../../scripts/start-and-verify-local-mvp.ps1"),
     read("../../scripts/verify-local-mvp.ps1"),
     read("../../scripts/local-mvp-provenance.ps1"),
@@ -57,12 +59,25 @@ test("local MVP helper binds rebuilt application images to the Git source revisi
   assert.match(provenance, /function Assert-CleanBuildContext/);
   assert.match(provenance, /function Get-SourceRevision/);
   assert.match(provenance, /function Assert-ContainerRevision/);
+  assert.match(provenance, /function New-ImmutableBuildSnapshot/);
+  assert.match(provenance, /function Remove-ImmutableBuildSnapshot/);
+  assert.match(provenance, /function Assert-SourceRevisionMatches/);
   assert.match(provenance, /throw "Build context must be clean before building the image/);
   assert.match(helper, /Assert-CleanBuildContext -RepositoryRoot \$repositoryRoot/);
   assert.match(helper, /Assert-ExpectedRevision -Revision \$buildRevision/);
+  assert.match(helper, /New-ImmutableBuildSnapshot -RepositoryRoot \$repositoryRoot -Revision \$buildRevision/);
+  assert.match(helper, /Assert-SourceRevisionMatches -RepositoryRoot \$repositoryRoot -ExpectedRevision \$buildRevision/);
   assert.match(helper, /\$env:BUILD_VCS_REF = \$buildRevision/);
   assert.match(helper, /\$verifierParameters = @\{ DockerPath = \$DockerPath; ExpectedRevision = \$buildRevision \}/);
   assert.match(verifier, /Assert-ExpectedRevision -Revision \$ExpectedRevision/);
   assert.match(verifier, /Assert-ContainerRevision -ContainerName \$container -Revision \$ExpectedRevision -DockerExecutable \$DockerPath/);
   assert.match(verifier, /healthcare-backend", "healthcare-frontend", "healthcare-ai-service/);
+  for (const dockerignore of [backendDockerignore, aiDockerignore]) {
+    assert.match(dockerignore, /^\.git$/m);
+    assert.match(dockerignore, /^\.env$/m);
+    assert.match(dockerignore, /^\*\.key$/m);
+    assert.match(dockerignore, /^\*\.pem$/m);
+    assert.match(dockerignore, /^\*\*\/\*\.key$/m);
+    assert.match(dockerignore, /^\*\*\/\*\.pem$/m);
+  }
 });
