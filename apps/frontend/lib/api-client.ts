@@ -250,14 +250,27 @@ interface SpecialtyRecommendationResponse {
 
 const AI_SPECIALTY_RECOMMENDATION_PATH = "/ai/specialty-recommendation";
 const AI_URGENCY_LEVELS = ["EMERGENCY", "HIGH", "NORMAL"] as const;
+const AI_CITATION_SOURCE_TYPES = ["specialty", "doctor", "service", "package", "article", "faq"] as const;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const AI_CITATION_ID_PATTERN = /^[A-Za-z0-9._:-]+$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function isAiTriageCitation(value: unknown): value is AiTriageCitation {
-  return typeof value === "string" || isRecord(value);
+  if (!isRecord(value)) return false;
+  const keys = Object.keys(value);
+  return (
+    keys.length === 3 &&
+    keys.every((key) => key === "source_type" || key === "source_id" || key === "title") &&
+    typeof value.source_type === "string" &&
+    (AI_CITATION_SOURCE_TYPES as readonly string[]).includes(value.source_type) &&
+    typeof value.source_id === "string" &&
+    AI_CITATION_ID_PATTERN.test(value.source_id) &&
+    typeof value.title === "string" &&
+    value.title.trim().length > 0
+  );
 }
 
 function isAiTriageProvenance(value: unknown): value is AiTriageProvenance {

@@ -54,32 +54,16 @@ function classifyTriageError(error: unknown): TriageErrorKind {
   return "unavailable";
 }
 
-function scalarLabel(value: Record<string, unknown>): string {
-  const preferredKeys = ["title", "label", "name", "source", "citation", "text"];
-  for (const key of preferredKeys) {
-    const candidate = value[key];
-    if (typeof candidate === "string" && candidate.trim()) return candidate;
-  }
-
-  const scalarEntries = Object.entries(value).filter(
-    ([key, candidate]) =>
-      key !== "url" &&
-      (typeof candidate === "string" ||
-        typeof candidate === "number" ||
-        typeof candidate === "boolean"),
-  );
-  return scalarEntries.length > 0
-    ? scalarEntries.map(([key, candidate]) => `${key}: ${String(candidate)}`).join(" · ")
-    : "Nguồn tham khảo";
-}
-
-function citationDetails(citation: AiTriageCitation): { label: string; href?: string } {
-  if (typeof citation === "string") return { label: citation };
-
-  const href = typeof citation.url === "string" && /^https?:\/\//i.test(citation.url)
-    ? citation.url
-    : undefined;
-  return { label: scalarLabel(citation), href };
+function citationDetails(citation: AiTriageCitation): string {
+  const sourceLabel: Record<AiTriageCitation["source_type"], string> = {
+    specialty: "Chuyên khoa",
+    doctor: "Bác sĩ",
+    service: "Dịch vụ",
+    package: "Gói khám",
+    article: "Bài viết",
+    faq: "FAQ",
+  };
+  return `${sourceLabel[citation.source_type]} · ${citation.title}`;
 }
 
 export default function AiTriageModal({
@@ -292,14 +276,9 @@ export default function AiTriageModal({
                   <p className="font-bold text-brand-900">Nguồn tham khảo</p>
                   <ul className="mt-1 list-disc space-y-1 pl-4">
                     {result.citations.map((citation, index) => {
-                      const details = citationDetails(citation);
                       return (
-                        <li key={`${details.label}-${index}`}>
-                          {details.href ? (
-                            <a className="underline underline-offset-2" href={details.href} rel="noreferrer" target="_blank">
-                              {details.label}
-                            </a>
-                          ) : details.label}
+                        <li key={`${citation.source_type}-${citation.source_id}-${index}`}>
+                          {citationDetails(citation)}
                         </li>
                       );
                     })}
