@@ -12,9 +12,19 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class BookingRateLimiterTest {
+
+    @Test
+    void disabledLimiterSkipsRedisAndFallbackCounters() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+
+        new BookingRateLimiter(redisTemplate, false).check("hold", null, "0907000199");
+
+        verifyNoInteractions(redisTemplate);
+    }
 
     @Test
     void removesRedisCountersWhenExpiryCannotBeEstablished() {
