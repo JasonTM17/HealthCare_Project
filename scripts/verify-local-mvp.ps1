@@ -5,7 +5,9 @@ param(
     [string]$DemoPassword = "LocalDemo!2026",
     [switch]$RequireClinicalFlow,
     [string]$ExpectedRevision,
-    [string]$DockerPath
+    [string]$DockerPath,
+    [string]$ComposeFile,
+    [string]$EnvFile
 )
 
 $ErrorActionPreference = "Stop"
@@ -40,6 +42,34 @@ function Get-HospitalBusinessDate {
     return [TimeZoneInfo]::ConvertTime([DateTimeOffset]::UtcNow, $hospitalTimeZone).Date
 }
 
+function Get-ComposeServiceContainerId {
+    param(
+        [Parameter(Mandatory)] [string]$ServiceName
+    )
+
+    if ([string]::IsNullOrWhiteSpace($ComposeFile)) {
+        throw "ComposeFile is required to verify image provenance without fixed container names"
+    }
+
+    $composeArgs = @("compose")
+    if (-not [string]::IsNullOrWhiteSpace($EnvFile)) {
+        $composeArgs += @("--env-file", $EnvFile)
+    }
+    $composeArgs += @("-f", $ComposeFile, "ps", "-q", $ServiceName)
+
+    $containerOutput = & $DockerPath @composeArgs 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Unable to resolve container for Compose service $ServiceName"
+    }
+
+    $containerId = $containerOutput | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1
+    if ([string]::IsNullOrWhiteSpace($containerId)) {
+        throw "Compose service $ServiceName has no running container"
+    }
+
+    return $containerId.ToString().Trim()
+}
+
 if ($ExpectedRevision) {
     if (-not $DockerPath) {
         $docker = Get-Command docker -ErrorAction SilentlyContinue
@@ -48,7 +78,8 @@ if ($ExpectedRevision) {
     }
 
     Assert-ExpectedRevision -Revision $ExpectedRevision
-    foreach ($container in @("healthcare-backend", "healthcare-frontend", "healthcare-ai-service")) {
+    foreach ($service in @("backend", "frontend", "ai-service")) {
+        $container = Get-ComposeServiceContainerId -ServiceName $service
         Assert-ContainerRevision -ContainerName $container -Revision $ExpectedRevision -DockerExecutable $DockerPath
     }
     $checks.Add("provenance:backend+frontend+ai-service")

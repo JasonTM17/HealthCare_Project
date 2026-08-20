@@ -28,7 +28,13 @@ test("Compose routes same-origin frontend traffic through the backend service", 
 
   assert.match(compose, /args:\s+BACKEND_INTERNAL_URL:\s+http:\/\/backend:8080/);
   assert.match(compose, /BACKEND_INTERNAL_URL:\s+http:\/\/backend:8080/);
+  assert.match(compose, /AI_SERVICE_URL:\s+http:\/\/ai-service:8000/);
+  assert.doesNotMatch(compose, /container_name:/);
+  assert.doesNotMatch(compose, /healthcare-ai-service:8000/);
   assert.doesNotMatch(compose, /NEXT_PUBLIC_API_BASE_URL:\s+http:\/\/localhost:8080/);
+  assert.match(compose, /\$\{BACKEND_HOST_PORT:-8080\}:8080/);
+  assert.match(compose, /\$\{FRONTEND_HOST_PORT:-3000\}:3000/);
+  assert.match(compose, /127\.0\.0\.1:\$\{AI_SERVICE_HOST_PORT:-8000\}:8000/);
   assert.match(dockerfile, /ARG BACKEND_INTERNAL_URL=http:\/\/backend:8080/);
   assert.match(dockerfile, /ENV BACKEND_INTERNAL_URL=\$\{BACKEND_INTERNAL_URL\}/);
   assert.match(dockerignore, /^node_modules$/m);
@@ -68,11 +74,15 @@ test("local MVP helper binds rebuilt application images to an immutable Git sour
   assert.match(helper, /New-ImmutableBuildSnapshot -RepositoryRoot \$repositoryRoot -Revision \$buildRevision/);
   assert.match(helper, /Assert-SourceRevisionMatches -RepositoryRoot \$repositoryRoot -ExpectedRevision \$buildRevision/);
   assert.match(helper, /\$env:BUILD_VCS_REF = \$buildRevision/);
+  assert.match(helper, /compose --env-file \$EnvFile -f \$composeFile ps -q local-seed/);
+  assert.doesNotMatch(helper, /wait healthcare-local-seed/);
   assert.match(helper, /\}\s*finally\s*\{\s*try\s*\{[\s\S]*?Remove-ImmutableBuildSnapshot[\s\S]*?\}\s*finally\s*\{\s*if \(\$hadBuildRevision\)/);
-  assert.match(helper, /\$verifierParameters = @\{ DockerPath = \$DockerPath; ExpectedRevision = \$buildRevision \}/);
+  assert.match(helper, /\$verifierParameters = @\{ DockerPath = \$DockerPath; ExpectedRevision = \$buildRevision; ComposeFile = \$composeFile; EnvFile = \$EnvFile \}/);
   assert.match(verifier, /Assert-ExpectedRevision -Revision \$ExpectedRevision/);
+  assert.match(verifier, /function Get-ComposeServiceContainerId/);
   assert.match(verifier, /Assert-ContainerRevision -ContainerName \$container -Revision \$ExpectedRevision -DockerExecutable \$DockerPath/);
-  assert.match(verifier, /healthcare-backend", "healthcare-frontend", "healthcare-ai-service/);
+  assert.match(verifier, /foreach \(\$service in @\("backend", "frontend", "ai-service"\)\)/);
+  assert.doesNotMatch(verifier, /healthcare-backend", "healthcare-frontend", "healthcare-ai-service/);
   for (const dockerignore of [backendDockerignore, aiDockerignore]) {
     assert.match(dockerignore, /^\.git$/m);
     assert.match(dockerignore, /^\.env$/m);

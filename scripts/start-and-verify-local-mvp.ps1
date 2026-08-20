@@ -120,7 +120,14 @@ try {
     Assert-CleanBuildContext -RepositoryRoot $repositoryRoot
     Assert-SourceRevisionMatches -RepositoryRoot $repositoryRoot -ExpectedRevision $buildRevision
 
-    $seedExit = (& $DockerPath wait healthcare-local-seed 2>&1 | Select-Object -Last 1).Trim()
+    $seedContainerOutput = & $DockerPath compose --env-file $EnvFile -f $composeFile ps -q local-seed 2>&1
+    $seedContainerExit = $LASTEXITCODE
+    $seedContainerId = ($seedContainerOutput | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1)
+    if ($seedContainerExit -ne 0 -or [string]::IsNullOrWhiteSpace($seedContainerId)) {
+        throw "Unable to resolve the local-seed container for the current Compose project"
+    }
+
+    $seedExit = (& $DockerPath wait $seedContainerId 2>&1 | Select-Object -Last 1).Trim()
     if ($seedExit -ne "0") {
         & $DockerPath compose --env-file $EnvFile -f $composeFile logs --tail 120 local-seed
         throw "Local seed container exited with code $seedExit"
@@ -129,7 +136,7 @@ try {
     $lastError = $null
     for ($attempt = 1; $attempt -le 45; $attempt++) {
         try {
-            $verifierParameters = @{ DockerPath = $DockerPath; ExpectedRevision = $buildRevision }
+            $verifierParameters = @{ DockerPath = $DockerPath; ExpectedRevision = $buildRevision; ComposeFile = $composeFile; EnvFile = $EnvFile }
             & $verifier @verifierParameters
             if ($LASTEXITCODE -ne 0) { throw "Verifier returned exit code $LASTEXITCODE" }
             return
