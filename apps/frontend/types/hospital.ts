@@ -215,7 +215,11 @@ export interface DoctorPortalAppointment extends PortalAppointmentBase {
 
 export type PortalAppointment = PatientPortalAppointment | DoctorPortalAppointment;
 
-export type AiTriageCitation = string | Record<string, unknown>;
+export interface AiTriageCitation {
+  source_type: "specialty" | "doctor" | "service" | "package" | "article" | "faq";
+  source_id: string;
+  title: string;
+}
 
 export type AiTriageProvenance = string | Record<string, unknown>;
 

@@ -82,4 +82,36 @@ class AiControllerTest {
             .containsEntry("specialty_resolution", "UNRESOLVED")
             .doesNotContainKeys("recommended_specialty_id", "recommended_specialty_slug");
     }
+
+    @Test
+    void exposesOnlyIdentityOnlyCitationsFromTheAiBoundary() {
+        AiService aiService = mock(AiService.class);
+        SpecialtyRepository specialtyRepository = mock(SpecialtyRepository.class);
+        UUID id = UUID.randomUUID();
+        Specialty specialty = new Specialty();
+        specialty.setId(id);
+        specialty.setName("Tim mạch");
+        specialty.setSlug("tim-mach");
+        specialty.setActive(true);
+        when(aiService.recommendSpecialty(any())).thenReturn(Map.of(
+            "recommended_specialty", "Tim mạch",
+            "citations", List.of(
+                Map.of("source_type", "specialty", "source_id", "tim-mach", "title", "Tim mạch"),
+                Map.of("source_type", "article", "source_id", "news-1", "title", "Tin sức khỏe", "url", "https://external.example"),
+                Map.of("label", "provider supplied label", "url", "https://external.example"),
+                "provider supplied string"
+            )
+        ));
+        when(specialtyRepository.findByActiveTrue()).thenReturn(List.of(specialty));
+
+        Map<String, Object> body = new AiController(aiService, specialtyRepository)
+            .specialtyRecommendation(new AiController.AiRequest("đau ngực"))
+            .getBody();
+
+        assertThat(body.get("citations")).isEqualTo(List.of(
+            Map.of("source_type", "specialty", "source_id", "tim-mach", "title", "Tim mạch"),
+            Map.of("source_type", "article", "source_id", "news-1", "title", "Tin sức khỏe")
+        ));
+        assertThat(body.get("citations").toString()).doesNotContain("url", "external.example", "provider supplied");
+    }
 }
