@@ -7,8 +7,14 @@ const readRepositoryFile = (relativePath) => readFile(new URL(`../../../${relati
 test("clinical local verifier binds confirmation and terminal status to the same appointment", async () => {
   const verifier = await readRepositoryFile("scripts/verify-local-mvp.ps1");
 
+  assert.match(verifier, /referenceId -eq \$confirmed\.id/);
   assert.match(verifier, /eventType -eq "APPOINTMENT_CONFIRMED"/);
   assert.match(verifier, /SE Asia Standard Time/);
+  assert.match(
+    verifier,
+    /\$completedAppointmentViews = @\([\s\S]*?\$ApiBaseUrl\/patient\/appointments\?size=100[\s\S]*?\$ApiBaseUrl\/doctor\/appointments\?date=\$selectedDate&size=100[\s\S]*?\$ApiBaseUrl\/admin\/appointments\?date=\$selectedDate&size=100/,
+  );
+  assert.match(verifier, /completedAppointment\.id -ne \$doctorAppointment\.id/);
   assert.match(verifier, /completedAppointment\.status -ne "COMPLETED"/);
   assert.match(verifier, /clinical:check-in\+in-progress\+record\+completed\+own-patient-visible/);
 });
