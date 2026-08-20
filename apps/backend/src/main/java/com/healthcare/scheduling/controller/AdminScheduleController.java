@@ -1,6 +1,5 @@
 package com.healthcare.scheduling.controller;
 
-import com.healthcare.scheduling.entity.DoctorSchedule;
 import com.healthcare.scheduling.dto.DoctorScheduleRequest;
 import com.healthcare.scheduling.dto.DoctorScheduleResponse;
 import com.healthcare.scheduling.dto.DoctorScheduleExceptionRequest;
@@ -69,18 +68,18 @@ public class AdminScheduleController {
     }
 
     @PostMapping("/doctors/{doctorId}/branches/{branchId}")
-    public ResponseEntity<DoctorSchedule> create(
+    public ResponseEntity<DoctorScheduleResponse> create(
             @PathVariable UUID doctorId,
             @PathVariable UUID branchId,
             @Valid @RequestBody DoctorScheduleRequest request) {
-        return ResponseEntity.ok(scheduleService.createSchedule(doctorId, branchId, request));
+        return ResponseEntity.ok(DoctorScheduleResponse.from(scheduleService.createSchedule(doctorId, branchId, request)));
     }
 
     @PutMapping("/{scheduleId}")
-    public ResponseEntity<DoctorSchedule> update(
+    public ResponseEntity<DoctorScheduleResponse> update(
             @PathVariable UUID scheduleId,
             @Valid @RequestBody DoctorScheduleRequest request) {
-        return ResponseEntity.ok(scheduleService.updateSchedule(scheduleId, request));
+        return ResponseEntity.ok(DoctorScheduleResponse.from(scheduleService.updateSchedule(scheduleId, request)));
     }
 
     @DeleteMapping("/{scheduleId}")
