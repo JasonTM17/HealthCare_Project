@@ -61,6 +61,8 @@ services:
     build:
       context: ../apps/backend
       dockerfile: Dockerfile
+      args:
+        VCS_REF: ${BUILD_VCS_REF:-unknown}
     container_name: healthcare-backend
     restart: unless-stopped
     environment:
@@ -141,6 +143,7 @@ services:
       dockerfile: Dockerfile
       args:
         BACKEND_INTERNAL_URL: http://backend:8080
+        VCS_REF: ${BUILD_VCS_REF:-unknown}
     container_name: healthcare-frontend
     restart: unless-stopped
     environment:
@@ -158,6 +161,8 @@ services:
     build:
       context: ../apps/ai-service
       dockerfile: Dockerfile
+      args:
+        VCS_REF: ${BUILD_VCS_REF:-unknown}
     container_name: healthcare-ai-service
     restart: unless-stopped
     environment:
