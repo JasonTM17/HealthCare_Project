@@ -24,6 +24,8 @@ out/
 dist/
 build/
 *.tsbuildinfo
+apps/frontend/playwright-report/
+apps/frontend/test-results/
 
 # Python
 .venv/
