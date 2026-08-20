@@ -76,14 +76,19 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
     );
 
     @EntityGraph(attributePaths = {"patient", "doctor", "specialty", "branch", "medicalPackage"})
-    @Query("""
-        select a from Appointment a
-        where (:appointmentDate is null or a.appointmentDate = :appointmentDate)
-          and (:status is null or a.status = :status)
-    """)
-    Page<Appointment> findAdminAppointments(
-        @Param("appointmentDate") LocalDate appointmentDate,
-        @Param("status") com.healthcare.appointment.entity.AppointmentStatus status,
+    @Query("select a from Appointment a")
+    Page<Appointment> findAllForAdmin(Pageable pageable);
+
+    @EntityGraph(attributePaths = {"patient", "doctor", "specialty", "branch", "medicalPackage"})
+    Page<Appointment> findByAppointmentDate(LocalDate appointmentDate, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"patient", "doctor", "specialty", "branch", "medicalPackage"})
+    Page<Appointment> findByStatus(com.healthcare.appointment.entity.AppointmentStatus status, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"patient", "doctor", "specialty", "branch", "medicalPackage"})
+    Page<Appointment> findByAppointmentDateAndStatus(
+        LocalDate appointmentDate,
+        com.healthcare.appointment.entity.AppointmentStatus status,
         Pageable pageable
     );
 
