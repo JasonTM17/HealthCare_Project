@@ -19,6 +19,13 @@ test("homepage exposes patient-first navigation and appointment intents", async 
   assert.match(page, /className="hero-trust"/);
   assert.equal((page.match(/className="hero-actions"/g) ?? []).length, 1);
   assert.equal((page.match(/className="hero-trust"/g) ?? []).length, 1);
+  const aiCareRail = page.slice(
+    page.indexOf('<strong>Trợ lý triệu chứng</strong>') - 240,
+    page.indexOf('<strong>Trợ lý triệu chứng</strong>') + 240,
+  );
+  assert.match(aiCareRail, /care-link--accent/);
+  assert.match(aiCareRail, /setIsAiTriageOpen\(true\)/);
+  assert.doesNotMatch(aiCareRail, /href="\/doctors"/);
   assert.match(page, /href="\/doctors"/);
   assert.match(page, /className="care-links"/);
   assert.match(page, /className="ai-navigator-fab"/);

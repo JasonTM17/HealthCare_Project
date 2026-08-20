@@ -547,14 +547,14 @@ export default function Home(): React.ReactElement {
                 </span>
                 <Icon name="chevron-right" size={18} />
               </button>
-              <Link className="care-link" href="/doctors">
-                <span className="care-link__icon"><Icon name="user" size={21} /></span>
+              <button className="care-link care-link--accent" onClick={() => setIsAiTriageOpen(true)} type="button">
+                <span className="care-link__icon"><Icon name="sparkles" size={21} /></span>
                 <span>
                   <strong>Trợ lý triệu chứng</strong>
-                    <small>Gợi ý theo triệu chứng · cần đăng nhập</small>
+                  <small>Gợi ý theo triệu chứng · cần đăng nhập</small>
                 </span>
                 <Icon name="chevron-right" size={18} />
-              </Link>
+              </button>
               <Link className="care-link" href="#packages">
                 <span className="care-link__icon"><Icon name="layers" size={21} /></span>
                 <span>
