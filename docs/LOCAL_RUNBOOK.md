@@ -22,20 +22,19 @@ docker compose -f infrastructure/docker-compose.yml config --quiet
 docker compose -f infrastructure/docker-compose.yml up --build
 ```
 
-Alternatively, the Windows helper prepares the git-ignored local `.env` for
-this disposable full-MVP run (generating missing placeholder JWT/AI/RAG secrets
-and enabling protected catalog ingestion), builds the stack, waits for the
-idempotent seed, forces an ADMIN-authorized RAG catalog sync, and runs the
-automated patient/doctor/admin booking smoke flow. It does not change Compose
-defaults: ordinary Compose runs still keep RAG ingestion disabled unless the
-environment explicitly opts in.
+Alternatively, when `.env` is absent, the Windows helper creates a git-ignored
+disposable full-MVP environment with generated JWT/AI/RAG secrets, then builds
+the stack, waits for the idempotent seed, forces an ADMIN-authorized RAG catalog
+sync, and runs the automated patient/doctor/admin booking smoke flow. It does
+not alter an existing `.env`: the existing file must explicitly enable RAG and
+contain a nonempty RAG token. Compose defaults remain fail-closed.
 
 ```powershell
 .\scripts\start-and-verify-local-mvp.ps1
 ```
 
-To prepare or repair only the local `.env` without building or restarting
-containers, use:
+To explicitly prepare or repair an existing local `.env` without building or
+restarting containers, use:
 
 ```powershell
 .\scripts\start-and-verify-local-mvp.ps1 -PrepareOnly
