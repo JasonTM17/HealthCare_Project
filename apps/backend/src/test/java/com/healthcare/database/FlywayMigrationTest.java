@@ -89,6 +89,13 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
             String.class
         )).isEqualTo("Đồng hành cùng sức khỏe gia đình");
         assertThat(jdbcTemplate.queryForObject(
+            "select count(*) from cms_content_changes " +
+                "where slot_key in ('homepage.hero','homepage.body','careers.hero','careers.body','search.hero') " +
+                "and content_version = 1 and published = true and public_event = true " +
+                "and actor_email = 'seed@healthcare.local'",
+            Integer.class
+        )).isEqualTo(5);
+        assertThat(jdbcTemplate.queryForObject(
             "select count(*) from cms_contents where payload::text ilike '%patient%'",
             Integer.class
         )).isZero();
