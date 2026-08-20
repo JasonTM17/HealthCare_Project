@@ -42,6 +42,19 @@ function New-DisposableSecret([int]$ByteCount) {
     return [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes($ByteCount))
 }
 
+function Get-SourceRevision {
+    $git = Get-Command git -ErrorAction SilentlyContinue
+    if (-not $git) { return "unknown" }
+
+    $revisionOutput = & $git.Source -C $repositoryRoot rev-parse HEAD 2>$null
+    $gitExitCode = $LASTEXITCODE
+    if ($gitExitCode -ne 0 -or -not $revisionOutput) { return "unknown" }
+
+    $revision = ($revisionOutput | Select-Object -First 1).Trim()
+    if ($revision -notmatch '^[0-9a-f]{40}$') { return "unknown" }
+    return $revision
+}
+
 if (-not (Test-Path -LiteralPath $DockerPath -PathType Leaf)) {
     $command = Get-Command docker -ErrorAction SilentlyContinue
     if (-not $command) { throw "Docker CLI was not found" }
@@ -95,6 +108,11 @@ if ($prepareEnvironment) {
 
 if ($PrepareOnly) { return }
 
+$buildRevision = Get-SourceRevision
+$previousBuildRevision = $env:BUILD_VCS_REF
+$hadBuildRevision = Test-Path Env:\BUILD_VCS_REF
+$env:BUILD_VCS_REF = $buildRevision
+
 Push-Location $repositoryRoot
 try {
     & $DockerPath compose --env-file $EnvFile -f $composeFile config --quiet
@@ -112,7 +130,9 @@ try {
     $lastError = $null
     for ($attempt = 1; $attempt -le 45; $attempt++) {
         try {
-            & $verifier
+            $verifierParameters = @{ DockerPath = $DockerPath }
+            if ($buildRevision -ne "unknown") { $verifierParameters.ExpectedRevision = $buildRevision }
+            & $verifier @verifierParameters
             if ($LASTEXITCODE -ne 0) { throw "Verifier returned exit code $LASTEXITCODE" }
             return
         } catch {
@@ -123,4 +143,9 @@ try {
     throw "Stack did not pass verification within 90 seconds: $($lastError.Exception.Message)"
 } finally {
     Pop-Location
+    if ($hadBuildRevision) {
+        $env:BUILD_VCS_REF = $previousBuildRevision
+    } else {
+        Remove-Item Env:\BUILD_VCS_REF -ErrorAction SilentlyContinue
+    }
 }
