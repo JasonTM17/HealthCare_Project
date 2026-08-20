@@ -73,7 +73,7 @@ jobs:
 
   frontend:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
@@ -98,6 +98,12 @@ jobs:
       - name: Build
         working-directory: apps/frontend
         run: npm run build
+      - name: Install Playwright Chromium
+        working-directory: apps/frontend
+        run: npx playwright install --with-deps chromium
+      - name: Browser test CMS realtime
+        working-directory: apps/frontend
+        run: npm run test:e2e
       - name: Upload frontend build artifact
         if: success()
         uses: actions/upload-artifact@v4
