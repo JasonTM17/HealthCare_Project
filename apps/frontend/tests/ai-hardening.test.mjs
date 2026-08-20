@@ -27,10 +27,11 @@ test("booking and AI dialogs use generated brand tokens with visible focus", asy
 });
 
 test("AI triage uses the authenticated backend contract without a local answer", async () => {
-  const [apiClient, legacyApi, aiModal] = await Promise.all([
+  const [apiClient, legacyApi, aiModal, types] = await Promise.all([
     read("lib/api-client.ts"),
     read("lib/api.ts"),
     read("components/AiTriageModal.tsx"),
+    read("types/hospital.ts"),
   ]);
 
   assert.match(apiClient, /export async function recommendSpecialty/);
@@ -46,6 +47,14 @@ test("AI triage uses the authenticated backend contract without a local answer",
   assert.match(aiModal, /Chưa thể sử dụng tính năng này/);
   assert.match(aiModal, /Tạm thời chưa thể xử lý/);
   assert.match(aiModal, /citations/);
+  assert.match(apiClient, /AI_CITATION_SOURCE_TYPES/);
+  assert.match(apiClient, /AI_CITATION_ID_PATTERN/);
+  assert.match(apiClient, /keys\.length === 3/);
+  assert.match(aiModal, /citation\.source_type/);
+  assert.match(aiModal, /citation\.source_id/);
+  assert.doesNotMatch(types, /AiTriageCitation = string \| Record/);
+  assert.doesNotMatch(aiModal, /citation\.url/);
+  assert.doesNotMatch(aiModal, /target="_blank"/);
   assert.match(apiClient, /provenance/);
   assert.match(aiModal, /disclaimer/);
   assert.doesNotMatch(aiModal, /performAiTriage/);
