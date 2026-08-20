@@ -498,6 +498,9 @@ public class BookingService {
                 "Chỉ có thể đổi lịch khám đang ở trạng thái đã xác nhận"
             );
         }
+        if (!appointment.getDoctor().isActive()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Bác sĩ hiện không nhận lịch khám");
+        }
 
         UUID branchId = request.branchId();
         if (branchId != null) {
