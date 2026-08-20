@@ -48,15 +48,22 @@ public slot maps as follows:
 <CmsLiveSlot slug="home" slotKey="hero" /> // homepage.hero
 ```
 
-`PublicPageShell` mounts supplemental route-scoped `hero`, `body`, and `sidebar`
-slots after each native public route, including catalog detail pages. The
-shared `Footer` mounts the route-scoped `footer` slot inside the actual site
-footer. `/careers` owns `careers.hero` and `careers.body` inside its native
-recruitment composition, while the shared footer still owns `careers.footer`.
-Missing slots stay hidden and do not invent page copy. Dynamic detail pages
-intentionally use their top-level family key (for example `doctors.hero`) so
-the admin can manage a consistent collection surface. The homepage keeps its
-hero/body/sidebar slots in `app/page.tsx` and mounts `homepage.footer` through
+`PublicPageShell` places route-scoped `hero`, `body`, and `sidebar` slots in a
+native three-zone public-page frame: the optional CMS hero precedes the route
+composition, the route remains in its own content region, and optional
+body/sidebar content is a supporting region after it. The native page heading
+and domain composition remain authoritative. Only the public route families
+listed in the admin editor are eligible; unknown, private, and authenticated
+paths cannot create public CMS keys. The shared `Footer` mounts the
+route-scoped `footer` slot inside the actual site footer.
+
+`/careers` owns `careers.hero` and `careers.body` inside its native recruitment
+composition, while the shared footer still owns `careers.footer`. Missing slots
+stay hidden and do not invent page copy. Dynamic detail pages intentionally use
+their top-level canonical family key (for example `doctors.hero`) so the admin
+can manage a consistent collection surface; legacy Vietnamese detail aliases
+redirect before this frame renders. The homepage keeps its hero/body/sidebar
+slots in `app/page.tsx` and mounts `homepage.footer` through
 `components/Footer.tsx`. The admin content screen offers a public route
 directory plus inventory quick selections before allowing a manual slug entry.
 
