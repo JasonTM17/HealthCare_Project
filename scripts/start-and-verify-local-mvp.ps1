@@ -10,6 +10,7 @@ $repositoryRoot = Split-Path -Parent $PSScriptRoot
 if (-not $EnvFile) { $EnvFile = Join-Path $repositoryRoot ".env" }
 $composeFile = Join-Path $repositoryRoot "infrastructure\docker-compose.yml"
 $verifier = Join-Path $PSScriptRoot "verify-local-mvp.ps1"
+. (Join-Path $PSScriptRoot "local-mvp-provenance.ps1")
 
 function Set-EnvironmentValue {
     param(
@@ -95,6 +96,13 @@ if ($prepareEnvironment) {
 
 if ($PrepareOnly) { return }
 
+Assert-CleanBuildContext -RepositoryRoot $repositoryRoot
+$buildRevision = Get-SourceRevision -RepositoryRoot $repositoryRoot
+Assert-ExpectedRevision -Revision $buildRevision
+$previousBuildRevision = $env:BUILD_VCS_REF
+$hadBuildRevision = Test-Path Env:\BUILD_VCS_REF
+$env:BUILD_VCS_REF = $buildRevision
+
 Push-Location $repositoryRoot
 try {
     & $DockerPath compose --env-file $EnvFile -f $composeFile config --quiet
@@ -102,6 +110,7 @@ try {
 
     & $DockerPath compose --env-file $EnvFile -f $composeFile up --build -d
     if ($LASTEXITCODE -ne 0) { throw "Docker Compose failed to start the stack" }
+    Assert-CleanBuildContext -RepositoryRoot $repositoryRoot
 
     $seedExit = (& $DockerPath wait healthcare-local-seed 2>&1 | Select-Object -Last 1).Trim()
     if ($seedExit -ne "0") {
@@ -112,7 +121,8 @@ try {
     $lastError = $null
     for ($attempt = 1; $attempt -le 45; $attempt++) {
         try {
-            & $verifier
+            $verifierParameters = @{ DockerPath = $DockerPath; ExpectedRevision = $buildRevision }
+            & $verifier @verifierParameters
             if ($LASTEXITCODE -ne 0) { throw "Verifier returned exit code $LASTEXITCODE" }
             return
         } catch {
@@ -123,4 +133,9 @@ try {
     throw "Stack did not pass verification within 90 seconds: $($lastError.Exception.Message)"
 } finally {
     Pop-Location
+    if ($hadBuildRevision) {
+        $env:BUILD_VCS_REF = $previousBuildRevision
+    } else {
+        Remove-Item Env:\BUILD_VCS_REF -ErrorAction SilentlyContinue
+    }
 }

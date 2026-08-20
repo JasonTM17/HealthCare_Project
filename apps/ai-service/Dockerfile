@@ -1,5 +1,8 @@
 FROM python:3.12-slim
 WORKDIR /app
+ARG VCS_REF=unknown
+LABEL org.opencontainers.image.revision=${VCS_REF} \
+      org.opencontainers.image.source="https://github.com/JasonTM17/HealthCare_Project"
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 COPY requirements.txt ./

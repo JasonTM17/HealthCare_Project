@@ -3,11 +3,14 @@ param(
     [string]$ApiBaseUrl = "http://localhost:8080/api/v1",
     [string]$FrontendUrl = "http://localhost:3000",
     [string]$DemoPassword = "LocalDemo!2026",
-    [switch]$RequireClinicalFlow
+    [switch]$RequireClinicalFlow,
+    [string]$ExpectedRevision,
+    [string]$DockerPath
 )
 
 $ErrorActionPreference = "Stop"
 $checks = [System.Collections.Generic.List[string]]::new()
+. (Join-Path $PSScriptRoot "local-mvp-provenance.ps1")
 
 function Invoke-JsonApi {
     param(
@@ -35,6 +38,20 @@ function Login-DemoRole([string]$Email) {
 function Get-HospitalBusinessDate {
     $hospitalTimeZone = [TimeZoneInfo]::FindSystemTimeZoneById("SE Asia Standard Time")
     return [TimeZoneInfo]::ConvertTime([DateTimeOffset]::UtcNow, $hospitalTimeZone).Date
+}
+
+if ($ExpectedRevision) {
+    if (-not $DockerPath) {
+        $docker = Get-Command docker -ErrorAction SilentlyContinue
+        if (-not $docker) { throw "Docker CLI is required to verify image provenance" }
+        $DockerPath = $docker.Source
+    }
+
+    Assert-ExpectedRevision -Revision $ExpectedRevision
+    foreach ($container in @("healthcare-backend", "healthcare-frontend", "healthcare-ai-service")) {
+        Assert-ContainerRevision -ContainerName $container -Revision $ExpectedRevision -DockerExecutable $DockerPath
+    }
+    $checks.Add("provenance:backend+frontend+ai-service")
 }
 
 $backendHealth = Invoke-RestMethod "http://localhost:8080/actuator/health"
