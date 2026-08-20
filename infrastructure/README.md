@@ -64,8 +64,8 @@ docker compose -f infrastructure/docker-compose.yml up --build
 
 The release also publishes a standalone GHCR image at
 `ghcr.io/jasontm17/healthcare-project-database`. It applies the migrations in
-Flyway order and then loads the large seed only when PostgreSQL initializes a
-new data directory:
+Flyway order and then loads the large seed plus the careers fixture when
+PostgreSQL initializes a new data directory:
 
 ```bash
 docker run --name healthcare-database \

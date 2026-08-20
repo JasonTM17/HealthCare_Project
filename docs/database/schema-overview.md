@@ -73,8 +73,8 @@ windows for active doctor/branch relationships so the large catalog remains
 executable by the branch-aware booking flow.
 
 The database package build copies the 22 SQL migrations into a PostgreSQL 16
-image, executes them in Flyway version order, and then runs the large seed on a
-fresh `PGDATA`. Because this standalone image does not maintain
+image, executes them in Flyway version order, and then runs the large seed plus
+the careers fixture on a fresh `PGDATA`. Because this standalone image does not maintain
 `flyway_schema_history`, it must not replace the application-managed Compose
 database for Spring Boot startup. Use the package for a ready-to-query fixture;
 use [`infrastructure/docker-compose.yml`](../../infrastructure/docker-compose.yml)
