@@ -26,12 +26,14 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.UUID;
 
 @Transactional
 class AppointmentPortalIntegrationTest extends AbstractIntegrationTest {
 
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final LocalDate PORTAL_DATE = LocalDate.of(2030, 1, 15);
 
     @Autowired private RoleRepository roleRepository;
@@ -200,7 +202,7 @@ class AppointmentPortalIntegrationTest extends AbstractIntegrationTest {
         Branch branch = createBranch("portal-workflow-branch-" + UUID.randomUUID());
         assignDoctorToBranch(doctor, branch);
         Appointment appointment = createAppointment(
-            patient, doctor, branch, LocalDate.now(), LocalTime.of(9, 0), AppointmentStatus.CONFIRMED);
+            patient, doctor, branch, LocalDate.now(BUSINESS_ZONE), LocalTime.of(9, 0), AppointmentStatus.CONFIRMED);
 
         mockMvc.perform(patch("/api/v1/doctor/appointments/" + appointment.getId() + "/status")
                 .header("Authorization", bearer(doctorUser))
@@ -228,7 +230,7 @@ class AppointmentPortalIntegrationTest extends AbstractIntegrationTest {
         Branch branch = createBranch("portal-workflow-guard-branch-" + UUID.randomUUID());
         assignDoctorToBranch(doctor, branch);
         Appointment appointment = createAppointment(
-            patient, doctor, branch, LocalDate.now(), LocalTime.of(9, 0), AppointmentStatus.CONFIRMED);
+            patient, doctor, branch, LocalDate.now(BUSINESS_ZONE), LocalTime.of(9, 0), AppointmentStatus.CONFIRMED);
 
         mockMvc.perform(patch("/api/v1/doctor/appointments/" + appointment.getId() + "/status")
                 .header("Authorization", bearer(doctorUser))
@@ -252,7 +254,7 @@ class AppointmentPortalIntegrationTest extends AbstractIntegrationTest {
         Branch branch = createBranch("portal-noshow-branch-" + UUID.randomUUID());
         assignDoctorToBranch(doctor, branch);
         Appointment appointment = createAppointment(
-            patient, doctor, branch, LocalDate.now().minusDays(1), LocalTime.of(9, 0), AppointmentStatus.CONFIRMED);
+            patient, doctor, branch, LocalDate.now(BUSINESS_ZONE).minusDays(1), LocalTime.of(9, 0), AppointmentStatus.CONFIRMED);
 
         mockMvc.perform(patch("/api/v1/doctor/appointments/" + appointment.getId() + "/status")
                 .header("Authorization", bearer(doctorUser))
