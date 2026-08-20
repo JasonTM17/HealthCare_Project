@@ -37,6 +37,7 @@ migrations="
 /opt/healthcare/migrations/V20__appointment_reminder_delivery.sql
 /opt/healthcare/migrations/V21__patient_profile_details.sql
 /opt/healthcare/migrations/V22__careers_and_job_applications.sql
+/opt/healthcare/migrations/V23__restrict_public_cms_slot_keys.sql
 "
 
 for migration in $migrations; do

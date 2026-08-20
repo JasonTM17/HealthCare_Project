@@ -69,36 +69,52 @@ class CmsContentIntegrationTest extends AbstractIntegrationTest {
     void onlyAdminCanMutateCmsContent() throws Exception {
         String body = request("NOTICE", "DRAFT", 0, "{\"title\":\"Draft\",\"body\":\"Not public yet\"}");
 
-        mockMvc.perform(put("/api/v1/admin/cms/content/access-check")
+        mockMvc.perform(put("/api/v1/admin/cms/content/about.body")
                 .header("Authorization", bearer("PATIENT"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))
             .andExpect(status().isForbidden());
 
-        mockMvc.perform(put("/api/v1/admin/cms/content/access-check")
+        mockMvc.perform(put("/api/v1/admin/cms/content/about.body")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))
             .andExpect(status().isUnauthorized());
     }
 
     @Test
+    void privateOrUnknownCmsSlotsAreRejectedAtAdminAndPublicBoundaries() throws Exception {
+        String body = request("NOTICE", "PUBLISHED", 0, "{\"title\":\"Private\",\"body\":\"Must not publish\"}");
+
+        for (String slotKey : new String[] { "patient.dashboard.hero", "admin.hero", "unknown.hero", "about.utility" }) {
+            mockMvc.perform(put("/api/v1/admin/cms/content/" + slotKey)
+                    .header("Authorization", bearer("ADMIN"))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(body))
+                .andExpect(status().isBadRequest());
+
+            mockMvc.perform(get("/api/v1/cms/content/" + slotKey))
+                .andExpect(status().isBadRequest());
+        }
+    }
+
+    @Test
     void unsafeOrUnknownPayloadFieldsAreRejected() throws Exception {
         String unsafe = request("HERO", "PUBLISHED", 0, "{\"title\":\"<script>alert(1)</script>\"}");
-        mockMvc.perform(put("/api/v1/admin/cms/content/unsafe-content")
+        mockMvc.perform(put("/api/v1/admin/cms/content/about.sidebar")
                 .header("Authorization", bearer("ADMIN"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(unsafe))
             .andExpect(status().isBadRequest());
 
         String unknown = request("HERO", "PUBLISHED", 0, "{\"title\":\"Safe\",\"html\":\"not allowed\"}");
-        mockMvc.perform(put("/api/v1/admin/cms/content/unknown-field")
+        mockMvc.perform(put("/api/v1/admin/cms/content/about.footer")
                 .header("Authorization", bearer("ADMIN"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(unknown))
             .andExpect(status().isBadRequest());
 
         String singleBackslash = request("HERO", "PUBLISHED", 0, "{\"title\":\"Safe\",\"ctaHref\":\"/care\\\\path\"}");
-        mockMvc.perform(put("/api/v1/admin/cms/content/single-backslash")
+        mockMvc.perform(put("/api/v1/admin/cms/content/branches.hero")
                 .header("Authorization", bearer("ADMIN"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(singleBackslash))
@@ -111,25 +127,25 @@ class CmsContentIntegrationTest extends AbstractIntegrationTest {
         String update = request("NOTICE", "PUBLISHED", 1, "{\"title\":\"Second\",\"body\":\"Current\"}");
         String stale = request("NOTICE", "PUBLISHED", 1, "{\"title\":\"Stale\",\"body\":\"Must not win\"}");
 
-        mockMvc.perform(put("/api/v1/admin/cms/content/versioned-slot")
+        mockMvc.perform(put("/api/v1/admin/cms/content/branches.body")
                 .header("Authorization", bearer("ADMIN"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(create))
             .andExpect(status().isOk());
-        mockMvc.perform(put("/api/v1/admin/cms/content/versioned-slot")
+        mockMvc.perform(put("/api/v1/admin/cms/content/branches.body")
                 .header("Authorization", bearer("ADMIN"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(update))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.version").value(2));
 
-        mockMvc.perform(put("/api/v1/admin/cms/content/versioned-slot")
+        mockMvc.perform(put("/api/v1/admin/cms/content/branches.body")
                 .header("Authorization", bearer("ADMIN"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(stale))
             .andExpect(status().isConflict());
 
-        mockMvc.perform(get("/api/v1/cms/content/versioned-slot"))
+        mockMvc.perform(get("/api/v1/cms/content/branches.body"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.payload.title").value("Second"))
             .andExpect(jsonPath("$.version").value(2));
@@ -142,16 +158,16 @@ class CmsContentIntegrationTest extends AbstractIntegrationTest {
         String second = request("NOTICE", "PUBLISHED", 1, "{\"title\":\"Second\",\"body\":\"Current\"}");
         String unpublish = request("NOTICE", "DRAFT", 2, "{\"title\":\"Second\",\"body\":\"Current\"}");
 
-        mockMvc.perform(put("/api/v1/admin/cms/content/cache-reconcile-slot")
+        mockMvc.perform(put("/api/v1/admin/cms/content/branches.sidebar")
                 .header("Authorization", admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(first))
             .andExpect(status().isOk());
-        mockMvc.perform(get("/api/v1/cms/content/cache-reconcile-slot"))
+        mockMvc.perform(get("/api/v1/cms/content/branches.sidebar"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.payload.title").value("First"));
 
-        mockMvc.perform(put("/api/v1/admin/cms/content/cache-reconcile-slot")
+        mockMvc.perform(put("/api/v1/admin/cms/content/branches.sidebar")
                 .header("Authorization", admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(second))
@@ -162,14 +178,14 @@ class CmsContentIntegrationTest extends AbstractIntegrationTest {
             .orElseThrow()
             .getId();
         cache.put(new CmsContentResponse(
-            "cache-reconcile-slot",
+            "branches.sidebar",
             CmsComponentType.NOTICE,
             JsonNodeFactory.instance.objectNode().put("title", "Stale"),
             CmsPublicationStatus.PUBLISHED,
             1L,
             OffsetDateTime.now()
         ), currentEventId);
-        mockMvc.perform(get("/api/v1/cms/content/cache-reconcile-slot"))
+        mockMvc.perform(get("/api/v1/cms/content/branches.sidebar"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.payload.title").value("Stale"))
             .andExpect(jsonPath("$.version").value(1));
@@ -177,13 +193,13 @@ class CmsContentIntegrationTest extends AbstractIntegrationTest {
         long latestEventId = changeRepository.findTopByPublicEventTrueOrderByIdDesc()
             .orElseThrow()
             .getId();
-        mockMvc.perform(get("/api/v1/cms/content/cache-reconcile-slot")
+        mockMvc.perform(get("/api/v1/cms/content/branches.sidebar")
                 .param("afterEventId", Long.toString(latestEventId)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.payload.title").value("Second"))
             .andExpect(jsonPath("$.version").value(2));
 
-        mockMvc.perform(put("/api/v1/admin/cms/content/cache-reconcile-slot")
+        mockMvc.perform(put("/api/v1/admin/cms/content/branches.sidebar")
                 .header("Authorization", admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(unpublish))
@@ -194,17 +210,17 @@ class CmsContentIntegrationTest extends AbstractIntegrationTest {
             .orElseThrow()
             .getId();
         cache.put(new CmsContentResponse(
-            "cache-reconcile-slot",
+            "branches.sidebar",
             CmsComponentType.NOTICE,
             JsonNodeFactory.instance.objectNode().put("title", "Stale after unpublish"),
             CmsPublicationStatus.PUBLISHED,
             2L,
             OffsetDateTime.now()
         ), unpublishEventId);
-        mockMvc.perform(get("/api/v1/cms/content/cache-reconcile-slot")
+        mockMvc.perform(get("/api/v1/cms/content/branches.sidebar")
                 .param("afterEventId", Long.toString(unpublishEventId)))
             .andExpect(status().isNotFound());
-        mockMvc.perform(get("/api/v1/cms/content/cache-reconcile-slot"))
+        mockMvc.perform(get("/api/v1/cms/content/branches.sidebar"))
             .andExpect(status().isNotFound());
     }
 
@@ -214,25 +230,25 @@ class CmsContentIntegrationTest extends AbstractIntegrationTest {
         String publish = request("NOTICE", "PUBLISHED", 0, "{\"title\":\"Current\",\"body\":\"Published\"}");
         String unpublish = request("NOTICE", "DRAFT", 1, "{\"title\":\"Current\",\"body\":\"Published\"}");
 
-        mockMvc.perform(put("/api/v1/admin/cms/content/future-cursor-slot")
+        mockMvc.perform(put("/api/v1/admin/cms/content/branches.footer")
                 .header("Authorization", admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(publish))
             .andExpect(status().isOk());
 
-        mockMvc.perform(get("/api/v1/cms/content/future-cursor-slot")
+        mockMvc.perform(get("/api/v1/cms/content/branches.footer")
                 .param("afterEventId", Long.toString(Long.MAX_VALUE)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.payload.title").value("Current"));
 
-        mockMvc.perform(put("/api/v1/admin/cms/content/future-cursor-slot")
+        mockMvc.perform(put("/api/v1/admin/cms/content/branches.footer")
                 .header("Authorization", admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(unpublish))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("DRAFT"));
 
-        mockMvc.perform(get("/api/v1/cms/content/future-cursor-slot"))
+        mockMvc.perform(get("/api/v1/cms/content/branches.footer"))
             .andExpect(status().isNotFound());
     }
 
@@ -242,39 +258,39 @@ class CmsContentIntegrationTest extends AbstractIntegrationTest {
         String publish = request("RICH_TEXT", "PUBLISHED", 1, "{\"title\":\"Published title\",\"body\":\"Published body\"}");
         String unpublish = request("RICH_TEXT", "DRAFT", 2, "{\"title\":\"Published title\",\"body\":\"Published body\"}");
 
-        mockMvc.perform(put("/api/v1/admin/cms/content/publishable-slot")
+        mockMvc.perform(put("/api/v1/admin/cms/content/specialties.hero")
                 .header("Authorization", bearer("ADMIN"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(draft))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.version").value(1));
-        mockMvc.perform(get("/api/v1/cms/content/publishable-slot"))
+        mockMvc.perform(get("/api/v1/cms/content/specialties.hero"))
             .andExpect(status().isNotFound());
 
-        mockMvc.perform(put("/api/v1/admin/cms/content/publishable-slot")
+        mockMvc.perform(put("/api/v1/admin/cms/content/specialties.hero")
                 .header("Authorization", bearer("ADMIN"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(publish))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.version").value(2));
-        mockMvc.perform(get("/api/v1/cms/content/publishable-slot"))
+        mockMvc.perform(get("/api/v1/cms/content/specialties.hero"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.payload.title").value("Published title"));
 
-        mockMvc.perform(put("/api/v1/admin/cms/content/publishable-slot")
+        mockMvc.perform(put("/api/v1/admin/cms/content/specialties.hero")
                 .header("Authorization", bearer("ADMIN"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(unpublish))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.version").value(3));
-        mockMvc.perform(get("/api/v1/cms/content/publishable-slot"))
+        mockMvc.perform(get("/api/v1/cms/content/specialties.hero"))
             .andExpect(status().isNotFound());
     }
 
     @Test
     void sseEndpointReturnsBoundedPublicEventShape() throws Exception {
         String body = request("NOTICE", "PUBLISHED", 0, "{\"title\":\"SSE title\",\"body\":\"SSE body\"}");
-        mockMvc.perform(put("/api/v1/admin/cms/content/sse-slot")
+        mockMvc.perform(put("/api/v1/admin/cms/content/specialties.body")
                 .header("Authorization", bearer("ADMIN"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))
@@ -289,7 +305,7 @@ class CmsContentIntegrationTest extends AbstractIntegrationTest {
 
         assertThat(stream).contains("event:ready")
             .contains("event:cms-content-changed")
-            .contains("\"slotKey\":\"sse-slot\"")
+            .contains("\"slotKey\":\"specialties.body\"")
             .contains("\"version\":1")
             .doesNotContain("payload")
             .doesNotContain("SSE body");
@@ -302,19 +318,19 @@ class CmsContentIntegrationTest extends AbstractIntegrationTest {
         String first = request("NOTICE", "PUBLISHED", 0, "{\"title\":\"First\",\"body\":\"Initial\"}");
         String second = request("NOTICE", "PUBLISHED", 1, "{\"title\":\"Second\",\"body\":\"Current\"}");
 
-        mockMvc.perform(put("/api/v1/admin/cms/content/history-slot")
+        mockMvc.perform(put("/api/v1/admin/cms/content/specialties.sidebar")
                 .header("Authorization", admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(first))
             .andExpect(status().isOk());
-        mockMvc.perform(put("/api/v1/admin/cms/content/history-slot")
+        mockMvc.perform(put("/api/v1/admin/cms/content/specialties.sidebar")
                 .header("Authorization", admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(second))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.version").value(2));
 
-        MvcResult history = mockMvc.perform(get("/api/v1/admin/cms/content/history-slot/history")
+        MvcResult history = mockMvc.perform(get("/api/v1/admin/cms/content/specialties.sidebar/history")
                 .header("Authorization", admin))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[0].payload.title").value("Second"))
@@ -328,7 +344,7 @@ class CmsContentIntegrationTest extends AbstractIntegrationTest {
         );
         long firstChangeId = firstChangeIdValue.longValue();
 
-        mockMvc.perform(post("/api/v1/admin/cms/content/history-slot/rollback")
+        mockMvc.perform(post("/api/v1/admin/cms/content/specialties.sidebar/rollback")
                 .header("Authorization", admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"changeId\":%d,\"expectedVersion\":2}".formatted(firstChangeId)))
@@ -336,7 +352,7 @@ class CmsContentIntegrationTest extends AbstractIntegrationTest {
             .andExpect(jsonPath("$.payload.title").value("First"))
             .andExpect(jsonPath("$.version").value(3));
 
-        mockMvc.perform(post("/api/v1/admin/cms/content/history-slot/rollback")
+        mockMvc.perform(post("/api/v1/admin/cms/content/specialties.sidebar/rollback")
                 .header("Authorization", admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"changeId\":%d,\"expectedVersion\":2}".formatted(firstChangeId)))
@@ -348,13 +364,13 @@ class CmsContentIntegrationTest extends AbstractIntegrationTest {
         String admin = bearer("ADMIN");
         String draft = request("NOTICE", "DRAFT", 0, "{\"title\":\"Private draft\",\"body\":\"Not public\"}");
 
-        mockMvc.perform(put("/api/v1/admin/cms/content/draft-history-slot")
+        mockMvc.perform(put("/api/v1/admin/cms/content/specialties.footer")
                 .header("Authorization", admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(draft))
             .andExpect(status().isOk());
 
-        mockMvc.perform(get("/api/v1/admin/cms/content/draft-history-slot/history")
+        mockMvc.perform(get("/api/v1/admin/cms/content/specialties.footer/history")
                 .header("Authorization", admin))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[0].status").value("DRAFT"))
@@ -363,7 +379,7 @@ class CmsContentIntegrationTest extends AbstractIntegrationTest {
         MvcResult result = mockMvc.perform(get("/api/v1/cms/content/events").param("after", "0"))
             .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.request().asyncStarted())
             .andReturn();
-        assertThat(result.getResponse().getContentAsString()).doesNotContain("draft-history-slot");
+        assertThat(result.getResponse().getContentAsString()).doesNotContain("specialties.footer");
     }
 
     private String bearer(String roleCode) {
