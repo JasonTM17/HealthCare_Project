@@ -52,12 +52,18 @@ test("doctor and specialty screens cover loading, empty, error, and admin mutati
     assert.match(page, /tone="loading"/);
     assert.match(page, /tone="empty"/);
     assert.match(page, /tone="error"/);
+    assert.match(page, /ADMIN READ CONTRACT/);
     assert.match(page, /ADMIN WRITE CONTRACT/);
     assert.match(page, /adminCreate/);
     assert.match(page, /adminUpdate/);
     assert.match(page, /adminDelete/);
     assert.match(page, /aria-label/);
   }
+
+  assert.match(doctors, /adminListDoctors/);
+  assert.match(specialties, /adminListSpecialties/);
+  assert.doesNotMatch(doctors, /fetchDoctors/);
+  assert.doesNotMatch(specialties, /fetchSpecialties/);
 });
 
 test("branch and service screens expose typed read/write contracts without mock content", async () => {
