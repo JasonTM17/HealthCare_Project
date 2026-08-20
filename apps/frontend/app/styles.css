@@ -141,15 +141,42 @@ main {
   flex: 1;
 }
 
-.route-cms-slots {
+.native-route-cms {
   display: grid;
-  gap: var(--sp-6);
-  width: min(100% - 8rem, 80rem);
-  margin: var(--sp-12) auto var(--sp-16);
+  gap: var(--sp-8);
 }
 
-.route-cms-slots:empty {
+.native-route-cms__hero,
+.native-route-cms__support {
+  width: min(100% - 8rem, 80rem);
+  margin-inline: auto;
+}
+
+.native-route-cms__hero {
+  margin-top: var(--sp-8);
+}
+
+.native-route-cms__hero:not(:has([data-cms-live-slot])),
+.native-route-cms__support:not(:has([data-cms-live-slot])) {
   display: none;
+}
+
+.native-route-cms__content,
+.native-route-cms__slot,
+.native-route-cms__sidebar {
+  min-width: 0;
+}
+
+.native-route-cms__support {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 0.42fr);
+  align-items: start;
+  gap: var(--sp-6);
+  margin-bottom: var(--sp-16);
+}
+
+.native-route-cms__support:not(:has(.native-route-cms__body)) {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .section-inner,
@@ -1132,9 +1159,18 @@ main {
 }
 
 @media (max-width: 760px) {
-  .route-cms-slots {
+  .native-route-cms__hero,
+  .native-route-cms__support {
     width: min(100% - 2rem, 80rem);
-    margin-top: var(--sp-10);
+  }
+
+  .native-route-cms__hero {
+    margin-top: var(--sp-6);
+  }
+
+  .native-route-cms__support {
+    grid-template-columns: 1fr;
+    gap: var(--sp-5);
     margin-bottom: var(--sp-12);
   }
 
