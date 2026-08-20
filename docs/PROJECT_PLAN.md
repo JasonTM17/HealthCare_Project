@@ -80,7 +80,7 @@ Deliverables:
 - Create this `docs/PROJECT_PLAN.md`.
 - Do not implement application features.
 
-Validation:
+Validation (historical initial assessment, superseded after the repository was initialized):
 
 - `git rev-parse --show-toplevel` - `FAIL`, not a Git repository.
 - `git status --short --branch` - `FAIL`, not a Git repository.
@@ -529,9 +529,14 @@ Minimum checks:
 
 ### Phase 21 - Final End-to-End Demo
 
-Status: `PENDING ENVIRONMENT GATE`. Docker Desktop is installed, but Windows WSL
-2 must be enabled and the machine restarted before PostgreSQL/MinIO/backend
-integration tests and the complete 12-step demo can be executed.
+Status: `IN PROGRESS`. Source contracts and exact-SHA CI cover the local
+Compose configuration, PostgreSQL/Flyway seed, AI catalog sync, booking
+confirmation, role-scoped appointment APIs, and admin authorization. The
+same-day clinical verifier exercises the API counterparts of the booking,
+notification, appointment-status, record-creation, and own-patient record
+visibility steps, but still requires a genuine available slot on the day it
+runs. Browser, cross-patient runtime isolation, source/image identity,
+backup/restore, multi-instance, provider, and production gates remain separate.
 
 Goal: prove the primary story works end-to-end.
 
@@ -550,6 +555,10 @@ Demo flow:
 11. Notification appears.
 12. Admin sees appropriate operational data.
 
+Run `scripts/verify-local-mvp.ps1 -RequireClinicalFlow` when a same-day local
+slot is available to exercise the API counterparts of steps 6 through 12
+without fabricating timestamps. It is not route-level browser E2E evidence.
+
 ## Completed Components
 
 - AgentKit/OpenCode project instructions exist.
@@ -558,10 +567,11 @@ Demo flow:
 
 ## Remaining external gates
 
-- Enable WSL 2/restart Windows, start Docker, then run the complete integration
-  and 12-step role-based E2E flow from `docs/LOCAL_RUNBOOK.md`.
-- Connect/initialize a Git repository if source-control delivery is required;
-  this workspace currently has no `.git` metadata.
+- On a Windows host without a working Docker backend, enable WSL 2/restart
+  Windows and start Docker before running the complete integration and 12-step
+  role-based browser E2E flow from `docs/LOCAL_RUNBOOK.md`.
+- Freeze a clean Git commit and verify the remote/branch state before each
+  source-control delivery.
 - Production-only work: TLS/ingress, secrets manager, durable distributed RAG,
   backups and restore drill, observability/on-call, load test, penetration test,
   privacy/compliance assessment and deployment ownership.
@@ -570,7 +580,7 @@ Demo flow:
 
 | Risk | Impact | Mitigation |
 | --- | --- | --- |
-| Current folder is not a Git repo | Cannot inspect history, branch, remote, or commit safely | Initialize Git or clone verified remote before Phase 1 implementation |
+| Git/remote drift | Incorrect history or delivery claim | Inspect exact HEAD, branch, remote, and working tree before every commit or merge |
 | `.opencode/node_modules/` exists | Accidental huge/generated commit | Add `.gitignore` before first commit; inspect status before staging |
 | Scope is large | Many unfinished features | Deliver vertical slices phase-by-phase; prioritize primary demo story |
 | Appointment concurrency | Data integrity failure | Use transaction plus database unique constraint and integration test |
@@ -681,7 +691,8 @@ Actual commands may differ after project bootstrap; documentation must be update
 
 ## Git Strategy
 
-Current blocker: this folder is not a Git repository.
+Current baseline: this project is version-controlled; delivery remains gated on
+a clean exact HEAD, scoped staging, verification, and explicit remote evidence.
 
 Before implementation:
 
