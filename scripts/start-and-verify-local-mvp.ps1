@@ -8,7 +8,8 @@ param(
 $ErrorActionPreference = "Stop"
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 if (-not $EnvFile) { $EnvFile = Join-Path $repositoryRoot ".env" }
-$composeFile = Join-Path $repositoryRoot "infrastructure\docker-compose.yml"
+if (-not [IO.Path]::IsPathRooted($EnvFile)) { $EnvFile = Join-Path $repositoryRoot $EnvFile }
+$EnvFile = [IO.Path]::GetFullPath($EnvFile)
 $verifier = Join-Path $PSScriptRoot "verify-local-mvp.ps1"
 . (Join-Path $PSScriptRoot "local-mvp-provenance.ps1")
 
@@ -102,15 +103,22 @@ Assert-ExpectedRevision -Revision $buildRevision
 $previousBuildRevision = $env:BUILD_VCS_REF
 $hadBuildRevision = Test-Path Env:\BUILD_VCS_REF
 $env:BUILD_VCS_REF = $buildRevision
+$buildSnapshot = $null
+$locationPushed = $false
 
-Push-Location $repositoryRoot
 try {
+    $buildSnapshot = New-ImmutableBuildSnapshot -RepositoryRoot $repositoryRoot -Revision $buildRevision
+    $composeFile = Join-Path (Join-Path $buildSnapshot "infrastructure") "docker-compose.yml"
+    Push-Location $buildSnapshot
+    $locationPushed = $true
+
     & $DockerPath compose --env-file $EnvFile -f $composeFile config --quiet
     if ($LASTEXITCODE -ne 0) { throw "Docker Compose configuration is invalid" }
 
     & $DockerPath compose --env-file $EnvFile -f $composeFile up --build -d
     if ($LASTEXITCODE -ne 0) { throw "Docker Compose failed to start the stack" }
     Assert-CleanBuildContext -RepositoryRoot $repositoryRoot
+    Assert-SourceRevisionMatches -RepositoryRoot $repositoryRoot -ExpectedRevision $buildRevision
 
     $seedExit = (& $DockerPath wait healthcare-local-seed 2>&1 | Select-Object -Last 1).Trim()
     if ($seedExit -ne "0") {
@@ -132,7 +140,12 @@ try {
     }
     throw "Stack did not pass verification within 90 seconds: $($lastError.Exception.Message)"
 } finally {
-    Pop-Location
+    if ($locationPushed) {
+        Pop-Location
+    }
+    if ($buildSnapshot) {
+        Remove-ImmutableBuildSnapshot -RepositoryRoot $repositoryRoot -SnapshotRoot $buildSnapshot
+    }
     if ($hadBuildRevision) {
         $env:BUILD_VCS_REF = $previousBuildRevision
     } else {
