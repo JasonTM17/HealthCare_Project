@@ -57,6 +57,82 @@ function Get-SourceRevision {
     return $revision.ToLowerInvariant()
 }
 
+function Assert-SourceRevisionMatches {
+    param(
+        [Parameter(Mandatory)] [string]$RepositoryRoot,
+        [Parameter(Mandatory)] [string]$ExpectedRevision,
+        [string]$GitExecutable
+    )
+
+    Assert-ExpectedRevision -Revision $ExpectedRevision
+    $observedRevision = Get-SourceRevision -RepositoryRoot $RepositoryRoot -GitExecutable $GitExecutable
+    if ($observedRevision -ne $ExpectedRevision.ToLowerInvariant()) {
+        throw "Git source revision changed while the local MVP build was running"
+    }
+}
+
+function New-ImmutableBuildSnapshot {
+    param(
+        [Parameter(Mandatory)] [string]$RepositoryRoot,
+        [Parameter(Mandatory)] [string]$Revision,
+        [string]$GitExecutable
+    )
+
+    Assert-ExpectedRevision -Revision $Revision
+
+    $git = Resolve-ExecutablePath -CommandName git -ConfiguredPath $GitExecutable
+    $snapshotParent = Join-Path (Join-Path $RepositoryRoot ".agentkit") "tmp"
+    $snapshotName = "healthcare-build-snapshot-$($Revision.Substring(0, 12))-$([guid]::NewGuid().ToString('N'))"
+    $snapshotRoot = Join-Path $snapshotParent $snapshotName
+    $archivePath = "$snapshotRoot.zip"
+
+    try {
+        New-Item -ItemType Directory -Path $snapshotParent -Force | Out-Null
+        & $git -C $RepositoryRoot archive --format=zip "--output=$archivePath" $Revision
+        if ($LASTEXITCODE -ne 0) {
+            throw "Unable to archive Git revision $Revision for an immutable Docker build context"
+        }
+
+        New-Item -ItemType Directory -Path $snapshotRoot | Out-Null
+        Expand-Archive -LiteralPath $archivePath -DestinationPath $snapshotRoot -Force
+        $snapshotComposeFile = Join-Path (Join-Path $snapshotRoot "infrastructure") "docker-compose.yml"
+        if (-not (Test-Path -LiteralPath $snapshotComposeFile -PathType Leaf)) {
+            throw "Git archive for $Revision does not contain infrastructure/docker-compose.yml"
+        }
+
+        return $snapshotRoot
+    } catch {
+        if (Test-Path -LiteralPath $snapshotRoot) {
+            Remove-Item -LiteralPath $snapshotRoot -Recurse -Force
+        }
+        throw
+    } finally {
+        if (Test-Path -LiteralPath $archivePath) {
+            Remove-Item -LiteralPath $archivePath -Force
+        }
+    }
+}
+
+function Remove-ImmutableBuildSnapshot {
+    param(
+        [Parameter(Mandatory)] [string]$RepositoryRoot,
+        [Parameter(Mandatory)] [string]$SnapshotRoot
+    )
+
+    $snapshotParent = [IO.Path]::GetFullPath((Join-Path (Join-Path $RepositoryRoot ".agentkit") "tmp"))
+    $snapshotFullPath = [IO.Path]::GetFullPath($SnapshotRoot)
+    $parentPrefix = $snapshotParent.TrimEnd([char[]]@('\', '/')) + [IO.Path]::DirectorySeparatorChar
+    $snapshotName = [IO.Path]::GetFileName($snapshotFullPath)
+
+    if (-not $snapshotFullPath.StartsWith($parentPrefix, [StringComparison]::OrdinalIgnoreCase) -or $snapshotName -notlike "healthcare-build-snapshot-*") {
+        throw "Refusing to remove a build snapshot outside the generated snapshot directory"
+    }
+
+    if (Test-Path -LiteralPath $snapshotFullPath) {
+        Remove-Item -LiteralPath $snapshotFullPath -Recurse -Force
+    }
+}
+
 function Assert-CleanBuildContext {
     param(
         [Parameter(Mandatory)] [string]$RepositoryRoot,
