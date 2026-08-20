@@ -68,6 +68,7 @@ test("local MVP helper binds rebuilt application images to an immutable Git sour
   assert.match(helper, /New-ImmutableBuildSnapshot -RepositoryRoot \$repositoryRoot -Revision \$buildRevision/);
   assert.match(helper, /Assert-SourceRevisionMatches -RepositoryRoot \$repositoryRoot -ExpectedRevision \$buildRevision/);
   assert.match(helper, /\$env:BUILD_VCS_REF = \$buildRevision/);
+  assert.match(helper, /\}\s*finally\s*\{\s*try\s*\{[\s\S]*?Remove-ImmutableBuildSnapshot[\s\S]*?\}\s*finally\s*\{\s*if \(\$hadBuildRevision\)/);
   assert.match(helper, /\$verifierParameters = @\{ DockerPath = \$DockerPath; ExpectedRevision = \$buildRevision \}/);
   assert.match(verifier, /Assert-ExpectedRevision -Revision \$ExpectedRevision/);
   assert.match(verifier, /Assert-ContainerRevision -ContainerName \$container -Revision \$ExpectedRevision -DockerExecutable \$DockerPath/);

@@ -140,15 +140,18 @@ try {
     }
     throw "Stack did not pass verification within 90 seconds: $($lastError.Exception.Message)"
 } finally {
-    if ($locationPushed) {
-        Pop-Location
-    }
-    if ($buildSnapshot) {
-        Remove-ImmutableBuildSnapshot -RepositoryRoot $repositoryRoot -SnapshotRoot $buildSnapshot
-    }
-    if ($hadBuildRevision) {
-        $env:BUILD_VCS_REF = $previousBuildRevision
-    } else {
-        Remove-Item Env:\BUILD_VCS_REF -ErrorAction SilentlyContinue
+    try {
+        if ($locationPushed) {
+            Pop-Location
+        }
+        if ($buildSnapshot) {
+            Remove-ImmutableBuildSnapshot -RepositoryRoot $repositoryRoot -SnapshotRoot $buildSnapshot
+        }
+    } finally {
+        if ($hadBuildRevision) {
+            $env:BUILD_VCS_REF = $previousBuildRevision
+        } else {
+            Remove-Item Env:\BUILD_VCS_REF -ErrorAction SilentlyContinue
+        }
     }
 }
