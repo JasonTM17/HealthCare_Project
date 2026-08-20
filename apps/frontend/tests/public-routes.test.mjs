@@ -58,6 +58,35 @@ test("contact and guidance pages do not invent branch, insurance, or FAQ data", 
   assert.match(about, /Thước phim giới thiệu/);
 });
 
+test("FAQ and Vietnamese legacy aliases have live route owners", async () => {
+  const [faq, doctorAlias, specialtyAlias, packageAlias] = await Promise.all([
+    read("app/faq/page.tsx"),
+    read("app/bac-si/[slug]/page.tsx"),
+    read("app/chuyen-khoa/[slug]/page.tsx"),
+    read("app/goi-kham/[slug]/page.tsx"),
+  ]);
+
+  assert.match(faq, /fetchFaqs/);
+  assert.match(faq, /PublicPageShell/);
+  assert.match(faq, /CatalogPagination/);
+  assert.match(faq, /catalog-status--loading/);
+  assert.match(faq, /catalog-status--error/);
+  assert.match(faq, /Nội dung câu hỏi thường gặp đang được cập nhật/);
+  assert.match(faq, /PublicBookingButton/);
+  assert.doesNotMatch(faq, /1900\s*1234|contact@healthcare\.vn/);
+
+  for (const [source, destination] of [
+    [doctorAlias, "/doctors/"],
+    [specialtyAlias, "/specialties/"],
+    [packageAlias, "/packages/"],
+  ]) {
+    assert.match(source, /Compatibility alias for old Vietnamese links/);
+    assert.match(source, /redirect\(`/);
+    assert.match(source, /encodeURIComponent\(slug\)/);
+    assert.match(source, new RegExp(destination.replace("/", "\\/")));
+  }
+});
+
 test("public phone actions validate backend values before creating tel links", async () => {
   const sources = await Promise.all([
     read("lib/phone.ts"),
