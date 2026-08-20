@@ -12,6 +12,7 @@ export interface Specialty {
   name: string;
   slug: string;
   description: string;
+  active?: boolean;
   icon?: string;
   commonSymptoms?: string[];
   preparationSteps?: string[];
@@ -25,6 +26,7 @@ export interface Doctor {
   slug: string;
   bio: string;
   photoUrl?: string;
+  active?: boolean;
   title?: string;
   specialtyName?: string;
   experienceYears?: number;

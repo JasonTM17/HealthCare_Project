@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import {
+  adminListSpecialties,
   adminCreateSpecialty,
   adminDeleteSpecialty,
   adminUpdateSpecialty,
-  fetchSpecialties,
   type AdminSpecialtyPayload,
   type Specialty,
 } from "../../../lib/api-client";
@@ -16,7 +16,7 @@ type SpecialtyForm = { name: string; slug: string; description: string; active: 
 const EMPTY_FORM: SpecialtyForm = { name: "", slug: "", description: "", active: true };
 
 function formFromSpecialty(specialty: Specialty): SpecialtyForm {
-  return { name: specialty.name, slug: specialty.slug, description: specialty.description ?? "", active: true };
+  return { name: specialty.name, slug: specialty.slug, description: specialty.description ?? "", active: specialty.active ?? true };
 }
 
 function toPayload(form: SpecialtyForm): AdminSpecialtyPayload {
@@ -37,7 +37,7 @@ export default function AdminSpecialtiesPage() {
     setLoading(true);
     setLoadError(null);
     try {
-      const page = await fetchSpecialties(0, 100);
+      const page = await adminListSpecialties(0, 100);
       setSpecialties(page.content);
     } catch (error) {
       setLoadError(describeAdminError(error).description);
@@ -83,12 +83,12 @@ export default function AdminSpecialtiesPage() {
     setFeedback(null);
     try {
       await adminDeleteSpecialty(slug);
-      const refreshed = await fetchSpecialties(0, 100);
+      const refreshed = await adminListSpecialties(0, 100);
       setSpecialties(refreshed.content);
       const stillVisible = refreshed.content.some((specialty) => specialty.slug === slug);
       setFeedback(stillVisible
-        ? { tone: "error", title: "Chưa xác nhận được việc xóa", description: "Slug vẫn còn trong public catalog. Backend có thể đã từ chối request hoặc cần phiên ADMIN hợp lệ." }
-        : { tone: "success", title: "Đã xác nhận slug không còn hiển thị", description: "Bản ghi này không còn trong public catalog active. Backend vẫn là nguồn xác nhận cuối cùng." });
+        ? { tone: "error", title: "Chưa xác nhận được việc xóa", description: "Slug vẫn còn trong admin catalog. Backend có thể đã từ chối request hoặc cần phiên ADMIN hợp lệ." }
+        : { tone: "success", title: "Đã xác nhận slug không còn trong admin catalog", description: "Endpoint ADMIN không còn trả bản ghi này. Backend vẫn là nguồn xác nhận cuối cùng." });
     } catch (error) {
       const copy = describeAdminError(error);
       setFeedback({ tone: "error", title: copy.title, description: copy.description });
@@ -100,7 +100,7 @@ export default function AdminSpecialtiesPage() {
   return (
     <div>
       <header className="flex flex-col gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end sm:justify-between">
-        <div><p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">NỘI DUNG CHUYÊN KHOA</p><h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">Quản lý chuyên khoa</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Danh sách lấy từ public endpoint nên chỉ phản ánh chuyên khoa active. Slug và validation vẫn do backend quyết định.</p></div>
+        <div><p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">NỘI DUNG CHUYÊN KHOA</p><h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">Quản lý chuyên khoa</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Danh sách lấy từ admin endpoint nên hiển thị cả chuyên khoa active và inactive. Slug và validation vẫn do backend quyết định.</p></div>
         <span className="w-fit rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900">Bản demo local</span>
       </header>
 
@@ -119,12 +119,12 @@ export default function AdminSpecialtiesPage() {
         </section>
 
         <section aria-labelledby="specialty-list-title" className="min-w-0">
-          <div className="mb-3 flex items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">PUBLIC ACTIVE READ</p><h2 className="mt-1 text-xl font-bold text-slate-900" id="specialty-list-title">Danh sách đang hiển thị</h2></div><button className="text-sm font-bold text-teal-800 underline underline-offset-4 disabled:opacity-50" disabled={loading} onClick={() => void load()} type="button">Làm mới</button></div>
+          <div className="mb-3 flex items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">ADMIN READ CONTRACT</p><h2 className="mt-1 text-xl font-bold text-slate-900" id="specialty-list-title">Danh sách quản trị</h2></div><button className="text-sm font-bold text-teal-800 underline underline-offset-4 disabled:opacity-50" disabled={loading} onClick={() => void load()} type="button">Làm mới</button></div>
           {feedback ? <div className="mb-4"><AdminState description={feedback.description} title={feedback.title} tone={feedback.tone} /></div> : null}
-          {loading ? <AdminState tone="loading" title="Đang tải danh sách chuyên khoa" description="Đang đọc public catalog từ backend." /> : null}
+          {loading ? <AdminState tone="loading" title="Đang tải danh sách chuyên khoa" description="Đang đọc admin catalog từ backend." /> : null}
           {!loading && loadError ? <AdminState action={<button className="text-sm font-bold underline underline-offset-4" onClick={() => void load()} type="button">Thử lại</button>} description={loadError} title="Không thể tải danh sách chuyên khoa" tone="error" /> : null}
-          {!loading && !loadError && specialties.length === 0 ? <AdminState tone="empty" title="Chưa có chuyên khoa active" description="Public catalog hiện không có bản ghi để hiển thị. Bạn có thể tạo bản ghi mới nếu phiên ADMIN được backend chấp nhận." /> : null}
-          {!loading && !loadError && specialties.length > 0 ? <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="overflow-x-auto"><table className="min-w-[680px] w-full text-left text-sm"><caption className="sr-only">Chuyên khoa active trong public catalog</caption><thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3 font-bold">Tên</th><th className="px-4 py-3 font-bold">Slug</th><th className="px-4 py-3 font-bold">Trạng thái</th><th className="px-4 py-3 text-right font-bold">Thao tác</th></tr></thead><tbody>{specialties.map((specialty) => <tr className="border-b border-slate-100 last:border-0" key={specialty.id}><td className="px-4 py-4 font-semibold text-slate-900">{specialty.name}</td><td className="px-4 py-4 font-mono text-xs text-slate-500">{specialty.slug}</td><td className="px-4 py-4"><span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">Active</span></td><td className="px-4 py-4"><div className="flex justify-end gap-3"><button aria-label={`Sửa ${specialty.name}`} className="text-xs font-bold text-teal-800 underline underline-offset-4" onClick={() => { setEditingSlug(specialty.slug); setForm(formFromSpecialty(specialty)); setFormError(null); setFeedback(null); }} type="button">Sửa</button><button aria-label={`Xóa ${specialty.name}`} className="text-xs font-bold text-red-700 underline underline-offset-4 disabled:opacity-50" disabled={mutating} onClick={() => void handleDelete(specialty.slug)} type="button">Xóa</button></div></td></tr>)}</tbody></table></div></div> : null}
+          {!loading && !loadError && specialties.length === 0 ? <AdminState tone="empty" title="Chưa có chuyên khoa" description="Admin catalog hiện chưa có bản ghi. Bạn có thể tạo bản ghi mới nếu phiên ADMIN được backend chấp nhận." /> : null}
+          {!loading && !loadError && specialties.length > 0 ? <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="overflow-x-auto"><table className="min-w-[680px] w-full text-left text-sm"><caption className="sr-only">Chuyên khoa trong admin catalog</caption><thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3 font-bold">Tên</th><th className="px-4 py-3 font-bold">Slug</th><th className="px-4 py-3 font-bold">Trạng thái</th><th className="px-4 py-3 text-right font-bold">Thao tác</th></tr></thead><tbody>{specialties.map((specialty) => <tr className="border-b border-slate-100 last:border-0" key={specialty.id}><td className="px-4 py-4 font-semibold text-slate-900">{specialty.name}</td><td className="px-4 py-4 font-mono text-xs text-slate-500">{specialty.slug}</td><td className="px-4 py-4"><span className={specialty.active ?? true ? "rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700" : "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600"}>{specialty.active ?? true ? "Active" : "Inactive"}</span></td><td className="px-4 py-4"><div className="flex justify-end gap-3"><button aria-label={`Sửa ${specialty.name}`} className="text-xs font-bold text-teal-800 underline underline-offset-4" onClick={() => { setEditingSlug(specialty.slug); setForm(formFromSpecialty(specialty)); setFormError(null); setFeedback(null); }} type="button">Sửa</button><button aria-label={`Xóa ${specialty.name}`} className="text-xs font-bold text-red-700 underline underline-offset-4 disabled:opacity-50" disabled={mutating} onClick={() => void handleDelete(specialty.slug)} type="button">Xóa</button></div></td></tr>)}</tbody></table></div></div> : null}
         </section>
       </div>
     </div>
