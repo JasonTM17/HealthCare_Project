@@ -32,6 +32,11 @@ function Login-DemoRole([string]$Email) {
     $session.accessToken
 }
 
+function Get-HospitalBusinessDate {
+    $hospitalTimeZone = [TimeZoneInfo]::FindSystemTimeZoneById("SE Asia Standard Time")
+    return [TimeZoneInfo]::ConvertTime([DateTimeOffset]::UtcNow, $hospitalTimeZone).Date
+}
+
 $backendHealth = Invoke-RestMethod "http://localhost:8080/actuator/health"
 if ($backendHealth.status -ne "UP") { throw "Backend health is not UP" }
 $frontend = Invoke-WebRequest $FrontendUrl -UseBasicParsing
@@ -73,8 +78,9 @@ $selectedDate = $null
 $selectedSlot = $null
 $branchId = $demoDoctor.branchIds[0]
 $maxSlotOffset = if ($RequireClinicalFlow) { 0 } else { 21 }
+$hospitalBusinessDate = Get-HospitalBusinessDate
 for ($offset = 0; $offset -le $maxSlotOffset -and -not $selectedSlot; $offset++) {
-    $candidateDate = (Get-Date).Date.AddDays($offset).ToString("yyyy-MM-dd")
+    $candidateDate = $hospitalBusinessDate.AddDays($offset).ToString("yyyy-MM-dd")
     $slots = Invoke-JsonApi -Uri "$ApiBaseUrl/appointments/doctors/$($demoDoctor.id)/slots?date=$candidateDate&branchId=$branchId"
     $slot = $slots | Where-Object { $_.available } | Select-Object -First 1
     if ($slot) { $selectedDate = $candidateDate; $selectedSlot = $slot }
@@ -116,10 +122,13 @@ foreach ($view in @($patientAppointments, $doctorAppointments, $adminAppointment
 $checks.Add("appointments:patient+doctor+admin-visible")
 
 $patientNotifications = Invoke-JsonApi -Uri "$ApiBaseUrl/notifications?size=100" -Token $patientToken
-if (-not ($patientNotifications.content | Where-Object { $_.referenceId -eq $confirmed.id })) {
-    throw "Patient notification is missing for the confirmed booking"
+$confirmedNotification = $patientNotifications.content | Where-Object {
+    $_.referenceId -eq $confirmed.id -and $_.eventType -eq "APPOINTMENT_CONFIRMED"
+} | Select-Object -First 1
+if (-not $confirmedNotification) {
+    throw "Patient confirmation notification is missing for the confirmed booking"
 }
-$checks.Add("notifications:patient-booking-visible")
+$checks.Add("notifications:patient-confirmation-visible")
 
 if ($RequireClinicalFlow) {
     $doctorAppointment = $doctorAppointments.content | Where-Object { $_.bookingCode -eq $confirmed.bookingCode } | Select-Object -First 1
@@ -152,7 +161,19 @@ if ($RequireClinicalFlow) {
     if (-not ($patientRecords | Where-Object { $_.id -eq $record.id })) {
         throw "Patient portal does not expose the newly authorized clinical record"
     }
-    $checks.Add("clinical:check-in+in-progress+record+patient-visible")
+
+    $completedAppointmentViews = @(
+        Invoke-JsonApi -Uri "$ApiBaseUrl/patient/appointments?size=100" -Token $patientToken
+        Invoke-JsonApi -Uri "$ApiBaseUrl/doctor/appointments?date=$selectedDate&size=100" -Token $doctorToken
+        Invoke-JsonApi -Uri "$ApiBaseUrl/admin/appointments?date=$selectedDate&size=100" -Token $adminToken
+    )
+    foreach ($view in $completedAppointmentViews) {
+        $completedAppointment = $view.content | Where-Object { $_.bookingCode -eq $confirmed.bookingCode } | Select-Object -First 1
+        if (-not $completedAppointment -or $completedAppointment.id -ne $doctorAppointment.id -or $completedAppointment.status -ne "COMPLETED") {
+            throw "Clinical record creation did not produce the verified COMPLETED appointment in every role-specific view"
+        }
+    }
+    $checks.Add("clinical:check-in+in-progress+record+completed+own-patient-visible")
 }
 
 try {
