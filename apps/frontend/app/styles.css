@@ -688,6 +688,85 @@ main {
   color: var(--color-ink-muted);
 }
 
+.route-state {
+  min-height: 64vh;
+  display: grid;
+  align-items: center;
+  padding-block: var(--sp-16);
+}
+
+.route-state__card {
+  max-width: 48rem;
+}
+
+.route-state__card h1 {
+  margin-top: var(--sp-2);
+  font-size: clamp(2.25rem, 7vw, 4.5rem);
+  line-height: 0.95;
+  letter-spacing: -0.055em;
+}
+
+.route-state__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  margin-top: var(--sp-6);
+}
+
+.route-state__digest {
+  width: fit-content;
+  margin-top: var(--sp-4);
+  padding: 0.45rem 0.75rem;
+  border-radius: var(--radius-pill);
+  background: oklch(93% 0.03 30);
+  color: var(--color-ink);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.route-state__card--error {
+  border-color: oklch(83% 0.095 35);
+  background: oklch(97% 0.025 38);
+}
+
+.route-state__skeletons {
+  display: grid;
+  gap: var(--sp-3);
+  margin-top: var(--sp-6);
+}
+
+.route-state__skeletons span {
+  height: 0.875rem;
+  border-radius: var(--radius-pill);
+  background: oklch(90% 0.045 180);
+  animation: shimmer 1.35s ease-in-out infinite;
+}
+
+.route-state__skeletons span:nth-child(1) {
+  width: min(100%, 34rem);
+}
+
+.route-state__skeletons span:nth-child(2) {
+  width: min(82%, 27rem);
+}
+
+.route-state__skeletons span:nth-child(3) {
+  width: min(58%, 18rem);
+}
+
+@keyframes shimmer {
+  0%,
+  100% {
+    opacity: 0.62;
+    transform: translateX(0);
+  }
+
+  50% {
+    opacity: 1;
+    transform: translateX(0.35rem);
+  }
+}
+
 .resource-list,
 .resource-steps {
   display: grid;
@@ -1418,6 +1497,7 @@ main {
   gap: var(--sp-2);
 }
 
+.nav-account-link,
 .nav-ai-button,
 .nav-menu-button {
   min-width: 44px;
@@ -1435,9 +1515,18 @@ main {
 }
 
 .nav-ai-button:hover,
+.nav-account-link:hover,
 .nav-menu-button:hover {
   background: var(--color-mint-light);
   transform: translateY(-1px);
+}
+
+.nav-account-link {
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--color-line);
+  background: var(--color-paper-bright);
+  color: var(--color-teal-800);
+  text-decoration: none;
 }
 
 .button--nav {
@@ -2869,6 +2958,7 @@ main {
     gap: var(--sp-3);
   }
 
+  .nav-account-link span,
   .nav-ai-button span {
     display: none;
   }
