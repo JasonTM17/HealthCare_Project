@@ -26,6 +26,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 @Service
@@ -33,6 +34,24 @@ public class CmsContentService {
 
     private static final Pattern SLOT_KEY = Pattern.compile("[a-z0-9]+(?:[._-][a-z0-9]+)*");
     private static final int MAX_SLOT_KEY_LENGTH = 120;
+    private static final Set<String> CMS_PUBLIC_ROUTE_KEYS = Set.of(
+        "homepage",
+        "about",
+        "branches",
+        "specialties",
+        "doctors",
+        "services",
+        "packages",
+        "articles",
+        "careers",
+        "search",
+        "dat-lich",
+        "contact",
+        "faq",
+        "huong-dan",
+        "tra-cuu"
+    );
+    private static final Set<String> CMS_SLOT_KEYS = Set.of("hero", "body", "sidebar", "footer");
 
     private final CmsContentRepository contentRepository;
     private final CmsContentChangeRepository changeRepository;
@@ -269,6 +288,14 @@ public class CmsContentService {
         if (slotKey == null || slotKey.length() > MAX_SLOT_KEY_LENGTH || !SLOT_KEY.matcher(slotKey).matches()) {
             throw new com.healthcare.cms.exception.CmsPayloadValidationException(
                 "slotKey must use lowercase letters, numbers, dots, dashes, or underscores"
+            );
+        }
+        String[] parts = slotKey.split("\\.", -1);
+        if (parts.length != 2
+            || !CMS_PUBLIC_ROUTE_KEYS.contains(parts[0])
+            || !CMS_SLOT_KEYS.contains(parts[1])) {
+            throw new com.healthcare.cms.exception.CmsPayloadValidationException(
+                "slotKey must target an allowed public CMS route and slot"
             );
         }
         return slotKey;
