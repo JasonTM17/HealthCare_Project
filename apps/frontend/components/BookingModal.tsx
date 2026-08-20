@@ -53,6 +53,11 @@ function doctorMatchesSpecialty(doctor: Doctor, specialty?: Specialty): boolean 
   return !doctor.specialtyName || doctor.specialtyName === specialty.name;
 }
 
+function secondsUntil(value: string): number {
+  const expiry = Date.parse(value);
+  return Number.isNaN(expiry) ? 0 : Math.max(0, Math.ceil((expiry - Date.now()) / 1000));
+}
+
 interface BookingModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -92,6 +97,7 @@ export default function BookingModal({
   const branches = providedBranches.length > 0 ? providedBranches : loadedBranches;
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState<string>("");
+  const [catalogRequest, setCatalogRequest] = useState<number>(0);
   const [selectionError, setSelectionError] = useState<string>("");
   const [selectedSpecialty, setSelectedSpecialty] = useState<string>(initialSpecialtyId || "");
   const [selectedDoctor, setSelectedDoctor] = useState<string>(initialDoctorId || "");
@@ -455,9 +461,9 @@ export default function BookingModal({
       setSecondsRemaining(secondsUntil(result.holdExpiresAt));
       setOtpSecondsRemaining(secondsUntil(result.otpExpiresAt));
       setStep(7);
-    } catch (err: any) {
+    } catch (error: unknown) {
       if (bookingSession === bookingSessionRef.current) {
-        setErrorMessage(err.message || "Không thể giữ chỗ khung giờ này.");
+        setErrorMessage(error instanceof Error ? error.message : "Không thể giữ chỗ khung giờ này.");
       }
     } finally {
       if (bookingSession === bookingSessionRef.current) setIsSubmitting(false);
@@ -490,9 +496,9 @@ export default function BookingModal({
       });
       if (bookingSession !== bookingSessionRef.current) return;
       setConfirmedAppointment(details);
-    } catch (err: any) {
+    } catch (error: unknown) {
       if (bookingSession === bookingSessionRef.current) {
-        setErrorMessage(err.message || "Mã OTP không chính xác.");
+        setErrorMessage(error instanceof Error ? error.message : "Mã OTP không chính xác.");
       }
     } finally {
       if (bookingSession === bookingSessionRef.current) setIsSubmitting(false);

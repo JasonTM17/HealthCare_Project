@@ -215,6 +215,7 @@ interface HomeHeroCopyProps {
   setSearchQuery: (value: string) => void;
   onSearchSubmit: () => void;
   onBooking: () => void;
+  onOpenAi: () => void;
   hasEmergencyBranch: boolean;
   contactPhone?: string;
   cmsHero?: CmsHeroPayload;
@@ -225,6 +226,7 @@ function HomeHeroCopy({
   setSearchQuery,
   onSearchSubmit,
   onBooking,
+  onOpenAi,
   hasEmergencyBranch,
   contactPhone,
   cmsHero,
@@ -514,6 +516,7 @@ export default function Home(): React.ReactElement {
     setSearchQuery,
     onSearchSubmit: handleHeroSearchSubmit,
     onBooking: () => handleOpenBooking(),
+    onOpenAi: () => setIsAiTriageOpen(true),
     hasEmergencyBranch: Boolean(emergencyBranch),
     contactPhone,
   };
@@ -582,7 +585,7 @@ export default function Home(): React.ReactElement {
                     <small>Gợi ý theo triệu chứng · cần đăng nhập</small>
                 </span>
                 <Icon name="chevron-right" size={18} />
-              </button>
+              </Link>
               <Link className="care-link" href="#packages">
                 <span className="care-link__icon"><Icon name="layers" size={21} /></span>
                 <span>
