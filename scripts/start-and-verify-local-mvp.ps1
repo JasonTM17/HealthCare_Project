@@ -53,7 +53,8 @@ if ($LASTEXITCODE -ne 0 -or ($desktopStatus -join " ") -notmatch "running") {
     throw "Docker Desktop engine is not running. Enable WSL 2/virtualization, restart Windows, then open Docker Desktop."
 }
 
-if (-not (Test-Path -LiteralPath $EnvFile -PathType Leaf)) {
+$environmentAlreadyExists = Test-Path -LiteralPath $EnvFile -PathType Leaf
+if (-not $environmentAlreadyExists) {
     $exampleEnv = Join-Path $repositoryRoot ".env.example"
     if (-not (Test-Path -LiteralPath $exampleEnv -PathType Leaf)) { throw "Missing .env.example" }
     $environmentText = [System.IO.File]::ReadAllText($exampleEnv)
@@ -61,27 +62,36 @@ if (-not (Test-Path -LiteralPath $EnvFile -PathType Leaf)) {
     $environmentText = [System.IO.File]::ReadAllText($EnvFile)
 }
 
-$jwtSecret = Get-EnvironmentValue $environmentText "JWT_SECRET"
-if ([string]::IsNullOrWhiteSpace($jwtSecret) -or $jwtSecret -eq "change-me-use-a-256-bit-secret-key-for-production-environment-please") {
-    $environmentText = Set-EnvironmentValue $environmentText "JWT_SECRET" (New-DisposableSecret 48)
-}
-$aiToken = Get-EnvironmentValue $environmentText "AI_SERVICE_TOKEN"
-if ([string]::IsNullOrWhiteSpace($aiToken) -or $aiToken -eq "local-development-token-not-for-production") {
-    $environmentText = Set-EnvironmentValue $environmentText "AI_SERVICE_TOKEN" (New-DisposableSecret 32)
-}
-$ragToken = Get-EnvironmentValue $environmentText "RAG_INGEST_TOKEN"
-if ([string]::IsNullOrWhiteSpace($ragToken)) {
-    $ragToken = New-DisposableSecret 32
-    $environmentText = Set-EnvironmentValue $environmentText "RAG_INGEST_TOKEN" $ragToken
-}
+$prepareEnvironment = -not $environmentAlreadyExists -or $PrepareOnly
+if ($prepareEnvironment) {
+    $jwtSecret = Get-EnvironmentValue $environmentText "JWT_SECRET"
+    if ([string]::IsNullOrWhiteSpace($jwtSecret) -or $jwtSecret -eq "change-me-use-a-256-bit-secret-key-for-production-environment-please") {
+        $environmentText = Set-EnvironmentValue $environmentText "JWT_SECRET" (New-DisposableSecret 48)
+    }
+    $aiToken = Get-EnvironmentValue $environmentText "AI_SERVICE_TOKEN"
+    if ([string]::IsNullOrWhiteSpace($aiToken) -or $aiToken -eq "local-development-token-not-for-production") {
+        $environmentText = Set-EnvironmentValue $environmentText "AI_SERVICE_TOKEN" (New-DisposableSecret 32)
+    }
+    $ragToken = Get-EnvironmentValue $environmentText "RAG_INGEST_TOKEN"
+    if ([string]::IsNullOrWhiteSpace($ragToken)) {
+        $ragToken = New-DisposableSecret 32
+        $environmentText = Set-EnvironmentValue $environmentText "RAG_INGEST_TOKEN" $ragToken
+    }
 
-# This helper proves the complete local MVP, including the protected catalog sync.
-# Compose itself remains fail-closed unless this local-only workflow explicitly enables it.
-$environmentText = Set-EnvironmentValue $environmentText "RAG_INGEST_ENABLED" "true"
-$environmentText = Set-EnvironmentValue $environmentText "AI_RAG_INGEST_ENABLED" "true"
-$environmentText = Set-EnvironmentValue $environmentText "AI_RAG_INGEST_TOKEN" $ragToken
-[System.IO.File]::WriteAllText($EnvFile, $environmentText, [Text.UTF8Encoding]::new($false))
-Write-Host "Prepared local .env for the full MVP with generated missing JWT/AI/RAG secrets."
+    # This explicit local-only preparation enables the protected catalog sync.
+    # Ordinary Compose remains fail-closed when no environment opts in.
+    $environmentText = Set-EnvironmentValue $environmentText "RAG_INGEST_ENABLED" "true"
+    $environmentText = Set-EnvironmentValue $environmentText "AI_RAG_INGEST_ENABLED" "true"
+    $environmentText = Set-EnvironmentValue $environmentText "AI_RAG_INGEST_TOKEN" $ragToken
+    [System.IO.File]::WriteAllText($EnvFile, $environmentText, [Text.UTF8Encoding]::new($false))
+    Write-Host "Prepared local .env for the full MVP with generated missing JWT/AI/RAG secrets."
+} else {
+    $ragEnabled = Get-EnvironmentValue $environmentText "RAG_INGEST_ENABLED"
+    $ragToken = Get-EnvironmentValue $environmentText "RAG_INGEST_TOKEN"
+    if ($ragEnabled -ne "true" -or [string]::IsNullOrWhiteSpace($ragToken)) {
+        throw "Existing .env does not opt into protected RAG catalog sync. Review it, then run '$PSScriptRoot\start-and-verify-local-mvp.ps1 -PrepareOnly' to prepare a disposable local MVP environment."
+    }
+}
 
 if ($PrepareOnly) { return }
 
