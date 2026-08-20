@@ -7,6 +7,12 @@ import type { Branch } from "../types/hospital";
 import BrandMark from "./BrandMark";
 import Icon from "./UiIcon";
 import { safeTelephoneHref } from "../lib/phone";
+import {
+  hasRole,
+  readAuthSession,
+  subscribeToAuthSession,
+  type AuthSession,
+} from "../lib/api-client";
 
 interface NavbarProps {
   onOpenBooking: () => void;
@@ -23,8 +29,21 @@ const NAV_LINKS = [
   { label: "Cẩm nang", href: "/articles" },
 ];
 
+function getAccountDestination(session: AuthSession | null, pathname: string | null): { href: string; label: string } {
+  if (!session) {
+    const next = pathname && pathname.startsWith("/") && !pathname.startsWith("//") ? pathname : "/";
+    return { href: `/auth/login?next=${encodeURIComponent(next)}`, label: "Đăng nhập" };
+  }
+
+  if (hasRole(session.user, "ADMIN")) return { href: "/admin", label: "Quản trị" };
+  if (hasRole(session.user, "DOCTOR")) return { href: "/doctor/dashboard", label: "Cổng bác sĩ" };
+  if (hasRole(session.user, "PATIENT")) return { href: "/patient/dashboard", label: "Cổng bệnh nhân" };
+  return { href: "/", label: "Tài khoản" };
+}
+
 const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, onOpenAiTriage, branches = [] }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
+  const [authSession, setAuthSession] = useState<AuthSession | null>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
   const pathname = usePathname();
@@ -32,8 +51,15 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, onOpenAiTriage, branches
   const contactBranch = branches.find((branch) => Boolean(branch.phone));
   const contactPhone = emergencyBranch?.emergencyHotline ?? contactBranch?.phone;
   const contactHref = safeTelephoneHref(contactPhone);
+  const accountDestination = getAccountDestination(authSession, pathname);
 
   const closeMobileMenu = (): void => setMobileMenuOpen(false);
+
+  useEffect(() => {
+    const updateSession = (): void => setAuthSession(readAuthSession());
+    updateSession();
+    return subscribeToAuthSession(updateSession);
+  }, []);
 
   useEffect(() => {
     if (!mobileMenuOpen) return;
@@ -125,6 +151,10 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, onOpenAiTriage, branches
           </nav>
 
           <div className="site-nav__actions">
+            <Link className="nav-account-link" href={accountDestination.href}>
+              <Icon name="user" size={16} />
+              <span>{accountDestination.label}</span>
+            </Link>
             <button className="nav-ai-button" onClick={onOpenAiTriage} type="button">
               <Icon name="stethoscope" size={16} />
               <span>Chọn chuyên khoa</span>
@@ -161,6 +191,9 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, onOpenAiTriage, branches
               })}
             </nav>
             <div className="mobile-menu__actions">
+              <Link className="outline-button" href={accountDestination.href} onClick={closeMobileMenu}>
+                <Icon name="user" size={17} /> {accountDestination.label}
+              </Link>
               <Link className="outline-button" href="/tra-cuu" onClick={closeMobileMenu}>Tra cứu lịch hẹn</Link>
               <button className="outline-button" onClick={() => { closeMobileMenu(); onOpenAiTriage(); }} type="button">
                 <Icon name="stethoscope" size={17} /> Hỗ trợ chọn chuyên khoa
