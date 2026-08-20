@@ -183,11 +183,13 @@ jobs:
           verified=false
           for attempt in $(seq 1 180); do
             if counts="$(docker exec "$container" psql -At -F '|' -U healthcare -d healthcare -c \
-              "SELECT 'articles', count(*) FROM articles UNION ALL SELECT 'doctors', count(*) FROM doctors UNION ALL SELECT 'packages', count(*) FROM packages UNION ALL SELECT 'users', count(*) FROM users;" 2>/dev/null)"; then
+              "SELECT 'articles', count(*) FROM articles UNION ALL SELECT 'doctors', count(*) FROM doctors UNION ALL SELECT 'packages', count(*) FROM packages UNION ALL SELECT 'users', count(*) FROM users UNION ALL SELECT 'job_positions', count(*) FROM job_positions UNION ALL SELECT 'job_applications', count(*) FROM job_applications;" 2>/dev/null)"; then
               if grep -Fx 'articles|500' <<<"$counts" >/dev/null \
                 && grep -Fx 'doctors|500' <<<"$counts" >/dev/null \
                 && grep -Fx 'packages|100' <<<"$counts" >/dev/null \
                 && grep -Fx 'users|1001' <<<"$counts" >/dev/null \
+                && grep -Fx 'job_positions|4' <<<"$counts" >/dev/null \
+                && grep -Fx 'job_applications|0' <<<"$counts" >/dev/null \
                 && [ "$(docker exec "$container" psql -At -U healthcare -d healthcare -c \
                   "SELECT count(*) FROM information_schema.columns WHERE table_name = 'cms_content_changes' AND column_name IN ('actor_email','payload','previous_payload','public_event');" \
                   2>/dev/null)" = 4 ]; then

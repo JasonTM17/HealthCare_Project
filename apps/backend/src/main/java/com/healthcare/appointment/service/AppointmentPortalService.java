@@ -25,6 +25,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Locale;
@@ -36,6 +37,7 @@ public class AppointmentPortalService {
 
     private static final int DEFAULT_PAGE_SIZE = 20;
     private static final int MAX_PAGE_SIZE = 100;
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final Set<String> ALLOWED_SORT_PROPERTIES = Set.of(
         "appointmentDate", "startTime", "endTime", "createdAt", "status", "bookingCode", "id"
     );
@@ -127,7 +129,7 @@ public class AppointmentPortalService {
             );
         }
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(BUSINESS_ZONE);
         if ((targetStatus == AppointmentStatus.CHECKED_IN || targetStatus == AppointmentStatus.IN_PROGRESS)
                 && !appointment.getAppointmentDate().equals(today)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Chỉ có thể tiếp nhận lịch khám trong ngày hôm nay");
@@ -137,7 +139,7 @@ public class AppointmentPortalService {
                 ? appointment.getStartTime().plusMinutes(30)
                 : appointment.getEndTime();
             boolean visitHasEnded = appointment.getAppointmentDate().isBefore(today)
-                || (appointment.getAppointmentDate().equals(today) && !LocalTime.now().isBefore(endTime));
+                || (appointment.getAppointmentDate().equals(today) && !LocalTime.now(BUSINESS_ZONE).isBefore(endTime));
             if (!visitHasEnded) {
                 throw new ResponseStatusException(
                     HttpStatus.CONFLICT,

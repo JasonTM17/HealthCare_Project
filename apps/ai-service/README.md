@@ -34,6 +34,14 @@ again only when its normalized content hash changes. Search combines bounded
 keyword/vector relevance and returns citations containing the stored source
 type, source ID, and title only.
 
+The backend catalog mirror is eventually consistent: it runs on the configured
+schedule (five minutes by default) and removes SQL-deleted sources when a
+catalog type fits within `ai.rag-ingest.max-catalog-items`. Sync revisions keep
+an older in-flight index request from resurrecting a newer delete within the
+same AI process. If a type is larger than that safety bound, the sync keeps
+existing indexed rows instead of risking false deletion; the revision guard is
+also process-local, not a durable multi-instance knowledge-store guarantee.
+
 Provider and safety settings are environment-backed:
 
 ```text
@@ -47,7 +55,7 @@ AI_TIMEOUT_SECONDS=10
 AI_MAX_INPUT_CHARS=10000
 AI_MAX_RETRIEVED_CHUNKS=5
 RAG_MAX_DOCUMENT_CHARS=20000
-RAG_MAX_DOCUMENTS=1000
+RAG_MAX_DOCUMENTS=5000
 
 # Legacy aliases, used only for AI_PROVIDER=deepseek when the corresponding
 # AI_* value is empty.
@@ -67,7 +75,7 @@ are ignored; configure the provider-neutral key/model/base URL explicitly.
 
 Embedding vectors are capped at 4,096 dimensions. Indexed documents retain
 their embedding model and provenance, reject mixed model/provenance/dimension
-contracts, and are bounded by `RAG_MAX_DOCUMENTS` (1,000 by default).
+contracts, and are bounded by `RAG_MAX_DOCUMENTS` (5,000 by default).
 
 Provider calls use no automatic retries and a bounded timeout. In `local`,
 `demo`, or `test` runtime, a remote provider error may return deterministic

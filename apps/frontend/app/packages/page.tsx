@@ -44,7 +44,7 @@ export default function PackagesPage() {
           </aside>
         </header>
         {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải danh mục gói khám…</p> : null}
-        {error ? <p className="catalog-status catalog-status--error" role="alert">{error}</p> : null}
+        {error ? <p className="catalog-status catalog-status--error" role="alert">{error} Không có gói khám demo thay thế.</p> : null}
         {!loading && !error && page?.empty ? <p className="catalog-status" role="status">Danh sách gói khám đang được cập nhật.</p> : null}
         {page && !page.empty ? (
           <>

@@ -1,6 +1,8 @@
 """Tests for the RAG index, search, and specialty recommendation."""
 
 import pytest
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
 from unittest.mock import patch
 from fastapi.testclient import TestClient
 
@@ -34,6 +36,131 @@ def test_service_ingest_and_remove() -> None:
     assert service.index.size == 1
     service.remove("specialty", "cardio")
     assert service.index.size == 0
+
+
+def test_sync_revision_tombstone_rejects_stale_resurrection() -> None:
+    service = RagService()
+    service.ingest(
+        "specialty",
+        "cardio",
+        "Tim mạch",
+        "Khám tim mạch.",
+        [1.0, 0.0],
+        metadata={"_sync_revision": "10"},
+    )
+    service.remove("specialty", "cardio", revision=11)
+
+    stale = service.ingest(
+        "specialty",
+        "cardio",
+        "Tim mạch cũ",
+        "Nội dung cũ.",
+        [1.0, 0.0],
+        metadata={"_sync_revision": "10"},
+    )
+    assert stale.title == "Tim mạch cũ"
+    assert service.index.size == 0
+
+    service.ingest(
+        "specialty",
+        "cardio",
+        "Tim mạch mới",
+        "Nội dung mới.",
+        [1.0, 0.0],
+        metadata={"_sync_revision": "12"},
+    )
+    document = service.index.get("specialty:cardio")
+    assert document is not None
+    assert document.title == "Tim mạch mới"
+
+
+def test_sync_revision_guard_rechecks_after_concurrent_delete() -> None:
+    service = RagService()
+    embedding_started = Event()
+    release_embedding = Event()
+
+    def delayed_embedder(_: str) -> list[float]:
+        embedding_started.set()
+        assert release_embedding.wait(timeout=2)
+        return [1.0, 0.0]
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        pending = executor.submit(
+            service.ingest,
+            "specialty",
+            "cardio",
+            "Tim mạch cũ",
+            "Nội dung cũ.",
+            metadata={"_sync_revision": "10"},
+            embedder=delayed_embedder,
+        )
+        assert embedding_started.wait(timeout=2)
+        service.remove("specialty", "cardio", revision=11)
+        release_embedding.set()
+        pending.result(timeout=2)
+
+    assert service.index.size == 0
+
+
+def test_sync_revision_guard_survives_delete_then_newer_ingest() -> None:
+    service = RagService()
+    stale_started = Event()
+    newer_started = Event()
+    release_stale = Event()
+    release_newer = Event()
+
+    def delayed_embedder(content: str) -> list[float]:
+        if "cũ" in content:
+            stale_started.set()
+            assert release_stale.wait(timeout=2)
+        else:
+            newer_started.set()
+            assert release_newer.wait(timeout=2)
+        return [1.0, 0.0]
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        stale = executor.submit(
+            service.ingest,
+            "specialty",
+            "cardio",
+            "Tim mạch cũ",
+            "Nội dung cũ.",
+            metadata={"_sync_revision": "10"},
+            embedder=delayed_embedder,
+        )
+        assert stale_started.wait(timeout=2)
+        service.remove("specialty", "cardio", revision=11)
+        newer = executor.submit(
+            service.ingest,
+            "specialty",
+            "cardio",
+            "Tim mạch mới",
+            "Nội dung mới.",
+            metadata={"_sync_revision": "12"},
+            embedder=delayed_embedder,
+        )
+        assert newer_started.wait(timeout=2)
+        release_stale.set()
+        stale.result(timeout=2)
+        assert service.index.size == 0
+        release_newer.set()
+        newer.result(timeout=2)
+
+    document = service.index.get("specialty:cardio")
+    assert document is not None
+    assert document.title == "Tim mạch mới"
+
+
+def test_index_search_waits_for_mutation_lock() -> None:
+    index = RagIndex()
+    index.add(_doc("cardio", "Tim mạch", "Khám tim mạch.", [1.0, 0.0]))
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        with index._lock:
+            pending = executor.submit(index.search, [1.0, 0.0])
+            with pytest.raises(TimeoutError):
+                pending.result(timeout=0.05)
+        assert pending.result(timeout=2)[0][0].source_id == "cardio"
 
 
 def test_ingest_normalizes_visible_content_and_reuses_embedding() -> None:
@@ -221,6 +348,21 @@ def test_rag_ingest_is_disabled_or_token_protected(monkeypatch: pytest.MonkeyPat
     )
     assert accepted.status_code == 200
     assert accepted.json()["id"] == "specialty:cardio"
+
+    sources = client.get(
+        "/rag/sources",
+        headers={"X-RAG-Ingest-Token": "test-ingest-token"},
+    )
+    assert sources.status_code == 200
+    assert sources.json()["sources"] == [{"source_type": "specialty", "source_id": "cardio"}]
+
+    deleted = client.post(
+        "/rag/delete",
+        json={"source_type": "specialty", "source_id": "cardio"},
+        headers={"X-RAG-Ingest-Token": "test-ingest-token"},
+    )
+    assert deleted.status_code == 200
+    assert deleted.json() == {"removed": True, "index_size": 0}
 
 
 def test_rag_ingest_skips_inactive_source(monkeypatch: pytest.MonkeyPatch) -> None:

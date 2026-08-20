@@ -23,6 +23,21 @@ test("canonical resource details clear stale records and expose complete async s
   }
 });
 
+test("paginated catalog routes clear stale pages before a retry", async () => {
+  const routes = [
+    ["app/specialties/page.tsx", "setPage(null)"],
+    ["app/services/page.tsx", "setPage(null)"],
+    ["app/packages/page.tsx", "setPage(null)"],
+    ["app/branches/page.tsx", "setPage(null)"],
+  ];
+
+  for (const [path, clearMarker] of routes) {
+    const source = await read(path);
+    assert.match(source, /catalog-status--error/);
+    assert.match(source, new RegExp(clearMarker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+});
+
 test("contact and guidance pages do not invent branch, insurance, or FAQ data", async () => {
   const [contact, guidance, about] = await Promise.all([
     read("app/contact/page.tsx"),
@@ -43,12 +58,31 @@ test("contact and guidance pages do not invent branch, insurance, or FAQ data", 
   assert.match(about, /Thước phim giới thiệu/);
 });
 
+test("public phone actions validate backend values before creating tel links", async () => {
+  const sources = await Promise.all([
+    read("lib/phone.ts"),
+    read("components/Navbar.tsx"),
+    read("components/Footer.tsx"),
+    read("app/page.tsx"),
+    read("app/branches/[slug]/page.tsx"),
+    read("app/contact/page.tsx"),
+  ]);
+
+  assert.match(sources[0], /safeTelephoneHref/);
+  assert.match(sources[0], /\^\\\+\?\[0-9\]/);
+  for (const source of sources.slice(1)) {
+    assert.match(source, /safeTelephoneHref/);
+    assert.doesNotMatch(source, /href=.*tel:\$\{|replace\(\/\\\\s\/g/);
+  }
+});
+
 test("homepage exposes a distinct unavailable catalog state with a retry path", async () => {
   const home = await read("app/page.tsx");
   assert.match(home, /catalogUnavailable/);
   assert.match(home, /catalog-status--unavailable/);
   assert.match(home, /Thử tải lại/);
   assert.match(home, /error\.status >= 500/);
+  assert.match(home, /setCatalog\(null\)/);
 });
 
 test("CMS booking CTA has a real landing route and public chrome avoids invented hotlines", async () => {
@@ -67,16 +101,18 @@ test("CMS booking CTA has a real landing route and public chrome avoids invented
   assert.match(navbar, /Xem giờ làm việc/);
   assert.match(footer, /Thông tin điện thoại đang được cập nhật/);
   assert.match(largeSeed, /homepage\.hero/);
+  for (const seedContent of [seed, largeSeed]) assert.match(seedContent, /\/careers#vi-tri-dang-tuyen/);
   for (const slot of ["careers.hero", "careers.body", "search.hero", "homepage.body"]) {
     assert.match(largeSeed, new RegExp(slot.replace(".", "\\.")));
   }
 });
 
 test("AI and CMS live boundaries fail closed across reconnect and unresolved results", async () => {
-  const [client, liveSlot, tracking, doctors, specialties, branchDetail, home] = await Promise.all([
+  const [client, liveSlot, tracking, bookingModal, doctors, specialties, branchDetail, home] = await Promise.all([
     read("lib/api-client.ts"),
     read("components/cms/CmsLiveSlot.tsx"),
     read("app/tra-cuu/page.tsx"),
+    read("components/BookingModal.tsx"),
     read("app/doctors/DoctorsPageClient.tsx"),
     read("app/specialties/page.tsx"),
     read("app/branches/[slug]/page.tsx"),
@@ -89,17 +125,28 @@ test("AI and CMS live boundaries fail closed across reconnect and unresolved res
   assert.match(liveSlot, /reconciliation\.observe/);
   assert.match(liveSlot, /pendingEventIds/);
   assert.match(liveSlot, /resolvePendingEvent/);
+  assert.match(liveSlot, /result === "failed" && !cancelled/);
   assert.match(liveSlot, /Đã đồng bộ/);
   assert.match(liveSlot, /cms-live-slot__fallback-note/);
   assert.match(liveSlot, /Đang hiển thị giao diện có sẵn/);
   assert.doesNotMatch(tracking, /30 đơn vị|15 phút|Hỗ trợ BHYT|Thẻ BHYT/);
+  assert.match(tracking, /lookupRequestRef/);
+  assert.match(tracking, /PublicPageShell/);
+  assert.match(bookingModal, /bookingSessionRef/);
+  assert.match(bookingModal, /business-time/);
+  assert.match(bookingModal, /businessDate\(1\)/);
+  assert.match(bookingModal, /setConfirmedAppointment\(null\)/);
   assert.match(doctors, /specialtySlug/);
   assert.match(doctors, /specialtySlug/);
   assert.match(doctors, /PublicPageShell/);
   assert.match(specialties, /PublicBookingButton/);
   assert.match(specialties, /PublicPageShell/);
-  assert.match(branchDetail, /branch\.phone \?/);
-  assert.match(home, /branch\.phone \?/);
+  assert.match(branchDetail, /phoneHref/);
+  assert.match(home, /safeTelephoneHref\(branch\.phone\)/);
+  assert.match(tracking, /useDialogFocus/);
+  assert.match(tracking, /role="dialog"/);
+  assert.match(tracking, /cancel-dialog-title/);
+  assert.match(tracking, /const requestId = \+\+lookupRequestRef\.current;[\s\S]*setAppointment\(null\)/);
 });
 
 test("published article detail consumes the backend body when available", async () => {
@@ -143,11 +190,12 @@ test("Stitch detail screens render backend-owned structured content", async () =
 });
 
 test("Stitch search and careers screens have live public route owners", async () => {
-  const [search, careers, footer, home] = await Promise.all([
+  const [search, careers, footer, home, lookup] = await Promise.all([
     read("app/search/SearchPageClient.tsx"),
     read("app/careers/page.tsx"),
     read("components/Footer.tsx"),
     read("app/page.tsx"),
+    read("app/tra-cuu/page.tsx"),
   ]);
 
   for (const marker of ["fetchSpecialties", "fetchDoctors", "fetchServices", "fetchPackages", "fetchArticles", "Promise.allSettled", "settledContent"]) {
@@ -157,10 +205,32 @@ test("Stitch search and careers screens have live public route owners", async ()
   assert.match(careers, /Cơ hội nghề nghiệp tại HealthCare/);
   assert.match(careers, /fetchCareerPositions/);
   assert.match(careers, /PublicPageShell/);
+  assert.match(careers, /CmsLiveSlot/);
+  assert.match(careers, /slug="careers"/);
+  assert.match(careers, /slotKey="hero"/);
+  assert.match(careers, /slotKey="body"/);
   assert.match(footer, /href="\/careers"/);
   assert.match(home, /router\.push/);
   assert.match(home, /data-cms-managed/);
   assert.match(home, /CmsContentRenderer/);
+  assert.match(lookup, /appointments\/\$\{encodeURIComponent\(bookingCodeInput\.trim\(\)\)\}/);
+  assert.match(lookup, /cache: "no-store"/);
+});
+
+test("every public page family keeps the route-level CMS composition point", async () => {
+  const [routeCms, footer] = await Promise.all([
+    read("components/cms/RouteCmsSlots.tsx"),
+    read("components/Footer.tsx"),
+  ]);
+
+  assert.match(routeCms, /\["admin", "auth", "doctor", "patient"\]/);
+  assert.match(routeCms, /Careers owns its hero/);
+  assert.match(routeCms, /Dynamic detail/);
+  for (const slot of ["hero", "body", "sidebar"]) {
+    assert.match(routeCms, new RegExp(`slotKey="${slot}"`));
+  }
+  assert.match(footer, /cmsSlug\?/);
+  assert.match(footer, /slotKey="footer"/);
 });
 
 test("doctor portal exposes the typed clinical write workflow", async () => {

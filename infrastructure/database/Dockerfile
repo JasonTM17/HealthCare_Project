@@ -8,4 +8,5 @@ LABEL org.opencontainers.image.title="HealthCare Project database fixture" \
 
 COPY apps/backend/src/main/resources/db/migration/ /opt/healthcare/migrations/
 COPY apps/backend/src/main/resources/db/seed/seed-large-data.sql /opt/healthcare/seed/seed-large-data.sql
+COPY apps/backend/src/main/resources/db/seed/seed-local-careers.sql /opt/healthcare/seed/seed-local-careers.sql
 COPY infrastructure/database/init/01-healthcare-database.sh /docker-entrypoint-initdb.d/01-healthcare-database.sh

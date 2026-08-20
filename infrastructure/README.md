@@ -23,16 +23,19 @@ real OTP delivery provider.
 The local stack exposes frontend on port 3000, backend on 8080, AI service on 8000, PostgreSQL on host port 5434 (container port 5432), Redis on 6379, and MinIO on 9000 (console 9001).
 
 The local seed includes the fictional ADMIN fixture `admin@healthcare.local`
-with password `LocalDev!Pass2026` so the CMS publish-to-user flow can be tested.
+with the documented local demo password from `docs/LOCAL_RUNBOOK.md` so the CMS
+publish-to-user flow can be tested.
 This credential is local-only and must be replaced/disabled before any shared or
 non-demo deployment.
 
 The `local-seed` one-shot service waits for the backend health check (after
 Flyway), runs the backward-compatible base seed, then applies the V15 rich
 content overlay for the Stitch detail screens. The schema also includes V16
-CMS audit snapshots and all later article, OTP, storage, reminder, profile and
-recruitment migrations. The overlay only fills empty new fields, so rerunning
-it does not overwrite admin edits. It defaults to
+CMS audit snapshots, V17 published-article guards, V18 hashed appointment OTP
+storage, V19 secure file metadata, V20 appointment reminder delivery, V21
+patient profile details, and V22 careers and job applications. The overlay only
+fills empty new fields, so rerunning it does not
+overwrite admin edits. It defaults to
 `apps/backend/src/main/resources/db/seed/seed-local-data.sql`; set the
 PowerShell `SEED_FILE` environment variable for one run if the larger seed is
 needed. See `docs/architecture/cms-realtime.md` for the rerun/query proof.
@@ -47,10 +50,10 @@ The tracked `seed-large-data.sql` is a generator of fictional local-development
 data, not a production dump or real patient data. A clean PostgreSQL 16 run
 produces approximately 14,000 rows across the hospital, scheduling, identity,
 and clinical tables, including 500 doctors, 200 services, 100 packages, 500
-articles, 1,001 users (including the local admin fixture), about 7,500 recurring
-doctor schedules, and 450
-prescription items. Relationship counts vary slightly because the seed
-intentionally samples links randomly.
+articles, 1,001 users (1,000 synthetic users plus the local CMS admin), about
+7,500 recurring doctor schedules, and 450
+prescription items. Relationship links use stable hash ordering, so a clean
+replay produces the same identities and relationship counts.
 
 Use the larger dataset with the existing Flyway-managed local stack:
 
@@ -61,8 +64,8 @@ docker compose -f infrastructure/docker-compose.yml up --build
 
 The release also publishes a standalone GHCR image at
 `ghcr.io/jasontm17/healthcare-project-database`. It applies the migrations in
-Flyway order and then loads the large seed only when PostgreSQL initializes a
-new data directory:
+Flyway order and then loads the large seed plus the careers fixture when
+PostgreSQL initializes a new data directory:
 
 ```bash
 docker run --name healthcare-database \

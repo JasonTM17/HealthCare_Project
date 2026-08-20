@@ -44,3 +44,4 @@ for migration in $migrations; do
 done
 
 run_sql /opt/healthcare/seed/seed-large-data.sql
+run_sql /opt/healthcare/seed/seed-local-careers.sql

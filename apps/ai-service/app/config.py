@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     ai_max_input_chars: int = Field(default=10_000, ge=2, le=10_000)
     ai_max_retrieved_chunks: int = Field(default=5, ge=1, le=20)
     rag_max_document_chars: int = Field(default=20_000, ge=1, le=20_000)
-    rag_max_documents: int = Field(default=1_000, ge=1, le=10_000)
+    rag_max_documents: int = Field(default=5_000, ge=1, le=10_000)
 
     # RAG ingestion is a separate, explicitly protected capability.
     rag_ingest_enabled: bool = False

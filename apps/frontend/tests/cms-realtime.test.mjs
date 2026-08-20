@@ -87,6 +87,7 @@ test("public live slot listens to named SSE changes and has polling fallback", a
   assert.match(liveSlot, /reconciliation\.observe\(event\.eventId\)/);
   assert.match(liveSlot, /acknowledgeThrough/);
   assert.match(liveSlot, /refreshGeneration/);
+  assert.match(liveSlot, /setContent\(null\);\s+setError\(null\);\s+setLoading\(true\);/);
   assert.match(liveSlot, /readGeneration !== refreshGeneration/);
   assert.match(liveSlot, /readReconciliationCursor/);
   assert.match(liveSlot, /invalidateRefreshes\(\)/);
@@ -153,6 +154,10 @@ test("admin editor exposes typed status/version and protected API states", async
     "rollbackContent",
     "Các component CMS đã có trong backend",
     "loadAvailableContent",
+    "contentOperationRef",
+    "inventoryGenerationRef",
+    "isCurrentOperation",
+    "isCurrentInventoryRequest",
   ]) {
     assert.ok(source.includes(marker), `missing editor state: ${marker}`);
   }
@@ -162,4 +167,11 @@ test("admin editor exposes typed status/version and protected API states", async
   assert.match(client, /getAccessToken: \(\) => readAuthSession\(\)\?\.accessToken/);
   assert.match(source, /setSelectedSlot\(requestedSlot\)/);
   assert.match(source, /loadedSelection\?\.slot/);
+  assert.match(source, /disabled=\{isBusy\}/);
+  assert.match(source, /PayloadFields disabled=\{isBusy\}/);
+  assert.match(source, /invalidateInventory\(\);/);
+  assert.match(source, /inventoryGenerationRef\.current \+= 1/);
+  assert.match(source, /setHistoryLoading\(true\);[\s\S]*listHistory\(savedContent\.slotKey\)/);
+  assert.match(source, /catch \(historyLoadError\)[\s\S]*setHistoryError\(apiErrorMessage/);
+  assert.match(source, /setNotice\(`Đã rollback/);
 });

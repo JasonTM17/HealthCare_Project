@@ -5,15 +5,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useMemo, useState } from "react";
 import AiTriageModal from "../components/AiTriageModal";
-import BookingModal from "../components/BookingModal";
 import BranchMap from "../components/BranchMap";
+import BookingModal from "../components/BookingModal";
 import CareExperience from "../components/CareExperience";
-import PackageVisualCard, { packageVisualStyles } from "../components/PackageVisualCard";
 import { CmsLiveSlot } from "../components/cms";
 import { CmsContentRenderer } from "../components/cms/CmsRenderer";
 import Footer from "../components/Footer";
 import Icon, { type IconName } from "../components/UiIcon";
 import Navbar from "../components/Navbar";
+import PackageVisualCard, { packageVisualStyles } from "../components/PackageVisualCard";
 import PublicMotion from "../components/PublicMotion";
 import {
   ApiError,
@@ -24,7 +24,9 @@ import {
   fetchSpecialties,
   type Page,
 } from "../lib/api-client";
+import { formatBusinessDate } from "../lib/business-time";
 import { isSafeCmsUrl, type CmsContent, type CmsHeroPayload } from "../lib/cms-client";
+import { safeTelephoneHref } from "../lib/phone";
 import type { Article, Branch, Doctor, HealthPackage, Specialty } from "../types/hospital";
 
 const HERO_IMAGE =
@@ -78,11 +80,15 @@ const SectionHeading: React.FC<SectionHeadingProps> = ({
   </div>
 );
 
+const DemoNote: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <p className="demo-note">
+    <Icon name="sparkles" size={15} />
+    <span>{children}</span>
+  </p>
+);
+
 const formatPublishedAt = (value: string): string => {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? "Đã xuất bản"
-    : new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium" }).format(date);
+  return value ? formatBusinessDate(value) : "Đã xuất bản";
 };
 
 const getInitials = (fullName: string): string => {
@@ -136,6 +142,7 @@ const DoctorPhoto: React.FC<DoctorPhotoProps> = ({ doctor, featured = false }) =
           <span>{getInitials(doctor.fullName)}</span>
         </div>
       )}
+      <span className="doctor-photo__caption">Ảnh minh họa</span>
     </div>
   );
 };
@@ -285,8 +292,46 @@ function HomeHeroCopy({
         <button type="submit">Tìm kiếm</button>
       </form>
       <p className="hero-search__help" id="hero-search-help">
-        Tìm nhanh theo tên bác sĩ, chuyên khoa hoặc nhu cầu chăm sóc.
+        Tìm trong catalog công khai để chọn hướng đặt lịch phù hợp.
       </p>
+      <div className="hero-actions">
+        {cmsCta ? (
+          <a className="button button--amber" href={cmsCta.href}>
+            {cmsCta.label}
+            <Icon name="arrow-up-right" size={18} />
+          </a>
+        ) : (
+          <button className="button button--amber" onClick={onBooking} type="button">
+            Đặt lịch khám
+            <Icon name="arrow-up-right" size={18} />
+          </button>
+        )}
+        <button className="button button--hero-secondary" onClick={onOpenAi} type="button">
+          Mô tả triệu chứng
+          <Icon name="activity" size={18} />
+        </button>
+        <Link className="button button--hero-secondary" href="/doctors">
+          Tìm bác sĩ
+          <Icon name="arrow-up-right" size={18} />
+        </Link>
+      </div>
+      <DemoNote>
+        {cmsHero ? "Nội dung hero do quản trị viên xuất bản; catalog và trợ lý AI vẫn được cập nhật theo hệ thống." : "Catalog công khai được cập nhật theo hệ thống; trợ lý AI cần đăng nhập để hoạt động."}
+      </DemoNote>
+      <div className="hero-trust" aria-label="Điểm nhấn của trải nghiệm đặt khám">
+        <div className="hero-trust__item">
+          <span className="hero-trust__icon"><Icon name="check" size={16} /></span>
+          <span><strong>Luồng 4 bước</strong><small>Chọn, giữ, xác nhận</small></span>
+        </div>
+        <div className="hero-trust__item">
+          <span className="hero-trust__icon"><Icon name="building" size={16} /></span>
+          <span><strong>Chọn đúng cơ sở</strong><small>Hiển thị ngay trong lịch</small></span>
+        </div>
+        <div className="hero-trust__item">
+          <span className="hero-trust__icon hero-trust__icon--accent"><Icon name="phone" size={16} /></span>
+          <span><strong>{hasEmergencyBranch ? "Hotline cấp cứu" : "Liên hệ cơ sở"}</strong><small>{contactPhone ?? "Chưa cung cấp số điện thoại"}</small></span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -325,7 +370,7 @@ function HomeHeroVisual({ imageUrl }: { imageUrl?: string }): React.ReactElement
         <p><small>Đồng hành liền mạch</small><strong>Từ đặt lịch đến sau thăm khám</strong></p>
       </div>
       <figcaption>
-        {safeCmsImage ? "Hình ảnh hoạt động của bệnh viện." : <>Ảnh minh họa: <a href="https://www.pexels.com/photo/a-doctor-talking-to-a-patient-while-holding-a-tablet-4266936/" rel="noreferrer" target="_blank">Pexels</a></>}
+        {safeCmsImage ? "Hình ảnh hoạt động do quản trị viên xuất bản." : "Ảnh minh họa từ Unsplash."}
       </figcaption>
     </figure>
   );
@@ -365,6 +410,9 @@ export default function Home(): React.ReactElement {
       setCatalogLoading(true);
       setCatalogError(null);
       setCatalogUnavailable(false);
+      // A retry is a new authoritative snapshot. Clear the old catalog so a
+      // failed response cannot leave stale booking identities actionable.
+      setCatalog(null);
       try {
         const [specialties, doctors, packages, branches, articles] = await Promise.all([
           fetchSpecialties(0, 50),
@@ -390,7 +438,7 @@ export default function Home(): React.ReactElement {
       } catch (error: unknown) {
         if (!cancelled) {
           setCatalogUnavailable(!(error instanceof ApiError) || error.status >= 500);
-          setCatalogError(error instanceof Error ? error.message : "Thông tin đang tạm thời gián đoạn.");
+          setCatalogError(error instanceof Error ? error.message : "Không thể tải catalog hiện tại.");
         }
       } finally {
         if (!cancelled) setCatalogLoading(false);
@@ -418,10 +466,10 @@ export default function Home(): React.ReactElement {
   };
 
   const handleAiSpecialtySelect = (_specialtyName: string, specialtyId?: string): void => {
-    const matchedSpecialty = specialtyId
-      ? (catalog?.specialties ?? []).find((specialty) => specialty.id === specialtyId)
-      : undefined;
-    handleOpenBooking(undefined, matchedSpecialty?.id, undefined);
+    // Preserve the backend identity even when the homepage catalog is still
+    // loading or unavailable. BookingModal will reconcile it after its own
+    // authoritative catalog read instead of silently opening an unfiltered flow.
+    handleOpenBooking(undefined, specialtyId, undefined);
   };
 
   const handleHeroSearchSubmit = (): void => {
@@ -458,6 +506,7 @@ export default function Home(): React.ReactElement {
   const emergencyBranch = branches.find((branch) => Boolean(branch.emergencyHotline));
   const contactBranch = branches.find((branch) => Boolean(branch.phone));
   const contactPhone = emergencyBranch?.emergencyHotline ?? contactBranch?.phone ?? undefined;
+  const contactHref = safeTelephoneHref(contactPhone);
   const featuredDoctor = filteredDoctors[0];
   const supportingDoctors = filteredDoctors.slice(1, 4);
   const homeHeroProps: HomeHeroCopyProps = {
@@ -469,8 +518,8 @@ export default function Home(): React.ReactElement {
     contactPhone,
   };
 
-  return (
-    <div className="site-shell">
+    return (
+      <div className="site-shell">
       <PublicMotion />
       <Navbar
         branches={branches}
@@ -478,7 +527,7 @@ export default function Home(): React.ReactElement {
         onOpenBooking={() => handleOpenBooking()}
       />
 
-      <main id="main-content">
+      <main id="main-content" tabIndex={-1}>
         <section className="hero-section" aria-labelledby="hero-title">
           <CmsLiveSlot
             className="hero-inner"
@@ -509,7 +558,6 @@ export default function Home(): React.ReactElement {
               <CmsLiveSlot hideWhenNotFound slug="home" slotKey="body" />
               <div className="cms-live-region__aside">
                 <CmsLiveSlot hideWhenNotFound slug="home" slotKey="sidebar" />
-                <CmsLiveSlot hideWhenNotFound slug="home" slotKey="footer" />
               </div>
             </div>
           </div>
@@ -530,8 +578,16 @@ export default function Home(): React.ReactElement {
               <Link className="care-link" href="/doctors">
                 <span className="care-link__icon"><Icon name="user" size={21} /></span>
                 <span>
-                  <strong>Tìm bác sĩ</strong>
-                  <small>Xem hồ sơ và chuyên môn</small>
+                  <strong>Trợ lý triệu chứng</strong>
+                    <small>Gợi ý theo triệu chứng · cần đăng nhập</small>
+                </span>
+                <Icon name="chevron-right" size={18} />
+              </button>
+              <Link className="care-link" href="#packages">
+                <span className="care-link__icon"><Icon name="layers" size={21} /></span>
+                <span>
+                  <strong>Gói khám & dịch vụ</strong>
+                  <small>So sánh lựa chọn theo nhu cầu</small>
                 </span>
                 <Icon name="chevron-right" size={18} />
               </Link>
@@ -543,8 +599,8 @@ export default function Home(): React.ReactElement {
                 </span>
                 <Icon name="chevron-right" size={18} />
               </Link>
-              {contactPhone ? (
-                <a className={`care-link${emergencyBranch ? " care-link--emergency" : ""}`} href={`tel:${contactPhone.replace(/\s/g, "")}`}>
+              {contactHref ? (
+                <a className={`care-link${emergencyBranch ? " care-link--emergency" : ""}`} href={contactHref}>
                   <span className="care-link__icon"><Icon name="phone" size={21} /></span>
                   <span><strong>{emergencyBranch ? "Cấp cứu" : "Gọi bệnh viện"}</strong><small>{contactPhone}</small></span>
                   <Icon name="chevron-right" size={18} />
@@ -562,13 +618,7 @@ export default function Home(): React.ReactElement {
 
         <CareExperience />
 
-        {catalogError ? (
-          <div className="home-data-notice section-inner" role="status">
-            Một số thông tin bác sĩ, chuyên khoa và gói khám đang được cập nhật. Bạn vẫn có thể đặt lịch hoặc liên hệ bệnh viện.
-          </div>
-        ) : null}
-
-        <section className={`section section--specialties${catalogError ? " section--unavailable" : ""}`} id="specialties" aria-labelledby="specialties-title">
+        <section className="section section--specialties" id="specialties" aria-labelledby="specialties-title">
           <div className="section-inner">
             <SectionHeading
               action={<Link className="section-link" href="/specialties">Xem tất cả chuyên khoa <Icon name="arrow-right" size={17} /></Link>}
@@ -601,7 +651,7 @@ export default function Home(): React.ReactElement {
                   </article>
                 )) : !catalogLoading && catalog ? (
                   <div className="empty-state">
-                    <p>{searchQuery ? `Chưa có chuyên khoa khớp với “${searchQuery}”.` : "Danh sách chuyên khoa đang được cập nhật."}</p>
+                    <p>{searchQuery ? `Chưa có chuyên khoa khớp với “${searchQuery}”.` : "Chưa có chuyên khoa đang cung cấp."}</p>
                     <button className="text-button" onClick={() => setSearchQuery("")} type="button">Xóa tìm kiếm <Icon name="x" size={17} /></button>
                   </div>
                 ) : null}
@@ -614,7 +664,7 @@ export default function Home(): React.ReactElement {
           <div className="section-inner">
             <SectionHeading
               action={<button className="section-link section-link--button" onClick={() => handleOpenBooking()} type="button">Đặt lịch với bác sĩ <Icon name="arrow-right" size={17} /></button>}
-              description="Tìm hiểu chuyên môn, kinh nghiệm và lựa chọn bác sĩ phù hợp trước khi đặt lịch."
+              description="Hồ sơ công khai giúp bạn chọn đúng chuyên môn và mở luồng đặt lịch."
               headingId="doctors-title"
               note="Đội ngũ chuyên gia"
               title="Bác sĩ đồng hành cùng bạn"
@@ -631,7 +681,7 @@ export default function Home(): React.ReactElement {
               </div>
             ) : (
               <div className="empty-state empty-state--wide">
-                <p>{catalog ? (searchQuery ? `Chưa có bác sĩ khớp với “${searchQuery}”.` : "Danh sách bác sĩ đang được cập nhật.") : ""}</p>
+                <p>{catalog ? (searchQuery ? `Chưa có bác sĩ khớp với “${searchQuery}”.` : "Chưa có bác sĩ đang cung cấp.") : ""}</p>
                 <button className="text-button" onClick={() => setSearchQuery("")} type="button">Xóa tìm kiếm <Icon name="x" size={17} /></button>
               </div>
             )}
@@ -642,7 +692,7 @@ export default function Home(): React.ReactElement {
           <div className="section-inner">
             <SectionHeading
               action={<Link className="section-link" href="/packages">Xem danh mục gói khám <Icon name="arrow-right" size={17} /></Link>}
-              description="Các lựa chọn kiểm tra sức khỏe được trình bày rõ hạng mục và chi phí tham khảo."
+              description="Các gói khám đang cung cấp; giá và mô tả hiển thị theo thông tin công khai."
               headingId="packages-title"
               note="Gói khám sức khỏe"
               title="Chủ động chăm sóc sức khỏe"
@@ -720,9 +770,9 @@ export default function Home(): React.ReactElement {
             <div className="branch-layout">
               <div className="branch-intro">
                 <div className="branch-intro__topline"><Icon name="location" size={20} /><span>TP. Hồ Chí Minh</span></div>
-                <h3>Chọn nơi phù hợp với lịch trình của bạn.</h3>
-                <p>Kiểm tra địa chỉ, giờ làm việc và kênh liên hệ trước khi đến thăm khám.</p>
-                {contactPhone ? <a className="text-button" href={`tel:${contactPhone.replace(/\s/g, "")}`}>{emergencyBranch ? "Gọi hotline cấp cứu" : "Gọi cơ sở"} <Icon name="phone" size={17} /></a> : <Link className="text-button" href="/contact">Xem thông tin liên hệ <Icon name="arrow-up-right" size={17} /></Link>}
+                <h3>Chọn nơi bạn muốn bắt đầu chăm sóc.</h3>
+                <p>Địa chỉ và giờ làm việc lấy từ catalog công khai. Hãy kiểm tra lại trước khi đến.</p>
+                {contactHref ? <a className="text-button" href={contactHref}>{emergencyBranch ? "Gọi hotline cấp cứu" : "Gọi cơ sở"} <Icon name="phone" size={17} /></a> : <Link className="text-button" href="/contact">Xem thông tin liên hệ <Icon name="arrow-up-right" size={17} /></Link>}
               </div>
               <div className="branch-list">
                 <CatalogStatus error={catalogError} hasData={Boolean(catalog)} loading={catalogLoading} onRetry={retryCatalog} unavailable={catalogUnavailable} />
@@ -732,10 +782,10 @@ export default function Home(): React.ReactElement {
                     <div>
                       <h3>{branch.name}</h3>
                       <p><Icon name="location" size={15} />{branch.address}</p>
-                      <p><Icon name="clock" size={15} />{branch.workingHours ?? "Giờ làm việc đang được cập nhật."}</p>
+                      <p><Icon name="clock" size={15} />{branch.workingHours ?? "Giờ làm việc đang cập nhật."}</p>
                     </div>
                     <div className="branch-row__actions">
-                      {branch.phone ? <a href={`tel:${branch.phone.replace(/\s/g, "")}`} aria-label={`Gọi ${branch.name}`}>{branch.phone}</a> : <span className="resource-muted">Điện thoại đang cập nhật.</span>}
+                      {safeTelephoneHref(branch.phone) ? <a href={safeTelephoneHref(branch.phone) ?? undefined} aria-label={`Gọi ${branch.name}`}>{branch.phone}</a> : <span className="resource-muted">Số điện thoại đang cập nhật.</span>}
                       <BranchMap address={branch.address} branchName={branch.name} className="branch-row__map-link" variant="link" />
                       <button className="outline-button outline-button--small" onClick={() => handleOpenBooking(undefined, undefined, undefined, branch.id)} type="button">Đặt lịch</button>
                     </div>
@@ -762,9 +812,9 @@ export default function Home(): React.ReactElement {
                   <span className="video-card__circle"><Icon name="play" size={22} /></span>
                 </div>
                 <div className="video-card__body">
-                  <p className="content-meta">Bài viết nổi bật</p>
+                  <p className="content-meta">Từ cẩm nang sức khỏe</p>
                   <h3>{articles[0]?.title ?? "Cẩm nang sức khỏe đang được cập nhật"}</h3>
-                  <p>{articles[0]?.summary ?? "Các bài viết mới từ đội ngũ chuyên môn sẽ sớm được cập nhật tại đây."}</p>
+                  <p>{articles[0]?.summary ?? "Các bài viết mới sẽ được cập nhật tại đây."}</p>
                   <Link className="text-button" href="/articles">Mở danh mục bài viết <Icon name="arrow-up-right" size={17} /></Link>
                 </div>
               </article>
@@ -795,7 +845,7 @@ export default function Home(): React.ReactElement {
             </div>
             <div className="appointment-cta__actions">
               <button className="button button--amber" onClick={() => handleOpenBooking()} type="button">Đặt lịch khám <Icon name="arrow-up-right" size={18} /></button>
-              {contactPhone ? <a className="button button--cta-secondary" href={`tel:${contactPhone.replace(/\s/g, "")}`}><Icon name="phone" size={18} />{contactPhone}</a> : <Link className="button button--cta-secondary" href="/contact"><Icon name="location" size={18} />Thông tin liên hệ</Link>}
+              {contactHref ? <a className="button button--cta-secondary" href={contactHref}><Icon name="phone" size={18} />{contactPhone}</a> : <Link className="button button--cta-secondary" href="/contact"><Icon name="location" size={18} />Thông tin liên hệ</Link>}
             </div>
           </div>
         </section>
@@ -812,22 +862,25 @@ export default function Home(): React.ReactElement {
         <Icon name="arrow-up-right" size={17} />
       </button>
 
-      <Footer branches={branches} />
+      <Footer branches={branches} cmsSlug="home" />
 
-      <BookingModal
-        key={`${selectedBranchId ?? "default"}:${selectedDoctorId ?? "default"}:${selectedPackageId ?? "default"}:${selectedSpecialtyId ?? "default"}`}
-        initialBranchId={selectedBranchId}
-        initialDoctorId={selectedDoctorId}
-        initialPackageId={selectedPackageId}
-        initialSpecialtyId={selectedSpecialtyId}
-        isOpen={isBookingOpen}
-        onClose={() => setIsBookingOpen(false)}
-        branches={branches}
-        doctors={catalog?.doctors ?? []}
-        packages={packages}
-        specialties={catalog?.specialties ?? []}
-      />
+      {isBookingOpen ? (
+        <BookingModal
+          key={`${selectedBranchId ?? "default"}:${selectedDoctorId ?? "default"}:${selectedPackageId ?? "default"}:${selectedSpecialtyId ?? "default"}`}
+          initialBranchId={selectedBranchId}
+          initialDoctorId={selectedDoctorId}
+          initialPackageId={selectedPackageId}
+          initialSpecialtyId={selectedSpecialtyId}
+          isOpen
+          onClose={() => setIsBookingOpen(false)}
+          branches={branches}
+          doctors={catalog?.doctors ?? []}
+          packages={packages}
+          specialties={catalog?.specialties ?? []}
+        />
+      ) : null}
       <AiTriageModal
+        emergencyContact={emergencyBranch?.emergencyHotline}
         isOpen={isAiTriageOpen}
         onClose={() => setIsAiTriageOpen(false)}
         onSelectSpecialtyForBooking={handleAiSpecialtySelect}

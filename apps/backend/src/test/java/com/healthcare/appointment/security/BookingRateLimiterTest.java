@@ -31,8 +31,6 @@ class BookingRateLimiterTest {
 
         new BookingRateLimiter(redisTemplate).check("confirm", request, "APT-EXAMPLE");
 
-        // One cleanup is required for the IP counter and one for the subject
-        // counter because neither Redis key could be given a finite lifetime.
         verify(redisTemplate, atLeast(2)).delete(anyString());
     }
 }

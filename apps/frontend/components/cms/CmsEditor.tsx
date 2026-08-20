@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
   type FormEvent,
   type ReactElement,
@@ -27,6 +28,7 @@ import {
   type CmsFieldErrors,
 } from "../../lib/cms-client";
 import { CmsContentRenderer } from "./CmsRenderer";
+import { formatBusinessDateTime } from "../../lib/business-time";
 
 interface CmsDraftValues {
   componentType: CmsComponentType;
@@ -55,6 +57,24 @@ const SLOT_LABELS: Record<CmsSlotKey, string> = {
   sidebar: "Sidebar",
   footer: "Footer",
 };
+
+const CMS_ROUTE_PRESETS = [
+  ["home", "Trang chủ"],
+  ["about", "Về HealthCare"],
+  ["branches", "Mạng lưới cơ sở"],
+  ["specialties", "Chuyên khoa"],
+  ["doctors", "Bác sĩ"],
+  ["services", "Dịch vụ"],
+  ["packages", "Gói khám"],
+  ["articles", "Cẩm nang"],
+  ["careers", "Tuyển dụng"],
+  ["search", "Tìm kiếm"],
+  ["dat-lich", "Đặt lịch"],
+  ["contact", "Liên hệ"],
+  ["faq", "FAQ"],
+  ["huong-dan", "Hướng dẫn"],
+  ["tra-cuu", "Tra cứu"],
+] as const;
 
 function emptyPayload(componentType: CmsComponentType): CmsPayload {
   switch (componentType) {
@@ -97,7 +117,7 @@ function payloadValue(payload: CmsPayload, field: string): string {
 
 function prettyUpdatedAt(value: string | undefined): string {
   if (!value) return "Chưa đồng bộ";
-  return new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  return formatBusinessDateTime(value);
 }
 
 function slotSelection(slotKey: string): { slug: string; slot: CmsSlotKey } | null {
@@ -150,6 +170,7 @@ function TextField({
   multiline = false,
   required = false,
   help,
+  disabled = false,
 }: {
   field: string;
   label: string;
@@ -158,6 +179,7 @@ function TextField({
   multiline?: boolean;
   required?: boolean;
   help?: string;
+  disabled?: boolean;
 }): ReactElement {
   const value = payloadValue(payload, field);
   const id = `cms-payload-${field}`;
@@ -171,6 +193,7 @@ function TextField({
           id={id}
           onChange={(event) => onChange(field, event.target.value)}
           required={required}
+          disabled={disabled}
           value={value}
         />
       ) : (
@@ -180,6 +203,7 @@ function TextField({
           id={id}
           onChange={(event) => onChange(field, event.target.value)}
           required={required}
+          disabled={disabled}
           value={value}
         />
       )}
@@ -191,11 +215,13 @@ function TextField({
 function PayloadFields({
   draft,
   onChange,
+  disabled = false,
 }: {
   draft: CmsDraftValues;
   onChange: (field: string, value: string) => void;
+  disabled?: boolean;
 }): ReactElement {
-  const common = { payload: draft.payload, onChange };
+  const common = { payload: draft.payload, onChange, disabled };
   switch (draft.componentType) {
     case "HERO":
       return (
@@ -266,8 +292,20 @@ export function CmsEditor({
   const [history, setHistory] = useState<CmsContentHistoryEntry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
+  // A single content epoch serializes slot loads, saves, rollbacks, and their
+  // history reads. Any newer slot operation makes every older response inert.
+  const contentOperationRef = useRef(0);
+  const inventoryGenerationRef = useRef(0);
+
+  const invalidateInventory = (): void => {
+    inventoryGenerationRef.current += 1;
+    setInventoryLoading(false);
+  };
 
   const loadContent = useCallback(async (requestedSlug: string, requestedSlot: CmsSlotKey): Promise<void> => {
+    const operationGeneration = contentOperationRef.current + 1;
+    contentOperationRef.current = operationGeneration;
+    const isCurrentOperation = (): boolean => contentOperationRef.current === operationGeneration;
     const normalizedSlug = requestedSlug.trim();
     const backendSlotKey = resolveCmsSlotKey(normalizedSlug, requestedSlot);
     setSlug(normalizedSlug);
@@ -276,8 +314,12 @@ export function CmsEditor({
     setApiError(null);
     setFieldErrors({});
     setNotice(null);
+    setHistory([]);
+    setHistoryLoading(false);
+    setHistoryError(null);
     try {
       const loadedContent = await client.getAdminContent(backendSlotKey);
+      if (!isCurrentOperation()) return;
       const loadedDraft = draftFromContent(loadedContent);
       setContent(loadedContent);
       setDraft(loadedDraft);
@@ -285,16 +327,19 @@ export function CmsEditor({
       setLoadedSlug(normalizedSlug);
       setLoadedSlotKey(backendSlotKey);
       setHistoryLoading(true);
-      setHistoryError(null);
       try {
-        setHistory(await client.listHistory(backendSlotKey));
+        const loadedHistory = await client.listHistory(backendSlotKey);
+        if (!isCurrentOperation()) return;
+        setHistory(loadedHistory);
       } catch (historyLoadError) {
+        if (!isCurrentOperation()) return;
         setHistory([]);
         setHistoryError(apiErrorMessage(asCmsError(historyLoadError)));
       } finally {
-        setHistoryLoading(false);
+        if (isCurrentOperation()) setHistoryLoading(false);
       }
     } catch (error) {
+      if (!isCurrentOperation()) return;
       const cmsError = asCmsError(error);
       setApiError(cmsError);
       setContent(null);
@@ -305,20 +350,25 @@ export function CmsEditor({
       setHistory([]);
       setHistoryError(null);
     } finally {
-      setOperation("idle");
+      if (isCurrentOperation()) setOperation("idle");
     }
   }, [client]);
 
   const loadAvailableContent = useCallback(async (): Promise<void> => {
+    const requestGeneration = inventoryGenerationRef.current + 1;
+    inventoryGenerationRef.current = requestGeneration;
+    const isCurrentInventoryRequest = (): boolean => inventoryGenerationRef.current === requestGeneration;
     setInventoryLoading(true);
     setInventoryError(null);
     try {
       const slots = await client.listAdminContent();
+      if (!isCurrentInventoryRequest()) return;
       setAvailableContent(slots.sort((left, right) => left.slotKey.localeCompare(right.slotKey)));
     } catch (error) {
+      if (!isCurrentInventoryRequest()) return;
       setInventoryError(apiErrorMessage(asCmsError(error)));
     } finally {
-      setInventoryLoading(false);
+      if (isCurrentInventoryRequest()) setInventoryLoading(false);
     }
   }, [client]);
 
@@ -366,12 +416,17 @@ export function CmsEditor({
       return;
     }
 
+    const operationGeneration = contentOperationRef.current + 1;
+    contentOperationRef.current = operationGeneration;
+    const isCurrentOperation = (): boolean => contentOperationRef.current === operationGeneration;
+    invalidateInventory();
     setOperation(status === "PUBLISHED" ? "publishing" : "saving");
     setApiError(null);
     setFieldErrors({});
     setNotice(null);
     try {
       const savedContent = await client.upsertContent(loadedSlotKey, input);
+      if (!isCurrentOperation()) return;
       const savedDraft = draftFromContent(savedContent);
       setContent(savedContent);
       setDraft(savedDraft);
@@ -381,23 +436,32 @@ export function CmsEditor({
         savedContent,
       ].sort((left, right) => left.slotKey.localeCompare(right.slotKey)));
       try {
-        setHistory(await client.listHistory(savedContent.slotKey));
+        const savedHistory = await client.listHistory(savedContent.slotKey);
+        if (!isCurrentOperation()) return;
+        setHistory(savedHistory);
         setHistoryError(null);
       } catch (historyLoadError) {
+        if (!isCurrentOperation()) return;
         setHistoryError(apiErrorMessage(asCmsError(historyLoadError)));
       }
+      if (!isCurrentOperation()) return;
       setNotice(savedContent.status === "PUBLISHED"
         ? `Đã xuất bản ${savedContent.slotKey}, version ${savedContent.version}.`
         : `Đã lưu bản nháp ẩn công khai, version ${savedContent.version}.`);
     } catch (error) {
+      if (!isCurrentOperation()) return;
       setApiError(asCmsError(error));
     } finally {
-      setOperation("idle");
+      if (isCurrentOperation()) setOperation("idle");
     }
   };
 
   const handleRollback = async (entry: CmsContentHistoryEntry): Promise<void> => {
     if (!entry.rollbackAvailable || !content) return;
+    const operationGeneration = contentOperationRef.current + 1;
+    contentOperationRef.current = operationGeneration;
+    const isCurrentOperation = (): boolean => contentOperationRef.current === operationGeneration;
+    invalidateInventory();
     setOperation("saving");
     setApiError(null);
     setNotice(null);
@@ -406,20 +470,34 @@ export function CmsEditor({
         changeId: entry.eventId,
         expectedVersion: content.version,
       });
+      if (!isCurrentOperation()) return;
       const savedDraft = draftFromContent(savedContent);
       setContent(savedContent);
       setDraft(savedDraft);
       setLoadedSnapshot(savedDraft);
-      setHistory(await client.listHistory(savedContent.slotKey));
       setAvailableContent((current) => [
         ...current.filter((item) => item.slotKey !== savedContent.slotKey),
         savedContent,
       ].sort((left, right) => left.slotKey.localeCompare(right.slotKey)));
+      setHistoryLoading(true);
+      setHistoryError(null);
+      try {
+        const savedHistory = await client.listHistory(savedContent.slotKey);
+        if (!isCurrentOperation()) return;
+        setHistory(savedHistory);
+      } catch (historyLoadError) {
+        if (!isCurrentOperation()) return;
+        setHistoryError(apiErrorMessage(asCmsError(historyLoadError)));
+      } finally {
+        if (isCurrentOperation()) setHistoryLoading(false);
+      }
+      if (!isCurrentOperation()) return;
       setNotice(`Đã rollback ${savedContent.slotKey} về snapshot event #${entry.eventId}, version mới ${savedContent.version}.`);
     } catch (error) {
+      if (!isCurrentOperation()) return;
       setApiError(asCmsError(error));
     } finally {
-      setOperation("idle");
+      if (isCurrentOperation()) setOperation("idle");
     }
   };
 
@@ -467,6 +545,7 @@ export function CmsEditor({
             onChange={(event) => setSlug(event.target.value)}
             pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
             required
+            disabled={isBusy}
             value={slug}
           />
           <span className="mt-1 block text-xs font-normal text-slate-500" id="cms-slug-help">home + hero → homepage.hero</span>
@@ -476,6 +555,7 @@ export function CmsEditor({
           <select
             className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
             onChange={(event) => setSelectedSlot(event.target.value as CmsSlotKey)}
+            disabled={isBusy}
             value={selectedSlot}
           >
             {CMS_SLOT_KEYS.map((slotKey) => <option key={slotKey} value={slotKey}>{SLOT_LABELS[slotKey]} · {slotKey}</option>)}
@@ -486,13 +566,36 @@ export function CmsEditor({
         </button>
       </form>
 
+      <section aria-labelledby="cms-route-directory-title" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Public route directory</p>
+          <h2 className="mt-1 text-lg font-bold text-slate-950" id="cms-route-directory-title">Chọn nhanh vùng trang cần quản trị</h2>
+          <p className="mt-1 text-sm leading-6 text-slate-600">Chọn nhóm trang, giữ slot và bấm “Tải slot” để đọc version live hiện tại. Trang chi tiết dùng chung slot theo nhóm route.</p>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {CMS_ROUTE_PRESETS.map(([routeSlug, label]) => (
+            <button
+              aria-pressed={slug === routeSlug}
+              className={`min-h-11 rounded-xl border px-3 py-2 text-left text-sm font-semibold transition-colors ${slug === routeSlug ? "border-teal-700 bg-teal-50 text-teal-950" : "border-slate-300 text-slate-700 hover:bg-slate-50"}`}
+              key={routeSlug}
+              onClick={() => setSlug(routeSlug)}
+              disabled={isBusy}
+              type="button"
+            >
+              {label}
+              <span className="ml-2 font-mono text-xs font-normal opacity-70">/{routeSlug}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+
       <section aria-labelledby="cms-slot-directory-title" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Slot directory</p>
             <h2 className="mt-1 text-xl font-bold text-slate-950" id="cms-slot-directory-title">Các component CMS đã có trong backend</h2>
           </div>
-          <button className="min-h-11 rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60" disabled={inventoryLoading} onClick={() => void loadAvailableContent()} type="button">
+          <button className="min-h-11 rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60" disabled={inventoryLoading || isBusy} onClick={() => void loadAvailableContent()} type="button">
             {inventoryLoading ? "Đang đọc…" : "Làm mới danh mục"}
           </button>
         </div>
@@ -503,7 +606,7 @@ export function CmsEditor({
             {availableContent.map((item) => {
               const selection = slotSelection(item.slotKey);
               return selection ? (
-                <button className="min-h-11 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 text-left text-sm font-semibold text-teal-950 hover:bg-teal-100" key={item.slotKey} onClick={() => void loadContent(selection.slug, selection.slot)} type="button">
+                <button className="min-h-11 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 text-left text-sm font-semibold text-teal-950 hover:bg-teal-100 disabled:opacity-60" disabled={isBusy} key={item.slotKey} onClick={() => void loadContent(selection.slug, selection.slot)} type="button">
                   <span className="block font-mono text-xs">{item.slotKey}</span>
                   <span className="block text-xs font-normal text-teal-800">{item.componentType} · v{item.version} · {item.status}</span>
                 </button>
@@ -522,7 +625,7 @@ export function CmsEditor({
             </ul>
           ) : null}
           {apiError.kind === "conflict" ? (
-            <button className="mt-3 min-h-11 rounded-xl bg-red-800 px-4 py-2 text-sm font-bold text-white hover:bg-red-900" onClick={() => void loadContent(loadedSelection?.slug ?? loadedSlug, loadedSelection?.slot ?? selectedSlot)} type="button">
+            <button className="mt-3 min-h-11 rounded-xl bg-red-800 px-4 py-2 text-sm font-bold text-white hover:bg-red-900 disabled:opacity-60" disabled={isBusy} onClick={() => void loadContent(loadedSelection?.slug ?? loadedSlug, loadedSelection?.slot ?? selectedSlot)} type="button">
               Tải version mới nhất
             </button>
           ) : null}
@@ -552,6 +655,7 @@ export function CmsEditor({
               <select
                 className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
                 onChange={(event) => handleComponentTypeChange(event.target.value as CmsComponentType)}
+                disabled={isBusy}
                 value={draft.componentType}
               >
                 {CMS_COMPONENT_TYPES.map((componentType) => <option key={componentType} value={componentType}>{COMPONENT_LABELS[componentType]} · {componentType}</option>)}
@@ -562,7 +666,7 @@ export function CmsEditor({
           <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" aria-labelledby="payload-title">
             <h3 className="font-bold text-slate-950" id="payload-title">Payload allowlist</h3>
             <p className="mt-1 text-sm leading-6 text-slate-600">Các field hiển thị phụ thuộc component type. Field rỗng tùy chọn sẽ được bỏ khỏi request.</p>
-            <div className="mt-4"><PayloadFields draft={draft} onChange={handlePayloadChange} /></div>
+            <div className="mt-4"><PayloadFields disabled={isBusy} draft={draft} onChange={handlePayloadChange} /></div>
             <FieldError message={fieldErrors.payload} />
           </section>
 

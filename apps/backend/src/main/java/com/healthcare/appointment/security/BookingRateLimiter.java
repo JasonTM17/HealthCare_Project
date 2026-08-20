@@ -61,10 +61,10 @@ public class BookingRateLimiter {
             // A Redis outage must not make the public booking endpoint fail
             // open. The local fallback is deliberately smaller and bounded.
             try {
-                // Never leave an INCR-created counter without an expiry. A
-                // later Redis recovery must not turn one transient TTL failure
-                // into a permanent throttle. If deletion also fails, the next
-                // request will retry the TTL repair before using this counter.
+                // Do not leave a counter without a TTL: a later Redis recovery
+                // must not turn one transient expiry failure into a permanent
+                // throttle. If deletion also fails, the next Redis call will
+                // repair the missing TTL before evaluating the count.
                 redisTemplate.delete(key);
             } catch (RuntimeException ignoredCleanup) {
                 // Fall through to the bounded local fallback.

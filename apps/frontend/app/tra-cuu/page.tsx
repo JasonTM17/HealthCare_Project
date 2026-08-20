@@ -1,16 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import Link from "next/link";
-import Navbar from "../../components/Navbar";
-import Footer from "../../components/Footer";
-import BookingModal from "../../components/BookingModal";
-import AiTriageModal from "../../components/AiTriageModal";
 import Icon from "../../components/UiIcon";
+import { PublicPageShell } from "../../components/PublicPageShell";
+import useDialogFocus from "../../components/useDialogFocus";
 import { AppointmentDetails } from "../../types/hospital";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080/api/v1";
+  process.env.NEXT_PUBLIC_API_BASE_URL || "/api/v1";
 
 export default function TraCuuPage() {
   const [bookingCodeInput, setBookingCodeInput] = useState("");
@@ -21,13 +19,18 @@ export default function TraCuuPage() {
   const [cancelReason, setCancelReason] = useState("");
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [cancelSuccess, setCancelSuccess] = useState(false);
+  const lookupRequestRef = useRef(0);
+  const cancelDialogRef = useRef<HTMLDivElement>(null);
 
-  // Modals
-  const [isBookingOpen, setIsBookingOpen] = useState(false);
-  const [isAiTriageOpen, setIsAiTriageOpen] = useState(false);
+  useDialogFocus(cancelDialogRef, showCancelDialog, () => setShowCancelDialog(false));
 
   const handleLookup = async (e: React.FormEvent) => {
     e.preventDefault();
+    const requestId = ++lookupRequestRef.current;
+    setAppointment(null);
+    setCancelSuccess(false);
+    setErrorMessage("");
+    setLoading(false);
     if (!bookingCodeInput.trim()) {
       setErrorMessage("Vui lòng nhập Mã lịch hẹn");
       return;
@@ -38,15 +41,14 @@ export default function TraCuuPage() {
     }
 
     setLoading(true);
-    setErrorMessage("");
-    setAppointment(null);
-    setCancelSuccess(false);
 
     try {
       const res = await fetch(
-        `${API_BASE_URL}/appointments/${bookingCodeInput.trim()}?phone=${encodeURIComponent(phoneInput.trim())}`
+        `${API_BASE_URL}/appointments/${encodeURIComponent(bookingCodeInput.trim())}?phone=${encodeURIComponent(phoneInput.trim())}`,
+        { cache: "no-store" },
       );
       if (!res.ok) {
+        if (requestId !== lookupRequestRef.current) return;
         setErrorMessage(
           res.status === 404
             ? "Không tìm thấy lịch hẹn. Vui lòng kiểm tra lại mã và số điện thoại đã dùng khi đặt lịch."
@@ -55,11 +57,13 @@ export default function TraCuuPage() {
         return;
       }
       const data: AppointmentDetails = await res.json();
+      if (requestId !== lookupRequestRef.current) return;
       setAppointment(data);
     } catch {
+      if (requestId !== lookupRequestRef.current) return;
       setErrorMessage("Tạm thời chưa thể tra cứu lịch hẹn. Vui lòng kiểm tra kết nối và thử lại sau.");
     } finally {
-      setLoading(false);
+      if (requestId === lookupRequestRef.current) setLoading(false);
     }
   };
 
@@ -68,7 +72,7 @@ export default function TraCuuPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/appointments/${appointment.bookingCode}/cancel`, {
+      const res = await fetch(`${API_BASE_URL}/appointments/${encodeURIComponent(appointment.bookingCode)}/cancel`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -97,13 +101,8 @@ export default function TraCuuPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-sand-100 text-ink font-sans">
-      <Navbar
-        onOpenBooking={() => setIsBookingOpen(true)}
-        onOpenAiTriage={() => setIsAiTriageOpen(true)}
-      />
-
-      <main className="flex-1 py-12 px-4 sm:px-6 max-w-4xl mx-auto w-full">
+    <PublicPageShell>
+      <section className="py-12 px-4 sm:px-6 max-w-4xl mx-auto w-full">
         {/* Breadcrumb */}
         <div className="text-xs text-ink-muted mb-6 flex items-center gap-2">
           <Link href="/" className="hover:text-brand-700">Trang chủ</Link>
@@ -300,19 +299,27 @@ export default function TraCuuPage() {
 
         {/* Cancellation Confirmation Dialog */}
         {showCancelDialog && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-            <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-red-100 space-y-4">
-              <h3 className="text-lg font-bold text-red-700 flex items-center gap-2">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn" role="presentation">
+            <div
+              aria-describedby="cancel-dialog-description"
+              aria-labelledby="cancel-dialog-title"
+              aria-modal="true"
+              className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-red-100 space-y-4"
+              ref={cancelDialogRef}
+              role="dialog"
+            >
+              <h3 className="text-lg font-bold text-red-700 flex items-center gap-2" id="cancel-dialog-title">
                 <Icon name="alert-triangle" size={16} /> Xác Nhận Hủy Lịch Khám
               </h3>
-              <p className="text-xs text-ink-muted leading-relaxed">
+              <p className="text-xs text-ink-muted leading-relaxed" id="cancel-dialog-description">
                 Bạn có chắc chắn muốn hủy lịch hẹn mã <span className="font-mono font-bold text-ink">{appointment?.bookingCode}</span> với {appointment?.doctorName} vào ngày {appointment?.appointmentDate}?
               </p>
               <div>
-                <label className="block text-xs font-semibold text-ink-muted mb-1">
+                <label className="block text-xs font-semibold text-ink-muted mb-1" htmlFor="cancel-reason">
                   Lý do hủy (không bắt buộc):
                 </label>
                 <input
+                  id="cancel-reason"
                   type="text"
                   placeholder="Ví dụ: Thay đổi lịch công tác..."
                   value={cancelReason}
@@ -323,6 +330,7 @@ export default function TraCuuPage() {
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
+                  disabled={loading}
                   onClick={() => setShowCancelDialog(false)}
                   className="px-4 py-2 text-xs font-bold text-ink-muted hover:bg-mint-100 rounded-lg"
                 >
@@ -330,6 +338,7 @@ export default function TraCuuPage() {
                 </button>
                 <button
                   type="button"
+                  disabled={loading}
                   onClick={handleCancelAppointment}
                   className="px-5 py-2 text-xs font-bold bg-red-600 hover:bg-red-700 text-white rounded-lg shadow"
                 >
@@ -339,21 +348,8 @@ export default function TraCuuPage() {
             </div>
           </div>
         )}
-      </main>
-
-      <Footer />
-
-      <BookingModal
-        isOpen={isBookingOpen}
-        onClose={() => setIsBookingOpen(false)}
-      />
-
-      <AiTriageModal
-        isOpen={isAiTriageOpen}
-        onClose={() => setIsAiTriageOpen(false)}
-        onSelectSpecialtyForBooking={() => setIsBookingOpen(true)}
-      />
-    </div>
+      </section>
+    </PublicPageShell>
   );
 }
 

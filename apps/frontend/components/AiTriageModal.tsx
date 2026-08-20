@@ -1,18 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { ApiError, recommendSpecialty } from "../lib/api-client";
+import { safeTelephoneHref } from "../lib/phone";
 import type {
   AiTriageCitation,
   AiTriageResult,
 } from "../types/hospital";
 import Icon from "./UiIcon";
+import useDialogFocus from "./useDialogFocus";
 
 interface AiTriageModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectSpecialtyForBooking: (specialtyName: string, specialtyId?: string) => void;
+  emergencyContact?: string;
 }
 
 type TriageErrorKind = "login" | "forbidden" | "unavailable" | "error";
@@ -83,27 +86,35 @@ export default function AiTriageModal({
   isOpen,
   onClose,
   onSelectSpecialtyForBooking,
+  emergencyContact,
 }: AiTriageModalProps) {
   const [symptoms, setSymptoms] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const [result, setResult] = useState<AiTriageResult | null>(null);
   const [errorKind, setErrorKind] = useState<TriageErrorKind | null>(null);
   const [lastSubmittedSymptoms, setLastSubmittedSymptoms] = useState<string>("");
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const analysisRequestRef = useRef(0);
+
+  useDialogFocus(dialogRef, isOpen, onClose);
 
   if (!isOpen) return null;
 
   const analyzeSymptoms = async (normalizedSymptoms: string) => {
+    const requestId = ++analysisRequestRef.current;
     setLoading(true);
     setResult(null);
     setErrorKind(null);
     try {
       const triage = await recommendSpecialty(normalizedSymptoms);
+      if (requestId !== analysisRequestRef.current) return;
       setResult(triage);
     } catch (error) {
+      if (requestId !== analysisRequestRef.current) return;
       setResult(null);
       setErrorKind(classifyTriageError(error));
     } finally {
-      setLoading(false);
+      if (requestId === analysisRequestRef.current) setLoading(false);
     }
   };
 
@@ -125,23 +136,30 @@ export default function AiTriageModal({
   };
 
   const handleBookNow = () => {
-    if (result) {
+    if (
+      result
+      && result.urgencyLevel !== "EMERGENCY"
+      && result.specialtyResolution === "RESOLVED"
+      && result.recommendedSpecialtyId
+    ) {
       onSelectSpecialtyForBooking(result.recommendedSpecialty, result.recommendedSpecialtyId);
       onClose();
     }
   };
 
   const errorCopy = errorKind ? TRIAGE_ERROR_COPY[errorKind] : null;
+  const emergencyHref = safeTelephoneHref(emergencyContact);
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-fadeIn"
+      className="dialog-layer ai-triage-layer fixed inset-0 flex items-center justify-center p-4 animate-fadeIn"
       role="dialog"
       aria-modal="true"
       aria-labelledby="ai-triage-title"
+      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
     >
-      <div className="relative flex max-h-[92vh] w-full max-w-lg flex-col overflow-y-auto rounded-2xl border border-brand-100 bg-white shadow-2xl">
-        <div className="flex items-center justify-between bg-brand-900 px-6 py-4 text-white">
+      <div className="ai-triage-panel relative flex max-h-[92vh] w-full max-w-lg flex-col overflow-y-auto rounded-2xl border border-brand-100 bg-white shadow-2xl" ref={dialogRef}>
+        <div className="ai-triage-panel__header flex items-center justify-between bg-brand-900 px-6 py-4 text-white">
           <div className="flex items-center gap-2.5">
             <Icon name="stethoscope" size={24} />
             <div>
@@ -163,7 +181,7 @@ export default function AiTriageModal({
           </button>
         </div>
 
-        <div className="space-y-4 p-6">
+        <div className="ai-triage-panel__content space-y-4 p-6">
           <form onSubmit={handleAnalyze} className="space-y-3" aria-busy={loading}>
             <label className="block text-xs font-bold uppercase tracking-wider text-gray-700" htmlFor="triage-symptoms">
               Mô tả cảm giác hoặc triệu chứng khó chịu của bạn:
@@ -219,7 +237,12 @@ export default function AiTriageModal({
           ) : null}
 
           {result ? (
-            <div className="space-y-3 rounded-xl border border-brand-200 bg-brand-50 p-4 animate-fadeIn">
+            <div
+              aria-atomic="true"
+              aria-live={result.urgencyLevel === "EMERGENCY" ? "assertive" : "polite"}
+              className="space-y-3 rounded-xl border border-brand-200 bg-brand-50 p-4 animate-fadeIn"
+              role={result.urgencyLevel === "EMERGENCY" ? "alert" : "status"}
+            >
               <div className="flex items-center justify-between gap-3">
                 <span className="text-xs font-bold uppercase tracking-wider text-brand-900">
                   Chuyên khoa khuyến nghị
@@ -248,7 +271,7 @@ export default function AiTriageModal({
               <p className="text-[11px] text-gray-600">
                 {result.recommendedSpecialtyId && result.specialtyResolution === "RESOLVED"
                   ? "Chuyên khoa này hiện có trong danh mục đặt lịch."
-                  : "Bạn có thể mở biểu mẫu đặt lịch và tự chọn chuyên khoa phù hợp."}
+                  : "AI chưa xác nhận được identity trong catalog live; hãy chọn chuyên khoa trực tiếp từ danh mục."}
               </p>
 
               <p className="flex items-start gap-2 rounded-lg border border-brand-100 bg-white/80 p-3 text-xs leading-relaxed text-gray-700">
@@ -288,16 +311,52 @@ export default function AiTriageModal({
                 <Icon name="alert-triangle" size={14} /> <span>{result.disclaimer ?? "Kết quả chỉ mang tính tham khảo và không thay thế thăm khám trực tiếp."}</span>
               </p>
 
-              <div className="flex flex-col gap-3 border-t border-brand-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
-                <span className="text-[11px] text-gray-500">Hãy trao đổi lại với nhân viên y tế trước khi quyết định.</span>
-                <button
-                  type="button"
-                  onClick={handleBookNow}
-                  className="flex min-h-11 items-center justify-center gap-1.5 rounded-lg bg-brand-700 px-5 py-2 text-xs font-bold text-white shadow-md transition-colors hover:bg-brand-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
-                >
-                  <span>Đặt khám chuyên khoa này</span> <Icon name="arrow-right" size={16} />
-                </button>
-              </div>
+              {result.urgencyLevel === "EMERGENCY" ? (
+                <div className="space-y-3 border-t border-red-200 pt-3">
+                  <p className="text-xs font-bold leading-relaxed text-red-800">
+                    Dấu hiệu được mô tả cần được đánh giá y tế khẩn cấp. Không chờ lịch hẹn trực tuyến; hãy đến cơ sở cấp cứu gần nhất.
+                  </p>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                    {emergencyHref ? (
+                      <a
+                        className="flex min-h-11 items-center justify-center gap-1.5 rounded-lg bg-red-700 px-5 py-2 text-xs font-bold text-white shadow-md transition-colors hover:bg-red-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-300 focus-visible:ring-2 focus-visible:ring-red-600"
+                        href={emergencyHref}
+                      >
+                        <Icon name="phone" size={16} /> Gọi hotline cấp cứu · {emergencyContact}
+                      </a>
+                    ) : null}
+                    <Link
+                      className="flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-red-300 bg-white px-5 py-2 text-xs font-bold text-red-800 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-300 focus-visible:ring-2 focus-visible:ring-red-500"
+                      href="/branches"
+                      onClick={onClose}
+                    >
+                      Xem cơ sở gần nhất <Icon name="arrow-right" size={16} />
+                    </Link>
+                  </div>
+                  {!emergencyHref ? <p className="text-[11px] text-red-700">Backend chưa cung cấp số hotline cấp cứu cho các cơ sở hiện tại.</p> : null}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3 border-t border-brand-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
+                  <span className="text-[11px] text-gray-500">Hãy trao đổi lại với nhân viên y tế trước khi quyết định.</span>
+                  {result.specialtyResolution === "RESOLVED" && result.recommendedSpecialtyId ? (
+                    <button
+                      type="button"
+                      onClick={handleBookNow}
+                      className="flex min-h-11 items-center justify-center gap-1.5 rounded-lg bg-brand-700 px-5 py-2 text-xs font-bold text-white shadow-md transition-colors hover:bg-brand-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
+                    >
+                      <span>Đặt khám chuyên khoa này</span> <Icon name="arrow-right" size={16} />
+                    </button>
+                  ) : (
+                    <Link
+                      className="flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-brand-300 bg-white px-5 py-2 text-xs font-bold text-brand-800 hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
+                      href="/specialties"
+                      onClick={onClose}
+                    >
+                      Chọn trong danh mục <Icon name="arrow-right" size={16} />
+                    </Link>
+                  )}
+                </div>
+              )}
             </div>
           ) : null}
         </div>

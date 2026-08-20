@@ -2,7 +2,6 @@
 param(
     [string]$ApiBaseUrl = "http://localhost:8080/api/v1",
     [string]$FrontendUrl = "http://localhost:3000",
-    [string]$AdminPassword = "LocalDev!Pass2026",
     [string]$DemoPassword = "LocalDemo!2026"
 )
 
@@ -22,10 +21,10 @@ function Invoke-JsonApi {
     Invoke-RestMethod @parameters
 }
 
-function Login-DemoRole([string]$Email, [string]$Password = $DemoPassword) {
+function Login-DemoRole([string]$Email) {
     $session = Invoke-JsonApi -Uri "$ApiBaseUrl/auth/login" -Method POST -Body @{
         email = $Email
-        password = $Password
+        password = $DemoPassword
     }
     if (-not $session.accessToken) { throw "Login did not return an access token for $Email" }
     $checks.Add("login:$Email")
@@ -38,7 +37,7 @@ $frontend = Invoke-WebRequest $FrontendUrl -UseBasicParsing
 if ($frontend.StatusCode -ne 200) { throw "Frontend did not return HTTP 200" }
 $checks.Add("health:backend+frontend")
 
-$adminToken = Login-DemoRole "admin@healthcare.local" $AdminPassword
+$adminToken = Login-DemoRole "admin@healthcare.local"
 $doctorToken = Login-DemoRole "doctor@healthcare.local"
 $patientToken = Login-DemoRole "patient@healthcare.local"
 
