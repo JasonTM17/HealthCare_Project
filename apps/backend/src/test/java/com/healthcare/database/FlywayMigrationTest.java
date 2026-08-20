@@ -190,6 +190,50 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
     }
 
     @Test
+    void v23PreflightDiagnosesLegacyPrivateCmsSlotsBeforeConstraints() {
+        String schema = createMigrationSchema();
+        try {
+            migrate(schema, "22");
+            UUID contentId = UUID.randomUUID();
+            String contents = table(schema, "cms_contents");
+            String changes = table(schema, "cms_content_changes");
+
+            jdbcTemplate.update(
+                "insert into " + contents
+                    + " (id, slot_key, component_type, payload, status, version, created_at, updated_at) "
+                    + "values (?, ?, 'NOTICE', '{}'::jsonb, 'DRAFT', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+                contentId,
+                "patient.dashboard.hero"
+            );
+            jdbcTemplate.update(
+                "insert into " + changes
+                    + " (content_id, slot_key, content_version, published, public_event) "
+                    + "values (?, ?, 1, false, false)",
+                contentId,
+                "patient.dashboard.hero"
+            );
+
+            Throwable failure = catchThrowable(() -> migrate(schema, "23"));
+
+            assertThat(failure).isNotNull();
+            assertThat(allMessages(failure)).contains(
+                "V23 preflight failed",
+                "legacy CMS slot keys outside the public route inventory",
+                "patient.dashboard.hero",
+                "Repair or explicitly reassign/delete private slots",
+                "never deletes production CMS data"
+            );
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + contents + " where slot_key = ?",
+                Integer.class,
+                "patient.dashboard.hero"
+            )).isEqualTo(1);
+        } finally {
+            dropMigrationSchema(schema);
+        }
+    }
+
+    @Test
     void cmsSlotKeysAreBoundToPublicRouteInventoryAtDatabaseBoundary() {
         UUID contentId = UUID.randomUUID();
         jdbcTemplate.update("delete from cms_content_changes where slot_key in (?, ?)", "contact.footer", "patient.dashboard.hero");
