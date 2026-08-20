@@ -19,8 +19,8 @@ public interface JobPositionRepository extends JpaRepository<JobPosition, UUID> 
         select job from JobPosition job
         where job.active = true
           and (job.deadline is null or job.deadline >= :today)
-          and (:department is null or lower(job.department) = lower(:department))
-          and (:location is null or lower(job.location) = lower(:location))
+          and (:department is null or lower(job.department) = :department)
+          and (:location is null or lower(job.location) = :location)
         order by job.featured desc, job.createdAt desc
         """)
     Page<JobPosition> findOpenPositions(

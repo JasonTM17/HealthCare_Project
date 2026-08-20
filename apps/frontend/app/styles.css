@@ -3,33 +3,42 @@
 @tailwind utilities;
 
 :root {
-  --color-paper: oklch(98% 0.009 100);
-  --color-paper-bright: oklch(99.2% 0.005 100);
-  --color-surface: oklch(95% 0.025 178);
-  --color-surface-strong: oklch(91% 0.045 178);
-  --color-ink: oklch(18% 0.028 195);
-  --color-ink-muted: oklch(43% 0.035 195);
-  --color-ink-soft: oklch(58% 0.028 195);
-  --color-teal-950: oklch(22% 0.07 195);
-  --color-teal-900: oklch(28% 0.08 193);
-  --color-teal-800: oklch(34% 0.09 191);
-  --color-teal-700: oklch(40% 0.095 189);
-  --color-teal-500: oklch(49% 0.09 187);
-  --color-teal-300: oklch(74% 0.075 181);
-  --color-mint: oklch(88% 0.065 174);
-  --color-mint-light: oklch(94% 0.035 178);
-  --color-mint-mid: oklch(78% 0.07 178);
-  --color-amber: oklch(78% 0.145 78);
-  --color-amber-dark: oklch(42% 0.1 72);
-  --color-red: oklch(51% 0.18 25);
-  --color-line: oklch(82% 0.03 182);
-  --color-line-dark: oklch(37% 0.06 194);
+  /* Aura Health Intelligence / Stitch source of truth. */
+  --color-paper: #f9f7f2;
+  --color-paper-bright: #ffffff;
+  --color-surface: #e0f2f1;
+  --color-surface-strong: #beebee;
+  --color-ink: #1a1c1e;
+  --color-ink-muted: #404849;
+  --color-ink-soft: #717979;
+  --color-teal-950: #001c1e;
+  --color-teal-900: #003336;
+  --color-teal-800: #004b50;
+  --color-teal-700: #2a676c;
+  --color-teal-500: #3b6568;
+  --color-teal-300: #a3ced2;
+  --color-mint: #e0f2f1;
+  --color-mint-light: #f3f3f6;
+  --color-mint-mid: #a3ced2;
+  --color-amber: #feb700;
+  --color-amber-dark: #7c5800;
+  --color-red: #ba1a1a;
+  --color-line: #c0c8c8;
+  --color-line-dark: #20302f;
+  --color-warm-sand: #f9f7f2;
+  --color-soft-mint: #e0f2f1;
+  --color-calm-ink: #1a1c1e;
+  --color-primary: #001c1e;
+  --color-primary-container: #003336;
+  --color-secondary: #7c5800;
+  --color-tertiary: #20302f;
   --font-display: var(--font-be-vietnam-pro), "Noto Sans", sans-serif;
   --font-body: var(--font-inter), "Noto Sans", sans-serif;
   --sp-1: 0.25rem;
   --sp-2: 0.5rem;
   --sp-3: 0.75rem;
   --sp-4: 1rem;
+  --sp-5: 1.25rem;
   --sp-6: 1.5rem;
   --sp-8: 2rem;
   --sp-12: 3rem;
@@ -42,8 +51,8 @@
   --radius-lg: 1rem;
   --radius-xl: 1.5rem;
   --radius-pill: 999px;
-  --shadow-soft: 0 12px 32px oklch(27% 0.08 193 / 0.09);
-  --shadow-lift: 0 20px 44px oklch(27% 0.08 193 / 0.14);
+  --shadow-soft: 0 12px 32px rgb(0 51 54 / 0.06);
+  --shadow-lift: 0 20px 44px rgb(0 51 54 / 0.1);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
   --duration-fast: 150ms;
@@ -136,7 +145,11 @@ main {
   display: grid;
   gap: var(--sp-6);
   width: min(100% - 8rem, 80rem);
-  margin: var(--sp-8) auto 0;
+  margin: var(--sp-12) auto var(--sp-16);
+}
+
+.route-cms-slots:empty {
+  display: none;
 }
 
 .section-inner,
@@ -833,8 +846,8 @@ main {
 
 .catalog-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--sp-5);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-6);
 }
 
 .catalog-grid--compact {
@@ -1118,15 +1131,11 @@ main {
   justify-self: start;
 }
 
-.route-cms-slots + .resource-page,
-.route-cms-slots + .catalog-page {
-  padding-top: var(--sp-12);
-}
-
 @media (max-width: 760px) {
   .route-cms-slots {
     width: min(100% - 2rem, 80rem);
-    margin-top: var(--sp-6);
+    margin-top: var(--sp-10);
+    margin-bottom: var(--sp-12);
   }
 
   .resource-page,
@@ -2684,6 +2693,26 @@ main {
   gap: var(--sp-12);
 }
 
+.site-footer__cms {
+  width: min(100% - 8rem, 80rem);
+  margin: var(--sp-12) auto 0;
+}
+
+.site-footer__cms .cms-renderer {
+  border-color: var(--color-line-dark);
+  background: rgb(255 255 255 / 7%);
+  box-shadow: none;
+  color: oklch(82% 0.035 182);
+}
+
+.site-footer__cms .cms-renderer__title {
+  color: var(--color-paper-bright);
+}
+
+.site-footer__cms .cms-renderer__body {
+  color: oklch(78% 0.04 182);
+}
+
 .brand-link--footer .brand-mark {
   background: var(--color-amber);
   color: var(--color-teal-950);
@@ -2793,6 +2822,10 @@ main {
   .utility-bar__inner,
   .site-footer__inner,
   .site-footer__bottom {
+    width: min(100% - 4rem, 80rem);
+  }
+
+  .site-footer__cms {
     width: min(100% - 4rem, 80rem);
   }
 
@@ -2939,6 +2972,10 @@ main {
   .utility-bar__inner,
   .site-footer__inner,
   .site-footer__bottom {
+    width: min(100% - 2rem, 80rem);
+  }
+
+  .site-footer__cms {
     width: min(100% - 2rem, 80rem);
   }
 
@@ -3234,6 +3271,160 @@ main {
   color: oklch(32% 0.07 75);
   font-size: 0.875rem;
   font-weight: 700;
+}
+
+.cms-slot-renderer {
+  display: grid;
+  gap: var(--sp-4);
+}
+
+.cms-renderer {
+  min-width: 0;
+  color: var(--color-ink);
+}
+
+.cms-renderer__content {
+  min-width: 0;
+}
+
+.cms-renderer__eyebrow {
+  margin: 0 0 var(--sp-3);
+  color: var(--color-teal-700);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.cms-renderer__title {
+  margin: 0;
+  color: var(--color-teal-950);
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 2.6vw, 2.25rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+.cms-renderer__body {
+  margin: var(--sp-3) 0 0;
+  color: var(--color-ink-muted);
+  font-size: 1rem;
+  line-height: 1.7;
+  white-space: pre-line;
+}
+
+.cms-renderer__action {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: var(--sp-5);
+}
+
+.cms-renderer__link {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 800;
+  transition: background-color var(--duration-fast) ease, color var(--duration-fast) ease, transform var(--duration-fast) var(--ease-out);
+}
+
+.cms-renderer__link:hover {
+  transform: translateY(-1px);
+}
+
+.cms-renderer__link--primary {
+  background: var(--color-teal-800);
+  color: var(--color-paper-bright);
+}
+
+.cms-renderer__link--primary:hover {
+  background: var(--color-teal-900);
+}
+
+.cms-renderer__image {
+  width: 100%;
+  max-height: 24rem;
+  border-radius: var(--radius-lg);
+  object-fit: cover;
+}
+
+.cms-renderer--hero,
+.cms-renderer--rich-text,
+.cms-renderer--image-card {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-paper-bright);
+  box-shadow: var(--shadow-soft);
+}
+
+.cms-renderer--hero {
+  display: grid;
+  gap: var(--sp-6);
+  padding: var(--sp-6);
+}
+
+.cms-renderer--rich-text,
+.cms-renderer--image-card .cms-renderer__content {
+  padding: var(--sp-6);
+}
+
+.cms-renderer--cta {
+  border-radius: var(--radius-lg);
+  background: var(--color-teal-900);
+  padding: var(--sp-6);
+  color: var(--color-paper-bright);
+  box-shadow: var(--shadow-soft);
+}
+
+.cms-renderer--cta .cms-renderer__title {
+  color: var(--color-paper-bright);
+}
+
+.cms-renderer--cta .cms-renderer__body {
+  color: var(--color-teal-300);
+}
+
+.cms-renderer--cta .cms-renderer__link--primary {
+  background: var(--color-amber);
+  color: var(--color-ink);
+}
+
+.cms-renderer--cta .cms-renderer__link--primary:hover {
+  background: #ffcd71;
+}
+
+.cms-renderer--notice {
+  border: 1px solid #ffdea7;
+  border-left: 4px solid var(--color-amber-dark);
+  border-radius: var(--radius-md);
+  background: var(--color-warm-sand);
+  padding: var(--sp-5);
+}
+
+.cms-renderer--notice .cms-renderer__title {
+  font-size: 1.25rem;
+}
+
+.cms-renderer--image-card {
+  overflow: hidden;
+}
+
+.cms-renderer--image-card .cms-renderer__image {
+  max-height: 18rem;
+  border-radius: 0;
+}
+
+@media (min-width: 760px) {
+  .cms-renderer--hero {
+    grid-template-columns: minmax(0, 1fr) minmax(14rem, 0.8fr);
+    align-items: center;
+  }
 }
 
 .portal-header {
@@ -4128,15 +4319,15 @@ main {
 
 /* Hospital public-site redesign — restrained, editorial and patient-first. */
 .site-shell {
-  --hospital-navy: #123f52;
-  --hospital-teal: #087b78;
-  --hospital-teal-dark: #075f5e;
-  --hospital-mint: #e8f4f2;
-  --hospital-surface: #f4f8f8;
-  --hospital-border: #d8e4e4;
-  --hospital-text: #243c46;
-  --hospital-muted: #5f737b;
-  background: #fff;
+  --hospital-navy: var(--color-teal-900);
+  --hospital-teal: var(--color-teal-800);
+  --hospital-teal-dark: var(--color-teal-950);
+  --hospital-mint: var(--color-soft-mint);
+  --hospital-surface: var(--color-mint-light);
+  --hospital-border: var(--color-line);
+  --hospital-text: var(--color-ink);
+  --hospital-muted: var(--color-ink-muted);
+  background: var(--color-warm-sand);
 }
 
 .site-shell .skip-link {
@@ -4165,7 +4356,7 @@ main {
 .site-shell .utility-bar__inner,
 .site-shell .site-footer__inner,
 .site-shell .site-footer__bottom {
-  width: min(calc(100% - 3rem), 74rem);
+  width: min(calc(100% - 8rem), 80rem);
 }
 
 .site-shell .utility-bar {
@@ -4938,7 +5129,7 @@ main {
   .site-shell .utility-bar__inner,
   .site-shell .site-footer__inner,
   .site-shell .site-footer__bottom {
-    width: min(calc(100% - 2rem), 74rem);
+    width: min(calc(100% - 2rem), 80rem);
   }
 
   .site-shell .utility-bar__inner {
@@ -5360,5 +5551,63 @@ main {
   .site-shell .about-closing .resource-actions,
   .site-shell .about-closing .resource-actions > * {
     width: 100%;
+  }
+}
+
+/* Final interaction layer for the Stitch-aligned public shell. */
+.site-shell main#main-content:focus {
+  outline: none;
+}
+
+.dialog-layer {
+  z-index: 90;
+  background: rgb(0 28 30 / 0.76);
+  backdrop-filter: blur(5px);
+}
+
+.booking-panel,
+.ai-triage-panel {
+  border-color: var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-paper-bright);
+  box-shadow: var(--shadow-lift);
+}
+
+.ai-triage-panel__header {
+  background: var(--color-teal-950);
+}
+
+.ai-triage-panel__content {
+  background: var(--color-paper-bright);
+}
+
+.site-shell .section--unavailable {
+  display: block;
+}
+
+.site-shell .ai-navigator-fab {
+  display: inline-flex;
+  z-index: 45;
+}
+
+@media (max-width: 640px) {
+  .mobile-care-rail {
+    z-index: 40;
+  }
+
+  .site-shell .ai-navigator-fab {
+    display: none;
+  }
+
+  .dialog-layer {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .booking-panel,
+  .ai-triage-panel {
+    max-height: calc(100dvh - 0.5rem);
+    border-bottom: 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   }
 }

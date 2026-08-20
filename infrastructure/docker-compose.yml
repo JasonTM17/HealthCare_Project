@@ -71,21 +71,21 @@ services:
       JWT_SECRET:         ${JWT_SECRET:-local-jwt-secret-not-for-production}
       JWT_ACCESS_TTL:     ${JWT_ACCESS_TTL:-900}
       JWT_REFRESH_TTL:    ${JWT_REFRESH_TTL:-604800}
-      CORS_ALLOWED_ORIGINS: http://localhost:3000
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
       APP_SECURITY_RATE_LIMIT_ENABLED: ${APP_SECURITY_RATE_LIMIT_ENABLED:-true}
       APP_SECURITY_RATE_LIMIT_WINDOW_SECONDS: ${APP_SECURITY_RATE_LIMIT_WINDOW_SECONDS:-60}
       APP_SECURITY_RATE_LIMIT_AUTH_LIMIT: ${APP_SECURITY_RATE_LIMIT_AUTH_LIMIT:-20}
       APP_SECURITY_RATE_LIMIT_APPOINTMENT_LIMIT: ${APP_SECURITY_RATE_LIMIT_APPOINTMENT_LIMIT:-60}
       APP_SECURITY_RATE_LIMIT_AI_LIMIT: ${APP_SECURITY_RATE_LIMIT_AI_LIMIT:-30}
-      # Local Compose has no SMS provider, so the demo flow accepts 123456.
-      # Set APP_BOOKING_ALLOW_TEST_OTP=false when a real OTP provider is wired.
-      APP_BOOKING_ALLOW_TEST_OTP: ${APP_BOOKING_ALLOW_TEST_OTP:-true}
       AI_SERVICE_URL:     http://healthcare-ai-service:8000
       AI_SERVICE_RUNTIME: compose
       AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL: "false"
       AI_SERVICE_TOKEN:   ${AI_SERVICE_TOKEN:-local-development-token-not-for-production}
-      AI_RAG_INGEST_ENABLED: ${AI_RAG_INGEST_ENABLED:-true}
-      AI_RAG_INGEST_TOKEN: ${RAG_INGEST_TOKEN:-local-rag-ingest-token-not-for-production}
+      AI_RAG_INGEST_ENABLED: ${RAG_INGEST_ENABLED:-false}
+      AI_RAG_INGEST_TOKEN:   ${RAG_INGEST_TOKEN:-}
+      # Local Compose has no SMS provider, so the demo flow accepts 123456.
+      # Set APP_BOOKING_ALLOW_TEST_OTP=false when a real OTP provider is wired.
+      APP_BOOKING_ALLOW_TEST_OTP: ${APP_BOOKING_ALLOW_TEST_OTP:-true}
       CMS_DISTRIBUTED_REALTIME_ENABLED: "true"
       REDIS_HOST:         redis
       REDIS_PORT:         "6379"
@@ -127,21 +127,26 @@ services:
       PGPASSWORD: ${POSTGRES_PASSWORD:-change-me}
     volumes:
       - ${SEED_FILE:-../apps/backend/src/main/resources/db/seed/seed-local-data.sql}:/seed/seed.sql:ro
+      - ../apps/backend/src/main/resources/db/seed/seed-local-careers.sql:/seed/careers.sql:ro
       - ../apps/backend/src/main/resources/db/seed/seed-local-rich-content.sql:/seed/rich-content.sql:ro
     depends_on:
       backend:
         condition: service_healthy
-    command: ["/bin/sh", "-ec", "psql -v ON_ERROR_STOP=1 -f /seed/seed.sql -f /seed/rich-content.sql"]
+    command: ["/bin/sh", "-ec", "psql -v ON_ERROR_STOP=1 -f /seed/seed.sql -f /seed/careers.sql -f /seed/rich-content.sql"]
 
   # ── Next.js Frontend ────────────────────────────────────────────────────────
   frontend:
     build:
       context: ../apps/frontend
       dockerfile: Dockerfile
+      args:
+        BACKEND_INTERNAL_URL: http://backend:8080
     container_name: healthcare-frontend
     restart: unless-stopped
     environment:
-      NEXT_PUBLIC_API_BASE_URL: http://localhost:8080/api/v1
+      # Keep browser traffic same-origin. Rewrites are compiled in the build
+      # stage, while this value keeps the same contract visible at runtime.
+      BACKEND_INTERNAL_URL: http://backend:8080
     ports:
       - "3000:3000"
     depends_on:
@@ -158,8 +163,8 @@ services:
     environment:
       AI_PROVIDER: rule_based_triage
       EMBEDDING_PROVIDER: local
-      RAG_INGEST_ENABLED: ${RAG_INGEST_ENABLED:-true}
-      RAG_INGEST_TOKEN: ${RAG_INGEST_TOKEN:-local-rag-ingest-token-not-for-production}
+      RAG_INGEST_ENABLED: ${RAG_INGEST_ENABLED:-false}
+      RAG_INGEST_TOKEN: ${RAG_INGEST_TOKEN:-}
       RAG_MAX_DOCUMENTS: ${RAG_MAX_DOCUMENTS:-5000}
       AI_SERVICE_RUNTIME: compose
       AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL: "false"

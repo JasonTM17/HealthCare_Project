@@ -1,4 +1,5 @@
 import type { Page } from "../lib/api-client";
+import { formatBusinessDate } from "../lib/business-time";
 import type { DoctorPortalAppointment, PatientPortalAppointment } from "../types/hospital";
 
 type PortalAppointmentsProps =
@@ -27,13 +28,6 @@ const STATUS_LABELS: Record<string, string> = {
   NO_SHOW: "Không đến",
 };
 
-function formatDate(value: string): string {
-  const date = new Date(`${value}T00:00:00`);
-  return Number.isNaN(date.valueOf())
-    ? value
-    : new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium" }).format(date);
-}
-
 function formatTime(value: string): string {
   return value.length >= 5 ? value.slice(0, 5) : value;
 }
@@ -54,7 +48,7 @@ export default function PortalAppointments({
       {page.content.map((appointment) => (
         <article className="portal-appointment" key={appointment.id}>
           <div className="portal-appointment__meta">
-            <span>{formatDate(appointment.appointmentDate)}</span>
+            <span>{formatBusinessDate(appointment.appointmentDate)}</span>
             <span>{formatTime(appointment.startTime)} – {formatTime(appointment.endTime)}</span>
             <span className="portal-appointment__status">{statusLabel(appointment.status)}</span>
           </div>

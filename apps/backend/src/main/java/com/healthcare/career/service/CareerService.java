@@ -44,8 +44,8 @@ public class CareerService {
             Pageable pageable) {
         return jobPositionRepository.findOpenPositions(
             LocalDate.now(),
-            blankToNull(department),
-            blankToNull(location),
+            normalizeFilter(department),
+            normalizeFilter(location),
             pageable
         ).map(this::toResponse);
     }
@@ -140,6 +140,11 @@ public class CareerService {
 
     private String normalizePhone(String phone) {
         return phone.trim().replaceAll("[ .-]", "");
+    }
+
+    private String normalizeFilter(String value) {
+        String normalized = blankToNull(value);
+        return normalized == null ? null : normalized.toLowerCase(Locale.ROOT);
     }
 
     private String blankToNull(String value) {

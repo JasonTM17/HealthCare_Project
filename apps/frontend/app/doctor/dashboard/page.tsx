@@ -22,6 +22,7 @@ import type { Doctor, DoctorPortalAppointment, AuthUser, DiagnosticResult, Medic
 import { EmptyState, ErrorState, ForbiddenState, LoadingState, LoginRequiredState } from "../../../components/PortalStates";
 import PortalAppointments from "../../../components/PortalAppointments";
 import { useAuthSession } from "../../../components/useAuthSession";
+import { businessDate, businessDateTimeIso, formatBusinessDate, formatBusinessDateTime } from "../../../lib/business-time";
 
 type LookupState<T> =
   | { status: "idle" }
@@ -93,25 +94,8 @@ function getErrorMessage(error: unknown): string {
   return "Kết nối đang bị gián đoạn. Vui lòng thử lại sau ít phút.";
 }
 
-function formatDateTime(value: string): string {
-  const date = new Date(value);
-  return Number.isNaN(date.valueOf())
-    ? value
-    : new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium", timeStyle: "short" }).format(date);
-}
-
-function formatDate(value: string | null | undefined): string {
-  if (!value) return "Chưa có ngày";
-  const date = new Date(value);
-  return Number.isNaN(date.valueOf())
-    ? value
-    : new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium" }).format(date);
-}
-
 function getTodayIsoDate(): string {
-  const now = new Date();
-  const localNow = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
-  return localNow.toISOString().slice(0, 10);
+  return businessDate();
 }
 
 function renderLookupState<T>(
@@ -295,7 +279,7 @@ export default function DoctorDashboardPage() {
         testName: diagnosticName.trim(),
         result: diagnosticValue.trim() || undefined,
         fileId: storedFile?.id,
-        testDate: new Date(`${diagnosticDate}T00:00:00`).toISOString(),
+        testDate: businessDateTimeIso(diagnosticDate),
       });
       setDiagnosticName("");
       setDiagnosticValue("");
@@ -505,13 +489,13 @@ export default function DoctorDashboardPage() {
                   <div className="portal-record-list">
                     {items.map((record) => (
                       <article className="portal-record" key={record.id}>
-                        <div className="portal-record__meta"><span>{formatDateTime(record.createdAt)}</span><span>{record.bookingCode ?? "Không có mã lịch hẹn"}</span></div>
+                        <div className="portal-record__meta"><span>{formatBusinessDateTime(record.createdAt)}</span><span>{record.bookingCode ?? "Không có mã lịch hẹn"}</span></div>
                         <h3>{record.diagnosis || "Chưa ghi nhận chẩn đoán"}</h3>
                         <p className="portal-record__doctor">Bệnh nhân: {record.patientName} · Bác sĩ: {record.doctorName}</p>
                         {record.symptomsSummary ? <p><strong>Triệu chứng:</strong> {record.symptomsSummary}</p> : null}
                         {record.doctorNotes ? <p><strong>Ghi chú:</strong> {record.doctorNotes}</p> : null}
                         {record.treatmentPlan ? <p><strong>Kế hoạch:</strong> {record.treatmentPlan}</p> : null}
-                        {record.followUpDate ? <p className="portal-record__followup"><strong>Tái khám:</strong> {formatDate(record.followUpDate)}</p> : null}
+                        {record.followUpDate ? <p className="portal-record__followup"><strong>Tái khám:</strong> {formatBusinessDate(record.followUpDate)}</p> : null}
                       </article>
                     ))}
                   </div>
@@ -542,7 +526,7 @@ export default function DoctorDashboardPage() {
                   <div className="portal-diagnostic-grid">
                     {items.map((result) => (
                       <article className="portal-diagnostic" key={result.id}>
-                        <div className="portal-record__meta"><span>{formatDate(result.testDate)}</span><span>{result.doctorName ?? "Chưa có bác sĩ"}</span></div>
+                        <div className="portal-record__meta"><span>{formatBusinessDate(result.testDate)}</span><span>{result.doctorName ?? "Chưa có bác sĩ"}</span></div>
                         <h3>{result.testName}</h3>
                         <p>{result.result}</p>
                         {result.fileUrl ? <button className="text-button" onClick={() => handleDownload(result)} type="button">Tải tệp kết quả ↓</button> : <small>Chưa có tệp đính kèm.</small>}

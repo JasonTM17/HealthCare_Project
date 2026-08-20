@@ -55,11 +55,14 @@ The catalog also owns `/services`, `/services/[slug]`, `/faq`, `/contact`,
 `/chuyen-khoa/[slug]`, and `/goi-kham/[slug]` preserve compatibility with
 legacy Vietnamese paths and redirect to the canonical route family.
 
-All public `PublicPageShell` routes mount route-scoped `hero` and `body` CMS
-slots. The homepage composes its live hero natively so a published HERO
+All public `PublicPageShell` routes mount supplemental route-scoped `hero`,
+`body`, and `sidebar` CMS slots after the native route composition so the route's
+primary heading and layout remain authoritative. The shared `Footer` mounts the
+route-scoped `footer` slot inside the actual site footer. The homepage and
+careers page compose their live hero/body slots natively; a published HERO
 component replaces the actual hero copy/image/CTA while catalog and AI actions
-remain backend-owned. Admin uses `/admin/content` and optimistic `expectedVersion`
-conflict handling; it never renders raw HTML or JavaScript.
+remain backend-owned. Admin uses `/admin/content` and optimistic
+`expectedVersion` conflict handling; it never renders raw HTML or JavaScript.
 
 ## Backend contract index
 
@@ -72,8 +75,8 @@ conflict handling; it never renders raw HTML or JavaScript.
 | AI | FastAPI service behind backend auth/token boundary; rule-based local provider in Compose |
 | Persistence | Flyway PostgreSQL schema; Compose also provides Redis and MinIO for local infrastructure |
 
-The public detail contracts are backed by Flyway V15-V18 and the local rich-content
-overlay: specialties expose symptoms, preparation, care pathway, and related
+The public detail contracts are backed by Flyway V15-V22 and the local
+rich-content/career overlays: specialties expose symptoms, preparation, care pathway, and related
 doctors; branches expose hours, emergency hotline, map, amenities, and linked
 doctors; packages expose audience, duration, checklist, and preparation; and
 articles expose category, author, reading time, related specialty, and typed

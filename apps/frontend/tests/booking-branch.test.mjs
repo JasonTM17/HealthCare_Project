@@ -5,6 +5,7 @@ import test from "node:test";
 const apiPath = new URL("../lib/api.ts", import.meta.url);
 const typesPath = new URL("../types/hospital.ts", import.meta.url);
 const modalPath = new URL("../components/BookingModal.tsx", import.meta.url);
+const focusPath = new URL("../components/useDialogFocus.ts", import.meta.url);
 
 test("slot client carries branch identity and rejects mismatched responses", async () => {
   const [api, types] = await Promise.all([
@@ -25,6 +26,17 @@ test("booking catalog no longer carries frontend seed identities", async () => {
   assert.doesNotMatch(source, /SEED_|nguyen-minh-khoi|tran-thu-ha|le-van-duc|pham-hoang-yen/);
 });
 
+test("AI specialty identity fails closed when the live booking catalog is stale", async () => {
+  const source = await readFile(modalPath, "utf8");
+
+  assert.match(source, /requestedSpecialtyId/);
+  assert.match(source, /requestedSpecialtyId && !requestedSpecialty/);
+  assert.match(source, /Chuyên khoa từ trợ lý không còn trong catalog live/);
+  assert.match(source, /if \(!currentSpecialty \|\| !selectedSpecialty\)/);
+  assert.match(source, /setStep\(1\)/);
+  assert.doesNotMatch(source, /specialties\.some\(\(specialty\) => specialty\.id === initialSpecialtyId\)/);
+});
+
 test("branch two selection resets slot identity and passes the selected branch to hold", async () => {
   const source = await readFile(modalPath, "utf8");
 
@@ -36,6 +48,18 @@ test("branch two selection resets slot identity and passes the selected branch t
   assert.match(source, /branchId: selectedBranch/);
   assert.match(source, /chosenSlot\.branchId !== selectedBranch/);
   assert.match(source, /setSelectedSlot\(""\)/);
+});
+
+test("booking invalidates pending responses across navigation and labels patient fields", async () => {
+  const source = await readFile(modalPath, "utf8");
+
+  assert.match(source, /bookingSessionRef/);
+  assert.match(source, /invalidateBookingSession/);
+  assert.match(source, /navigateToStep/);
+  assert.match(source, /disabled=\{isSubmitting\}/);
+  for (const field of ["booking-full-name", "booking-phone", "booking-email", "booking-reason", "booking-otp"]) {
+    assert.match(source, new RegExp(field));
+  }
 });
 
 test("booking slot UI exposes loading, error, and empty states", async () => {
@@ -54,9 +78,9 @@ test("booking catalog loads independently and offers a clear retry", async () =>
   assert.match(source, /setCatalogRequest\(\(request\) => request \+ 1\)/);
   assert.match(source, /Danh mục đặt lịch chưa tải đầy đủ/);
   assert.match(source, /Thử tải lại/);
-  assert.match(source, /Đang tải cơ sở khám/);
+  assert.match(source, /Đang tải thông tin bác sĩ, chuyên khoa và cơ sở/);
   assert.match(source, /Chọn chuyên khoa cần khám/);
-  assert.match(source, /Chọn bác sĩ phù hợp/);
+  assert.match(source, /disabled=\{isSubmitting \|\| catalogLoading \|\| !currentDoctor\}/);
 });
 
 test("booking input and OTP validation match the backend contract", async () => {
@@ -79,14 +103,18 @@ test("booking UI keeps the server hold and OTP expiries separate", async () => {
 });
 
 test("booking dialog resets, manages focus, and only closes from the real backdrop", async () => {
-  const source = await readFile(modalPath, "utf8");
+  const [source, focus] = await Promise.all([
+    readFile(modalPath, "utf8"),
+    readFile(focusPath, "utf8"),
+  ]);
 
   assert.match(source, /dialogRef = useRef<HTMLDivElement>/);
-  assert.match(source, /document\.body\.style\.overflow = "hidden"/);
-  assert.match(source, /document\.addEventListener\("keydown", handleKeyDown\)/);
-  assert.match(source, /event\.key === "Escape"/);
-  assert.match(source, /previouslyFocused\?\.isConnected/);
-  assert.match(source, /\(focusableElements\(\)\[0\] \?\? dialog\)\.focus\(\)/);
+  assert.match(source, /useDialogFocus\(dialogRef, isOpen, onClose\)/);
+  assert.match(focus, /document\.body\.style\.overflow = "hidden"/);
+  assert.match(focus, /document\.addEventListener\("keydown", handleKeyDown\)/);
+  assert.match(focus, /event\.key === "Escape"/);
+  assert.match(focus, /previouslyFocused\?\.isConnected/);
+  assert.match(focus, /\(first \?\? dialog\)\.focus\(\)/);
   assert.match(source, /event\.target === event\.currentTarget/);
   assert.match(source, /setConfirmedAppointment\(null\)/);
   assert.match(source, /setFullName\(""\)/);

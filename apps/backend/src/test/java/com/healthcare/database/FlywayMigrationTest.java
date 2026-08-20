@@ -90,6 +90,40 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
     }
 
     @Test
+    void localCareerSeedIsIdempotentAfterV22() {
+        String schema = createMigrationSchema();
+        try {
+            migrate(schema, "22");
+            executeCareerSeed(schema);
+            executeCareerSeed(schema);
+
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + table(schema, "job_positions"),
+                Integer.class
+            )).isEqualTo(4);
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + table(schema, "job_positions") + " where active = true",
+                Integer.class
+            )).isEqualTo(4);
+            assertThat(jdbcTemplate.queryForList(
+                "select slug from " + table(schema, "job_positions") + " order by slug",
+                String.class
+            )).containsExactly(
+                "chuyen-vien-cham-soc-khach-hang",
+                "dieu-duong-da-khoa",
+                "ky-thuat-vien-xet-nghiem",
+                "thuc-tap-sinh-hanh-chinh-nhan-su"
+            );
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + table(schema, "job_applications"),
+                Integer.class
+            )).isZero();
+        } finally {
+            dropMigrationSchema(schema);
+        }
+    }
+
+    @Test
     void appointmentDomainTablesAreMigrated() {
         List<String> tables = jdbcTemplate.queryForList(
             "select table_name from information_schema.tables where table_schema = 'public'",
@@ -534,7 +568,7 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
     void localSeedSchedulesFollowDoctorBranchAssignments() {
         String schema = createMigrationSchema();
         try {
-            migrateLatest(schema);
+            migrate(schema, "22");
             executeSeed(schema);
             String schedules = table(schema, "doctor_schedules");
             String doctors = table(schema, "doctors");
@@ -728,6 +762,21 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
             );
         } catch (Exception exception) {
             throw new IllegalStateException("Failed to execute rich local seed overlay in isolated migration schema", exception);
+        }
+    }
+
+    private void executeCareerSeed(String schema) {
+        try (Connection connection = dataSource.getConnection()) {
+            connection.createStatement().execute("set search_path to " + identifier(schema));
+            ScriptUtils.executeSqlScript(
+                connection,
+                new EncodedResource(
+                    new ClassPathResource("db/seed/seed-local-careers.sql"),
+                    StandardCharsets.UTF_8
+                )
+            );
+        } catch (Exception exception) {
+            throw new IllegalStateException("Failed to execute local career seed in isolated migration schema", exception);
         }
     }
 

@@ -20,9 +20,12 @@ test("homepage mounts the published CMS hero slot for realtime updates", async (
   assert.match(page, /fallback=\{<HomeHeroComposition/);
   assert.match(page, /renderContent=\{\(content: CmsContent\)/);
   assert.match(page, /slotKey="hero"/);
-  for (const slot of ["body", "sidebar", "footer"]) {
+  for (const slot of ["body", "sidebar"]) {
     assert.match(page, new RegExp(`CmsLiveSlot[^\\n]*slotKey="${slot}"`));
   }
+  assert.match(page, /<Footer branches=\{branches\} cmsSlug="home" \/>/);
+  assert.match(page, /<main id="main-content" tabIndex=\{-1\}>/);
+  assert.match(page, /handleOpenBooking\(undefined, specialtyId, undefined\)/);
   assert.match(page, /hideWhenNotFound/);
 });
 
@@ -35,8 +38,11 @@ test("homepage mounts the published CMS hero slot for realtime updates", async (
   assert.match(page, /fallback=\{<HomeHeroComposition/);
   assert.match(page, /renderContent=\{\(content: CmsContent\)/);
   assert.match(page, /slotKey="hero"/);
-  for (const slot of ["body", "sidebar", "footer"]) {
+  for (const slot of ["body", "sidebar"]) {
     assert.match(page, new RegExp(`CmsLiveSlot[^\\n]*slotKey="${slot}"`));
   }
+  assert.match(page, /<Footer branches=\{branches\} cmsSlug="home" \/>/);
+  assert.match(page, /<main id="main-content" tabIndex=\{-1\}>/);
+  assert.match(page, /handleOpenBooking\(undefined, specialtyId, undefined\)/);
   assert.match(page, /hideWhenNotFound/);
 });

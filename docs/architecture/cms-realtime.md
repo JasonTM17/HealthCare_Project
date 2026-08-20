@@ -51,16 +51,20 @@ one replica. A full replay window falls back to a GET snapshot.
 
 ## Migration ordering
 
-This checkout contains Flyway V1-V18 plus the `10.4` and `10.5` ordering
+This checkout contains Flyway V1-V22 plus the `10.4` and `10.5` ordering
 points. V10 enforces branch assignments, V10.4 first rejects a real zero-UUID
 branch and cancels expired holds, V10.5 then repairs overlapping legacy
 pending holds before V11 creates branch-aware scheduling constraints, V12 adds
 CMS content, V13 provides an idempotent repair for volumes that already
 reached V12, V14 bounds appointment OTP attempts, V15 expands structured
 detail content, V16 adds actor-aware CMS audit snapshots and rollback
-metadata, V17 enforces published article content, and V18 hashes appointment
-OTPs. No migration rewrites an already-applied migration; do not renumber these
-migrations on the integration head.
+metadata, V17 enforces published article content, V18 hashes appointment
+OTPs, V19 adds secure stored-file metadata, V20 records appointment-reminder
+delivery, V21 expands patient profile details, and V22 adds careers and job
+applications. The separate `seed-local-careers.sql` fixture runs only after
+V22 so older migration tests can still exercise the base seed without
+referencing career tables. No migration rewrites an already-applied migration;
+do not renumber these migrations on the integration head.
 
 If an existing local volume already applied V12 before V10/V11, first verify a
 database backup and then run one maintenance start with
@@ -88,15 +92,17 @@ docker compose -f infrastructure/docker-compose.yml up --build
 Remove-Item Env:SEED_FILE
 ```
 
-The seed is idempotent. With the stack running, rerun it and verify the
-migration, content row, and uniqueness by querying from the PostgreSQL
-container (the command does not print credentials):
+The base seed, career fixture, and rich-content overlay are idempotent. The
+one-shot service applies them in that order after Flyway and backend health.
+With the stack running, rerun it and verify the migration, content row, career
+fixture, and uniqueness by querying from the PostgreSQL container (the command
+does not print credentials):
 
 ```powershell
 docker compose -f infrastructure/docker-compose.yml run --rm local-seed
 docker compose -f infrastructure/docker-compose.yml exec -T postgres sh -ec 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select table_name from information_schema.tables where table_schema = ''public'' and table_name in (''cms_contents'',''cms_content_changes'') order by table_name; select slot_key, status, version, count(*) over (partition by slot_key) as rows_for_slot from cms_contents where slot_key = ''homepage.hero'';"'
 ```
 
-Expected evidence is both CMS tables, one `homepage.hero` row, and
-`rows_for_slot = 1`. `docker compose config --quiet` is the safe config-only
-check before booting.
+Expected evidence is both CMS tables, one `homepage.hero` row, four active
+`job_positions`, zero `job_applications`, and `rows_for_slot = 1`.
+`docker compose config --quiet` is the safe config-only check before booting.

@@ -2,9 +2,10 @@
 
 ## Current Repository State
 
-Status: local MVP implementation complete through code/build/unit/browser-smoke
-gates. Full PostgreSQL/MinIO integration and role-by-role E2E execution remain
-pending until the local Docker engine is available. The repository contains the
+Status: local MVP implementation is covered by code/build/unit/integration and
+static checks. Full PostgreSQL/MinIO Compose integration, live browser smoke,
+and role-by-role E2E execution remain pending until the local Docker engine is
+available. The repository contains the
 backend, frontend, FastAPI AI/RAG service, infrastructure, CI, Flyway migrations,
 local role accounts, runbook, and regression tests.
 
@@ -14,8 +15,8 @@ Evidence updated on 2026-08-18:
   `OPENCODE.md`, `.agentkit/config.yaml`.
 - Backend, frontend, AI service, Docker Compose, migrations, tests, and CI are
   present under `apps/`, `infrastructure/`, and `.github/workflows/`.
-- This copied workspace has no `.git` metadata, so no branch, commit, remote, or
-  clean-worktree claim is made.
+- Git branch, commit, and remote claims are kept in the delivery handoff and are
+  not inferred from this plan.
 - Local foundation checks pass, but no CI run, deployment, compliance, or
   production-readiness claim follows from them.
 
@@ -380,7 +381,10 @@ Suggested commits:
 
 Status: `DONE` for the single-instance MVP. The backend periodically mirrors
 bounded active/published catalog documents through a separate protected ingest
-token; durable multi-instance vector persistence remains a production gate.
+token and revision-guards deleted sources when the bounded catalog snapshot is
+complete; the five-minute eventual-consistency window, process-local tombstone
+guard, and large-catalog safety bound are explicit local-MVP limitations.
+Durable multi-instance vector persistence remains a production gate.
 
 Goal: implement grounded hospital assistant over trusted application data.
 
@@ -493,8 +497,9 @@ Rules:
 
 ### Phase 19 - UX Polish
 
-Status: `DONE` for MVP across responsive public, auth, patient, doctor, admin and
-AI surfaces, with browser smoke evidence.
+Status: `DONE` for MVP across public, auth, patient, doctor, admin and AI
+surfaces, with static responsive/accessibility coverage; live browser smoke
+remains an environment gate.
 
 Goal: make the demo coherent, responsive, and accessible.
 
@@ -715,5 +720,5 @@ Commit discipline:
   browser auth to secure HTTP-only cookies remains a production hardening option.
 - The AI service supports deterministic local mode for offline demonstration and
   configurable providers through environment variables.
-- Git branch/remote policy is outside this copied workspace because `.git`
-  metadata is absent.
+- Git branch and remote policy follows `AGENTS.md` and the repository delivery
+  workflow; use intent-based branches and preserve exact-head evidence.

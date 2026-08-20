@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { fetchArticleBySlug } from "../../../lib/api-client";
+import { formatBusinessDate } from "../../../lib/business-time";
 import type { Article } from "../../../types/hospital";
 import { PublicBackLink, PublicBookingButton, PublicPageShell } from "../../../components/PublicPageShell";
 
@@ -42,7 +43,7 @@ export default function ArticleDetailPage() {
         {error ? <p className="catalog-status catalog-status--error" role="alert">{error}</p> : null}
         {!loading && !error && !article ? <p className="catalog-status" role="status">Không tìm thấy bài viết đã xuất bản.</p> : null}
         {article ? <article className="article-detail-card">
-          <p className="section-note">{new Intl.DateTimeFormat("vi-VN", { dateStyle: "long" }).format(new Date(article.publishedAt))}</p>
+          <p className="section-note">{formatBusinessDate(article.publishedAt)}</p>
           <h2>{article.title}</h2>
           {article.category || article.authorName || article.readingMinutes ? <div className="article-detail-card__meta">
             {article.category ? <span>{article.category}</span> : null}

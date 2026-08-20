@@ -170,6 +170,26 @@ class RAGIndexResponse(BaseModel):
     indexed: bool = True
 
 
+class RAGSource(BaseModel):
+    source_type: SOURCE_TYPES
+    source_id: str = Field(..., min_length=1, max_length=200, pattern=r"^[A-Za-z0-9._:-]+$")
+
+
+class RAGSourcesResponse(BaseModel):
+    sources: list[RAGSource]
+
+
+class RAGDeleteRequest(BaseModel):
+    source_type: SOURCE_TYPES
+    source_id: str = Field(..., min_length=1, max_length=200, pattern=r"^[A-Za-z0-9._:-]+$")
+    revision: int | None = Field(default=None, ge=0)
+
+
+class RAGDeleteResponse(BaseModel):
+    removed: bool
+    index_size: int
+
+
 class RAGSearchResult(BaseModel):
     source_type: SOURCE_TYPES
     source_id: str

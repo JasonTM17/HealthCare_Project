@@ -33,6 +33,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -293,7 +294,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
 
     @Test
     void holdSlotAndConfirmBookingFlowEndToEnd() throws Exception {
-        LocalDate appointmentDate = LocalDate.now().plusDays(3);
+        LocalDate appointmentDate = nextDate(DayOfWeek.MONDAY);
         LocalTime startTime = LocalTime.of(9, 0);
 
         // 1. Hold Slot
@@ -403,6 +404,46 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
             .andExpect(jsonPath("$.patientPhone").value("090****201"))
             .andExpect(jsonPath("$.patientEmail").doesNotExist())
             .andExpect(jsonPath("$.reasonForVisit").doesNotExist());
+    }
+
+    @Test
+    void rescheduleRejectsDoctorWhoIsNoLongerAcceptingAppointments() throws Exception {
+        LocalDate originalDate = nextDate(DayOfWeek.MONDAY);
+        LocalDate targetDate = nextDate(DayOfWeek.TUESDAY);
+        String phone = "0907000206";
+        String bookingCode = createConfirmedAppointment(originalDate, LocalTime.of(9, 0), phone);
+        Appointment original = appointmentRepository.findByBookingCode(bookingCode).orElseThrow();
+        LocalTime originalEndTime = original.getEndTime();
+        java.time.OffsetDateTime originalAppointmentTime = original.getAppointmentTime();
+
+        doctor.setActive(false);
+        doctorRepository.saveAndFlush(doctor);
+
+        RescheduleAppointmentRequest request = new RescheduleAppointmentRequest(
+            targetDate,
+            LocalTime.of(10, 0),
+            null,
+            phone
+        );
+
+        mockMvc.perform(post("/api/v1/appointments/" + bookingCode + "/reschedule")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isConflict());
+
+        mockMvc.perform(get("/api/v1/appointments/" + bookingCode).param("phone", phone))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.appointmentDate").value(originalDate.toString()))
+            .andExpect(jsonPath("$.startTime").value("09:00:00"))
+            .andExpect(jsonPath("$.status").value("CONFIRMED"));
+
+        Appointment unchanged = appointmentRepository.findByBookingCode(bookingCode).orElseThrow();
+        assertEquals(originalDate, unchanged.getAppointmentDate());
+        assertEquals(LocalTime.of(9, 0), unchanged.getStartTime());
+        assertEquals(originalEndTime, unchanged.getEndTime());
+        assertEquals(originalAppointmentTime, unchanged.getAppointmentTime());
+        assertNull(unchanged.getBranch());
+        assertNull(unchanged.getReminderSentAt());
     }
 
     @Test

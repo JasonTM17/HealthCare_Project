@@ -40,6 +40,7 @@ import {
   LoginRequiredState,
 } from "../../../components/PortalStates";
 import PortalAppointments from "../../../components/PortalAppointments";
+import { businessDate, formatBusinessDate, formatBusinessDateTime } from "../../../lib/business-time";
 
 type Loadable<T> =
   | { status: "loading" }
@@ -91,21 +92,6 @@ function toLoadable<T>(result: PromiseSettledResult<T>): Loadable<T> {
 
 function isUnauthorized(result: PromiseSettledResult<unknown>): boolean {
   return result.status === "rejected" && getErrorStatus(result.reason) === 401;
-}
-
-function formatDate(value: string | null | undefined): string {
-  if (!value) return "Chưa có ngày";
-  const date = new Date(value);
-  return Number.isNaN(date.valueOf())
-    ? value
-    : new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium" }).format(date);
-}
-
-function formatDateTime(value: string): string {
-  const date = new Date(value);
-  return Number.isNaN(date.valueOf())
-    ? value
-    : new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium", timeStyle: "short" }).format(date);
 }
 
 function formatPrescriptionStatus(status: string): string {
@@ -433,7 +419,7 @@ export default function PatientDashboardPage() {
           </StateContent>
           {selectedAppointment ? (
             <form className="portal-lookup-form" onSubmit={handleReschedule}>
-              <div><label htmlFor="reschedule-date">Ngày mới</label><input id="reschedule-date" min={new Date().toISOString().slice(0, 10)} onChange={(event) => { setRescheduleDate(event.target.value); setSlots(null); setSelectedStartTime(""); }} required type="date" value={rescheduleDate} /></div>
+              <div><label htmlFor="reschedule-date">Ngày mới</label><input id="reschedule-date" min={businessDate()} onChange={(event) => { setRescheduleDate(event.target.value); setSlots(null); setSelectedStartTime(""); }} required type="date" value={rescheduleDate} /></div>
               <button className="outline-button outline-button--small" onClick={handleLoadSlots} type="button">Xem giờ trống</button>
               {slots?.status === "loading" ? <LoadingState label="Đang tải giờ trống…" /> : null}
               {slots?.status === "error" ? <ErrorState message={slots.message} status={slots.statusCode} /> : null}
@@ -461,12 +447,12 @@ export default function PatientDashboardPage() {
                 <div className="portal-record-list">
                   {items.map((record) => (
                     <article className="portal-record" key={record.id}>
-                      <div className="portal-record__meta"><span>{formatDateTime(record.createdAt)}</span><span>{record.bookingCode ?? "Không có mã lịch hẹn"}</span></div>
+                      <div className="portal-record__meta"><span>{formatBusinessDateTime(record.createdAt)}</span><span>{record.bookingCode ?? "Không có mã lịch hẹn"}</span></div>
                       <h3>{record.diagnosis || "Chưa ghi nhận chẩn đoán"}</h3>
                       <p className="portal-record__doctor">{record.doctorName}{record.doctorTitle ? ` · ${record.doctorTitle}` : ""}</p>
                       {record.symptomsSummary ? <p><strong>Triệu chứng:</strong> {record.symptomsSummary}</p> : null}
                       {record.treatmentPlan ? <p><strong>Hướng điều trị:</strong> {record.treatmentPlan}</p> : null}
-                      {record.followUpDate ? <p className="portal-record__followup"><strong>Tái khám:</strong> {formatDate(record.followUpDate)}</p> : null}
+                      {record.followUpDate ? <p className="portal-record__followup"><strong>Tái khám:</strong> {formatBusinessDate(record.followUpDate)}</p> : null}
                     </article>
                   ))}
                 </div>
@@ -489,7 +475,7 @@ export default function PatientDashboardPage() {
                 <div className="portal-record-list">
                   {items.map((prescription) => (
                     <article className="portal-record" key={prescription.id}>
-                      <div className="portal-record__meta"><span>{prescription.prescriptionCode}</span><span>{formatDateTime(prescription.createdAt)}</span></div>
+                      <div className="portal-record__meta"><span>{prescription.prescriptionCode}</span><span>{formatBusinessDateTime(prescription.createdAt)}</span></div>
                       <h3>{prescription.diagnosisSummary || "Đơn thuốc theo hồ sơ khám"}</h3>
                       <p className="portal-record__doctor">Bác sĩ: {prescription.doctorName} · {formatPrescriptionStatus(prescription.status)}</p>
                       <ul className="portal-medication-list">
@@ -526,7 +512,7 @@ export default function PatientDashboardPage() {
               <div className="portal-diagnostic-grid">
                 {items.map((result) => (
                   <article className="portal-diagnostic" key={result.id}>
-                    <div className="portal-record__meta"><span>{formatDate(result.testDate)}</span><span>{result.doctorName ?? "Chưa có bác sĩ"}</span></div>
+                    <div className="portal-record__meta"><span>{formatBusinessDate(result.testDate)}</span><span>{result.doctorName ?? "Chưa có bác sĩ"}</span></div>
                     <h3>{result.testName}</h3>
                     <p>{result.result}</p>
                     {result.fileUrl ? <button className="text-button" onClick={() => handleDownload(result)} type="button">Tải tệp kết quả ↓</button> : <small>Chưa có tệp đính kèm.</small>}
@@ -554,7 +540,7 @@ export default function PatientDashboardPage() {
                 {page.content.map((notification) => (
                   <article className={notification.read ? "portal-notification" : "portal-notification portal-notification--unread"} key={notification.id}>
                     <div className="portal-notification__copy">
-                      <div className="portal-record__meta"><span>{formatNotificationType(notification.eventType)}</span><span>{formatDateTime(notification.createdAt)}</span></div>
+                      <div className="portal-record__meta"><span>{formatNotificationType(notification.eventType)}</span><span>{formatBusinessDateTime(notification.createdAt)}</span></div>
                       <h3>{notification.title}</h3>
                       <p>{notification.message}</p>
                     </div>

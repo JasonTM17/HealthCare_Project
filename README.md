@@ -4,7 +4,7 @@ HealthCare_Project is a healthcare MVP for a Vietnamese hospital-style experienc
 
 ## Status
 
-The repository currently has auth/RBAC, branch-aware booking and rescheduling, bounded OTP confirmation, appointment lifecycle/reminders, patient and doctor portals, authorized clinical records and diagnostic files, complete hospital catalog administration, recurring schedule administration, AI/RAG/search guardrails, MinIO metadata, and CI definitions. Browser smoke tests and all local non-container checks pass; full container integration tests, backup/restore drills, external AI provider validation, compliance, and production deployment remain separate gates.
+The repository currently has auth/RBAC, branch-aware booking and rescheduling, bounded OTP confirmation, appointment lifecycle/reminders, patient and doctor portals, authorized clinical records and diagnostic files, complete hospital catalog administration, recurring schedule administration, AI/RAG/search guardrails, MinIO metadata, and CI definitions. Backend, AI, frontend static, typecheck, lint, build, and Compose-configuration checks pass; live browser smoke, full Compose E2E, backup/restore drills, external AI provider validation, compliance, and production deployment remain separate gates.
 
 ## Monorepo Layout
 
@@ -85,10 +85,10 @@ missing, the helper creates it with random disposable JWT/AI/RAG secrets.
 .\scripts\start-and-verify-local-mvp.ps1
 ```
 
-Compose has a tracked local-only `AI_SERVICE_TOKEN` fallback so a fresh demo can
-start; the helper above replaces it with a random disposable value. Supply a
-private token for every shared or non-demo run. A successful `config` or local
-health check does not prove a deployed or multi-instance environment.
+Compose requires a non-empty `AI_SERVICE_TOKEN`; set it in the local `.env` before
+running the stack. The checked-in defaults are for disposable local development
+only, and a successful `config` or local health check does not prove a deployed
+or multi-instance environment.
 
 The Compose backend connects to MinIO at `http://minio:9000`; local host runs use
 `http://localhost:9000`. Keep `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD` aligned
