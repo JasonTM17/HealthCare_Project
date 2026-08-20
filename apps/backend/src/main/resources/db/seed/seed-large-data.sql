@@ -4,7 +4,8 @@
 --
 -- Scale (approx): specialties 30, branches 20, doctors 500, services 200,
 -- packages 100, articles 500, faqs 150, doctor_specialties 1500,
--- doctor_branches 750, doctor_schedules about 7500, users 1000.
+-- doctor_branches 750, doctor_schedules about 7500, users 1001 (1,000
+-- synthetic users plus the deterministic local CMS admin fixture).
 --
 -- Idempotent: truncates domain tables (roles/permissions preserved) then
 -- regenerates. Safe to re-run. Password hash is a BCrypt stub valid only for
@@ -217,7 +218,7 @@ CROSS JOIN (VALUES
 ) AS shifts(day_of_week, start_time, end_time)
 ON CONFLICT (id) DO NOTHING;
 
--- ── Users (1000) ──────────────────────────────────────────────────────────────
+-- ── Users (1001: 1000 synthetic + 1 local admin) ─────────────────────────────
 -- BCrypt hash of the documented local demo password — local dev only,
 -- never a real secret.
 INSERT INTO users (id, email, password_hash, display_name, status, created_at, updated_at)

@@ -187,7 +187,7 @@ jobs:
               if grep -Fx 'articles|500' <<<"$counts" >/dev/null \
                 && grep -Fx 'doctors|500' <<<"$counts" >/dev/null \
                 && grep -Fx 'packages|100' <<<"$counts" >/dev/null \
-                && grep -Fx 'users|1000' <<<"$counts" >/dev/null \
+                && grep -Fx 'users|1001' <<<"$counts" >/dev/null \
                 && grep -Fx 'job_positions|4' <<<"$counts" >/dev/null \
                 && grep -Fx 'job_applications|0' <<<"$counts" >/dev/null \
                 && [ "$(docker exec "$container" psql -At -U healthcare -d healthcare -c \

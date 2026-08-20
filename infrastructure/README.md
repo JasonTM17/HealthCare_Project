@@ -50,7 +50,8 @@ The tracked `seed-large-data.sql` is a generator of fictional local-development
 data, not a production dump or real patient data. A clean PostgreSQL 16 run
 produces approximately 14,000 rows across the hospital, scheduling, identity,
 and clinical tables, including 500 doctors, 200 services, 100 packages, 500
-articles, 1,000 users, about 7,500 recurring doctor schedules, and 450
+articles, 1,001 users (1,000 synthetic users plus the local CMS admin), about
+7,500 recurring doctor schedules, and 450
 prescription items. Relationship links use stable hash ordering, so a clean
 replay produces the same identities and relationship counts.
 
