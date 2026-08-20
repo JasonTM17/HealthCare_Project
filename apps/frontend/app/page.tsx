@@ -247,37 +247,6 @@ function HomeHeroCopy({
       <p className="hero-description">
         {cmsHero?.body ?? "Tìm bác sĩ theo chuyên môn, chọn cơ sở thuận tiện và chủ động khung giờ thăm khám."}
       </p>
-      <div className="hero-actions">
-        {cmsCta ? (
-          <a className="button button--amber" href={cmsCta.href}>
-            {cmsCta.label}
-            <Icon name="arrow-up-right" size={18} />
-          </a>
-        ) : (
-          <button className="button button--amber" onClick={onBooking} type="button">
-            Đặt lịch khám
-            <Icon name="arrow-up-right" size={18} />
-          </button>
-        )}
-        <Link className="button button--hero-secondary" href="/doctors">
-          Tìm bác sĩ
-          <Icon name="arrow-up-right" size={18} />
-        </Link>
-      </div>
-      <div className="hero-trust" aria-label="Điểm nhấn của trải nghiệm đặt khám">
-        <div className="hero-trust__item">
-          <span className="hero-trust__icon"><Icon name="check" size={16} /></span>
-          <span><strong>Chủ động đặt lịch</strong><small>Chọn bác sĩ và khung giờ</small></span>
-        </div>
-        <div className="hero-trust__item">
-          <span className="hero-trust__icon"><Icon name="building" size={16} /></span>
-          <span><strong>Thông tin rõ ràng</strong><small>Chuyên khoa, bác sĩ, chi phí</small></span>
-        </div>
-        <div className="hero-trust__item">
-          <span className="hero-trust__icon hero-trust__icon--accent"><Icon name="phone" size={16} /></span>
-          <span><strong>{hasEmergencyBranch ? "Hotline cấp cứu" : "Hỗ trợ khách hàng"}</strong><small>{contactPhone ?? "Xem kênh liên hệ"}</small></span>
-        </div>
-      </div>
       <form className="hero-search" onSubmit={(event) => { event.preventDefault(); onSearchSubmit(); }}>
         <label className="sr-only" htmlFor="hero-search-input">
           Tìm bác sĩ hoặc chuyên khoa
