@@ -36,3 +36,25 @@ test("Compose routes same-origin frontend traffic through the backend service", 
   assert.match(nextConfig, /source:\s*"\/api\/v1\/:path\*"/);
   assert.match(nextConfig, /destination:\s*`\$\{backendOrigin\}\/api\/v1\/:path\*`/);
 });
+
+test("local MVP helper binds rebuilt application images to the Git source revision", async () => {
+  const [compose, backendDockerfile, frontendDockerfile, aiDockerfile, helper, verifier] = await Promise.all([
+    read("../../infrastructure/docker-compose.yml"),
+    read("../../apps/backend/Dockerfile"),
+    read("Dockerfile"),
+    read("../../apps/ai-service/Dockerfile"),
+    read("../../scripts/start-and-verify-local-mvp.ps1"),
+    read("../../scripts/verify-local-mvp.ps1"),
+  ]);
+
+  assert.equal((compose.match(/VCS_REF:\s+\$\{BUILD_VCS_REF:-unknown\}/g) || []).length, 3);
+  for (const dockerfile of [backendDockerfile, frontendDockerfile, aiDockerfile]) {
+    assert.match(dockerfile, /ARG VCS_REF=unknown/);
+    assert.match(dockerfile, /org\.opencontainers\.image\.revision=\$\{VCS_REF\}/);
+  }
+  assert.match(helper, /function Get-SourceRevision/);
+  assert.match(helper, /\$env:BUILD_VCS_REF = \$buildRevision/);
+  assert.match(helper, /\$verifierParameters\.ExpectedRevision = \$buildRevision/);
+  assert.match(verifier, /function Assert-ContainerRevision/);
+  assert.match(verifier, /healthcare-backend", "healthcare-frontend", "healthcare-ai-service/);
+});
