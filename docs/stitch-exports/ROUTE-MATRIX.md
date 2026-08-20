@@ -55,14 +55,18 @@ The catalog also owns `/services`, `/services/[slug]`, `/faq`, `/contact`,
 `/chuyen-khoa/[slug]`, and `/goi-kham/[slug]` preserve compatibility with
 legacy Vietnamese paths and redirect to the canonical route family.
 
-All public `PublicPageShell` routes mount supplemental route-scoped `hero`,
-`body`, and `sidebar` CMS slots after the native route composition so the route's
-primary heading and layout remain authoritative. The shared `Footer` mounts the
-route-scoped `footer` slot inside the actual site footer. The homepage and
-careers page compose their live hero/body slots natively; a published HERO
-component replaces the actual hero copy/image/CTA while catalog and AI actions
-remain backend-owned. Admin uses `/admin/content` and optimistic
-`expectedVersion` conflict handling; it never renders raw HTML or JavaScript.
+Eligible public `PublicPageShell` route families place route-scoped `hero`,
+`body`, and `sidebar` CMS slots in a native three-zone frame: an optional CMS
+hero before the route composition, the native route content in its own region,
+and optional supporting body/sidebar content after it. The route's primary
+heading and domain layout remain authoritative. The route allowlist is shared
+with `/admin/content`; unknown, private, and authenticated paths cannot create
+public CMS keys. The shared `Footer` mounts the route-scoped `footer` slot
+inside the actual site footer. The homepage and careers page compose their live
+hero/body slots natively; a published HERO component replaces the actual hero
+copy/image/CTA while catalog and AI actions remain backend-owned. Admin uses
+optimistic `expectedVersion` conflict handling; it never renders raw HTML or
+JavaScript.
 
 ## Backend contract index
 

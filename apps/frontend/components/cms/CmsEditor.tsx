@@ -10,6 +10,7 @@ import {
 } from "react";
 import {
   CMS_COMPONENT_TYPES,
+  CMS_PUBLIC_ROUTE_SLUGS,
   CMS_PUBLICATION_STATUSES,
   CMS_SLOT_KEYS,
   CmsApiError,
@@ -24,6 +25,7 @@ import {
   type CmsContentInput,
   type CmsPayload,
   type CmsPublicationStatus,
+  type CmsPublicRouteSlug,
   type CmsSlotKey,
   type CmsFieldErrors,
 } from "../../lib/cms-client";
@@ -58,23 +60,28 @@ const SLOT_LABELS: Record<CmsSlotKey, string> = {
   footer: "Footer",
 };
 
-const CMS_ROUTE_PRESETS = [
-  ["home", "Trang chủ"],
-  ["about", "Về HealthCare"],
-  ["branches", "Mạng lưới cơ sở"],
-  ["specialties", "Chuyên khoa"],
-  ["doctors", "Bác sĩ"],
-  ["services", "Dịch vụ"],
-  ["packages", "Gói khám"],
-  ["articles", "Cẩm nang"],
-  ["careers", "Tuyển dụng"],
-  ["search", "Tìm kiếm"],
-  ["dat-lich", "Đặt lịch"],
-  ["contact", "Liên hệ"],
-  ["faq", "FAQ"],
-  ["huong-dan", "Hướng dẫn"],
-  ["tra-cuu", "Tra cứu"],
-] as const;
+type CmsEditorRouteSlug = CmsPublicRouteSlug | "home";
+
+const CMS_ROUTE_LABELS: Record<CmsEditorRouteSlug, string> = {
+  home: "Trang chủ",
+  about: "Về HealthCare",
+  branches: "Mạng lưới cơ sở",
+  specialties: "Chuyên khoa",
+  doctors: "Bác sĩ",
+  services: "Dịch vụ",
+  packages: "Gói khám",
+  articles: "Cẩm nang",
+  careers: "Tuyển dụng",
+  search: "Tìm kiếm",
+  "dat-lich": "Đặt lịch",
+  contact: "Liên hệ",
+  faq: "FAQ",
+  "huong-dan": "Hướng dẫn",
+  "tra-cuu": "Tra cứu",
+};
+
+const CMS_ROUTE_PRESETS = (["home", ...CMS_PUBLIC_ROUTE_SLUGS] as const)
+  .map((routeSlug) => [routeSlug, CMS_ROUTE_LABELS[routeSlug]] as const);
 
 function emptyPayload(componentType: CmsComponentType): CmsPayload {
   switch (componentType) {

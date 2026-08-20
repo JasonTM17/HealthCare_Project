@@ -16,6 +16,25 @@ export type CmsPageState = CmsPublicationStatus;
 export const CMS_SLOT_KEYS = ["hero", "body", "sidebar", "footer"] as const;
 export type CmsSlotKey = (typeof CMS_SLOT_KEYS)[number];
 
+/** Canonical non-home public route families that expose the shared CMS frame. */
+export const CMS_PUBLIC_ROUTE_SLUGS = [
+  "about",
+  "branches",
+  "specialties",
+  "doctors",
+  "services",
+  "packages",
+  "articles",
+  "careers",
+  "search",
+  "dat-lich",
+  "contact",
+  "faq",
+  "huong-dan",
+  "tra-cuu",
+] as const;
+export type CmsPublicRouteSlug = (typeof CMS_PUBLIC_ROUTE_SLUGS)[number];
+
 export const CMS_COMPONENT_TYPES = [
   "HERO",
   "RICH_TEXT",

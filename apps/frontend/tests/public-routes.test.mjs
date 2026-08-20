@@ -217,18 +217,34 @@ test("Stitch search and careers screens have live public route owners", async ()
   assert.match(lookup, /cache: "no-store"/);
 });
 
-test("every public page family keeps the route-level CMS composition point", async () => {
-  const [routeCms, footer] = await Promise.all([
+test("every CMS-managed public page family uses the native slot frame", async () => {
+  const [routeCms, cmsClient, editor, footer, shell] = await Promise.all([
     read("components/cms/RouteCmsSlots.tsx"),
+    read("lib/cms-client.ts"),
+    read("components/cms/CmsEditor.tsx"),
     read("components/Footer.tsx"),
+    read("components/PublicPageShell.tsx"),
   ]);
 
-  assert.match(routeCms, /\["admin", "auth", "doctor", "patient"\]/);
+  assert.match(routeCms, /const PUBLIC_CMS_ROUTES/);
+  for (const route of ["about", "branches", "specialties", "doctors", "services", "packages", "articles", "careers", "search", "dat-lich", "contact", "faq", "huong-dan", "tra-cuu"]) {
+    assert.match(cmsClient, new RegExp(`"${route}"`));
+  }
+  assert.match(routeCms, /new Set\(CMS_PUBLIC_ROUTE_SLUGS\)/);
+  assert.match(editor, /CMS_PUBLIC_ROUTE_SLUGS/);
+  assert.match(routeCms, /return PUBLIC_CMS_ROUTES\.has\(route\) \? route : null/);
   assert.match(routeCms, /Careers owns its hero/);
   assert.match(routeCms, /Dynamic detail/);
+  assert.match(routeCms, /native-route-cms__hero/);
+  assert.match(routeCms, /native-route-cms__content/);
+  assert.match(routeCms, /native-route-cms__support/);
+  assert.match(routeCms, /<div className="native-route-cms__content">\{children\}<\/div>/);
+  assert.doesNotMatch(routeCms, /supplemental, typed CMS extension points/);
   for (const slot of ["hero", "body", "sidebar"]) {
     assert.match(routeCms, new RegExp(`slotKey="${slot}"`));
   }
+  assert.match(shell, /<RouteCmsSlots>\{children\}<\/RouteCmsSlots>/);
+  assert.doesNotMatch(shell, /\{children\}<RouteCmsSlots \/>/);
   assert.match(footer, /cmsSlug\?/);
   assert.match(footer, /slotKey="footer"/);
 });
