@@ -525,6 +525,12 @@ export interface AdminBranchPayload {
   active: boolean;
 }
 
+export async function adminListBranches(page = 0, size = 100): Promise<Page<Branch>> {
+  return getAuthenticatedJson<Page<Branch>>(
+    `/admin/branches${toQuery({ page, size })}`,
+  );
+}
+
 export async function adminCreateBranch(payload: AdminBranchPayload): Promise<Branch> {
   return getAuthenticatedJson<Branch>("/admin/branches", {
     method: "POST",
@@ -548,6 +554,12 @@ export interface AdminServicePayload {
   slug: string;
   description?: string | null;
   active: boolean;
+}
+
+export async function adminListServices(page = 0, size = 100): Promise<Page<MedicalService>> {
+  return getAuthenticatedJson<Page<MedicalService>>(
+    `/admin/services${toQuery({ page, size })}`,
+  );
 }
 
 export async function adminCreateService(payload: AdminServicePayload): Promise<MedicalService> {

@@ -75,10 +75,15 @@ test("branch and service screens expose typed read/write contracts without mock 
   assert.match(branches, /adminCreateBranch/);
   assert.match(branches, /adminUpdateBranch/);
   assert.match(branches, /adminDeleteBranch/);
-  assert.match(branches, /PUBLIC ACTIVE READ/);
+  assert.match(branches, /adminListBranches/);
+  assert.match(branches, /ADMIN READ CONTRACT/);
+  assert.doesNotMatch(branches, /fetchBranches/);
   assert.match(services, /adminCreateService/);
   assert.match(services, /adminUpdateService/);
   assert.match(services, /adminDeleteService/);
-  assert.match(services, /PUBLIC ACTIVE READ/);
+  assert.match(services, /adminListServices/);
+  assert.match(services, /ADMIN READ CONTRACT/);
+  assert.doesNotMatch(services, /fetchServices/);
+  assert.doesNotMatch(branches, /SEED_|mock|fake/i);
   assert.doesNotMatch(services, /SEED_|mock|fake/i);
 });
