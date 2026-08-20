@@ -387,6 +387,56 @@ INSERT INTO cms_contents (
 )
 ON CONFLICT (slot_key) DO NOTHING;
 
+-- The large seed is supported as a Compose bootstrap dataset. Like the default
+-- local seed, persist one durable public cursor row per seeded CMS slot so
+-- already-open frontend sessions can reconcile through SSE replay/heartbeat.
+-- Keep this idempotent: if a preserved admin edit owns the slot, the seed row
+-- id will not match and no synthetic event is generated for that admin-owned
+-- content.
+INSERT INTO cms_content_changes (
+    content_id,
+    slot_key,
+    content_version,
+    published,
+    changed_at,
+    actor_email,
+    component_type,
+    status,
+    payload,
+    previous_payload,
+    public_event
+)
+SELECT
+    content.id,
+    content.slot_key,
+    content.version,
+    TRUE,
+    content.updated_at,
+    'seed@healthcare.local',
+    content.component_type,
+    content.status,
+    content.payload,
+    NULL,
+    TRUE
+FROM cms_contents content
+WHERE content.id IN (
+    '80000000-0000-0000-0000-000000000001',
+    '80000000-0000-0000-0000-000000000002',
+    '80000000-0000-0000-0000-000000000003',
+    '80000000-0000-0000-0000-000000000004',
+    '80000000-0000-0000-0000-000000000005'
+)
+  AND content.status = 'PUBLISHED'
+  AND content.version = 1
+  AND NOT EXISTS (
+      SELECT 1
+      FROM cms_content_changes existing_change
+      WHERE existing_change.content_id = content.id
+        AND existing_change.content_version = content.version
+        AND existing_change.public_event = TRUE
+  )
+ORDER BY content.slot_key;
+
 -- ── Public career openings ──────────────────────────────────────────────────
 INSERT INTO job_positions (
     id, slug, title, department, location, employment_type, summary,
