@@ -47,6 +47,7 @@ export interface Branch {
   mapUrl?: string | null;
   amenities?: string[];
   doctors?: DoctorSummary[];
+  active?: boolean;
 }
 
 export interface HealthPackage {
@@ -67,6 +68,7 @@ export interface MedicalService {
   name: string;
   slug: string;
   description: string;
+  active?: boolean;
 }
 
 export interface Faq {
