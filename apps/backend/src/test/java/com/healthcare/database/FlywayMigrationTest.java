@@ -137,6 +137,43 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
     }
 
     @Test
+    void cmsSlotKeysAreBoundToPublicRouteInventoryAtDatabaseBoundary() {
+        UUID contentId = UUID.randomUUID();
+        jdbcTemplate.update("delete from cms_content_changes where slot_key in (?, ?)", "contact.footer", "patient.dashboard.hero");
+        jdbcTemplate.update("delete from cms_contents where slot_key in (?, ?)", "contact.footer", "patient.dashboard.hero");
+
+        jdbcTemplate.update(
+            "insert into cms_contents "
+                + "(id, slot_key, component_type, payload, status, version, created_at, updated_at) "
+                + "values (?, ?, 'NOTICE', '{}'::jsonb, 'DRAFT', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+            contentId,
+            "contact.footer"
+        );
+        jdbcTemplate.update(
+            "insert into cms_content_changes "
+                + "(content_id, slot_key, content_version, published, public_event) "
+                + "values (?, ?, 1, false, false)",
+            contentId,
+            "contact.footer"
+        );
+
+        assertThatThrownBy(() -> jdbcTemplate.update(
+            "insert into cms_contents "
+                + "(id, slot_key, component_type, payload, status, version, created_at, updated_at) "
+                + "values (?, ?, 'NOTICE', '{}'::jsonb, 'DRAFT', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+            UUID.randomUUID(),
+            "patient.dashboard.hero"
+        )).isInstanceOf(DataAccessException.class);
+        assertThatThrownBy(() -> jdbcTemplate.update(
+            "insert into cms_content_changes "
+                + "(content_id, slot_key, content_version, published, public_event) "
+                + "values (?, ?, 1, false, false)",
+            contentId,
+            "patient.dashboard.hero"
+        )).isInstanceOf(DataAccessException.class);
+    }
+
+    @Test
     void appointmentDomainTablesAreMigrated() {
         List<String> tables = jdbcTemplate.queryForList(
             "select table_name from information_schema.tables where table_schema = 'public'",
