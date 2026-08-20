@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import {
+  adminListDoctors,
   adminCreateDoctor,
   adminDeleteDoctor,
   adminUpdateDoctor,
-  fetchDoctors,
   type AdminDoctorPayload,
   type Doctor,
 } from "../../../lib/api-client";
@@ -28,7 +28,7 @@ function formFromDoctor(doctor: Doctor): DoctorForm {
     slug: doctor.slug,
     bio: doctor.bio ?? "",
     photoUrl: doctor.photoUrl ?? "",
-    active: true,
+    active: doctor.active ?? true,
   };
 }
 
@@ -57,7 +57,7 @@ export default function AdminDoctorsPage() {
     setLoading(true);
     setLoadError(null);
     try {
-      const page = await fetchDoctors({ page: 0, size: 100 });
+      const page = await adminListDoctors(0, 100);
       setDoctors(page.content);
     } catch (error) {
       setLoadError(describeAdminError(error).description);
@@ -111,12 +111,12 @@ export default function AdminDoctorsPage() {
     setFeedback(null);
     try {
       await adminDeleteDoctor(slug);
-      const refreshed = await fetchDoctors({ page: 0, size: 100 });
+      const refreshed = await adminListDoctors(0, 100);
       setDoctors(refreshed.content);
-      const stillVisible = refreshed.content.some((doctor) => doctor.slug === slug);
-      setFeedback(stillVisible
-        ? { tone: "error", title: "Chưa xác nhận được việc xóa", description: "Slug vẫn còn trong public catalog. Backend có thể đã từ chối request hoặc cần phiên ADMIN hợp lệ." }
-        : { tone: "success", title: "Đã xác nhận slug không còn hiển thị", description: "Bản ghi này không còn trong public catalog active. Backend vẫn là nguồn xác nhận cuối cùng." });
+      const stillPresent = refreshed.content.some((doctor) => doctor.slug === slug);
+      setFeedback(stillPresent
+        ? { tone: "error", title: "Chưa xác nhận được việc xóa", description: "Slug vẫn còn trong admin catalog. Backend có thể đã từ chối request hoặc cần phiên ADMIN hợp lệ." }
+        : { tone: "success", title: "Đã xác nhận slug không còn trong admin catalog", description: "Endpoint ADMIN không còn trả bản ghi này. Backend vẫn là nguồn xác nhận cuối cùng." });
     } catch (error) {
       const copy = describeAdminError(error);
       setFeedback({ tone: "error", title: copy.title, description: copy.description });
@@ -131,7 +131,7 @@ export default function AdminDoctorsPage() {
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">NỘI DUNG BÁC SĨ</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">Quản lý bác sĩ</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Danh sách lấy từ public endpoint nên chỉ phản ánh bác sĩ active. Các thao tác ghi đi qua admin contract hiện có.</p>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Danh sách lấy từ admin endpoint nên hiển thị cả bác sĩ active và inactive để quản trị viên bật/tắt catalog.</p>
         </div>
         <span className="w-fit rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900">Bản demo local</span>
       </header>
@@ -182,21 +182,21 @@ export default function AdminDoctorsPage() {
         <section aria-labelledby="doctor-list-title" className="min-w-0">
           <div className="mb-3 flex items-end justify-between gap-3">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">PUBLIC ACTIVE READ</p>
-              <h2 className="mt-1 text-xl font-bold text-slate-900" id="doctor-list-title">Danh sách đang hiển thị</h2>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">ADMIN READ CONTRACT</p>
+              <h2 className="mt-1 text-xl font-bold text-slate-900" id="doctor-list-title">Danh sách quản trị</h2>
             </div>
             <button className="text-sm font-bold text-teal-800 underline underline-offset-4 disabled:opacity-50" disabled={loading} onClick={() => void load()} type="button">Làm mới</button>
           </div>
 
           {feedback ? <div className="mb-4"><AdminState description={feedback.description} title={feedback.title} tone={feedback.tone} /></div> : null}
-          {loading ? <AdminState tone="loading" title="Đang tải danh sách bác sĩ" description="Đang đọc public catalog từ backend." /> : null}
+          {loading ? <AdminState tone="loading" title="Đang tải danh sách bác sĩ" description="Đang đọc admin catalog từ backend." /> : null}
           {!loading && loadError ? <AdminState action={<button className="text-sm font-bold underline underline-offset-4" onClick={() => void load()} type="button">Thử lại</button>} description={loadError} title="Không thể tải danh sách bác sĩ" tone="error" /> : null}
-          {!loading && !loadError && doctors.length === 0 ? <AdminState tone="empty" title="Chưa có bác sĩ active" description="Public catalog hiện không có bản ghi để hiển thị. Bạn có thể tạo bản ghi mới nếu phiên ADMIN được backend chấp nhận." /> : null}
+          {!loading && !loadError && doctors.length === 0 ? <AdminState tone="empty" title="Chưa có bác sĩ" description="Admin catalog hiện chưa có bản ghi. Bạn có thể tạo bản ghi mới nếu phiên ADMIN được backend chấp nhận." /> : null}
           {!loading && !loadError && doctors.length > 0 ? (
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
               <div className="overflow-x-auto">
                 <table className="min-w-[680px] w-full text-left text-sm">
-                  <caption className="sr-only">Bác sĩ active trong public catalog</caption>
+                  <caption className="sr-only">Bác sĩ trong admin catalog</caption>
                   <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                     <tr><th className="px-4 py-3 font-bold">Họ tên</th><th className="px-4 py-3 font-bold">Slug</th><th className="px-4 py-3 font-bold">Trạng thái</th><th className="px-4 py-3 text-right font-bold">Thao tác</th></tr>
                   </thead>
@@ -205,7 +205,11 @@ export default function AdminDoctorsPage() {
                       <tr className="border-b border-slate-100 last:border-0" key={doctor.id}>
                         <td className="px-4 py-4 font-semibold text-slate-900">{doctor.fullName}</td>
                         <td className="px-4 py-4 font-mono text-xs text-slate-500">{doctor.slug}</td>
-                        <td className="px-4 py-4"><span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">Active</span></td>
+                        <td className="px-4 py-4">
+                          <span className={doctor.active ?? true ? "rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700" : "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600"}>
+                            {doctor.active ?? true ? "Active" : "Inactive"}
+                          </span>
+                        </td>
                         <td className="px-4 py-4"><div className="flex justify-end gap-3"><button aria-label={`Sửa ${doctor.fullName}`} className="text-xs font-bold text-teal-800 underline underline-offset-4" onClick={() => { setEditingSlug(doctor.slug); setForm(formFromDoctor(doctor)); setFormError(null); setFeedback(null); }} type="button">Sửa</button><button aria-label={`Xóa ${doctor.fullName}`} className="text-xs font-bold text-red-700 underline underline-offset-4 disabled:opacity-50" disabled={mutating} onClick={() => void handleDelete(doctor.slug)} type="button">Xóa</button></div></td>
                       </tr>
                     ))}

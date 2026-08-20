@@ -3,12 +3,14 @@ package com.healthcare.hospital;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.healthcare.AbstractIntegrationTest;
 import com.healthcare.hospital.dto.DoctorRequest;
+import com.healthcare.hospital.dto.SpecialtyRequest;
 import com.healthcare.security.JwtTokenProvider;
 import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.RoleRepository;
@@ -47,6 +49,61 @@ class AdminCmsIntegrationTest extends AbstractIntegrationTest {
 
     private DoctorRequest doctor(String fullName, String slug) {
         return new DoctorRequest(fullName, slug, null, null, true, null);
+    }
+
+    private DoctorRequest doctor(String fullName, String slug, boolean active) {
+        return new DoctorRequest(fullName, slug, null, null, active, null);
+    }
+
+    private SpecialtyRequest specialty(String name, String slug, boolean active) {
+        return new SpecialtyRequest(name, slug, "Admin catalog contract test", active);
+    }
+
+    @Test
+    void adminCanListDoctorAndSpecialtyCatalogIncludingInactiveRecords() throws Exception {
+        String adminBearer = bearer("ADMIN");
+        String doctorSlug = "admin-list-doctor-" + UUID.randomUUID();
+        String specialtySlug = "admin-list-specialty-" + UUID.randomUUID();
+
+        mockMvc.perform(post("/api/v1/admin/doctors")
+                        .header("Authorization", adminBearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(doctor("Admin List Doctor", doctorSlug, false))))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/admin/specialties")
+                        .header("Authorization", adminBearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(specialty("Admin List Specialty", specialtySlug, false))))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/admin/doctors?page=0&size=20")
+                .header("Authorization", adminBearer))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content[0].slug").value(doctorSlug))
+            .andExpect(jsonPath("$.content[0].active").value(false));
+
+        mockMvc.perform(get("/api/v1/admin/specialties?page=0&size=20")
+                .header("Authorization", adminBearer))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content[0].slug").value(specialtySlug))
+            .andExpect(jsonPath("$.content[0].active").value(false));
+    }
+
+    @Test
+    void adminCatalogListRequiresAdminRole() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/doctors"))
+            .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/admin/specialties"))
+            .andExpect(status().isUnauthorized());
+
+        String patientBearer = bearer("PATIENT");
+        mockMvc.perform(get("/api/v1/admin/doctors")
+                .header("Authorization", patientBearer))
+            .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/v1/admin/specialties")
+                .header("Authorization", patientBearer))
+            .andExpect(status().isForbidden());
     }
 
     @Test

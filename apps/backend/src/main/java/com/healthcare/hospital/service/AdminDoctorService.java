@@ -8,6 +8,8 @@ import com.healthcare.hospital.entity.Doctor;
 import com.healthcare.hospital.repository.DoctorRepository;
 import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.UserRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +22,11 @@ public class AdminDoctorService {
     public AdminDoctorService(DoctorRepository doctorRepository, UserRepository userRepository) {
         this.doctorRepository = doctorRepository;
         this.userRepository = userRepository;
+    }
+
+    @Transactional(readOnly = true)
+    public Page<Doctor> list(Pageable pageable) {
+        return doctorRepository.findAll(pageable);
     }
 
     @Transactional
