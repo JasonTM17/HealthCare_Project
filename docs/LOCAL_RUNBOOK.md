@@ -48,6 +48,24 @@ is denied by the admin appointment endpoint. To verify an already-running stack:
 .\scripts\verify-local-mvp.ps1
 ```
 
+For the API-level same-day clinical lifecycle (doctor check-in, in-progress
+visit, medical-record creation, `COMPLETED` appointment status in patient,
+doctor and admin API views, the matching `APPOINTMENT_CONFIRMED` notification,
+and own-patient record visibility), run during a day with a real available
+local slot:
+
+```powershell
+.\scripts\verify-local-mvp.ps1 -RequireClinicalFlow
+```
+
+This mode intentionally fails when there is no available same-day slot. It does
+not fabricate a visit date or bypass the doctor status-transition rules. It
+uses the hospital's Vietnam business date (`Asia/Ho_Chi_Minh` / Windows `SE Asia
+Standard Time`) rather than the host-local date. It is an API verifier: it does
+not prove browser rendering, cross-patient runtime isolation, or the source SHA
+of an already-running Docker image. Keep the browser and authorization checks
+in the role-based checklist below as separate gates.
+
 The one-shot `local-seed` container runs after Flyway and backend health. It
 creates fictional catalog data, recurring schedules, and these disposable local
 accounts (all use password `LocalDemo!2026`):
