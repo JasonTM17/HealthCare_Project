@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.healthcare.AbstractIntegrationTest;
 import com.healthcare.hospital.entity.Branch;
 import com.healthcare.hospital.entity.Doctor;
+import com.healthcare.hospital.entity.DoctorBranch;
 import com.healthcare.security.JwtTokenProvider;
 import com.healthcare.scheduling.dto.DoctorScheduleRequest;
 import com.healthcare.user.entity.User;
@@ -20,6 +21,7 @@ import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -105,8 +107,78 @@ class AdminScheduleIntegrationTest extends AbstractIntegrationTest {
             .andExpect(status().isBadRequest());
     }
 
+    @Test
+    void createAndUpdateReturnFlatScheduleResponseContract() throws Exception {
+        String adminBearer = adminToken();
+        Doctor doctor = assignedDoctor();
+        Branch branch = assignedBranch(doctor);
+        DoctorScheduleRequest createRequest = new DoctorScheduleRequest(
+            2, LocalTime.of(8, 0), LocalTime.of(12, 0), 30,
+            LocalDate.of(2026, 9, 1), null, true);
+
+        String body = mockMvc.perform(post("/api/v1/admin/schedules/doctors/{doctorId}/branches/{branchId}",
+                    doctor.getId(), branch.getId())
+                .header("Authorization", adminBearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(createRequest)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.doctorId").value(doctor.getId().toString()))
+            .andExpect(jsonPath("$.doctorName").value(doctor.getFullName()))
+            .andExpect(jsonPath("$.branchId").value(branch.getId().toString()))
+            .andExpect(jsonPath("$.branchName").value(branch.getName()))
+            .andExpect(jsonPath("$.doctor").doesNotExist())
+            .andExpect(jsonPath("$.branch").doesNotExist())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+        UUID scheduleId = UUID.fromString(objectMapper.readTree(body).path("id").asText());
+        DoctorScheduleRequest updateRequest = new DoctorScheduleRequest(
+            2, LocalTime.of(13, 0), LocalTime.of(17, 0), 20,
+            LocalDate.of(2026, 9, 1), LocalDate.of(2026, 12, 31), false);
+
+        mockMvc.perform(put("/api/v1/admin/schedules/{scheduleId}", scheduleId)
+                .header("Authorization", adminBearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(updateRequest)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value(scheduleId.toString()))
+            .andExpect(jsonPath("$.doctorId").value(doctor.getId().toString()))
+            .andExpect(jsonPath("$.branchId").value(branch.getId().toString()))
+            .andExpect(jsonPath("$.startTime").value("13:00:00"))
+            .andExpect(jsonPath("$.endTime").value("17:00:00"))
+            .andExpect(jsonPath("$.slotDurationMinutes").value(20))
+            .andExpect(jsonPath("$.effectiveTo").value("2026-12-31"))
+            .andExpect(jsonPath("$.active").value(false))
+            .andExpect(jsonPath("$.doctor").doesNotExist())
+            .andExpect(jsonPath("$.branch").doesNotExist());
+    }
+
     private String json(DoctorScheduleRequest request) throws Exception {
         return objectMapper.writeValueAsString(request);
+    }
+
+    private Doctor assignedDoctor() {
+        Doctor doctor = new Doctor();
+        doctor.setFullName("Assigned schedule doctor " + UUID.randomUUID());
+        doctor.setSlug("assigned-schedule-doctor-" + UUID.randomUUID());
+        doctor.setActive(true);
+        return doctorRepository.saveAndFlush(doctor);
+    }
+
+    private Branch assignedBranch(Doctor doctor) {
+        Branch branch = new Branch();
+        branch.setName("Assigned schedule branch " + UUID.randomUUID());
+        branch.setSlug("assigned-schedule-branch-" + UUID.randomUUID());
+        branch.setAddress("Test address");
+        branch.setActive(false);
+        branch = branchRepository.saveAndFlush(branch);
+
+        DoctorBranch doctorBranch = new DoctorBranch();
+        doctorBranch.setDoctor(doctor);
+        doctorBranch.setBranch(branch);
+        doctorBranchRepository.saveAndFlush(doctorBranch);
+        return branch;
     }
 
     private String adminToken() {
