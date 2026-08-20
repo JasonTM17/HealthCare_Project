@@ -32,11 +32,21 @@ test("admin layout gates the UI by the ADMIN role and keeps the demo boundary vi
 test("dashboard uses live catalog snapshots instead of invented metrics", async () => {
   const page = await source("page.tsx");
 
-  assert.match(page, /fetchDoctors/);
-  assert.match(page, /fetchSpecialties/);
-  assert.match(page, /fetchBranches/);
+  assert.match(page, /adminListDoctors/);
+  assert.match(page, /adminListSpecialties/);
+  assert.match(page, /adminListBranches/);
+  assert.match(page, /adminListServices/);
+  assert.match(page, /adminListPackages/);
+  assert.match(page, /adminListFaqs/);
+  assert.match(page, /adminListArticles/);
+  assert.match(page, /adminListAppointments/);
+  assert.doesNotMatch(page, /fetchDoctors/);
+  assert.doesNotMatch(page, /fetchSpecialties/);
+  assert.doesNotMatch(page, /fetchBranches/);
+  assert.doesNotMatch(page, /endpoint công khai/);
   assert.match(page, /Promise\.allSettled/);
-  assert.match(page, /Chưa có bản ghi active/);
+  assert.match(page, /Chưa có bản ghi quản trị/);
+  assert.match(page, /Bản ghi qua endpoint ADMIN/);
   assert.doesNotMatch(page, />500</);
   assert.doesNotMatch(page, />30</);
   assert.doesNotMatch(page, />1000</);

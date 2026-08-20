@@ -2,7 +2,16 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { adminListAppointments, fetchBranches, fetchDoctors, fetchSpecialties } from "../../lib/api-client";
+import {
+  adminListAppointments,
+  adminListArticles,
+  adminListBranches,
+  adminListDoctors,
+  adminListFaqs,
+  adminListPackages,
+  adminListServices,
+  adminListSpecialties,
+} from "../../lib/api-client";
 import AdminState from "./_components/AdminState";
 import { describeAdminError } from "./_lib/errors";
 
@@ -15,6 +24,10 @@ type SnapshotMap = {
   doctors: Snapshot;
   specialties: Snapshot;
   branches: Snapshot;
+  services: Snapshot;
+  packages: Snapshot;
+  faqs: Snapshot;
+  articles: Snapshot;
   appointments: Snapshot;
 };
 
@@ -22,6 +35,10 @@ const INITIAL_SNAPSHOTS: SnapshotMap = {
   doctors: { status: "loading" },
   specialties: { status: "loading" },
   branches: { status: "loading" },
+  services: { status: "loading" },
+  packages: { status: "loading" },
+  faqs: { status: "loading" },
+  articles: { status: "loading" },
   appointments: { status: "loading" },
 };
 
@@ -41,7 +58,7 @@ function SnapshotCard({
 
   if (snapshot.status === "success") {
     value = snapshot.count.toLocaleString("vi-VN");
-    note = successNote ?? (snapshot.count === 0 ? "Chưa có bản ghi active" : "Bản ghi active trong catalog công khai");
+    note = successNote ?? (snapshot.count === 0 ? "Chưa có bản ghi quản trị" : "Bản ghi qua endpoint ADMIN");
   }
 
   if (snapshot.status === "error") {
@@ -69,9 +86,13 @@ export default function AdminDashboard() {
   const load = useCallback(async () => {
     setSnapshots(INITIAL_SNAPSHOTS);
     const results = await Promise.allSettled([
-      fetchDoctors({ page: 0, size: 1 }),
-      fetchSpecialties(0, 1),
-      fetchBranches(0, 1),
+      adminListDoctors(0, 1),
+      adminListSpecialties(0, 1),
+      adminListBranches(0, 1),
+      adminListServices(0, 1),
+      adminListPackages(0, 1),
+      adminListFaqs(0, 1),
+      adminListArticles(0, 1),
       adminListAppointments({ page: 0, size: 1 }),
     ]);
 
@@ -84,7 +105,11 @@ export default function AdminDashboard() {
       doctors: toSnapshot(results[0]),
       specialties: toSnapshot(results[1]),
       branches: toSnapshot(results[2]),
-      appointments: toSnapshot(results[3]),
+      services: toSnapshot(results[3]),
+      packages: toSnapshot(results[4]),
+      faqs: toSnapshot(results[5]),
+      articles: toSnapshot(results[6]),
+      appointments: toSnapshot(results[7]),
     });
   }, []);
 
@@ -121,7 +146,7 @@ export default function AdminDashboard() {
 
         {loading ? (
           <div className="mt-4">
-            <AdminState tone="loading" title="Đang tải snapshot catalog" description="Đang đọc số lượng từ các endpoint công khai của bệnh viện." />
+            <AdminState tone="loading" title="Đang tải snapshot catalog" description="Đang đọc số lượng từ các endpoint quản trị đã xác thực." />
           </div>
         ) : null}
 
@@ -129,6 +154,10 @@ export default function AdminDashboard() {
           <SnapshotCard href="/admin/doctors" label="Bác sĩ" snapshot={snapshots.doctors} />
           <SnapshotCard href="/admin/specialties" label="Chuyên khoa" snapshot={snapshots.specialties} />
           <SnapshotCard href="/admin/branches" label="Cơ sở" snapshot={snapshots.branches} />
+          <SnapshotCard href="/admin/services" label="Dịch vụ" snapshot={snapshots.services} />
+          <SnapshotCard href="/admin/catalog" label="Gói khám" snapshot={snapshots.packages} />
+          <SnapshotCard href="/admin/catalog" label="FAQ" snapshot={snapshots.faqs} />
+          <SnapshotCard href="/admin/catalog" label="Bài viết" snapshot={snapshots.articles} />
           <SnapshotCard href="/admin/appointments" label="Tổng lịch hẹn" snapshot={snapshots.appointments} successNote="Bản ghi vận hành qua endpoint ADMIN" />
         </div>
       </section>
