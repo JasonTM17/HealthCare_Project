@@ -50,8 +50,10 @@ test("admin UI covers remaining hospital catalog and recurring schedules", () =>
   assert.match(catalog, /adminCreateFaq/);
   assert.match(catalog, /adminCreateArticle/);
   assert.match(schedules, /adminListSchedules/);
+  assert.match(schedules, /adminListBranches/);
   assert.match(schedules, /adminCreateSchedule/);
   assert.match(schedules, /adminCreateScheduleException/);
+  assert.doesNotMatch(schedules, /fetchBranches/);
   assert.match(appointments, /adminListAppointments/);
   assert.match(appointments, /Trạng thái lâm sàng/);
 });
