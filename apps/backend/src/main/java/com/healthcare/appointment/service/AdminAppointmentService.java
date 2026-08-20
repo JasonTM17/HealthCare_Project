@@ -40,7 +40,17 @@ public class AdminAppointmentService {
     public Page<AppointmentResponse> list(LocalDate date, String rawStatus, Pageable pageable) {
         AppointmentStatus status = parseStatus(rawStatus);
         Pageable safePageable = normalize(pageable);
-        return appointmentRepository.findAdminAppointments(date, status, safePageable).map(this::toResponse);
+        Page<Appointment> appointments;
+        if (date == null && status == null) {
+            appointments = appointmentRepository.findAllForAdmin(safePageable);
+        } else if (date == null) {
+            appointments = appointmentRepository.findByStatus(status, safePageable);
+        } else if (status == null) {
+            appointments = appointmentRepository.findByAppointmentDate(date, safePageable);
+        } else {
+            appointments = appointmentRepository.findByAppointmentDateAndStatus(date, status, safePageable);
+        }
+        return appointments.map(this::toResponse);
     }
 
     private AppointmentStatus parseStatus(String rawStatus) {

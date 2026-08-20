@@ -22,13 +22,22 @@ docker compose -f infrastructure/docker-compose.yml config --quiet
 docker compose -f infrastructure/docker-compose.yml up --build
 ```
 
-Alternatively, the Windows helper builds the stack, waits for the idempotent
-seed, forces an ADMIN-authorized RAG catalog sync, and runs the automated
-patient/doctor/admin booking smoke flow. When `.env` is absent, it creates a
-git-ignored local file with cryptographically generated JWT/AI/RAG secrets:
+Alternatively, when `.env` is absent, the Windows helper creates a git-ignored
+disposable full-MVP environment with generated JWT/AI/RAG secrets, then builds
+the stack, waits for the idempotent seed, forces an ADMIN-authorized RAG catalog
+sync, and runs the automated patient/doctor/admin booking smoke flow. It does
+not alter an existing `.env`: the existing file must explicitly enable RAG and
+contain a nonempty RAG token. Compose defaults remain fail-closed.
 
 ```powershell
 .\scripts\start-and-verify-local-mvp.ps1
+```
+
+To explicitly prepare or repair an existing local `.env` without building or
+restarting containers, use:
+
+```powershell
+.\scripts\start-and-verify-local-mvp.ps1 -PrepareOnly
 ```
 
 The verifier creates one disposable confirmed appointment. It also proves that
