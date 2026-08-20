@@ -11,6 +11,14 @@ test("appointment calls to action expose the available branch route", async () =
   assert.match(page, /href="\/branches"/);
 });
 
+test("homepage hero fallback attribution matches the stock image source", async () => {
+  const page = await readFile(pagePath, "utf8");
+
+  assert.match(page, /https:\/\/images\.pexels\.com\/photos\/4266936\/pexels-photo-4266936\.jpeg/);
+  assert.match(page, /Ảnh minh họa từ Pexels\./);
+  assert.doesNotMatch(page, /Ảnh minh họa từ Unsplash\./);
+});
+
 test("homepage mounts the published CMS hero slot for realtime updates", async () => {
   const page = await readFile(pagePath, "utf8");
 
