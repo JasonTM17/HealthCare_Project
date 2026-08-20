@@ -56,6 +56,7 @@ export interface HealthPackage {
   slug: string;
   description: string;
   price: number;
+  active?: boolean;
   featured?: boolean;
   checklist?: string[];
   targetAudience?: string | null;
@@ -75,6 +76,7 @@ export interface Faq {
   id: string;
   question: string;
   answer: string;
+  active?: boolean;
 }
 
 export type EmploymentType = "FULL_TIME" | "PART_TIME" | "CONTRACT" | "INTERNSHIP";
@@ -119,6 +121,7 @@ export interface Article {
   summary: string;
   body?: string;
   publishedAt: string;
+  active?: boolean;
   category?: string | null;
   authorName?: string | null;
   readingMinutes?: number | null;

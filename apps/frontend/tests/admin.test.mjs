@@ -87,3 +87,20 @@ test("branch and service screens expose typed read/write contracts without mock 
   assert.doesNotMatch(branches, /SEED_|mock|fake/i);
   assert.doesNotMatch(services, /SEED_|mock|fake/i);
 });
+
+test("remaining catalog screen reads inactive and unpublished records through admin contracts", async () => {
+  const catalog = await source("catalog/page.tsx");
+
+  assert.match(catalog, /adminListPackages/);
+  assert.match(catalog, /adminListFaqs/);
+  assert.match(catalog, /adminListArticles/);
+  assert.match(catalog, /ADMIN READ CONTRACT/);
+  assert.match(catalog, /item\.active \?\? true/);
+  assert.match(catalog, /item\.active \?\? Boolean\(item\.publishedAt\)/);
+  assert.match(catalog, /Inactive/);
+  assert.match(catalog, /Unpublished/);
+  assert.doesNotMatch(catalog, /fetchPackages/);
+  assert.doesNotMatch(catalog, /fetchFaqs/);
+  assert.doesNotMatch(catalog, /fetchArticles/);
+  assert.doesNotMatch(catalog, /SEED_|mock|fake/i);
+});
