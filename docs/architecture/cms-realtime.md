@@ -68,7 +68,9 @@ detail content, V16 adds actor-aware CMS audit snapshots and rollback
 metadata, V17 enforces published article content, V18 hashes appointment
 OTPs, V19 adds secure stored-file metadata, V20 records appointment-reminder
 delivery, V21 expands patient profile details, V22 adds careers and job
-applications, and V23 constrains CMS slots to public route keys. The separate
+applications, and V23 constrains CMS slots to public route keys after a
+preflight that reports any legacy private slots for explicit operator repair
+without deleting production CMS data. The separate
 `seed-local-careers.sql` fixture runs only after V22 so older migration tests can still exercise the base seed without
 referencing career tables. No migration rewrites an already-applied migration;
 do not renumber these migrations on the integration head.
