@@ -5226,6 +5226,200 @@ main {
   color: #b2373d;
 }
 
+.site-shell .section--ai-companion {
+  background: #fff;
+}
+
+.site-shell .ai-companion {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(21rem, 1.05fr);
+  gap: 2rem;
+  align-items: stretch;
+}
+
+.site-shell .ai-companion__copy,
+.site-shell .ai-companion__panel {
+  border: 1px solid var(--hospital-border);
+  border-radius: 12px;
+  box-shadow: 0 16px 36px rgb(20 61 75 / 10%);
+}
+
+.site-shell .ai-companion__copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(1.6rem, 3vw, 2.75rem);
+  background: var(--hospital-surface);
+}
+
+.site-shell .ai-companion__copy h2 {
+  max-width: 13ch;
+  color: var(--hospital-navy);
+  font-size: clamp(2rem, 3.6vw, 3.2rem);
+  letter-spacing: -0.045em;
+  line-height: 0.98;
+}
+
+.site-shell .ai-companion__copy > p:not(.section-note):not(.ai-companion__privacy) {
+  max-width: 58ch;
+  margin-top: 1rem;
+  color: var(--hospital-muted);
+  font-size: 1rem;
+  line-height: 1.75;
+}
+
+.site-shell .ai-companion__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  margin-top: 1.65rem;
+}
+
+.site-shell .ai-companion__privacy {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 1.35rem 0 0;
+  color: var(--hospital-muted);
+  font-size: 0.82rem;
+  line-height: 1.65;
+}
+
+.site-shell .ai-companion__privacy svg {
+  flex: 0 0 auto;
+  margin-top: 0.2rem;
+  color: var(--hospital-teal-dark);
+}
+
+.site-shell .ai-companion__panel {
+  display: grid;
+  gap: 1.25rem;
+  padding: clamp(1.25rem, 2.4vw, 2rem);
+  background: var(--hospital-navy);
+  color: #fff;
+}
+
+.site-shell .ai-companion__panel-header {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.site-shell .ai-companion__panel-header > span {
+  width: 48px;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--hospital-amber);
+  color: var(--hospital-navy);
+}
+
+.site-shell .ai-companion__panel-header strong,
+.site-shell .ai-companion__panel-header small {
+  display: block;
+}
+
+.site-shell .ai-companion__panel-header strong {
+  font-size: 1.1rem;
+}
+
+.site-shell .ai-companion__panel-header small {
+  margin-top: 0.2rem;
+  color: #b8d9d6;
+  font-size: 0.78rem;
+}
+
+.site-shell .ai-companion__steps {
+  display: grid;
+  gap: 0.85rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.site-shell .ai-companion__steps li {
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  gap: 0.85rem;
+  padding: 1rem;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 10px;
+  background: rgb(255 255 255 / 8%);
+}
+
+.site-shell .ai-companion__step-icon {
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgb(255 255 255 / 12%);
+  color: var(--hospital-amber);
+}
+
+.site-shell .ai-companion__steps strong,
+.site-shell .ai-companion__steps small {
+  display: block;
+}
+
+.site-shell .ai-companion__steps small {
+  margin-top: 0.3rem;
+  color: #c4dbdd;
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.site-shell .ai-companion__stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.site-shell .ai-companion__stats span {
+  min-height: 76px;
+  display: grid;
+  align-content: center;
+  gap: 0.15rem;
+  padding: 0.85rem;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--hospital-navy);
+}
+
+.site-shell .ai-companion__stats strong,
+.site-shell .ai-companion__stats small {
+  display: block;
+}
+
+.site-shell .ai-companion__stats strong {
+  font-size: 1.35rem;
+}
+
+.site-shell .ai-companion__stats small {
+  color: var(--hospital-muted);
+  font-size: 0.75rem;
+}
+
+.site-shell .ai-companion__hotline {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--hospital-teal-dark);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.site-shell .ai-companion__hotline:hover {
+  color: var(--hospital-navy);
+}
+
 .site-shell .section {
   padding: 5rem 0;
 }
@@ -5598,6 +5792,7 @@ main {
   }
 
   .site-shell .specialty-layout,
+  .site-shell .ai-companion,
   .site-shell .journey-layout,
   .site-shell .branch-layout,
   .site-shell .content-layout,
@@ -5682,6 +5877,24 @@ main {
 
   .site-shell .care-links {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .site-shell .ai-companion__copy,
+  .site-shell .ai-companion__panel {
+    border-radius: 10px;
+  }
+
+  .site-shell .ai-companion__copy h2 {
+    max-width: 12ch;
+  }
+
+  .site-shell .ai-companion__actions,
+  .site-shell .ai-companion__actions > * {
+    width: 100%;
+  }
+
+  .site-shell .ai-companion__stats {
+    grid-template-columns: 1fr;
   }
 
   .site-shell .care-link,

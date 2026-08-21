@@ -114,6 +114,23 @@ test("homepage exposes a distinct unavailable catalog state with a retry path", 
   assert.match(home, /setCatalog\(null\)/);
 });
 
+test("homepage presents AI companion as a safe first-class care service", async () => {
+  const [home, styles] = await Promise.all([
+    read("app/page.tsx"),
+    read("app/styles.css"),
+  ]);
+
+  assert.match(home, /AI_COMPANION_STEPS/);
+  assert.match(home, /section--ai-companion/);
+  assert.match(home, /danh mục hiện tại/);
+  assert.match(home, /AI không thay thế chẩn đoán/);
+  assert.match(home, /onOpenAi/);
+  assert.match(home, /onBooking/);
+  assert.match(styles, /\.site-shell \.ai-companion__stats/);
+  assert.match(styles, /\.site-shell \.ai-companion__hotline/);
+  assert.match(styles, /min-height: 48px/);
+});
+
 test("CMS booking CTA has a real landing route and public chrome avoids invented hotlines", async () => {
   const [booking, navbar, footer, home, seed, largeSeed] = await Promise.all([
     read("app/dat-lich/page.tsx"),
