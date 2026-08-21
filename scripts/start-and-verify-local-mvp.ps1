@@ -44,15 +44,28 @@ function New-DisposableSecret([int]$ByteCount) {
     return [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes($ByteCount))
 }
 
+function Test-IsWindowsHost {
+    return [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
+        [System.Runtime.InteropServices.OSPlatform]::Windows
+    )
+}
+
 if (-not (Test-Path -LiteralPath $DockerPath -PathType Leaf)) {
     $command = Get-Command docker -ErrorAction SilentlyContinue
     if (-not $command) { throw "Docker CLI was not found" }
     $DockerPath = $command.Source
 }
 
-$desktopStatus = & $DockerPath desktop status 2>&1
-if ($LASTEXITCODE -ne 0 -or ($desktopStatus -join " ") -notmatch "running") {
-    throw "Docker Desktop engine is not running. Enable WSL 2/virtualization, restart Windows, then open Docker Desktop."
+if (Test-IsWindowsHost) {
+    $desktopStatus = & $DockerPath desktop status 2>&1
+    if ($LASTEXITCODE -ne 0 -or ($desktopStatus -join " ") -notmatch "running") {
+        throw "Docker Desktop engine is not running. Enable WSL 2/virtualization, restart Windows, then open Docker Desktop."
+    }
+} else {
+    & $DockerPath info --format '{{.ServerVersion}}' | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Docker engine is not running or is not reachable by the Docker CLI."
+    }
 }
 
 $environmentAlreadyExists = Test-Path -LiteralPath $EnvFile -PathType Leaf

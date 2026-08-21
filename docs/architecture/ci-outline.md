@@ -35,14 +35,22 @@ review.
    environment/private-key files plus a narrow set of credential-shaped token
    formats. Checkout credentials are not persisted into the job worktrees. The
    scan reports file paths only; it must not print secret values.
+6. The separate `Runtime Compose MVP` workflow is manual (`workflow_dispatch`)
+   because it builds and boots the full local Docker Compose stack. It runs the
+   same provenance-bound local MVP verifier against PostgreSQL, Redis, MinIO,
+   backend, frontend, and AI service with a disposable env file outside the
+   repository, then stops the Compose project. This is live local-runtime
+   evidence for the exact commit, not a production deployment.
 
 ## Evidence Boundary
 
 Exact test counts and pass/fail status are run evidence, not evergreen
 architecture. Treat GitHub Actions, local terminal output, and package
-publication logs as the authority for a frozen commit. Green CI is not evidence
-of deployment, image publication, compliance, provider liveness, backup/restore,
-or production readiness.
+publication logs as the authority for a frozen commit. Green default CI is not
+evidence of deployment, compliance, provider liveness, backup/restore, or
+production readiness. A green manual `Runtime Compose MVP` run adds live local
+Docker/SQL/API evidence for one commit, but still does not prove production
+cutover or compliance.
 The backend integration base uses `TEST_DB_*` to target an external PostgreSQL
 service; Java Testcontainers execution is `NOT_RUN` unless a test explicitly
 starts a Testcontainers container. Local `actionlint` and `yamllint` were not

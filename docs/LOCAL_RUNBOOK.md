@@ -46,6 +46,12 @@ contain a nonempty RAG token. Compose defaults remain fail-closed.
 .\scripts\start-and-verify-local-mvp.ps1
 ```
 
+If the local machine cannot run Docker Desktop yet, trigger the GitHub Actions
+`Runtime Compose MVP` workflow manually for the exact commit. It runs the same
+provenance-bound verifier on an Ubuntu runner with disposable local-only
+secrets and stops the Compose project afterward. Treat that as live
+local-runtime evidence, not production deployment evidence.
+
 To explicitly prepare or repair an existing local `.env` without building or
 restarting containers, use:
 
