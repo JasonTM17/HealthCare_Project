@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
     inputs:
       source_ref:
-        description: "Git ref to build when manually publishing"
-        required: false
+        description: "40-character Git commit SHA to publish when manually publishing"
+        required: true
         type: string
       image_tag:
         description: "Optional image tag without the leading v"
@@ -15,6 +15,7 @@ on:
         type: string
 
 permissions:
+  actions: read
   contents: read
   packages: write
   attestations: write
@@ -23,18 +24,237 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - name: Check out source
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.source_ref || github.ref }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.source_ref || github.ref }}
+          fetch-depth: 0
           persist-credentials: false
 
-      - name: Normalize image name
-        id: image
+      - name: Resolve source and tags
+        id: source
         shell: bash
-        run: echo "name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/healthcare-project-database" >> "$GITHUB_OUTPUT"
+        env:
+          MANUAL_SOURCE_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.source_ref || '' }}
+          MANUAL_IMAGE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.image_tag || '' }}
+        run: |
+          set -euo pipefail
+
+          image_name="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/healthcare-project-database"
+          source_sha="$(git rev-parse HEAD)"
+
+          if [ -n "$MANUAL_SOURCE_REF" ]; then
+            if [[ ! "$MANUAL_SOURCE_REF" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::error::workflow_dispatch source_ref must be a lowercase 40-character commit SHA"
+              exit 1
+            fi
+            if [ "$MANUAL_SOURCE_REF" != "$source_sha" ]; then
+              echo "::error::Checked out SHA $source_sha does not match requested source_ref $MANUAL_SOURCE_REF"
+              exit 1
+            fi
+          fi
+
+          declare -a requested_tags=("${image_name}:sha-${source_sha}")
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ] && [[ "${GITHUB_REF_NAME:-}" =~ ^v[0-9] ]]; then
+            requested_tags+=("${image_name}:${GITHUB_REF_NAME#v}")
+          fi
+          if [ -n "$MANUAL_IMAGE_TAG" ]; then
+            if [[ ! "$MANUAL_IMAGE_TAG" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
+              echo "::error::image_tag must be a valid Docker tag"
+              exit 1
+            fi
+            if [[ "$MANUAL_IMAGE_TAG" =~ ^sha-[0-9a-f]{40}$ ]] && [ "$MANUAL_IMAGE_TAG" != "sha-${source_sha}" ]; then
+              echo "::error::image_tag cannot impersonate another source SHA"
+              exit 1
+            fi
+            requested_tags+=("${image_name}:${MANUAL_IMAGE_TAG}")
+          fi
+
+          declare -a unique_tags=()
+          for tag in "${requested_tags[@]}"; do
+            seen=false
+            for existing in "${unique_tags[@]}"; do
+              if [ "$existing" = "$tag" ]; then
+                seen=true
+                break
+              fi
+            done
+            if [ "$seen" = false ]; then
+              unique_tags+=("$tag")
+            fi
+          done
+
+          echo "sha=$source_sha" >> "$GITHUB_OUTPUT"
+          echo "image_name=$image_name" >> "$GITHUB_OUTPUT"
+          echo "primary_tag=${unique_tags[0]}" >> "$GITHUB_OUTPUT"
+          {
+            echo "tags<<EOF"
+            printf '%s\n' "${unique_tags[@]}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Require successful exact-SHA CI
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 30); do
+            success_count="$(gh run list --workflow ci.yml --commit "$SOURCE_SHA" --limit 20 --json status,conclusion,headSha \
+              --jq '[.[] | select(.headSha == "'"$SOURCE_SHA"'" and .status == "completed" and .conclusion == "success")] | length')"
+            if [ "$success_count" -ge 1 ]; then
+              echo "Found successful CI run for $SOURCE_SHA"
+              exit 0
+            fi
+            echo "Waiting for successful CI run for $SOURCE_SHA ($attempt/30)"
+            sleep 10
+          done
+          echo "::error::No successful ci.yml run found for exact SHA $SOURCE_SHA"
+          exit 1
+
+      - name: Build verified database image
+        shell: bash
+        env:
+          IMAGE_TAGS: ${{ steps.source.outputs.tags }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          set -euo pipefail
+
+          created="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          declare -a tag_args=()
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            tag_args+=(--tag "$tag")
+          done <<< "$IMAGE_TAGS"
+
+          docker build \
+            --file infrastructure/database/Dockerfile \
+            --label "org.opencontainers.image.created=$created" \
+            --label "org.opencontainers.image.source=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+            --label "org.opencontainers.image.revision=$SOURCE_SHA" \
+            "${tag_args[@]}" \
+            .
+
+      - name: Initialize and verify database image
+        shell: bash
+        env:
+          PRIMARY_TAG: ${{ steps.source.outputs.primary_tag }}
+        run: |
+          set -euo pipefail
+
+          container=healthcare-database-publish
+          cleanup() { docker rm --force "$container" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+
+          docker run --detach --name "$container" --tmpfs /var/lib/postgresql/data:rw \
+            --env POSTGRES_DB=healthcare \
+            --env POSTGRES_USER=healthcare \
+            --env POSTGRES_PASSWORD=ci-only \
+            "$PRIMARY_TAG" >/dev/null
+
+          ready=false
+          for attempt in $(seq 1 60); do
+            if docker exec "$container" pg_isready -U healthcare -d healthcare >/dev/null 2>&1; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" != true ]; then
+            docker logs "$container"
+            exit 1
+          fi
+
+          verified=false
+          for attempt in $(seq 1 180); do
+            if counts="$(docker exec "$container" psql -At -F '|' -U healthcare -d healthcare -c \
+              "SELECT 'articles', count(*) FROM articles UNION ALL SELECT 'doctors', count(*) FROM doctors UNION ALL SELECT 'packages', count(*) FROM packages UNION ALL SELECT 'users', count(*) FROM users UNION ALL SELECT 'job_positions', count(*) FROM job_positions UNION ALL SELECT 'job_applications', count(*) FROM job_applications;" 2>/dev/null)"; then
+              if grep -Fx 'articles|500' <<<"$counts" >/dev/null \
+                && grep -Fx 'doctors|500' <<<"$counts" >/dev/null \
+                && grep -Fx 'packages|100' <<<"$counts" >/dev/null \
+                && grep -Fx 'users|1001' <<<"$counts" >/dev/null \
+                && grep -Fx 'job_positions|4' <<<"$counts" >/dev/null \
+                && grep -Fx 'job_applications|0' <<<"$counts" >/dev/null \
+                && [ "$(docker exec "$container" psql -At -U healthcare -d healthcare -c \
+                  "SELECT count(*) FROM information_schema.columns WHERE table_name = 'cms_content_changes' AND column_name IN ('actor_email','payload','previous_payload','public_event');" \
+                  2>/dev/null)" = 4 ] \
+                && [ "$(docker exec "$container" psql -At -U healthcare -d healthcare -c \
+                  "SELECT count(*) FROM pg_constraint WHERE conname IN ('ck_cms_contents_slot_component_type','ck_cms_content_changes_slot_component_type');" \
+                  2>/dev/null)" = 2 ]; then
+                printf '%s\n' "$counts"
+                verified=true
+                break
+              fi
+            fi
+            sleep 1
+          done
+          if [ "$verified" != true ]; then
+            docker logs "$container"
+            exit 1
+          fi
+
+          if docker exec "$container" psql -v ON_ERROR_STOP=1 -U healthcare -d healthcare -c \
+            "INSERT INTO cms_contents (id, slot_key, component_type, payload, status, version, created_at, updated_at) VALUES ('00000000-0000-0000-0000-000000000024','careers.hero','RICH_TEXT','{\"title\":\"Wrong hero\",\"body\":\"Ignored\"}'::jsonb,'PUBLISHED',1,now(),now());" >/dev/null 2>&1; then
+            echo "::error::Invalid hero/RICH_TEXT CMS row was accepted by the database image"
+            exit 1
+          fi
+
+      - name: Generate database fixture SBOM
+        id: sbom
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sbom_path="${RUNNER_TEMP}/healthcare-database-fixture.cdx.json"
+          python3 - "$sbom_path" <<'PY'
+          import hashlib
+          import json
+          import sys
+          from pathlib import Path
+
+          root = Path.cwd()
+          output = Path(sys.argv[1])
+          tracked_paths = [
+              *sorted(root.glob("apps/backend/src/main/resources/db/migration/*.sql")),
+              *sorted(path for path in (root / "infrastructure/database").rglob("*") if path.is_file()),
+          ]
+
+          components = [{
+              "type": "container",
+              "name": "postgres",
+              "version": "16-alpine",
+              "purl": "pkg:docker/postgres@16-alpine",
+          }]
+          for path in tracked_paths:
+              data = path.read_bytes()
+              components.append({
+                  "type": "file",
+                  "name": path.relative_to(root).as_posix(),
+                  "hashes": [{
+                      "alg": "SHA-256",
+                      "content": hashlib.sha256(data).hexdigest(),
+                  }],
+              })
+
+          bom = {
+              "bomFormat": "CycloneDX",
+              "specVersion": "1.6",
+              "version": 1,
+              "metadata": {
+                  "component": {
+                      "type": "container",
+                      "name": "healthcare-project-database",
+                  },
+              },
+              "components": components,
+          }
+          output.write_text(json.dumps(bom, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          PY
+
+          echo "path=$sbom_path" >> "$GITHUB_OUTPUT"
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -43,26 +263,42 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Buildx container driver
-        uses: docker/setup-buildx-action@v3
+      - name: Push verified database image
+        id: push
+        shell: bash
+        env:
+          IMAGE_TAGS: ${{ steps.source.outputs.tags }}
+          PRIMARY_TAG: ${{ steps.source.outputs.primary_tag }}
+        run: |
+          set -euo pipefail
 
-      - name: Extract image metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ steps.image.outputs.name }}
-          tags: |
-            type=semver,pattern={{version}}
-            type=raw,value=${{ inputs.image_tag }},enable=${{ inputs.image_tag != '' }}
-            type=sha,format=long
+          digest=""
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            push_output="$(docker push "$tag")"
+            printf '%s\n' "$push_output"
+            if [ "$tag" = "$PRIMARY_TAG" ]; then
+              digest="$(awk '/digest:/ {print $3}' <<<"$push_output" | tail -n 1)"
+            fi
+          done <<< "$IMAGE_TAGS"
 
-      - name: Build and publish database image
-        uses: docker/build-push-action@v6
+          if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::Could not resolve pushed digest for $PRIMARY_TAG"
+            exit 1
+          fi
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Attest database image provenance
+        uses: actions/attest-build-provenance@v4
         with:
-          context: .
-          file: infrastructure/database/Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          provenance: mode=max
-          sbom: true
+          subject-name: ${{ steps.source.outputs.image_name }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+      - name: Attest database fixture SBOM
+        uses: actions/attest-sbom@v4
+        with:
+          subject-name: ${{ steps.source.outputs.image_name }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          sbom-path: ${{ steps.sbom.outputs.path }}
+          push-to-registry: true

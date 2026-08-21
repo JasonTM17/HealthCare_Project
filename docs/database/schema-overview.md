@@ -79,8 +79,12 @@ executable by the branch-aware booking flow.
 
 The database package build copies the 24 SQL migrations into a PostgreSQL 16
 image, executes them in Flyway version order, and then runs the large seed plus
-the careers fixture on a fresh `PGDATA`. Because this standalone image does not maintain
-`flyway_schema_history`, it must not replace the application-managed Compose
-database for Spring Boot startup. Use the package for a ready-to-query fixture;
-use [`infrastructure/docker-compose.yml`](../../infrastructure/docker-compose.yml)
+the careers fixture on a fresh `PGDATA`. The publish workflow requires an exact
+source commit SHA, a successful CI run for that SHA, a booted-image data check,
+and CMS slot/component constraint verification before it pushes the GHCR image
+and attaches digest-bound provenance/SBOM attestations. Because this standalone
+image does not maintain `flyway_schema_history`, it must not replace the
+application-managed Compose database for Spring Boot startup. Use the package
+for a ready-to-query fixture; use
+[`infrastructure/docker-compose.yml`](../../infrastructure/docker-compose.yml)
 for the normal Flyway lifecycle.
