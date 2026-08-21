@@ -115,27 +115,6 @@ function formatNotificationType(eventType: string): string {
   return labels[eventType] ?? "Thông báo mới";
 }
 
-function formatPrescriptionStatus(status: string): string {
-  const labels: Record<string, string> = {
-    ACTIVE: "Đang sử dụng",
-    COMPLETED: "Đã hoàn tất",
-    CANCELLED: "Đã ngừng",
-  };
-  return labels[status] ?? "Đã kê";
-}
-
-function formatNotificationType(eventType: string): string {
-  const labels: Record<string, string> = {
-    APPOINTMENT_CREATED: "Đã tạo lịch hẹn",
-    APPOINTMENT_CONFIRMED: "Lịch hẹn đã xác nhận",
-    APPOINTMENT_RESCHEDULED: "Lịch hẹn đã thay đổi",
-    APPOINTMENT_CANCELLED: "Lịch hẹn đã hủy",
-    APPOINTMENT_REMINDER: "Nhắc lịch khám",
-    DIAGNOSTIC_RESULT_AVAILABLE: "Có kết quả mới",
-  };
-  return labels[eventType] ?? "Thông báo mới";
-}
-
 function countOf<T>(state: Loadable<T[]> | Loadable<Page<T>>): string {
   if (state.status === "success") {
     return String(Array.isArray(state.data) ? state.data.length : state.data.totalElements);

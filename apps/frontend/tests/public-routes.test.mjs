@@ -46,6 +46,11 @@ test("contact and guidance pages do not invent branch, insurance, or FAQ data", 
   ]);
 
   assert.match(contact, /fetchBranches/);
+  assert.match(contact, /resource-hero-card--teal/);
+  assert.match(contact, /PublicAiButton/);
+  assert.match(contact, /resource-meta-grid/);
+  assert.match(contact, /resource-step-card/);
+  assert.match(contact, /catalog-grid--branches/);
   assert.match(contact, /catalog-status--loading/);
   assert.match(contact, /Thông tin cơ sở đang được cập nhật/);
   assert.doesNotMatch(contact, /1900 1234/);
@@ -143,6 +148,8 @@ test("AI and CMS live boundaries fail closed across reconnect and unresolved res
   assert.match(specialties, /PublicPageShell/);
   assert.match(branchDetail, /phoneHref/);
   assert.match(home, /safeTelephoneHref\(branch\.phone\)/);
+  assert.match(home, /setIsAiTriageOpen\(true\)/);
+  assert.match(home, /Trợ lý triệu chứng/);
   assert.match(tracking, /useDialogFocus/);
   assert.match(tracking, /role="dialog"/);
   assert.match(tracking, /cancel-dialog-title/);
