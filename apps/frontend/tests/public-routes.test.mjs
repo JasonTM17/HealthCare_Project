@@ -207,6 +207,20 @@ test("articles page now behaves like a health knowledge hub", async () => {
   assert.match(icons, /"article"/);
 });
 
+test("article detail page now behaves like a health knowledge detail hub", async () => {
+  const article = await read("app/articles/[slug]/page.tsx");
+
+  assert.match(article, /resource-hero-card--teal/);
+  assert.match(article, /PublicAiButton/);
+  assert.match(article, /PublicBookingButton/);
+  assert.match(article, /resource-meta-grid/);
+  assert.match(article, /resource-step-card/);
+  assert.match(article, /ARTICLE_STEPS/);
+  assert.match(article, /ClinicalIcon name="article"/);
+  assert.match(article, /article-detail-card__sections/);
+  assert.match(article, /relatedSpecialtySlug/);
+});
+
 test("public phone actions validate backend values before creating tel links", async () => {
   const sources = await Promise.all([
     read("lib/phone.ts"),
