@@ -688,6 +688,157 @@ main {
   color: var(--color-ink-muted);
 }
 
+.booking-page {
+  padding-bottom: calc(var(--sp-20) + 5rem);
+}
+
+.booking-page__hero {
+  max-width: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(19rem, 0.42fr);
+  gap: var(--sp-8);
+  align-items: stretch;
+}
+
+.booking-page__hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  margin-top: var(--sp-6);
+}
+
+.booking-page__hero-actions .button,
+.booking-page__hero-actions .outline-button {
+  min-height: 48px;
+}
+
+.booking-page__summary {
+  display: grid;
+  align-content: start;
+  gap: var(--sp-3);
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border: 1px solid var(--color-line-dark);
+  border-radius: var(--radius-lg);
+  background: var(--color-teal-950);
+  color: var(--color-paper-bright);
+  box-shadow: var(--shadow-soft);
+}
+
+.booking-page__summary .section-note,
+.booking-page__summary span,
+.booking-page__summary small {
+  color: var(--color-mint);
+}
+
+.booking-page__summary strong {
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 3vw, 2.25rem);
+  letter-spacing: -0.03em;
+  line-height: 1.08;
+}
+
+.booking-stage-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-4);
+  margin-top: var(--sp-8);
+}
+
+.booking-stage-card {
+  min-height: 100%;
+  padding: var(--sp-5);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-paper-bright);
+  box-shadow: 0 18px 34px oklch(30% 0.03 190 / 0.08);
+}
+
+.booking-stage-card__icon {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background: var(--color-mint-light);
+  color: var(--color-teal-700);
+}
+
+.booking-stage-card h2 {
+  margin: var(--sp-4) 0 var(--sp-2);
+  color: var(--color-teal-950);
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.booking-stage-card p {
+  margin: 0;
+  color: var(--color-ink-muted);
+  font-size: 0.9375rem;
+  line-height: 1.65;
+}
+
+.booking-page__support {
+  margin-top: var(--sp-8);
+}
+
+.booking-page__checklist {
+  display: grid;
+  gap: var(--sp-3);
+  margin: var(--sp-4) 0 var(--sp-5);
+  padding: 0;
+  list-style: none;
+}
+
+.booking-page__checklist li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--sp-2);
+  align-items: start;
+  color: var(--color-ink-muted);
+  line-height: 1.6;
+}
+
+.booking-page__checklist svg {
+  margin-top: 0.2rem;
+  color: var(--color-teal-700);
+}
+
+.booking-page__sticky {
+  position: sticky;
+  bottom: var(--sp-4);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  margin-top: var(--sp-8);
+  padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-5);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: oklch(100% 0 0 / 0.94);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(18px);
+}
+
+.booking-page__sticky span {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.booking-page__sticky strong {
+  color: var(--color-teal-950);
+}
+
+.booking-page__sticky small {
+  color: var(--color-muted);
+}
+
+.booking-page__sticky-button {
+  min-height: 48px;
+  flex: 0 0 auto;
+}
+
 .route-state {
   min-height: 64vh;
   display: grid;
@@ -1273,12 +1424,27 @@ main {
   }
 
   .resource-hero-card,
+  .booking-page__hero,
   .resource-grid--two,
   .catalog-grid,
   .catalog-grid--packages,
   .catalog-grid--compact,
   .resource-doctor-grid--wide {
     grid-template-columns: 1fr;
+  }
+
+  .booking-stage-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .booking-page__sticky {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .booking-page__sticky-button {
+    width: 100%;
+    justify-content: center;
   }
 
   .resource-meta-grid {
@@ -3267,6 +3433,16 @@ main {
   .hero-assurance__inner {
     grid-template-columns: 1fr;
     padding: var(--sp-2);
+  }
+
+  .booking-stage-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .booking-page__hero-actions,
+  .booking-page__hero-actions .button,
+  .booking-page__hero-actions .outline-button {
+    width: 100%;
   }
 
   .hero-actions,
