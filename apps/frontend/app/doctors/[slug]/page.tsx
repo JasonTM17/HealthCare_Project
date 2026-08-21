@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { fetchDoctorBySlug } from "../../../lib/api-client";
@@ -10,6 +11,12 @@ import {
   PublicBookingButton,
   PublicPageShell,
 } from "../../../components/PublicPageShell";
+
+const DOCTOR_STEPS = [
+  ["01", "Xem chuyên khoa", "Kiểm tra xem bác sĩ có đúng phạm vi điều trị bạn đang cần không."],
+  ["02", "Chọn cơ sở", "Đối chiếu các cơ sở làm việc để sắp xếp đi lại thuận tiện hơn."],
+  ["03", "Đặt lịch", "Giữ khung giờ trước khi bạn chuyển sang luồng đặt hẹn."],
+] as const;
 
 function initials(name: string): string {
   return name.split(/\s+/).filter(Boolean).slice(-2).map((part) => part[0]).join("").toUpperCase();
@@ -55,22 +62,52 @@ export default function DoctorDetailPage() {
         {!loading && !error && !doctor ? <p className="catalog-status" role="status">Không tìm thấy hồ sơ bác sĩ này.</p> : null}
 
         {doctor ? (
-          <article className="resource-hero-card">
-            <div className="resource-avatar" aria-hidden="true">{initials(doctor.fullName)}</div>
-            <div className="resource-hero-card__body">
-              <div className="resource-chip-row">
-                {doctor.specialtyName ? <span className="resource-chip">{doctor.specialtyName}</span> : null}
-                {doctor.experienceYears ? <span className="resource-chip resource-chip--warm">{doctor.experienceYears} năm kinh nghiệm</span> : null}
+          <>
+            <article className="resource-hero-card resource-hero-card--teal">
+              <div className="resource-avatar" aria-hidden="true">{initials(doctor.fullName)}</div>
+              <div className="resource-hero-card__body">
+                <div className="resource-chip-row">
+                  {doctor.specialtyName ? <span className="resource-chip">{doctor.specialtyName}</span> : null}
+                  {doctor.experienceYears ? <span className="resource-chip resource-chip--warm">{doctor.experienceYears} năm kinh nghiệm</span> : null}
+                </div>
+                <h2>{doctor.fullName}</h2>
+                <p className="resource-lead">{doctor.title ?? "Bác sĩ chuyên khoa"}</p>
+                <p>{doctor.bio || "Hồ sơ chưa có phần giới thiệu chi tiết."}</p>
+                <div className="resource-actions">
+                  <PublicBookingButton selection={{ doctorId: doctor.id }}>Đặt lịch với bác sĩ</PublicBookingButton>
+                  <PublicAiButton className="outline-button outline-button--light">Hỗ trợ chọn chuyên khoa</PublicAiButton>
+                </div>
+                <dl className="resource-meta-grid">
+                  <div>
+                    <dt>Chuyên khoa</dt>
+                    <dd>{doctor.specialtyName ?? "Đang cập nhật"}</dd>
+                  </div>
+                  <div>
+                    <dt>Cơ sở làm việc</dt>
+                    <dd>{doctor.branchNames?.length ? doctor.branchNames.slice(0, 2).join(" · ") : "Đang cập nhật"}</dd>
+                  </div>
+                </dl>
               </div>
-              <h2>{doctor.fullName}</h2>
-              <p className="resource-lead">{doctor.title ?? "Bác sĩ chuyên khoa"}</p>
-              <p>{doctor.bio || "Hồ sơ chưa có phần giới thiệu chi tiết."}</p>
-              <div className="resource-actions">
-                <PublicBookingButton selection={{ doctorId: doctor.id }}>Đặt lịch với bác sĩ</PublicBookingButton>
-                <PublicAiButton className="outline-button">Hỗ trợ chọn chuyên khoa</PublicAiButton>
+            </article>
+
+            <section className="resource-panel resource-panel--wide">
+              <div className="section-heading">
+                <div>
+                  <p className="section-note">Cách chọn bác sĩ</p>
+                  <h2>Ba bước trước khi chốt cuộc hẹn</h2>
+                </div>
               </div>
-            </div>
-          </article>
+              <div className="resource-steps resource-steps--grid">
+                {DOCTOR_STEPS.map(([number, title, description]) => (
+                  <div className="resource-step-card" key={number}>
+                    <span>{number}</span>
+                    <strong>{title}</strong>
+                    <p>{description}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </>
         ) : null}
 
         {doctor ? (
@@ -88,7 +125,13 @@ export default function DoctorDetailPage() {
               <p className="section-note">Lưu ý an toàn</p>
               <h2>Trợ lý chọn khoa chỉ mang tính tham khảo</h2>
               <p>Gợi ý trực tuyến không phải chẩn đoán và không thay thế việc thăm khám trực tiếp với bác sĩ.</p>
-              <PublicBookingButton className="outline-button outline-button--dark">Mở luồng đặt lịch</PublicBookingButton>
+              <div className="resource-actions">
+                <PublicBookingButton className="outline-button outline-button--dark">Mở luồng đặt lịch</PublicBookingButton>
+                <PublicAiButton className="outline-button outline-button--light">Xem chuyên khoa liên quan</PublicAiButton>
+              </div>
+              <Link className="text-button" href="/specialties">
+                Khám phá chuyên khoa →
+              </Link>
             </section>
           </div>
         ) : null}
