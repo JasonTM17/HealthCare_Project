@@ -26,6 +26,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public class BookingRateLimiter {
 
     private static final Duration WINDOW = Duration.ofMinutes(10);
+    private static final int MAX_FALLBACK_ENTRIES = 10_000;
+    private static final Object FALLBACK_LOCK = new Object();
     private static final Map<String, Window> FALLBACK = new ConcurrentHashMap<>();
 
     private final StringRedisTemplate redisTemplate;
@@ -101,16 +103,24 @@ public class BookingRateLimiter {
 
     private long fallbackCount(String key) {
         Instant now = Instant.now();
-        Window window = FALLBACK.compute(key, (ignored, previous) -> {
-            if (previous == null || now.isAfter(previous.startedAt.plus(WINDOW))) {
-                return new Window(now, 1L);
-            }
-            return new Window(previous.startedAt, previous.count + 1L);
-        });
-        if (FALLBACK.size() > 10_000) {
+        synchronized (FALLBACK_LOCK) {
             FALLBACK.entrySet().removeIf(entry -> now.isAfter(entry.getValue().startedAt.plus(WINDOW)));
+            Window previous = FALLBACK.get(key);
+            if (previous != null && !now.isAfter(previous.startedAt.plus(WINDOW))) {
+                Window updated = new Window(previous.startedAt, previous.count + 1L);
+                FALLBACK.put(key, updated);
+                return updated.count;
+            }
+            if (FALLBACK.size() >= MAX_FALLBACK_ENTRIES) {
+                throw new ResponseStatusException(
+                    HttpStatus.TOO_MANY_REQUESTS,
+                    "Bạn đã gửi quá nhiều yêu cầu. Vui lòng thử lại sau ít phút."
+                );
+            }
+            Window window = new Window(now, 1L);
+            FALLBACK.put(key, window);
+            return window.count;
         }
-        return window.count;
     }
 
     private String digest(String value) {
