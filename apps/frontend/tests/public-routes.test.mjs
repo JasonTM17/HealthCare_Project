@@ -151,6 +151,18 @@ test("services page now behaves like a service selection hub", async () => {
   assert.match(services, /ClinicalIcon/);
 });
 
+test("service detail page now behaves like a service detail hub", async () => {
+  const service = await read("app/services/[slug]/page.tsx");
+
+  assert.match(service, /resource-hero-card--teal/);
+  assert.match(service, /PublicAiButton/);
+  assert.match(service, /PublicBookingButton/);
+  assert.match(service, /resource-meta-grid/);
+  assert.match(service, /resource-step-card/);
+  assert.match(service, /SERVICE_STEPS/);
+  assert.match(service, /Xem gói khám liên quan/);
+});
+
 test("doctors page now behaves like a doctor selection hub", async () => {
   const doctors = await read("app/doctors/DoctorsPageClient.tsx");
 
