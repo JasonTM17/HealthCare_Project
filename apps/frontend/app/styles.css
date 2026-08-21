@@ -782,6 +782,40 @@ main {
   margin-top: var(--sp-8);
 }
 
+.booking-page__branches {
+  display: grid;
+  gap: var(--sp-5);
+  margin-top: var(--sp-10);
+}
+
+.booking-page__branches-heading {
+  max-width: 48rem;
+}
+
+.booking-page__branches-heading h2 {
+  margin: var(--sp-2) 0 var(--sp-3);
+  color: var(--color-teal-950);
+  font-family: var(--font-display);
+  font-size: clamp(1.6rem, 2.8vw, 2.45rem);
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+}
+
+.booking-page__branches-heading p:last-child {
+  margin: 0;
+  color: var(--color-ink-muted);
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.booking-page__branch-grid {
+  margin-top: 0;
+}
+
+.booking-page__branch-card {
+  min-height: 100%;
+}
+
 .booking-page__inline {
   display: grid;
   gap: var(--sp-5);
