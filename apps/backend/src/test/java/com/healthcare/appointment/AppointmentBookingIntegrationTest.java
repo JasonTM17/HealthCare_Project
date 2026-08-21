@@ -24,6 +24,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import java.time.LocalDate;
 import java.time.DayOfWeek;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.math.BigDecimal;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -40,6 +41,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
+
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -80,7 +83,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         unrelated = specialtyRepository.save(unrelated);
 
         HoldSlotRequest request = new HoldSlotRequest(
-            doctor.getId(), LocalDate.now().plusDays(2), LocalTime.of(9, 0),
+            doctor.getId(), LocalDate.now(BUSINESS_ZONE).plusDays(2), LocalTime.of(9, 0),
             "Bệnh nhân kiểm thử", "0907000199", null, "Kiểm thử invariant",
             unrelated.getId(), null, null);
 
@@ -92,7 +95,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
 
     @Test
     void getDoctorSlotsReturnsCalculatedTimeSlots() throws Exception {
-        LocalDate targetDate = LocalDate.now().plusDays(2);
+        LocalDate targetDate = nextDate(DayOfWeek.MONDAY);
 
         mockMvc.perform(get("/api/v1/appointments/doctors/" + doctor.getId() + "/slots")
                 .param("date", targetDate.toString()))
@@ -233,7 +236,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         inactive = specialtyRepository.saveAndFlush(inactive);
 
         HoldSlotRequest inactiveRequest = new HoldSlotRequest(
-            doctor.getId(), LocalDate.now().plusDays(3), LocalTime.of(9, 0),
+            doctor.getId(), LocalDate.now(BUSINESS_ZONE).plusDays(3), LocalTime.of(9, 0),
             "Inactive specialty patient", "0907000199", null, null,
             inactive.getId(), null, null);
 
@@ -249,7 +252,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         otherActive = specialtyRepository.saveAndFlush(otherActive);
 
         HoldSlotRequest mismatchedRequest = new HoldSlotRequest(
-            doctor.getId(), LocalDate.now().plusDays(3), LocalTime.of(9, 0),
+            doctor.getId(), LocalDate.now(BUSINESS_ZONE).plusDays(3), LocalTime.of(9, 0),
             "Mismatched specialty patient", "0907000198", null, null,
             otherActive.getId(), null, null);
 
@@ -265,7 +268,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         inactiveBranch.setActive(false);
         inactiveBranch = branchRepository.saveAndFlush(inactiveBranch);
         HoldSlotRequest inactiveBranchRequest = new HoldSlotRequest(
-            doctor.getId(), LocalDate.now().plusDays(3), LocalTime.of(9, 0),
+            doctor.getId(), LocalDate.now(BUSINESS_ZONE).plusDays(3), LocalTime.of(9, 0),
             "Inactive branch patient", "0907000197", null, null,
             specialty.getId(), inactiveBranch.getId(), null);
 
@@ -282,7 +285,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         inactivePackage.setActive(false);
         inactivePackage = packageRepository.saveAndFlush(inactivePackage);
         HoldSlotRequest inactivePackageRequest = new HoldSlotRequest(
-            doctor.getId(), LocalDate.now().plusDays(3), LocalTime.of(9, 0),
+            doctor.getId(), LocalDate.now(BUSINESS_ZONE).plusDays(3), LocalTime.of(9, 0),
             "Inactive package patient", "0907000196", null, null,
             specialty.getId(), null, inactivePackage.getId());
 
@@ -592,7 +595,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
     void holdRejectsSlotOutsideDoctorSchedule() throws Exception {
         HoldSlotRequest holdRequest = new HoldSlotRequest(
             doctor.getId(),
-            LocalDate.now().plusDays(8),
+            LocalDate.now(BUSINESS_ZONE).plusDays(8),
             LocalTime.of(12, 0),
             "Slot Ngoài Lịch",
             "0905552222",
@@ -779,7 +782,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
 
         HoldSlotRequest holdRequest = new HoldSlotRequest(
             doctor.getId(),
-            LocalDate.now().plusDays(8),
+            LocalDate.now(BUSINESS_ZONE).plusDays(8),
             LocalTime.of(13, 30),
             "Tài Khoản Mới",
             "0905550000",
@@ -801,7 +804,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
     void concurrentHoldsForOneSlotAllowOnlyOneReservation() throws Exception {
         HoldSlotRequest holdRequest = new HoldSlotRequest(
             doctor.getId(),
-            LocalDate.now().plusDays(7),
+            LocalDate.now(BUSINESS_ZONE).plusDays(7),
             LocalTime.of(14, 0),
             "Người Đặt Đồng Thời",
             "0905551111",
@@ -923,7 +926,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
     }
 
     private LocalDate nextDate(DayOfWeek dayOfWeek) {
-        LocalDate date = LocalDate.now().plusDays(1);
+        LocalDate date = LocalDate.now(BUSINESS_ZONE).plusDays(1);
         while (date.getDayOfWeek() != dayOfWeek) {
             date = date.plusDays(1);
         }

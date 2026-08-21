@@ -9,13 +9,15 @@ import {
   type ReactElement,
 } from "react";
 import {
-  CMS_COMPONENT_TYPES,
+  CMS_PUBLIC_ROUTE_SLUGS,
   CMS_PUBLICATION_STATUSES,
   CMS_SLOT_KEYS,
   CmsApiError,
   CmsClient,
   CmsValidationError,
   defaultCmsClient,
+  cmsComponentTypesForSlot,
+  isCmsComponentAllowedForSlot,
   resolveCmsSlotKey,
   validateCmsContentInput,
   type CmsComponentType,
@@ -24,6 +26,7 @@ import {
   type CmsContentInput,
   type CmsPayload,
   type CmsPublicationStatus,
+  type CmsPublicRouteSlug,
   type CmsSlotKey,
   type CmsFieldErrors,
 } from "../../lib/cms-client";
@@ -58,23 +61,28 @@ const SLOT_LABELS: Record<CmsSlotKey, string> = {
   footer: "Footer",
 };
 
-const CMS_ROUTE_PRESETS = [
-  ["home", "Trang chủ"],
-  ["about", "Về HealthCare"],
-  ["branches", "Mạng lưới cơ sở"],
-  ["specialties", "Chuyên khoa"],
-  ["doctors", "Bác sĩ"],
-  ["services", "Dịch vụ"],
-  ["packages", "Gói khám"],
-  ["articles", "Cẩm nang"],
-  ["careers", "Tuyển dụng"],
-  ["search", "Tìm kiếm"],
-  ["dat-lich", "Đặt lịch"],
-  ["contact", "Liên hệ"],
-  ["faq", "FAQ"],
-  ["huong-dan", "Hướng dẫn"],
-  ["tra-cuu", "Tra cứu"],
-] as const;
+type CmsEditorRouteSlug = CmsPublicRouteSlug | "home";
+
+const CMS_ROUTE_LABELS: Record<CmsEditorRouteSlug, string> = {
+  home: "Trang chủ",
+  about: "Về HealthCare",
+  branches: "Mạng lưới cơ sở",
+  specialties: "Chuyên khoa",
+  doctors: "Bác sĩ",
+  services: "Dịch vụ",
+  packages: "Gói khám",
+  articles: "Cẩm nang",
+  careers: "Tuyển dụng",
+  search: "Tìm kiếm",
+  "dat-lich": "Đặt lịch",
+  contact: "Liên hệ",
+  faq: "FAQ",
+  "huong-dan": "Hướng dẫn",
+  "tra-cuu": "Tra cứu",
+};
+
+const CMS_ROUTE_PRESETS = (["home", ...CMS_PUBLIC_ROUTE_SLUGS] as const)
+  .map((routeSlug) => [routeSlug, CMS_ROUTE_LABELS[routeSlug]] as const);
 
 function emptyPayload(componentType: CmsComponentType): CmsPayload {
   switch (componentType) {
@@ -93,6 +101,10 @@ function emptyPayload(componentType: CmsComponentType): CmsPayload {
 
 function emptyDraft(componentType: CmsComponentType = "HERO"): CmsDraftValues {
   return { componentType, payload: emptyPayload(componentType), status: "DRAFT" };
+}
+
+function defaultComponentTypeForSlot(slotKey: CmsSlotKey): CmsComponentType {
+  return cmsComponentTypesForSlot(slotKey)[0] ?? "RICH_TEXT";
 }
 
 function draftFromContent(content: CmsContent): CmsDraftValues {
@@ -320,6 +332,12 @@ export function CmsEditor({
     try {
       const loadedContent = await client.getAdminContent(backendSlotKey);
       if (!isCurrentOperation()) return;
+      if (!isCmsComponentAllowedForSlot(requestedSlot, loadedContent.componentType)) {
+        throw new CmsValidationError(
+          `Backend trả component ${loadedContent.componentType} không phù hợp với slot ${requestedSlot}.`,
+          { componentType: "Component không phù hợp với slot đang chỉnh." },
+        );
+      }
       const loadedDraft = draftFromContent(loadedContent);
       setContent(loadedContent);
       setDraft(loadedDraft);
@@ -344,7 +362,7 @@ export function CmsEditor({
       setApiError(cmsError);
       setContent(null);
       setLoadedSnapshot(null);
-      setDraft(emptyDraft());
+      setDraft(emptyDraft(defaultComponentTypeForSlot(requestedSlot)));
       setLoadedSlug(normalizedSlug);
       setLoadedSlotKey(backendSlotKey);
       setHistory([]);
@@ -381,12 +399,23 @@ export function CmsEditor({
     };
   }, [initialSlug, loadAvailableContent, loadContent]);
 
+  const loadedSelection = slotSelection(loadedSlotKey);
+  const editableSlot = loadedSelection?.slot ?? selectedSlot;
+  const allowedComponentTypes = cmsComponentTypesForSlot(editableSlot);
+
   const handleLoad = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
     void loadContent(slug, selectedSlot);
   };
 
   const handleComponentTypeChange = (componentType: CmsComponentType): void => {
+    if (!isCmsComponentAllowedForSlot(editableSlot, componentType)) {
+      setFieldErrors((current) => ({
+        ...current,
+        componentType: `Component ${componentType} không phù hợp với slot ${editableSlot}.`,
+      }));
+      return;
+    }
     setDraft((current) => ({ ...current, componentType, payload: emptyPayload(componentType) }));
     setNotice(null);
     setFieldErrors({});
@@ -409,7 +438,7 @@ export function CmsEditor({
 
   const handleUpsert = async (status: CmsPublicationStatus): Promise<void> => {
     const input = inputFor(status);
-    const errors = validateCmsContentInput(input);
+    const errors = validateCmsContentInput(input, editableSlot);
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
       setApiError(new CmsValidationError("CMS content chưa hợp lệ.", errors));
@@ -502,7 +531,11 @@ export function CmsEditor({
   };
 
   const resetToLoaded = (): void => {
-    const reset = loadedSnapshot ? { ...loadedSnapshot, payload: { ...loadedSnapshot.payload } as CmsPayload } : emptyDraft(draft.componentType);
+    const reset = loadedSnapshot
+      ? { ...loadedSnapshot, payload: { ...loadedSnapshot.payload } as CmsPayload }
+      : emptyDraft(isCmsComponentAllowedForSlot(editableSlot, draft.componentType)
+        ? draft.componentType
+        : defaultComponentTypeForSlot(editableSlot));
     setDraft(reset);
     setFieldErrors({});
     setApiError(null);
@@ -520,7 +553,6 @@ export function CmsEditor({
     version: content?.version ?? 0,
     updatedAt: content?.updatedAt ?? "",
   } as CmsContent;
-  const loadedSelection = slotSelection(loadedSlotKey);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -650,6 +682,9 @@ export function CmsEditor({
 
           <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" aria-labelledby="component-type-title">
             <h3 className="font-bold text-slate-950" id="component-type-title">Component type</h3>
+            <p className="mt-1 text-sm leading-6 text-slate-600">
+              Slot <span className="font-mono">{editableSlot}</span> chỉ cho phép: {allowedComponentTypes.join(", ")}.
+            </p>
             <label className="mt-3 block text-sm font-semibold text-slate-700">
               Chọn schema
               <select
@@ -658,8 +693,9 @@ export function CmsEditor({
                 disabled={isBusy}
                 value={draft.componentType}
               >
-                {CMS_COMPONENT_TYPES.map((componentType) => <option key={componentType} value={componentType}>{COMPONENT_LABELS[componentType]} · {componentType}</option>)}
+                {allowedComponentTypes.map((componentType) => <option key={componentType} value={componentType}>{COMPONENT_LABELS[componentType]} · {componentType}</option>)}
               </select>
+              <FieldError message={fieldErrors.componentType} />
             </label>
           </section>
 

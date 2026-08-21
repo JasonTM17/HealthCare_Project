@@ -1,14 +1,54 @@
 [CmdletBinding()]
 param(
     [string]$EnvFile,
-    [string]$DockerPath = "C:\Program Files\Docker\Docker\resources\bin\docker.exe"
+    [string]$DockerPath = "C:\Program Files\Docker\Docker\resources\bin\docker.exe",
+    [switch]$PrepareOnly
 )
 
 $ErrorActionPreference = "Stop"
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 if (-not $EnvFile) { $EnvFile = Join-Path $repositoryRoot ".env" }
-$composeFile = Join-Path $repositoryRoot "infrastructure\docker-compose.yml"
+if (-not [IO.Path]::IsPathRooted($EnvFile)) { $EnvFile = Join-Path $repositoryRoot $EnvFile }
+$EnvFile = [IO.Path]::GetFullPath($EnvFile)
 $verifier = Join-Path $PSScriptRoot "verify-local-mvp.ps1"
+. (Join-Path $PSScriptRoot "local-mvp-provenance.ps1")
+
+function Set-EnvironmentValue {
+    param(
+        [string]$Content,
+        [string]$Key,
+        [string]$Value
+    )
+
+    $pattern = "(?m)^$([regex]::Escape($Key))=.*$"
+    $replacement = "$Key=$Value"
+    if ([regex]::IsMatch($Content, $pattern)) {
+        return [regex]::Replace($Content, $pattern, [System.Text.RegularExpressions.MatchEvaluator]{ param($match) $replacement })
+    }
+
+    return "$($Content.TrimEnd())$([Environment]::NewLine)$replacement$([Environment]::NewLine)"
+}
+
+function Get-EnvironmentValue {
+    param(
+        [string]$Content,
+        [string]$Key
+    )
+
+    $match = [regex]::Match($Content, "(?m)^$([regex]::Escape($Key))=(.*)$")
+    if (-not $match.Success) { return $null }
+    return $match.Groups[1].Value.Trim()
+}
+
+function New-DisposableSecret([int]$ByteCount) {
+    return [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes($ByteCount))
+}
+
+function Test-IsWindowsHost {
+    return [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
+        [System.Runtime.InteropServices.OSPlatform]::Windows
+    )
+}
 
 if (-not (Test-Path -LiteralPath $DockerPath -PathType Leaf)) {
     $command = Get-Command docker -ErrorAction SilentlyContinue
@@ -16,34 +56,91 @@ if (-not (Test-Path -LiteralPath $DockerPath -PathType Leaf)) {
     $DockerPath = $command.Source
 }
 
-$desktopStatus = & $DockerPath desktop status 2>&1
-if ($LASTEXITCODE -ne 0 -or ($desktopStatus -join " ") -notmatch "running") {
-    throw "Docker Desktop engine is not running. Enable WSL 2/virtualization, restart Windows, then open Docker Desktop."
+if (Test-IsWindowsHost) {
+    $desktopStatus = & $DockerPath desktop status 2>&1
+    if ($LASTEXITCODE -ne 0 -or ($desktopStatus -join " ") -notmatch "running") {
+        throw "Docker Desktop engine is not running. Enable WSL 2/virtualization, restart Windows, then open Docker Desktop."
+    }
+} else {
+    & $DockerPath info --format '{{.ServerVersion}}' | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Docker engine is not running or is not reachable by the Docker CLI."
+    }
 }
 
-if (-not (Test-Path -LiteralPath $EnvFile -PathType Leaf)) {
+$environmentAlreadyExists = Test-Path -LiteralPath $EnvFile -PathType Leaf
+if (-not $environmentAlreadyExists) {
     $exampleEnv = Join-Path $repositoryRoot ".env.example"
     if (-not (Test-Path -LiteralPath $exampleEnv -PathType Leaf)) { throw "Missing .env.example" }
     $environmentText = [System.IO.File]::ReadAllText($exampleEnv)
-    $jwtSecret = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48))
-    $aiToken = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
-    $ragToken = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
-    $environmentText = $environmentText -replace '(?m)^JWT_SECRET=.*$', "JWT_SECRET=$jwtSecret"
-    $environmentText = $environmentText -replace '(?m)^AI_SERVICE_TOKEN=.*$', "AI_SERVICE_TOKEN=$aiToken"
-    $environmentText = $environmentText -replace '(?m)^RAG_INGEST_TOKEN=.*$', "RAG_INGEST_TOKEN=$ragToken"
-    [System.IO.File]::WriteAllText($EnvFile, $environmentText, [Text.UTF8Encoding]::new($false))
-    Write-Host "Created a disposable local .env with generated JWT/AI/RAG secrets."
+} else {
+    $environmentText = [System.IO.File]::ReadAllText($EnvFile)
 }
 
-Push-Location $repositoryRoot
+$prepareEnvironment = -not $environmentAlreadyExists -or $PrepareOnly
+if ($prepareEnvironment) {
+    $jwtSecret = Get-EnvironmentValue $environmentText "JWT_SECRET"
+    if ([string]::IsNullOrWhiteSpace($jwtSecret) -or $jwtSecret -eq "change-me-use-a-256-bit-secret-key-for-production-environment-please") {
+        $environmentText = Set-EnvironmentValue $environmentText "JWT_SECRET" (New-DisposableSecret 48)
+    }
+    $aiToken = Get-EnvironmentValue $environmentText "AI_SERVICE_TOKEN"
+    if ([string]::IsNullOrWhiteSpace($aiToken) -or $aiToken -eq "local-development-token-not-for-production") {
+        $environmentText = Set-EnvironmentValue $environmentText "AI_SERVICE_TOKEN" (New-DisposableSecret 32)
+    }
+    $ragToken = Get-EnvironmentValue $environmentText "RAG_INGEST_TOKEN"
+    if ([string]::IsNullOrWhiteSpace($ragToken)) {
+        $ragToken = New-DisposableSecret 32
+        $environmentText = Set-EnvironmentValue $environmentText "RAG_INGEST_TOKEN" $ragToken
+    }
+
+    # This explicit local-only preparation enables the protected catalog sync.
+    # Ordinary Compose remains fail-closed when no environment opts in.
+    $environmentText = Set-EnvironmentValue $environmentText "RAG_INGEST_ENABLED" "true"
+    $environmentText = Set-EnvironmentValue $environmentText "AI_RAG_INGEST_ENABLED" "true"
+    $environmentText = Set-EnvironmentValue $environmentText "AI_RAG_INGEST_TOKEN" $ragToken
+    [System.IO.File]::WriteAllText($EnvFile, $environmentText, [Text.UTF8Encoding]::new($false))
+    Write-Host "Prepared local .env for the full MVP with generated missing JWT/AI/RAG secrets."
+} else {
+    $ragEnabled = Get-EnvironmentValue $environmentText "RAG_INGEST_ENABLED"
+    $ragToken = Get-EnvironmentValue $environmentText "RAG_INGEST_TOKEN"
+    if ($ragEnabled -ne "true" -or [string]::IsNullOrWhiteSpace($ragToken)) {
+        throw "Existing .env does not opt into protected RAG catalog sync. Review it, then run '$PSScriptRoot\start-and-verify-local-mvp.ps1 -PrepareOnly' to prepare a disposable local MVP environment."
+    }
+}
+
+if ($PrepareOnly) { return }
+
+Assert-CleanBuildContext -RepositoryRoot $repositoryRoot
+$buildRevision = Get-SourceRevision -RepositoryRoot $repositoryRoot
+Assert-ExpectedRevision -Revision $buildRevision
+$previousBuildRevision = $env:BUILD_VCS_REF
+$hadBuildRevision = Test-Path Env:\BUILD_VCS_REF
+$env:BUILD_VCS_REF = $buildRevision
+$buildSnapshot = $null
+$locationPushed = $false
+
 try {
+    $buildSnapshot = New-ImmutableBuildSnapshot -RepositoryRoot $repositoryRoot -Revision $buildRevision
+    $composeFile = Join-Path (Join-Path $buildSnapshot "infrastructure") "docker-compose.yml"
+    Push-Location $buildSnapshot
+    $locationPushed = $true
+
     & $DockerPath compose --env-file $EnvFile -f $composeFile config --quiet
     if ($LASTEXITCODE -ne 0) { throw "Docker Compose configuration is invalid" }
 
     & $DockerPath compose --env-file $EnvFile -f $composeFile up --build -d
     if ($LASTEXITCODE -ne 0) { throw "Docker Compose failed to start the stack" }
+    Assert-CleanBuildContext -RepositoryRoot $repositoryRoot
+    Assert-SourceRevisionMatches -RepositoryRoot $repositoryRoot -ExpectedRevision $buildRevision
 
-    $seedExit = (& $DockerPath wait healthcare-local-seed 2>&1 | Select-Object -Last 1).Trim()
+    $seedContainerOutput = & $DockerPath compose --env-file $EnvFile -f $composeFile ps --all -q local-seed 2>&1
+    $seedContainerExit = $LASTEXITCODE
+    $seedContainerId = ($seedContainerOutput | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1)
+    if ($seedContainerExit -ne 0 -or [string]::IsNullOrWhiteSpace($seedContainerId)) {
+        throw "Unable to resolve the local-seed container for the current Compose project"
+    }
+
+    $seedExit = (& $DockerPath wait $seedContainerId 2>&1 | Select-Object -Last 1).Trim()
     if ($seedExit -ne "0") {
         & $DockerPath compose --env-file $EnvFile -f $composeFile logs --tail 120 local-seed
         throw "Local seed container exited with code $seedExit"
@@ -52,7 +149,8 @@ try {
     $lastError = $null
     for ($attempt = 1; $attempt -le 45; $attempt++) {
         try {
-            & $verifier
+            $verifierParameters = @{ DockerPath = $DockerPath; ExpectedRevision = $buildRevision; ComposeFile = $composeFile; EnvFile = $EnvFile }
+            & $verifier @verifierParameters
             if ($LASTEXITCODE -ne 0) { throw "Verifier returned exit code $LASTEXITCODE" }
             return
         } catch {
@@ -62,5 +160,18 @@ try {
     }
     throw "Stack did not pass verification within 90 seconds: $($lastError.Exception.Message)"
 } finally {
-    Pop-Location
+    try {
+        if ($locationPushed) {
+            Pop-Location
+        }
+        if ($buildSnapshot) {
+            Remove-ImmutableBuildSnapshot -RepositoryRoot $repositoryRoot -SnapshotRoot $buildSnapshot
+        }
+    } finally {
+        if ($hadBuildRevision) {
+            $env:BUILD_VCS_REF = $previousBuildRevision
+        } else {
+            Remove-Item Env:\BUILD_VCS_REF -ErrorAction SilentlyContinue
+        }
+    }
 }

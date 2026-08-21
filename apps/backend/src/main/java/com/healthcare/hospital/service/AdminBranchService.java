@@ -4,6 +4,8 @@ import com.healthcare.exception.DuplicateResourceException;
 import com.healthcare.hospital.dto.BranchRequest;
 import com.healthcare.hospital.entity.Branch;
 import com.healthcare.hospital.repository.BranchRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,6 +16,11 @@ public class AdminBranchService {
 
     public AdminBranchService(BranchRepository branchRepository) {
         this.branchRepository = branchRepository;
+    }
+
+    @Transactional(readOnly = true)
+    public Page<Branch> list(Pageable pageable) {
+        return branchRepository.findAll(pageable);
     }
 
     @Transactional

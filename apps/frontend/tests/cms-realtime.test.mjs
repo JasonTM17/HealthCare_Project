@@ -1,15 +1,70 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
+import { pathToFileURL } from "node:url";
 import { CmsReconciliationLedger } from "../lib/cms-reconciliation.mjs";
 
 const read = (relativePath) => readFile(new URL(`../${relativePath}`, import.meta.url), "utf8");
+
+async function loadCmsClientModule() {
+  const source = (await read("lib/cms-client.ts"))
+    .replace('import { readAuthSession } from "./api-client";', "const readAuthSession = () => null;");
+  const directory = await mkdtemp(join(tmpdir(), "healthcare-cms-client-"));
+  const file = join(directory, "cms-client-runtime.ts");
+  await writeFile(file, source, "utf8");
+  try {
+    return await import(`${pathToFileURL(file).href}?${Date.now()}`);
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
+class FakeEventSource {
+  static instances = [];
+
+  constructor(url) {
+    this.url = url;
+    this.listeners = new Map();
+    this.closed = false;
+    this.onopen = null;
+    this.onerror = null;
+    FakeEventSource.instances.push(this);
+  }
+
+  addEventListener(name, listener) {
+    const listeners = this.listeners.get(name) ?? [];
+    listeners.push(listener);
+    this.listeners.set(name, listeners);
+  }
+
+  removeEventListener(name, listener) {
+    this.listeners.set(name, (this.listeners.get(name) ?? []).filter((item) => item !== listener));
+  }
+
+  emit(name, payload) {
+    const event = { data: JSON.stringify(payload) };
+    for (const listener of this.listeners.get(name) ?? []) listener(event);
+  }
+
+  open() {
+    this.onopen?.();
+  }
+
+  close() {
+    this.closed = true;
+  }
+}
 
 test("CMS client matches the integrated slot-scoped typed contract", async () => {
   const source = await read("lib/cms-client.ts");
 
   for (const marker of [
     "CMS_COMPONENT_TYPES",
+    "CMS_SLOT_COMPONENT_TYPES",
+    "cmsComponentTypesForSlot",
+    "isCmsComponentAllowedForSlot",
     "CmsContentInput",
     "getPublishedContent",
     "getAdminContent",
@@ -37,6 +92,9 @@ test("CMS client matches the integrated slot-scoped typed contract", async () =>
   assert.match(source, /status === 409.*conflict/s);
   assert.match(source, /expectedVersion: input\.expectedVersion/);
   assert.match(source, /homepage\.\$\{slotKey\}/);
+  assert.match(source, /hero:\s+\["HERO"\]/);
+  assert.match(source, /body:\s+\["RICH_TEXT", "CTA_BANNER", "NOTICE"\]/);
+  assert.match(source, /footer:\s+\["RICH_TEXT", "CTA_BANNER", "NOTICE"\]/);
 });
 
 test("CMS renderer is allowlisted and never interprets raw HTML", async () => {
@@ -90,8 +148,12 @@ test("public live slot listens to named SSE changes and has polling fallback", a
   assert.match(liveSlot, /setContent\(null\);\s+setError\(null\);\s+setLoading\(true\);/);
   assert.match(liveSlot, /readGeneration !== refreshGeneration/);
   assert.match(liveSlot, /readReconciliationCursor/);
-  assert.match(liveSlot, /invalidateRefreshes\(\)/);
-  assert.match(liveSlot, /unpublish event is authoritative immediately/);
+  assert.match(liveSlot, /Treat unpublish events as wake-up hints too/);
+  assert.match(liveSlot, /refresh\(0, event\.eventId\)/);
+  assert.match(liveSlot, /result === "not-found"/);
+  assert.match(liveSlot, /latestVersion\.current = Math\.max\(latestVersion\.current, event\.version\)/);
+  assert.doesNotMatch(liveSlot, /unpublish event is authoritative immediately/);
+  assert.doesNotMatch(liveSlot, /latestVersion\.current = event\.version;\s+setContent\(null\);/);
   assert.match(liveSlot, /void refresh\(0, reconciliation\.latestEventId\)/);
   assert.match(liveSlot, /if \(!finishReconciliation\(event\.latestEventId\)\)/);
   assert.match(liveSlot, /reconciliation\.pendingEventIds\.size === 0/);
@@ -104,6 +166,114 @@ test("public live slot listens to named SSE changes and has polling fallback", a
   assert.doesNotMatch(liveSlot, /reconnectTimer/);
   assert.doesNotMatch(liveSlot, /reconnectAttempt/);
   assert.doesNotMatch(liveSlot, /window\.location\.reload/);
+});
+
+test("CMS client carries admin publish versions into the public change feed", async () => {
+  FakeEventSource.instances = [];
+  const { CmsClient } = await loadCmsClientModule();
+  const requests = [];
+  const savedContent = {
+    slotKey: "homepage.hero",
+    componentType: "HERO",
+    payload: {
+      title: "Realtime care journey",
+      body: "Published by admin",
+    },
+    status: "PUBLISHED",
+    version: 3,
+    updatedAt: "2026-08-21T00:00:00Z",
+  };
+
+  const fetchImpl = async (url, init = {}) => {
+    requests.push({
+      url,
+      method: init.method ?? "GET",
+      headers: new Headers(init.headers),
+      body: init.body ? JSON.parse(String(init.body)) : null,
+      cache: init.cache,
+      credentials: init.credentials,
+    });
+    return new Response(JSON.stringify(savedContent), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  const changes = [];
+  const readyEvents = [];
+  const client = new CmsClient({
+    baseUrl: "https://api.example.test/api/v1",
+    fetchImpl,
+    getAccessToken: () => "admin-token",
+    eventSourceFactory: (url) => new FakeEventSource(url),
+  });
+
+  const unsubscribe = client.subscribeToChanges({
+    after: 40,
+    onConnected: (event) => readyEvents.push(event),
+    onChange: (event) => changes.push(event),
+  });
+
+  assert.equal(FakeEventSource.instances.length, 1);
+  const source = FakeEventSource.instances[0];
+  assert.equal(source.url, "https://api.example.test/api/v1/cms/content/events?after=40");
+  source.open();
+  source.emit("ready", {
+    latestEventId: 42,
+    replayLimit: 250,
+    snapshotFallback: "/api/v1/cms/content/{slotKey}",
+  });
+
+  const saved = await client.upsertContent("homepage.hero", {
+    componentType: "HERO",
+    payload: {
+      title: "Realtime care journey",
+      body: "Published by admin",
+    },
+    status: "PUBLISHED",
+    expectedVersion: 2,
+  });
+
+  assert.equal(saved.version, 3);
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].url, "https://api.example.test/api/v1/admin/cms/content/homepage.hero");
+  assert.equal(requests[0].method, "PUT");
+  assert.equal(requests[0].cache, "no-store");
+  assert.equal(requests[0].credentials, "include");
+  assert.equal(requests[0].headers.get("authorization"), "Bearer admin-token");
+  assert.deepEqual(requests[0].body, {
+    componentType: "HERO",
+    payload: {
+      title: "Realtime care journey",
+      body: "Published by admin",
+    },
+    status: "PUBLISHED",
+    expectedVersion: 2,
+  });
+  source.emit("cms-content-changed", {
+    type: "cms-content-changed",
+    eventId: 43,
+    slotKey: "homepage.hero",
+    version: 3,
+    published: true,
+    updatedAt: "2026-08-21T00:00:01Z",
+  });
+
+  assert.deepEqual(readyEvents.at(-1), {
+    latestEventId: 42,
+    replayLimit: 250,
+    snapshotFallback: "/api/v1/cms/content/{slotKey}",
+  });
+  assert.deepEqual(changes, [{
+    type: "cms-content-changed",
+    eventId: 43,
+    slotKey: "homepage.hero",
+    version: 3,
+    published: true,
+    updatedAt: "2026-08-21T00:00:01Z",
+  }]);
+
+  unsubscribe();
+  assert.equal(source.closed, true);
 });
 
 test("CMS reconciliation ledger preserves contiguous order across reordered events and requests", () => {
@@ -174,4 +344,7 @@ test("admin editor exposes typed status/version and protected API states", async
   assert.match(source, /setHistoryLoading\(true\);[\s\S]*listHistory\(savedContent\.slotKey\)/);
   assert.match(source, /catch \(historyLoadError\)[\s\S]*setHistoryError\(apiErrorMessage/);
   assert.match(source, /setNotice\(`Đã rollback/);
+  assert.match(source, /cmsComponentTypesForSlot\(editableSlot\)/);
+  assert.match(source, /isCmsComponentAllowedForSlot\(editableSlot, componentType\)/);
+  assert.doesNotMatch(source, /CMS_COMPONENT_TYPES\.map/);
 });

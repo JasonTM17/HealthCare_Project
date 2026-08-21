@@ -22,13 +22,41 @@ docker compose -f infrastructure/docker-compose.yml config --quiet
 docker compose -f infrastructure/docker-compose.yml up --build
 ```
 
-Alternatively, the Windows helper builds the stack, waits for the idempotent
-seed, forces an ADMIN-authorized RAG catalog sync, and runs the automated
-patient/doctor/admin booking smoke flow. When `.env` is absent, it creates a
-git-ignored local file with cryptographically generated JWT/AI/RAG secrets:
+The default host ports are frontend `3000`, backend `8080`, AI service `8000`,
+PostgreSQL `5434`, Redis `6379`, and MinIO `9000`/`9001`. For an isolated run
+beside another checkout, set `FRONTEND_HOST_PORT`, `BACKEND_HOST_PORT`,
+`AI_SERVICE_HOST_PORT`, `POSTGRES_HOST_PORT`, `REDIS_HOST_PORT`,
+`MINIO_API_HOST_PORT`, and `MINIO_CONSOLE_HOST_PORT` before starting Compose.
+The Compose services intentionally avoid fixed `container_name` values so
+containers and volumes remain scoped to the current Compose project.
+
+Alternatively, when `.env` is absent, the Windows helper creates a git-ignored
+disposable full-MVP environment with generated JWT/AI/RAG secrets, then builds
+the stack, waits for the idempotent seed, forces an ADMIN-authorized RAG catalog
+sync, snapshots the checked-out Git revision into a temporary tracked-source
+build context, labels the rebuilt backend/frontend/AI images with that revision,
+and runs the automated patient/doctor/admin booking smoke flow. It fails closed
+if Git cannot provide a 40-character revision, if the source identity changes
+during the build, or if the working tree has tracked or untracked source changes
+before or after the build. The temporary snapshot is removed after verification.
+It does not alter an existing `.env`: the existing file must explicitly enable RAG and
+contain a nonempty RAG token. Compose defaults remain fail-closed.
 
 ```powershell
 .\scripts\start-and-verify-local-mvp.ps1
+```
+
+If the local machine cannot run Docker Desktop yet, trigger the GitHub Actions
+`Runtime Compose MVP` workflow manually for the exact commit. It runs the same
+provenance-bound verifier on an Ubuntu runner with disposable local-only
+secrets and stops the Compose project afterward. Treat that as live
+local-runtime evidence, not production deployment evidence.
+
+To explicitly prepare or repair an existing local `.env` without building or
+restarting containers, use:
+
+```powershell
+.\scripts\start-and-verify-local-mvp.ps1 -PrepareOnly
 ```
 
 The verifier creates one disposable confirmed appointment. It also proves that
@@ -38,6 +66,49 @@ is denied by the admin appointment endpoint. To verify an already-running stack:
 ```powershell
 .\scripts\verify-local-mvp.ps1
 ```
+
+After the same Compose stack is running, run the browser-level role demo from
+the frontend workspace. This gate uses the live frontend/backend/PostgreSQL
+stack, does not intercept `/api/v1/**`, books through the public UI, and then
+checks patient, doctor and admin pages for the same confirmed appointment:
+
+```powershell
+cd apps\frontend
+npm run test:e2e:compose
+```
+
+When the Compose stack uses non-default host ports, set both live endpoints
+before running the browser gate:
+
+```powershell
+$env:PLAYWRIGHT_BASE_URL = "http://127.0.0.1:<frontend-port>"
+$env:PLAYWRIGHT_API_BASE_URL = "http://127.0.0.1:<backend-port>/api/v1"
+npm run test:e2e:compose
+```
+
+For the API-level same-day clinical lifecycle (doctor check-in, in-progress
+visit, medical-record creation, `COMPLETED` appointment status in patient,
+doctor and admin API views, the matching `APPOINTMENT_CONFIRMED` notification,
+and own-patient record visibility), run during a day with a real available
+local slot:
+
+```powershell
+.\scripts\verify-local-mvp.ps1 -RequireClinicalFlow
+```
+
+This mode intentionally fails when there is no available same-day slot. It does
+not fabricate a visit date or bypass the doctor status-transition rules. It
+uses the hospital's Vietnam business date (`Asia/Ho_Chi_Minh` / Windows `SE Asia
+Standard Time`) rather than the host-local date. It is an API verifier: it does
+not prove browser rendering, cross-patient runtime isolation, or the source SHA
+of an already-running Docker image. Keep the browser and authorization checks
+in the role-based checklist below as separate gates.
+
+The helper verifies that the backend, frontend, and AI service containers for
+the current Compose project carry the same Git revision it built. A direct
+`docker compose up --build` remains supported, but uses the explicit `unknown`
+provenance default and cannot establish an exact source-to-image runtime proof
+on its own.
 
 The one-shot `local-seed` container runs after Flyway and backend health. It
 creates fictional catalog data, recurring schedules, and these disposable local

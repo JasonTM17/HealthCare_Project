@@ -36,6 +36,8 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
+          cache: 'maven'
+          cache-dependency-path: apps/backend/pom.xml
       - name: Start MinIO
         run: |
           set -euo pipefail
@@ -51,6 +53,22 @@ jobs:
           done
           docker logs healthcare-ci-minio
           exit 1
+      - name: Warm Maven wrapper
+        working-directory: apps/backend
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if ./mvnw -B -v; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::Maven wrapper bootstrap failed after $attempt attempts"
+              exit 1
+            fi
+            delay=$((attempt * 10))
+            echo "::warning::Maven wrapper bootstrap failed on attempt $attempt; retrying in ${delay}s"
+            sleep "$delay"
+          done
       - name: Build and test backend
         working-directory: apps/backend
         env:
@@ -73,7 +91,7 @@ jobs:
 
   frontend:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
@@ -98,6 +116,22 @@ jobs:
       - name: Build
         working-directory: apps/frontend
         run: npm run build
+      - name: Install Playwright Chromium
+        working-directory: apps/frontend
+        run: npx playwright install --with-deps chromium
+      - name: Browser test CMS realtime
+        working-directory: apps/frontend
+        run: npm run test:e2e
+      - name: Upload Playwright diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-playwright-diagnostics
+          path: |
+            apps/frontend/playwright-report
+            apps/frontend/test-results
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Upload frontend build artifact
         if: success()
         uses: actions/upload-artifact@v4

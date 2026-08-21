@@ -16,6 +16,25 @@ export type CmsPageState = CmsPublicationStatus;
 export const CMS_SLOT_KEYS = ["hero", "body", "sidebar", "footer"] as const;
 export type CmsSlotKey = (typeof CMS_SLOT_KEYS)[number];
 
+/** Canonical non-home public route families that expose the shared CMS frame. */
+export const CMS_PUBLIC_ROUTE_SLUGS = [
+  "about",
+  "branches",
+  "specialties",
+  "doctors",
+  "services",
+  "packages",
+  "articles",
+  "careers",
+  "search",
+  "dat-lich",
+  "contact",
+  "faq",
+  "huong-dan",
+  "tra-cuu",
+] as const;
+export type CmsPublicRouteSlug = (typeof CMS_PUBLIC_ROUTE_SLUGS)[number];
+
 export const CMS_COMPONENT_TYPES = [
   "HERO",
   "RICH_TEXT",
@@ -26,6 +45,24 @@ export const CMS_COMPONENT_TYPES = [
 export const CMS_COMPONENT_KEYS = CMS_COMPONENT_TYPES;
 export type CmsComponentType = (typeof CMS_COMPONENT_TYPES)[number];
 export type CmsComponentKey = CmsComponentType;
+
+export const CMS_SLOT_COMPONENT_TYPES = {
+  hero: ["HERO"],
+  body: ["RICH_TEXT", "CTA_BANNER", "NOTICE"],
+  sidebar: ["RICH_TEXT", "CTA_BANNER", "NOTICE", "IMAGE_CARD"],
+  footer: ["RICH_TEXT", "CTA_BANNER", "NOTICE"],
+} as const satisfies Record<CmsSlotKey, readonly CmsComponentType[]>;
+
+export function cmsComponentTypesForSlot(slotKey: CmsSlotKey): readonly CmsComponentType[] {
+  return CMS_SLOT_COMPONENT_TYPES[slotKey];
+}
+
+export function isCmsComponentAllowedForSlot(
+  slotKey: CmsSlotKey,
+  componentType: CmsComponentType,
+): boolean {
+  return (CMS_SLOT_COMPONENT_TYPES[slotKey] as readonly string[]).includes(componentType);
+}
 
 export interface CmsHeroPayload {
   eyebrow?: string;
@@ -380,6 +417,18 @@ export function resolveCmsSlotKey(slug: string, slotKey: CmsSlotKey): string {
   return validateSlotKey(`${normalizedSlug}.${slotKey}`);
 }
 
+function readCmsSlotKeyFromResolvedSlotKey(slotKey: string): CmsSlotKey {
+  const normalized = validateSlotKey(slotKey);
+  const parts = normalized.split(".");
+  const uiSlot = parts[parts.length - 1];
+  if (!isOneOf(uiSlot, CMS_SLOT_KEYS)) {
+    throw new CmsValidationError("slotKey không thuộc slot CMS công khai.", {
+      slotKey: "Slot chưa được hỗ trợ.",
+    });
+  }
+  return uiSlot;
+}
+
 function readIsoDate(value: unknown, label: string): string {
   if (typeof value !== "string" || Number.isNaN(Date.parse(value))) {
     throw new CmsValidationError(`${label} phải là ISO datetime.`);
@@ -444,10 +493,12 @@ export function parseCmsContentHistoryEntry(raw: unknown): CmsContentHistoryEntr
   };
 }
 
-export function validateCmsContentInput(input: CmsContentInput): CmsFieldErrors {
+export function validateCmsContentInput(input: CmsContentInput, slotKey?: CmsSlotKey): CmsFieldErrors {
   const errors: CmsFieldErrors = {};
   if (!isOneOf(input.componentType, CMS_COMPONENT_TYPES)) {
     errors.componentType = "Chọn một component CMS được hỗ trợ.";
+  } else if (slotKey && !isCmsComponentAllowedForSlot(slotKey, input.componentType)) {
+    errors.componentType = `Component ${input.componentType} không phù hợp với slot ${slotKey}.`;
   }
   if (!isOneOf(input.status, CMS_PUBLICATION_STATUSES)) {
     errors.status = "Chọn DRAFT hoặc PUBLISHED.";
@@ -466,8 +517,8 @@ export function validateCmsContentInput(input: CmsContentInput): CmsFieldErrors 
   return errors;
 }
 
-export function assertValidCmsContentInput(input: CmsContentInput): void {
-  const errors = validateCmsContentInput(input);
+export function assertValidCmsContentInput(input: CmsContentInput, slotKey?: CmsSlotKey): void {
+  const errors = validateCmsContentInput(input, slotKey);
   if (Object.keys(errors).length > 0) {
     throw new CmsValidationError("CMS content chưa hợp lệ.", errors);
   }
@@ -688,9 +739,9 @@ export class CmsClient {
   }
 
   async upsertContent(slotKey: string, input: CmsContentInput): Promise<CmsContent> {
-    validateSlotKey(slotKey);
-    assertValidCmsContentInput(input);
-    return this.requestContent(this.adminContentPath(slotKey), {
+    const normalizedSlotKey = validateSlotKey(slotKey);
+    assertValidCmsContentInput(input, readCmsSlotKeyFromResolvedSlotKey(normalizedSlotKey));
+    return this.requestContent(this.adminContentPath(normalizedSlotKey), {
       method: "PUT",
       body: JSON.stringify({
         componentType: input.componentType,

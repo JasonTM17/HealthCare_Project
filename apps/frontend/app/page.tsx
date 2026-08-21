@@ -55,6 +55,24 @@ const JOURNEY_STEPS: Array<{ icon: IconName; title: string; description: string 
   },
 ];
 
+const AI_COMPANION_STEPS: Array<{ icon: IconName; title: string; description: string }> = [
+  {
+    icon: "search",
+    title: "Chia sẻ điều bạn đang lo lắng",
+    description: "Gợi ý câu hỏi giúp bạn kể rõ cảm giác khó chịu, thời điểm bắt đầu và dấu hiệu đi kèm.",
+  },
+  {
+    icon: "brain",
+    title: "Đối chiếu với danh mục chuyên khoa hiện tại",
+    description: "Kết quả chỉ mở luồng đặt lịch khi hệ thống xác nhận đúng chuyên khoa trong danh mục.",
+  },
+  {
+    icon: "shield-check",
+    title: "Giữ ranh giới an toàn",
+    description: "AI luôn nhắc lại đây là thông tin tham khảo và chuyển hướng cấp cứu khi có dấu hiệu nguy hiểm.",
+  },
+];
+
 interface SectionHeadingProps {
   headingId?: string;
   title: string;
@@ -247,37 +265,6 @@ function HomeHeroCopy({
       <p className="hero-description">
         {cmsHero?.body ?? "Tìm bác sĩ theo chuyên môn, chọn cơ sở thuận tiện và chủ động khung giờ thăm khám."}
       </p>
-      <div className="hero-actions">
-        {cmsCta ? (
-          <a className="button button--amber" href={cmsCta.href}>
-            {cmsCta.label}
-            <Icon name="arrow-up-right" size={18} />
-          </a>
-        ) : (
-          <button className="button button--amber" onClick={onBooking} type="button">
-            Đặt lịch khám
-            <Icon name="arrow-up-right" size={18} />
-          </button>
-        )}
-        <Link className="button button--hero-secondary" href="/doctors">
-          Tìm bác sĩ
-          <Icon name="arrow-up-right" size={18} />
-        </Link>
-      </div>
-      <div className="hero-trust" aria-label="Điểm nhấn của trải nghiệm đặt khám">
-        <div className="hero-trust__item">
-          <span className="hero-trust__icon"><Icon name="check" size={16} /></span>
-          <span><strong>Chủ động đặt lịch</strong><small>Chọn bác sĩ và khung giờ</small></span>
-        </div>
-        <div className="hero-trust__item">
-          <span className="hero-trust__icon"><Icon name="building" size={16} /></span>
-          <span><strong>Thông tin rõ ràng</strong><small>Chuyên khoa, bác sĩ, chi phí</small></span>
-        </div>
-        <div className="hero-trust__item">
-          <span className="hero-trust__icon hero-trust__icon--accent"><Icon name="phone" size={16} /></span>
-          <span><strong>{hasEmergencyBranch ? "Hotline cấp cứu" : "Hỗ trợ khách hàng"}</strong><small>{contactPhone ?? "Xem kênh liên hệ"}</small></span>
-        </div>
-      </div>
       <form className="hero-search" onSubmit={(event) => { event.preventDefault(); onSearchSubmit(); }}>
         <label className="sr-only" htmlFor="hero-search-input">
           Tìm bác sĩ hoặc chuyên khoa
@@ -309,32 +296,128 @@ function HomeHeroCopy({
           </button>
         )}
         <button className="button button--hero-secondary" onClick={onOpenAi} type="button">
-          Mô tả triệu chứng
+          Hỏi trợ lý AI
           <Icon name="activity" size={18} />
         </button>
-        <Link className="button button--hero-secondary" href="/doctors">
-          Tìm bác sĩ
-          <Icon name="arrow-up-right" size={18} />
-        </Link>
       </div>
       <DemoNote>
         {cmsHero ? "Nội dung hero do quản trị viên xuất bản; catalog và trợ lý AI vẫn được cập nhật theo hệ thống." : "Catalog công khai được cập nhật theo hệ thống; trợ lý AI cần đăng nhập để hoạt động."}
       </DemoNote>
-      <div className="hero-trust" aria-label="Điểm nhấn của trải nghiệm đặt khám">
-        <div className="hero-trust__item">
-          <span className="hero-trust__icon"><Icon name="check" size={16} /></span>
-          <span><strong>Luồng 4 bước</strong><small>Chọn, giữ, xác nhận</small></span>
+    </div>
+  );
+}
+
+function HomeAssuranceStrip({
+  hasEmergencyBranch,
+  contactPhone,
+}: {
+  hasEmergencyBranch: boolean;
+  contactPhone?: string;
+}): React.ReactElement {
+  return (
+    <section className="hero-assurance" aria-label="Điểm nhấn của trải nghiệm đặt khám">
+      <div className="hero-assurance__inner">
+        <div className="hero-assurance__item">
+          <span className="hero-assurance__icon"><Icon name="check" size={17} /></span>
+          <span><strong>Luồng 4 bước rõ ràng</strong><small>Chọn nhu cầu, giữ lịch, xác nhận và tra cứu lại.</small></span>
         </div>
-        <div className="hero-trust__item">
-          <span className="hero-trust__icon"><Icon name="building" size={16} /></span>
-          <span><strong>Chọn đúng cơ sở</strong><small>Hiển thị ngay trong lịch</small></span>
+        <div className="hero-assurance__item">
+          <span className="hero-assurance__icon"><Icon name="building" size={17} /></span>
+          <span><strong>Dữ liệu từ catalog live</strong><small>Bác sĩ, cơ sở và gói khám lấy từ hệ thống hiện tại.</small></span>
         </div>
-        <div className="hero-trust__item">
-          <span className="hero-trust__icon hero-trust__icon--accent"><Icon name="phone" size={16} /></span>
-          <span><strong>{hasEmergencyBranch ? "Hotline cấp cứu" : "Liên hệ cơ sở"}</strong><small>{contactPhone ?? "Chưa cung cấp số điện thoại"}</small></span>
+        <div className="hero-assurance__item">
+          <span className="hero-assurance__icon hero-assurance__icon--accent"><Icon name="phone" size={17} /></span>
+          <span><strong>{hasEmergencyBranch ? "Hotline cấp cứu" : "Liên hệ cơ sở"}</strong><small>{contactPhone ?? "Số điện thoại đang cập nhật."}</small></span>
         </div>
       </div>
-    </div>
+    </section>
+  );
+}
+
+function HomeAiCompanion({
+  specialtiesCount,
+  branchesCount,
+  contactHref,
+  contactPhone,
+  onBooking,
+  onOpenAi,
+}: {
+  specialtiesCount: number;
+  branchesCount: number;
+  contactHref?: string | null;
+  contactPhone?: string;
+  onBooking: () => void;
+  onOpenAi: () => void;
+}): React.ReactElement {
+  return (
+    <section className="section section--ai-companion" id="ai-companion" aria-labelledby="ai-companion-title">
+      <div className="section-inner ai-companion">
+        <div className="ai-companion__copy">
+          <p className="section-note">Trợ lý AI định hướng</p>
+          <h2 id="ai-companion-title">Một lớp hỏi nhanh trước khi bạn đặt lịch.</h2>
+          <p>
+            Lấy cảm hứng từ trải nghiệm đặt lịch rõ ràng của các bệnh viện hiện đại:
+            người bệnh có thể chia sẻ điều đang lo, nhận gợi ý chuyên khoa có kiểm chứng
+            từ danh mục hiện tại, rồi chuyển sang luồng đặt lịch đang có.
+          </p>
+          <div className="ai-companion__actions">
+            <button className="button button--amber" onClick={onOpenAi} type="button">
+              Hỏi trợ lý AI
+              <Icon name="activity" size={18} />
+            </button>
+            <button className="outline-button" onClick={onBooking} type="button">
+              Đặt lịch thủ công
+              <Icon name="calendar" size={18} />
+            </button>
+          </div>
+          <p className="ai-companion__privacy">
+            <Icon name="shield-check" size={16} />
+            Không nhập CCCD, mã BHYT hoặc dữ liệu quá riêng tư. AI không thay thế chẩn đoán của bác sĩ.
+          </p>
+        </div>
+
+        <aside className="ai-companion__panel" aria-label="Luồng trợ lý AI chọn chuyên khoa">
+          <div className="ai-companion__panel-header">
+            <span><Icon name="sparkles" size={22} /></span>
+            <div>
+              <strong>AI Specialty Navigator</strong>
+              <small>Kết nối danh mục hiện tại và luồng đặt lịch</small>
+            </div>
+          </div>
+          <ol className="ai-companion__steps">
+            {AI_COMPANION_STEPS.map((step) => (
+              <li key={step.title}>
+                <span className="ai-companion__step-icon"><Icon name={step.icon} size={18} /></span>
+                <span>
+                  <strong>{step.title}</strong>
+                  <small>{step.description}</small>
+                </span>
+              </li>
+            ))}
+          </ol>
+          <div className="ai-companion__stats" aria-label="Dữ liệu hỗ trợ trợ lý AI">
+            <span>
+              <strong>{specialtiesCount > 0 ? specialtiesCount : "..."}</strong>
+              <small>chuyên khoa</small>
+            </span>
+            <span>
+              <strong>{branchesCount > 0 ? branchesCount : "..."}</strong>
+              <small>cơ sở</small>
+            </span>
+            <span>
+              <strong>OTP</strong>
+              <small>xác nhận lịch</small>
+            </span>
+          </div>
+          {contactHref ? (
+            <a className="ai-companion__hotline" href={contactHref}>
+              <Icon name="phone" size={17} />
+              <span>Hotline hỗ trợ: {contactPhone}</span>
+            </a>
+          ) : null}
+        </aside>
+      </div>
+    </section>
   );
 }
 
@@ -372,7 +455,7 @@ function HomeHeroVisual({ imageUrl }: { imageUrl?: string }): React.ReactElement
         <p><small>Đồng hành liền mạch</small><strong>Từ đặt lịch đến sau thăm khám</strong></p>
       </div>
       <figcaption>
-        {safeCmsImage ? "Hình ảnh hoạt động do quản trị viên xuất bản." : "Ảnh minh họa từ Unsplash."}
+        {safeCmsImage ? "Hình ảnh hoạt động do quản trị viên xuất bản." : "Ảnh minh họa từ Pexels."}
       </figcaption>
     </figure>
   );
@@ -520,13 +603,17 @@ export default function Home(): React.ReactElement {
     hasEmergencyBranch: Boolean(emergencyBranch),
     contactPhone,
   };
+  const branchAreaLabel = catalogLoading && branches.length === 0
+    ? "Đang tải cơ sở"
+    : branches.length > 0
+      ? `${branches.length} cơ sở đang hiển thị`
+      : "Cơ sở đang cập nhật";
 
     return (
       <div className="site-shell">
       <PublicMotion />
       <Navbar
         branches={branches}
-        onOpenAiTriage={() => setIsAiTriageOpen(true)}
         onOpenBooking={() => handleOpenBooking()}
       />
 
@@ -553,6 +640,11 @@ export default function Home(): React.ReactElement {
             slug="home"
           />
         </section>
+
+        <HomeAssuranceStrip
+          contactPhone={contactPhone}
+          hasEmergencyBranch={Boolean(emergencyBranch)}
+        />
 
         <section className="cms-live-region" id="cms-live" aria-labelledby="cms-live-title">
           <div className="section-inner">
@@ -620,6 +712,15 @@ export default function Home(): React.ReactElement {
         </section>
 
         <CareExperience />
+
+        <HomeAiCompanion
+          branchesCount={branches.length}
+          contactHref={contactHref}
+          contactPhone={contactPhone}
+          onBooking={() => handleOpenBooking()}
+          onOpenAi={() => setIsAiTriageOpen(true)}
+          specialtiesCount={catalog?.specialties.length ?? 0}
+        />
 
         <section className="section section--specialties" id="specialties" aria-labelledby="specialties-title">
           <div className="section-inner">
@@ -772,7 +873,7 @@ export default function Home(): React.ReactElement {
             />
             <div className="branch-layout">
               <div className="branch-intro">
-                <div className="branch-intro__topline"><Icon name="location" size={20} /><span>TP. Hồ Chí Minh</span></div>
+                <div className="branch-intro__topline"><Icon name="location" size={20} /><span>{branchAreaLabel}</span></div>
                 <h3>Chọn nơi bạn muốn bắt đầu chăm sóc.</h3>
                 <p>Địa chỉ và giờ làm việc lấy từ catalog công khai. Hãy kiểm tra lại trước khi đến.</p>
                 {contactHref ? <a className="text-button" href={contactHref}>{emergencyBranch ? "Gọi hotline cấp cứu" : "Gọi cơ sở"} <Icon name="phone" size={17} /></a> : <Link className="text-button" href="/contact">Xem thông tin liên hệ <Icon name="arrow-up-right" size={17} /></Link>}
@@ -853,17 +954,6 @@ export default function Home(): React.ReactElement {
           </div>
         </section>
       </main>
-
-      <button
-        aria-label="Mở công cụ hỗ trợ chọn chuyên khoa"
-        className="ai-navigator-fab"
-        onClick={() => setIsAiTriageOpen(true)}
-        type="button"
-      >
-        <span className="ai-navigator-fab__icon"><Icon name="stethoscope" size={20} /></span>
-        <span className="ai-navigator-fab__copy"><strong>Chọn chuyên khoa</strong><small>Hỗ trợ theo nhu cầu</small></span>
-        <Icon name="arrow-up-right" size={17} />
-      </button>
 
       <Footer branches={branches} cmsSlug="home" />
 

@@ -4,6 +4,8 @@ import com.healthcare.exception.DuplicateResourceException;
 import com.healthcare.hospital.dto.ArticleRequest;
 import com.healthcare.hospital.entity.Article;
 import com.healthcare.hospital.repository.ArticleRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +18,11 @@ public class AdminArticleService {
 
     public AdminArticleService(ArticleRepository articleRepository) {
         this.articleRepository = articleRepository;
+    }
+
+    @Transactional(readOnly = true)
+    public Page<Article> list(Pageable pageable) {
+        return articleRepository.findAll(pageable);
     }
 
     @Transactional

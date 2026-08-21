@@ -34,24 +34,45 @@ and `IMAGE_CARD`. Each has a fixed allow-list of scalar text fields. The
 backend trims and validates those fields, rejects HTML/script/style-like input,
 and accepts only relative paths or HTTPS URLs for links/images. There is no
 arbitrary HTML/JS/CSS field, secret field, or patient-data field in the model.
+Slot keys are also bounded to the public route inventory:
+`homepage`, `about`, `branches`, `specialties`, `doctors`, `services`,
+`packages`, `articles`, `careers`, `search`, `dat-lich`, `contact`, `faq`,
+`huong-dan`, and `tra-cuu`, each with one of `hero`, `body`, `sidebar`, or
+`footer`. Private/authenticated paths such as `admin`, `patient`, and `doctor`
+cannot be persisted as public CMS slots through the API or the database
+constraint.
 
 Public responses use `Cache-Control: no-store`. The backend's small in-process
 published snapshot cache is evicted and the SSE event is broadcast from an
 `AFTER_COMMIT` transaction listener, including rollback because rollback creates
-a new committed version. When `CMS_DISTRIBUTED_REALTIME_ENABLED=true`, the same
-post-commit metadata is fanned out through Redis Pub/Sub to every backend
-instance; the origin instance ignores its own broker echo. Redis carries only a
-low-latency signal, never the content body: PostgreSQL's durable
-`cms_content_changes` cursor remains the source for reconnect/replay, and the
-SSE heartbeat includes the latest durable event cursor so the frontend can
-reconcile a missed broker event even while the SSE connection remains open.
+a new committed version. CMS mutations acquire a PostgreSQL advisory
+transaction lock before writing content or change rows, so the durable
+`cms_content_changes` cursor is allocated and committed in one serialized
+publication lane rather than by racing admin transactions on separate slots.
+When `CMS_DISTRIBUTED_REALTIME_ENABLED=true`, the same post-commit metadata is
+fanned out through Redis Pub/Sub to every backend instance; the origin instance
+ignores its own broker echo. Redis carries only a low-latency wake-up signal,
+never the content body or authoritative state: a remote subscriber resolves the
+broker `eventId` back to a public `cms_content_changes` row and then emits
+canonical metadata from PostgreSQL. PostgreSQL's durable `cms_content_changes`
+cursor remains the source for
+reconnect/replay, and the SSE heartbeat includes the latest durable event
+cursor so the frontend can reconcile a missed broker event even while the SSE
+connection remains open.
 Bounded polling remains the fallback for failed reconciliation or SSE failures.
 Set a unique `CMS_INSTANCE_ID` per backend instance when deploying more than
 one replica. A full replay window falls back to a GET snapshot.
 
+The frontend CI includes a Playwright browser gate for the homepage
+admin-to-public CMS realtime path. That gate verifies browser orchestration,
+the admin editor contract, an open SSE stream, `afterEventId` reconciliation,
+DOM version update, and no main-frame reload against a mocked backend/SSE
+server. It does not prove the live PostgreSQL/Redis/MinIO Compose stack or
+multi-instance Redis fan-out.
+
 ## Migration ordering
 
-This checkout contains Flyway V1-V22 plus the `10.4` and `10.5` ordering
+This checkout contains Flyway V1-V24 plus the `10.4` and `10.5` ordering
 points. V10 enforces branch assignments, V10.4 first rejects a real zero-UUID
 branch and cancels expired holds, V10.5 then repairs overlapping legacy
 pending holds before V11 creates branch-aware scheduling constraints, V12 adds
@@ -60,9 +81,12 @@ reached V12, V14 bounds appointment OTP attempts, V15 expands structured
 detail content, V16 adds actor-aware CMS audit snapshots and rollback
 metadata, V17 enforces published article content, V18 hashes appointment
 OTPs, V19 adds secure stored-file metadata, V20 records appointment-reminder
-delivery, V21 expands patient profile details, and V22 adds careers and job
-applications. The separate `seed-local-careers.sql` fixture runs only after
-V22 so older migration tests can still exercise the base seed without
+delivery, V21 expands patient profile details, V22 adds careers and job
+applications, V23 constrains CMS slots to public route keys after a
+preflight that reports any legacy private slots for explicit operator repair
+without deleting production CMS data, and V24 binds component types to the
+public slot shapes that routes actually render. The separate
+`seed-local-careers.sql` fixture runs only after V22 so older migration tests can still exercise the base seed without
 referencing career tables. No migration rewrites an already-applied migration;
 do not renumber these migrations on the integration head.
 

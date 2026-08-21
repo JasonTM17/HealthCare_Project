@@ -20,6 +20,14 @@ interface AiTriageModalProps {
 
 type TriageErrorKind = "login" | "forbidden" | "unavailable" | "error";
 
+const MAX_SYMPTOM_LENGTH = 1200;
+
+const SYMPTOM_PROMPTS = [
+  "Đau hoặc khó chịu ở vị trí nào?",
+  "Triệu chứng bắt đầu khi nào và kéo dài bao lâu?",
+  "Có sốt, khó thở, chóng mặt hoặc đau tăng nhanh không?",
+] as const;
+
 const TRIAGE_ERROR_COPY: Record<
   TriageErrorKind,
   { title: string; description: string }
@@ -54,32 +62,16 @@ function classifyTriageError(error: unknown): TriageErrorKind {
   return "unavailable";
 }
 
-function scalarLabel(value: Record<string, unknown>): string {
-  const preferredKeys = ["title", "label", "name", "source", "citation", "text"];
-  for (const key of preferredKeys) {
-    const candidate = value[key];
-    if (typeof candidate === "string" && candidate.trim()) return candidate;
-  }
-
-  const scalarEntries = Object.entries(value).filter(
-    ([key, candidate]) =>
-      key !== "url" &&
-      (typeof candidate === "string" ||
-        typeof candidate === "number" ||
-        typeof candidate === "boolean"),
-  );
-  return scalarEntries.length > 0
-    ? scalarEntries.map(([key, candidate]) => `${key}: ${String(candidate)}`).join(" · ")
-    : "Nguồn tham khảo";
-}
-
-function citationDetails(citation: AiTriageCitation): { label: string; href?: string } {
-  if (typeof citation === "string") return { label: citation };
-
-  const href = typeof citation.url === "string" && /^https?:\/\//i.test(citation.url)
-    ? citation.url
-    : undefined;
-  return { label: scalarLabel(citation), href };
+function citationDetails(citation: AiTriageCitation): string {
+  const sourceLabel: Record<AiTriageCitation["source_type"], string> = {
+    specialty: "Chuyên khoa",
+    doctor: "Bác sĩ",
+    service: "Dịch vụ",
+    package: "Gói khám",
+    article: "Bài viết",
+    faq: "FAQ",
+  };
+  return `${sourceLabel[citation.source_type]} · ${citation.title}`;
 }
 
 export default function AiTriageModal({
@@ -135,6 +127,14 @@ export default function AiTriageModal({
     await analyzeSymptoms(lastSubmittedSymptoms);
   };
 
+  const appendSymptomPrompt = (prompt: string): void => {
+    setErrorKind(null);
+    setSymptoms((current) => {
+      const separator = current.trim() ? "\n" : "";
+      return `${current.trimEnd()}${separator}${prompt}`.slice(0, MAX_SYMPTOM_LENGTH);
+    });
+  };
+
   const handleBookNow = () => {
     if (
       result
@@ -149,6 +149,7 @@ export default function AiTriageModal({
 
   const errorCopy = errorKind ? TRIAGE_ERROR_COPY[errorKind] : null;
   const emergencyHref = safeTelephoneHref(emergencyContact);
+  const remainingCharacters = MAX_SYMPTOM_LENGTH - symptoms.length;
 
   return (
     <div
@@ -174,10 +175,10 @@ export default function AiTriageModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-200"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-200"
             aria-label="Đóng trợ lý triệu chứng"
           >
-            <Icon name="x" size={17} />
+            <Icon name="x" size={20} />
           </button>
         </div>
 
@@ -186,25 +187,45 @@ export default function AiTriageModal({
             <label className="block text-xs font-bold uppercase tracking-wider text-gray-700" htmlFor="triage-symptoms">
               Mô tả cảm giác hoặc triệu chứng khó chịu của bạn:
             </label>
+            <p id="triage-input-help" className="text-sm leading-relaxed text-gray-600">
+              Viết như đang kể cho điều dưỡng: vị trí khó chịu, thời điểm bắt đầu, mức độ đau và dấu hiệu đi kèm.
+            </p>
+            <div className="flex flex-wrap gap-2" aria-label="Gợi ý mô tả triệu chứng">
+              {SYMPTOM_PROMPTS.map((prompt) => (
+                <button
+                  className="inline-flex min-h-11 items-center rounded-full border border-brand-100 bg-brand-50 px-3 py-2 text-left text-xs font-bold text-brand-900 transition-colors hover:border-brand-300 hover:bg-brand-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-500"
+                  key={prompt}
+                  onClick={() => appendSymptomPrompt(prompt)}
+                  type="button"
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
             <textarea
-              rows={3}
+              rows={5}
               id="triage-symptoms"
               required
-              maxLength={10000}
+              maxLength={MAX_SYMPTOM_LENGTH}
               placeholder="Ví dụ: Tôi bị đau thắt ngực trái kèm khó thở khi leo cầu thang 2 ngày nay..."
               value={symptoms}
               onChange={(event) => setSymptoms(event.target.value)}
-              className="w-full rounded-xl border border-gray-300 bg-gray-50 p-3 text-sm text-gray-900 focus:ring-2 focus:ring-brand-600 focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-300"
-              aria-describedby="triage-privacy-note"
+              className="min-h-32 w-full rounded-xl border border-gray-300 bg-gray-50 p-4 text-base leading-relaxed text-gray-900 focus:ring-2 focus:ring-brand-600 focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-300"
+              aria-describedby="triage-input-help triage-privacy-note triage-character-count"
             />
-            <p id="triage-privacy-note" className="text-[11px] leading-relaxed text-gray-500">
-              Nội dung chỉ được xử lý khi bạn chủ động yêu cầu gợi ý và không xuất hiện trong đường dẫn trang.
-            </p>
+            <div className="flex flex-wrap items-start justify-between gap-2 text-xs leading-relaxed text-gray-500">
+              <p id="triage-privacy-note">
+                Không nhập số CCCD, mã BHYT hoặc thông tin quá riêng tư. Nội dung chỉ được xử lý khi bạn chủ động yêu cầu gợi ý.
+              </p>
+              <p id="triage-character-count" aria-live="polite">
+                Còn {remainingCharacters} ký tự
+              </p>
+            </div>
             <div className="flex justify-end">
               <button
                 type="submit"
                 disabled={loading || !symptoms.trim()}
-                className="flex items-center gap-2 rounded-lg bg-brand-700 px-6 py-2.5 text-xs font-bold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
+                className="flex min-h-11 items-center gap-2 rounded-xl bg-brand-700 px-6 py-2.5 text-sm font-bold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
               >
                 {loading ? <><Icon name="clock" size={15} /> Đang xem xét thông tin...</> : <><Icon name="stethoscope" size={15} /> Xem gợi ý chuyên khoa</>}
               </button>
@@ -292,14 +313,9 @@ export default function AiTriageModal({
                   <p className="font-bold text-brand-900">Nguồn tham khảo</p>
                   <ul className="mt-1 list-disc space-y-1 pl-4">
                     {result.citations.map((citation, index) => {
-                      const details = citationDetails(citation);
                       return (
-                        <li key={`${details.label}-${index}`}>
-                          {details.href ? (
-                            <a className="underline underline-offset-2" href={details.href} rel="noreferrer" target="_blank">
-                              {details.label}
-                            </a>
-                          ) : details.label}
+                        <li key={`${citation.source_type}-${citation.source_id}-${index}`}>
+                          {citationDetails(citation)}
                         </li>
                       );
                     })}
