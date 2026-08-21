@@ -75,6 +75,19 @@ test("faq page now behaves like a support hub instead of a bare list", async () 
   assert.match(faq, /Liên hệ bệnh viện/);
 });
 
+test("booking landing page now opens as a clear support-aware route", async () => {
+  const booking = await read("app/dat-lich/page.tsx");
+
+  assert.match(booking, /bookingInitiallyOpen/);
+  assert.match(booking, /resource-hero-card--teal/);
+  assert.match(booking, /PublicAiButton/);
+  assert.match(booking, /resource-meta-grid/);
+  assert.match(booking, /resource-step-card/);
+  assert.match(booking, /catalog-grid--branches/);
+  assert.match(booking, /Chọn chuyên khoa/);
+  assert.match(booking, /Liên hệ bệnh viện/);
+});
+
 test("public phone actions validate backend values before creating tel links", async () => {
   const sources = await Promise.all([
     read("lib/phone.ts"),
