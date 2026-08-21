@@ -101,6 +101,18 @@ test("branches page now behaves like a network hub", async () => {
   assert.match(branches, /BranchMap/);
 });
 
+test("packages page now behaves like a selection hub", async () => {
+  const packages = await read("app/packages/page.tsx");
+
+  assert.match(packages, /resource-hero-card--teal/);
+  assert.match(packages, /PublicBookingButton/);
+  assert.match(packages, /PublicAiButton/);
+  assert.match(packages, /resource-meta-grid/);
+  assert.match(packages, /resource-step-card/);
+  assert.match(packages, /catalogGrid/);
+  assert.match(packages, /catalogGuide/);
+});
+
 test("public phone actions validate backend values before creating tel links", async () => {
   const sources = await Promise.all([
     read("lib/phone.ts"),
