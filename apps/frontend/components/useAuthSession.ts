@@ -1,19 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import {
+  getServerAuthSessionSnapshot,
   readAuthSession,
   subscribeToAuthSession,
+  type AuthSession,
 } from "../lib/api-client";
 
-export function useAuthSession() {
-  const [session, setSession] = useState(() => readAuthSession());
-
-  useEffect(() => {
-    const updateSession = (): void => setSession(readAuthSession());
-    updateSession();
-    return subscribeToAuthSession(updateSession);
-  }, []);
-
-  return session;
+export function useAuthSession(): AuthSession | null {
+  return useSyncExternalStore(
+    subscribeToAuthSession,
+    readAuthSession,
+    getServerAuthSessionSnapshot,
+  );
 }
