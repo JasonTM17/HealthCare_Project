@@ -271,6 +271,34 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
     }
 
     @Test
+    void cmsSlotComponentTypesAreEnforcedAtDatabaseBoundary() {
+        UUID validHeroId = UUID.randomUUID();
+        jdbcTemplate.update(
+            "insert into cms_contents "
+                + "(id, slot_key, component_type, payload, status, version, created_at, updated_at) "
+                + "values (?, ?, 'HERO', '{}'::jsonb, 'PUBLISHED', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+            validHeroId,
+            "homepage.hero"
+        );
+
+        assertThatThrownBy(() -> jdbcTemplate.update(
+            "insert into cms_contents "
+                + "(id, slot_key, component_type, payload, status, version, created_at, updated_at) "
+                + "values (?, ?, 'RICH_TEXT', '{}'::jsonb, 'DRAFT', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+            UUID.randomUUID(),
+            "careers.hero"
+        )).isInstanceOf(DataAccessException.class);
+
+        assertThatThrownBy(() -> jdbcTemplate.update(
+            "insert into cms_content_changes "
+                + "(content_id, slot_key, content_version, published, public_event, component_type) "
+                + "values (?, ?, 1, true, true, 'RICH_TEXT')",
+            validHeroId,
+            "homepage.hero"
+        )).isInstanceOf(DataAccessException.class);
+    }
+
+    @Test
     void appointmentDomainTablesAreMigrated() {
         List<String> tables = jdbcTemplate.queryForList(
             "select table_name from information_schema.tables where table_schema = 'public'",
