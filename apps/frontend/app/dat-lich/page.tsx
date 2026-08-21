@@ -1,10 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import BranchMap from "../../components/BranchMap";
 import { BookingInlineExperience, type BookingSelection } from "../../components/BookingModal";
+import { ClinicalIcon } from "../../components/ClinicalIcon";
 import Icon, { type IconName } from "../../components/UiIcon";
 import { PublicAiButton, PublicBookingButton, PublicPageShell } from "../../components/PublicPageShell";
+import { fetchBranches } from "../../lib/api-client";
+import type { Branch } from "../../types/hospital";
 
 const BOOKING_STAGES: Array<{ icon: IconName; title: string; description: string }> = [
   {
@@ -37,6 +41,9 @@ const PREPARE_ITEMS = [
 
 export default function BookingLandingPage() {
   const bookingRegionRef = useRef<HTMLElement>(null);
+  const [branchCards, setBranchCards] = useState<Branch[]>([]);
+  const [branchCardsLoading, setBranchCardsLoading] = useState(true);
+  const [branchCardsError, setBranchCardsError] = useState<string | null>(null);
   const [bookingRequest, setBookingRequest] = useState<{ nonce: number; selection?: BookingSelection }>({ nonce: 0 });
   const handleBookingRequest = useCallback((selection?: BookingSelection) => {
     setBookingRequest((current) => ({ nonce: current.nonce + 1, selection }));
@@ -44,6 +51,28 @@ export default function BookingLandingPage() {
       bookingRegionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       bookingRegionRef.current?.focus({ preventScroll: true });
     });
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchBranches(0, 6)
+      .then((page) => {
+        if (cancelled) return;
+        setBranchCards(page.content);
+        setBranchCardsError(null);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setBranchCardsError("Tạm thời chưa thể tải danh sách cơ sở. Vui lòng thử lại sau.");
+        setBranchCards([]);
+      })
+      .finally(() => {
+        if (!cancelled) setBranchCardsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
@@ -110,6 +139,82 @@ export default function BookingLandingPage() {
             </ul>
             <Link className="text-button" href="/tra-cuu">Đã có mã hẹn? Tra cứu lịch <Icon name="arrow-up-right" size={17} /></Link>
           </article>
+        </section>
+
+        <section className="booking-page__branches" aria-labelledby="booking-branches-heading">
+          <div className="booking-page__branches-heading">
+            <p className="section-note">Các cơ sở khám nổi bật</p>
+            <h2 id="booking-branches-heading">Chọn cơ sở thuận tiện nhất trước khi vào form</h2>
+            <p>
+              Giống cách Hoàn Mỹ trình bày mạng lưới cơ sở: địa chỉ, giờ làm việc, điện thoại và
+              đường dẫn chi tiết đều nằm ngay trong một card rõ ràng, dễ quét bằng mắt.
+            </p>
+          </div>
+          {branchCardsLoading ? (
+            <p className="catalog-status catalog-status--loading" role="status">
+              Đang tải danh sách cơ sở…
+            </p>
+          ) : branchCardsError ? (
+            <div className="catalog-status catalog-status--error" role="alert">
+              <p>{branchCardsError}</p>
+              <Link className="outline-button outline-button--small" href="/branches">
+                Xem toàn bộ cơ sở
+              </Link>
+            </div>
+          ) : branchCards.length > 0 ? (
+            <div className="catalog-grid catalog-grid--branches booking-page__branch-grid">
+              {branchCards.map((branch) => {
+                const address = branch.address?.trim();
+                const contactPhone = branch.phone?.trim() || branch.emergencyHotline?.trim() || "Đang cập nhật";
+
+                return (
+                  <article className="catalog-card booking-page__branch-card" key={branch.id}>
+                    <span className="resource-icon resource-icon--small" aria-hidden="true">
+                      <ClinicalIcon name="branch" />
+                    </span>
+                    <h2>{branch.name}</h2>
+                    <div className="branch-card__address">
+                      <Icon name="location" size={18} />
+                      <p>
+                        {address || <span className="resource-muted">Địa chỉ đang được cập nhật.</span>}
+                      </p>
+                    </div>
+                    <BranchMap
+                      address={address}
+                      branchName={branch.name}
+                      className="branch-card__map-link"
+                      variant="link"
+                    />
+                    <dl className="catalog-card__details">
+                      <div>
+                        <dt>Điện thoại</dt>
+                        <dd>{contactPhone}</dd>
+                      </div>
+                      <div>
+                        <dt>Giờ làm việc</dt>
+                        <dd>{branch.workingHours || "Đang cập nhật"}</dd>
+                      </div>
+                    </dl>
+                    <div className="catalog-card__actions">
+                      <Link className="text-button" href={`/branches/${branch.slug}`}>
+                        Tìm hiểu thêm →
+                      </Link>
+                      <PublicBookingButton
+                        className="outline-button outline-button--small"
+                        selection={{ branchId: branch.id }}
+                      >
+                        Đặt lịch hẹn
+                      </PublicBookingButton>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="catalog-status" role="status">
+              Thông tin cơ sở đang được cập nhật.
+            </p>
+          )}
         </section>
 
         <section

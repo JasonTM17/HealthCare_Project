@@ -35,6 +35,14 @@ const DOCTOR = {
   active: true,
 };
 
+const SLOT = {
+  branchId: BRANCH.id,
+  startTime: "08:00:00",
+  endTime: "08:30:00",
+  available: true,
+  statusNote: "Còn trống",
+};
+
 function pageEnvelope<T>(content: T[] = []) {
   return {
     content,
@@ -108,6 +116,15 @@ async function startBookingMockBackend() {
       return;
     }
 
+    if (method === "GET" && apiPath === `/appointments/doctors/${DOCTOR.id}/slots`) {
+      if (requestUrl.searchParams.get("branchId") !== BRANCH.id) {
+        sendJson(response, 400, { message: "Unexpected branchId." });
+        return;
+      }
+      sendJson(response, 200, [SLOT]);
+      return;
+    }
+
     unexpectedApiRequests.push(`${method} ${apiPath}`);
     sendJson(response, 500, { message: `Unhandled booking e2e request: ${method} ${apiPath}` });
   });
@@ -150,6 +167,10 @@ test("booking landing keeps the appointment flow inline without auto-opening a d
     const page = await context.newPage();
     await page.goto("/dat-lich");
 
+    await expect(page.getByRole("heading", { name: "Các cơ sở khám nổi bật" })).toBeVisible();
+    await expect(page.locator(".booking-page__branch-card")).toHaveCount(1);
+    await expect(page.getByRole("link", { name: "Tìm hiểu thêm →" })).toBeVisible();
+
     const inlineRegion = page.locator(".booking-page__inline");
     await expect(inlineRegion).toBeVisible();
     await expect(page.getByRole("heading", { name: "Hoàn tất lịch khám trong cùng một trang" })).toBeVisible();
@@ -158,7 +179,7 @@ test("booking landing keeps the appointment flow inline without auto-opening a d
     await expect(page.locator('[aria-modal="true"]')).toHaveCount(0);
     await expect(page.getByLabel("Chuyên khoa")).toHaveValue(SPECIALTY.id);
 
-    await page.getByRole("button", { name: "Đi tới form đặt lịch" }).click();
+    await page.getByRole("button", { name: "Đặt lịch hẹn" }).first().click();
 
     await expect(inlineRegion).toBeFocused();
     await expect(page.locator('[role="dialog"]')).toHaveCount(0);
