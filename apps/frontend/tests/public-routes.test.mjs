@@ -137,6 +137,18 @@ test("services page now behaves like a service selection hub", async () => {
   assert.match(services, /ClinicalIcon/);
 });
 
+test("doctors page now behaves like a doctor selection hub", async () => {
+  const doctors = await read("app/doctors/DoctorsPageClient.tsx");
+
+  assert.match(doctors, /resource-hero-card--teal/);
+  assert.match(doctors, /PublicAiButton/);
+  assert.match(doctors, /PublicBookingButton/);
+  assert.match(doctors, /resource-meta-grid/);
+  assert.match(doctors, /resource-step-card/);
+  assert.match(doctors, /catalog-grid--doctors/);
+  assert.match(doctors, /resource-chip-row/);
+});
+
 test("public phone actions validate backend values before creating tel links", async () => {
   const sources = await Promise.all([
     read("lib/phone.ts"),

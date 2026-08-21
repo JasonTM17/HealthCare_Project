@@ -5,10 +5,12 @@ import { useEffect, useState } from "react";
 import { fetchDoctors, fetchSpecialties, type Page } from "../../lib/api-client";
 import type { Doctor, Specialty } from "../../types/hospital";
 import {
+  PublicAiButton,
   PublicBackLink,
   PublicBookingButton,
   PublicPageShell,
 } from "../../components/PublicPageShell";
+import ClinicalIcon from "../../components/ClinicalIcon";
 
 interface DoctorsPageClientProps {
   specialtySlug?: string;
@@ -65,6 +67,8 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
 
   const selectedSpecialty = specialties.find((item) => item.slug === specialtySlug);
   const filterLabel = selectedSpecialty?.name ?? specialtySlug;
+  const featuredDoctor = page?.content[0];
+  const doctorCount = page?.totalElements ?? page?.content.length ?? 0;
 
   const handlePageChange = (nextPage: number) => {
     setLoading(true);
@@ -79,8 +83,87 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
         <header className="resource-page__header">
           <p className="section-note">Đội ngũ bác sĩ</p>
           <h1>Bác sĩ đồng hành cùng bạn</h1>
-          <p>Tìm hiểu chuyên môn và kinh nghiệm để lựa chọn bác sĩ phù hợp với nhu cầu chăm sóc.</p>
+          <p>
+            Tìm hiểu chuyên môn và kinh nghiệm để lựa chọn bác sĩ phù hợp với nhu cầu chăm sóc.
+          </p>
         </header>
+
+        <section className="resource-hero-card resource-hero-card--teal">
+          <div className="resource-icon" aria-hidden="true">
+            <ClinicalIcon name="specialty" />
+          </div>
+          <div className="resource-hero-card__body">
+            <p className="resource-chip">Đội ngũ chuyên gia</p>
+            <h2>Chọn bác sĩ theo chuyên khoa, cơ sở và nhu cầu thật của bạn.</h2>
+            <p className="resource-lead">
+              Dùng trợ lý triệu chứng để định hướng trước, rồi mở đúng hồ sơ bác sĩ phù hợp thay vì
+              chọn ngẫu nhiên.
+            </p>
+            <div className="resource-actions">
+              <PublicAiButton className="outline-button outline-button--light">Hỏi trợ lý chọn chuyên khoa</PublicAiButton>
+              <PublicBookingButton selection={selectedSpecialty ? { specialtyId: selectedSpecialty.id } : featuredDoctor ? { doctorId: featuredDoctor.id } : undefined}>
+                Đặt lịch với bác sĩ
+              </PublicBookingButton>
+              <Link className="outline-button outline-button--light" href="/specialties">
+                Xem chuyên khoa
+              </Link>
+            </div>
+            <dl className="resource-meta-grid">
+              <div>
+                <dt>Tổng bác sĩ</dt>
+                <dd>{doctorCount || "Đang cập nhật"}</dd>
+              </div>
+              <div>
+                <dt>Bộ lọc hiện tại</dt>
+                <dd>{filterLabel ?? "Tất cả bác sĩ"}</dd>
+              </div>
+            </dl>
+          </div>
+        </section>
+
+        <div className="resource-grid resource-grid--two">
+          <section className="resource-panel resource-panel--accent">
+            <p className="section-note">Cách chọn bác sĩ</p>
+            <h2>Ba bước để chọn nhanh</h2>
+            <div className="resource-steps resource-steps--grid">
+              {[
+                ["01", "Xem hồ sơ", "Đọc chuyên môn, kinh nghiệm và chuyên khoa của bác sĩ."],
+                ["02", "Kiểm tra bộ lọc", "Lọc theo chuyên khoa hoặc cơ sở nếu bạn đã có điểm đến cụ thể."],
+                ["03", "Đặt lịch", "Mở form đặt lịch ngay khi đã chọn được bác sĩ phù hợp."],
+              ].map(([number, title, description]) => (
+                <div className="resource-step-card" key={number}>
+                  <span>{number}</span>
+                  <strong>{title}</strong>
+                  <p>{description}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="resource-panel">
+            <p className="section-note">Bác sĩ nổi bật</p>
+            <h2>Điểm bắt đầu của danh mục</h2>
+            {featuredDoctor ? (
+              <>
+                <p>{featuredDoctor.bio || "Hồ sơ chưa có phần giới thiệu chi tiết."}</p>
+                <div className="resource-actions">
+                  <Link className="text-button" href={`/doctors/${featuredDoctor.slug}`}>
+                    Xem hồ sơ →
+                  </Link>
+                  <PublicBookingButton
+                    className="outline-button outline-button--small"
+                    selection={{ doctorId: featuredDoctor.id }}
+                  >
+                    Đặt lịch
+                  </PublicBookingButton>
+                </div>
+              </>
+            ) : (
+              <p className="resource-muted">Chưa tìm thấy bác sĩ phù hợp với lựa chọn này.</p>
+            )}
+          </section>
+
+        </div>
 
         {filterLabel ? (
           <div className="resource-chip-row" aria-label="Bộ lọc hiện tại">
