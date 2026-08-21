@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useCallback, useRef, useState } from "react";
+import { BookingInlineExperience, type BookingSelection } from "../../components/BookingModal";
 import Icon, { type IconName } from "../../components/UiIcon";
 import { PublicAiButton, PublicBookingButton, PublicPageShell } from "../../components/PublicPageShell";
 
@@ -34,8 +36,18 @@ const PREPARE_ITEMS = [
 ] as const;
 
 export default function BookingLandingPage() {
+  const bookingRegionRef = useRef<HTMLElement>(null);
+  const [bookingRequest, setBookingRequest] = useState<{ nonce: number; selection?: BookingSelection }>({ nonce: 0 });
+  const handleBookingRequest = useCallback((selection?: BookingSelection) => {
+    setBookingRequest((current) => ({ nonce: current.nonce + 1, selection }));
+    window.requestAnimationFrame(() => {
+      bookingRegionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      bookingRegionRef.current?.focus({ preventScroll: true });
+    });
+  }, []);
+
   return (
-    <PublicPageShell>
+    <PublicPageShell onBookingRequest={handleBookingRequest}>
       <div className="booking-page resource-page section-inner" id="dat-lich">
         <div className="resource-breadcrumb"><Link href="/">Trang chủ</Link><span>/</span><span>Đặt lịch</span></div>
 
@@ -63,7 +75,7 @@ export default function BookingLandingPage() {
             <p className="section-note">Tóm tắt nhanh</p>
             <strong>4 chặng chính</strong>
             <span>Chọn nhu cầu → chọn lịch → điền thông tin → xác nhận OTP.</span>
-            <small>Form đặt lịch chỉ mở khi bạn bấm bắt đầu, không còn bật modal ngay khi vào trang.</small>
+            <small>Form đặt lịch nằm ngay trên trang này; CTA chỉ đưa bạn tới đúng luồng inline.</small>
           </aside>
         </header>
 
@@ -100,14 +112,31 @@ export default function BookingLandingPage() {
           </article>
         </section>
 
+        <section
+          aria-labelledby="booking-inline-heading"
+          className="booking-page__inline"
+          ref={bookingRegionRef}
+          tabIndex={-1}
+        >
+          <div className="booking-page__inline-heading">
+            <p className="section-note">Form đặt lịch</p>
+            <h2 id="booking-inline-heading">Hoàn tất lịch khám trong cùng một trang</h2>
+            <p>
+              Đây là cùng một engine giữ chỗ và OTP với modal trên các route khác, nhưng bỏ backdrop,
+              dialog role và scroll lock để phù hợp với trải nghiệm full-page.
+            </p>
+          </div>
+          <BookingInlineExperience key={bookingRequest.nonce} selection={bookingRequest.selection} />
+        </section>
+
         <div className="booking-page__sticky" role="region" aria-label="Bắt đầu đặt lịch khám">
           <span>
             <strong>Sẵn sàng giữ lịch?</strong>
-            <small>Form sẽ mở trên cùng hệ thống giữ chỗ và OTP thật.</small>
+            <small>Đi tới form inline, không mở thêm modal thứ hai.</small>
           </span>
           <PublicBookingButton className="button button--amber booking-page__sticky-button">
             <Icon name="calendar" size={18} />
-            Mở form đặt lịch
+            Đi tới form đặt lịch
           </PublicBookingButton>
         </div>
       </div>

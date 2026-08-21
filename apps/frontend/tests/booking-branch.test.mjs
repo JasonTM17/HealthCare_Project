@@ -35,6 +35,7 @@ test("AI specialty identity fails closed when the live booking catalog is stale"
   assert.match(source, /if \(!currentSpecialty \|\| !selectedSpecialty\)/);
   assert.match(source, /setStep\(1\)/);
   assert.doesNotMatch(source, /specialties\.some\(\(specialty\) => specialty\.id === initialSpecialtyId\)/);
+  assert.doesNotMatch(source, /doctors\[0\]/);
 });
 
 test("branch two selection resets slot identity and passes the selected branch to hold", async () => {
@@ -109,7 +110,7 @@ test("booking dialog resets, manages focus, and only closes from the real backdr
   ]);
 
   assert.match(source, /dialogRef = useRef<HTMLDivElement>/);
-  assert.match(source, /useDialogFocus\(dialogRef, isOpen, onClose\)/);
+  assert.match(source, /useDialogFocus\(dialogRef, active && isModal, closePresentation\)/);
   assert.match(focus, /document\.body\.style\.overflow = "hidden"/);
   assert.match(focus, /document\.addEventListener\("keydown", handleKeyDown\)/);
   assert.match(focus, /event\.key === "Escape"/);
@@ -118,6 +119,30 @@ test("booking dialog resets, manages focus, and only closes from the real backdr
   assert.match(source, /event\.target === event\.currentTarget/);
   assert.match(source, /setConfirmedAppointment\(null\)/);
   assert.match(source, /setFullName\(""\)/);
+});
+
+test("booking page reuses the engine inline without mounting a second dialog", async () => {
+  const [source, shell, route] = await Promise.all([
+    readFile(modalPath, "utf8"),
+    readFile(new URL("../components/PublicPageShell.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/dat-lich/page.tsx", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(source, /function BookingExperience/);
+  assert.match(source, /presentation: "modal" \| "inline"/);
+  assert.match(source, /export function BookingInlineExperience/);
+  assert.match(source, /if \(!isModal\) return panel/);
+  assert.match(source, /role="dialog"/);
+  assert.match(source, /aria-modal="true"/);
+  assert.match(source, /min=\{minimumAppointmentDate\}/);
+  assert.doesNotMatch(source, /min=\{selectedDate\}/);
+  assert.match(shell, /onBookingRequest\?: \(selection\?: BookingSelection\) => void/);
+  assert.match(shell, /if \(onBookingRequest\)/);
+  assert.match(shell, /!onBookingRequest && bookingOpen/);
+  assert.match(route, /<PublicPageShell onBookingRequest=\{handleBookingRequest\}>/);
+  assert.match(route, /<BookingInlineExperience key=\{bookingRequest\.nonce\} selection=\{bookingRequest\.selection\} \/>/);
+  assert.match(route, /bookingRegionRef\.current\?\.scrollIntoView/);
+  assert.doesNotMatch(route, /bookingInitiallyOpen/);
 });
 
 test("booking API converts network and server failures to safe Vietnamese messages", async () => {

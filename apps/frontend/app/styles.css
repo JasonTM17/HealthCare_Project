@@ -782,6 +782,50 @@ main {
   margin-top: var(--sp-8);
 }
 
+.booking-page__inline {
+  display: grid;
+  gap: var(--sp-5);
+  margin-top: var(--sp-10);
+  scroll-margin-top: calc(var(--header-height, 88px) + var(--sp-6));
+  outline: none;
+}
+
+.booking-page__inline:focus-visible {
+  border-radius: var(--radius-lg);
+  box-shadow: 0 0 0 4px oklch(78% 0.145 78 / 0.24);
+}
+
+.booking-page__inline-heading {
+  max-width: 48rem;
+}
+
+.booking-page__inline-heading h2 {
+  margin: var(--sp-2) 0 var(--sp-3);
+  color: var(--color-teal-950);
+  font-family: var(--font-display);
+  font-size: clamp(1.75rem, 3vw, 2.75rem);
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+}
+
+.booking-page__inline-heading p:last-child {
+  margin: 0;
+  color: var(--color-ink-muted);
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.booking-panel--inline {
+  max-width: none;
+}
+
+.booking-panel--inline select,
+.booking-panel--inline input,
+.booking-panel--inline textarea,
+.booking-panel--inline button {
+  min-height: 44px;
+}
+
 .booking-page__checklist {
   display: grid;
   gap: var(--sp-3);
