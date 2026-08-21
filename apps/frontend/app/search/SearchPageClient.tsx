@@ -13,8 +13,8 @@ import {
   fetchSemanticSearch,
   fetchServices,
   fetchSpecialties,
-  readAuthSession,
 } from "../../lib/api-client";
+import { useAuthSession } from "../../components/useAuthSession";
 import type { AiTriageCitation, Article, Doctor, HealthPackage, MedicalService, SemanticSearchResponse, Specialty } from "../../types/hospital";
 
 interface SearchPageClientProps {
@@ -92,6 +92,7 @@ function ResultSection({
 
 export default function SearchPageClient({ initialQuery }: SearchPageClientProps): ReactElement {
   const router = useRouter();
+  const authSession = useAuthSession();
   const [query, setQuery] = useState(initialQuery);
   const [catalog, setCatalog] = useState<SearchCatalog | null>(null);
   const [loading, setLoading] = useState(true);
@@ -135,7 +136,7 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
   }, []);
 
   useEffect(() => {
-    if (!submittedQuery || !readAuthSession()) return;
+    if (!submittedQuery || !authSession) return;
 
     let cancelled = false;
     void Promise.resolve()
@@ -157,7 +158,7 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
       });
 
     return () => { cancelled = true; };
-  }, [submittedQuery]);
+  }, [authSession, submittedQuery]);
 
   const result = useMemo(() => {
     const normalizedQuery = normalize(query);
@@ -174,7 +175,7 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
   const resultCount = result
     ? result.specialties.length + result.doctors.length + result.services.length + result.packages.length + result.articles.length
     : 0;
-  const hasAuthSession = Boolean(readAuthSession());
+  const hasAuthSession = Boolean(authSession);
   const catalogGroupCount = catalog
     ? [catalog.specialties, catalog.doctors, catalog.services, catalog.packages, catalog.articles].filter((items) => items.length > 0).length
     : 0;
