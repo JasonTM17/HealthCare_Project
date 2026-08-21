@@ -36,6 +36,8 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
+          cache: 'maven'
+          cache-dependency-path: apps/backend/pom.xml
       - name: Start MinIO
         run: |
           set -euo pipefail
@@ -51,6 +53,22 @@ jobs:
           done
           docker logs healthcare-ci-minio
           exit 1
+      - name: Warm Maven wrapper
+        working-directory: apps/backend
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if ./mvnw -B -v; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::Maven wrapper bootstrap failed after $attempt attempts"
+              exit 1
+            fi
+            delay=$((attempt * 10))
+            echo "::warning::Maven wrapper bootstrap failed on attempt $attempt; retrying in ${delay}s"
+            sleep "$delay"
+          done
       - name: Build and test backend
         working-directory: apps/backend
         env:
