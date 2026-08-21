@@ -4,12 +4,17 @@ import Image from "next/image";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { packageVisualStyles } from "../../../components/PackageVisualCard";
-import { PublicBackLink, PublicBookingButton, PublicPageShell } from "../../../components/PublicPageShell";
+import { PublicAiButton, PublicBackLink, PublicBookingButton, PublicPageShell } from "../../../components/PublicPageShell";
 import { fetchPackageBySlug } from "../../../lib/api-client";
 import { getPackageVisual } from "../../../lib/package-visuals";
 import type { HealthPackage } from "../../../types/hospital";
 
 const currency = (price: number) => new Intl.NumberFormat("vi-VN").format(price);
+const PACKAGE_DETAIL_STEPS = [
+  ["01", "Xem đối tượng phù hợp", "Đối chiếu nhu cầu của bạn với phần mô tả và nhóm người dùng của gói."],
+  ["02", "Kiểm tra nội dung khám", "Đọc checklist và bước chuẩn bị để tránh thiếu giấy tờ hoặc thông tin cần thiết."],
+  ["03", "Giữ lịch khám", "Đặt lịch với đúng gói để hệ thống chuyển lựa chọn sang form đặt hẹn."],
+] as const;
 
 export default function PackageDetailPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -77,11 +82,32 @@ export default function PackageDetailPage() {
                   </dl>
                 ) : null}
 
-                <PublicBookingButton className={packageVisualStyles.detailAction} selection={{ packageId: item.id }}>
-                  Đặt lịch với gói này
-                </PublicBookingButton>
+                <div className="resource-actions">
+                  <PublicBookingButton className={packageVisualStyles.detailAction} selection={{ packageId: item.id }}>
+                    Đặt lịch với gói này
+                  </PublicBookingButton>
+                  <PublicAiButton className="outline-button">Hỏi trợ lý triệu chứng</PublicAiButton>
+                </div>
               </div>
             </article>
+
+            <section className="resource-panel resource-panel--wide">
+              <div className="section-heading">
+                <div>
+                  <p className="section-note">Cách chọn gói khám</p>
+                  <h2>Ba bước trước khi xác nhận</h2>
+                </div>
+              </div>
+              <div className="resource-steps resource-steps--grid">
+                {PACKAGE_DETAIL_STEPS.map(([number, title, description]) => (
+                  <div className="resource-step-card" key={number}>
+                    <span>{number}</span>
+                    <strong>{title}</strong>
+                    <p>{description}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
 
             <div className={packageVisualStyles.detailSections}>
               <section className={packageVisualStyles.detailPanel}>

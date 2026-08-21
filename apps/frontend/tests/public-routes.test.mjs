@@ -130,6 +130,18 @@ test("packages page now behaves like a selection hub", async () => {
   assert.match(packages, /catalogGuide/);
 });
 
+test("package detail page now behaves like a package detail hub", async () => {
+  const packageDetail = await read("app/packages/[slug]/page.tsx");
+
+  assert.match(packageDetail, /PublicAiButton/);
+  assert.match(packageDetail, /PublicBookingButton/);
+  assert.match(packageDetail, /resource-panel--wide/);
+  assert.match(packageDetail, /resource-step-card/);
+  assert.match(packageDetail, /PACKAGE_DETAIL_STEPS/);
+  assert.match(packageDetail, /packageId: item\.id/);
+  assert.match(packageDetail, /detailCredit/);
+});
+
 test("specialties page now behaves like a choice-and-triage hub", async () => {
   const specialties = await read("app/specialties/page.tsx");
 
