@@ -64,7 +64,7 @@ test("authenticated search augments bounded keyword results with related content
   assert.match(api, /fetchSemanticSearch/);
   assert.match(api, /\/ai\/search/);
   assert.match(search, /fetchSemanticSearch/);
-  assert.match(search, /readAuthSession/);
+  assert.match(search, /useAuthSession/);
   assert.match(search, /semantic\.results/);
   assert.match(search, /semanticSourceLabel/);
 });
