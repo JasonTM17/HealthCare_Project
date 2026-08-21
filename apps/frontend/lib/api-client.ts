@@ -159,6 +159,10 @@ async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
 
 const AUTH_STORAGE_KEY = "healthcare.auth.session";
 const AUTH_CHANGE_EVENT = "healthcare-auth-session-change";
+let authSessionSnapshotCache: { raw: string | null; session: AuthSession | null } = {
+  raw: null,
+  session: null,
+};
 
 function notifyAuthSessionChange(): void {
   if (typeof window !== "undefined") {
@@ -182,7 +186,12 @@ export function readAuthSession(): AuthSession | null {
   if (typeof window === "undefined") return null;
 
   const raw = window.sessionStorage.getItem(AUTH_STORAGE_KEY);
-  if (!raw) return null;
+  if (raw === authSessionSnapshotCache.raw) return authSessionSnapshotCache.session;
+  authSessionSnapshotCache.raw = raw;
+  if (!raw) {
+    authSessionSnapshotCache.session = null;
+    return null;
+  }
 
   try {
     const parsed = JSON.parse(raw) as Partial<AuthSession>;
@@ -193,17 +202,22 @@ export function readAuthSession(): AuthSession | null {
       typeof parsed.expiresIn !== "number" ||
       !isAuthUser(parsed.user)
     ) {
+      authSessionSnapshotCache.session = null;
       return null;
     }
-    return parsed as AuthSession;
+    authSessionSnapshotCache.session = parsed as AuthSession;
+    return authSessionSnapshotCache.session;
   } catch {
+    authSessionSnapshotCache.session = null;
     return null;
   }
 }
 
 export function storeAuthSession(session: AuthSession): void {
   if (typeof window !== "undefined") {
-    window.sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
+    const raw = JSON.stringify(session);
+    window.sessionStorage.setItem(AUTH_STORAGE_KEY, raw);
+    authSessionSnapshotCache = { raw, session };
     notifyAuthSessionChange();
   }
 }
@@ -211,6 +225,7 @@ export function storeAuthSession(session: AuthSession): void {
 export function clearAuthSession(): void {
   if (typeof window !== "undefined") {
     window.sessionStorage.removeItem(AUTH_STORAGE_KEY);
+    authSessionSnapshotCache = { raw: null, session: null };
     notifyAuthSessionChange();
   }
 }
