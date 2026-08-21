@@ -131,6 +131,17 @@ test("homepage presents AI companion as a safe first-class care service", async 
   assert.match(styles, /min-height: 48px/);
 });
 
+test("services list opens with a clear care-intent hero", async () => {
+  const services = await read("app/services/page.tsx");
+
+  assert.match(services, /resource-hero-card--teal/);
+  assert.match(services, /SERVICE_INTENTS/);
+  assert.match(services, /Trao đổi nhu cầu và đặt lịch/);
+  assert.match(services, /Xem gói khám liên quan/);
+  assert.match(services, /resource-steps--grid/);
+  assert.match(services, /ClinicalIcon name="service"/);
+});
+
 test("CMS booking CTA has a real landing route and public chrome avoids invented hotlines", async () => {
   const [booking, navbar, footer, home, seed, largeSeed] = await Promise.all([
     read("app/dat-lich/page.tsx"),
