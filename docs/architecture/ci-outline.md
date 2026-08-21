@@ -7,11 +7,13 @@ review.
 
 ## Workflow Gates
 
-1. Backend service containers provide PostgreSQL 16 and MinIO. `mvn -B verify`
-   runs from `apps/backend` with the CI database variables and an explicit
-   cleanup opt-in for the dedicated `healthcare_test` database, so Flyway
-   migration tests and the Spring integration suite exercise that PostgreSQL
-   service.
+1. Backend service containers provide PostgreSQL 16 and MinIO. The workflow
+   warms the Maven wrapper with a bounded `./mvnw -B -v` retry before the test
+   gate, so a transient Maven distribution download failure does not mark the
+   commit red before tests start. `mvn -B verify` still runs once from
+   `apps/backend` with the CI database variables and an explicit cleanup opt-in
+   for the dedicated `healthcare_test` database, so Flyway migration tests and
+   the Spring integration suite exercise that PostgreSQL service.
    `TestcontainersIntegrationTest` is currently a backwards-compatible test
    base-class alias; it does not start a Java Testcontainers container.
    Successful verification uploads the generated backend JAR as a short-lived
