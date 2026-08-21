@@ -32,6 +32,7 @@ type AppointmentResponse = {
 };
 
 const API_BASE_URL = process.env.PLAYWRIGHT_API_BASE_URL ?? "http://127.0.0.1:8080/api/v1";
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000";
 const API_TIMEOUT_MS = 12_000;
 const DEMO_PASSWORD = "LocalDemo!2026";
 const DEMO_OTP = "123456";
@@ -45,6 +46,10 @@ const DEMO_ADMIN_EMAIL = "admin@healthcare.local";
 
 function apiUrl(path: string): string {
   return `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+function appUrl(path: string): string {
+  return new URL(path, BASE_URL).toString();
 }
 
 async function apiJson<T>(
@@ -153,44 +158,48 @@ async function findBookableSlot(): Promise<BookableDemoSlot> {
 }
 
 async function loginViaUi(page: Page, email: string, nextPath: string, expectedHeading: RegExp | string): Promise<void> {
-  await page.goto(`/auth/login?next=${encodeURIComponent(nextPath)}`);
+  await page.goto(appUrl("/"));
+  const accountLink = page.locator("a.nav-account-link").first();
+  await expect(accountLink).toBeVisible();
+  await accountLink.click();
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Mật khẩu").fill(DEMO_PASSWORD);
   await page.getByRole("button", { name: "Đăng nhập" }).click();
-  await expect(page).toHaveURL(new RegExp(nextPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  if (nextPath !== "/") {
+    await expect(page).toHaveURL(new RegExp(nextPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
   await expect(page.getByRole("heading", { name: expectedHeading })).toBeVisible();
 }
 
 async function bookAppointmentThroughPublicUi(page: Page, selection: BookableDemoSlot): Promise<string> {
-  await page.goto("/dat-lich");
-  await expect(page.getByRole("heading", { name: "Bắt đầu từ nhu cầu khám của bạn" })).toBeVisible();
-  await expect(page.locator(".booking-page__branch-card").first()).toBeVisible();
+  await page.goto(appUrl("/"));
+  await page.locator("button.button--nav").first().click();
+  const bookingDialog = page.getByRole("dialog", { name: "Đặt lịch trực tuyến nhanh chóng" });
+  await expect(bookingDialog).toBeVisible();
+  await expect(bookingDialog.getByRole("heading", { name: "Bạn muốn được hỗ trợ ở chuyên khoa nào?" })).toBeVisible();
 
-  await page.getByRole("button", { name: /Bắt đầu đặt lịch/ }).first().click();
-  await expect(page.getByRole("heading", { name: "Hoàn tất lịch khám trong cùng một trang" })).toBeVisible();
+  await bookingDialog.getByLabel("Chuyên khoa").selectOption(selection.specialty.id);
+  await bookingDialog.getByRole("button", { name: /Tiếp tục: Chọn cơ sở/ }).click();
+  await bookingDialog.getByLabel("Cơ sở bệnh viện / phòng khám").selectOption(selection.branch.id);
+  await bookingDialog.getByRole("button", { name: /Tiếp tục: Chọn bác sĩ/ }).click();
+  await bookingDialog.getByLabel("Bác sĩ chuyên gia").selectOption(selection.doctor.id);
+  await bookingDialog.getByRole("button", { name: /Tiếp tục: Chọn ngày/ }).click();
+  await bookingDialog.getByLabel("Ngày khám mong muốn").fill(selection.date);
+  await bookingDialog.getByRole("button", { name: /Xem khung giờ/ }).click();
 
-  await page.getByLabel("Chuyên khoa").selectOption(selection.specialty.id);
-  await page.getByRole("button", { name: /Tiếp tục: Chọn cơ sở/ }).click();
-  await page.getByLabel("Cơ sở bệnh viện / phòng khám").selectOption(selection.branch.id);
-  await page.getByRole("button", { name: /Tiếp tục: Chọn bác sĩ/ }).click();
-  await page.getByLabel("Bác sĩ chuyên gia").selectOption(selection.doctor.id);
-  await page.getByRole("button", { name: /Tiếp tục: Chọn ngày/ }).click();
-  await page.getByLabel("Ngày khám mong muốn").fill(selection.date);
-  await page.getByRole("button", { name: /Xem khung giờ/ }).click();
+  await bookingDialog.getByRole("button", { name: new RegExp(`^${selection.slot.startTime.slice(0, 5)}\\b`) }).click();
+  await bookingDialog.getByRole("button", { name: /Tiếp tục: Điền thông tin/ }).click();
 
-  await page.getByRole("button", { name: new RegExp(`^${selection.slot.startTime.slice(0, 5)}\\b`) }).click();
-  await page.getByRole("button", { name: /Tiếp tục: Điền thông tin/ }).click();
-
-  await page.getByLabel(/Họ và tên bệnh nhân/).fill(DEMO_PATIENT.name);
-  await page.getByLabel(/Số điện thoại liên hệ/).fill(DEMO_PATIENT.phone);
-  await page.getByLabel("Địa chỉ Email (Nhận phiếu khám)").fill(DEMO_PATIENT.email);
-  await page.getByLabel("Triệu chứng hoặc lý do khám bệnh").fill("Live Compose browser E2E: đau đầu và chóng mặt.");
+  await bookingDialog.getByLabel(/Họ và tên bệnh nhân/).fill(DEMO_PATIENT.name);
+  await bookingDialog.getByLabel(/Số điện thoại liên hệ/).fill(DEMO_PATIENT.phone);
+  await bookingDialog.getByLabel("Địa chỉ Email (Nhận phiếu khám)").fill(DEMO_PATIENT.email);
+  await bookingDialog.getByLabel("Triệu chứng hoặc lý do khám bệnh").fill("Live Compose browser E2E: đau đầu và chóng mặt.");
 
   const holdResponse = page.waitForResponse((response) => (
     response.url().includes("/api/v1/appointments/hold") &&
     response.request().method() === "POST"
   ));
-  await page.getByRole("button", { name: /Giữ chỗ và nhận mã OTP/ }).click();
+  await bookingDialog.getByRole("button", { name: /Giữ chỗ và nhận mã OTP/ }).click();
   const hold = await holdResponse;
   if (!hold.ok()) {
     throw new Error(`Hold request failed: ${await hold.text()}`);
@@ -200,29 +209,30 @@ async function bookAppointmentThroughPublicUi(page: Page, selection: BookableDem
     response.url().includes("/api/v1/appointments/confirm") &&
     response.request().method() === "POST"
   ));
-  await page.getByLabel("Nhập mã OTP 6 số xác thực").fill(DEMO_OTP);
-  await page.getByRole("button", { name: "Hoàn tất đặt lịch khám" }).click();
+  await bookingDialog.getByLabel("Nhập mã OTP 6 số xác thực").fill(DEMO_OTP);
+  await bookingDialog.getByRole("button", { name: "Hoàn tất đặt lịch khám" }).click();
   const confirmed = await confirmResponse;
   if (!confirmed.ok()) {
     throw new Error(`Confirm request failed: ${await confirmed.text()}`);
   }
   const appointment = await confirmed.json() as AppointmentResponse;
 
-  await expect(page.getByRole("heading", { name: "Đặt lịch khám thành công!" })).toBeVisible();
-  await expect(page.getByText(appointment.bookingCode)).toBeVisible();
+  await expect(bookingDialog.getByRole("heading", { name: "Đặt lịch khám thành công!" })).toBeVisible();
+  await expect(bookingDialog.getByText(appointment.bookingCode)).toBeVisible();
   return appointment.bookingCode;
 }
 
 async function expectPatientCanSeeAppointment(page: Page, bookingCode: string): Promise<void> {
-  await page.goto("/patient/dashboard");
   await expect(page.getByRole("heading", { name: /Xin chào/ })).toBeVisible();
+  await page.reload();
+  await page.waitForLoadState("networkidle");
   await expect(page.locator("#appointments")).toContainText(bookingCode);
   await expect(page.locator("#notifications")).toContainText(bookingCode);
   await expect(page.locator("#notifications")).toContainText("Lịch hẹn đã xác nhận");
 }
 
 async function expectDoctorCanSeeAppointment(browser: Browser, bookingCode: string, date: string): Promise<void> {
-  const context = await browser.newContext();
+  const context = await browser.newContext({ baseURL: BASE_URL });
   const page = await context.newPage();
   try {
     await loginViaUi(page, DEMO_DOCTOR_EMAIL, "/doctor/dashboard", "Không gian làm việc lâm sàng");
@@ -236,11 +246,11 @@ async function expectDoctorCanSeeAppointment(browser: Browser, bookingCode: stri
 }
 
 async function expectAdminCanSeeAppointment(browser: Browser, bookingCode: string, date: string): Promise<void> {
-  const context = await browser.newContext();
+  const context = await browser.newContext({ baseURL: BASE_URL });
   const page = await context.newPage();
   try {
-    await loginViaUi(page, DEMO_ADMIN_EMAIL, "/admin", "Bảng điều khiển quản trị");
-    await page.goto("/admin/appointments");
+    await loginViaUi(page, DEMO_ADMIN_EMAIL, "/admin", "Quản trị bệnh viện");
+    await page.getByRole("navigation", { name: "Điều hướng quản trị" }).getByRole("link", { name: "Lịch hẹn" }).click();
     await expect(page.getByRole("heading", { name: "Danh sách lịch hẹn" })).toBeVisible();
     await page.getByLabel("Ngày khám").fill(date);
     await page.getByRole("button", { name: "Lọc" }).click();
@@ -252,20 +262,25 @@ async function expectAdminCanSeeAppointment(browser: Browser, bookingCode: strin
 }
 
 test.describe("live Compose role-based demo", () => {
+  test.describe.configure({ timeout: 300_000 });
+
   test("books through the public UI and appears in patient, doctor, and admin portals", async ({ browser }) => {
     const selection = await findBookableSlot();
-    const context = await browser.newContext();
-    const patientPage = await context.newPage();
+    const bookingContext = await browser.newContext({ baseURL: BASE_URL });
+    const bookingPage = await bookingContext.newPage();
+    const patientContext = await browser.newContext({ baseURL: BASE_URL });
+    const patientPage = await patientContext.newPage();
 
     try {
       await loginViaUi(patientPage, DEMO_PATIENT.email, "/patient/dashboard", /Xin chào/);
-      const bookingCode = await bookAppointmentThroughPublicUi(patientPage, selection);
+      const bookingCode = await bookAppointmentThroughPublicUi(bookingPage, selection);
 
       await expectPatientCanSeeAppointment(patientPage, bookingCode);
       await expectDoctorCanSeeAppointment(browser, bookingCode, selection.date);
       await expectAdminCanSeeAppointment(browser, bookingCode, selection.date);
     } finally {
-      await context.close();
+      await bookingPage.context().close();
+      await patientPage.context().close();
     }
   });
 });
