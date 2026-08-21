@@ -45,13 +45,17 @@ constraint.
 Public responses use `Cache-Control: no-store`. The backend's small in-process
 published snapshot cache is evicted and the SSE event is broadcast from an
 `AFTER_COMMIT` transaction listener, including rollback because rollback creates
-a new committed version. When `CMS_DISTRIBUTED_REALTIME_ENABLED=true`, the same
-post-commit metadata is fanned out through Redis Pub/Sub to every backend
-instance; the origin instance ignores its own broker echo. Redis carries only a
-low-latency wake-up signal, never the content body or authoritative state: a
-remote subscriber resolves the broker `eventId` back to a public
-`cms_content_changes` row and then emits canonical metadata from PostgreSQL.
-PostgreSQL's durable `cms_content_changes` cursor remains the source for
+a new committed version. CMS mutations acquire a PostgreSQL advisory
+transaction lock before writing content or change rows, so the durable
+`cms_content_changes` cursor is allocated and committed in one serialized
+publication lane rather than by racing admin transactions on separate slots.
+When `CMS_DISTRIBUTED_REALTIME_ENABLED=true`, the same post-commit metadata is
+fanned out through Redis Pub/Sub to every backend instance; the origin instance
+ignores its own broker echo. Redis carries only a low-latency wake-up signal,
+never the content body or authoritative state: a remote subscriber resolves the
+broker `eventId` back to a public `cms_content_changes` row and then emits
+canonical metadata from PostgreSQL. PostgreSQL's durable `cms_content_changes`
+cursor remains the source for
 reconnect/replay, and the SSE heartbeat includes the latest durable event
 cursor so the frontend can reconcile a missed broker event even while the SSE
 connection remains open.

@@ -17,11 +17,14 @@ import com.healthcare.exception.DuplicateResourceException;
 import com.healthcare.exception.BusinessException;
 import com.healthcare.exception.ResourceNotFoundException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.ConnectionCallback;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import java.sql.PreparedStatement;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -30,10 +33,13 @@ import java.util.Optional;
 @Service
 public class CmsContentService {
 
+    static final long PUBLICATION_CURSOR_LOCK_KEY = 0x48434d5353450101L;
+
     private final CmsContentRepository contentRepository;
     private final CmsContentChangeRepository changeRepository;
     private final CmsPayloadValidator payloadValidator;
     private final CmsPublishedContentCache cache;
+    private final JdbcTemplate jdbcTemplate;
     private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     public CmsContentService(
@@ -41,12 +47,14 @@ public class CmsContentService {
         CmsContentChangeRepository changeRepository,
         CmsPayloadValidator payloadValidator,
         CmsPublishedContentCache cache,
+        JdbcTemplate jdbcTemplate,
         org.springframework.context.ApplicationEventPublisher eventPublisher
     ) {
         this.contentRepository = contentRepository;
         this.changeRepository = changeRepository;
         this.payloadValidator = payloadValidator;
         this.cache = cache;
+        this.jdbcTemplate = jdbcTemplate;
         this.eventPublisher = eventPublisher;
     }
 
@@ -135,6 +143,7 @@ public class CmsContentService {
     @Transactional
     public CmsContentResponse upsert(String slotKey, CmsContentRequest request, UserDetails actor) {
         String validatedSlotKey = validateSlotKey(slotKey);
+        lockPublicationCursor();
         JsonNode sanitizedPayload = payloadValidator.validateAndSanitize(request.componentType(), request.payload());
         long expectedVersion = request.expectedVersion();
         CmsContent existing = contentRepository.findBySlotKey(validatedSlotKey).orElse(null);
@@ -268,6 +277,19 @@ public class CmsContentService {
             );
         }
         return slotKey;
+    }
+
+    private void lockPublicationCursor() {
+        jdbcTemplate.execute((ConnectionCallback<Void>) connection -> {
+            if (!"PostgreSQL".equalsIgnoreCase(connection.getMetaData().getDatabaseProductName())) {
+                return null;
+            }
+            try (PreparedStatement statement = connection.prepareStatement("select pg_advisory_xact_lock(?)")) {
+                statement.setLong(1, PUBLICATION_CURSOR_LOCK_KEY);
+                statement.execute();
+            }
+            return null;
+        });
     }
 
     private OffsetDateTime now() {
