@@ -1,6 +1,6 @@
 import type { SVGProps } from "react";
 
-export type ClinicalIconName = "branch" | "service" | "specialty";
+export type ClinicalIconName = "article" | "branch" | "service" | "specialty";
 
 interface ClinicalIconProps extends SVGProps<SVGSVGElement> {
   name: ClinicalIconName;
@@ -22,6 +22,16 @@ export function ClinicalIcon({ name, ...props }: ClinicalIconProps) {
     viewBox: "0 0 24 24",
     ...props,
   };
+
+  if (name === "article") {
+    return (
+      <svg {...common}>
+        <path d="M6.25 4.75h8.5a3 3 0 0 1 3 3v11.5h-9.5a2 2 0 0 0-2 2V4.75Z" />
+        <path d="M8.25 19.25V7.75a3 3 0 0 1 3-3" />
+        <path d="M11 9.5h4M11 13h4" />
+      </svg>
+    );
+  }
 
   if (name === "branch") {
     return (

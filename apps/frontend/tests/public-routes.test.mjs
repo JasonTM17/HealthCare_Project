@@ -29,6 +29,7 @@ test("paginated catalog routes clear stale pages before a retry", async () => {
     ["app/services/page.tsx", "setPage(null)"],
     ["app/packages/page.tsx", "setPage(null)"],
     ["app/branches/page.tsx", "setPage(null)"],
+    ["app/articles/page.tsx", "setPage(null)"],
   ];
 
   for (const [path, clearMarker] of routes) {
@@ -147,6 +148,22 @@ test("doctors page now behaves like a doctor selection hub", async () => {
   assert.match(doctors, /resource-step-card/);
   assert.match(doctors, /catalog-grid--doctors/);
   assert.match(doctors, /resource-chip-row/);
+});
+
+test("articles page now behaves like a health knowledge hub", async () => {
+  const [articles, icons] = await Promise.all([
+    read("app/articles/page.tsx"),
+    read("components/ClinicalIcon.tsx"),
+  ]);
+
+  assert.match(articles, /resource-hero-card--teal/);
+  assert.match(articles, /PublicAiButton/);
+  assert.match(articles, /PublicBookingButton/);
+  assert.match(articles, /resource-meta-grid/);
+  assert.match(articles, /resource-step-card/);
+  assert.match(articles, /catalog-grid--articles/);
+  assert.match(articles, /ClinicalIcon name="article"/);
+  assert.match(icons, /"article"/);
 });
 
 test("public phone actions validate backend values before creating tel links", async () => {
