@@ -32,6 +32,8 @@ test("branch list, detail, and homepage expose Google Maps without inventing an 
   assert.match(list, /<BranchMap/);
   assert.match(list, /address=\{address\}/);
   assert.match(list, /variant="link"/);
+  assert.match(list, /createGoogleMapsUrls/);
+  assert.doesNotMatch(list, /branch\.mapUrl/);
   assert.match(detail, /<BranchMap address=\{branch\.address\} branchName=\{branch\.name\} \/>/);
   assert.match(detail, /Vị trí trên Google Maps/);
   assert.doesNotMatch(detail, /branch\.mapUrl/);
@@ -41,6 +43,13 @@ test("branch list, detail, and homepage expose Google Maps without inventing an 
   assert.match(styles, /@media \(max-width: 480px\)/);
   assert.match(styles, /prefers-reduced-motion/);
   assert.doesNotMatch(styles, /gradient/);
+});
+
+test("contact page derives map links from branch addresses instead of raw map urls", async () => {
+  const contact = await read("app/contact/page.tsx");
+
+  assert.match(contact, /createGoogleMapsUrls/);
+  assert.doesNotMatch(contact, /branch\.mapUrl/);
 });
 
 test("branch loaders settle only the current request under Strict Mode cleanup", async () => {

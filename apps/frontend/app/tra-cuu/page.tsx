@@ -3,12 +3,18 @@
 import React, { useRef, useState } from "react";
 import Link from "next/link";
 import Icon from "../../components/UiIcon";
-import { PublicPageShell } from "../../components/PublicPageShell";
+import { PublicAiButton, PublicBookingButton, PublicPageShell } from "../../components/PublicPageShell";
 import useDialogFocus from "../../components/useDialogFocus";
 import { AppointmentDetails } from "../../types/hospital";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "/api/v1";
+
+const TRACKING_STEPS = [
+  ["01", "Nhập mã hẹn", "Dùng đúng mã được cấp sau khi đặt lịch thành công."],
+  ["02", "Xác thực điện thoại", "Nhập số điện thoại đã dùng khi đặt lịch để bảo vệ thông tin cá nhân."],
+  ["03", "Kiểm tra trạng thái", "Xem bác sĩ, cơ sở, khung giờ và các hướng dẫn cần xác nhận trước khi đến."],
+] as const;
 
 export default function TraCuuPage() {
   const [bookingCodeInput, setBookingCodeInput] = useState("");
@@ -102,26 +108,70 @@ export default function TraCuuPage() {
 
   return (
     <PublicPageShell>
-      <section className="py-12 px-4 sm:px-6 max-w-4xl mx-auto w-full">
+      <section className="resource-page section-inner">
         {/* Breadcrumb */}
-        <div className="text-xs text-ink-muted mb-6 flex items-center gap-2">
-          <Link href="/" className="hover:text-brand-700">Trang chủ</Link>
+        <div className="resource-breadcrumb">
+          <Link href="/">Trang chủ</Link>
           <span>/</span>
-          <span className="text-brand-900 font-semibold">Tra cứu lịch hẹn & Phiếu khám</span>
+          <span>Tra cứu lịch hẹn & Phiếu khám</span>
         </div>
 
         {/* Page Header */}
-        <div className="text-center mb-8">
-          <span className="text-xs uppercase tracking-widest font-bold text-brand-700">
-            CỔNG THÔNG TIN BỆNH NHÂN
-          </span>
-          <h1 className="text-3xl font-extrabold text-brand-950 mt-1 font-serif">
-            Tra Cứu Lịch Hẹn Trực Tuyến
-          </h1>
-          <p className="text-xs sm:text-sm text-ink-muted mt-2 max-w-xl mx-auto">
+        <header className="resource-page__header">
+          <p className="section-note">Cổng thông tin bệnh nhân</p>
+          <h1>Tra cứu lịch hẹn trực tuyến</h1>
+          <p>
             Nhập Mã lịch hẹn (được cấp khi đặt khám thành công) để xem trạng thái, phòng khám, bác sĩ phụ trách hoặc thay đổi lịch hẹn.
           </p>
-        </div>
+        </header>
+
+        <section className="resource-hero-card resource-hero-card--teal">
+          <div className="resource-icon" aria-hidden="true">
+            <Icon name="search" size={34} />
+          </div>
+          <div className="resource-hero-card__body">
+            <p className="resource-chip">Tra cứu & quản lý lịch</p>
+            <h2>Một nơi để kiểm tra mã hẹn, chuẩn bị trước khi đến và xử lý yêu cầu hủy khi đủ điều kiện.</h2>
+            <p className="resource-lead">
+              Thông tin hiển thị từ backend theo mã hẹn và số điện thoại; trang này không tạo phiếu demo thay thế khi hệ thống chưa có dữ liệu.
+            </p>
+            <div className="resource-actions">
+              <PublicBookingButton>Đặt lịch mới</PublicBookingButton>
+              <PublicAiButton className="outline-button outline-button--light">Hỏi trợ lý triệu chứng</PublicAiButton>
+              <Link className="outline-button outline-button--light" href="/huong-dan">
+                Xem hướng dẫn đặt khám
+              </Link>
+            </div>
+            <dl className="resource-meta-grid">
+              <div>
+                <dt>Dữ liệu yêu cầu</dt>
+                <dd>Mã hẹn + số điện thoại</dd>
+              </div>
+              <div>
+                <dt>Trạng thái hỗ trợ</dt>
+                <dd>Xác nhận, chờ xác nhận, đã hủy</dd>
+              </div>
+            </dl>
+          </div>
+        </section>
+
+        <section className="resource-panel resource-panel--wide">
+          <div className="section-heading">
+            <div>
+              <p className="section-note">Cách tra cứu an toàn</p>
+              <h2>Ba bước kiểm tra trước cuộc hẹn</h2>
+            </div>
+          </div>
+          <div className="resource-steps resource-steps--grid">
+            {TRACKING_STEPS.map(([number, title, description]) => (
+              <div className="resource-step-card" key={number}>
+                <span>{number}</span>
+                <strong>{title}</strong>
+                <p>{description}</p>
+              </div>
+            ))}
+          </div>
+        </section>
 
         {/* Search Card */}
         <div className="bg-white p-6 sm:p-8 rounded-2xl border border-mint-100 shadow-md mb-8">

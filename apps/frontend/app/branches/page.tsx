@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import BranchMap from "../../components/BranchMap";
+import BranchMap, { createGoogleMapsUrls } from "../../components/BranchMap";
 import ClinicalIcon from "../../components/ClinicalIcon";
 import { PublicAiButton, PublicBookingButton, PublicPageShell } from "../../components/PublicPageShell";
 import Icon from "../../components/UiIcon";
@@ -67,7 +67,8 @@ export default function BranchesPage() {
   const featuredBranch = branches.find((branch) => branch.emergencyHotline || branch.phone) ?? branches[0];
   const featuredPhone = featuredBranch?.emergencyHotline ?? featuredBranch?.phone ?? undefined;
   const featuredPhoneHref = safeTelephoneHref(featuredPhone);
-  const featuredMapHref = featuredBranch?.mapUrl ?? undefined;
+  const featuredAddress = featuredBranch?.address?.trim();
+  const featuredMapHref = featuredAddress ? createGoogleMapsUrls(featuredAddress, featuredBranch?.name).open : undefined;
 
   return (
     <PublicPageShell branches={page?.content ?? []}>

@@ -89,6 +89,19 @@ test("booking landing page now opens as a clear support-aware route", async () =
   assert.match(booking, /Liên hệ bệnh viện/);
 });
 
+test("appointment lookup page now behaves like a patient tracking hub", async () => {
+  const tracking = await read("app/tra-cuu/page.tsx");
+
+  assert.match(tracking, /resource-hero-card--teal/);
+  assert.match(tracking, /PublicBookingButton/);
+  assert.match(tracking, /PublicAiButton/);
+  assert.match(tracking, /resource-meta-grid/);
+  assert.match(tracking, /resource-step-card/);
+  assert.match(tracking, /TRACKING_STEPS/);
+  assert.match(tracking, /cache: "no-store"/);
+  assert.match(tracking, /encodeURIComponent/);
+});
+
 test("branches page now behaves like a network hub", async () => {
   const branches = await read("app/branches/page.tsx");
 

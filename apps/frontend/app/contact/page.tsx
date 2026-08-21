@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { createGoogleMapsUrls } from "../../components/BranchMap";
 import { fetchBranches, type Page } from "../../lib/api-client";
 import { safeTelephoneHref } from "../../lib/phone";
 import type { Branch } from "../../types/hospital";
@@ -53,7 +54,8 @@ export default function ContactPage() {
   const featuredBranch = branches.find((branch) => branch.emergencyHotline || branch.phone) ?? branches[0];
   const featuredPhone = featuredBranch?.emergencyHotline ?? featuredBranch?.phone ?? undefined;
   const featuredPhoneHref = safeTelephoneHref(featuredPhone);
-  const featuredMapHref = featuredBranch?.mapUrl ?? undefined;
+  const featuredAddress = featuredBranch?.address?.trim();
+  const featuredMapHref = featuredAddress ? createGoogleMapsUrls(featuredAddress, featuredBranch?.name).open : undefined;
   const branchCount = page?.totalElements ?? branches.length;
 
   return (
@@ -170,6 +172,8 @@ export default function ContactPage() {
               {page.content.map((branch) => {
                 const phoneHref = safeTelephoneHref(branch.phone);
                 const emergencyHref = safeTelephoneHref(branch.emergencyHotline);
+                const address = branch.address?.trim();
+                const mapHref = address ? createGoogleMapsUrls(address, branch.name).open : undefined;
                 return (
                   <article className="catalog-card" key={branch.id}>
                     <p className="section-note">{branch.workingHours ?? "Giờ làm việc đang được cập nhật."}</p>
@@ -206,8 +210,8 @@ export default function ContactPage() {
                           Gọi cấp cứu →
                         </a>
                       ) : null}
-                      {branch.mapUrl ? (
-                        <a className="text-button" href={branch.mapUrl}>
+                      {mapHref ? (
+                        <a className="text-button" href={mapHref}>
                           Xem bản đồ →
                         </a>
                       ) : null}
