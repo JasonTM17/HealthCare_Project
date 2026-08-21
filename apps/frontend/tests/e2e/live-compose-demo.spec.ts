@@ -254,8 +254,9 @@ async function expectAdminCanSeeAppointment(browser: Browser, bookingCode: strin
     await expect(page.getByRole("heading", { name: "Danh sách lịch hẹn" })).toBeVisible();
     await page.getByLabel("Ngày khám").fill(date);
     await page.getByRole("button", { name: "Lọc" }).click();
-    await expect(page.locator("table")).toContainText(bookingCode);
-    await expect(page.locator("table")).toContainText("CONFIRMED");
+    const appointmentRow = page.getByRole("row").filter({ hasText: bookingCode });
+    await expect(appointmentRow).toBeVisible();
+    await expect(appointmentRow).toContainText("CONFIRMED");
   } finally {
     await context.close();
   }
