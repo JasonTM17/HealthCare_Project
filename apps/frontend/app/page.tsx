@@ -55,6 +55,24 @@ const JOURNEY_STEPS: Array<{ icon: IconName; title: string; description: string 
   },
 ];
 
+const AI_COMPANION_STEPS: Array<{ icon: IconName; title: string; description: string }> = [
+  {
+    icon: "search",
+    title: "Chia sẻ điều bạn đang lo lắng",
+    description: "Gợi ý câu hỏi giúp bạn kể rõ cảm giác khó chịu, thời điểm bắt đầu và dấu hiệu đi kèm.",
+  },
+  {
+    icon: "brain",
+    title: "Đối chiếu với danh mục chuyên khoa hiện tại",
+    description: "Kết quả chỉ mở luồng đặt lịch khi hệ thống xác nhận đúng chuyên khoa trong danh mục.",
+  },
+  {
+    icon: "shield-check",
+    title: "Giữ ranh giới an toàn",
+    description: "AI luôn nhắc lại đây là thông tin tham khảo và chuyển hướng cấp cứu khi có dấu hiệu nguy hiểm.",
+  },
+];
+
 interface SectionHeadingProps {
   headingId?: string;
   title: string;
@@ -307,6 +325,93 @@ function HomeAssuranceStrip({
           <span className="hero-assurance__icon hero-assurance__icon--accent"><Icon name="phone" size={17} /></span>
           <span><strong>{hasEmergencyBranch ? "Hotline cấp cứu" : "Liên hệ cơ sở"}</strong><small>{contactPhone ?? "Số điện thoại đang cập nhật."}</small></span>
         </div>
+      </div>
+    </section>
+  );
+}
+
+function HomeAiCompanion({
+  specialtiesCount,
+  branchesCount,
+  contactHref,
+  contactPhone,
+  onBooking,
+  onOpenAi,
+}: {
+  specialtiesCount: number;
+  branchesCount: number;
+  contactHref?: string | null;
+  contactPhone?: string;
+  onBooking: () => void;
+  onOpenAi: () => void;
+}): React.ReactElement {
+  return (
+    <section className="section section--ai-companion" id="ai-companion" aria-labelledby="ai-companion-title">
+      <div className="section-inner ai-companion">
+        <div className="ai-companion__copy">
+          <p className="section-note">Trợ lý AI định hướng</p>
+          <h2 id="ai-companion-title">Một lớp hỏi nhanh trước khi bạn đặt lịch.</h2>
+          <p>
+            Lấy cảm hứng từ trải nghiệm đặt lịch rõ ràng của các bệnh viện hiện đại:
+            người bệnh có thể chia sẻ điều đang lo, nhận gợi ý chuyên khoa có kiểm chứng
+            từ danh mục hiện tại, rồi chuyển sang luồng đặt lịch đang có.
+          </p>
+          <div className="ai-companion__actions">
+            <button className="button button--amber" onClick={onOpenAi} type="button">
+              Hỏi trợ lý AI
+              <Icon name="activity" size={18} />
+            </button>
+            <button className="outline-button" onClick={onBooking} type="button">
+              Đặt lịch thủ công
+              <Icon name="calendar" size={18} />
+            </button>
+          </div>
+          <p className="ai-companion__privacy">
+            <Icon name="shield-check" size={16} />
+            Không nhập CCCD, mã BHYT hoặc dữ liệu quá riêng tư. AI không thay thế chẩn đoán của bác sĩ.
+          </p>
+        </div>
+
+        <aside className="ai-companion__panel" aria-label="Luồng trợ lý AI chọn chuyên khoa">
+          <div className="ai-companion__panel-header">
+            <span><Icon name="sparkles" size={22} /></span>
+            <div>
+              <strong>AI Specialty Navigator</strong>
+              <small>Kết nối danh mục hiện tại và luồng đặt lịch</small>
+            </div>
+          </div>
+          <ol className="ai-companion__steps">
+            {AI_COMPANION_STEPS.map((step) => (
+              <li key={step.title}>
+                <span className="ai-companion__step-icon"><Icon name={step.icon} size={18} /></span>
+                <span>
+                  <strong>{step.title}</strong>
+                  <small>{step.description}</small>
+                </span>
+              </li>
+            ))}
+          </ol>
+          <div className="ai-companion__stats" aria-label="Dữ liệu hỗ trợ trợ lý AI">
+            <span>
+              <strong>{specialtiesCount > 0 ? specialtiesCount : "..."}</strong>
+              <small>chuyên khoa</small>
+            </span>
+            <span>
+              <strong>{branchesCount > 0 ? branchesCount : "..."}</strong>
+              <small>cơ sở</small>
+            </span>
+            <span>
+              <strong>OTP</strong>
+              <small>xác nhận lịch</small>
+            </span>
+          </div>
+          {contactHref ? (
+            <a className="ai-companion__hotline" href={contactHref}>
+              <Icon name="phone" size={17} />
+              <span>Hotline hỗ trợ: {contactPhone}</span>
+            </a>
+          ) : null}
+        </aside>
       </div>
     </section>
   );
@@ -593,6 +698,15 @@ export default function Home(): React.ReactElement {
         </section>
 
         <CareExperience />
+
+        <HomeAiCompanion
+          branchesCount={branches.length}
+          contactHref={contactHref}
+          contactPhone={contactPhone}
+          onBooking={() => handleOpenBooking()}
+          onOpenAi={() => setIsAiTriageOpen(true)}
+          specialtiesCount={catalog?.specialties.length ?? 0}
+        />
 
         <section className="section section--specialties" id="specialties" aria-labelledby="specialties-title">
           <div className="section-inner">
