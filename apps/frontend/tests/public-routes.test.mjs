@@ -128,7 +128,8 @@ test("CMS booking CTA has a real landing route and public chrome avoids invented
   assert.doesNotMatch(booking, /bookingInitiallyOpen/);
   assert.match(booking, /booking-stage-grid/);
   assert.match(booking, /4 chặng chính/);
-  assert.match(booking, /Form đặt lịch chỉ mở khi bạn bấm bắt đầu/);
+  assert.match(booking, /BookingInlineExperience/);
+  assert.match(booking, /Form đặt lịch nằm ngay trên trang này/);
   assert.match(booking, /booking-page__sticky/);
   assert.match(seed, /ctaHref.*\/dat-lich/);
   for (const source of [navbar, footer, home]) assert.doesNotMatch(source, /1900\s*1234|contact@healthcare\.vn/);
