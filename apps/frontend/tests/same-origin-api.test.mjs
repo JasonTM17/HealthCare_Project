@@ -101,3 +101,14 @@ test("local MVP helper binds rebuilt application images to an immutable Git sour
     assert.match(dockerignore, /^\*\*\/\*\.pem$/m);
   }
 });
+
+test("database package includes the CMS slot-component migration", async () => {
+  const [databaseInit, migration] = await Promise.all([
+    read("../../infrastructure/database/init/01-healthcare-database.sh"),
+    read("../../apps/backend/src/main/resources/db/migration/V24__cms_slot_component_contract.sql"),
+  ]);
+
+  assert.match(databaseInit, /V24__cms_slot_component_contract\.sql/);
+  assert.match(migration, /ck_cms_contents_slot_component_type/);
+  assert.match(migration, /split_part\(slot_key, '\.', 2\) = 'hero' AND component_type = 'HERO'/);
+});

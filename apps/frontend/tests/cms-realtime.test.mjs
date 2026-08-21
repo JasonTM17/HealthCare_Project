@@ -62,6 +62,9 @@ test("CMS client matches the integrated slot-scoped typed contract", async () =>
 
   for (const marker of [
     "CMS_COMPONENT_TYPES",
+    "CMS_SLOT_COMPONENT_TYPES",
+    "cmsComponentTypesForSlot",
+    "isCmsComponentAllowedForSlot",
     "CmsContentInput",
     "getPublishedContent",
     "getAdminContent",
@@ -89,6 +92,9 @@ test("CMS client matches the integrated slot-scoped typed contract", async () =>
   assert.match(source, /status === 409.*conflict/s);
   assert.match(source, /expectedVersion: input\.expectedVersion/);
   assert.match(source, /homepage\.\$\{slotKey\}/);
+  assert.match(source, /hero:\s+\["HERO"\]/);
+  assert.match(source, /body:\s+\["RICH_TEXT", "CTA_BANNER", "NOTICE"\]/);
+  assert.match(source, /footer:\s+\["RICH_TEXT", "CTA_BANNER", "NOTICE"\]/);
 });
 
 test("CMS renderer is allowlisted and never interprets raw HTML", async () => {
@@ -338,4 +344,7 @@ test("admin editor exposes typed status/version and protected API states", async
   assert.match(source, /setHistoryLoading\(true\);[\s\S]*listHistory\(savedContent\.slotKey\)/);
   assert.match(source, /catch \(historyLoadError\)[\s\S]*setHistoryError\(apiErrorMessage/);
   assert.match(source, /setNotice\(`Đã rollback/);
+  assert.match(source, /cmsComponentTypesForSlot\(editableSlot\)/);
+  assert.match(source, /isCmsComponentAllowedForSlot\(editableSlot, componentType\)/);
+  assert.doesNotMatch(source, /CMS_COMPONENT_TYPES\.map/);
 });

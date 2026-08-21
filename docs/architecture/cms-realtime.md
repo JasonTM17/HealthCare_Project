@@ -72,7 +72,7 @@ multi-instance Redis fan-out.
 
 ## Migration ordering
 
-This checkout contains Flyway V1-V23 plus the `10.4` and `10.5` ordering
+This checkout contains Flyway V1-V24 plus the `10.4` and `10.5` ordering
 points. V10 enforces branch assignments, V10.4 first rejects a real zero-UUID
 branch and cancels expired holds, V10.5 then repairs overlapping legacy
 pending holds before V11 creates branch-aware scheduling constraints, V12 adds
@@ -82,9 +82,10 @@ detail content, V16 adds actor-aware CMS audit snapshots and rollback
 metadata, V17 enforces published article content, V18 hashes appointment
 OTPs, V19 adds secure stored-file metadata, V20 records appointment-reminder
 delivery, V21 expands patient profile details, V22 adds careers and job
-applications, and V23 constrains CMS slots to public route keys after a
+applications, V23 constrains CMS slots to public route keys after a
 preflight that reports any legacy private slots for explicit operator repair
-without deleting production CMS data. The separate
+without deleting production CMS data, and V24 binds component types to the
+public slot shapes that routes actually render. The separate
 `seed-local-careers.sql` fixture runs only after V22 so older migration tests can still exercise the base seed without
 referencing career tables. No migration rewrites an already-applied migration;
 do not renumber these migrations on the integration head.
