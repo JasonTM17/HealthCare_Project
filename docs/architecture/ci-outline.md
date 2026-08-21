@@ -1,8 +1,9 @@
 # CI Outline
 
 The repository has a committed GitHub Actions workflow at
-`.github/workflows/ci.yml`. Its definition is configuration evidence only; no
-CI run is claimed in the local handoff.
+`.github/workflows/ci.yml`. Its definition is configuration evidence only;
+actual run status belongs to the GitHub Actions run for the exact commit under
+review.
 
 ## Workflow Gates
 
@@ -15,9 +16,13 @@ CI run is claimed in the local handoff.
    base-class alias; it does not start a Java Testcontainers container.
    Successful verification uploads the generated backend JAR as a short-lived
    CI evidence artifact.
-2. Frontend runs install, lint, typecheck, the declared Node test suite, and
-   the production build from `apps/frontend`. Successful builds upload `.next`
-   as a short-lived CI evidence artifact, not as a production release.
+2. Frontend runs install, lint, typecheck, the declared Node test suite,
+   production build, and a Playwright CMS realtime browser gate from
+   `apps/frontend`. The browser gate drives the admin CMS editor and public
+   homepage against a mocked backend/SSE contract; it does not replace live
+   Compose E2E. Successful builds upload `.next` as a short-lived CI evidence
+   artifact, not as a production release. Playwright diagnostics upload only on
+   browser-test failure.
 3. AI service installs pinned dependencies and runs Ruff, mypy, and pytest from
    `apps/ai-service`.
 4. Infrastructure configuration is validated with
@@ -29,16 +34,13 @@ CI run is claimed in the local handoff.
    formats. Checkout credentials are not persisted into the job worktrees. The
    scan reports file paths only; it must not print secret values.
 
-## Local Evidence Boundary
+## Evidence Boundary
 
-The current local run observed backend 76/76 tests against disposable
-PostgreSQL 16.15 and MinIO services, frontend lint/typecheck/test/build, AI
-pytest 23/23 plus Ruff/mypy, and Compose config validation. Flyway applied the
-complete migration set present in that frozen parent checkout; the CI gate is
-not capped at V9 and must include V10/V11 when those migrations are present in
-the integration target. Hibernate validation passed. These are local checks,
-not evidence of a GitHub Actions run, deployment, image publication, or
-production readiness.
+Exact test counts and pass/fail status are run evidence, not evergreen
+architecture. Treat GitHub Actions, local terminal output, and package
+publication logs as the authority for a frozen commit. Green CI is not evidence
+of deployment, image publication, compliance, provider liveness, backup/restore,
+or production readiness.
 The backend integration base uses `TEST_DB_*` to target an external PostgreSQL
 service; Java Testcontainers execution is `NOT_RUN` unless a test explicitly
 starts a Testcontainers container. Local `actionlint` and `yamllint` were not

@@ -2,23 +2,23 @@
 
 ## Current Repository State
 
-Status: local MVP implementation is covered by code/build/unit/integration and
-static checks. Full PostgreSQL/MinIO Compose integration, live browser smoke,
-and role-by-role E2E execution remain pending until the local Docker engine is
-available. The repository contains the
+Status: local MVP implementation is covered by code/build/unit/integration,
+static checks, and a browser-level CMS realtime contract gate. Full live
+PostgreSQL/MinIO/Redis Compose browser E2E and role-by-role execution remain
+separate environment gates. The repository contains the
 backend, frontend, FastAPI AI/RAG service, infrastructure, CI, Flyway migrations,
 local role accounts, runbook, and regression tests.
 
-Evidence updated on 2026-08-18:
+Evergreen evidence owners:
 
-- Project instructions and AgentKit configuration exist: `AGENTS.md`,
-  `OPENCODE.md`, `.agentkit/config.yaml`.
+- Project instructions exist in `AGENTS.md` and `OPENCODE.md`; local AgentKit
+  runtime config may live outside tracked source.
 - Backend, frontend, AI service, Docker Compose, migrations, tests, and CI are
   present under `apps/`, `infrastructure/`, and `.github/workflows/`.
 - Git branch, commit, and remote claims are kept in the delivery handoff and are
   not inferred from this plan.
-- Local foundation checks pass, but no CI run, deployment, compliance, or
-  production-readiness claim follows from them.
+- CI workflow results are Actions evidence, not copied into this plan; no
+  deployment, compliance, or production-readiness claim follows from green CI.
 
 Current implementation phase: final environment-gated E2E verification. Admin
 operations now include authenticated appointment visibility in addition to
@@ -498,8 +498,9 @@ Rules:
 ### Phase 19 - UX Polish
 
 Status: `DONE` for MVP across public, auth, patient, doctor, admin and AI
-surfaces, with static responsive/accessibility coverage; live browser smoke
-remains an environment gate.
+surfaces, with static responsive/accessibility coverage. A Playwright gate
+covers the CMS admin-to-public homepage realtime path against a browser/mock
+backend contract; full live browser smoke remains an environment gate.
 
 Goal: make the demo coherent, responsive, and accessible.
 
@@ -531,11 +532,12 @@ Minimum checks:
 
 Status: `IN PROGRESS`. Source contracts and exact-SHA CI cover the local
 Compose configuration, PostgreSQL/Flyway seed, AI catalog sync, booking
-confirmation, role-scoped appointment APIs, and admin authorization. The
-same-day clinical verifier exercises the API counterparts of the booking,
-notification, appointment-status, record-creation, and own-patient record
-visibility steps, but still requires a genuine available slot on the day it
-runs. Browser, cross-patient runtime isolation, source/image identity,
+confirmation, role-scoped appointment APIs, admin authorization, and a mocked
+backend browser proof for CMS homepage realtime. The same-day clinical verifier
+exercises the API counterparts of the booking, notification,
+appointment-status, record-creation, and own-patient record visibility steps,
+but still requires a genuine available slot on the day it runs. Full live
+browser E2E, cross-patient runtime isolation, source/image identity,
 backup/restore, multi-instance, provider, and production gates remain separate.
 
 Goal: prove the primary story works end-to-end.
@@ -557,7 +559,9 @@ Demo flow:
 
 Run `scripts/verify-local-mvp.ps1 -RequireClinicalFlow` when a same-day local
 slot is available to exercise the API counterparts of steps 6 through 12
-without fabricating timestamps. It is not route-level browser E2E evidence.
+without fabricating timestamps. It is not full route-level browser E2E
+evidence; the committed Playwright browser gate is limited to the CMS
+admin-to-public homepage realtime contract.
 
 ## Completed Components
 
