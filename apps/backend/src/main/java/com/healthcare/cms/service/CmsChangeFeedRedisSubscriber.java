@@ -3,6 +3,8 @@ package com.healthcare.cms.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.healthcare.cms.config.CmsRealtimeProperties;
 import com.healthcare.cms.dto.CmsContentChangeResponse;
+import com.healthcare.cms.entity.CmsContentChange;
+import com.healthcare.cms.repository.CmsContentChangeRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -22,17 +24,20 @@ public class CmsChangeFeedRedisSubscriber implements MessageListener {
     private final CmsRealtimeProperties properties;
     private final CmsPublishedContentCache cache;
     private final CmsChangeFeedHub changeFeedHub;
+    private final CmsContentChangeRepository changeRepository;
 
     public CmsChangeFeedRedisSubscriber(
         ObjectMapper objectMapper,
         CmsRealtimeProperties properties,
         CmsPublishedContentCache cache,
-        CmsChangeFeedHub changeFeedHub
+        CmsChangeFeedHub changeFeedHub,
+        CmsContentChangeRepository changeRepository
     ) {
         this.objectMapper = objectMapper;
         this.properties = properties;
         this.cache = cache;
         this.changeFeedHub = changeFeedHub;
+        this.changeRepository = changeRepository;
     }
 
     @Override
@@ -49,14 +54,12 @@ public class CmsChangeFeedRedisSubscriber implements MessageListener {
                 log.warn("CMS realtime broker message was ignored because it failed structural validation");
                 return;
             }
-            cache.evict(change.slotKey());
-            changeFeedHub.publish(new CmsContentChangeResponse(
-                change.eventId(),
-                change.slotKey(),
-                change.version(),
-                change.published(),
-                change.updatedAt()
-            ));
+            changeRepository.findById(change.eventId())
+                .filter(CmsContentChange::isPublicEvent)
+                .filter(canonical -> CmsPublicSlotKeys.isAllowed(canonical.getSlotKey()))
+                .ifPresentOrElse(this::publishCanonicalChange, () ->
+                    log.warn("CMS realtime broker message was ignored because it did not match a public change")
+                );
         } catch (IOException | RuntimeException exception) {
             log.warn("CMS realtime broker message was ignored because it was invalid");
         }
@@ -64,10 +67,18 @@ public class CmsChangeFeedRedisSubscriber implements MessageListener {
 
     private boolean isValidBrokerChange(CmsChangeFeedRedisMessage change) {
         return change.eventId() > 0
-            && change.version() > 0
-            && change.updatedAt() != null
             && change.originInstanceId() != null
-            && !change.originInstanceId().isBlank()
-            && CmsPublicSlotKeys.isAllowed(change.slotKey());
+            && !change.originInstanceId().isBlank();
+    }
+
+    private void publishCanonicalChange(CmsContentChange change) {
+        cache.evict(change.getSlotKey());
+        changeFeedHub.publish(new CmsContentChangeResponse(
+            change.getId(),
+            change.getSlotKey(),
+            change.getContentVersion(),
+            change.isPublished(),
+            change.getChangedAt()
+        ));
     }
 }

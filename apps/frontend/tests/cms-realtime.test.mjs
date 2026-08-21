@@ -142,8 +142,12 @@ test("public live slot listens to named SSE changes and has polling fallback", a
   assert.match(liveSlot, /setContent\(null\);\s+setError\(null\);\s+setLoading\(true\);/);
   assert.match(liveSlot, /readGeneration !== refreshGeneration/);
   assert.match(liveSlot, /readReconciliationCursor/);
-  assert.match(liveSlot, /invalidateRefreshes\(\)/);
-  assert.match(liveSlot, /unpublish event is authoritative immediately/);
+  assert.match(liveSlot, /Treat unpublish events as wake-up hints too/);
+  assert.match(liveSlot, /refresh\(0, event\.eventId\)/);
+  assert.match(liveSlot, /result === "not-found"/);
+  assert.match(liveSlot, /latestVersion\.current = Math\.max\(latestVersion\.current, event\.version\)/);
+  assert.doesNotMatch(liveSlot, /unpublish event is authoritative immediately/);
+  assert.doesNotMatch(liveSlot, /latestVersion\.current = event\.version;\s+setContent\(null\);/);
   assert.match(liveSlot, /void refresh\(0, reconciliation\.latestEventId\)/);
   assert.match(liveSlot, /if \(!finishReconciliation\(event\.latestEventId\)\)/);
   assert.match(liveSlot, /reconciliation\.pendingEventIds\.size === 0/);
