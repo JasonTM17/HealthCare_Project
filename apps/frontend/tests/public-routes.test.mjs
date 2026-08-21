@@ -105,6 +105,23 @@ test("appointment lookup page now behaves like a patient tracking hub", async ()
   assert.match(tracking, /encodeURIComponent/);
 });
 
+test("search page now behaves like a guided discovery hub with bounded AI results", async () => {
+  const search = await read("app/search/SearchPageClient.tsx");
+
+  assert.match(search, /resource-hero-card--teal/);
+  assert.match(search, /PublicBookingButton/);
+  assert.match(search, /PublicAiButton/);
+  assert.match(search, /resource-meta-grid/);
+  assert.match(search, /SEARCH_GUIDE_STEPS/);
+  assert.match(search, /resource-step-card/);
+  assert.match(search, /Gợi ý mở rộng có provenance/);
+  assert.match(search, /semanticScoreLabel/);
+  assert.match(search, /citationLabel/);
+  assert.match(search, /Provenance AI/);
+  assert.match(search, /không thay thế tư vấn y khoa hoặc chẩn đoán/);
+  assert.equal(search.includes("href={`/${item.source_type}"), false);
+});
+
 test("branches page now behaves like a network hub", async () => {
   const branches = await read("app/branches/page.tsx");
 

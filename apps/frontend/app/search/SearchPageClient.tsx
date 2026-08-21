@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type FormEvent, type ReactElement } from "react";
-import { PublicBackLink, PublicBookingButton, PublicPageShell } from "../../components/PublicPageShell";
+import { PublicAiButton, PublicBackLink, PublicBookingButton, PublicPageShell } from "../../components/PublicPageShell";
 import Icon from "../../components/UiIcon";
 import {
   fetchArticles,
@@ -15,7 +15,7 @@ import {
   fetchSpecialties,
   readAuthSession,
 } from "../../lib/api-client";
-import type { Article, Doctor, HealthPackage, MedicalService, SemanticSearchResponse, Specialty } from "../../types/hospital";
+import type { AiTriageCitation, Article, Doctor, HealthPackage, MedicalService, SemanticSearchResponse, Specialty } from "../../types/hospital";
 
 interface SearchPageClientProps {
   initialQuery: string;
@@ -28,6 +28,12 @@ interface SearchCatalog {
   packages: HealthPackage[];
   articles: Article[];
 }
+
+const SEARCH_GUIDE_STEPS = [
+  ["01", "Nhập nhu cầu", "Gõ triệu chứng, tên chuyên khoa, tên bác sĩ, dịch vụ hoặc chủ đề sức khỏe bạn đang quan tâm."],
+  ["02", "Đọc kết quả chính thức", "Ưu tiên các thẻ có đường dẫn tới catalog công khai vì đây là dữ liệu active đã xuất bản."],
+  ["03", "Dùng AI như gợi ý mở rộng", "Kết quả semantic giúp mở thêm hướng tìm hiểu, không thay thế tư vấn y khoa hoặc chẩn đoán."],
+] as const;
 
 function normalize(value: string): string {
   return value.trim().toLocaleLowerCase("vi-VN");
@@ -51,6 +57,36 @@ function semanticSourceLabel(sourceType: SemanticSearchResponse["results"][numbe
     faq: "Hỏi đáp",
   };
   return labels[sourceType];
+}
+
+function semanticScoreLabel(score: number): string {
+  if (!Number.isFinite(score)) return "Độ phù hợp chưa xác định";
+  const normalizedScore = score <= 1 ? score * 100 : score;
+  const boundedScore = Math.max(0, Math.min(100, normalizedScore));
+  return `${Math.round(boundedScore)}% phù hợp`;
+}
+
+function scalarCitationLabel(value: Record<string, unknown>): string {
+  for (const key of ["title", "source", "label", "name", "id"]) {
+    const candidate = value[key];
+    if (typeof candidate === "string" && candidate.trim()) return candidate;
+  }
+
+  const scalarEntries = Object.entries(value).filter(
+    ([key, candidate]) =>
+      key !== "url" &&
+      (typeof candidate === "string" ||
+        typeof candidate === "number" ||
+        typeof candidate === "boolean"),
+  );
+
+  return scalarEntries.length > 0
+    ? scalarEntries.map(([key, candidate]) => `${key}: ${String(candidate)}`).join(" · ")
+    : "Nguồn tham khảo";
+}
+
+function citationLabel(citation: AiTriageCitation): string {
+  return typeof citation === "string" ? citation : scalarCitationLabel(citation);
 }
 
 function ResultSection({
@@ -156,6 +192,10 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
   const resultCount = result
     ? result.specialties.length + result.doctors.length + result.services.length + result.packages.length + result.articles.length
     : 0;
+  const hasAuthSession = Boolean(readAuthSession());
+  const catalogGroupCount = catalog
+    ? [catalog.specialties, catalog.doctors, catalog.services, catalog.packages, catalog.articles].filter((items) => items.length > 0).length
+    : 0;
 
   const submitSearch = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
@@ -180,6 +220,55 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
           <p>Tìm trong danh sách chuyên khoa, bác sĩ, dịch vụ, gói khám và cẩm nang sức khỏe.</p>
         </header>
 
+        <section className="resource-hero-card resource-hero-card--teal search-page__hero">
+          <div className="resource-icon" aria-hidden="true">
+            <Icon name="search" size={42} />
+          </div>
+          <div className="resource-hero-card__body">
+            <p className="resource-chip">Cổng tìm kiếm thống nhất</p>
+            <h2>Một ô tìm kiếm, hai lớp kiểm chứng.</h2>
+            <p className="resource-lead">
+              Catalog công khai đưa bạn tới đúng trang có thể đặt lịch; lớp AI chỉ mở rộng gợi ý khi đã đăng nhập
+              và luôn hiển thị ranh giới nguồn.
+            </p>
+            <div className="resource-actions">
+              <PublicBookingButton>Đặt lịch khám</PublicBookingButton>
+              <PublicAiButton className="outline-button outline-button--light">Hỏi trợ lý triệu chứng</PublicAiButton>
+              <Link className="outline-button outline-button--light" href="/huong-dan">
+                Xem hướng dẫn
+              </Link>
+            </div>
+            <dl className="resource-meta-grid">
+              <div>
+                <dt>Nhóm dữ liệu</dt>
+                <dd>{catalogGroupCount || "Đang tải"}/5</dd>
+              </div>
+              <div>
+                <dt>AI semantic</dt>
+                <dd>{hasAuthSession ? "Có phiên đăng nhập" : "Cần đăng nhập"}</dd>
+              </div>
+            </dl>
+          </div>
+        </section>
+
+        <section className="resource-panel resource-panel--wide search-page__guide">
+          <div className="section-heading">
+            <div>
+              <p className="section-note">Lộ trình tìm kiếm</p>
+              <h2>Từ từ khóa tới hành động an toàn</h2>
+            </div>
+          </div>
+          <div className="resource-steps resource-steps--grid">
+            {SEARCH_GUIDE_STEPS.map(([number, title, description]) => (
+              <div className="resource-step-card" key={number}>
+                <span>{number}</span>
+                <strong>{title}</strong>
+                <p>{description}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
         <form className="search-page__form" onSubmit={submitSearch}>
           <label htmlFor="search-page-input">Từ khóa</label>
           <div className="search-page__control">
@@ -192,23 +281,43 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
 
         {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải catalog tìm kiếm…</p> : null}
         {error ? <p className="catalog-status catalog-status--error" role="alert">{error} Không có dữ liệu tĩnh thay thế.</p> : null}
-        {!readAuthSession() && normalize(query) ? <p className="catalog-status">Đăng nhập để nhận thêm gợi ý nội dung liên quan đến nhu cầu của bạn.</p> : null}
+        {!hasAuthSession && normalize(query) ? <p className="catalog-status">Đăng nhập để nhận thêm gợi ý nội dung liên quan đến nhu cầu của bạn.</p> : null}
         {semanticLoading ? <p className="catalog-status catalog-status--loading" role="status">Đang tìm thêm nội dung liên quan…</p> : null}
         {semanticError ? <p className="catalog-status catalog-status--error" role="alert">{semanticError}</p> : null}
         {semantic?.results.length ? (
           <section className="search-results__section" aria-labelledby="semantic-results">
             <div className="section-heading search-results__heading">
-              <div><p className="section-note">Gợi ý mở rộng</p><h2 id="semantic-results">Có thể bạn cũng quan tâm</h2></div>
+              <div>
+                <p className="section-note">Gợi ý mở rộng có provenance</p>
+                <h2 id="semantic-results">Có thể bạn cũng quan tâm</h2>
+                <p className="search-results__assistive">
+                  Đây là gợi ý AI dựa trên tìm kiếm semantic. Hãy mở kết quả catalog chính thức hoặc đặt lịch để được xác nhận y khoa.
+                </p>
+              </div>
             </div>
             <div className="search-result-list">
               {semantic.results.map((item) => (
-                <article className="search-result" key={`${item.source_type}-${item.source_id}`}>
+                <article className="search-result search-result--semantic" key={`${item.source_type}-${item.source_id}`}>
                   <span className="resource-chip">{semanticSourceLabel(item.source_type)}</span>
                   <strong>{item.title}</strong>
                   <p>{item.content}</p>
+                  <dl className="semantic-result-meta">
+                    <div>
+                      <dt>Độ phù hợp</dt>
+                      <dd>{semanticScoreLabel(item.score)}</dd>
+                    </div>
+                    <div>
+                      <dt>Nguồn</dt>
+                      <dd>{citationLabel(item.citation)}</dd>
+                    </div>
+                  </dl>
                 </article>
               ))}
             </div>
+            <p className="search-results__provenance">
+              Provenance AI: {semantic.provenance || "Backend chưa trả về provenance."}
+              {semantic.specialty ? ` · Gợi ý chuyên khoa: ${semantic.specialty}` : ""}
+            </p>
           </section>
         ) : null}
         {!loading && !normalize(query) ? <section className="resource-panel resource-panel--accent"><h2>Nhập một từ khóa để bắt đầu</h2><p>Hệ thống sẽ lọc theo dữ liệu active đã xuất bản, sau đó đưa bạn về đúng trang chuyên khoa, bác sĩ hoặc nội dung.</p></section> : null}

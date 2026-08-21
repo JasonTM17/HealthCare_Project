@@ -1016,6 +1016,14 @@ main {
   margin: var(--sp-8) 0 var(--sp-12);
 }
 
+.search-page__hero {
+  margin-top: var(--sp-8);
+}
+
+.search-page__guide {
+  margin-top: var(--sp-8);
+}
+
 .search-page__form > label {
   display: block;
   margin-bottom: var(--sp-2);
@@ -1089,6 +1097,19 @@ main {
   text-wrap: balance;
 }
 
+.search-results__assistive {
+  max-width: 46rem;
+  margin: var(--sp-2) 0 0;
+  color: var(--color-ink-muted);
+  line-height: 1.6;
+}
+
+.search-results__provenance {
+  margin: var(--sp-4) 0 0;
+  color: var(--color-ink-muted);
+  font-size: 0.875rem;
+}
+
 .search-result-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1113,6 +1134,15 @@ main {
   transform: translateY(-0.125rem);
 }
 
+.search-result--semantic {
+  border-color: color-mix(in srgb, var(--color-teal-300) 48%, var(--color-line));
+  background: color-mix(in srgb, var(--color-mint) 42%, var(--color-paper-bright));
+}
+
+.search-result--semantic:hover {
+  transform: none;
+}
+
 .search-result strong {
   color: var(--color-teal-950);
   font-family: var(--font-display);
@@ -1129,6 +1159,33 @@ main {
 .search-result .button,
 .search-result .outline-button {
   justify-self: start;
+}
+
+.semantic-result-meta {
+  display: grid;
+  gap: var(--sp-2);
+  margin: var(--sp-3) 0 0;
+  padding-top: var(--sp-3);
+  border-top: 1px solid color-mix(in srgb, var(--color-line) 70%, transparent);
+}
+
+.semantic-result-meta div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.semantic-result-meta dt {
+  color: var(--color-teal-800);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.semantic-result-meta dd {
+  margin: 0;
+  color: var(--color-ink-muted);
+  font-size: 0.875rem;
 }
 
 @media (max-width: 760px) {
