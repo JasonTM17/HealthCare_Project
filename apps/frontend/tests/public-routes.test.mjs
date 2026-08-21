@@ -493,6 +493,10 @@ test("every public page family keeps the route-level CMS composition point", asy
   }
   assert.match(footer, /cmsSlug\?/);
   assert.match(footer, /slotKey="footer"/);
+  for (const href of ["/specialties", "/packages", "/doctors", "/branches"]) {
+    assert.match(footer, new RegExp(`href="${href}"`));
+  }
+  assert.doesNotMatch(footer, /href="\/#(?:specialties|packages|doctors|branches)"/);
 });
 
 test("CMS route inventory stays aligned across frontend admin, public shell, and backend", async () => {

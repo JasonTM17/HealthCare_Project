@@ -35,9 +35,9 @@ const Footer: React.FC<FooterProps> = ({ branches = [], cmsSlug }) => {
 
       <nav aria-label="Khám phá HealthCare" className="footer-column">
         <h2>Khám phá</h2>
-        <Link href="/#specialties">Chuyên khoa</Link>
-        <Link href="/#packages">Gói khám</Link>
-        <Link href="/#doctors">Đội ngũ bác sĩ</Link>
+        <Link href="/specialties">Chuyên khoa</Link>
+        <Link href="/packages">Gói khám</Link>
+        <Link href="/doctors">Đội ngũ bác sĩ</Link>
         <Link href="/articles">Cẩm nang sức khỏe</Link>
         <Link href="/careers">Cơ hội nghề nghiệp</Link>
       </nav>
@@ -47,7 +47,7 @@ const Footer: React.FC<FooterProps> = ({ branches = [], cmsSlug }) => {
         <Link href="/huong-dan">Hướng dẫn khám</Link>
         <Link href="/tra-cuu">Tra cứu lịch hẹn</Link>
         <Link href="/search">Tìm bác sĩ và dịch vụ</Link>
-        <Link href="/#branches">Cơ sở và giờ làm việc</Link>
+        <Link href="/branches">Cơ sở và giờ làm việc</Link>
         <Link href="/contact">Liên hệ bệnh viện</Link>
       </nav>
 
@@ -60,7 +60,7 @@ const Footer: React.FC<FooterProps> = ({ branches = [], cmsSlug }) => {
           <p>Thông tin điện thoại đang được cập nhật.</p>
         )}
         <p>{emergencyBranch ? `Tiếp nhận hỗ trợ tại ${emergencyBranch.name}.` : "Xem địa chỉ, giờ làm việc và kênh liên hệ của từng cơ sở."}</p>
-        <Link className="text-button text-button--light" href="/#branches">Xem cơ sở <Icon name="arrow-up-right" size={17} /></Link>
+        <Link className="text-button text-button--light" href="/branches">Xem cơ sở <Icon name="arrow-up-right" size={17} /></Link>
       </aside>
     </div>
 
