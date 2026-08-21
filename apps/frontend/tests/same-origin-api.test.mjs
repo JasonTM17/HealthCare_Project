@@ -18,6 +18,29 @@ test("public browser API clients use the same-origin proxy by default", async ()
   assert.match(cms, /process\.env\.NEXT_PUBLIC_API_BASE_URL \|\|\s+"\/api\/v1"/);
 });
 
+test("route-param API clients encode slug path segments before hitting backend routes", async () => {
+  const client = await read("lib/api-client.ts");
+
+  for (const route of ["doctors", "specialties", "branches", "packages", "articles", "services"]) {
+    assert.match(
+      client,
+      new RegExp(`/hospital/${route}/\\$\\{encodeURIComponent\\(slug\\)\\}`),
+      `public ${route} detail API must encode the slug path segment`,
+    );
+  }
+
+  for (const route of ["doctors", "specialties", "branches", "services", "packages", "articles"]) {
+    assert.match(
+      client,
+      new RegExp(`/admin/${route}/\\$\\{encodeURIComponent\\(slug\\)\\}`),
+      `admin ${route} mutation API must encode the slug path segment`,
+    );
+  }
+
+  assert.doesNotMatch(client, /\/hospital\/(?:doctors|specialties|branches|packages|articles|services)\/\$\{slug\}/);
+  assert.doesNotMatch(client, /\/admin\/(?:doctors|specialties|branches|services|packages|articles)\/\$\{slug\}/);
+});
+
 test("Compose routes same-origin frontend traffic through the backend service", async () => {
   const [compose, dockerfile, dockerignore, nextConfig] = await Promise.all([
     read("../../infrastructure/docker-compose.yml"),
