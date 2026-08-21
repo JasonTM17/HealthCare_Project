@@ -56,6 +56,13 @@ Bounded polling remains the fallback for failed reconciliation or SSE failures.
 Set a unique `CMS_INSTANCE_ID` per backend instance when deploying more than
 one replica. A full replay window falls back to a GET snapshot.
 
+The frontend CI includes a Playwright browser gate for the homepage
+admin-to-public CMS realtime path. That gate verifies browser orchestration,
+the admin editor contract, an open SSE stream, `afterEventId` reconciliation,
+DOM version update, and no main-frame reload against a mocked backend/SSE
+server. It does not prove the live PostgreSQL/Redis/MinIO Compose stack or
+multi-instance Redis fan-out.
+
 ## Migration ordering
 
 This checkout contains Flyway V1-V23 plus the `10.4` and `10.5` ordering

@@ -88,5 +88,7 @@ sections. The rich-content assertions continue to validate the V15 contracts,
 V22 adds the careers fixtures, and V23 constrains CMS slot keys to the same
 public route inventory exposed by `/admin/content`.
 
-This matrix does not claim browser, multi-instance, provider, backup/restore,
-or production deployment evidence. Those remain explicit acceptance gates.
+This matrix claims only the committed browser gate for the homepage CMS
+admin-to-public realtime contract. It does not claim full route-level live
+browser E2E, multi-instance, provider, backup/restore, or production deployment
+evidence. Those remain explicit acceptance gates.
