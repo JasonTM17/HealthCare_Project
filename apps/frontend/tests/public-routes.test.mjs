@@ -142,6 +142,19 @@ test("specialties page now behaves like a choice-and-triage hub", async () => {
   assert.match(specialties, /PublicBackLink/);
 });
 
+test("specialty detail page now behaves like a specialty detail hub", async () => {
+  const specialty = await read("app/specialties/[slug]/page.tsx");
+
+  assert.match(specialty, /resource-hero-card--teal/);
+  assert.match(specialty, /PublicAiButton/);
+  assert.match(specialty, /PublicBookingButton/);
+  assert.match(specialty, /resource-meta-grid/);
+  assert.match(specialty, /resource-step-card/);
+  assert.match(specialty, /SPECIALTY_STEPS/);
+  assert.match(specialty, /relatedDoctorCount/);
+  assert.match(specialty, /relatedDoctors/);
+});
+
 test("services page now behaves like a service selection hub", async () => {
   const services = await read("app/services/page.tsx");
 

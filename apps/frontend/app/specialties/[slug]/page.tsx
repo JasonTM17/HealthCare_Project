@@ -13,6 +13,12 @@ import {
   PublicPageShell,
 } from "../../../components/PublicPageShell";
 
+const SPECIALTY_STEPS = [
+  ["01", "Đối chiếu triệu chứng", "Xem nhóm dấu hiệu thường gặp để chuẩn bị câu hỏi trước khi khám."],
+  ["02", "Mở hồ sơ bác sĩ", "Chọn bác sĩ theo chuyên môn và cơ sở thuận tiện nhất với bạn."],
+  ["03", "Giữ khung giờ", "Đặt lịch theo chuyên khoa để hệ thống kiểm tra cơ sở và thời gian còn trống."],
+] as const;
+
 export default function SpecialtyDetailPage() {
   const params = useParams<{ slug: string }>();
   const [specialty, setSpecialty] = useState<Specialty | null>(null);
@@ -38,6 +44,10 @@ export default function SpecialtyDetailPage() {
     return () => { cancelled = true; };
   }, [params.slug]);
 
+  const symptomCount = specialty?.commonSymptoms?.length ?? 0;
+  const preparationCount = specialty?.preparationSteps?.length ?? 0;
+  const relatedDoctorCount = specialty?.relatedDoctors?.length ?? 0;
+
   return (
     <PublicPageShell>
       <div className="resource-page section-inner">
@@ -62,8 +72,23 @@ export default function SpecialtyDetailPage() {
               <p>{specialty.description || "Chuyên khoa chưa có phần mô tả chi tiết."}</p>
               <div className="resource-actions">
                 <PublicBookingButton selection={{ specialtyId: specialty.id }}>Đặt lịch theo chuyên khoa</PublicBookingButton>
+                <PublicAiButton className="outline-button outline-button--light">Hỏi trợ lý triệu chứng</PublicAiButton>
                 <Link className="outline-button outline-button--light" href={`/doctors?specialty=${encodeURIComponent(specialty.slug)}`}>Xem bác sĩ liên quan</Link>
               </div>
+              <dl className="resource-meta-grid">
+                <div>
+                  <dt>Triệu chứng tham khảo</dt>
+                  <dd>{symptomCount || "Đang cập nhật"}</dd>
+                </div>
+                <div>
+                  <dt>Bước chuẩn bị</dt>
+                  <dd>{preparationCount || "Đang cập nhật"}</dd>
+                </div>
+                <div>
+                  <dt>Bác sĩ liên quan</dt>
+                  <dd>{relatedDoctorCount || "Đang cập nhật"}</dd>
+                </div>
+              </dl>
             </div>
           </article>
         ) : null}
@@ -73,11 +98,15 @@ export default function SpecialtyDetailPage() {
             <section className="resource-panel">
               <p className="section-note">Hành trình chăm sóc</p>
               <h2>Từ triệu chứng tới cuộc hẹn</h2>
-              <ol className="resource-steps">
-                <li><strong>Mô tả điều bạn đang quan tâm</strong><span>AI chỉ gợi ý hướng, không chẩn đoán.</span></li>
-                <li><strong>Kiểm tra hồ sơ bác sĩ</strong><span>Chọn theo chuyên môn và cơ sở thuận tiện.</span></li>
-                <li><strong>Giữ khung giờ</strong><span>Hệ thống kiểm tra cơ sở và khung giờ trước khi xác nhận.</span></li>
-              </ol>
+              <div className="resource-steps resource-steps--grid">
+                {SPECIALTY_STEPS.map(([number, title, description]) => (
+                  <div className="resource-step-card" key={number}>
+                    <span>{number}</span>
+                    <strong>{title}</strong>
+                    <p>{description}</p>
+                  </div>
+                ))}
+              </div>
             </section>
             <section className="resource-panel resource-panel--accent">
               <p className="section-note">Bước tiếp theo</p>
