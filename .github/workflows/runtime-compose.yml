@@ -12,7 +12,6 @@ jobs:
     timeout-minutes: 45
     env:
       COMPOSE_PROJECT_NAME: healthcare-runtime-ci-${{ github.run_id }}
-      HEALTHCARE_RUNTIME_ENV: ${{ runner.temp }}/healthcare-runtime.env
     steps:
       - uses: actions/checkout@v4
         with:
@@ -23,11 +22,15 @@ jobs:
 
       - name: Start and verify full local MVP stack
         shell: pwsh
+        env:
+          HEALTHCARE_RUNTIME_ENV: ${{ runner.temp }}/healthcare-runtime.env
         run: ./scripts/start-and-verify-local-mvp.ps1 -EnvFile $env:HEALTHCARE_RUNTIME_ENV -DockerPath /usr/bin/docker
 
       - name: Collect Compose diagnostics
         if: failure()
         shell: pwsh
+        env:
+          HEALTHCARE_RUNTIME_ENV: ${{ runner.temp }}/healthcare-runtime.env
         run: |
           $composeArgs = @("compose")
           if (Test-Path -LiteralPath $env:HEALTHCARE_RUNTIME_ENV) {
@@ -40,6 +43,8 @@ jobs:
       - name: Stop Compose stack
         if: always()
         shell: pwsh
+        env:
+          HEALTHCARE_RUNTIME_ENV: ${{ runner.temp }}/healthcare-runtime.env
         run: |
           $composeArgs = @("compose")
           if (Test-Path -LiteralPath $env:HEALTHCARE_RUNTIME_ENV) {
