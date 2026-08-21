@@ -25,6 +25,14 @@ test("AI triage fails closed for emergency and unresolved specialty results", as
   assert.match(modal, /aria-live=\{result\.urgencyLevel === "EMERGENCY" \? "assertive" : "polite"\}/);
   assert.match(modal, /Xem cơ sở gần nhất/);
   assert.match(modal, /analysisRequestRef/);
+  assert.match(modal, /invalidatePendingAnalysis/);
+  assert.match(modal, /clearAnalysisState/);
+  assert.match(modal, /useEffect\(\(\) => \{/);
+  assert.match(modal, /if \(isOpen\) return;/);
+  assert.match(modal, /if \(!isOpen\) return null;/);
+  assert.match(modal, /closeDialog/);
+  assert.match(modal, /analysisRequestRef\.current \+= 1;/);
+  assert.match(modal, /setLastSubmittedSymptoms\(""\);/);
   assert.match(modal, /MAX_SYMPTOM_LENGTH = 1200/);
   assert.match(modal, /SYMPTOM_PROMPTS/);
   assert.match(modal, /triage-character-count/);

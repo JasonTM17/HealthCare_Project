@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ApiError, recommendSpecialty } from "../lib/api-client";
 import { safeTelephoneHref } from "../lib/phone";
 import type {
@@ -88,7 +88,31 @@ export default function AiTriageModal({
   const dialogRef = useRef<HTMLDivElement>(null);
   const analysisRequestRef = useRef(0);
 
-  useDialogFocus(dialogRef, isOpen, onClose);
+  const invalidatePendingAnalysis = () => {
+    analysisRequestRef.current += 1;
+  };
+
+  const clearAnalysisState = () => {
+    setLoading(false);
+    setResult(null);
+    setErrorKind(null);
+    setLastSubmittedSymptoms("");
+  };
+
+  const closeDialog = () => {
+    invalidatePendingAnalysis();
+    clearAnalysisState();
+    onClose();
+  };
+
+  useDialogFocus(dialogRef, isOpen, closeDialog);
+
+  useEffect(() => {
+    if (isOpen) return;
+    invalidatePendingAnalysis();
+    const resetTimer = window.setTimeout(clearAnalysisState, 0);
+    return () => window.clearTimeout(resetTimer);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -143,7 +167,7 @@ export default function AiTriageModal({
       && result.recommendedSpecialtyId
     ) {
       onSelectSpecialtyForBooking(result.recommendedSpecialty, result.recommendedSpecialtyId);
-      onClose();
+      closeDialog();
     }
   };
 
@@ -157,7 +181,7 @@ export default function AiTriageModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="ai-triage-title"
-      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
+      onMouseDown={(event) => { if (event.target === event.currentTarget) closeDialog(); }}
     >
       <div className="ai-triage-panel relative flex max-h-[92vh] w-full max-w-lg flex-col overflow-y-auto rounded-2xl border border-brand-100 bg-white shadow-2xl" ref={dialogRef}>
         <div className="ai-triage-panel__header flex items-center justify-between bg-brand-900 px-6 py-4 text-white">
@@ -174,7 +198,7 @@ export default function AiTriageModal({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={closeDialog}
             className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-200"
             aria-label="Đóng trợ lý triệu chứng"
           >
@@ -344,7 +368,7 @@ export default function AiTriageModal({
                     <Link
                       className="flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-red-300 bg-white px-5 py-2 text-xs font-bold text-red-800 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-300 focus-visible:ring-2 focus-visible:ring-red-500"
                       href="/branches"
-                      onClick={onClose}
+                      onClick={closeDialog}
                     >
                       Xem cơ sở gần nhất <Icon name="arrow-right" size={16} />
                     </Link>
@@ -366,7 +390,7 @@ export default function AiTriageModal({
                     <Link
                       className="flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-brand-300 bg-white px-5 py-2 text-xs font-bold text-brand-800 hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
                       href="/specialties"
-                      onClick={onClose}
+                      onClick={closeDialog}
                     >
                       Chọn trong danh mục <Icon name="arrow-right" size={16} />
                     </Link>
