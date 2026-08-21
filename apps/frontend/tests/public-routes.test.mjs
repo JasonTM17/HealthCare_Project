@@ -113,6 +113,18 @@ test("packages page now behaves like a selection hub", async () => {
   assert.match(packages, /catalogGuide/);
 });
 
+test("specialties page now behaves like a choice-and-triage hub", async () => {
+  const specialties = await read("app/specialties/page.tsx");
+
+  assert.match(specialties, /resource-hero-card--teal/);
+  assert.match(specialties, /PublicAiButton/);
+  assert.match(specialties, /PublicBookingButton/);
+  assert.match(specialties, /resource-meta-grid/);
+  assert.match(specialties, /resource-step-card/);
+  assert.match(specialties, /catalog-grid--specialties/);
+  assert.match(specialties, /PublicBackLink/);
+});
+
 test("public phone actions validate backend values before creating tel links", async () => {
   const sources = await Promise.all([
     read("lib/phone.ts"),
