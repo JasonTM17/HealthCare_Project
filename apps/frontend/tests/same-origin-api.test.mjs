@@ -112,3 +112,29 @@ test("database package includes the CMS slot-component migration", async () => {
   assert.match(migration, /ck_cms_contents_slot_component_type/);
   assert.match(migration, /split_part\(slot_key, '\.', 2\) = 'hero' AND component_type = 'HERO'/);
 });
+
+test("database publish workflow binds packages to a verified exact source SHA", async () => {
+  const workflow = await read("../../.github/workflows/publish-database.yml");
+
+  assert.match(workflow, /actions: read/);
+  assert.match(workflow, /source_ref:[\s\S]*required: true/);
+  assert.match(workflow, /git rev-parse HEAD/);
+  assert.match(workflow, /\^\[0-9a-f\]\{40\}\$/);
+  assert.match(workflow, /Checked out SHA \$source_sha does not match requested source_ref/);
+  assert.match(workflow, /sha-\$\{source_sha\}/);
+  assert.match(workflow, /gh run list --workflow ci\.yml --commit "\$SOURCE_SHA"/);
+  assert.match(workflow, /No successful ci\.yml run found for exact SHA \$SOURCE_SHA/);
+  assert.match(workflow, /docker build[\s\S]*--file infrastructure\/database\/Dockerfile/);
+  assert.match(workflow, /Initialize and verify database image/);
+  assert.match(workflow, /ck_cms_contents_slot_component_type/);
+  assert.match(workflow, /Invalid hero\/RICH_TEXT CMS row was accepted/);
+  assert.match(workflow, /docker push "\$tag"/);
+  assert.match(workflow, /echo "digest=\$digest" >> "\$GITHUB_OUTPUT"/);
+  assert.match(workflow, /subject-digest: \$\{\{ steps\.push\.outputs\.digest \}\}/);
+  assert.match(workflow, /actions\/attest-build-provenance@v4/);
+  assert.match(workflow, /actions\/attest-sbom@v4/);
+  assert.match(workflow, /push-to-registry: true/);
+  assert.doesNotMatch(workflow, /type=sha/);
+  assert.doesNotMatch(workflow, /docker\/metadata-action/);
+  assert.doesNotMatch(workflow, /docker\/build-push-action/);
+});

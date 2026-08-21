@@ -41,6 +41,14 @@ review.
    backend, frontend, and AI service with a disposable env file outside the
    repository, then stops the Compose project. This is live local-runtime
    evidence for the exact commit, not a production deployment.
+7. The separate `Publish database package` workflow builds the standalone GHCR
+   database fixture only from an exact 40-character source SHA. Before any
+   package write, it requires a successful `ci.yml` run for that same SHA,
+   builds the image locally, boots PostgreSQL from the image, verifies the large
+   fixture counts and CMS constraints, rejects an invalid hero/RICH_TEXT row,
+   then pushes the verified tags and attaches provenance plus a fixture SBOM to
+   the pushed digest. Manual releases should prefer the immutable `sha-<commit>`
+   tag; semantic tags are aliases, not source identity.
 
 ## Evidence Boundary
 
