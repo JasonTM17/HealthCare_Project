@@ -1,9 +1,37 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
+import { extname, join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 const root = new URL("../", import.meta.url);
+const rootPath = fileURLToPath(root);
 const read = (relativePath) => readFile(new URL(relativePath, root), "utf8");
+
+async function collectSourceFiles(directory, includePath = () => true, files = []) {
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    if (entry.name.startsWith(".") && entry.isDirectory()) {
+      continue;
+    }
+
+    const resolved = join(directory, entry.name);
+    const relativePath = relative(rootPath, resolved).replaceAll("\\", "/");
+    if (!includePath(relativePath)) {
+      continue;
+    }
+
+    if (entry.isDirectory()) {
+      await collectSourceFiles(resolved, includePath, files);
+      continue;
+    }
+
+    if ([".ts", ".tsx"].includes(extname(entry.name))) {
+      files.push(resolved);
+    }
+  }
+
+  return files;
+}
 
 test("public chrome and browser icon reuse the original shield-heart brand mark", async () => {
   const [mark, navbar, footer, icon] = await Promise.all([
@@ -59,4 +87,24 @@ test("footer uses readable inverse identity, landmark navigation and responsive 
   assert.match(styles, /\.brand-link--footer \.brand-copy strong/);
   assert.match(styles, /color: #ffffff/);
   assert.match(styles, /@media \(max-width: 640px\)/);
+});
+
+test("public frontend source does not render the reference hospital brand", async () => {
+  const [appFiles, componentFiles] = await Promise.all([
+    collectSourceFiles(
+      fileURLToPath(new URL("app", root)),
+      (relativePath) => !/^app\/(admin|api|auth|doctor|patient)(\/|$)/.test(relativePath),
+    ),
+    collectSourceFiles(fileURLToPath(new URL("components", root))),
+  ]);
+
+  const offenders = [];
+  for (const file of [...appFiles, ...componentFiles]) {
+    const source = await readFile(file, "utf8");
+    if (/Hoan My|Hoàn Mỹ|hoanmy/i.test(source)) {
+      offenders.push(relative(rootPath, file).replaceAll("\\", "/"));
+    }
+  }
+
+  assert.deepEqual(offenders, []);
 });

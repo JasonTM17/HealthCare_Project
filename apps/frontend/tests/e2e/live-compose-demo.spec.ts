@@ -1,6 +1,7 @@
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import { expect, test, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import { businessDate } from "../../lib/business-time";
 import type {
+  AppointmentDetails,
   AuthSession,
   Branch,
   Doctor,
@@ -27,10 +28,6 @@ type BookableDemoSlot = {
   specialty: Specialty;
 };
 
-type AppointmentResponse = {
-  bookingCode: string;
-};
-
 const API_BASE_URL = process.env.PLAYWRIGHT_API_BASE_URL ?? "http://127.0.0.1:8080/api/v1";
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000";
 const API_TIMEOUT_MS = 12_000;
@@ -43,6 +40,7 @@ const DEMO_PATIENT = {
 };
 const DEMO_DOCTOR_EMAIL = "doctor@healthcare.local";
 const DEMO_ADMIN_EMAIL = "admin@healthcare.local";
+const HYDRATION_ERROR_PATTERN = /hydration|hydration failed|text content does not match|minified react error|react has detected/i;
 
 function apiUrl(path: string): string {
   return `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
@@ -104,6 +102,42 @@ async function loginApi(email: string): Promise<AuthSession> {
     method: "POST",
     body: JSON.stringify({ email, password: DEMO_PASSWORD }),
   });
+}
+
+function monitorPageForBrowserIssues(page: Page, browserIssues: string[]): void {
+  page.on("pageerror", (error) => {
+    browserIssues.push(`pageerror: ${error.message}`);
+  });
+  page.on("console", (message) => {
+    if (message.type() !== "error") return;
+    const text = message.text();
+    if (HYDRATION_ERROR_PATTERN.test(text)) {
+      browserIssues.push(`console error: ${text}`);
+    }
+  });
+}
+
+async function newMonitoredPage(context: BrowserContext, browserIssues: string[]): Promise<Page> {
+  const page = await context.newPage();
+  monitorPageForBrowserIssues(page, browserIssues);
+  return page;
+}
+
+async function cleanupLiveAppointment(bookingCode: string): Promise<void> {
+  const cancelled = await apiJson<AppointmentDetails>(
+    `/appointments/${encodeURIComponent(bookingCode)}/cancel`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        phone: DEMO_PATIENT.phone,
+        reason: "Live Compose E2E cleanup after portal assertions.",
+      }),
+    },
+  );
+
+  if (cancelled.status !== "CANCELLED") {
+    throw new Error(`Cleanup for ${bookingCode} left the appointment in status ${cancelled.status}.`);
+  }
 }
 
 async function resolveDemoDoctor(): Promise<{ branch: Branch; doctor: Doctor; specialty: Specialty }> {
@@ -171,7 +205,7 @@ async function loginViaUi(page: Page, email: string, nextPath: string, expectedH
   await expect(page.getByRole("heading", { name: expectedHeading })).toBeVisible();
 }
 
-async function bookAppointmentThroughPublicUi(page: Page, selection: BookableDemoSlot): Promise<string> {
+async function bookAppointmentThroughPublicUi(page: Page, selection: BookableDemoSlot): Promise<AppointmentDetails> {
   await page.goto(appUrl("/"));
   await page.locator("button.button--nav").first().click();
   const bookingDialog = page.getByRole("dialog", { name: "Đặt lịch trực tuyến nhanh chóng" });
@@ -215,11 +249,11 @@ async function bookAppointmentThroughPublicUi(page: Page, selection: BookableDem
   if (!confirmed.ok()) {
     throw new Error(`Confirm request failed: ${await confirmed.text()}`);
   }
-  const appointment = await confirmed.json() as AppointmentResponse;
+  const appointment = await confirmed.json() as AppointmentDetails;
 
   await expect(bookingDialog.getByRole("heading", { name: "Đặt lịch khám thành công!" })).toBeVisible();
   await expect(bookingDialog.getByText(appointment.bookingCode)).toBeVisible();
-  return appointment.bookingCode;
+  return appointment;
 }
 
 async function expectPatientCanSeeAppointment(page: Page, bookingCode: string): Promise<void> {
@@ -231,9 +265,14 @@ async function expectPatientCanSeeAppointment(page: Page, bookingCode: string): 
   await expect(page.locator("#notifications")).toContainText("Lịch hẹn đã xác nhận");
 }
 
-async function expectDoctorCanSeeAppointment(browser: Browser, bookingCode: string, date: string): Promise<void> {
+async function expectDoctorCanSeeAppointment(
+  browser: Browser,
+  bookingCode: string,
+  date: string,
+  browserIssues: string[],
+): Promise<void> {
   const context = await browser.newContext({ baseURL: BASE_URL });
-  const page = await context.newPage();
+  const page = await newMonitoredPage(context, browserIssues);
   try {
     await loginViaUi(page, DEMO_DOCTOR_EMAIL, "/doctor/dashboard", "Không gian làm việc lâm sàng");
     await page.getByLabel("Ngày xem lịch").fill(date);
@@ -245,9 +284,14 @@ async function expectDoctorCanSeeAppointment(browser: Browser, bookingCode: stri
   }
 }
 
-async function expectAdminCanSeeAppointment(browser: Browser, bookingCode: string, date: string): Promise<void> {
+async function expectAdminCanSeeAppointment(
+  browser: Browser,
+  bookingCode: string,
+  date: string,
+  browserIssues: string[],
+): Promise<void> {
   const context = await browser.newContext({ baseURL: BASE_URL });
-  const page = await context.newPage();
+  const page = await newMonitoredPage(context, browserIssues);
   try {
     await loginViaUi(page, DEMO_ADMIN_EMAIL, "/admin", "Quản trị bệnh viện");
     await page.getByRole("navigation", { name: "Điều hướng quản trị" }).getByRole("link", { name: "Lịch hẹn" }).click();
@@ -267,19 +311,28 @@ test.describe("live Compose role-based demo", () => {
 
   test("books through the public UI and appears in patient, doctor, and admin portals", async ({ browser }) => {
     const selection = await findBookableSlot();
+    const browserIssues: string[] = [];
     const bookingContext = await browser.newContext({ baseURL: BASE_URL });
-    const bookingPage = await bookingContext.newPage();
+    const bookingPage = await newMonitoredPage(bookingContext, browserIssues);
     const patientContext = await browser.newContext({ baseURL: BASE_URL });
-    const patientPage = await patientContext.newPage();
+    const patientPage = await newMonitoredPage(patientContext, browserIssues);
+    let bookingCode: string | undefined;
 
     try {
       await loginViaUi(patientPage, DEMO_PATIENT.email, "/patient/dashboard", /Xin chào/);
-      const bookingCode = await bookAppointmentThroughPublicUi(bookingPage, selection);
+      const appointment = await bookAppointmentThroughPublicUi(bookingPage, selection);
+      bookingCode = appointment.bookingCode;
 
       await expectPatientCanSeeAppointment(patientPage, bookingCode);
-      await expectDoctorCanSeeAppointment(browser, bookingCode, selection.date);
-      await expectAdminCanSeeAppointment(browser, bookingCode, selection.date);
+      await expectDoctorCanSeeAppointment(browser, bookingCode, selection.date, browserIssues);
+      await expectAdminCanSeeAppointment(browser, bookingCode, selection.date, browserIssues);
+      await cleanupLiveAppointment(bookingCode);
+      bookingCode = undefined;
+      expect(browserIssues).toEqual([]);
     } finally {
+      if (bookingCode) {
+        await cleanupLiveAppointment(bookingCode).catch(() => undefined);
+      }
       await bookingPage.context().close();
       await patientPage.context().close();
     }

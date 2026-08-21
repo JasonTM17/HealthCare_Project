@@ -177,8 +177,8 @@ export default function BookingLandingPage() {
             <p className="section-note">Các cơ sở khám nổi bật</p>
             <h2 id="booking-branches-heading">Chọn cơ sở thuận tiện nhất trước khi vào form</h2>
             <p>
-              Giống cách Hoàn Mỹ trình bày mạng lưới cơ sở: địa chỉ, giờ làm việc, điện thoại và
-              đường dẫn chi tiết đều nằm ngay trong một card rõ ràng, dễ quét bằng mắt.
+              Trang này trình bày mạng lưới cơ sở theo cấu trúc rõ ràng: địa chỉ, giờ làm việc,
+              điện thoại và đường dẫn chi tiết đều nằm ngay trong một card dễ quét bằng mắt.
             </p>
           </div>
           {branchCardsLoading ? (
