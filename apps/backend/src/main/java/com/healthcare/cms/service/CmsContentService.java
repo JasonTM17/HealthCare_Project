@@ -9,6 +9,7 @@ import com.healthcare.cms.entity.CmsComponentType;
 import com.healthcare.cms.entity.CmsContent;
 import com.healthcare.cms.entity.CmsContentChange;
 import com.healthcare.cms.entity.CmsPublicationStatus;
+import com.healthcare.cms.exception.CmsPayloadValidationException;
 import com.healthcare.cms.exception.CmsVersionConflictException;
 import com.healthcare.cms.repository.CmsContentChangeRepository;
 import com.healthcare.cms.repository.CmsContentRepository;
@@ -143,8 +144,9 @@ public class CmsContentService {
     @Transactional
     public CmsContentResponse upsert(String slotKey, CmsContentRequest request, UserDetails actor) {
         String validatedSlotKey = validateSlotKey(slotKey);
-        lockPublicationCursor();
         JsonNode sanitizedPayload = payloadValidator.validateAndSanitize(request.componentType(), request.payload());
+        validateSlotComponent(validatedSlotKey, request.componentType());
+        lockPublicationCursor();
         long expectedVersion = request.expectedVersion();
         CmsContent existing = contentRepository.findBySlotKey(validatedSlotKey).orElse(null);
         boolean previouslyPublished = existing != null && existing.getStatus() == CmsPublicationStatus.PUBLISHED;
@@ -272,11 +274,19 @@ public class CmsContentService {
 
     private String validateSlotKey(String slotKey) {
         if (!CmsPublicSlotKeys.isAllowed(slotKey)) {
-            throw new com.healthcare.cms.exception.CmsPayloadValidationException(
+            throw new CmsPayloadValidationException(
                 "slotKey must target an allowed public CMS route and slot"
             );
         }
         return slotKey;
+    }
+
+    private void validateSlotComponent(String slotKey, CmsComponentType componentType) {
+        if (!CmsPublicSlotKeys.isComponentAllowed(slotKey, componentType)) {
+            throw new CmsPayloadValidationException(
+                "componentType " + componentType + " is not supported for CMS slot " + slotKey
+            );
+        }
     }
 
     private void lockPublicationCursor() {

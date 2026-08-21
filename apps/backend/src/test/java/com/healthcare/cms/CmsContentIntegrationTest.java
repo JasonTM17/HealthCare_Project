@@ -13,6 +13,7 @@ import com.healthcare.user.repository.RoleRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -119,6 +120,34 @@ class CmsContentIntegrationTest extends AbstractIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(singleBackslash))
             .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void adminCannotPublishAComponentThatPublicSlotWouldIgnore() throws Exception {
+        String wrongHero = request("RICH_TEXT", "PUBLISHED", 0,
+            "{\"title\":\"Wrong hero\",\"body\":\"Would be silently ignored by the careers hero\"}");
+
+        mockMvc.perform(put("/api/v1/admin/cms/content/careers.hero")
+                .header("Authorization", bearer("ADMIN"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(wrongHero))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString(
+                "componentType RICH_TEXT is not supported for CMS slot careers.hero"
+            )));
+
+        assertThat(cmsContentRepository.findBySlotKey("careers.hero")).isEmpty();
+        assertThat(changeRepository.findBySlotKeyOrderByIdDesc("careers.hero", PageRequest.of(0, 1))).isEmpty();
+
+        String supportedBody = request("CTA_BANNER", "PUBLISHED", 0,
+            "{\"title\":\"Hiring now\",\"body\":\"Apply safely\",\"ctaLabel\":\"Ứng tuyển\",\"ctaHref\":\"/careers#vi-tri-dang-tuyen\"}");
+        mockMvc.perform(put("/api/v1/admin/cms/content/careers.body")
+                .header("Authorization", bearer("ADMIN"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(supportedBody))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.slotKey").value("careers.body"))
+            .andExpect(jsonPath("$.componentType").value("CTA_BANNER"));
     }
 
     @Test
@@ -258,32 +287,32 @@ class CmsContentIntegrationTest extends AbstractIntegrationTest {
         String publish = request("RICH_TEXT", "PUBLISHED", 1, "{\"title\":\"Published title\",\"body\":\"Published body\"}");
         String unpublish = request("RICH_TEXT", "DRAFT", 2, "{\"title\":\"Published title\",\"body\":\"Published body\"}");
 
-        mockMvc.perform(put("/api/v1/admin/cms/content/specialties.hero")
+        mockMvc.perform(put("/api/v1/admin/cms/content/specialties.body")
                 .header("Authorization", bearer("ADMIN"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(draft))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.version").value(1));
-        mockMvc.perform(get("/api/v1/cms/content/specialties.hero"))
+        mockMvc.perform(get("/api/v1/cms/content/specialties.body"))
             .andExpect(status().isNotFound());
 
-        mockMvc.perform(put("/api/v1/admin/cms/content/specialties.hero")
+        mockMvc.perform(put("/api/v1/admin/cms/content/specialties.body")
                 .header("Authorization", bearer("ADMIN"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(publish))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.version").value(2));
-        mockMvc.perform(get("/api/v1/cms/content/specialties.hero"))
+        mockMvc.perform(get("/api/v1/cms/content/specialties.body"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.payload.title").value("Published title"));
 
-        mockMvc.perform(put("/api/v1/admin/cms/content/specialties.hero")
+        mockMvc.perform(put("/api/v1/admin/cms/content/specialties.body")
                 .header("Authorization", bearer("ADMIN"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(unpublish))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.version").value(3));
-        mockMvc.perform(get("/api/v1/cms/content/specialties.hero"))
+        mockMvc.perform(get("/api/v1/cms/content/specialties.body"))
             .andExpect(status().isNotFound());
     }
 
