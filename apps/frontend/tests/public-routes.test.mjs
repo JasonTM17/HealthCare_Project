@@ -88,6 +88,19 @@ test("booking landing page now opens as a clear support-aware route", async () =
   assert.match(booking, /Liên hệ bệnh viện/);
 });
 
+test("branches page now behaves like a network hub", async () => {
+  const branches = await read("app/branches/page.tsx");
+
+  assert.match(branches, /resource-hero-card--teal/);
+  assert.match(branches, /PublicBookingButton/);
+  assert.match(branches, /PublicAiButton/);
+  assert.match(branches, /resource-meta-grid/);
+  assert.match(branches, /resource-step-card/);
+  assert.match(branches, /catalog-grid--branches/);
+  assert.match(branches, /safeTelephoneHref/);
+  assert.match(branches, /BranchMap/);
+});
+
 test("public phone actions validate backend values before creating tel links", async () => {
   const sources = await Promise.all([
     read("lib/phone.ts"),
@@ -95,6 +108,7 @@ test("public phone actions validate backend values before creating tel links", a
     read("components/Footer.tsx"),
     read("app/page.tsx"),
     read("app/branches/[slug]/page.tsx"),
+    read("app/branches/page.tsx"),
     read("app/contact/page.tsx"),
   ]);
 
