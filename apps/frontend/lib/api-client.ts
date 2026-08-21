@@ -108,6 +108,23 @@ export class ApiError extends Error {
   }
 }
 
+async function apiErrorFromResponse(
+  res: Response,
+  path: string,
+  fallbackMessage = `Không thể tải dữ liệu (mã ${res.status}).`,
+): Promise<ApiError> {
+  const responseText = await res.text();
+  let message = fallbackMessage;
+  try {
+    const errorBody = JSON.parse(responseText) as { message?: unknown; error?: unknown };
+    if (typeof errorBody.message === "string") message = errorBody.message;
+    else if (typeof errorBody.error === "string") message = errorBody.error;
+  } catch {
+    // Keep the user-facing error generic when the server does not return JSON.
+  }
+  return new ApiError(message, res.status, path);
+}
+
 async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
   const requestController = new AbortController();
   const callerSignal = init?.signal;
@@ -115,12 +132,15 @@ async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
   if (callerSignal?.aborted) abortFromCaller();
   else callerSignal?.addEventListener("abort", abortFromCaller, { once: true });
 
+  const headers = new Headers(init?.headers);
+  if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+
   const timeoutId = setTimeout(() => requestController.abort(), API_REQUEST_TIMEOUT_MS);
   let res: Response;
   try {
     res = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
-      headers: { "Content-Type": "application/json", ...init?.headers },
+      headers,
       signal: requestController.signal,
     });
   } catch {
@@ -130,16 +150,7 @@ async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
     callerSignal?.removeEventListener("abort", abortFromCaller);
   }
   if (!res.ok) {
-    const responseText = await res.text();
-    let message = `Không thể tải dữ liệu (mã ${res.status}).`;
-    try {
-      const errorBody = JSON.parse(responseText) as { message?: unknown; error?: unknown };
-      if (typeof errorBody.message === "string") message = errorBody.message;
-      else if (typeof errorBody.error === "string") message = errorBody.error;
-    } catch {
-      // Keep the user-facing error generic when the server does not return JSON.
-    }
-    throw new ApiError(message, res.status, path);
+    throw await apiErrorFromResponse(res, path);
   }
   if (res.status === 204) return undefined as T;
   const responseText = await res.text();
@@ -225,15 +236,71 @@ export function hasRole(user: AuthUser | UserProfile, role: string): boolean {
   );
 }
 
-async function getAuthenticatedJson<T>(path: string, init?: RequestInit): Promise<T> {
+let refreshAuthSessionPromise: Promise<AuthSession | null> | null = null;
+
+function expiredSessionError(path: string): ApiError {
+  return new ApiError("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.", 401, path);
+}
+
+async function refreshStoredAuthSession(currentSession: AuthSession): Promise<AuthSession | null> {
+  const latestSession = readAuthSession();
+  if (latestSession && latestSession.refreshToken !== currentSession.refreshToken) {
+    return latestSession;
+  }
+
+  refreshAuthSessionPromise ??= getJson<AuthSession>("/auth/refresh", {
+    method: "POST",
+    body: JSON.stringify({ refreshToken: currentSession.refreshToken }),
+  })
+    .then((session) => {
+      storeAuthSession(session);
+      return session;
+    })
+    .catch(() => {
+      clearAuthSession();
+      return null;
+    })
+    .finally(() => {
+      refreshAuthSessionPromise = null;
+    });
+
+  return refreshAuthSessionPromise;
+}
+
+async function withAuthenticatedSession<T>(
+  path: string,
+  request: (session: AuthSession) => Promise<T>,
+): Promise<T> {
   const session = readAuthSession();
   if (!session) {
     throw new ApiError("Bạn cần đăng nhập để xem nội dung này.", 401, path);
   }
 
-  const headers = new Headers(init?.headers);
-  headers.set("Authorization", `${session.tokenType} ${session.accessToken}`);
-  return getJson<T>(path, { ...init, headers });
+  try {
+    return await request(session);
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.status !== 401) throw error;
+
+    const refreshedSession = await refreshStoredAuthSession(session);
+    if (!refreshedSession) throw expiredSessionError(path);
+
+    try {
+      return await request(refreshedSession);
+    } catch (retryError) {
+      if (retryError instanceof ApiError && retryError.status === 401) {
+        clearAuthSession();
+      }
+      throw retryError;
+    }
+  }
+}
+
+async function getAuthenticatedJson<T>(path: string, init?: RequestInit): Promise<T> {
+  return withAuthenticatedSession(path, (session) => {
+    const headers = new Headers(init?.headers);
+    headers.set("Authorization", `${session.tokenType} ${session.accessToken}`);
+    return getJson<T>(path, { ...init, headers });
+  });
 }
 
 interface SpecialtyRecommendationResponse {
@@ -250,14 +317,27 @@ interface SpecialtyRecommendationResponse {
 
 const AI_SPECIALTY_RECOMMENDATION_PATH = "/ai/specialty-recommendation";
 const AI_URGENCY_LEVELS = ["EMERGENCY", "HIGH", "NORMAL"] as const;
+const AI_CITATION_SOURCE_TYPES = ["specialty", "doctor", "service", "package", "article", "faq"] as const;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const AI_CITATION_ID_PATTERN = /^[A-Za-z0-9._:-]+$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function isAiTriageCitation(value: unknown): value is AiTriageCitation {
-  return typeof value === "string" || isRecord(value);
+  if (!isRecord(value)) return false;
+  const keys = Object.keys(value);
+  return (
+    keys.length === 3 &&
+    keys.every((key) => key === "source_type" || key === "source_id" || key === "title") &&
+    typeof value.source_type === "string" &&
+    (AI_CITATION_SOURCE_TYPES as readonly string[]).includes(value.source_type) &&
+    typeof value.source_id === "string" &&
+    AI_CITATION_ID_PATTERN.test(value.source_id) &&
+    typeof value.title === "string" &&
+    value.title.trim().length > 0
+  );
 }
 
 function isAiTriageProvenance(value: unknown): value is AiTriageProvenance {
@@ -480,15 +560,24 @@ export async function submitJobApplication(
 export interface AdminPackagePayload { name: string; slug: string; description?: string | null; price: number; active: boolean }
 export interface AdminFaqPayload { question: string; answer: string; active: boolean }
 export interface AdminArticlePayload { title: string; slug: string; summary?: string | null; body?: string | null; active: boolean }
+export type AdminArticle = Omit<Article, "summary" | "body" | "publishedAt"> & {
+  summary?: string | null;
+  body?: string | null;
+  publishedAt?: string | null;
+  active?: boolean;
+};
 
+export const adminListPackages = (page = 0, size = 100) => getAuthenticatedJson<Page<HealthPackage>>(`/admin/packages${toQuery({ page, size })}`);
 export const adminCreatePackage = (payload: AdminPackagePayload) => getAuthenticatedJson<HealthPackage>("/admin/packages", { method: "POST", body: JSON.stringify(payload) });
 export const adminUpdatePackage = (slug: string, payload: AdminPackagePayload) => getAuthenticatedJson<HealthPackage>(`/admin/packages/${encodeURIComponent(slug)}`, { method: "PUT", body: JSON.stringify(payload) });
 export const adminDeletePackage = (slug: string) => getAuthenticatedJson<void>(`/admin/packages/${encodeURIComponent(slug)}`, { method: "DELETE" });
+export const adminListFaqs = (page = 0, size = 100) => getAuthenticatedJson<Page<Faq>>(`/admin/faqs${toQuery({ page, size })}`);
 export const adminCreateFaq = (payload: AdminFaqPayload) => getAuthenticatedJson<Faq>("/admin/faqs", { method: "POST", body: JSON.stringify(payload) });
 export const adminUpdateFaq = (id: string, payload: AdminFaqPayload) => getAuthenticatedJson<Faq>(`/admin/faqs/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(payload) });
 export const adminDeleteFaq = (id: string) => getAuthenticatedJson<void>(`/admin/faqs/${encodeURIComponent(id)}`, { method: "DELETE" });
-export const adminCreateArticle = (payload: AdminArticlePayload) => getAuthenticatedJson<Article>("/admin/articles", { method: "POST", body: JSON.stringify(payload) });
-export const adminUpdateArticle = (slug: string, payload: AdminArticlePayload) => getAuthenticatedJson<Article>(`/admin/articles/${encodeURIComponent(slug)}`, { method: "PUT", body: JSON.stringify(payload) });
+export const adminListArticles = (page = 0, size = 100) => getAuthenticatedJson<Page<AdminArticle>>(`/admin/articles${toQuery({ page, size })}`);
+export const adminCreateArticle = (payload: AdminArticlePayload) => getAuthenticatedJson<AdminArticle>("/admin/articles", { method: "POST", body: JSON.stringify(payload) });
+export const adminUpdateArticle = (slug: string, payload: AdminArticlePayload) => getAuthenticatedJson<AdminArticle>(`/admin/articles/${encodeURIComponent(slug)}`, { method: "PUT", body: JSON.stringify(payload) });
 export const adminDeleteArticle = (slug: string) => getAuthenticatedJson<void>(`/admin/articles/${encodeURIComponent(slug)}`, { method: "DELETE" });
 
 export interface AdminSchedulePayload { dayOfWeek: number; startTime: string; endTime: string; slotDurationMinutes: number; effectiveFrom: string; effectiveTo?: string | null; active: boolean }
@@ -510,6 +599,12 @@ export interface AdminBranchPayload {
   address: string;
   phone?: string | null;
   active: boolean;
+}
+
+export async function adminListBranches(page = 0, size = 100): Promise<Page<Branch>> {
+  return getAuthenticatedJson<Page<Branch>>(
+    `/admin/branches${toQuery({ page, size })}`,
+  );
 }
 
 export async function adminCreateBranch(payload: AdminBranchPayload): Promise<Branch> {
@@ -535,6 +630,12 @@ export interface AdminServicePayload {
   slug: string;
   description?: string | null;
   active: boolean;
+}
+
+export async function adminListServices(page = 0, size = 100): Promise<Page<MedicalService>> {
+  return getAuthenticatedJson<Page<MedicalService>>(
+    `/admin/services${toQuery({ page, size })}`,
+  );
 }
 
 export async function adminCreateService(payload: AdminServicePayload): Promise<MedicalService> {
@@ -865,20 +966,28 @@ export async function fetchDoctorPatientDiagnosticResults(
 }
 
 export async function uploadDiagnosticFile(file: File, patientId: string): Promise<StoredFile> {
-  const session = readAuthSession();
   const path = "/files/upload";
-  if (!session) throw new ApiError("Bạn cần đăng nhập để tải tệp lên.", 401, path);
   const form = new FormData();
   form.set("file", file);
   form.set("patientId", patientId);
   form.set("purpose", "DIAGNOSTIC_RESULT");
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: "POST",
-    headers: { Authorization: `${session.tokenType} ${session.accessToken}` },
-    body: form,
+
+  return withAuthenticatedSession(path, async (session) => {
+    let response: Response;
+    try {
+      response = await fetch(`${API_BASE_URL}${path}`, {
+        method: "POST",
+        headers: { Authorization: `${session.tokenType} ${session.accessToken}` },
+        body: form,
+      });
+    } catch {
+      throw new ApiError("Không thể kết nối đến hệ thống. Vui lòng thử lại sau.", 0, path);
+    }
+    if (!response.ok) {
+      throw await apiErrorFromResponse(response, path, "Không thể tải tệp lên.");
+    }
+    return response.json() as Promise<StoredFile>;
   });
-  if (!response.ok) throw new ApiError((await response.text()) || "Không thể tải tệp lên.", response.status, path);
-  return response.json() as Promise<StoredFile>;
 }
 
 export interface CreateDiagnosticResultPayload {
@@ -899,13 +1008,21 @@ export async function createDoctorDiagnosticResult(
 }
 
 export async function downloadProtectedFile(fileUrl: string, filename = "ket-qua"): Promise<void> {
-  const session = readAuthSession();
-  if (!session) throw new ApiError("Bạn cần đăng nhập để tải tệp.", 401, fileUrl);
   const normalizedPath = fileUrl.startsWith("/api/v1") ? fileUrl.slice("/api/v1".length) : fileUrl;
-  const response = await fetch(`${API_BASE_URL}${normalizedPath}`, {
-    headers: { Authorization: `${session.tokenType} ${session.accessToken}` },
+  const response = await withAuthenticatedSession(normalizedPath, async (session) => {
+    try {
+      const result = await fetch(`${API_BASE_URL}${normalizedPath}`, {
+        headers: { Authorization: `${session.tokenType} ${session.accessToken}` },
+      });
+      if (!result.ok) {
+        throw await apiErrorFromResponse(result, normalizedPath, "Không thể tải tệp kết quả.");
+      }
+      return result;
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError("Không thể kết nối đến hệ thống. Vui lòng thử lại sau.", 0, normalizedPath);
+    }
   });
-  if (!response.ok) throw new ApiError("Không thể tải tệp kết quả.", response.status, normalizedPath);
   const blobUrl = URL.createObjectURL(await response.blob());
   const anchor = document.createElement("a");
   anchor.href = blobUrl;

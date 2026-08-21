@@ -73,6 +73,11 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
     @Test
     void localSeedIsFictionalAndIdempotentOnPostgres() {
         executeSeed("public");
+
+        jdbcTemplate.update(
+            "update users set password_hash = ?, display_name = ?, status = ? where email = ?",
+            "stale-demo-hash", "Stale administrator", "DISABLED", "admin@healthcare.local"
+        );
         executeSeed("public");
 
         assertThat(jdbcTemplate.queryForObject(
@@ -84,9 +89,70 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
             String.class
         )).isEqualTo("Đồng hành cùng sức khỏe gia đình");
         assertThat(jdbcTemplate.queryForObject(
+            "select count(*) from cms_content_changes " +
+                "where slot_key in ('homepage.hero','homepage.body','careers.hero','careers.body','search.hero') " +
+                "and content_version = 1 and published = true and public_event = true " +
+                "and actor_email = 'seed@healthcare.local'",
+            Integer.class
+        )).isEqualTo(5);
+        assertThat(jdbcTemplate.queryForObject(
             "select count(*) from cms_contents where payload::text ilike '%patient%'",
             Integer.class
         )).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+            "select password_hash from users where email = 'admin@healthcare.local'",
+            String.class
+        )).isEqualTo("$2b$10$OG9QfyAPA/hWfWauU7lXvemQNUnFPcVj/rIuE2zzocw7rtOKoQdfa");
+        assertThat(jdbcTemplate.queryForObject(
+            "select display_name || '|' || status from users where email = 'admin@healthcare.local'",
+            String.class
+        )).isEqualTo("Quản trị viên Local|ACTIVE");
+    }
+
+    @Test
+    void largeSeedPersistsDurableCmsEventsForRealtimeBootstrap() {
+        String schema = createMigrationSchema();
+        try {
+            migrateLatest(schema);
+            executeLargeSeed(schema);
+            executeLargeSeed(schema);
+
+            String contents = table(schema, "cms_contents");
+            String changes = table(schema, "cms_content_changes");
+            String seededSlots = "('homepage.hero','homepage.body','careers.hero','careers.body','search.hero')";
+
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + contents + " where slot_key in " + seededSlots,
+                Integer.class
+            )).isEqualTo(5);
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + changes
+                    + " where slot_key in " + seededSlots
+                    + " and content_version = 1 and published = true and public_event = true"
+                    + " and actor_email = 'seed@healthcare.local'",
+                Integer.class
+            )).isEqualTo(5);
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from ("
+                    + "select content_id, content_version, count(*)"
+                    + " from " + changes
+                    + " where slot_key in " + seededSlots
+                    + " and public_event = true"
+                    + " group by content_id, content_version having count(*) > 1"
+                    + ") duplicate_seed_events",
+                Integer.class
+            )).isZero();
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + changes + " change"
+                    + " left join " + contents + " content on content.id = change.content_id"
+                    + " where change.slot_key in " + seededSlots
+                    + " and change.public_event = true"
+                    + " and content.id is null",
+                Integer.class
+            )).isZero();
+        } finally {
+            dropMigrationSchema(schema);
+        }
     }
 
     @Test
@@ -121,6 +187,87 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
         } finally {
             dropMigrationSchema(schema);
         }
+    }
+
+    @Test
+    void v23PreflightDiagnosesLegacyPrivateCmsSlotsBeforeConstraints() {
+        String schema = createMigrationSchema();
+        try {
+            migrate(schema, "22");
+            UUID contentId = UUID.randomUUID();
+            String contents = table(schema, "cms_contents");
+            String changes = table(schema, "cms_content_changes");
+
+            jdbcTemplate.update(
+                "insert into " + contents
+                    + " (id, slot_key, component_type, payload, status, version, created_at, updated_at) "
+                    + "values (?, ?, 'NOTICE', '{}'::jsonb, 'DRAFT', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+                contentId,
+                "patient.dashboard.hero"
+            );
+            jdbcTemplate.update(
+                "insert into " + changes
+                    + " (content_id, slot_key, content_version, published, public_event) "
+                    + "values (?, ?, 1, false, false)",
+                contentId,
+                "patient.dashboard.hero"
+            );
+
+            Throwable failure = catchThrowable(() -> migrate(schema, "23"));
+
+            assertThat(failure).isNotNull();
+            assertThat(allMessages(failure)).contains(
+                "V23 preflight failed",
+                "legacy CMS slot keys outside the public route inventory",
+                "patient.dashboard.hero",
+                "Repair or explicitly reassign/delete private slots",
+                "never deletes production CMS data"
+            );
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + contents + " where slot_key = ?",
+                Integer.class,
+                "patient.dashboard.hero"
+            )).isEqualTo(1);
+        } finally {
+            dropMigrationSchema(schema);
+        }
+    }
+
+    @Test
+    void cmsSlotKeysAreBoundToPublicRouteInventoryAtDatabaseBoundary() {
+        UUID contentId = UUID.randomUUID();
+        jdbcTemplate.update("delete from cms_content_changes where slot_key in (?, ?)", "contact.footer", "patient.dashboard.hero");
+        jdbcTemplate.update("delete from cms_contents where slot_key in (?, ?)", "contact.footer", "patient.dashboard.hero");
+
+        jdbcTemplate.update(
+            "insert into cms_contents "
+                + "(id, slot_key, component_type, payload, status, version, created_at, updated_at) "
+                + "values (?, ?, 'NOTICE', '{}'::jsonb, 'DRAFT', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+            contentId,
+            "contact.footer"
+        );
+        jdbcTemplate.update(
+            "insert into cms_content_changes "
+                + "(content_id, slot_key, content_version, published, public_event) "
+                + "values (?, ?, 1, false, false)",
+            contentId,
+            "contact.footer"
+        );
+
+        assertThatThrownBy(() -> jdbcTemplate.update(
+            "insert into cms_contents "
+                + "(id, slot_key, component_type, payload, status, version, created_at, updated_at) "
+                + "values (?, ?, 'NOTICE', '{}'::jsonb, 'DRAFT', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+            UUID.randomUUID(),
+            "patient.dashboard.hero"
+        )).isInstanceOf(DataAccessException.class);
+        assertThatThrownBy(() -> jdbcTemplate.update(
+            "insert into cms_content_changes "
+                + "(content_id, slot_key, content_version, published, public_event) "
+                + "values (?, ?, 1, false, false)",
+            contentId,
+            "patient.dashboard.hero"
+        )).isInstanceOf(DataAccessException.class);
     }
 
     @Test
@@ -747,6 +894,21 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
             );
         } catch (Exception exception) {
             throw new IllegalStateException("Failed to execute local seed in isolated migration schema", exception);
+        }
+    }
+
+    private void executeLargeSeed(String schema) {
+        try (Connection connection = dataSource.getConnection()) {
+            connection.createStatement().execute("set search_path to " + identifier(schema));
+            ScriptUtils.executeSqlScript(
+                connection,
+                new EncodedResource(
+                    new ClassPathResource("db/seed/seed-large-data.sql"),
+                    StandardCharsets.UTF_8
+                )
+            );
+        } catch (Exception exception) {
+            throw new IllegalStateException("Failed to execute large seed in isolated migration schema", exception);
         }
     }
 

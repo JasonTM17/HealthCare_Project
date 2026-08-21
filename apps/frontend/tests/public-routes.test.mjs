@@ -76,17 +76,37 @@ test("faq page now behaves like a support hub instead of a bare list", async () 
   assert.match(faq, /Liên hệ bệnh viện/);
 });
 
+test("Vietnamese legacy aliases redirect to canonical detail routes", async () => {
+  const [doctorAlias, specialtyAlias, packageAlias] = await Promise.all([
+    read("app/bac-si/[slug]/page.tsx"),
+    read("app/chuyen-khoa/[slug]/page.tsx"),
+    read("app/goi-kham/[slug]/page.tsx"),
+  ]);
+
+  for (const [source, destination] of [
+    [doctorAlias, "/doctors/"],
+    [specialtyAlias, "/specialties/"],
+    [packageAlias, "/packages/"],
+  ]) {
+    assert.match(source, /Compatibility alias for old Vietnamese links/);
+    assert.match(source, /redirect\(`/);
+    assert.match(source, /encodeURIComponent\(slug\)/);
+    assert.match(source, new RegExp(destination.replace("/", "\\/")));
+  }
+});
+
 test("booking landing page now opens as a clear support-aware route", async () => {
   const booking = await read("app/dat-lich/page.tsx");
 
-  assert.match(booking, /bookingInitiallyOpen/);
+  assert.match(booking, /onBookingRequest/);
+  assert.match(booking, /BookingInlineExperience/);
   assert.match(booking, /resource-hero-card--teal/);
   assert.match(booking, /PublicAiButton/);
   assert.match(booking, /resource-meta-grid/);
-  assert.match(booking, /resource-step-card/);
+  assert.match(booking, /booking-stage-card/);
   assert.match(booking, /catalog-grid--branches/);
   assert.match(booking, /Chọn chuyên khoa/);
-  assert.match(booking, /Liên hệ bệnh viện/);
+  assert.match(booking, /Form đặt lịch/);
 });
 
 test("appointment lookup page now behaves like a patient tracking hub", async () => {
@@ -431,7 +451,8 @@ test("every public page family keeps the route-level CMS composition point", asy
     read("components/Footer.tsx"),
   ]);
 
-  assert.match(routeCms, /\["admin", "auth", "doctor", "patient"\]/);
+  assert.match(routeCms, /CMS_PUBLIC_ROUTE_SLUGS/);
+  assert.match(routeCms, /PUBLIC_CMS_ROUTES\.has\(route\)/);
   assert.match(routeCms, /Careers owns its hero/);
   assert.match(routeCms, /Dynamic detail/);
   for (const slot of ["hero", "body", "sidebar"]) {

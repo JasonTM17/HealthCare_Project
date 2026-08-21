@@ -1,8 +1,10 @@
 package com.healthcare.appointment.security;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -27,12 +29,26 @@ public class BookingRateLimiter {
     private static final Map<String, Window> FALLBACK = new ConcurrentHashMap<>();
 
     private final StringRedisTemplate redisTemplate;
+    private final boolean enabled;
+
+    @Autowired
+    public BookingRateLimiter(StringRedisTemplate redisTemplate, Environment environment) {
+        this(redisTemplate, environment.getProperty("app.security.rate-limit.enabled", Boolean.class, true));
+    }
 
     public BookingRateLimiter(StringRedisTemplate redisTemplate) {
+        this(redisTemplate, true);
+    }
+
+    BookingRateLimiter(StringRedisTemplate redisTemplate, boolean enabled) {
         this.redisTemplate = redisTemplate;
+        this.enabled = enabled;
     }
 
     public void check(String operation, HttpServletRequest request, String subject) {
+        if (!enabled) {
+            return;
+        }
         String client = request != null && request.getRemoteAddr() != null
             ? request.getRemoteAddr()
             : "unknown-client";

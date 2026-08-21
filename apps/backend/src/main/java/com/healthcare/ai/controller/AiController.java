@@ -18,9 +18,11 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Map;
 import java.util.LinkedHashMap;
+import java.util.Set;
 import java.util.List;
 import java.util.Locale;
 import java.text.Normalizer;
+import java.util.regex.Pattern;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
@@ -28,6 +30,11 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 @RequestMapping("/api/v1/ai")
 @PreAuthorize("hasAnyRole('PATIENT', 'DOCTOR', 'ADMIN')")
 public class AiController {
+
+    private static final Set<String> ALLOWED_CITATION_SOURCE_TYPES = Set.of(
+        "specialty", "doctor", "service", "package", "article", "faq"
+    );
+    private static final Pattern CITATION_SOURCE_ID_PATTERN = Pattern.compile("^[A-Za-z0-9._:-]+$");
 
     private final AiService aiService;
     private final SpecialtyRepository specialtyRepository;
@@ -53,6 +60,7 @@ public class AiController {
         result.remove("recommended_specialty_id");
         result.remove("recommended_specialty_slug");
         result.remove("specialty_resolution");
+        result.put("citations", identityOnlyCitations(result.get("citations")));
         Specialty resolved = resolveSpecialty(result.get("recommended_specialty"));
         if (resolved == null) {
             result.put("specialty_resolution", "UNRESOLVED");
@@ -62,6 +70,30 @@ public class AiController {
             result.put("recommended_specialty_slug", resolved.getSlug());
         }
         return ResponseEntity.ok(result);
+    }
+
+    private List<Map<String, String>> identityOnlyCitations(Object citations) {
+        if (!(citations instanceof List<?> items)) return List.of();
+        return items.stream()
+            .filter(Map.class::isInstance)
+            .map(item -> identityOnlyCitation((Map<?, ?>) item))
+            .filter(java.util.Objects::nonNull)
+            .toList();
+    }
+
+    private Map<String, String> identityOnlyCitation(Map<?, ?> citation) {
+        Object sourceType = citation.get("source_type");
+        Object sourceId = citation.get("source_id");
+        Object title = citation.get("title");
+        if (!(sourceType instanceof String type)
+            || !ALLOWED_CITATION_SOURCE_TYPES.contains(type)
+            || !(sourceId instanceof String id)
+            || !CITATION_SOURCE_ID_PATTERN.matcher(id).matches()
+            || !(title instanceof String citationTitle)
+            || citationTitle.isBlank()) {
+            return null;
+        }
+        return Map.of("source_type", type, "source_id", id, "title", citationTitle);
     }
 
     private Specialty resolveSpecialty(Object recommendation) {

@@ -58,9 +58,14 @@ function secondsUntil(value: string): number {
   return Number.isNaN(expiry) ? 0 : Math.max(0, Math.ceil((expiry - Date.now()) / 1000));
 }
 
-interface BookingModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+export interface BookingSelection {
+  doctorId?: string;
+  specialtyId?: string;
+  packageId?: string;
+  branchId?: string;
+}
+
+interface BookingCatalogProps {
   initialDoctorId?: string;
   initialSpecialtyId?: string;
   initialPackageId?: string;
@@ -71,8 +76,24 @@ interface BookingModalProps {
   branches?: Branch[];
 }
 
-export default function BookingModal({
-  isOpen,
+interface BookingModalProps extends BookingCatalogProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+interface BookingInlineExperienceProps extends BookingCatalogProps {
+  selection?: BookingSelection;
+}
+
+interface BookingExperienceProps extends BookingCatalogProps {
+  active: boolean;
+  presentation: "modal" | "inline";
+  onClose?: () => void;
+}
+
+function BookingExperience({
+  active,
+  presentation,
   onClose,
   initialDoctorId,
   initialSpecialtyId,
@@ -82,7 +103,8 @@ export default function BookingModal({
   doctors: providedDoctors = EMPTY_DOCTORS,
   specialties: providedSpecialties = EMPTY_SPECIALTIES,
   branches: providedBranches = EMPTY_BRANCHES,
-}: BookingModalProps) {
+}: BookingExperienceProps) {
+  const isModal = presentation === "modal";
   // The public Stitch flow is seven explicit decisions. Backend hold/OTP remain
   // the final two transitions so every selection is visible and reviewable.
   const [step, setStep] = useState<number>(1);
@@ -131,12 +153,15 @@ export default function BookingModal({
   const [confirmedAppointment, setConfirmedAppointment] = useState<AppointmentDetails | null>(null);
   const bookingSessionRef = useRef(0);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const closePresentation = useCallback(() => {
+    onClose?.();
+  }, [onClose]);
 
   const invalidateBookingSession = useCallback(() => {
     bookingSessionRef.current += 1;
   }, []);
 
-  useDialogFocus(dialogRef, isOpen, onClose);
+  useDialogFocus(dialogRef, active && isModal, closePresentation);
 
   const resetBookingState = useCallback(() => {
     setStep(1);
@@ -167,11 +192,11 @@ export default function BookingModal({
   const closeBooking = useCallback(() => {
     invalidateBookingSession();
     resetBookingState();
-    onClose();
+    onClose?.();
   }, [invalidateBookingSession, onClose, resetBookingState]);
 
   useEffect(() => {
-    if (!isOpen || (doctors.length > 0 && specialties.length > 0 && branches.length > 0)) return;
+    if (!active || (doctors.length > 0 && specialties.length > 0 && branches.length > 0)) return;
 
     let cancelled = false;
     const task = Promise.resolve().then(async () => {
@@ -224,10 +249,10 @@ export default function BookingModal({
       cancelled = true;
       void task;
     };
-  }, [branches.length, catalogRequest, doctors.length, isOpen, providedBranches.length, providedDoctors.length, providedSpecialties.length, specialties.length]);
+  }, [active, branches.length, catalogRequest, doctors.length, providedBranches.length, providedDoctors.length, providedSpecialties.length, specialties.length]);
 
   const syncSelection = useCallback(() => {
-    if (!isOpen) return;
+    if (!active) return;
     const firstBranch = branches.find((branch) => branch.id === initialBranchId) ?? branches[0];
     const nextBranchId = firstBranch?.id ?? "";
     const requestedSpecialtyId = initialSpecialtyId?.trim() ?? "";
@@ -245,13 +270,12 @@ export default function BookingModal({
       && doctorMatchesBranch(doctor, nextBranchId)
       && doctorMatchesSpecialty(doctor, nextSpecialty))
       ?? doctors.find((doctor) => doctorMatchesBranch(doctor, nextBranchId)
-        && doctorMatchesSpecialty(doctor, nextSpecialty))
-      ?? doctors[0];
+        && doctorMatchesSpecialty(doctor, nextSpecialty));
     setSelectedBranch(nextBranchId);
     setSelectedDoctor(firstDoctor?.id ?? "");
     setSelectedSpecialty(nextSpecialtyId);
     setSelectedPackage(packages.some((item) => item.id === initialPackageId) ? initialPackageId ?? "" : "");
-  }, [branches, doctors, initialBranchId, initialDoctorId, initialPackageId, initialSpecialtyId, isOpen, packages, specialties]);
+  }, [active, branches, doctors, initialBranchId, initialDoctorId, initialPackageId, initialSpecialtyId, packages, specialties]);
 
   useEffect(() => {
     const task = Promise.resolve().then(syncSelection);
@@ -328,8 +352,9 @@ export default function BookingModal({
     return () => clearInterval(timer);
   }, [step, otpExpiresAt, confirmedAppointment]);
 
-  if (!isOpen) return null;
+  if (!active) return null;
 
+  const minimumAppointmentDate = businessDate(1);
   const currentDoctor = doctors.find((doctor) => doctor.id === selectedDoctor);
   const currentSpecialty = specialties.find((specialty) => specialty.id === selectedSpecialty);
   const currentBranch = branches.find((branch) => branch.id === selectedBranch);
@@ -511,33 +536,39 @@ export default function BookingModal({
     return `${mins.toString().padStart(2, "0")}:${rem.toString().padStart(2, "0")}`;
   };
 
-  return (
-    <div
-      className="dialog-layer fixed inset-0 flex items-center justify-center p-4 animate-fadeIn"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="booking-modal-title"
-      onMouseDown={(event) => { if (event.target === event.currentTarget) closeBooking(); }}
-    >
-      <div className="booking-panel relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-brand-100 flex flex-col max-h-[92vh]" ref={dialogRef}>
+  const panelTitleId = isModal ? "booking-modal-title" : "booking-inline-title";
+  const panelClassName = isModal
+    ? "booking-panel relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-brand-100 flex flex-col max-h-[92vh]"
+    : "booking-panel booking-panel--inline relative w-full bg-white rounded-2xl shadow-xl overflow-hidden border border-brand-100 flex flex-col";
+  const bodyClassName = isModal ? "p-6 overflow-y-auto flex-1" : "p-6 flex-1";
+  const completionActionLabel = isModal ? "Đóng và về trang chủ" : "Đặt lịch mới";
+
+  const panel = (
+      <div className={panelClassName} ref={dialogRef}>
         {/* Modal Header */}
         <div className="bg-brand-800 text-white px-6 py-4 flex items-center justify-between">
           <div>
             <span className="text-xs uppercase tracking-widest text-brand-200 font-semibold">
               Hệ thống đặt lịch khám
             </span>
-            <h2 id="booking-modal-title" className="text-xl font-bold text-white flex items-center gap-2">
+            <h2 id={panelTitleId} className="text-xl font-bold text-white flex items-center gap-2">
               <Icon name="calendar" size={18} /> Đặt lịch trực tuyến nhanh chóng
             </h2>
           </div>
-          <button
-            type="button"
-            onClick={closeBooking}
-            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-200"
-            aria-label="Đóng cửa sổ đặt lịch"
-          >
-            <Icon name="x" size={17} />
-          </button>
+          {isModal ? (
+            <button
+              type="button"
+              onClick={closeBooking}
+              className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-200"
+              aria-label="Đóng cửa sổ đặt lịch"
+            >
+              <Icon name="x" size={17} />
+            </button>
+          ) : (
+            <span className="rounded-full border border-brand-200/40 px-3 py-1 text-xs font-semibold text-brand-100">
+              Trải nghiệm đặt lịch trên trang
+            </span>
+          )}
         </div>
 
         {/* Wizard Step Progress */}
@@ -570,8 +601,8 @@ export default function BookingModal({
           </div>
         )}
 
-        {/* Modal Body */}
-        <div className="p-6 overflow-y-auto flex-1">
+        {/* Booking body */}
+        <div className={bodyClassName}>
           {catalogLoading ? (
             <p className="mb-4 rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm text-teal-950" role="status">
               Đang tải thông tin bác sĩ, chuyên khoa và cơ sở…
@@ -699,7 +730,7 @@ export default function BookingModal({
               </div>
               <div>
                 <label className="mb-1 block text-sm font-semibold text-gray-700" htmlFor="booking-date">Ngày khám mong muốn</label>
-                <input id="booking-date" type="date" min={selectedDate} value={selectedDate} onChange={(e) => handleDateChange(e.target.value)} disabled={isSubmitting} className="w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-600" />
+                <input id="booking-date" type="date" min={minimumAppointmentDate} value={selectedDate} onChange={(e) => handleDateChange(e.target.value)} disabled={isSubmitting} className="w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-600" />
               </div>
               <div className="rounded-xl border border-brand-100 bg-brand-50/60 p-4 text-xs text-brand-900">
                 <p><strong>Bác sĩ:</strong> {currentDoctor?.fullName ?? "Chưa chọn"}</p>
@@ -996,7 +1027,7 @@ export default function BookingModal({
                     </div>
 
                     <div className="mt-3 pt-3 border-t border-brand-700/60 flex items-center justify-between text-[11px] text-brand-200">
-                      <span className="flex items-center gap-1"><Icon name="building" size={14} /> {confirmedAppointment.branchName || "HealthCare TP.HCM"}</span>
+                      <span className="flex items-center gap-1"><Icon name="building" size={14} /> {confirmedAppointment.branchName || "Cơ sở đang cập nhật"}</span>
                       <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 rounded font-semibold">
                         ĐÃ XÁC NHẬN
                       </span>
@@ -1009,7 +1040,7 @@ export default function BookingModal({
                       onClick={closeBooking}
                       className="px-8 py-2.5 bg-brand-700 hover:bg-brand-800 text-white font-bold rounded-full shadow-md transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
                     >
-                      Đóng và về trang chủ
+                      {completionActionLabel}
                     </button>
                   </div>
                 </div>
@@ -1018,6 +1049,51 @@ export default function BookingModal({
           )}
         </div>
       </div>
+  );
+
+  if (!isModal) return panel;
+
+  return (
+    <div
+      className="dialog-layer fixed inset-0 flex items-center justify-center p-4 animate-fadeIn"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={panelTitleId}
+      onMouseDown={(event) => { if (event.target === event.currentTarget) closeBooking(); }}
+    >
+      {panel}
     </div>
+  );
+}
+
+export function BookingInlineExperience({
+  selection,
+  ...props
+}: BookingInlineExperienceProps) {
+  return (
+    <BookingExperience
+      {...props}
+      active
+      initialBranchId={selection?.branchId ?? props.initialBranchId}
+      initialDoctorId={selection?.doctorId ?? props.initialDoctorId}
+      initialPackageId={selection?.packageId ?? props.initialPackageId}
+      initialSpecialtyId={selection?.specialtyId ?? props.initialSpecialtyId}
+      presentation="inline"
+    />
+  );
+}
+
+export default function BookingModal({
+  isOpen,
+  onClose,
+  ...props
+}: BookingModalProps) {
+  return (
+    <BookingExperience
+      {...props}
+      active={isOpen}
+      onClose={onClose}
+      presentation="modal"
+    />
   );
 }

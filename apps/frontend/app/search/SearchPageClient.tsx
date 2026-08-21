@@ -66,27 +66,9 @@ function semanticScoreLabel(score: number): string {
   return `${Math.round(boundedScore)}% phù hợp`;
 }
 
-function scalarCitationLabel(value: Record<string, unknown>): string {
-  for (const key of ["title", "source", "label", "name", "id"]) {
-    const candidate = value[key];
-    if (typeof candidate === "string" && candidate.trim()) return candidate;
-  }
-
-  const scalarEntries = Object.entries(value).filter(
-    ([key, candidate]) =>
-      key !== "url" &&
-      (typeof candidate === "string" ||
-        typeof candidate === "number" ||
-        typeof candidate === "boolean"),
-  );
-
-  return scalarEntries.length > 0
-    ? scalarEntries.map(([key, candidate]) => `${key}: ${String(candidate)}`).join(" · ")
-    : "Nguồn tham khảo";
-}
-
 function citationLabel(citation: AiTriageCitation): string {
-  return typeof citation === "string" ? citation : scalarCitationLabel(citation);
+  const title = citation.title.trim();
+  return title || `${semanticSourceLabel(citation.source_type)} · ${citation.source_id}`;
 }
 
 function ResultSection({

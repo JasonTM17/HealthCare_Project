@@ -111,10 +111,6 @@ export function CmsLiveSlot({
       return reconciliation.acknowledgeThrough(eventId);
     };
 
-    const invalidateRefreshes = (): void => {
-      refreshGeneration += 1;
-    };
-
     const refresh = async (minimumVersion = 0, afterEventId?: number): Promise<RefreshResult> => {
       const readGeneration = ++refreshGeneration;
       const readReconciliationCursor = reconciliation.reconciliationCursor;
@@ -246,14 +242,23 @@ export function CmsLiveSlot({
               }
             });
           } else {
-            // An unpublish event is authoritative immediately. Invalidate any
-            // older GET so its late 200 response cannot resurrect this slot.
-            invalidateRefreshes();
-            latestVersion.current = event.version;
-            setContent(null);
-            setError(new CmsApiError("not-found", 404, "Slot hiện không còn PUBLISHED."));
-            setLoading(false);
-            reconciliation.advanceCursor();
+            // Treat unpublish events as wake-up hints too. The authoritative
+            // public snapshot must confirm 404 before the UI clears content or
+            // advances the durable cursor, which protects the browser from a
+            // stale or non-durable high-ID SSE frame.
+            reconciliation.markPending(event.eventId, event.version);
+            void refresh(0, event.eventId).then((result) => {
+              if (result === "not-found" && !cancelled) {
+                latestVersion.current = Math.max(latestVersion.current, event.version);
+                setLiveNotice(`Đã đồng bộ ${backendSlotKey}; nội dung đã được gỡ xuất bản.`);
+                resolvePendingEvent(event.eventId);
+              } else if (!cancelled) {
+                // A 200 response contradicts the unpublish hint; keep the
+                // published snapshot visible and reconcile by polling instead
+                // of acknowledging a cursor the database has not proven.
+                startPolling();
+              }
+            });
           }
         },
         onConnected: () => {

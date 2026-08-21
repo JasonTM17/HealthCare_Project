@@ -141,15 +141,42 @@ main {
   flex: 1;
 }
 
-.route-cms-slots {
+.native-route-cms {
   display: grid;
-  gap: var(--sp-6);
-  width: min(100% - 8rem, 80rem);
-  margin: var(--sp-12) auto var(--sp-16);
+  gap: var(--sp-8);
 }
 
-.route-cms-slots:empty {
+.native-route-cms__hero,
+.native-route-cms__support {
+  width: min(100% - 8rem, 80rem);
+  margin-inline: auto;
+}
+
+.native-route-cms__hero {
+  margin-top: var(--sp-8);
+}
+
+.native-route-cms__hero:not(:has([data-cms-live-slot])),
+.native-route-cms__support:not(:has([data-cms-live-slot])) {
   display: none;
+}
+
+.native-route-cms__content,
+.native-route-cms__slot,
+.native-route-cms__sidebar {
+  min-width: 0;
+}
+
+.native-route-cms__support {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 0.42fr);
+  align-items: start;
+  gap: var(--sp-6);
+  margin-bottom: var(--sp-16);
+}
+
+.native-route-cms__support:not(:has(.native-route-cms__body)) {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .section-inner,
@@ -659,6 +686,314 @@ main {
 .article-detail-card p,
 .catalog-card p {
   color: var(--color-ink-muted);
+}
+
+.booking-page {
+  padding-bottom: calc(var(--sp-20) + 5rem);
+}
+
+.booking-page__hero {
+  max-width: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(19rem, 0.42fr);
+  gap: var(--sp-8);
+  align-items: stretch;
+}
+
+.booking-page__hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  margin-top: var(--sp-6);
+}
+
+.booking-page__hero-actions .button,
+.booking-page__hero-actions .outline-button {
+  min-height: 48px;
+}
+
+.booking-page__summary {
+  display: grid;
+  align-content: start;
+  gap: var(--sp-3);
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border: 1px solid var(--color-line-dark);
+  border-radius: var(--radius-lg);
+  background: var(--color-teal-950);
+  color: var(--color-paper-bright);
+  box-shadow: var(--shadow-soft);
+}
+
+.booking-page__summary .section-note,
+.booking-page__summary span,
+.booking-page__summary small {
+  color: var(--color-mint);
+}
+
+.booking-page__summary strong {
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 3vw, 2.25rem);
+  letter-spacing: -0.03em;
+  line-height: 1.08;
+}
+
+.booking-stage-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-4);
+  margin-top: var(--sp-8);
+}
+
+.booking-stage-card {
+  min-height: 100%;
+  padding: var(--sp-5);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-paper-bright);
+  box-shadow: 0 18px 34px oklch(30% 0.03 190 / 0.08);
+}
+
+.booking-stage-card__icon {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background: var(--color-mint-light);
+  color: var(--color-teal-700);
+}
+
+.booking-stage-card h2 {
+  margin: var(--sp-4) 0 var(--sp-2);
+  color: var(--color-teal-950);
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.booking-stage-card p {
+  margin: 0;
+  color: var(--color-ink-muted);
+  font-size: 0.9375rem;
+  line-height: 1.65;
+}
+
+.booking-page__support {
+  margin-top: var(--sp-8);
+}
+
+.booking-page__branches {
+  display: grid;
+  gap: var(--sp-5);
+  margin-top: var(--sp-10);
+}
+
+.booking-page__branches-heading {
+  max-width: 48rem;
+}
+
+.booking-page__branches-heading h2 {
+  margin: var(--sp-2) 0 var(--sp-3);
+  color: var(--color-teal-950);
+  font-family: var(--font-display);
+  font-size: clamp(1.6rem, 2.8vw, 2.45rem);
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+}
+
+.booking-page__branches-heading p:last-child {
+  margin: 0;
+  color: var(--color-ink-muted);
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.booking-page__branch-grid {
+  margin-top: 0;
+}
+
+.booking-page__branch-card {
+  min-height: 100%;
+}
+
+.booking-page__inline {
+  display: grid;
+  gap: var(--sp-5);
+  margin-top: var(--sp-10);
+  scroll-margin-top: calc(var(--header-height, 88px) + var(--sp-6));
+  outline: none;
+}
+
+.booking-page__inline:focus-visible {
+  border-radius: var(--radius-lg);
+  box-shadow: 0 0 0 4px oklch(78% 0.145 78 / 0.24);
+}
+
+.booking-page__inline-heading {
+  max-width: 48rem;
+}
+
+.booking-page__inline-heading h2 {
+  margin: var(--sp-2) 0 var(--sp-3);
+  color: var(--color-teal-950);
+  font-family: var(--font-display);
+  font-size: clamp(1.75rem, 3vw, 2.75rem);
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+}
+
+.booking-page__inline-heading p:last-child {
+  margin: 0;
+  color: var(--color-ink-muted);
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.booking-panel--inline {
+  max-width: none;
+}
+
+.booking-panel--inline select,
+.booking-panel--inline input,
+.booking-panel--inline textarea,
+.booking-panel--inline button {
+  min-height: 44px;
+}
+
+.booking-page__checklist {
+  display: grid;
+  gap: var(--sp-3);
+  margin: var(--sp-4) 0 var(--sp-5);
+  padding: 0;
+  list-style: none;
+}
+
+.booking-page__checklist li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--sp-2);
+  align-items: start;
+  color: var(--color-ink-muted);
+  line-height: 1.6;
+}
+
+.booking-page__checklist svg {
+  margin-top: 0.2rem;
+  color: var(--color-teal-700);
+}
+
+.booking-page__sticky {
+  position: sticky;
+  bottom: var(--sp-4);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  margin-top: var(--sp-8);
+  padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-5);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: oklch(100% 0 0 / 0.94);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(18px);
+}
+
+.booking-page__sticky span {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.booking-page__sticky strong {
+  color: var(--color-teal-950);
+}
+
+.booking-page__sticky small {
+  color: var(--color-muted);
+}
+
+.booking-page__sticky-button {
+  min-height: 48px;
+  flex: 0 0 auto;
+}
+
+.route-state {
+  min-height: 64vh;
+  display: grid;
+  align-items: center;
+  padding-block: var(--sp-16);
+}
+
+.route-state__card {
+  max-width: 48rem;
+}
+
+.route-state__card h1 {
+  margin-top: var(--sp-2);
+  font-size: clamp(2.25rem, 7vw, 4.5rem);
+  line-height: 0.95;
+  letter-spacing: -0.055em;
+}
+
+.route-state__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  margin-top: var(--sp-6);
+}
+
+.route-state__digest {
+  width: fit-content;
+  margin-top: var(--sp-4);
+  padding: 0.45rem 0.75rem;
+  border-radius: var(--radius-pill);
+  background: oklch(93% 0.03 30);
+  color: var(--color-ink);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.route-state__card--error {
+  border-color: oklch(83% 0.095 35);
+  background: oklch(97% 0.025 38);
+}
+
+.route-state__skeletons {
+  display: grid;
+  gap: var(--sp-3);
+  margin-top: var(--sp-6);
+}
+
+.route-state__skeletons span {
+  height: 0.875rem;
+  border-radius: var(--radius-pill);
+  background: oklch(90% 0.045 180);
+  animation: shimmer 1.35s ease-in-out infinite;
+}
+
+.route-state__skeletons span:nth-child(1) {
+  width: min(100%, 34rem);
+}
+
+.route-state__skeletons span:nth-child(2) {
+  width: min(82%, 27rem);
+}
+
+.route-state__skeletons span:nth-child(3) {
+  width: min(58%, 18rem);
+}
+
+@keyframes shimmer {
+  0%,
+  100% {
+    opacity: 0.62;
+    transform: translateX(0);
+  }
+
+  50% {
+    opacity: 1;
+    transform: translateX(0.35rem);
+  }
 }
 
 .resource-list,
@@ -1189,9 +1524,18 @@ main {
 }
 
 @media (max-width: 760px) {
-  .route-cms-slots {
+  .native-route-cms__hero,
+  .native-route-cms__support {
     width: min(100% - 2rem, 80rem);
-    margin-top: var(--sp-10);
+  }
+
+  .native-route-cms__hero {
+    margin-top: var(--sp-6);
+  }
+
+  .native-route-cms__support {
+    grid-template-columns: 1fr;
+    gap: var(--sp-5);
     margin-bottom: var(--sp-12);
   }
 
@@ -1215,12 +1559,27 @@ main {
   }
 
   .resource-hero-card,
+  .booking-page__hero,
   .resource-grid--two,
   .catalog-grid,
   .catalog-grid--packages,
   .catalog-grid--compact,
   .resource-doctor-grid--wide {
     grid-template-columns: 1fr;
+  }
+
+  .booking-stage-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .booking-page__sticky {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .booking-page__sticky-button {
+    width: 100%;
+    justify-content: center;
   }
 
   .resource-meta-grid {
@@ -1439,6 +1798,7 @@ main {
   gap: var(--sp-2);
 }
 
+.nav-account-link,
 .nav-ai-button,
 .nav-menu-button {
   min-width: 44px;
@@ -1456,9 +1816,18 @@ main {
 }
 
 .nav-ai-button:hover,
+.nav-account-link:hover,
 .nav-menu-button:hover {
   background: var(--color-mint-light);
   transform: translateY(-1px);
+}
+
+.nav-account-link {
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--color-line);
+  background: var(--color-paper-bright);
+  color: var(--color-teal-800);
+  text-decoration: none;
 }
 
 .button--nav {
@@ -1724,6 +2093,70 @@ main {
 
 .hero-trust__icon--accent {
   color: var(--color-amber);
+}
+
+.hero-assurance {
+  margin-top: -2.75rem;
+  padding-inline: var(--page-gutter);
+  position: relative;
+  z-index: 2;
+}
+
+.hero-assurance__inner {
+  max-width: var(--container-lg);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-3);
+  margin-inline: auto;
+  padding: var(--sp-4);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-paper-bright);
+  box-shadow: var(--shadow-soft);
+}
+
+.hero-assurance__item {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border-radius: var(--radius-md);
+  color: var(--color-ink);
+}
+
+.hero-assurance__item > span:last-child {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.hero-assurance__item strong {
+  font-size: 0.875rem;
+  line-height: 1.3;
+}
+
+.hero-assurance__item small {
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.hero-assurance__icon {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-mint-light);
+  color: var(--color-teal-700);
+}
+
+.hero-assurance__icon--accent {
+  background: oklch(93% 0.08 78);
+  color: var(--color-teal-950);
 }
 
 .ai-navigator-fab {
@@ -2890,6 +3323,7 @@ main {
     gap: var(--sp-3);
   }
 
+  .nav-account-link span,
   .nav-ai-button span {
     display: none;
   }
@@ -3125,6 +3559,25 @@ main {
 
   .hero-trust {
     grid-template-columns: 1fr;
+  }
+
+  .hero-assurance {
+    margin-top: -1.5rem;
+  }
+
+  .hero-assurance__inner {
+    grid-template-columns: 1fr;
+    padding: var(--sp-2);
+  }
+
+  .booking-stage-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .booking-page__hero-actions,
+  .booking-page__hero-actions .button,
+  .booking-page__hero-actions .outline-button {
+    width: 100%;
   }
 
   .hero-actions,
@@ -4691,6 +5144,43 @@ main {
   color: #b53b3b;
 }
 
+.site-shell .hero-assurance {
+  margin-top: -3rem;
+  margin-bottom: 1rem;
+}
+
+.site-shell .hero-assurance__inner {
+  border-color: var(--hospital-border);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 18px 36px rgb(22 77 82 / 9%);
+}
+
+.site-shell .hero-assurance__item {
+  padding: 1rem;
+}
+
+.site-shell .hero-assurance__item strong {
+  color: var(--hospital-navy);
+  font-size: 0.9rem;
+}
+
+.site-shell .hero-assurance__item small {
+  color: var(--hospital-muted);
+}
+
+.site-shell .hero-assurance__icon {
+  border-color: #bdd3d2;
+  border-radius: 12px;
+  background: #edf6f4;
+  color: var(--hospital-teal);
+}
+
+.site-shell .hero-assurance__icon--accent {
+  background: #fff4cf;
+  color: #6d3d00;
+}
+
 .site-shell .hero-visual__image-wrap {
   min-height: 500px;
   border: 0;
@@ -4791,6 +5281,200 @@ main {
 .site-shell .care-link--emergency .care-link__icon {
   background: #fbe9e9;
   color: #b2373d;
+}
+
+.site-shell .section--ai-companion {
+  background: #fff;
+}
+
+.site-shell .ai-companion {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(21rem, 1.05fr);
+  gap: 2rem;
+  align-items: stretch;
+}
+
+.site-shell .ai-companion__copy,
+.site-shell .ai-companion__panel {
+  border: 1px solid var(--hospital-border);
+  border-radius: 12px;
+  box-shadow: 0 16px 36px rgb(20 61 75 / 10%);
+}
+
+.site-shell .ai-companion__copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(1.6rem, 3vw, 2.75rem);
+  background: var(--hospital-surface);
+}
+
+.site-shell .ai-companion__copy h2 {
+  max-width: 13ch;
+  color: var(--hospital-navy);
+  font-size: clamp(2rem, 3.6vw, 3.2rem);
+  letter-spacing: -0.045em;
+  line-height: 0.98;
+}
+
+.site-shell .ai-companion__copy > p:not(.section-note):not(.ai-companion__privacy) {
+  max-width: 58ch;
+  margin-top: 1rem;
+  color: var(--hospital-muted);
+  font-size: 1rem;
+  line-height: 1.75;
+}
+
+.site-shell .ai-companion__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  margin-top: 1.65rem;
+}
+
+.site-shell .ai-companion__privacy {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 1.35rem 0 0;
+  color: var(--hospital-muted);
+  font-size: 0.82rem;
+  line-height: 1.65;
+}
+
+.site-shell .ai-companion__privacy svg {
+  flex: 0 0 auto;
+  margin-top: 0.2rem;
+  color: var(--hospital-teal-dark);
+}
+
+.site-shell .ai-companion__panel {
+  display: grid;
+  gap: 1.25rem;
+  padding: clamp(1.25rem, 2.4vw, 2rem);
+  background: var(--hospital-navy);
+  color: #fff;
+}
+
+.site-shell .ai-companion__panel-header {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.site-shell .ai-companion__panel-header > span {
+  width: 48px;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--hospital-amber);
+  color: var(--hospital-navy);
+}
+
+.site-shell .ai-companion__panel-header strong,
+.site-shell .ai-companion__panel-header small {
+  display: block;
+}
+
+.site-shell .ai-companion__panel-header strong {
+  font-size: 1.1rem;
+}
+
+.site-shell .ai-companion__panel-header small {
+  margin-top: 0.2rem;
+  color: #b8d9d6;
+  font-size: 0.78rem;
+}
+
+.site-shell .ai-companion__steps {
+  display: grid;
+  gap: 0.85rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.site-shell .ai-companion__steps li {
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  gap: 0.85rem;
+  padding: 1rem;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 10px;
+  background: rgb(255 255 255 / 8%);
+}
+
+.site-shell .ai-companion__step-icon {
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgb(255 255 255 / 12%);
+  color: var(--hospital-amber);
+}
+
+.site-shell .ai-companion__steps strong,
+.site-shell .ai-companion__steps small {
+  display: block;
+}
+
+.site-shell .ai-companion__steps small {
+  margin-top: 0.3rem;
+  color: #c4dbdd;
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.site-shell .ai-companion__stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.site-shell .ai-companion__stats span {
+  min-height: 76px;
+  display: grid;
+  align-content: center;
+  gap: 0.15rem;
+  padding: 0.85rem;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--hospital-navy);
+}
+
+.site-shell .ai-companion__stats strong,
+.site-shell .ai-companion__stats small {
+  display: block;
+}
+
+.site-shell .ai-companion__stats strong {
+  font-size: 1.35rem;
+}
+
+.site-shell .ai-companion__stats small {
+  color: var(--hospital-muted);
+  font-size: 0.75rem;
+}
+
+.site-shell .ai-companion__hotline {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--hospital-teal-dark);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.site-shell .ai-companion__hotline:hover {
+  color: var(--hospital-navy);
 }
 
 .site-shell .section {
@@ -5165,6 +5849,7 @@ main {
   }
 
   .site-shell .specialty-layout,
+  .site-shell .ai-companion,
   .site-shell .journey-layout,
   .site-shell .branch-layout,
   .site-shell .content-layout,
@@ -5249,6 +5934,24 @@ main {
 
   .site-shell .care-links {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .site-shell .ai-companion__copy,
+  .site-shell .ai-companion__panel {
+    border-radius: 10px;
+  }
+
+  .site-shell .ai-companion__copy h2 {
+    max-width: 12ch;
+  }
+
+  .site-shell .ai-companion__actions,
+  .site-shell .ai-companion__actions > * {
+    width: 100%;
+  }
+
+  .site-shell .ai-companion__stats {
+    grid-template-columns: 1fr;
   }
 
   .site-shell .care-link,

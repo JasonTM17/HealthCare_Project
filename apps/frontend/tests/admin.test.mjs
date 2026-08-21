@@ -32,11 +32,21 @@ test("admin layout gates the UI by the ADMIN role and keeps the demo boundary vi
 test("dashboard uses live catalog snapshots instead of invented metrics", async () => {
   const page = await source("page.tsx");
 
-  assert.match(page, /fetchDoctors/);
-  assert.match(page, /fetchSpecialties/);
-  assert.match(page, /fetchBranches/);
+  assert.match(page, /adminListDoctors/);
+  assert.match(page, /adminListSpecialties/);
+  assert.match(page, /adminListBranches/);
+  assert.match(page, /adminListServices/);
+  assert.match(page, /adminListPackages/);
+  assert.match(page, /adminListFaqs/);
+  assert.match(page, /adminListArticles/);
+  assert.match(page, /adminListAppointments/);
+  assert.doesNotMatch(page, /fetchDoctors/);
+  assert.doesNotMatch(page, /fetchSpecialties/);
+  assert.doesNotMatch(page, /fetchBranches/);
+  assert.doesNotMatch(page, /endpoint công khai/);
   assert.match(page, /Promise\.allSettled/);
-  assert.match(page, /Chưa có bản ghi active/);
+  assert.match(page, /Chưa có bản ghi quản trị/);
+  assert.match(page, /Bản ghi qua endpoint ADMIN/);
   assert.doesNotMatch(page, />500</);
   assert.doesNotMatch(page, />30</);
   assert.doesNotMatch(page, />1000</);
@@ -52,12 +62,18 @@ test("doctor and specialty screens cover loading, empty, error, and admin mutati
     assert.match(page, /tone="loading"/);
     assert.match(page, /tone="empty"/);
     assert.match(page, /tone="error"/);
+    assert.match(page, /ADMIN READ CONTRACT/);
     assert.match(page, /ADMIN WRITE CONTRACT/);
     assert.match(page, /adminCreate/);
     assert.match(page, /adminUpdate/);
     assert.match(page, /adminDelete/);
     assert.match(page, /aria-label/);
   }
+
+  assert.match(doctors, /adminListDoctors/);
+  assert.match(specialties, /adminListSpecialties/);
+  assert.doesNotMatch(doctors, /fetchDoctors/);
+  assert.doesNotMatch(specialties, /fetchSpecialties/);
 });
 
 test("branch and service screens expose typed read/write contracts without mock content", async () => {
@@ -69,10 +85,32 @@ test("branch and service screens expose typed read/write contracts without mock 
   assert.match(branches, /adminCreateBranch/);
   assert.match(branches, /adminUpdateBranch/);
   assert.match(branches, /adminDeleteBranch/);
-  assert.match(branches, /PUBLIC ACTIVE READ/);
+  assert.match(branches, /adminListBranches/);
+  assert.match(branches, /ADMIN READ CONTRACT/);
+  assert.doesNotMatch(branches, /fetchBranches/);
   assert.match(services, /adminCreateService/);
   assert.match(services, /adminUpdateService/);
   assert.match(services, /adminDeleteService/);
-  assert.match(services, /PUBLIC ACTIVE READ/);
+  assert.match(services, /adminListServices/);
+  assert.match(services, /ADMIN READ CONTRACT/);
+  assert.doesNotMatch(services, /fetchServices/);
+  assert.doesNotMatch(branches, /SEED_|mock|fake/i);
   assert.doesNotMatch(services, /SEED_|mock|fake/i);
+});
+
+test("remaining catalog screen reads inactive and unpublished records through admin contracts", async () => {
+  const catalog = await source("catalog/page.tsx");
+
+  assert.match(catalog, /adminListPackages/);
+  assert.match(catalog, /adminListFaqs/);
+  assert.match(catalog, /adminListArticles/);
+  assert.match(catalog, /ADMIN READ CONTRACT/);
+  assert.match(catalog, /item\.active \?\? true/);
+  assert.match(catalog, /item\.active \?\? Boolean\(item\.publishedAt\)/);
+  assert.match(catalog, /Inactive/);
+  assert.match(catalog, /Unpublished/);
+  assert.doesNotMatch(catalog, /fetchPackages/);
+  assert.doesNotMatch(catalog, /fetchFaqs/);
+  assert.doesNotMatch(catalog, /fetchArticles/);
+  assert.doesNotMatch(catalog, /SEED_|mock|fake/i);
 });

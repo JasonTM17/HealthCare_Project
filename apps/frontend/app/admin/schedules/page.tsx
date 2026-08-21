@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import {
   adminCreateSchedule, adminDeleteSchedule, adminListDoctors, adminListSchedules, adminUpdateSchedule,
   adminCreateScheduleException, adminDeleteScheduleException, adminListScheduleExceptions, adminUpdateScheduleException,
-  fetchBranches, type Branch, type Doctor, type DoctorSchedule, type DoctorScheduleException,
+  adminListBranches, type Branch, type Doctor, type DoctorSchedule, type DoctorScheduleException,
 } from "../../../lib/api-client";
 import AdminState from "../_components/AdminState";
 import { describeAdminError } from "../_lib/errors";
@@ -32,7 +32,12 @@ export default function AdminSchedulesPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [schedulePage, exceptionPage, doctorPage, branchPage] = await Promise.all([adminListSchedules(), adminListScheduleExceptions(), adminListDoctors(0, 100), fetchBranches(0, 100)]);
+      const [schedulePage, exceptionPage, doctorPage, branchPage] = await Promise.all([
+        adminListSchedules(),
+        adminListScheduleExceptions(),
+        adminListDoctors(0, 100),
+        adminListBranches(0, 100),
+      ]);
       setSchedules(schedulePage.content); setExceptions(exceptionPage.content); setDoctors(doctorPage.content); setBranches(branchPage.content);
     } catch (error) { setMessage(describeAdminError(error).description); }
     finally { setLoading(false); }

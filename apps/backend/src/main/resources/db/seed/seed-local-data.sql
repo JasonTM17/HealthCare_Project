@@ -11,7 +11,10 @@ INSERT INTO users (id, email, password_hash, display_name, status) VALUES
     ('90000000-0000-0000-0000-000000000001', 'admin@healthcare.local', '$2b$10$OG9QfyAPA/hWfWauU7lXvemQNUnFPcVj/rIuE2zzocw7rtOKoQdfa', 'Quản trị viên Local', 'ACTIVE'),
     ('90000000-0000-0000-0000-000000000002', 'doctor@healthcare.local', '$2b$10$OG9QfyAPA/hWfWauU7lXvemQNUnFPcVj/rIuE2zzocw7rtOKoQdfa', 'Bác sĩ Local', 'ACTIVE'),
     ('90000000-0000-0000-0000-000000000003', 'patient@healthcare.local', '$2b$10$OG9QfyAPA/hWfWauU7lXvemQNUnFPcVj/rIuE2zzocw7rtOKoQdfa', 'Bệnh nhân Local', 'ACTIVE')
-ON CONFLICT (email) DO NOTHING;
+ON CONFLICT (email) DO UPDATE SET
+    password_hash = EXCLUDED.password_hash,
+    display_name = EXCLUDED.display_name,
+    status = EXCLUDED.status;
 
 INSERT INTO user_roles (user_id, role_id)
 SELECT u.id, r.id
@@ -222,6 +225,55 @@ INSERT INTO cms_contents (
     '2026-08-01T08:00:00+07:00'
 )
 ON CONFLICT (slot_key) DO NOTHING;
+
+-- The local seed runs after the backend is already healthy in Compose. Direct
+-- SQL inserts cannot publish an in-process application event, so persist one
+-- durable public cursor row per seeded CMS slot. Connected frontend sessions
+-- can then reconcile through SSE replay or heartbeat without relying on a
+-- transient Java event from this one-shot seed container.
+INSERT INTO cms_content_changes (
+    content_id,
+    slot_key,
+    content_version,
+    published,
+    changed_at,
+    actor_email,
+    component_type,
+    status,
+    payload,
+    previous_payload,
+    public_event
+)
+SELECT
+    content.id,
+    content.slot_key,
+    content.version,
+    TRUE,
+    content.updated_at,
+    'seed@healthcare.local',
+    content.component_type,
+    content.status,
+    content.payload,
+    NULL,
+    TRUE
+FROM cms_contents content
+WHERE content.id IN (
+    '80000000-0000-0000-0000-000000000001',
+    '80000000-0000-0000-0000-000000000002',
+    '80000000-0000-0000-0000-000000000003',
+    '80000000-0000-0000-0000-000000000004',
+    '80000000-0000-0000-0000-000000000005'
+)
+  AND content.status = 'PUBLISHED'
+  AND content.version = 1
+  AND NOT EXISTS (
+      SELECT 1
+      FROM cms_content_changes existing_change
+      WHERE existing_change.content_id = content.id
+        AND existing_change.content_version = content.version
+        AND existing_change.public_event = TRUE
+  )
+ORDER BY content.slot_key;
 
 -- ── Public career openings ──────────────────────────────────────────────────
 INSERT INTO job_positions (

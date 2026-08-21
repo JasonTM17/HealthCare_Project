@@ -1,64 +1,79 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
+import { CMS_PUBLIC_ROUTE_SLUGS } from "../../lib/cms-client";
+import { CmsSlotRenderer } from "./CmsRenderer";
 import CmsLiveSlot from "./CmsLiveSlot";
 
+// A published component is a deliberate public-page contract, not a catch-all
+// for arbitrary first path segments. CmsEditor uses the same exported list.
+const PUBLIC_CMS_ROUTES: ReadonlySet<string> = new Set(CMS_PUBLIC_ROUTE_SLUGS);
+
 /**
- * Mounts supplemental, typed CMS extension points shared by public routes.
- * Native route content stays first so its page heading and primary composition
- * remain authoritative. The homepage and careers page own their hero/body
- * placements; the shared Footer owns every route's footer slot. Missing slots
- * disappear without inventing page content. Dynamic detail pages intentionally
- * share their top-level route key (for example `doctors.hero`) so the editor can
- * manage the collection without allowing arbitrary path segments into the CMS
- * key space.
+ * Places typed CMS regions inside the public route frame rather than appending
+ * a generic block after the page. The native route composition remains
+ * authoritative, including its page heading. The homepage and careers page own
+ * their custom hero/body placements; the shared Footer owns every route's
+ * footer slot. Missing slots disappear without inventing page content.
  */
 export function routeCmsSlug(pathname: string): string | null {
   const segments = pathname.split("/").filter(Boolean);
   if (segments.length === 0) return null;
 
   const route = segments[0];
-  // Keep private/authenticated workspaces out of the public CMS surface. Every
-  // other route, including careers, is a valid footer composition target.
-  if (["admin", "auth", "doctor", "patient"].includes(route)) return null;
-  return route;
+  // Dynamic detail paths intentionally share their canonical family key (for
+  // example `doctors.hero`) so one editor surface controls the collection.
+  // Compatibility aliases redirect before this public frame is rendered.
+  return PUBLIC_CMS_ROUTES.has(route) ? route : null;
 }
 
-export function RouteCmsSlots(): ReactElement | null {
+export function RouteCmsSlots({ children }: { children: ReactNode }): ReactElement {
   const pathname = usePathname();
   const slug = routeCmsSlug(pathname);
   // Careers owns its hero/body composition. Its footer is still mounted by
-  // the shared Footer, so this supplemental region is not rendered there.
-  if (!slug || slug === "careers") return null;
+  // the shared Footer, so the standard frame preserves its native layout.
+  if (!slug || slug === "careers") return <>{children}</>;
 
   return (
-    <section aria-label="Nội dung bổ sung do bệnh viện xuất bản" className="route-cms-slots">
-      <CmsLiveSlot
-        className="route-cms-slot"
-        hideWhenNotFound
-        hideWhileLoading
-        showSourceLabel={false}
-        slug={slug}
-        slotKey="hero"
-      />
-      <CmsLiveSlot
-        className="route-cms-slot"
-        hideWhenNotFound
-        hideWhileLoading
-        showSourceLabel={false}
-        slug={slug}
-        slotKey="body"
-      />
-      <CmsLiveSlot
-        className="route-cms-slot"
-        hideWhenNotFound
-        hideWhileLoading
-        showSourceLabel={false}
-        slug={slug}
-        slotKey="sidebar"
-      />
-    </section>
+    <div className={`native-route-cms native-route-cms--${slug}`} data-cms-route={slug}>
+      <section aria-label="Nội dung đầu trang do bệnh viện xuất bản" className="native-route-cms__hero">
+        <CmsLiveSlot
+          className="native-route-cms__slot native-route-cms__hero-slot"
+          hideWhenNotFound
+          hideWhileLoading
+          renderContent={(content) => (
+            <CmsSlotRenderer content={content} headingLevel="none" slotKey="hero" />
+          )}
+          showSourceLabel={false}
+          slug={slug}
+          slotKey="hero"
+        />
+      </section>
+
+      <div className="native-route-cms__content">{children}</div>
+
+      <section aria-label="Nội dung hỗ trợ do bệnh viện xuất bản" className="native-route-cms__support">
+        <CmsLiveSlot
+          className="native-route-cms__slot native-route-cms__body"
+          hideWhenNotFound
+          hideWhileLoading
+          showSourceLabel={false}
+          slug={slug}
+          slotKey="body"
+        />
+        <aside aria-label="Thông tin bên lề do bệnh viện xuất bản" className="native-route-cms__sidebar">
+          <CmsLiveSlot
+            className="native-route-cms__slot native-route-cms__sidebar-slot"
+            hideWhenNotFound
+            hideWhileLoading
+            showSourceLabel={false}
+            slug={slug}
+            slotKey="sidebar"
+          />
+        </aside>
+      </section>
+    </div>
   );
 }
 

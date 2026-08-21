@@ -6,7 +6,7 @@ import { createContext, useContext, useState, type ReactNode } from "react";
 import { useEffect } from "react";
 import { fetchBranches } from "../lib/api-client";
 import AiTriageModal from "./AiTriageModal";
-import BookingModal from "./BookingModal";
+import BookingModal, { type BookingSelection } from "./BookingModal";
 import Footer from "./Footer";
 import Navbar from "./Navbar";
 import { routeCmsSlug, RouteCmsSlots } from "./cms";
@@ -19,15 +19,11 @@ interface PublicPageShellProps {
   branches?: Branch[];
   packages?: HealthPackage[];
   bookingInitiallyOpen?: boolean;
+  onBookingRequest?: (selection?: BookingSelection) => void;
 }
 
 interface PublicPageActions {
-  openBooking: (selection?: {
-    doctorId?: string;
-    specialtyId?: string;
-    packageId?: string;
-    branchId?: string;
-  }) => void;
+  openBooking: (selection?: BookingSelection) => void;
   openAi: () => void;
 }
 
@@ -62,9 +58,17 @@ export function PublicBackLink({ href = "/", children = "← Về trang chính" 
   return <Link className="text-button" href={href}>{children}</Link>;
 }
 
-export function PublicPageShell({ children, doctors = [], specialties = [], branches = EMPTY_BRANCHES, packages = [], bookingInitiallyOpen = false }: PublicPageShellProps) {
+export function PublicPageShell({
+  children,
+  doctors = [],
+  specialties = [],
+  branches = EMPTY_BRANCHES,
+  packages = [],
+  bookingInitiallyOpen = false,
+  onBookingRequest,
+}: PublicPageShellProps) {
   const pathname = usePathname();
-  const [bookingOpen, setBookingOpen] = useState(bookingInitiallyOpen);
+  const [bookingOpen, setBookingOpen] = useState(bookingInitiallyOpen && !onBookingRequest);
   const [aiOpen, setAiOpen] = useState(false);
   const [selection, setSelection] = useState<Parameters<PublicPageActions["openBooking"]>[0]>();
   const [shellBranches, setShellBranches] = useState<Branch[]>(EMPTY_BRANCHES);
@@ -94,6 +98,10 @@ export function PublicPageShell({ children, doctors = [], specialties = [], bran
 
   const actions: PublicPageActions = {
     openBooking: (nextSelection) => {
+      if (onBookingRequest) {
+        onBookingRequest(nextSelection);
+        return;
+      }
       setSelection(nextSelection);
       setBookingOpen(true);
     },
@@ -103,10 +111,10 @@ export function PublicPageShell({ children, doctors = [], specialties = [], bran
   return (
     <PublicPageActionsContext.Provider value={actions}>
       <div className="site-shell">
-        <Navbar branches={effectiveBranches} onOpenAiTriage={() => setAiOpen(true)} onOpenBooking={() => actions.openBooking()} />
-        <main id="main-content" tabIndex={-1}>{children}<RouteCmsSlots /></main>
+        <Navbar branches={effectiveBranches} onOpenBooking={() => actions.openBooking()} />
+        <main id="main-content" tabIndex={-1}><RouteCmsSlots>{children}</RouteCmsSlots></main>
         <Footer branches={effectiveBranches} cmsSlug={cmsSlug ?? undefined} />
-        {bookingOpen ? (
+        {!onBookingRequest && bookingOpen ? (
           <BookingModal
             branches={effectiveBranches}
             doctors={doctors}

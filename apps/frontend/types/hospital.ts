@@ -12,6 +12,7 @@ export interface Specialty {
   name: string;
   slug: string;
   description: string;
+  active?: boolean;
   icon?: string;
   commonSymptoms?: string[];
   preparationSteps?: string[];
@@ -25,6 +26,7 @@ export interface Doctor {
   slug: string;
   bio: string;
   photoUrl?: string;
+  active?: boolean;
   title?: string;
   specialtyName?: string;
   experienceYears?: number;
@@ -45,6 +47,7 @@ export interface Branch {
   mapUrl?: string | null;
   amenities?: string[];
   doctors?: DoctorSummary[];
+  active?: boolean;
 }
 
 export interface HealthPackage {
@@ -53,6 +56,7 @@ export interface HealthPackage {
   slug: string;
   description: string;
   price: number;
+  active?: boolean;
   featured?: boolean;
   checklist?: string[];
   targetAudience?: string | null;
@@ -65,12 +69,14 @@ export interface MedicalService {
   name: string;
   slug: string;
   description: string;
+  active?: boolean;
 }
 
 export interface Faq {
   id: string;
   question: string;
   answer: string;
+  active?: boolean;
 }
 
 export type EmploymentType = "FULL_TIME" | "PART_TIME" | "CONTRACT" | "INTERNSHIP";
@@ -115,6 +121,7 @@ export interface Article {
   summary: string;
   body?: string;
   publishedAt: string;
+  active?: boolean;
   category?: string | null;
   authorName?: string | null;
   readingMinutes?: number | null;
@@ -215,7 +222,11 @@ export interface DoctorPortalAppointment extends PortalAppointmentBase {
 
 export type PortalAppointment = PatientPortalAppointment | DoctorPortalAppointment;
 
-export type AiTriageCitation = string | Record<string, unknown>;
+export interface AiTriageCitation {
+  source_type: "specialty" | "doctor" | "service" | "package" | "article" | "faq";
+  source_id: string;
+  title: string;
+}
 
 export type AiTriageProvenance = string | Record<string, unknown>;
 

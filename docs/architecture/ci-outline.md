@@ -1,23 +1,30 @@
 # CI Outline
 
 The repository has a committed GitHub Actions workflow at
-`.github/workflows/ci.yml`. Its definition is configuration evidence only; no
-CI run is claimed in the local handoff.
+`.github/workflows/ci.yml`. Its definition is configuration evidence only;
+actual run status belongs to the GitHub Actions run for the exact commit under
+review.
 
 ## Workflow Gates
 
-1. Backend service containers provide PostgreSQL 16 and MinIO. `mvn -B verify`
-   runs from `apps/backend` with the CI database variables and an explicit
-   cleanup opt-in for the dedicated `healthcare_test` database, so Flyway
-   migration tests and the Spring integration suite exercise that PostgreSQL
-   service.
+1. Backend service containers provide PostgreSQL 16 and MinIO. The workflow
+   warms the Maven wrapper with a bounded `./mvnw -B -v` retry before the test
+   gate, so a transient Maven distribution download failure does not mark the
+   commit red before tests start. `mvn -B verify` still runs once from
+   `apps/backend` with the CI database variables and an explicit cleanup opt-in
+   for the dedicated `healthcare_test` database, so Flyway migration tests and
+   the Spring integration suite exercise that PostgreSQL service.
    `TestcontainersIntegrationTest` is currently a backwards-compatible test
    base-class alias; it does not start a Java Testcontainers container.
    Successful verification uploads the generated backend JAR as a short-lived
    CI evidence artifact.
-2. Frontend runs install, lint, typecheck, the declared Node test suite, and
-   the production build from `apps/frontend`. Successful builds upload `.next`
-   as a short-lived CI evidence artifact, not as a production release.
+2. Frontend runs install, lint, typecheck, the declared Node test suite,
+   production build, and a Playwright CMS realtime browser gate from
+   `apps/frontend`. The browser gate drives the admin CMS editor and public
+   homepage against a mocked backend/SSE contract; it does not replace live
+   Compose E2E. Successful builds upload `.next` as a short-lived CI evidence
+   artifact, not as a production release. Playwright diagnostics upload only on
+   browser-test failure.
 3. AI service installs pinned dependencies and runs Ruff, mypy, and pytest from
    `apps/ai-service`.
 4. Infrastructure configuration is validated with
@@ -28,17 +35,31 @@ CI run is claimed in the local handoff.
    environment/private-key files plus a narrow set of credential-shaped token
    formats. Checkout credentials are not persisted into the job worktrees. The
    scan reports file paths only; it must not print secret values.
+6. The separate `Runtime Compose MVP` workflow is manual (`workflow_dispatch`)
+   because it builds and boots the full local Docker Compose stack. It runs the
+   same provenance-bound local MVP verifier against PostgreSQL, Redis, MinIO,
+   backend, frontend, and AI service with a disposable env file outside the
+   repository, then stops the Compose project. This is live local-runtime
+   evidence for the exact commit, not a production deployment.
+7. The separate `Publish database package` workflow builds the standalone GHCR
+   database fixture only from an exact 40-character source SHA. Before any
+   package write, it requires a successful `ci.yml` run for that same SHA,
+   builds the image locally, boots PostgreSQL from the image, verifies the large
+   fixture counts and CMS constraints, rejects an invalid hero/RICH_TEXT row,
+   scans the verified local image with Syft/Anchore to produce an SPDX JSON
+   fixture SBOM, then pushes the verified tags and attaches provenance plus the
+   SBOM to the pushed digest. Manual releases should prefer the immutable
+   `sha-<commit>` tag; semantic tags are aliases, not source identity.
 
-## Local Evidence Boundary
+## Evidence Boundary
 
-The current local run observed backend 76/76 tests against disposable
-PostgreSQL 16.15 and MinIO services, frontend lint/typecheck/test/build, AI
-pytest 23/23 plus Ruff/mypy, and Compose config validation. Flyway applied the
-complete migration set present in that frozen parent checkout; the CI gate is
-not capped at V9 and must include V10/V11 when those migrations are present in
-the integration target. Hibernate validation passed. These are local checks,
-not evidence of a GitHub Actions run, deployment, image publication, or
-production readiness.
+Exact test counts and pass/fail status are run evidence, not evergreen
+architecture. Treat GitHub Actions, local terminal output, and package
+publication logs as the authority for a frozen commit. Green default CI is not
+evidence of deployment, compliance, provider liveness, backup/restore, or
+production readiness. A green manual `Runtime Compose MVP` run adds live local
+Docker/SQL/API evidence for one commit, but still does not prove production
+cutover or compliance.
 The backend integration base uses `TEST_DB_*` to target an external PostgreSQL
 service; Java Testcontainers execution is `NOT_RUN` unless a test explicitly
 starts a Testcontainers container. Local `actionlint` and `yamllint` were not

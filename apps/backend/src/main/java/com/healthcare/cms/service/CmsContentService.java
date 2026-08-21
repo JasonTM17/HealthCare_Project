@@ -9,6 +9,7 @@ import com.healthcare.cms.entity.CmsComponentType;
 import com.healthcare.cms.entity.CmsContent;
 import com.healthcare.cms.entity.CmsContentChange;
 import com.healthcare.cms.entity.CmsPublicationStatus;
+import com.healthcare.cms.exception.CmsPayloadValidationException;
 import com.healthcare.cms.exception.CmsVersionConflictException;
 import com.healthcare.cms.repository.CmsContentChangeRepository;
 import com.healthcare.cms.repository.CmsContentRepository;
@@ -17,27 +18,29 @@ import com.healthcare.exception.DuplicateResourceException;
 import com.healthcare.exception.BusinessException;
 import com.healthcare.exception.ResourceNotFoundException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.ConnectionCallback;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import java.sql.PreparedStatement;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
-import java.util.regex.Pattern;
 
 @Service
 public class CmsContentService {
 
-    private static final Pattern SLOT_KEY = Pattern.compile("[a-z0-9]+(?:[._-][a-z0-9]+)*");
-    private static final int MAX_SLOT_KEY_LENGTH = 120;
+    static final long PUBLICATION_CURSOR_LOCK_KEY = 0x48434d5353450101L;
 
     private final CmsContentRepository contentRepository;
     private final CmsContentChangeRepository changeRepository;
     private final CmsPayloadValidator payloadValidator;
     private final CmsPublishedContentCache cache;
+    private final JdbcTemplate jdbcTemplate;
     private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     public CmsContentService(
@@ -45,12 +48,14 @@ public class CmsContentService {
         CmsContentChangeRepository changeRepository,
         CmsPayloadValidator payloadValidator,
         CmsPublishedContentCache cache,
+        JdbcTemplate jdbcTemplate,
         org.springframework.context.ApplicationEventPublisher eventPublisher
     ) {
         this.contentRepository = contentRepository;
         this.changeRepository = changeRepository;
         this.payloadValidator = payloadValidator;
         this.cache = cache;
+        this.jdbcTemplate = jdbcTemplate;
         this.eventPublisher = eventPublisher;
     }
 
@@ -140,6 +145,8 @@ public class CmsContentService {
     public CmsContentResponse upsert(String slotKey, CmsContentRequest request, UserDetails actor) {
         String validatedSlotKey = validateSlotKey(slotKey);
         JsonNode sanitizedPayload = payloadValidator.validateAndSanitize(request.componentType(), request.payload());
+        validateSlotComponent(validatedSlotKey, request.componentType());
+        lockPublicationCursor();
         long expectedVersion = request.expectedVersion();
         CmsContent existing = contentRepository.findBySlotKey(validatedSlotKey).orElse(null);
         boolean previouslyPublished = existing != null && existing.getStatus() == CmsPublicationStatus.PUBLISHED;
@@ -266,12 +273,33 @@ public class CmsContentService {
     }
 
     private String validateSlotKey(String slotKey) {
-        if (slotKey == null || slotKey.length() > MAX_SLOT_KEY_LENGTH || !SLOT_KEY.matcher(slotKey).matches()) {
-            throw new com.healthcare.cms.exception.CmsPayloadValidationException(
-                "slotKey must use lowercase letters, numbers, dots, dashes, or underscores"
+        if (!CmsPublicSlotKeys.isAllowed(slotKey)) {
+            throw new CmsPayloadValidationException(
+                "slotKey must target an allowed public CMS route and slot"
             );
         }
         return slotKey;
+    }
+
+    private void validateSlotComponent(String slotKey, CmsComponentType componentType) {
+        if (!CmsPublicSlotKeys.isComponentAllowed(slotKey, componentType)) {
+            throw new CmsPayloadValidationException(
+                "componentType " + componentType + " is not supported for CMS slot " + slotKey
+            );
+        }
+    }
+
+    private void lockPublicationCursor() {
+        jdbcTemplate.execute((ConnectionCallback<Void>) connection -> {
+            if (!"PostgreSQL".equalsIgnoreCase(connection.getMetaData().getDatabaseProductName())) {
+                return null;
+            }
+            try (PreparedStatement statement = connection.prepareStatement("select pg_advisory_xact_lock(?)")) {
+                statement.setLong(1, PUBLICATION_CURSOR_LOCK_KEY);
+                statement.execute();
+            }
+            return null;
+        });
     }
 
     private OffsetDateTime now() {

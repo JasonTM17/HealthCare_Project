@@ -2,11 +2,17 @@
 param(
     [string]$ApiBaseUrl = "http://localhost:8080/api/v1",
     [string]$FrontendUrl = "http://localhost:3000",
-    [string]$DemoPassword = "LocalDemo!2026"
+    [string]$DemoPassword = "LocalDemo!2026",
+    [switch]$RequireClinicalFlow,
+    [string]$ExpectedRevision,
+    [string]$DockerPath,
+    [string]$ComposeFile,
+    [string]$EnvFile
 )
 
 $ErrorActionPreference = "Stop"
 $checks = [System.Collections.Generic.List[string]]::new()
+. (Join-Path $PSScriptRoot "local-mvp-provenance.ps1")
 
 function Invoke-JsonApi {
     param(
@@ -29,6 +35,66 @@ function Login-DemoRole([string]$Email) {
     if (-not $session.accessToken) { throw "Login did not return an access token for $Email" }
     $checks.Add("login:$Email")
     $session.accessToken
+}
+
+function Resolve-HospitalTimeZone {
+    foreach ($timeZoneId in @("SE Asia Standard Time", "Asia/Ho_Chi_Minh", "Asia/Bangkok")) {
+        try {
+            return [TimeZoneInfo]::FindSystemTimeZoneById($timeZoneId)
+        } catch {
+            continue
+        }
+    }
+
+    throw "Unable to resolve the hospital timezone on this host"
+}
+
+function Get-HospitalBusinessDate {
+    $hospitalTimeZone = Resolve-HospitalTimeZone
+    return [TimeZoneInfo]::ConvertTime([DateTimeOffset]::UtcNow, $hospitalTimeZone).Date
+}
+
+function Get-ComposeServiceContainerId {
+    param(
+        [Parameter(Mandatory)] [string]$ServiceName
+    )
+
+    if ([string]::IsNullOrWhiteSpace($ComposeFile)) {
+        throw "ComposeFile is required to verify image provenance without fixed container names"
+    }
+
+    $composeArgs = @("compose")
+    if (-not [string]::IsNullOrWhiteSpace($EnvFile)) {
+        $composeArgs += @("--env-file", $EnvFile)
+    }
+    $composeArgs += @("-f", $ComposeFile, "ps", "-q", $ServiceName)
+
+    $containerOutput = & $DockerPath @composeArgs 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Unable to resolve container for Compose service $ServiceName"
+    }
+
+    $containerId = $containerOutput | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1
+    if ([string]::IsNullOrWhiteSpace($containerId)) {
+        throw "Compose service $ServiceName has no running container"
+    }
+
+    return $containerId.ToString().Trim()
+}
+
+if ($ExpectedRevision) {
+    if (-not $DockerPath) {
+        $docker = Get-Command docker -ErrorAction SilentlyContinue
+        if (-not $docker) { throw "Docker CLI is required to verify image provenance" }
+        $DockerPath = $docker.Source
+    }
+
+    Assert-ExpectedRevision -Revision $ExpectedRevision
+    foreach ($service in @("backend", "frontend", "ai-service")) {
+        $container = Get-ComposeServiceContainerId -ServiceName $service
+        Assert-ContainerRevision -ContainerName $container -Revision $ExpectedRevision -DockerExecutable $DockerPath
+    }
+    $checks.Add("provenance:backend+frontend+ai-service")
 }
 
 $backendHealth = Invoke-RestMethod "http://localhost:8080/actuator/health"
@@ -71,13 +137,20 @@ if (-not $bookingSpecialty) { throw "Demo doctor is not connected to an active s
 $selectedDate = $null
 $selectedSlot = $null
 $branchId = $demoDoctor.branchIds[0]
-for ($offset = 0; $offset -le 21 -and -not $selectedSlot; $offset++) {
-    $candidateDate = (Get-Date).Date.AddDays($offset).ToString("yyyy-MM-dd")
+$maxSlotOffset = if ($RequireClinicalFlow) { 0 } else { 21 }
+$hospitalBusinessDate = Get-HospitalBusinessDate
+for ($offset = 0; $offset -le $maxSlotOffset -and -not $selectedSlot; $offset++) {
+    $candidateDate = $hospitalBusinessDate.AddDays($offset).ToString("yyyy-MM-dd")
     $slots = Invoke-JsonApi -Uri "$ApiBaseUrl/appointments/doctors/$($demoDoctor.id)/slots?date=$candidateDate&branchId=$branchId"
     $slot = $slots | Where-Object { $_.available } | Select-Object -First 1
     if ($slot) { $selectedDate = $candidateDate; $selectedSlot = $slot }
 }
-if (-not $selectedSlot) { throw "No available slot found for the demo doctor in the next 21 days" }
+if (-not $selectedSlot) {
+    if ($RequireClinicalFlow) {
+        throw "No available slot found for the demo doctor today; the clinical lifecycle requires a same-day appointment. Retry during an available local schedule."
+    }
+    throw "No available slot found for the demo doctor in the next 21 days"
+}
 
 $hold = Invoke-JsonApi -Uri "$ApiBaseUrl/appointments/hold" -Method POST -Token $patientToken -Body @{
     doctorId = $demoDoctor.id
@@ -108,6 +181,61 @@ foreach ($view in @($patientAppointments, $doctorAppointments, $adminAppointment
 }
 $checks.Add("appointments:patient+doctor+admin-visible")
 
+$patientNotifications = Invoke-JsonApi -Uri "$ApiBaseUrl/notifications?size=100" -Token $patientToken
+$confirmedNotification = $patientNotifications.content | Where-Object {
+    $_.referenceId -eq $confirmed.id -and $_.eventType -eq "APPOINTMENT_CONFIRMED"
+} | Select-Object -First 1
+if (-not $confirmedNotification) {
+    throw "Patient confirmation notification is missing for the confirmed booking"
+}
+$checks.Add("notifications:patient-confirmation-visible")
+
+if ($RequireClinicalFlow) {
+    $doctorAppointment = $doctorAppointments.content | Where-Object { $_.bookingCode -eq $confirmed.bookingCode } | Select-Object -First 1
+    if (-not $doctorAppointment -or -not $doctorAppointment.patientId) {
+        throw "Doctor appointment view is missing the patient identity required for the clinical flow"
+    }
+    $patientProfile = Invoke-JsonApi -Uri "$ApiBaseUrl/patient/profile" -Token $patientToken
+    if ($doctorAppointment.patientId -ne $patientProfile.id) {
+        throw "Doctor appointment patient identity does not match the authenticated patient profile"
+    }
+
+    $checkedIn = Invoke-JsonApi -Uri "$ApiBaseUrl/doctor/appointments/$($doctorAppointment.id)/status" -Method PATCH -Token $doctorToken -Body @{ status = "CHECKED_IN" }
+    if ($checkedIn.status -ne "CHECKED_IN") { throw "Doctor check-in transition failed" }
+    $inProgress = Invoke-JsonApi -Uri "$ApiBaseUrl/doctor/appointments/$($doctorAppointment.id)/status" -Method PATCH -Token $doctorToken -Body @{ status = "IN_PROGRESS" }
+    if ($inProgress.status -ne "IN_PROGRESS") { throw "Doctor in-progress transition failed" }
+
+    $record = Invoke-JsonApi -Uri "$ApiBaseUrl/clinical/records" -Method POST -Token $doctorToken -Body @{
+        appointmentId = $doctorAppointment.id
+        patientId = $patientProfile.id
+        doctorId = $doctorProfile.id
+        diagnosis = "E2E local verification - headache and dizziness"
+        symptomsSummary = "Automated same-day clinical verification"
+        treatmentPlan = "Follow the clinician's verified local care plan"
+        doctorNotes = "Created by the local MVP verifier"
+    }
+    if ($record.appointmentId -ne $doctorAppointment.id -or $record.patientId -ne $patientProfile.id) {
+        throw "Clinical record did not retain the verified appointment and patient identity"
+    }
+    $patientRecords = Invoke-JsonApi -Uri "$ApiBaseUrl/patient/medical-records" -Token $patientToken
+    if (-not ($patientRecords | Where-Object { $_.id -eq $record.id })) {
+        throw "Patient portal does not expose the newly authorized clinical record"
+    }
+
+    $completedAppointmentViews = @(
+        Invoke-JsonApi -Uri "$ApiBaseUrl/patient/appointments?size=100" -Token $patientToken
+        Invoke-JsonApi -Uri "$ApiBaseUrl/doctor/appointments?date=$selectedDate&size=100" -Token $doctorToken
+        Invoke-JsonApi -Uri "$ApiBaseUrl/admin/appointments?date=$selectedDate&size=100" -Token $adminToken
+    )
+    foreach ($view in $completedAppointmentViews) {
+        $completedAppointment = $view.content | Where-Object { $_.bookingCode -eq $confirmed.bookingCode } | Select-Object -First 1
+        if (-not $completedAppointment -or $completedAppointment.id -ne $doctorAppointment.id -or $completedAppointment.status -ne "COMPLETED") {
+            throw "Clinical record creation did not produce the verified COMPLETED appointment in every role-specific view"
+        }
+    }
+    $checks.Add("clinical:check-in+in-progress+record+completed+own-patient-visible")
+}
+
 try {
     Invoke-JsonApi -Uri "$ApiBaseUrl/admin/appointments" -Token $patientToken | Out-Null
     throw "Patient token unexpectedly accessed the ADMIN appointment endpoint"
@@ -120,5 +248,6 @@ $checks.Add("authorization:patient-denied-admin")
     Status = "PASS"
     BookingCode = $confirmed.bookingCode
     AppointmentDate = $selectedDate
+    ClinicalFlowRequired = [bool]$RequireClinicalFlow
     Checks = $checks -join ", "
 } | Format-List

@@ -55,14 +55,18 @@ The catalog also owns `/services`, `/services/[slug]`, `/faq`, `/contact`,
 `/chuyen-khoa/[slug]`, and `/goi-kham/[slug]` preserve compatibility with
 legacy Vietnamese paths and redirect to the canonical route family.
 
-All public `PublicPageShell` routes mount supplemental route-scoped `hero`,
-`body`, and `sidebar` CMS slots after the native route composition so the route's
-primary heading and layout remain authoritative. The shared `Footer` mounts the
-route-scoped `footer` slot inside the actual site footer. The homepage and
-careers page compose their live hero/body slots natively; a published HERO
-component replaces the actual hero copy/image/CTA while catalog and AI actions
-remain backend-owned. Admin uses `/admin/content` and optimistic
-`expectedVersion` conflict handling; it never renders raw HTML or JavaScript.
+Eligible public `PublicPageShell` route families place route-scoped `hero`,
+`body`, and `sidebar` CMS slots in a native three-zone frame: an optional CMS
+hero before the route composition, the native route content in its own region,
+and optional supporting body/sidebar content after it. The route's primary
+heading and domain layout remain authoritative. The route allowlist is shared
+with `/admin/content`; unknown, private, and authenticated paths cannot create
+public CMS keys. The shared `Footer` mounts the route-scoped `footer` slot
+inside the actual site footer. The homepage and careers page compose their live
+hero/body slots natively; a published HERO component replaces the actual hero
+copy/image/CTA while catalog and AI actions remain backend-owned. Admin uses
+optimistic `expectedVersion` conflict handling; it never renders raw HTML or
+JavaScript.
 
 ## Backend contract index
 
@@ -75,14 +79,16 @@ remain backend-owned. Admin uses `/admin/content` and optimistic
 | AI | FastAPI service behind backend auth/token boundary; rule-based local provider in Compose |
 | Persistence | Flyway PostgreSQL schema; Compose also provides Redis and MinIO for local infrastructure |
 
-The public detail contracts are backed by Flyway V15-V22 and the local
+The public detail contracts are backed by Flyway V15-V23 and the local
 rich-content/career overlays: specialties expose symptoms, preparation, care pathway, and related
 doctors; branches expose hours, emergency hotline, map, amenities, and linked
 doctors; packages expose audience, duration, checklist, and preparation; and
 articles expose category, author, reading time, related specialty, and typed
 sections. The rich-content assertions continue to validate the V15 contracts,
-while the full base seed runs after the complete migration chain through V22
-because it also contains careers fixtures.
+V22 adds the careers fixtures, and V23 constrains CMS slot keys to the same
+public route inventory exposed by `/admin/content`.
 
-This matrix does not claim browser, multi-instance, provider, backup/restore,
-or production deployment evidence. Those remain explicit acceptance gates.
+This matrix claims only the committed browser gate for the homepage CMS
+admin-to-public realtime contract. It does not claim full route-level live
+browser E2E, multi-instance, provider, backup/restore, or production deployment
+evidence. Those remain explicit acceptance gates.
