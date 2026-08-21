@@ -4,6 +4,39 @@ import test from "node:test";
 
 const read = (relativePath) => readFile(new URL(`../${relativePath}`, import.meta.url), "utf8");
 
+const EXPECTED_CMS_PUBLIC_ROUTE_SLUGS = [
+  "about",
+  "branches",
+  "specialties",
+  "doctors",
+  "services",
+  "packages",
+  "articles",
+  "careers",
+  "search",
+  "dat-lich",
+  "contact",
+  "faq",
+  "huong-dan",
+  "tra-cuu",
+];
+
+const PRIVATE_OR_LEGACY_ALIAS_ROUTE_SLUGS = [
+  "admin",
+  "auth",
+  "doctor",
+  "patient",
+  "bac-si",
+  "chuyen-khoa",
+  "goi-kham",
+];
+
+function extractQuotedStrings(source, label, pattern) {
+  const match = source.match(pattern);
+  assert.ok(match, `missing ${label}`);
+  return Array.from(match[1].matchAll(/"([^"]+)"/g), ([, value]) => value);
+}
+
 test("canonical resource details clear stale records and expose complete async states", async () => {
   const routes = [
     ["app/doctors/[slug]/page.tsx", "setDoctor(null)"],
@@ -460,6 +493,40 @@ test("every public page family keeps the route-level CMS composition point", asy
   }
   assert.match(footer, /cmsSlug\?/);
   assert.match(footer, /slotKey="footer"/);
+});
+
+test("CMS route inventory stays aligned across frontend admin, public shell, and backend", async () => {
+  const [client, routeCms, editor, backendSlotKeys] = await Promise.all([
+    read("lib/cms-client.ts"),
+    read("components/cms/RouteCmsSlots.tsx"),
+    read("components/cms/CmsEditor.tsx"),
+    read("../backend/src/main/java/com/healthcare/cms/service/CmsPublicSlotKeys.java"),
+  ]);
+
+  const frontendRoutes = extractQuotedStrings(
+    client,
+    "CMS_PUBLIC_ROUTE_SLUGS",
+    /CMS_PUBLIC_ROUTE_SLUGS\s*=\s*\[([\s\S]*?)\]\s+as const/,
+  );
+  const backendRoutes = extractQuotedStrings(
+    backendSlotKeys,
+    "CMS_PUBLIC_ROUTE_KEYS",
+    /CMS_PUBLIC_ROUTE_KEYS\s*=\s*Set\.of\(([\s\S]*?)\);/,
+  );
+
+  assert.deepEqual(frontendRoutes, EXPECTED_CMS_PUBLIC_ROUTE_SLUGS);
+  assert.ok(backendRoutes.includes("homepage"), "backend must keep homepage slot support");
+  assert.deepEqual(
+    backendRoutes.filter((route) => route !== "homepage"),
+    EXPECTED_CMS_PUBLIC_ROUTE_SLUGS,
+  );
+  assert.match(routeCms, /new Set\(CMS_PUBLIC_ROUTE_SLUGS\)/);
+  assert.match(editor, /\["home", \.\.\.CMS_PUBLIC_ROUTE_SLUGS\] as const/);
+
+  for (const route of PRIVATE_OR_LEGACY_ALIAS_ROUTE_SLUGS) {
+    assert.ok(!frontendRoutes.includes(route), `frontend CMS route list must not expose ${route}`);
+    assert.ok(!backendRoutes.includes(route), `backend CMS route list must not expose ${route}`);
+  }
 });
 
 test("doctor portal exposes the typed clinical write workflow", async () => {
