@@ -46,9 +46,10 @@ review.
    package write, it requires a successful `ci.yml` run for that same SHA,
    builds the image locally, boots PostgreSQL from the image, verifies the large
    fixture counts and CMS constraints, rejects an invalid hero/RICH_TEXT row,
-   then pushes the verified tags and attaches provenance plus a fixture SBOM to
-   the pushed digest. Manual releases should prefer the immutable `sha-<commit>`
-   tag; semantic tags are aliases, not source identity.
+   scans the verified local image with Syft/Anchore to produce an SPDX JSON
+   fixture SBOM, then pushes the verified tags and attaches provenance plus the
+   SBOM to the pushed digest. Manual releases should prefer the immutable
+   `sha-<commit>` tag; semantic tags are aliases, not source identity.
 
 ## Evidence Boundary
 
