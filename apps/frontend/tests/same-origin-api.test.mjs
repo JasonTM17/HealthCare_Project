@@ -44,7 +44,7 @@ test("Compose routes same-origin frontend traffic through the backend service", 
 });
 
 test("local MVP helper binds rebuilt application images to an immutable Git source revision", async () => {
-  const [compose, backendDockerfile, frontendDockerfile, aiDockerfile, backendDockerignore, aiDockerignore, helper, verifier, provenance] = await Promise.all([
+  const [compose, backendDockerfile, frontendDockerfile, aiDockerfile, backendDockerignore, aiDockerignore, helper, verifier, provenance, runtimeWorkflow] = await Promise.all([
     read("../../infrastructure/docker-compose.yml"),
     read("../../apps/backend/Dockerfile"),
     read("Dockerfile"),
@@ -54,6 +54,7 @@ test("local MVP helper binds rebuilt application images to an immutable Git sour
     read("../../scripts/start-and-verify-local-mvp.ps1"),
     read("../../scripts/verify-local-mvp.ps1"),
     read("../../scripts/local-mvp-provenance.ps1"),
+    read("../../.github/workflows/runtime-compose.yml"),
   ]);
 
   assert.equal((compose.match(/VCS_REF:\s+\$\{BUILD_VCS_REF:-unknown\}/g) || []).length, 3);
@@ -74,6 +75,8 @@ test("local MVP helper binds rebuilt application images to an immutable Git sour
   assert.match(helper, /New-ImmutableBuildSnapshot -RepositoryRoot \$repositoryRoot -Revision \$buildRevision/);
   assert.match(helper, /Assert-SourceRevisionMatches -RepositoryRoot \$repositoryRoot -ExpectedRevision \$buildRevision/);
   assert.match(helper, /\$env:BUILD_VCS_REF = \$buildRevision/);
+  assert.match(helper, /function Test-IsWindowsHost/);
+  assert.match(helper, /\$DockerPath info --format/);
   assert.match(helper, /compose --env-file \$EnvFile -f \$composeFile ps -q local-seed/);
   assert.doesNotMatch(helper, /wait healthcare-local-seed/);
   assert.match(helper, /\}\s*finally\s*\{\s*try\s*\{[\s\S]*?Remove-ImmutableBuildSnapshot[\s\S]*?\}\s*finally\s*\{\s*if \(\$hadBuildRevision\)/);
@@ -83,6 +86,12 @@ test("local MVP helper binds rebuilt application images to an immutable Git sour
   assert.match(verifier, /Assert-ContainerRevision -ContainerName \$container -Revision \$ExpectedRevision -DockerExecutable \$DockerPath/);
   assert.match(verifier, /foreach \(\$service in @\("backend", "frontend", "ai-service"\)\)/);
   assert.doesNotMatch(verifier, /healthcare-backend", "healthcare-frontend", "healthcare-ai-service/);
+  assert.match(runtimeWorkflow, /name: Runtime Compose MVP/);
+  assert.match(runtimeWorkflow, /workflow_dispatch/);
+  assert.match(runtimeWorkflow, /Start and verify full local MVP stack/);
+  assert.match(runtimeWorkflow, /HEALTHCARE_RUNTIME_ENV: \$\{\{ runner\.temp \}\}\/healthcare-runtime\.env/);
+  assert.match(runtimeWorkflow, /COMPOSE_PROJECT_NAME: healthcare-runtime-ci-\$\{\{ github\.run_id \}\}/);
+  assert.match(runtimeWorkflow, /"down", "--remove-orphans"/);
   for (const dockerignore of [backendDockerignore, aiDockerignore]) {
     assert.match(dockerignore, /^\.git$/m);
     assert.match(dockerignore, /^\.env$/m);

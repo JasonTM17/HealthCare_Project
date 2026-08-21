@@ -37,8 +37,20 @@ function Login-DemoRole([string]$Email) {
     $session.accessToken
 }
 
+function Resolve-HospitalTimeZone {
+    foreach ($timeZoneId in @("SE Asia Standard Time", "Asia/Ho_Chi_Minh", "Asia/Bangkok")) {
+        try {
+            return [TimeZoneInfo]::FindSystemTimeZoneById($timeZoneId)
+        } catch {
+            continue
+        }
+    }
+
+    throw "Unable to resolve the hospital timezone on this host"
+}
+
 function Get-HospitalBusinessDate {
-    $hospitalTimeZone = [TimeZoneInfo]::FindSystemTimeZoneById("SE Asia Standard Time")
+    $hospitalTimeZone = Resolve-HospitalTimeZone
     return [TimeZoneInfo]::ConvertTime([DateTimeOffset]::UtcNow, $hospitalTimeZone).Date
 }
 
