@@ -167,7 +167,8 @@ test("booking landing keeps the appointment flow inline without auto-opening a d
     const page = await context.newPage();
     await page.goto("/dat-lich");
 
-    await expect(page.getByRole("heading", { name: "Các cơ sở khám nổi bật" })).toBeVisible();
+    await expect(page.getByText("Các cơ sở khám nổi bật")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Chọn cơ sở thuận tiện nhất trước khi vào form" })).toBeVisible();
     await expect(page.locator(".booking-page__branch-card")).toHaveCount(1);
     await expect(page.getByRole("link", { name: "Tìm hiểu thêm →" })).toBeVisible();
 
