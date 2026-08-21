@@ -77,7 +77,7 @@ test("local MVP helper binds rebuilt application images to an immutable Git sour
   assert.match(helper, /\$env:BUILD_VCS_REF = \$buildRevision/);
   assert.match(helper, /function Test-IsWindowsHost/);
   assert.match(helper, /\$DockerPath info --format/);
-  assert.match(helper, /compose --env-file \$EnvFile -f \$composeFile ps -q local-seed/);
+  assert.match(helper, /compose --env-file \$EnvFile -f \$composeFile ps --all -q local-seed/);
   assert.doesNotMatch(helper, /wait healthcare-local-seed/);
   assert.match(helper, /\}\s*finally\s*\{\s*try\s*\{[\s\S]*?Remove-ImmutableBuildSnapshot[\s\S]*?\}\s*finally\s*\{\s*if \(\$hadBuildRevision\)/);
   assert.match(helper, /\$verifierParameters = @\{ DockerPath = \$DockerPath; ExpectedRevision = \$buildRevision; ComposeFile = \$composeFile; EnvFile = \$EnvFile \}/);

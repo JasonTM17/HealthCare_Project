@@ -133,7 +133,7 @@ try {
     Assert-CleanBuildContext -RepositoryRoot $repositoryRoot
     Assert-SourceRevisionMatches -RepositoryRoot $repositoryRoot -ExpectedRevision $buildRevision
 
-    $seedContainerOutput = & $DockerPath compose --env-file $EnvFile -f $composeFile ps -q local-seed 2>&1
+    $seedContainerOutput = & $DockerPath compose --env-file $EnvFile -f $composeFile ps --all -q local-seed 2>&1
     $seedContainerExit = $LASTEXITCODE
     $seedContainerId = ($seedContainerOutput | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1)
     if ($seedContainerExit -ne 0 -or [string]::IsNullOrWhiteSpace($seedContainerId)) {
