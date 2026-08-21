@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import type { ReactElement, ReactNode } from "react";
 import { CMS_PUBLIC_ROUTE_SLUGS } from "../../lib/cms-client";
+import { CmsSlotRenderer } from "./CmsRenderer";
 import CmsLiveSlot from "./CmsLiveSlot";
 
 // A published component is a deliberate public-page contract, not a catch-all
@@ -41,6 +42,9 @@ export function RouteCmsSlots({ children }: { children: ReactNode }): ReactEleme
           className="native-route-cms__slot native-route-cms__hero-slot"
           hideWhenNotFound
           hideWhileLoading
+          renderContent={(content) => (
+            <CmsSlotRenderer content={content} headingLevel="none" slotKey="hero" />
+          )}
           showSourceLabel={false}
           slug={slug}
           slotKey="hero"
