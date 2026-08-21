@@ -461,7 +461,7 @@ export async function fetchDoctors(filter: DoctorFilter = {}): Promise<Page<Doct
 }
 
 export async function fetchDoctorBySlug(slug: string): Promise<Doctor> {
-  return getJson<Doctor>(`/hospital/doctors/${slug}`);
+  return getJson<Doctor>(`/hospital/doctors/${encodeURIComponent(slug)}`);
 }
 
 // ── Specialties ─────────────────────────────────────────────────────────────
@@ -476,7 +476,7 @@ export async function fetchSpecialties(
 }
 
 export async function fetchSpecialtyBySlug(slug: string): Promise<Specialty> {
-  return getJson<Specialty>(`/hospital/specialties/${slug}`);
+  return getJson<Specialty>(`/hospital/specialties/${encodeURIComponent(slug)}`);
 }
 
 // ── Branches ────────────────────────────────────────────────────────────────
@@ -489,7 +489,7 @@ export async function fetchBranches(
 }
 
 export async function fetchBranchBySlug(slug: string): Promise<Branch> {
-  return getJson<Branch>(`/hospital/branches/${slug}`);
+  return getJson<Branch>(`/hospital/branches/${encodeURIComponent(slug)}`);
 }
 
 // ── Packages ────────────────────────────────────────────────────────────────
@@ -504,7 +504,7 @@ export async function fetchPackages(
 }
 
 export async function fetchPackageBySlug(slug: string): Promise<HealthPackage> {
-  return getJson<HealthPackage>(`/hospital/packages/${slug}`);
+  return getJson<HealthPackage>(`/hospital/packages/${encodeURIComponent(slug)}`);
 }
 
 // ── Services and FAQs ───────────────────────────────────────────────────────
@@ -666,7 +666,7 @@ export async function fetchArticles(
 }
 
 export async function fetchArticleBySlug(slug: string): Promise<Article> {
-  return getJson<Article>(`/hospital/articles/${slug}`);
+  return getJson<Article>(`/hospital/articles/${encodeURIComponent(slug)}`);
 }
 
 // ── Admin: Doctors ──────────────────────────────────────────────────────────
@@ -698,14 +698,14 @@ export async function adminUpdateDoctor(
   slug: string,
   payload: AdminDoctorPayload,
 ): Promise<Doctor> {
-  return getAuthenticatedJson<Doctor>(`/admin/doctors/${slug}`, {
+  return getAuthenticatedJson<Doctor>(`/admin/doctors/${encodeURIComponent(slug)}`, {
     method: "PUT",
     body: JSON.stringify(payload),
   });
 }
 
 export async function adminDeleteDoctor(slug: string): Promise<void> {
-  await getAuthenticatedJson<void>(`/admin/doctors/${slug}`, { method: "DELETE" });
+  await getAuthenticatedJson<void>(`/admin/doctors/${encodeURIComponent(slug)}`, { method: "DELETE" });
 }
 
 // ── Admin: Specialties ──────────────────────────────────────────────────────
@@ -735,14 +735,14 @@ export async function adminUpdateSpecialty(
   slug: string,
   payload: AdminSpecialtyPayload,
 ): Promise<Specialty> {
-  return getAuthenticatedJson<Specialty>(`/admin/specialties/${slug}`, {
+  return getAuthenticatedJson<Specialty>(`/admin/specialties/${encodeURIComponent(slug)}`, {
     method: "PUT",
     body: JSON.stringify(payload),
   });
 }
 
 export async function adminDeleteSpecialty(slug: string): Promise<void> {
-  await getAuthenticatedJson<void>(`/admin/specialties/${slug}`, { method: "DELETE" });
+  await getAuthenticatedJson<void>(`/admin/specialties/${encodeURIComponent(slug)}`, { method: "DELETE" });
 }
 
 // ── Authentication and portal data ─────────────────────────────────────────
