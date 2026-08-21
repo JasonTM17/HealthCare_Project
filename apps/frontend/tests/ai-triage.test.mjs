@@ -25,6 +25,12 @@ test("AI triage fails closed for emergency and unresolved specialty results", as
   assert.match(modal, /aria-live=\{result\.urgencyLevel === "EMERGENCY" \? "assertive" : "polite"\}/);
   assert.match(modal, /Xem cơ sở gần nhất/);
   assert.match(modal, /analysisRequestRef/);
+  assert.match(modal, /MAX_SYMPTOM_LENGTH = 1200/);
+  assert.match(modal, /SYMPTOM_PROMPTS/);
+  assert.match(modal, /triage-character-count/);
+  assert.match(modal, /Không nhập số CCCD, mã BHYT/);
+  assert.match(modal, /h-11 w-11/);
+  assert.match(modal, /aria-describedby="triage-input-help triage-privacy-note triage-character-count"/);
   assert.match(shell, /emergencyContact=\{emergencyBranch\?\.emergencyHotline\}/);
   assert.match(home, /emergencyContact=\{emergencyBranch\?\.emergencyHotline\}/);
 });

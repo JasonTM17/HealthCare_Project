@@ -16,12 +16,10 @@ import {
 
 interface NavbarProps {
   onOpenBooking: () => void;
-  onOpenAiTriage: () => void;
   branches?: Branch[];
 }
 
 const NAV_LINKS = [
-  { label: "Giới thiệu", href: "/about" },
   { label: "Chuyên khoa", href: "/specialties" },
   { label: "Bác sĩ", href: "/doctors" },
   { label: "Gói khám", href: "/packages" },
@@ -41,7 +39,7 @@ function getAccountDestination(session: AuthSession | null, pathname: string | n
   return { href: "/", label: "Tài khoản" };
 }
 
-const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, onOpenAiTriage, branches = [] }) => {
+const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [authSession, setAuthSession] = useState<AuthSession | null>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
@@ -155,10 +153,6 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, onOpenAiTriage, branches
               <Icon name="user" size={16} />
               <span>{accountDestination.label}</span>
             </Link>
-            <button className="nav-ai-button" onClick={onOpenAiTriage} type="button">
-              <Icon name="stethoscope" size={16} />
-              <span>Chọn chuyên khoa</span>
-            </button>
             <button className="button button--nav" onClick={onOpenBooking} type="button">
               <Icon name="calendar" size={17} />
               <span>Đặt lịch khám</span>
@@ -195,9 +189,6 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, onOpenAiTriage, branches
                 <Icon name="user" size={17} /> {accountDestination.label}
               </Link>
               <Link className="outline-button" href="/tra-cuu" onClick={closeMobileMenu}>Tra cứu lịch hẹn</Link>
-              <button className="outline-button" onClick={() => { closeMobileMenu(); onOpenAiTriage(); }} type="button">
-                <Icon name="stethoscope" size={17} /> Hỗ trợ chọn chuyên khoa
-              </button>
               <button className="button button--amber" onClick={() => { closeMobileMenu(); onOpenBooking(); }} type="button">
                 <Icon name="calendar" size={17} /> Đặt lịch khám
               </button>

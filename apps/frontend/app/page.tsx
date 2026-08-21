@@ -216,8 +216,6 @@ interface HomeHeroCopyProps {
   onSearchSubmit: () => void;
   onBooking: () => void;
   onOpenAi: () => void;
-  hasEmergencyBranch: boolean;
-  contactPhone?: string;
   cmsHero?: CmsHeroPayload;
 }
 
@@ -227,8 +225,6 @@ function HomeHeroCopy({
   onSearchSubmit,
   onBooking,
   onOpenAi,
-  hasEmergencyBranch,
-  contactPhone,
   cmsHero,
 }: HomeHeroCopyProps): React.ReactElement {
   const cmsCta = cmsHero?.ctaLabel && cmsHero.ctaHref && isSafeCmsUrl(cmsHero.ctaHref)
@@ -278,32 +274,41 @@ function HomeHeroCopy({
           </button>
         )}
         <button className="button button--hero-secondary" onClick={onOpenAi} type="button">
-          Mô tả triệu chứng
+          Hỏi trợ lý AI
           <Icon name="activity" size={18} />
         </button>
-        <Link className="button button--hero-secondary" href="/doctors">
-          Tìm bác sĩ
-          <Icon name="arrow-up-right" size={18} />
-        </Link>
       </div>
       <DemoNote>
         {cmsHero ? "Nội dung hero do quản trị viên xuất bản; catalog và trợ lý AI vẫn được cập nhật theo hệ thống." : "Catalog công khai được cập nhật theo hệ thống; trợ lý AI cần đăng nhập để hoạt động."}
       </DemoNote>
-      <div className="hero-trust" aria-label="Điểm nhấn của trải nghiệm đặt khám">
-        <div className="hero-trust__item">
-          <span className="hero-trust__icon"><Icon name="check" size={16} /></span>
-          <span><strong>Luồng 4 bước</strong><small>Chọn, giữ, xác nhận</small></span>
+    </div>
+  );
+}
+
+function HomeAssuranceStrip({
+  hasEmergencyBranch,
+  contactPhone,
+}: {
+  hasEmergencyBranch: boolean;
+  contactPhone?: string;
+}): React.ReactElement {
+  return (
+    <section className="hero-assurance" aria-label="Điểm nhấn của trải nghiệm đặt khám">
+      <div className="hero-assurance__inner">
+        <div className="hero-assurance__item">
+          <span className="hero-assurance__icon"><Icon name="check" size={17} /></span>
+          <span><strong>Luồng 4 bước rõ ràng</strong><small>Chọn nhu cầu, giữ lịch, xác nhận và tra cứu lại.</small></span>
         </div>
-        <div className="hero-trust__item">
-          <span className="hero-trust__icon"><Icon name="building" size={16} /></span>
-          <span><strong>Chọn đúng cơ sở</strong><small>Hiển thị ngay trong lịch</small></span>
+        <div className="hero-assurance__item">
+          <span className="hero-assurance__icon"><Icon name="building" size={17} /></span>
+          <span><strong>Dữ liệu từ catalog live</strong><small>Bác sĩ, cơ sở và gói khám lấy từ hệ thống hiện tại.</small></span>
         </div>
-        <div className="hero-trust__item">
-          <span className="hero-trust__icon hero-trust__icon--accent"><Icon name="phone" size={16} /></span>
-          <span><strong>{hasEmergencyBranch ? "Hotline cấp cứu" : "Liên hệ cơ sở"}</strong><small>{contactPhone ?? "Chưa cung cấp số điện thoại"}</small></span>
+        <div className="hero-assurance__item">
+          <span className="hero-assurance__icon hero-assurance__icon--accent"><Icon name="phone" size={17} /></span>
+          <span><strong>{hasEmergencyBranch ? "Hotline cấp cứu" : "Liên hệ cơ sở"}</strong><small>{contactPhone ?? "Số điện thoại đang cập nhật."}</small></span>
         </div>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -486,16 +491,18 @@ export default function Home(): React.ReactElement {
     onSearchSubmit: handleHeroSearchSubmit,
     onBooking: () => handleOpenBooking(),
     onOpenAi: () => setIsAiTriageOpen(true),
-    hasEmergencyBranch: Boolean(emergencyBranch),
-    contactPhone,
   };
+  const branchAreaLabel = catalogLoading && branches.length === 0
+    ? "Đang tải cơ sở"
+    : branches.length > 0
+      ? `${branches.length} cơ sở đang hiển thị`
+      : "Cơ sở đang cập nhật";
 
     return (
       <div className="site-shell">
       <PublicMotion />
       <Navbar
         branches={branches}
-        onOpenAiTriage={() => setIsAiTriageOpen(true)}
         onOpenBooking={() => handleOpenBooking()}
       />
 
@@ -523,6 +530,11 @@ export default function Home(): React.ReactElement {
           />
         </section>
 
+        <HomeAssuranceStrip
+          contactPhone={contactPhone}
+          hasEmergencyBranch={Boolean(emergencyBranch)}
+        />
+
         <section className="cms-live-region" id="cms-live" aria-labelledby="cms-live-title">
           <div className="section-inner">
             <h2 className="sr-only" id="cms-live-title">Thông báo từ bệnh viện</h2>
@@ -544,14 +556,6 @@ export default function Home(): React.ReactElement {
                 <span>
                   <strong>Đặt lịch khám</strong>
                   <small>Chọn bác sĩ và khung giờ</small>
-                </span>
-                <Icon name="chevron-right" size={18} />
-              </button>
-              <button className="care-link care-link--accent" onClick={() => setIsAiTriageOpen(true)} type="button">
-                <span className="care-link__icon"><Icon name="sparkles" size={21} /></span>
-                <span>
-                  <strong>Trợ lý triệu chứng</strong>
-                  <small>Gợi ý theo triệu chứng · cần đăng nhập</small>
                 </span>
                 <Icon name="chevron-right" size={18} />
               </button>
@@ -741,7 +745,7 @@ export default function Home(): React.ReactElement {
             />
             <div className="branch-layout">
               <div className="branch-intro">
-                <div className="branch-intro__topline"><Icon name="location" size={20} /><span>TP. Hồ Chí Minh</span></div>
+                <div className="branch-intro__topline"><Icon name="location" size={20} /><span>{branchAreaLabel}</span></div>
                 <h3>Chọn nơi bạn muốn bắt đầu chăm sóc.</h3>
                 <p>Địa chỉ và giờ làm việc lấy từ catalog công khai. Hãy kiểm tra lại trước khi đến.</p>
                 {contactHref ? <a className="text-button" href={contactHref}>{emergencyBranch ? "Gọi hotline cấp cứu" : "Gọi cơ sở"} <Icon name="phone" size={17} /></a> : <Link className="text-button" href="/contact">Xem thông tin liên hệ <Icon name="arrow-up-right" size={17} /></Link>}
@@ -822,17 +826,6 @@ export default function Home(): React.ReactElement {
           </div>
         </section>
       </main>
-
-      <button
-        aria-label="Mở công cụ hỗ trợ chọn chuyên khoa"
-        className="ai-navigator-fab"
-        onClick={() => setIsAiTriageOpen(true)}
-        type="button"
-      >
-        <span className="ai-navigator-fab__icon"><Icon name="stethoscope" size={20} /></span>
-        <span className="ai-navigator-fab__copy"><strong>Chọn chuyên khoa</strong><small>Hỗ trợ theo nhu cầu</small></span>
-        <Icon name="arrow-up-right" size={17} />
-      </button>
 
       <Footer branches={branches} cmsSlug="home" />
 
