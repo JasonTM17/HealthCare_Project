@@ -247,8 +247,9 @@ test("Stitch search and careers screens have live public route owners", async ()
 });
 
 test("every CMS-managed public page family uses the native slot frame", async () => {
-  const [routeCms, cmsClient, editor, footer, shell] = await Promise.all([
+  const [routeCms, cmsRenderer, cmsClient, editor, footer, shell] = await Promise.all([
     read("components/cms/RouteCmsSlots.tsx"),
+    read("components/cms/CmsRenderer.tsx"),
     read("lib/cms-client.ts"),
     read("components/cms/CmsEditor.tsx"),
     read("components/Footer.tsx"),
@@ -268,6 +269,11 @@ test("every CMS-managed public page family uses the native slot frame", async ()
   assert.match(routeCms, /native-route-cms__content/);
   assert.match(routeCms, /native-route-cms__support/);
   assert.match(routeCms, /<div className="native-route-cms__content">\{children\}<\/div>/);
+  assert.match(routeCms, /import \{ CmsSlotRenderer \} from "\.\/CmsRenderer";/);
+  assert.match(routeCms, /headingLevel="none" slotKey="hero"/);
+  assert.match(cmsRenderer, /export type CmsRendererHeadingLevel = "h2" \| "none"/);
+  assert.match(cmsRenderer, /cms-renderer__title cms-renderer__title--non-heading/);
+  assert.match(cmsRenderer, /return <h2 className="cms-renderer__title">\{children\}<\/h2>;/);
   assert.doesNotMatch(routeCms, /supplemental, typed CMS extension points/);
   for (const slot of ["hero", "body", "sidebar"]) {
     assert.match(routeCms, new RegExp(`slotKey="${slot}"`));
