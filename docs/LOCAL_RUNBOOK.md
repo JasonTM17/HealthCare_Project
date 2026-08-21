@@ -67,6 +67,25 @@ is denied by the admin appointment endpoint. To verify an already-running stack:
 .\scripts\verify-local-mvp.ps1
 ```
 
+After the same Compose stack is running, run the browser-level role demo from
+the frontend workspace. This gate uses the live frontend/backend/PostgreSQL
+stack, does not intercept `/api/v1/**`, books through the public UI, and then
+checks patient, doctor and admin pages for the same confirmed appointment:
+
+```powershell
+cd apps\frontend
+npm run test:e2e:compose
+```
+
+When the Compose stack uses non-default host ports, set both live endpoints
+before running the browser gate:
+
+```powershell
+$env:PLAYWRIGHT_BASE_URL = "http://127.0.0.1:<frontend-port>"
+$env:PLAYWRIGHT_API_BASE_URL = "http://127.0.0.1:<backend-port>/api/v1"
+npm run test:e2e:compose
+```
+
 For the API-level same-day clinical lifecycle (doctor check-in, in-progress
 visit, medical-record creation, `COMPLETED` appointment status in patient,
 doctor and admin API views, the matching `APPOINTMENT_CONFIRMED` notification,
