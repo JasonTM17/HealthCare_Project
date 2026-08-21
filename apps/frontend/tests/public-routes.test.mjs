@@ -37,6 +37,56 @@ function extractQuotedStrings(source, label, pattern) {
   return Array.from(match[1].matchAll(/"([^"]+)"/g), ([, value]) => value);
 }
 
+function extractTsSlotComponentMap(source) {
+  const match = source.match(
+    /CMS_SLOT_COMPONENT_TYPES\s*=\s*\{([\s\S]*?)\}\s*as const satisfies Record<CmsSlotKey, readonly CmsComponentType\[\]>;/,
+  );
+  assert.ok(match, "missing frontend CMS slot component map");
+  const block = match[1];
+  const map = {};
+
+  for (const slot of ["hero", "body", "sidebar", "footer"]) {
+    const slotMatch = block.match(new RegExp(`${slot}:\\s*\\[([^\\]]+)\\]`));
+    assert.ok(slotMatch, `missing frontend slot components for ${slot}`);
+    map[slot] = Array.from(slotMatch[1].matchAll(/"([^"]+)"/g), ([, value]) => value);
+  }
+
+  return map;
+}
+
+function extractJavaSlotComponentMap(source) {
+  const match = source.match(/CMS_SLOT_COMPONENT_TYPES\s*=\s*Map\.of\(([\s\S]*?)\);/);
+  assert.ok(match, "missing backend CMS slot component map");
+  const block = match[1];
+  const map = {};
+
+  for (const slot of ["hero", "body", "sidebar", "footer"]) {
+    const slotMatch = block.match(new RegExp(`"${slot}"\\s*,\\s*Set\\.of\\(([^\\)]+)\\)`));
+    assert.ok(slotMatch, `missing backend slot components for ${slot}`);
+    map[slot] = Array.from(slotMatch[1].matchAll(/CmsComponentType\.([A-Z_]+)/g), ([, value]) => value);
+  }
+
+  return map;
+}
+
+function extractSqlRouteInventory(source) {
+  const match = source.match(/allowed_public_slot_key CONSTANT TEXT :=\s*'\^\(([^)]+)\)\\\.\(([^)]+)\)\$';/);
+  assert.ok(match, "missing V23 public slot regex");
+  return {
+    routes: match[1].split("|"),
+    slots: match[2].split("|"),
+  };
+}
+
+function sqlSlotPattern(slotKey, components) {
+  const slotClause = `split_part\\(slot_key, '\\.', 2\\)\\s*=\\s*'${slotKey}'`;
+  if (components.length === 1) {
+    return new RegExp(`${slotClause}\\s+AND\\s+component_type\\s*=\\s*'${components[0]}'`, "g");
+  }
+  const componentClause = components.map((component) => `'${component}'`).join("\\s*,\\s*");
+  return new RegExp(`${slotClause}\\s+AND\\s+component_type\\s+IN\\s+\\(${componentClause}\\)`, "g");
+}
+
 test("canonical resource details clear stale records and expose complete async states", async () => {
   const routes = [
     ["app/doctors/[slug]/page.tsx", "setDoctor(null)"],
@@ -530,6 +580,32 @@ test("CMS route inventory stays aligned across frontend admin, public shell, and
   for (const route of PRIVATE_OR_LEGACY_ALIAS_ROUTE_SLUGS) {
     assert.ok(!frontendRoutes.includes(route), `frontend CMS route list must not expose ${route}`);
     assert.ok(!backendRoutes.includes(route), `backend CMS route list must not expose ${route}`);
+  }
+});
+
+test("CMS slot-component and migration contracts stay aligned across frontend, backend, and SQL", async () => {
+  const [client, backendSlotKeys, v23, v24] = await Promise.all([
+    read("lib/cms-client.ts"),
+    read("../backend/src/main/java/com/healthcare/cms/service/CmsPublicSlotKeys.java"),
+    read("../backend/src/main/resources/db/migration/V23__restrict_public_cms_slot_keys.sql"),
+    read("../backend/src/main/resources/db/migration/V24__cms_slot_component_contract.sql"),
+  ]);
+
+  const frontendSlotMap = extractTsSlotComponentMap(client);
+  const backendSlotMap = extractJavaSlotComponentMap(backendSlotKeys);
+  const { routes: v23Routes, slots: v23Slots } = extractSqlRouteInventory(v23);
+
+  assert.deepEqual(frontendSlotMap, backendSlotMap);
+  assert.deepEqual(v23Routes, ["homepage", ...EXPECTED_CMS_PUBLIC_ROUTE_SLUGS]);
+  assert.deepEqual(v23Slots, ["hero", "body", "sidebar", "footer"]);
+
+  for (const [slotKey, components] of Object.entries(backendSlotMap)) {
+    const pattern = sqlSlotPattern(slotKey, components);
+    const occurrences = v24.match(pattern) ?? [];
+    assert.ok(
+      occurrences.length >= 2,
+      `V24 slot contract for ${slotKey} should appear in preflight and constraint sections`,
+    );
   }
 });
 
