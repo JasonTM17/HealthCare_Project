@@ -45,6 +45,10 @@ public class CmsChangeFeedRedisSubscriber implements MessageListener {
             if (properties.getInstanceId().equals(change.originInstanceId())) {
                 return;
             }
+            if (!isValidBrokerChange(change)) {
+                log.warn("CMS realtime broker message was ignored because it failed structural validation");
+                return;
+            }
             cache.evict(change.slotKey());
             changeFeedHub.publish(new CmsContentChangeResponse(
                 change.eventId(),
@@ -56,5 +60,14 @@ public class CmsChangeFeedRedisSubscriber implements MessageListener {
         } catch (IOException | RuntimeException exception) {
             log.warn("CMS realtime broker message was ignored because it was invalid");
         }
+    }
+
+    private boolean isValidBrokerChange(CmsChangeFeedRedisMessage change) {
+        return change.eventId() > 0
+            && change.version() > 0
+            && change.updatedAt() != null
+            && change.originInstanceId() != null
+            && !change.originInstanceId().isBlank()
+            && CmsPublicSlotKeys.isAllowed(change.slotKey());
     }
 }

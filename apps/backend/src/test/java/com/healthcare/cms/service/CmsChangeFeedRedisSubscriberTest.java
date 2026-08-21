@@ -12,6 +12,7 @@ import java.time.OffsetDateTime;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class CmsChangeFeedRedisSubscriberTest {
@@ -76,9 +77,40 @@ class CmsChangeFeedRedisSubscriberTest {
         verify(hub, never()).publish(org.mockito.ArgumentMatchers.any());
     }
 
+    @Test
+    void structurallyInvalidRemoteMessagesAreIgnoredBeforeCacheEviction() throws Exception {
+        CmsRealtimeProperties properties = properties("instance-b");
+        CmsPublishedContentCache cache = mock(CmsPublishedContentCache.class);
+        CmsChangeFeedHub hub = mock(CmsChangeFeedHub.class);
+        CmsChangeFeedRedisSubscriber subscriber = new CmsChangeFeedRedisSubscriber(
+            objectMapper,
+            properties,
+            cache,
+            hub
+        );
+        Message message = message("""
+            {
+              "eventId": 42,
+              "slotKey": "patient.dashboard.hero",
+              "version": 7,
+              "published": true,
+              "updatedAt": "2026-08-18T10:15:30Z",
+              "originInstanceId": "instance-a"
+            }
+            """);
+
+        subscriber.onMessage(message, null);
+
+        verifyNoInteractions(cache, hub);
+    }
+
     private Message message(CmsChangeFeedRedisMessage change) throws Exception {
+        return message(objectMapper.writeValueAsString(change));
+    }
+
+    private Message message(String body) {
         Message message = mock(Message.class);
-        when(message.getBody()).thenReturn(objectMapper.writeValueAsString(change).getBytes(StandardCharsets.UTF_8));
+        when(message.getBody()).thenReturn(body.getBytes(StandardCharsets.UTF_8));
         return message;
     }
 
