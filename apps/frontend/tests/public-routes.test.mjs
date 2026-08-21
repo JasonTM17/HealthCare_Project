@@ -63,6 +63,18 @@ test("contact and guidance pages do not invent branch, insurance, or FAQ data", 
   assert.match(about, /Thước phim giới thiệu/);
 });
 
+test("faq page now behaves like a support hub instead of a bare list", async () => {
+  const faq = await read("app/faq/page.tsx");
+
+  assert.match(faq, /resource-hero-card--teal/);
+  assert.match(faq, /PublicAiButton/);
+  assert.match(faq, /resource-meta-grid/);
+  assert.match(faq, /resource-step-card/);
+  assert.match(faq, /catalog-meta/);
+  assert.match(faq, /faq-list/);
+  assert.match(faq, /Liên hệ bệnh viện/);
+});
+
 test("public phone actions validate backend values before creating tel links", async () => {
   const sources = await Promise.all([
     read("lib/phone.ts"),
