@@ -536,8 +536,11 @@ confirmation, role-scoped appointment APIs, admin authorization, and a mocked
 backend browser proof for CMS homepage realtime. The same-day clinical verifier
 exercises the API counterparts of the booking, notification,
 appointment-status, record-creation, and own-patient record visibility steps,
-but still requires a genuine available slot on the day it runs. Full live
-browser E2E, cross-patient runtime isolation, source/image identity,
+but still requires a genuine available slot on the day it runs. A dedicated
+Compose-targeted Playwright gate now drives public booking through the browser
+and checks patient, doctor and admin pages against the same live appointment;
+it remains environment-gated until run against a seeded local stack. Full
+cross-patient runtime isolation, source/image identity,
 backup/restore, multi-instance, provider, and production gates remain separate.
 
 Goal: prove the primary story works end-to-end.
@@ -559,9 +562,11 @@ Demo flow:
 
 Run `scripts/verify-local-mvp.ps1 -RequireClinicalFlow` when a same-day local
 slot is available to exercise the API counterparts of steps 6 through 12
-without fabricating timestamps. It is not full route-level browser E2E
-evidence; the committed Playwright browser gate is limited to the CMS
-admin-to-public homepage realtime contract.
+without fabricating timestamps. Run `npm run test:e2e:compose` from
+`apps/frontend` after Compose is up to exercise the live browser booking,
+patient-notification, doctor-visibility and admin-visibility slice. The CMS
+admin-to-public homepage realtime browser gate remains mocked-backend evidence;
+full clinical browser execution and production gates remain separate.
 
 ## Completed Components
 
