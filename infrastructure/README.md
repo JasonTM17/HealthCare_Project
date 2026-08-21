@@ -70,13 +70,14 @@ $env:SEED_FILE = "../apps/backend/src/main/resources/db/seed/seed-large-data.sql
 docker compose -f infrastructure/docker-compose.yml up --build
 ```
 
-The release also publishes a standalone GHCR image at
+The release workflow also publishes a standalone GHCR image at
 `ghcr.io/jasontm17/healthcare-project-database`. It applies the migrations in
 Flyway order and then loads the large seed plus the careers fixture when
-PostgreSQL initializes a new data directory. The current alpha fixture is
-`0.1.0-alpha.2`, also tagged as
-`sha-67fcc453071e908815db19824dd8cf373e55fab5`, with digest
-`sha256:07bd6c40d3e0d000536ad7f24a1c9f9684cb877f17e1cceae87af953de9a9148`:
+PostgreSQL initializes a new data directory. Prefer the immutable
+`sha-<verified-commit>` tag shown in the successful
+`Publish database package` workflow run; semantic release tags are convenient
+aliases and should be checked with `docker buildx imagetools inspect` before
+use:
 
 ```bash
 docker run --name healthcare-database \
@@ -84,7 +85,7 @@ docker run --name healthcare-database \
   -e POSTGRES_USER=healthcare \
   -e POSTGRES_PASSWORD=change-me \
   -p 5435:5432 \
-  ghcr.io/jasontm17/healthcare-project-database:0.1.0-alpha.2
+  ghcr.io/jasontm17/healthcare-project-database:sha-<verified-commit>
 ```
 
 This fixture intentionally does not create `flyway_schema_history`; use it as
