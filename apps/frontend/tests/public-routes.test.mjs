@@ -98,6 +98,9 @@ test("appointment lookup page now behaves like a patient tracking hub", async ()
   assert.match(tracking, /resource-meta-grid/);
   assert.match(tracking, /resource-step-card/);
   assert.match(tracking, /TRACKING_STEPS/);
+  assert.match(tracking, /LOOKUP_TIMEOUT_MS/);
+  assert.match(tracking, /fetchWithTimeout/);
+  assert.match(tracking, /AbortController/);
   assert.match(tracking, /cache: "no-store"/);
   assert.match(tracking, /encodeURIComponent/);
 });

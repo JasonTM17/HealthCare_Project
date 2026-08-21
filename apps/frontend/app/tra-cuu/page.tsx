@@ -9,12 +9,27 @@ import { AppointmentDetails } from "../../types/hospital";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "/api/v1";
+const LOOKUP_TIMEOUT_MS = 12_000;
 
 const TRACKING_STEPS = [
   ["01", "Nhập mã hẹn", "Dùng đúng mã được cấp sau khi đặt lịch thành công."],
   ["02", "Xác thực điện thoại", "Nhập số điện thoại đã dùng khi đặt lịch để bảo vệ thông tin cá nhân."],
   ["03", "Kiểm tra trạng thái", "Xem bác sĩ, cơ sở, khung giờ và các hướng dẫn cần xác nhận trước khi đến."],
 ] as const;
+
+async function fetchWithTimeout(input: string, init: RequestInit = {}) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), LOOKUP_TIMEOUT_MS);
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 export default function TraCuuPage() {
   const [bookingCodeInput, setBookingCodeInput] = useState("");
@@ -49,7 +64,7 @@ export default function TraCuuPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(
+      const res = await fetchWithTimeout(
         `${API_BASE_URL}/appointments/${encodeURIComponent(bookingCodeInput.trim())}?phone=${encodeURIComponent(phoneInput.trim())}`,
         { cache: "no-store" },
       );
@@ -65,9 +80,13 @@ export default function TraCuuPage() {
       const data: AppointmentDetails = await res.json();
       if (requestId !== lookupRequestRef.current) return;
       setAppointment(data);
-    } catch {
+    } catch (error) {
       if (requestId !== lookupRequestRef.current) return;
-      setErrorMessage("Tạm thời chưa thể tra cứu lịch hẹn. Vui lòng kiểm tra kết nối và thử lại sau.");
+      setErrorMessage(
+        error instanceof Error && error.name === "AbortError"
+          ? "Tạm thời hệ thống phản hồi chậm. Vui lòng thử lại sau."
+          : "Tạm thời chưa thể tra cứu lịch hẹn. Vui lòng kiểm tra kết nối và thử lại sau."
+      );
     } finally {
       if (requestId === lookupRequestRef.current) setLoading(false);
     }
@@ -78,7 +97,7 @@ export default function TraCuuPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/appointments/${encodeURIComponent(appointment.bookingCode)}/cancel`, {
+      const res = await fetchWithTimeout(`${API_BASE_URL}/appointments/${encodeURIComponent(appointment.bookingCode)}/cancel`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -99,8 +118,12 @@ export default function TraCuuPage() {
       setAppointment({ ...appointment, status: "CANCELLED" });
       setCancelSuccess(true);
       setShowCancelDialog(false);
-    } catch {
-      setErrorMessage("Tạm thời chưa thể hủy lịch hẹn. Vui lòng kiểm tra kết nối và thử lại sau.");
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error && error.name === "AbortError"
+          ? "Tạm thời hệ thống phản hồi chậm. Vui lòng thử lại sau."
+          : "Tạm thời chưa thể hủy lịch hẹn. Vui lòng kiểm tra kết nối và thử lại sau."
+      );
     } finally {
       setLoading(false);
     }
