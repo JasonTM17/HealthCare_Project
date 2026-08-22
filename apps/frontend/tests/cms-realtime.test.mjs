@@ -133,6 +133,10 @@ test("public live slot listens to named SSE changes and has polling fallback", a
   assert.match(liveSlot, /pendingVersionFloor/);
   assert.match(liveSlot, /refresh\(event\.version, event\.eventId\)/);
   assert.match(liveSlot, /refresh\(pendingVersionFloor\(\), event\.latestEventId\)/);
+  assert.match(liveSlot, /safetyPollTimer/);
+  assert.match(liveSlot, /startSafetyPolling/);
+  assert.match(liveSlot, /refresh\(0\)\.then/);
+  assert.match(liveSlot, /reconciliation\.hasPendingWork/);
   assert.match(liveSlot, /reconciliation\.pendingEventIds\.size === 0/);
   assert.match(liveSlot, /startPolling\(\)/);
   assert.match(liveSlot, /if \(result === "failed" && !cancelled\) startPolling\(\)/);

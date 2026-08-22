@@ -1,5 +1,6 @@
 import { expect, test, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import { businessDate } from "../../lib/business-time";
+import type { CmsContent } from "../../lib/cms-client";
 import type {
   AppointmentDetails,
   AuthSession,
@@ -138,6 +139,17 @@ async function cleanupLiveAppointment(bookingCode: string): Promise<void> {
   if (cancelled.status !== "CANCELLED") {
     throw new Error(`Cleanup for ${bookingCode} left the appointment in status ${cancelled.status}.`);
   }
+}
+
+async function loadPublishedHomepageHero(): Promise<CmsContent> {
+  return apiJson<CmsContent>("/cms/content/homepage.hero?afterEventId=0");
+}
+
+function requireCmsText(value: string | undefined, label: string): string {
+  if (!value) {
+    throw new Error(`Missing live CMS ${label} for homepage.hero.`);
+  }
+  return value;
 }
 
 async function resolveDemoDoctor(): Promise<{ branch: Branch; doctor: Doctor; specialty: Specialty }> {
@@ -335,6 +347,67 @@ test.describe("live Compose role-based demo", () => {
       }
       await bookingPage.context().close();
       await patientPage.context().close();
+    }
+  });
+
+  test("live CMS homepage hero publish and rollback update the public shell", async ({ browser }) => {
+    const browserIssues: string[] = [];
+    const initialHero = await loadPublishedHomepageHero();
+    const initialTitle = requireCmsText(initialHero.payload.title, "title");
+    const initialBody = requireCmsText(initialHero.payload.body, "body");
+    const updatedTitle = `${initialTitle} · Live Compose realtime`;
+    const updatedBody = `${initialBody} · Live Compose publish/rollback proof.`;
+    const publishedVersion = initialHero.version + 1;
+    const rolledBackVersion = initialHero.version + 2;
+
+    const publicContext = await browser.newContext({ baseURL: BASE_URL });
+    const adminContext = await browser.newContext({ baseURL: BASE_URL });
+    const publicPage = await newMonitoredPage(publicContext, browserIssues);
+    const adminPage = await newMonitoredPage(adminContext, browserIssues);
+    let publicMainFrameNavigationsAfterLoad = 0;
+
+    try {
+      await publicPage.goto(appUrl("/"));
+      const heroSlot = publicPage.locator('[data-cms-live-slot="hero"]');
+      await expect(heroSlot).toContainText(initialTitle);
+      await expect(heroSlot).toContainText(initialBody);
+      await expect(heroSlot).toHaveAttribute("data-cms-version", String(initialHero.version));
+      publicPage.on("framenavigated", (frame) => {
+        if (frame === publicPage.mainFrame()) publicMainFrameNavigationsAfterLoad += 1;
+      });
+
+      await loginViaUi(adminPage, DEMO_ADMIN_EMAIL, "/admin", "Quản trị bệnh viện");
+      await adminPage.goto(appUrl("/admin/content"));
+      await expect(adminPage.getByRole("heading", { name: "Chỉnh sửa một component theo slot" })).toBeVisible();
+      await expect(adminPage.locator("#cms-payload-title")).toHaveValue(initialTitle);
+      await expect(adminPage.locator("#cms-payload-body")).toHaveValue(initialBody);
+
+      await adminPage.locator("#cms-payload-title").fill(updatedTitle);
+      await adminPage.locator("#cms-payload-body").fill(updatedBody);
+      await adminPage.getByRole("button", { name: "Xuất bản" }).click();
+
+      await expect(adminPage.getByText(`Đã xuất bản homepage.hero, version ${publishedVersion}.`)).toBeVisible();
+      await expect(heroSlot).toContainText(updatedTitle);
+      await expect(heroSlot).toContainText(updatedBody);
+      await expect(heroSlot).toHaveAttribute("data-cms-version", String(publishedVersion));
+
+      const rollbackTarget = adminPage.getByRole("listitem").filter({ hasText: `v${initialHero.version} ·` });
+      await expect(rollbackTarget).toBeVisible();
+      await expect(rollbackTarget.getByRole("button", { name: "Rollback snapshot" })).toBeEnabled();
+      await rollbackTarget.getByRole("button", { name: "Rollback snapshot" }).click();
+
+      await expect(adminPage.getByText(new RegExp(`Đã rollback homepage\\.hero về snapshot event #\\d+, version mới ${rolledBackVersion}\\.`, "u"))).toBeVisible();
+      await expect(heroSlot).toContainText(initialTitle);
+      await expect(heroSlot).toContainText(initialBody);
+      await expect(heroSlot).not.toContainText(updatedTitle);
+      await expect(heroSlot).not.toContainText(updatedBody);
+      await expect(heroSlot).toHaveAttribute("data-cms-version", String(rolledBackVersion));
+
+      expect(publicMainFrameNavigationsAfterLoad).toBe(0);
+      expect(browserIssues).toEqual([]);
+    } finally {
+      await adminPage.context().close();
+      await publicPage.context().close();
     }
   });
 });
