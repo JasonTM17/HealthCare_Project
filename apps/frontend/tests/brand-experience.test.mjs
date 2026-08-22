@@ -60,6 +60,7 @@ test("brand intro runs once per session before paint and respects reduced motion
     read("app/brand-experience.css"),
   ]);
 
+  assert.doesNotMatch(layout, /next\/font\/google/);
   assert.match(layout, /window\.sessionStorage\.getItem\(key\)/);
   assert.match(layout, /healthcare-brand-intro-v1/);
   assert.match(layout, /root\.dataset\.brandIntro = seen \? "seen" : "pending"/);
@@ -70,6 +71,15 @@ test("brand intro runs once per session before paint and respects reduced motion
   assert.match(splash, /role="status"/);
   assert.match(styles, /html\[data-brand-intro="pending"\] \.brand-splash/);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/);
+});
+
+test("typography variables provide deterministic font fallbacks without build-time remote fetches", async () => {
+  const styles = await read("app/styles.css");
+
+  assert.match(styles, /--font-be-vietnam-pro:\s*"Be Vietnam Pro"/);
+  assert.match(styles, /--font-inter:\s*"Inter"/);
+  assert.match(styles, /--font-display:\s*var\(--font-be-vietnam-pro\)/);
+  assert.match(styles, /--font-body:\s*var\(--font-inter\)/);
 });
 
 test("footer uses readable inverse identity, landmark navigation and responsive contact card", async () => {

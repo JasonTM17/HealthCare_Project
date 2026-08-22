@@ -32,8 +32,10 @@
   --color-primary-container: #003336;
   --color-secondary: #7c5800;
   --color-tertiary: #20302f;
-  --font-display: var(--font-be-vietnam-pro), "Noto Sans", sans-serif;
-  --font-body: var(--font-inter), "Noto Sans", sans-serif;
+  --font-be-vietnam-pro: "Be Vietnam Pro", "Noto Sans", "Segoe UI", sans-serif;
+  --font-inter: "Inter", "Noto Sans", "Segoe UI", sans-serif;
+  --font-display: var(--font-be-vietnam-pro);
+  --font-body: var(--font-inter);
   --sp-1: 0.25rem;
   --sp-2: 0.5rem;
   --sp-3: 0.75rem;

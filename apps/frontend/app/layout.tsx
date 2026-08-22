@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { Be_Vietnam_Pro, Inter } from "next/font/google";
 import "./styles.css";
 import "./effects.css";
 import "./typography.css";
@@ -23,20 +22,6 @@ const brandIntroBootstrap = `
     }, 1800);
   }
 })();`;
-
-const beVietnamPro = Be_Vietnam_Pro({
-  subsets: ["latin", "vietnamese"],
-  weight: ["400", "500", "600", "700", "800"],
-  variable: "--font-be-vietnam-pro",
-  display: "swap",
-});
-
-const inter = Inter({
-  subsets: ["latin", "vietnamese"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-inter",
-  display: "swap",
-});
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -64,11 +49,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html
-      lang="vi"
-      className={`${beVietnamPro.variable} ${inter.variable}`}
-      suppressHydrationWarning
-    >
+    <html lang="vi" suppressHydrationWarning>
       <head><script dangerouslySetInnerHTML={{ __html: brandIntroBootstrap }} /></head>
       <body><BrandSplash />{children}</body>
     </html>
