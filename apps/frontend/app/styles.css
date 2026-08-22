@@ -5037,6 +5037,16 @@ main {
   line-height: 1.06;
 }
 
+/* Published CMS titles are editable and can be substantially longer than the
+   native fallback headline. Keep that content prominent without letting one
+   unusually long title turn the homepage hero into a full-page text column. */
+.site-shell .hero-copy[data-cms-managed="hero-copy"] h1 {
+  max-width: 16ch;
+  font-size: clamp(2.35rem, 3.7vw, 3.55rem);
+  line-height: 1.08;
+  text-wrap: balance;
+}
+
 .site-shell .hero-copy h1 span {
   color: var(--hospital-teal);
 }
@@ -5904,6 +5914,11 @@ main {
   .site-shell .hero-copy h1 {
     max-width: 12ch;
     font-size: clamp(2.3rem, 11vw, 3.2rem);
+  }
+
+  .site-shell .hero-copy[data-cms-managed="hero-copy"] h1 {
+    max-width: 15ch;
+    font-size: clamp(2.15rem, 9.5vw, 2.85rem);
   }
 
   .site-shell .hero-description {
