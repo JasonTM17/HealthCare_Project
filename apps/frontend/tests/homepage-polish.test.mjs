@@ -37,6 +37,8 @@ test("homepage exposes patient-first navigation and appointment intents", async 
   assert.doesNotMatch(navbar, /onOpenAiTriage/);
   assert.match(styles, /\.hero-search\s*\{/);
   assert.match(styles, /\.hero-assurance\s*\{/);
+  assert.match(styles, /\.hero-copy\[data-cms-managed="hero-copy"\]\s+h1\s*\{/);
+  assert.match(styles, /text-wrap:\s*balance/);
   assert.match(page, /<CareExperience \/>/);
   assert.match(page, /<PublicMotion \/>/);
   assert.match(experience, /className="care-experience"/);
