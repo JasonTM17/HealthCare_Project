@@ -65,12 +65,14 @@ export function CmsLiveSlot({
   useEffect(() => {
     let cancelled = false;
     let pollTimer: ReturnType<typeof setInterval> | undefined;
+    let safetyPollTimer: ReturnType<typeof setInterval> | undefined;
     let sseConnected = false;
     let initialSnapshotReady = false;
     const reconciliation = new CmsReconciliationLedger();
     let refreshGeneration = 0;
     let stopFeed: () => void = () => undefined;
     let stopPolling: () => void = () => undefined;
+    let stopSafetyPolling: () => void = () => undefined;
     latestVersion.current = 0;
     // The same component instance can be reused when the public route changes.
     // Do not expose the previous route's published content while the new slot
@@ -201,6 +203,34 @@ export function CmsLiveSlot({
       if (!pollTimer) return;
       clearInterval(pollTimer);
       pollTimer = undefined;
+    };
+
+    const startSafetyPolling = (): void => {
+      if (cancelled || safetyPollTimer) return;
+      safetyPollTimer = setInterval(() => {
+        if (
+          cancelled
+          || pollTimer
+          || !initialSnapshotReady
+          || reconciliation.hasPendingWork
+        ) return;
+        const observedVersion = latestVersion.current;
+        void refresh(0).then((result) => {
+          if (
+            result === "updated"
+            && !cancelled
+            && latestVersion.current > observedVersion
+          ) {
+            setLiveNotice(`Đã đồng bộ ${backendSlotKey}, version ${latestVersion.current}.`);
+          }
+        });
+      }, Math.max(5_000, pollIntervalMs));
+    };
+
+    stopSafetyPolling = (): void => {
+      if (!safetyPollTimer) return;
+      clearInterval(safetyPollTimer);
+      safetyPollTimer = undefined;
     };
 
     // CmsClient multiplexes every live slot onto one EventSource and owns its
@@ -342,11 +372,16 @@ export function CmsLiveSlot({
         setTransport("sse");
       }
     });
+    // Some browser/proxy combinations can leave EventSource "open" while
+    // buffering named SSE frames. Keep a quiet cache-coherence watchdog so a
+    // missed live event still reconciles from the durable backend snapshot.
+    startSafetyPolling();
 
     return () => {
       cancelled = true;
       stopFeed();
       stopPolling();
+      stopSafetyPolling();
     };
   }, [backendSlotKey, client, pollIntervalMs]);
 
