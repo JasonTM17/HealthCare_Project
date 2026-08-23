@@ -28,6 +28,10 @@ spring:
     properties:
       mail:
         smtp:
+          auth: ${SPRING_MAIL_SMTP_AUTH:false}
+          starttls:
+            enable: ${SPRING_MAIL_STARTTLS_ENABLE:false}
+            required: ${SPRING_MAIL_STARTTLS_REQUIRED:false}
           connectiontimeout: ${SPRING_MAIL_CONNECTION_TIMEOUT:5000}
           timeout: ${SPRING_MAIL_TIMEOUT:5000}
           writetimeout: ${SPRING_MAIL_WRITE_TIMEOUT:5000}
@@ -45,13 +49,32 @@ app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
   booking:
-    # Local Compose can opt into the fixed demo OTP; production must use a
-    # real delivery provider and keep this false.
+    # The fixed demo OTP is additionally gated by the Spring test profile in
+    # code; normal runtimes generate a random code and keep this false.
     allow-test-otp: ${APP_BOOKING_ALLOW_TEST_OTP:false}
+  payment:
+    bank-transfer:
+      enabled: ${APP_PAYMENT_BANK_TRANSFER_ENABLED:false}
+      bank-name: ${PAYMENT_BANK_NAME:}
+      bank-bin: ${PAYMENT_BANK_BIN:}
+      account-number: ${PAYMENT_BANK_ACCOUNT:}
+      account-holder: ${PAYMENT_BANK_ACCOUNT_HOLDER:}
+      default-amount: ${PAYMENT_DEFAULT_AMOUNT:200000}
+      webhook-secret: ${PAYMENT_WEBHOOK_SECRET:}
+      webhook-tolerance-seconds: ${PAYMENT_WEBHOOK_TOLERANCE_SECONDS:300}
+      status-email-enabled: ${PAYMENT_STATUS_EMAIL_ENABLED:true}
   mail:
     enabled: ${APP_MAIL_ENABLED:false}
     from: ${APP_MAIL_FROM:no-reply@healthcare.local}
   security:
+    rate-limit:
+      enabled: ${APP_SECURITY_RATE_LIMIT_ENABLED:true}
+      window-seconds: ${APP_SECURITY_RATE_LIMIT_WINDOW_SECONDS:60}
+      auth-limit: ${APP_SECURITY_RATE_LIMIT_AUTH_LIMIT:20}
+      appointment-limit: ${APP_SECURITY_RATE_LIMIT_APPOINTMENT_LIMIT:60}
+      payment-limit: ${APP_SECURITY_RATE_LIMIT_PAYMENT_LIMIT:20}
+      webhook-limit: ${APP_SECURITY_RATE_LIMIT_WEBHOOK_LIMIT:120}
+      ai-limit: ${APP_SECURITY_RATE_LIMIT_AI_LIMIT:30}
     auth-otp:
       enabled: ${APP_AUTH_OTP_ENABLED:true}
       ttl-seconds: ${APP_AUTH_OTP_TTL_SECONDS:600}

@@ -4,6 +4,7 @@ import type { CmsContent } from "../../lib/cms-client";
 import type {
   AppointmentDetails,
   AuthSession,
+  BankTransferPayment,
   Branch,
   Doctor,
   Specialty,
@@ -31,9 +32,9 @@ type BookableDemoSlot = {
 
 const API_BASE_URL = process.env.PLAYWRIGHT_API_BASE_URL ?? "http://127.0.0.1:8080/api/v1";
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000";
+const MAILPIT_API_URL = process.env.PLAYWRIGHT_MAILPIT_API_URL ?? "http://127.0.0.1:8025";
 const API_TIMEOUT_MS = 12_000;
 const DEMO_PASSWORD = "LocalDemo!2026";
-const DEMO_OTP = "123456";
 const DEMO_PATIENT = {
   email: "patient@healthcare.local",
   name: "Bệnh nhân Local",
@@ -49,6 +50,45 @@ function apiUrl(path: string): string {
 
 function appUrl(path: string): string {
   return new URL(path, BASE_URL).toString();
+}
+
+type MailpitMessage = {
+  Created: string;
+  Snippet: string;
+  Subject: string;
+  To: Array<{ Address: string }>;
+};
+
+async function waitForBookingOtp(bookingCode: string, recipient: string, issuedAfter: number): Promise<string> {
+  const deadline = Date.now() + 20_000;
+  let lastError: string | undefined;
+
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(`${MAILPIT_API_URL}/api/v1/messages?limit=50`);
+      if (!response.ok) {
+        lastError = `Mailpit returned HTTP ${response.status}`;
+      } else {
+        const payload = await response.json() as { messages?: MailpitMessage[] };
+        const message = payload.messages?.find((item) => (
+          item.Subject === "HealthCare booking verification" &&
+          item.To.some((address) => address.Address.toLowerCase() === recipient.toLowerCase()) &&
+          item.Snippet.includes(bookingCode) &&
+          Date.parse(item.Created) >= issuedAfter - 5_000
+        ));
+        const otp = message?.Snippet.match(/\bis (\d{6})\b/)?.[1];
+        if (otp) return otp;
+      }
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+
+  throw new Error(
+    `Booking OTP for ${bookingCode} was not captured from Mailpit at ${MAILPIT_API_URL}. ` +
+    `Run the Compose E2E stack with Mailpit SMTP. Last error: ${lastError ?? "message not found"}`,
+  );
 }
 
 async function apiJson<T>(
@@ -238,9 +278,11 @@ async function bookAppointmentThroughPublicUi(page: Page, selection: BookableDem
 
   await bookingDialog.getByLabel(/Họ và tên bệnh nhân/).fill(DEMO_PATIENT.name);
   await bookingDialog.getByLabel(/Số điện thoại liên hệ/).fill(DEMO_PATIENT.phone);
-  await bookingDialog.getByLabel("Địa chỉ Email (Nhận phiếu khám)").fill(DEMO_PATIENT.email);
+  await bookingDialog.getByLabel(/Email nhận mã OTP/).fill(DEMO_PATIENT.email);
   await bookingDialog.getByLabel("Triệu chứng hoặc lý do khám bệnh").fill("Live Compose browser E2E: đau đầu và chóng mặt.");
+  await bookingDialog.getByLabel(/Tôi đồng ý để HealthCare xử lý/).check();
 
+  const holdIssuedAt = Date.now();
   const holdResponse = page.waitForResponse((response) => (
     response.url().includes("/api/v1/appointments/hold") &&
     response.request().method() === "POST"
@@ -250,12 +292,14 @@ async function bookAppointmentThroughPublicUi(page: Page, selection: BookableDem
   if (!hold.ok()) {
     throw new Error(`Hold request failed: ${await hold.text()}`);
   }
+  const holdPayload = await hold.json() as { bookingCode: string };
+  const bookingOtp = await waitForBookingOtp(holdPayload.bookingCode, DEMO_PATIENT.email, holdIssuedAt);
 
   const confirmResponse = page.waitForResponse((response) => (
     response.url().includes("/api/v1/appointments/confirm") &&
     response.request().method() === "POST"
   ));
-  await bookingDialog.getByLabel("Nhập mã OTP 6 số xác thực").fill(DEMO_OTP);
+  await bookingDialog.getByLabel("Nhập mã OTP 6 số xác thực").fill(bookingOtp);
   await bookingDialog.getByRole("button", { name: "Hoàn tất đặt lịch khám" }).click();
   const confirmed = await confirmResponse;
   if (!confirmed.ok()) {
@@ -275,6 +319,87 @@ async function expectPatientCanSeeAppointment(page: Page, bookingCode: string): 
   await expect(page.locator("#appointments")).toContainText(bookingCode);
   await expect(page.locator("#notifications")).toContainText(bookingCode);
   await expect(page.locator("#notifications")).toContainText("Lịch hẹn đã xác nhận");
+}
+
+async function submitPaymentThroughPatientUi(page: Page, bookingCode: string): Promise<string> {
+  const appointmentCard = page.locator(".portal-appointment").filter({ hasText: bookingCode });
+  await appointmentCard.getByRole("button", { name: new RegExp(`Thanh toán cho lịch ${bookingCode}`) }).click();
+
+  const paymentPanel = page.getByRole("region", { name: "Thanh toán chuyển khoản" });
+  await expect(paymentPanel.getByRole("heading", { name: `Thanh toán lịch ${bookingCode}` })).toBeVisible();
+  await expect(paymentPanel.getByRole("img", { name: new RegExp(`VietQR.*${bookingCode}`) })).toBeVisible();
+  await expect(paymentPanel.getByText("Nội dung chuyển khoản")).toBeVisible();
+  await expect(paymentPanel.getByRole("button", { name: "Tải mã VietQR" })).toBeVisible();
+
+  const reference = `E2E-${Date.now()}`;
+  const submitResponse = page.waitForResponse((response) => (
+    response.url().includes("/payment/submit") && response.request().method() === "POST"
+  ));
+  await paymentPanel.getByLabel("Mã giao dịch từ ứng dụng ngân hàng").fill(reference);
+  await paymentPanel.getByRole("button", { name: "Tôi đã chuyển khoản" }).click();
+  const submitted = await submitResponse;
+  if (!submitted.ok()) {
+    throw new Error(`Payment submission failed: ${await submitted.text()}`);
+  }
+  await expect(paymentPanel).toContainText("Đang chờ đối soát");
+  await expect(appointmentCard).toContainText("Chờ đối soát");
+  return reference;
+}
+
+async function expectAdminCanSeePayment(
+  browser: Browser,
+  bookingCode: string,
+  reference: string,
+  browserIssues: string[],
+): Promise<void> {
+  const context = await browser.newContext({ baseURL: BASE_URL });
+  const page = await newMonitoredPage(context, browserIssues);
+  try {
+    await loginViaUi(page, DEMO_ADMIN_EMAIL, "/admin", "Điều hành bệnh viện");
+    await page.goto(appUrl("/admin/payments"));
+    await expect(page.getByRole("heading", { name: "Đối soát chuyển khoản" })).toBeVisible();
+    const paymentRow = page.getByRole("row").filter({ hasText: bookingCode });
+    await expect(paymentRow).toBeVisible();
+    await expect(paymentRow).toContainText(reference);
+    await expect(paymentRow).toContainText("Chờ đối soát");
+    await expect(paymentRow.getByRole("button", { name: "Xác nhận đã nhận" })).toBeVisible();
+  } finally {
+    await context.close();
+  }
+}
+
+async function rejectE2ePayment(bookingCode: string): Promise<void> {
+  const adminSession = await loginApi(DEMO_ADMIN_EMAIL);
+  const payments = await apiJson<PageEnvelope<BankTransferPayment>>(
+    "/admin/payments?status=PENDING_VERIFICATION&page=0&size=100",
+    {},
+    adminSession,
+  );
+  const payment = payments.content.find((item) => item.bookingCode === bookingCode);
+  if (!payment) throw new Error(`Pending E2E payment for ${bookingCode} was not found.`);
+
+  const rejected = await apiJson<BankTransferPayment>(
+    `/admin/payments/${encodeURIComponent(payment.id)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        decision: "REJECT",
+        reason: "Giao dịch kiểm thử E2E, không có trên sao kê ngân hàng.",
+      }),
+    },
+    adminSession,
+  );
+  if (rejected.status !== "REJECTED") {
+    throw new Error(`E2E payment rejection returned ${rejected.status}.`);
+  }
+}
+
+async function expectPatientSeesRejectedPayment(page: Page, bookingCode: string): Promise<void> {
+  await page.reload();
+  await page.waitForLoadState("networkidle");
+  const appointmentCard = page.locator(".portal-appointment").filter({ hasText: bookingCode });
+  await expect(appointmentCard).toContainText("Cần kiểm tra lại");
+  await expect(page.locator("#notifications")).toContainText("Thanh toán cần kiểm tra lại");
 }
 
 async function expectDoctorCanSeeAppointment(
@@ -305,7 +430,7 @@ async function expectAdminCanSeeAppointment(
   const context = await browser.newContext({ baseURL: BASE_URL });
   const page = await newMonitoredPage(context, browserIssues);
   try {
-    await loginViaUi(page, DEMO_ADMIN_EMAIL, "/admin", "Quản trị bệnh viện");
+    await loginViaUi(page, DEMO_ADMIN_EMAIL, "/admin", "Điều hành bệnh viện");
     await page.getByRole("navigation", { name: "Điều hướng quản trị" }).getByRole("link", { name: "Lịch hẹn" }).click();
     await expect(page.getByRole("heading", { name: "Danh sách lịch hẹn" })).toBeVisible();
     await page.getByLabel("Ngày khám").fill(date);
@@ -336,6 +461,10 @@ test.describe("live Compose role-based demo", () => {
       bookingCode = appointment.bookingCode;
 
       await expectPatientCanSeeAppointment(patientPage, bookingCode);
+      const paymentReference = await submitPaymentThroughPatientUi(patientPage, bookingCode);
+      await expectAdminCanSeePayment(browser, bookingCode, paymentReference, browserIssues);
+      await rejectE2ePayment(bookingCode);
+      await expectPatientSeesRejectedPayment(patientPage, bookingCode);
       await expectDoctorCanSeeAppointment(browser, bookingCode, selection.date, browserIssues);
       await expectAdminCanSeeAppointment(browser, bookingCode, selection.date, browserIssues);
       await cleanupLiveAppointment(bookingCode);
@@ -376,7 +505,7 @@ test.describe("live Compose role-based demo", () => {
         if (frame === publicPage.mainFrame()) publicMainFrameNavigationsAfterLoad += 1;
       });
 
-      await loginViaUi(adminPage, DEMO_ADMIN_EMAIL, "/admin", "Quản trị bệnh viện");
+      await loginViaUi(adminPage, DEMO_ADMIN_EMAIL, "/admin", "Điều hành bệnh viện");
       await adminPage.goto(appUrl("/admin/content"));
       await expect(adminPage.getByRole("heading", { name: "Chỉnh sửa một component theo slot" })).toBeVisible();
       await expect(adminPage.locator("#cms-payload-title")).toHaveValue(initialTitle);

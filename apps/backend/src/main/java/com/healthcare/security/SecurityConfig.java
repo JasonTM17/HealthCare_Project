@@ -2,6 +2,7 @@ package com.healthcare.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.healthcare.exception.ApiError;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -75,6 +76,8 @@ public class SecurityConfig {
                 })
             )
             .authorizeHttpRequests(auth -> auth
+                .dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.FORWARD).permitAll()
+                .requestMatchers("/error").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers(
                     "/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/refresh",
@@ -84,6 +87,7 @@ public class SecurityConfig {
                     "/api/v1/auth/password-reset/**", "/api/v1/auth/reset-password/**"
                 ).permitAll()
                 .requestMatchers("/api/v1/health").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/v1/payments/webhooks/bank-transfer").permitAll()
                 .requestMatchers("/api/v1/hospital/**").permitAll()
                 .requestMatchers("/api/v1/cms/**").permitAll()
                 .requestMatchers("/api/v1/admin/cms/**").hasRole("ADMIN")

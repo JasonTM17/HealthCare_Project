@@ -15,10 +15,10 @@ their variables are empty, so a fresh local stack is reproducible:
 any shared or non-demo run; the local bare-process escape hatch does not apply
 to Compose.
 
-The local Compose booking journey defaults `APP_BOOKING_ALLOW_TEST_OTP=true`
-because this repository does not include an SMS provider; use `123456` only in
-the local demo. Set it to `false` before any non-demo deployment and connect a
-real OTP delivery provider.
+The local Compose booking journey keeps `APP_BOOKING_ALLOW_TEST_OTP=false` and
+sends a random booking OTP through the configured SMTP service. A fixed
+`123456` value is accepted only under the Spring `test` profile; changing the
+Compose environment variable does not bypass that code-level profile guard.
 
 The local stack exposes frontend on port 3000, backend on 8080, AI service on
 8000, PostgreSQL on host port 5434 (container port 5432), Redis on 6379, and
@@ -51,6 +51,29 @@ needed. See `docs/architecture/cms-realtime.md` for the rerun/query proof.
 The large fixture also creates recurring Monday-Friday morning and afternoon
 doctor schedules, so branch-aware booking remains executable while pagination
 and search are exercised.
+
+## Backup and production checks
+
+Create a non-destructive PostgreSQL custom dump plus a crash-consistent copy of
+the MinIO data directory from a running local stack:
+
+```powershell
+.\scripts\backup-local-data.ps1
+```
+
+Every snapshot has a unique directory and SHA-256 manifest; existing backups
+are never overwritten. Backups may contain personal and clinical data, so they
+must be encrypted, access-controlled, retained according to policy, and tested
+in an isolated restore drill. A live MinIO copy is not a substitute for a
+maintenance-window snapshot or replicated object-storage policy in production.
+
+Before a deployment, build a private `.env.production` outside version control
+and run the fail-closed configuration check. The command reports variable names
+only and never prints secret values:
+
+```powershell
+.\scripts\validate-production-env.ps1 -EnvFile C:\secure\healthcare.production.env
+```
 
 ## Large database fixture
 

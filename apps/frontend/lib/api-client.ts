@@ -37,6 +37,7 @@ import type {
   AiChatProvenance,
   AiChatMessagePage,
   AiChatExchange,
+  BankTransferPayment,
 } from "../types/hospital";
 
 export type {
@@ -78,6 +79,7 @@ export type {
   AiChatProvenance,
   AiChatMessagePage,
   AiChatExchange,
+  BankTransferPayment,
 };
 
 const API_BASE_URL =
@@ -1159,6 +1161,52 @@ export async function fetchPatientAppointments(
   return getAuthenticatedJson<Page<PatientPortalAppointment>>(
     `/patient/appointments${toQuery({ page, size })}`,
   );
+}
+
+export async function fetchBankTransferPayment(appointmentId: string): Promise<BankTransferPayment> {
+  return getAuthenticatedJson<BankTransferPayment>(
+    `/patient/appointments/${encodeURIComponent(appointmentId)}/payment`,
+  );
+}
+
+export async function submitBankTransfer(
+  appointmentId: string,
+  transactionReference: string,
+): Promise<BankTransferPayment> {
+  return getAuthenticatedJson<BankTransferPayment>(
+    `/patient/appointments/${encodeURIComponent(appointmentId)}/payment/submit`,
+    {
+      method: "POST",
+      headers: { "Idempotency-Key": crypto.randomUUID() },
+      body: JSON.stringify({ transactionReference }),
+    },
+  );
+}
+
+export async function adminRefundPayment(paymentId: string, refundReference: string): Promise<BankTransferPayment> {
+  return getAuthenticatedJson<BankTransferPayment>(`/admin/payments/${encodeURIComponent(paymentId)}/refund`, {
+    method: "PATCH",
+    body: JSON.stringify({ refundReference }),
+  });
+}
+
+export async function adminListPayments(
+  filters: { status?: string; page?: number; size?: number } = {},
+): Promise<Page<BankTransferPayment>> {
+  return getAuthenticatedJson<Page<BankTransferPayment>>(
+    `/admin/payments${toQuery({ status: filters.status, page: filters.page ?? 0, size: filters.size ?? 20 })}`,
+  );
+}
+
+export async function adminReviewPayment(
+  paymentId: string,
+  decision: "VERIFY" | "REJECT",
+  reason?: string,
+): Promise<BankTransferPayment> {
+  return getAuthenticatedJson<BankTransferPayment>(`/admin/payments/${encodeURIComponent(paymentId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ decision, reason }),
+  });
 }
 
 export async function adminListAppointments(

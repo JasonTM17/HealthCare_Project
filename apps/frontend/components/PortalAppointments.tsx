@@ -9,6 +9,8 @@ type PortalAppointmentsProps =
       onSelectAppointment?: never;
       onUpdateStatus?: never;
       onReschedule?: (appointment: PatientPortalAppointment) => void;
+      onPayment?: (appointment: PatientPortalAppointment) => void;
+      activePaymentAppointmentId?: string;
     }
   | {
       page: Page<DoctorPortalAppointment>;
@@ -16,6 +18,8 @@ type PortalAppointmentsProps =
       onSelectAppointment?: (appointment: DoctorPortalAppointment) => void;
       onUpdateStatus?: (appointment: DoctorPortalAppointment, status: "CHECKED_IN" | "IN_PROGRESS" | "NO_SHOW") => void;
       onReschedule?: never;
+      onPayment?: never;
+      activePaymentAppointmentId?: never;
     };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -26,6 +30,12 @@ const STATUS_LABELS: Record<string, string> = {
   COMPLETED: "Đã hoàn tất",
   CANCELLED: "Đã hủy",
   NO_SHOW: "Không đến",
+  UNPAID: "Chưa thanh toán",
+  PENDING_VERIFICATION: "Chờ đối soát",
+  PAID: "Đã thanh toán",
+  REJECTED: "Cần kiểm tra lại",
+  REFUND_PENDING: "Chờ hoàn tiền",
+  REFUNDED: "Đã hoàn tiền",
 };
 
 function formatTime(value: string): string {
@@ -36,12 +46,20 @@ function statusLabel(status: string): string {
   return STATUS_LABELS[status] ?? status.replaceAll("_", " ");
 }
 
+function paymentActionLabel(status: string): string {
+  if (status === "PENDING_VERIFICATION") return "Xem đối soát";
+  if (status === "REJECTED") return "Kiểm tra thanh toán";
+  return "Thanh toán";
+}
+
 export default function PortalAppointments({
   page,
   viewer,
   onSelectAppointment,
   onUpdateStatus,
   onReschedule,
+  onPayment,
+  activePaymentAppointmentId,
 }: PortalAppointmentsProps) {
   return (
     <div aria-label={viewer === "patient" ? "Danh sách lịch hẹn của bệnh nhân" : "Lịch hẹn trong ngày của bác sĩ"} className="portal-appointment-list">
@@ -67,6 +85,7 @@ export default function PortalAppointments({
             {appointment.branchName ? <div><dt>Cơ sở</dt><dd>{appointment.branchName}</dd></div> : null}
             {appointment.packageName ? <div><dt>Gói khám</dt><dd>{appointment.packageName}</dd></div> : null}
             <div><dt>Mã lịch hẹn</dt><dd>{appointment.bookingCode}</dd></div>
+            {viewer === "patient" && "paymentStatus" in appointment ? <div><dt>Thanh toán</dt><dd><span aria-label={`Trạng thái thanh toán: ${statusLabel(appointment.paymentStatus)}`}>{statusLabel(appointment.paymentStatus)}</span></dd></div> : null}
           </dl>
           {viewer === "doctor" && "patientId" in appointment ? (
             <div className="portal-appointment__actions">
@@ -88,7 +107,22 @@ export default function PortalAppointments({
             </div>
           ) : null}
           {viewer === "patient" && "doctorId" in appointment && appointment.status === "CONFIRMED" && onReschedule ? (
-            <button className="outline-button outline-button--small" onClick={() => onReschedule(appointment)} type="button">Đổi lịch</button>
+            <div className="portal-appointment__actions">
+              <button className="outline-button outline-button--small" onClick={() => onReschedule(appointment)} type="button">Đổi lịch</button>
+              {onPayment && appointment.paymentStatus !== "PAID" && appointment.paymentStatus !== "REFUNDED" && appointment.paymentStatus !== "REFUND_PENDING" ? (
+                <button
+                  aria-controls="patient-payment-panel"
+                  aria-expanded={activePaymentAppointmentId === appointment.id}
+                  aria-label={`${paymentActionLabel(appointment.paymentStatus)} cho lịch ${appointment.bookingCode}`}
+                  className="button button--primary"
+                  id={`payment-action-${appointment.id}`}
+                  onClick={() => onPayment(appointment)}
+                  type="button"
+                >
+                  {paymentActionLabel(appointment.paymentStatus)}
+                </button>
+              ) : null}
+            </div>
           ) : null}
         </article>
       ))}

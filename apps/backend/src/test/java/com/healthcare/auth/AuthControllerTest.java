@@ -16,6 +16,7 @@ import com.healthcare.user.entity.User;
 import com.healthcare.user.entity.RefreshToken;
 import com.healthcare.user.repository.RefreshTokenRepository;
 import com.healthcare.user.repository.UserRepository;
+import com.healthcare.appointment.entity.PatientProfile;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.Test;
@@ -120,6 +121,32 @@ class AuthControllerTest extends TestcontainersIntegrationTest {
         var profile = patientProfileRepository.findByUserId(user.getId()).orElseThrow();
         assertThat(profile.getPhone()).isEqualTo("0901234567");
         assertThat(profile.getFullName()).isEqualTo("Portal Patient");
+    }
+
+    @Test
+    void registrationReusesMatchingUnlinkedBookingProfile() throws Exception {
+        PatientProfile bookingProfile = new PatientProfile();
+        bookingProfile.setFullName("Booking Name");
+        bookingProfile.setPhone("0907654321");
+        bookingProfile.setEmail("reuse.booking@example.com");
+        bookingProfile = patientProfileRepository.saveAndFlush(bookingProfile);
+
+        mockMvc.perform(post("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "email": "reuse.booking@example.com",
+                      "password": "Str0ng!Pass",
+                      "displayName": "Registered Name",
+                      "phone": "090 765-4321"
+                    }
+                    """))
+            .andExpect(status().isAccepted());
+
+        User user = userRepository.findByEmail("reuse.booking@example.com").orElseThrow();
+        PatientProfile linked = patientProfileRepository.findByUserId(user.getId()).orElseThrow();
+        assertThat(linked.getId()).isEqualTo(bookingProfile.getId());
+        assertThat(linked.getFullName()).isEqualTo("Registered Name");
     }
 
     @Test

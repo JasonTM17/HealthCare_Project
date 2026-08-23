@@ -73,9 +73,11 @@ public class AppointmentPortalService {
     public Page<PatientAppointmentResponse> getPatientAppointments(
             UserDetails principal,
             Pageable pageable) {
-        PatientProfile patient = requireLinkedPatient(principal);
-        return appointmentRepository.findPortalAppointmentsForPatient(
-                patient.getId(), normalizePageable(pageable, PATIENT_DEFAULT_SORT))
+        requireRole(principal, "PATIENT");
+        UUID userId = resolveUserId(principal);
+        UUID patientId = patientProfileRepository.findByUserId(userId).map(PatientProfile::getId).orElse(null);
+        return appointmentRepository.findPortalAppointmentsForPatientOrClaim(
+                patientId, userId, normalizePageable(pageable, PATIENT_DEFAULT_SORT))
             .map(this::toPatientResponse);
     }
 

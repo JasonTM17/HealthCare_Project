@@ -23,6 +23,14 @@ app:
     refresh-token-ttl: 604800
   booking:
     allow-test-otp: true
+  payment:
+    bank-transfer:
+      enabled: true
+      bank-name: "Test Bank"
+      bank-bin: "970436"
+      account-number: "0000000000"
+      account-holder: "HEALTHCARE TEST"
+      default-amount: 200000
   cors:
     allowed-origins: "http://localhost:3000"
 ai:

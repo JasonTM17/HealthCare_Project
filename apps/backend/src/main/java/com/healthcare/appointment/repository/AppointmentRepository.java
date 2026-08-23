@@ -59,6 +59,29 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
     );
 
     @EntityGraph(attributePaths = {"patient", "doctor", "specialty", "branch", "medicalPackage"})
+    @Query("""
+        select a from Appointment a
+        where (:patientId is not null and a.patient.id = :patientId)
+           or exists (
+               select c.id from AppointmentAccountClaim c
+               where c.appointment.id = a.id and c.user.id = :userId
+           )
+    """)
+    Page<Appointment> findPortalAppointmentsForPatientOrClaim(
+        @Param("patientId") UUID patientId,
+        @Param("userId") UUID userId,
+        Pageable pageable
+    );
+
+    @Query("""
+        select a from Appointment a join fetch a.patient
+        where a.status = 'CONFIRMED'
+          and lower(a.patient.email) = lower(:email)
+          and not exists (select c.id from AppointmentAccountClaim c where c.appointment.id = a.id)
+    """)
+    List<Appointment> findConfirmedUnclaimedByPatientEmail(@Param("email") String email);
+
+    @EntityGraph(attributePaths = {"patient", "doctor", "specialty", "branch", "medicalPackage"})
     @Query("select a from Appointment a where a.doctor.id = :doctorId and a.appointmentDate = :appointmentDate")
     Page<Appointment> findPortalAppointmentsForDoctor(
         @Param("doctorId") UUID doctorId,

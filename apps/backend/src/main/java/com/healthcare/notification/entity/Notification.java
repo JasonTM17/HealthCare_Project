@@ -27,6 +27,10 @@ public class Notification {
         APPOINTMENT_CANCELLED,
         APPOINTMENT_REMINDER,
         DIAGNOSTIC_RESULT_AVAILABLE,
+        PAYMENT_SUBMITTED,
+        PAYMENT_CONFIRMED,
+        PAYMENT_REJECTED,
+        PAYMENT_REFUNDED,
     }
 
     @Id

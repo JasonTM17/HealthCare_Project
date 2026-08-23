@@ -12,6 +12,7 @@ const AUTH_STORAGE_KEY = "healthcare.auth.session";
 const NAV = [
   { href: "/admin", label: "Tổng quan" },
   { href: "/admin/appointments", label: "Lịch hẹn" },
+  { href: "/admin/payments", label: "Thanh toán" },
   { href: "/admin/doctors", label: "Bác sĩ" },
   { href: "/admin/specialties", label: "Chuyên khoa" },
   { href: "/admin/branches", label: "Cơ sở" },

@@ -6,8 +6,10 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 class AfterCommitEmailSenderTest {
 
@@ -51,6 +53,19 @@ class AfterCommitEmailSenderTest {
     void callerWithoutTransactionDeliversImmediately() {
         sender.send("patient@example.com", "subject", "body");
 
+        verify(delegate).send("patient@example.com", "subject", "body");
+    }
+
+    @Test
+    void bestEffortNotificationDoesNotFailCommittedOperationWhenSmtpFails() {
+        beginTransactionSynchronization();
+        doThrow(new IllegalStateException("SMTP unavailable"))
+            .when(delegate).send("patient@example.com", "subject", "body");
+
+        sender.sendBestEffort("patient@example.com", "subject", "body");
+
+        assertDoesNotThrow(() -> TransactionSynchronizationManager.getSynchronizations()
+            .forEach(TransactionSynchronization::afterCommit));
         verify(delegate).send("patient@example.com", "subject", "body");
     }
 

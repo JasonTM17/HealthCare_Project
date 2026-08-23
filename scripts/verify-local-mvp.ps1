@@ -7,7 +7,8 @@ param(
     [string]$ExpectedRevision,
     [string]$DockerPath,
     [string]$ComposeFile,
-    [string]$EnvFile
+    [string]$EnvFile,
+    [string]$MailpitApiUrl = "http://localhost:8025"
 )
 
 $ErrorActionPreference = "Stop"
@@ -35,6 +36,26 @@ function Login-DemoRole([string]$Email) {
     if (-not $session.accessToken) { throw "Login did not return an access token for $Email" }
     $checks.Add("login:$Email")
     $session.accessToken
+}
+
+function Wait-ForBookingOtp([string]$BookingCode, [string]$Recipient) {
+    for ($attempt = 1; $attempt -le 40; $attempt++) {
+        try {
+            $mailbox = Invoke-RestMethod "$MailpitApiUrl/api/v1/messages?limit=50"
+            $message = $mailbox.messages | Where-Object {
+                $_.Subject -eq "HealthCare booking verification" `
+                    -and $_.Snippet -like "*$BookingCode*" `
+                    -and ($_.To.Address -contains $Recipient)
+            } | Select-Object -First 1
+            if ($message -and $message.Snippet -match '\bis (?<Otp>\d{6})\b') {
+                return $Matches.Otp
+            }
+        } catch {
+            if ($attempt -eq 40) { throw }
+        }
+        Start-Sleep -Milliseconds 500
+    }
+    throw "Booking OTP for $BookingCode was not captured from Mailpit at $MailpitApiUrl"
 }
 
 function Resolve-HospitalTimeZone {
@@ -163,9 +184,10 @@ $hold = Invoke-JsonApi -Uri "$ApiBaseUrl/appointments/hold" -Method POST -Token 
     specialtyId = $bookingSpecialty.id
     branchId = $branchId
 }
+$bookingOtp = Wait-ForBookingOtp $hold.bookingCode "patient@healthcare.local"
 $confirmed = Invoke-JsonApi -Uri "$ApiBaseUrl/appointments/confirm" -Method POST -Body @{
     bookingCode = $hold.bookingCode
-    otpCode = "123456"
+    otpCode = $bookingOtp
     notes = "Automated local MVP verification"
 }
 if ($confirmed.status -ne "CONFIRMED") { throw "Appointment confirmation failed" }

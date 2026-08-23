@@ -25,6 +25,7 @@ import com.healthcare.user.repository.RoleRepository;
 import com.healthcare.user.repository.UserRepository;
 import com.healthcare.appointment.entity.PatientProfile;
 import com.healthcare.appointment.repository.PatientProfileRepository;
+import com.healthcare.appointment.service.AppointmentClaimService;
 import com.healthcare.auth.security.AuthRateLimiter;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -59,6 +60,7 @@ public class AuthService {
     private final PatientProfileRepository patientProfileRepository;
     private final AuthOtpService authOtpService;
     private final AuthRateLimiter authRateLimiter;
+    private final AppointmentClaimService appointmentClaimService;
 
     public AuthService(UserRepository userRepository,
                        UserSecurityLock userSecurityLock,
@@ -70,7 +72,8 @@ public class AuthService {
                        JwtProperties jwtProperties,
                        PatientProfileRepository patientProfileRepository,
                        AuthOtpService authOtpService,
-                       AuthRateLimiter authRateLimiter) {
+                       AuthRateLimiter authRateLimiter,
+                       AppointmentClaimService appointmentClaimService) {
         this.userRepository = userRepository;
         this.userSecurityLock = userSecurityLock;
         this.roleRepository = roleRepository;
@@ -82,6 +85,7 @@ public class AuthService {
         this.patientProfileRepository = patientProfileRepository;
         this.authOtpService = authOtpService;
         this.authRateLimiter = authRateLimiter;
+        this.appointmentClaimService = appointmentClaimService;
     }
 
     @Transactional
@@ -100,7 +104,12 @@ public class AuthService {
             );
         }
         String normalizedPhone = normalizePhone(request.phone());
-        if (normalizedPhone != null && patientProfileRepository.findByPhone(normalizedPhone).isPresent()) {
+        PatientProfile reusableProfile = normalizedPhone == null
+            ? null
+            : patientProfileRepository.findByPhone(normalizedPhone).orElse(null);
+        if (reusableProfile != null && (reusableProfile.getUserId() != null
+                || reusableProfile.getEmail() == null
+                || !normalizedEmail.equals(reusableProfile.getEmail().trim().toLowerCase()))) {
             throw new DuplicateResourceException("Phone number already registered");
         }
 
@@ -121,7 +130,7 @@ public class AuthService {
         user = userRepository.save(user);
 
         if (normalizedPhone != null) {
-            PatientProfile profile = new PatientProfile();
+            PatientProfile profile = reusableProfile == null ? new PatientProfile() : reusableProfile;
             profile.setFullName(request.displayName().trim());
             profile.setPhone(normalizedPhone);
             profile.setEmail(normalizedEmail);
@@ -174,6 +183,7 @@ public class AuthService {
         user.setEmailVerifiedAt(OffsetDateTime.now());
         user.setUpdatedAt(OffsetDateTime.now());
         userRepository.save(user);
+        appointmentClaimService.claimAfterEmailVerification(user);
         return issueTokens(user);
     }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import PortalChrome from "../../../components/PortalChrome";
@@ -9,6 +10,7 @@ import {
   clearAuthSession,
   downloadProtectedFile,
   fetchDoctorSlots,
+  fetchBankTransferPayment,
   fetchPatientProfile,
   fetchPatientAppointments,
   fetchNotifications,
@@ -19,18 +21,21 @@ import {
   markAllNotificationsAsRead,
   markNotificationAsRead,
   rescheduleAppointment,
+  submitBankTransfer,
   updatePatientProfile,
   type Page,
 } from "../../../lib/api-client";
 import { useAuthSession } from "../../../components/useAuthSession";
 import type {
   AuthUser,
+  BankTransferPayment,
   PatientPortalAppointment,
   DiagnosticResult,
   MedicalRecord,
   Notification,
   Prescription,
   PatientProfile,
+  PaymentStatus,
   TimeSlot,
 } from "../../../types/hospital";
 import {
@@ -43,6 +48,7 @@ import {
 import PortalAppointments from "../../../components/PortalAppointments";
 import { businessDate, formatBusinessDate, formatBusinessDateTime } from "../../../lib/business-time";
 import UiIcon from "../../../components/UiIcon";
+import paymentStyles from "./PaymentPanel.module.css";
 
 type Loadable<T> =
   | { status: "loading" }
@@ -113,8 +119,122 @@ function formatNotificationType(eventType: string): string {
     APPOINTMENT_CANCELLED: "Lịch hẹn đã hủy",
     APPOINTMENT_REMINDER: "Nhắc lịch khám",
     DIAGNOSTIC_RESULT_AVAILABLE: "Có kết quả mới",
+    PAYMENT_SUBMITTED: "Đã gửi thông tin chuyển khoản",
+    PAYMENT_CONFIRMED: "Thanh toán đã xác nhận",
+    PAYMENT_REJECTED: "Thanh toán cần kiểm tra lại",
+    PAYMENT_REFUNDED: "Thanh toán đã hoàn tiền",
   };
   return labels[eventType] ?? "Thông báo mới";
+}
+
+function formatPaymentStatus(status: string): string {
+  const labels: Record<string, string> = {
+    UNPAID: "Chưa thanh toán",
+    PENDING_VERIFICATION: "Đang chờ đối soát",
+    PAID: "Đã thanh toán",
+    REJECTED: "Cần kiểm tra lại",
+    REFUND_PENDING: "Đang chờ hoàn tiền",
+    REFUNDED: "Đã hoàn tiền",
+  };
+  return labels[status] ?? status;
+}
+
+function formatMoney(amount: number): string {
+  return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(amount);
+}
+
+type PaymentNotice = {
+  kind: "success" | "error" | "info";
+  message: string;
+};
+
+const PAYMENT_POLL_DELAYS: Record<"UNPAID" | "PENDING_VERIFICATION", readonly number[]> = {
+  UNPAID: [20_000, 30_000, 45_000, 60_000],
+  PENDING_VERIFICATION: [8_000, 12_000, 20_000, 30_000, 45_000, 60_000],
+};
+const MAX_QR_DOWNLOAD_BYTES = 5 * 1024 * 1024;
+
+function isPollablePaymentStatus(status: PaymentStatus): status is "UNPAID" | "PENDING_VERIFICATION" {
+  return status === "UNPAID" || status === "PENDING_VERIFICATION";
+}
+
+function paymentTransitionNotice(status: PaymentStatus): PaymentNotice | null {
+  if (status === "PAID") {
+    return { kind: "success", message: "Giao dịch đã được xác nhận. Trạng thái lịch hẹn cũng đã cập nhật." };
+  }
+  if (status === "REJECTED") {
+    return { kind: "error", message: "Giao dịch cần kiểm tra lại. Xem lý do và hướng dẫn ngay bên dưới." };
+  }
+  if (status === "REFUND_PENDING") {
+    return { kind: "info", message: "Khoản thanh toán đang được xử lý hoàn tiền." };
+  }
+  if (status === "REFUNDED") {
+    return { kind: "success", message: "Khoản thanh toán đã được hoàn tiền." };
+  }
+  return null;
+}
+
+function safePaymentQrUrl(value: string): URL {
+  const url = new URL(value, window.location.origin);
+  const isSameOrigin = url.origin === window.location.origin;
+  const isTrustedVietQr = url.protocol === "https:" && url.hostname === "img.vietqr.io";
+  if (url.username || url.password || (!isSameOrigin && !isTrustedVietQr)) {
+    throw new Error("Untrusted payment QR URL");
+  }
+  return url;
+}
+
+async function downloadPaymentQrImage(paymentDetails: BankTransferPayment): Promise<void> {
+  const qrUrl = safePaymentQrUrl(paymentDetails.qrCodeUrl);
+  const response = await fetch(qrUrl, {
+    cache: "no-store",
+    credentials: "omit",
+    referrerPolicy: "no-referrer",
+  });
+  if (!response.ok) throw new Error("Unable to download payment QR");
+
+  const declaredSize = Number(response.headers.get("content-length") ?? 0);
+  if (declaredSize > MAX_QR_DOWNLOAD_BYTES) throw new Error("Payment QR is too large");
+
+  const blob = await response.blob();
+  if (!blob.type.startsWith("image/") || blob.size > MAX_QR_DOWNLOAD_BYTES) {
+    throw new Error("Invalid payment QR response");
+  }
+
+  const blobUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  const safeBookingCode = paymentDetails.bookingCode.replace(/[^A-Za-z0-9_-]/g, "-");
+  anchor.href = blobUrl;
+  anchor.download = `vietqr-${safeBookingCode || "thanh-toan"}.png`;
+  anchor.rel = "noopener";
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(blobUrl), 0);
+}
+
+async function writeClipboard(value: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.readOnly = true;
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  document.body.append(textarea);
+  textarea.select();
+  let copied = false;
+  try {
+    copied = document.execCommand("copy");
+  } finally {
+    textarea.remove();
+    previousFocus?.focus();
+  }
+  if (!copied) throw new Error("Clipboard is unavailable");
 }
 
 function countOf<T>(state: Loadable<T[]> | Loadable<Page<T>>): string {
@@ -171,6 +291,15 @@ export default function PatientDashboardPage() {
   const [profileOperation, setProfileOperation] = useState<"idle" | "saving">("idle");
   const [profileNotice, setProfileNotice] = useState<string | null>(null);
   const [selectedAppointment, setSelectedAppointment] = useState<PatientPortalAppointment | null>(null);
+  const [selectedPaymentAppointmentId, setSelectedPaymentAppointmentId] = useState<string | null>(null);
+  const [payment, setPayment] = useState<Loadable<BankTransferPayment> | null>(null);
+  const [paymentReference, setPaymentReference] = useState("");
+  const [paymentSubmitting, setPaymentSubmitting] = useState(false);
+  const [paymentRefreshing, setPaymentRefreshing] = useState(false);
+  const [paymentQrDownloading, setPaymentQrDownloading] = useState(false);
+  const [paymentNotice, setPaymentNotice] = useState<PaymentNotice | null>(null);
+  const [copiedPaymentField, setCopiedPaymentField] = useState<string | null>(null);
+  const [copyAnnouncement, setCopyAnnouncement] = useState("");
   const [rescheduleDate, setRescheduleDate] = useState("");
   const [slots, setSlots] = useState<Loadable<TimeSlot[]> | null>(null);
   const [selectedStartTime, setSelectedStartTime] = useState("");
@@ -180,6 +309,9 @@ export default function PatientDashboardPage() {
   const [notificationError, setNotificationError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const handledAppointmentIdRef = useRef<string | null>(null);
+  const handledPaymentAppointmentIdRef = useRef<string | null>(null);
+  const paymentHeadingRef = useRef<HTMLHeadingElement | null>(null);
+  const copyFeedbackTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!session || !hasRole(session.user, "PATIENT")) return;
@@ -243,7 +375,201 @@ export default function PatientDashboardPage() {
     setRescheduleNotice(null);
   }, []);
 
+  const syncAppointmentPaymentStatus = useCallback((appointmentIdToUpdate: string, status: PaymentStatus) => {
+    setAppointments((current) => {
+      if (current.status !== "success") return current;
+      let changed = false;
+      const content = current.data.content.map((appointment) => {
+        if (appointment.id !== appointmentIdToUpdate || appointment.paymentStatus === status) return appointment;
+        changed = true;
+        return { ...appointment, paymentStatus: status };
+      });
+      return changed ? { status: "success", data: { ...current.data, content } } : current;
+    });
+  }, []);
+
+  const handleChoosePayment = useCallback(async (appointment: PatientPortalAppointment) => {
+    setSelectedPaymentAppointmentId(appointment.id);
+    setPayment({ status: "loading" });
+    setPaymentReference("");
+    setPaymentNotice(null);
+    try {
+      const details = await fetchBankTransferPayment(appointment.id);
+      setPayment({ status: "success", data: details });
+      setPaymentReference(details.transactionReference ?? "");
+      syncAppointmentPaymentStatus(details.appointmentId, details.status);
+    } catch (error) {
+      setPayment({ status: "error", message: getErrorMessage(error), statusCode: getErrorStatus(error) });
+    }
+  }, [syncAppointmentPaymentStatus]);
+
+  const handleSubmitPayment = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (payment?.status !== "success" || paymentSubmitting) return;
+    setPaymentSubmitting(true);
+    setPaymentNotice(null);
+    try {
+      const saved = await submitBankTransfer(payment.data.appointmentId, paymentReference.trim());
+      setPayment({ status: "success", data: saved });
+      syncAppointmentPaymentStatus(saved.appointmentId, saved.status);
+      setPaymentNotice({ kind: "success", message: "Đã gửi mã giao dịch. Bộ phận thu ngân sẽ đối soát trước khi xác nhận." });
+      setReloadKey((value) => value + 1);
+    } catch (error) {
+      setPaymentNotice({ kind: "error", message: getErrorMessage(error) });
+    } finally {
+      setPaymentSubmitting(false);
+    }
+  };
+
+  const copyPaymentValue = async (field: string, accessibleLabel: string, value: string) => {
+    try {
+      await writeClipboard(value);
+      setCopiedPaymentField(field);
+      setCopyAnnouncement(`Đã sao chép ${accessibleLabel}.`);
+      if (copyFeedbackTimerRef.current !== null) window.clearTimeout(copyFeedbackTimerRef.current);
+      copyFeedbackTimerRef.current = window.setTimeout(() => {
+        setCopiedPaymentField(null);
+        setCopyAnnouncement("");
+        copyFeedbackTimerRef.current = null;
+      }, 2_500);
+    } catch {
+      setCopyAnnouncement("");
+      setPaymentNotice({ kind: "error", message: "Không thể sao chép tự động. Vui lòng chọn và sao chép thủ công." });
+    }
+  };
+
+  const handleDownloadPaymentQr = async () => {
+    if (payment?.status !== "success" || paymentQrDownloading) return;
+    setPaymentQrDownloading(true);
+    setPaymentNotice(null);
+    try {
+      await downloadPaymentQrImage(payment.data);
+      setPaymentNotice({ kind: "success", message: "Đã tải mã VietQR về thiết bị." });
+    } catch {
+      setPaymentNotice({ kind: "error", message: "Không thể tải mã QR lúc này. Bạn vẫn có thể quét mã đang hiển thị trên màn hình." });
+    } finally {
+      setPaymentQrDownloading(false);
+    }
+  };
+
+  const handleRefreshPayment = async () => {
+    if (payment?.status !== "success" || paymentRefreshing) return;
+    const current = payment.data;
+    setPaymentRefreshing(true);
+    setPaymentNotice(null);
+    try {
+      const latest = await fetchBankTransferPayment(current.appointmentId);
+      setPayment({ status: "success", data: latest });
+      setPaymentReference((currentReference) => latest.transactionReference ?? currentReference);
+      syncAppointmentPaymentStatus(latest.appointmentId, latest.status);
+      setPaymentNotice(paymentTransitionNotice(latest.status) ?? { kind: "info", message: "Đã kiểm tra: trạng thái thanh toán chưa thay đổi." });
+      if (latest.status !== current.status) setReloadKey((value) => value + 1);
+    } catch (error) {
+      setPaymentNotice({ kind: "error", message: getErrorMessage(error) });
+    } finally {
+      setPaymentRefreshing(false);
+    }
+  };
+
+  const closePaymentPanel = () => {
+    const triggerId = selectedPaymentAppointmentId ? `payment-action-${selectedPaymentAppointmentId}` : null;
+    setPayment(null);
+    setSelectedPaymentAppointmentId(null);
+    setPaymentNotice(null);
+    setCopyAnnouncement("");
+    window.setTimeout(() => {
+      const trigger = triggerId ? document.getElementById(triggerId) : null;
+      (trigger ?? document.getElementById("appointments-title"))?.focus();
+    }, 0);
+  };
+
+  const activePayment = payment?.status === "success" ? payment.data : null;
+  const activePaymentAppointmentId = activePayment?.appointmentId ?? null;
+  const pollablePaymentStatus = activePayment && isPollablePaymentStatus(activePayment.status)
+    ? activePayment.status
+    : null;
+
+  useEffect(() => {
+    if (!activePaymentAppointmentId || !pollablePaymentStatus) return;
+    const appointmentIdToRefresh = activePaymentAppointmentId;
+    let cancelled = false;
+    let attempt = 0;
+    let timer: number | null = null;
+
+    const poll = async () => {
+      let shouldContinue = true;
+      try {
+        const latest = await fetchBankTransferPayment(appointmentIdToRefresh);
+        if (cancelled) return;
+        setPayment((current) => current?.status === "success" && current.data.appointmentId === appointmentIdToRefresh
+          ? { status: "success", data: latest }
+          : current);
+        syncAppointmentPaymentStatus(latest.appointmentId, latest.status);
+
+        if (latest.status !== pollablePaymentStatus) {
+          shouldContinue = false;
+          setPaymentNotice(paymentTransitionNotice(latest.status));
+          setReloadKey((value) => value + 1);
+        } else {
+          attempt += 1;
+        }
+      } catch {
+        if (cancelled) return;
+        attempt += 1;
+      }
+
+      if (!cancelled && shouldContinue) {
+        const delays = PAYMENT_POLL_DELAYS[pollablePaymentStatus];
+        const baseDelay = delays[Math.min(attempt, delays.length - 1)];
+        const delay = document.visibilityState === "hidden" ? Math.max(baseDelay, 60_000) : baseDelay;
+        timer = window.setTimeout(() => void poll(), delay);
+      }
+    };
+
+    const delays = PAYMENT_POLL_DELAYS[pollablePaymentStatus];
+    timer = window.setTimeout(() => void poll(), delays[0]);
+    return () => {
+      cancelled = true;
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [activePaymentAppointmentId, pollablePaymentStatus, syncAppointmentPaymentStatus]);
+
+  useEffect(() => {
+    if (!activePaymentAppointmentId) return;
+    const timer = window.setTimeout(() => paymentHeadingRef.current?.focus(), 0);
+    return () => window.clearTimeout(timer);
+  }, [activePaymentAppointmentId]);
+
+  useEffect(() => () => {
+    if (copyFeedbackTimerRef.current !== null) window.clearTimeout(copyFeedbackTimerRef.current);
+  }, []);
+
   const appointmentId = searchParams.get("appointmentId");
+  const paymentAppointmentId = searchParams.get("paymentAppointmentId");
+
+  useEffect(() => {
+    if (appointments.status !== "success" || !paymentAppointmentId) return;
+    if (handledPaymentAppointmentIdRef.current === paymentAppointmentId) return;
+    const target = appointments.data.content.find(
+      (appointment) => appointment.id === paymentAppointmentId || appointment.bookingCode === paymentAppointmentId,
+    );
+    if (!target) return;
+    handledPaymentAppointmentIdRef.current = paymentAppointmentId;
+    const timer = window.setTimeout(() => void handleChoosePayment(target), 0);
+    return () => window.clearTimeout(timer);
+  }, [appointments, handleChoosePayment, paymentAppointmentId]);
+
+  const requestedPaymentMissing = Boolean(
+    paymentAppointmentId
+      && appointments.status === "success"
+      && !appointments.data.content.some(
+        (appointment) => appointment.id === paymentAppointmentId || appointment.bookingCode === paymentAppointmentId,
+      ),
+  );
+  const visiblePaymentNotice = paymentNotice
+    ?? (requestedPaymentMissing
+      ? { kind: "error" as const, message: "Lịch hẹn chưa được liên kết với tài khoản này. Hãy đăng nhập bằng đúng email đã nhận OTP." }
+      : null);
 
   useEffect(() => {
     if (appointments.status !== "success") return;
@@ -262,7 +588,10 @@ export default function PatientDashboardPage() {
   }, [appointmentId, appointments, handleChooseReschedule, selectedAppointment]);
 
   if (authState === "unauthenticated") {
-    return <main className="portal-entry"><LoginRequiredState nextPath="/patient/dashboard" /></main>;
+    const nextPath = paymentAppointmentId
+      ? `/patient/dashboard?paymentAppointmentId=${encodeURIComponent(paymentAppointmentId)}#appointments`
+      : "/patient/dashboard";
+    return <main className="portal-entry"><LoginRequiredState nextPath={nextPath} /></main>;
   }
   if (authState === "forbidden" || !user) {
     return (
@@ -408,7 +737,7 @@ export default function PatientDashboardPage() {
           <div className="portal-panel__heading">
             <div>
               <p className="section-note">LỊCH HẸN ĐÃ XÁC THỰC</p>
-              <h2 id="appointments-title">Lịch hẹn của tôi</h2>
+              <h2 id="appointments-title" tabIndex={-1}>Lịch hẹn của tôi</h2>
             </div>
             <span aria-hidden="true" className="portal-panel__icon"><UiIcon name="calendar" size={20} /></span>
           </div>
@@ -419,8 +748,127 @@ export default function PatientDashboardPage() {
             retry={retry}
             state={appointments}
           >
-            {(page) => <PortalAppointments onReschedule={handleChooseReschedule} page={page} viewer="patient" />}
+            {(page) => <PortalAppointments activePaymentAppointmentId={selectedPaymentAppointmentId ?? undefined} onPayment={(appointment) => void handleChoosePayment(appointment)} onReschedule={handleChooseReschedule} page={page} viewer="patient" />}
           </StateContent>
+          {visiblePaymentNotice ? (
+            <p
+              aria-live={visiblePaymentNotice.kind === "error" ? "assertive" : "polite"}
+              className={`${paymentStyles.notice} ${paymentStyles[visiblePaymentNotice.kind]}`}
+              role={visiblePaymentNotice.kind === "error" ? "alert" : "status"}
+            >
+              {visiblePaymentNotice.message}
+            </p>
+          ) : null}
+          <p aria-live="polite" className={paymentStyles.srOnly} role="status">{copyAnnouncement}</p>
+          {payment ? (
+            <section aria-label="Thanh toán chuyển khoản" className={paymentStyles.panel} id="patient-payment-panel">
+              {payment.status === "loading" ? <LoadingState label="Đang chuẩn bị thông tin chuyển khoản…" /> : null}
+              {payment.status === "error" ? <ErrorState message={payment.message} status={payment.statusCode} /> : null}
+              {payment.status === "success" ? (
+                <>
+                  <div className={paymentStyles.heading}>
+                    <div>
+                      <p className="section-note">CHUYỂN KHOẢN NGÂN HÀNG</p>
+                      <h3 id="patient-payment-title" ref={paymentHeadingRef} tabIndex={-1}>Thanh toán lịch {payment.data.bookingCode}</h3>
+                    </div>
+                    <button aria-label={`Đóng thanh toán lịch ${payment.data.bookingCode}`} className={paymentStyles.closeButton} onClick={closePaymentPanel} type="button">
+                      <UiIcon name="x" size={18} />
+                      <span>Đóng</span>
+                    </button>
+                  </div>
+                  <div className={paymentStyles.securityNote}>
+                    <UiIcon name="shield-check" size={22} />
+                    <p>Chỉ chuyển đúng số tiền và nội dung bên dưới. Hệ thống không bao giờ yêu cầu mã OTP ngân hàng hoặc mật khẩu.</p>
+                  </div>
+                  <div className={paymentStyles.layout}>
+                    <figure className={paymentStyles.qrCard}>
+                      <div className={paymentStyles.qrFrame}>
+                        <Image
+                          alt={`VietQR thanh toán ${formatMoney(payment.data.amount)} cho lịch ${payment.data.bookingCode}`}
+                          className={paymentStyles.qrImage}
+                          draggable={false}
+                          height={360}
+                          sizes="(max-width: 720px) 82vw, 360px"
+                          src={payment.data.qrCodeUrl}
+                          unoptimized
+                          width={360}
+                        />
+                      </div>
+                      <figcaption>Quét bằng ứng dụng ngân hàng và kiểm tra đúng tên người nhận trước khi xác nhận.</figcaption>
+                      <button className={`outline-button outline-button--small ${paymentStyles.downloadButton}`} disabled={paymentQrDownloading} onClick={() => void handleDownloadPaymentQr()} type="button">
+                        {paymentQrDownloading ? "Đang tải…" : "Tải mã VietQR"}
+                      </button>
+                    </figure>
+
+                    <dl className={paymentStyles.details}>
+                      <div><dt>Ngân hàng</dt><dd>{payment.data.bankName}</dd></div>
+                      <div>
+                        <dt>Số tài khoản</dt>
+                        <dd className={paymentStyles.valueRow}>
+                          <code>{payment.data.bankAccount}</code>
+                          <button aria-label={`Sao chép số tài khoản ${payment.data.bankAccount}`} className={paymentStyles.copyButton} onClick={() => void copyPaymentValue("account", "số tài khoản", payment.data.bankAccount)} type="button">{copiedPaymentField === "account" ? "Đã chép" : "Sao chép"}</button>
+                        </dd>
+                      </div>
+                      <div><dt>Chủ tài khoản</dt><dd>{payment.data.accountHolder || "Kiểm tra tên hiển thị trong ứng dụng ngân hàng"}</dd></div>
+                      <div>
+                        <dt>Số tiền</dt>
+                        <dd className={`${paymentStyles.valueRow} ${paymentStyles.amount}`}>
+                          <strong>{formatMoney(payment.data.amount)}</strong>
+                          <button aria-label={`Sao chép số tiền ${payment.data.amount} đồng`} className={paymentStyles.copyButton} onClick={() => void copyPaymentValue("amount", "số tiền", String(payment.data.amount))} type="button">{copiedPaymentField === "amount" ? "Đã chép" : "Sao chép"}</button>
+                        </dd>
+                      </div>
+                      <div className={paymentStyles.detailWide}>
+                        <dt>Nội dung chuyển khoản</dt>
+                        <dd className={paymentStyles.valueRow}>
+                          <code>{payment.data.transferContent}</code>
+                          <button aria-label={`Sao chép nội dung chuyển khoản ${payment.data.transferContent}`} className={paymentStyles.copyButton} onClick={() => void copyPaymentValue("content", "nội dung chuyển khoản", payment.data.transferContent)} type="button">{copiedPaymentField === "content" ? "Đã chép" : "Sao chép"}</button>
+                        </dd>
+                      </div>
+                      {payment.data.transactionReference ? <div><dt>Mã giao dịch đã gửi</dt><dd><code>{payment.data.transactionReference}</code></dd></div> : null}
+                      <div>
+                        <dt>Trạng thái</dt>
+                        <dd><span className={paymentStyles.status} data-status={payment.data.status}>{formatPaymentStatus(payment.data.status)}</span></dd>
+                      </div>
+                    </dl>
+                  </div>
+
+                  {isPollablePaymentStatus(payment.data.status) ? (
+                    <div aria-live="polite" className={paymentStyles.polling} role="status">
+                      <UiIcon name="clock" size={19} />
+                      <span>{payment.data.status === "PENDING_VERIFICATION" ? "Hệ thống đang tự kiểm tra kết quả đối soát." : "Trạng thái sẽ tự cập nhật nếu ngân hàng xác nhận giao dịch."}</span>
+                      <button className={paymentStyles.refreshButton} disabled={paymentRefreshing} onClick={() => void handleRefreshPayment()} type="button">{paymentRefreshing ? "Đang kiểm tra…" : "Kiểm tra ngay"}</button>
+                    </div>
+                  ) : null}
+
+                  {payment.data.status === "PAID" ? <p className={paymentStyles.successCard}><UiIcon name="check" size={20} /> Khoản thanh toán đã được xác nhận.</p> : null}
+
+                  {payment.data.status === "REJECTED" ? (
+                    <div aria-labelledby="payment-rejected-title" className={paymentStyles.rejectedGuide} role="alert">
+                      <h4 id="payment-rejected-title"><UiIcon name="alert-triangle" size={20} /> Thanh toán cần kiểm tra lại</h4>
+                      {payment.data.rejectionReason ? <p><strong>Lý do:</strong> {payment.data.rejectionReason}</p> : null}
+                      <ol>
+                        <li>Đối chiếu số tiền, nội dung chuyển khoản và mã giao dịch với ứng dụng ngân hàng.</li>
+                        <li>Nếu tài khoản đã bị trừ tiền, không chuyển lần thứ hai; nhập lại đúng mã giao dịch hoặc liên hệ cơ sở y tế.</li>
+                        <li>Nếu chưa chuyển tiền, quét lại VietQR và dùng chính xác nội dung được hiển thị.</li>
+                      </ol>
+                    </div>
+                  ) : null}
+
+                  {payment.data.status === "UNPAID" || payment.data.status === "REJECTED" ? (
+                    <form className={paymentStyles.form} onSubmit={handleSubmitPayment}>
+                      <label htmlFor="payment-reference">Mã giao dịch từ ứng dụng ngân hàng</label>
+                      <p id="payment-reference-help">Chỉ nhập mã giao dịch sau khi ngân hàng báo chuyển khoản thành công.</p>
+                      <input aria-describedby="payment-reference-help" autoComplete="off" id="payment-reference" maxLength={100} minLength={6} onChange={(event) => setPaymentReference(event.target.value)} pattern="[A-Za-z0-9._\-/ ]+" placeholder="Ví dụ: FT123456789" required spellCheck={false} type="text" value={paymentReference} />
+                      <button className="button button--primary" disabled={paymentSubmitting} type="submit">{paymentSubmitting ? "Đang gửi…" : payment.data.status === "REJECTED" ? "Gửi lại để đối soát" : "Tôi đã chuyển khoản"}</button>
+                    </form>
+                  ) : null}
+
+                  {payment.data.status === "PENDING_VERIFICATION" ? <p className={paymentStyles.infoCard}>Bạn có thể rời trang. Hệ thống vẫn tiếp tục đối soát và sẽ cập nhật thông báo khi hoàn tất.</p> : null}
+                  {payment.data.refundReference ? <p className={paymentStyles.successCard}><strong>Mã hoàn tiền:</strong> {payment.data.refundReference}</p> : null}
+                </>
+              ) : null}
+            </section>
+          ) : null}
           {selectedAppointment ? (
             <form className="portal-lookup-form" onSubmit={handleReschedule}>
               <div><label htmlFor="reschedule-date">Ngày mới</label><input id="reschedule-date" min={businessDate()} onChange={(event) => { setRescheduleDate(event.target.value); setSlots(null); setSelectedStartTime(""); }} required type="date" value={rescheduleDate} /></div>
