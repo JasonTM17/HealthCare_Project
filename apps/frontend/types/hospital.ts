@@ -225,6 +225,34 @@ export interface DoctorPortalAppointment extends PortalAppointmentBase {
   patientName: string;
 }
 
+export type PaymentStatus = "UNPAID" | "PENDING_VERIFICATION" | "PAID" | "REJECTED" | "REFUND_PENDING" | "REFUNDED";
+
+export interface BankTransferPayment {
+  id: string;
+  appointmentId: string;
+  bookingCode: string;
+  patientName: string;
+  doctorName: string;
+  packageName?: string | null;
+  appointmentDate: string;
+  amount: number;
+  currency: "VND";
+  status: PaymentStatus;
+  bankName: string;
+  bankAccount: string;
+  accountHolder: string;
+  qrCodeUrl: string;
+  transferContent: string;
+  transactionReference?: string | null;
+  submittedAt?: string | null;
+  verifiedAt?: string | null;
+  rejectionReason?: string | null;
+  refundReference?: string | null;
+  refundedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type PortalAppointment = PatientPortalAppointment | DoctorPortalAppointment;
 
 export interface AiTriageCitation {

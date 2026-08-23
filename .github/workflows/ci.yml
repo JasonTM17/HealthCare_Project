@@ -180,6 +180,55 @@ jobs:
           persist-credentials: false
       - name: Validate Compose configuration
         run: docker compose -f infrastructure/docker-compose.yml config --quiet
+      - name: Validate operational PowerShell contracts
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          foreach ($path in @("scripts/backup-local-data.ps1", "scripts/validate-production-env.ps1")) {
+            $parseErrors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $path), [ref]$null, [ref]$parseErrors
+            ) | Out-Null
+            if ($parseErrors.Count -gt 0) {
+              throw "$path has PowerShell parse errors."
+            }
+          }
+
+          & pwsh -NoProfile -File scripts/validate-production-env.ps1 -EnvFile .env.example *> $null
+          if ($LASTEXITCODE -eq 0) {
+            throw "The local .env.example must fail the production environment gate."
+          }
+
+          $fixture = Join-Path $env:RUNNER_TEMP "healthcare-production-validation.env"
+          @(
+            "SPRING_PROFILES_ACTIVE=prod"
+            "JWT_SECRET=validation-only-jwt-xxxxxxxxxxxxxxxxxxxxxxxx"
+            "POSTGRES_PASSWORD=validation-postgres-xxxxxxxx"
+            "DATABASE_PASSWORD=validation-database-xxxxxxxx"
+            "MINIO_ROOT_PASSWORD=validation-minio-xxxxxxxx"
+            "AI_SERVICE_TOKEN=validation-ai-token-xxxxxxxxxxxxxxxxxxxx"
+            "APP_BOOKING_ALLOW_TEST_OTP=false"
+            "APP_SECURITY_RATE_LIMIT_ENABLED=true"
+            "CORS_ALLOWED_ORIGINS=https://healthcare.invalid"
+            "APP_MAIL_ENABLED=true"
+            "APP_MAIL_FROM=no-reply@healthcare.invalid"
+            "SPRING_MAIL_HOST=smtp.healthcare.invalid"
+            "SPRING_MAIL_SMTP_AUTH=true"
+            "SPRING_MAIL_STARTTLS_ENABLE=true"
+            "SPRING_MAIL_STARTTLS_REQUIRED=true"
+            "SPRING_MAIL_USERNAME=smtp-user@healthcare.invalid"
+            "SPRING_MAIL_PASSWORD=validation-smtp-xxxxxxxx"
+            "APP_PAYMENT_BANK_TRANSFER_ENABLED=true"
+            "PAYMENT_BANK_NAME=Vietcombank"
+            "PAYMENT_BANK_ACCOUNT_HOLDER=HEALTHCARE VALIDATION"
+            "PAYMENT_BANK_BIN=970436"
+            "PAYMENT_BANK_ACCOUNT=1000000000"
+            "PAYMENT_DEFAULT_AMOUNT=200000"
+            "PAYMENT_WEBHOOK_SECRET=validation-webhook-xxxxxxxxxxxxxxxxxxxxxxxx"
+            "PAYMENT_WEBHOOK_TOLERANCE_SECONDS=300"
+            "RAG_INGEST_ENABLED=false"
+          ) | Set-Content -LiteralPath $fixture -Encoding utf8NoBOM
+          & ./scripts/validate-production-env.ps1 -EnvFile $fixture
 
   database:
     runs-on: ubuntu-latest

@@ -29,8 +29,9 @@ app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
   booking:
-    # The public booking flow may use 123456 only in this explicitly local profile.
-    allow-test-otp: ${ALLOW_TEST_OTP:true}
+    # Fixed OTPs are gated by the test profile in code and are never enabled by
+    # this standalone profile.
+    allow-test-otp: false
   mail:
     enabled: false
 

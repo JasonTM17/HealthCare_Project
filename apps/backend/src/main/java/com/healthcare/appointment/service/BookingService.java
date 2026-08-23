@@ -23,6 +23,7 @@ import com.healthcare.hospital.repository.PackageRepository;
 import com.healthcare.hospital.repository.SpecialtyRepository;
 import com.healthcare.notification.entity.Notification.EventType;
 import com.healthcare.notification.service.NotificationService;
+import com.healthcare.payment.service.BankTransferPaymentService;
 import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -74,6 +75,8 @@ public class BookingService {
     private final AppointmentSlotLocker slotLocker;
     private final AfterCommitEmailSender emailSender;
     private final Environment environment;
+    private final BankTransferPaymentService paymentService;
+    private final AppointmentClaimService appointmentClaimService;
 
     @Value("${app.booking.allow-test-otp:false}")
     private boolean allowTestOtp;
@@ -93,7 +96,9 @@ public class BookingService {
                           NotificationService notificationService,
                           AppointmentSlotLocker slotLocker,
                           AfterCommitEmailSender emailSender,
-                          Environment environment) {
+                          Environment environment,
+                          BankTransferPaymentService paymentService,
+                          AppointmentClaimService appointmentClaimService) {
         this.appointmentRepository = appointmentRepository;
         this.patientProfileRepository = patientProfileRepository;
         this.doctorRepository = doctorRepository;
@@ -109,6 +114,8 @@ public class BookingService {
         this.slotLocker = slotLocker;
         this.emailSender = emailSender;
         this.environment = environment;
+        this.paymentService = paymentService;
+        this.appointmentClaimService = appointmentClaimService;
     }
 
     /** Backward-compatible constructor for focused unit tests. */
@@ -127,7 +134,7 @@ public class BookingService {
             appointmentRepository, patientProfileRepository, doctorRepository, doctorBranchRepository,
             doctorSpecialtyRepository, specialtyRepository, branchRepository, packageRepository,
             userRepository, scheduleService, passwordEncoder, null, appointmentRepository::acquireSlotLock,
-            new AfterCommitEmailSender(new NoopEmailSender()), null
+            new AfterCommitEmailSender(new NoopEmailSender()), null, null, null
         );
     }
 
@@ -148,7 +155,7 @@ public class BookingService {
             doctorSpecialtyRepository, specialtyRepository, branchRepository, packageRepository,
             userRepository, scheduleService, new BCryptPasswordEncoder(), notificationService,
             appointmentRepository::acquireSlotLock,
-            new AfterCommitEmailSender(new NoopEmailSender()), null
+            new AfterCommitEmailSender(new NoopEmailSender()), null, null, null
         );
     }
 
@@ -314,6 +321,9 @@ public class BookingService {
                 exception
             );
         }
+        if (paymentService != null && paymentService.isAvailable()) {
+            paymentService.initialize(appointment);
+        }
         notifyPatient(
             appointment,
             EventType.APPOINTMENT_CREATED,
@@ -467,6 +477,9 @@ public class BookingService {
                 exception
             );
         }
+        if (appointmentClaimService != null) {
+            appointmentClaimService.claimAfterBookingOtp(appointment);
+        }
         notifyPatient(
             appointment,
             EventType.APPOINTMENT_CONFIRMED,
@@ -516,6 +529,9 @@ public class BookingService {
         appointment.setHoldExpiresAt(null);
         appointment.setOtpCode(null);
         appointment.setOtpExpiresAt(null);
+        if (paymentService != null) {
+            paymentService.markAppointmentCancelled(appointment);
+        }
         appointmentRepository.save(appointment);
         notifyPatient(
             appointment,
@@ -655,6 +671,13 @@ public class BookingService {
                 appointment.getId()
             );
         }
+        if (notificationService != null && appointmentClaimService != null) {
+            for (UUID userId : appointmentClaimService.claimedUserIds(appointment.getId())) {
+                if (!userId.equals(appointment.getPatient().getUserId())) {
+                    notificationService.create(userId, eventType, title, message, appointment.getId());
+                }
+            }
+        }
     }
 
     private String generateBookingCode(LocalDate date) {
@@ -675,9 +698,9 @@ public class BookingService {
             return;
         }
         if (hasRole(principal, "PATIENT")) {
-            PatientProfile patient = patientProfileRepository.findByUserId(userId)
-                .orElseThrow(() -> new AccessDeniedException("Tài khoản chưa liên kết hồ sơ bệnh nhân"));
-            if (patient.getId().equals(appointment.getPatient().getId())) {
+            PatientProfile patient = patientProfileRepository.findByUserId(userId).orElse(null);
+            if ((patient != null && patient.getId().equals(appointment.getPatient().getId()))
+                    || (appointmentClaimService != null && appointmentClaimService.isOwned(appointment.getId(), userId))) {
                 return;
             }
         }

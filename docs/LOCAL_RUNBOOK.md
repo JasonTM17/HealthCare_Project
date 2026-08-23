@@ -138,8 +138,10 @@ for newly registered patients. The REST auth flow is:
    OTP flow. Resend, expiry, attempt, replay, and rate-limit errors are mapped
    to stable API codes and safe Vietnamese UI messages.
 
-Appointment confirmation remains a separate local demo boundary and uses the
-disposable OTP `123456`; it is not shared with auth email OTPs.
+Appointment confirmation remains a separate OTP boundary. Compose generates a
+random code and delivers it through the same configured SMTP service. The fixed
+value `123456` is accepted only in automated tests running with the Spring
+`test` profile.
 
 Patient chat is available at `/patient/chat` for authenticated `PATIENT`
 accounts. The browser uses Spring REST conversation resources and never sends a
@@ -173,6 +175,73 @@ docker compose -f infrastructure/docker-compose.yml ps
 Open `http://localhost:3000/auth/login` and verify the patient, doctor and admin
 portals with the accounts above.
 
+## Bank-transfer payment demo
+
+The local Compose environment enables a fictional bank account for UI and API
+testing. Never send real money to the checked-in demo account. Replace
+`PAYMENT_BANK_NAME`, `PAYMENT_BANK_ACCOUNT`, `PAYMENT_BANK_ACCOUNT_HOLDER`, and
+`PAYMENT_DEFAULT_AMOUNT` with separately managed deployment values before any
+shared use, or set `APP_PAYMENT_BANK_TRANSFER_ENABLED=false`.
+
+After a confirmed appointment, the authenticated patient opens the payment
+panel in `/patient/dashboard`, transfers using the exact immutable amount and
+content, and submits only the bank transaction reference. An administrator then
+checks the actual bank statement and reviews the item at `/admin/payments`.
+Submitting a reference never marks an appointment paid by itself. The backend
+serializes reviews, keeps retries idempotent, and moves a paid cancelled booking
+to `REFUND_PENDING` rather than discarding its payment state.
+
+Booking OTP confirmation also creates a unique account claim when a verified,
+active PATIENT account has the same normalized email. This lets a public booking
+appear in that account without rewriting its medical profile or phone number.
+If registration happens after booking, matching unlinked booking profiles are
+reused and email verification claims previously confirmed appointments. The
+database unique constraint ensures one appointment cannot be claimed by two
+accounts.
+
+VietQR is generated server-side from `PAYMENT_BANK_BIN`, the snapshotted amount,
+and the immutable transfer content. The patient must still verify the receiving
+account name in their banking app. Never guess `PAYMENT_BANK_ACCOUNT_HOLDER`.
+
+Automatic reconciliation is disabled unless `PAYMENT_WEBHOOK_SECRET` contains
+at least 32 characters. A provider adapter sends JSON with `transferContent`,
+`amount`, and `transactionReference` to
+`POST /api/v1/payments/webhooks/bank-transfer`, plus `X-Webhook-Id`, Unix-second
+`X-Webhook-Timestamp`, and `X-Webhook-Signature`. The signature is lowercase
+hex HMAC-SHA256 over `<timestamp>.<raw JSON body>`. Event IDs are persisted to
+block replay, timestamps expire after five minutes by default, and amount plus
+transfer content must match exactly.
+
+This is a provider-neutral inbound contract: the backend does not log in to
+Vietcombank, scrape account activity, or claim a direct bank integration. A
+separately operated, authorized provider adapter must translate its event into
+the contract above, retain the exact raw JSON used for signing, generate a
+stable event ID, and retry the identical event on timeout. Event IDs accept only
+letters, digits, `.`, `_`, `:`, and `-` (maximum 120 characters); the request
+body is capped at 4096 characters and the signature must be 64 hexadecimal
+characters, optionally prefixed by `sha256=`.
+
+Patient submissions require an `Idempotency-Key`. Admin review and refund
+transitions are state guarded and recorded in `payment_audit_logs`. Cancelling a
+paid appointment creates `REFUND_PENDING`; an admin must record the real bank
+refund reference before the status becomes `REFUNDED`.
+
+Successful verification, rejection, and completed refund also schedule a
+best-effort patient email after the database transaction commits. Those emails
+contain only the booking code and safe portal guidance; transaction/refund
+references, bank details, rejection reasons, clinical data, and appointment
+reason are deliberately omitted. SMTP failure cannot roll back an already
+committed payment transition. Set `PAYMENT_STATUS_EMAIL_ENABLED=false` to turn
+off these status messages independently of security OTP mail.
+
+## Gmail SMTP
+
+Local Compose intentionally uses Mailpit. To send real Gmail mail, set the
+backend container values to `smtp.gmail.com`, port `587`, enable SMTP auth and
+STARTTLS, and provide a Gmail address plus a Google App Password through `.env`
+or the deployment secret manager. Do not commit the App Password. Keep Mailpit
+until both credentials are available; otherwise OTP delivery will fail.
+
 ## Role-based demo checklist
 
 1. Open `/`, then browse specialties, doctors, branches and services.
@@ -182,7 +251,7 @@ portals with the accounts above.
 4. Open `/patient/chat`, create a conversation, send a question, reload the page
    and verify server-owned history, citations, retry and delete behavior.
 5. Open `/dat-lich`, select a real doctor, branch, date and available slot.
-6. Hold the slot and confirm it with local OTP `123456`.
+6. Hold the slot, read the random OTP from Gmail or Mailpit, and confirm it.
 7. Verify the appointment in `/patient/dashboard` and its in-app notification.
 8. Sign in as `doctor@healthcare.local`; open `/doctor/dashboard` for the booked date.
 9. Move the appointment through check-in and in-progress states in the allowed order.
@@ -197,6 +266,33 @@ portals with the accounts above.
 The backend also exposes `POST /api/v1/admin/ai/catalog/sync` for an authenticated
 ADMIN to perform a bounded catalog refresh and receive an explicit processed
 document count. Scheduled synchronization remains enabled for normal operation.
+
+## Backup and production environment gate
+
+With PostgreSQL and MinIO running, create a uniquely named backup directory:
+
+```powershell
+.\scripts\backup-local-data.ps1 -OutputDirectory D:\encrypted-backups\healthcare
+```
+
+The script streams a PostgreSQL custom archive without text transcoding, copies
+MinIO source data without changing it, and writes file sizes plus SHA-256 hashes
+to `manifest.json`. It never deletes source data or overwrites an existing
+snapshot. Treat the result as sensitive and perform restore tests only against
+disposable PostgreSQL/MinIO instances. Production needs scheduled encrypted
+off-site retention, alerting on failures, and documented recovery objectives;
+one successful local backup is not restore evidence.
+
+Validate a private production environment file before deployment:
+
+```powershell
+.\scripts\validate-production-env.ps1 -EnvFile C:\secure\healthcare.production.env
+```
+
+The validator fails on placeholder/short secrets, local/test profiles, fixed
+booking OTP, disabled rate limiting, non-HTTPS CORS, local SMTP, incomplete
+STARTTLS/auth, invalid bank identifiers, and a short reconciliation webhook
+secret. It prints variable names and findings, never values.
 
 ## Quality gates
 

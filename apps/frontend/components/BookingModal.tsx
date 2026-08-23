@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useRef, useState, useEffect } from "react";
+import Link from "next/link";
 import {
   Doctor,
   Specialty,
@@ -1149,6 +1150,9 @@ function BookingExperience({
                   </div>
 
                   <div className="pt-3">
+                    <Link className="mr-3 inline-flex rounded-full border border-brand-700 px-6 py-2.5 text-sm font-bold text-brand-800" href={`/patient/dashboard?paymentAppointmentId=${encodeURIComponent(confirmedAppointment.id)}#appointments`}>
+                      Thanh toán chuyển khoản
+                    </Link>
                     <button
                       type="button"
                       onClick={closeBooking}

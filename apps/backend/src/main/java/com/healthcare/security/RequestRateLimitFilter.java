@@ -30,6 +30,8 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
     private final long windowMillis;
     private final int authLimit;
     private final int appointmentLimit;
+    private final int paymentLimit;
+    private final int webhookLimit;
     private final int aiLimit;
     private final int careerApplicationLimit;
     private final Map<String, WindowCounter> counters = new ConcurrentHashMap<>();
@@ -40,6 +42,8 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
         this.windowMillis = environment.getProperty("app.security.rate-limit.window-seconds", Long.class, 60L) * 1_000L;
         this.authLimit = environment.getProperty("app.security.rate-limit.auth-limit", Integer.class, 20);
         this.appointmentLimit = environment.getProperty("app.security.rate-limit.appointment-limit", Integer.class, 60);
+        this.paymentLimit = environment.getProperty("app.security.rate-limit.payment-limit", Integer.class, 20);
+        this.webhookLimit = environment.getProperty("app.security.rate-limit.webhook-limit", Integer.class, 120);
         this.aiLimit = environment.getProperty("app.security.rate-limit.ai-limit", Integer.class, 30);
         this.careerApplicationLimit = environment.getProperty(
             "app.security.rate-limit.career-application-limit", Integer.class, 10
@@ -99,6 +103,13 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
         }
         if ("POST".equals(method) && path.startsWith("/api/v1/appointments/")) {
             return new LimitRule("appointments", appointmentLimit);
+        }
+        if ("POST".equals(method) && path.equals("/api/v1/payments/webhooks/bank-transfer")) {
+            return new LimitRule("payment-webhook", webhookLimit);
+        }
+        if (("POST".equals(method) && path.matches("^/api/v1/patient/appointments/[^/]+/payment/submit$"))
+                || ("PATCH".equals(method) && path.matches("^/api/v1/admin/payments/[^/]+(?:/refund)?$"))) {
+            return new LimitRule("payments", paymentLimit);
         }
         if ("POST".equals(method) && path.matches("^/api/v1/careers/jobs/[^/]+/applications$")) {
             return new LimitRule("career-applications", careerApplicationLimit);

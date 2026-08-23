@@ -21,11 +21,22 @@ than one checkout.
 
 ## Production Checklist
 
-1. Set strong secrets in `.env` (`JWT_SECRET`, database passwords, MinIO keys)
-2. Configure CORS allowed origins
-3. Enable HTTPS/TLS termination
-4. Set up database backups
-5. Configure monitoring and alerting
+1. Keep the private production environment outside version control and run
+   `.\scripts\validate-production-env.ps1 -EnvFile <private-path>`.
+2. Store JWT, database, MinIO, SMTP, AI, RAG, and payment webhook secrets in a
+   deployment secret manager; rotate credentials exposed during setup.
+3. Terminate TLS with a real domain/certificate and allow only explicit HTTPS
+   origins in CORS.
+4. Keep fixed booking OTP disabled. Verify real SMTP delivery and status email
+   delivery without logging OTPs or message bodies.
+5. Connect only an authorized provider adapter to the HMAC-signed,
+   provider-neutral reconciliation webhook. The project does not directly read
+   Vietcombank transactions without such a provider and credentials.
+6. Schedule encrypted PostgreSQL and object-storage backups with off-site
+   retention. Use `scripts/backup-local-data.ps1` only as the local snapshot
+   baseline, then prove recovery in isolated restore drills.
+7. Configure monitoring, alerting, audit retention, dependency scanning, and
+   incident ownership before accepting real patient or payment data.
 
 The Compose stack is a local development boundary. It is not evidence of
 multi-instance CMS fan-out, provider availability, backup/restore, or a

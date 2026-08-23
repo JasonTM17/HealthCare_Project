@@ -26,6 +26,26 @@ jobs:
           HEALTHCARE_RUNTIME_ENV: ${{ runner.temp }}/healthcare-runtime.env
         run: ./scripts/start-and-verify-local-mvp.ps1 -EnvFile $env:HEALTHCARE_RUNTIME_ENV -DockerPath /usr/bin/docker
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: apps/frontend/package-lock.json
+
+      - name: Install frontend browser dependencies
+        working-directory: apps/frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run live role and payment browser journeys
+        working-directory: apps/frontend
+        env:
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
+          PLAYWRIGHT_API_BASE_URL: http://127.0.0.1:8080/api/v1
+          PLAYWRIGHT_MAILPIT_API_URL: http://127.0.0.1:8025
+        run: npm run test:e2e:compose
+
       - name: Collect Compose diagnostics
         if: failure()
         shell: pwsh
