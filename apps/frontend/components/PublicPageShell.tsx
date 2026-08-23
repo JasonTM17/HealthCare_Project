@@ -9,6 +9,7 @@ import AiTriageModal from "./AiTriageModal";
 import BookingModal, { type BookingSelection } from "./BookingModal";
 import Footer from "./Footer";
 import Navbar from "./Navbar";
+import PublicRouteBreadcrumb from "./PublicRouteBreadcrumb";
 import { routeCmsSlug, RouteCmsSlots } from "./cms";
 import type { Branch, Doctor, HealthPackage, Specialty } from "../types/hospital";
 
@@ -110,8 +111,9 @@ export function PublicPageShell({
 
   return (
     <PublicPageActionsContext.Provider value={actions}>
-      <div className="site-shell">
+      <div className="site-shell site-shell--public-route">
         <Navbar branches={effectiveBranches} onOpenBooking={() => actions.openBooking()} />
+        <PublicRouteBreadcrumb pathname={pathname} />
         <main id="main-content" tabIndex={-1}><RouteCmsSlots>{children}</RouteCmsSlots></main>
         <Footer branches={effectiveBranches} cmsSlug={cmsSlug ?? undefined} />
         {!onBookingRequest && bookingOpen ? (

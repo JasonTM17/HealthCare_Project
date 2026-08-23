@@ -54,6 +54,9 @@ redis-data/
 minio-data/
 uploads/local/
 storage/local/
+backups/
+*.dump
+*.dump.partial
 
 # Docker and runtime override files
 docker-compose.override.yml

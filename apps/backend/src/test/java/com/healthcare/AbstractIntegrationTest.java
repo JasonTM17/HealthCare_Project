@@ -25,6 +25,8 @@ import com.healthcare.user.repository.RefreshTokenRepository;
 import com.healthcare.user.repository.UserRepository;
 import com.healthcare.storage.repository.StoredFileRepository;
 import com.healthcare.scheduling.repository.DoctorScheduleExceptionRepository;
+import com.healthcare.payment.repository.BankTransferPaymentRepository;
+import com.healthcare.appointment.repository.AppointmentAccountClaimRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -112,6 +114,8 @@ public abstract class AbstractIntegrationTest {
         registry.add("app.jwt.secret",
                 () -> "test-secret-key-healthcare-project-must-be-32chars");
         registry.add("app.security.rate-limit.enabled", () -> "false");
+        registry.add("app.payment.bank-transfer.webhook-secret",
+                () -> "test-only-payment-webhook-secret-at-least-32-chars");
     }
 
     @Autowired
@@ -139,6 +143,8 @@ public abstract class AbstractIntegrationTest {
     @Autowired protected DoctorScheduleRepository doctorScheduleRepository;
     @Autowired protected DoctorScheduleExceptionRepository doctorScheduleExceptionRepository;
     @Autowired protected PatientProfileRepository patientProfileRepository;
+    @Autowired protected BankTransferPaymentRepository bankTransferPaymentRepository;
+    @Autowired protected AppointmentAccountClaimRepository appointmentAccountClaimRepository;
 
     // ── Clinical overlay ─────────────────────────────────────────────────────
     @Autowired protected DiagnosticResultRepository diagnosticResultRepository;
@@ -173,6 +179,8 @@ public abstract class AbstractIntegrationTest {
         jobPositionRepository.deleteAll();
 
         // Appointment domain (FK dependencies on hospital & patient)
+        appointmentAccountClaimRepository.deleteAll();
+        bankTransferPaymentRepository.deleteAll();
         appointmentRepository.deleteAll();
         doctorScheduleExceptionRepository.deleteAll();
         doctorScheduleRepository.deleteAll();
