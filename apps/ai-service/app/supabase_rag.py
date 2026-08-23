@@ -190,7 +190,7 @@ class SupabaseRagStore:
         try:
             return psycopg.connect(
                 self.config.dsn,
-                connect_timeout=self.config.connect_timeout_seconds,
+                connect_timeout=math.ceil(self.config.connect_timeout_seconds),
             )
         except Exception as exc:  # pragma: no cover - exercised by integration environments
             raise SupabaseRagUnavailable("Supabase database connection failed") from exc
