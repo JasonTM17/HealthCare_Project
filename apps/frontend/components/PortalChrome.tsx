@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import type { AuthUser } from "../types/hospital";
 import { logoutCurrentUser } from "../lib/api-client";
+import UiIcon from "./UiIcon";
 
 export type PortalRole = "PATIENT" | "DOCTOR";
 
@@ -27,9 +28,18 @@ export default function PortalChrome({ role, user, children }: PortalChromeProps
   const links = role === "PATIENT"
     ? [
         { href: homePath, label: "Tổng quan" },
-        { href: "/tra-cuu", label: "Tra cứu lịch hẹn" },
+        { href: "/patient/appointments", label: "Lịch hẹn" },
+        { href: "/patient/chat", label: "Trợ lý sức khỏe" },
+        { href: "/patient/preferences", label: "Tài khoản" },
       ]
-    : [{ href: homePath, label: "Tổng quan" }];
+    : [
+        { href: homePath, label: "Tổng quan" },
+        { href: "/doctor/appointments", label: "Lịch hôm nay" },
+      ];
+
+  const isActive = (href: string): boolean => (
+    pathname === href || (href !== homePath && pathname.startsWith(`${href}/`))
+  );
 
   const handleLogout = async () => {
     setLoggingOut(true);
@@ -44,10 +54,11 @@ export default function PortalChrome({ role, user, children }: PortalChromeProps
 
   return (
     <div className="portal-shell">
+      <a className="skip-link" href="#portal-main-content">Bỏ qua điều hướng</a>
       <header className="portal-header">
         <div className="portal-header__inner">
           <Link className="portal-brand" href={homePath}>
-            <span aria-hidden="true" className="portal-brand__mark">+</span>
+            <span aria-hidden="true" className="portal-brand__mark"><UiIcon name="shield-check" size={22} /></span>
             <span>
               <strong>HealthCare</strong>
               <small>{ROLE_LABEL[role]}</small>
@@ -57,8 +68,8 @@ export default function PortalChrome({ role, user, children }: PortalChromeProps
           <nav aria-label="Điều hướng cổng thông tin" className="portal-nav">
             {links.map((link) => (
               <Link
-                aria-current={pathname === link.href ? "page" : undefined}
-                className={pathname === link.href ? "portal-nav__link portal-nav__link--active" : "portal-nav__link"}
+                aria-current={isActive(link.href) ? "page" : undefined}
+                className={isActive(link.href) ? "portal-nav__link portal-nav__link--active" : "portal-nav__link"}
                 href={link.href}
                 key={link.href}
               >
@@ -79,7 +90,7 @@ export default function PortalChrome({ role, user, children }: PortalChromeProps
           </div>
         </div>
       </header>
-      <main className="portal-main">{children}</main>
+      <main className="portal-main" id="portal-main-content" tabIndex={-1}>{children}</main>
       <footer className="portal-footer">
         Thông tin sức khỏe được bảo vệ và chỉ hiển thị theo quyền của tài khoản hiện tại.
       </footer>

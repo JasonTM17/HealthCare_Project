@@ -3,6 +3,8 @@ package com.healthcare;
 import com.healthcare.appointment.repository.AppointmentRepository;
 import com.healthcare.appointment.repository.DoctorScheduleRepository;
 import com.healthcare.appointment.repository.PatientProfileRepository;
+import com.healthcare.ai.chat.repository.AiConversationRepository;
+import com.healthcare.ai.chat.repository.AiMessageRepository;
 import com.healthcare.clinical.repository.DiagnosticResultRepository;
 import com.healthcare.clinical.repository.MedicalRecordRepository;
 import com.healthcare.clinical.repository.PrescriptionRepository;
@@ -118,6 +120,8 @@ public abstract class AbstractIntegrationTest {
     // ── Auth domain ───────────────────────────────────────────────────────────
     @Autowired protected UserRepository userRepository;
     @Autowired protected RefreshTokenRepository refreshTokenRepository;
+    @Autowired protected AiConversationRepository aiConversationRepository;
+    @Autowired protected AiMessageRepository aiMessageRepository;
 
     // ── Hospital & Appointment domain ────────────────────────────────────────
     @Autowired protected SpecialtyRepository specialtyRepository;
@@ -186,6 +190,10 @@ public abstract class AbstractIntegrationTest {
         specialtyRepository.deleteAll();
 
         // Auth domain (refresh_tokens FK on users)
+        // Bulk delete avoids Hibernate nulling the self-referencing assistant
+        // request link before removal, which would violate the message-shape constraint.
+        aiMessageRepository.deleteAllInBatch();
+        aiConversationRepository.deleteAll();
         refreshTokenRepository.deleteAll();
         userRepository.deleteAll();
     }

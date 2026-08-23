@@ -36,6 +36,7 @@ import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
 public class AiService {
 
     private static final int DEFAULT_MAX_INPUT_CHARS = 10_000;
+    private static final int MIN_CHAT_INPUT_CHARS = 2;
     private static final int DEFAULT_MAX_RESPONSE_BYTES = 1_048_576;
     private static final Logger log = LoggerFactory.getLogger(AiService.class);
 
@@ -110,6 +111,26 @@ public class AiService {
 
     public Map<String, Object> recommendSpecialty(Map<String, Object> request) {
         return post("/recommendations/specialty", request);
+    }
+
+    public Map<String, Object> chat(Map<String, Object> request) {
+        if (request == null || !(request.get("message") instanceof String message)
+            || message.trim().length() < MIN_CHAT_INPUT_CHARS) {
+            throw new ResponseStatusException(BAD_REQUEST, "Message must be between 2 and 10000 characters");
+        }
+        String normalized = message.trim();
+        int inputLimit = maxInputChars > 0 ? Math.min(maxInputChars, DEFAULT_MAX_INPUT_CHARS) : DEFAULT_MAX_INPUT_CHARS;
+        if (normalized.length() > inputLimit) {
+            throw new ResponseStatusException(BAD_REQUEST, "Message must be between 2 and " + inputLimit + " characters");
+        }
+        Map<String, Object> payload = new java.util.LinkedHashMap<>();
+        payload.put("message", normalized);
+        Object recentTurns = request.get("recent_turns");
+        if (recentTurns == null) {
+            recentTurns = request.get("recent_history");
+        }
+        if (recentTurns != null) payload.put("recent_turns", recentTurns);
+        return postJson("/chat", payload);
     }
 
     public Map<String, Object> search(String query, int topK) {
@@ -234,10 +255,19 @@ public class AiService {
             HttpHeaders headers = headers();
             Map<String, Object> normalizedRequest = Map.of("symptoms", symptoms);
             String payload = objectMapper.writeValueAsString(normalizedRequest);
+            return exchange(HttpMethod.POST, URI.create(endpoint(path)), new HttpEntity<>(payload, headers));
+        } catch (JsonProcessingException e) {
+            throw new ResponseStatusException(BAD_GATEWAY, "AI request could not be encoded", e);
+        }
+    }
+
+    private Map<String, Object> postJson(String path, Map<String, Object> request) {
+        ensureServiceAuthConfiguration();
+        try {
             return exchange(
                 HttpMethod.POST,
                 URI.create(endpoint(path)),
-                new HttpEntity<>(payload, headers)
+                new HttpEntity<>(objectMapper.writeValueAsString(request), headers())
             );
         } catch (JsonProcessingException e) {
             throw new ResponseStatusException(BAD_GATEWAY, "AI request could not be encoded", e);
@@ -288,8 +318,12 @@ public class AiService {
             throw new ResponseStatusException(BAD_REQUEST, "Search query is required");
         }
         String normalized = query.trim();
-        if (normalized.isEmpty() || normalized.length() > DEFAULT_MAX_INPUT_CHARS) {
-            throw new ResponseStatusException(BAD_REQUEST, "Search query must be between 1 and 10000 characters");
+        int inputLimit = maxInputChars > 0 ? Math.min(maxInputChars, DEFAULT_MAX_INPUT_CHARS) : DEFAULT_MAX_INPUT_CHARS;
+        if (normalized.isEmpty() || normalized.length() > inputLimit) {
+            throw new ResponseStatusException(
+                BAD_REQUEST,
+                "Search query must be between 1 and " + inputLimit + " characters"
+            );
         }
         return normalized;
     }

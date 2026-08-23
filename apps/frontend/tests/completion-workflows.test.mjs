@@ -58,6 +58,19 @@ test("admin UI covers remaining hospital catalog and recurring schedules", () =>
   assert.match(appointments, /Trạng thái lâm sàng/);
 });
 
+test("representative primary actions have browser-level network assertions", () => {
+  const booking = read("e2e/booking-inline.spec.ts");
+  const actions = read("e2e/primary-actions.spec.ts");
+
+  assert.match(booking, /POST[\s\S]*\/appointments\/hold/);
+  assert.match(booking, /postDataJSON\(\)[\s\S]*privacyConsent: true/);
+  assert.match(booking, /\/appointments\/confirm[\s\S]*otpCode: "123456"/);
+  assert.match(actions, /PATCH[\s\S]*\/doctor\/appointments\/\$\{appointment\.id\}\/status/);
+  assert.match(actions, /postDataJSON\(\)\)\.toEqual\(\{ status: "CHECKED_IN" \}\)/);
+  assert.match(actions, /POST[\s\S]*\/admin\/specialties/);
+  assert.match(actions, /authorization[\s\S]*Bearer/);
+});
+
 test("authenticated search augments bounded keyword results with related content", () => {
   const api = read("../lib/api-client.ts");
   const search = read("../app/search/SearchPageClient.tsx");

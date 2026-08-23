@@ -10,7 +10,7 @@ from typing import Any, Iterator, List, Protocol
 from app.providers import (
     LOCAL_EMBEDDING_PROVIDERS,
     ProviderUnavailable,
-    float_setting,
+    bounded_timeout_setting,
     provider_secret,
     remote_provider_requested,
     runtime_allows_local_fallback,
@@ -115,7 +115,7 @@ def build_embedding_client(settings: Any) -> EmbeddingClient:
             api_key=api_key,
             base_url=base_url,
             model=model,
-            timeout_seconds=float_setting(settings, "ai_timeout_seconds", 10.0),
+            timeout_seconds=bounded_timeout_setting(settings),
         )
     return LocalEmbeddingClient()
 

@@ -40,17 +40,18 @@ export default function AdminServicesPage() {
   const [editingSlug, setEditingSlug] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [mutating, setMutating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{ tone: "success" | "error"; message: string } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setLoadError(null);
     try {
       const page = await adminListServices(0, 100);
       setServices(page.content);
     } catch (reason: unknown) {
-      setError(describeAdminError(reason).description);
+      setLoadError(describeAdminError(reason).description);
     } finally {
       setLoading(false);
     }
@@ -64,12 +65,13 @@ export default function AdminServicesPage() {
   const reset = () => {
     setForm(EMPTY_FORM);
     setEditingSlug(null);
+    setFormError(null);
   };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setMutating(true);
-    setError(null);
+    setFormError(null);
     setFeedback(null);
     try {
       const payload = toPayload(form);
@@ -78,31 +80,33 @@ export default function AdminServicesPage() {
       } else {
         await adminCreateService(payload);
       }
-      setFeedback(editingSlug ? "Đã cập nhật dịch vụ trong catalog admin." : "Đã tạo dịch vụ mới trong catalog admin.");
+      setFeedback({ tone: "success", message: editingSlug ? "Đã cập nhật dịch vụ." : "Đã tạo dịch vụ mới." });
       reset();
       await load();
     } catch (reason: unknown) {
       const copy = describeAdminError(reason);
-      setError(`${copy.title}: ${copy.description}`);
+      setFormError(`${copy.title}: ${copy.description}`);
     } finally {
       setMutating(false);
     }
   };
 
   const remove = async (slug: string) => {
-    if (!window.confirm(`Gửi yêu cầu xóa dịch vụ "${slug}"?`)) return;
+    if (!window.confirm(`Xóa dịch vụ "${slug}"? Hành động này không thể hoàn tác.`)) return;
     setMutating(true);
-    setError(null);
+    setFormError(null);
     setFeedback(null);
     try {
       await adminDeleteService(slug);
       const refreshed = await adminListServices(0, 100);
       const stillPresent = refreshed.content.some((service) => service.slug === slug);
       setServices(refreshed.content);
-      setFeedback(stillPresent ? "Backend vẫn giữ bản ghi sau yêu cầu xóa." : "Đã xóa dịch vụ khỏi catalog admin.");
+      setFeedback(stillPresent
+        ? { tone: "error", message: "Chưa xác nhận được việc xóa. Dịch vụ vẫn còn trong danh sách quản trị." }
+        : { tone: "success", message: "Đã xóa dịch vụ khỏi danh mục quản trị." });
     } catch (reason: unknown) {
       const copy = describeAdminError(reason);
-      setError(`${copy.title}: ${copy.description}`);
+      setFeedback({ tone: "error", message: `${copy.title}: ${copy.description}` });
     } finally {
       setMutating(false);
     }
@@ -111,38 +115,34 @@ export default function AdminServicesPage() {
   return (
     <div>
       <header className="border-b border-slate-200 pb-6">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">ADMIN CATALOG</p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">Quản lý dịch vụ</h1>
+        <h1 className="text-3xl font-bold text-slate-950">Quản lý dịch vụ</h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-          Bảng đọc trực tiếp từ endpoint admin để quản trị cả dịch vụ đang hiển thị và dịch vụ đã tạm ẩn khỏi public.
+          Cập nhật dịch vụ đang hiển thị và các dịch vụ đã tạm ẩn khỏi danh mục công khai.
         </p>
       </header>
 
+      {feedback ? (
+        <div className="mt-5"><AdminState description={feedback.message} title={feedback.tone === "success" ? "Thao tác đã hoàn tất" : "Chưa thể hoàn tất thao tác"} tone={feedback.tone} /></div>
+      ) : null}
+
       <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section aria-labelledby="service-form-title" className="border-t border-slate-200 bg-white p-5">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">ADMIN WRITE CONTRACT</p>
-              <h2 className="mt-1 text-xl font-bold text-slate-900">{editingSlug ? "Sửa dịch vụ" : "Thêm dịch vụ"}</h2>
+              <h2 className="text-xl font-bold text-slate-900" id="service-form-title">{editingSlug ? "Sửa dịch vụ" : "Thêm dịch vụ"}</h2>
             </div>
             {editingSlug ? (
-              <button className="text-xs font-bold text-slate-600 underline" onClick={reset} type="button">
+              <button className="text-xs font-bold text-slate-600 underline disabled:opacity-50" disabled={mutating} onClick={reset} type="button">
                 Hủy sửa
               </button>
             ) : null}
           </div>
 
-          {error ? (
+          {formError ? (
             <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-800" role="alert">
-              {error}
+              {formError}
             </p>
           ) : null}
-          {feedback ? (
-            <p className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900" role="status">
-              {feedback}
-            </p>
-          ) : null}
-
           <form className="mt-5 space-y-4" onSubmit={submit}>
             <label className="block text-sm font-semibold">
               Tên dịch vụ
@@ -180,7 +180,7 @@ export default function AdminServicesPage() {
                 onChange={(event) => setForm({ ...form, active: event.target.checked })}
                 type="checkbox"
               />
-              Đang hiển thị public
+              Đang hiển thị công khai
             </label>
             <button className="w-full rounded-xl bg-teal-700 px-4 py-2.5 font-bold text-white disabled:opacity-50" disabled={mutating} type="submit">
               {mutating ? "Đang gửi…" : editingSlug ? "Lưu thay đổi" : "Tạo dịch vụ"}
@@ -188,25 +188,25 @@ export default function AdminServicesPage() {
           </form>
         </section>
 
-        <section className="min-w-0">
+        <section aria-labelledby="service-list-title" className="min-w-0">
           <div className="mb-3 flex items-end justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">ADMIN READ CONTRACT</p>
-              <h2 className="mt-1 text-xl font-bold text-slate-900">Toàn bộ dịch vụ</h2>
+              <h2 className="text-xl font-bold text-slate-900" id="service-list-title">Toàn bộ dịch vụ</h2>
             </div>
             <button className="text-sm font-bold text-teal-800 underline disabled:opacity-50" disabled={loading} onClick={() => void load()} type="button">
               Làm mới
             </button>
           </div>
 
-          {loading ? <AdminState tone="loading" title="Đang tải dịch vụ" description="Đang đọc catalog admin từ backend." /> : null}
-          {!loading && !error && services.length === 0 ? (
-            <AdminState tone="empty" title="Chưa có dịch vụ" description="Bạn có thể tạo bản ghi mới nếu phiên ADMIN được backend chấp nhận." />
+          {loading ? <AdminState tone="loading" title="Đang tải dịch vụ" description="Danh sách dịch vụ đang được cập nhật." /> : null}
+          {!loading && loadError ? <AdminState action={<button className="text-sm font-bold underline underline-offset-4" onClick={() => void load()} type="button">Thử lại</button>} tone="error" title="Không thể tải dịch vụ" description={loadError} /> : null}
+          {!loading && !loadError && services.length === 0 ? (
+            <AdminState tone="empty" title="Chưa có dịch vụ" description="Tạo dịch vụ đầu tiên để bổ sung vào danh mục bệnh viện." />
           ) : null}
-          {!loading && !error && services.length > 0 ? (
-            <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+          {!loading && !loadError && services.length > 0 ? (
+            <div aria-label="Bảng dịch vụ, có thể cuộn ngang trên màn hình nhỏ" className="max-w-full overflow-x-auto rounded-lg border border-slate-200 bg-white" role="region" tabIndex={0}>
               <table className="min-w-[760px] w-full text-left text-sm">
-                <caption className="sr-only">Dịch vụ trong catalog admin</caption>
+                <caption className="sr-only">Dịch vụ trong danh sách quản trị</caption>
                 <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                   <tr>
                     <th className="px-4 py-3">Tên</th>
@@ -222,22 +222,27 @@ export default function AdminServicesPage() {
                       <td className="px-4 py-4 font-mono text-xs text-slate-500">{service.slug}</td>
                       <td className="px-4 py-4">
                         <span className={service.active ?? true ? "rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700" : "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600"}>
-                          {service.active ?? true ? "Active" : "Inactive"}
+                          {service.active ?? true ? "Đang hiển thị" : "Tạm ẩn"}
                         </span>
                       </td>
                       <td className="px-4 py-4">
                         <div className="flex justify-end gap-3">
                           <button
-                            className="text-xs font-bold text-teal-800 underline"
+                            aria-label={`Sửa ${service.name}`}
+                            className="text-xs font-bold text-teal-800 underline disabled:opacity-50"
+                            disabled={mutating}
                             onClick={() => {
                               setEditingSlug(service.slug);
                               setForm(formFromService(service));
+                              setFormError(null);
+                              setFeedback(null);
                             }}
                             type="button"
                           >
                             Sửa
                           </button>
                           <button
+                            aria-label={`Xóa ${service.name}`}
                             className="text-xs font-bold text-red-700 underline disabled:opacity-50"
                             disabled={mutating}
                             onClick={() => void remove(service.slug)}

@@ -183,13 +183,14 @@ test("booking landing page now opens as a clear support-aware route", async () =
 
   assert.match(booking, /onBookingRequest/);
   assert.match(booking, /BookingInlineExperience/);
-  assert.match(booking, /resource-hero-card--teal/);
+  assert.match(booking, /booking-page__inline--primary/);
+  assert.doesNotMatch(booking, /resource-hero-card--teal/);
   assert.match(booking, /PublicAiButton/);
-  assert.match(booking, /resource-meta-grid/);
+  assert.match(booking, /booking-page__support/);
   assert.match(booking, /booking-stage-card/);
   assert.match(booking, /catalog-grid--branches/);
   assert.match(booking, /Chọn chuyên khoa/);
-  assert.match(booking, /Form đặt lịch/);
+  assert.doesNotMatch(booking, /Hỏi trợ lý AI/);
 });
 
 test("appointment lookup page now behaves like a patient tracking hub", async () => {
@@ -406,6 +407,7 @@ test("CMS booking CTA has a real landing route and public chrome avoids invented
 
   assert.match(booking, /PublicBookingButton/);
   assert.match(seed, /ctaHref.*\/dat-lich/);
+  assert.match(footer, /href="\/chinh-sach-bao-mat"/);
   for (const source of [navbar, footer, home]) assert.doesNotMatch(source, /1900\s*1234|contact@healthcare\.vn/);
   assert.match(navbar, /Xem giờ làm việc/);
   assert.match(footer, /Thông tin điện thoại đang được cập nhật/);
@@ -452,8 +454,8 @@ test("AI and CMS live boundaries fail closed across reconnect and unresolved res
   assert.match(specialties, /PublicPageShell/);
   assert.match(branchDetail, /phoneHref/);
   assert.match(home, /safeTelephoneHref\(branch\.phone\)/);
-  assert.match(home, /setIsAiTriageOpen\(true\)/);
-  assert.match(home, /Trợ lý triệu chứng/);
+  assert.doesNotMatch(home, /setIsAiTriageOpen\(true\)/);
+  assert.doesNotMatch(home, /Trợ lý triệu chứng/);
   assert.match(tracking, /useDialogFocus/);
   assert.match(tracking, /role="dialog"/);
   assert.match(tracking, /cancel-dialog-title/);

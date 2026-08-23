@@ -9,16 +9,22 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.healthcare.TestcontainersIntegrationTest;
 import com.healthcare.security.JwtProperties;
+import com.healthcare.security.JwtTokenProvider;
+import com.healthcare.auth.mail.EmailSender;
+import com.healthcare.auth.repository.AuthOtpChallengeRepository;
+import com.healthcare.user.entity.User;
 import com.healthcare.user.entity.RefreshToken;
 import com.healthcare.user.repository.RefreshTokenRepository;
 import com.healthcare.user.repository.UserRepository;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
@@ -27,6 +33,13 @@ import java.util.HexFormat;
 import java.time.Instant;
 import java.util.Date;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -41,7 +54,30 @@ class AuthControllerTest extends TestcontainersIntegrationTest {
     private RefreshTokenRepository refreshTokenRepository;
 
     @Autowired
+    private AuthOtpChallengeRepository authOtpChallengeRepository;
+
+    @Autowired
     private JwtProperties jwtProperties;
+
+    @Autowired
+    private JwtTokenProvider tokenProvider;
+
+    @MockitoBean
+    private EmailSender emailSender;
+
+    private final AtomicReference<String> lastEmailBody = new AtomicReference<>("");
+    private final AtomicInteger sentEmailCount = new AtomicInteger();
+
+    @BeforeEach
+    void captureAuthEmail() {
+        lastEmailBody.set("");
+        sentEmailCount.set(0);
+        doAnswer(invocation -> {
+            lastEmailBody.set(invocation.getArgument(2, String.class));
+            sentEmailCount.incrementAndGet();
+            return null;
+        }).when(emailSender).send(anyString(), anyString(), anyString());
+    }
 
     @Test
     void registerCreatesPatientAndDoesNotExposePasswordHash() throws Exception {
@@ -54,16 +90,16 @@ class AuthControllerTest extends TestcontainersIntegrationTest {
                       "displayName": "Patient One"
                     }
                     """))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.accessToken").exists())
-            .andExpect(jsonPath("$.refreshToken").exists())
+            .andExpect(status().isAccepted())
+            .andExpect(jsonPath("$.verificationRequired").value(true))
+            .andExpect(jsonPath("$.accessToken").doesNotExist())
+            .andExpect(jsonPath("$.refreshToken").doesNotExist())
             .andExpect(jsonPath("$.passwordHash").doesNotExist())
             .andReturn();
 
         JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
-        assertThat(body.get("tokenType").asText()).isEqualTo("Bearer");
-        assertThat(body.get("user").get("email").asText()).isEqualTo("patient.one@example.com");
-        assertThat(body.get("user").get("roles").toString()).contains("PATIENT");
+        assertThat(body.get("email").asText()).isEqualTo("patient.one@example.com");
+        assertThat(userRepository.findByEmail("patient.one@example.com").orElseThrow().isEmailVerified()).isFalse();
     }
 
     @Test
@@ -78,7 +114,7 @@ class AuthControllerTest extends TestcontainersIntegrationTest {
                       "phone": "090 123-4567"
                     }
                     """))
-            .andExpect(status().isOk());
+            .andExpect(status().isAccepted());
 
         var user = userRepository.findByEmail("portal.patient@example.com").orElseThrow();
         var profile = patientProfileRepository.findByUserId(user.getId()).orElseThrow();
@@ -97,7 +133,7 @@ class AuthControllerTest extends TestcontainersIntegrationTest {
             """;
 
         mockMvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON).content(body))
-            .andExpect(status().isOk());
+            .andExpect(status().isAccepted());
 
         mockMvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON).content(body))
             .andExpect(status().isConflict());
@@ -122,6 +158,144 @@ class AuthControllerTest extends TestcontainersIntegrationTest {
 
         JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
         assertThat(body.get("user").get("email").asText()).isEqualTo("login.patient@example.com");
+    }
+
+    @Test
+    void loginRejectsValidUnverifiedCredentialsWithStableCode() throws Exception {
+        registerPending("pending.login@example.com", "Str0ng!Pass", "Pending Login");
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "email": "pending.login@example.com",
+                      "password": "Str0ng!Pass"
+                    }
+                    """))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.code").value("EMAIL_VERIFICATION_REQUIRED"));
+    }
+
+    @Test
+    void emailVerificationConsumesOtpOnceAndAutoLogsIn() throws Exception {
+        registerPending("verify.once@example.com", "Str0ng!Pass", "Verify Once");
+        String otp = otpFromLastEmail();
+
+        mockMvc.perform(post("/api/v1/auth/email-verifications/confirm")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"verify.once@example.com\",\"otp\":\"%s\"}".formatted(otp)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.accessToken").exists())
+            .andExpect(jsonPath("$.user.emailVerified").value(true));
+
+        mockMvc.perform(post("/api/v1/auth/email-verifications/confirm")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"verify.once@example.com\",\"otp\":\"%s\"}".formatted(otp)))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.code").value("OTP_ALREADY_USED"));
+    }
+
+    @Test
+    void invalidVerificationAttemptsPersistAndConsumeTheOtpAtTheLimit() throws Exception {
+        registerPending("verify.attempts@example.com", "Str0ng!Pass", "Verify Attempts");
+        String validOtp = otpFromLastEmail();
+        String invalidOtp = "000000".equals(validOtp) ? "111111" : "000000";
+
+        for (int attempt = 1; attempt < 5; attempt++) {
+            mockMvc.perform(post("/api/v1/auth/email-verifications/confirm")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"email\":\"verify.attempts@example.com\",\"otp\":\"%s\"}".formatted(invalidOtp)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_OTP"));
+        }
+
+        var beforeLimit = authOtpChallengeRepository.findAll().getFirst();
+        assertThat(beforeLimit.getAttempts()).isEqualTo(4);
+        assertThat(beforeLimit.getConsumedAt()).isNull();
+
+        mockMvc.perform(post("/api/v1/auth/email-verifications/confirm")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"verify.attempts@example.com\",\"otp\":\"%s\"}".formatted(invalidOtp)))
+            .andExpect(status().isTooManyRequests())
+            .andExpect(jsonPath("$.code").value("OTP_ATTEMPTS_EXCEEDED"));
+
+        var persisted = authOtpChallengeRepository.findAll().getFirst();
+        assertThat(persisted.getAttempts()).isEqualTo(5);
+        assertThat(persisted.getConsumedAt()).isNotNull();
+
+        mockMvc.perform(post("/api/v1/auth/email-verifications/confirm")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"verify.attempts@example.com\",\"otp\":\"%s\"}".formatted(validOtp)))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.code").value("OTP_ALREADY_USED"));
+    }
+
+    @Test
+    void passwordResetUsesPurposeScopedOtpAndRevokesRefreshSessions() throws Exception {
+        JsonNode session = register("reset.patient@example.com", "Str0ng!Pass", "Reset Patient");
+        String oldRefreshToken = session.get("refreshToken").asText();
+
+        mockMvc.perform(post("/api/v1/auth/password-reset-requests")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"reset.patient@example.com\"}"))
+            .andExpect(status().isAccepted());
+        String otp = otpFromLastEmail();
+
+        mockMvc.perform(post("/api/v1/auth/password-reset-requests/confirm")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"reset.patient@example.com\",\"otp\":\"%s\",\"newPassword\":\"N3w!Password\"}".formatted(otp)))
+            .andExpect(status().isNoContent());
+
+        mockMvc.perform(post("/api/v1/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"%s\"}".formatted(oldRefreshToken)))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void verificationResendKeepsCooldownStateExternallyGeneric() throws Exception {
+        registerPending("resend.cooldown@example.com", "Str0ng!Pass", "Resend Cooldown");
+
+        MvcResult cooldownResponse = mockMvc.perform(post("/api/v1/auth/email-verifications/resend")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"resend.cooldown@example.com\"}"))
+            .andExpect(status().isAccepted())
+            .andExpect(jsonPath("$.message").value(
+                "If the account is eligible, a verification code has been sent."))
+            .andReturn();
+
+        MvcResult unknownResponse = mockMvc.perform(post("/api/v1/auth/email-verifications/resend")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"unknown.resend@example.com\"}"))
+            .andExpect(status().isAccepted())
+            .andExpect(jsonPath("$.message").value(
+                "If the account is eligible, a verification code has been sent."))
+            .andReturn();
+
+        assertThat(cooldownResponse.getResponse().getContentAsString())
+            .isEqualTo(unknownResponse.getResponse().getContentAsString());
+        assertThat(sentEmailCount).hasValue(1);
+    }
+
+    @Test
+    void preferencesArePersistedPerAuthenticatedUser() throws Exception {
+        JsonNode session = register("preferences.patient@example.com", "Str0ng!Pass", "Preferences Patient");
+        String accessToken = session.get("accessToken").asText();
+
+        mockMvc.perform(get("/api/v1/users/me/preferences")
+                .header("Authorization", "Bearer " + accessToken))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.locale").value("vi-VN"))
+            .andExpect(jsonPath("$.timezone").value("Asia/Ho_Chi_Minh"));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/api/v1/users/me/preferences")
+                .header("Authorization", "Bearer " + accessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"emailNotifications\":false,\"locale\":\"en-US\",\"timezone\":\"UTC\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.emailNotifications").value(false))
+            .andExpect(jsonPath("$.locale").value("en-US"))
+            .andExpect(jsonPath("$.timezone").value("UTC"));
     }
 
     @Test
@@ -297,10 +471,52 @@ class AuthControllerTest extends TestcontainersIntegrationTest {
                       "displayName": "%s"
                     }
                     """.formatted(email, password, displayName)))
-            .andExpect(status().isOk())
+            .andExpect(status().isAccepted())
             .andReturn();
 
+        User user = userRepository.findByEmail(email.toLowerCase()).orElseThrow();
+        user.setEmailVerified(true);
+        user.setEmailVerifiedAt(java.time.OffsetDateTime.now());
+        userRepository.saveAndFlush(user);
+        return issueTestSession(user);
+    }
+
+    private JsonNode registerPending(String email, String password, String displayName) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "email": "%s",
+                      "password": "%s",
+                      "displayName": "%s"
+                    }
+                    """.formatted(email, password, displayName)))
+            .andExpect(status().isAccepted())
+            .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString());
+    }
+
+    private JsonNode issueTestSession(User user) {
+        String accessToken = tokenProvider.generateAccessToken(user.getId(), user.getEmail());
+        String refreshToken = tokenProvider.generateRefreshToken(user.getId());
+        RefreshToken stored = new RefreshToken();
+        stored.setUser(user);
+        stored.setTokenHash(hashToken(refreshToken));
+        stored.setExpiresAt(java.time.OffsetDateTime.now().plusSeconds(jwtProperties.refreshTokenTtl()));
+        stored.setCreatedAt(java.time.OffsetDateTime.now());
+        refreshTokenRepository.saveAndFlush(stored);
+        var body = objectMapper.createObjectNode();
+        body.put("accessToken", accessToken);
+        body.put("refreshToken", refreshToken);
+        body.put("tokenType", "Bearer");
+        body.put("expiresIn", jwtProperties.accessTokenTtl());
+        return body;
+    }
+
+    private String otpFromLastEmail() {
+        Matcher matcher = Pattern.compile("\\b(\\d{6})\\b").matcher(lastEmailBody.get());
+        if (!matcher.find()) throw new AssertionError("Test email did not contain a six-digit OTP");
+        return matcher.group(1);
     }
 
     private JsonNode refresh(String refreshToken) throws Exception {

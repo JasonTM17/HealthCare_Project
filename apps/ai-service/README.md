@@ -21,10 +21,12 @@ python -m venv .venv
 .venv\Scripts\python -m uvicorn app.main:app --reload --port 8000 --no-access-log
 ```
 
-RAG documents are kept in memory and are not a production knowledge store.
-Ingestion is disabled by default. To enable trusted ingestion, configure both
-`RAG_INGEST_ENABLED=true` and a secret `RAG_INGEST_TOKEN`, then send that token
-in the `X-RAG-Ingest-Token` header. Do not expose this endpoint publicly.
+RAG documents default to the in-memory store. A Supabase/Postgres backend can
+be enabled explicitly with `RAG_STORAGE_BACKEND=supabase` and `SUPABASE_DB_URL`
+when durable persistence is required. Ingestion is disabled by default. To
+enable trusted ingestion, configure both `RAG_INGEST_ENABLED=true` and a secret
+`RAG_INGEST_TOKEN`, then send that token in the `X-RAG-Ingest-Token` header.
+Do not expose this endpoint publicly.
 
 Ingestion accepts `active`, `published`, and optional bounded metadata. Only
 documents with both flags enabled are searchable; sending an inactive or
@@ -34,6 +36,14 @@ again only when its normalized content hash changes. Search combines bounded
 keyword/vector relevance and returns citations containing the stored source
 type, source ID, and title only.
 
+`POST /chat` accepts `{ "message": "...", "recent_turns": [...], "top_k": 5 }`
+and returns `{ "answer": "...", "disclaimer": "...", "citations": [...],
+"provenance": "..." }`. Recent turns and retrieved RAG content are bounded
+reference context. Citations are assembled from stored `source_type`,
+`source_id`, and `title` identities; provider-generated URLs and IDs are not
+accepted. Local/test fallback returns a deterministic answer with
+`provenance: "local_fallback"` and no citations.
+
 The backend catalog mirror is eventually consistent: it runs on the configured
 schedule (five minutes by default) and removes SQL-deleted sources when a
 catalog type fits within `ai.rag-ingest.max-catalog-items`. Sync revisions keep
@@ -41,6 +51,8 @@ an older in-flight index request from resurrecting a newer delete within the
 same AI process. If a type is larger than that safety bound, the sync keeps
 existing indexed rows instead of risking false deletion; the revision guard is
 also process-local, not a durable multi-instance knowledge-store guarantee.
+The durable Supabase backend preserves the same public contract but with
+database-backed persistence.
 
 Provider and safety settings are environment-backed:
 
@@ -54,13 +66,16 @@ AI_BASE_URL=
 AI_TIMEOUT_SECONDS=10
 AI_MAX_INPUT_CHARS=10000
 AI_MAX_RETRIEVED_CHUNKS=5
+AI_PATIENT_CHAT_REMOTE_ENABLED=false
+AI_CHAT_CIRCUIT_FAILURE_THRESHOLD=3
+AI_CHAT_CIRCUIT_RESET_SECONDS=30
 RAG_MAX_DOCUMENT_CHARS=20000
 RAG_MAX_DOCUMENTS=5000
 
 # Legacy aliases, used only for AI_PROVIDER=deepseek when the corresponding
 # AI_* value is empty.
 DEEPSEEK_API_KEY=
-DEEPSEEK_MODEL=deepseek-chat
+DEEPSEEK_MODEL=deepseek-v4-flash
 DEEPSEEK_EMBEDDING_MODEL=
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 ```
@@ -70,14 +85,17 @@ The hard request bounds are 10,000 characters for patient/query input and
 the settings above. `AI_CHAT_MODEL`, `AI_EMBEDDING_MODEL`, `AI_BASE_URL`, and
 `AI_API_KEY` take precedence; the corresponding `DEEPSEEK_*` values are
 legacy aliases used only when `AI_PROVIDER=deepseek` and the provider-neutral
-value is empty. When `AI_PROVIDER=openai`, DeepSeek credentials and defaults
-are ignored; configure the provider-neutral key/model/base URL explicitly.
+value is empty. When `AI_PROVIDER=deepseek` and no model is supplied, the
+default is `deepseek-v4-flash`. When `AI_PROVIDER=openai`, DeepSeek credentials
+and defaults are ignored; configure the provider-neutral key/model/base URL
+explicitly.
 
 Embedding vectors are capped at 4,096 dimensions. Indexed documents retain
 their embedding model and provenance, reject mixed model/provenance/dimension
 contracts, and are bounded by `RAG_MAX_DOCUMENTS` (5,000 by default).
 
-Provider calls use no automatic retries and a bounded timeout. In `local`,
+Provider calls use no automatic retries and a bounded timeout of at most 60
+seconds. In `local`,
 `demo`, or `test` runtime, a remote provider error may return deterministic
 output only with `provenance: "local_fallback"`. In every other runtime, a
 selected remote provider that is missing or unavailable fails with HTTP 503;
@@ -87,6 +105,14 @@ valid, including a degraded local fallback mode. No remote liveness probe is
 performed: a configured remote provider reports `remote_probe_required: true`
 and remains unready until a bounded probe is added. Patient text and secrets
 are not logged.
+
+Patient conversation requests are local-only by default, independently of the
+provider chosen for non-patient AI routes. Enabling remote patient chat requires
+`AI_PATIENT_CHAT_REMOTE_ENABLED=true` plus an approved provider/privacy contract.
+Email addresses, phone numbers, UUID-like identifiers, access tokens and
+sensitive clinical markers are rejected before any remote call. A bounded
+circuit opens after repeated provider failures. Spring remains the only owner
+of conversation history and sends only the six most recent turns.
 
 Protected AI routes require the same non-empty `AI_SERVICE_TOKEN` in the
 backend and AI service. The backend forwards it as `X-AI-Service-Token`.

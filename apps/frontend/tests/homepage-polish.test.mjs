@@ -20,7 +20,7 @@ test("homepage exposes patient-first navigation and appointment intents", async 
   assert.match(page, /className="hero-assurance"/);
   assert.equal((page.match(/className="hero-actions"/g) ?? []).length, 1);
   assert.equal((page.match(/className="hero-assurance"/g) ?? []).length, 1);
-  assert.match(page, /Hỏi trợ lý AI/);
+  assert.doesNotMatch(page, /Hỏi trợ lý AI/);
   assert.doesNotMatch(page, /Mô tả triệu chứng/);
   assert.doesNotMatch(page, /className="ai-navigator-fab"/);
   assert.doesNotMatch(page, /TP\. Hồ Chí Minh/);

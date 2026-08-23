@@ -7,6 +7,10 @@ public record UserProfileResponse(
     String email,
     String displayName,
     String status,
-    List<String> roles
+    List<String> roles,
+    boolean emailVerified
 ) {
+    public UserProfileResponse(String id, String email, String displayName, String status, List<String> roles) {
+        this(id, email, displayName, status, roles, true);
+    }
 }

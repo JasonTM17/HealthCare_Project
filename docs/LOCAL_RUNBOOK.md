@@ -23,10 +23,12 @@ docker compose -f infrastructure/docker-compose.yml up --build
 ```
 
 The default host ports are frontend `3000`, backend `8080`, AI service `8000`,
-PostgreSQL `5434`, Redis `6379`, and MinIO `9000`/`9001`. For an isolated run
+PostgreSQL `5434`, Redis `6379`, MinIO `9000`/`9001`, and Mailpit SMTP/API
+`1025`/`8025`. Mailpit captures local auth email and never relays it. For an isolated run
 beside another checkout, set `FRONTEND_HOST_PORT`, `BACKEND_HOST_PORT`,
 `AI_SERVICE_HOST_PORT`, `POSTGRES_HOST_PORT`, `REDIS_HOST_PORT`,
-`MINIO_API_HOST_PORT`, and `MINIO_CONSOLE_HOST_PORT` before starting Compose.
+`MINIO_API_HOST_PORT`, `MINIO_CONSOLE_HOST_PORT`, `MAILPIT_SMTP_HOST_PORT`,
+and `MAILPIT_UI_HOST_PORT` before starting Compose.
 The Compose services intentionally avoid fixed `container_name` values so
 containers and volumes remain scoped to the current Compose project.
 
@@ -120,11 +122,43 @@ accounts (all use password `LocalDemo!2026`):
 | Doctor | `doctor@healthcare.local` |
 | Patient | `patient@healthcare.local` |
 
-Never reuse these credentials outside the local seed.
+Never reuse these credentials outside the local seed. Seeded accounts are marked
+email-verified; newly registered patients are not issued tokens until they
+confirm the one-time email code.
 
-Because the local stack does not send SMS/email, appointment confirmation uses
-the disposable demo OTP `123456`. The default application setting remains
-disabled; Compose enables it only for this local workflow.
+Open `http://localhost:8025` to inspect verification and password-reset messages
+for newly registered patients. The REST auth flow is:
+
+1. `POST /api/v1/auth/register` returns `202` with a pending-verification state;
+   it never returns an access token, refresh token, or OTP.
+2. Confirm the code from Mailpit through
+   `POST /api/v1/auth/email-verifications/confirm`; a successful confirmation
+   returns the normal authenticated session.
+3. Use `/auth/forgot-password` and `/auth/reset-password` for the password-reset
+   OTP flow. Resend, expiry, attempt, replay, and rate-limit errors are mapped
+   to stable API codes and safe Vietnamese UI messages.
+
+Appointment confirmation remains a separate local demo boundary and uses the
+disposable OTP `123456`; it is not shared with auth email OTPs.
+
+Patient chat is available at `/patient/chat` for authenticated `PATIENT`
+accounts. The browser uses Spring REST conversation resources and never sends a
+user ID or authoritative history. Spring stores conversations for 90 days by
+default and supports user-initiated deletion; Supabase stores only public
+catalog/RAG documents. Remote patient-chat providers remain disabled by default
+with `AI_PATIENT_CHAT_REMOTE_ENABLED=false`.
+
+For local RAG durability, start/reset the isolated Supabase stack from the repo
+root, then run its read-only SQL contract:
+
+```powershell
+supabase start
+supabase db reset
+psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -f supabase/tests/healthcare_data_platform.sql
+```
+
+This proves migration, seed and RLS behavior only on a compatible Docker
+runtime. A failed or unrun reset is not hosted Supabase evidence.
 
 ## Verify
 
@@ -132,6 +166,7 @@ disabled; Compose enables it only for this local workflow.
 Invoke-RestMethod http://localhost:8080/actuator/health
 Invoke-RestMethod http://localhost:8000/health -Headers @{"X-AI-Service-Token"=$env:AI_SERVICE_TOKEN}
 Invoke-WebRequest http://localhost:3000 -UseBasicParsing
+Invoke-WebRequest http://localhost:8025/livez -UseBasicParsing
 docker compose -f infrastructure/docker-compose.yml ps
 ```
 
@@ -144,17 +179,19 @@ portals with the accounts above.
 2. Register a new patient or sign in as `patient@healthcare.local`.
 3. Open search and ask in Vietnamese about `đau đầu và chóng mặt`; verify that
    the AI result contains a safety disclaimer and catalog-backed provenance.
-4. Open `/dat-lich`, select a real doctor, branch, date and available slot.
-5. Hold the slot and confirm it with local OTP `123456`.
-6. Verify the appointment in `/patient/dashboard` and its in-app notification.
-7. Sign in as `doctor@healthcare.local`; open `/doctor/dashboard` for the booked date.
-8. Move the appointment through check-in and in-progress states in the allowed order.
-9. Create the consultation record and optional prescription/diagnostic metadata.
-10. Sign back in as the patient and verify only that patient's permitted record,
+4. Open `/patient/chat`, create a conversation, send a question, reload the page
+   and verify server-owned history, citations, retry and delete behavior.
+5. Open `/dat-lich`, select a real doctor, branch, date and available slot.
+6. Hold the slot and confirm it with local OTP `123456`.
+7. Verify the appointment in `/patient/dashboard` and its in-app notification.
+8. Sign in as `doctor@healthcare.local`; open `/doctor/dashboard` for the booked date.
+9. Move the appointment through check-in and in-progress states in the allowed order.
+10. Create the consultation record and optional prescription/diagnostic metadata.
+11. Sign back in as the patient and verify only that patient's permitted record,
     prescription, diagnostic result, protected file and notifications are visible.
-11. Sign in as `admin@healthcare.local`; open `/admin/appointments` and verify the
+12. Sign in as `admin@healthcare.local`; open `/admin/appointments` and verify the
     booking appears with the correct date/status, then inspect catalog/schedules.
-12. Confirm that anonymous/non-admin access to admin APIs is rejected and that
+13. Confirm that anonymous/non-admin access to admin APIs is rejected and that
     another patient cannot read the first patient's clinical/file resources.
 
 The backend also exposes `POST /api/v1/admin/ai/catalog/sync` for an authenticated

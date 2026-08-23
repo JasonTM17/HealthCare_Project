@@ -66,7 +66,7 @@ export default function AdminSpecialtiesPage() {
       const payload = toPayload(form);
       if (editingSlug) await adminUpdateSpecialty(editingSlug, payload);
       else await adminCreateSpecialty(payload);
-      setFeedback({ tone: "success", title: editingSlug ? "Cập nhật đã được gửi" : "Tạo chuyên khoa đã được gửi", description: "Backend đã trả về thành công. Bảng bên dưới chỉ hiển thị chuyên khoa active trong catalog công khai." });
+      setFeedback({ tone: "success", title: editingSlug ? "Đã cập nhật chuyên khoa" : "Đã tạo chuyên khoa", description: "Thay đổi đã được ghi nhận và danh sách đang được làm mới." });
       resetForm();
       await load();
     } catch (error) {
@@ -78,7 +78,7 @@ export default function AdminSpecialtiesPage() {
   };
 
   const handleDelete = async (slug: string) => {
-    if (!window.confirm(`Gửi yêu cầu xóa chuyên khoa "${slug}"?`)) return;
+    if (!window.confirm(`Xóa chuyên khoa "${slug}"? Hành động này không thể hoàn tác.`)) return;
     setMutating(true);
     setFeedback(null);
     try {
@@ -87,8 +87,8 @@ export default function AdminSpecialtiesPage() {
       setSpecialties(refreshed.content);
       const stillVisible = refreshed.content.some((specialty) => specialty.slug === slug);
       setFeedback(stillVisible
-        ? { tone: "error", title: "Chưa xác nhận được việc xóa", description: "Slug vẫn còn trong admin catalog. Backend có thể đã từ chối request hoặc cần phiên ADMIN hợp lệ." }
-        : { tone: "success", title: "Đã xác nhận slug không còn trong admin catalog", description: "Endpoint ADMIN không còn trả bản ghi này. Backend vẫn là nguồn xác nhận cuối cùng." });
+        ? { tone: "error", title: "Chưa xác nhận được việc xóa", description: "Chuyên khoa vẫn còn trong danh sách quản trị. Vui lòng kiểm tra quyền truy cập rồi thử lại." }
+        : { tone: "success", title: "Đã xóa chuyên khoa", description: "Chuyên khoa không còn trong danh sách quản trị." });
     } catch (error) {
       const copy = describeAdminError(error);
       setFeedback({ tone: "error", title: copy.title, description: copy.description });
@@ -99,19 +99,19 @@ export default function AdminSpecialtiesPage() {
 
   return (
     <div>
-      <header className="flex flex-col gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end sm:justify-between">
-        <div><p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">NỘI DUNG CHUYÊN KHOA</p><h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">Quản lý chuyên khoa</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Danh sách lấy từ admin endpoint nên hiển thị cả chuyên khoa active và inactive. Slug và validation vẫn do backend quyết định.</p></div>
-        <span className="w-fit rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900">Bản demo local</span>
+      <header className="border-b border-slate-200 pb-6">
+        <h1 className="text-3xl font-bold text-slate-950">Quản lý chuyên khoa</h1>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Cập nhật nội dung và trạng thái hiển thị của các chuyên khoa trong mạng lưới.</p>
       </header>
 
       <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
-        <section aria-labelledby="specialty-form-title" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">ADMIN WRITE CONTRACT</p><h2 className="mt-1 text-xl font-bold text-slate-900" id="specialty-form-title">{editingSlug ? "Sửa chuyên khoa" : "Thêm chuyên khoa"}</h2></div>{editingSlug ? <button className="text-xs font-bold text-slate-600 underline underline-offset-4" onClick={resetForm} type="button">Hủy sửa</button> : null}</div>
-          <div className="mt-4"><AdminState tone="info" title="Backend giữ quyền quyết định" description="Phiên ADMIN được gửi trong Authorization ở shared API client. Nếu backend trả 401/403, form sẽ giữ nguyên trạng thái lỗi và không giả lập thành công." /></div>
+        <section aria-labelledby="specialty-form-title" className="border-t border-slate-200 bg-white p-5 sm:p-6">
+          <div className="flex items-start justify-between gap-3"><h2 className="text-xl font-bold text-slate-900" id="specialty-form-title">{editingSlug ? "Sửa chuyên khoa" : "Thêm chuyên khoa"}</h2>{editingSlug ? <button className="text-xs font-bold text-slate-600 underline underline-offset-4 disabled:opacity-50" disabled={mutating} onClick={resetForm} type="button">Hủy sửa</button> : null}</div>
+          <div className="mt-4"><AdminState tone="info" title="Quyền quản trị" description="Chỉ tài khoản quản trị được phép tạo hoặc thay đổi thông tin chuyên khoa." /></div>
           <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
             {formError ? <p aria-live="assertive" className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">{formError}</p> : null}
             <div><label className="text-sm font-semibold text-slate-700" htmlFor="specialty-name">Tên chuyên khoa</label><input className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" id="specialty-name" maxLength={160} onChange={(event) => setForm({ ...form, name: event.target.value })} required value={form.name} /></div>
-            <div><label className="text-sm font-semibold text-slate-700" htmlFor="specialty-slug">Slug</label><input className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 font-mono text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" id="specialty-slug" maxLength={180} onChange={(event) => setForm({ ...form, slug: event.target.value })} required value={form.slug} /><p className="mt-1 text-xs text-slate-500">Slug phải duy nhất; backend xử lý xung đột.</p></div>
+            <div><label className="text-sm font-semibold text-slate-700" htmlFor="specialty-slug">Slug</label><input className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 font-mono text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" id="specialty-slug" maxLength={180} onChange={(event) => setForm({ ...form, slug: event.target.value })} required value={form.slug} /><p className="mt-1 text-xs text-slate-500">Slug phải duy nhất trong danh sách chuyên khoa.</p></div>
             <div><label className="text-sm font-semibold text-slate-700" htmlFor="specialty-description">Mô tả</label><textarea className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" id="specialty-description" maxLength={2000} onChange={(event) => setForm({ ...form, description: event.target.value })} rows={5} value={form.description} /></div>
             <label className="flex items-center gap-2 text-sm text-slate-700" htmlFor="specialty-active"><input checked={form.active} className="h-4 w-4 accent-teal-700" id="specialty-active" onChange={(event) => setForm({ ...form, active: event.target.checked })} type="checkbox" />Đang hiển thị trong catalog công khai</label>
             <button className="w-full rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50" disabled={mutating} type="submit">{mutating ? "Đang gửi…" : editingSlug ? "Lưu thay đổi" : "Tạo chuyên khoa"}</button>
@@ -119,12 +119,12 @@ export default function AdminSpecialtiesPage() {
         </section>
 
         <section aria-labelledby="specialty-list-title" className="min-w-0">
-          <div className="mb-3 flex items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">ADMIN READ CONTRACT</p><h2 className="mt-1 text-xl font-bold text-slate-900" id="specialty-list-title">Danh sách quản trị</h2></div><button className="text-sm font-bold text-teal-800 underline underline-offset-4 disabled:opacity-50" disabled={loading} onClick={() => void load()} type="button">Làm mới</button></div>
+          <div className="mb-3 flex items-end justify-between gap-3"><h2 className="text-xl font-bold text-slate-900" id="specialty-list-title">Danh sách chuyên khoa</h2><button className="text-sm font-bold text-teal-800 underline underline-offset-4 disabled:opacity-50" disabled={loading} onClick={() => void load()} type="button">Làm mới</button></div>
           {feedback ? <div className="mb-4"><AdminState description={feedback.description} title={feedback.title} tone={feedback.tone} /></div> : null}
-          {loading ? <AdminState tone="loading" title="Đang tải danh sách chuyên khoa" description="Đang đọc admin catalog từ backend." /> : null}
+          {loading ? <AdminState tone="loading" title="Đang tải danh sách chuyên khoa" description="Vui lòng chờ trong giây lát." /> : null}
           {!loading && loadError ? <AdminState action={<button className="text-sm font-bold underline underline-offset-4" onClick={() => void load()} type="button">Thử lại</button>} description={loadError} title="Không thể tải danh sách chuyên khoa" tone="error" /> : null}
-          {!loading && !loadError && specialties.length === 0 ? <AdminState tone="empty" title="Chưa có chuyên khoa" description="Admin catalog hiện chưa có bản ghi. Bạn có thể tạo bản ghi mới nếu phiên ADMIN được backend chấp nhận." /> : null}
-          {!loading && !loadError && specialties.length > 0 ? <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="overflow-x-auto"><table className="min-w-[680px] w-full text-left text-sm"><caption className="sr-only">Chuyên khoa trong admin catalog</caption><thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3 font-bold">Tên</th><th className="px-4 py-3 font-bold">Slug</th><th className="px-4 py-3 font-bold">Trạng thái</th><th className="px-4 py-3 text-right font-bold">Thao tác</th></tr></thead><tbody>{specialties.map((specialty) => <tr className="border-b border-slate-100 last:border-0" key={specialty.id}><td className="px-4 py-4 font-semibold text-slate-900">{specialty.name}</td><td className="px-4 py-4 font-mono text-xs text-slate-500">{specialty.slug}</td><td className="px-4 py-4"><span className={specialty.active ?? true ? "rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700" : "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600"}>{specialty.active ?? true ? "Active" : "Inactive"}</span></td><td className="px-4 py-4"><div className="flex justify-end gap-3"><button aria-label={`Sửa ${specialty.name}`} className="text-xs font-bold text-teal-800 underline underline-offset-4" onClick={() => { setEditingSlug(specialty.slug); setForm(formFromSpecialty(specialty)); setFormError(null); setFeedback(null); }} type="button">Sửa</button><button aria-label={`Xóa ${specialty.name}`} className="text-xs font-bold text-red-700 underline underline-offset-4 disabled:opacity-50" disabled={mutating} onClick={() => void handleDelete(specialty.slug)} type="button">Xóa</button></div></td></tr>)}</tbody></table></div></div> : null}
+          {!loading && !loadError && specialties.length === 0 ? <AdminState tone="empty" title="Chưa có chuyên khoa" description="Tạo chuyên khoa đầu tiên để bắt đầu quản lý danh mục khám." /> : null}
+          {!loading && !loadError && specialties.length > 0 ? <div className="overflow-hidden rounded-lg border border-slate-200 bg-white"><div aria-label="Bảng chuyên khoa, có thể cuộn ngang" className="overflow-x-auto" role="region" tabIndex={0}><table className="min-w-[680px] w-full text-left text-sm"><caption className="sr-only">Chuyên khoa trong danh sách quản trị</caption><thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3 font-bold">Tên</th><th className="px-4 py-3 font-bold">Slug</th><th className="px-4 py-3 font-bold">Trạng thái</th><th className="px-4 py-3 text-right font-bold">Thao tác</th></tr></thead><tbody>{specialties.map((specialty) => <tr className="border-b border-slate-100 last:border-0" key={specialty.id}><td className="px-4 py-4 font-semibold text-slate-900">{specialty.name}</td><td className="px-4 py-4 font-mono text-xs text-slate-500">{specialty.slug}</td><td className="px-4 py-4"><span className={specialty.active ?? true ? "rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700" : "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600"}>{specialty.active ?? true ? "Đang hiển thị" : "Tạm ẩn"}</span></td><td className="px-4 py-4"><div className="flex justify-end gap-3"><button aria-label={`Sửa ${specialty.name}`} className="text-xs font-bold text-teal-800 underline underline-offset-4 disabled:opacity-50" disabled={mutating} onClick={() => { setEditingSlug(specialty.slug); setForm(formFromSpecialty(specialty)); setFormError(null); setFeedback(null); }} type="button">Sửa</button><button aria-label={`Xóa ${specialty.name}`} className="text-xs font-bold text-red-700 underline underline-offset-4 disabled:opacity-50" disabled={mutating} onClick={() => void handleDelete(specialty.slug)} type="button">Xóa</button></div></td></tr>)}</tbody></table></div></div> : null}
         </section>
       </div>
     </div>

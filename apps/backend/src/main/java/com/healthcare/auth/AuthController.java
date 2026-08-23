@@ -2,13 +2,21 @@ package com.healthcare.auth;
 
 import com.healthcare.security.CustomUserDetailsService;
 import com.healthcare.user.dto.AuthResponse;
+import com.healthcare.user.dto.AuthActionResponse;
+import com.healthcare.user.dto.EmailVerificationRequest;
 import com.healthcare.user.dto.LoginRequest;
+import com.healthcare.user.dto.PasswordResetConfirmRequest;
+import com.healthcare.user.dto.PasswordResetRequest;
 import com.healthcare.user.dto.RefreshTokenRequest;
 import com.healthcare.user.dto.RegisterRequest;
+import com.healthcare.user.dto.RegistrationPendingResponse;
+import com.healthcare.user.dto.ResendVerificationRequest;
+import jakarta.servlet.http.HttpServletRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
@@ -31,8 +39,9 @@ public class AuthController {
 
     @PostMapping("/register")
     @Operation(summary = "Register a new user", description = "Creates a new user account with PATIENT role")
-    public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
-        return ResponseEntity.ok(authService.register(request));
+    public ResponseEntity<RegistrationPendingResponse> register(@Valid @RequestBody RegisterRequest request,
+                                                                 HttpServletRequest httpRequest) {
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(authService.register(request, httpRequest));
     }
 
     @PostMapping("/login")
@@ -45,6 +54,38 @@ public class AuthController {
     @Operation(summary = "Refresh access token", description = "Exchange a valid refresh token for new access + refresh tokens")
     public ResponseEntity<AuthResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
         return ResponseEntity.ok(authService.refreshToken(request));
+    }
+
+    @PostMapping({"/email-verifications/confirm", "/verify-email", "/confirm-email"})
+    @Operation(summary = "Verify an email address", description = "Consumes the one-time email verification code and signs the user in")
+    public ResponseEntity<AuthResponse> verifyEmail(@Valid @RequestBody EmailVerificationRequest request,
+                                                     HttpServletRequest httpRequest) {
+        return ResponseEntity.ok(authService.confirmEmail(request, httpRequest));
+    }
+
+    @PostMapping({"/email-verifications/resend", "/resend-verification", "/resend-email-verification"})
+    @Operation(summary = "Resend email verification", description = "Returns a generic response whether or not an account is eligible")
+    public ResponseEntity<AuthActionResponse> resendVerification(
+            @Valid @RequestBody ResendVerificationRequest request,
+            HttpServletRequest httpRequest) {
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(authService.resendVerification(request, httpRequest));
+    }
+
+    @PostMapping({"/password-reset-requests", "/forgot-password", "/password-reset/request", "/reset-password/request"})
+    @Operation(summary = "Request a password reset", description = "Returns a generic response and sends a reset code when eligible")
+    public ResponseEntity<AuthActionResponse> requestPasswordReset(
+            @Valid @RequestBody PasswordResetRequest request,
+            HttpServletRequest httpRequest) {
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(authService.requestPasswordReset(request, httpRequest));
+    }
+
+    @PostMapping({"/password-reset-requests/confirm", "/reset-password", "/password-reset/confirm", "/reset-password/confirm"})
+    @Operation(summary = "Confirm a password reset", description = "Consumes a reset code and revokes all refresh sessions")
+    public ResponseEntity<Void> confirmPasswordReset(
+            @Valid @RequestBody PasswordResetConfirmRequest request,
+            HttpServletRequest httpRequest) {
+        authService.confirmPasswordReset(request, httpRequest);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/logout")

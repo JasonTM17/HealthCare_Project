@@ -10,6 +10,10 @@ import com.healthcare.appointment.entity.AppointmentStatus;
 import com.healthcare.appointment.entity.PatientProfile;
 import com.healthcare.appointment.repository.AppointmentRepository;
 import com.healthcare.appointment.repository.PatientProfileRepository;
+import com.healthcare.auth.mail.AfterCommitEmailSender;
+import com.healthcare.auth.mail.NoopEmailSender;
+import com.healthcare.exception.BusinessException;
+import com.healthcare.exception.ErrorCodes;
 import com.healthcare.hospital.entity.Doctor;
 import com.healthcare.hospital.repository.BranchRepository;
 import com.healthcare.hospital.repository.DoctorBranchRepository;
@@ -24,6 +28,8 @@ import com.healthcare.user.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -50,6 +56,7 @@ public class BookingService {
     private static final int HOLD_DURATION_MINUTES = 10;
     private static final int OTP_DURATION_MINUTES = 5;
     private static final int MAX_OTP_ATTEMPTS = 5;
+    private static final String BOOKING_PRIVACY_CONSENT_VERSION = "booking-privacy-v1";
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     private final AppointmentRepository appointmentRepository;
@@ -65,6 +72,8 @@ public class BookingService {
     private final PasswordEncoder passwordEncoder;
     private final NotificationService notificationService;
     private final AppointmentSlotLocker slotLocker;
+    private final AfterCommitEmailSender emailSender;
+    private final Environment environment;
 
     @Value("${app.booking.allow-test-otp:false}")
     private boolean allowTestOtp;
@@ -82,7 +91,9 @@ public class BookingService {
                           ScheduleService scheduleService,
                           PasswordEncoder passwordEncoder,
                           NotificationService notificationService,
-                          AppointmentSlotLocker slotLocker) {
+                          AppointmentSlotLocker slotLocker,
+                          AfterCommitEmailSender emailSender,
+                          Environment environment) {
         this.appointmentRepository = appointmentRepository;
         this.patientProfileRepository = patientProfileRepository;
         this.doctorRepository = doctorRepository;
@@ -96,6 +107,8 @@ public class BookingService {
         this.passwordEncoder = passwordEncoder;
         this.notificationService = notificationService;
         this.slotLocker = slotLocker;
+        this.emailSender = emailSender;
+        this.environment = environment;
     }
 
     /** Backward-compatible constructor for focused unit tests. */
@@ -113,7 +126,8 @@ public class BookingService {
         this(
             appointmentRepository, patientProfileRepository, doctorRepository, doctorBranchRepository,
             doctorSpecialtyRepository, specialtyRepository, branchRepository, packageRepository,
-            userRepository, scheduleService, passwordEncoder, null, appointmentRepository::acquireSlotLock
+            userRepository, scheduleService, passwordEncoder, null, appointmentRepository::acquireSlotLock,
+            new AfterCommitEmailSender(new NoopEmailSender()), null
         );
     }
 
@@ -133,7 +147,8 @@ public class BookingService {
             appointmentRepository, patientProfileRepository, doctorRepository, doctorBranchRepository,
             doctorSpecialtyRepository, specialtyRepository, branchRepository, packageRepository,
             userRepository, scheduleService, new BCryptPasswordEncoder(), notificationService,
-            appointmentRepository::acquireSlotLock
+            appointmentRepository::acquireSlotLock,
+            new AfterCommitEmailSender(new NoopEmailSender()), null
         );
     }
 
@@ -150,6 +165,9 @@ public class BookingService {
         if (request == null || request.doctorId() == null || request.appointmentDate() == null
                 || request.startTime() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Thông tin khung giờ không hợp lệ");
+        }
+        if (!Boolean.TRUE.equals(request.privacyConsent())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cần đồng ý chính sách bảo mật trước khi đặt lịch");
         }
 
         Doctor doctor = doctorRepository.findById(request.doctorId())
@@ -247,15 +265,21 @@ public class BookingService {
 
         // 2. Find or Create Patient Profile (Hybrid Onboarding)
         String cleanPhone = request.phone().replaceAll("[^0-9+]", "");
-        PatientProfile patient = resolvePatient(request, cleanPhone, userDetails);
+        PatientResolution patientResolution = resolvePatient(request, cleanPhone, userDetails);
+        PatientProfile patient = patientResolution.patient();
+        String otpRecipient = patientResolution.otpRecipient();
+        if (!emailSender.isDeliveryAvailable()) {
+            throw emailDeliveryUnavailable();
+        }
 
         // 3. Create Appointment with Hold Lock
         String bookingCode = generateBookingCode(request.appointmentDate());
         OffsetDateTime holdExpiry = now.plusMinutes(HOLD_DURATION_MINUTES);
         OffsetDateTime otpExpiry = now.plusMinutes(OTP_DURATION_MINUTES);
 
-        // Generate 6-digit OTP (Mock 123456 is also accepted in dev/test)
-        String otpCode = String.format("%06d", RANDOM.nextInt(1000000));
+        String otpCode = useFixedTestOtp()
+            ? "123456"
+            : String.format("%06d", RANDOM.nextInt(1000000));
 
         Appointment appointment = new Appointment();
         appointment.setBookingCode(bookingCode);
@@ -273,6 +297,9 @@ public class BookingService {
         appointment.setOtpExpiresAt(otpExpiry);
         appointment.setOtpAttempts(0);
         appointment.setReasonForVisit(request.reasonForVisit());
+        appointment.setHasInsurance(Boolean.TRUE.equals(request.hasInsurance()));
+        appointment.setPrivacyConsentAt(now);
+        appointment.setPrivacyConsentVersion(BOOKING_PRIVACY_CONSENT_VERSION);
 
         appointment.setSpecialty(specialty);
         appointment.setBranch(branch);
@@ -294,6 +321,13 @@ public class BookingService {
             "Lịch khám " + appointment.getBookingCode() + " đang được giữ trong "
                 + HOLD_DURATION_MINUTES + " phút để chờ xác nhận."
         );
+        emailSender.send(
+            otpRecipient,
+            "HealthCare booking verification",
+            "Your HealthCare booking code for " + bookingCode + " is " + otpCode
+                + ". It expires in " + OTP_DURATION_MINUTES
+                + " minutes. If you did not request this, you can ignore this email."
+        );
 
         return new HoldSlotResponse(
             bookingCode,
@@ -304,48 +338,59 @@ public class BookingService {
         );
     }
 
-    private PatientProfile resolvePatient(HoldSlotRequest request, String cleanPhone, UserDetails userDetails) {
-        UUID authenticatedUserId = null;
-        if (userDetails != null) {
-            User user = userRepository.findByEmail(userDetails.getUsername())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Tài khoản không hợp lệ"));
-            authenticatedUserId = user.getId();
-        }
-
-        if (authenticatedUserId != null && hasRole(userDetails, "PATIENT")) {
-            UUID userId = authenticatedUserId;
+    private PatientResolution resolvePatient(
+            HoldSlotRequest request,
+            String cleanPhone,
+            UserDetails userDetails) {
+        if (userDetails != null && hasRole(userDetails, "PATIENT")) {
+            User authenticatedUser = userRepository.findByEmail(userDetails.getUsername())
+                .filter(user -> user.isEmailVerified() && "ACTIVE".equals(user.getStatus()))
+                .orElseThrow(this::patientIdentityMismatch);
+            UUID userId = authenticatedUser.getId();
+            String verifiedDestination = normalizeEmail(authenticatedUser.getEmail());
             PatientProfile linked = patientProfileRepository.findByUserId(userId).orElse(null);
             if (linked != null) {
                 if (!normalizePhone(linked.getPhone()).equals(cleanPhone)) {
-                    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Số điện thoại không khớp hồ sơ bệnh nhân");
+                    throw patientIdentityMismatch();
                 }
-                return linked;
+                return new PatientResolution(linked, verifiedDestination);
             }
 
             PatientProfile byPhone = patientProfileRepository.findByPhone(cleanPhone).orElse(null);
             if (byPhone != null) {
-                throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "Số điện thoại đã có hồ sơ; cần xác minh trước khi liên kết tài khoản"
-                );
+                throw patientIdentityMismatch();
             }
 
             PatientProfile created = new PatientProfile();
             created.setUserId(userId);
             created.setFullName(request.fullName().trim());
             created.setPhone(cleanPhone);
-            created.setEmail(request.email() != null ? request.email().trim().toLowerCase() : null);
-            return patientProfileRepository.save(created);
+            created.setEmail(verifiedDestination);
+            return new PatientResolution(
+                patientProfileRepository.save(created),
+                verifiedDestination
+            );
         }
 
-        return patientProfileRepository.findByPhone(cleanPhone)
-            .orElseGet(() -> {
-                PatientProfile p = new PatientProfile();
-                p.setFullName(request.fullName().trim());
-                p.setPhone(cleanPhone);
-                p.setEmail(request.email() != null ? request.email().trim().toLowerCase() : null);
-                return patientProfileRepository.save(p);
-            });
+        String requestedDestination = normalizeEmail(request.email());
+        if (requestedDestination == null) {
+            throw patientIdentityMismatch();
+        }
+
+        PatientProfile existing = patientProfileRepository.findByPhone(cleanPhone).orElse(null);
+        if (existing != null) {
+            String storedDestination = storedVerifiedDestination(existing);
+            if (storedDestination == null || !storedDestination.equals(requestedDestination)) {
+                throw patientIdentityMismatch();
+            }
+            return new PatientResolution(existing, storedDestination);
+        }
+
+        PatientProfile created = new PatientProfile();
+        created.setFullName(request.fullName().trim());
+        created.setPhone(cleanPhone);
+        created.setEmail(requestedDestination);
+        return new PatientResolution(patientProfileRepository.save(created), requestedDestination);
     }
 
     /**
@@ -385,9 +430,8 @@ public class BookingService {
             throw new ResponseStatusException(HttpStatus.GONE, "Mã OTP đã hết hạn. Vui lòng thực hiện đặt lại lịch.");
         }
 
-        // Verify OTP. The fixed test code is available only in the test profile.
         String inputOtp = request.otpCode().trim();
-        if (!matchesOtp(inputOtp, appointment.getOtpCode()) && !(allowTestOtp && inputOtp.equals("123456"))) {
+        if (!matchesOtp(inputOtp, appointment.getOtpCode())) {
             int attempts = appointment.getOtpAttempts() + 1;
             appointment.setOtpAttempts(attempts);
             if (attempts >= MAX_OTP_ATTEMPTS) {
@@ -675,6 +719,45 @@ public class BookingService {
         );
     }
 
+    private String storedVerifiedDestination(PatientProfile patient) {
+        if (patient.getUserId() != null) {
+            return userRepository.findById(patient.getUserId())
+                .filter(user -> user.isEmailVerified() && "ACTIVE".equals(user.getStatus()))
+                .map(User::getEmail)
+                .map(this::normalizeEmail)
+                .orElse(null);
+        }
+        return normalizeEmail(patient.getEmail());
+    }
+
+    private String normalizeEmail(String email) {
+        return email == null || email.isBlank() ? null : email.trim().toLowerCase();
+    }
+
+    private ResponseStatusException patientIdentityMismatch() {
+        return new ResponseStatusException(
+            HttpStatus.FORBIDDEN,
+            "Không thể xác minh thông tin bệnh nhân"
+        );
+    }
+
+    private boolean useFixedTestOtp() {
+        return allowTestOtp
+            && environment != null
+            && environment.acceptsProfiles(Profiles.of("test"));
+    }
+
+    private BusinessException emailDeliveryUnavailable() {
+        return new BusinessException(
+            503,
+            ErrorCodes.EMAIL_DELIVERY_UNAVAILABLE,
+            "Email delivery is temporarily unavailable"
+        );
+    }
+
+    private record PatientResolution(PatientProfile patient, String otpRecipient) {
+    }
+
     private AppointmentResponse responseForViewer(Appointment appointment, UserDetails principal) {
         return principal == null ? toPublicResponse(appointment) : toResponse(appointment);
     }
@@ -699,6 +782,9 @@ public class BookingService {
             a.getStatus(),
             a.getPaymentStatus(),
             a.getReasonForVisit(),
+            a.isHasInsurance(),
+            a.getPrivacyConsentAt(),
+            a.getPrivacyConsentVersion(),
             a.getCreatedAt()
         );
     }
@@ -723,6 +809,9 @@ public class BookingService {
             a.getStatus(),
             a.getPaymentStatus(),
             null,
+            a.isHasInsurance(),
+            a.getPrivacyConsentAt(),
+            a.getPrivacyConsentVersion(),
             a.getCreatedAt()
         );
     }

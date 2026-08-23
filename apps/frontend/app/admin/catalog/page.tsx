@@ -23,7 +23,13 @@ import { describeAdminError } from "../_lib/errors";
 
 const inputClass = "mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm";
 const buttonClass = "rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50";
-const secondaryButtonClass = "rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700";
+const secondaryButtonClass = "rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700 disabled:opacity-50";
+
+type Feedback = {
+  tone: "success" | "error";
+  title: string;
+  description: string;
+};
 
 type PackageForm = {
   name: string;
@@ -81,11 +87,8 @@ function Panel({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-[0.68rem] font-bold uppercase tracking-[0.18em] text-teal-700">
-        ADMIN READ CONTRACT
-      </p>
-      <h2 className="mt-2 text-xl font-bold text-slate-900">{title}</h2>
+    <section className="border-t border-slate-200 bg-white py-5">
+      <h2 className="text-xl font-bold text-slate-900">{title}</h2>
       <p className="mt-1 text-sm text-slate-600">{description}</p>
       {children}
     </section>
@@ -99,7 +102,7 @@ function StatusBadge({ active }: { active: boolean }) {
         active ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
       }`}
     >
-      {active ? "Active" : "Inactive"}
+      {active ? "Đang hiển thị" : "Tạm ẩn"}
     </span>
   );
 }
@@ -144,11 +147,12 @@ export default function AdminCatalogPage() {
   const [editingArticle, setEditingArticle] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    setMessage(null);
+    setLoadError(null);
     try {
       const [packagePage, faqPage, articlePage] = await Promise.all([
         adminListPackages(0, 100),
@@ -158,8 +162,10 @@ export default function AdminCatalogPage() {
       setPackages(packagePage.content);
       setFaqs(faqPage.content);
       setArticles(articlePage.content);
+      return true;
     } catch (error) {
-      setMessage(describeAdminError(error).description);
+      setLoadError(describeAdminError(error).description);
+      return false;
     } finally {
       setLoading(false);
     }
@@ -172,19 +178,30 @@ export default function AdminCatalogPage() {
 
   const run = async (action: () => Promise<unknown>, success: string) => {
     setBusy(true);
-    setMessage(null);
+    setFeedback(null);
     try {
       await action();
-      setMessage(success);
-      await load();
+      const refreshed = await load();
+      setFeedback({
+        tone: "success",
+        title: success,
+        description: refreshed
+          ? "Danh sách đã được cập nhật để phản ánh trạng thái mới nhất."
+          : "Thay đổi đã được lưu nhưng danh sách chưa thể làm mới. Vui lòng thử lại.",
+      });
       return true;
     } catch (error) {
       const copy = describeAdminError(error);
-      setMessage(`${copy.title}: ${copy.description}`);
+      setFeedback({ tone: "error", title: copy.title, description: copy.description });
       return false;
     } finally {
       setBusy(false);
     }
+  };
+
+  const remove = async (label: string, action: () => Promise<unknown>, success: string) => {
+    if (!window.confirm(`Xóa ${label}? Hành động này không thể hoàn tác.`)) return;
+    await run(action, success);
   };
 
   const savePackage = async (event: FormEvent) => {
@@ -244,30 +261,35 @@ export default function AdminCatalogPage() {
   return (
     <div>
       <header className="border-b border-slate-200 pb-6">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">ADMIN CATALOG</p>
-        <h1 className="mt-2 text-3xl font-bold">Gói khám, FAQ và bài viết</h1>
+        <h1 className="text-3xl font-bold">Gói khám, FAQ và bài viết</h1>
         <p className="mt-2 text-sm text-slate-600">
-          Quản lý toàn bộ catalog còn lại qua API ADMIN. Inactive và unpublished vẫn hiển thị
-          trong admin để không mất trạng thái khi chỉnh sửa.
+          Cập nhật nội dung, mức giá và trạng thái hiển thị của các danh mục truyền thông y tế.
         </p>
       </header>
 
-      {message ? (
-        <p className="mt-5 rounded-xl bg-slate-100 p-3 text-sm" role="status">
-          {message}
-        </p>
-      ) : null}
+      {feedback ? <div className="mt-5"><AdminState description={feedback.description} title={feedback.title} tone={feedback.tone} /></div> : null}
 
       {loading ? (
         <div className="mt-6">
-          <AdminState description="Đang đọc catalog từ backend." title="Đang tải nội dung" tone="loading" />
+          <AdminState description="Vui lòng chờ trong giây lát." title="Đang tải nội dung" tone="loading" />
         </div>
       ) : null}
 
-      {!loading ? (
+      {!loading && loadError ? (
+        <div className="mt-6">
+          <AdminState
+            action={<button className={secondaryButtonClass} onClick={() => void load()} type="button">Thử lại</button>}
+            description={loadError}
+            title="Không thể tải danh mục"
+            tone="error"
+          />
+        </div>
+      ) : null}
+
+      {!loading && !loadError ? (
         <div className="mt-6 grid gap-6 xl:grid-cols-3">
           <Panel
-            description="Đọc bằng adminListPackages để thấy cả gói khám inactive."
+            description="Quản lý nội dung, giá và trạng thái hiển thị của từng gói khám."
             title={editingPackage ? "Sửa gói khám" : "Gói khám"}
           >
             <form className="mt-4 space-y-3" onSubmit={savePackage}>
@@ -314,7 +336,7 @@ export default function AdminCatalogPage() {
                   onChange={(event) => setPackageForm({ ...packageForm, active: event.target.checked })}
                   type="checkbox"
                 />
-                Đang hiển thị public
+                Đang hiển thị công khai
               </label>
               <div className="flex flex-wrap gap-2">
                 <button className={buttonClass} disabled={busy} type="submit">
@@ -323,6 +345,7 @@ export default function AdminCatalogPage() {
                 {editingPackage ? (
                   <button
                     className={secondaryButtonClass}
+                    disabled={busy}
                     onClick={() => {
                       setPackageForm(emptyPackageForm);
                       setEditingPackage(null);
@@ -335,15 +358,18 @@ export default function AdminCatalogPage() {
               </div>
             </form>
             <div className="mt-5 space-y-2">
+              {packages.length === 0 ? <AdminState description="Tạo gói khám đầu tiên để bắt đầu danh mục." title="Chưa có gói khám" tone="empty" /> : null}
               {packages.map((item) => (
-                <div className="rounded-xl border p-3 text-sm" key={item.id}>
+                <div className="rounded-lg border p-3 text-sm" key={item.id}>
                   <div className="flex items-start justify-between gap-3">
                     <strong>{item.name}</strong>
                     <StatusBadge active={item.active ?? true} />
                   </div>
                   <p>{item.price.toLocaleString("vi-VN")} đ</p>
                   <button
+                    aria-label={`Sửa ${item.name}`}
                     className="mr-3 text-teal-800 underline"
+                    disabled={busy}
                     onClick={() => {
                       setEditingPackage(item.slug);
                       setPackageForm(packageFormFrom(item));
@@ -353,8 +379,10 @@ export default function AdminCatalogPage() {
                     Sửa
                   </button>
                   <button
+                    aria-label={`Xóa ${item.name}`}
                     className="text-red-700 underline"
-                    onClick={() => void run(() => adminDeletePackage(item.slug), "Đã xóa gói khám.")}
+                    disabled={busy}
+                    onClick={() => void remove(`gói khám "${item.name}"`, () => adminDeletePackage(item.slug), "Đã xóa gói khám")}
                     type="button"
                   >
                     Xóa
@@ -365,7 +393,7 @@ export default function AdminCatalogPage() {
           </Panel>
 
           <Panel
-            description="Đọc bằng adminListFaqs để giữ được FAQ inactive trong màn hình quản trị."
+            description="Duy trì câu hỏi thường gặp và kiểm soát nội dung đang hiển thị."
             title={faqForm.id ? "Sửa FAQ" : "FAQ"}
           >
             <form className="mt-4 space-y-3" onSubmit={saveFaq}>
@@ -394,37 +422,42 @@ export default function AdminCatalogPage() {
                   onChange={(event) => setFaqForm({ ...faqForm, active: event.target.checked })}
                   type="checkbox"
                 />
-                Đang hiển thị public
+                Đang hiển thị công khai
               </label>
               <div className="flex flex-wrap gap-2">
                 <button className={buttonClass} disabled={busy} type="submit">
                   Lưu FAQ
                 </button>
                 {faqForm.id ? (
-                  <button className={secondaryButtonClass} onClick={() => setFaqForm(emptyFaqForm)} type="button">
+                  <button className={secondaryButtonClass} disabled={busy} onClick={() => setFaqForm(emptyFaqForm)} type="button">
                     Hủy sửa
                   </button>
                 ) : null}
               </div>
             </form>
             <div className="mt-5 space-y-2">
+              {faqs.length === 0 ? <AdminState description="Tạo câu hỏi đầu tiên để hỗ trợ người bệnh." title="Chưa có câu hỏi thường gặp" tone="empty" /> : null}
               {faqs.map((item) => (
-                <div className="rounded-xl border p-3 text-sm" key={item.id}>
+                <div className="rounded-lg border p-3 text-sm" key={item.id}>
                   <div className="flex items-start justify-between gap-3">
                     <strong>{item.question}</strong>
                     <StatusBadge active={item.active ?? true} />
                   </div>
                   <p className="line-clamp-2">{item.answer}</p>
                   <button
+                    aria-label={`Sửa câu hỏi: ${item.question}`}
                     className="mr-3 text-teal-800 underline"
+                    disabled={busy}
                     onClick={() => setFaqForm(faqFormFrom(item))}
                     type="button"
                   >
                     Sửa
                   </button>
                   <button
+                    aria-label={`Xóa câu hỏi: ${item.question}`}
                     className="text-red-700 underline"
-                    onClick={() => void run(() => adminDeleteFaq(item.id), "Đã xóa FAQ.")}
+                    disabled={busy}
+                    onClick={() => void remove(`câu hỏi "${item.question}"`, () => adminDeleteFaq(item.id), "Đã xóa câu hỏi")}
                     type="button"
                   >
                     Xóa
@@ -435,7 +468,7 @@ export default function AdminCatalogPage() {
           </Panel>
 
           <Panel
-            description="Đọc bằng adminListArticles để bài chưa publish vẫn chỉnh được trong admin."
+            description="Biên tập bài viết và kiểm soát trạng thái xuất bản công khai."
             title={editingArticle ? "Sửa bài viết" : "Bài viết"}
           >
             <form className="mt-4 space-y-3" onSubmit={saveArticle}>
@@ -480,7 +513,7 @@ export default function AdminCatalogPage() {
                   onChange={(event) => setArticleForm({ ...articleForm, active: event.target.checked })}
                   type="checkbox"
                 />
-                Đang publish public
+                Đang xuất bản công khai
               </label>
               <div className="flex flex-wrap gap-2">
                 <button className={buttonClass} disabled={busy} type="submit">
@@ -489,6 +522,7 @@ export default function AdminCatalogPage() {
                 {editingArticle ? (
                   <button
                     className={secondaryButtonClass}
+                    disabled={busy}
                     onClick={() => {
                       setArticleForm(emptyArticleForm);
                       setEditingArticle(null);
@@ -501,19 +535,22 @@ export default function AdminCatalogPage() {
               </div>
             </form>
             <div className="mt-5 space-y-2">
+              {articles.length === 0 ? <AdminState description="Tạo bài viết đầu tiên để bắt đầu thư viện nội dung." title="Chưa có bài viết" tone="empty" /> : null}
               {articles.map((item) => {
                 const active = item.active ?? Boolean(item.publishedAt);
 
                 return (
-                  <div className="rounded-xl border p-3 text-sm" key={item.id}>
+                  <div className="rounded-lg border p-3 text-sm" key={item.id}>
                     <div className="flex items-start justify-between gap-3">
                       <strong>{item.title}</strong>
                       <StatusBadge active={active} />
                     </div>
                     <p>{item.slug}</p>
-                    {!active ? <p className="text-xs font-semibold text-amber-700">Unpublished</p> : null}
+                    {!active ? <p className="text-xs font-semibold text-amber-700">Chưa xuất bản</p> : null}
                     <button
+                      aria-label={`Sửa ${item.title}`}
                       className="mr-3 text-teal-800 underline"
+                      disabled={busy}
                       onClick={() => {
                         setEditingArticle(item.slug);
                         setArticleForm(articleFormFrom(item));
@@ -523,8 +560,10 @@ export default function AdminCatalogPage() {
                       Sửa
                     </button>
                     <button
+                      aria-label={`Xóa ${item.title}`}
                       className="text-red-700 underline"
-                      onClick={() => void run(() => adminDeleteArticle(item.slug), "Đã xóa bài viết.")}
+                      disabled={busy}
+                      onClick={() => void remove(`bài viết "${item.title}"`, () => adminDeleteArticle(item.slug), "Đã xóa bài viết")}
                       type="button"
                     >
                       Xóa

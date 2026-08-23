@@ -102,8 +102,8 @@ export default function AdminBranchesPage() {
       reset();
       setFeedback({
         tone: "success",
-        title: wasEditing ? "Cập nhật cơ sở đã được gửi" : "Tạo cơ sở đã được gửi",
-        description: "Admin catalog đã được đọc lại từ backend để xác nhận trạng thái mới nhất.",
+        title: wasEditing ? "Đã cập nhật cơ sở" : "Đã tạo cơ sở",
+        description: "Thay đổi đã được ghi nhận và danh sách đang được làm mới.",
       });
       await load();
     } catch (reason: unknown) {
@@ -115,7 +115,7 @@ export default function AdminBranchesPage() {
   };
 
   const remove = async (slug: string) => {
-    if (!window.confirm(`Gửi yêu cầu xóa cơ sở "${slug}"?`)) return;
+    if (!window.confirm(`Xóa cơ sở "${slug}"? Hành động này không thể hoàn tác.`)) return;
     setMutating(true);
     setFeedback(null);
     try {
@@ -127,12 +127,12 @@ export default function AdminBranchesPage() {
         ? {
           tone: "error",
           title: "Chưa xác nhận được việc xóa",
-          description: "Slug vẫn còn trong admin catalog. Backend có thể đã từ chối request hoặc cần phiên ADMIN hợp lệ.",
+          description: "Cơ sở vẫn còn trong danh sách quản trị. Vui lòng kiểm tra quyền truy cập rồi thử lại.",
         }
         : {
           tone: "success",
-          title: "Đã xác nhận cơ sở không còn trong admin catalog",
-          description: "Endpoint ADMIN không còn trả bản ghi này. Backend vẫn là nguồn xác nhận cuối cùng.",
+          title: "Đã xóa cơ sở",
+          description: "Cơ sở không còn trong danh sách quản trị.",
         });
     } catch (reason: unknown) {
       const copy = describeAdminError(reason);
@@ -144,29 +144,23 @@ export default function AdminBranchesPage() {
 
   return (
     <div>
-      <header className="flex flex-col gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">MẠNG LƯỚI CƠ SỞ</p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">Quản lý cơ sở</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-            Danh sách lấy từ admin endpoint nên hiển thị cả cơ sở active và inactive.
-            Không có địa chỉ hoặc trạng thái tự dựng trên trình duyệt.
-          </p>
-        </div>
-        <span className="w-fit rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900">Bản demo local</span>
+      <header className="border-b border-slate-200 pb-6">
+        <h1 className="text-3xl font-bold text-slate-950">Quản lý cơ sở</h1>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+          Cập nhật thông tin, liên hệ và trạng thái hiển thị của từng cơ sở trong mạng lưới.
+        </p>
       </header>
 
       <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
-        <section aria-labelledby="branch-form-title" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <section aria-labelledby="branch-form-title" className="border-t border-slate-200 bg-white p-5 sm:p-6">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">ADMIN WRITE CONTRACT</p>
-              <h2 className="mt-1 text-xl font-bold text-slate-900" id="branch-form-title">
+              <h2 className="text-xl font-bold text-slate-900" id="branch-form-title">
                 {editingSlug ? "Sửa cơ sở" : "Thêm cơ sở"}
               </h2>
             </div>
             {editingSlug ? (
-              <button className="text-xs font-bold text-slate-600 underline" onClick={reset} type="button">
+              <button className="text-xs font-bold text-slate-600 underline disabled:opacity-50" disabled={mutating} onClick={reset} type="button">
                 Hủy sửa
               </button>
             ) : null}
@@ -174,8 +168,8 @@ export default function AdminBranchesPage() {
           <div className="mt-4">
             <AdminState
               tone="info"
-              title="Backend giữ quyền quyết định"
-              description="Nếu phiên ADMIN bị từ chối, form giữ nguyên lỗi và không hiển thị thành công giả."
+              title="Quyền quản trị"
+              description="Chỉ tài khoản quản trị được phép tạo hoặc thay đổi thông tin cơ sở."
             />
           </div>
           <form className="mt-5 space-y-4" onSubmit={submit}>
@@ -211,19 +205,18 @@ export default function AdminBranchesPage() {
         <section aria-labelledby="branch-list-title" className="min-w-0">
           <div className="mb-3 flex items-end justify-between gap-3">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">ADMIN READ CONTRACT</p>
-              <h2 className="mt-1 text-xl font-bold text-slate-900" id="branch-list-title">Danh sách quản trị</h2>
+              <h2 className="text-xl font-bold text-slate-900" id="branch-list-title">Danh sách cơ sở</h2>
             </div>
             <button className="text-sm font-bold text-teal-800 underline disabled:opacity-50" disabled={loading} onClick={() => void load()} type="button">Làm mới</button>
           </div>
 
           {feedback ? <div className="mb-4"><AdminState description={feedback.description} title={feedback.title} tone={feedback.tone} /></div> : null}
-          {loading ? <AdminState tone="loading" title="Đang tải danh sách cơ sở" description="Đang đọc admin catalog từ backend." /> : null}
+          {loading ? <AdminState tone="loading" title="Đang tải danh sách cơ sở" description="Vui lòng chờ trong giây lát." /> : null}
           {!loading && loadError ? <AdminState action={<button className="text-sm font-bold underline" onClick={() => void load()} type="button">Thử lại</button>} description={loadError} title="Không thể tải danh sách cơ sở" tone="error" /> : null}
-          {!loading && !loadError && branches.length === 0 ? <AdminState tone="empty" title="Chưa có cơ sở" description="Admin catalog hiện chưa có cơ sở để hiển thị." /> : null}
+          {!loading && !loadError && branches.length === 0 ? <AdminState tone="empty" title="Chưa có cơ sở" description="Tạo cơ sở đầu tiên để bắt đầu quản lý mạng lưới." /> : null}
           {!loading && !loadError && branches.length > 0 ? (
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="overflow-x-auto">
+            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+              <div aria-label="Bảng cơ sở, có thể cuộn ngang" className="overflow-x-auto" role="region" tabIndex={0}>
                 <table className="min-w-[820px] w-full text-left text-sm">
                   <caption className="sr-only">Cơ sở trong admin catalog</caption>
                   <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
@@ -246,12 +239,12 @@ export default function AdminBranchesPage() {
                         <td className="px-4 py-4">{branch.phone || "Chưa cung cấp"}</td>
                         <td className="px-4 py-4">
                           <span className={branch.active ?? true ? "rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700" : "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600"}>
-                            {branch.active ?? true ? "Active" : "Inactive"}
+                            {branch.active ?? true ? "Đang hiển thị" : "Tạm ẩn"}
                           </span>
                         </td>
                         <td className="px-4 py-4">
                           <div className="flex justify-end gap-3">
-                            <button aria-label={`Sửa ${branch.name}`} className="text-xs font-bold text-teal-800 underline" onClick={() => { setEditingSlug(branch.slug); setForm(formFromBranch(branch)); setFormError(null); setFeedback(null); }} type="button">Sửa</button>
+                            <button aria-label={`Sửa ${branch.name}`} className="text-xs font-bold text-teal-800 underline disabled:opacity-50" disabled={mutating} onClick={() => { setEditingSlug(branch.slug); setForm(formFromBranch(branch)); setFormError(null); setFeedback(null); }} type="button">Sửa</button>
                             <button aria-label={`Xóa ${branch.name}`} className="text-xs font-bold text-red-700 underline disabled:opacity-50" disabled={mutating} onClick={() => void remove(branch.slug)} type="button">Xóa</button>
                           </div>
                         </td>

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from app.schemas import ProviderProvenance
@@ -15,6 +16,9 @@ LOCAL_FALLBACK_RUNTIMES = frozenset({"local", "demo", "test"})
 LOCAL_CHAT_PROVIDERS = frozenset({"", "local", "rule_based_triage"})
 REMOTE_CHAT_PROVIDERS = frozenset({"deepseek", "openai"})
 LOCAL_EMBEDDING_PROVIDERS = frozenset({"", "local", "hash"})
+DEFAULT_DEEPSEEK_CHAT_MODEL = "deepseek-v4-flash"
+DEFAULT_PROVIDER_TIMEOUT_SECONDS = 10.0
+MAX_PROVIDER_TIMEOUT_SECONDS = 60.0
 
 
 def string_setting(settings: Any, name: str, default: str = "") -> str:
@@ -25,6 +29,25 @@ def string_setting(settings: Any, name: str, default: str = "") -> str:
 def float_setting(settings: Any, name: str, default: float) -> float:
     value = getattr(settings, name, default)
     return value if isinstance(value, (int, float)) and value > 0 else default
+
+
+def bounded_timeout_setting(
+    settings: Any,
+    name: str = "ai_timeout_seconds",
+    default: float = DEFAULT_PROVIDER_TIMEOUT_SECONDS,
+) -> float:
+    """Read a provider timeout while enforcing a finite network-time bound."""
+
+    value = getattr(settings, name, default)
+    if isinstance(value, bool):
+        return default
+    try:
+        timeout = float(value)
+    except (TypeError, ValueError):
+        return default
+    if not math.isfinite(timeout) or timeout <= 0:
+        return default
+    return min(timeout, MAX_PROVIDER_TIMEOUT_SECONDS)
 
 
 def secret_setting(settings: Any, *names: str) -> str:
@@ -69,7 +92,7 @@ def provider_configured(
     if name == "ai_provider":
         model = string_setting(settings, "ai_chat_model")
         if provider == "deepseek":
-            model = model or string_setting(settings, "deepseek_model")
+            model = model or string_setting(settings, "deepseek_model") or DEFAULT_DEEPSEEK_CHAT_MODEL
         return bool(model)
     return True
 

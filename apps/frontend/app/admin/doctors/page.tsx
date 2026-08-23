@@ -92,8 +92,8 @@ export default function AdminDoctorsPage() {
       }
       setFeedback({
         tone: "success",
-        title: editingSlug ? "Cập nhật đã được gửi" : "Tạo bác sĩ đã được gửi",
-        description: "Backend đã trả về thành công. Bảng bên dưới sẽ chỉ hiển thị bản ghi đang active trong catalog công khai.",
+        title: editingSlug ? "Đã cập nhật bác sĩ" : "Đã tạo bác sĩ",
+        description: "Thay đổi đã được ghi nhận và danh sách đang được làm mới.",
       });
       resetForm();
       await load();
@@ -106,7 +106,7 @@ export default function AdminDoctorsPage() {
   };
 
   const handleDelete = async (slug: string) => {
-    if (!window.confirm(`Gửi yêu cầu xóa bác sĩ "${slug}"?`)) return;
+    if (!window.confirm(`Xóa bác sĩ "${slug}"? Hành động này không thể hoàn tác.`)) return;
     setMutating(true);
     setFeedback(null);
     try {
@@ -115,8 +115,8 @@ export default function AdminDoctorsPage() {
       setDoctors(refreshed.content);
       const stillPresent = refreshed.content.some((doctor) => doctor.slug === slug);
       setFeedback(stillPresent
-        ? { tone: "error", title: "Chưa xác nhận được việc xóa", description: "Slug vẫn còn trong admin catalog. Backend có thể đã từ chối request hoặc cần phiên ADMIN hợp lệ." }
-        : { tone: "success", title: "Đã xác nhận slug không còn trong admin catalog", description: "Endpoint ADMIN không còn trả bản ghi này. Backend vẫn là nguồn xác nhận cuối cùng." });
+        ? { tone: "error", title: "Chưa xác nhận được việc xóa", description: "Bác sĩ vẫn còn trong danh sách quản trị. Vui lòng kiểm tra quyền truy cập rồi thử lại." }
+        : { tone: "success", title: "Đã xóa bác sĩ", description: "Bác sĩ không còn trong danh sách quản trị." });
     } catch (error) {
       const copy = describeAdminError(error);
       setFeedback({ tone: "error", title: copy.title, description: copy.description });
@@ -127,27 +127,22 @@ export default function AdminDoctorsPage() {
 
   return (
     <div>
-      <header className="flex flex-col gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">NỘI DUNG BÁC SĨ</p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">Quản lý bác sĩ</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Danh sách lấy từ admin endpoint nên hiển thị cả bác sĩ active và inactive để quản trị viên bật/tắt catalog.</p>
-        </div>
-        <span className="w-fit rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900">Bản demo local</span>
+      <header className="border-b border-slate-200 pb-6">
+        <h1 className="text-3xl font-bold text-slate-950">Quản lý bác sĩ</h1>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Cập nhật hồ sơ và trạng thái hiển thị của đội ngũ bác sĩ trong mạng lưới.</p>
       </header>
 
       <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
-        <section aria-labelledby="doctor-form-title" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <section aria-labelledby="doctor-form-title" className="border-t border-slate-200 bg-white p-5 sm:p-6">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">ADMIN WRITE CONTRACT</p>
-              <h2 className="mt-1 text-xl font-bold text-slate-900" id="doctor-form-title">{editingSlug ? "Sửa hồ sơ" : "Thêm bác sĩ"}</h2>
+              <h2 className="text-xl font-bold text-slate-900" id="doctor-form-title">{editingSlug ? "Sửa hồ sơ" : "Thêm bác sĩ"}</h2>
             </div>
-            {editingSlug ? <button className="text-xs font-bold text-slate-600 underline underline-offset-4" onClick={resetForm} type="button">Hủy sửa</button> : null}
+            {editingSlug ? <button className="text-xs font-bold text-slate-600 underline underline-offset-4 disabled:opacity-50" disabled={mutating} onClick={resetForm} type="button">Hủy sửa</button> : null}
           </div>
 
           <div className="mt-4">
-            <AdminState tone="info" title="Backend giữ quyền quyết định" description="Phiên ADMIN được gửi trong Authorization ở shared API client. Nếu backend trả 401/403, form sẽ giữ nguyên trạng thái lỗi và không giả lập thành công." />
+            <AdminState tone="info" title="Quyền quản trị" description="Chỉ tài khoản quản trị được phép tạo hoặc thay đổi hồ sơ bác sĩ." />
           </div>
 
           <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
@@ -159,7 +154,7 @@ export default function AdminDoctorsPage() {
             <div>
               <label className="text-sm font-semibold text-slate-700" htmlFor="doctor-slug">Slug</label>
               <input className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 font-mono text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" id="doctor-slug" maxLength={180} onChange={(event) => setForm({ ...form, slug: event.target.value })} required value={form.slug} />
-              <p className="mt-1 text-xs text-slate-500">Slug phải duy nhất; backend xử lý xung đột.</p>
+              <p className="mt-1 text-xs text-slate-500">Slug phải duy nhất trong danh sách bác sĩ.</p>
             </div>
             <div>
               <label className="text-sm font-semibold text-slate-700" htmlFor="doctor-bio">Tiểu sử</label>
@@ -182,19 +177,18 @@ export default function AdminDoctorsPage() {
         <section aria-labelledby="doctor-list-title" className="min-w-0">
           <div className="mb-3 flex items-end justify-between gap-3">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">ADMIN READ CONTRACT</p>
-              <h2 className="mt-1 text-xl font-bold text-slate-900" id="doctor-list-title">Danh sách quản trị</h2>
+              <h2 className="text-xl font-bold text-slate-900" id="doctor-list-title">Danh sách bác sĩ</h2>
             </div>
             <button className="text-sm font-bold text-teal-800 underline underline-offset-4 disabled:opacity-50" disabled={loading} onClick={() => void load()} type="button">Làm mới</button>
           </div>
 
           {feedback ? <div className="mb-4"><AdminState description={feedback.description} title={feedback.title} tone={feedback.tone} /></div> : null}
-          {loading ? <AdminState tone="loading" title="Đang tải danh sách bác sĩ" description="Đang đọc admin catalog từ backend." /> : null}
+          {loading ? <AdminState tone="loading" title="Đang tải danh sách bác sĩ" description="Vui lòng chờ trong giây lát." /> : null}
           {!loading && loadError ? <AdminState action={<button className="text-sm font-bold underline underline-offset-4" onClick={() => void load()} type="button">Thử lại</button>} description={loadError} title="Không thể tải danh sách bác sĩ" tone="error" /> : null}
-          {!loading && !loadError && doctors.length === 0 ? <AdminState tone="empty" title="Chưa có bác sĩ" description="Admin catalog hiện chưa có bản ghi. Bạn có thể tạo bản ghi mới nếu phiên ADMIN được backend chấp nhận." /> : null}
+          {!loading && !loadError && doctors.length === 0 ? <AdminState tone="empty" title="Chưa có bác sĩ" description="Tạo hồ sơ bác sĩ đầu tiên để bắt đầu quản lý đội ngũ." /> : null}
           {!loading && !loadError && doctors.length > 0 ? (
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="overflow-x-auto">
+            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+              <div aria-label="Bảng bác sĩ, có thể cuộn ngang" className="overflow-x-auto" role="region" tabIndex={0}>
                 <table className="min-w-[680px] w-full text-left text-sm">
                   <caption className="sr-only">Bác sĩ trong admin catalog</caption>
                   <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
@@ -207,10 +201,10 @@ export default function AdminDoctorsPage() {
                         <td className="px-4 py-4 font-mono text-xs text-slate-500">{doctor.slug}</td>
                         <td className="px-4 py-4">
                           <span className={doctor.active ?? true ? "rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700" : "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600"}>
-                            {doctor.active ?? true ? "Active" : "Inactive"}
+                            {doctor.active ?? true ? "Đang hiển thị" : "Tạm ẩn"}
                           </span>
                         </td>
-                        <td className="px-4 py-4"><div className="flex justify-end gap-3"><button aria-label={`Sửa ${doctor.fullName}`} className="text-xs font-bold text-teal-800 underline underline-offset-4" onClick={() => { setEditingSlug(doctor.slug); setForm(formFromDoctor(doctor)); setFormError(null); setFeedback(null); }} type="button">Sửa</button><button aria-label={`Xóa ${doctor.fullName}`} className="text-xs font-bold text-red-700 underline underline-offset-4 disabled:opacity-50" disabled={mutating} onClick={() => void handleDelete(doctor.slug)} type="button">Xóa</button></div></td>
+                        <td className="px-4 py-4"><div className="flex justify-end gap-3"><button aria-label={`Sửa ${doctor.fullName}`} className="text-xs font-bold text-teal-800 underline underline-offset-4 disabled:opacity-50" disabled={mutating} onClick={() => { setEditingSlug(doctor.slug); setForm(formFromDoctor(doctor)); setFormError(null); setFeedback(null); }} type="button">Sửa</button><button aria-label={`Xóa ${doctor.fullName}`} className="text-xs font-bold text-red-700 underline underline-offset-4 disabled:opacity-50" disabled={mutating} onClick={() => void handleDelete(doctor.slug)} type="button">Xóa</button></div></td>
                       </tr>
                     ))}
                   </tbody>

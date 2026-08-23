@@ -29,8 +29,19 @@ import { isSafeCmsUrl, type CmsContent, type CmsHeroPayload } from "../lib/cms-c
 import { safeTelephoneHref } from "../lib/phone";
 import type { Article, Branch, Doctor, HealthPackage, Specialty } from "../types/hospital";
 
-const HERO_IMAGE =
-  "https://images.pexels.com/photos/4266936/pexels-photo-4266936.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1600&h=1200&dpr=1";
+const HERO_IMAGE = "/media/about-care-poster.jpg";
+
+const PUBLIC_CARE_IMAGES = [
+  "/images/packages/womens-health.jpg",
+  "/images/packages/heart-screening.jpg",
+  "/images/packages/child-checkup.jpg",
+  "/images/packages/diabetes-screening.jpg",
+  "/images/packages/general-checkup.jpg",
+  "/media/about-care-poster.jpg",
+] as const;
+
+const getPublicCareImage = (index: number): string =>
+  PUBLIC_CARE_IMAGES[index % PUBLIC_CARE_IMAGES.length];
 
 const JOURNEY_STEPS: Array<{ icon: IconName; title: string; description: string }> = [
   {
@@ -52,24 +63,6 @@ const JOURNEY_STEPS: Array<{ icon: IconName; title: string; description: string 
     icon: "book-open",
     title: "Theo dõi hướng dẫn",
     description: "Tra cứu lại lịch hẹn và các dặn dò sau buổi thăm khám.",
-  },
-];
-
-const AI_COMPANION_STEPS: Array<{ icon: IconName; title: string; description: string }> = [
-  {
-    icon: "search",
-    title: "Chia sẻ điều bạn đang lo lắng",
-    description: "Gợi ý câu hỏi giúp bạn kể rõ cảm giác khó chịu, thời điểm bắt đầu và dấu hiệu đi kèm.",
-  },
-  {
-    icon: "brain",
-    title: "Đối chiếu với danh mục chuyên khoa hiện tại",
-    description: "Kết quả chỉ mở luồng đặt lịch khi hệ thống xác nhận đúng chuyên khoa trong danh mục.",
-  },
-  {
-    icon: "shield-check",
-    title: "Giữ ranh giới an toàn",
-    description: "AI luôn nhắc lại đây là thông tin tham khảo và chuyển hướng cấp cứu khi có dấu hiệu nguy hiểm.",
   },
 ];
 
@@ -96,13 +89,6 @@ const SectionHeading: React.FC<SectionHeadingProps> = ({
     </div>
     {action ? <div className="section-heading__action">{action}</div> : null}
   </div>
-);
-
-const DemoNote: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <p className="demo-note">
-    <Icon name="sparkles" size={15} />
-    <span>{children}</span>
-  </p>
 );
 
 const formatPublishedAt = (value: string): string => {
@@ -233,10 +219,18 @@ interface HomeHeroCopyProps {
   setSearchQuery: (value: string) => void;
   onSearchSubmit: () => void;
   onBooking: () => void;
-  onOpenAi: () => void;
-  hasEmergencyBranch: boolean;
-  contactPhone?: string;
   cmsHero?: CmsHeroPayload;
+}
+
+const PLACEHOLDER_HERO_COPY_PATTERN = /(?:Live Compose|Live CMS|demo|test)/i;
+
+function isPlaceholderCmsHeroPayload(cmsHero?: CmsHeroPayload): boolean {
+  if (!cmsHero) return false;
+
+  const source = [cmsHero.eyebrow, cmsHero.title, cmsHero.body, cmsHero.ctaLabel, cmsHero.ctaHref]
+    .filter(Boolean)
+    .join(" ");
+  return PLACEHOLDER_HERO_COPY_PATTERN.test(source);
 }
 
 function HomeHeroCopy({
@@ -244,37 +238,37 @@ function HomeHeroCopy({
   setSearchQuery,
   onSearchSubmit,
   onBooking,
-  onOpenAi,
-  hasEmergencyBranch,
-  contactPhone,
   cmsHero,
 }: HomeHeroCopyProps): React.ReactElement {
-  const cmsCta = cmsHero?.ctaLabel && cmsHero.ctaHref && isSafeCmsUrl(cmsHero.ctaHref)
-    ? { label: cmsHero.ctaLabel, href: cmsHero.ctaHref }
+  const activeCmsHero = cmsHero && !isPlaceholderCmsHeroPayload(cmsHero) ? cmsHero : null;
+  const cmsCta = activeCmsHero?.ctaLabel && activeCmsHero.ctaHref && isSafeCmsUrl(activeCmsHero.ctaHref)
+    ? { label: activeCmsHero.ctaLabel, href: activeCmsHero.ctaHref }
     : null;
 
   return (
-    <div className="hero-copy" data-cms-managed={cmsHero ? "hero-copy" : undefined}>
+    <div className="hero-copy" data-cms-managed={activeCmsHero ? "hero-copy" : undefined}>
       <p className="hero-kicker">
         <span className="hero-kicker__line" aria-hidden="true" />
-        {cmsHero?.eyebrow ?? "Bệnh viện đa khoa HealthCare"}
+        {activeCmsHero?.eyebrow ?? "Bệnh viện đa khoa HealthCare"}
       </p>
       <h1 id="hero-title">
-        {cmsHero?.title ?? <>Lắng nghe trước. <span>Chăm sóc đúng.</span></>}
+        {activeCmsHero?.title ?? <>Đồng hành cùng <span>sức khỏe gia đình</span></>}
       </h1>
       <p className="hero-description">
-        {cmsHero?.body ?? "Tìm bác sĩ theo chuyên môn, chọn cơ sở thuận tiện và chủ động khung giờ thăm khám."}
+        {activeCmsHero?.body ?? "Chọn chuyên khoa, bác sĩ, gói khám hoặc cơ sở và giữ khung giờ phù hợp ngay trên hệ thống."}
       </p>
       <form className="hero-search" onSubmit={(event) => { event.preventDefault(); onSearchSubmit(); }}>
         <label className="sr-only" htmlFor="hero-search-input">
-          Tìm bác sĩ hoặc chuyên khoa
+          Tìm chuyên khoa hoặc bác sĩ
         </label>
         <Icon name="search" size={19} />
         <input
           aria-describedby="hero-search-help"
           id="hero-search-input"
+          autoComplete="off"
+          name="hero-search"
           onChange={(event) => setSearchQuery(event.target.value)}
-          placeholder="Tìm bác sĩ hoặc chuyên khoa"
+          placeholder="Tìm chuyên khoa hoặc bác sĩ"
           type="search"
           value={searchQuery}
         />
@@ -292,130 +286,51 @@ function HomeHeroCopy({
         ) : (
           <button className="button button--amber" onClick={onBooking} type="button">
             Đặt lịch khám
-            <Icon name="arrow-up-right" size={18} />
+            <Icon name="calendar" size={18} />
           </button>
         )}
-        <button className="button button--hero-secondary" onClick={onOpenAi} type="button">
-          Hỏi trợ lý AI
-          <Icon name="activity" size={18} />
-        </button>
+        <Link className="button button--hero-secondary" href="/specialties">
+          Xem chuyên khoa
+          <Icon name="arrow-up-right" size={18} />
+        </Link>
       </div>
-      <DemoNote>
-        {cmsHero ? "Nội dung hero do quản trị viên xuất bản; catalog và trợ lý AI vẫn được cập nhật theo hệ thống." : "Catalog công khai được cập nhật theo hệ thống; trợ lý AI cần đăng nhập để hoạt động."}
-      </DemoNote>
     </div>
   );
 }
 
 function HomeAssuranceStrip({
-  hasEmergencyBranch,
+  onBooking,
+  contactHref,
   contactPhone,
+  hasEmergencyBranch,
 }: {
+  onBooking: () => void;
+  contactHref?: string | null;
   hasEmergencyBranch: boolean;
   contactPhone?: string;
 }): React.ReactElement {
   return (
     <section className="hero-assurance" aria-label="Điểm nhấn của trải nghiệm đặt khám">
       <div className="hero-assurance__inner">
-        <div className="hero-assurance__item">
-          <span className="hero-assurance__icon"><Icon name="check" size={17} /></span>
-          <span><strong>Luồng 4 bước rõ ràng</strong><small>Chọn nhu cầu, giữ lịch, xác nhận và tra cứu lại.</small></span>
-        </div>
-        <div className="hero-assurance__item">
-          <span className="hero-assurance__icon"><Icon name="building" size={17} /></span>
-          <span><strong>Dữ liệu từ catalog live</strong><small>Bác sĩ, cơ sở và gói khám lấy từ hệ thống hiện tại.</small></span>
-        </div>
-        <div className="hero-assurance__item">
-          <span className="hero-assurance__icon hero-assurance__icon--accent"><Icon name="phone" size={17} /></span>
-          <span><strong>{hasEmergencyBranch ? "Hotline cấp cứu" : "Liên hệ cơ sở"}</strong><small>{contactPhone ?? "Số điện thoại đang cập nhật."}</small></span>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function HomeAiCompanion({
-  specialtiesCount,
-  branchesCount,
-  contactHref,
-  contactPhone,
-  onBooking,
-  onOpenAi,
-}: {
-  specialtiesCount: number;
-  branchesCount: number;
-  contactHref?: string | null;
-  contactPhone?: string;
-  onBooking: () => void;
-  onOpenAi: () => void;
-}): React.ReactElement {
-  return (
-    <section className="section section--ai-companion" id="ai-companion" aria-labelledby="ai-companion-title">
-      <div className="section-inner ai-companion">
-        <div className="ai-companion__copy">
-          <p className="section-note">Trợ lý AI định hướng</p>
-          <h2 id="ai-companion-title">Một lớp hỏi nhanh trước khi bạn đặt lịch.</h2>
-          <p>
-            Lấy cảm hứng từ trải nghiệm đặt lịch rõ ràng của các bệnh viện hiện đại:
-            người bệnh có thể chia sẻ điều đang lo, nhận gợi ý chuyên khoa có kiểm chứng
-            từ danh mục hiện tại, rồi chuyển sang luồng đặt lịch đang có.
-          </p>
-          <div className="ai-companion__actions">
-            <button className="button button--amber" onClick={onOpenAi} type="button">
-              Hỏi trợ lý AI
-              <Icon name="activity" size={18} />
-            </button>
-            <button className="outline-button" onClick={onBooking} type="button">
-              Đặt lịch thủ công
-              <Icon name="calendar" size={18} />
-            </button>
-          </div>
-          <p className="ai-companion__privacy">
-            <Icon name="shield-check" size={16} />
-            Không nhập CCCD, mã BHYT hoặc dữ liệu quá riêng tư. AI không thay thế chẩn đoán của bác sĩ.
-          </p>
-        </div>
-
-        <aside className="ai-companion__panel" aria-label="Luồng trợ lý AI chọn chuyên khoa">
-          <div className="ai-companion__panel-header">
-            <span><Icon name="sparkles" size={22} /></span>
-            <div>
-              <strong>AI Specialty Navigator</strong>
-              <small>Kết nối danh mục hiện tại và luồng đặt lịch</small>
-            </div>
-          </div>
-          <ol className="ai-companion__steps">
-            {AI_COMPANION_STEPS.map((step) => (
-              <li key={step.title}>
-                <span className="ai-companion__step-icon"><Icon name={step.icon} size={18} /></span>
-                <span>
-                  <strong>{step.title}</strong>
-                  <small>{step.description}</small>
-                </span>
-              </li>
-            ))}
-          </ol>
-          <div className="ai-companion__stats" aria-label="Dữ liệu hỗ trợ trợ lý AI">
-            <span>
-              <strong>{specialtiesCount > 0 ? specialtiesCount : "..."}</strong>
-              <small>chuyên khoa</small>
-            </span>
-            <span>
-              <strong>{branchesCount > 0 ? branchesCount : "..."}</strong>
-              <small>cơ sở</small>
-            </span>
-            <span>
-              <strong>OTP</strong>
-              <small>xác nhận lịch</small>
-            </span>
-          </div>
-          {contactHref ? (
-            <a className="ai-companion__hotline" href={contactHref}>
-              <Icon name="phone" size={17} />
-              <span>Hotline hỗ trợ: {contactPhone}</span>
-            </a>
-          ) : null}
-        </aside>
+        <button className="hero-assurance__item hero-assurance__item--action" onClick={onBooking} type="button">
+          <span className="hero-assurance__icon"><Icon name="calendar" size={17} /></span>
+          <span><strong>Đặt lịch hẹn</strong><small>Chọn chuyên khoa và khung giờ phù hợp.</small></span>
+        </button>
+          <Link className="hero-assurance__item hero-assurance__item--action" href="/packages">
+            <span className="hero-assurance__icon"><Icon name="heart" size={17} /></span>
+            <span><strong>Lựa chọn gói khám</strong><small>Xem các gói chăm sóc đang mở.</small></span>
+          </Link>
+        {contactHref ? (
+          <a className="hero-assurance__item hero-assurance__item--action" href={contactHref}>
+            <span className="hero-assurance__icon hero-assurance__icon--accent"><Icon name="phone" size={17} /></span>
+            <span><strong>{hasEmergencyBranch ? "Hotline cấp cứu" : "Liên hệ bệnh viện"}</strong><small>{contactPhone ?? "Số điện thoại đang cập nhật."}</small></span>
+          </a>
+        ) : (
+          <Link className="hero-assurance__item hero-assurance__item--action" href="/contact">
+            <span className="hero-assurance__icon hero-assurance__icon--accent"><Icon name="location" size={17} /></span>
+            <span><strong>Liên hệ bệnh viện</strong><small>Xem địa chỉ và giờ làm việc.</small></span>
+          </Link>
+        )}
       </div>
     </section>
   );
@@ -447,16 +362,7 @@ function HomeHeroVisual({ imageUrl }: { imageUrl?: string }): React.ReactElement
             src={HERO_IMAGE}
           />
         )}
-        <span className="hero-visual__index" aria-hidden="true">01</span>
-        <span className="hero-visual__care-line" aria-hidden="true"><span /></span>
       </div>
-      <div className="hero-visual__floating-label">
-        <span><Icon name="heart" size={20} /></span>
-        <p><small>Đồng hành liền mạch</small><strong>Từ đặt lịch đến sau thăm khám</strong></p>
-      </div>
-      <figcaption>
-        {safeCmsImage ? "Hình ảnh hoạt động do quản trị viên xuất bản." : "Ảnh minh họa từ Pexels."}
-      </figcaption>
     </figure>
   );
 }
@@ -473,9 +379,38 @@ function HomeHeroComposition({
   );
 }
 
+function HomeCmsFallbackCard({
+  accent = false,
+  eyebrow,
+  href,
+  hrefLabel,
+  title,
+  description,
+}: {
+  accent?: boolean;
+  eyebrow: string;
+  href: string;
+  hrefLabel: string;
+  title: string;
+  description: string;
+}): React.ReactElement {
+  return (
+    <article className={`resource-panel home-cms-fallback${accent ? " resource-panel--accent" : ""}`}>
+      <p className="section-note">{eyebrow}</p>
+      <h3>{title}</h3>
+      <p>{description}</p>
+      <Link className="text-button" href={href}>
+        {hrefLabel} <Icon name="arrow-up-right" size={17} />
+      </Link>
+    </article>
+  );
+}
+
 export default function Home(): React.ReactElement {
   const router = useRouter();
   const [isBookingOpen, setIsBookingOpen] = useState<boolean>(false);
+  // Keep the fail-closed triage boundary available to the page shell without
+  // making AI the homepage's primary visual action.
   const [isAiTriageOpen, setIsAiTriageOpen] = useState<boolean>(false);
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | undefined>();
   const [selectedSpecialtyId, setSelectedSpecialtyId] = useState<string | undefined>();
@@ -551,9 +486,8 @@ export default function Home(): React.ReactElement {
   };
 
   const handleAiSpecialtySelect = (_specialtyName: string, specialtyId?: string): void => {
-    // Preserve the backend identity even when the homepage catalog is still
-    // loading or unavailable. BookingModal will reconcile it after its own
-    // authoritative catalog read instead of silently opening an unfiltered flow.
+    // Preserve the backend identity when a future quiet support entry opens
+    // triage before the homepage catalog has finished loading.
     handleOpenBooking(undefined, specialtyId, undefined);
   };
 
@@ -592,16 +526,12 @@ export default function Home(): React.ReactElement {
   const contactBranch = branches.find((branch) => Boolean(branch.phone));
   const contactPhone = emergencyBranch?.emergencyHotline ?? contactBranch?.phone ?? undefined;
   const contactHref = safeTelephoneHref(contactPhone);
-  const featuredDoctor = filteredDoctors[0];
-  const supportingDoctors = filteredDoctors.slice(1, 4);
+  const homeDoctors = filteredDoctors.slice(0, 4);
   const homeHeroProps: HomeHeroCopyProps = {
     searchQuery,
     setSearchQuery,
     onSearchSubmit: handleHeroSearchSubmit,
     onBooking: () => handleOpenBooking(),
-    onOpenAi: () => setIsAiTriageOpen(true),
-    hasEmergencyBranch: Boolean(emergencyBranch),
-    contactPhone,
   };
   const branchAreaLabel = catalogLoading && branches.length === 0
     ? "Đang tải cơ sở"
@@ -623,6 +553,7 @@ export default function Home(): React.ReactElement {
             className="hero-inner"
             fallback={<HomeHeroComposition {...homeHeroProps} />}
             hideWhenNotFound
+            quiet
             renderContent={(content: CmsContent) => (
               content.componentType === "HERO" ? (
                 <HomeHeroComposition {...homeHeroProps} cmsHero={content.payload} />
@@ -642,17 +573,50 @@ export default function Home(): React.ReactElement {
         </section>
 
         <HomeAssuranceStrip
+          contactHref={contactHref}
           contactPhone={contactPhone}
           hasEmergencyBranch={Boolean(emergencyBranch)}
+          onBooking={() => handleOpenBooking()}
         />
 
         <section className="cms-live-region" id="cms-live" aria-labelledby="cms-live-title">
           <div className="section-inner">
             <h2 className="sr-only" id="cms-live-title">Thông báo từ bệnh viện</h2>
             <div className="cms-live-region__grid">
-              <CmsLiveSlot hideWhenNotFound slug="home" slotKey="body" />
+              <CmsLiveSlot
+                fallback={(
+                  <HomeCmsFallbackCard
+                    accent
+                    description="Giờ khám, thông báo quan trọng và tin bệnh viện sẽ hiển thị ở đây khi CMS chưa có nội dung live."
+                    eyebrow="Thông báo bệnh viện"
+                    href="/branches"
+                    hrefLabel="Xem cơ sở"
+                    title="Cập nhật giờ khám và quy trình"
+                  />
+                )}
+                hideWhenNotFound
+                quiet
+                showSourceLabel={false}
+                slug="home"
+                slotKey="body"
+              />
               <div className="cms-live-region__aside">
-                <CmsLiveSlot hideWhenNotFound slug="home" slotKey="sidebar" />
+                <CmsLiveSlot
+                  fallback={(
+                    <HomeCmsFallbackCard
+                      description="Tra cứu lịch hẹn, xem cẩm nang hoặc mở hướng dẫn trước buổi khám."
+                      eyebrow="Hỗ trợ nhanh"
+                      href="/tra-cuu"
+                      hrefLabel="Tra cứu lịch"
+                      title="Sẵn sàng trước khi đến khám"
+                    />
+                  )}
+                  hideWhenNotFound
+                  quiet
+                  showSourceLabel={false}
+                  slug="home"
+                  slotKey="sidebar"
+                />
               </div>
             </div>
           </div>
@@ -662,133 +626,45 @@ export default function Home(): React.ReactElement {
           <div className="care-inner">
             <h2 className="sr-only" id="care-title">Lối tắt chăm sóc</h2>
             <div className="care-links" aria-label="Lối tắt chăm sóc">
-              <button className="care-link" onClick={() => handleOpenBooking()} type="button">
-                <span className="care-link__icon"><Icon name="calendar" size={21} /></span>
-                <span>
-                  <strong>Đặt lịch khám</strong>
+              <button className="care-link hm-quick-card" onClick={() => handleOpenBooking()} type="button">
+                <span className="care-link__icon hm-quick-card__icon"><Icon name="calendar" size={22} /></span>
+                <span className="hm-quick-card__body">
+                  <strong>Đặt lịch hẹn</strong>
                   <small>Chọn bác sĩ và khung giờ</small>
                 </span>
-                <Icon name="chevron-right" size={18} />
               </button>
-              <button className="care-link" onClick={() => setIsAiTriageOpen(true)} type="button">
-                <span className="care-link__icon"><Icon name="user" size={21} /></span>
-                <span>
-                  <strong>Trợ lý triệu chứng</strong>
-                  <small>Gợi ý theo triệu chứng · cần đăng nhập</small>
-                </span>
-                <Icon name="chevron-right" size={18} />
-              </button>
-              <Link className="care-link" href="#packages">
-                <span className="care-link__icon"><Icon name="layers" size={21} /></span>
-                <span>
-                  <strong>Gói khám & dịch vụ</strong>
+              <Link className="care-link hm-quick-card" href="#packages">
+                <span className="care-link__icon hm-quick-card__icon"><Icon name="layers" size={22} /></span>
+                <span className="hm-quick-card__body">
+                  <strong>Gói khám</strong>
                   <small>So sánh lựa chọn theo nhu cầu</small>
                 </span>
-                <Icon name="chevron-right" size={18} />
               </Link>
-              <Link className="care-link" href="/specialties">
-                <span className="care-link__icon"><Icon name="stethoscope" size={21} /></span>
-                <span>
+              <Link className="care-link hm-quick-card" href="/specialties">
+                <span className="care-link__icon hm-quick-card__icon"><Icon name="stethoscope" size={22} /></span>
+                <span className="hm-quick-card__body">
                   <strong>Chuyên khoa</strong>
                   <small>Chọn theo nhu cầu thăm khám</small>
                 </span>
-                <Icon name="chevron-right" size={18} />
               </Link>
               {contactHref ? (
-                <a className={`care-link${emergencyBranch ? " care-link--emergency" : ""}`} href={contactHref}>
-                  <span className="care-link__icon"><Icon name="phone" size={21} /></span>
-                  <span><strong>{emergencyBranch ? "Cấp cứu" : "Gọi bệnh viện"}</strong><small>{contactPhone}</small></span>
-                  <Icon name="chevron-right" size={18} />
+                <a className={`care-link hm-quick-card${emergencyBranch ? " care-link--emergency" : ""}`} href={contactHref}>
+                  <span className="care-link__icon hm-quick-card__icon"><Icon name="phone" size={22} /></span>
+                  <span className="hm-quick-card__body">
+                    <strong>{emergencyBranch ? "Cấp cứu" : "Gọi bệnh viện"}</strong>
+                    <small>{contactPhone}</small>
+                  </span>
                 </a>
               ) : (
-                <Link className="care-link" href="/contact">
-                  <span className="care-link__icon"><Icon name="phone" size={21} /></span>
-                  <span><strong>Liên hệ bệnh viện</strong><small>Xem các kênh hỗ trợ</small></span>
-                  <Icon name="chevron-right" size={18} />
+                <Link className="care-link hm-quick-card" href="/contact">
+                  <span className="care-link__icon hm-quick-card__icon"><Icon name="phone" size={22} /></span>
+                  <span className="hm-quick-card__body">
+                    <strong>Liên hệ bệnh viện</strong>
+                    <small>Xem các kênh hỗ trợ</small>
+                  </span>
                 </Link>
               )}
             </div>
-          </div>
-        </section>
-
-        <CareExperience />
-
-        <HomeAiCompanion
-          branchesCount={branches.length}
-          contactHref={contactHref}
-          contactPhone={contactPhone}
-          onBooking={() => handleOpenBooking()}
-          onOpenAi={() => setIsAiTriageOpen(true)}
-          specialtiesCount={catalog?.specialties.length ?? 0}
-        />
-
-        <section className="section section--specialties" id="specialties" aria-labelledby="specialties-title">
-          <div className="section-inner">
-            <SectionHeading
-              action={<Link className="section-link" href="/specialties">Xem tất cả chuyên khoa <Icon name="arrow-right" size={17} /></Link>}
-              description="Tìm hiểu phạm vi thăm khám và chọn chuyên khoa phù hợp với nhu cầu của bạn."
-              headingId="specialties-title"
-              note="Chuyên môn sâu"
-              title="Chuyên khoa nổi bật"
-            />
-            <div className="specialty-layout">
-              <aside className="specialty-aside">
-                <div className="specialty-aside__mark"><Icon name="stethoscope" size={28} /></div>
-                <h3>Chọn đúng chuyên khoa từ bước đầu.</h3>
-                <p>Xem thông tin điều trị, đội ngũ bác sĩ và đặt lịch theo nhu cầu của bạn.</p>
-              </aside>
-              <div className="specialty-list">
-                <CatalogStatus error={catalogError} hasData={Boolean(catalog)} loading={catalogLoading} onRetry={retryCatalog} unavailable={catalogUnavailable} />
-                {!catalogLoading && catalog && filteredSpecialties.length > 0 ? filteredSpecialties.slice(0, 8).map((specialty, index) => (
-                  <article className="specialty-row" key={specialty.id}>
-                    <span className="specialty-row__index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
-                    <div className="specialty-row__content">
-                      <span className="specialty-row__icon"><Icon name={getSpecialtyIcon(specialty)} size={20} /></span>
-                      <div>
-                        <h3><Link href={`/specialties/${specialty.slug}`}>{specialty.name}</Link></h3>
-                        <p>{specialty.description}</p>
-                      </div>
-                    </div>
-                    <button className="icon-button" aria-label={`Đặt lịch theo chuyên khoa ${specialty.name}`} onClick={() => handleOpenBooking(undefined, specialty.id)} type="button">
-                      <Icon name="arrow-up-right" size={18} />
-                    </button>
-                  </article>
-                )) : !catalogLoading && catalog ? (
-                  <div className="empty-state">
-                    <p>{searchQuery ? `Chưa có chuyên khoa khớp với “${searchQuery}”.` : "Chưa có chuyên khoa đang cung cấp."}</p>
-                    <button className="text-button" onClick={() => setSearchQuery("")} type="button">Xóa tìm kiếm <Icon name="x" size={17} /></button>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className={`section section--doctors${catalogError ? " section--unavailable" : ""}`} id="doctors" aria-labelledby="doctors-title">
-          <div className="section-inner">
-            <SectionHeading
-              action={<button className="section-link section-link--button" onClick={() => handleOpenBooking()} type="button">Đặt lịch với bác sĩ <Icon name="arrow-right" size={17} /></button>}
-              description="Hồ sơ công khai giúp bạn chọn đúng chuyên môn và mở luồng đặt lịch."
-              headingId="doctors-title"
-              note="Đội ngũ chuyên gia"
-              title="Bác sĩ đồng hành cùng bạn"
-            />
-            <CatalogStatus error={catalogError} hasData={Boolean(catalog)} loading={catalogLoading} onRetry={retryCatalog} unavailable={catalogUnavailable} />
-            {!catalogLoading && featuredDoctor ? (
-              <div className="doctor-layout">
-                <DoctorCard doctor={featuredDoctor} featured onBook={(doctorId) => handleOpenBooking(doctorId)} />
-                <div className="doctor-stack">
-                  {supportingDoctors.map((doctor) => (
-                    <DoctorCard doctor={doctor} key={doctor.id} onBook={(doctorId) => handleOpenBooking(doctorId)} />
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="empty-state empty-state--wide">
-                <p>{catalog ? (searchQuery ? `Chưa có bác sĩ khớp với “${searchQuery}”.` : "Chưa có bác sĩ đang cung cấp.") : ""}</p>
-                <button className="text-button" onClick={() => setSearchQuery("")} type="button">Xóa tìm kiếm <Icon name="x" size={17} /></button>
-              </div>
-            )}
           </div>
         </section>
 
@@ -827,6 +703,79 @@ export default function Home(): React.ReactElement {
             ) : null}
           </div>
         </section>
+
+        <section className={`section section--specialties${catalogError ? " section--unavailable" : ""}`} id="specialties" aria-labelledby="specialties-title">
+          <div className="section-inner">
+            <SectionHeading
+              action={<Link className="section-link" href="/specialties">Xem tất cả chuyên khoa <Icon name="arrow-right" size={17} /></Link>}
+              description="Tìm hiểu phạm vi thăm khám và chọn chuyên khoa phù hợp với nhu cầu của bạn."
+              headingId="specialties-title"
+              note="Chuyên môn sâu"
+              title="Chuyên khoa nổi bật"
+            />
+            <CatalogStatus error={catalogError} hasData={Boolean(catalog)} loading={catalogLoading} onRetry={retryCatalog} unavailable={catalogUnavailable} />
+            {!catalogLoading && catalog && filteredSpecialties.length > 0 ? (
+              <div className="hm-specialty-grid" aria-label="Các chuyên khoa nổi bật">
+                {filteredSpecialties.slice(0, 8).map((specialty, index) => (
+                  <article className="hm-specialty-card" key={specialty.id}>
+                    <div className="hm-specialty-card__media">
+                      <Image
+                        alt={`Hình ảnh minh họa cho chuyên khoa ${specialty.name}`}
+                        className="hm-specialty-card__image"
+                        fill
+                        sizes="(max-width: 640px) 100vw, (max-width: 1100px) 33vw, 25vw"
+                        src={getPublicCareImage(index)}
+                      />
+                    </div>
+                    <div className="hm-specialty-card__body">
+                      <span className="hm-specialty-card__icon"><Icon name={getSpecialtyIcon(specialty)} size={22} /></span>
+                      <h3><Link href={`/specialties/${specialty.slug}`}>{specialty.name}</Link></h3>
+                      <p>{specialty.description}</p>
+                      <div className="hm-specialty-card__footer">
+                        <Link className="text-button" href={`/specialties/${specialty.slug}`}>Tìm hiểu thêm <Icon name="arrow-right" size={16} /></Link>
+                        <button className="icon-button" aria-label={`Đặt lịch theo chuyên khoa ${specialty.name}`} onClick={() => handleOpenBooking(undefined, specialty.id)} type="button">
+                          <Icon name="arrow-up-right" size={18} />
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : !catalogLoading && catalog ? (
+              <div className="empty-state">
+                <p>{searchQuery ? `Chưa có chuyên khoa khớp với “${searchQuery}”.` : "Chưa có chuyên khoa đang cung cấp."}</p>
+                <button className="text-button" onClick={() => setSearchQuery("")} type="button">Xóa tìm kiếm <Icon name="x" size={17} /></button>
+              </div>
+            ) : null}
+          </div>
+        </section>
+
+        <section className={`section section--doctors${catalogError ? " section--unavailable" : ""}`} id="doctors" aria-labelledby="doctors-title">
+          <div className="section-inner">
+            <SectionHeading
+              action={<button className="section-link section-link--button" onClick={() => handleOpenBooking()} type="button">Đặt lịch với bác sĩ <Icon name="arrow-right" size={17} /></button>}
+              description="Hồ sơ công khai giúp bạn chọn đúng chuyên môn và mở luồng đặt lịch."
+              headingId="doctors-title"
+              note="Đội ngũ chuyên gia"
+              title="Bác sĩ đồng hành cùng bạn"
+            />
+            <CatalogStatus error={catalogError} hasData={Boolean(catalog)} loading={catalogLoading} onRetry={retryCatalog} unavailable={catalogUnavailable} />
+            {!catalogLoading && homeDoctors.length > 0 ? (
+              <div className="hm-doctor-grid" aria-label="Bác sĩ nổi bật">
+                {homeDoctors.map((doctor) => (
+                  <DoctorCard doctor={doctor} key={doctor.id} onBook={(doctorId) => handleOpenBooking(doctorId)} />
+                ))}
+              </div>
+            ) : (
+              <div className="empty-state empty-state--wide">
+                <p>{catalog ? (searchQuery ? `Chưa có bác sĩ khớp với “${searchQuery}”.` : "Chưa có bác sĩ đang cung cấp.") : ""}</p>
+                <button className="text-button" onClick={() => setSearchQuery("")} type="button">Xóa tìm kiếm <Icon name="x" size={17} /></button>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <CareExperience />
 
         <section className="section section--journey" id="guide" aria-labelledby="journey-title">
           <div className="section-inner">
@@ -868,7 +817,7 @@ export default function Home(): React.ReactElement {
               action={<Link className="section-link" href="/branches">Xem tất cả cơ sở <Icon name="arrow-right" size={17} /></Link>}
               description="Chọn cơ sở theo vị trí, giờ làm việc và nhu cầu đặt hẹn của bạn."
               headingId="branches-title"
-              note="Hệ thống cơ sở"
+              note="Mạng lưới HealthCare"
               title="Tìm cơ sở thuận tiện"
             />
             <div className="branch-layout">
@@ -878,20 +827,31 @@ export default function Home(): React.ReactElement {
                 <p>Địa chỉ và giờ làm việc lấy từ catalog công khai. Hãy kiểm tra lại trước khi đến.</p>
                 {contactHref ? <a className="text-button" href={contactHref}>{emergencyBranch ? "Gọi hotline cấp cứu" : "Gọi cơ sở"} <Icon name="phone" size={17} /></a> : <Link className="text-button" href="/contact">Xem thông tin liên hệ <Icon name="arrow-up-right" size={17} /></Link>}
               </div>
-              <div className="branch-list">
+              <div className="hm-branch-grid">
                 <CatalogStatus error={catalogError} hasData={Boolean(catalog)} loading={catalogLoading} onRetry={retryCatalog} unavailable={catalogUnavailable} />
                 {!catalogLoading && catalog && branches.map((branch, index) => (
-                  <article className="branch-row" key={branch.id}>
-                    <span className="branch-row__index">0{index + 1}</span>
-                    <div>
-                      <h3>{branch.name}</h3>
-                      <p><Icon name="location" size={15} />{branch.address}</p>
-                      <p><Icon name="clock" size={15} />{branch.workingHours ?? "Giờ làm việc đang cập nhật."}</p>
+                  <article className="hm-branch-card" key={branch.id}>
+                    <div className="hm-branch-card__media">
+                      <Image
+                        alt={`Hình ảnh minh họa cho ${branch.name}`}
+                        className="hm-branch-card__image"
+                        fill
+                        sizes="(max-width: 640px) 100vw, (max-width: 900px) 50vw, 25vw"
+                        src={getPublicCareImage(index + 2)}
+                      />
                     </div>
-                    <div className="branch-row__actions">
-                      {safeTelephoneHref(branch.phone) ? <a href={safeTelephoneHref(branch.phone) ?? undefined} aria-label={`Gọi ${branch.name}`}>{branch.phone}</a> : <span className="resource-muted">Số điện thoại đang cập nhật.</span>}
-                      <BranchMap address={branch.address} branchName={branch.name} className="branch-row__map-link" variant="link" />
-                      <button className="outline-button outline-button--small" onClick={() => handleOpenBooking(undefined, undefined, undefined, branch.id)} type="button">Đặt lịch</button>
+                    <div className="hm-branch-card__body">
+                      <div className="hm-branch-card__head">
+                        <span className="hm-branch-card__icon"><Icon name="location" size={17} /></span>
+                        <h3>{branch.name}</h3>
+                      </div>
+                      <p className="hm-branch-card__address"><Icon name="location" size={15} />{branch.address}</p>
+                      <p className="hm-branch-card__hours"><Icon name="clock" size={15} />{branch.workingHours ?? "Giờ làm việc đang cập nhật."}</p>
+                      <div className="hm-branch-card__actions">
+                        {safeTelephoneHref(branch.phone) ? <a className="text-button" href={safeTelephoneHref(branch.phone) ?? undefined} aria-label={`Gọi ${branch.name}`}><Icon name="phone" size={16} />{branch.phone}</a> : <span className="resource-muted">Số điện thoại đang cập nhật.</span>}
+                        <BranchMap address={branch.address} branchName={branch.name} className="branch-row__map-link" variant="link" />
+                        <button className="outline-button outline-button--small" onClick={() => handleOpenBooking(undefined, undefined, undefined, branch.id)} type="button">Đặt lịch</button>
+                      </div>
                     </div>
                   </article>
                 ))}
@@ -906,12 +866,20 @@ export default function Home(): React.ReactElement {
               action={<Link className="section-link" href="/articles">Xem cẩm nang <Icon name="arrow-right" size={17} /></Link>}
               description="Nội dung ngắn, dễ đọc để bạn chuẩn bị câu hỏi và theo dõi hướng dẫn sau buổi khám."
               headingId="content-title"
-              note="Cẩm nang sức khỏe"
+              note="Tin tức và blog sức khỏe"
               title="Thông tin sức khỏe hữu ích"
             />
             <div className="content-layout">
               <article className="video-card">
                 <div className="video-card__visual">
+                  <Image
+                    alt="Nhân viên y tế trao đổi cùng người bệnh"
+                    className="video-card__image"
+                    fill
+                    sizes="(max-width: 900px) 100vw, 32vw"
+                    src={getPublicCareImage(5)}
+                  />
+                  <span className="video-card__wash" aria-hidden="true" />
                   <span className="video-card__label">Gợi ý đọc</span>
                   <span className="video-card__circle"><Icon name="play" size={22} /></span>
                 </div>

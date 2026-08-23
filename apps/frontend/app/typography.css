@@ -50,7 +50,7 @@ html[lang="vi"] :where(h1, h2, h3, h4, strong) {
 .site-shell .button--nav {
   font-family: var(--font-vietnamese-ui);
   font-weight: 600;
-  letter-spacing: -0.008em;
+  letter-spacing: 0;
   line-height: 1.35;
 }
 
@@ -68,7 +68,7 @@ html[lang="vi"] :where(h1, h2, h3, h4, strong) {
 
 .site-shell .brand-copy strong {
   font-weight: 700;
-  letter-spacing: -0.018em;
+  letter-spacing: 0;
   line-height: 1.25;
 }
 
@@ -96,7 +96,7 @@ html[lang="vi"] :where(h1, h2, h3, h4, strong) {
 .auth-card h1 {
   font-family: var(--font-vietnamese-display);
   font-weight: 700;
-  letter-spacing: -0.028em;
+  letter-spacing: 0;
 }
 
 .site-shell .section-heading h2,
@@ -106,7 +106,7 @@ html[lang="vi"] :where(h1, h2, h3, h4, strong) {
 .portal-panel h2,
 .portal-panel h3 {
   font-family: var(--font-vietnamese-display);
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 
 .site-shell .section-description,
@@ -129,7 +129,7 @@ html[lang="vi"] :where(h1, h2, h3, h4, strong) {
   font-family: var(--font-vietnamese-display);
   font-size: 1.375rem;
   font-weight: 700;
-  letter-spacing: -0.018em;
+  letter-spacing: 0;
   line-height: 1.4;
   text-wrap: balance;
 }
@@ -155,7 +155,7 @@ html[lang="vi"] :where(h1, h2, h3, h4, strong) {
   color: #304954;
   font-size: 0.9375rem;
   font-weight: 600;
-  letter-spacing: -0.006em;
+  letter-spacing: 0;
   line-height: 1.5;
 }
 
@@ -182,7 +182,7 @@ html[lang="vi"] :where(h1, h2, h3, h4, strong) {
 
 [role="dialog"][aria-labelledby="booking-modal-title"] button {
   font-weight: 600;
-  letter-spacing: -0.006em;
+  letter-spacing: 0;
   line-height: 1.4;
 }
 

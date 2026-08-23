@@ -215,9 +215,9 @@ main {
   margin: 0;
   color: var(--color-teal-950);
   font-family: var(--font-display);
-  font-size: clamp(2rem, 3vw, 3.25rem);
+  font-size: 3.25rem;
   font-weight: 700;
-  letter-spacing: -0.035em;
+  letter-spacing: 0;
   line-height: 1.12;
   text-wrap: balance;
 }
@@ -383,7 +383,8 @@ main {
   transform: translate(2px, -2px);
 }
 
-.demo-note {
+.demo-note,
+.availability-note {
   display: flex;
   align-items: flex-start;
   gap: var(--sp-2);
@@ -393,7 +394,8 @@ main {
   line-height: 1.5;
 }
 
-.demo-note svg {
+.demo-note svg,
+.availability-note svg {
   flex: 0 0 auto;
   margin-top: 0.1rem;
 }
@@ -522,9 +524,9 @@ main {
   max-width: 42rem;
   margin: var(--sp-2) 0 var(--sp-4);
   font-family: var(--font-display);
-  font-size: clamp(2rem, 4vw, 3.5rem);
+  font-size: 3.5rem;
   line-height: 1.08;
-  letter-spacing: -0.035em;
+  letter-spacing: 0;
   color: var(--color-teal-950);
 }
 
@@ -560,7 +562,7 @@ main {
   margin: var(--sp-2) 0 var(--sp-3);
   font-family: var(--font-display);
   line-height: 1.18;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   color: var(--color-teal-950);
 }
 
@@ -691,7 +693,7 @@ main {
 }
 
 .booking-page {
-  padding-bottom: calc(var(--sp-20) + 5rem);
+  padding-bottom: var(--sp-20);
 }
 
 .booking-page__hero {
@@ -734,8 +736,8 @@ main {
 
 .booking-page__summary strong {
   font-family: var(--font-display);
-  font-size: clamp(1.5rem, 3vw, 2.25rem);
-  letter-spacing: -0.03em;
+  font-size: 2.25rem;
+  letter-spacing: 0;
   line-height: 1.08;
 }
 
@@ -798,9 +800,9 @@ main {
   margin: var(--sp-2) 0 var(--sp-3);
   color: var(--color-teal-950);
   font-family: var(--font-display);
-  font-size: clamp(1.6rem, 2.8vw, 2.45rem);
+  font-size: 2.45rem;
   line-height: 1.12;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
 }
 
 .booking-page__branches-heading p:last-child {
@@ -839,9 +841,9 @@ main {
   margin: var(--sp-2) 0 var(--sp-3);
   color: var(--color-teal-950);
   font-family: var(--font-display);
-  font-size: clamp(1.75rem, 3vw, 2.75rem);
+  font-size: 2.75rem;
   line-height: 1.12;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
 }
 
 .booking-page__inline-heading p:last-child {
@@ -884,41 +886,6 @@ main {
   color: var(--color-teal-700);
 }
 
-.booking-page__sticky {
-  position: sticky;
-  bottom: var(--sp-4);
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-4);
-  margin-top: var(--sp-8);
-  padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-5);
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-lg);
-  background: oklch(100% 0 0 / 0.94);
-  box-shadow: var(--shadow-card);
-  backdrop-filter: blur(18px);
-}
-
-.booking-page__sticky span {
-  display: grid;
-  gap: 0.2rem;
-}
-
-.booking-page__sticky strong {
-  color: var(--color-teal-950);
-}
-
-.booking-page__sticky small {
-  color: var(--color-muted);
-}
-
-.booking-page__sticky-button {
-  min-height: 48px;
-  flex: 0 0 auto;
-}
-
 .route-state {
   min-height: 64vh;
   display: grid;
@@ -932,9 +899,9 @@ main {
 
 .route-state__card h1 {
   margin-top: var(--sp-2);
-  font-size: clamp(2.25rem, 7vw, 4.5rem);
+  font-size: 4.5rem;
   line-height: 0.95;
-  letter-spacing: -0.055em;
+  letter-spacing: 0;
 }
 
 .route-state__actions {
@@ -1282,7 +1249,7 @@ main {
 }
 
 .article-detail-card h2 {
-  font-size: clamp(1.75rem, 3vw, 2.75rem);
+  font-size: 2.75rem;
 }
 
 .article-detail-card__summary {
@@ -1429,7 +1396,7 @@ main {
   margin: 0;
   color: var(--color-teal-950);
   font-family: var(--font-display);
-  font-size: clamp(1.5rem, 2.4vw, 2.25rem);
+  font-size: 2.25rem;
   line-height: 1.15;
   text-wrap: balance;
 }
@@ -1572,16 +1539,6 @@ main {
 
   .booking-stage-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .booking-page__sticky {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .booking-page__sticky-button {
-    width: 100%;
-    justify-content: center;
   }
 
   .resource-meta-grid {
@@ -1741,7 +1698,7 @@ main {
   color: var(--color-teal-950);
   font-family: var(--font-display);
   font-size: 1.125rem;
-  letter-spacing: -0.025em;
+  letter-spacing: 0;
 }
 
 .brand-copy small {
@@ -1825,10 +1782,11 @@ main {
 }
 
 .nav-account-link {
-  padding: 0 var(--sp-3);
+  padding: 0 var(--sp-4);
   border: 1px solid var(--color-line);
   background: var(--color-paper-bright);
   color: var(--color-teal-800);
+  border-radius: 999px;
   text-decoration: none;
 }
 
@@ -1837,6 +1795,7 @@ main {
   padding: 0 var(--sp-4);
   background: var(--color-teal-700);
   color: var(--color-paper-bright);
+  border-radius: 999px;
 }
 
 .button--nav:hover {
@@ -1919,9 +1878,9 @@ main {
   max-width: 12ch;
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(2.75rem, 5vw + 0.5rem, 5.25rem);
+  font-size: 5.25rem;
   font-weight: 700;
-  letter-spacing: -0.045em;
+  letter-spacing: 0;
   line-height: 1.04;
   text-wrap: balance;
 }
@@ -2006,12 +1965,14 @@ main {
   font-size: 0.75rem;
 }
 
-.hero-section .demo-note {
+.hero-section .demo-note,
+.hero-section .availability-note {
   max-width: 38rem;
   color: oklch(75% 0.035 184);
 }
 
-.hero-section .demo-note svg {
+.hero-section .demo-note svg,
+.hero-section .availability-note svg {
   color: var(--color-amber);
 }
 
@@ -2229,7 +2190,7 @@ main {
 }
 
 .care-intro h2 {
-  font-size: clamp(1.75rem, 2.6vw, 2.5rem);
+  font-size: 2.5rem;
 }
 
 .care-intro > p:last-child {
@@ -2400,7 +2361,7 @@ main {
   color: var(--color-teal-950);
   font-family: var(--font-display);
   font-size: 1.75rem;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
   line-height: 1.16;
 }
 
@@ -2598,7 +2559,7 @@ main {
   color: var(--color-teal-950);
   font-family: var(--font-display);
   font-size: 1.25rem;
-  letter-spacing: -0.025em;
+  letter-spacing: 0;
   line-height: 1.2;
 }
 
@@ -2681,8 +2642,8 @@ main {
   margin: 0;
   color: var(--color-paper-bright);
   font-family: var(--font-display);
-  font-size: clamp(1.75rem, 3vw, 2.75rem);
-  letter-spacing: -0.035em;
+  font-size: 2.75rem;
+  letter-spacing: 0;
   line-height: 1.1;
 }
 
@@ -2764,7 +2725,7 @@ main {
   color: var(--color-teal-950);
   font-family: var(--font-display);
   font-size: 1.25rem;
-  letter-spacing: -0.025em;
+  letter-spacing: 0;
   line-height: 1.2;
 }
 
@@ -2888,7 +2849,7 @@ main {
   color: var(--color-paper-bright);
   font-family: var(--font-display);
   font-size: 1.75rem;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
   line-height: 1.16;
 }
 
@@ -2932,7 +2893,7 @@ main {
   color: var(--color-teal-950);
   font-family: var(--font-display);
   font-size: 1.75rem;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
   line-height: 1.16;
 }
 
@@ -2964,7 +2925,7 @@ main {
   color: var(--color-teal-950);
   font-family: var(--font-display);
   font-size: 1.125rem;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   line-height: 1.3;
 }
 
@@ -3071,7 +3032,7 @@ main {
   color: var(--color-paper-bright);
   font-family: var(--font-display);
   font-size: 1.75rem;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
   line-height: 1.18;
 }
 
@@ -3104,7 +3065,7 @@ main {
   color: var(--color-teal-950);
   font-family: var(--font-display);
   font-size: 1.25rem;
-  letter-spacing: -0.025em;
+  letter-spacing: 0;
   line-height: 1.2;
 }
 
@@ -3514,7 +3475,7 @@ main {
 
   .section-heading h2,
   .appointment-cta h2 {
-    font-size: clamp(1.875rem, 8vw, 2.5rem);
+    font-size: 2.25rem;
   }
 
   .section-description {
@@ -3532,7 +3493,7 @@ main {
 
   .hero-copy h1 {
     max-width: 11ch;
-    font-size: clamp(2.75rem, 14vw, 4rem);
+    font-size: 3.25rem;
   }
 
   .hero-description {
@@ -3727,7 +3688,7 @@ main {
     left: 0;
     z-index: 60;
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     min-height: 64px;
     padding: var(--sp-2) 1rem;
     border-top: 1px solid var(--color-line-dark);
@@ -3813,9 +3774,9 @@ main {
   margin: 0;
   color: var(--color-teal-950);
   font-family: var(--font-display);
-  font-size: clamp(1.5rem, 2.6vw, 2.25rem);
+  font-size: 2.25rem;
   font-weight: 700;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
   line-height: 1.15;
   text-wrap: balance;
 }
@@ -3951,7 +3912,7 @@ main {
 
 .portal-header__inner,
 .portal-content {
-  width: min(100% - 4rem, 78rem);
+  width: min(100% - 2rem, 78rem);
   margin-inline: auto;
 }
 
@@ -3963,6 +3924,7 @@ main {
 }
 
 .portal-brand {
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   flex: 0 0 auto;
@@ -3995,7 +3957,7 @@ main {
   color: var(--color-teal-950);
   font-family: var(--font-display);
   font-size: 1.05rem;
-  letter-spacing: -0.025em;
+  letter-spacing: 0;
   line-height: 1.1;
 }
 
@@ -4064,15 +4026,17 @@ main {
 
 .portal-main {
   flex: 1;
-  padding: var(--sp-12) 0 var(--sp-20);
+  padding: var(--sp-8) 0 var(--sp-12);
 }
 
 .portal-hero {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
-  gap: var(--sp-8);
-  margin-bottom: var(--sp-8);
+  gap: var(--sp-6);
+  margin-bottom: var(--sp-6);
+  padding-bottom: var(--sp-6);
+  border-bottom: 1px solid var(--color-line);
 }
 
 .portal-hero h1 {
@@ -4080,9 +4044,9 @@ main {
   margin: 0;
   color: var(--color-teal-950);
   font-family: var(--font-display);
-  font-size: clamp(2rem, 4vw, 3.45rem);
-  letter-spacing: -0.045em;
-  line-height: 1.05;
+  font-size: 2.25rem;
+  letter-spacing: 0;
+  line-height: 1.15;
   text-wrap: balance;
 }
 
@@ -4100,6 +4064,23 @@ main {
   flex: 0 0 auto;
 }
 
+.portal-context-link {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding-inline: var(--sp-3);
+  border-radius: var(--radius-sm);
+  color: var(--color-teal-800);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.portal-context-link:hover,
+.portal-context-link:focus-visible {
+  background: var(--color-mint-light);
+}
+
 .portal-demo-label {
   color: var(--color-amber-dark);
   font-size: 0.75rem;
@@ -4110,27 +4091,31 @@ main {
 
 .portal-summary-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: var(--sp-3);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
   margin-bottom: var(--sp-6);
+  border-block: 1px solid var(--color-line);
+  background: var(--color-paper-bright);
 }
 
 .portal-summary-card {
-  min-height: 9.5rem;
+  min-height: 7rem;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: var(--sp-5);
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-md);
-  background: var(--color-paper-bright);
-  box-shadow: var(--shadow-soft);
-  transition: border-color var(--duration-base) ease, transform var(--duration-fast) var(--ease-out);
+  padding: var(--sp-4);
+  border-right: 1px solid var(--color-line);
+  background: transparent;
+  transition: background-color var(--duration-fast) ease, color var(--duration-fast) ease;
 }
 
-.portal-summary-card:hover {
-  border-color: var(--color-teal-300);
-  transform: translateY(-2px);
+.portal-summary-card:last-child {
+  border-right: 0;
+}
+
+.portal-summary-card:hover,
+.portal-summary-card:focus-visible {
+  background: var(--color-mint-light);
 }
 
 .portal-summary-card span,
@@ -4142,8 +4127,8 @@ main {
 .portal-summary-card strong {
   color: var(--color-teal-800);
   font-family: var(--font-display);
-  font-size: 2.25rem;
-  letter-spacing: -0.04em;
+  font-size: 2rem;
+  letter-spacing: 0;
   line-height: 1;
 }
 
@@ -4159,16 +4144,22 @@ main {
 
 .portal-panel {
   margin-bottom: var(--sp-6);
-  padding: var(--sp-6);
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-lg);
-  background: oklch(99.2% 0.005 100 / 0.9);
-  box-shadow: var(--shadow-soft);
+  padding: var(--sp-6) 0 0;
+  border: 0;
+  border-top: 1px solid var(--color-line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .portal-panel--notice {
-  border-color: oklch(78% 0.11 78 / 0.65);
+  padding-inline: var(--sp-4);
+  border-top-color: oklch(78% 0.11 78 / 0.65);
   background: oklch(97% 0.025 86 / 0.65);
+}
+
+.portal-panel--secondary {
+  border-top-color: var(--color-teal-300);
 }
 
 .portal-panel__heading {
@@ -4183,8 +4174,8 @@ main {
   margin: 0;
   color: var(--color-teal-950);
   font-family: var(--font-display);
-  font-size: clamp(1.35rem, 2vw, 1.8rem);
-  letter-spacing: -0.035em;
+  font-size: 1.45rem;
+  letter-spacing: 0;
   line-height: 1.15;
 }
 
@@ -4302,9 +4293,9 @@ main {
 .portal-appointment {
   padding: var(--sp-4);
   border: 1px solid var(--color-line);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   background: var(--color-paper);
-  box-shadow: inset 3px 0 0 var(--color-teal-300);
+  box-shadow: none;
 }
 
 .portal-appointment h3 {
@@ -4364,7 +4355,7 @@ main {
 .portal-notification {
   padding: var(--sp-4);
   border: 1px solid var(--color-line);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   background: var(--color-paper);
 }
 
@@ -4442,7 +4433,7 @@ main {
 }
 
 .portal-diagnostic .text-button {
-  min-height: 36px;
+  min-height: 44px;
   margin-top: var(--sp-3);
   font-size: 0.8rem;
 }
@@ -4460,7 +4451,18 @@ main {
 
 .portal-notification--unread {
   border-color: var(--color-teal-300);
-  box-shadow: inset 3px 0 0 var(--color-teal-500);
+  background: var(--color-mint-light);
+  box-shadow: none;
+}
+
+.portal-panel[aria-busy="true"] .portal-appointment__actions button {
+  pointer-events: none;
+  opacity: 0.55;
+}
+
+#clinical-entry:focus-visible {
+  outline: 3px solid oklch(82% 0.08 174 / 0.65);
+  outline-offset: 4px;
 }
 
 .portal-read-label {
@@ -4692,8 +4694,8 @@ main {
   margin: 0;
   color: var(--color-teal-950);
   font-family: var(--font-display);
-  font-size: clamp(1.8rem, 5vw, 2.5rem);
-  letter-spacing: -0.045em;
+  font-size: 2.5rem;
+  letter-spacing: 0;
   line-height: 1.1;
 }
 
@@ -4747,8 +4749,9 @@ main {
   .portal-nav {
     order: 3;
     width: 100%;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
     margin-left: 0;
-    overflow-x: auto;
   }
 
   .portal-user {
@@ -4757,6 +4760,14 @@ main {
 
   .portal-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .portal-summary-card:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .portal-summary-card:nth-child(n + 3) {
+    border-top: 1px solid var(--color-line);
   }
 
   .portal-grid--main {
@@ -4778,6 +4789,10 @@ main {
     padding-top: var(--sp-8);
   }
 
+  .portal-hero h1 {
+    font-size: 2rem;
+  }
+
   .portal-hero,
   .portal-lookup-form {
     align-items: flex-start;
@@ -4788,14 +4803,18 @@ main {
     align-items: flex-start;
   }
 
-  .portal-summary-grid,
+  .portal-nav,
+  .portal-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .portal-diagnostic-grid {
     grid-template-columns: 1fr;
   }
 
   .portal-panel {
-    padding: var(--sp-4);
-    border-radius: var(--radius-md);
+    padding: var(--sp-4) 0 0;
+    border-radius: 0;
   }
 
   .portal-user__copy {
@@ -4805,6 +4824,17 @@ main {
   .portal-user {
     padding-left: 0;
     border-left: 0;
+  }
+
+  .portal-nav {
+    flex-wrap: wrap;
+    overflow-x: visible;
+    gap: var(--sp-2);
+  }
+
+  .portal-nav__link {
+    justify-content: center;
+    text-align: center;
   }
 
   .portal-notification {
@@ -4826,6 +4856,117 @@ main {
 
   .portal-footer {
     padding-inline: 1rem;
+  }
+}
+
+.portal-shell *,
+.admin-shell * {
+  letter-spacing: 0;
+}
+
+.portal-shell > .skip-link,
+.admin-shell > .skip-link {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.75rem;
+  z-index: 100;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  padding-inline: var(--sp-4);
+  border-radius: var(--radius-sm);
+  background: var(--color-paper-bright);
+  color: var(--color-teal-900);
+  font-weight: 700;
+  box-shadow: var(--shadow-soft);
+  transform: translateY(-150%);
+}
+
+.portal-shell > .skip-link:focus,
+.admin-shell > .skip-link:focus {
+  transform: translateY(0);
+}
+
+.portal-shell h1,
+.portal-shell h2,
+.portal-shell h3,
+.admin-shell h1,
+.admin-shell h2,
+.admin-shell h3 {
+  overflow-wrap: anywhere;
+}
+
+.admin-shell button {
+  min-height: 44px;
+}
+
+.admin-shell input:not([type="checkbox"]),
+.admin-shell select {
+  min-height: 44px;
+}
+
+.admin-shell textarea {
+  min-height: 6rem;
+}
+
+.admin-shell input[type="checkbox"] {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: 0 0 auto;
+}
+
+.admin-shell label:has(input[type="checkbox"]) {
+  min-height: 44px;
+}
+
+.admin-shell .rounded-xl,
+.admin-shell .rounded-2xl {
+  border-radius: 8px;
+}
+
+.admin-shell .shadow-sm,
+.admin-shell .shadow-md {
+  box-shadow: none;
+}
+
+.admin-shell button:focus-visible,
+.admin-shell a:focus-visible,
+.admin-shell input:focus-visible,
+.admin-shell select:focus-visible,
+.admin-shell textarea:focus-visible,
+.admin-shell [role="region"][tabindex="0"]:focus-visible {
+  outline: 3px solid oklch(74% 0.075 181 / 0.5);
+  outline-offset: 2px;
+}
+
+.admin-shell [role="region"][tabindex="0"] {
+  max-width: 100%;
+}
+
+.admin-shell table {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 640px) {
+  .admin-shell input,
+  .admin-shell select,
+  .admin-shell textarea {
+    font-size: 1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-shell *,
+  .admin-shell * {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .portal-shell .button:hover,
+  .portal-shell .outline-button:hover,
+  .portal-shell .text-button:hover,
+  .portal-shell .portal-summary-card:hover {
+    transform: none;
   }
 }
 
@@ -4872,26 +5013,26 @@ main {
 }
 
 .site-shell .utility-bar {
-  border-bottom: 1px solid rgb(255 255 255 / 14%);
-  background: var(--hospital-navy);
-  color: #fff;
+  border-bottom: 1px solid var(--hospital-border);
+  background: #fff;
+  color: var(--hospital-text);
 }
 
 .site-shell .utility-bar__inner {
-  min-height: 38px;
+  min-height: 34px;
 }
 
 .site-shell .utility-bar__right,
 .site-shell .utility-hours {
-  color: #d8e8e9;
+  color: var(--hospital-muted);
 }
 
 .site-shell .utility-hotline strong {
-  color: #fff;
+  color: var(--hospital-teal-dark);
 }
 
 .site-shell .utility-hotline svg {
-  color: #ffcc68;
+  color: var(--hospital-teal);
 }
 
 .site-shell .site-nav {
@@ -4903,7 +5044,7 @@ main {
 }
 
 .site-shell .site-nav__inner {
-  min-height: 78px;
+  min-height: 82px;
 }
 
 .site-shell .brand-link {
@@ -4922,7 +5063,7 @@ main {
   color: var(--hospital-navy);
   font-size: 1.15rem;
   font-weight: 800;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
 }
 
 .site-shell .brand-copy small {
@@ -4997,7 +5138,7 @@ main {
 .site-shell .hero-section {
   overflow: hidden;
   border-bottom: 1px solid var(--hospital-border);
-  background: #eef7f5;
+  background: #f3f8f7;
   color: var(--hospital-text);
 }
 
@@ -5009,9 +5150,9 @@ main {
 .site-shell .hero-inner {
   grid-template-columns: minmax(0, 0.92fr) minmax(28rem, 1.08fr);
   gap: clamp(2rem, 5vw, 4.75rem);
-  min-height: 590px;
-  padding-top: 3.5rem;
-  padding-bottom: 5.75rem;
+  min-height: 690px;
+  padding-top: 3rem;
+  padding-bottom: 5rem;
 }
 
 .site-shell .hero-copy {
@@ -5019,11 +5160,7 @@ main {
 }
 
 .site-shell .hero-kicker {
-  gap: 0;
-  margin-bottom: 1.1rem;
-  color: var(--hospital-teal-dark);
-  font-size: 0.75rem;
-  letter-spacing: 0.11em;
+  display: none;
 }
 
 .site-shell .hero-kicker__line {
@@ -5031,11 +5168,11 @@ main {
 }
 
 .site-shell .hero-copy h1 {
-  max-width: 11.5ch;
+  max-width: 12ch;
   color: var(--hospital-navy);
-  font-size: clamp(2.75rem, 4.4vw, 4.15rem);
+  font-size: 4.55rem;
   font-weight: 750;
-  letter-spacing: -0.045em;
+  letter-spacing: 0;
   line-height: 1.06;
 }
 
@@ -5044,7 +5181,7 @@ main {
    unusually long title turn the homepage hero into a full-page text column. */
 .site-shell .hero-copy[data-cms-managed="hero-copy"] h1 {
   max-width: 16ch;
-  font-size: clamp(2.35rem, 3.7vw, 3.55rem);
+  font-size: 3.55rem;
   line-height: 1.08;
   text-wrap: balance;
 }
@@ -5054,27 +5191,28 @@ main {
 }
 
 .site-shell .hero-description {
-  max-width: 31rem;
-  margin-top: 1.35rem;
+  max-width: 33rem;
+  margin-top: 1.2rem;
   color: var(--hospital-muted);
   font-size: 1.05rem;
   line-height: 1.7;
 }
 
 .site-shell .hero-search {
-  min-height: 56px;
-  margin-top: 1.75rem;
-  border: 1px solid #cbdcdc;
-  border-radius: 8px;
+  max-width: 34rem;
+  min-height: 54px;
+  margin-top: 1.35rem;
+  border: 1px solid #cddede;
+  border-radius: 14px;
   background: #fff;
   color: var(--hospital-teal);
-  box-shadow: 0 8px 22px rgb(22 77 82 / 7%);
+  box-shadow: 0 8px 18px rgb(22 77 82 / 6%);
 }
 
 .site-shell .hero-search:focus-within {
   border-color: var(--hospital-teal);
   background: #fff;
-  box-shadow: 0 0 0 3px rgb(8 123 120 / 13%);
+  box-shadow: 0 0 0 3px rgb(8 123 120 / 12%);
 }
 
 .site-shell .hero-search input {
@@ -5086,8 +5224,8 @@ main {
 }
 
 .site-shell .hero-search button {
-  min-height: 46px;
-  border-radius: 6px;
+  min-height: 44px;
+  border-radius: 10px;
   background: var(--hospital-teal);
   color: #fff;
 }
@@ -5101,7 +5239,7 @@ main {
 }
 
 .site-shell .hero-actions {
-  margin-top: 1.5rem;
+  margin-top: 1.25rem;
 }
 
 .site-shell .hero-actions .button--amber {
@@ -5157,19 +5295,45 @@ main {
 }
 
 .site-shell .hero-assurance {
-  margin-top: -3rem;
-  margin-bottom: 1rem;
+  margin-top: -2.6rem;
+  margin-bottom: 1.25rem;
 }
 
 .site-shell .hero-assurance__inner {
+  gap: 0;
+  overflow: hidden;
   border-color: var(--hospital-border);
-  border-radius: 16px;
+  border-radius: 18px;
   background: #fff;
   box-shadow: 0 18px 36px rgb(22 77 82 / 9%);
 }
 
 .site-shell .hero-assurance__item {
-  padding: 1rem;
+  align-items: center;
+  min-height: 96px;
+  padding: 1rem 1.15rem;
+  border-right: 1px solid var(--hospital-border);
+}
+
+.site-shell .hero-assurance__item:last-child {
+  border-right: 0;
+}
+
+.site-shell .hero-assurance__item--action {
+  width: 100%;
+  background: transparent;
+  text-align: left;
+  transition: background-color var(--duration-base) ease, transform var(--duration-fast) var(--ease-out);
+}
+
+.site-shell .hero-assurance__item--action:hover {
+  background: var(--hospital-surface);
+  transform: none;
+}
+
+.site-shell .hero-assurance__item--action:focus-visible {
+  outline: 2px solid var(--hospital-teal);
+  outline-offset: -2px;
 }
 
 .site-shell .hero-assurance__item strong {
@@ -5182,8 +5346,10 @@ main {
 }
 
 .site-shell .hero-assurance__icon {
+  width: 42px;
+  height: 42px;
   border-color: #bdd3d2;
-  border-radius: 12px;
+  border-radius: 14px;
   background: #edf6f4;
   color: var(--hospital-teal);
 }
@@ -5194,22 +5360,20 @@ main {
 }
 
 .site-shell .hero-visual__image-wrap {
-  min-height: 500px;
+  min-height: 560px;
   border: 0;
-  border-radius: 12px;
+  border-radius: 18px;
   background: #dce9e7;
   box-shadow: 0 18px 40px rgb(18 63 82 / 14%);
 }
 
 .site-shell .hero-visual__image {
-  filter: saturate(0.9) contrast(1.02);
+  filter: saturate(0.88) contrast(1.04);
   object-position: center;
 }
 
 .site-shell .hero-visual figcaption {
-  margin-top: 0.55rem;
-  color: #71848b;
-  font-size: 0.68rem;
+  display: none;
 }
 
 .site-shell .hero-visual figcaption a {
@@ -5222,7 +5386,7 @@ main {
 }
 
 .site-shell .cms-live-region {
-  padding: 3.5rem 0 1rem;
+  padding: 4.5rem 0 1rem;
   background: #fff;
 }
 
@@ -5240,7 +5404,7 @@ main {
 .site-shell .care-section {
   position: relative;
   z-index: 4;
-  margin-top: -2.75rem;
+  margin-top: 1.25rem;
   border: 0;
   background: transparent;
 }
@@ -5254,14 +5418,14 @@ main {
   grid-column: auto;
   overflow: hidden;
   border: 1px solid var(--hospital-border);
-  border-radius: 10px;
+  border-radius: 18px;
   background: #fff;
   box-shadow: 0 13px 32px rgb(20 61 75 / 11%);
 }
 
 .site-shell .care-link,
 .site-shell .care-link + .care-link {
-  min-height: 98px;
+  min-height: 104px;
   padding: 1.15rem 1.25rem;
   border-right: 1px solid var(--hospital-border);
   color: var(--hospital-text);
@@ -5324,8 +5488,8 @@ main {
 .site-shell .ai-companion__copy h2 {
   max-width: 13ch;
   color: var(--hospital-navy);
-  font-size: clamp(2rem, 3.6vw, 3.2rem);
-  letter-spacing: -0.045em;
+  font-size: 3.2rem;
+  letter-spacing: 0;
   line-height: 0.98;
 }
 
@@ -5519,8 +5683,8 @@ main {
 .site-shell .section-heading h2,
 .site-shell .appointment-cta h2 {
   color: var(--hospital-navy);
-  font-size: clamp(2rem, 3vw, 2.55rem);
-  letter-spacing: -0.035em;
+  font-size: 2.55rem;
+  letter-spacing: 0;
 }
 
 .site-shell .section-note {
@@ -5842,6 +6006,20 @@ main {
 
   .site-shell .hero-copy h1 {
     max-width: 13ch;
+    font-size: 3.8rem;
+  }
+
+  .site-shell .hero-copy[data-cms-managed="hero-copy"] h1 {
+    font-size: 3.1rem;
+  }
+
+  .site-shell .ai-companion__copy h2 {
+    font-size: 2.8rem;
+  }
+
+  .site-shell .section-heading h2,
+  .site-shell .appointment-cta h2 {
+    font-size: 2.35rem;
   }
 
   .site-shell .hero-visual__image-wrap {
@@ -5915,12 +6093,12 @@ main {
 
   .site-shell .hero-copy h1 {
     max-width: 12ch;
-    font-size: clamp(2.3rem, 11vw, 3.2rem);
+    font-size: 3.2rem;
   }
 
   .site-shell .hero-copy[data-cms-managed="hero-copy"] h1 {
     max-width: 15ch;
-    font-size: clamp(2.15rem, 9.5vw, 2.85rem);
+    font-size: 2.85rem;
   }
 
   .site-shell .hero-description {
@@ -5960,6 +6138,7 @@ main {
 
   .site-shell .ai-companion__copy h2 {
     max-width: 12ch;
+    font-size: 2.4rem;
   }
 
   .site-shell .ai-companion__actions,
@@ -6021,7 +6200,7 @@ main {
 
   .site-shell .section-heading h2,
   .site-shell .appointment-cta h2 {
-    font-size: clamp(1.8rem, 8vw, 2.2rem);
+    font-size: 2.2rem;
   }
 
   .site-shell .specialty-aside,
@@ -6094,9 +6273,9 @@ main {
   margin: 0;
   color: var(--hospital-navy);
   font-family: var(--font-display);
-  font-size: clamp(2.6rem, 4.5vw, 4rem);
+  font-size: 4rem;
   font-weight: 750;
-  letter-spacing: -0.045em;
+  letter-spacing: 0;
   line-height: 1.06;
 }
 
@@ -6150,8 +6329,8 @@ main {
   margin: 0;
   color: var(--hospital-navy);
   font-family: var(--font-display);
-  font-size: clamp(2rem, 3vw, 2.55rem);
-  letter-spacing: -0.035em;
+  font-size: 2.55rem;
+  letter-spacing: 0;
   line-height: 1.12;
 }
 
@@ -6282,7 +6461,7 @@ main {
   }
 
   .site-shell .about-hero__copy h1 {
-    font-size: clamp(2.25rem, 11vw, 3rem);
+    font-size: 3rem;
   }
 
   .site-shell .about-hero__image-wrap {
@@ -6386,5 +6565,1311 @@ main {
     max-height: calc(100dvh - 0.5rem);
     border-bottom: 0;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+}
+
+/* ==========================================================================
+   Reference hospital UX structural alignment (2026-08) — quick-action cards,
+   catalog card grids, network cards reinterpreted on the HealthCare token
+   system. No reference-brand colors or assets.
+   ========================================================================== */
+
+/* Quick actions: the connected rail becomes reference-style action cards.
+   The .care-section prefix outranks the older boxed-rail rules in styles.css
+   and the snap-rail rules in effects.css (imported after this sheet). */
+.site-shell .care-section .care-links {
+  display: grid;
+  gap: var(--sp-4);
+  padding: var(--sp-2) 0 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+  scroll-snap-type: none;
+}
+
+.site-shell .care-section .care-links::before,
+.site-shell .care-section .care-links::after {
+  display: none;
+}
+
+.site-shell .care-section .care-link.hm-quick-card,
+.site-shell .care-section .care-link.hm-quick-card + .care-link.hm-quick-card,
+.site-shell .care-section .care-link.hm-quick-card:nth-child(2),
+.site-shell .care-section .care-link.hm-quick-card:nth-last-child(-n + 2) {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-5);
+  border: 1px solid var(--color-line);
+  border-right: 1px solid var(--color-line);
+  border-bottom: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-paper-bright);
+  box-shadow: var(--shadow-soft);
+  transition: transform var(--duration-base) var(--ease-out), box-shadow var(--duration-base) ease, border-color var(--duration-base) ease;
+}
+
+.site-shell .care-section .care-link.hm-quick-card:hover {
+  padding-left: var(--sp-5);
+  background: var(--color-paper-bright);
+  color: var(--color-teal-700);
+  border-color: var(--color-teal-300);
+  box-shadow: var(--shadow-lift);
+  transform: translateY(-3px);
+}
+
+.site-shell .care-section .care-link.hm-quick-card.care-link--emergency,
+.site-shell .care-section .care-link.hm-quick-card.care-link--emergency:hover {
+  color: #9e2f35;
+}
+
+.site-shell .care-section .care-link.hm-quick-card.care-link--emergency:hover {
+  border-color: #b2373d;
+}
+
+.site-shell .care-section .care-link.hm-quick-card::before {
+  display: none;
+}
+
+.site-shell .care-section .care-link.hm-quick-card .care-link__icon {
+  width: 48px;
+  height: 48px;
+}
+
+.hm-quick-card__body strong {
+  font-size: 1rem;
+}
+
+.hm-quick-card__body small {
+  margin-top: 0.25rem;
+  line-height: 1.4;
+}
+
+/* Specialty catalog: reference-style icon-card grid. */
+.hm-specialty-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-4);
+}
+
+.hm-specialty-card {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--sp-5);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-paper-bright);
+  box-shadow: var(--shadow-soft);
+  transition: transform var(--duration-base) var(--ease-out), box-shadow var(--duration-base) ease, border-color var(--duration-base) ease;
+}
+
+.hm-specialty-card:hover {
+  border-color: var(--color-teal-300);
+  box-shadow: var(--shadow-lift);
+  transform: translateY(-3px);
+}
+
+.hm-specialty-card__icon {
+  width: 48px;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--sp-3);
+  border-radius: 14px;
+  background: var(--color-mint);
+  color: var(--color-teal-700);
+}
+
+.hm-specialty-card h3 {
+  font-size: 1.0625rem;
+  line-height: 1.35;
+}
+
+.hm-specialty-card h3 a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.hm-specialty-card h3 a:hover,
+.hm-specialty-card h3 a:focus-visible {
+  text-decoration: underline;
+}
+
+.hm-specialty-card p {
+  flex: 1;
+  margin-top: var(--sp-2);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  color: var(--color-ink-muted);
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+.hm-specialty-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--color-line);
+}
+
+/* Doctor catalog: reference-style photo-card grid (base .doctor-card is already a card). */
+.hm-doctor-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-4);
+}
+
+.hm-doctor-grid .doctor-photo {
+  min-height: 13rem;
+}
+
+.hm-doctor-grid .doctor-card__body {
+  padding: var(--sp-4);
+}
+
+.hm-doctor-grid .doctor-bio {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+/* Branch network: reference-style facility cards. */
+.hm-branch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  gap: var(--sp-4);
+}
+
+.hm-branch-card {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--sp-5);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-paper-bright);
+  box-shadow: var(--shadow-soft);
+  transition: transform var(--duration-base) var(--ease-out), box-shadow var(--duration-base) ease, border-color var(--duration-base) ease;
+}
+
+.hm-branch-card:hover {
+  border-color: var(--color-teal-300);
+  box-shadow: var(--shadow-lift);
+  transform: translateY(-3px);
+}
+
+.hm-branch-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.hm-branch-card__head h3 {
+  font-size: 1.0625rem;
+  line-height: 1.35;
+}
+
+.hm-branch-card__icon {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--color-mint);
+  color: var(--color-teal-700);
+}
+
+.hm-branch-card__address,
+.hm-branch-card__hours {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-top: var(--sp-2);
+  color: var(--color-ink-muted);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.hm-branch-card__address svg,
+.hm-branch-card__hours svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--color-teal-500);
+}
+
+.hm-branch-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--color-line);
+}
+
+/* Structural alignment responsive rules. */
+@media (max-width: 1100px) {
+  .hm-specialty-grid,
+  .hm-doctor-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .site-shell .care-section .care-links {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .hm-specialty-grid,
+  .hm-doctor-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .site-shell .care-section .care-links,
+  .hm-specialty-grid,
+  .hm-doctor-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .hm-doctor-grid .doctor-photo {
+    min-height: 16rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .care-link.hm-quick-card,
+  .hm-specialty-card,
+  .hm-branch-card {
+    transition: none;
+  }
+
+  .care-link.hm-quick-card:hover,
+  .hm-specialty-card:hover,
+  .hm-branch-card:hover {
+    transform: none;
+  }
+}
+
+/* Public shell and booking polish: airy surfaces, quieter hierarchy, and no
+   persistent action layer covering the appointment content. */
+.site-shell .booking-page {
+  padding-bottom: var(--sp-20);
+}
+
+.site-shell .booking-page__hero {
+  display: block;
+  margin-top: var(--sp-8);
+  text-align: center;
+}
+
+.site-shell .booking-page__hero-copy {
+  max-width: 56rem;
+  margin-inline: auto;
+}
+
+.site-shell .booking-page__hero--centered h1 {
+  max-width: 14ch;
+  margin-inline: auto;
+  color: var(--hospital-navy);
+  font-size: 4.2rem;
+  line-height: 1.08;
+  text-wrap: balance;
+}
+
+.site-shell .booking-page__hero--centered p:not(.section-note) {
+  max-width: 46rem;
+  margin-inline: auto;
+  line-height: 1.7;
+}
+
+.site-shell .booking-page__hero-actions {
+  justify-content: center;
+  margin-top: var(--sp-6);
+}
+
+.site-shell .booking-page__inline--primary {
+  margin-top: var(--sp-10);
+  padding-top: 0;
+  border-top: 0;
+}
+
+.site-shell .booking-page__inline-heading--centered {
+  max-width: 56rem;
+  margin: 0 auto var(--sp-8);
+  text-align: center;
+}
+
+.site-shell .booking-page__summary {
+  align-self: end;
+  min-height: 15rem;
+  padding: clamp(1.5rem, 3vw, 2rem);
+  border: 1px solid var(--hospital-border);
+  border-top: 4px solid var(--hospital-teal);
+  border-radius: 10px;
+  background: var(--hospital-surface);
+  color: var(--hospital-text);
+  box-shadow: none;
+}
+
+.site-shell .booking-page__summary .section-note {
+  color: var(--hospital-teal-dark);
+}
+
+.site-shell .booking-page__summary strong {
+  color: var(--hospital-navy);
+  font-size: 2.05rem;
+}
+
+.site-shell .booking-page__summary span,
+.site-shell .booking-page__summary small {
+  color: var(--hospital-muted);
+  line-height: 1.6;
+}
+
+.site-shell .booking-page__resource-hero.resource-hero-card--teal {
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: var(--sp-6);
+  margin-top: var(--sp-10);
+  padding: clamp(1.5rem, 4vw, 2.75rem);
+  border: 1px solid var(--hospital-border);
+  border-radius: 12px;
+  background: var(--hospital-surface);
+  color: var(--hospital-text);
+  box-shadow: none;
+}
+
+.site-shell .booking-page__resource-hero.resource-hero-card--teal .resource-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  background: var(--color-paper-bright);
+  color: var(--hospital-teal);
+}
+
+.site-shell .booking-page__resource-hero.resource-hero-card--teal .resource-hero-card__body h2,
+.site-shell .booking-page__resource-hero.resource-hero-card--teal .resource-hero-card__body p,
+.site-shell .booking-page__resource-hero.resource-hero-card--teal .resource-hero-card__body .resource-lead {
+  color: var(--hospital-navy) !important;
+}
+
+.site-shell .booking-page__resource-hero .resource-chip {
+  background: var(--color-paper-bright);
+  color: var(--hospital-teal-dark);
+}
+
+.site-shell .booking-page__resource-hero .outline-button--light {
+  border-color: #9abdbc;
+  color: var(--hospital-teal-dark);
+}
+
+.site-shell .booking-page__resource-hero .outline-button--light:hover {
+  border-color: var(--hospital-teal);
+  background: var(--color-paper-bright);
+}
+
+.site-shell .booking-page__resource-hero .resource-meta-grid {
+  margin-bottom: 0;
+}
+
+.site-shell .booking-page__resource-hero .resource-meta-grid div {
+  border-color: #c5dcda;
+  background: var(--color-paper-bright);
+}
+
+.site-shell .booking-stage-grid {
+  gap: 0;
+  margin-top: var(--sp-12);
+  border-top: 1px solid var(--hospital-border);
+  border-bottom: 1px solid var(--hospital-border);
+}
+
+.site-shell .booking-stage-card {
+  min-height: 13rem;
+  padding: var(--sp-6) var(--sp-5);
+  border: 0;
+  border-right: 1px solid var(--hospital-border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.site-shell .booking-stage-card:last-child {
+  border-right: 0;
+}
+
+.site-shell .booking-stage-card__icon {
+  background: var(--hospital-mint);
+  color: var(--hospital-teal);
+}
+
+.site-shell .booking-stage-card h2 {
+  color: var(--hospital-navy);
+}
+
+.site-shell .booking-stage-card p {
+  color: var(--hospital-muted);
+}
+
+.site-shell .booking-page__support {
+  margin-top: var(--sp-12);
+}
+
+.site-shell .booking-page__branches {
+  margin-top: var(--sp-16);
+}
+
+.site-shell .booking-page__inline {
+  margin-top: var(--sp-12);
+  padding-top: var(--sp-12);
+  border-top: 1px solid var(--hospital-border);
+}
+
+.site-shell .booking-page__inline-heading {
+  max-width: 54rem;
+}
+
+.site-shell .booking-page__inline-heading p:last-child {
+  max-width: 52rem;
+}
+
+.site-shell .booking-panel {
+  border: 1px solid var(--hospital-border);
+  border-radius: 12px;
+  background: var(--color-paper-bright);
+  box-shadow: 0 14px 32px rgb(20 61 75 / 8%);
+}
+
+.site-shell .booking-panel--inline {
+  box-shadow: 0 10px 26px rgb(20 61 75 / 7%);
+}
+
+.site-shell .booking-panel__header {
+  min-height: 82px;
+  gap: var(--sp-4);
+  padding: var(--sp-5) var(--sp-6);
+  border-bottom: 1px solid var(--hospital-border);
+  background: var(--color-paper-bright);
+  color: var(--hospital-navy);
+}
+
+.site-shell .booking-panel__eyebrow {
+  display: block;
+  color: var(--hospital-teal-dark);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.site-shell .booking-panel__title {
+  margin: var(--sp-2) 0 0;
+  color: var(--hospital-navy) !important;
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 750;
+  line-height: 1.25;
+}
+
+.site-shell .booking-panel__title svg {
+  color: var(--hospital-teal);
+}
+
+.site-shell .booking-panel__close {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--hospital-border);
+  border-radius: 8px;
+  background: var(--color-paper-bright);
+  color: var(--hospital-teal-dark);
+  transition: background-color var(--duration-base) ease, color var(--duration-base) ease, transform var(--duration-fast) var(--ease-out);
+}
+
+.site-shell .booking-panel__close:hover {
+  background: var(--hospital-surface);
+  color: var(--hospital-navy);
+  transform: translateY(-1px);
+}
+
+.site-shell .booking-panel__context {
+  flex: 0 0 auto;
+  color: var(--hospital-teal-dark);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.site-shell .booking-panel__progress {
+  border-bottom-color: var(--hospital-border);
+  background: #f5faf9;
+}
+
+.site-shell .booking-panel__progress > div {
+  scrollbar-width: thin;
+}
+
+.site-shell .booking-panel__progress .h-5.w-5 {
+  background: var(--hospital-teal) !important;
+}
+
+.site-shell .booking-panel__progress .bg-gray-200 {
+  background: #dcebea !important;
+  color: var(--hospital-muted) !important;
+}
+
+.site-shell .booking-panel__progress .text-gray-400 {
+  color: #84979a !important;
+}
+
+.site-shell .booking-panel__progress .text-brand-500,
+.site-shell .booking-panel__progress .text-brand-700,
+.site-shell .booking-panel__progress .text-brand-900 {
+  color: var(--hospital-teal-dark) !important;
+}
+
+.site-shell .booking-panel__body {
+  background: var(--color-paper-bright);
+}
+
+.site-shell .booking-panel--inline .booking-panel__body {
+  padding: clamp(1.5rem, 4vw, 2.5rem);
+}
+
+.site-shell .booking-panel select,
+.site-shell .booking-panel input,
+.site-shell .booking-panel textarea {
+  min-height: 48px;
+  border-color: #cbdcdc;
+  border-radius: 8px;
+  background: #f8fbfb;
+  font-size: 1rem;
+}
+
+.site-shell .booking-panel textarea {
+  min-height: 6rem;
+}
+
+.site-shell .booking-panel select:focus,
+.site-shell .booking-panel input:focus,
+.site-shell .booking-panel textarea:focus {
+  border-color: var(--hospital-teal);
+  box-shadow: 0 0 0 3px rgb(8 123 120 / 13%);
+  outline: none;
+}
+
+.site-shell .booking-panel button.bg-brand-700 {
+  border-radius: 8px;
+  background: var(--hospital-teal);
+  box-shadow: none;
+}
+
+.site-shell .booking-panel button.bg-brand-700:hover {
+  background: var(--hospital-teal-dark);
+}
+
+@media (max-width: 900px) {
+  .site-shell .booking-page__hero {
+    grid-template-columns: 1fr;
+    gap: var(--sp-8);
+  }
+
+  .site-shell .booking-page__summary {
+    min-height: auto;
+  }
+
+  .site-shell .booking-page__resource-hero.resource-hero-card--teal {
+    grid-template-columns: 1fr;
+  }
+
+  .site-shell .booking-stage-card:nth-child(2) {
+    border-right: 0;
+  }
+
+  .site-shell .booking-stage-card:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--hospital-border);
+  }
+}
+
+@media (max-width: 640px) {
+  .site-shell .booking-page__hero.resource-page__header h1 {
+    max-width: 14ch;
+    font-size: 3rem;
+  }
+
+  .site-shell .booking-page__resource-hero.resource-hero-card--teal {
+    margin-top: var(--sp-8);
+    padding: var(--sp-5);
+  }
+
+  .site-shell .booking-page__resource-hero.resource-hero-card--teal .resource-icon {
+    width: 52px;
+    height: 52px;
+  }
+
+  .site-shell .booking-stage-card {
+    min-height: 0;
+    padding: var(--sp-5) 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--hospital-border);
+  }
+
+  .site-shell .booking-stage-card:last-child {
+    border-bottom: 0;
+  }
+
+  .site-shell .booking-page__support,
+  .site-shell .booking-page__branches {
+    margin-top: var(--sp-12);
+  }
+
+  .site-shell .booking-page__inline {
+    margin-top: var(--sp-12);
+    padding-top: var(--sp-8);
+  }
+
+  .site-shell .booking-panel__header {
+    min-height: 74px;
+    padding: var(--sp-4);
+  }
+
+  .site-shell .booking-panel__title {
+    font-size: 1.05rem;
+  }
+
+  .site-shell .booking-panel__context {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-shell .booking-panel__close {
+    transition: none;
+  }
+}
+
+/* Appointment actions stay readable when the inline flow narrows to a phone. */
+.site-shell .booking-step-actions {
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.site-shell .booking-step-actions > button {
+  min-height: 44px;
+}
+
+@media (max-width: 640px) {
+  .site-shell .booking-step-actions {
+    align-items: stretch;
+  }
+
+  .site-shell .booking-step-actions > button {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+}
+
+/* Image-led catalog layer: public hospital pages need recognizable care
+   imagery at the decision points, while the data cards remain lightweight. */
+.site-shell .hm-specialty-card,
+.site-shell .hm-branch-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.site-shell .hm-specialty-card__media,
+.site-shell .hm-branch-card__media,
+.site-shell .video-card__visual,
+.site-shell .booking-page__summary-media {
+  position: relative;
+  overflow: hidden;
+  background: var(--hospital-mint);
+}
+
+.site-shell .hm-specialty-card__media {
+  aspect-ratio: 16 / 9;
+}
+
+.site-shell .hm-branch-card__media {
+  aspect-ratio: 16 / 8;
+}
+
+.site-shell .hm-specialty-card__image,
+.site-shell .hm-branch-card__image,
+.site-shell .video-card__image,
+.site-shell .booking-page__summary-image {
+  object-fit: cover;
+  transition: transform 560ms var(--ease-out), filter 560ms ease;
+}
+
+.site-shell .hm-specialty-card__media::after,
+.site-shell .hm-branch-card__media::after,
+.site-shell .video-card__wash {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  content: "";
+  pointer-events: none;
+  background: rgb(0 28 30 / 0.14);
+}
+
+.site-shell .hm-specialty-card__body,
+.site-shell .hm-branch-card__body {
+  min-width: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: var(--sp-5);
+}
+
+.site-shell .hm-specialty-card__body .hm-specialty-card__icon {
+  flex: 0 0 auto;
+}
+
+.site-shell .hm-specialty-card__body p {
+  min-height: 4.1rem;
+}
+
+.site-shell .hm-specialty-card__body .hm-specialty-card__footer {
+  width: 100%;
+  margin-top: auto;
+}
+
+.site-shell .hm-branch-card__body {
+  padding-top: var(--sp-4);
+}
+
+.site-shell .hm-branch-card__head {
+  width: 100%;
+}
+
+.site-shell .hm-branch-card__head h3 {
+  min-width: 0;
+}
+
+.site-shell .hm-branch-card__body .hm-branch-card__actions {
+  width: 100%;
+  margin-top: auto;
+}
+
+.site-shell .hm-specialty-card:hover .hm-specialty-card__image,
+.site-shell .hm-branch-card:hover .hm-branch-card__image,
+.site-shell .video-card:hover .video-card__image {
+  filter: saturate(0.96) contrast(1.02);
+  transform: scale(1.035);
+}
+
+.site-shell .video-card__visual {
+  min-height: 15rem;
+}
+
+.site-shell .video-card__visual > :not(.video-card__image):not(.video-card__wash) {
+  z-index: 2;
+}
+
+.site-shell .booking-page__summary {
+  grid-template-rows: 9.5rem minmax(0, 1fr);
+  gap: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+.site-shell .booking-page__summary-media {
+  min-height: 9.5rem;
+}
+
+.site-shell .booking-page__summary-image {
+  object-position: center 42%;
+}
+
+.site-shell .booking-page__summary-copy {
+  display: grid;
+  align-content: start;
+  gap: var(--sp-3);
+  padding: var(--sp-5) var(--sp-6) var(--sp-6);
+}
+
+.site-shell .booking-page__summary-copy .section-note,
+.site-shell .booking-page__summary-copy strong,
+.site-shell .booking-page__summary-copy span,
+.site-shell .booking-page__summary-copy small {
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .site-shell .hm-specialty-card__media,
+  .site-shell .hm-branch-card__media {
+    aspect-ratio: 16 / 8;
+  }
+
+  .site-shell .booking-page__summary {
+    grid-template-rows: 11rem minmax(0, 1fr);
+  }
+
+  .site-shell .booking-page__summary-media {
+    min-height: 11rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .site-shell .hm-specialty-card__media,
+  .site-shell .hm-branch-card__media {
+    aspect-ratio: 16 / 9;
+  }
+
+  .site-shell .hm-specialty-card__body p {
+    min-height: 0;
+  }
+
+  .site-shell .video-card__visual {
+    min-height: 13rem;
+  }
+
+  .site-shell .booking-page__summary {
+    grid-template-rows: 8.5rem minmax(0, 1fr);
+  }
+
+  .site-shell .booking-page__summary-media {
+    min-height: 8.5rem;
+  }
+
+  .site-shell .booking-page__summary-copy {
+    padding: var(--sp-5);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-shell .hm-specialty-card__image,
+  .site-shell .hm-branch-card__image,
+  .site-shell .video-card__image,
+  .site-shell .booking-page__summary-image {
+    transition: none;
+  }
+
+  .site-shell .hm-specialty-card:hover .hm-specialty-card__image,
+  .site-shell .hm-branch-card:hover .hm-branch-card__image,
+  .site-shell .video-card:hover .video-card__image {
+    transform: none;
+  }
+}
+
+/* Auth recovery and account controls share the existing HealthCare tokens. */
+.auth-card--wide {
+  width: min(100%, 42rem);
+}
+
+.auth-form__label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.auth-form__label-row a,
+.auth-form__error-link {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-teal-700);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.auth-form__field input[aria-invalid="true"] {
+  border-color: var(--color-red);
+  box-shadow: 0 0 0 1px var(--color-red);
+}
+
+.auth-form__field-error {
+  color: var(--color-red);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.auth-form__error p,
+.auth-form__success,
+.auth-status p,
+.auth-status h2 {
+  margin: 0;
+}
+
+.auth-form__error-link {
+  margin-top: var(--sp-2);
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.auth-form__success {
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius-sm);
+  background: var(--color-mint-light);
+  color: var(--color-teal-900);
+  font-size: 0.875rem;
+}
+
+.auth-form__secondary {
+  width: 100%;
+}
+
+.auth-route-loading {
+  width: min(100%, 31rem);
+  padding: var(--sp-6);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-paper-bright);
+  color: var(--color-teal-800);
+  text-align: center;
+}
+
+.auth-status {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--sp-4);
+  padding: var(--sp-5);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  overflow-wrap: anywhere;
+}
+
+.auth-status--success {
+  border-color: var(--color-teal-300);
+  background: var(--color-mint-light);
+  color: var(--color-teal-950);
+}
+
+.auth-status__mark {
+  width: 2.75rem;
+  height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: var(--radius-sm);
+  background: var(--color-teal-700);
+  color: var(--color-paper-bright);
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.auth-status h2 {
+  color: var(--color-teal-950);
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  line-height: 1.25;
+}
+
+.auth-status p {
+  margin-top: var(--sp-3);
+  color: var(--color-ink-muted);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.auth-status__notice {
+  color: var(--color-teal-800) !important;
+  font-weight: 700;
+}
+
+.auth-status__error {
+  color: var(--color-red) !important;
+  font-weight: 700;
+}
+
+.auth-status__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-5);
+}
+
+.auth-status__edit {
+  padding-inline: var(--sp-2);
+}
+
+.auth-status .auth-card__note {
+  margin-top: var(--sp-5);
+  padding-top: var(--sp-4);
+}
+
+.preferences-page {
+  min-width: 0;
+}
+
+.preferences-layout {
+  display: grid;
+  grid-template-columns: minmax(14rem, 0.75fr) minmax(0, 1.25fr);
+  gap: var(--sp-6);
+  align-items: start;
+}
+
+.preferences-account,
+.preferences-card {
+  min-width: 0;
+  padding: var(--sp-6);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-paper-bright);
+  box-shadow: var(--shadow-soft);
+}
+
+.preferences-account h2,
+.preferences-card h2 {
+  margin: var(--sp-2) 0 0;
+  color: var(--color-teal-950);
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+  line-height: 1.2;
+}
+
+.preferences-account__list {
+  display: grid;
+  gap: var(--sp-4);
+  margin: var(--sp-6) 0 0;
+}
+
+.preferences-account__list div {
+  display: grid;
+  gap: var(--sp-1);
+  min-width: 0;
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--color-line);
+}
+
+.preferences-account__list dt {
+  color: var(--color-ink-soft);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.preferences-account__list dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--color-ink);
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.preferences-card__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+}
+
+.preferences-form {
+  display: grid;
+  gap: var(--sp-3);
+  margin-top: var(--sp-6);
+}
+
+.preferences-form__selects {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3);
+  margin-top: var(--sp-2);
+}
+
+.preferences-form__selects select {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-paper-bright);
+  color: var(--color-ink);
+  font: inherit;
+}
+
+.preferences-option {
+  display: grid;
+  grid-template-columns: 2.75rem minmax(0, 1fr);
+  gap: var(--sp-3);
+  align-items: start;
+  min-width: 0;
+  min-height: 5rem;
+  padding: var(--sp-4);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-paper);
+  cursor: pointer;
+}
+
+.preferences-option:hover {
+  border-color: var(--color-teal-300);
+  background: var(--color-mint-light);
+}
+
+.preferences-option input {
+  width: 2.75rem;
+  height: 2.75rem;
+  margin: 0;
+  accent-color: var(--color-teal-700);
+}
+
+.preferences-option span {
+  display: grid;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.preferences-option strong {
+  color: var(--color-teal-950);
+  font-size: 0.9375rem;
+}
+
+.preferences-option small {
+  color: var(--color-ink-muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.preferences-option input:focus-visible,
+.auth-form a:focus-visible,
+.auth-status a:focus-visible,
+.preferences-option:has(input:focus-visible) {
+  outline: 3px solid var(--color-amber);
+  outline-offset: 2px;
+}
+
+.preferences-state {
+  margin-top: var(--sp-5);
+  padding: var(--sp-4);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+.preferences-state h3,
+.preferences-state p {
+  margin: 0;
+}
+
+.preferences-state h3 {
+  color: var(--color-teal-950);
+  font-size: 1rem;
+}
+
+.preferences-state p {
+  color: var(--color-ink-muted);
+}
+
+.preferences-state--error {
+  background: oklch(96% 0.04 25);
+  color: var(--color-red);
+}
+
+.preferences-state--error p {
+  margin-top: var(--sp-2);
+  color: var(--color-red);
+}
+
+.preferences-state--empty {
+  margin-top: 0;
+  background: var(--color-surface);
+  color: var(--color-teal-900);
+}
+
+.preferences-notice {
+  margin: var(--sp-2) 0 0;
+  color: var(--color-teal-800);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.preferences-notice--error {
+  color: var(--color-red);
+}
+
+.preferences-form__submit {
+  width: 100%;
+  margin-top: var(--sp-2);
+}
+
+@media (max-width: 900px) {
+  .preferences-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .auth-page {
+    align-items: start;
+    padding: var(--sp-4);
+  }
+
+  .auth-card,
+  .auth-card--wide {
+    width: 100%;
+    padding: var(--sp-5);
+  }
+
+  .auth-card__back {
+    margin-bottom: var(--sp-5);
+  }
+
+  .auth-status {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-status__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .auth-status__actions > a,
+  .auth-status__actions > button {
+    width: 100%;
+  }
+
+  .preferences-account,
+  .preferences-card {
+    padding: var(--sp-5);
+  }
+
+  .preferences-card__heading {
+    align-items: center;
+  }
+
+  .preferences-form__selects {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .auth-page *,
+  .preferences-page * {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .auth-page .button:hover,
+  .auth-page .outline-button:hover,
+  .preferences-page .button:hover,
+  .preferences-page .outline-button:hover,
+  .preferences-page .text-button:hover {
+    transform: none;
   }
 }

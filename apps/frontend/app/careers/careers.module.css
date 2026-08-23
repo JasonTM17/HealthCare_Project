@@ -46,14 +46,14 @@
   color: var(--career-navy);
   font-family: var(--font-vietnamese-ui);
   font-weight: 700;
-  letter-spacing: -0.035em;
+  letter-spacing: 0;
   line-height: 1.12;
 }
 
 .heroCopy h1 {
   max-width: 16ch;
   margin-top: 1rem;
-  font-size: clamp(2.65rem, 5.2vw, 4.85rem);
+  font-size: 4.85rem;
 }
 
 .heroCopy > p {
@@ -184,7 +184,7 @@
 
 .values { padding-block: clamp(5rem, 9vw, 8rem); }
 .sectionIntro { max-width: 43rem; }
-.sectionIntro h2 { margin-top: 0.8rem; font-size: clamp(2rem, 3.7vw, 3.25rem); }
+.sectionIntro h2 { margin-top: 0.8rem; font-size: 3.25rem; }
 .sectionIntro > p { margin: 1rem 0 0; color: #587078; line-height: 1.75; }
 
 .valueGrid {
@@ -219,7 +219,7 @@
 }
 
 .cmsBody > div { max-width: 48rem; }
-.cmsBody h2 { margin: 0.55rem 0 0; color: var(--career-navy); font-size: clamp(1.45rem, 2.8vw, 2.1rem); letter-spacing: -0.025em; }
+.cmsBody h2 { margin: 0.55rem 0 0; color: var(--career-navy); font-size: 2.1rem; letter-spacing: 0; }
 .cmsBody p { margin: 0.7rem 0 0; color: #587078; line-height: 1.7; }
 
 .openings { padding-block: clamp(5rem, 9vw, 8rem); background: #f4f7f5; }
@@ -295,7 +295,7 @@
   margin-top: 1rem;
 }
 
-.jobMain h3 { margin: 0; color: var(--career-navy); font-size: clamp(1.35rem, 2vw, 1.7rem); letter-spacing: -0.02em; }
+.jobMain h3 { margin: 0; color: var(--career-navy); font-size: 1.7rem; letter-spacing: 0; }
 .jobMeta { margin-top: 0.6rem; color: #587178; font-size: 0.84rem; }
 .jobMeta span { display: inline-flex; gap: 0.35rem; align-items: center; }
 .jobMain p { max-width: 48rem; margin: 1rem 0 0; color: #506a72; }
@@ -386,7 +386,7 @@
 
 .dialogHeader { padding-right: 3rem; }
 .dialogHeader h2,
-.successState h2 { margin-top: 0.7rem; font-size: clamp(1.65rem, 4vw, 2.3rem); }
+.successState h2 { margin-top: 0.7rem; font-size: 2.3rem; }
 .dialogHeader p { margin: 0.65rem 0 0; color: #5b7279; }
 .applicationForm { margin-top: 1.7rem; }
 .formGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
@@ -417,7 +417,8 @@
 @media (max-width: 900px) {
   .inner { width: min(100% - 3rem, 80rem); }
   .heroGrid { grid-template-columns: 1fr; min-height: auto; }
-  .heroCopy h1 { max-width: 18ch; }
+  .heroCopy h1 { max-width: 18ch; font-size: 3.85rem; }
+  .sectionIntro h2 { font-size: 2.75rem; }
   .heroVisual { max-width: 34rem; }
   .openingsHeading { align-items: start; flex-direction: column; }
   .cmsBody { align-items: start; flex-direction: column; }
@@ -432,7 +433,12 @@
 @media (max-width: 640px) {
   .inner { width: min(100% - 2rem, 80rem); }
   .heroGrid { gap: 3.5rem; padding-block: 3.5rem 5rem; }
-  .heroCopy h1 { font-size: clamp(2.4rem, 12vw, 3.4rem); }
+  .heroCopy h1 { font-size: 3.15rem; }
+  .sectionIntro h2 { font-size: 2.3rem; }
+  .cmsBody h2 { font-size: 1.85rem; }
+  .jobMain h3 { font-size: 1.5rem; }
+  .dialogHeader h2,
+  .successState h2 { font-size: 2rem; }
   .heroActions, .heroActions > *, .filters, .primaryButton, .secondaryButton { width: 100%; }
   .heroVisual { padding-inline: 1rem; }
   .heroBadge { right: 1rem; }

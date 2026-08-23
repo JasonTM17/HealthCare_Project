@@ -4,11 +4,13 @@ import com.healthcare.ai.controller.AiController;
 import com.healthcare.ai.service.AiService;
 import com.healthcare.hospital.entity.Specialty;
 import com.healthcare.hospital.repository.SpecialtyRepository;
+import jakarta.validation.Validation;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import static org.mockito.Mockito.verify;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -16,6 +18,70 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class AiControllerTest {
+
+    @Test
+    void forwardsChatAndStripsUntrustedIdentityAndCitationUrls() {
+        AiService aiService = mock(AiService.class);
+        SpecialtyRepository specialtyRepository = mock(SpecialtyRepository.class);
+        when(aiService.chat(any())).thenReturn(Map.of(
+            "answer", "Hello",
+            "recommended_specialty_id", "provider-id",
+            "doctor_id", "provider-doctor",
+            "service_slug", "provider-service",
+            "citations", List.of(Map.of(
+                "source_type", "article", "source_id", "article-1", "title", "Article",
+                "url", "https://provider.example"
+            ))
+        ));
+
+        Map<String, Object> body = new AiController(aiService, specialtyRepository)
+            .chat(new AiController.ChatRequest("hello", List.of(new AiController.ChatTurn("user", "hi"))))
+            .getBody();
+
+        assertThat(body).containsEntry("answer", "Hello")
+            .doesNotContainKey("recommended_specialty_id")
+            .doesNotContainKeys("doctor_id", "service_slug")
+            .containsEntry("citations", List.of(Map.of(
+                "source_type", "article", "source_id", "article-1", "title", "Article")));
+        verify(aiService).chat(Map.of(
+            "message", "hello",
+            "recent_history", List.of(new AiController.ChatTurn("user", "hi"))
+        ));
+    }
+
+    @Test
+    void chatTurnContentMatchesTheAiServiceBoundary() {
+        var validator = Validation.buildDefaultValidatorFactory().getValidator();
+
+        var violations = validator.validate(
+            new AiController.ChatTurn("user", "a".repeat(2_001))
+        );
+
+        assertThat(violations)
+            .anySatisfy(violation -> assertThat(violation.getPropertyPath().toString()).isEqualTo("content"));
+    }
+
+    @Test
+    void dropsMalformedOrOversizedChatCitations() {
+        AiService aiService = mock(AiService.class);
+        SpecialtyRepository specialtyRepository = mock(SpecialtyRepository.class);
+        when(aiService.chat(any())).thenReturn(Map.of(
+            "answer", "Hello",
+            "citations", List.of(
+                Map.of("source_type", "faq", "source_id", "faq-1", "title", "  FAQ  "),
+                Map.of("source_type", "faq", "source_id", "bad id", "title", "Bad"),
+                Map.of("source_type", "faq", "source_id", "faq-2", "title", "x".repeat(301))
+            )
+        ));
+
+        Map<String, Object> body = new AiController(aiService, specialtyRepository)
+            .chat(new AiController.ChatRequest("hello", List.of()))
+            .getBody();
+
+        assertThat(body).containsEntry("citations", List.of(
+            Map.of("source_type", "faq", "source_id", "faq-1", "title", "FAQ")
+        ));
+    }
 
     @Test
     void stripsUpstreamIdentityWhenNoActiveSpecialtyCanBeResolved() {

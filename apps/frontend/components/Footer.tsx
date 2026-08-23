@@ -35,6 +35,7 @@ const Footer: React.FC<FooterProps> = ({ branches = [], cmsSlug }) => {
 
       <nav aria-label="Khám phá HealthCare" className="footer-column">
         <h2>Khám phá</h2>
+        <Link href="/about">Về chúng tôi</Link>
         <Link href="/specialties">Chuyên khoa</Link>
         <Link href="/packages">Gói khám</Link>
         <Link href="/doctors">Đội ngũ bác sĩ</Link>
@@ -49,6 +50,7 @@ const Footer: React.FC<FooterProps> = ({ branches = [], cmsSlug }) => {
         <Link href="/search">Tìm bác sĩ và dịch vụ</Link>
         <Link href="/branches">Cơ sở và giờ làm việc</Link>
         <Link href="/contact">Liên hệ bệnh viện</Link>
+        <Link href="/chinh-sach-bao-mat">Chính sách bảo mật</Link>
       </nav>
 
       <aside className="footer-contact">
@@ -82,9 +84,10 @@ const Footer: React.FC<FooterProps> = ({ branches = [], cmsSlug }) => {
     </div>
 
     <nav aria-label="Lối tắt trên thiết bị nhỏ" className="mobile-care-rail">
-      {contactHref ? <a href={contactHref}><Icon name="phone" size={19} /><span>Gọi ngay</span></a> : <Link href="/contact"><Icon name="phone" size={19} /><span>Liên hệ</span></Link>}
-      <Link className="mobile-care-rail__primary" href="/dat-lich"><Icon name="calendar" size={19} /><span>Đặt lịch</span></Link>
-      <Link href="/tra-cuu"><Icon name="search" size={19} /><span>Tra cứu</span></Link>
+      <Link href="/specialties"><Icon name="layers" size={19} /><span>Chuyên khoa</span></Link>
+      <Link href="/doctors"><Icon name="stethoscope" size={19} /><span>Tìm bác sĩ</span></Link>
+      <Link className="mobile-care-rail__primary" href="/dat-lich"><Icon name="calendar" size={19} /><span>Đặt lịch hẹn</span></Link>
+      {contactHref ? <a href={contactHref}><Icon name="phone" size={19} /><span>Liên hệ</span></a> : <Link href="/contact"><Icon name="phone" size={19} /><span>Liên hệ</span></Link>}
     </nav>
   </footer>
   );

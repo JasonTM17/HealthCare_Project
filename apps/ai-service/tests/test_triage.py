@@ -54,7 +54,7 @@ def test_triage_enforces_configured_input_limit(monkeypatch: pytest.MonkeyPatch)
     assert "configured limit" in response.json()["detail"]
 
 
-def test_remote_provider_failure_returns_503_outside_local_runtime(
+def test_emergency_triage_never_calls_remote_provider_outside_local_runtime(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(settings, "ai_provider", "deepseek")
@@ -63,15 +63,16 @@ def test_remote_provider_failure_returns_503_outside_local_runtime(
     monkeypatch.setattr(settings, "ai_service_runtime", "staging")
     monkeypatch.setattr(settings, "ai_service_token", "service-token")
 
-    with patch("openai.OpenAI", side_effect=RuntimeError("provider down")):
+    with patch("openai.OpenAI", side_effect=RuntimeError("provider down")) as remote_client:
         response = client.post(
             "/triage",
             json={"symptoms": "đau ngực dữ dội"},
             headers={"X-AI-Service-Token": "service-token"},
         )
 
-    assert response.status_code == 503
-    assert response.json()["detail"] == "AI provider unavailable"
+    assert response.status_code == 200
+    assert response.json()["provenance"] == "local_fallback"
+    remote_client.assert_not_called()
 
 
 def test_local_provider_failure_is_explicitly_labeled_fallback(

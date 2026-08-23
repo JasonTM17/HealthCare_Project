@@ -111,9 +111,9 @@
   margin: var(--sp-2) 0 0;
   color: var(--color-teal-950);
   font-family: var(--font-display);
-  font-size: clamp(1.5rem, 3vw, 2.25rem);
+  font-size: 2.25rem;
   line-height: 1.15;
-  letter-spacing: -0.025em;
+  letter-spacing: 0;
 }
 
 .branch-map-section__header > p {
@@ -186,7 +186,7 @@
   display: block;
   color: var(--color-teal-950);
   font-family: var(--font-display);
-  font-size: clamp(1.15rem, 2.5vw, 1.5rem);
+  font-size: 1.5rem;
 }
 
 .branch-map__placeholder p {
@@ -287,6 +287,14 @@
 }
 
 @media (max-width: 720px) {
+  .branch-map-section__header h2 {
+    font-size: 1.85rem;
+  }
+
+  .branch-map__placeholder strong {
+    font-size: 1.3rem;
+  }
+
   .branch-map-section__header {
     display: grid;
   }

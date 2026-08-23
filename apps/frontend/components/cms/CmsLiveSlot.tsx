@@ -20,6 +20,8 @@ export interface CmsLiveSlotProps {
   pollIntervalMs?: number;
   className?: string;
   showSourceLabel?: boolean;
+  /** Keep transport, version, and transient CMS diagnostics out of patient-facing slots. */
+  quiet?: boolean;
   /** Optional slots stay out of the layout until an admin publishes them. */
   hideWhenNotFound?: boolean;
   /** Optional route slots should not reserve layout space during their first read. */
@@ -42,6 +44,14 @@ function errorMessage(error: unknown): string {
   return "Không thể tải nội dung live.";
 }
 
+const PUBLIC_TECHNICAL_COPY_PATTERN = /\b(?:live cms|change-feed|polling|transport|demo|placeholder)\b/i;
+
+function containsPublicTechnicalCopy(content: CmsContent): boolean {
+  return Object.values(content.payload).some(
+    (value) => typeof value === "string" && PUBLIC_TECHNICAL_COPY_PATTERN.test(value),
+  );
+}
+
 export function CmsLiveSlot({
   slug,
   slotKey,
@@ -49,18 +59,24 @@ export function CmsLiveSlot({
   pollIntervalMs = 15_000,
   className = "",
   showSourceLabel = true,
+  quiet = false,
   hideWhenNotFound = false,
   hideWhileLoading = false,
   renderContent,
   fallback,
 }: CmsLiveSlotProps): ReactElement {
   const backendSlotKey = resolveCmsSlotKey(slug, slotKey);
+  // Public callers already opt out of the source label. Treat that as a
+  // patient-facing slot even when the older caller has not passed `quiet` yet.
+  const publicQuiet = quiet || !showSourceLabel;
+  const slotAriaLabel = publicQuiet ? "Thông tin bệnh viện" : `Nội dung live ${slotKey}`;
   const [content, setContent] = useState<CmsContent | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
   const [transport, setTransport] = useState<LiveTransport>("connecting");
   const [liveNotice, setLiveNotice] = useState<string | null>(null);
   const latestVersion = useRef(0);
+  const suppressTechnicalCopy = publicQuiet && content !== null && containsPublicTechnicalCopy(content);
 
   useEffect(() => {
     let cancelled = false;
@@ -403,7 +419,7 @@ export function CmsLiveSlot({
           data-cms-live-slot={slotKey}
           data-cms-live-source="live-backend"
         >
-          {error ? (
+          {!publicQuiet && error ? (
             <p className="cms-live-slot__fallback-note" role="status">
               {errorMessage(error)} Đang hiển thị giao diện có sẵn trong lúc CMS đồng bộ lại.
             </p>
@@ -419,13 +435,13 @@ export function CmsLiveSlot({
     return (
       <div
         aria-busy={loading}
-        aria-label={`Nội dung live ${slotKey}`}
+        aria-label={slotAriaLabel}
         className={className}
         data-cms-backend-slot={backendSlotKey}
         data-cms-live-slot={slotKey}
         data-cms-live-source="live-backend"
       >
-        {error ? (
+        {!publicQuiet && error ? (
           <p className="cms-live-slot__fallback-note" role="status">
             {errorMessage(error)} Đang hiển thị giao diện có sẵn trong lúc CMS đồng bộ lại.
           </p>
@@ -435,29 +451,48 @@ export function CmsLiveSlot({
     );
   }
 
+  if (suppressTechnicalCopy) {
+    if (fallback !== undefined) {
+      return (
+        <div
+          aria-busy={loading}
+          aria-label={slotAriaLabel}
+          className={className}
+          data-cms-backend-slot={backendSlotKey}
+          data-cms-live-slot={slotKey}
+          data-cms-live-source="live-backend"
+          data-cms-suppressed="technical-copy"
+        >
+          {fallback}
+        </div>
+      );
+    }
+    return <></>;
+  }
+
   if (content && renderContent) {
     return (
       <div
         aria-busy={loading}
-        aria-label={`Nội dung live ${slotKey}`}
+        aria-label={slotAriaLabel}
         className={className}
         data-cms-backend-slot={backendSlotKey}
         data-cms-live-slot={slotKey}
         data-cms-live-source="live-backend"
         data-cms-version={content.version}
       >
-        {showSourceLabel ? (
+        {showSourceLabel && !publicQuiet ? (
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-slate-500">
             <span>{sourceLabel}</span>
             <span>Version {content.version}</span>
           </div>
         ) : null}
-        {error && content ? (
+        {!publicQuiet && error && content ? (
           <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950" role="status">
             Đang hiển thị version {content.version} gần nhất; lần đồng bộ live tiếp theo sẽ thử lại.
           </p>
         ) : null}
-        {liveNotice ? <p className="mb-4 rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm text-teal-950" role="status">{liveNotice}</p> : null}
+        {!publicQuiet && liveNotice ? <p className="mb-4 rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm text-teal-950" role="status">{liveNotice}</p> : null}
         {renderContent(content)}
       </div>
     );
@@ -466,13 +501,13 @@ export function CmsLiveSlot({
   return (
     <section
       aria-busy={loading}
-      aria-label={`Nội dung live ${slotKey}`}
+      aria-label={slotAriaLabel}
       className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6 ${className}`}
       data-cms-live-source="live-backend"
       data-cms-live-slot={slotKey}
       data-cms-backend-slot={backendSlotKey}
     >
-      {showSourceLabel ? (
+      {showSourceLabel && !publicQuiet ? (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-slate-500">
           <span>{sourceLabel}</span>
           <span>{content ? `Version ${content.version}` : backendSlotKey}</span>
@@ -481,17 +516,17 @@ export function CmsLiveSlot({
 
       {error && !content ? (
         <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950" role="alert">
-          {errorMessage(error)} Không có dữ liệu demo thay thế.
+          {publicQuiet ? "Thông tin đang được cập nhật. Vui lòng thử lại sau." : `${errorMessage(error)} Không có nội dung thay thế.`}
         </p>
       ) : null}
 
-      {error && content ? (
+      {!publicQuiet && error && content ? (
         <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950" role="status">
           Đang hiển thị version {content.version} gần nhất; lần đồng bộ live tiếp theo sẽ thử lại.
         </p>
       ) : null}
 
-      {liveNotice ? <p className="mb-4 rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm text-teal-950" role="status">{liveNotice}</p> : null}
+      {!publicQuiet && liveNotice ? <p className="mb-4 rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm text-teal-950" role="status">{liveNotice}</p> : null}
 
       {loading && !content ? <p className="text-sm text-slate-500" role="status">Đang tải nội dung live…</p> : null}
       {content ? <CmsSlotRenderer content={content} slotKey={slotKey} /> : null}

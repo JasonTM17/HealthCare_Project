@@ -6,6 +6,7 @@ import com.healthcare.hospital.repository.SpecialtyRepository;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -35,6 +36,12 @@ public class AiController {
         "specialty", "doctor", "service", "package", "article", "faq"
     );
     private static final Pattern CITATION_SOURCE_ID_PATTERN = Pattern.compile("^[A-Za-z0-9._:-]+$");
+    private static final Pattern TOP_LEVEL_IDENTITY_FIELD_PATTERN = Pattern.compile(
+        "^(?:id|slug|uuid|.+_(?:id|slug|uuid))$",
+        Pattern.CASE_INSENSITIVE
+    );
+    private static final int MAX_CITATION_SOURCE_ID_LENGTH = 200;
+    private static final int MAX_CITATION_TITLE_LENGTH = 300;
 
     private final AiService aiService;
     private final SpecialtyRepository specialtyRepository;
@@ -57,8 +64,7 @@ public class AiController {
         // Never trust an upstream model/provider identity. The only identity
         // allowed to cross this boundary is the one resolved from active SQL
         // catalog rows below.
-        result.remove("recommended_specialty_id");
-        result.remove("recommended_specialty_slug");
+        stripTopLevelIdentityFields(result);
         result.remove("specialty_resolution");
         result.put("citations", identityOnlyCitations(result.get("citations")));
         Specialty resolved = resolveSpecialty(result.get("recommended_specialty"));
@@ -70,6 +76,19 @@ public class AiController {
             result.put("recommended_specialty_slug", resolved.getSlug());
         }
         return ResponseEntity.ok(result);
+    }
+
+    @PostMapping("/chat")
+    @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
+    public ResponseEntity<Map<String, Object>> chat(@Valid @RequestBody ChatRequest request) {
+        Map<String, Object> result = new LinkedHashMap<>(aiService.chat(request.toPayload()));
+        stripTopLevelIdentityFields(result);
+        result.put("citations", identityOnlyCitations(result.get("citations")));
+        return ResponseEntity.ok(result);
+    }
+
+    private void stripTopLevelIdentityFields(Map<String, Object> result) {
+        result.keySet().removeIf(key -> TOP_LEVEL_IDENTITY_FIELD_PATTERN.matcher(key).matches());
     }
 
     private List<Map<String, String>> identityOnlyCitations(Object citations) {
@@ -88,12 +107,14 @@ public class AiController {
         if (!(sourceType instanceof String type)
             || !ALLOWED_CITATION_SOURCE_TYPES.contains(type)
             || !(sourceId instanceof String id)
+            || id.length() > MAX_CITATION_SOURCE_ID_LENGTH
             || !CITATION_SOURCE_ID_PATTERN.matcher(id).matches()
             || !(title instanceof String citationTitle)
-            || citationTitle.isBlank()) {
+            || citationTitle.isBlank()
+            || citationTitle.strip().length() > MAX_CITATION_TITLE_LENGTH) {
             return null;
         }
-        return Map.of("source_type", type, "source_id", id, "title", citationTitle);
+        return Map.of("source_type", type, "source_id", id, "title", citationTitle.strip());
     }
 
     private Specialty resolveSpecialty(Object recommendation) {
@@ -138,5 +159,23 @@ public class AiController {
     }
 
     public record AiRequest(@NotBlank @Size(min = 2, max = 10_000) String symptoms) {
+    }
+
+    public record ChatRequest(
+        @NotBlank @Size(min = 2, max = 10_000) String message,
+        @JsonProperty("recent_history") @Size(max = 6) List<@Valid ChatTurn> recentHistory
+    ) {
+        Map<String, Object> toPayload() {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("message", message);
+            if (recentHistory != null) payload.put("recent_history", recentHistory);
+            return payload;
+        }
+    }
+
+    public record ChatTurn(
+        @NotBlank @jakarta.validation.constraints.Pattern(regexp = "user|assistant") String role,
+        @NotBlank @Size(max = 2_000) String content
+    ) {
     }
 }
