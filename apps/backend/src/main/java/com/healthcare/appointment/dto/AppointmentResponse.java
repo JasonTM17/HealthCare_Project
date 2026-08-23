@@ -26,6 +26,9 @@ public record AppointmentResponse(
     AppointmentStatus status,
     String paymentStatus,
     String reasonForVisit,
+    boolean hasInsurance,
+    OffsetDateTime privacyConsentAt,
+    String privacyConsentVersion,
     OffsetDateTime createdAt
 ) {
 }

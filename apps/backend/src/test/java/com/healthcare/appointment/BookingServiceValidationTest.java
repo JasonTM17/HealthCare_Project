@@ -30,6 +30,32 @@ import static org.mockito.Mockito.when;
 class BookingServiceValidationTest {
 
     @Test
+    void rejectsHoldWithoutPrivacyConsentBeforeCatalogLookup() {
+        AppointmentRepository appointments = mock(AppointmentRepository.class);
+        PatientProfileRepository patients = mock(PatientProfileRepository.class);
+        DoctorRepository doctors = mock(DoctorRepository.class);
+        DoctorBranchRepository doctorBranches = mock(DoctorBranchRepository.class);
+        DoctorSpecialtyRepository doctorSpecialties = mock(DoctorSpecialtyRepository.class);
+        SpecialtyRepository specialties = mock(SpecialtyRepository.class);
+        BranchRepository branches = mock(BranchRepository.class);
+        PackageRepository packages = mock(PackageRepository.class);
+        UserRepository users = mock(UserRepository.class);
+        ScheduleService schedules = mock(ScheduleService.class);
+        NotificationService notifications = mock(NotificationService.class);
+
+        BookingService service = new BookingService(
+            appointments, patients, doctors, doctorBranches, doctorSpecialties, specialties,
+            branches, packages, users, schedules, notifications);
+        HoldSlotRequest request = new HoldSlotRequest(
+            UUID.randomUUID(), LocalDate.now().plusDays(1), LocalTime.of(9, 0),
+            "Bệnh nhân", "0900000001", null, null, null, null, null, false, false);
+
+        assertThatThrownBy(() -> service.holdSlot(request))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("Cần đồng ý chính sách bảo mật");
+    }
+
+    @Test
     void rejectsSpecialtyThatIsNotAssignedToSelectedDoctor() {
         AppointmentRepository appointments = mock(AppointmentRepository.class);
         PatientProfileRepository patients = mock(PatientProfileRepository.class);

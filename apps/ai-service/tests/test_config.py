@@ -5,6 +5,28 @@ import pytest
 from app.config import Settings
 
 
+def test_patient_chat_remote_provider_is_disabled_by_default() -> None:
+    assert Settings().ai_patient_chat_remote_enabled is False
+
+
+def test_deepseek_defaults_to_v4_flash_when_no_model_is_configured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for name in (
+        "AI_PROVIDER",
+        "AI_API_KEY",
+        "AI_CHAT_MODEL",
+        "DEEPSEEK_API_KEY",
+        "DEEPSEEK_MODEL",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("AI_PROVIDER", "deepseek")
+
+    settings = Settings()
+
+    assert settings.ai_chat_model == "deepseek-v4-flash"
+
+
 def test_legacy_deepseek_values_fill_empty_provider_neutral_values(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

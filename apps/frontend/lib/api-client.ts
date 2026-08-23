@@ -14,6 +14,7 @@ import type {
   Prescription,
   PrescriptionItem,
   UserProfile,
+  UserPreferences,
   PatientProfile,
   PatientGender,
   StoredFile,
@@ -30,6 +31,12 @@ import type {
   JobPosition,
   JobApplicationPayload,
   JobApplicationReceipt,
+  AiConversation,
+  AiChatCitation,
+  AiChatMessage,
+  AiChatProvenance,
+  AiChatMessagePage,
+  AiChatExchange,
 } from "../types/hospital";
 
 export type {
@@ -48,6 +55,7 @@ export type {
   Prescription,
   PrescriptionItem,
   UserProfile,
+  UserPreferences,
   PatientProfile,
   PatientGender,
   StoredFile,
@@ -64,6 +72,12 @@ export type {
   JobPosition,
   JobApplicationPayload,
   JobApplicationReceipt,
+  AiConversation,
+  AiChatCitation,
+  AiChatMessage,
+  AiChatProvenance,
+  AiChatMessagePage,
+  AiChatExchange,
 };
 
 const API_BASE_URL =
@@ -99,13 +113,56 @@ export async function fetchAllContent<T>(
 export class ApiError extends Error {
   readonly status: number;
   readonly path: string;
+  readonly code: string | null;
+  readonly fieldErrors: Readonly<Record<string, string>>;
 
-  constructor(message: string, status: number, path: string) {
+  constructor(
+    message: string,
+    status: number,
+    path: string,
+    options: { code?: string | null; fieldErrors?: Record<string, string> } = {},
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.path = path;
+    this.code = options.code ?? null;
+    this.fieldErrors = options.fieldErrors ?? {};
   }
+}
+
+function parseFieldErrors(value: unknown): Record<string, string> {
+  if (isRecord(value)) {
+    return Object.fromEntries(
+      Object.entries(value).flatMap(([field, message]) => {
+        if (typeof message === "string" && message.trim()) return [[field, message.trim()]];
+        if (Array.isArray(message)) {
+          const firstMessage = message.find(
+            (item): item is string => typeof item === "string" && Boolean(item.trim()),
+          );
+          if (firstMessage) return [[field, firstMessage.trim()]];
+        }
+        return [];
+      }),
+    );
+  }
+
+  if (Array.isArray(value)) {
+    return Object.fromEntries(
+      value.flatMap((item) => {
+        if (!isRecord(item)) return [];
+        const field = typeof item.field === "string"
+          ? item.field
+          : typeof item.name === "string"
+            ? item.name
+            : null;
+        const message = typeof item.message === "string" ? item.message.trim() : "";
+        return field && message ? [[field, message]] : [];
+      }),
+    );
+  }
+
+  return {};
 }
 
 async function apiErrorFromResponse(
@@ -115,14 +172,21 @@ async function apiErrorFromResponse(
 ): Promise<ApiError> {
   const responseText = await res.text();
   let message = fallbackMessage;
+  let code: string | null = null;
+  let fieldErrors: Record<string, string> = {};
   try {
-    const errorBody = JSON.parse(responseText) as { message?: unknown; error?: unknown };
+    const parsed = JSON.parse(responseText) as unknown;
+    const errorBody = isRecord(parsed) ? parsed : {};
     if (typeof errorBody.message === "string") message = errorBody.message;
     else if (typeof errorBody.error === "string") message = errorBody.error;
+    if (typeof errorBody.code === "string") code = errorBody.code;
+    else if (typeof errorBody.errorCode === "string") code = errorBody.errorCode;
+    fieldErrors = parseFieldErrors(errorBody.fieldErrors ?? errorBody.validationErrors ?? errorBody.errors);
   } catch {
     // Keep the user-facing error generic when the server does not return JSON.
   }
-  return new ApiError(message, res.status, path);
+  if (!code && Object.keys(fieldErrors).length === 0) return new ApiError(message, res.status, path);
+  return new ApiError(message, res.status, path, { code, fieldErrors });
 }
 
 async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -154,7 +218,12 @@ async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
   }
   if (res.status === 204) return undefined as T;
   const responseText = await res.text();
-  return (responseText ? JSON.parse(responseText) : undefined) as T;
+  if (!responseText) return undefined as T;
+  try {
+    return JSON.parse(responseText) as T;
+  } catch {
+    throw new ApiError("Hệ thống trả về dữ liệu không hợp lệ. Vui lòng thử lại sau.", 502, path);
+  }
 }
 
 const AUTH_STORAGE_KEY = "healthcare.auth.session";
@@ -163,6 +232,7 @@ let authSessionSnapshotCache: { raw: string | null; session: AuthSession | null 
   raw: null,
   session: null,
 };
+let authSessionVersion = 0;
 
 function notifyAuthSessionChange(): void {
   if (typeof window !== "undefined") {
@@ -178,8 +248,13 @@ function isAuthUser(value: unknown): value is AuthUser {
     typeof user.email === "string" &&
     typeof user.displayName === "string" &&
     Array.isArray(user.roles) &&
-    user.roles.every((role) => typeof role === "string")
+    user.roles.every((role) => typeof role === "string") &&
+    (typeof user.emailVerified === "undefined" || typeof user.emailVerified === "boolean")
   );
+}
+
+function normalizeAuthUser(user: AuthUser): AuthUser {
+  return { ...user, emailVerified: user.emailVerified !== false };
 }
 
 export function readAuthSession(): AuthSession | null {
@@ -205,7 +280,10 @@ export function readAuthSession(): AuthSession | null {
       authSessionSnapshotCache.session = null;
       return null;
     }
-    authSessionSnapshotCache.session = parsed as AuthSession;
+    authSessionSnapshotCache.session = {
+      ...(parsed as AuthSession),
+      user: normalizeAuthUser(parsed.user),
+    };
     return authSessionSnapshotCache.session;
   } catch {
     authSessionSnapshotCache.session = null;
@@ -215,9 +293,14 @@ export function readAuthSession(): AuthSession | null {
 
 export function storeAuthSession(session: AuthSession): void {
   if (typeof window !== "undefined") {
-    const raw = JSON.stringify(session);
+    const normalizedSession: AuthSession = {
+      ...session,
+      user: normalizeAuthUser(session.user),
+    };
+    const raw = JSON.stringify(normalizedSession);
     window.sessionStorage.setItem(AUTH_STORAGE_KEY, raw);
-    authSessionSnapshotCache = { raw, session };
+    authSessionSnapshotCache = { raw, session: normalizedSession };
+    authSessionVersion += 1;
     notifyAuthSessionChange();
   }
 }
@@ -226,6 +309,7 @@ export function clearAuthSession(): void {
   if (typeof window !== "undefined") {
     window.sessionStorage.removeItem(AUTH_STORAGE_KEY);
     authSessionSnapshotCache = { raw: null, session: null };
+    authSessionVersion += 1;
     notifyAuthSessionChange();
   }
 }
@@ -251,7 +335,37 @@ export function hasRole(user: AuthUser | UserProfile, role: string): boolean {
   );
 }
 
-let refreshAuthSessionPromise: Promise<AuthSession | null> | null = null;
+interface RefreshAuthSessionFlight {
+  refreshToken: string;
+  sessionVersion: number;
+  promise: Promise<AuthSession | null>;
+}
+
+let refreshAuthSessionFlight: RefreshAuthSessionFlight | null = null;
+
+function authSessionsMatch(
+  currentSession: AuthSession | null,
+  expectedSession: AuthSession,
+): boolean {
+  return Boolean(
+    currentSession
+    && currentSession.user.id === expectedSession.user.id
+    && currentSession.accessToken === expectedSession.accessToken
+    && currentSession.refreshToken === expectedSession.refreshToken,
+  );
+}
+
+function clearAuthSessionIfCurrent(
+  expectedSession: AuthSession,
+  expectedVersion: number,
+): void {
+  if (
+    authSessionVersion === expectedVersion
+    && authSessionsMatch(readAuthSession(), expectedSession)
+  ) {
+    clearAuthSession();
+  }
+}
 
 function expiredSessionError(path: string): ApiError {
   return new ApiError("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.", 401, path);
@@ -259,27 +373,50 @@ function expiredSessionError(path: string): ApiError {
 
 async function refreshStoredAuthSession(currentSession: AuthSession): Promise<AuthSession | null> {
   const latestSession = readAuthSession();
-  if (latestSession && latestSession.refreshToken !== currentSession.refreshToken) {
-    return latestSession;
+  if (!authSessionsMatch(latestSession, currentSession)) {
+    return null;
   }
 
-  refreshAuthSessionPromise ??= getJson<AuthSession>("/auth/refresh", {
+  const sessionVersion = authSessionVersion;
+  if (
+    refreshAuthSessionFlight
+    && refreshAuthSessionFlight.refreshToken === currentSession.refreshToken
+    && refreshAuthSessionFlight.sessionVersion === sessionVersion
+  ) {
+    return refreshAuthSessionFlight.promise;
+  }
+
+  const flight: RefreshAuthSessionFlight = {
+    refreshToken: currentSession.refreshToken,
+    sessionVersion,
+    promise: Promise.resolve(null),
+  };
+  flight.promise = getJson<AuthSession>("/auth/refresh", {
     method: "POST",
     body: JSON.stringify({ refreshToken: currentSession.refreshToken }),
   })
     .then((session) => {
+      if (
+        authSessionVersion !== sessionVersion
+        || !authSessionsMatch(readAuthSession(), currentSession)
+      ) {
+        return null;
+      }
       storeAuthSession(session);
-      return session;
+      return readAuthSession();
     })
     .catch(() => {
-      clearAuthSession();
+      clearAuthSessionIfCurrent(currentSession, sessionVersion);
       return null;
     })
     .finally(() => {
-      refreshAuthSessionPromise = null;
+      if (refreshAuthSessionFlight === flight) {
+        refreshAuthSessionFlight = null;
+      }
     });
+  refreshAuthSessionFlight = flight;
 
-  return refreshAuthSessionPromise;
+  return flight.promise;
 }
 
 async function withAuthenticatedSession<T>(
@@ -299,11 +436,12 @@ async function withAuthenticatedSession<T>(
     const refreshedSession = await refreshStoredAuthSession(session);
     if (!refreshedSession) throw expiredSessionError(path);
 
+    const retrySessionVersion = authSessionVersion;
     try {
       return await request(refreshedSession);
     } catch (retryError) {
       if (retryError instanceof ApiError && retryError.status === 401) {
-        clearAuthSession();
+        clearAuthSessionIfCurrent(refreshedSession, retrySessionVersion);
       }
       throw retryError;
     }
@@ -357,6 +495,133 @@ function isAiTriageCitation(value: unknown): value is AiTriageCitation {
 
 function isAiTriageProvenance(value: unknown): value is AiTriageProvenance {
   return typeof value === "string" || isRecord(value);
+}
+
+const AI_CHAT_PROVENANCES = ["local_provider", "remote_provider", "local_fallback"] as const;
+const AI_CHAT_STATUSES = ["PENDING", "COMPLETED", "FAILED"] as const;
+const AI_CHAT_ROLES = ["USER", "ASSISTANT"] as const;
+
+function isAiChatStatus(value: unknown): value is AiChatMessage["status"] {
+  return (AI_CHAT_STATUSES as readonly unknown[]).includes(value);
+}
+
+function isAiChatRole(value: unknown): value is AiChatMessage["role"] {
+  return (AI_CHAT_ROLES as readonly unknown[]).includes(value);
+}
+
+function isAiChatProvenance(value: unknown): value is AiChatProvenance {
+  return (AI_CHAT_PROVENANCES as readonly unknown[]).includes(value);
+}
+
+function invalidAiChatResponse(path: string): ApiError {
+  return new ApiError(
+    "Dữ liệu trợ lý trả về chưa đúng định dạng an toàn.",
+    502,
+    path,
+    { code: "AI_RESPONSE_INVALID" },
+  );
+}
+
+function isSafeChatCitation(value: unknown): value is AiChatCitation {
+  return isRecord(value)
+    && Object.keys(value).length === 3
+    && typeof value.source_type === "string"
+    && (AI_CITATION_SOURCE_TYPES as readonly string[]).includes(value.source_type)
+    && typeof value.source_id === "string"
+    && AI_CITATION_ID_PATTERN.test(value.source_id)
+    && typeof value.title === "string"
+    && value.title.trim().length > 0
+    && value.title.length <= 300;
+}
+
+function parseAiConversation(value: unknown, path: string): AiConversation {
+  if (!isRecord(value)) throw invalidAiChatResponse(path);
+  const status = value.status;
+  const lastMessageAt = value.lastMessageAt;
+  if (
+    typeof value.id !== "string"
+    || !value.id.trim()
+    || typeof value.title !== "string"
+    || !value.title.trim()
+    || !(status === "ACTIVE" || status === "ARCHIVED")
+    || typeof value.inFlight !== "boolean"
+    || typeof value.createdAt !== "string"
+    || typeof value.updatedAt !== "string"
+    || (typeof lastMessageAt !== "string" && lastMessageAt !== null && typeof lastMessageAt !== "undefined")
+    || typeof value.expiresAt !== "string"
+  ) {
+    throw invalidAiChatResponse(path);
+  }
+  return {
+    id: value.id,
+    title: value.title,
+    status,
+    inFlight: value.inFlight,
+    createdAt: value.createdAt,
+    updatedAt: value.updatedAt,
+    lastMessageAt: lastMessageAt ?? null,
+    expiresAt: value.expiresAt,
+  };
+}
+
+function parseAiChatMessage(value: unknown, path: string): AiChatMessage {
+  if (!isRecord(value)) throw invalidAiChatResponse(path);
+  const citations = value.citations;
+  const provenance = value.provenance;
+  const disclaimer = value.disclaimer;
+  if (
+    typeof value.id !== "string"
+    || !value.id.trim()
+    || !isAiChatRole(value.role)
+    || !isAiChatStatus(value.status)
+    || typeof value.content !== "string"
+    || typeof value.sequence !== "number"
+    || !Number.isInteger(value.sequence)
+    || !Array.isArray(citations)
+    || citations.some((citation) => !isSafeChatCitation(citation))
+    || (typeof provenance !== "string" && provenance !== null && typeof provenance !== "undefined")
+    || (typeof provenance === "string" && !isAiChatProvenance(provenance))
+    || (typeof disclaimer !== "string" && disclaimer !== null && typeof disclaimer !== "undefined")
+    || typeof value.createdAt !== "string"
+    || (typeof value.completedAt !== "string" && value.completedAt !== null && typeof value.completedAt !== "undefined")
+  ) {
+    throw invalidAiChatResponse(path);
+  }
+  return {
+    id: value.id,
+    role: value.role,
+    status: value.status,
+    content: value.content,
+    sequence: value.sequence,
+    disclaimer: disclaimer ?? null,
+    provenance: provenance ?? null,
+    citations,
+    createdAt: value.createdAt,
+    completedAt: value.completedAt ?? null,
+  };
+}
+
+function parseAiChatMessagePage(value: unknown, path: string): AiChatMessagePage {
+  if (!isRecord(value) || !Array.isArray(value.content) || typeof value.hasMore !== "boolean") {
+    throw invalidAiChatResponse(path);
+  }
+  if (value.nextCursor !== null && typeof value.nextCursor !== "string" && typeof value.nextCursor !== "undefined") {
+    throw invalidAiChatResponse(path);
+  }
+  return {
+    content: value.content.map((message) => parseAiChatMessage(message, path)),
+    nextCursor: value.nextCursor ?? null,
+    hasMore: value.hasMore,
+  };
+}
+
+function parseAiChatExchange(value: unknown, path: string): AiChatExchange {
+  if (!isRecord(value) || typeof value.replayed !== "boolean") throw invalidAiChatResponse(path);
+  return {
+    userMessage: parseAiChatMessage(value.userMessage, path),
+    assistantMessage: parseAiChatMessage(value.assistantMessage, path),
+    replayed: value.replayed,
+  };
 }
 
 /**
@@ -774,13 +1039,36 @@ export interface RegisterPayload {
   phone: string;
 }
 
-export async function register(payload: RegisterPayload): Promise<AuthSession> {
-  const session = await getJson<AuthSession>("/auth/register", {
+export interface RegistrationPendingResponse {
+  email: string;
+  verificationRequired: true;
+  message?: string;
+  expiresInSeconds: number;
+  resendAfterSeconds: number;
+}
+
+function normalizeRegistrationResponse(
+  value: unknown,
+  fallbackEmail: string,
+): RegistrationPendingResponse {
+  const response = isRecord(value) ? value : {};
+  return {
+    email: typeof response.email === "string" && response.email.trim()
+      ? response.email.trim()
+      : fallbackEmail,
+    verificationRequired: true,
+    message: typeof response.message === "string" ? response.message : undefined,
+    expiresInSeconds: typeof response.expiresInSeconds === "number" ? response.expiresInSeconds : 600,
+    resendAfterSeconds: typeof response.resendAfterSeconds === "number" ? response.resendAfterSeconds : 60,
+  };
+}
+
+export async function register(payload: RegisterPayload): Promise<RegistrationPendingResponse> {
+  const response = await getJson<unknown>("/auth/register", {
     method: "POST",
     body: JSON.stringify(payload),
   });
-  storeAuthSession(session);
-  return session;
+  return normalizeRegistrationResponse(response, payload.email);
 }
 
 export async function login(payload: LoginPayload): Promise<AuthSession> {
@@ -790,6 +1078,74 @@ export async function login(payload: LoginPayload): Promise<AuthSession> {
   });
   storeAuthSession(session);
   return session;
+}
+
+export interface VerifyEmailPayload {
+  email: string;
+  code: string;
+}
+
+export interface ResendVerificationPayload {
+  email: string;
+}
+
+export interface ForgotPasswordPayload {
+  email: string;
+}
+
+export interface ResetPasswordPayload {
+  email: string;
+  code: string;
+  password: string;
+}
+
+export interface AuthActionResponse {
+  message?: string;
+}
+
+export async function verifyEmail(payload: VerifyEmailPayload): Promise<AuthSession> {
+  const session = await getJson<AuthSession>("/auth/email-verifications/confirm", {
+    method: "POST",
+    body: JSON.stringify({ email: payload.email, otp: payload.code }),
+  });
+  storeAuthSession(session);
+  return session;
+}
+
+export async function resendVerificationEmail(
+  payload: ResendVerificationPayload,
+): Promise<AuthActionResponse | undefined> {
+  return getJson<AuthActionResponse | undefined>("/auth/email-verifications/resend", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function requestPasswordReset(
+  payload: ForgotPasswordPayload,
+): Promise<AuthActionResponse | undefined> {
+  return getJson<AuthActionResponse | undefined>("/auth/password-reset-requests", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function resetPassword(payload: ResetPasswordPayload): Promise<void> {
+  await getJson<void>("/auth/password-reset-requests/confirm", {
+    method: "POST",
+    body: JSON.stringify({ email: payload.email, otp: payload.code, newPassword: payload.password }),
+  });
+}
+
+export async function fetchUserPreferences(): Promise<UserPreferences> {
+  return getAuthenticatedJson<UserPreferences>("/users/me/preferences");
+}
+
+export async function updateUserPreferences(payload: UserPreferences): Promise<UserPreferences> {
+  return getAuthenticatedJson<UserPreferences>("/users/me/preferences", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function fetchCurrentUser(): Promise<UserProfile> {
@@ -872,6 +1228,62 @@ export async function fetchSemanticSearch(query: string, topK = 10): Promise<Sem
   );
 }
 
+export async function createAiConversation(title?: string): Promise<AiConversation> {
+  const path = "/ai/conversations";
+  const response = await getAuthenticatedJson<unknown>(path, {
+    method: "POST",
+    body: JSON.stringify(title?.trim() ? { title: title.trim() } : {}),
+  });
+  return parseAiConversation(response, path);
+}
+
+export async function fetchAiConversations(): Promise<AiConversation[]> {
+  const path = "/ai/conversations";
+  const response = await getAuthenticatedJson<unknown>(path);
+  if (!Array.isArray(response)) throw invalidAiChatResponse(path);
+  return response.map((conversation) => parseAiConversation(conversation, path));
+}
+
+export async function fetchAiConversation(conversationId: string): Promise<AiConversation> {
+  const path = `/ai/conversations/${encodeURIComponent(conversationId)}`;
+  const response = await getAuthenticatedJson<unknown>(path);
+  return parseAiConversation(response, path);
+}
+
+export async function fetchAiConversationMessages(
+  conversationId: string,
+  cursor?: string | null,
+  limit = 30,
+): Promise<AiChatMessagePage> {
+  const path = `/ai/conversations/${encodeURIComponent(conversationId)}/messages${toQuery({
+    cursor: cursor ?? undefined,
+    limit: Math.max(1, Math.min(limit, 100)),
+  })}`;
+  const response = await getAuthenticatedJson<unknown>(path);
+  return parseAiChatMessagePage(response, path);
+}
+
+export async function sendAiConversationMessage(
+  conversationId: string,
+  content: string,
+  idempotencyKey: string,
+): Promise<AiChatExchange> {
+  const path = `/ai/conversations/${encodeURIComponent(conversationId)}/messages`;
+  const response = await getAuthenticatedJson<unknown>(path, {
+    method: "POST",
+    headers: { "Idempotency-Key": idempotencyKey },
+    body: JSON.stringify({ content }),
+  });
+  return parseAiChatExchange(response, path);
+}
+
+export async function deleteAiConversation(conversationId: string): Promise<void> {
+  await getAuthenticatedJson<void>(
+    `/ai/conversations/${encodeURIComponent(conversationId)}`,
+    { method: "DELETE" },
+  );
+}
+
 export async function fetchDoctorAppointments(
   date: string,
   status?: string,
@@ -924,12 +1336,15 @@ export async function createMedicalRecord(payload: CreateMedicalRecordPayload): 
 }
 
 export async function logoutCurrentUser(): Promise<void> {
+  const session = readAuthSession();
+  if (!session) return;
+  const sessionVersion = authSessionVersion;
   try {
-    if (readAuthSession()) {
-      await getAuthenticatedJson<void>("/auth/logout", { method: "POST" });
-    }
+    const headers = new Headers();
+    headers.set("Authorization", `${session.tokenType} ${session.accessToken}`);
+    await getJson<void>("/auth/logout", { method: "POST", headers });
   } finally {
-    clearAuthSession();
+    clearAuthSessionIfCurrent(session, sessionVersion);
   }
 }
 

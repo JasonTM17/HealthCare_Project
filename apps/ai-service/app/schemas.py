@@ -60,6 +60,25 @@ class TriageRequest(BaseModel):
     _trim_gender = field_validator("gender", mode="before")(_trim_text)
 
 
+class ChatTurn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    role: Literal["user", "assistant"]
+    content: str = Field(..., min_length=1, max_length=2_000)
+
+    _trim_content = field_validator("content", mode="before")(_trim_text)
+
+
+class ChatRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    message: str = Field(..., min_length=2, max_length=MAX_INPUT_CHARS)
+    recent_turns: list[ChatTurn] = Field(default_factory=list, max_length=6)
+    top_k: int = Field(default=5, ge=1, le=MAX_RETRIEVED_CHUNKS)
+
+    _trim_message = field_validator("message", mode="before")(_trim_text)
+
+
 class Citation(BaseModel):
     """A citation points only to an ingested source identity.
 
@@ -73,6 +92,16 @@ class Citation(BaseModel):
     source_type: SOURCE_TYPES
     source_id: str = Field(..., min_length=1, max_length=200, pattern=r"^[A-Za-z0-9._:-]+$")
     title: str = Field(..., min_length=1, max_length=300)
+
+
+class ChatResponse(BaseModel):
+    answer: str = Field(..., min_length=1, max_length=4_000)
+    disclaimer: str = (
+        "Thông tin từ trợ lý AI chỉ mang tính tham khảo và không thay thế "
+        "tư vấn, chẩn đoán hoặc điều trị của bác sĩ."
+    )
+    citations: list[Citation] = Field(default_factory=list, max_length=MAX_RETRIEVED_CHUNKS)
+    provenance: ProviderProvenance = "local_provider"
 
 
 class TriageResponse(BaseModel):

@@ -31,6 +31,8 @@ app:
   booking:
     # The public booking flow may use 123456 only in this explicitly local profile.
     allow-test-otp: ${ALLOW_TEST_OTP:true}
+  mail:
+    enabled: false
 
 ai:
   service:

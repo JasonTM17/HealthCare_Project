@@ -23,6 +23,7 @@ import { EmptyState, ErrorState, ForbiddenState, LoadingState, LoginRequiredStat
 import PortalAppointments from "../../../components/PortalAppointments";
 import { useAuthSession } from "../../../components/useAuthSession";
 import { businessDate, businessDateTimeIso, formatBusinessDate, formatBusinessDateTime } from "../../../lib/business-time";
+import UiIcon from "../../../components/UiIcon";
 
 type LookupState<T> =
   | { status: "idle" }
@@ -98,6 +99,22 @@ function getTodayIsoDate(): string {
   return businessDate();
 }
 
+function createPatientLookupFence() {
+  let latestRequestId = 0;
+  return {
+    begin(): number {
+      latestRequestId += 1;
+      return latestRequestId;
+    },
+    invalidate(): void {
+      latestRequestId += 1;
+    },
+    isCurrent(requestId: number): boolean {
+      return requestId === latestRequestId;
+    },
+  };
+}
+
 function renderLookupState<T>(
   state: LookupState<T[]>,
   emptyTitle: string,
@@ -154,11 +171,17 @@ export default function DoctorDashboardPage() {
   const [clinicalError, setClinicalError] = useState<string | null>(null);
   const [clinicalNotice, setClinicalNotice] = useState<string | null>(null);
   const [appointmentAction, setAppointmentAction] = useState<string | null>(null);
+  const [appointmentError, setAppointmentError] = useState<string | null>(null);
+  const [appointmentNotice, setAppointmentNotice] = useState<string | null>(null);
   const [diagnosticName, setDiagnosticName] = useState("");
   const [diagnosticValue, setDiagnosticValue] = useState("");
   const [diagnosticDate, setDiagnosticDate] = useState(getTodayIsoDate);
   const [diagnosticFile, setDiagnosticFile] = useState<File | null>(null);
   const [diagnosticOperation, setDiagnosticOperation] = useState<"idle" | "saving">("idle");
+  const [diagnosticNotice, setDiagnosticNotice] = useState<string | null>(null);
+  const [patientLookupFence] = useState(createPatientLookupFence);
+
+  useEffect(() => () => patientLookupFence.invalidate(), [patientLookupFence]);
 
   useEffect(() => {
     if (!session || !hasRole(session.user, "DOCTOR")) return;
@@ -196,6 +219,7 @@ export default function DoctorDashboardPage() {
   }, [session]);
 
   const loadPatient = async (requestedPatientId: string) => {
+    const requestId = patientLookupFence.begin();
     setLookupError(null);
     setActivePatientId(requestedPatientId);
     setRecords({ status: "loading" });
@@ -205,6 +229,8 @@ export default function DoctorDashboardPage() {
       fetchDoctorPatientMedicalRecords(requestedPatientId),
       fetchDoctorPatientDiagnosticResults(requestedPatientId),
     ]);
+    if (!patientLookupFence.isCurrent(requestId)) return;
+
     const results = [recordsResult, diagnosticsResult];
     const unauthorized = results.some((result) => result.status === "rejected" && getErrorStatus(result.reason) === 401);
     if (unauthorized) {
@@ -238,22 +264,27 @@ export default function DoctorDashboardPage() {
     }));
     setClinicalError(null);
     setClinicalNotice(`Đã chọn lịch ${appointment.bookingCode} của ${appointment.patientName}.`);
-    window.setTimeout(() => document.getElementById("clinical-entry")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+    window.setTimeout(() => {
+      const target = document.getElementById("clinical-entry");
+      target?.focus({ preventScroll: true });
+      target?.scrollIntoView({ block: "start" });
+    }, 0);
   };
 
   const handleUpdateAppointmentStatus = async (
     appointment: DoctorPortalAppointment,
     status: "CHECKED_IN" | "IN_PROGRESS" | "NO_SHOW",
   ): Promise<void> => {
+    if (appointmentAction) return;
     setAppointmentAction(appointment.id);
-    setClinicalError(null);
-    setClinicalNotice(null);
+    setAppointmentError(null);
+    setAppointmentNotice(null);
     try {
       await updateDoctorAppointmentStatus(appointment.id, status);
-      setClinicalNotice(`Đã cập nhật lịch ${appointment.bookingCode}.`);
+      setAppointmentNotice(`Đã cập nhật lịch ${appointment.bookingCode}.`);
       setDailyReloadKey((value) => value + 1);
     } catch (error: unknown) {
-      setClinicalError(getErrorMessage(error));
+      setAppointmentError(getErrorMessage(error));
     } finally {
       setAppointmentAction(null);
     }
@@ -273,6 +304,7 @@ export default function DoctorDashboardPage() {
     if (!activePatientId) return;
     setDiagnosticOperation("saving");
     setLookupError(null);
+    setDiagnosticNotice(null);
     try {
       const storedFile = diagnosticFile ? await uploadDiagnosticFile(diagnosticFile, activePatientId) : null;
       await createDoctorDiagnosticResult(activePatientId, {
@@ -285,6 +317,7 @@ export default function DoctorDashboardPage() {
       setDiagnosticValue("");
       setDiagnosticFile(null);
       await loadPatient(activePatientId);
+      setDiagnosticNotice("Đã công bố kết quả chẩn đoán cho hồ sơ đang mở.");
     } catch (error: unknown) {
       setLookupError(getErrorMessage(error));
     } finally {
@@ -382,10 +415,10 @@ export default function DoctorDashboardPage() {
           <span className="portal-demo-label">Truy cập theo phân công chuyên môn</span>
         </header>
 
-        <section aria-labelledby="daily-title" className="portal-panel" id="daily-appointments">
+        <section aria-busy={Boolean(appointmentAction)} aria-labelledby="daily-title" className="portal-panel" id="daily-appointments">
           <div className="portal-panel__heading">
             <div><p className="section-note">LỊCH HẸN ĐÃ XÁC THỰC</p><h2 id="daily-title">Lịch làm việc theo ngày</h2></div>
-            <span aria-hidden="true" className="portal-panel__icon">◷</span>
+            <span aria-hidden="true" className="portal-panel__icon"><UiIcon name="calendar" size={20} /></span>
           </div>
           <p className="portal-panel__intro">Danh sách chỉ gồm các lịch hẹn được phân công cho hồ sơ bác sĩ hiện tại.</p>
           <form className="portal-lookup-form" onSubmit={(event) => { event.preventDefault(); retryDailyAppointments(); }}>
@@ -399,18 +432,18 @@ export default function DoctorDashboardPage() {
                 {APPOINTMENT_STATUSES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </select>
             </div>
-            <button className="button button--primary" type="submit">Tải lịch</button>
+            <button className="outline-button" disabled={dailyAppointments.status === "loading"} type="submit">Làm mới lịch</button>
           </form>
           {appointmentAction ? <p aria-live="polite" className="portal-handoff-note">Đang cập nhật trạng thái lịch hẹn…</p> : null}
-          {clinicalError ? <p aria-live="assertive" className="portal-inline-error" role="alert">{clinicalError}</p> : null}
-          {clinicalNotice ? <p aria-live="polite" className="portal-inline-success" role="status">{clinicalNotice}</p> : null}
+          {appointmentError ? <p aria-live="assertive" className="portal-inline-error" role="alert">{appointmentError}</p> : null}
+          {appointmentNotice ? <p aria-live="polite" className="portal-inline-success" role="status">{appointmentNotice}</p> : null}
           {renderDailyAppointments(dailyAppointments, retryDailyAppointments, handleSelectAppointment, handleUpdateAppointmentStatus)}
         </section>
 
-        <section aria-labelledby="clinical-entry-title" className="portal-panel" id="clinical-entry">
+        <section aria-labelledby="clinical-entry-title" className="portal-panel" id="clinical-entry" tabIndex={-1}>
           <div className="portal-panel__heading">
-            <div><p className="section-note">GHI NHẬN KHÁM BỆNH</p><h2 id="clinical-entry-title">Ghi nhận kết quả khám</h2></div>
-            <span aria-hidden="true" className="portal-panel__icon">+</span>
+            <div><h2 id="clinical-entry-title">Ghi nhận kết quả khám</h2></div>
+            <span aria-hidden="true" className="portal-panel__icon"><UiIcon name="stethoscope" size={20} /></span>
           </div>
           <p className="portal-panel__intro">Chọn một lịch hẹn trong danh sách phía trên trước khi ghi chẩn đoán, kế hoạch điều trị và đơn thuốc.</p>
           {doctorProfile.status === "loading" ? <LoadingState label="Đang tải hồ sơ bác sĩ…" /> : null}
@@ -451,8 +484,8 @@ export default function DoctorDashboardPage() {
 
         <section aria-labelledby="lookup-title" className="portal-panel">
           <div className="portal-panel__heading">
-            <div><p className="section-note">QUYỀN TRUY CẬP LÂM SÀNG</p><h2 id="lookup-title">Tra cứu bệnh nhân đã được phân công</h2></div>
-            <span aria-hidden="true" className="portal-panel__icon">⌕</span>
+            <div><h2 id="lookup-title">Tra cứu bệnh nhân đã được phân công</h2></div>
+            <span aria-hidden="true" className="portal-panel__icon"><UiIcon name="search" size={20} /></span>
           </div>
           <p className="portal-panel__intro">Nhập mã hồ sơ được cung cấp trong quy trình phân công để xem thông tin phù hợp với quyền của bạn.</p>
           <form className="portal-lookup-form" onSubmit={handleLookup}>
@@ -477,8 +510,8 @@ export default function DoctorDashboardPage() {
           <div className="portal-grid portal-grid--main">
             <section aria-labelledby="doctor-records-title" className="portal-panel">
               <div className="portal-panel__heading">
-                <div><p className="section-note">HỒ SƠ ĐƯỢC CẤP QUYỀN</p><h2 id="doctor-records-title">Lịch sử khám</h2></div>
-                <span aria-hidden="true" className="portal-panel__icon">+</span>
+                <div><h2 id="doctor-records-title">Lịch sử khám</h2></div>
+                <span aria-hidden="true" className="portal-panel__icon"><UiIcon name="activity" size={20} /></span>
               </div>
               {renderLookupState(
                 records,
@@ -505,8 +538,8 @@ export default function DoctorDashboardPage() {
 
             <section aria-labelledby="doctor-diagnostics-title" className="portal-panel">
               <div className="portal-panel__heading">
-                <div><p className="section-note">CẬN LÂM SÀNG</p><h2 id="doctor-diagnostics-title">Kết quả chẩn đoán</h2></div>
-                <span aria-hidden="true" className="portal-panel__icon">⌁</span>
+                <div><h2 id="doctor-diagnostics-title">Kết quả chẩn đoán</h2></div>
+                <span aria-hidden="true" className="portal-panel__icon"><UiIcon name="activity" size={20} /></span>
               </div>
               <form className="portal-clinical-form" onSubmit={handleCreateDiagnostic}>
                 <div className="portal-clinical-form__grid">
@@ -515,6 +548,7 @@ export default function DoctorDashboardPage() {
                 </div>
                 <label>Kết quả<textarea maxLength={4000} onChange={(event) => setDiagnosticValue(event.target.value)} value={diagnosticValue} /></label>
                 <label>Tệp đính kèm (tuỳ chọn)<input accept="application/pdf,image/jpeg,image/png" onChange={(event) => setDiagnosticFile(event.target.files?.[0] ?? null)} type="file" /></label>
+                {diagnosticNotice ? <p aria-live="polite" className="portal-inline-success" role="status">{diagnosticNotice}</p> : null}
                 <button className="button button--primary" disabled={diagnosticOperation === "saving"} type="submit">{diagnosticOperation === "saving" ? "Đang công bố…" : "Công bố kết quả"}</button>
               </form>
               {renderLookupState(
@@ -529,7 +563,7 @@ export default function DoctorDashboardPage() {
                         <div className="portal-record__meta"><span>{formatBusinessDate(result.testDate)}</span><span>{result.doctorName ?? "Chưa có bác sĩ"}</span></div>
                         <h3>{result.testName}</h3>
                         <p>{result.result}</p>
-                        {result.fileUrl ? <button className="text-button" onClick={() => handleDownload(result)} type="button">Tải tệp kết quả ↓</button> : <small>Chưa có tệp đính kèm.</small>}
+                        {result.fileUrl ? <button className="text-button" onClick={() => handleDownload(result)} type="button">Tải tệp kết quả</button> : <small>Chưa có tệp đính kèm.</small>}
                       </article>
                     ))}
                   </div>

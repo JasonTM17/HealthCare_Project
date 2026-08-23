@@ -4,24 +4,7 @@ import "./effects.css";
 import "./typography.css";
 import "./branches/maps.css";
 import "./brand-experience.css";
-import BrandSplash from "../components/BrandSplash";
-
-const brandIntroBootstrap = `
-(function () {
-  var root = document.documentElement;
-  var key = "healthcare-brand-intro-v1";
-  var seen = false;
-  try {
-    seen = window.sessionStorage.getItem(key) === "1";
-    if (!seen) window.sessionStorage.setItem(key, "1");
-  } catch (_) {}
-  root.dataset.brandIntro = seen ? "seen" : "pending";
-  if (!seen) {
-    window.setTimeout(function () {
-      if (root.dataset.brandIntro !== "seen") root.dataset.brandIntro = "seen";
-    }, 1800);
-  }
-})();`;
+import FloatingHealthAssistant from "../components/FloatingHealthAssistant";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -49,9 +32,11 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="vi" suppressHydrationWarning>
-      <head><script dangerouslySetInnerHTML={{ __html: brandIntroBootstrap }} /></head>
-      <body><BrandSplash />{children}</body>
+    <html lang="vi">
+      <body>
+        {children}
+        <FloatingHealthAssistant />
+      </body>
     </html>
   );
 }

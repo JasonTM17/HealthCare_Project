@@ -6,6 +6,7 @@ const apiPath = new URL("../lib/api.ts", import.meta.url);
 const typesPath = new URL("../types/hospital.ts", import.meta.url);
 const modalPath = new URL("../components/BookingModal.tsx", import.meta.url);
 const focusPath = new URL("../components/useDialogFocus.ts", import.meta.url);
+const privacyPath = new URL("../app/chinh-sach-bao-mat/page.tsx", import.meta.url);
 
 test("slot client carries branch identity and rejects mismatched responses", async () => {
   const [api, types] = await Promise.all([
@@ -58,9 +59,33 @@ test("booking invalidates pending responses across navigation and labels patient
   assert.match(source, /invalidateBookingSession/);
   assert.match(source, /navigateToStep/);
   assert.match(source, /disabled=\{isSubmitting\}/);
-  for (const field of ["booking-full-name", "booking-phone", "booking-email", "booking-reason", "booking-otp"]) {
+  for (const field of ["booking-full-name", "booking-phone", "booking-email", "booking-reason", "booking-has-insurance", "booking-privacy-consent", "booking-otp"]) {
     assert.match(source, new RegExp(field));
   }
+});
+
+test("booking captures BHYT and privacy consent before holding a slot", async () => {
+  const [source, types, privacy] = await Promise.all([
+    readFile(modalPath, "utf8"),
+    readFile(typesPath, "utf8"),
+    readFile(privacyPath, "utf8"),
+  ]);
+
+  assert.match(types, /hasInsurance\?: boolean/);
+  assert.match(types, /privacyConsent: boolean/);
+  assert.match(types, /hasInsurance: boolean/);
+  assert.match(types, /privacyConsentAt\?: string \| null/);
+  assert.match(source, /const \[hasInsurance, setHasInsurance\] = useState<boolean>\(false\)/);
+  assert.match(source, /const \[privacyConsent, setPrivacyConsent\] = useState<boolean>\(false\)/);
+  assert.match(source, /if \(!privacyConsent\)/);
+  assert.match(source, /hasInsurance,/);
+  assert.match(source, /privacyConsent,/);
+  assert.match(source, /href="\/chinh-sach-bao-mat"/);
+  assert.match(source, /Mang theo thẻ BHYT/);
+  assert.match(source, /booking-privacy-consent/);
+  assert.match(privacy, /booking-privacy-v1/);
+  assert.match(privacy, /PublicPageShell/);
+  assert.match(privacy, /Thông tin chúng tôi thu thập/);
 });
 
 test("booking slot UI exposes loading, error, and empty states", async () => {
@@ -198,6 +223,8 @@ test("booking form fields have stable accessible labels and progress state", asy
     "booking-phone",
     "booking-email",
     "booking-reason",
+    "booking-has-insurance",
+    "booking-privacy-consent",
     "booking-otp",
   ];
 

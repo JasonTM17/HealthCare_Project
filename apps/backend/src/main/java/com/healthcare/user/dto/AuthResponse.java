@@ -13,7 +13,11 @@ public record AuthResponse(
         String id,
         String email,
         String displayName,
-        List<String> roles
+        List<String> roles,
+        boolean emailVerified
     ) {
+        public UserInfo(String id, String email, String displayName, List<String> roles) {
+            this(id, email, displayName, roles, true);
+        }
     }
 }

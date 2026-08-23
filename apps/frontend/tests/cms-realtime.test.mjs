@@ -166,6 +166,9 @@ test("public live slot listens to named SSE changes and has polling fallback", a
   assert.match(liveSlot, /reconciliation\.pendingEventIds\.size === 0\s+&& reconciliation\.reconciliationCursor === 0/);
   assert.match(liveSlot, /result !== "failed"/);
   assert.match(liveSlot, /data-cms-live-source="live-backend"/);
+  assert.match(liveSlot, /PUBLIC_TECHNICAL_COPY_PATTERN/);
+  assert.match(liveSlot, /const publicQuiet = quiet \|\| !showSourceLabel/);
+  assert.match(liveSlot, /data-cms-suppressed="technical-copy"/);
   assert.doesNotMatch(liveSlot, /scheduleReconnect/);
   assert.doesNotMatch(liveSlot, /reconnectTimer/);
   assert.doesNotMatch(liveSlot, /reconnectAttempt/);

@@ -81,7 +81,20 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         String method = request.getMethod();
         if ("POST".equals(method) && (path.equals("/api/v1/auth/login")
-                || path.equals("/api/v1/auth/register") || path.equals("/api/v1/auth/refresh"))) {
+                || path.equals("/api/v1/auth/register") || path.equals("/api/v1/auth/refresh")
+                || path.equals("/api/v1/auth/email-verifications/confirm")
+                || path.equals("/api/v1/auth/email-verifications/resend")
+                || path.equals("/api/v1/auth/password-reset-requests")
+                || path.equals("/api/v1/auth/password-reset-requests/confirm")
+                || path.equals("/api/v1/auth/verify-email")
+                || path.equals("/api/v1/auth/confirm-email")
+                || path.equals("/api/v1/auth/resend-verification")
+                || path.equals("/api/v1/auth/resend-email-verification")
+                || path.equals("/api/v1/auth/forgot-password")
+                || path.equals("/api/v1/auth/password-reset/request")
+                || path.equals("/api/v1/auth/password-reset/confirm")
+                || path.equals("/api/v1/auth/reset-password/request")
+                || path.equals("/api/v1/auth/reset-password/confirm"))) {
             return new LimitRule("auth", authLimit);
         }
         if ("POST".equals(method) && path.startsWith("/api/v1/appointments/")) {

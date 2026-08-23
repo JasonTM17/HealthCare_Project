@@ -76,7 +76,13 @@ public class SecurityConfig {
             )
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers("/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/refresh").permitAll()
+                .requestMatchers(
+                    "/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/refresh",
+                    "/api/v1/auth/email-verifications/**", "/api/v1/auth/verify-email", "/api/v1/auth/confirm-email",
+                    "/api/v1/auth/resend-verification", "/api/v1/auth/resend-email-verification",
+                    "/api/v1/auth/password-reset-requests/**", "/api/v1/auth/forgot-password",
+                    "/api/v1/auth/password-reset/**", "/api/v1/auth/reset-password/**"
+                ).permitAll()
                 .requestMatchers("/api/v1/health").permitAll()
                 .requestMatchers("/api/v1/hospital/**").permitAll()
                 .requestMatchers("/api/v1/cms/**").permitAll()
@@ -128,7 +134,9 @@ public class SecurityConfig {
             .filter(origin -> !origin.isEmpty())
             .toList());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With"));
+        configuration.setAllowedHeaders(List.of(
+            "Authorization", "Content-Type", "X-Requested-With", "Idempotency-Key"
+        ));
         configuration.setExposedHeaders(List.of("Authorization"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);

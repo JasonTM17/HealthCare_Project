@@ -17,14 +17,17 @@ export type IconName =
   | "location"
   | "mail"
   | "menu"
+  | "message-square"
   | "phone"
   | "play"
   | "plus"
   | "printer"
   | "search"
   | "shield-check"
+  | "send"
   | "sparkles"
   | "stethoscope"
+  | "trash"
   | "user"
   | "x";
 
@@ -79,14 +82,17 @@ const Icon: React.FC<IconProps> = ({
     location: <path {...commonProps} d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0Zm-4 0a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />,
     mail: <path {...commonProps} d="M4 6.5A1.5 1.5 0 0 1 5.5 5h13A1.5 1.5 0 0 1 20 6.5v11a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5v-11Zm1 0 7 5 7-5M5 18l5-5m9 5-5-5" />,
     menu: <path {...commonProps} d="M4 7h16M4 12h16M4 17h16" />,
+    "message-square": <path {...commonProps} d="M5 5h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9l-5 3v-4.5A2 2 0 0 1 3 15V7a2 2 0 0 1 2-2Z" />,
     phone: <path {...commonProps} d="M6.5 3.5 9 3l2 5-1.8 1.8a15 15 0 0 0 5 5L16 13l5 2 .5 2.5A2 2 0 0 1 19.5 20C10.4 20 4 13.6 4 4.5a2 2 0 0 1 2.5-1Z" />,
     play: <path {...commonProps} d="m8 5 11 7-11 7V5Z" />,
     plus: <path {...commonProps} d="M12 5v14M5 12h14" />,
     printer: <path {...commonProps} d="M7 9V4h10v5M7 17H5a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-2M7 14h10v6H7v-6Zm10-4h.01" />,
     search: <path {...commonProps} d="m20 20-4.5-4.5m2-5.5a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z" />,
     "shield-check": <path {...commonProps} d="M12 3 19 6v5c0 4.5-2.8 8-7 10-4.2-2-7-5.5-7-10V6l7-3Zm-3 9 2 2 4-4" />,
+    send: <path {...commonProps} d="m22 2-7 20-4-9-9-4 20-7ZM11 13 22 2" />,
     sparkles: <path {...commonProps} d="m12 3 1.1 4.3L17 9l-3.9 1.7L12 15l-1.1-4.3L7 9l3.9-1.7L12 3Zm6 10 .6 2.4L21 16l-2.4.6L18 19l-.6-2.4L15 16l2.4-.6L18 13ZM5 14l.7 2.3L8 17l-2.3.7L5 20l-.7-2.3L2 17l2.3-.7L5 14Z" />,
     stethoscope: <path {...commonProps} d="M6 3v5a4 4 0 0 0 8 0V3M4 3h4m4 0h4m-4 5v4a5 5 0 0 0 10 0v-1m-1-3h.01" />,
+    trash: <path {...commonProps} d="M4 7h16m-10 4v6m4-6v6M9 7l1-3h4l1 3m3 0-1 14H7L6 7" />,
     user: <path {...commonProps} d="M19 21a7 7 0 0 0-14 0m7-10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />,
     x: <path {...commonProps} d="m6 6 12 12M18 6 6 18" />,
   };

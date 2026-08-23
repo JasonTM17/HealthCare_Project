@@ -20,6 +20,17 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+  mail:
+    host: ${SPRING_MAIL_HOST:localhost}
+    port: ${SPRING_MAIL_PORT:1025}
+    username: ${SPRING_MAIL_USERNAME:}
+    password: ${SPRING_MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          connectiontimeout: ${SPRING_MAIL_CONNECTION_TIMEOUT:5000}
+          timeout: ${SPRING_MAIL_TIMEOUT:5000}
+          writetimeout: ${SPRING_MAIL_WRITE_TIMEOUT:5000}
   servlet:
     encoding:
       charset: UTF-8
@@ -37,6 +48,17 @@ app:
     # Local Compose can opt into the fixed demo OTP; production must use a
     # real delivery provider and keep this false.
     allow-test-otp: ${APP_BOOKING_ALLOW_TEST_OTP:false}
+  mail:
+    enabled: ${APP_MAIL_ENABLED:false}
+    from: ${APP_MAIL_FROM:no-reply@healthcare.local}
+  security:
+    auth-otp:
+      enabled: ${APP_AUTH_OTP_ENABLED:true}
+      ttl-seconds: ${APP_AUTH_OTP_TTL_SECONDS:600}
+      resend-cooldown-seconds: ${APP_AUTH_OTP_RESEND_COOLDOWN_SECONDS:60}
+      window-seconds: ${APP_AUTH_OTP_WINDOW_SECONDS:900}
+      ip-limit: ${APP_AUTH_OTP_IP_LIMIT:20}
+      email-limit: ${APP_AUTH_OTP_EMAIL_LIMIT:5}
 
 cms:
   realtime:
@@ -45,6 +67,13 @@ cms:
     instance-id: ${CMS_INSTANCE_ID:${HOSTNAME:local}}
 
 ai:
+  chat:
+    retention-days: ${AI_CHAT_RETENTION_DAYS:90}
+    cleanup-enabled: ${AI_CHAT_CLEANUP_ENABLED:true}
+    cleanup-cron: ${AI_CHAT_CLEANUP_CRON:0 20 3 * * *}
+    cleanup-batch-size: ${AI_CHAT_CLEANUP_BATCH_SIZE:200}
+    cleanup-max-batches: ${AI_CHAT_CLEANUP_MAX_BATCHES:20}
+    processing-lease-seconds: ${AI_CHAT_PROCESSING_LEASE_SECONDS:120}
   service:
     url: ${AI_SERVICE_URL:http://localhost:8000}
     token: ${AI_SERVICE_TOKEN:}

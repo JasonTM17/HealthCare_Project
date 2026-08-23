@@ -19,7 +19,7 @@ const BOOKING_STAGES: Array<{ icon: IconName; title: string; description: string
   {
     icon: "building",
     title: "2. Chọn cơ sở và khung giờ",
-    description: "Hệ thống chỉ giữ lịch theo cơ sở, ngày và giờ còn khả dụng từ backend.",
+    description: "Xem ngày và giờ còn trống tại cơ sở phù hợp với bạn.",
   },
   {
     icon: "user",
@@ -35,7 +35,7 @@ const BOOKING_STAGES: Array<{ icon: IconName; title: string; description: string
 
 const PREPARE_ITEMS = [
   "Chuẩn bị số điện thoại có thể nhận OTP.",
-  "Nếu chưa rõ chuyên khoa, dùng trợ lý AI để lấy gợi ý tham khảo.",
+  "Xem danh sách chuyên khoa trước nếu bạn chưa chắc nên bắt đầu từ đâu.",
   "Kiểm tra lại cơ sở và giờ làm việc trước khi đến khám.",
 ] as const;
 
@@ -80,13 +80,13 @@ export default function BookingLandingPage() {
       <div className="booking-page resource-page section-inner" id="dat-lich">
         <div className="resource-breadcrumb"><Link href="/">Trang chủ</Link><span>/</span><span>Đặt lịch</span></div>
 
-        <header className="booking-page__hero resource-page__header">
-          <div>
+        <header className="booking-page__hero resource-page__header booking-page__hero--centered">
+          <div className="booking-page__hero-copy">
             <p className="section-note">Đặt lịch khám</p>
-            <h1>Bắt đầu từ nhu cầu khám của bạn</h1>
+            <h1>Bảng thông tin đặt lịch</h1>
             <p>
-              Trang này giúp bạn hiểu trước luồng đặt hẹn. Khi sẵn sàng, form đặt lịch sẽ giữ nguyên
-              các bước xác thực slot, thông tin bệnh nhân và OTP hiện có của hệ thống.
+              Chọn chuyên khoa, cơ sở, bác sĩ và khung giờ phù hợp trong một luồng rõ ràng.
+              Hoàn tất thông tin liên hệ ngay bên dưới.
             </p>
             <div className="booking-page__hero-actions">
               <PublicBookingButton>
@@ -99,44 +99,23 @@ export default function BookingLandingPage() {
               </Link>
             </div>
           </div>
-
-          <aside className="booking-page__summary" aria-label="Tóm tắt luồng đặt lịch">
-            <p className="section-note">Tóm tắt nhanh</p>
-            <strong>4 chặng chính</strong>
-            <span>Chọn nhu cầu → chọn lịch → điền thông tin → xác nhận OTP.</span>
-            <small>Form đặt lịch nằm ngay trên trang này; CTA chỉ đưa bạn tới đúng luồng inline.</small>
-          </aside>
         </header>
 
-        <section className="resource-hero-card resource-hero-card--teal booking-page__resource-hero">
-          <div className="resource-icon" aria-hidden="true">
-            <ClinicalIcon name="service" />
-          </div>
-          <div className="resource-hero-card__body">
-            <p className="resource-chip">Mở form trong cùng trang</p>
-            <h2>Đi theo luồng đặt lịch rõ ràng, từ lựa chọn tới xác nhận.</h2>
-            <p className="resource-lead">
-              Chọn chuyên khoa, bác sĩ, cơ sở và khung giờ rồi xác nhận ngay bên dưới,
-              không phải nhảy qua nhiều trang hoặc mở thêm modal thứ hai.
+        <section
+          aria-labelledby="booking-inline-heading"
+          className="booking-page__inline booking-page__inline--primary"
+          ref={bookingRegionRef}
+          tabIndex={-1}
+        >
+          <div className="booking-page__inline-heading booking-page__inline-heading--centered">
+            <p className="section-note">Thông tin lịch hẹn</p>
+            <h2 id="booking-inline-heading">Hoàn tất lịch khám trong cùng một trang</h2>
+            <p>
+              Nhập thông tin khách hàng, chọn bệnh viện hoặc phòng khám, rồi xác nhận mã OTP khi
+              bạn đã sẵn sàng.
             </p>
-            <div className="resource-actions">
-              <PublicBookingButton>Tiếp tục đặt lịch</PublicBookingButton>
-              <PublicAiButton className="outline-button outline-button--light">Hỏi trợ lý triệu chứng</PublicAiButton>
-              <Link className="outline-button outline-button--light" href="/specialties">
-                Chọn chuyên khoa
-              </Link>
-            </div>
-            <dl className="resource-meta-grid">
-              <div>
-                <dt>Luồng chính</dt>
-                <dd>Chọn nhu cầu → cơ sở → khung giờ → OTP</dd>
-              </div>
-              <div>
-                <dt>Hỗ trợ nhanh</dt>
-                <dd>AI, bác sĩ, cơ sở, tra cứu lịch</dd>
-              </div>
-            </dl>
           </div>
+          <BookingInlineExperience key={bookingRequest.nonce} selection={bookingRequest.selection} />
         </section>
 
         <section className="booking-stage-grid" aria-label="Các bước đặt lịch khám">
@@ -151,13 +130,13 @@ export default function BookingLandingPage() {
 
         <section className="booking-page__support resource-grid resource-grid--two" aria-label="Hỗ trợ trước khi đặt lịch">
           <article className="resource-panel resource-panel--accent">
-            <p className="section-note">Trợ lý chọn chuyên khoa</p>
+            <p className="section-note">Hỗ trợ chọn chuyên khoa</p>
             <h2>Chưa biết bắt đầu từ đâu?</h2>
             <p>
-              Mô tả triệu chứng bằng ngôn ngữ tự nhiên để nhận gợi ý tham khảo. Công cụ này không
-              thay thế chẩn đoán của bác sĩ và chỉ hoạt động khi bạn chủ động mở.
+              Bạn có thể mở công cụ gợi ý tham khảo nếu chưa biết nên chọn chuyên khoa nào.
+              Kết quả không thay thế tư vấn hoặc chẩn đoán của bác sĩ.
             </p>
-            <PublicAiButton className="outline-button">Hỏi trợ lý AI</PublicAiButton>
+            <PublicAiButton className="text-button">Xem gợi ý chuyên khoa <Icon name="arrow-right" size={17} /></PublicAiButton>
           </article>
 
           <article className="resource-panel">
@@ -177,8 +156,7 @@ export default function BookingLandingPage() {
             <p className="section-note">Các cơ sở khám nổi bật</p>
             <h2 id="booking-branches-heading">Chọn cơ sở thuận tiện nhất trước khi vào form</h2>
             <p>
-              Trang này trình bày mạng lưới cơ sở theo cấu trúc rõ ràng: địa chỉ, giờ làm việc,
-              điện thoại và đường dẫn chi tiết đều nằm ngay trong một card dễ quét bằng mắt.
+              Xem địa chỉ, giờ làm việc và số điện thoại của từng cơ sở trước khi chọn lịch.
             </p>
           </div>
           {branchCardsLoading ? (
@@ -248,33 +226,6 @@ export default function BookingLandingPage() {
           )}
         </section>
 
-        <section
-          aria-labelledby="booking-inline-heading"
-          className="booking-page__inline"
-          ref={bookingRegionRef}
-          tabIndex={-1}
-        >
-          <div className="booking-page__inline-heading">
-            <p className="section-note">Form đặt lịch</p>
-            <h2 id="booking-inline-heading">Hoàn tất lịch khám trong cùng một trang</h2>
-            <p>
-              Đây là cùng một engine giữ chỗ và OTP với modal trên các route khác, nhưng bỏ backdrop,
-              dialog role và scroll lock để phù hợp với trải nghiệm full-page.
-            </p>
-          </div>
-          <BookingInlineExperience key={bookingRequest.nonce} selection={bookingRequest.selection} />
-        </section>
-
-        <div className="booking-page__sticky" role="region" aria-label="Bắt đầu đặt lịch khám">
-          <span>
-            <strong>Sẵn sàng giữ lịch?</strong>
-            <small>Đi tới form inline, không mở thêm modal thứ hai.</small>
-          </span>
-          <PublicBookingButton className="button button--amber booking-page__sticky-button">
-            <Icon name="calendar" size={18} />
-            Đi tới form đặt lịch
-          </PublicBookingButton>
-        </div>
       </div>
     </PublicPageShell>
   );

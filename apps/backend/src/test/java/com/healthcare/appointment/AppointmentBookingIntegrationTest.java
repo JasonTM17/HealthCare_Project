@@ -9,21 +9,29 @@ import com.healthcare.appointment.dto.RescheduleAppointmentRequest;
 import com.healthcare.appointment.entity.Appointment;
 import com.healthcare.appointment.entity.DoctorSchedule;
 import com.healthcare.appointment.entity.PatientProfile;
+import com.healthcare.auth.mail.EmailSender;
+import com.healthcare.exception.BusinessException;
+import com.healthcare.exception.ErrorCodes;
 import com.healthcare.hospital.entity.Branch;
 import com.healthcare.hospital.entity.Doctor;
 import com.healthcare.hospital.entity.DoctorBranch;
 import com.healthcare.hospital.entity.DoctorSpecialty;
 import com.healthcare.hospital.entity.Specialty;
+import com.healthcare.security.JwtTokenProvider;
 import com.healthcare.scheduling.entity.DoctorScheduleException;
+import com.healthcare.user.entity.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.time.LocalDate;
 import java.time.DayOfWeek;
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -34,15 +42,25 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+@ActiveProfiles("test")
 class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
 
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+    private static final String BOOKING_EMAIL = "booking.test@example.com";
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -50,11 +68,18 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
     @Autowired
     private com.healthcare.hospital.repository.DoctorSpecialtyRepository doctorSpecialtyRepository;
 
+    @Autowired
+    private JwtTokenProvider tokenProvider;
+
+    @MockitoBean
+    private EmailSender emailSender;
+
     private Doctor doctor;
     private Specialty specialty;
 
     @BeforeEach
     void setUpTestData() {
+        when(emailSender.isDeliveryAvailable()).thenReturn(true);
         specialty = new Specialty();
         specialty.setName("Chuyên khoa Tim Mạch");
         specialty.setSlug("tim-mach-test");
@@ -84,12 +109,32 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
 
         HoldSlotRequest request = new HoldSlotRequest(
             doctor.getId(), LocalDate.now(BUSINESS_ZONE).plusDays(2), LocalTime.of(9, 0),
-            "Bệnh nhân kiểm thử", "0907000199", null, "Kiểm thử invariant",
+            "Bệnh nhân kiểm thử", "0907000199", BOOKING_EMAIL, "Kiểm thử invariant",
             unrelated.getId(), null, null);
 
         mockMvc.perform(post("/api/v1/appointments/hold")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void holdRejectsMissingPrivacyConsent() throws Exception {
+        LocalDate appointmentDate = nextDate(DayOfWeek.MONDAY);
+
+        mockMvc.perform(post("/api/v1/appointments/hold")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "doctorId": "%s",
+                      "appointmentDate": "%s",
+                      "startTime": "09:00:00",
+                      "fullName": "Bệnh nhân chưa đồng ý",
+                      "phone": "0907000299",
+                      "specialtyId": "%s",
+                      "privacyConsent": false
+                    }
+                    """.formatted(doctor.getId(), appointmentDate, specialty.getId())))
             .andExpect(status().isBadRequest());
     }
 
@@ -148,11 +193,11 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
 
         HoldSlotRequest branchAHold = new HoldSlotRequest(
             doctor.getId(), targetDate, LocalTime.of(9, 0),
-            "Branch A patient", "0907000101", null, "Branch A hold",
+            "Branch A patient", "0907000101", "branch-a@example.com", "Branch A hold",
             specialty.getId(), branchA.getId(), null);
         HoldSlotRequest branchBHold = new HoldSlotRequest(
             doctor.getId(), targetDate, LocalTime.of(9, 0),
-            "Branch B patient", "0907000102", null, "Branch B hold",
+            "Branch B patient", "0907000102", "branch-b@example.com", "Branch B hold",
             specialty.getId(), branchB.getId(), null);
 
         mockMvc.perform(post("/api/v1/appointments/hold")
@@ -180,15 +225,15 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
 
         HoldSlotRequest firstBranchAHold = new HoldSlotRequest(
             doctor.getId(), targetDate, LocalTime.of(9, 0),
-            "Interval A patient", "0907000111", null, "Branch A interval",
+            "Interval A patient", "0907000111", "interval-a@example.com", "Branch A interval",
             specialty.getId(), branchA.getId(), null);
         HoldSlotRequest branchBOverlap = new HoldSlotRequest(
             doctor.getId(), targetDate, LocalTime.of(9, 30),
-            "Interval B patient", "0907000112", null, "Branch B overlap",
+            "Interval B patient", "0907000112", "interval-b@example.com", "Branch B overlap",
             specialty.getId(), branchB.getId(), null);
         HoldSlotRequest branchAOverlap = new HoldSlotRequest(
             doctor.getId(), targetDate, LocalTime.of(9, 30),
-            "Interval A second patient", "0907000113", null, "Branch A overlap",
+            "Interval A second patient", "0907000113", "interval-a-2@example.com", "Branch A overlap",
             specialty.getId(), branchA.getId(), null);
 
         mockMvc.perform(post("/api/v1/appointments/hold")
@@ -218,7 +263,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
 
         HoldSlotRequest request = new HoldSlotRequest(
             doctor.getId(), targetDate, LocalTime.of(9, 0),
-            "Không đặt qua fallback", "0907000099", null, null,
+            "Không đặt qua fallback", "0907000099", BOOKING_EMAIL, null,
             specialty.getId(), branch.getId(), null);
 
         mockMvc.perform(post("/api/v1/appointments/hold")
@@ -237,7 +282,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
 
         HoldSlotRequest inactiveRequest = new HoldSlotRequest(
             doctor.getId(), LocalDate.now(BUSINESS_ZONE).plusDays(3), LocalTime.of(9, 0),
-            "Inactive specialty patient", "0907000199", null, null,
+            "Inactive specialty patient", "0907000199", BOOKING_EMAIL, null,
             inactive.getId(), null, null);
 
         mockMvc.perform(post("/api/v1/appointments/hold")
@@ -253,7 +298,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
 
         HoldSlotRequest mismatchedRequest = new HoldSlotRequest(
             doctor.getId(), LocalDate.now(BUSINESS_ZONE).plusDays(3), LocalTime.of(9, 0),
-            "Mismatched specialty patient", "0907000198", null, null,
+            "Mismatched specialty patient", "0907000198", BOOKING_EMAIL, null,
             otherActive.getId(), null, null);
 
         mockMvc.perform(post("/api/v1/appointments/hold")
@@ -269,7 +314,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         inactiveBranch = branchRepository.saveAndFlush(inactiveBranch);
         HoldSlotRequest inactiveBranchRequest = new HoldSlotRequest(
             doctor.getId(), LocalDate.now(BUSINESS_ZONE).plusDays(3), LocalTime.of(9, 0),
-            "Inactive branch patient", "0907000197", null, null,
+            "Inactive branch patient", "0907000197", BOOKING_EMAIL, null,
             specialty.getId(), inactiveBranch.getId(), null);
 
         mockMvc.perform(post("/api/v1/appointments/hold")
@@ -286,7 +331,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         inactivePackage = packageRepository.saveAndFlush(inactivePackage);
         HoldSlotRequest inactivePackageRequest = new HoldSlotRequest(
             doctor.getId(), LocalDate.now(BUSINESS_ZONE).plusDays(3), LocalTime.of(9, 0),
-            "Inactive package patient", "0907000196", null, null,
+            "Inactive package patient", "0907000196", BOOKING_EMAIL, null,
             specialty.getId(), null, inactivePackage.getId());
 
         mockMvc.perform(post("/api/v1/appointments/hold")
@@ -311,7 +356,9 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
             "Đau thắt ngực khi vận động",
             specialty.getId(),
             null,
-            null
+            null,
+            true,
+            true
         );
 
         MvcResult holdResult = mockMvc.perform(post("/api/v1/appointments/hold")
@@ -322,6 +369,13 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
             .andExpect(jsonPath("$.otpExpiresAt").exists())
             .andExpect(jsonPath("$.otpRequired").value(true))
             .andReturn();
+
+        assertFalse(holdResult.getResponse().getContentAsString().contains("123456"));
+        verify(emailSender).send(
+            eq("patient.test@example.com"),
+            anyString(),
+            contains("123456")
+        );
 
         JsonNode holdNode = objectMapper.readTree(holdResult.getResponse().getContentAsString());
         String bookingCode = holdNode.get("bookingCode").asText();
@@ -348,6 +402,9 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
             .andExpect(jsonPath("$.patientName").value("Trần Thị Bệnh Nhân"))
             .andExpect(jsonPath("$.patientPhone").value("090****567"))
             .andExpect(jsonPath("$.patientEmail").doesNotExist())
+            .andExpect(jsonPath("$.hasInsurance").value(true))
+            .andExpect(jsonPath("$.privacyConsentAt").exists())
+            .andExpect(jsonPath("$.privacyConsentVersion").value("booking-privacy-v1"))
             .andExpect(jsonPath("$.reasonForVisit").doesNotExist());
 
         mockMvc.perform(post("/api/v1/appointments/confirm")
@@ -371,6 +428,9 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
             .andExpect(jsonPath("$.doctorName").value("BS. CKII Nguyễn Văn An"))
             .andExpect(jsonPath("$.patientPhone").value("090****567"))
             .andExpect(jsonPath("$.reasonForVisit").value(org.hamcrest.Matchers.nullValue()))
+            .andExpect(jsonPath("$.hasInsurance").value(true))
+            .andExpect(jsonPath("$.privacyConsentAt").exists())
+            .andExpect(jsonPath("$.privacyConsentVersion").value("booking-privacy-v1"))
             .andExpect(jsonPath("$.status").value("CONFIRMED"));
 
         // 5. Cancel appointment
@@ -379,6 +439,65 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
                 .content("{\"reason\":\"Thay đổi kế hoạch công tác\",\"phone\":\"0901234567\"}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("CANCELLED"));
+    }
+
+    @Test
+    void holdFailsWhenNoDeliverableEmailIsPresent() throws Exception {
+        HoldSlotRequest holdRequest = new HoldSlotRequest(
+            doctor.getId(),
+            nextDate(DayOfWeek.MONDAY),
+            LocalTime.of(9, 0),
+            "Patient Without Email",
+            "0907000301",
+            null,
+            "Missing delivery address",
+            specialty.getId(),
+            null,
+            null
+        );
+
+        mockMvc.perform(post("/api/v1/appointments/hold")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(holdRequest)))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+            .andExpect(jsonPath("$.fieldErrors[?(@.field == 'email')]").exists());
+
+        assertEquals(0, appointmentRepository.count());
+        assertThatPatientWasRolledBack("0907000301");
+    }
+
+    @Test
+    void holdCommitsBeforeOtpEmailDeliveryFailureIsReported() throws Exception {
+        doThrow(new BusinessException(
+            503,
+            ErrorCodes.EMAIL_DELIVERY_UNAVAILABLE,
+            "Email delivery is temporarily unavailable"
+        )).when(emailSender).send(anyString(), anyString(), anyString());
+        HoldSlotRequest holdRequest = new HoldSlotRequest(
+            doctor.getId(),
+            nextDate(DayOfWeek.MONDAY),
+            LocalTime.of(9, 0),
+            "Patient With Failed Delivery",
+            "0907000302",
+            "delivery.failure@example.com",
+            "Delivery rollback",
+            specialty.getId(),
+            null,
+            null
+        );
+
+        mockMvc.perform(post("/api/v1/appointments/hold")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(holdRequest)))
+            .andExpect(status().isServiceUnavailable())
+            .andExpect(jsonPath("$.code").value("EMAIL_DELIVERY_UNAVAILABLE"));
+
+        assertEquals(1, appointmentRepository.count());
+        assertEquals(
+            "delivery.failure@example.com",
+            patientProfileRepository.findByPhone("0907000302").orElseThrow().getEmail()
+        );
     }
 
     @Test
@@ -516,7 +635,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
             LocalTime.of(11, 0),
             "Người Dùng Bảo Mật",
             "0912345678",
-            null,
+            BOOKING_EMAIL,
             "Kiểm tra sức khỏe",
             specialty.getId(),
             null,
@@ -547,7 +666,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
             startTime,
             "Lê Văn Thử Nghiệm",
             "0987654321",
-            null,
+            BOOKING_EMAIL,
             "Khám tổng quát",
             specialty.getId(),
             null,
@@ -689,7 +808,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         saveSchedule(branch, targetDate, 9, 30, 10, 30, 30);
 
         HoldSlotRequest first = new HoldSlotRequest(
-            doctor.getId(), targetDate, LocalTime.of(9, 0), "Người Đặt Một", "0907000001", null,
+            doctor.getId(), targetDate, LocalTime.of(9, 0), "Người Đặt Một", "0907000001", BOOKING_EMAIL,
             "Slot 60 phút", specialty.getId(), branch.getId(), null);
         MvcResult firstResult = mockMvc.perform(post("/api/v1/appointments/hold")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -712,7 +831,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
             .andExpect(jsonPath("$[2].available").value(false));
 
         HoldSlotRequest overlapping = new HoldSlotRequest(
-            doctor.getId(), targetDate, LocalTime.of(9, 30), "Người Đặt Hai", "0907000002", null,
+            doctor.getId(), targetDate, LocalTime.of(9, 30), "Người Đặt Hai", "0907000002", BOOKING_EMAIL,
             "Slot chồng lấn", specialty.getId(), branch.getId(), null);
         mockMvc.perform(post("/api/v1/appointments/hold")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -727,7 +846,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         mockMvc.perform(post("/api/v1/appointments/hold")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(new HoldSlotRequest(
-                    doctor.getId(), targetDate, LocalTime.of(9, 0), "Thiếu chuyên khoa", "0907000011", null,
+                    doctor.getId(), targetDate, LocalTime.of(9, 0), "Thiếu chuyên khoa", "0907000011", BOOKING_EMAIL,
                     null, UUID.randomUUID(), null, null))))
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.message").value("Không tìm thấy chuyên khoa"));
@@ -736,7 +855,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         mockMvc.perform(post("/api/v1/appointments/hold")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(new HoldSlotRequest(
-                    doctor.getId(), targetDate, LocalTime.of(9, 0), "Thiếu cơ sở", "0907000012", null,
+                    doctor.getId(), targetDate, LocalTime.of(9, 0), "Thiếu cơ sở", "0907000012", BOOKING_EMAIL,
                     null, specialty.getId(), missingBranchId, null))))
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.message").value("Không tìm thấy cơ sở khám"));
@@ -744,7 +863,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         mockMvc.perform(post("/api/v1/appointments/hold")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(new HoldSlotRequest(
-                    doctor.getId(), targetDate, LocalTime.of(9, 0), "Thiếu gói", "0907000013", null,
+                    doctor.getId(), targetDate, LocalTime.of(9, 0), "Thiếu gói", "0907000013", BOOKING_EMAIL,
                     null, specialty.getId(), null, UUID.randomUUID()))))
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.message").value("Không tìm thấy gói khám"));
@@ -759,7 +878,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         mockMvc.perform(post("/api/v1/appointments/hold")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(new HoldSlotRequest(
-                    doctor.getId(), targetDate, LocalTime.of(9, 0), "Sai liên kết", "0907000014", null,
+                    doctor.getId(), targetDate, LocalTime.of(9, 0), "Sai liên kết", "0907000014", BOOKING_EMAIL,
                     null, specialty.getId(), unassigned.getId(), null))))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.message").value("Bác sĩ không làm việc tại cơ sở khám đã chọn"));
@@ -780,16 +899,20 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         legacyProfile.setPhone("0905550000");
         patientProfileRepository.saveAndFlush(legacyProfile);
 
+        Branch branch = createBranchForDoctor("unlinked-patient");
+        LocalDate appointmentDate = LocalDate.now(BUSINESS_ZONE).plusDays(8);
+        saveSchedule(branch, appointmentDate, 13, 0, 14, 0, 30);
+
         HoldSlotRequest holdRequest = new HoldSlotRequest(
             doctor.getId(),
-            LocalDate.now(BUSINESS_ZONE).plusDays(8),
+            appointmentDate,
             LocalTime.of(13, 30),
             "Tài Khoản Mới",
             "0905550000",
-            null,
+            BOOKING_EMAIL,
             "Không được tự nhận hồ sơ cũ",
             specialty.getId(),
-            null,
+            branch.getId(),
             null
         );
 
@@ -801,14 +924,96 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
     }
 
     @Test
+    void publicHoldCannotReusePhoneOwnedProfileWithAnAttackerEmail() throws Exception {
+        User victimOwner = createVerifiedUser("victim.booking@example.com", "Victim Account");
+        PatientProfile victimProfile = new PatientProfile();
+        victimProfile.setFullName("Victim Private Name");
+        victimProfile.setPhone("0905550200");
+        victimProfile.setEmail(victimOwner.getEmail());
+        victimProfile.setUserId(victimOwner.getId());
+        patientProfileRepository.saveAndFlush(victimProfile);
+
+        Branch branch = createBranchForDoctor("booking-owner-abuse");
+        LocalDate appointmentDate = nextDate(DayOfWeek.WEDNESDAY);
+        saveSchedule(branch, appointmentDate, 15, 0, 16, 0, 30);
+
+        HoldSlotRequest attack = new HoldSlotRequest(
+            doctor.getId(),
+            appointmentDate,
+            LocalTime.of(15, 0),
+            "Attacker Supplied Name",
+            victimProfile.getPhone(),
+            "attacker.booking@example.com",
+            "Attempt to attach to another patient's profile",
+            specialty.getId(),
+            branch.getId(),
+            null
+        );
+
+        MvcResult result = mockMvc.perform(post("/api/v1/appointments/hold")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(attack)))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.message").value("Không thể xác minh thông tin bệnh nhân"))
+            .andReturn();
+
+        assertFalse(result.getResponse().getContentAsString().contains(victimProfile.getFullName()));
+        assertEquals(0, appointmentRepository.count());
+        assertEquals(
+            "Victim Private Name",
+            patientProfileRepository.findById(victimProfile.getId()).orElseThrow().getFullName()
+        );
+        verify(emailSender, never()).send(eq("attacker.booking@example.com"), anyString(), anyString());
+    }
+
+    @Test
+    void publicHoldWithMatchingEmailSendsOtpToStoredVerifiedDestination() throws Exception {
+        User owner = createVerifiedUser("stored.booking@example.com", "Stored Destination Owner");
+        PatientProfile profile = new PatientProfile();
+        profile.setFullName("Stored Profile Name");
+        profile.setPhone("0905550201");
+        profile.setEmail(owner.getEmail());
+        profile.setUserId(owner.getId());
+        patientProfileRepository.saveAndFlush(profile);
+
+        Branch branch = createBranchForDoctor("booking-owner-match");
+        LocalDate appointmentDate = nextDate(DayOfWeek.THURSDAY);
+        saveSchedule(branch, appointmentDate, 15, 0, 16, 0, 30);
+
+        HoldSlotRequest request = new HoldSlotRequest(
+            doctor.getId(),
+            appointmentDate,
+            LocalTime.of(15, 30),
+            "Request Name Is Not Trusted",
+            profile.getPhone(),
+            "STORED.BOOKING@EXAMPLE.COM",
+            "Verify stored destination binding",
+            specialty.getId(),
+            branch.getId(),
+            null
+        );
+
+        mockMvc.perform(post("/api/v1/appointments/hold")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isCreated());
+
+        verify(emailSender).send(eq(owner.getEmail()), anyString(), anyString());
+        assertEquals(
+            "Stored Profile Name",
+            patientProfileRepository.findById(profile.getId()).orElseThrow().getFullName()
+        );
+    }
+
+    @Test
     void concurrentHoldsForOneSlotAllowOnlyOneReservation() throws Exception {
         HoldSlotRequest holdRequest = new HoldSlotRequest(
             doctor.getId(),
-            LocalDate.now(BUSINESS_ZONE).plusDays(7),
+            nextDate(DayOfWeek.MONDAY),
             LocalTime.of(14, 0),
             "Người Đặt Đồng Thời",
             "0905551111",
-            null,
+            BOOKING_EMAIL,
             "Kiểm tra tranh chấp slot",
             specialty.getId(),
             null,
@@ -819,27 +1024,42 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         ExecutorService executor = Executors.newFixedThreadPool(2);
 
         try {
-            Future<Integer> first = executor.submit(() -> performHoldAfter(release, body));
-            Future<Integer> second = executor.submit(() -> performHoldAfter(release, body));
+            Future<MvcResult> first = executor.submit(() -> performHoldAfter(release, body));
+            Future<MvcResult> second = executor.submit(() -> performHoldAfter(release, body));
             release.countDown();
 
-            int firstStatus = first.get(15, TimeUnit.SECONDS);
-            int secondStatus = second.get(15, TimeUnit.SECONDS);
-            assertEquals(1, (firstStatus == 201 ? 1 : 0) + (secondStatus == 201 ? 1 : 0));
-            assertEquals(1, (firstStatus == 409 ? 1 : 0) + (secondStatus == 409 ? 1 : 0));
+            MvcResult firstResult = first.get(15, TimeUnit.SECONDS);
+            MvcResult secondResult = second.get(15, TimeUnit.SECONDS);
+            int firstStatus = firstResult.getResponse().getStatus();
+            int secondStatus = secondResult.getResponse().getStatus();
+            String diagnostics = "first=" + describeHoldAttempt(firstResult)
+                + ", second=" + describeHoldAttempt(secondResult);
+            assertEquals(1, (firstStatus == 201 ? 1 : 0) + (secondStatus == 201 ? 1 : 0), diagnostics);
+            assertEquals(1, (firstStatus == 409 ? 1 : 0) + (secondStatus == 409 ? 1 : 0), diagnostics);
         } finally {
             executor.shutdownNow();
         }
     }
 
-    private int performHoldAfter(CountDownLatch release, String body) throws Exception {
+    private MvcResult performHoldAfter(CountDownLatch release, String body) throws Exception {
         release.await(5, TimeUnit.SECONDS);
         return mockMvc.perform(post("/api/v1/appointments/hold")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))
-            .andReturn()
-            .getResponse()
-            .getStatus();
+            .andReturn();
+    }
+
+    private String describeHoldAttempt(MvcResult result) throws Exception {
+        Exception resolvedException = result.getResolvedException();
+        return "status=" + result.getResponse().getStatus()
+            + ", body=" + result.getResponse().getContentAsString()
+            + ", exception=" + (resolvedException == null
+                ? "none"
+                : resolvedException.getClass().getSimpleName() + ": " + resolvedException.getMessage());
+    }
+
+    private void assertThatPatientWasRolledBack(String phone) {
+        assertFalse(patientProfileRepository.findByPhone(phone).isPresent());
     }
 
     private String createConfirmedAppointment(LocalDate date, LocalTime startTime, String phone) throws Exception {
@@ -849,7 +1069,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
             startTime,
             "Bệnh Nhân Đổi Lịch",
             phone,
-            null,
+            BOOKING_EMAIL,
             "Kiểm tra tính năng đổi lịch",
             specialty.getId(),
             null,
@@ -884,10 +1104,28 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
                       "displayName": "Appointment Patient"
                     }
                     """.formatted(java.util.UUID.randomUUID())))
-            .andExpect(status().isOk())
+            .andExpect(status().isAccepted())
             .andReturn();
-        return "Bearer " + objectMapper.readTree(result.getResponse().getContentAsString())
-            .get("accessToken").asText();
+        String email = objectMapper.readTree(result.getResponse().getContentAsString()).get("email").asText();
+        var user = userRepository.findByEmail(email).orElseThrow();
+        user.setEmailVerified(true);
+        user.setEmailVerifiedAt(java.time.OffsetDateTime.now());
+        userRepository.saveAndFlush(user);
+        return "Bearer " + tokenProvider.generateAccessToken(user.getId(), user.getEmail());
+    }
+
+    private User createVerifiedUser(String email, String displayName) {
+        OffsetDateTime now = OffsetDateTime.now();
+        User user = new User();
+        user.setEmail(email);
+        user.setPasswordHash("not-used-by-booking-test");
+        user.setDisplayName(displayName);
+        user.setStatus("ACTIVE");
+        user.setEmailVerified(true);
+        user.setEmailVerifiedAt(now);
+        user.setCreatedAt(now);
+        user.setUpdatedAt(now);
+        return userRepository.saveAndFlush(user);
     }
 
     private Branch createBranchForDoctor(String label) {

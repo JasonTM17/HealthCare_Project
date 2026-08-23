@@ -61,6 +61,33 @@ class AiServiceTest {
     }
 
     @Test
+    void chatUsesFastApiChatContract() {
+        server.expect(requestTo("http://ai.test/chat"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(content().json("{\"message\":\"hello\",\"recent_turns\":[{\"role\":\"user\",\"content\":\"hi\"}]}"))
+            .andRespond(withSuccess("{\"answer\":\"Hello\"}", MediaType.APPLICATION_JSON));
+
+        Map<String, Object> response = aiService.chat(Map.of(
+            "message", "  hello ",
+            "recent_history", java.util.List.of(Map.of("role", "user", "content", "hi"))
+        ));
+
+        assertThat(response).containsEntry("answer", "Hello");
+        server.verify();
+    }
+
+    @Test
+    void invalidChatMessageIsRejectedBeforeCallingUpstream() {
+        assertThatThrownBy(() -> aiService.chat(Map.of("message", "   ")))
+            .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                assertThat(exception.getStatusCode()).isEqualTo(BAD_REQUEST));
+
+        assertThatThrownBy(() -> aiService.chat(Map.of("message", " x ")))
+            .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                assertThat(exception.getStatusCode()).isEqualTo(BAD_REQUEST));
+    }
+
+    @Test
     void liveGatewayUsesHttp11InsteadOfH2cUpgrade() throws Exception {
         AtomicReference<String> upgradeHeader = new AtomicReference<>();
         HttpServer httpServer = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
@@ -130,6 +157,15 @@ class AiServiceTest {
         ReflectionTestUtils.setField(aiService, "maxInputChars", 4);
 
         assertThatThrownBy(() -> aiService.symptomCheck(Map.of("symptoms", "đau đầu")))
+            .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                assertThat(exception.getStatusCode()).isEqualTo(BAD_REQUEST));
+    }
+
+    @Test
+    void configuredInputLimitIsEnforcedForSearchBeforeUpstreamCall() {
+        ReflectionTestUtils.setField(aiService, "maxInputChars", 4);
+
+        assertThatThrownBy(() -> aiService.search("headache", 2))
             .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
                 assertThat(exception.getStatusCode()).isEqualTo(BAD_REQUEST));
     }

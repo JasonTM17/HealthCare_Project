@@ -47,10 +47,14 @@ test("shared authenticated client refreshes expired sessions before replaying sa
   const uploadDiagnosticFile = functionBody(source, "uploadDiagnosticFile");
   const downloadProtectedFile = functionBody(source, "downloadProtectedFile");
 
-  assert.match(source, /let refreshAuthSessionPromise/);
+  assert.match(source, /interface RefreshAuthSessionFlight/);
+  assert.match(source, /refreshToken: string;[\s\S]*sessionVersion: number;/);
+  assert.match(source, /let refreshAuthSessionFlight: RefreshAuthSessionFlight \| null = null/);
+  assert.match(source, /authSessionsMatch\(readAuthSession\(\), currentSession\)/);
+  assert.match(source, /clearAuthSessionIfCurrent\(currentSession, sessionVersion\)/);
+  assert.match(source, /refreshAuthSessionFlight === flight/);
   assert.match(source, /getJson<AuthSession>\("\/auth\/refresh"/);
   assert.match(source, /storeAuthSession\(session\)/);
-  assert.match(source, /clearAuthSession\(\)/);
   assert.match(source, /error instanceof ApiError[\s\S]*error\.status !== 401/);
   assert.match(getAuthenticatedJson, /withAuthenticatedSession\(path/);
   assert.match(getAuthenticatedJson, /headers\.set\("Authorization", `\$\{session\.tokenType\} \$\{session\.accessToken\}`\)/);

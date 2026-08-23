@@ -70,6 +70,15 @@ public class Appointment {
     @Column(name = "reason_for_visit", length = 1000)
     private String reasonForVisit;
 
+    @Column(name = "has_insurance", nullable = false)
+    private boolean hasInsurance;
+
+    @Column(name = "privacy_consent_at")
+    private OffsetDateTime privacyConsentAt;
+
+    @Column(name = "privacy_consent_version", length = 32)
+    private String privacyConsentVersion;
+
     @Column(name = "notes", length = 2000)
     private String notes;
 
@@ -208,6 +217,30 @@ public class Appointment {
 
     public void setReasonForVisit(String reasonForVisit) {
         this.reasonForVisit = reasonForVisit;
+    }
+
+    public boolean isHasInsurance() {
+        return hasInsurance;
+    }
+
+    public void setHasInsurance(boolean hasInsurance) {
+        this.hasInsurance = hasInsurance;
+    }
+
+    public OffsetDateTime getPrivacyConsentAt() {
+        return privacyConsentAt;
+    }
+
+    public void setPrivacyConsentAt(OffsetDateTime privacyConsentAt) {
+        this.privacyConsentAt = privacyConsentAt;
+    }
+
+    public String getPrivacyConsentVersion() {
+        return privacyConsentVersion;
+    }
+
+    public void setPrivacyConsentVersion(String privacyConsentVersion) {
+        this.privacyConsentVersion = privacyConsentVersion;
     }
 
     public String getNotes() {

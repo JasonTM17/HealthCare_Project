@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import PortalChrome from "../../../components/PortalChrome";
 import {
   ApiError,
@@ -41,6 +42,7 @@ import {
 } from "../../../components/PortalStates";
 import PortalAppointments from "../../../components/PortalAppointments";
 import { businessDate, formatBusinessDate, formatBusinessDateTime } from "../../../lib/business-time";
+import UiIcon from "../../../components/UiIcon";
 
 type Loadable<T> =
   | { status: "loading" }
@@ -119,7 +121,7 @@ function countOf<T>(state: Loadable<T[]> | Loadable<Page<T>>): string {
   if (state.status === "success") {
     return String(Array.isArray(state.data) ? state.data.length : state.data.totalElements);
   }
-  return "—";
+  return "--";
 }
 
 function StateContent<T>({
@@ -152,6 +154,7 @@ function StateContent<T>({
 
 export default function PatientDashboardPage() {
   const session = useAuthSession();
+  const searchParams = useSearchParams();
   const user: AuthUser | null = session?.user ?? null;
   const authState: "ready" | "unauthenticated" | "forbidden" = !session
     ? "unauthenticated"
@@ -176,6 +179,7 @@ export default function PatientDashboardPage() {
   const [notificationAction, setNotificationAction] = useState<string | null>(null);
   const [notificationError, setNotificationError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const handledAppointmentIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!session || !hasRole(session.user, "PATIENT")) return;
@@ -230,6 +234,32 @@ export default function PatientDashboardPage() {
     setProfile(initialProfile);
     setReloadKey((value) => value + 1);
   };
+
+  const handleChooseReschedule = useCallback((appointment: PatientPortalAppointment) => {
+    setSelectedAppointment(appointment);
+    setRescheduleDate(appointment.appointmentDate);
+    setSelectedStartTime("");
+    setSlots(null);
+    setRescheduleNotice(null);
+  }, []);
+
+  const appointmentId = searchParams.get("appointmentId");
+
+  useEffect(() => {
+    if (appointments.status !== "success") return;
+    if (!appointmentId || handledAppointmentIdRef.current === appointmentId || selectedAppointment) return;
+
+    const targetAppointment = appointments.data.content.find(
+      (appointment) => appointment.id === appointmentId || appointment.bookingCode === appointmentId,
+    );
+    if (!targetAppointment) return;
+
+    handledAppointmentIdRef.current = appointmentId;
+    // The route alias should open the inline reschedule panel once the
+    // target appointment has been resolved.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    handleChooseReschedule(targetAppointment);
+  }, [appointmentId, appointments, handleChooseReschedule, selectedAppointment]);
 
   if (authState === "unauthenticated") {
     return <main className="portal-entry"><LoginRequiredState nextPath="/patient/dashboard" /></main>;
@@ -310,14 +340,6 @@ export default function PatientDashboardPage() {
     }
   };
 
-  const handleChooseReschedule = (appointment: PatientPortalAppointment) => {
-    setSelectedAppointment(appointment);
-    setRescheduleDate(appointment.appointmentDate);
-    setSelectedStartTime("");
-    setSlots(null);
-    setRescheduleNotice(null);
-  };
-
   const handleLoadSlots = async () => {
     if (!selectedAppointment || !rescheduleDate) return;
     setSlots({ status: "loading" });
@@ -368,7 +390,10 @@ export default function PatientDashboardPage() {
           </div>
           <div className="portal-hero__actions">
             <Link className="button button--amber" href="/tra-cuu">Tra cứu lịch hẹn</Link>
-            <span className="portal-demo-label">Thông tin cá nhân được bảo vệ</span>
+            <a className="portal-context-link" href="#notifications">
+              <span aria-hidden="true"><UiIcon name="message-square" size={17} /></span>
+              <span>{unreadCount === null ? "Thông báo" : `${unreadCount} thông báo chưa đọc`}</span>
+            </a>
           </div>
         </header>
 
@@ -377,27 +402,6 @@ export default function PatientDashboardPage() {
           <a className="portal-summary-card" href="#records"><span>Hồ sơ khám</span><strong>{countOf(records)}</strong><small>Thông tin lâm sàng</small></a>
           <a className="portal-summary-card" href="#prescriptions"><span>Đơn thuốc</span><strong>{countOf(prescriptions)}</strong><small>Đơn đã được kê</small></a>
           <a className="portal-summary-card" href="#diagnostics"><span>Kết quả</span><strong>{countOf(diagnostics)}</strong><small>Cận lâm sàng</small></a>
-          <a className="portal-summary-card" href="#notifications"><span>Thông báo chưa đọc</span><strong>{unreadCount === null ? "—" : unreadCount}</strong><small>Cập nhật dành cho bạn</small></a>
-        </section>
-
-        <section aria-labelledby="profile-title" className="portal-panel" id="profile">
-          <div className="portal-panel__heading"><div><p className="section-note">THÔNG TIN CÁ NHÂN</p><h2 id="profile-title">Hồ sơ bệnh nhân</h2></div></div>
-          <StateContent retry={retry} state={profile}>
-            {() => (
-              <form className="portal-clinical-form" onSubmit={handleSaveProfile}>
-                <div className="portal-clinical-form__grid">
-                  <label>Họ và tên *<input required maxLength={160} onChange={(event) => setProfileForm((value) => ({ ...value, fullName: event.target.value }))} value={profileForm.fullName} /></label>
-                  <label>Ngày sinh<input onChange={(event) => setProfileForm((value) => ({ ...value, dateOfBirth: event.target.value }))} type="date" value={profileForm.dateOfBirth} /></label>
-                  <label>Giới tính<select onChange={(event) => setProfileForm((value) => ({ ...value, gender: event.target.value as ProfileForm["gender"] }))} value={profileForm.gender}><option value="">Chưa chọn</option><option value="MALE">Nam</option><option value="FEMALE">Nữ</option><option value="OTHER">Khác</option><option value="UNSPECIFIED">Không xác định</option></select></label>
-                  <label>Địa chỉ<input maxLength={500} onChange={(event) => setProfileForm((value) => ({ ...value, address: event.target.value }))} value={profileForm.address} /></label>
-                  <label>Người liên hệ khẩn cấp<input maxLength={160} onChange={(event) => setProfileForm((value) => ({ ...value, emergencyContactName: event.target.value }))} value={profileForm.emergencyContactName} /></label>
-                  <label>Số điện thoại khẩn cấp<input maxLength={20} onChange={(event) => setProfileForm((value) => ({ ...value, emergencyContactPhone: event.target.value }))} value={profileForm.emergencyContactPhone} /></label>
-                </div>
-                {profileNotice ? <p aria-live="polite" className={profileNotice.startsWith("Đã") ? "portal-inline-success" : "portal-inline-error"}>{profileNotice}</p> : null}
-                <button className="button button--primary" disabled={profileOperation === "saving"} type="submit">{profileOperation === "saving" ? "Đang lưu…" : "Lưu hồ sơ"}</button>
-              </form>
-            )}
-          </StateContent>
         </section>
 
         <section className="portal-panel" aria-labelledby="appointments-title" id="appointments">
@@ -406,7 +410,7 @@ export default function PatientDashboardPage() {
               <p className="section-note">LỊCH HẸN ĐÃ XÁC THỰC</p>
               <h2 id="appointments-title">Lịch hẹn của tôi</h2>
             </div>
-            <span aria-hidden="true" className="portal-panel__icon">◷</span>
+            <span aria-hidden="true" className="portal-panel__icon"><UiIcon name="calendar" size={20} /></span>
           </div>
           <p className="portal-panel__intro">Xem ngày, giờ, bác sĩ và cơ sở của các cuộc hẹn đã đặt bằng tài khoản này.</p>
           <StateContent
@@ -435,7 +439,7 @@ export default function PatientDashboardPage() {
           <section aria-labelledby="records-title" className="portal-panel" id="records">
             <div className="portal-panel__heading">
               <div><p className="section-note">HỒ SƠ LÂM SÀNG</p><h2 id="records-title">Lịch sử khám</h2></div>
-              <span aria-hidden="true" className="portal-panel__icon">+</span>
+              <span aria-hidden="true" className="portal-panel__icon"><UiIcon name="activity" size={20} /></span>
             </div>
             <StateContent
               emptyDescription="Khi bác sĩ hoàn tất một lượt khám được liên kết với tài khoản, hồ sơ sẽ xuất hiện ở đây."
@@ -463,7 +467,7 @@ export default function PatientDashboardPage() {
           <section aria-labelledby="prescriptions-title" className="portal-panel" id="prescriptions">
             <div className="portal-panel__heading">
               <div><p className="section-note">ĐIỀU TRỊ</p><h2 id="prescriptions-title">Đơn thuốc</h2></div>
-              <span aria-hidden="true" className="portal-panel__icon">Rx</span>
+              <span aria-hidden="true" className="portal-panel__icon"><UiIcon name="book-open" size={20} /></span>
             </div>
             <StateContent
               emptyDescription="Đơn thuốc được kê trong hồ sơ khám sẽ hiển thị ở đây."
@@ -499,7 +503,7 @@ export default function PatientDashboardPage() {
         <section aria-labelledby="diagnostics-title" className="portal-panel" id="diagnostics">
           <div className="portal-panel__heading">
             <div><p className="section-note">CẬN LÂM SÀNG</p><h2 id="diagnostics-title">Kết quả chẩn đoán</h2></div>
-            <span aria-hidden="true" className="portal-panel__icon">⌁</span>
+            <span aria-hidden="true" className="portal-panel__icon"><UiIcon name="activity" size={20} /></span>
           </div>
           {downloadError ? <p aria-live="assertive" className="portal-inline-error" role="alert">{downloadError}</p> : null}
           <StateContent
@@ -515,7 +519,7 @@ export default function PatientDashboardPage() {
                     <div className="portal-record__meta"><span>{formatBusinessDate(result.testDate)}</span><span>{result.doctorName ?? "Chưa có bác sĩ"}</span></div>
                     <h3>{result.testName}</h3>
                     <p>{result.result}</p>
-                    {result.fileUrl ? <button className="text-button" onClick={() => handleDownload(result)} type="button">Tải tệp kết quả ↓</button> : <small>Chưa có tệp đính kèm.</small>}
+                    {result.fileUrl ? <button className="text-button" onClick={() => handleDownload(result)} type="button">Tải tệp kết quả</button> : <small>Chưa có tệp đính kèm.</small>}
                   </article>
                 ))}
               </div>
@@ -548,6 +552,26 @@ export default function PatientDashboardPage() {
                   </article>
                 ))}
               </div>
+            )}
+          </StateContent>
+        </section>
+
+        <section aria-labelledby="profile-title" className="portal-panel portal-panel--secondary" id="profile">
+          <div className="portal-panel__heading"><div><h2 id="profile-title">Hồ sơ bệnh nhân</h2></div></div>
+          <StateContent retry={retry} state={profile}>
+            {() => (
+              <form className="portal-clinical-form" onSubmit={handleSaveProfile}>
+                <div className="portal-clinical-form__grid">
+                  <label>Họ và tên *<input required maxLength={160} onChange={(event) => setProfileForm((value) => ({ ...value, fullName: event.target.value }))} value={profileForm.fullName} /></label>
+                  <label>Ngày sinh<input onChange={(event) => setProfileForm((value) => ({ ...value, dateOfBirth: event.target.value }))} type="date" value={profileForm.dateOfBirth} /></label>
+                  <label>Giới tính<select onChange={(event) => setProfileForm((value) => ({ ...value, gender: event.target.value as ProfileForm["gender"] }))} value={profileForm.gender}><option value="">Chưa chọn</option><option value="MALE">Nam</option><option value="FEMALE">Nữ</option><option value="OTHER">Khác</option><option value="UNSPECIFIED">Không xác định</option></select></label>
+                  <label>Địa chỉ<input maxLength={500} onChange={(event) => setProfileForm((value) => ({ ...value, address: event.target.value }))} value={profileForm.address} /></label>
+                  <label>Người liên hệ khẩn cấp<input maxLength={160} onChange={(event) => setProfileForm((value) => ({ ...value, emergencyContactName: event.target.value }))} value={profileForm.emergencyContactName} /></label>
+                  <label>Số điện thoại khẩn cấp<input maxLength={20} onChange={(event) => setProfileForm((value) => ({ ...value, emergencyContactPhone: event.target.value }))} value={profileForm.emergencyContactPhone} /></label>
+                </div>
+                {profileNotice ? <p aria-live="polite" className={profileNotice.startsWith("Đã") ? "portal-inline-success" : "portal-inline-error"}>{profileNotice}</p> : null}
+                <button className="button button--primary" disabled={profileOperation === "saving"} type="submit">{profileOperation === "saving" ? "Đang lưu…" : "Lưu hồ sơ"}</button>
+              </form>
             )}
           </StateContent>
         </section>

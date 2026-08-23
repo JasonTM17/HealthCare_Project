@@ -125,6 +125,44 @@ async function startBookingMockBackend() {
       return;
     }
 
+    if (method === "POST" && apiPath === "/appointments/hold") {
+      sendJson(response, 200, {
+        bookingCode: "HC-E2E-0001",
+        holdExpiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+        otpExpiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+        message: "Đã giữ chỗ và gửi OTP.",
+        otpRequired: true,
+      });
+      return;
+    }
+
+    if (method === "POST" && apiPath === "/appointments/confirm") {
+      sendJson(response, 200, {
+        id: "appointment-e2e-1",
+        bookingCode: "HC-E2E-0001",
+        patientName: "Nguyễn Văn An",
+        patientPhone: "0901234567",
+        patientEmail: "patient@example.com",
+        doctorId: DOCTOR.id,
+        doctorName: DOCTOR.fullName,
+        doctorTitle: DOCTOR.title,
+        specialtyName: SPECIALTY.name,
+        branchName: BRANCH.name,
+        branchAddress: BRANCH.address,
+        appointmentDate: "2026-08-24",
+        startTime: SLOT.startTime,
+        endTime: SLOT.endTime,
+        status: "CONFIRMED",
+        paymentStatus: "UNPAID",
+        reasonForVisit: "Tái khám tim mạch",
+        hasInsurance: false,
+        privacyConsentAt: "2026-08-23T05:00:00Z",
+        privacyConsentVersion: "v1",
+        createdAt: "2026-08-23T05:00:00Z",
+      });
+      return;
+    }
+
     unexpectedApiRequests.push(`${method} ${apiPath}`);
     sendJson(response, 500, { message: `Unhandled booking e2e request: ${method} ${apiPath}` });
   });
@@ -185,6 +223,45 @@ test("booking landing keeps the appointment flow inline without auto-opening a d
     await expect(inlineRegion).toBeFocused();
     await expect(page.locator('[role="dialog"]')).toHaveCount(0);
     await expect(page.locator('[aria-modal="true"]')).toHaveCount(0);
+
+    await page.getByRole("button", { name: /Tiếp tục: Chọn cơ sở/ }).click();
+    await page.getByRole("button", { name: /Tiếp tục: Chọn bác sĩ/ }).click();
+    await page.getByRole("button", { name: /Tiếp tục: Chọn ngày/ }).click();
+    await page.getByRole("button", { name: /Xem khung giờ/ }).click();
+    await expect(page.getByRole("button", { name: /08:00.*Còn trống/ })).toBeEnabled();
+    await page.getByRole("button", { name: /Tiếp tục: Điền thông tin/ }).click();
+
+    await page.getByLabel("Họ và tên bệnh nhân").fill("Nguyễn Văn An");
+    await page.getByLabel("Số điện thoại liên hệ").fill("0901234567");
+    await page.getByLabel("Email nhận mã OTP").fill("patient@example.com");
+    await page.getByLabel("Triệu chứng hoặc lý do khám bệnh").fill("Tái khám tim mạch");
+    await page.getByLabel(/Tôi đồng ý để HealthCare xử lý thông tin đặt lịch/).check();
+
+    const holdRequestPromise = page.waitForRequest((request) => (
+      request.method() === "POST" && new URL(request.url()).pathname === "/api/v1/appointments/hold"
+    ));
+    await page.getByRole("button", { name: "Giữ chỗ và nhận mã OTP" }).click();
+    const holdRequest = await holdRequestPromise;
+    expect(holdRequest.postDataJSON()).toMatchObject({
+      doctorId: DOCTOR.id,
+      specialtyId: SPECIALTY.id,
+      branchId: BRANCH.id,
+      startTime: SLOT.startTime,
+      fullName: "Nguyễn Văn An",
+      phone: "0901234567",
+      email: "patient@example.com",
+      privacyConsent: true,
+    });
+
+    await expect(page.getByRole("heading", { name: "Xác nhận lịch hẹn bằng OTP" })).toBeVisible();
+    await page.getByLabel("Nhập mã OTP 6 số xác thực").fill("123456");
+    const confirmRequestPromise = page.waitForRequest((request) => (
+      request.method() === "POST" && new URL(request.url()).pathname === "/api/v1/appointments/confirm"
+    ));
+    await page.getByRole("button", { name: "Hoàn tất đặt lịch khám" }).click();
+    const confirmRequest = await confirmRequestPromise;
+    expect(confirmRequest.postDataJSON()).toEqual({ bookingCode: "HC-E2E-0001", otpCode: "123456" });
+    await expect(page.getByRole("heading", { name: "Đặt lịch khám thành công!" })).toBeVisible();
     expect(backend.unexpectedApiRequests).toEqual([]);
   } finally {
     await backend.close();

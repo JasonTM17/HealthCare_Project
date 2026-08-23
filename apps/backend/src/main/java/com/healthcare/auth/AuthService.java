@@ -1,13 +1,22 @@
 package com.healthcare.auth;
 
 import com.healthcare.exception.DuplicateResourceException;
+import com.healthcare.exception.BusinessException;
+import com.healthcare.exception.ErrorCodes;
 import com.healthcare.exception.ResourceNotFoundException;
 import com.healthcare.security.JwtProperties;
 import com.healthcare.security.JwtTokenProvider;
 import com.healthcare.user.dto.AuthResponse;
+import com.healthcare.user.dto.AuthActionResponse;
+import com.healthcare.user.dto.EmailVerificationRequest;
 import com.healthcare.user.dto.LoginRequest;
+import com.healthcare.user.dto.PasswordResetConfirmRequest;
+import com.healthcare.user.dto.PasswordResetRequest;
 import com.healthcare.user.dto.RefreshTokenRequest;
 import com.healthcare.user.dto.RegisterRequest;
+import com.healthcare.user.dto.RegistrationPendingResponse;
+import com.healthcare.user.dto.ResendVerificationRequest;
+import com.healthcare.user.UserSecurityLock;
 import com.healthcare.user.entity.RefreshToken;
 import com.healthcare.user.entity.Role;
 import com.healthcare.user.entity.User;
@@ -16,6 +25,8 @@ import com.healthcare.user.repository.RoleRepository;
 import com.healthcare.user.repository.UserRepository;
 import com.healthcare.appointment.entity.PatientProfile;
 import com.healthcare.appointment.repository.PatientProfileRepository;
+import com.healthcare.auth.security.AuthRateLimiter;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AccountStatusException;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -38,6 +49,7 @@ import java.util.UUID;
 public class AuthService {
 
     private final UserRepository userRepository;
+    private final UserSecurityLock userSecurityLock;
     private final RoleRepository roleRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
@@ -45,16 +57,22 @@ public class AuthService {
     private final JwtTokenProvider tokenProvider;
     private final JwtProperties jwtProperties;
     private final PatientProfileRepository patientProfileRepository;
+    private final AuthOtpService authOtpService;
+    private final AuthRateLimiter authRateLimiter;
 
     public AuthService(UserRepository userRepository,
+                       UserSecurityLock userSecurityLock,
                        RoleRepository roleRepository,
                        RefreshTokenRepository refreshTokenRepository,
                        PasswordEncoder passwordEncoder,
                        AuthenticationManager authenticationManager,
                        JwtTokenProvider tokenProvider,
                        JwtProperties jwtProperties,
-                       PatientProfileRepository patientProfileRepository) {
+                       PatientProfileRepository patientProfileRepository,
+                       AuthOtpService authOtpService,
+                       AuthRateLimiter authRateLimiter) {
         this.userRepository = userRepository;
+        this.userSecurityLock = userSecurityLock;
         this.roleRepository = roleRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
@@ -62,14 +80,24 @@ public class AuthService {
         this.tokenProvider = tokenProvider;
         this.jwtProperties = jwtProperties;
         this.patientProfileRepository = patientProfileRepository;
+        this.authOtpService = authOtpService;
+        this.authRateLimiter = authRateLimiter;
     }
 
     @Transactional
-    public AuthResponse register(RegisterRequest request) {
+    public RegistrationPendingResponse register(RegisterRequest request) {
+        return register(request, null);
+    }
+
+    @Transactional
+    public RegistrationPendingResponse register(RegisterRequest request, HttpServletRequest httpRequest) {
         String normalizedEmail = request.email().toLowerCase().trim();
 
         if (userRepository.existsByEmail(normalizedEmail)) {
-            throw new DuplicateResourceException("Email already registered: " + normalizedEmail);
+            throw new DuplicateResourceException(
+                ErrorCodes.EMAIL_ALREADY_REGISTERED,
+                "Email already registered"
+            );
         }
         String normalizedPhone = normalizePhone(request.phone());
         if (normalizedPhone != null && patientProfileRepository.findByPhone(normalizedPhone).isPresent()) {
@@ -84,6 +112,8 @@ public class AuthService {
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setDisplayName(request.displayName());
         user.setStatus("ACTIVE");
+        user.setEmailVerified(false);
+        user.setEmailVerifiedAt(null);
         user.setCreatedAt(OffsetDateTime.now());
         user.setUpdatedAt(OffsetDateTime.now());
         user.addRole(patientRole);
@@ -99,16 +129,21 @@ public class AuthService {
             patientProfileRepository.save(profile);
         }
 
-        String accessToken = tokenProvider.generateAccessToken(user.getId(), user.getEmail());
-        String refreshTokenString = tokenProvider.generateRefreshToken(user.getId());
-        saveRefreshToken(user, refreshTokenString);
+        authOtpService.issueVerification(user, httpRequest);
 
-        return buildAuthResponse(user, accessToken, refreshTokenString);
+        return new RegistrationPendingResponse(
+            user.getEmail(),
+            true,
+            "If the account can receive email, a verification code has been sent.",
+            authOtpService.ttlSeconds(),
+            authOtpService.resendCooldownSeconds()
+        );
     }
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
         String normalizedEmail = request.email().toLowerCase().trim();
+        authRateLimiter.checkEmail(normalizedEmail, "login");
 
         try {
             Authentication authentication = authenticationManager.authenticate(
@@ -118,14 +153,57 @@ public class AuthService {
             throw new BadCredentialsException("Invalid email or password");
         }
 
-        User user = userRepository.findWithRolesByEmail(normalizedEmail)
+        User user = userSecurityLock.findByEmailForUpdate(normalizedEmail)
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        String accessToken = tokenProvider.generateAccessToken(user.getId(), user.getEmail());
-        String refreshTokenString = tokenProvider.generateRefreshToken(user.getId());
-        saveRefreshToken(user, refreshTokenString);
+        if (!user.isEmailVerified()) {
+            throw new BusinessException(
+                403,
+                ErrorCodes.EMAIL_VERIFICATION_REQUIRED,
+                "Email verification is required before login"
+            );
+        }
 
-        return buildAuthResponse(user, accessToken, refreshTokenString);
+        return issueTokens(user);
+    }
+
+    @Transactional(noRollbackFor = OtpVerificationException.class)
+    public AuthResponse confirmEmail(EmailVerificationRequest request, HttpServletRequest httpRequest) {
+        User user = authOtpService.confirmEmail(request.email(), request.code(), httpRequest);
+        user.setEmailVerified(true);
+        user.setEmailVerifiedAt(OffsetDateTime.now());
+        user.setUpdatedAt(OffsetDateTime.now());
+        userRepository.save(user);
+        return issueTokens(user);
+    }
+
+    @Transactional
+    public AuthActionResponse resendVerification(ResendVerificationRequest request,
+                                                  HttpServletRequest httpRequest) {
+        authOtpService.resendVerification(request.email(), httpRequest);
+        return new AuthActionResponse(
+            "If the account is eligible, a verification code has been sent."
+        );
+    }
+
+    @Transactional
+    public AuthActionResponse requestPasswordReset(PasswordResetRequest request,
+                                                    HttpServletRequest httpRequest) {
+        authOtpService.requestPasswordReset(request.email(), httpRequest);
+        return new AuthActionResponse(
+            "If an account exists for that email, reset instructions have been sent."
+        );
+    }
+
+    @Transactional(noRollbackFor = OtpVerificationException.class)
+    public AuthActionResponse confirmPasswordReset(PasswordResetConfirmRequest request,
+                                                    HttpServletRequest httpRequest) {
+        User user = authOtpService.confirmPasswordReset(request.email(), request.token(), httpRequest);
+        user.setPasswordHash(passwordEncoder.encode(request.password()));
+        user.setUpdatedAt(OffsetDateTime.now());
+        userRepository.save(user);
+        revokeAllUserTokensLocked(user);
+        return new AuthActionResponse("Password reset completed.");
     }
 
     @Transactional(noRollbackFor = BadCredentialsException.class)
@@ -148,6 +226,9 @@ public class AuthService {
         }
         String tokenHash = hashToken(token);
 
+        User user = userSecurityLock.findByIdForUpdate(userId)
+            .orElseThrow(() -> new BadCredentialsException("Invalid refresh token"));
+
         RefreshToken storedToken = refreshTokenRepository.findByTokenHashForUpdate(tokenHash)
             .orElseThrow(() -> new BadCredentialsException("Refresh token not found"));
 
@@ -157,16 +238,22 @@ public class AuthService {
         }
 
         if (storedToken.isRevoked() || storedToken.isExpired()) {
-            revokeAllUserTokens(storedUserId);
+            revokeAllUserTokensLocked(user);
             throw new BadCredentialsException("Refresh token expired or revoked");
         }
 
-        User user = userRepository.findWithRolesById(storedUserId)
-            .orElseThrow(() -> new BadCredentialsException("Invalid refresh token"));
-
         if (!"ACTIVE".equals(user.getStatus())) {
-            revokeAllUserTokens(storedUserId);
+            revokeAllUserTokensLocked(user);
             throw new BadCredentialsException("Account is disabled");
+        }
+
+        if (!user.isEmailVerified()) {
+            revokeAllUserTokensLocked(user);
+            throw new BusinessException(
+                403,
+                ErrorCodes.EMAIL_VERIFICATION_REQUIRED,
+                "Email verification is required before login"
+            );
         }
 
         String accessToken = tokenProvider.generateAccessToken(user.getId(), user.getEmail());
@@ -181,14 +268,15 @@ public class AuthService {
 
     @Transactional
     public void logout(UUID userId) {
-        User user = userRepository.findById(userId)
+        User user = userSecurityLock.findByIdForUpdate(userId)
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        revokeAllUserTokens(user.getId());
+        revokeAllUserTokensLocked(user);
     }
 
     @Transactional
     public void logoutByEmail(String email) {
-        userRepository.findByEmail(email).ifPresent(user -> revokeAllUserTokens(user.getId()));
+        userSecurityLock.findByEmailForUpdate(email)
+            .ifPresent(this::revokeAllUserTokensLocked);
     }
 
     private void saveRefreshToken(User user, String token) {
@@ -200,8 +288,8 @@ public class AuthService {
         refreshTokenRepository.save(refreshToken);
     }
 
-    private void revokeAllUserTokens(UUID userId) {
-        refreshTokenRepository.findAllActiveByUserId(userId)
+    private void revokeAllUserTokensLocked(User lockedUser) {
+        refreshTokenRepository.findAllActiveByUserId(lockedUser.getId())
             .forEach(rt -> {
                 rt.setRevokedAt(OffsetDateTime.now());
                 refreshTokenRepository.save(rt);
@@ -222,9 +310,17 @@ public class AuthService {
                 user.getId().toString(),
                 user.getEmail(),
                 user.getDisplayName(),
-                roles
+                roles,
+                user.isEmailVerified()
             )
         );
+    }
+
+    private AuthResponse issueTokens(User user) {
+        String accessToken = tokenProvider.generateAccessToken(user.getId(), user.getEmail());
+        String refreshToken = tokenProvider.generateRefreshToken(user.getId());
+        saveRefreshToken(user, refreshToken);
+        return buildAuthResponse(user, accessToken, refreshToken);
     }
 
     private String hashToken(String token) {

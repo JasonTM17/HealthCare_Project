@@ -22,9 +22,9 @@
   margin: 0;
   color: var(--hospital-navy);
   font-family: var(--font-vietnamese-ui);
-  font-size: clamp(2.65rem, 4.6vw, 4.65rem);
+  font-size: 4.65rem;
   font-weight: 700;
-  letter-spacing: -0.038em;
+  letter-spacing: 0;
   line-height: 1.05;
   text-wrap: balance;
 }
@@ -149,9 +149,9 @@
   margin: 0;
   color: var(--hospital-navy);
   font-family: var(--font-vietnamese-ui);
-  font-size: clamp(2.1rem, 3.5vw, 3.15rem);
+  font-size: 3.15rem;
   font-weight: 700;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
   line-height: 1.14;
   text-wrap: balance;
 }
@@ -173,9 +173,9 @@
 
 .storyLead {
   color: #1e4c58;
-  font-size: clamp(1.22rem, 2vw, 1.55rem);
+  font-size: 1.45rem;
   font-weight: 600;
-  letter-spacing: -0.015em;
+  letter-spacing: 0;
   line-height: 1.55;
 }
 
@@ -264,7 +264,7 @@
   color: #123f4e;
   font-family: var(--font-vietnamese-ui);
   font-size: 1.3rem;
-  letter-spacing: -0.015em;
+  letter-spacing: 0;
 }
 
 .valueCard p {
@@ -364,9 +364,9 @@
   margin: 0 0 0.35rem;
   color: #fff;
   font-family: var(--font-vietnamese-ui);
-  font-size: clamp(2.25rem, 4vw, 3.4rem);
+  font-size: 3.4rem;
   font-weight: 700;
-  letter-spacing: -0.04em;
+  letter-spacing: 0;
   line-height: 1;
 }
 
@@ -464,7 +464,7 @@
   color: #153f4d;
   font-family: var(--font-vietnamese-ui);
   font-size: 1.25rem;
-  letter-spacing: -0.015em;
+  letter-spacing: 0;
 }
 
 .journeyList li > div > span {
@@ -483,7 +483,7 @@
 }
 
 .closing h2 {
-  font-size: clamp(1.9rem, 3vw, 2.65rem);
+  font-size: 2.65rem;
 }
 
 .closing > div:first-child > p:last-child {
@@ -492,6 +492,10 @@
 }
 
 @media (max-width: 1080px) {
+  .heroCopy h1 {
+    font-size: 3.85rem;
+  }
+
   .hero {
     grid-template-columns: minmax(18rem, 0.78fr) minmax(26rem, 1.22fr);
   }
@@ -551,7 +555,7 @@
   }
 
   .heroCopy h1 {
-    font-size: clamp(2.35rem, 11vw, 3.25rem);
+    font-size: 3.1rem;
   }
 
   .heroLead {
@@ -586,7 +590,7 @@
   .sectionHeading h2,
   .network h2,
   .journey h2 {
-    font-size: clamp(2rem, 9vw, 2.55rem);
+    font-size: 2.4rem;
   }
 
   .storyBody blockquote {

@@ -87,7 +87,9 @@ public class AdminAppointmentService {
             appointment.getBranch() == null ? null : appointment.getBranch().getAddress(),
             appointment.getMedicalPackage() == null ? null : appointment.getMedicalPackage().getName(),
             appointment.getAppointmentDate(), appointment.getStartTime(), appointment.getEndTime(),
-            appointment.getStatus(), appointment.getPaymentStatus(), appointment.getReasonForVisit(), appointment.getCreatedAt()
+            appointment.getStatus(), appointment.getPaymentStatus(), appointment.getReasonForVisit(),
+            appointment.isHasInsurance(), appointment.getPrivacyConsentAt(), appointment.getPrivacyConsentVersion(),
+            appointment.getCreatedAt()
         );
     }
 }

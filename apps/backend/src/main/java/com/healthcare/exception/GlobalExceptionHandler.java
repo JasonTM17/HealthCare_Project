@@ -39,7 +39,9 @@ public class GlobalExceptionHandler {
             ex.getStatus(),
             HttpStatus.valueOf(ex.getStatus()).getReasonPhrase(),
             ex.getMessage(),
-            extractPath(request)
+            extractPath(request),
+            List.of(),
+            ex.getCode()
         );
         return ResponseEntity.status(ex.getStatus()).body(error);
     }
@@ -77,7 +79,8 @@ public class GlobalExceptionHandler {
             "Bad Request",
             "Thông tin gửi lên chưa hợp lệ.",
             extractPath(request),
-            fieldErrors
+            fieldErrors,
+            ErrorCodes.VALIDATION_ERROR
         );
         return ResponseEntity.badRequest().body(error);
     }
@@ -101,7 +104,9 @@ public class GlobalExceptionHandler {
             401,
             "Unauthorized",
             "Invalid email or password",
-            extractPath(request)
+            extractPath(request),
+            List.of(),
+            ErrorCodes.INVALID_CREDENTIALS
         );
         return ResponseEntity.status(401).body(error);
     }
@@ -112,7 +117,9 @@ public class GlobalExceptionHandler {
             401,
             "Unauthorized",
             ex.getMessage(),
-            extractPath(request)
+            extractPath(request),
+            List.of(),
+            ErrorCodes.AUTHENTICATION_FAILED
         );
         return ResponseEntity.status(401).body(error);
     }
@@ -123,7 +130,9 @@ public class GlobalExceptionHandler {
             403,
             "Forbidden",
             "Access denied",
-            extractPath(request)
+            extractPath(request),
+            List.of(),
+            ErrorCodes.ACCESS_DENIED
         );
         return ResponseEntity.status(403).body(error);
     }
@@ -150,7 +159,9 @@ public class GlobalExceptionHandler {
             status,
             httpStatus != null ? httpStatus.getReasonPhrase() : "Request failed",
             message,
-            extractPath(request)
+            extractPath(request),
+            List.of(),
+            status == 429 ? ErrorCodes.RATE_LIMIT_EXCEEDED : ErrorCodes.REQUEST_FAILED
         );
         return ResponseEntity.status(status).body(error);
     }
@@ -162,7 +173,9 @@ public class GlobalExceptionHandler {
             500,
             "Internal Server Error",
             "An unexpected error occurred",
-            extractPath(request)
+            extractPath(request),
+            List.of(),
+            ErrorCodes.INTERNAL_ERROR
         );
         return ResponseEntity.status(500).body(error);
     }

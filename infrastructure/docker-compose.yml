@@ -33,6 +33,21 @@ services:
       retries: 5
       start_period: 5s
 
+  # ── Mailpit local SMTP sink ────────────────────────────────────────────────
+  # Captures local auth mail only; never use this service as production SMTP.
+  mailpit:
+    image: axllent/mailpit:v1.21
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${MAILPIT_SMTP_HOST_PORT:-1025}:1025"
+      - "127.0.0.1:${MAILPIT_UI_HOST_PORT:-8025}:8025"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8025/livez"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
   # ── MinIO (S3-compatible object store) ──────────────────────────────────────
   minio:
     image: minio/minio:RELEASE.2025-07-23T15-54-02Z
@@ -81,6 +96,19 @@ services:
       AI_SERVICE_TOKEN:   ${AI_SERVICE_TOKEN:-local-development-token-not-for-production}
       AI_RAG_INGEST_ENABLED: ${RAG_INGEST_ENABLED:-false}
       AI_RAG_INGEST_TOKEN:   ${RAG_INGEST_TOKEN:-}
+      AI_CHAT_RETENTION_DAYS: ${AI_CHAT_RETENTION_DAYS:-90}
+      AI_CHAT_CLEANUP_ENABLED: ${AI_CHAT_CLEANUP_ENABLED:-true}
+      AI_CHAT_CLEANUP_CRON: ${AI_CHAT_CLEANUP_CRON:-0 20 3 * * *}
+      AI_CHAT_CLEANUP_BATCH_SIZE: ${AI_CHAT_CLEANUP_BATCH_SIZE:-200}
+      AI_CHAT_CLEANUP_MAX_BATCHES: ${AI_CHAT_CLEANUP_MAX_BATCHES:-20}
+      AI_CHAT_PROCESSING_LEASE_SECONDS: ${AI_CHAT_PROCESSING_LEASE_SECONDS:-120}
+      APP_MAIL_ENABLED:      ${APP_MAIL_ENABLED:-true}
+      APP_MAIL_FROM:         ${APP_MAIL_FROM:-no-reply@healthcare.local}
+      SPRING_MAIL_HOST:      mailpit
+      SPRING_MAIL_PORT:      "1025"
+      SPRING_MAIL_CONNECTION_TIMEOUT: ${SPRING_MAIL_CONNECTION_TIMEOUT:-5000}
+      SPRING_MAIL_TIMEOUT:   ${SPRING_MAIL_TIMEOUT:-5000}
+      SPRING_MAIL_WRITE_TIMEOUT: ${SPRING_MAIL_WRITE_TIMEOUT:-5000}
       # Local Compose has no SMS provider, so the demo flow accepts 123456.
       # Set APP_BOOKING_ALLOW_TEST_OTP=false when a real OTP provider is wired.
       APP_BOOKING_ALLOW_TEST_OTP: ${APP_BOOKING_ALLOW_TEST_OTP:-true}
@@ -99,6 +127,8 @@ services:
       minio:
         condition: service_healthy
       ai-service:
+        condition: service_healthy
+      mailpit:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -159,11 +189,30 @@ services:
         VCS_REF: ${BUILD_VCS_REF:-unknown}
     restart: unless-stopped
     environment:
-      AI_PROVIDER: rule_based_triage
-      EMBEDDING_PROVIDER: local
+      AI_PROVIDER: ${AI_PROVIDER:-deepseek}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_CHAT_MODEL: ${AI_CHAT_MODEL:-deepseek-v4-flash}
+      AI_EMBEDDING_MODEL: ${AI_EMBEDDING_MODEL:-}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-v4-flash}
+      DEEPSEEK_EMBEDDING_MODEL: ${DEEPSEEK_EMBEDDING_MODEL:-}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-local}
       RAG_INGEST_ENABLED: ${RAG_INGEST_ENABLED:-false}
       RAG_INGEST_TOKEN: ${RAG_INGEST_TOKEN:-}
       RAG_MAX_DOCUMENTS: ${RAG_MAX_DOCUMENTS:-5000}
+      RAG_STORAGE_BACKEND: ${RAG_STORAGE_BACKEND:-memory}
+      SUPABASE_DB_URL: ${SUPABASE_DB_URL:-}
+      SUPABASE_DB_SCHEMA: ${SUPABASE_DB_SCHEMA:-healthcare}
+      SUPABASE_RAG_TABLE: ${SUPABASE_RAG_TABLE:-ai_documents}
+      SUPABASE_RAG_RPC: ${SUPABASE_RAG_RPC:-match_documents}
+      SUPABASE_DB_CONNECT_TIMEOUT_SECONDS: ${SUPABASE_DB_CONNECT_TIMEOUT_SECONDS:-5}
+      SUPABASE_RAG_FALLBACK_TO_MEMORY: ${SUPABASE_RAG_FALLBACK_TO_MEMORY:-true}
+      RAG_EMBEDDING_DIMENSION: ${RAG_EMBEDDING_DIMENSION:-384}
+      AI_PATIENT_CHAT_REMOTE_ENABLED: ${AI_PATIENT_CHAT_REMOTE_ENABLED:-false}
+      AI_CHAT_CIRCUIT_FAILURE_THRESHOLD: ${AI_CHAT_CIRCUIT_FAILURE_THRESHOLD:-3}
+      AI_CHAT_CIRCUIT_RESET_SECONDS: ${AI_CHAT_CIRCUIT_RESET_SECONDS:-30}
       AI_SERVICE_RUNTIME: compose
       AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL: "false"
       AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:-local-development-token-not-for-production}

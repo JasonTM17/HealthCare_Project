@@ -20,11 +20,11 @@ interface NavbarProps {
 }
 
 const NAV_LINKS = [
+  { label: "Về chúng tôi", href: "/about" },
   { label: "Chuyên khoa", href: "/specialties" },
-  { label: "Bác sĩ", href: "/doctors" },
   { label: "Gói khám", href: "/packages" },
-  { label: "Cơ sở", href: "/branches" },
-  { label: "Cẩm nang", href: "/articles" },
+  { label: "Bác sĩ", href: "/doctors" },
+  { label: "Mạng lưới", href: "/branches" },
 ];
 
 function getAccountDestination(session: AuthSession | null, pathname: string | null): { href: string; label: string } {
@@ -154,7 +154,7 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
               <span>{accountDestination.label}</span>
             </Link>
             <button className="button button--nav" onClick={onOpenBooking} type="button">
-              <Icon name="calendar" size={17} />
+              <Icon name="arrow-right" size={17} />
               <span>Đặt lịch khám</span>
             </button>
             <button
@@ -188,9 +188,10 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
               <Link className="outline-button" href={accountDestination.href} onClick={closeMobileMenu}>
                 <Icon name="user" size={17} /> {accountDestination.label}
               </Link>
+              <Link className="outline-button" href="/articles" onClick={closeMobileMenu}>Cẩm nang sức khỏe</Link>
               <Link className="outline-button" href="/tra-cuu" onClick={closeMobileMenu}>Tra cứu lịch hẹn</Link>
               <button className="button button--amber" onClick={() => { closeMobileMenu(); onOpenBooking(); }} type="button">
-                <Icon name="calendar" size={17} /> Đặt lịch khám
+                <Icon name="arrow-right" size={17} /> Đặt lịch khám
               </button>
             </div>
           </div>

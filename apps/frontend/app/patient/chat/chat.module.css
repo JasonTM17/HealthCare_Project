@@ -1,0 +1,909 @@
+.page {
+  --chat-border: var(--color-line);
+  --chat-border-strong: var(--color-teal-300);
+  --chat-surface: var(--color-paper-bright);
+  --chat-surface-muted: var(--color-mint-light);
+  --chat-accent: var(--color-teal-800);
+  --chat-accent-strong: var(--color-teal-950);
+  --chat-danger: var(--color-red);
+  --chat-danger-surface: color-mix(in oklch, var(--color-red) 9%, var(--color-paper-bright));
+  --chat-warning-surface: color-mix(in oklch, var(--color-amber) 13%, var(--color-paper-bright));
+  --chat-radius: var(--radius-sm);
+  --chat-touch-size: 2.75rem;
+  --chat-rail-width: 19rem;
+  --chat-transition: var(--duration-fast) var(--ease-out);
+  min-width: 0;
+}
+
+.hero {
+  align-items: center;
+  margin-bottom: var(--sp-6);
+}
+
+.hero h1 {
+  max-width: 21ch;
+  font-size: 3.25rem;
+  letter-spacing: 0;
+}
+
+.hero p:not(:global(.section-note)) {
+  max-width: 58ch;
+}
+
+.catalogLink,
+.newConversationButton,
+.sendButton,
+.confirmDeleteButton,
+.secondaryButton,
+.retryButton,
+.textButton,
+.refreshButton,
+.deleteButton {
+  min-height: var(--chat-touch-size);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  border-radius: var(--chat-radius);
+  font-size: 0.875rem;
+  font-weight: 800;
+  transition:
+    background-color var(--chat-transition),
+    border-color var(--chat-transition),
+    color var(--chat-transition),
+    opacity var(--chat-transition),
+    transform var(--chat-transition);
+}
+
+.catalogLink:hover,
+.newConversationButton:hover:not(:disabled),
+.sendButton:hover:not(:disabled),
+.confirmDeleteButton:hover:not(:disabled),
+.secondaryButton:hover:not(:disabled),
+.retryButton:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.catalogLink:active,
+.newConversationButton:active:not(:disabled),
+.sendButton:active:not(:disabled),
+.confirmDeleteButton:active:not(:disabled),
+.secondaryButton:active:not(:disabled),
+.retryButton:active:not(:disabled),
+.textButton:active:not(:disabled),
+.refreshButton:active:not(:disabled),
+.deleteButton:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.newConversationButton:disabled,
+.sendButton:disabled,
+.confirmDeleteButton:disabled,
+.secondaryButton:disabled,
+.retryButton:disabled,
+.textButton:disabled,
+.refreshButton:disabled,
+.deleteButton:disabled,
+.conversationSelect:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.catalogLink {
+  flex: 0 0 auto;
+  border: 1px solid var(--chat-border-strong);
+  padding: 0 var(--sp-4);
+  background: var(--chat-surface);
+  color: var(--chat-accent);
+}
+
+.catalogLink:hover {
+  border-color: var(--chat-accent);
+  background: var(--chat-surface-muted);
+}
+
+.safetyBand {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  overflow: hidden;
+  margin-bottom: var(--sp-4);
+  border: 1px solid var(--chat-border);
+  border-radius: var(--chat-radius);
+  background: var(--chat-surface);
+}
+
+.safetyItem {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  color: var(--chat-accent-strong);
+}
+
+.safetyItem svg {
+  flex: 0 0 auto;
+  margin-top: var(--sp-1);
+  color: var(--chat-accent);
+}
+
+.safetyItem p {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+
+.emergencyItem {
+  border-left: 1px solid color-mix(in oklch, var(--chat-danger) 25%, var(--chat-border));
+  background: var(--chat-danger-surface);
+  color: color-mix(in oklch, var(--chat-danger) 82%, var(--chat-accent-strong));
+}
+
+.emergencyItem svg {
+  color: var(--chat-danger);
+}
+
+.notice {
+  margin: 0 0 var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--chat-border-strong);
+  border-radius: var(--chat-radius);
+  background: var(--chat-surface-muted);
+  color: var(--chat-accent-strong);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.forbiddenPanel {
+  min-height: 28rem;
+  display: grid;
+  place-items: center;
+}
+
+.workspace {
+  min-height: 42rem;
+  height: min(68dvh, 48rem);
+  display: grid;
+  grid-template-columns: minmax(16rem, var(--chat-rail-width)) minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid var(--chat-border);
+  border-radius: var(--chat-radius);
+  background: var(--chat-surface);
+}
+
+.conversationRail {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  align-content: start;
+  border-right: 1px solid var(--chat-border);
+  background: var(--chat-surface-muted);
+}
+
+.railHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border-bottom: 1px solid var(--chat-border);
+}
+
+.railHeader h2,
+.threadHeader h2,
+.deleteDialog h2 {
+  margin: 0;
+  color: var(--chat-accent-strong);
+  font-family: var(--font-display);
+  letter-spacing: 0;
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+.railHeader h2 {
+  font-size: 1.125rem;
+}
+
+.railHeader p,
+.threadHeader p {
+  margin: var(--sp-1) 0 0;
+  color: var(--color-ink-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.newConversationButton,
+.sendButton {
+  border: 1px solid var(--chat-accent);
+  padding: 0 var(--sp-3);
+  background: var(--chat-accent);
+  color: var(--color-paper-bright);
+}
+
+.newConversationButton:hover:not(:disabled),
+.sendButton:hover:not(:disabled) {
+  border-color: var(--chat-accent-strong);
+  background: var(--chat-accent-strong);
+}
+
+.railError {
+  margin: var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px solid color-mix(in oklch, var(--chat-danger) 32%, var(--chat-border));
+  border-radius: var(--chat-radius);
+  background: var(--chat-danger-surface);
+  color: var(--chat-danger);
+  font-size: 0.8125rem;
+}
+
+.railError p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.textButton {
+  min-height: var(--chat-touch-size);
+  padding: 0;
+  background: transparent;
+  color: currentColor;
+  text-decoration: underline;
+  text-underline-offset: var(--sp-1);
+}
+
+.textButton:hover:not(:disabled) {
+  text-decoration-thickness: 2px;
+}
+
+.railLoading,
+.railEmpty {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin: var(--sp-3);
+  padding: var(--sp-4);
+  border: 1px solid var(--chat-border);
+  border-radius: var(--chat-radius);
+  background: var(--chat-surface);
+  color: var(--color-ink-muted);
+  font-size: 0.875rem;
+}
+
+.railEmpty {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+.railEmpty strong,
+.railEmpty p {
+  margin: 0;
+}
+
+.railEmpty strong {
+  color: var(--chat-accent-strong);
+}
+
+.railEmpty p {
+  line-height: 1.5;
+}
+
+.spinner {
+  width: var(--sp-5);
+  height: var(--sp-5);
+  flex: 0 0 auto;
+  border: 2px solid var(--chat-border-strong);
+  border-top-color: var(--chat-accent);
+  border-radius: 50%;
+  animation: chat-spin 720ms var(--ease-out) infinite;
+}
+
+.conversationList {
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0;
+  padding: var(--sp-2);
+  list-style: none;
+  overscroll-behavior: contain;
+}
+
+.conversationList li {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--chat-touch-size);
+  align-items: stretch;
+  gap: var(--sp-1);
+  margin-bottom: var(--sp-1);
+  border: 1px solid transparent;
+  border-radius: var(--chat-radius);
+  transition:
+    background-color var(--chat-transition),
+    border-color var(--chat-transition);
+}
+
+.conversationList li:hover {
+  border-color: var(--chat-border);
+  background: var(--chat-surface);
+}
+
+.conversationList li.conversationSelected {
+  border-color: var(--chat-border-strong);
+  background: var(--chat-surface);
+}
+
+.conversationSelect {
+  min-width: 0;
+  min-height: 4.5rem;
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--sp-1);
+  border-radius: var(--chat-radius);
+  padding: var(--sp-2) var(--sp-3);
+  background: transparent;
+  text-align: left;
+}
+
+.conversationTitle,
+.conversationTime,
+.inFlight {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversationTitle {
+  color: var(--chat-accent-strong);
+  font-size: 0.875rem;
+  font-weight: 800;
+}
+
+.conversationTime {
+  color: var(--color-ink-muted);
+  font-size: 0.75rem;
+}
+
+.inFlight {
+  color: var(--color-amber-dark);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.deleteButton,
+.refreshButton {
+  width: var(--chat-touch-size);
+  min-width: var(--chat-touch-size);
+  padding: 0;
+  background: transparent;
+  color: var(--color-ink-muted);
+}
+
+.deleteButton:hover:not(:disabled) {
+  background: var(--chat-danger-surface);
+  color: var(--chat-danger);
+}
+
+.refreshButton:hover:not(:disabled) {
+  background: var(--chat-surface-muted);
+  color: var(--chat-accent);
+}
+
+.thread {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  background: var(--chat-surface);
+}
+
+.threadHeader {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--chat-border);
+}
+
+.threadHeader > div {
+  min-width: 0;
+}
+
+.threadHeader h2 {
+  overflow: hidden;
+  font-size: 1.125rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.messageViewport {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--sp-4);
+  background: color-mix(in oklch, var(--chat-surface-muted) 45%, var(--chat-surface));
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+}
+
+.messageViewport:focus-visible {
+  outline: 3px solid var(--color-amber);
+  outline-offset: -3px;
+}
+
+.threadState {
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-8);
+  color: var(--color-ink-muted);
+  text-align: center;
+}
+
+.threadState svg {
+  color: var(--chat-accent);
+}
+
+.threadState strong {
+  color: var(--chat-accent-strong);
+  font-size: 1.125rem;
+}
+
+.threadState p {
+  max-width: 48ch;
+  margin: 0;
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+
+.threadStateError svg,
+.threadStateError strong {
+  color: var(--chat-danger);
+}
+
+.secondaryButton,
+.retryButton {
+  border: 1px solid var(--chat-border-strong);
+  padding: 0 var(--sp-4);
+  background: var(--chat-surface);
+  color: var(--chat-accent);
+}
+
+.secondaryButton:hover:not(:disabled),
+.retryButton:hover:not(:disabled) {
+  border-color: var(--chat-accent);
+  background: var(--chat-surface-muted);
+}
+
+.olderMessages {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-4);
+}
+
+.olderMessages p {
+  margin: 0;
+  color: var(--chat-danger);
+  font-size: 0.8125rem;
+  text-align: center;
+}
+
+.messageList {
+  display: grid;
+  gap: var(--sp-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.message {
+  width: min(100%, 46rem);
+  display: grid;
+  gap: var(--sp-2);
+  border: 1px solid var(--chat-border);
+  border-radius: var(--chat-radius);
+  padding: var(--sp-4);
+  background: var(--chat-surface);
+}
+
+.messageAssistant {
+  justify-self: start;
+}
+
+.messagePatient {
+  width: min(86%, 42rem);
+  justify-self: end;
+  border-color: var(--chat-border-strong);
+  background: var(--chat-surface-muted);
+}
+
+.messageFailed {
+  border-color: color-mix(in oklch, var(--chat-danger) 32%, var(--chat-border));
+  background: var(--chat-danger-surface);
+}
+
+.messageMeta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.messageMeta strong {
+  color: var(--chat-accent-strong);
+  font-size: 0.8125rem;
+}
+
+.messageMeta time {
+  color: var(--color-ink-muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.messageContent {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: 1rem;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.messageStatus,
+.messageDisclaimer {
+  margin: 0;
+  color: var(--color-ink-muted);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+.messageDisclaimer {
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--chat-border);
+}
+
+.failedAction {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  color: var(--chat-danger);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.citations {
+  display: grid;
+  gap: var(--sp-2);
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--chat-border);
+}
+
+.citations > strong {
+  color: var(--chat-accent-strong);
+  font-size: 0.8125rem;
+}
+
+.citations ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.citations li + li {
+  border-top: 1px solid var(--chat-border);
+}
+
+.citations a {
+  min-height: var(--chat-touch-size);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-2) 0;
+  color: var(--chat-accent);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: var(--sp-1);
+  transition:
+    color var(--chat-transition),
+    text-decoration-color var(--chat-transition),
+    transform var(--chat-transition);
+}
+
+.citations a:hover {
+  color: var(--chat-accent-strong);
+  text-decoration-color: currentColor;
+  transform: translateX(var(--sp-1));
+}
+
+.citations a:active {
+  transform: translateX(0);
+}
+
+.composer {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4) var(--sp-4);
+  border-top: 1px solid var(--chat-border);
+  background: var(--chat-surface);
+}
+
+.composerLabelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.composerLabelRow label {
+  color: var(--chat-accent-strong);
+  font-size: 0.875rem;
+  font-weight: 800;
+}
+
+.composerLabelRow span {
+  color: var(--color-ink-muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.composer textarea {
+  width: 100%;
+  min-height: 6rem;
+  max-height: 14rem;
+  resize: vertical;
+  border: 1px solid var(--chat-border);
+  border-radius: var(--chat-radius);
+  padding: var(--sp-3);
+  background: var(--chat-surface);
+  color: var(--color-ink);
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.composer textarea::placeholder {
+  color: var(--color-ink-muted);
+}
+
+.composer textarea:disabled {
+  background: var(--chat-surface-muted);
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.composerFooter {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+}
+
+.composerFooter > div {
+  min-width: 0;
+}
+
+.composerFooter p {
+  margin: 0;
+  color: var(--color-ink-muted);
+  font-size: 0.75rem;
+  line-height: 1.55;
+}
+
+.composerFooter .inFlightNotice {
+  margin-top: var(--sp-1);
+  color: var(--color-amber-dark);
+  font-weight: 700;
+}
+
+.composerFooter .composerError {
+  margin-top: var(--sp-1);
+  color: var(--chat-danger);
+  font-weight: 700;
+}
+
+.sendButton {
+  flex: 0 0 auto;
+  padding-inline: var(--sp-4);
+}
+
+.deleteDialog {
+  width: min(calc(100% - var(--sp-8)), 32rem);
+  max-width: none;
+  margin: auto;
+  border: 1px solid var(--chat-border);
+  border-radius: var(--chat-radius);
+  padding: var(--sp-5);
+  background: var(--chat-surface);
+  color: var(--color-ink);
+}
+
+.deleteDialog::backdrop {
+  background: color-mix(in oklch, var(--chat-accent-strong) 55%, transparent);
+}
+
+.dialogHeading {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+}
+
+.dialogHeading > svg {
+  flex: 0 0 auto;
+  color: var(--chat-danger);
+}
+
+.deleteDialog h2 {
+  font-size: 1.25rem;
+}
+
+.deleteDialog p {
+  margin: var(--sp-2) 0 0;
+  color: var(--color-ink-muted);
+  line-height: 1.6;
+}
+
+.dialogError {
+  padding: var(--sp-3);
+  border-radius: var(--chat-radius);
+  background: var(--chat-danger-surface);
+  color: var(--chat-danger) !important;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.dialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-3);
+  margin-top: var(--sp-5);
+}
+
+.confirmDeleteButton {
+  border: 1px solid var(--chat-danger);
+  padding: 0 var(--sp-4);
+  background: var(--chat-danger);
+  color: var(--color-paper-bright);
+}
+
+.confirmDeleteButton:hover:not(:disabled) {
+  background: color-mix(in oklch, var(--chat-danger) 82%, var(--chat-accent-strong));
+}
+
+@keyframes chat-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 900px) {
+  .hero h1 {
+    font-size: 2.75rem;
+  }
+
+  .workspace {
+    height: auto;
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .conversationRail {
+    max-height: none;
+    grid-template-rows: auto auto auto;
+    align-self: start;
+    border-right: 0;
+    border-bottom: 1px solid var(--chat-border);
+  }
+
+  .conversationList {
+    max-height: 14rem;
+  }
+
+  .thread {
+    min-height: 40rem;
+  }
+
+  .messageViewport {
+    min-height: 24rem;
+    max-height: 52dvh;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero {
+    align-items: stretch;
+  }
+
+  .hero h1 {
+    font-size: 2.25rem;
+  }
+
+  .catalogLink {
+    width: 100%;
+  }
+
+  .safetyBand {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .emergencyItem {
+    border-top: 1px solid color-mix(in oklch, var(--chat-danger) 25%, var(--chat-border));
+    border-left: 0;
+  }
+
+  .railHeader {
+    align-items: center;
+  }
+
+  .newConversationButton {
+    flex: 0 0 auto;
+  }
+
+  .thread {
+    min-height: 38rem;
+  }
+
+  .threadHeader,
+  .messageViewport,
+  .composer {
+    padding-inline: var(--sp-3);
+  }
+
+  .messagePatient {
+    width: 94%;
+  }
+
+  .messageMeta {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: var(--sp-1);
+  }
+
+  .composerFooter {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .sendButton {
+    width: 100%;
+  }
+
+  .dialogActions {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+  .dialogActions button {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page *,
+  .page *::before,
+  .page *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 1ms !important;
+  }
+
+  .catalogLink:hover,
+  .newConversationButton:hover,
+  .sendButton:hover,
+  .confirmDeleteButton:hover,
+  .secondaryButton:hover,
+  .retryButton:hover,
+  .citations a:hover {
+    transform: none;
+  }
+}

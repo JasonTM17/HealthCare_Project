@@ -151,8 +151,10 @@ export interface HoldSlotPayload {
   startTime: string;       // "HH:mm:ss"
   fullName: string;
   phone: string;
-  email?: string;
+  email: string;
   reasonForVisit?: string;
+  hasInsurance?: boolean;
+  privacyConsent: boolean;
 }
 
 export interface HoldSlotResult {
@@ -188,6 +190,9 @@ export interface AppointmentDetails {
   status: string;
   paymentStatus: string;
   reasonForVisit?: string;
+  hasInsurance: boolean;
+  privacyConsentAt?: string | null;
+  privacyConsentVersion?: string | null;
   createdAt: string;
 }
 
@@ -263,6 +268,8 @@ export interface AuthUser {
   email: string;
   displayName: string;
   roles: string[];
+  /** Older local sessions may omit this while the auth migration rolls out. */
+  emailVerified?: boolean;
 }
 
 export interface AuthSession {
@@ -275,6 +282,15 @@ export interface AuthSession {
 
 export interface UserProfile extends AuthUser {
   status: string;
+}
+
+export interface UserPreferences {
+  emailNotifications: boolean;
+  appointmentReminders: boolean;
+  marketingEmails: boolean;
+  locale: string;
+  timezone: string;
+  updatedAt?: string | null;
 }
 
 export type PatientGender = "MALE" | "FEMALE" | "OTHER" | "UNSPECIFIED";
@@ -406,4 +422,48 @@ export interface DoctorScheduleException {
   customStartTime?: string | null;
   customEndTime?: string | null;
   reason?: string | null;
+}
+
+export type AiChatProvenance = "local_provider" | "remote_provider" | "local_fallback";
+
+export interface AiChatCitation {
+  source_type: "specialty" | "doctor" | "service" | "package" | "article" | "faq";
+  source_id: string;
+  title: string;
+}
+
+export interface AiConversation {
+  id: string;
+  title: string;
+  status: "ACTIVE" | "ARCHIVED";
+  inFlight: boolean;
+  createdAt: string;
+  updatedAt: string;
+  lastMessageAt?: string | null;
+  expiresAt: string;
+}
+
+export interface AiChatMessage {
+  id: string;
+  role: "USER" | "ASSISTANT";
+  status: "PENDING" | "COMPLETED" | "FAILED";
+  content: string;
+  sequence: number;
+  disclaimer?: string | null;
+  provenance?: AiChatProvenance | null;
+  citations: AiChatCitation[];
+  createdAt: string;
+  completedAt?: string | null;
+}
+
+export interface AiChatMessagePage {
+  content: AiChatMessage[];
+  nextCursor?: string | null;
+  hasMore: boolean;
+}
+
+export interface AiChatExchange {
+  userMessage: AiChatMessage;
+  assistantMessage: AiChatMessage;
+  replayed: boolean;
 }

@@ -53,24 +53,15 @@ test("public chrome and browser icon reuse the original shield-heart brand mark"
   assert.match(icon, /stroke="#075f5e"/);
 });
 
-test("brand intro runs once per session before paint and respects reduced motion", async () => {
-  const [layout, splash, styles] = await Promise.all([
-    read("app/layout.tsx"),
-    read("components/BrandSplash.tsx"),
-    read("app/brand-experience.css"),
-  ]);
+test("root layout renders content immediately without a blocking brand splash", async () => {
+  const layout = await read("app/layout.tsx");
 
   assert.doesNotMatch(layout, /next\/font\/google/);
-  assert.match(layout, /window\.sessionStorage\.getItem\(key\)/);
-  assert.match(layout, /healthcare-brand-intro-v1/);
-  assert.match(layout, /root\.dataset\.brandIntro = seen \? "seen" : "pending"/);
-  assert.match(layout, /<head><script dangerouslySetInnerHTML=/);
-  assert.match(layout, /suppressHydrationWarning/);
-  assert.match(splash, /FULL_INTRO_MS = 1080/);
-  assert.match(splash, /prefers-reduced-motion: reduce/);
-  assert.match(splash, /role="status"/);
-  assert.match(styles, /html\[data-brand-intro="pending"\] \.brand-splash/);
-  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/);
+  assert.doesNotMatch(layout, /BrandSplash/);
+  assert.doesNotMatch(layout, /healthcare-brand-intro-v1/);
+  assert.doesNotMatch(layout, /dangerouslySetInnerHTML/);
+  assert.doesNotMatch(layout, /suppressHydrationWarning/);
+  assert.match(layout, /<body>[\s\S]*\{children\}[\s\S]*<FloatingHealthAssistant \/>[\s\S]*<\/body>/);
 });
 
 test("typography variables provide deterministic font fallbacks without build-time remote fetches", async () => {

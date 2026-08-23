@@ -4,11 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { ApiError, hasRole, login } from "../../../lib/api-client";
-
-function safeNextPath(value: string | null): string | null {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) return null;
-  return value;
-}
+import { authErrorMessage, authFieldErrors, safeAuthNextPath, type AuthFieldErrors } from "../../../lib/auth-flow";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,15 +12,19 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({});
+  const [verificationEmail, setVerificationEmail] = useState<string | null>(null);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSubmitting(true);
     setErrorMessage(null);
+    setFieldErrors({});
+    setVerificationEmail(null);
 
     try {
       const session = await login({ email: email.trim(), password });
-      const nextPath = safeNextPath(new URLSearchParams(window.location.search).get("next"));
+      const nextPath = safeAuthNextPath(new URLSearchParams(window.location.search).get("next"));
       const target = hasRole(session.user, "PATIENT") && nextPath?.startsWith("/patient")
         ? nextPath
         : hasRole(session.user, "DOCTOR") && nextPath?.startsWith("/doctor")
@@ -38,10 +38,12 @@ export default function LoginPage() {
                 : "/";
       router.replace(target);
     } catch (error) {
-      if (error instanceof ApiError && error.status >= 500) {
-        setErrorMessage("Dịch vụ xác thực hiện chưa sẵn sàng. Vui lòng thử lại sau.");
+      setFieldErrors(authFieldErrors(error));
+      if (error instanceof ApiError && error.code === "EMAIL_VERIFICATION_REQUIRED") {
+        setVerificationEmail(email.trim());
+        setErrorMessage("Email này chưa được xác minh. Hãy nhập mã trong email để tiếp tục.");
       } else {
-        setErrorMessage("Email hoặc mật khẩu chưa chính xác.");
+        setErrorMessage(authErrorMessage(error, "Email hoặc mật khẩu chưa chính xác."));
       }
     } finally {
       setSubmitting(false);
@@ -66,10 +68,24 @@ export default function LoginPage() {
         </p>
 
         <form className="auth-form" onSubmit={handleSubmit}>
-          {errorMessage ? <p aria-live="assertive" className="auth-form__error" role="alert">{errorMessage}</p> : null}
+          {errorMessage ? (
+            <div aria-live="assertive" className="auth-form__error" role="alert">
+              <p>{errorMessage}</p>
+              {verificationEmail ? (
+                <Link
+                  className="auth-form__error-link"
+                  href={`/auth/verify-email?email=${encodeURIComponent(verificationEmail)}`}
+                >
+                  Xác minh email
+                </Link>
+              ) : null}
+            </div>
+          ) : null}
           <div className="auth-form__field">
             <label htmlFor="login-email">Email</label>
             <input
+              aria-describedby={fieldErrors.email ? "login-email-error" : undefined}
+              aria-invalid={Boolean(fieldErrors.email)}
               autoComplete="username"
               id="login-email"
               name="email"
@@ -78,10 +94,16 @@ export default function LoginPage() {
               type="email"
               value={email}
             />
+            {fieldErrors.email ? <small className="auth-form__field-error" id="login-email-error">{fieldErrors.email}</small> : null}
           </div>
           <div className="auth-form__field">
-            <label htmlFor="login-password">Mật khẩu</label>
+            <div className="auth-form__label-row">
+              <label htmlFor="login-password">Mật khẩu</label>
+              <Link href="/auth/forgot-password">Quên mật khẩu?</Link>
+            </div>
             <input
+              aria-describedby={fieldErrors.password ? "login-password-error" : undefined}
+              aria-invalid={Boolean(fieldErrors.password)}
               autoComplete="current-password"
               id="login-password"
               name="password"
@@ -90,6 +112,7 @@ export default function LoginPage() {
               type="password"
               value={password}
             />
+            {fieldErrors.password ? <small className="auth-form__field-error" id="login-password-error">{fieldErrors.password}</small> : null}
           </div>
           <button className="button button--primary auth-form__submit" disabled={submitting} type="submit">
             {submitting ? "Đang xác thực..." : "Đăng nhập"}

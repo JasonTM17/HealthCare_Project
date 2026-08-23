@@ -6,7 +6,12 @@ from fastapi.responses import JSONResponse
 
 from app.config import Settings
 from app.embeddings import EmbeddingResult, embed
-from app.llm import resolve_triage
+from app.llm import (
+    chat_safety_response,
+    patient_chat_remote_enabled,
+    resolve_chat,
+    resolve_triage,
+)
 from app.providers import (
     LOCAL_CHAT_PROVIDERS,
     LOCAL_EMBEDDING_PROVIDERS,
@@ -18,9 +23,12 @@ from app.providers import (
     remote_provider_requested,
     runtime_allows_local_fallback,
 )
-from app.rag import EmbeddingContractError, RagService
+from app.rag import EmbeddingContractError
+from app.supabase_rag import build_rag_service
 from app.schemas import (
     Citation,
+    ChatRequest,
+    ChatResponse,
     EmbeddingRequest,
     EmbeddingResponse,
     HealthResponse,
@@ -48,8 +56,9 @@ from app.schemas import (
 settings = Settings()
 app = FastAPI(title="HealthCare AI Service", version="0.1.0")
 
-# Shared in-memory RAG index for the foundation phase.
-rag_service = RagService(max_documents=settings.rag_max_documents)
+# Shared RAG service. Local/test keeps the in-memory implementation by default,
+# while explicit Supabase configuration can switch to the durable store.
+rag_service = build_rag_service(settings)
 
 
 def _embedding_parts(value: object) -> tuple[list[float], str, ProviderProvenance]:
@@ -177,6 +186,64 @@ def symptom_triage(request: TriageRequest) -> TriageResponse:
         setting_name="ai_max_input_chars",
     )
     return resolve_triage(symptoms, settings)
+
+
+@app.post("/chat", response_model=ChatResponse, dependencies=[Depends(require_service_auth)])
+def chat(request: ChatRequest) -> ChatResponse:
+    message = _enforce_input_limit(
+        request.message,
+        label="Chat message",
+        setting_name="ai_max_input_chars",
+    )
+    turns = [(turn.role, turn.content) for turn in request.recent_turns]
+    safety_response = chat_safety_response(message, turns)
+    if safety_response is not None:
+        return safety_response
+
+    embedding_provider = settings.embedding_provider.strip().casefold()
+    if (
+        embedding_provider not in LOCAL_EMBEDDING_PROVIDERS
+        and not patient_chat_remote_enabled(settings)
+    ):
+        return resolve_chat(message, settings, recent_turns=turns)
+
+    query_embedding, query_model, embedding_provenance = _embedding_parts(embed(message, settings))
+    # A local fallback uses the same deterministic local-hash model as the
+    # configured local provider. Keep the fallback provenance for the final
+    # response, but use the compatible retrieval profile for the index check.
+    retrieval_provenance: ProviderProvenance = (
+        "local_provider" if embedding_provenance == "local_fallback" else embedding_provenance
+    )
+    try:
+        hits = rag_service.search(
+            query_embedding,
+            top_k=min(request.top_k, settings.ai_max_retrieved_chunks),
+            query_text=message,
+            embedding_model=query_model,
+            embedding_provenance=retrieval_provenance,
+        )
+    except EmbeddingContractError:
+        if embedding_provenance != "local_fallback":
+            raise
+        # A persisted index built by another embedding model is not safe
+        # context for a local fallback. Continue with the deterministic answer.
+        hits = []
+    context = [f"{doc.title}: {doc.content}" for doc, _ in hits]
+    citations = [
+        _citation(doc.source_type, doc.source_id, doc.title)
+        for doc, _ in hits
+    ]
+    response = resolve_chat(
+        message,
+        settings,
+        recent_turns=turns,
+        context=context,
+        citations=citations,
+    )
+    final_provenance = merge_provenance(response.provenance, embedding_provenance)
+    if final_provenance == "local_fallback":
+        return response.model_copy(update={"provenance": final_provenance, "citations": []})
+    return response.model_copy(update={"provenance": final_provenance})
 
 
 @app.post("/embeddings", response_model=EmbeddingResponse, dependencies=[Depends(require_service_auth)])
