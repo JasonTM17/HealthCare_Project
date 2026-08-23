@@ -228,7 +228,7 @@ jobs:
             "PAYMENT_WEBHOOK_TOLERANCE_SECONDS=300"
             "RAG_INGEST_ENABLED=false"
           ) | Set-Content -LiteralPath $fixture -Encoding utf8NoBOM
-          & ./scripts/validate-production-env.ps1 -EnvFile $fixture
+          & pwsh -NoProfile -File scripts/validate-production-env.ps1 -EnvFile $fixture
 
   database:
     runs-on: ubuntu-latest
