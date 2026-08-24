@@ -31,7 +31,11 @@ provider key as a `NEXT_PUBLIC_*` variable.
 3. Configure the private AI service with `AI_PROVIDER=local`, remote flags
    disabled and `SUPABASE_RAG_FALLBACK_TO_MEMORY=false`.
 4. Configure Spring's CORS origin and service tokens, then wait for
-   `/actuator/health`, `/livez` and `/readyz` to pass.
+   `/actuator/health` to pass. Render's private AI service uses its TCP port
+   check; from a service on the same private network, run the authenticated
+   `/readyz` smoke (`X-AI-Service-Token`) and record `/livez` separately. The
+   Blueprint intentionally does not set `healthCheckPath` for the private
+   service because Render exposes that field for web services only.
 5. Run admin submit → independent doctor approval → projection reconciliation.
 6. Run the patient overview, consultation, patient Q&A submission/report,
    admin moderation, and three chat-mode smoke flows. A bank transfer remains
