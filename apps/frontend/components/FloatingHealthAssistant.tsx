@@ -312,6 +312,7 @@ function FloatingHealthAssistantPanel({
         <section
           aria-describedby="floating-health-assistant-help"
           aria-label="Trợ lý sức khỏe HealthCare"
+          aria-modal="true"
           className={styles.panel}
           id="floating-health-assistant-panel"
           ref={panelRef}
