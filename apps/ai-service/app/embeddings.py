@@ -16,9 +16,9 @@ from app.providers import (
     runtime_allows_local_fallback,
     string_setting,
 )
-from app.schemas import MAX_EMBEDDING_DIMENSION, ProviderProvenance
+from app.schemas import EMBEDDING_DIMENSION, ProviderProvenance
 
-DIMENSION = 384
+DIMENSION = EMBEDDING_DIMENSION
 
 
 @dataclass(frozen=True)
@@ -82,14 +82,21 @@ class OpenAIEmbeddingClient:
             timeout=self.timeout_seconds,
             max_retries=0,
         )
-        response = client.embeddings.create(model=self.model, input=text)
+        # The Supabase projection is pgvector(384).  Explicitly request that
+        # width where the OpenAI-compatible provider supports it; accepting a
+        # different width would make the vector unusable by the durable index.
+        response = client.embeddings.create(
+            model=self.model,
+            input=text,
+            dimensions=EMBEDDING_DIMENSION,
+        )
         if not response.data or not response.data[0].embedding:
             raise ValueError("embedding provider returned no vector")
         vector = [float(value) for value in response.data[0].embedding]
-        if len(vector) > MAX_EMBEDDING_DIMENSION or any(
+        if len(vector) != EMBEDDING_DIMENSION or any(
             not math.isfinite(value) for value in vector
         ):
-            raise ValueError("embedding provider returned an invalid vector")
+            raise ValueError("embedding provider returned a vector outside the 384-dimension contract")
         return EmbeddingResult(
             vector,
             self.model,

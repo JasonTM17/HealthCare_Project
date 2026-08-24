@@ -10,6 +10,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import com.healthcare.TestcontainersIntegrationTest;
 import org.flywaydb.core.Flyway;
@@ -52,6 +53,70 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
             "users", "roles", "permissions",
             "user_roles", "role_permissions", "refresh_tokens"
         );
+    }
+
+    @Test
+    void patientChatV34DefaultsAndGovernanceTablesArePresent() {
+        List<String> chatColumns = jdbcTemplate.queryForList("""
+            select column_name
+              from information_schema.columns
+             where table_schema = 'public' and table_name = 'ai_conversations'
+             order by ordinal_position
+            """, String.class);
+        assertThat(chatColumns).contains("mode", "consent_version", "consented_at");
+        assertThat(jdbcTemplate.queryForObject(
+            "select count(*) from information_schema.tables "
+                + "where table_schema = 'public' and table_name in "
+                + "('ai_message_feedback','ai_content_revisions','ai_content_review_heads',"
+                + "'ai_content_approval_rounds','ai_content_review_events')",
+            Integer.class
+        )).isEqualTo(5);
+        assertThat(jdbcTemplate.queryForObject(
+            "select count(*) from pg_sequences where schemaname = 'public' "
+                + "and sequencename = 'ai_catalog_sync_revision_seq'",
+            Integer.class
+        )).isEqualTo(1);
+
+        UUID userId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        jdbcTemplate.update("""
+            insert into users(id, email, password_hash, display_name, status)
+            values (?, ?, 'test-hash', 'Migration Patient', 'ACTIVE')
+            """, userId, "migration-chat-" + userId + "@healthcare.local");
+        jdbcTemplate.update("""
+            insert into ai_conversations(id, user_id, title, expires_at)
+            values (?, ?, 'Legacy chat', CURRENT_TIMESTAMP + INTERVAL '90 days')
+            """, conversationId, userId);
+        Map<String, Object> row = jdbcTemplate.queryForMap(
+            "select mode, consent_version, consented_at from ai_conversations where id = ?",
+            conversationId);
+        assertThat(row.get("mode")).isEqualTo("HOSPITAL_SUPPORT");
+        assertThat(row.get("consent_version")).isNull();
+        assertThat(row.get("consented_at")).isNull();
+    }
+
+    @Test
+    void consultationAuditIsNullableAndUsesSetNullRetentionBoundary() {
+        assertThat(jdbcTemplate.queryForObject("""
+            select is_nullable
+              from information_schema.columns
+             where table_schema = 'public'
+               and table_name = 'patient_consultation_events'
+               and column_name = 'thread_id'
+            """, String.class)).isEqualTo("YES");
+        assertThat(jdbcTemplate.queryForObject("""
+            select delete_rule
+              from information_schema.referential_constraints
+             where constraint_schema = 'public'
+               and constraint_name = 'fk_patient_consultation_event_thread'
+            """, String.class)).isEqualTo("SET NULL");
+        assertThat(jdbcTemplate.queryForObject("""
+            select pg_get_functiondef(p.oid)
+              from pg_proc p
+              join pg_namespace n on n.oid = p.pronamespace
+             where n.nspname = 'public'
+               and p.proname = 'patient_consultation_event_immutable'
+            """, String.class)).contains("healthcare.retention_cleanup");
     }
 
     @Test

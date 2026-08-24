@@ -33,7 +33,7 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 public class AiController {
 
     private static final Set<String> ALLOWED_CITATION_SOURCE_TYPES = Set.of(
-        "specialty", "doctor", "service", "package", "article", "faq"
+        "branch", "specialty", "doctor", "service", "package", "article", "faq"
     );
     private static final Pattern CITATION_SOURCE_ID_PATTERN = Pattern.compile("^[A-Za-z0-9._:-]+$");
     private static final Pattern TOP_LEVEL_IDENTITY_FIELD_PATTERN = Pattern.compile(

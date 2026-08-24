@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { useEffect } from "react";
 import { fetchBranches } from "../lib/api-client";
-import AiTriageModal from "./AiTriageModal";
 import BookingModal, { type BookingSelection } from "./BookingModal";
 import Footer from "./Footer";
 import Navbar from "./Navbar";
@@ -30,6 +29,14 @@ interface PublicPageActions {
 
 const PublicPageActionsContext = createContext<PublicPageActions | null>(null);
 const EMPTY_BRANCHES: Branch[] = [];
+const PUBLIC_ASSISTANT_OPEN_EVENT = "healthcare:open-assistant";
+
+export function requestPublicAssistantOpen(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(PUBLIC_ASSISTANT_OPEN_EVENT, {
+    detail: { mode: "SYMPTOM_TRIAGE" },
+  }));
+}
 
 export function usePublicPageActions(): PublicPageActions {
   const actions = useContext(PublicPageActionsContext);
@@ -70,7 +77,6 @@ export function PublicPageShell({
 }: PublicPageShellProps) {
   const pathname = usePathname();
   const [bookingOpen, setBookingOpen] = useState(bookingInitiallyOpen && !onBookingRequest);
-  const [aiOpen, setAiOpen] = useState(false);
   const [selection, setSelection] = useState<Parameters<PublicPageActions["openBooking"]>[0]>();
   const [shellBranches, setShellBranches] = useState<Branch[]>(EMPTY_BRANCHES);
 
@@ -95,7 +101,6 @@ export function PublicPageShell({
 
   const effectiveBranches = branches.length > 0 ? branches : shellBranches;
   const cmsSlug = routeCmsSlug(pathname);
-  const emergencyBranch = effectiveBranches.find((branch) => Boolean(branch.emergencyHotline));
 
   const actions: PublicPageActions = {
     openBooking: (nextSelection) => {
@@ -106,7 +111,7 @@ export function PublicPageShell({
       setSelection(nextSelection);
       setBookingOpen(true);
     },
-    openAi: () => setAiOpen(true),
+    openAi: requestPublicAssistantOpen,
   };
 
   return (
@@ -130,17 +135,6 @@ export function PublicPageShell({
             specialties={specialties}
           />
         ) : null}
-        <AiTriageModal
-          emergencyContact={emergencyBranch?.emergencyHotline}
-          isOpen={aiOpen}
-          onClose={() => setAiOpen(false)}
-          onSelectSpecialtyForBooking={(_specialtyName, specialtyId) => {
-            // Keep the AI resolver's backend identity even when this shell did
-            // not preload the full specialty catalog.
-            actions.openBooking(specialtyId ? { specialtyId } : undefined);
-            setAiOpen(false);
-          }}
-        />
       </div>
     </PublicPageActionsContext.Provider>
   );

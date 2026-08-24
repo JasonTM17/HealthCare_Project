@@ -1,5 +1,9 @@
 package com.healthcare.exception;
 
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
+import com.healthcare.ai.chat.entity.ChatMode;
+import com.healthcare.ai.chat.entity.FeedbackRating;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -8,6 +12,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -82,6 +87,24 @@ public class GlobalExceptionHandler {
             fieldErrors,
             ErrorCodes.VALIDATION_ERROR
         );
+        return ResponseEntity.badRequest().body(error);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiError> handleUnreadableBody(HttpMessageNotReadableException ex, WebRequest request) {
+        String code;
+        String message;
+        if (isInvalidChatMode(ex)) {
+            code = ErrorCodes.CHAT_MODE_INVALID;
+            message = "Invalid chat mode";
+        } else if (isInvalidFeedbackRating(ex)) {
+            code = ErrorCodes.CHAT_FEEDBACK_INVALID;
+            message = "Invalid feedback rating";
+        } else {
+            code = ErrorCodes.REQUEST_FAILED;
+            message = "Request body is invalid";
+        }
+        ApiError error = new ApiError(400, "Bad Request", message, extractPath(request), List.of(), code);
         return ResponseEntity.badRequest().body(error);
     }
 
@@ -185,5 +208,37 @@ public class GlobalExceptionHandler {
             return servletWebRequest.getRequest().getRequestURI();
         }
         return "";
+    }
+
+    private boolean isInvalidChatMode(Throwable failure) {
+        Throwable current = failure;
+        while (current != null) {
+            if (current instanceof InvalidFormatException invalid
+                    && ChatMode.class.equals(invalid.getTargetType())) {
+                return true;
+            }
+            if (current instanceof JsonMappingException mapping
+                    && mapping.getPath().stream().anyMatch(reference -> "mode".equals(reference.getFieldName()))) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private boolean isInvalidFeedbackRating(Throwable failure) {
+        Throwable current = failure;
+        while (current != null) {
+            if (current instanceof InvalidFormatException invalid
+                    && FeedbackRating.class.equals(invalid.getTargetType())) {
+                return true;
+            }
+            if (current instanceof JsonMappingException mapping
+                    && mapping.getPath().stream().anyMatch(reference -> "rating".equals(reference.getFieldName()))) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 }

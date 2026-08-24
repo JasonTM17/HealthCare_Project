@@ -9,6 +9,48 @@ def test_patient_chat_remote_provider_is_disabled_by_default() -> None:
     assert Settings().ai_patient_chat_remote_enabled is False
 
 
+def test_production_rejects_remote_patient_chat_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AI_SERVICE_RUNTIME", "production")
+    monkeypatch.setenv("AI_PATIENT_CHAT_REMOTE_ENABLED", "true")
+    monkeypatch.setenv("AI_CHAT_REMOTE_PROVIDER_ENABLED", "true")
+
+    with pytest.raises(ValueError, match="Remote patient chat is disabled in production"):
+        Settings()
+
+
+def test_remote_patient_chat_requires_synthetic_beta_contract(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AI_PROVIDER", "deepseek")
+    monkeypatch.setenv("AI_PATIENT_CHAT_REMOTE_ENABLED", "true")
+    monkeypatch.setenv("AI_CHAT_REMOTE_PROVIDER_ENABLED", "true")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "synthetic-test-key")
+    monkeypatch.setenv("AI_SERVICE_RUNTIME", "staging")
+
+    with pytest.raises(ValueError, match="synthetic-beta"):
+        Settings()
+
+
+def test_valid_synthetic_beta_remote_contract_is_explicit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AI_PROVIDER", "deepseek")
+    monkeypatch.setenv("AI_PATIENT_CHAT_REMOTE_ENABLED", "true")
+    monkeypatch.setenv("AI_CHAT_REMOTE_PROVIDER_ENABLED", "true")
+    monkeypatch.setenv("AI_SERVICE_RUNTIME", "synthetic-beta")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "synthetic-test-key")
+    monkeypatch.setenv("RAG_STORAGE_BACKEND", "supabase")
+    monkeypatch.setenv("SUPABASE_DB_URL", "postgresql://synthetic")
+    monkeypatch.setenv("SUPABASE_RAG_FALLBACK_TO_MEMORY", "false")
+
+    configured = Settings()
+
+    assert configured.remote_ai_synthetic_only is True
+    assert configured.ai_base_url == "https://api.deepseek.com"
+
+
 def test_deepseek_defaults_to_v4_flash_when_no_model_is_configured(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

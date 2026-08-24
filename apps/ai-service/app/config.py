@@ -6,6 +6,8 @@ hard limits in the request schemas remain the final safety boundary; the
 configured limits may make those bounds stricter for a deployment.
 """
 
+from urllib.parse import urlparse
+
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -34,12 +36,27 @@ class Settings(BaseSettings):
     # Provider credentials do not authorize exporting patient chat. This
     # separate opt-in keeps sensitive conversations local by default.
     ai_patient_chat_remote_enabled: bool = False
+    # This is deliberately independent from the provider credential.  A
+    # deployment must opt into the patient-chat egress path twice: once in the
+    # AI service and once in Spring's provenance gate.
+    ai_chat_remote_provider_enabled: bool = False
+    # Remote patient chat is a synthetic-beta capability only.  The default is
+    # fail-closed; local/test callers can still exercise provider adapters with
+    # an in-memory test double without constructing a synthetic runtime.
+    remote_ai_synthetic_only: bool = True
+    remote_ai_kill_switch: bool = False
+    remote_ai_provider_allowlist: str = "deepseek"
+    remote_ai_https_host_allowlist: str = "api.deepseek.com"
     ai_chat_circuit_failure_threshold: int = Field(default=3, ge=1, le=10)
     ai_chat_circuit_reset_seconds: float = Field(default=30.0, gt=0, le=300)
     ai_max_input_chars: int = Field(default=10_000, ge=2, le=10_000)
     ai_max_retrieved_chunks: int = Field(default=5, ge=1, le=20)
+    # Patient two-step retrieval is fail-closed below this hybrid score.
+    ai_chat_relevance_threshold: float = Field(default=0.35, ge=0, le=1)
     rag_max_document_chars: int = Field(default=20_000, ge=1, le=20_000)
-    rag_max_documents: int = Field(default=5_000, ge=1, le=10_000)
+    # A source listing is paginated; this is a memory safety ceiling, not a
+    # reconciliation completeness limit.
+    rag_max_documents: int = Field(default=10_000, ge=1, le=100_000)
 
     # Durable RAG is opt-in so local/test runtimes retain the current
     # dependency-free in-memory behavior. `SUPABASE_DB_URL` is a direct
@@ -48,8 +65,10 @@ class Settings(BaseSettings):
     rag_storage_backend: str = "memory"
     supabase_db_url: str = ""
     supabase_db_schema: str = "healthcare"
-    supabase_rag_table: str = "ai_documents"
-    supabase_rag_rpc: str = "match_documents"
+    # Patient-chat retrieval uses the protected projection, never the legacy
+    # healthcare.ai_documents table used by the old catalog search.
+    supabase_rag_table: str = "ai_chat_documents"
+    supabase_rag_rpc: str = "match_chat_documents"
     supabase_db_connect_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
     supabase_rag_fallback_to_memory: bool = True
     rag_embedding_dimension: int = Field(default=384, ge=384, le=384)
@@ -96,14 +115,48 @@ class Settings(BaseSettings):
     def apply_legacy_provider_aliases(self) -> "Settings":
         """Use legacy values only when the provider-neutral value is empty."""
 
-        if self.ai_provider.strip().casefold() != "deepseek":
-            return self
-        if not self.ai_api_key.strip():
-            self.ai_api_key = self.deepseek_api_key
-        if not self.ai_chat_model.strip():
-            self.ai_chat_model = self.deepseek_model.strip() or DEFAULT_DEEPSEEK_CHAT_MODEL
-        if not self.ai_embedding_model.strip():
-            self.ai_embedding_model = self.deepseek_embedding_model or "text-embedding-3-small"
-        if not self.ai_base_url.strip():
-            self.ai_base_url = self.deepseek_base_url.strip() or "https://api.deepseek.com"
+        runtime = self.ai_service_runtime.strip().casefold()
+        remote_requested = self.ai_patient_chat_remote_enabled or self.ai_chat_remote_provider_enabled
+        if remote_requested and runtime in {"prod", "production"}:
+            raise ValueError("Remote patient chat is disabled in production")
+        if self.ai_provider.strip().casefold() == "deepseek":
+            if not self.ai_api_key.strip():
+                self.ai_api_key = self.deepseek_api_key
+            if not self.ai_chat_model.strip():
+                self.ai_chat_model = self.deepseek_model.strip() or DEFAULT_DEEPSEEK_CHAT_MODEL
+            if not self.ai_embedding_model.strip():
+                self.ai_embedding_model = self.deepseek_embedding_model or "text-embedding-3-small"
+            if not self.ai_base_url.strip():
+                self.ai_base_url = self.deepseek_base_url.strip() or "https://api.deepseek.com"
+
+        if self.ai_patient_chat_remote_enabled:
+            if not self.ai_chat_remote_provider_enabled:
+                raise ValueError("Remote patient chat requires the Spring provenance gate")
+            if self.remote_ai_kill_switch:
+                raise ValueError("Remote patient chat kill switch is enabled")
+            if self.remote_ai_synthetic_only and runtime not in {"synthetic-beta", "synthetic_beta"}:
+                raise ValueError("Remote patient chat requires synthetic-beta runtime")
+            if self.remote_ai_synthetic_only:
+                if self.rag_storage_backend != "supabase":
+                    raise ValueError("Synthetic remote patient chat requires Supabase RAG")
+                if self.supabase_rag_fallback_to_memory:
+                    raise ValueError("Synthetic remote patient chat cannot fall back to memory RAG")
+            provider = self.ai_provider.strip().casefold()
+            allowed_providers = {
+                item.strip().casefold()
+                for item in self.remote_ai_provider_allowlist.split(",")
+                if item.strip()
+            }
+            if provider not in allowed_providers:
+                raise ValueError("AI_PROVIDER is not in the remote provider allowlist")
+            parsed = urlparse(self.ai_base_url.strip())
+            allowed_hosts = {
+                item.strip().casefold()
+                for item in self.remote_ai_https_host_allowlist.split(",")
+                if item.strip()
+            }
+            if parsed.scheme.casefold() != "https" or not parsed.hostname or parsed.hostname.casefold() not in allowed_hosts:
+                raise ValueError("Remote AI base URL must use an allowlisted HTTPS host")
+            if not self.ai_api_key.strip():
+                raise ValueError("Remote patient chat requires an AI provider secret")
         return self

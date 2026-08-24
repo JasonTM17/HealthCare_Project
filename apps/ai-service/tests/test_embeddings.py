@@ -4,13 +4,13 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 import pytest
 
-from app.embeddings import OpenAIEmbeddingClient, embed
+from app.embeddings import DIMENSION, OpenAIEmbeddingClient, embed
 from app.providers import ProviderUnavailable
 
 
 def test_openai_embedding_client_passes_bounded_timeout() -> None:
     response = MagicMock()
-    response.data = [SimpleNamespace(embedding=[0.1, 0.2])]
+    response.data = [SimpleNamespace(embedding=[0.1] * DIMENSION)]
     with patch("openai.OpenAI") as openai_client:
         openai_client.return_value.embeddings.create.return_value = response
         client = OpenAIEmbeddingClient(
@@ -22,7 +22,7 @@ def test_openai_embedding_client_passes_bounded_timeout() -> None:
 
         vector, model = client.embed("đau đầu")
 
-    assert vector == [0.1, 0.2]
+    assert vector == [0.1] * DIMENSION
     assert model == "test-embedding"
     openai_client.assert_called_once_with(
         api_key="test-key",
@@ -30,6 +30,27 @@ def test_openai_embedding_client_passes_bounded_timeout() -> None:
         timeout=3.5,
         max_retries=0,
     )
+    openai_client.return_value.embeddings.create.assert_called_once_with(
+        model="test-embedding",
+        input="đau đầu",
+        dimensions=384,
+    )
+
+
+def test_openai_embedding_rejects_wrong_dimension() -> None:
+    response = MagicMock()
+    response.data = [SimpleNamespace(embedding=[0.1, 0.2])]
+    with patch("openai.OpenAI") as openai_client:
+        openai_client.return_value.embeddings.create.return_value = response
+        client = OpenAIEmbeddingClient(
+            api_key="test-key",
+            base_url="https://provider.test",
+            model="test-embedding",
+            timeout_seconds=3.5,
+        )
+
+        with pytest.raises(ValueError, match="384-dimension"):
+            client.embed("đau đầu")
 
 
 def test_provider_error_falls_back_to_local_embedding() -> None:

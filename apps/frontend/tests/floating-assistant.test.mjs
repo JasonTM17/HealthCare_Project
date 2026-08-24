@@ -57,3 +57,22 @@ test("floating assistant exposes real recovery, safety and accessible actions", 
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/);
   assert.doesNotMatch(styles, /linear-gradient|radial-gradient/);
 });
+
+test("floating assistant fails closed across mode changes and policy refreshes", async () => {
+  const [component, apiClient] = await Promise.all([
+    read("components/FloatingHealthAssistant.tsx"),
+    read("lib/api-client.ts"),
+  ]);
+
+  assert.match(component, /requestEpochRef/);
+  assert.match(component, /conversationIdRef/);
+  assert.match(component, /isCurrentLocalRequest\(epoch, currentConversation\.id\)/);
+  assert.match(component, /invalidateLocalRequests\(\)/);
+  assert.match(component, /disabled=\{creatingMode \|\| sending \|\| consentBusy\}/);
+  assert.match(component, /refreshChatPolicy/);
+  assert.match(component, /hasCurrentChatConsent\(currentConversation, currentPolicy\)/);
+  assert.match(component, /updateAiConversationConsent\(conversationId, currentPolicy\.policyVersion, \{ signal: controller\.signal \}\)/);
+  assert.match(apiClient, /CTA_LABEL_CONTROL_PATTERN/);
+  assert.match(apiClient, /\{0,219\}/);
+  assert.match(apiClient, /CTA_LABEL_CONTROL_PATTERN\.test\(value\.label\)/);
+});

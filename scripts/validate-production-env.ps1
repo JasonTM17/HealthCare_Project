@@ -75,6 +75,13 @@ Require-Secret "MINIO_ROOT_PASSWORD" 16
 Require-Secret "AI_SERVICE_TOKEN" 32
 Require-Boolean "APP_BOOKING_ALLOW_TEST_OTP" $false
 Require-Boolean "APP_SECURITY_RATE_LIMIT_ENABLED" $true
+# Patient-chat egress is a separate production kill switch. A provider key or
+# DeepSeek URL must never turn it on accidentally.
+Require-Boolean "AI_PATIENT_CHAT_REMOTE_ENABLED" $false
+Require-Boolean "AI_CHAT_REMOTE_PROVIDER_ENABLED" $false
+Require-Boolean "REMOTE_AI_KILL_SWITCH" $true
+Require-Boolean "REMOTE_AI_SYNTHETIC_ONLY" $true
+Require-Boolean "SUPABASE_RAG_FALLBACK_TO_MEMORY" $false
 
 $origins = Require-Value "CORS_ALLOWED_ORIGINS"
 foreach ($origin in ($origins -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })) {

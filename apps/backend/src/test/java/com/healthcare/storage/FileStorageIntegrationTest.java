@@ -17,12 +17,38 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Transactional;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
 
 import java.util.UUID;
 
 @Transactional
 class FileStorageIntegrationTest extends AbstractIntegrationTest {
+
+    private static final String MINIO_IMAGE = "minio/minio:RELEASE.2025-07-23T15-54-02Z";
+    private static final String MINIO_ACCESS_KEY = "healthcare-test";
+    private static final String TEST_MINIO_PASSWORD = "local-test-password";
+    private static final GenericContainer<?> MINIO = new GenericContainer<>(MINIO_IMAGE)
+        .withEnv("MINIO_ROOT_USER", MINIO_ACCESS_KEY)
+        .withEnv("MINIO_ROOT_PASSWORD", TEST_MINIO_PASSWORD)
+        .withCommand("server", "/data", "--console-address", ":9001")
+        .withExposedPorts(9000)
+        .waitingFor(Wait.forHttp("/minio/health/ready").forPort(9000).forStatusCode(200));
+
+    static {
+        MINIO.start();
+    }
+
+    @DynamicPropertySource
+    static void configureObjectStore(DynamicPropertyRegistry registry) {
+        registry.add("minio.endpoint", () -> "http://" + MINIO.getHost() + ":" + MINIO.getMappedPort(9000));
+        registry.add("minio.access-key", () -> MINIO_ACCESS_KEY);
+        registry.add("minio.secret-key", () -> TEST_MINIO_PASSWORD);
+        registry.add("minio.bucket", () -> "healthcare-files");
+    }
 
     @Autowired private ObjectMapper objectMapper;
     @Autowired private RoleRepository roleRepository;

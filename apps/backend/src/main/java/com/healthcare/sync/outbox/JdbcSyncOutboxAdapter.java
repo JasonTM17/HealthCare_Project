@@ -24,7 +24,8 @@ import java.util.UUID;
  * provide {@code sync_outbox_events} with the following server-side columns:
  * {@code event_id}, {@code cursor}, {@code entity_classification},
  * {@code entity_type}, {@code entity_id}, {@code revision}, {@code operation},
- * {@code content_hash}, {@code occurred_at}, {@code correlation_id},
+ * {@code content_hash}, optional {@code source_revision} and
+ * {@code eligibility_revision}, {@code occurred_at}, {@code correlation_id},
  * generated {@code idempotency_key}, {@code status}, {@code attempt_count},
  * {@code available_at}, {@code claimed_at}, {@code lease_expires_at},
  * {@code lease_token}, {@code worker_id}, {@code acknowledged_at} and
@@ -47,6 +48,8 @@ public class JdbcSyncOutboxAdapter implements SyncOutboxPort {
         revision,
         operation,
         content_hash,
+        source_revision,
+        eligibility_revision,
         occurred_at,
         correlation_id,
         status,
@@ -83,13 +86,15 @@ public class JdbcSyncOutboxAdapter implements SyncOutboxPort {
             revision,
             operation,
             content_hash,
+            source_revision,
+            eligibility_revision,
             occurred_at,
             correlation_id,
             status,
             attempt_count,
             available_at,
             updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', 0, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', 0, ?, ?)
         ON CONFLICT DO NOTHING
         RETURNING %s
         """.formatted(SELECT_COLUMNS);
@@ -124,6 +129,33 @@ public class JdbcSyncOutboxAdapter implements SyncOutboxPort {
         FOR UPDATE
         """.formatted(SELECT_COLUMNS);
 
+    private static final String SELECT_CLAIMABLE_CLINICAL_EVENTS = """
+        WITH first_blocked AS (
+            SELECT COALESCE(MIN("cursor"), 9223372036854775807) AS blocked_cursor
+            FROM sync_outbox_events
+            WHERE "cursor" > ?
+              AND entity_classification = ?
+              AND status NOT IN ('PROCESSED', 'DEAD_LETTER')
+              AND NOT (
+                    (status IN ('PENDING', 'RETRYABLE') AND available_at <= ?)
+                    OR (status = 'PROCESSING' AND lease_expires_at <= ?)
+              )
+        )
+        SELECT %s
+        FROM sync_outbox_events event
+        CROSS JOIN first_blocked
+        WHERE event."cursor" > ?
+          AND event.entity_classification = ?
+          AND event."cursor" < first_blocked.blocked_cursor
+          AND (
+                (event.status IN ('PENDING', 'RETRYABLE') AND event.available_at <= ?)
+                OR (event.status = 'PROCESSING' AND event.lease_expires_at <= ?)
+          )
+        ORDER BY event."cursor"
+        LIMIT ?
+        FOR UPDATE
+        """.formatted(SELECT_COLUMNS);
+
     private static final String CLAIM_EVENT = """
         UPDATE sync_outbox_events
         SET status = ?,
@@ -145,6 +177,19 @@ public class JdbcSyncOutboxAdapter implements SyncOutboxPort {
             SELECT 1
             FROM sync_outbox_events
             WHERE "cursor" > ?
+              AND (
+                    (status IN ('PENDING', 'RETRYABLE') AND available_at <= ?)
+                    OR (status = 'PROCESSING' AND lease_expires_at <= ?)
+              )
+        )
+        """;
+
+    private static final String HAS_MORE_CLINICAL_EVENTS = """
+        SELECT EXISTS (
+            SELECT 1
+            FROM sync_outbox_events
+            WHERE "cursor" > ?
+              AND entity_classification = ?
               AND (
                     (status IN ('PENDING', 'RETRYABLE') AND available_at <= ?)
                     OR (status = 'PROCESSING' AND lease_expires_at <= ?)
@@ -223,6 +268,8 @@ public class JdbcSyncOutboxAdapter implements SyncOutboxPort {
             event.identity().revision(),
             event.identity().operation().name(),
             event.contentHash().value(),
+            event.sourceRevision(),
+            event.eligibilityRevision(),
             event.occurredAt(),
             event.correlationId(),
             event.availableAt(),
@@ -255,6 +302,37 @@ public class JdbcSyncOutboxAdapter implements SyncOutboxPort {
         Duration lease,
         OffsetDateTime now
     ) {
+        return claimBatchInternal(after, limit, workerId, lease, now, null);
+    }
+
+    @Override
+    @Transactional
+    public SyncBatch claimBatchForClassification(
+        SyncCursor after,
+        int limit,
+        UUID workerId,
+        Duration lease,
+        OffsetDateTime now,
+        SyncDataClassification classification
+    ) {
+        return claimBatchInternal(
+            after,
+            limit,
+            workerId,
+            lease,
+            now,
+            Objects.requireNonNull(classification, "classification")
+        );
+    }
+
+    private SyncBatch claimBatchInternal(
+        SyncCursor after,
+        int limit,
+        UUID workerId,
+        Duration lease,
+        OffsetDateTime now,
+        SyncDataClassification classification
+    ) {
         SyncCursor requestedAfter = Objects.requireNonNull(after, "after");
         UUID owner = Objects.requireNonNull(workerId, "workerId");
         SyncOutboxContract.validateBatchLimit(limit);
@@ -263,16 +341,22 @@ public class JdbcSyncOutboxAdapter implements SyncOutboxPort {
         OffsetDateTime leaseExpiresAt = claimedAt.plus(lease);
         UUID claimToken = UUID.randomUUID();
 
+        String claimSql = classification == null
+            ? SELECT_CLAIMABLE_EVENTS
+            : SELECT_CLAIMABLE_CLINICAL_EVENTS;
+        Object[] claimArgs = classification == null
+            ? new Object[] {
+                requestedAfter.value(), claimedAt, claimedAt,
+                requestedAfter.value(), claimedAt, claimedAt, limit
+            }
+            : new Object[] {
+                requestedAfter.value(), classification.name(), claimedAt, claimedAt,
+                requestedAfter.value(), classification.name(), claimedAt, claimedAt, limit
+            };
         List<SyncOutboxEvent> candidates = jdbcTemplate.query(
-            SELECT_CLAIMABLE_EVENTS,
+            claimSql,
             ROW_MAPPER,
-            requestedAfter.value(),
-            claimedAt,
-            claimedAt,
-            requestedAfter.value(),
-            claimedAt,
-            claimedAt,
-            limit
+            claimArgs
         );
         if (candidates.isEmpty()) {
             return SyncBatch.empty(claimToken, owner, requestedAfter, leaseExpiresAt);
@@ -284,12 +368,16 @@ public class JdbcSyncOutboxAdapter implements SyncOutboxPort {
         SyncCursor nextCursor = new SyncCursor(
             claimedEvents.get(claimedEvents.size() - 1).cursor()
         );
+        String hasMoreSql = classification == null
+            ? HAS_MORE_CLAIMABLE_EVENTS
+            : HAS_MORE_CLINICAL_EVENTS;
+        Object[] hasMoreArgs = classification == null
+            ? new Object[] { nextCursor.value(), claimedAt, claimedAt }
+            : new Object[] { nextCursor.value(), classification.name(), claimedAt, claimedAt };
         boolean hasMore = Boolean.TRUE.equals(jdbcTemplate.queryForObject(
-            HAS_MORE_CLAIMABLE_EVENTS,
+            hasMoreSql,
             Boolean.class,
-            nextCursor.value(),
-            claimedAt,
-            claimedAt
+            hasMoreArgs
         ));
         return new SyncBatch(
             claimToken,
@@ -441,8 +529,15 @@ public class JdbcSyncOutboxAdapter implements SyncOutboxPort {
             resultSet.getInt("attempt_count"),
             nullableUuid(resultSet, "lease_token"),
             nullableTimestamp(resultSet, "lease_expires_at"),
-            requiredTimestamp(resultSet, "available_at")
+            requiredTimestamp(resultSet, "available_at"),
+            nullableLong(resultSet, "source_revision"),
+            nullableLong(resultSet, "eligibility_revision")
         );
+    }
+
+    private static Long nullableLong(ResultSet resultSet, String column) throws SQLException {
+        long value = resultSet.getLong(column);
+        return resultSet.wasNull() ? null : value;
     }
 
     private static UUID readUuid(ResultSet resultSet, String column) throws SQLException {

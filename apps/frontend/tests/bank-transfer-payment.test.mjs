@@ -64,9 +64,25 @@ test("admin reconciliation requires explicit review and is linked in navigation"
     read("app/admin/layout.tsx"),
   ]);
   assert.match(page, /Chỉ xác nhận sau khi giao dịch xuất hiện trên sao kê/);
+  assert.match(page, /Duyệt thanh toán/);
   assert.match(page, /"VERIFY"/);
   assert.match(page, /"REJECT"/);
   assert.match(layout, /\/admin\/payments/);
+});
+
+test("admin payment reload ignores stale responses and keeps review controls keyboard-sized", async () => {
+  const source = await read("app/admin/payments/page.tsx");
+  assert.match(source, /loadRequestRef = useRef\(0\)/);
+  assert.match(source, /if \(requestId !== loadRequestRef\.current\) return/);
+  assert.match(source, /Danh sách giao dịch chờ bệnh viện đối soát và phê duyệt/);
+  assert.match(source, /min-h-11 rounded-lg bg-teal-700/);
+});
+
+test("patient transfer copy makes admin approval the payment authority", async () => {
+  const source = await read("app/patient/dashboard/page.tsx");
+  assert.match(source, /đang chờ admin kiểm tra, phê duyệt/);
+  assert.match(source, /chỉ chuyển thành “Đã thanh toán” sau khi admin kiểm tra sao kê và phê duyệt/);
+  assert.doesNotMatch(source, /tự kiểm tra kết quả đối soát/);
 });
 
 test("confirmed booking routes back to the exact claimed appointment payment", async () => {

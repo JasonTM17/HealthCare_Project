@@ -33,6 +33,14 @@ public final class ErrorCodes {
     public static final String AI_RESPONSE_INVALID = "AI_RESPONSE_INVALID";
     public static final String CHAT_CONTENT_BLOCKED = "CHAT_CONTENT_BLOCKED";
     public static final String CHAT_RETENTION_EXPIRED = "CHAT_RETENTION_EXPIRED";
+    public static final String CHAT_CONSENT_REQUIRED = "CHAT_CONSENT_REQUIRED";
+    public static final String CHAT_CONSENT_VERSION_STALE = "CHAT_CONSENT_VERSION_STALE";
+    public static final String CHAT_MODE_INVALID = "CHAT_MODE_INVALID";
+    public static final String CHAT_FEEDBACK_INVALID = "CHAT_FEEDBACK_INVALID";
+    public static final String AI_CONTENT_REVISION_STALE = "AI_CONTENT_REVISION_STALE";
+    public static final String AI_CONTENT_NOT_SUBMITTED = "AI_CONTENT_NOT_SUBMITTED";
+    public static final String AI_CONTENT_APPROVER_NOT_INDEPENDENT = "AI_CONTENT_APPROVER_NOT_INDEPENDENT";
+    public static final String AI_CONTENT_ALREADY_DECIDED = "AI_CONTENT_ALREADY_DECIDED";
 
     private ErrorCodes() {
     }

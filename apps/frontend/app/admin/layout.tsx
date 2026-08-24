@@ -20,6 +20,8 @@ const NAV = [
   { href: "/admin/catalog", label: "Gói & bài viết" },
   { href: "/admin/schedules", label: "Lịch bác sĩ" },
   { href: "/admin/content", label: "CMS live" },
+  { href: "/admin/ai-content-reviews", label: "AI review" },
+  { href: "/admin/health-questions", label: "Hỏi đáp sức khỏe" },
 ];
 
 type GateState =

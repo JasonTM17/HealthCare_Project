@@ -15,6 +15,7 @@ import org.hibernate.type.SqlTypes;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -43,6 +44,14 @@ public class AiMessage {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 24)
     private AiMessageStatus status;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "safety_action", length = 32)
+    private ChatSafetyAction safetyAction;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "triage", columnDefinition = "jsonb")
+    private Map<String, Object> triage;
 
     @Column(name = "content", nullable = false, length = 10_000)
     private String content;
@@ -79,6 +88,12 @@ public class AiMessage {
     public void setRole(AiMessageRole role) { this.role = role; }
     public AiMessageStatus getStatus() { return status; }
     public void setStatus(AiMessageStatus status) { this.status = status; }
+    public ChatSafetyAction getSafetyAction() { return safetyAction; }
+    public void setSafetyAction(ChatSafetyAction safetyAction) { this.safetyAction = safetyAction; }
+    public Map<String, Object> getTriage() { return triage; }
+    public void setTriage(Map<String, Object> triage) {
+        this.triage = triage == null ? null : new LinkedHashMap<>(triage);
+    }
     public String getContent() { return content; }
     public void setContent(String content) { this.content = content; }
     public long getSequenceNumber() { return sequenceNumber; }

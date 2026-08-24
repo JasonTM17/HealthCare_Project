@@ -91,6 +91,20 @@ async function installPatientChatMocks(
     window.sessionStorage.setItem("healthcare-brand-intro-v1", "1");
   }, { key: AUTH_STORAGE_KEY, value: JSON.stringify(PATIENT_SESSION) });
 
+  await context.route("**/api/v1/ai/chat-policy", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        policyVersion: "2026-08-23",
+        retentionDays: 90,
+        consentText: "Tôi đồng ý dùng trợ lý sức khỏe.",
+        limitationText: "Không thay thế bác sĩ.",
+        remoteProviderEnabled: false,
+      }),
+    });
+  });
+
   await context.route("**/api/v1/ai/conversations**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());

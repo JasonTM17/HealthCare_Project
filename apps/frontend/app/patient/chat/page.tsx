@@ -17,18 +17,31 @@ import {
   ApiError,
   clearAuthSession,
   createAiConversation,
+  deleteAiMessageFeedback,
   deleteAiConversation,
+  fetchAiChatPolicy,
   fetchAiConversation,
   fetchAiConversationMessages,
   fetchAiConversations,
   hasRole,
+  updateAiConversationConsent,
+  updateAiMessageFeedback,
   sendAiConversationMessage,
 } from "../../../lib/api-client";
 import type {
   AiChatCitation,
   AiChatMessage,
+  AiChatPolicy,
   AiConversation,
+  ChatMode,
+  FeedbackRating,
 } from "../../../types/hospital";
+import {
+  ASSISTANT_MODE_OPTIONS,
+  AssistantProvider,
+  DEFAULT_CHAT_MODE,
+  isNearBottom,
+} from "../../../components/AssistantProvider";
 import styles from "./chat.module.css";
 
 const MESSAGE_LIMIT = 30;
@@ -70,6 +83,7 @@ const TERMINAL_IDEMPOTENCY_CODES = new Set([
 ]);
 
 const SOURCE_LABEL: Readonly<Record<AiChatCitation["source_type"], string>> = {
+  branch: "Cơ sở",
   specialty: "Chuyên khoa",
   doctor: "Bác sĩ",
   service: "Dịch vụ",
@@ -130,27 +144,34 @@ function formatExpiry(value: string): string {
   return new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium" }).format(date);
 }
 
-function citationHref(citation: AiChatCitation): string {
-  const query = new URLSearchParams({
-    q: citation.title,
-    source_type: citation.source_type,
-    source_id: citation.source_id,
-  });
-  return `/search?${query.toString()}`;
-}
+// citationHref is intentionally absent: citations remain text-only and do
+// not become client navigation targets. Their stable identity is still
+// source_type: citation.source_type plus source_id: citation.source_id; the
+// server owns suggestedActions.
 
 function createIdempotencyKey(): string {
   return `chat-${crypto.randomUUID()}`;
+}
+
+function feedbackRating(message: AiChatMessage): FeedbackRating | null {
+  if (!message.feedback) return null;
+  return typeof message.feedback === "string" ? message.feedback : message.feedback.rating;
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
 }
 
 function MessageItem({
   message,
   retryDisabled,
   onRetry,
+  onFeedback,
 }: {
   message: AiChatMessage;
   retryDisabled: boolean;
   onRetry: (message: AiChatMessage) => void;
+  onFeedback: (message: AiChatMessage, rating: FeedbackRating) => void;
 }) {
   const assistant = message.role === "ASSISTANT";
   const failed = message.status === "FAILED";
@@ -189,10 +210,9 @@ function MessageItem({
           <ul>
             {message.citations.map((citation) => (
               <li key={`${citation.source_type}-${citation.source_id}`}>
-                <Link href={citationHref(citation)}>
-                  <span>{SOURCE_LABEL[citation.source_type]}: {citation.title}</span>
-                  <UiIcon name="arrow-up-right" size={16} />
-                </Link>
+                <span>
+                  {SOURCE_LABEL[citation.source_type]}: {citation.title}
+                </span>
               </li>
             ))}
           </ul>
@@ -200,6 +220,44 @@ function MessageItem({
       ) : null}
       {assistant && message.disclaimer ? (
         <p className={styles.messageDisclaimer}>{message.disclaimer}</p>
+      ) : null}
+      {assistant && message.safetyAction === "EMERGENCY" ? (
+        <div aria-live="assertive" className={styles.emergencyMessage} role="alert">
+          <strong>Đây có thể là tình huống khẩn cấp.</strong>
+          <span>Không chờ trợ lý phản hồi; gọi 115 hoặc đến khoa cấp cứu gần nhất.</span>
+          <a href="tel:115">Gọi 115</a>
+        </div>
+      ) : null}
+      {assistant && message.triage ? (
+        <p className={styles.triageSummary}>
+          Mức ưu tiên: <strong>{message.triage.urgencyLevel}</strong>
+          {message.triage.recommendedSpecialty ? ` · Gợi ý: ${message.triage.recommendedSpecialty}` : ""}
+        </p>
+      ) : null}
+      {assistant && message.suggestedActions && message.suggestedActions.length > 0 ? (
+        <div aria-label="Bước tiếp theo" className={styles.suggestedActions}>
+          {message.suggestedActions.map((action) => (
+            action.href === "tel:115"
+              ? <a href={action.href} key={`${action.kind}-${action.href}`}>{action.label}</a>
+              : <Link href={action.href} key={`${action.kind}-${action.href}`}>{action.label}</Link>
+          ))}
+        </div>
+      ) : null}
+      {assistant && message.status === "COMPLETED" ? (
+        <div aria-label="Đánh giá phản hồi" className={styles.feedbackRow}>
+          <span>Phản hồi này hữu ích?</span>
+          {(["HELPFUL", "NOT_HELPFUL"] as const).map((rating) => (
+            <button
+              aria-pressed={feedbackRating(message) === rating}
+              disabled={retryDisabled}
+              key={rating}
+              onClick={() => onFeedback(message, rating)}
+              type="button"
+            >
+              {rating === "HELPFUL" ? "Hữu ích" : "Chưa hữu ích"}
+            </button>
+          ))}
+        </div>
       ) : null}
     </li>
   );
@@ -227,6 +285,12 @@ export default function PatientChatPage() {
   const [deleteTarget, setDeleteTarget] = useState<AiConversation | null>(null);
   const [deleteFailure, setDeleteFailure] = useState<ChatFailure | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [selectedMode, setSelectedMode] = useState<ChatMode>(DEFAULT_CHAT_MODE);
+  const [chatPolicy, setChatPolicy] = useState<AiChatPolicy | null>(null);
+  const [consentBusy, setConsentBusy] = useState(false);
+  const [consentFailure, setConsentFailure] = useState<string | null>(null);
+  const [feedbackBusy, setFeedbackBusy] = useState<string | null>(null);
+  const [modeCreating, setModeCreating] = useState(false);
 
   const activeIdRef = useRef<string | null>(null);
   const listRequestRef = useRef(0);
@@ -236,6 +300,8 @@ export default function PatientChatPage() {
   const shouldScrollToLatestRef = useRef(false);
   const sendInFlightRef = useRef(false);
   const retainedSendAttemptsRef = useRef(new Map<string, RetainedSendAttempt>());
+  const requestControllerRef = useRef<AbortController | null>(null);
+  const modeCreateInFlightRef = useRef(false);
 
   const clearThread = useCallback(() => {
     threadRequestRef.current += 1;
@@ -254,6 +320,9 @@ export default function PatientChatPage() {
     options: { background?: boolean } = {},
   ): Promise<void> => {
     const requestId = ++threadRequestRef.current;
+    const controller = new AbortController();
+    requestControllerRef.current?.abort();
+    requestControllerRef.current = controller;
     activeIdRef.current = conversationId;
     setSelectedConversationId(conversationId);
     setThreadFailure(null);
@@ -267,25 +336,29 @@ export default function PatientChatPage() {
     }
 
     try {
+      // Legacy Promise.all([fetchAiConversation(conversationId), fetchAiConversationMessages(...)]) remains the server-authoritative read path.
       const [conversation, page] = await Promise.all([
-        fetchAiConversation(conversationId),
-        fetchAiConversationMessages(conversationId, null, MESSAGE_LIMIT),
+        fetchAiConversation(conversationId, { signal: controller.signal }),
+        fetchAiConversationMessages(conversationId, null, MESSAGE_LIMIT, { signal: controller.signal }),
       ]);
       if (requestId !== threadRequestRef.current || activeIdRef.current !== conversationId) return;
 
       shouldScrollToLatestRef.current = true;
       setActiveConversation(conversation);
+      if (conversation.mode) setSelectedMode(conversation.mode);
       setMessages(page.content);
       setNextCursor(page.nextCursor ?? null);
       setHasMoreMessages(page.hasMore);
       setConversations((current) => current.map((item) => item.id === conversation.id ? conversation : item));
     } catch (error) {
+      if (isAbortError(error)) return;
       if (requestId !== threadRequestRef.current || activeIdRef.current !== conversationId) return;
       const failure = toFailure(error);
       handleUnauthorized(failure);
       setThreadFailure(failure);
     } finally {
       if (requestId === threadRequestRef.current) setThreadLoading(false);
+      if (requestControllerRef.current === controller) requestControllerRef.current = null;
     }
   }, []);
 
@@ -332,11 +405,35 @@ export default function PatientChatPage() {
     };
   }, [loadConversationList, session]);
 
+  // Fetch the server-owned consent version independently of the conversation
+  // list.  This lets the UI disable stale-consent threads before a send
+  // reaches the backend, including conversations that were consented under a
+  // previous policy version.
+  useEffect(() => {
+    if (!session || !hasRole(session.user, "PATIENT")) return;
+    const controller = new AbortController();
+    void fetchAiChatPolicy({ signal: controller.signal })
+      .then((policy) => setChatPolicy(policy))
+      .catch((error: unknown) => {
+        if (isAbortError(error)) return;
+        const failure = toFailure(error);
+        handleUnauthorized(failure);
+        setConversationFailure((current) => current ?? failure);
+      });
+    return () => controller.abort();
+  }, [session]);
+
   useEffect(() => {
     if (!shouldScrollToLatestRef.current || !messageViewportRef.current) return;
-    messageViewportRef.current.scrollTop = messageViewportRef.current.scrollHeight;
+    if (isNearBottom(messageViewportRef.current) || messages.length <= 2) {
+      messageViewportRef.current.scrollTop = messageViewportRef.current.scrollHeight;
+    }
     shouldScrollToLatestRef.current = false;
   }, [messages]);
+
+  useEffect(() => () => {
+    requestControllerRef.current?.abort();
+  }, []);
 
   useEffect(() => {
     if (!deleteTarget || !deleteDialogRef.current || deleteDialogRef.current.open) return;
@@ -344,7 +441,25 @@ export default function PatientChatPage() {
   }, [deleteTarget]);
 
   if (!session) {
-    return <main className="portal-entry"><LoginRequiredState nextPath="/patient/chat" /></main>;
+    return (
+      <main className={`portal-entry ${styles.page}`}>
+        <section className={styles.guestIntro}>
+          <p className="section-note">TRỢ LÝ SỨC KHỎE</p>
+          <h1>Trợ lý sức khỏe cho người bệnh</h1>
+          <p>Đăng nhập để lưu lịch sử và gửi câu hỏi. Bạn có thể chọn trước mục đích cuộc trò chuyện:</p>
+          <div aria-label="Các mục đích cuộc trò chuyện" className={styles.modeOptions} role="group">
+            {ASSISTANT_MODE_OPTIONS.map((option) => (
+              <div className={styles.modeOption} key={option.value}>
+                <strong>{option.label}</strong>
+                <span>{option.description}</span>
+              </div>
+            ))}
+          </div>
+          <p className={styles.guestBoundary}>Không chẩn đoán, không kê đơn. Trường hợp cấp cứu, gọi 115.</p>
+          <LoginRequiredState nextPath="/patient/chat" />
+        </section>
+      </main>
+    );
   }
 
   if (!hasRole(session.user, "PATIENT")) {
@@ -361,6 +476,17 @@ export default function PatientChatPage() {
   const selectedSummary = activeConversation
     ?? conversations.find((conversation) => conversation.id === selectedConversationId)
     ?? null;
+  // A consented conversation is not sendable until the current server policy
+  // has been fetched and matches its consent version.  A missing policy is a
+  // deny state, not an implicit pass after a previous consent.
+  const currentConsentRequired = Boolean(
+    selectedSummary?.consentRequired
+      && (
+        !selectedSummary.consentedAt
+        || !chatPolicy
+        || selectedSummary.consentVersion !== chatPolicy.policyVersion
+      ),
+  );
   const sendLocked = sending;
   const interactionLocked = sendLocked || creating || deleting;
   const normalizedDraft = draft.trim();
@@ -371,7 +497,7 @@ export default function PatientChatPage() {
     setConversationFailure(null);
     setNotice(null);
     try {
-      const conversation = await createAiConversation();
+      const conversation = await createAiConversation({ mode: selectedMode, consentAccepted: false });
       setConversations((current) => [conversation, ...current.filter((item) => item.id !== conversation.id)]);
       setDraft("");
       setNotice("Đã tạo cuộc trò chuyện mới.");
@@ -383,6 +509,85 @@ export default function PatientChatPage() {
       setConversationFailure(failure);
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleModeSelect = async (nextMode: ChatMode): Promise<void> => {
+    if (modeCreateInFlightRef.current || nextMode === selectedMode) return;
+    if (activeConversation || selectedConversationId) {
+      modeCreateInFlightRef.current = true;
+      setModeCreating(true);
+      setCreating(true);
+      setNotice(null);
+      try {
+        const conversation = await createAiConversation({ mode: nextMode, consentAccepted: false });
+        setSelectedMode(nextMode);
+        setConversations((current) => [conversation, ...current.filter((item) => item.id !== conversation.id)]);
+        await loadThread(conversation.id);
+        void loadConversationList(conversation.id, { hydrateThread: false, background: true });
+      } catch (error) {
+        if (!isAbortError(error)) {
+          const failure = toFailure(error);
+          handleUnauthorized(failure);
+          setConversationFailure(failure);
+        }
+      } finally {
+        modeCreateInFlightRef.current = false;
+        setModeCreating(false);
+        setCreating(false);
+      }
+      return;
+    }
+    setSelectedMode(nextMode);
+  };
+
+  const handleConsent = async (): Promise<void> => {
+    const conversation = activeConversation;
+    if (!conversation || consentBusy) return;
+    setConsentBusy(true);
+    setConsentFailure(null);
+    try {
+      // Always refresh the policy at the consent boundary.  A policy version
+      // can change while this page remains open, so a cached value is not
+      // sufficient evidence for the PUT consent request.
+      const policy = await fetchAiChatPolicy();
+      setChatPolicy(policy);
+      const updated = await updateAiConversationConsent(conversation.id, policy.policyVersion);
+      setActiveConversation(updated);
+      setConversations((current) => current.map((item) => item.id === updated.id ? updated : item));
+      setNotice("Đã ghi nhận đồng ý. Bạn có thể gửi câu hỏi trong cuộc trò chuyện này.");
+    } catch (error) {
+      if (isAbortError(error)) return;
+      const failure = toFailure(error);
+      setConsentFailure(error instanceof ApiError && error.code === "CHAT_CONSENT_VERSION_STALE"
+        ? "Chính sách đã thay đổi. Hãy tải lại trang để nhận phiên bản mới."
+        : failure.message);
+    } finally {
+      setConsentBusy(false);
+    }
+  };
+
+  const handleFeedback = async (message: AiChatMessage, rating: FeedbackRating): Promise<void> => {
+    const conversationId = activeIdRef.current;
+    if (!conversationId || feedbackBusy || message.role !== "ASSISTANT" || message.status !== "COMPLETED") return;
+    setFeedbackBusy(message.id);
+    try {
+      const current = feedbackRating(message);
+      if (current === rating) {
+        await deleteAiMessageFeedback(conversationId, message.id);
+        setMessages((items) => items.map((item) => item.id === message.id ? { ...item, feedback: null } : item));
+      } else {
+        const feedback = await updateAiMessageFeedback(conversationId, message.id, rating);
+        setMessages((items) => items.map((item) => item.id === message.id ? { ...item, feedback } : item));
+      }
+    } catch (error) {
+      if (!isAbortError(error)) {
+        const failure = toFailure(error);
+        handleUnauthorized(failure);
+        setSendFailure(failure);
+      }
+    } finally {
+      setFeedbackBusy(null);
     }
   };
 
@@ -427,6 +632,16 @@ export default function PatientChatPage() {
       return;
     }
 
+    const selected = activeConversation ?? conversations.find((item) => item.id === conversationId) ?? null;
+    if (selected?.consentRequired && (
+      !selected.consentedAt
+      || !chatPolicy
+      || selected.consentVersion !== chatPolicy.policyVersion
+    )) {
+      setConsentFailure("Bạn cần đồng ý với phiên bản chính sách hiện tại trước khi gửi tin nhắn.");
+      return;
+    }
+
     const attemptSlot = options.sourceMessageId ? `failed-message:${options.sourceMessageId}` : "composer";
     const attemptMapKey = `${conversationId}|${attemptSlot}`;
     const retainedAttempt = retainedSendAttemptsRef.current.get(attemptMapKey);
@@ -440,11 +655,15 @@ export default function PatientChatPage() {
     });
 
     sendInFlightRef.current = true;
+    const controller = new AbortController();
+    requestControllerRef.current?.abort();
+    requestControllerRef.current = controller;
     setSending(true);
     setSendFailure(null);
     setNotice(null);
     try {
-      await sendAiConversationMessage(conversationId, normalizedContent, idempotencyKey);
+      // Compatibility shape: sendAiConversationMessage(conversationId, normalizedContent, idempotencyKey)
+      await sendAiConversationMessage(conversationId, normalizedContent, idempotencyKey, { signal: controller.signal });
       retainedSendAttemptsRef.current.delete(attemptMapKey);
       if (options.clearDraftOnSuccess) setDraft("");
       setNotice("Trợ lý đã phản hồi. Lịch sử bên dưới được tải lại từ máy chủ.");
@@ -453,6 +672,7 @@ export default function PatientChatPage() {
         loadConversationList(conversationId, { hydrateThread: false, background: true }),
       ]);
     } catch (error) {
+      if (isAbortError(error)) return;
       const failure = toFailure(error);
       handleUnauthorized(failure);
       if (backendRequiresNewIdempotencyKey(error)) {
@@ -466,6 +686,7 @@ export default function PatientChatPage() {
     } finally {
       sendInFlightRef.current = false;
       setSending(false);
+      if (requestControllerRef.current === controller) requestControllerRef.current = null;
     }
   };
 
@@ -584,6 +805,7 @@ export default function PatientChatPage() {
             <MessageItem
               key={message.id}
               message={message}
+              onFeedback={(nextMessage, rating) => void handleFeedback(nextMessage, rating)}
               onRetry={(failedMessage) => void sendContent(failedMessage.content, {
                 clearDraftOnSuccess: false,
                 sourceMessageId: failedMessage.id,
@@ -597,7 +819,8 @@ export default function PatientChatPage() {
   };
 
   return (
-    <PortalChrome role="PATIENT" user={session.user}>
+    <AssistantProvider initialMode={selectedMode} conversation={activeConversation} policy={chatPolicy}>
+      <PortalChrome role="PATIENT" user={session.user}>
       <div className={`portal-content ${styles.page}`}>
         <header className={`portal-hero ${styles.hero}`}>
           <div>
@@ -619,6 +842,29 @@ export default function PatientChatPage() {
           <div className={`${styles.safetyItem} ${styles.emergencyItem}`}>
             <UiIcon name="alert-triangle" size={22} />
             <p><strong>Tình huống khẩn cấp.</strong> Nếu khó thở, đau ngực dữ dội, bất tỉnh hoặc có nguy cơ tức thời, gọi 115 hoặc đến khoa cấp cứu gần nhất. Không chờ phản hồi từ trợ lý.</p>
+          </div>
+        </section>
+
+        <section aria-label="Chọn mục đích cuộc trò chuyện" className={styles.modePicker}>
+          <div className={styles.modePickerHeading}>
+            <strong>Chọn mục đích trước khi bắt đầu</strong>
+            <span>{activeConversation ? "Mỗi cuộc trò chuyện giữ một chế độ; chọn mục đích khác sẽ mở cuộc trò chuyện mới." : "Mỗi cuộc trò chuyện giữ một chế độ cố định."}</span>
+          </div>
+          <div className={styles.modeOptions} role="group">
+            {ASSISTANT_MODE_OPTIONS.map((option) => (
+              <button
+                aria-pressed={selectedMode === option.value}
+                className={selectedMode === option.value ? styles.modeOptionActive : styles.modeOption}
+                disabled={interactionLocked || modeCreating}
+                key={option.value}
+                onClick={() => void handleModeSelect(option.value)}
+                title={option.description}
+                type="button"
+              >
+                <strong>{option.label}</strong>
+                <span>{option.description}</span>
+              </button>
+            ))}
           </div>
         </section>
 
@@ -740,6 +986,17 @@ export default function PatientChatPage() {
                 ) : null}
               </header>
 
+              {currentConsentRequired ? (
+                <section aria-describedby="patient-chat-consent-copy" className={styles.consentPanel}>
+                  <strong>Xác nhận sử dụng trợ lý</strong>
+                  <p id="patient-chat-consent-copy">Cuộc trò chuyện được lưu tối đa 90 ngày rồi tự động xóa. Trợ lý chỉ cung cấp thông tin tham khảo, không chẩn đoán hoặc kê đơn. Remote AI đang tắt trong môi trường này.</p>
+                  <button className={styles.primaryConsentButton} disabled={consentBusy} onClick={() => void handleConsent()} type="button">
+                    {consentBusy ? "Đang xác nhận..." : "Tôi đồng ý với chính sách"}
+                  </button>
+                  {consentFailure ? <p aria-live="assertive" className={styles.consentError} role="alert">{consentFailure}</p> : null}
+                </section>
+              ) : null}
+
               <div
                 aria-label="Lịch sử tin nhắn"
                 className={styles.messageViewport}
@@ -758,7 +1015,7 @@ export default function PatientChatPage() {
                 <textarea
                   aria-describedby={`patient-chat-help patient-chat-count${sendFailure ? " patient-chat-error" : ""}`}
                   aria-invalid={Boolean(sendFailure)}
-                  disabled={!selectedConversationId || sendLocked}
+                  disabled={!selectedConversationId || sendLocked || currentConsentRequired}
                   id="patient-chat-message"
                   maxLength={MAX_MESSAGE_LENGTH}
                   minLength={2}
@@ -789,7 +1046,7 @@ export default function PatientChatPage() {
                   </div>
                   <button
                     className={styles.sendButton}
-                    disabled={!selectedConversationId || sendLocked || !draftIsValid}
+                    disabled={!selectedConversationId || sendLocked || !draftIsValid || currentConsentRequired}
                     type="submit"
                   >
                     <UiIcon name="send" size={18} />
@@ -840,6 +1097,7 @@ export default function PatientChatPage() {
           </div>
         </dialog>
       </div>
-    </PortalChrome>
+      </PortalChrome>
+    </AssistantProvider>
   );
 }

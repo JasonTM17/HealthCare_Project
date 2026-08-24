@@ -88,7 +88,7 @@ if ($prepareEnvironment) {
         $environmentText = Set-EnvironmentValue $environmentText "AI_SERVICE_TOKEN" (New-DisposableSecret 32)
     }
     $ragToken = Get-EnvironmentValue $environmentText "RAG_INGEST_TOKEN"
-    if ([string]::IsNullOrWhiteSpace($ragToken)) {
+    if ([string]::IsNullOrWhiteSpace($ragToken) -or $ragToken -eq "local-rag-ingest-token-not-for-production") {
         $ragToken = New-DisposableSecret 32
         $environmentText = Set-EnvironmentValue $environmentText "RAG_INGEST_TOKEN" $ragToken
     }

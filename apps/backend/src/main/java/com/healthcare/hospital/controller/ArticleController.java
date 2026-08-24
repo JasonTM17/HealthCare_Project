@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @RestController
 @RequestMapping("/api/v1/hospital/articles")
@@ -21,8 +22,9 @@ public class ArticleController {
     }
 
     @GetMapping
-    public Page<ArticleResponse> list(@PageableDefault(size = 20) Pageable pageable) {
-        return articleService.listPublished(pageable);
+    public Page<ArticleResponse> list(@RequestParam(required = false) String contentKind,
+                                      @PageableDefault(size = 20) Pageable pageable) {
+        return articleService.listPublished(contentKind, pageable);
     }
 
     @GetMapping("/{slug}")

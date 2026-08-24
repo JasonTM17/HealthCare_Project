@@ -4,7 +4,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useMemo, useState } from "react";
-import AiTriageModal from "../components/AiTriageModal";
 import BranchMap from "../components/BranchMap";
 import BookingModal from "../components/BookingModal";
 import CareExperience from "../components/CareExperience";
@@ -409,9 +408,6 @@ function HomeCmsFallbackCard({
 export default function Home(): React.ReactElement {
   const router = useRouter();
   const [isBookingOpen, setIsBookingOpen] = useState<boolean>(false);
-  // Keep the fail-closed triage boundary available to the page shell without
-  // making AI the homepage's primary visual action.
-  const [isAiTriageOpen, setIsAiTriageOpen] = useState<boolean>(false);
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | undefined>();
   const [selectedSpecialtyId, setSelectedSpecialtyId] = useState<string | undefined>();
   const [selectedPackageId, setSelectedPackageId] = useState<string | undefined>();
@@ -483,12 +479,6 @@ export default function Home(): React.ReactElement {
     setSelectedPackageId(packageId);
     setSelectedBranchId(branchId);
     setIsBookingOpen(true);
-  };
-
-  const handleAiSpecialtySelect = (_specialtyName: string, specialtyId?: string): void => {
-    // Preserve the backend identity when a future quiet support entry opens
-    // triage before the homepage catalog has finished loading.
-    handleOpenBooking(undefined, specialtyId, undefined);
   };
 
   const handleHeroSearchSubmit = (): void => {
@@ -940,12 +930,6 @@ export default function Home(): React.ReactElement {
           specialties={catalog?.specialties ?? []}
         />
       ) : null}
-      <AiTriageModal
-        emergencyContact={emergencyBranch?.emergencyHotline}
-        isOpen={isAiTriageOpen}
-        onClose={() => setIsAiTriageOpen(false)}
-        onSelectSpecialtyForBooking={handleAiSpecialtySelect}
-      />
     </div>
   );
 }
