@@ -82,8 +82,9 @@ def test_non_emergency_triage_never_calls_remote_without_remote_egress_gate(
     monkeypatch.setattr(settings, "deepseek_api_key", "test-key")
     monkeypatch.setattr(settings, "ai_api_key", "")
     monkeypatch.setattr(settings, "ai_service_runtime", "staging")
-    monkeypatch.setattr(settings, "ai_patient_chat_remote_enabled", False)
-    monkeypatch.setattr(settings, "ai_chat_remote_provider_enabled", False)
+    monkeypatch.setattr(settings, "ai_patient_chat_remote_enabled", True)
+    monkeypatch.setattr(settings, "ai_chat_remote_provider_enabled", True)
+    monkeypatch.setattr(settings, "remote_ai_synthetic_only", False)
     monkeypatch.setattr(settings, "ai_service_token", "service-token")
 
     with patch("openai.OpenAI") as remote_client:

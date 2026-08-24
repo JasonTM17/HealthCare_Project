@@ -33,6 +33,20 @@ def test_remote_patient_chat_requires_synthetic_beta_contract(
         Settings()
 
 
+def test_remote_patient_chat_cannot_disable_synthetic_only_guard(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AI_PROVIDER", "deepseek")
+    monkeypatch.setenv("AI_PATIENT_CHAT_REMOTE_ENABLED", "true")
+    monkeypatch.setenv("AI_CHAT_REMOTE_PROVIDER_ENABLED", "true")
+    monkeypatch.setenv("REMOTE_AI_SYNTHETIC_ONLY", "false")
+    monkeypatch.setenv("AI_SERVICE_RUNTIME", "synthetic-beta")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "synthetic-test-key")
+
+    with pytest.raises(ValueError, match="synthetic-only"):
+        Settings()
+
+
 def test_valid_synthetic_beta_remote_contract_is_explicit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

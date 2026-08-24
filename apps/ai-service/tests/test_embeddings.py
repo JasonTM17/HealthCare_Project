@@ -92,8 +92,9 @@ def test_remote_embedding_never_calls_provider_without_remote_egress_gate() -> N
         ai_base_url="https://api.deepseek.com",
         ai_timeout_seconds=3.5,
         ai_service_runtime="staging",
-        ai_patient_chat_remote_enabled=False,
-        ai_chat_remote_provider_enabled=False,
+        ai_patient_chat_remote_enabled=True,
+        ai_chat_remote_provider_enabled=True,
+        remote_ai_synthetic_only=False,
     )
     with patch("openai.OpenAI") as remote_client:
         with pytest.raises(ProviderUnavailable):
