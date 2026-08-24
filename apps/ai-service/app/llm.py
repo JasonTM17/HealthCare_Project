@@ -277,6 +277,12 @@ def _triage_requires_local(symptoms: str) -> bool:
     )
 
 
+def triage_requires_local(symptoms: str) -> bool:
+    """Expose the pre-provider triage safety gate to retrieval callers."""
+
+    return _triage_requires_local(symptoms)
+
+
 def _circuit_allows_request() -> bool:
     with _CIRCUIT_LOCK:
         return time.monotonic() >= _CIRCUIT_OPEN_UNTIL
@@ -515,6 +521,8 @@ def deepseek_triage(
     settings: Any,
     context: Sequence[str] = (),
     client: LLMClient | None = None,
+    *,
+    synthetic_beta: bool = False,
 ) -> TriageResponse:
     """Ask an OpenAI-compatible provider with explicit runtime policy."""
 
@@ -526,7 +534,7 @@ def deepseek_triage(
     # same explicit remote-egress gate as patient chat.  Without this check a
     # configured DeepSeek key could send non-synthetic triage text directly to
     # the provider even when patient-chat remote access is disabled.
-    if not patient_chat_remote_enabled(settings):
+    if not synthetic_beta or not patient_chat_remote_enabled(settings):
         if allow_fallback:
             return fallback
         raise ProviderUnavailable()
@@ -571,19 +579,27 @@ def resolve_triage(
     symptoms: str,
     settings: Any,
     context: Sequence[str] = (),
+    *,
+    synthetic_beta: bool = False,
 ) -> TriageResponse:
     if _triage_requires_local(symptoms) or context_contains_sensitive_data(context):
         return rule_based_triage(symptoms).model_copy(update={"provenance": "local_fallback"})
     remote_requested = remote_provider_requested(settings, "ai_provider", LOCAL_CHAT_PROVIDERS)
     if remote_requested:
-        if not patient_chat_remote_enabled(settings):
+        if not synthetic_beta or not patient_chat_remote_enabled(settings):
             if runtime_allows_local_fallback(settings):
                 return rule_based_triage(symptoms).model_copy(update={"provenance": "local_fallback"})
             raise ProviderUnavailable()
         client = build_llm_client(settings)
         if client is None and not runtime_allows_local_fallback(settings):
             raise ProviderUnavailable()
-        return deepseek_triage(symptoms, settings, context, client=client)
+        return deepseek_triage(
+            symptoms,
+            settings,
+            context,
+            client=client,
+            synthetic_beta=synthetic_beta,
+        )
     return rule_based_triage(symptoms)
 
 
@@ -611,6 +627,7 @@ def resolve_chat(
     citations: Sequence[Citation] = (),
     used_sources: Sequence[UsedSource] = (),
     client: LLMClient | None = None,
+    synthetic_beta: bool = False,
 ) -> ChatResponse:
     """Resolve a bounded chat request without accepting model-created citations."""
 
@@ -622,7 +639,7 @@ def resolve_chat(
     fallback = _chat_fallback(message, context)
     if context_contains_sensitive_data(context):
         return ChatResponse(answer=fallback, provenance="local_fallback", used_sources=list(used_sources))
-    if not patient_chat_remote_enabled(settings):
+    if not synthetic_beta or not patient_chat_remote_enabled(settings):
         return ChatResponse(answer=fallback, provenance="local_fallback", used_sources=list(used_sources))
     client = client or build_llm_client(settings)
     if client is None:

@@ -216,7 +216,7 @@ def test_protected_endpoints_return_mode_filtered_candidates_and_grounded_answer
 ) -> None:
     service = _service()
     monkeypatch.setattr(main, "rag_service", service)
-    monkeypatch.setattr(main, "embed", lambda *_: ([1.0] + [0.0] * 383, "local-hash"))
+    monkeypatch.setattr(main, "embed", lambda *_, **__: ([1.0] + [0.0] * 383, "local-hash"))
     monkeypatch.setattr(settings, "ai_service_token", "")
     monkeypatch.setattr(settings, "ai_service_runtime", "local")
     monkeypatch.setattr(settings, "ai_service_allow_unauthenticated_local", True)

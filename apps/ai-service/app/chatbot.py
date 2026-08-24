@@ -478,7 +478,7 @@ def retrieve_chat_candidates(
     settings: Any,
     rag_service: RagServiceContract,
     *,
-    embedder: Callable[[str, Any], object] = embed,
+    embedder: Callable[..., object] = embed,
 ) -> ChatRetrieveResponse:
     """Retrieve only eligible, mode-allowed candidates above the threshold."""
 
@@ -523,7 +523,17 @@ def retrieve_chat_candidates(
                 LocalEmbeddingClient().embed(request.message)
             )
         else:
-            vector, model, provenance = _embedding_parts(embedder(request.message, settings))
+            if embedder is embed:
+                embedded = embedder(
+                    request.message,
+                    settings,
+                    synthetic_beta=request.synthetic_beta,
+                )
+            else:
+                # Preserve the small two-argument test/double contract while
+                # the production embed function receives the marker above.
+                embedded = embedder(request.message, settings)
+            vector, model, provenance = _embedding_parts(embedded)
         search_provenance: ProviderProvenance = (
             "local_provider" if provenance == "local_fallback" else provenance
         )
@@ -633,6 +643,7 @@ def generate_chat_response(
             citations=citations,
             used_sources=expected_used,
             client=client,
+            synthetic_beta=request.synthetic_beta,
         )
         if response.provenance == "remote_provider" and _unsafe_claim(response.answer):
             return _insufficient_response(request.mode)

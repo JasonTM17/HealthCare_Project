@@ -16,6 +16,7 @@ from app.llm import (
     patient_chat_remote_enabled,
     resolve_chat,
     resolve_triage,
+    triage_requires_local,
 )
 from app.providers import (
     LOCAL_CHAT_PROVIDERS,
@@ -238,7 +239,7 @@ def symptom_triage(request: TriageRequest) -> TriageResponse:
         label="Symptoms",
         setting_name="ai_max_input_chars",
     )
-    return resolve_triage(symptoms, settings)
+    return resolve_triage(symptoms, settings, synthetic_beta=request.synthetic_beta)
 
 
 @app.post("/chat", response_model=ChatResponse, dependencies=[Depends(require_service_auth)])
@@ -258,9 +259,16 @@ def chat(request: ChatRequest) -> ChatResponse:
         embedding_provider not in LOCAL_EMBEDDING_PROVIDERS
         and not patient_chat_remote_enabled(settings)
     ):
-        return resolve_chat(message, settings, recent_turns=turns)
+        return resolve_chat(
+            message,
+            settings,
+            recent_turns=turns,
+            synthetic_beta=request.synthetic_beta,
+        )
 
-    query_embedding, query_model, embedding_provenance = _embedding_parts(embed(message, settings))
+    query_embedding, query_model, embedding_provenance = _embedding_parts(
+        embed(message, settings, synthetic_beta=request.synthetic_beta)
+    )
     # A local fallback uses the same deterministic local-hash model as the
     # configured local provider. Keep the fallback provenance for the final
     # response, but use the compatible retrieval profile for the index check.
@@ -292,6 +300,7 @@ def chat(request: ChatRequest) -> ChatResponse:
         recent_turns=turns,
         context=context,
         citations=citations,
+        synthetic_beta=request.synthetic_beta,
     )
     final_provenance = merge_provenance(response.provenance, embedding_provenance)
     if final_provenance == "local_fallback":
@@ -346,14 +355,18 @@ def chat_generate(request: ChatGenerateRequest) -> ChatResponse:
 @app.post("/embeddings", response_model=EmbeddingResponse, dependencies=[Depends(require_service_auth)])
 def embeddings(request: EmbeddingRequest) -> EmbeddingResponse:
     text = _enforce_input_limit(request.text, label="Embedding input", setting_name="ai_max_input_chars")
-    vector, model, provenance = _embedding_parts(embed(text, settings))
+    vector, model, provenance = _embedding_parts(
+        embed(text, settings, synthetic_beta=request.synthetic_beta)
+    )
     return EmbeddingResponse(embedding=vector, model=model, provenance=provenance)
 
 
 @app.post("/rag/search", response_model=RAGSearchResponse, dependencies=[Depends(require_service_auth)])
 def rag_search(request: RAGSearchRequest) -> RAGSearchResponse:
     query = _enforce_input_limit(request.query, label="RAG query", setting_name="ai_max_input_chars")
-    query_embedding, query_model, provenance = _embedding_parts(embed(query, settings))
+    query_embedding, query_model, provenance = _embedding_parts(
+        embed(query, settings, synthetic_beta=request.synthetic_beta)
+    )
     hits = rag_service.search(
         query_embedding,
         top_k=min(request.top_k, settings.ai_max_retrieved_chunks),
@@ -483,7 +496,9 @@ def rag_index(
         setting_name="rag_max_document_chars",
     )
     def embed_document(normalized_content: str) -> tuple[list[float], str, ProviderProvenance]:
-        return _embedding_parts(embed(normalized_content, settings))
+        return _embedding_parts(
+            embed(normalized_content, settings, synthetic_beta=payload.synthetic_beta)
+        )
 
     doc = rag_service.ingest(
         source_type=payload.source_type,
@@ -514,7 +529,22 @@ def specialty_recommendation(request: SpecialtyRecommendationRequest) -> Special
         label="Symptoms",
         setting_name="ai_max_input_chars",
     )
-    query_embedding, query_model, embedding_provenance = _embedding_parts(embed(symptoms, settings))
+    # Safety must run before embedding/provider access.  This keeps emergency,
+    # PII, and prompt-injection text local even when remote embeddings are
+    # configured for the synthetic canary.
+    if triage_requires_local(symptoms):
+        response = resolve_triage(
+            symptoms,
+            settings,
+            synthetic_beta=request.synthetic_beta,
+        )
+        return SpecialtyRecommendationResponse(
+            **response.model_dump(exclude={"provenance"}),
+            provenance=response.provenance,
+        )
+    query_embedding, query_model, embedding_provenance = _embedding_parts(
+        embed(symptoms, settings, synthetic_beta=request.synthetic_beta)
+    )
     hits = rag_service.search(
         query_embedding,
         top_k=min(3, settings.ai_max_retrieved_chunks),
@@ -527,7 +557,12 @@ def specialty_recommendation(request: SpecialtyRecommendationRequest) -> Special
         # passed as reference context and citations are built from stored
         # identities, never from model-generated URLs or IDs.
         context = [f"{doc.title}: {doc.content}" for doc, _ in hits[:2]]
-        response = resolve_triage(symptoms, settings, context=context)
+        response = resolve_triage(
+            symptoms,
+            settings,
+            context=context,
+            synthetic_beta=request.synthetic_beta,
+        )
         recommendation_provenance = merge_provenance(
             response.provenance,
             embedding_provenance,
@@ -540,7 +575,7 @@ def specialty_recommendation(request: SpecialtyRecommendationRequest) -> Special
             citations=citations,
             provenance=recommendation_provenance,
         )
-    response = resolve_triage(symptoms, settings)
+    response = resolve_triage(symptoms, settings, synthetic_beta=request.synthetic_beta)
     return SpecialtyRecommendationResponse(
         **response.model_dump(exclude={"provenance"}),
         provenance=merge_provenance(response.provenance, embedding_provenance),
@@ -552,7 +587,13 @@ def rag_stats() -> dict[str, int]:
     return {"documents": rag_service.index.size}
 
 
-def _semantic_search(query_input: str, specialty_input: str, top_k: int) -> SemanticSearchResponse:
+def _semantic_search(
+    query_input: str,
+    specialty_input: str,
+    top_k: int,
+    *,
+    synthetic_beta: bool = False,
+) -> SemanticSearchResponse:
     """Run bounded search while keeping free text out of the internal URL shape."""
 
     query = _enforce_input_limit(query_input, label="Search query", setting_name="ai_max_input_chars")
@@ -560,7 +601,9 @@ def _semantic_search(query_input: str, specialty_input: str, top_k: int) -> Sema
     if not query and not specialty_filter:
         return SemanticSearchResponse(results=[])
     search_text = query or specialty_filter
-    query_embedding, query_model, provenance = _embedding_parts(embed(search_text, settings))
+    query_embedding, query_model, provenance = _embedding_parts(
+        embed(search_text, settings, synthetic_beta=synthetic_beta)
+    )
     hits = rag_service.search(
         query_embedding,
         top_k=min(top_k * 2, settings.ai_max_retrieved_chunks),
@@ -611,4 +654,9 @@ def semantic_search_post(
 ) -> SemanticSearchResponse:
     """Preferred internal search shape; query text stays in the request body."""
 
-    return _semantic_search(request.query, request.specialty, request.top_k)
+    return _semantic_search(
+        request.query,
+        request.specialty,
+        request.top_k,
+        synthetic_beta=request.synthetic_beta,
+    )

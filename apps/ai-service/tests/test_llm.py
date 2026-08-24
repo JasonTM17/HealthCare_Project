@@ -64,7 +64,7 @@ def test_resolve_deepseek_success() -> None:
 
     with patch("openai.OpenAI") as mock_openai:
         mock_openai.return_value.chat.completions.create.return_value = mock_completion
-        result = resolve_triage("chóng mặt đau đầu", settings)
+        result = resolve_triage("chóng mặt đau đầu", settings, synthetic_beta=True)
 
     assert result.recommended_specialty == "Thần Kinh & Đột Quỵ"
     assert result.urgency_level == "HIGH"
@@ -98,7 +98,7 @@ def test_remote_provider_uses_configured_timeout() -> None:
 
     with patch("openai.OpenAI") as mock_openai:
         mock_openai.return_value.chat.completions.create.return_value = mock_completion
-        result = resolve_triage("chóng mặt", settings)
+        result = resolve_triage("chóng mặt", settings, synthetic_beta=True)
 
     assert result.recommended_specialty == "Thần Kinh & Đột Quỵ"
     mock_openai.assert_called_once_with(
@@ -270,7 +270,7 @@ def test_fenced_json_remote_response_is_decoded() -> None:
 
     with patch("openai.OpenAI") as mock_openai:
         mock_openai.return_value.chat.completions.create.return_value = response
-        result = resolve_triage("chóng mặt", settings)
+        result = resolve_triage("chóng mặt", settings, synthetic_beta=True)
 
     assert result.recommended_specialty == "Thần Kinh & Đột Quỵ"
     assert result.provenance == "remote_provider"
