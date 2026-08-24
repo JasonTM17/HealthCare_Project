@@ -31,6 +31,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import org.mockito.ArgumentCaptor;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
@@ -178,5 +181,63 @@ class AiChatContractsTest {
             .isInstanceOf(BusinessException.class)
             .extracting(error -> ((BusinessException) error).getCode())
             .isEqualTo("AI_RESPONSE_INVALID");
+    }
+
+    @Test
+    void groundedPatientChatCarriesOnlyDatabaseAuthorizedSyntheticAssertion() {
+        AiService upstream = mock(AiService.class);
+        com.healthcare.ai.chat.service.SyntheticBetaGuardService guard = mock(
+            com.healthcare.ai.chat.service.SyntheticBetaGuardService.class);
+        UUID userId = UUID.randomUUID();
+        when(guard.eligible(userId)).thenReturn(true);
+        when(upstream.retrieveChat(org.mockito.ArgumentMatchers.any()))
+            .thenReturn(Map.of("safety_action", "EMERGENCY"));
+
+        AiConversationService service = new AiConversationService(
+            mock(AiConversationRepository.class),
+            mock(AiMessageRepository.class),
+            mock(AiMessageFeedbackRepository.class),
+            mock(UserRepository.class),
+            upstream,
+            mock(com.healthcare.ai.chat.service.AiChatSourceResolver.class),
+            mock(PlatformTransactionManager.class),
+            90, true, 200, 20, 120,
+            true, true, true, true, guard);
+
+        ReflectionTestUtils.invokeMethod(
+            service, "groundedResponse", userId, ChatMode.SYMPTOM_TRIAGE, "cap cuu", List.of());
+
+        ArgumentCaptor<Map<String, Object>> request = ArgumentCaptor.forClass(Map.class);
+        verify(upstream).retrieveChat(request.capture());
+        assertThat(request.getValue()).containsEntry("synthetic_beta", true);
+    }
+
+    @Test
+    void groundedPatientChatClearsSyntheticAssertionWhenDatabaseGuardRejectsUser() {
+        AiService upstream = mock(AiService.class);
+        com.healthcare.ai.chat.service.SyntheticBetaGuardService guard = mock(
+            com.healthcare.ai.chat.service.SyntheticBetaGuardService.class);
+        UUID userId = UUID.randomUUID();
+        when(guard.eligible(userId)).thenReturn(false);
+        when(upstream.retrieveChat(org.mockito.ArgumentMatchers.any()))
+            .thenReturn(Map.of("safety_action", "EMERGENCY"));
+
+        AiConversationService service = new AiConversationService(
+            mock(AiConversationRepository.class),
+            mock(AiMessageRepository.class),
+            mock(AiMessageFeedbackRepository.class),
+            mock(UserRepository.class),
+            upstream,
+            mock(com.healthcare.ai.chat.service.AiChatSourceResolver.class),
+            mock(PlatformTransactionManager.class),
+            90, true, 200, 20, 120,
+            true, true, true, true, guard);
+
+        ReflectionTestUtils.invokeMethod(
+            service, "groundedResponse", userId, ChatMode.SYMPTOM_TRIAGE, "cap cuu", List.of());
+
+        ArgumentCaptor<Map<String, Object>> request = ArgumentCaptor.forClass(Map.class);
+        verify(upstream).retrieveChat(request.capture());
+        assertThat(request.getValue()).containsEntry("synthetic_beta", false);
     }
 }

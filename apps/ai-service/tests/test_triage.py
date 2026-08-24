@@ -99,6 +99,37 @@ def test_non_emergency_triage_never_calls_remote_without_remote_egress_gate(
     remote_client.assert_not_called()
 
 
+def test_triage_request_marker_is_required_even_for_synthetic_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for name, value in {
+        "ai_provider": "deepseek",
+        "deepseek_api_key": "test-key",
+        "ai_api_key": "",
+        "ai_service_runtime": "synthetic-beta",
+        "ai_patient_chat_remote_enabled": True,
+        "ai_chat_remote_provider_enabled": True,
+        "remote_ai_synthetic_only": True,
+        "rag_storage_backend": "supabase",
+        "supabase_rag_fallback_to_memory": False,
+        "ai_base_url": "https://api.deepseek.com",
+        "remote_ai_provider_allowlist": "deepseek",
+        "remote_ai_https_host_allowlist": "api.deepseek.com",
+        "ai_service_token": "service-token",
+    }.items():
+        monkeypatch.setattr(settings, name, value)
+
+    with patch("openai.OpenAI") as remote_client:
+        response = client.post(
+            "/triage",
+            json={"symptoms": "đau đầu nhẹ"},
+            headers={"X-AI-Service-Token": "service-token"},
+        )
+
+    assert response.status_code == 503
+    remote_client.assert_not_called()
+
+
 def test_local_provider_failure_is_explicitly_labeled_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

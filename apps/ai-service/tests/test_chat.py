@@ -67,6 +67,7 @@ def test_chat_remote_provider_receives_turns_and_rag_context() -> None:
         context=["Đặt lịch: Chọn chuyên khoa và khung giờ phù hợp."],
         citations=[citation],
         client=provider,
+        synthetic_beta=True,
     )
 
     assert result.answer == "Bạn có thể xem hướng dẫn phù hợp."
@@ -82,7 +83,12 @@ def test_opted_in_remote_provider_receives_clearly_non_pii_location_question() -
     provider.complete_json.return_value = {"answer": "Bạn có thể xem trang thông tin cơ sở."}
     local_settings = _synthetic_remote_settings()
 
-    result = resolve_chat("Địa chỉ bệnh viện ở đâu?", local_settings, client=provider)
+    result = resolve_chat(
+        "Địa chỉ bệnh viện ở đâu?",
+        local_settings,
+        client=provider,
+        synthetic_beta=True,
+    )
 
     assert result.provenance == "remote_provider"
     assert provider.complete_json.call_args.kwargs["user_prompt"] == (
@@ -157,6 +163,7 @@ def test_sensitive_identity_data_never_reaches_remote_provider(pii_message: str)
         pii_message,
         local_settings,
         client=provider,
+        synthetic_beta=True,
     )
 
     assert result.provenance == "local_fallback"
@@ -184,6 +191,7 @@ def test_sensitive_history_never_reaches_remote_provider(sensitive_history: str)
         local_settings,
         recent_turns=[("user", sensitive_history), ("assistant", "How can I help?")],
         client=provider,
+        synthetic_beta=True,
     )
 
     assert result.provenance == "local_fallback"
@@ -201,6 +209,7 @@ def test_sensitive_retrieved_context_never_reaches_remote_provider() -> None:
         local_settings,
         context=["Patient email: patient@example.com"],
         client=provider,
+        synthetic_beta=True,
     )
 
     assert result.provenance == "local_fallback"
@@ -213,7 +222,12 @@ def test_chat_provider_timeout_fails_closed_in_synthetic_beta() -> None:
     local_settings = _synthetic_remote_settings()
 
     with pytest.raises(ProviderUnavailable):
-        resolve_chat("Tôi cần thông tin về giờ làm việc", local_settings, client=provider)
+        resolve_chat(
+            "Tôi cần thông tin về giờ làm việc",
+            local_settings,
+            client=provider,
+            synthetic_beta=True,
+        )
 
     provider.complete_json.assert_called_once()
 
@@ -265,7 +279,7 @@ def test_chat_short_circuits_unsafe_requests(
     provider = MagicMock()
     local_settings = _synthetic_remote_settings()
 
-    result = resolve_chat(message, local_settings, client=provider)
+    result = resolve_chat(message, local_settings, client=provider, synthetic_beta=True)
 
     assert result.provenance == "local_fallback"
     assert expected in result.answer
@@ -287,7 +301,7 @@ def test_chat_endpoint_returns_only_stored_identity_citations(
         [1.0] + [0.0] * 383,
         embedding_model="local",
     )
-    monkeypatch.setattr("app.main.embed", lambda *_: ([1.0] + [0.0] * 383, "local"))
+    monkeypatch.setattr("app.main.embed", lambda *_, **__: ([1.0] + [0.0] * 383, "local"))
 
     response = client.post("/chat", json={"message": "Tôi muốn đặt lịch"})
 
@@ -306,7 +320,7 @@ def test_chat_endpoint_suppresses_citations_when_embedding_falls_back(
     monkeypatch.setattr(settings, "ai_service_token", "")
     monkeypatch.setattr(
         "app.main.embed",
-        lambda *_: EmbeddingResult([1.0] + [0.0] * 383, "local-hash", "local_fallback"),
+        lambda *_, **__: EmbeddingResult([1.0] + [0.0] * 383, "local-hash", "local_fallback"),
     )
     local_rag = RagService()
     local_rag.ingest(

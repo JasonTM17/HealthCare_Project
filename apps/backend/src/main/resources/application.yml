@@ -108,8 +108,9 @@ ai:
     # approval/reconciliation. These are also rollback safety switches.
     # Remote providers (including DeepSeek) require a separate, reviewed opt-in.
     remote-provider-enabled: ${AI_CHAT_REMOTE_PROVIDER_ENABLED:false}
-    # Internal assertion supplied only by a synthetic-beta fixture. It is not
-    # a browser-controlled flag and remains false for local/production traffic.
+    # Internal deployment opt-in only. AiConversationService additionally
+    # requires the database-owned synthetic_beta_guard and fixture markers;
+    # browsers cannot set this value through the public request body.
     synthetic-beta-asserted: ${AI_CHAT_SYNTHETIC_BETA_ASSERTED:false}
     symptom-triage-enabled: ${AI_CHAT_SYMPTOM_TRIAGE_ENABLED:false}
     health-education-enabled: ${AI_CHAT_HEALTH_EDUCATION_ENABLED:false}
