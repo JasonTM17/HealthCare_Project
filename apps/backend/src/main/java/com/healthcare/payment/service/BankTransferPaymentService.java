@@ -192,6 +192,7 @@ public class BankTransferPaymentService {
 
         PaymentStatus previousStatus = payment.getStatus();
         if (request.decision() == ReviewBankTransferRequest.Decision.VERIFY) {
+            ensureAppointmentCanBePaid(payment.getAppointment());
             if (payment.getStatus() == PaymentStatus.PAID) return toResponse(payment);
             if (payment.getStatus() != PaymentStatus.PENDING_VERIFICATION) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "Chỉ có thể duyệt giao dịch đang chờ kiểm tra");
@@ -277,7 +278,11 @@ public class BankTransferPaymentService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Số tiền webhook không khớp");
         }
         String reference = normalizeReference(request.transactionReference());
-        if (payment.getStatus() == PaymentStatus.PAID && reference.equals(payment.getTransactionReference())) return toResponse(payment);
+        if (payment.getStatus() == PaymentStatus.PAID) {
+            if (reference.equals(payment.getTransactionReference())) return toResponse(payment);
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Thanh toán đã được xác nhận với mã giao dịch khác");
+        }
+        ensureAppointmentCanBePaid(payment.getAppointment());
         if (payment.getStatus() == PaymentStatus.REFUND_PENDING || payment.getStatus() == PaymentStatus.REFUNDED) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Khoản thanh toán đã vào quy trình hoàn tiền");
         }
@@ -315,6 +320,13 @@ public class BankTransferPaymentService {
                 BankTransferPayment saved = paymentRepository.save(payment);
                 auditService.record("system:appointment-cancelled", "REFUND_PENDING", saved.getId(),
                     appointment.getId(), transition(PaymentStatus.PAID, PaymentStatus.REFUND_PENDING));
+            } else if (payment.getStatus() == PaymentStatus.PENDING_VERIFICATION) {
+                payment.setStatus(PaymentStatus.REJECTED);
+                payment.setRejectionReason("Lịch hẹn đã được hủy trước khi đối soát giao dịch");
+                appointment.setPaymentStatus(PaymentStatus.REJECTED.name());
+                BankTransferPayment saved = paymentRepository.save(payment);
+                auditService.record("system:appointment-cancelled", "REJECTED", saved.getId(),
+                    appointment.getId(), transition(PaymentStatus.PENDING_VERIFICATION, PaymentStatus.REJECTED));
             }
         });
     }
@@ -338,6 +350,13 @@ public class BankTransferPaymentService {
                 || appointment.getStatus() == AppointmentStatus.CANCELLED
                 || appointment.getStatus() == AppointmentStatus.NO_SHOW) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Lịch hẹn hiện không thể thanh toán");
+        }
+    }
+
+    private void ensureAppointmentCanBePaid(Appointment appointment) {
+        if (appointment.getStatus() == AppointmentStatus.CANCELLED
+                || appointment.getStatus() == AppointmentStatus.NO_SHOW) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Lịch hẹn đã kết thúc và không thể ghi nhận thanh toán");
         }
     }
 
