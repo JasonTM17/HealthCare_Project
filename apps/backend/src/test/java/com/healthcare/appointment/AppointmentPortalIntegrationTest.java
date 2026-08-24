@@ -151,6 +151,102 @@ class AppointmentPortalIntegrationTest extends AbstractIntegrationTest {
         }
     }
 
+    @Test
+    void paidPaymentRejectsASecondWebhookReference() throws Exception {
+        User patientUser = createUser("PATIENT", "webhook-conflict.patient." + UUID.randomUUID() + "@example.com");
+        User doctorUser = createUser("DOCTOR", "webhook-conflict.doctor." + UUID.randomUUID() + "@example.com");
+        PatientProfile patient = createPatient(patientUser, "096" + randomDigits());
+        Doctor doctor = createDoctor(doctorUser, "webhook-conflict-doctor-" + UUID.randomUUID());
+        Branch branch = createBranch("webhook-conflict-branch-" + UUID.randomUUID());
+        assignDoctorToBranch(doctor, branch);
+        Appointment appointment = createAppointment(
+            patient, doctor, branch, PORTAL_DATE, LocalTime.of(12, 0), AppointmentStatus.CONFIRMED);
+        BankTransferPayment payment = paymentService.initialize(appointment);
+
+        String firstPayload = webhookPayload(payment, "FT-WEBHOOK-FIRST-123");
+        String firstTimestamp = Long.toString(Instant.now().getEpochSecond());
+        mockMvc.perform(post("/api/v1/payments/webhooks/bank-transfer")
+                .header("X-Webhook-Id", "evt-first-reference")
+                .header("X-Webhook-Timestamp", firstTimestamp)
+                .header("X-Webhook-Signature", webhookSignature(firstTimestamp, firstPayload))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(firstPayload))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("PAID"));
+
+        String conflictingPayload = webhookPayload(payment, "FT-WEBHOOK-SECOND-456");
+        String conflictingTimestamp = Long.toString(Instant.now().getEpochSecond());
+        mockMvc.perform(post("/api/v1/payments/webhooks/bank-transfer")
+                .header("X-Webhook-Id", "evt-second-reference")
+                .header("X-Webhook-Timestamp", conflictingTimestamp)
+                .header("X-Webhook-Signature", webhookSignature(conflictingTimestamp, conflictingPayload))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(conflictingPayload))
+            .andExpect(status().isConflict());
+
+        org.assertj.core.api.Assertions.assertThat(paymentRepository.findByAppointmentId(appointment.getId()))
+            .get()
+            .extracting(BankTransferPayment::getTransactionReference)
+            .isEqualTo("FT-WEBHOOK-FIRST-123");
+    }
+
+    @Test
+    void cancelledPendingPaymentCannotBeConfirmedByAdminOrWebhook() throws Exception {
+        User patientUser = createUser("PATIENT", "cancelled-payment.patient." + UUID.randomUUID() + "@example.com");
+        User adminUser = createUser("ADMIN", "cancelled-payment.admin." + UUID.randomUUID() + "@example.com");
+        User doctorUser = createUser("DOCTOR", "cancelled-payment.doctor." + UUID.randomUUID() + "@example.com");
+        PatientProfile patient = createPatient(patientUser, "095" + randomDigits());
+        Doctor doctor = createDoctor(doctorUser, "cancelled-payment-doctor-" + UUID.randomUUID());
+        Branch branch = createBranch("cancelled-payment-branch-" + UUID.randomUUID());
+        assignDoctorToBranch(doctor, branch);
+        Appointment appointment = createAppointment(
+            patient, doctor, branch, PORTAL_DATE, LocalTime.of(12, 30), AppointmentStatus.CONFIRMED);
+        BankTransferPayment payment = paymentService.initialize(appointment);
+        String reference = "FT-CANCELLED-PENDING-123";
+
+        mockMvc.perform(post("/api/v1/patient/appointments/" + appointment.getId() + "/payment/submit")
+                .header("Authorization", bearer(patientUser))
+                .header("Idempotency-Key", "cancelled-payment-submit-1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"transactionReference\":\"" + reference + "\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("PENDING_VERIFICATION"));
+
+        mockMvc.perform(post("/api/v1/appointments/" + appointment.getBookingCode() + "/cancel")
+                .header("Authorization", bearer(patientUser))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"reason\":\"Hủy trước khi đối soát\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.paymentStatus").value("REJECTED"));
+
+        mockMvc.perform(patch("/api/v1/admin/payments/" + payment.getId())
+                .header("Authorization", bearer(adminUser))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"decision\":\"VERIFY\"}"))
+            .andExpect(status().isConflict());
+
+        String payload = webhookPayload(payment, reference);
+        String timestamp = Long.toString(Instant.now().getEpochSecond());
+        mockMvc.perform(post("/api/v1/payments/webhooks/bank-transfer")
+                .header("X-Webhook-Id", "evt-cancelled-payment")
+                .header("X-Webhook-Timestamp", timestamp)
+                .header("X-Webhook-Signature", webhookSignature(timestamp, payload))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(payload))
+            .andExpect(status().isConflict());
+
+        org.assertj.core.api.Assertions.assertThat(paymentRepository.findByAppointmentId(appointment.getId()))
+            .get()
+            .extracting(BankTransferPayment::getStatus)
+            .isEqualTo(com.healthcare.payment.entity.PaymentStatus.REJECTED);
+    }
+
+    private String webhookPayload(BankTransferPayment payment, String transactionReference) {
+        return "{\"transferContent\":\"" + payment.getTransferContent()
+            + "\",\"amount\":" + payment.getAmount().toPlainString()
+            + ",\"transactionReference\":\"" + transactionReference + "\"}";
+    }
+
     private String webhookSignature(String timestamp, String payload) throws Exception {
         Mac mac = Mac.getInstance("HmacSHA256");
         mac.init(new SecretKeySpec(
