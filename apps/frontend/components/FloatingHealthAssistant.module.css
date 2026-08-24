@@ -15,6 +15,7 @@
   gap: 0.75rem;
   font-family: inherit;
   max-width: calc(100vw - 1rem);
+  isolation: isolate;
 }
 
 .panel {
@@ -410,6 +411,7 @@
 }
 
 .launcher {
+  position: relative;
   width: 4rem;
   height: 4rem;
   min-width: 4rem;
@@ -421,6 +423,7 @@
   box-shadow: 0 10px 24px rgb(11 53 54 / 22%);
   color: white;
   overflow: visible;
+  transition: transform 180ms ease-out, box-shadow 180ms ease-out;
 }
 
 .launcherMascot {
@@ -438,11 +441,11 @@
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 4.5rem;
-  height: 4.5rem;
+  width: 6.4rem;
+  height: 6.4rem;
   max-width: none;
   object-fit: contain;
-  transform: translate(-50%, -47%);
+  transform: translate(-50%, -39%) scale(1.12);
   transform-origin: center;
   filter: drop-shadow(0 4px 5px rgb(5 52 53 / 24%));
   transition: transform 180ms ease-out;
@@ -455,9 +458,32 @@
   background: #006d6f;
 }
 
+.launcher::after {
+  position: absolute;
+  right: -0.05rem;
+  bottom: 0.05rem;
+  width: 0.72rem;
+  height: 0.72rem;
+  border: 2px solid var(--assistant-deep);
+  border-radius: 50%;
+  background: #f5c451;
+  box-shadow: 0 1px 3px rgb(5 52 53 / 18%);
+  content: "";
+}
+
+.launcher[aria-expanded="true"]::after {
+  display: none;
+}
+
+.launcher:hover,
+.launcher:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 13px 28px rgb(11 53 54 / 26%);
+}
+
 .launcher:hover .launcherAvatar,
 .launcher:focus-visible .launcherAvatar {
-  transform: translate(-50%, -50%) scale(1.04) rotate(-2deg);
+  transform: translate(-50%, -41%) scale(1.17) rotate(-2deg);
 }
 
 .launcher:focus-visible,
@@ -489,6 +515,11 @@
     width: 4rem;
     min-width: 4rem;
     height: 4rem;
+  }
+
+  .launcher::after {
+    right: -0.08rem;
+    bottom: 0;
   }
 }
 
