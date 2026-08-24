@@ -96,14 +96,23 @@ services:
       AI_SERVICE_RUNTIME: compose
       AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL: "false"
       AI_SERVICE_TOKEN:   ${AI_SERVICE_TOKEN:-local-development-token-not-for-production}
-      AI_RAG_INGEST_ENABLED: ${RAG_INGEST_ENABLED:-false}
-      AI_RAG_INGEST_TOKEN:   ${RAG_INGEST_TOKEN:-}
+      # Protected local catalog reconciliation is enabled for the disposable
+      # Compose profile; replace both placeholder tokens before any shared run.
+      AI_RAG_INGEST_ENABLED: ${RAG_INGEST_ENABLED:-true}
+      AI_RAG_INGEST_TOKEN:   ${RAG_INGEST_TOKEN:-local-rag-ingest-token-not-for-production}
       AI_CHAT_RETENTION_DAYS: ${AI_CHAT_RETENTION_DAYS:-90}
       AI_CHAT_CLEANUP_ENABLED: ${AI_CHAT_CLEANUP_ENABLED:-true}
       AI_CHAT_CLEANUP_CRON: ${AI_CHAT_CLEANUP_CRON:-0 20 3 * * *}
       AI_CHAT_CLEANUP_BATCH_SIZE: ${AI_CHAT_CLEANUP_BATCH_SIZE:-200}
       AI_CHAT_CLEANUP_MAX_BATCHES: ${AI_CHAT_CLEANUP_MAX_BATCHES:-20}
       AI_CHAT_PROCESSING_LEASE_SECONDS: ${AI_CHAT_PROCESSING_LEASE_SECONDS:-120}
+      # Local Compose enables clinical modes only after the local synthetic
+      # approval/reconciliation gate; production should override both false.
+      AI_CHAT_SYMPTOM_TRIAGE_ENABLED: ${AI_CHAT_SYMPTOM_TRIAGE_ENABLED:-false}
+      AI_CHAT_HEALTH_EDUCATION_ENABLED: ${AI_CHAT_HEALTH_EDUCATION_ENABLED:-false}
+      # Spring provenance gate stays closed even if an AI provider key exists.
+      AI_CHAT_REMOTE_PROVIDER_ENABLED: ${AI_CHAT_REMOTE_PROVIDER_ENABLED:-false}
+      AI_CHAT_SYNTHETIC_BETA_ASSERTED: ${AI_CHAT_SYNTHETIC_BETA_ASSERTED:-false}
       APP_MAIL_ENABLED:      ${APP_MAIL_ENABLED:-true}
       APP_MAIL_FROM:         ${APP_MAIL_FROM:-no-reply@healthcare.local}
       SPRING_MAIL_HOST:      ${SPRING_MAIL_HOST:-mailpit}
@@ -204,31 +213,40 @@ services:
         VCS_REF: ${BUILD_VCS_REF:-unknown}
     restart: unless-stopped
     environment:
-      AI_PROVIDER: ${AI_PROVIDER:-deepseek}
+      # Local Compose must be deterministic and offline by default.  A remote
+      # provider is an explicit dev/staging opt-in and is never inferred from
+      # an empty DeepSeek key.
+      AI_PROVIDER: ${AI_PROVIDER:-local}
       AI_API_KEY: ${AI_API_KEY:-}
-      AI_CHAT_MODEL: ${AI_CHAT_MODEL:-deepseek-v4-flash}
+      AI_CHAT_MODEL: ${AI_CHAT_MODEL:-local-deterministic}
       AI_EMBEDDING_MODEL: ${AI_EMBEDDING_MODEL:-}
-      AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com}
+      AI_BASE_URL: ${AI_BASE_URL:-}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-v4-flash}
       DEEPSEEK_EMBEDDING_MODEL: ${DEEPSEEK_EMBEDDING_MODEL:-}
       DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-local}
-      RAG_INGEST_ENABLED: ${RAG_INGEST_ENABLED:-false}
-      RAG_INGEST_TOKEN: ${RAG_INGEST_TOKEN:-}
-      RAG_MAX_DOCUMENTS: ${RAG_MAX_DOCUMENTS:-5000}
+      RAG_INGEST_ENABLED: ${RAG_INGEST_ENABLED:-true}
+      RAG_INGEST_TOKEN: ${RAG_INGEST_TOKEN:-local-rag-ingest-token-not-for-production}
+      RAG_MAX_DOCUMENTS: ${RAG_MAX_DOCUMENTS:-10000}
       RAG_STORAGE_BACKEND: ${RAG_STORAGE_BACKEND:-memory}
       SUPABASE_DB_URL: ${SUPABASE_DB_URL:-}
       SUPABASE_DB_SCHEMA: ${SUPABASE_DB_SCHEMA:-healthcare}
-      SUPABASE_RAG_TABLE: ${SUPABASE_RAG_TABLE:-ai_documents}
-      SUPABASE_RAG_RPC: ${SUPABASE_RAG_RPC:-match_documents}
+      # Keep the patient-chat projection separate from the legacy catalog index.
+      SUPABASE_RAG_TABLE: ${SUPABASE_RAG_TABLE:-ai_chat_documents}
+      SUPABASE_RAG_RPC: ${SUPABASE_RAG_RPC:-match_chat_documents}
       SUPABASE_DB_CONNECT_TIMEOUT_SECONDS: ${SUPABASE_DB_CONNECT_TIMEOUT_SECONDS:-5}
       SUPABASE_RAG_FALLBACK_TO_MEMORY: ${SUPABASE_RAG_FALLBACK_TO_MEMORY:-true}
       RAG_EMBEDDING_DIMENSION: ${RAG_EMBEDDING_DIMENSION:-384}
       AI_PATIENT_CHAT_REMOTE_ENABLED: ${AI_PATIENT_CHAT_REMOTE_ENABLED:-false}
+      AI_CHAT_REMOTE_PROVIDER_ENABLED: ${AI_CHAT_REMOTE_PROVIDER_ENABLED:-false}
+      REMOTE_AI_SYNTHETIC_ONLY: ${REMOTE_AI_SYNTHETIC_ONLY:-true}
+      REMOTE_AI_KILL_SWITCH: ${REMOTE_AI_KILL_SWITCH:-false}
+      REMOTE_AI_PROVIDER_ALLOWLIST: ${REMOTE_AI_PROVIDER_ALLOWLIST:-deepseek}
+      REMOTE_AI_HTTPS_HOST_ALLOWLIST: ${REMOTE_AI_HTTPS_HOST_ALLOWLIST:-api.deepseek.com}
       AI_CHAT_CIRCUIT_FAILURE_THRESHOLD: ${AI_CHAT_CIRCUIT_FAILURE_THRESHOLD:-3}
       AI_CHAT_CIRCUIT_RESET_SECONDS: ${AI_CHAT_CIRCUIT_RESET_SECONDS:-30}
-      AI_SERVICE_RUNTIME: compose
+      AI_SERVICE_RUNTIME: ${AI_SERVICE_RUNTIME:-local}
       AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL: "false"
       AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:-local-development-token-not-for-production}
     ports:

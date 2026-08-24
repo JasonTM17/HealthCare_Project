@@ -95,9 +95,52 @@ class StaticSqlAuthorityContractTest(unittest.TestCase):
         chat_tables = [
             name
             for name in table_names
-            if re.search(r"chat|conversation|message", name, flags=re.IGNORECASE)
+            if re.search(r"conversation|message", name, flags=re.IGNORECASE)
+            or (
+                re.search(r"chat", name, flags=re.IGNORECASE)
+                and name.lower() != "ai_chat_documents"
+            )
         ]
         self.assertEqual([], chat_tables)
+
+    def test_patient_chat_projection_is_server_only_and_not_history(self) -> None:
+        normalized = normalize_sql(self.all_migrations)
+        self.assertIn("create table healthcare.ai_chat_documents", normalized)
+        self.assertIn(
+            "alter table healthcare.ai_chat_documents enable row level security",
+            normalized,
+        )
+        self.assertIn(
+            "revoke all privileges on table healthcare.ai_chat_documents from anon, authenticated",
+            normalized,
+        )
+        self.assertIn(
+            "grant all privileges on table healthcare.ai_chat_documents to service_role",
+            normalized,
+        )
+        self.assertNotIn("references auth.users", normalized)
+
+        projection = re.search(
+            r"create\s+table\s+healthcare\.ai_chat_documents\s*\((.*?)\);",
+            self.all_migrations,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        self.assertIsNotNone(projection)
+        assert projection is not None
+        projection_sql = normalize_sql(projection.group(1))
+        for forbidden in ("patient_id", "user_id", "conversation_id", "message_id"):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, projection_sql)
+        self.assertIn("extensions.vector(384)", projection_sql)
+        self.assertIn("eligibility_revision bigint not null", projection_sql)
+        self.assertIn("approval_expires_at timestamptz", projection_sql)
+        self.assertIn("unique (projection_kind, source_type, source_id)", projection_sql)
+        self.assertIn("deleted_at is not null", projection_sql)
+        self.assertIn("create or replace function healthcare.match_chat_documents", normalized)
+        self.assertIn("revoke all on function healthcare.match_chat_documents", normalized)
+        self.assertIn("grant execute on function healthcare.match_chat_documents", normalized)
+        self.assertIn("d.deleted_at is null", normalized)
+        self.assertIn("d.approval_expires_at > current_timestamp", normalized)
 
     def test_seed_contract_is_synthetic_only(self) -> None:
         normalized_initial = normalize_sql(self.initial)

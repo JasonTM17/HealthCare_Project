@@ -100,6 +100,7 @@ class AppointmentPortalIntegrationTest extends AbstractIntegrationTest {
     @Test
     void signedPaymentWebhookRejectsForgeryAndIsReplaySafe() throws Exception {
         User patientUser = createUser("PATIENT", "webhook.patient." + UUID.randomUUID() + "@example.com");
+        User adminUser = createUser("ADMIN", "webhook.admin." + UUID.randomUUID() + "@example.com");
         User doctorUser = createUser("DOCTOR", "webhook.doctor." + UUID.randomUUID() + "@example.com");
         PatientProfile patient = createPatient(patientUser, "097" + randomDigits());
         Doctor doctor = createDoctor(doctorUser, "webhook-doctor-" + UUID.randomUUID());
@@ -142,17 +143,26 @@ class AppointmentPortalIntegrationTest extends AbstractIntegrationTest {
             mockMvc.perform(post("/api/v1/payments/webhooks/bank-transfer")
                     .header("X-Webhook-Id", "evt-valid-replayed")
                     .header("X-Webhook-Timestamp", timestamp)
-                    .header("X-Webhook-Signature", signature)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(payload))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("PAID"))
+                .header("X-Webhook-Signature", signature)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(payload))
+            .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PENDING_VERIFICATION"))
                 .andExpect(jsonPath("$.transactionReference").value("FT-WEBHOOK-123456"));
         }
+
+        // The webhook only enters the review queue. An ADMIN decision is the
+        // sole transition that can make the appointment/payment PAID.
+        mockMvc.perform(patch("/api/v1/admin/payments/" + payment.getId())
+                .header("Authorization", bearer(adminUser))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"decision\":\"VERIFY\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("PAID"));
     }
 
     @Test
-    void paidPaymentRejectsASecondWebhookReference() throws Exception {
+    void pendingPaymentRejectsASecondWebhookReferenceBeforeAdminReview() throws Exception {
         User patientUser = createUser("PATIENT", "webhook-conflict.patient." + UUID.randomUUID() + "@example.com");
         User doctorUser = createUser("DOCTOR", "webhook-conflict.doctor." + UUID.randomUUID() + "@example.com");
         PatientProfile patient = createPatient(patientUser, "096" + randomDigits());
@@ -172,7 +182,7 @@ class AppointmentPortalIntegrationTest extends AbstractIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(firstPayload))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.status").value("PAID"));
+            .andExpect(jsonPath("$.status").value("PENDING_VERIFICATION"));
 
         String conflictingPayload = webhookPayload(payment, "FT-WEBHOOK-SECOND-456");
         String conflictingTimestamp = Long.toString(Instant.now().getEpochSecond());

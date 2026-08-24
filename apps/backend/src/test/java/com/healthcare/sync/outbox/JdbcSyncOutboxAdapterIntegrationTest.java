@@ -9,6 +9,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -99,6 +100,36 @@ class JdbcSyncOutboxAdapterIntegrationTest extends TestcontainersIntegrationTest
             String.class,
             event.eventId()
         )).isEqualTo("DEAD_LETTER");
+    }
+
+    @Test
+    void clinicalEventPersistsSourceAndEligibilityRevisions() {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        SyncOutboxEvent event = SyncOutboxEvent.pending(
+            new SyncEventIdentity(
+                new SyncEntityReference(
+                    SyncDataClassification.DEIDENTIFIED_CLINICAL,
+                    "specialty",
+                    ENTITY_ID
+                ),
+                9,
+                SyncOperation.UPSERT
+            ),
+            SyncContentHash.sha256("clinical-v9"),
+            now,
+            UUID.randomUUID(),
+            4,
+            9
+        );
+
+        appendInTransaction(event);
+
+        Map<String, Object> row = jdbcTemplate.queryForMap(
+            "SELECT source_revision, eligibility_revision FROM sync_outbox_events WHERE event_id = ?",
+            event.eventId()
+        );
+        assertThat(((Number) row.get("source_revision")).longValue()).isEqualTo(4);
+        assertThat(((Number) row.get("eligibility_revision")).longValue()).isEqualTo(9);
     }
 
     private SyncAppendResult appendInTransaction(SyncOutboxEvent event) {

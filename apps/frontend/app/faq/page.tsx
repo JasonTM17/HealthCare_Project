@@ -30,6 +30,7 @@ export default function FaqPage() {
   const [page, setPage] = useState<Page<Faq> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,8 +45,8 @@ export default function FaqPage() {
       .then((data) => {
         if (data !== undefined && !cancelled) setPage(data);
       })
-      .catch((reason: unknown) => {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : "Không thể tải câu hỏi thường gặp.");
+      .catch(() => {
+        if (!cancelled) setError("Tạm thời chưa thể tải câu hỏi thường gặp. Vui lòng thử lại sau.");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -54,7 +55,7 @@ export default function FaqPage() {
     return () => {
       cancelled = true;
     };
-  }, [currentPage]);
+  }, [currentPage, retryCount]);
 
   return (
     <PublicPageShell>
@@ -69,7 +70,14 @@ export default function FaqPage() {
         </header>
 
         {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải câu hỏi…</p> : null}
-        {error ? <p className="catalog-status catalog-status--error" role="alert">{error}</p> : null}
+        {error ? (
+          <div aria-live="assertive" className="catalog-status catalog-status--error" role="alert">
+            <span>{error}</span>
+            <button className="outline-button outline-button--small" onClick={() => setRetryCount((count) => count + 1)} type="button">
+              Thử tải lại
+            </button>
+          </div>
+        ) : null}
         {!loading && !error && page?.empty ? <p className="catalog-status" role="status">Nội dung câu hỏi thường gặp đang được cập nhật.</p> : null}
 
         <section className="resource-hero-card resource-hero-card--teal">

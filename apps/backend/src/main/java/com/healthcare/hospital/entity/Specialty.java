@@ -2,6 +2,7 @@ package com.healthcare.hospital.entity;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -12,6 +13,7 @@ import org.hibernate.annotations.UuidGenerator;
 import org.hibernate.type.SqlTypes;
 
 import java.util.UUID;
+import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "specialties")
@@ -41,6 +43,39 @@ public class Specialty {
 
     @Column(name = "care_pathway", columnDefinition = "text")
     private String carePathway;
+
+    @Column(name = "clinical_overview", columnDefinition = "text")
+    private String clinicalOverview;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "common_conditions", nullable = false, columnDefinition = "jsonb")
+    private JsonNode commonConditions = JsonNodeFactory.instance.arrayNode();
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "red_flags", nullable = false, columnDefinition = "jsonb")
+    private JsonNode redFlags = JsonNodeFactory.instance.arrayNode();
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "preventive_care", nullable = false, columnDefinition = "jsonb")
+    private JsonNode preventiveCare = JsonNodeFactory.instance.arrayNode();
+
+    @Column(name = "when_to_seek_care", columnDefinition = "text")
+    private String whenToSeekCare;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "source_references", nullable = false, columnDefinition = "jsonb")
+    private JsonNode sourceReferences = JsonNodeFactory.instance.arrayNode();
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "clinical_metadata", nullable = false, columnDefinition = "jsonb")
+    private JsonNode clinicalMetadata = JsonNodeFactory.instance.objectNode();
+
+    @Column(name = "last_reviewed_at")
+    private OffsetDateTime lastReviewedAt;
+
+    @Column(name = "last_reviewed_by")
+    @JsonIgnore
+    private UUID lastReviewedBy;
 
     @Column(name = "active", nullable = false)
     private boolean active = true;
@@ -100,6 +135,25 @@ public class Specialty {
     public void setCarePathway(String carePathway) {
         this.carePathway = carePathway;
     }
+
+    public String getClinicalOverview() { return clinicalOverview; }
+    public void setClinicalOverview(String clinicalOverview) { this.clinicalOverview = clinicalOverview; }
+    public JsonNode getCommonConditions() { return commonConditions; }
+    public void setCommonConditions(JsonNode commonConditions) { this.commonConditions = commonConditions; }
+    public JsonNode getRedFlags() { return redFlags; }
+    public void setRedFlags(JsonNode redFlags) { this.redFlags = redFlags; }
+    public JsonNode getPreventiveCare() { return preventiveCare; }
+    public void setPreventiveCare(JsonNode preventiveCare) { this.preventiveCare = preventiveCare; }
+    public String getWhenToSeekCare() { return whenToSeekCare; }
+    public void setWhenToSeekCare(String whenToSeekCare) { this.whenToSeekCare = whenToSeekCare; }
+    public JsonNode getSourceReferences() { return sourceReferences; }
+    public void setSourceReferences(JsonNode sourceReferences) { this.sourceReferences = sourceReferences; }
+    public JsonNode getClinicalMetadata() { return clinicalMetadata; }
+    public void setClinicalMetadata(JsonNode clinicalMetadata) { this.clinicalMetadata = clinicalMetadata; }
+    public OffsetDateTime getLastReviewedAt() { return lastReviewedAt; }
+    public void setLastReviewedAt(OffsetDateTime lastReviewedAt) { this.lastReviewedAt = lastReviewedAt; }
+    public UUID getLastReviewedBy() { return lastReviewedBy; }
+    public void setLastReviewedBy(UUID lastReviewedBy) { this.lastReviewedBy = lastReviewedBy; }
 
     public boolean isActive() {
         return active;

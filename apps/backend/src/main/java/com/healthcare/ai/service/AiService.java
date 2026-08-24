@@ -25,6 +25,7 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.util.List;
 import java.util.Map;
 
@@ -133,6 +134,63 @@ public class AiService {
         return postJson("/chat", payload);
     }
 
+    /**
+     * First half of the patient-chat contract. Retrieval never invokes a
+     * language model; Spring must validate the returned identities before
+     * calling {@link #generateChat(Map)}.
+     */
+    public Map<String, Object> retrieveChat(Map<String, Object> request) {
+        return postJson("/chat/retrieve", normalizePatientChatPayload(request, false));
+    }
+
+    /** Alias used by callers that prefer the endpoint terminology. */
+    public Map<String, Object> retrieveChatCandidates(Map<String, Object> request) {
+        return retrieveChat(request);
+    }
+
+    /**
+     * Second half of the patient-chat contract. The authorized source list is
+     * an exact Spring-owned allowlist; this method does not add provider data.
+     */
+    public Map<String, Object> generateChat(Map<String, Object> request) {
+        return postJson("/chat/generate", normalizePatientChatPayload(request, true));
+    }
+
+    /** Alias retained for explicit two-step call sites and test doubles. */
+    public Map<String, Object> generateGroundedChat(Map<String, Object> request) {
+        return generateChat(request);
+    }
+
+    private Map<String, Object> normalizePatientChatPayload(Map<String, Object> request, boolean generation) {
+        if (request == null || !(request.get("message") instanceof String message)) {
+            throw new ResponseStatusException(BAD_REQUEST, "Message must be between 2 and 10000 characters");
+        }
+        String normalized = message.trim();
+        int inputLimit = maxInputChars > 0
+            ? Math.min(maxInputChars, DEFAULT_MAX_INPUT_CHARS)
+            : DEFAULT_MAX_INPUT_CHARS;
+        if (normalized.length() < MIN_CHAT_INPUT_CHARS || normalized.length() > inputLimit) {
+            throw new ResponseStatusException(BAD_REQUEST,
+                "Message must be between 2 and " + inputLimit + " characters");
+        }
+        Map<String, Object> payload = new java.util.LinkedHashMap<>();
+        payload.put("message", normalized);
+        Object mode = request.get("mode");
+        if (mode != null) payload.put("mode", mode);
+        Object turns = request.get("recent_turns");
+        if (turns == null) turns = request.get("recent_history");
+        if (turns != null) payload.put("recent_turns", turns);
+        Object syntheticBeta = request.get("synthetic_beta");
+        if (syntheticBeta == null) syntheticBeta = request.get("syntheticBeta");
+        if (syntheticBeta != null) payload.put("synthetic_beta", syntheticBeta);
+        if (generation) {
+            Object sources = request.get("authorized_sources");
+            if (sources == null) sources = request.get("authorizedSources");
+            payload.put("authorized_sources", sources == null ? List.of() : sources);
+        }
+        return payload;
+    }
+
     public Map<String, Object> search(String query, int topK) {
         String normalizedQuery = validateQuery(query);
         if (topK < 1 || topK > 20) {
@@ -180,21 +238,47 @@ public class AiService {
         if (!isRagIngestConfigured()) {
             throw new ResponseStatusException(SERVICE_UNAVAILABLE, "RAG ingestion is not configured");
         }
-        Map<String, Object> response = exchange(
-            HttpMethod.GET,
-            URI.create(endpoint("/rag/sources")),
-            new HttpEntity<>(ragHeaders())
-        );
-        Object sources = response.get("sources");
-        if (sources == null) return List.of();
-        return objectMapper.convertValue(sources, new TypeReference<List<Map<String, Object>>>() { });
+        List<Map<String, Object>> all = new java.util.ArrayList<>();
+        String cursor = null;
+        for (int page = 0; page < 200; page++) {
+            String path = "/rag/sources?limit=1000" + (cursor == null ? "" : "&cursor="
+                + URLEncoder.encode(cursor, StandardCharsets.UTF_8));
+            Map<String, Object> response = exchange(
+                HttpMethod.GET,
+                URI.create(endpoint(path)),
+                new HttpEntity<>(ragHeaders())
+            );
+            Object sources = response.get("sources");
+            if (sources instanceof List<?> values) {
+                all.addAll(objectMapper.convertValue(values, new TypeReference<List<Map<String, Object>>>() { }));
+            }
+            Object next = response.get("next_cursor");
+            if (next == null || String.valueOf(next).isBlank()) {
+                return all;
+            }
+            String nextCursor = String.valueOf(next);
+            if (nextCursor.equals(cursor)) {
+                throw new ResponseStatusException(BAD_GATEWAY, "AI source pagination cursor repeated");
+            }
+            cursor = nextCursor;
+        }
+        throw new ResponseStatusException(BAD_GATEWAY, "AI source pagination did not complete");
     }
 
     public Map<String, Object> removeIndexedDocument(String sourceType, String sourceId) {
-        return removeIndexedDocument(sourceType, sourceId, null);
+        return removeIndexedDocument(sourceType, sourceId, null, null);
     }
 
     public Map<String, Object> removeIndexedDocument(String sourceType, String sourceId, Long revision) {
+        return removeIndexedDocument(sourceType, sourceId, revision, null);
+    }
+
+    public Map<String, Object> removeIndexedDocument(
+        String sourceType,
+        String sourceId,
+        Long revision,
+        String projectionKind
+    ) {
         if (!isRagIngestConfigured()) {
             throw new ResponseStatusException(SERVICE_UNAVAILABLE, "RAG ingestion is not configured");
         }
@@ -203,6 +287,9 @@ public class AiService {
             payload.put("source_type", sourceType);
             payload.put("source_id", sourceId);
             if (revision != null) payload.put("revision", revision);
+            if (projectionKind != null && !projectionKind.isBlank()) {
+                payload.put("projection_kind", projectionKind);
+            }
             return exchange(
                 HttpMethod.POST,
                 URI.create(endpoint("/rag/delete")),

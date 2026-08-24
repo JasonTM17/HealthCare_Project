@@ -1,0 +1,57 @@
+package com.healthcare.ai;
+
+import com.healthcare.ai.service.AiClinicalReviewService;
+import com.healthcare.user.entity.User;
+import com.healthcare.user.repository.UserRepository;
+import org.junit.jupiter.api.Test;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.core.userdetails.UserDetails;
+
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import org.mockito.ArgumentCaptor;
+
+class AiClinicalReviewServiceTest {
+
+    @Test
+    void explicitApprovalRoundMustMatchTheLockedHead() {
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        UserRepository users = mock(UserRepository.class);
+        UUID reviewerId = UUID.randomUUID();
+        UUID sourceId = UUID.randomUUID();
+        User reviewer = new User();
+        reviewer.setId(reviewerId);
+        reviewer.setEmail("doctor@example.com");
+        when(users.findByEmail("doctor@example.com")).thenReturn(java.util.Optional.of(reviewer));
+        when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of(Map.of(
+            "content_revision", 2L,
+            "content_hash", "a".repeat(64),
+            "eligibility_revision", 3L,
+            "current_approval_round", 2L,
+            "eligibility_state", "SUBMITTED"
+        )));
+
+        AiClinicalReviewService service = new AiClinicalReviewService(jdbc, users);
+        UserDetails principal = mock(UserDetails.class);
+        when(principal.getUsername()).thenReturn("doctor@example.com");
+
+        assertThatThrownBy(() -> service.decide(
+            "ARTICLE", sourceId, 2, 1, "APPROVE", null, principal))
+            .hasMessage("Review round is stale")
+            .extracting(error -> ((com.healthcare.exception.BusinessException) error).getCode())
+            .isEqualTo("AI_CONTENT_REVISION_STALE");
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        verify(jdbc).queryForList(sql.capture(), any(Object[].class));
+        assertThat(sql.getValue()).contains("FOR UPDATE");
+    }
+}

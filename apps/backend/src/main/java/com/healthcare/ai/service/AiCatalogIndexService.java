@@ -1,11 +1,11 @@
 package com.healthcare.ai.service;
 
-import com.healthcare.hospital.entity.Article;
+import com.healthcare.hospital.entity.Branch;
 import com.healthcare.hospital.entity.Doctor;
-import com.healthcare.hospital.entity.Faq;
 import com.healthcare.hospital.entity.MedicalService;
 import com.healthcare.hospital.entity.Specialty;
 import com.healthcare.hospital.repository.ArticleRepository;
+import com.healthcare.hospital.repository.BranchRepository;
 import com.healthcare.hospital.repository.DoctorRepository;
 import com.healthcare.hospital.repository.FaqRepository;
 import com.healthcare.hospital.repository.PackageRepository;
@@ -14,6 +14,8 @@ import com.healthcare.hospital.repository.SpecialtyRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -23,7 +25,6 @@ import java.util.LinkedHashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
 
 /** Periodically mirrors bounded, public catalog text into the protected AI index. */
 @Service
@@ -31,17 +32,47 @@ public class AiCatalogIndexService {
 
     private static final Logger log = LoggerFactory.getLogger(AiCatalogIndexService.class);
     private final AiService aiService;
+    private final BranchRepository branchRepository;
     private final SpecialtyRepository specialtyRepository;
     private final DoctorRepository doctorRepository;
     private final ServiceRepository serviceRepository;
     private final PackageRepository packageRepository;
     private final ArticleRepository articleRepository;
     private final FaqRepository faqRepository;
-    private final AtomicLong synchronizationRevision = new AtomicLong(System.currentTimeMillis());
+    private final JdbcTemplate jdbcTemplate;
 
     @Value("${ai.rag-ingest.max-catalog-items:5000}")
     private int maxCatalogItems;
 
+    /**
+     * Runtime constructor.  The synchronization watermark is allocated by
+     * PostgreSQL; a process-local clock/counter cannot provide ordering after
+     * a restart or across multiple Spring instances.
+     */
+    @Autowired
+    public AiCatalogIndexService(
+            AiService aiService,
+            BranchRepository branchRepository,
+            SpecialtyRepository specialtyRepository,
+            DoctorRepository doctorRepository,
+            ServiceRepository serviceRepository,
+            PackageRepository packageRepository,
+            ArticleRepository articleRepository,
+            FaqRepository faqRepository,
+            JdbcTemplate jdbcTemplate) {
+        this.aiService = aiService;
+        this.branchRepository = branchRepository;
+        this.specialtyRepository = specialtyRepository;
+        this.doctorRepository = doctorRepository;
+        this.serviceRepository = serviceRepository;
+        this.packageRepository = packageRepository;
+        this.articleRepository = articleRepository;
+        this.faqRepository = faqRepository;
+        this.jdbcTemplate = jdbcTemplate;
+    }
+
+    /** Test/source compatibility constructor; production always uses the
+     * database-backed constructor above. */
     public AiCatalogIndexService(
             AiService aiService,
             SpecialtyRepository specialtyRepository,
@@ -50,13 +81,23 @@ public class AiCatalogIndexService {
             PackageRepository packageRepository,
             ArticleRepository articleRepository,
             FaqRepository faqRepository) {
-        this.aiService = aiService;
-        this.specialtyRepository = specialtyRepository;
-        this.doctorRepository = doctorRepository;
-        this.serviceRepository = serviceRepository;
-        this.packageRepository = packageRepository;
-        this.articleRepository = articleRepository;
-        this.faqRepository = faqRepository;
+        this(aiService, null, specialtyRepository, doctorRepository, serviceRepository,
+            packageRepository, articleRepository, faqRepository, null);
+    }
+
+    /** Compatibility constructor for callers that provide a database cursor
+     * but predate the branch repository parameter. */
+    public AiCatalogIndexService(
+            AiService aiService,
+            SpecialtyRepository specialtyRepository,
+            DoctorRepository doctorRepository,
+            ServiceRepository serviceRepository,
+            PackageRepository packageRepository,
+            ArticleRepository articleRepository,
+            FaqRepository faqRepository,
+            JdbcTemplate jdbcTemplate) {
+        this(aiService, null, specialtyRepository, doctorRepository, serviceRepository,
+            packageRepository, articleRepository, faqRepository, jdbcTemplate);
     }
 
     @Scheduled(
@@ -79,10 +120,34 @@ public class AiCatalogIndexService {
             throw new IllegalStateException("AI RAG ingestion is not configured");
         }
         int pageSize = Math.max(1, Math.min(maxCatalogItems, 10_000));
-        long syncRevision = synchronizationRevision.incrementAndGet();
+        long syncRevision = nextSyncRevision();
         int indexed = 0;
         Set<String> currentSources = new HashSet<>();
         Map<String, Boolean> completeTypes = new LinkedHashMap<>();
+
+        if (branchRepository != null) {
+            Page<Branch> branches = branchRepository.findAll(PageRequest.of(0, pageSize));
+            completeTypes.put("branch", !branches.hasNext());
+            for (Branch item : branches) {
+                currentSources.add(index(
+                    "branch",
+                    item.getId().toString(),
+                    item.getName(),
+                    text(item.getName(), item.getAddress(), item.getPhone(),
+                        item.getWorkingHours(), item.getEmergencyHotline(),
+                        item.getMapUrl(),
+                        item.getAmenities() == null ? null : item.getAmenities().toString()),
+                    item.isActive(),
+                    true,
+                    item.getSlug(),
+                    syncRevision));
+                indexed++;
+            }
+        } else {
+            // The legacy unit-test constructor has no branch repository. Do
+            // not claim a complete branch snapshot or tombstone branch rows.
+            completeTypes.put("branch", false);
+        }
 
         Page<Specialty> specialties = specialtyRepository.findAll(PageRequest.of(0, pageSize));
         completeTypes.put("specialty", !specialties.hasNext());
@@ -104,17 +169,14 @@ public class AiCatalogIndexService {
         for (com.healthcare.hospital.entity.Package item : packages) {
             currentSources.add(index("package", item.getId().toString(), item.getName(), text(item.getName(), item.getDescription()), item.isActive(), true, item.getSlug(), syncRevision)); indexed++;
         }
-        Page<Article> articles = articleRepository.findAll(PageRequest.of(0, pageSize));
-        completeTypes.put("article", !articles.hasNext());
-        for (Article item : articles) {
-            boolean published = item.getPublishedAt() != null;
-            currentSources.add(index("article", item.getId().toString(), item.getTitle(), text(item.getTitle(), item.getSummary(), item.getBody()), item.isActive(), published, item.getSlug(), syncRevision)); indexed++;
-        }
-        Page<Faq> faqs = faqRepository.findAll(PageRequest.of(0, pageSize));
-        completeTypes.put("faq", !faqs.hasNext());
-        for (Faq item : faqs) {
-            currentSources.add(index("faq", item.getId().toString(), item.getQuestion(), text(item.getQuestion(), item.getAnswer()), item.isActive(), true, null, syncRevision)); indexed++;
-        }
+        // ARTICLE and FAQ are governed clinical projections.  The old
+        // periodic writer must never index them because it has no approval
+        // revision/hash metadata.  Their dedicated revision/outbox flow is
+        // the only source for HEALTH_EDUCATION.
+        completeTypes.put("article", false);
+        completeTypes.put("faq", false);
+        articleRepository.findAll(PageRequest.of(0, pageSize));
+        faqRepository.findAll(PageRequest.of(0, pageSize));
 
         for (Map<String, Object> source : aiService.listIndexedDocuments()) {
             String sourceType = source.get("source_type") instanceof String value ? value : null;
@@ -122,9 +184,16 @@ public class AiCatalogIndexService {
             if (sourceType == null || sourceId == null || !Boolean.TRUE.equals(completeTypes.get(sourceType))) {
                 continue;
             }
+            Object metadata = source.get("metadata");
+            if (metadata instanceof Map<?, ?> values
+                    && "CLINICAL".equalsIgnoreCase(String.valueOf(values.get("projection_kind")))) {
+                // Never let an operational reconciliation delete or mutate a
+                // separately governed clinical projection.
+                continue;
+            }
             String key = sourceType + ":" + sourceId;
             if (!currentSources.contains(key)) {
-                aiService.removeIndexedDocument(sourceType, sourceId, syncRevision);
+                aiService.removeIndexedDocument(sourceType, sourceId, syncRevision, "OPERATIONAL");
                 indexed++;
             }
         }
@@ -143,9 +212,24 @@ public class AiCatalogIndexService {
         Map<String, String> metadata = new LinkedHashMap<>();
         if (slug != null) metadata.put("slug", slug);
         metadata.put("_sync_revision", Long.toString(syncRevision));
+        metadata.put("projection_kind", "OPERATIONAL");
         payload.put("metadata", metadata);
         aiService.indexDocument(payload);
         return type + ":" + id;
+    }
+
+    private long nextSyncRevision() {
+        if (jdbcTemplate == null) {
+            // Only the legacy unit-test constructor can reach this branch. It
+            // is deliberately constant rather than a process-local clock.
+            return 1L;
+        }
+        Long revision = jdbcTemplate.queryForObject(
+            "SELECT nextval('ai_catalog_sync_revision_seq')", Long.class);
+        if (revision == null || revision <= 0L) {
+            throw new IllegalStateException("database returned an invalid catalog sync revision");
+        }
+        return revision;
     }
 
     private String text(String... values) {

@@ -22,8 +22,32 @@ public record SyncOutboxEvent(
     int attemptCount,
     UUID leaseToken,
     OffsetDateTime leaseExpiresAt,
-    OffsetDateTime availableAt
+    OffsetDateTime availableAt,
+    Long sourceRevision,
+    Long eligibilityRevision
 ) {
+
+    /**
+     * Compatibility constructor for the original public-catalog event shape.
+     * Governed clinical writers should use the revision-aware overload below
+     * so PostgreSQL can persist both source and eligibility watermarks.
+     */
+    public SyncOutboxEvent(
+        UUID eventId,
+        long cursor,
+        SyncEventIdentity identity,
+        SyncContentHash contentHash,
+        OffsetDateTime occurredAt,
+        UUID correlationId,
+        SyncOutboxStatus status,
+        int attemptCount,
+        UUID leaseToken,
+        OffsetDateTime leaseExpiresAt,
+        OffsetDateTime availableAt
+    ) {
+        this(eventId, cursor, identity, contentHash, occurredAt, correlationId,
+            status, attemptCount, leaseToken, leaseExpiresAt, availableAt, null, null);
+    }
 
     public SyncOutboxEvent {
         eventId = Objects.requireNonNull(eventId, "eventId");
@@ -33,6 +57,16 @@ public record SyncOutboxEvent(
         correlationId = Objects.requireNonNull(correlationId, "correlationId");
         status = Objects.requireNonNull(status, "status");
         availableAt = utc(availableAt, "availableAt");
+        if (sourceRevision != null && sourceRevision <= 0) {
+            throw new IllegalArgumentException("sourceRevision must be positive when present");
+        }
+        if (eligibilityRevision != null && eligibilityRevision <= 0) {
+            throw new IllegalArgumentException("eligibilityRevision must be positive when present");
+        }
+        if (eligibilityRevision != null
+            && identity.entity().classification() != SyncDataClassification.DEIDENTIFIED_CLINICAL) {
+            throw new IllegalArgumentException("eligibilityRevision is only valid for clinical events");
+        }
         if (cursor < 0) {
             throw new IllegalArgumentException("cursor cannot be negative");
         }
@@ -70,7 +104,36 @@ public record SyncOutboxEvent(
             0,
             null,
             null,
-            eventTime
+            eventTime,
+            null,
+            null
+        );
+    }
+
+    /** Create a clinical event carrying database-owned source/eligibility metadata. */
+    public static SyncOutboxEvent pending(
+        SyncEventIdentity identity,
+        SyncContentHash contentHash,
+        OffsetDateTime occurredAt,
+        UUID correlationId,
+        long sourceRevision,
+        long eligibilityRevision
+    ) {
+        OffsetDateTime eventTime = utc(occurredAt, "occurredAt");
+        return new SyncOutboxEvent(
+            UUID.randomUUID(),
+            0,
+            identity,
+            contentHash,
+            eventTime,
+            correlationId,
+            SyncOutboxStatus.PENDING,
+            0,
+            null,
+            null,
+            eventTime,
+            sourceRevision,
+            eligibilityRevision
         );
     }
 
@@ -149,7 +212,9 @@ public record SyncOutboxEvent(
         return other != null
             && eventId.equals(other.eventId)
             && identity.equals(other.identity)
-            && contentHash.equals(other.contentHash);
+            && contentHash.equals(other.contentHash)
+            && Objects.equals(sourceRevision, other.sourceRevision)
+            && Objects.equals(eligibilityRevision, other.eligibilityRevision);
     }
 
     private OffsetDateTime requireActiveLease(UUID workerLeaseToken, OffsetDateTime at) {
@@ -183,7 +248,9 @@ public record SyncOutboxEvent(
             nextAttemptCount,
             nextLeaseToken,
             nextLeaseExpiresAt,
-            nextAvailableAt
+            nextAvailableAt,
+            sourceRevision,
+            eligibilityRevision
         );
     }
 

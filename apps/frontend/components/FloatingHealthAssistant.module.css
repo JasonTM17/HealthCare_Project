@@ -83,6 +83,82 @@
   filter: drop-shadow(0 3px 4px rgb(5 52 53 / 20%));
 }
 
+.modePicker {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid var(--assistant-line);
+  background: var(--assistant-paper);
+}
+
+.modeLegend,
+.modeLockedHint {
+  color: #5c716f;
+  font-size: 0.67rem;
+  font-weight: 700;
+}
+
+.modeOptions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.modeOption,
+.modeOptionActive {
+  min-height: 2.75rem;
+  padding: 0.3rem 0.35rem;
+  border: 1px solid var(--assistant-line);
+  border-radius: 0.4rem;
+  background: white;
+  color: var(--assistant-deep);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.64rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.modeOptionActive {
+  border-color: var(--assistant-deep);
+  background: var(--assistant-mint);
+}
+
+.modeOption:disabled,
+.modeOptionActive:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.consentPanel {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.8rem 0.85rem;
+  border-bottom: 1px solid var(--assistant-line);
+  background: #f2faf7;
+  color: var(--assistant-ink);
+}
+
+.consentPanel strong {
+  font-size: 0.82rem;
+}
+
+.consentPanel p {
+  margin: 0;
+  color: #527070;
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.consentPanel .primaryButton {
+  width: fit-content;
+  min-height: 2.75rem;
+}
+
+.consentError {
+  color: #8a3a34 !important;
+}
+
 .iconButton,
 .sendButton,
 .launcher {
@@ -236,6 +312,7 @@
 }
 
 .citations a,
+.citations span,
 .fullChatLink {
   color: var(--assistant-deep);
   font-size: 0.72rem;
@@ -244,7 +321,8 @@
   text-underline-offset: 0.15rem;
 }
 
-.citations a {
+.citations a,
+.citations span {
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
@@ -277,6 +355,80 @@
   color: #5c716f;
   font-size: 0.68rem;
   line-height: 1.45;
+}
+
+.emergencyAction {
+  display: grid;
+  gap: 0.25rem;
+  margin-top: 0.55rem;
+  padding: 0.55rem;
+  border: 1px solid #d9968f;
+  border-radius: 0.45rem;
+  background: #fff0ed;
+  color: #7a2f2a;
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.emergencyAction a {
+  display: inline-flex;
+  min-height: 2.75rem;
+  width: fit-content;
+  align-items: center;
+  padding: 0 0.7rem;
+  border-radius: 0.4rem;
+  background: #8a3a34;
+  color: white;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.suggestedActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.45rem;
+}
+
+.suggestedActions a {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--assistant-line);
+  border-radius: 0.4rem;
+  color: var(--assistant-deep);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.feedback {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.5rem;
+  color: #6b7976;
+  font-size: 0.66rem;
+}
+
+.feedback button {
+  min-height: 2.4rem;
+  padding: 0.25rem 0.45rem;
+  border: 1px solid var(--assistant-line);
+  border-radius: 0.35rem;
+  background: white;
+  color: var(--assistant-deep);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.feedback button[aria-pressed="true"] {
+  border-color: var(--assistant-deep);
+  background: var(--assistant-mint);
 }
 
 .failure {
@@ -451,6 +603,13 @@
   transition: transform 180ms ease-out;
 }
 
+.launcherMark {
+  width: 2.9rem;
+  height: 2.9rem;
+  color: var(--assistant-deep);
+  transition: transform 180ms ease-out;
+}
+
 .launcher:hover,
 .launcher:focus-visible,
 .primaryButton:hover,
@@ -462,12 +621,13 @@
   position: absolute;
   right: -0.05rem;
   bottom: 0.05rem;
-  width: 0.72rem;
-  height: 0.72rem;
+  width: 0.7rem;
+  height: 0.7rem;
   border: 2px solid var(--assistant-deep);
-  border-radius: 50%;
-  background: #f5c451;
+  border-radius: 0 70% 70% 70%;
+  background: #d9f2eb;
   box-shadow: 0 1px 3px rgb(5 52 53 / 18%);
+  transform: rotate(45deg);
   content: "";
 }
 
@@ -482,8 +642,10 @@
 }
 
 .launcher:hover .launcherAvatar,
-.launcher:focus-visible .launcherAvatar {
-  transform: translate(-50%, -41%) scale(1.17) rotate(-2deg);
+.launcher:focus-visible .launcherAvatar,
+.launcher:hover .launcherMark,
+.launcher:focus-visible .launcherMark {
+  transform: scale(1.08) rotate(-2deg);
 }
 
 .launcher:focus-visible,

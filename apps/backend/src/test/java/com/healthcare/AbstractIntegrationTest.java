@@ -31,6 +31,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -120,6 +121,8 @@ public abstract class AbstractIntegrationTest {
 
     @Autowired
     protected MockMvc mockMvc;
+    @Autowired
+    protected JdbcTemplate jdbcTemplate;
 
     // ── Auth domain ───────────────────────────────────────────────────────────
     @Autowired protected UserRepository userRepository;
@@ -164,6 +167,42 @@ public abstract class AbstractIntegrationTest {
      */
     @BeforeEach
     void cleanDatabase() {
+        // Consultation/Q&A/care-plan rows were added after the original test
+        // baseline.  Truncate the complete child set together so append-only
+        // audit and answer triggers cannot leak state between tests.  This is
+        // disposable Testcontainers data only; production retention uses the
+        // bounded service and never TRUNCATEs patient content.
+        jdbcTemplate.execute("""
+            TRUNCATE TABLE patient_consultation_events,
+                           patient_consultation_attachments,
+                           patient_consultation_read_states,
+                           patient_consultation_messages,
+                           patient_consultation_participants,
+                           patient_consultation_threads,
+                           health_question_reports,
+                           health_question_answers,
+                           health_questions,
+                           patient_care_plan_items,
+                           patient_care_plans,
+                           faqs
+            """);
+
+        // Governed AI rows point at users and immutable catalog revisions. They
+        // must be removed before the catalog/auth rows below; otherwise a test
+        // that exercises the revision/outbox transaction would make the next
+        // test's cleanup fail on the intentional RESTRICT foreign keys.
+        // TRUNCATE is intentional here: the production tables are append-only
+        // by trigger, while this base owns a disposable Testcontainers schema.
+        // It removes only the five governance/outbox tables and does not
+        // cascade into catalog or user tables that reference them.
+        jdbcTemplate.execute("""
+            TRUNCATE TABLE ai_content_review_events,
+                           ai_content_approval_rounds,
+                           ai_content_review_heads,
+                           ai_content_revisions,
+                           sync_outbox_events
+            """);
+
         // CMS public change rows reference CMS content and must be cleared first.
         cmsContentChangeRepository.deleteAll();
         cmsContentRepository.deleteAll();

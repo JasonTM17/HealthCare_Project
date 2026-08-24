@@ -78,7 +78,7 @@ def _document(revision: int = 7) -> RagDocument:
         embedding=[0.25] * 384,
         embedding_model="local-hash",
         embedding_provenance="local_provider",
-        content_hash="hash",
+        content_hash="a" * 64,
         active=True,
         published=True,
         metadata={"_sync_revision": str(revision), "slug": "tim-mach"},
@@ -141,11 +141,13 @@ def test_upsert_is_parameterized_and_revision_guarded() -> None:
 
     assert store.upsert(_document()) is True
     sql, params = upsert_cursor.executed[0]
-    assert "on conflict (source_type, source_id)" in sql.lower()
-    assert "excluded.sync_revision >= \"healthcare\".\"ai_documents\".sync_revision" in sql
+    assert "on conflict (projection_kind, source_type, source_id)" in sql.lower()
+    assert "excluded.eligibility_revision > \"healthcare\".\"ai_chat_documents\".eligibility_revision" in sql
+    assert "deleted_at is null" in sql
     assert params is not None
-    assert params[0] == "specialty"
-    assert params[5].startswith("[0.25")
+    assert params[0] == "OPERATIONAL"
+    assert params[1] == "specialty"
+    assert params[11].startswith("[0.25")
     assert "Kham tim mach." not in sql
     assert connection.commits == 1
     assert connection.closed is True
@@ -160,10 +162,15 @@ def test_search_maps_rpc_rows_to_citations_without_needing_raw_vectors() -> None
         "Tim mach",
         "Kham tim mach.",
         {"slug": "tim-mach"},
+        "OPERATIONAL",
+        7,
+        7,
+        "a" * 64,
+        None,
+        None,
         None,
         "local-hash",
         "local_provider",
-        "hash",
         True,
         True,
         0.91,
@@ -183,13 +190,39 @@ def test_search_maps_rpc_rows_to_citations_without_needing_raw_vectors() -> None
     assert document.id == "specialty:cardio"
     assert document.source_type == "specialty"
     assert document.source_id == "cardio"
-    assert document.metadata == {"slug": "tim-mach"}
+    assert document.metadata == {
+        "slug": "tim-mach",
+        "projection_kind": "OPERATIONAL",
+        "content_revision": "7",
+        "eligibility_revision": "7",
+    }
     assert score == pytest.approx(0.91)
     assert "::extensions.vector(384)" in search_cursor.executed[0][0]
     assert "::text" in search_cursor.executed[0][0]
     params = search_cursor.executed[0][1]
     assert params is not None
     assert params[-1] == "đau tim"
+
+
+def test_search_bounds_limit_and_passes_similarity_threshold_to_rpc() -> None:
+    profile_cursor = FakeCursor(many=[("local-hash", "local_provider")])
+    search_cursor = FakeCursor(many=[])
+    connection = FakeConnection(profile_cursor, search_cursor)
+    store = SupabaseRagStore(_config(), connection_factory=lambda _dsn, _timeout: connection)
+
+    assert store.search(
+        [0.1] * 384,
+        top_k=10_000,
+        match_threshold=0.35,
+        embedding_model="local-hash",
+    ) == []
+
+    _, params = search_cursor.executed[0]
+    assert params is not None
+    # RPC receives a bounded limit even when a caller supplies an untrusted
+    # value; threshold remains parameterized and is not interpolated into SQL.
+    assert params[1] == pytest.approx(0.35)
+    assert params[2] == 20
 
 
 def test_search_rejects_unbounded_query_text() -> None:
@@ -199,6 +232,63 @@ def test_search_rejects_unbounded_query_text() -> None:
     )
     with pytest.raises(SupabaseRagContractError):
         store.search([0.1] * 384, query_text="x" * 10_001)
+
+
+def test_supabase_config_rejects_legacy_unprotected_table() -> None:
+    with pytest.raises(SupabaseRagContractError):
+        SupabaseRagConfig(
+            dsn="postgresql://service.test/healthcare",
+            table="ai_documents",
+            rpc="match_documents",
+        )
+
+
+def test_clinical_upsert_requires_database_owned_approval_metadata() -> None:
+    store = SupabaseRagStore(
+        _config(),
+        connection_factory=lambda _dsn, _timeout: FakeConnection(FakeCursor(many=[])),
+    )
+    document = _document()
+    document.metadata.update({"projection_kind": "CLINICAL"})
+    with pytest.raises(SupabaseRagContractError):
+        store.upsert(document)
+
+
+def test_stale_upsert_rejected_by_durable_tombstone_cannot_resurrect_memory() -> None:
+    tombstone = RagDocument(
+        id="specialty:cardio",
+        source_type="specialty",
+        source_id="cardio",
+        title="[tombstone]",
+        content="[tombstone]",
+        metadata={"projection_kind": "OPERATIONAL", "eligibility_revision": "9"},
+        active=False,
+        published=False,
+    )
+
+    class RejectingStore:
+        def list_documents(self) -> list[RagDocument]:
+            return []
+
+        def upsert(self, *_: object, **__: object) -> bool:
+            return False
+
+        def get(self, *_: object, **__: object) -> RagDocument:
+            return tombstone
+
+    service = PersistentRagService(RejectingStore(), fallback_to_memory=False)  # type: ignore[arg-type]
+    service.index.add(_document())
+    service.ingest(
+        "specialty",
+        "cardio",
+        "Tim mach",
+        "Kham tim mach.",
+        embedding=[0.25] * 384,
+        metadata={"_sync_revision": "7"},
+        embedding_model="local-hash",
+        embedding_provenance="local_provider",
+    )
+    assert service.index.get("specialty:cardio", projection="OPERATIONAL") is None
 
 
 class FailingStore:

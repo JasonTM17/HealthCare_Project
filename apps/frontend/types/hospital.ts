@@ -126,7 +126,26 @@ export interface Article {
   authorName?: string | null;
   readingMinutes?: number | null;
   relatedSpecialtySlug?: string | null;
+  contentKind?: "GENERAL" | "DISEASE_GUIDE";
+  coverImageUrl?: string | null;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  tags?: unknown;
+  scheduledPublishAt?: string | null;
   sections?: ArticleSection[];
+  contentLanguage?: string | null;
+  audience?: string | null;
+  topicTags?: unknown;
+  keyTakeaways?: unknown;
+  warningSigns?: unknown;
+  preventionTips?: unknown;
+  whenToSeekCare?: string | null;
+  sourceReferences?: unknown;
+  clinicalMetadata?: unknown;
+  clinicalDisclaimer?: string | null;
+  featured?: boolean;
+  updatedAt?: string | null;
+  version?: number | null;
 }
 
 export interface ArticleSection {
@@ -454,16 +473,184 @@ export interface DoctorScheduleException {
 
 export type AiChatProvenance = "local_provider" | "remote_provider" | "local_fallback";
 
+/** Immutable mode selected when a patient creates a conversation. */
+export type ChatMode = "HOSPITAL_SUPPORT" | "SYMPTOM_TRIAGE" | "HEALTH_EDUCATION";
+
+/** Deterministic safety outcome returned by the backend policy layer. */
+export type ChatSafetyAction =
+  | "ANSWER"
+  | "REFUSE"
+  | "EMERGENCY"
+  | "HUMAN_HANDOFF"
+  | "INSUFFICIENT_EVIDENCE";
+
+export type FeedbackRating = "HELPFUL" | "NOT_HELPFUL";
+export type TriageUrgency = "EMERGENCY" | "HIGH" | "NORMAL";
+export type AiSourceStatus = "CURRENT" | "STALE" | "UNAVAILABLE";
+export type AiContentType = "SPECIALTY" | "ARTICLE" | "FAQ";
+export type AiContentReviewState = "DRAFT" | "SUBMITTED" | "APPROVED" | "CHANGES_REQUESTED" | "REVOKED" | "EXPIRED";
+export type AiContentDecision = "APPROVE" | "REQUEST_CHANGES" | "REVOKE";
+
+export interface AiContentReviewSummary {
+  sourceType: AiContentType;
+  sourceId: string;
+  title: string;
+  state: AiContentReviewState;
+  revision: number;
+  contentHash: string;
+  eligibilityRevision?: number;
+  expiresAt?: string | null;
+  submittedAt?: string | null;
+}
+
+export interface PatientOverview {
+  latestAppointment?: {
+    appointmentDate: string;
+    startTime: string;
+    status: string;
+    paymentStatus: string;
+  } | null;
+  appointmentCount: number;
+  diagnosticResultCount: number;
+  prescriptionCount: number;
+  hasNewDiagnosticResult: boolean;
+  hasNewPrescription: boolean;
+  unreadNotificationCount: number;
+  unreadConsultationCount: number;
+  openCarePlanTaskCount: number;
+}
+
+export interface ConsultationSummary {
+  id: string;
+  appointmentId: string;
+  doctorId: string;
+  doctorName?: string | null;
+  subject: string;
+  status: string;
+  openUntil: string;
+  updatedAt: string;
+  unreadCount: number;
+}
+
+export interface ConsultationMessage {
+  id: string;
+  authorUserId: string;
+  authorRole: "PATIENT" | "DOCTOR" | "ADMIN" | "SYSTEM";
+  body: string;
+  status: "SENT" | "READ";
+  createdAt: string;
+  attachments: ConsultationAttachment[];
+}
+
+export interface ConsultationAttachment {
+  id: string;
+  mimeType: string;
+  sizeBytes: number;
+  scanStatus: "PENDING" | "CLEAN" | "REJECTED";
+  downloadUrl?: string | null;
+}
+
+export interface ConsultationDetail {
+  consultation: ConsultationSummary;
+  messages: ConsultationMessage[];
+}
+
+export interface HealthQuestionSummary {
+  id: string;
+  topicSlug: string;
+  question: string;
+  publicAlias: string;
+  status: string;
+  createdAt: string;
+  answer?: string | null;
+  answerStatus?: string | null;
+}
+
+export interface HealthQuestionReport {
+  id: string;
+  questionId: string;
+  reasonCode: string;
+  status: "OPEN" | "UNDER_REVIEW" | "RESOLVED" | "DISMISSED" | string;
+  createdAt: string;
+  handledAt?: string | null;
+  resolutionCode?: string | null;
+}
+
+export interface CarePlanItem {
+  id: string;
+  sequenceNumber: number;
+  goal: string;
+  reminder?: string | null;
+  status: "OPEN" | "DONE" | "CANCELLED" | string;
+  dueAt?: string | null;
+  completedAt?: string | null;
+}
+
+export interface CarePlan {
+  id: string;
+  appointmentId: string;
+  doctorId: string;
+  doctorName?: string | null;
+  title: string;
+  status: "OPEN" | "DONE" | "CANCELLED" | string;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  items: CarePlanItem[];
+}
+
+export interface AiContentRevision {
+  sourceType: AiContentType;
+  sourceId: string;
+  revision: number;
+  contentHash: string;
+  state: AiContentReviewState;
+  snapshot: Record<string, unknown>;
+  diff?: Record<string, unknown> | null;
+  approvalId?: string | null;
+  expiresAt?: string | null;
+}
+
+export interface AiChatPolicy {
+  policyVersion: string;
+  retentionDays: number;
+  consentText: string;
+  limitationText?: string | null;
+  remoteProviderEnabled?: boolean;
+}
+
+export interface AiTriageSummary {
+  urgencyLevel: TriageUrgency;
+  recommendedSpecialty?: string | null;
+}
+
+export interface AiChatFeedback {
+  rating: FeedbackRating;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
+/** Closed CTA union; href is always server-authorized and relative/tel:115. */
+export type SuggestedAction =
+  | { kind: "VIEW_SOURCE"; label: string; href: string }
+  | { kind: "START_BOOKING"; label: string; href: string }
+  | { kind: "CALL_EMERGENCY"; label: string; href: "tel:115" };
+
 export interface AiChatCitation {
-  source_type: "specialty" | "doctor" | "service" | "package" | "article" | "faq";
+  source_type: "branch" | "specialty" | "doctor" | "service" | "package" | "article" | "faq";
   source_id: string;
   title: string;
+  source_status?: AiSourceStatus;
 }
 
 export interface AiConversation {
   id: string;
   title: string;
   status: "ACTIVE" | "ARCHIVED";
+  /** Older API fixtures may omit mode; the server defaults it to HOSPITAL_SUPPORT. */
+  mode?: ChatMode;
+  consentVersion?: string | null;
+  consentedAt?: string | null;
+  consentRequired?: boolean;
   inFlight: boolean;
   createdAt: string;
   updatedAt: string;
@@ -480,6 +667,11 @@ export interface AiChatMessage {
   disclaimer?: string | null;
   provenance?: AiChatProvenance | null;
   citations: AiChatCitation[];
+  safetyAction?: ChatSafetyAction;
+  triage?: AiTriageSummary | null;
+  suggestedActions?: SuggestedAction[];
+  feedback?: AiChatFeedback | FeedbackRating | null;
+  sourceStatus?: AiSourceStatus;
   createdAt: string;
   completedAt?: string | null;
 }

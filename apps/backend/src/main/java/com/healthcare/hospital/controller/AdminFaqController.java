@@ -9,6 +9,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -37,18 +39,25 @@ public class AdminFaqController {
     }
 
     @PostMapping
-    public ResponseEntity<Faq> create(@Valid @RequestBody FaqRequest request) {
-        return ResponseEntity.ok(adminFaqService.create(request));
+    public ResponseEntity<Faq> create(
+            @Valid @RequestBody FaqRequest request,
+            @AuthenticationPrincipal UserDetails actor) {
+        return ResponseEntity.ok(adminFaqService.create(request, actor));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Faq> update(@PathVariable UUID id, @Valid @RequestBody FaqRequest request) {
-        return ResponseEntity.ok(adminFaqService.update(id, request));
+    public ResponseEntity<Faq> update(
+            @PathVariable UUID id,
+            @Valid @RequestBody FaqRequest request,
+            @AuthenticationPrincipal UserDetails actor) {
+        return ResponseEntity.ok(adminFaqService.update(id, request, actor));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable UUID id) {
-        adminFaqService.delete(id);
+    public ResponseEntity<Void> delete(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal UserDetails actor) {
+        adminFaqService.delete(id, actor);
         return ResponseEntity.noContent().build();
     }
 }

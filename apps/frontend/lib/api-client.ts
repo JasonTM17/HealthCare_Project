@@ -9,6 +9,7 @@ import type {
   MedicalService,
   Faq,
   Article,
+  ArticleSection,
   MedicalRecord,
   Notification,
   Prescription,
@@ -37,7 +38,30 @@ import type {
   AiChatProvenance,
   AiChatMessagePage,
   AiChatExchange,
+  AiChatPolicy,
+  AiChatFeedback,
+  ChatMode,
+  ChatSafetyAction,
+  FeedbackRating,
+  TriageUrgency,
+  AiSourceStatus,
+  SuggestedAction,
+  AiTriageSummary,
+  AiContentType,
+  AiContentReviewState,
+  AiContentDecision,
+  AiContentReviewSummary,
+  AiContentRevision,
   BankTransferPayment,
+  PatientOverview,
+  ConsultationSummary,
+  ConsultationDetail,
+  ConsultationMessage,
+  ConsultationAttachment,
+  HealthQuestionSummary,
+  HealthQuestionReport,
+  CarePlan,
+  CarePlanItem,
 } from "../types/hospital";
 
 export type {
@@ -51,6 +75,7 @@ export type {
   MedicalService,
   Faq,
   Article,
+  ArticleSection,
   MedicalRecord,
   Notification,
   Prescription,
@@ -79,7 +104,30 @@ export type {
   AiChatProvenance,
   AiChatMessagePage,
   AiChatExchange,
+  AiChatPolicy,
+  AiChatFeedback,
+  ChatMode,
+  ChatSafetyAction,
+  FeedbackRating,
+  TriageUrgency,
+  AiSourceStatus,
+  SuggestedAction,
+  AiTriageSummary,
+  AiContentType,
+  AiContentReviewState,
+  AiContentDecision,
+  AiContentReviewSummary,
+  AiContentRevision,
   BankTransferPayment,
+  PatientOverview,
+  ConsultationSummary,
+  ConsultationDetail,
+  ConsultationMessage,
+  ConsultationAttachment,
+  HealthQuestionSummary,
+  HealthQuestionReport,
+  CarePlan,
+  CarePlanItem,
 };
 
 const API_BASE_URL =
@@ -209,7 +257,10 @@ async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
       headers,
       signal: requestController.signal,
     });
-  } catch {
+  } catch (error) {
+    // Preserve caller cancellation so stale chat requests can be ignored by
+    // the experience instead of being rendered as a provider outage.
+    if (error instanceof Error && error.name === "AbortError") throw error;
     throw new ApiError("Không thể kết nối đến hệ thống. Vui lòng thử lại sau.", 0, path);
   } finally {
     clearTimeout(timeoutId);
@@ -472,9 +523,60 @@ interface SpecialtyRecommendationResponse {
 
 const AI_SPECIALTY_RECOMMENDATION_PATH = "/ai/specialty-recommendation";
 const AI_URGENCY_LEVELS = ["EMERGENCY", "HIGH", "NORMAL"] as const;
-const AI_CITATION_SOURCE_TYPES = ["specialty", "doctor", "service", "package", "article", "faq"] as const;
+const AI_CITATION_SOURCE_TYPES = ["branch", "specialty", "doctor", "service", "package", "article", "faq"] as const;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const AI_CITATION_ID_PATTERN = /^[A-Za-z0-9._:-]+$/;
+const CTA_LABEL_MAX_LENGTH = 160;
+// Catalog slugs are bounded by the backend's widest catalog column/policy
+// (articles allow 220 characters; the other CTA sources are narrower). Keep
+// the client validator at that shared upper bound so valid server routes are
+// not silently discarded while still rejecting path metacharacters.
+const CTA_SLUG_PATTERN = /^[A-Za-z0-9][A-Za-z0-9-]{0,219}$/;
+const CTA_SOURCE_PATH_PATTERN = new RegExp(`^/(branches|specialties|doctors|services|packages|articles)/${CTA_SLUG_PATTERN.source.slice(1, -1)}$`);
+const CTA_FAQ_PATH_PATTERN = /^\/faq#faq-([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
+const CTA_BOOKING_QUERY_PATTERN = /^\/dat-lich\?(branchId|specialtyId|doctorId|packageId)=([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
+const CTA_LABEL_CONTROL_PATTERN = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u;
+
+function hasUnsafeUrlCharacters(value: string): boolean {
+  return value.length === 0 || /[\\\u0000-\u001f\u007f\s]/u.test(value) || value.startsWith("//") || /^[A-Za-z][A-Za-z0-9+.-]*:/u.test(value);
+}
+
+function isClosedActionRecord(value: unknown): value is Record<string, unknown> {
+  if (!isRecord(value)) return false;
+  const keys = Object.keys(value).sort();
+  return keys.length === 3 && keys[0] === "href" && keys[1] === "kind" && keys[2] === "label";
+}
+
+/**
+ * Validate the server-owned CTA union before handing an href to Next router
+ * or an anchor. This intentionally rejects every absolute/protocol-relative
+ * URL and every unknown query key.
+ */
+export function isSafeSuggestedAction(value: unknown): value is SuggestedAction {
+  if (!isClosedActionRecord(value)) return false;
+  if (typeof value.kind !== "string" || typeof value.label !== "string" || typeof value.href !== "string") return false;
+  if (CTA_LABEL_CONTROL_PATTERN.test(value.label)) return false;
+  const label = value.label.trim();
+  const href = value.href;
+  if (!label || label.length > CTA_LABEL_MAX_LENGTH) return false;
+  if (value.kind === "CALL_EMERGENCY") return href === "tel:115";
+  if (hasUnsafeUrlCharacters(href)) return false;
+  if (value.kind === "VIEW_SOURCE") return CTA_SOURCE_PATH_PATTERN.test(href) || CTA_FAQ_PATH_PATTERN.test(href);
+  if (value.kind === "START_BOOKING") return CTA_BOOKING_QUERY_PATTERN.test(href);
+  return false;
+}
+
+/** Return only safe, closed-union actions; unsafe server data never reaches UI navigation. */
+export function sanitizeSuggestedActions(value: unknown): SuggestedAction[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isSafeSuggestedAction).slice(0, 3).map((action) => ({
+    ...action,
+    label: action.label.trim(),
+  }));
+}
+
+export const validateSuggestedAction = isSafeSuggestedAction;
+export const isSafeChatAction = isSafeSuggestedAction;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -502,6 +604,35 @@ function isAiTriageProvenance(value: unknown): value is AiTriageProvenance {
 const AI_CHAT_PROVENANCES = ["local_provider", "remote_provider", "local_fallback"] as const;
 const AI_CHAT_STATUSES = ["PENDING", "COMPLETED", "FAILED"] as const;
 const AI_CHAT_ROLES = ["USER", "ASSISTANT"] as const;
+const CHAT_MODES = ["HOSPITAL_SUPPORT", "SYMPTOM_TRIAGE", "HEALTH_EDUCATION"] as const;
+const CHAT_SAFETY_ACTIONS = ["ANSWER", "REFUSE", "EMERGENCY", "HUMAN_HANDOFF", "INSUFFICIENT_EVIDENCE"] as const;
+const CHAT_FEEDBACK_RATINGS = ["HELPFUL", "NOT_HELPFUL"] as const;
+const CHAT_TRIAGE_URGENCY = ["EMERGENCY", "HIGH", "NORMAL"] as const;
+const CHAT_SOURCE_STATUSES = ["CURRENT", "STALE", "UNAVAILABLE"] as const;
+
+export const AI_CHAT_MODES = CHAT_MODES;
+export const AI_CHAT_SAFETY_ACTIONS = CHAT_SAFETY_ACTIONS;
+export const AI_CHAT_FEEDBACK_RATINGS = CHAT_FEEDBACK_RATINGS;
+
+function isChatMode(value: unknown): value is ChatMode {
+  return (CHAT_MODES as readonly unknown[]).includes(value);
+}
+
+function isChatSafetyAction(value: unknown): value is ChatSafetyAction {
+  return (CHAT_SAFETY_ACTIONS as readonly unknown[]).includes(value);
+}
+
+function isFeedbackRating(value: unknown): value is FeedbackRating {
+  return (CHAT_FEEDBACK_RATINGS as readonly unknown[]).includes(value);
+}
+
+function isTriageUrgency(value: unknown): value is TriageUrgency {
+  return (CHAT_TRIAGE_URGENCY as readonly unknown[]).includes(value);
+}
+
+function isSourceStatus(value: unknown): value is AiSourceStatus {
+  return (CHAT_SOURCE_STATUSES as readonly unknown[]).includes(value);
+}
 
 function isAiChatStatus(value: unknown): value is AiChatMessage["status"] {
   return (AI_CHAT_STATUSES as readonly unknown[]).includes(value);
@@ -525,21 +656,63 @@ function invalidAiChatResponse(path: string): ApiError {
 }
 
 function isSafeChatCitation(value: unknown): value is AiChatCitation {
-  return isRecord(value)
-    && Object.keys(value).length === 3
+  if (!isRecord(value)) return false;
+  const keys = Object.keys(value);
+  if (keys.some((key) => !["source_type", "source_id", "title", "source_status", "sourceStatus"].includes(key))) return false;
+  const sourceStatus = value.source_status ?? value.sourceStatus;
+  return keys.length >= 3
     && typeof value.source_type === "string"
     && (AI_CITATION_SOURCE_TYPES as readonly string[]).includes(value.source_type)
     && typeof value.source_id === "string"
     && AI_CITATION_ID_PATTERN.test(value.source_id)
     && typeof value.title === "string"
     && value.title.trim().length > 0
-    && value.title.length <= 300;
+    && value.title.length <= 300
+    && (typeof sourceStatus === "undefined" || isSourceStatus(sourceStatus));
+}
+
+function parseTriage(value: unknown, path: string): AiTriageSummary | null {
+  if (value === null || typeof value === "undefined") return null;
+  if (!isRecord(value) || !isTriageUrgency(value.urgencyLevel ?? value.urgency_level)) {
+    throw invalidAiChatResponse(path);
+  }
+  const recommended = value.recommendedSpecialty ?? value.recommended_specialty;
+  if (typeof recommended !== "undefined" && recommended !== null && typeof recommended !== "string") {
+    throw invalidAiChatResponse(path);
+  }
+  return {
+    urgencyLevel: (value.urgencyLevel ?? value.urgency_level) as TriageUrgency,
+    recommendedSpecialty: (recommended as string | null | undefined) ?? null,
+  };
+}
+
+function parseFeedback(value: unknown, path: string): AiChatFeedback | FeedbackRating | null {
+  if (value === null || typeof value === "undefined") return null;
+  if (isFeedbackRating(value)) return value;
+  if (!isRecord(value) || !isFeedbackRating(value.rating)) throw invalidAiChatResponse(path);
+  const allowed = new Set(["rating", "createdAt", "updatedAt", "created_at", "updated_at"]);
+  if (Object.keys(value).some((key) => !allowed.has(key))) throw invalidAiChatResponse(path);
+  const createdAt = value.createdAt ?? value.created_at;
+  const updatedAt = value.updatedAt ?? value.updated_at;
+  if (typeof createdAt !== "undefined" && createdAt !== null && typeof createdAt !== "string") throw invalidAiChatResponse(path);
+  if (typeof updatedAt !== "undefined" && updatedAt !== null && typeof updatedAt !== "string") throw invalidAiChatResponse(path);
+  return {
+    rating: value.rating,
+    createdAt: (createdAt as string | null | undefined) ?? null,
+    updatedAt: (updatedAt as string | null | undefined) ?? null,
+  };
 }
 
 function parseAiConversation(value: unknown, path: string): AiConversation {
   if (!isRecord(value)) throw invalidAiChatResponse(path);
   const status = value.status;
   const lastMessageAt = value.lastMessageAt;
+  const mode = value.mode ?? value.chatMode;
+  const consentVersion = value.consentVersion ?? value.consent_version;
+  const consentedAt = value.consentedAt ?? value.consented_at;
+  const consentRequired = value.consentRequired ?? value.consent_required;
+  const hasConsentFields = ["consentVersion", "consent_version", "consentedAt", "consented_at", "consentRequired", "consent_required"]
+    .some((key) => Object.prototype.hasOwnProperty.call(value, key));
   if (
     typeof value.id !== "string"
     || !value.id.trim()
@@ -551,6 +724,10 @@ function parseAiConversation(value: unknown, path: string): AiConversation {
     || typeof value.updatedAt !== "string"
     || (typeof lastMessageAt !== "string" && lastMessageAt !== null && typeof lastMessageAt !== "undefined")
     || typeof value.expiresAt !== "string"
+    || (typeof mode !== "undefined" && !isChatMode(mode))
+    || (typeof consentVersion !== "undefined" && consentVersion !== null && typeof consentVersion !== "string")
+    || (typeof consentedAt !== "undefined" && consentedAt !== null && typeof consentedAt !== "string")
+    || (typeof consentRequired !== "undefined" && typeof consentRequired !== "boolean")
   ) {
     throw invalidAiChatResponse(path);
   }
@@ -558,6 +735,12 @@ function parseAiConversation(value: unknown, path: string): AiConversation {
     id: value.id,
     title: value.title,
     status,
+    mode: mode as ChatMode | undefined,
+    consentVersion: (consentVersion as string | null | undefined) ?? null,
+    consentedAt: (consentedAt as string | null | undefined) ?? null,
+    consentRequired: typeof consentRequired === "boolean"
+      ? consentRequired
+      : (hasConsentFields && !consentedAt),
     inFlight: value.inFlight,
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
@@ -571,6 +754,11 @@ function parseAiChatMessage(value: unknown, path: string): AiChatMessage {
   const citations = value.citations;
   const provenance = value.provenance;
   const disclaimer = value.disclaimer;
+  const safetyAction = value.safetyAction ?? value.safety_action;
+  const triage = value.triage;
+  const suggestedActions = value.suggestedActions ?? value.suggested_actions;
+  const feedback = value.feedback;
+  const sourceStatus = value.sourceStatus ?? value.source_status;
   if (
     typeof value.id !== "string"
     || !value.id.trim()
@@ -584,6 +772,10 @@ function parseAiChatMessage(value: unknown, path: string): AiChatMessage {
     || (typeof provenance !== "string" && provenance !== null && typeof provenance !== "undefined")
     || (typeof provenance === "string" && !isAiChatProvenance(provenance))
     || (typeof disclaimer !== "string" && disclaimer !== null && typeof disclaimer !== "undefined")
+    || (typeof safetyAction !== "undefined" && !isChatSafetyAction(safetyAction))
+    || (typeof sourceStatus !== "undefined" && !isSourceStatus(sourceStatus))
+    || (typeof suggestedActions !== "undefined" && !Array.isArray(suggestedActions))
+    || (Array.isArray(suggestedActions) && suggestedActions.some((action) => !isSafeSuggestedAction(action)))
     || typeof value.createdAt !== "string"
     || (typeof value.completedAt !== "string" && value.completedAt !== null && typeof value.completedAt !== "undefined")
   ) {
@@ -597,7 +789,15 @@ function parseAiChatMessage(value: unknown, path: string): AiChatMessage {
     sequence: value.sequence,
     disclaimer: disclaimer ?? null,
     provenance: provenance ?? null,
-    citations,
+    citations: citations.map((citation) => ({
+      ...citation,
+      ...(citation.source_status ? { source_status: citation.source_status } : {}),
+    })),
+    safetyAction: safetyAction as ChatSafetyAction | undefined,
+    triage: parseTriage(triage, path),
+    suggestedActions: sanitizeSuggestedActions(suggestedActions),
+    feedback: parseFeedback(feedback, path),
+    sourceStatus: sourceStatus as AiSourceStatus | undefined,
     createdAt: value.createdAt,
     completedAt: value.completedAt ?? null,
   };
@@ -841,7 +1041,36 @@ export async function submitJobApplication(
 
 export interface AdminPackagePayload { name: string; slug: string; description?: string | null; price: number; active: boolean }
 export interface AdminFaqPayload { question: string; answer: string; active: boolean }
-export interface AdminArticlePayload { title: string; slug: string; summary?: string | null; body?: string | null; active: boolean }
+export interface AdminArticlePayload {
+  title: string;
+  slug: string;
+  summary?: string | null;
+  body?: string | null;
+  category?: string | null;
+  authorName?: string | null;
+  readingMinutes?: number | null;
+  relatedSpecialtySlug?: string | null;
+  contentKind?: "GENERAL" | "DISEASE_GUIDE" | null;
+  coverImageUrl?: string | null;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  tags?: string[];
+  scheduledPublishAt?: string | null;
+  version?: number | null;
+  sections?: ArticleSection[];
+  contentLanguage?: string | null;
+  audience?: string | null;
+  topicTags?: string[];
+  keyTakeaways?: string[];
+  warningSigns?: string[];
+  preventionTips?: string[];
+  whenToSeekCare?: string | null;
+  sourceReferences?: string[];
+  clinicalMetadata?: Record<string, string> | null;
+  clinicalDisclaimer?: string | null;
+  featured?: boolean | null;
+  active: boolean;
+}
 export type AdminArticle = Omit<Article, "summary" | "body" | "publishedAt"> & {
   summary?: string | null;
   body?: string | null;
@@ -943,12 +1172,174 @@ export async function adminDeleteService(slug: string): Promise<void> {
 export async function fetchArticles(
   page = 0,
   size = 50,
+  contentKind?: "GENERAL" | "DISEASE_GUIDE",
 ): Promise<Page<Article>> {
-  return getJson<Page<Article>>(`/hospital/articles${toQuery({ page, size })}`);
+  return getJson<Page<Article>>(`/hospital/articles${toQuery({ page, size, contentKind })}`);
 }
 
 export async function fetchArticleBySlug(slug: string): Promise<Article> {
   return getJson<Article>(`/hospital/articles/${encodeURIComponent(slug)}`);
+}
+
+export async function fetchPatientOverview(): Promise<PatientOverview> {
+  return getAuthenticatedJson<PatientOverview>("/patient/overview");
+}
+
+export async function fetchPatientConsultations(): Promise<ConsultationSummary[]> {
+  return getAuthenticatedJson<ConsultationSummary[]>("/patient/consultations");
+}
+
+export async function fetchPatientConsultation(id: string): Promise<ConsultationDetail> {
+  return getAuthenticatedJson<ConsultationDetail>(`/patient/consultations/${encodeURIComponent(id)}`);
+}
+
+export async function fetchPatientConsultationMessages(id: string, limit = 100): Promise<ConsultationMessage[]> {
+  return getAuthenticatedJson<ConsultationMessage[]>(
+    `/patient/consultations/${encodeURIComponent(id)}/messages${toQuery({ limit })}`,
+  );
+}
+
+export async function createPatientConsultation(payload: {
+  appointmentId: string;
+  subject: string;
+  consentAccepted: boolean;
+  consentVersion: string;
+}): Promise<ConsultationSummary> {
+  return getAuthenticatedJson<ConsultationSummary>("/patient/consultations", {
+    method: "POST", body: JSON.stringify(payload),
+  });
+}
+
+export async function sendPatientConsultationMessage(id: string, body: string, idempotencyKey: string): Promise<ConsultationMessage> {
+  return getAuthenticatedJson<ConsultationMessage>(`/patient/consultations/${encodeURIComponent(id)}/messages`, {
+    method: "POST", headers: { "Idempotency-Key": idempotencyKey }, body: JSON.stringify({ body }),
+  });
+}
+
+export async function markPatientConsultationRead(id: string, lastReadMessageId?: string): Promise<void> {
+  await getAuthenticatedJson<void>(`/patient/consultations/${encodeURIComponent(id)}/read`, {
+    method: "POST", body: JSON.stringify({ lastReadMessageId: lastReadMessageId ?? null }),
+  });
+}
+
+export async function closePatientConsultation(id: string): Promise<void> {
+  await getAuthenticatedJson<void>(`/patient/consultations/${encodeURIComponent(id)}/close`, { method: "POST" });
+}
+
+export async function fetchPatientCarePlans(): Promise<CarePlan[]> {
+  return getAuthenticatedJson<CarePlan[]>("/patient/care-plans");
+}
+
+export async function completePatientCarePlanItem(id: string): Promise<CarePlanItem> {
+  return getAuthenticatedJson<CarePlanItem>(`/patient/care-plans/items/${encodeURIComponent(id)}/complete`, { method: "POST" });
+}
+
+export async function fetchDoctorCarePlans(): Promise<CarePlan[]> {
+  return getAuthenticatedJson<CarePlan[]>("/doctor/care-plans");
+}
+
+export async function createDoctorCarePlan(payload: {
+  appointmentId: string;
+  title: string;
+  items: Array<{ goal: string; reminder?: string | null; dueAt?: string | null }>;
+}): Promise<CarePlan> {
+  return getAuthenticatedJson<CarePlan>("/doctor/care-plans", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function fetchDoctorConsultations(): Promise<ConsultationSummary[]> {
+  return getAuthenticatedJson<ConsultationSummary[]>("/doctor/consultations");
+}
+
+export async function fetchDoctorConsultation(id: string): Promise<ConsultationDetail> {
+  return getAuthenticatedJson<ConsultationDetail>(`/doctor/consultations/${encodeURIComponent(id)}`);
+}
+
+export async function sendDoctorConsultationMessage(id: string, body: string, idempotencyKey: string): Promise<ConsultationMessage> {
+  return getAuthenticatedJson<ConsultationMessage>(`/doctor/consultations/${encodeURIComponent(id)}/messages`, {
+    method: "POST", headers: { "Idempotency-Key": idempotencyKey }, body: JSON.stringify({ body }),
+  });
+}
+
+export async function handoffDoctorConsultation(id: string, doctorId: string): Promise<void> {
+  await getAuthenticatedJson<void>(`/doctor/consultations/${encodeURIComponent(id)}/handoff`, {
+    method: "PUT", body: JSON.stringify({ doctorId }),
+  });
+}
+
+export async function fetchPublishedHealthQuestions(topic?: string): Promise<HealthQuestionSummary[]> {
+  return getJson<HealthQuestionSummary[]>(`/hospital/health-questions${toQuery({ topic })}`);
+}
+
+export async function fetchPatientHealthQuestions(): Promise<HealthQuestionSummary[]> {
+  return getAuthenticatedJson<HealthQuestionSummary[]>("/patient/health-questions");
+}
+
+export async function createPatientHealthQuestion(payload: {
+  topicSlug: string;
+  question: string;
+  publicAlias: string;
+}): Promise<HealthQuestionSummary> {
+  return getAuthenticatedJson<HealthQuestionSummary>("/patient/health-questions", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function reportPublishedHealthQuestion(
+  id: string,
+  reasonCode: string,
+): Promise<HealthQuestionReport> {
+  return getAuthenticatedJson<HealthQuestionReport>(
+    `/patient/health-questions/${encodeURIComponent(id)}/reports`,
+    { method: "POST", body: JSON.stringify({ reasonCode }) },
+  );
+}
+
+export async function adminListHealthQuestions(state?: string): Promise<HealthQuestionSummary[]> {
+  return getAuthenticatedJson<HealthQuestionSummary[]>(`/admin/health-questions${toQuery({ state })}`);
+}
+
+export async function adminModerateHealthQuestion(id: string, decision: string, reasonCode?: string): Promise<void> {
+  await getAuthenticatedJson<void>(`/admin/health-questions/${encodeURIComponent(id)}/moderation`, {
+    method: "PUT", body: JSON.stringify({ decision, reasonCode: reasonCode ?? null }),
+  });
+}
+
+export async function adminListHealthQuestionReports(
+  id: string,
+  status?: string,
+): Promise<HealthQuestionReport[]> {
+  return getAuthenticatedJson<HealthQuestionReport[]>(
+    `/admin/health-questions/${encodeURIComponent(id)}/reports${toQuery({ status })}`,
+  );
+}
+
+export async function adminDecideHealthQuestionReport(
+  questionId: string,
+  reportId: string,
+  status: string,
+  resolutionCode?: string,
+): Promise<HealthQuestionReport> {
+  return getAuthenticatedJson<HealthQuestionReport>(
+    `/admin/health-questions/${encodeURIComponent(questionId)}/reports/${encodeURIComponent(reportId)}`,
+    { method: "PUT", body: JSON.stringify({ status, resolutionCode: resolutionCode ?? null }) },
+  );
+}
+
+export async function doctorAnswerHealthQuestion(id: string, answer: string): Promise<void> {
+  await getAuthenticatedJson<void>(`/doctor/health-questions/${encodeURIComponent(id)}/answer`, {
+    method: "PUT", body: JSON.stringify({ answer }),
+  });
+}
+
+export async function doctorListHealthQuestions(): Promise<HealthQuestionSummary[]> {
+  return getAuthenticatedJson<HealthQuestionSummary[]>("/doctor/health-questions");
+}
+
+export async function doctorDecideHealthQuestion(id: string, decision: string, reasonCode?: string): Promise<void> {
+  await getAuthenticatedJson<void>(`/doctor/health-questions/${encodeURIComponent(id)}/decision`, {
+    method: "PUT", body: JSON.stringify({ decision, reasonCode: reasonCode ?? null }),
+  });
 }
 
 // ── Admin: Doctors ──────────────────────────────────────────────────────────
@@ -1276,25 +1667,93 @@ export async function fetchSemanticSearch(query: string, topK = 10): Promise<Sem
   );
 }
 
-export async function createAiConversation(title?: string): Promise<AiConversation> {
+export interface CreateAiConversationOptions {
+  title?: string;
+  mode?: ChatMode;
+  consentAccepted?: boolean;
+  signal?: AbortSignal;
+}
+
+function parseAiChatPolicy(value: unknown, path: string): AiChatPolicy {
+  if (!isRecord(value)) throw invalidAiChatResponse(path);
+  const policyVersion = value.policyVersion ?? value.policy_version;
+  const retentionDays = value.retentionDays ?? value.retention_days;
+  const consentText = value.consentText ?? value.consent_text ?? value.content;
+  const limitationText = value.limitationText ?? value.limitation_text;
+  const remoteProviderEnabled = value.remoteProviderEnabled ?? value.remote_provider_enabled;
+  if (
+    typeof policyVersion !== "string" || !policyVersion.trim()
+    || typeof retentionDays !== "number" || !Number.isInteger(retentionDays) || retentionDays <= 0
+    || typeof consentText !== "string" || !consentText.trim()
+    || (typeof limitationText !== "undefined" && limitationText !== null && typeof limitationText !== "string")
+    || (typeof remoteProviderEnabled !== "undefined" && typeof remoteProviderEnabled !== "boolean")
+  ) throw invalidAiChatResponse(path);
+  return {
+    policyVersion,
+    retentionDays,
+    consentText,
+    limitationText: (limitationText as string | null | undefined) ?? null,
+    remoteProviderEnabled: remoteProviderEnabled as boolean | undefined,
+  };
+}
+
+export async function fetchAiChatPolicy(options: { signal?: AbortSignal } = {}): Promise<AiChatPolicy> {
+  const path = "/ai/chat-policy";
+  const response = await getAuthenticatedJson<unknown>(path, { signal: options.signal });
+  return parseAiChatPolicy(response, path);
+}
+
+export async function createAiConversation(
+  titleOrOptions?: string | CreateAiConversationOptions,
+): Promise<AiConversation> {
   const path = "/ai/conversations";
+  const options: CreateAiConversationOptions = typeof titleOrOptions === "string"
+    ? { title: titleOrOptions }
+    : (titleOrOptions ?? {});
+  if (typeof options.mode !== "undefined" && !isChatMode(options.mode)) {
+    throw new ApiError("Chế độ trợ lý không hợp lệ.", 400, path, { code: "CHAT_MODE_INVALID" });
+  }
+  const body: CreateAiConversationOptions = {};
+  if (options.title?.trim()) body.title = options.title.trim();
+  if (options.mode) body.mode = options.mode;
+  if (typeof options.consentAccepted === "boolean") body.consentAccepted = options.consentAccepted;
   const response = await getAuthenticatedJson<unknown>(path, {
     method: "POST",
-    body: JSON.stringify(title?.trim() ? { title: title.trim() } : {}),
+    signal: options.signal,
+    body: JSON.stringify(body),
   });
   return parseAiConversation(response, path);
 }
 
-export async function fetchAiConversations(): Promise<AiConversation[]> {
+export async function updateAiConversationConsent(
+  conversationId: string,
+  policyVersion: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<AiConversation> {
+  const path = `/ai/conversations/${encodeURIComponent(conversationId)}/consent`;
+  const normalizedVersion = policyVersion.trim();
+  if (!normalizedVersion) throw new ApiError("Phiên bản đồng ý không hợp lệ.", 400, path, { code: "CHAT_CONSENT_VERSION_STALE" });
+  const response = await getAuthenticatedJson<unknown>(path, {
+    method: "PUT",
+    signal: options.signal,
+    body: JSON.stringify({ accepted: true, policyVersion: normalizedVersion }),
+  });
+  return parseAiConversation(response, path);
+}
+
+export const consentAiConversation = updateAiConversationConsent;
+export const acceptAiConversationConsent = updateAiConversationConsent;
+
+export async function fetchAiConversations(options: { signal?: AbortSignal } = {}): Promise<AiConversation[]> {
   const path = "/ai/conversations";
-  const response = await getAuthenticatedJson<unknown>(path);
+  const response = await getAuthenticatedJson<unknown>(path, { signal: options.signal });
   if (!Array.isArray(response)) throw invalidAiChatResponse(path);
   return response.map((conversation) => parseAiConversation(conversation, path));
 }
 
-export async function fetchAiConversation(conversationId: string): Promise<AiConversation> {
+export async function fetchAiConversation(conversationId: string, options: { signal?: AbortSignal } = {}): Promise<AiConversation> {
   const path = `/ai/conversations/${encodeURIComponent(conversationId)}`;
-  const response = await getAuthenticatedJson<unknown>(path);
+  const response = await getAuthenticatedJson<unknown>(path, { signal: options.signal });
   return parseAiConversation(response, path);
 }
 
@@ -1302,12 +1761,13 @@ export async function fetchAiConversationMessages(
   conversationId: string,
   cursor?: string | null,
   limit = 30,
+  options: { signal?: AbortSignal } = {},
 ): Promise<AiChatMessagePage> {
   const path = `/ai/conversations/${encodeURIComponent(conversationId)}/messages${toQuery({
     cursor: cursor ?? undefined,
     limit: Math.max(1, Math.min(limit, 100)),
   })}`;
-  const response = await getAuthenticatedJson<unknown>(path);
+  const response = await getAuthenticatedJson<unknown>(path, { signal: options.signal });
   return parseAiChatMessagePage(response, path);
 }
 
@@ -1315,14 +1775,197 @@ export async function sendAiConversationMessage(
   conversationId: string,
   content: string,
   idempotencyKey: string,
+  options: { signal?: AbortSignal } = {},
 ): Promise<AiChatExchange> {
   const path = `/ai/conversations/${encodeURIComponent(conversationId)}/messages`;
   const response = await getAuthenticatedJson<unknown>(path, {
     method: "POST",
     headers: { "Idempotency-Key": idempotencyKey },
     body: JSON.stringify({ content }),
+    signal: options.signal,
   });
   return parseAiChatExchange(response, path);
+}
+
+function parseFeedbackState(value: unknown, path: string): AiChatFeedback {
+  const parsed = parseFeedback(value, path);
+  if (!parsed) throw invalidAiChatResponse(path);
+  if (typeof parsed === "string") return { rating: parsed, createdAt: null, updatedAt: null };
+  return parsed;
+}
+
+export async function updateAiMessageFeedback(
+  conversationId: string,
+  messageId: string,
+  rating: FeedbackRating,
+): Promise<AiChatFeedback> {
+  const path = `/ai/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}/feedback`;
+  if (!isFeedbackRating(rating)) throw new ApiError("Đánh giá không hợp lệ.", 400, path, { code: "CHAT_FEEDBACK_INVALID" });
+  const response = await getAuthenticatedJson<unknown>(path, {
+    method: "PUT",
+    body: JSON.stringify({ rating }),
+  });
+  // The Spring contract returns the new feedback state. Accept a wrapped
+  // `{feedback: ...}` shape as a compatibility bridge for older adapters.
+  if (isRecord(response) && "feedback" in response) return parseFeedbackState(response.feedback, path);
+  return parseFeedbackState(response, path);
+}
+
+export const setAiMessageFeedback = updateAiMessageFeedback;
+
+export async function deleteAiMessageFeedback(
+  conversationId: string,
+  messageId: string,
+): Promise<void> {
+  const path = `/ai/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}/feedback`;
+  await getAuthenticatedJson<void>(path, { method: "DELETE" });
+}
+
+export const removeAiMessageFeedback = deleteAiMessageFeedback;
+
+const AI_CONTENT_TYPES = ["SPECIALTY", "ARTICLE", "FAQ"] as const;
+const AI_CONTENT_REVIEW_STATES = ["DRAFT", "SUBMITTED", "APPROVED", "CHANGES_REQUESTED", "REVOKED", "EXPIRED"] as const;
+const AI_CONTENT_DECISIONS = ["APPROVE", "REQUEST_CHANGES", "REVOKE"] as const;
+const SHA256_PATTERN = /^[0-9a-f]{64}$/i;
+
+function isAiContentType(value: unknown): value is AiContentType {
+  return (AI_CONTENT_TYPES as readonly unknown[]).includes(value);
+}
+
+function isAiContentReviewState(value: unknown): value is AiContentReviewState {
+  return (AI_CONTENT_REVIEW_STATES as readonly unknown[]).includes(value);
+}
+
+function isAiContentDecision(value: unknown): value is AiContentDecision {
+  return (AI_CONTENT_DECISIONS as readonly unknown[]).includes(value);
+}
+
+function normalizeContentType(value: AiContentType | string): AiContentType {
+  const normalized = value.toUpperCase();
+  if (!isAiContentType(normalized)) throw new ApiError("Loại nội dung AI không hợp lệ.", 400, "/ai-content", { code: "AI_CONTENT_REVISION_STALE" });
+  return normalized;
+}
+
+function parseAiContentReviewSummary(value: unknown, path: string): AiContentReviewSummary {
+  if (!isRecord(value)) throw invalidAiChatResponse(path);
+  const sourceType = value.sourceType ?? value.source_type;
+  const sourceId = value.sourceId ?? value.source_id;
+  const contentHash = value.contentHash ?? value.content_hash;
+  const eligibilityRevision = value.eligibilityRevision ?? value.eligibility_revision;
+  const submittedAt = value.submittedAt ?? value.submitted_at;
+  const expiresAt = value.expiresAt ?? value.expires_at;
+  if (
+    !isAiContentType(sourceType) || typeof sourceId !== "string" || !sourceId.trim()
+    || typeof value.title !== "string" || !value.title.trim()
+    || !isAiContentReviewState(value.state)
+    || typeof value.revision !== "number" || !Number.isInteger(value.revision) || value.revision < 1
+     || typeof contentHash !== "string" || !SHA256_PATTERN.test(contentHash.trim())
+    || (typeof eligibilityRevision !== "undefined" && typeof eligibilityRevision !== "number")
+    || (typeof submittedAt !== "undefined" && submittedAt !== null && typeof submittedAt !== "string")
+    || (typeof expiresAt !== "undefined" && expiresAt !== null && typeof expiresAt !== "string")
+  ) throw invalidAiChatResponse(path);
+  return {
+    sourceType,
+    sourceId,
+    title: value.title,
+    state: value.state,
+    revision: value.revision,
+    contentHash,
+    eligibilityRevision: eligibilityRevision as number | undefined,
+    submittedAt: (submittedAt as string | null | undefined) ?? null,
+    expiresAt: (expiresAt as string | null | undefined) ?? null,
+  };
+}
+
+function parseAiContentRevision(value: unknown, path: string): AiContentRevision {
+  if (!isRecord(value)) throw invalidAiChatResponse(path);
+  const sourceType = value.sourceType ?? value.source_type;
+  const sourceId = value.sourceId ?? value.source_id;
+  const contentHash = value.contentHash ?? value.content_hash;
+  const approvalId = value.approvalId ?? value.approval_id;
+  const expiresAt = value.expiresAt ?? value.expires_at;
+  if (
+    !isAiContentType(sourceType) || typeof sourceId !== "string" || !sourceId.trim()
+    || typeof value.revision !== "number" || !Number.isInteger(value.revision) || value.revision < 1
+     || typeof contentHash !== "string" || !SHA256_PATTERN.test(contentHash.trim())
+    || !isAiContentReviewState(value.state) || !isRecord(value.snapshot)
+    || (typeof value.diff !== "undefined" && value.diff !== null && !isRecord(value.diff))
+    || (typeof approvalId !== "undefined" && approvalId !== null && typeof approvalId !== "string")
+    || (typeof expiresAt !== "undefined" && expiresAt !== null && typeof expiresAt !== "string")
+  ) throw invalidAiChatResponse(path);
+  return {
+    sourceType,
+    sourceId,
+    revision: value.revision,
+    contentHash,
+    state: value.state,
+    snapshot: value.snapshot,
+    diff: (value.diff as Record<string, unknown> | null | undefined) ?? null,
+    approvalId: (approvalId as string | null | undefined) ?? null,
+    expiresAt: (expiresAt as string | null | undefined) ?? null,
+  };
+}
+
+export async function submitAiContentRevision(
+  type: AiContentType,
+  id: string,
+  payload: { revision: number; contentHash: string },
+): Promise<AiContentReviewSummary> {
+  const normalizedType = normalizeContentType(type);
+  const path = `/admin/ai-content/${normalizedType}/${encodeURIComponent(id)}/submission`;
+   if (!Number.isInteger(payload.revision) || payload.revision < 1 || !SHA256_PATTERN.test(payload.contentHash.trim())) {
+    throw new ApiError("Bản revision hoặc hash không hợp lệ.", 409, path, { code: "AI_CONTENT_REVISION_STALE" });
+  }
+  const response = await getAuthenticatedJson<unknown>(path, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+  return parseAiContentReviewSummary(response, path);
+}
+
+export async function fetchDoctorAiContentReviews(
+  filters: { state?: AiContentReviewState; page?: number; size?: number } = {},
+): Promise<Page<AiContentReviewSummary>> {
+  const path = "/doctor/ai-content/reviews";
+  if (filters.state && !isAiContentReviewState(filters.state)) {
+    throw new ApiError("Trạng thái review không hợp lệ.", 400, path);
+  }
+  const response = await getAuthenticatedJson<unknown>(`${path}${toQuery({ state: filters.state, page: filters.page ?? 0, size: filters.size ?? 20 })}`);
+  if (!isRecord(response) || !Array.isArray(response.content)) throw invalidAiChatResponse(path);
+  return {
+    ...(response as unknown as Page<AiContentReviewSummary>),
+    content: response.content.map((item) => parseAiContentReviewSummary(item, path)),
+  };
+}
+
+export async function fetchDoctorAiContentRevision(
+  type: AiContentType,
+  id: string,
+  revision: number,
+  options: { signal?: AbortSignal } = {},
+): Promise<AiContentRevision> {
+  const normalizedType = normalizeContentType(type);
+  const path = `/doctor/ai-content/${normalizedType}/${encodeURIComponent(id)}/revisions/${revision}`;
+  const response = await getAuthenticatedJson<unknown>(path, { signal: options.signal });
+  return parseAiContentRevision(response, path);
+}
+
+export async function decideDoctorAiContentRevision(
+  type: AiContentType,
+  id: string,
+  revision: number,
+  payload: { decision: AiContentDecision; reason?: string },
+): Promise<AiContentReviewSummary> {
+  const normalizedType = normalizeContentType(type);
+  const path = `/doctor/ai-content/${normalizedType}/${encodeURIComponent(id)}/revisions/${revision}/decision`;
+  if (!isAiContentDecision(payload.decision) || (payload.decision !== "APPROVE" && !payload.reason?.trim())) {
+    throw new ApiError("Quyết định hoặc lý do review không hợp lệ.", 400, path, { code: "AI_CONTENT_ALREADY_DECIDED" });
+  }
+  const response = await getAuthenticatedJson<unknown>(path, {
+    method: "PUT",
+    body: JSON.stringify({ decision: payload.decision, reason: payload.reason?.trim() || undefined }),
+  });
+  return parseAiContentReviewSummary(response, path);
 }
 
 export async function deleteAiConversation(conversationId: string): Promise<void> {

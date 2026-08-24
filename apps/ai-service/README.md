@@ -28,6 +28,14 @@ enable trusted ingestion, configure both `RAG_INGEST_ENABLED=true` and a secret
 `RAG_INGEST_TOKEN`, then send that token in the `X-RAG-Ingest-Token` header.
 Do not expose this endpoint publicly.
 
+For the patient chatbot, the durable adapter must use the protected projection
+contract: `SUPABASE_DB_SCHEMA=healthcare`,
+`SUPABASE_RAG_TABLE=ai_chat_documents`, and
+`SUPABASE_RAG_RPC=match_chat_documents`. The database role is server-only;
+never put its DSN or a `service_role` credential in the frontend. The legacy
+`ai_documents`/`match_documents` pair remains for the older public catalog
+index and is rejected by the patient-chat adapter.
+
 Ingestion accepts `active`, `published`, and optional bounded metadata. Only
 documents with both flags enabled are searchable; sending an inactive or
 unpublished update removes the previous searchable version. Content is
@@ -67,10 +75,16 @@ AI_TIMEOUT_SECONDS=10
 AI_MAX_INPUT_CHARS=10000
 AI_MAX_RETRIEVED_CHUNKS=5
 AI_PATIENT_CHAT_REMOTE_ENABLED=false
+AI_CHAT_REMOTE_PROVIDER_ENABLED=false
+AI_SERVICE_RUNTIME=local
+REMOTE_AI_SYNTHETIC_ONLY=true
+REMOTE_AI_KILL_SWITCH=false
+REMOTE_AI_PROVIDER_ALLOWLIST=deepseek
+REMOTE_AI_HTTPS_HOST_ALLOWLIST=api.deepseek.com
 AI_CHAT_CIRCUIT_FAILURE_THRESHOLD=3
 AI_CHAT_CIRCUIT_RESET_SECONDS=30
 RAG_MAX_DOCUMENT_CHARS=20000
-RAG_MAX_DOCUMENTS=5000
+RAG_MAX_DOCUMENTS=10000
 
 # Legacy aliases, used only for AI_PROVIDER=deepseek when the corresponding
 # AI_* value is empty.
@@ -90,9 +104,25 @@ default is `deepseek-v4-flash`. When `AI_PROVIDER=openai`, DeepSeek credentials
 and defaults are ignored; configure the provider-neutral key/model/base URL
 explicitly.
 
+DeepSeek is a chat-generation provider in this contract, not an assumed vector
+model. Keep `EMBEDDING_PROVIDER=local` and the deterministic 384-dimensional
+`local-hash` profile for local/test and for the initial Supabase projection.
+Only switch to a remote embedding provider after its endpoint, dimension,
+model provenance, privacy review, and negative-PII tests have been approved.
+Remote patient chat requires a synthetic-beta runtime, `AI_PROVIDER=deepseek`,
+`AI_PATIENT_CHAT_REMOTE_ENABLED=true`, `RAG_STORAGE_BACKEND=supabase`, and
+`SUPABASE_RAG_FALLBACK_TO_MEMORY=false`. The Spring provenance switch
+`AI_CHAT_REMOTE_PROVIDER_ENABLED` is a second independent gate. Production
+startup rejects the combination and `REMOTE_AI_KILL_SWITCH=true` disables it;
+local/test defaults never call DeepSeek. Every generate request in the
+synthetic-beta runtime must carry the internal `synthetic_beta=true` assertion.
+
 Embedding vectors are capped at 4,096 dimensions. Indexed documents retain
 their embedding model and provenance, reject mixed model/provenance/dimension
-contracts, and are bounded by `RAG_MAX_DOCUMENTS` (5,000 by default).
+contracts, and are bounded by `RAG_MAX_DOCUMENTS` (10,000 by default). The
+`/rag/sources` reconciliation endpoint is cursor-paginated and returns
+`next_cursor`, `complete`, and `total` metadata on paged requests; callers must
+not treat a single 5,000-row page as a complete snapshot.
 
 Provider calls use no automatic retries and a bounded timeout of at most 60
 seconds. In `local`,

@@ -24,6 +24,20 @@ public interface SyncOutboxPort {
         OffsetDateTime now
     );
 
+    /**
+     * Claim only one server-owned classification.  Consumers must not steal
+     * events belonging to another projection writer (for example the clinical
+     * patient-chat worker must not acknowledge public-catalog events).
+     */
+    SyncBatch claimBatchForClassification(
+        SyncCursor after,
+        int limit,
+        UUID workerId,
+        Duration lease,
+        OffsetDateTime now,
+        SyncDataClassification classification
+    );
+
     void acknowledge(UUID eventId, UUID claimToken, OffsetDateTime acknowledgedAt);
 
     void retryOrDeadLetter(

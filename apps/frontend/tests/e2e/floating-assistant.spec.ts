@@ -61,6 +61,20 @@ async function installChatMocks(
     window.sessionStorage.setItem(key, value);
   }, { key: AUTH_STORAGE_KEY, value: JSON.stringify(PATIENT_SESSION) });
 
+  await context.route("**/api/v1/ai/chat-policy", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        policyVersion: "2026-08-23",
+        retentionDays: 90,
+        consentText: "Tôi đồng ý dùng trợ lý sức khỏe.",
+        limitationText: "Không thay thế bác sĩ.",
+        remoteProviderEnabled: false,
+      }),
+    });
+  });
+
   await context.route("**/api/v1/ai/conversations**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -142,7 +156,10 @@ test("patient mobile widget creates and sends through the REST conversation API"
   await expect(dialog.getByText("Bạn nên mang giấy tờ tùy thân, kết quả cũ và danh sách thuốc đang dùng.")).toBeVisible();
   await expect(dialog.getByText("Nguồn HealthCare", { exact: true })).toBeVisible();
   await expect(dialog.getByText("Thông tin chỉ dùng để tham khảo.", { exact: true })).toBeVisible();
-  await expect(dialog.getByRole("link", { name: "Nguồn tham khảo: Chuẩn bị trước khi đi khám" })).toHaveAttribute("href", /source_type=faq/);
+  // Citations are intentionally text-only; server-owned suggested actions are
+  // the only clickable links in the shared assistant.
+  await expect(dialog.getByText("Chuẩn bị trước khi đi khám", { exact: true })).toBeVisible();
+  await expect(dialog.locator("a[href*='source_type=faq']")).toHaveCount(0);
   await expect(dialog.getByRole("link", { name: /Mở trợ lý đầy đủ/ })).toHaveAttribute("href", "/patient/chat");
   expect(observedKeys).toHaveLength(1);
   expect(observedKeys[0]).toMatch(/^floating-chat-/);

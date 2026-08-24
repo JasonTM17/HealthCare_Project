@@ -9,6 +9,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -35,18 +37,25 @@ public class AdminArticleController {
     }
 
     @PostMapping
-    public ResponseEntity<Article> create(@Valid @RequestBody ArticleRequest request) {
-        return ResponseEntity.ok(adminArticleService.create(request));
+    public ResponseEntity<Article> create(
+            @Valid @RequestBody ArticleRequest request,
+            @AuthenticationPrincipal UserDetails actor) {
+        return ResponseEntity.ok(adminArticleService.create(request, actor));
     }
 
     @PutMapping("/{slug}")
-    public ResponseEntity<Article> update(@PathVariable String slug, @Valid @RequestBody ArticleRequest request) {
-        return ResponseEntity.ok(adminArticleService.update(slug, request));
+    public ResponseEntity<Article> update(
+            @PathVariable String slug,
+            @Valid @RequestBody ArticleRequest request,
+            @AuthenticationPrincipal UserDetails actor) {
+        return ResponseEntity.ok(adminArticleService.update(slug, request, actor));
     }
 
     @DeleteMapping("/{slug}")
-    public ResponseEntity<Void> delete(@PathVariable String slug) {
-        adminArticleService.delete(slug);
+    public ResponseEntity<Void> delete(
+            @PathVariable String slug,
+            @AuthenticationPrincipal UserDetails actor) {
+        adminArticleService.delete(slug, actor);
         return ResponseEntity.noContent().build();
     }
 }

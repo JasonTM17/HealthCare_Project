@@ -11,6 +11,7 @@ import com.healthcare.ai.service.AiService;
 import com.healthcare.exception.BusinessException;
 import com.healthcare.user.entity.User;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -32,6 +33,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -43,6 +45,14 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
     @Autowired
     private AiConversationService conversationService;
 
+    @BeforeEach
+    void configureLegacyProviderDouble() {
+        // These persistence/lease tests exercise the old AiService.chat stub;
+        // explicitly make the additive retrieve endpoint unavailable so the
+        // service's narrowly-scoped test compatibility path is selected.
+        when(aiService.retrieveChat(any())).thenReturn(null);
+    }
+
     @Test
     @WithMockUser(username = "patient.legacy-chat@example.com", roles = "PATIENT")
     void patientCannotBypassPersistentHistoryThroughLegacyChat() throws Exception {
@@ -50,6 +60,57 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"message\":\"Toi can thong tin tham khao\",\"recent_history\":[]}"))
             .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "patient.invalid-mode@example.com", roles = "PATIENT")
+    void invalidChatModeHasStableMachineReadableError() throws Exception {
+        createUser("patient.invalid-mode@example.com");
+
+        mockMvc.perform(post("/api/v1/ai/conversations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"mode\":\"NOT_A_CHAT_MODE\"}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("CHAT_MODE_INVALID"));
+    }
+
+    @Test
+    @WithMockUser(username = "patient.rollback-mode@example.com", roles = "PATIENT")
+    void disabledClinicalModeFailsClosedBeforeCreatingConversation() throws Exception {
+        createUser("patient.rollback-mode@example.com");
+
+        mockMvc.perform(post("/api/v1/ai/conversations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"mode\":\"SYMPTOM_TRIAGE\"}"))
+            .andExpect(status().isServiceUnavailable())
+            .andExpect(jsonPath("$.code").value("AI_UNAVAILABLE"));
+
+        assertThat(aiConversationRepository.findAll()).isEmpty();
+    }
+
+    @Test
+    @WithMockUser(username = "patient.remote-policy@example.com", roles = "PATIENT")
+    void patientPolicyKeepsRemoteProviderDisabledByDefault() throws Exception {
+        createUser("patient.remote-policy@example.com");
+
+        mockMvc.perform(get("/api/v1/ai/chat-policy"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.policyVersion").value("patient-chat-v1"))
+            .andExpect(jsonPath("$.retentionDays").value(90))
+            .andExpect(jsonPath("$.remoteProviderEnabled").value(false));
+    }
+
+    @Test
+    @WithMockUser(username = "patient.invalid-feedback@example.com", roles = "PATIENT")
+    void invalidFeedbackRatingHasStableMachineReadableError() throws Exception {
+        createUser("patient.invalid-feedback@example.com");
+
+        mockMvc.perform(put("/api/v1/ai/conversations/{conversationId}/messages/{messageId}/feedback",
+                UUID.randomUUID(), UUID.randomUUID())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"rating\":\"NOT_A_RATING\"}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("CHAT_FEEDBACK_INVALID"));
     }
 
     @Test
@@ -80,7 +141,7 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
 
         String conversationId = mockMvc.perform(post("/api/v1/ai/conversations")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{}"))
+                .content("{\"consentAccepted\":true}"))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.title").value("Cuoc tro chuyen moi"))
             .andReturn()
@@ -472,6 +533,12 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
         conversation.setCreatedAt(now);
         conversation.setUpdatedAt(now);
         conversation.setExpiresAt(expiresAt);
+        // Integration scenarios that exercise message processing represent a
+        // patient who has already accepted the current policy.  Keep the
+        // explicit API contract tests responsible for unconsented/legacy
+        // coverage instead of weakening the runtime consent gate here.
+        conversation.setConsentVersion("patient-chat-v1");
+        conversation.setConsentedAt(now);
         return aiConversationRepository.save(conversation);
     }
 }

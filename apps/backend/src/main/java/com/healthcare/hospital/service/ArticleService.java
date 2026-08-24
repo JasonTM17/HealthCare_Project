@@ -22,6 +22,16 @@ public class ArticleService {
             .map(this::toResponse);
     }
 
+    public Page<ArticleResponse> listPublished(String contentKind, Pageable pageable) {
+        if (contentKind == null || contentKind.isBlank()) return listPublished(pageable);
+        String normalized = contentKind.trim().toUpperCase();
+        if (!java.util.Set.of("GENERAL", "DISEASE_GUIDE").contains(normalized)) {
+            throw new com.healthcare.exception.BusinessException(400, "ARTICLE_CONTENT_KIND_INVALID", "Loại bài viết không hợp lệ");
+        }
+        return articleRepository.findByContentKindAndActiveTrueAndPublishedAtIsNotNullOrderByPublishedAtDesc(normalized, pageable)
+            .map(this::toResponse);
+    }
+
     public ArticleResponse getBySlug(String slug) {
         return articleRepository.findBySlugAndActiveTrueAndPublishedAtIsNotNull(slug)
             .map(this::toResponse)
@@ -40,7 +50,13 @@ public class ArticleService {
             article.getAuthorName(),
             article.getReadingMinutes(),
             article.getRelatedSpecialtySlug(),
-            HospitalJsonMapper.articleSections(article.getSections())
+            HospitalJsonMapper.articleSections(article.getSections()),
+            article.getContentKind(), article.getCoverImageUrl(), article.getSeoTitle(), article.getSeoDescription(),
+            article.getTags(), article.getUpdatedAt(), article.getVersion(),
+            article.getContentLanguage(), article.getAudience(), article.getTopicTags(),
+            article.getKeyTakeaways(), article.getWarningSigns(), article.getPreventionTips(),
+            article.getWhenToSeekCare(), article.getSourceReferences(), article.getClinicalMetadata(),
+            article.getClinicalDisclaimer(), article.isFeatured()
         );
     }
 }

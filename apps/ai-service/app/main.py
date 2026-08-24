@@ -5,6 +5,11 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Res
 from fastapi.responses import JSONResponse
 
 from app.config import Settings
+from app.chatbot import (
+    ChatContractError,
+    generate_chat_response,
+    retrieve_chat_candidates,
+)
 from app.embeddings import EmbeddingResult, embed
 from app.llm import (
     chat_safety_response,
@@ -23,12 +28,15 @@ from app.providers import (
     remote_provider_requested,
     runtime_allows_local_fallback,
 )
-from app.rag import EmbeddingContractError
+from app.rag import EmbeddingContractError, normalize_projection_kind
 from app.supabase_rag import build_rag_service
 from app.schemas import (
     Citation,
     ChatRequest,
     ChatResponse,
+    ChatGenerateRequest,
+    ChatRetrieveRequest,
+    ChatRetrieveResponse,
     EmbeddingRequest,
     EmbeddingResponse,
     HealthResponse,
@@ -41,6 +49,7 @@ from app.schemas import (
     RAGSearchResult,
     RAGSourcesResponse,
     RAGSource,
+    ProjectionKind,
     ProviderProvenance,
     SOURCE_TYPES,
     SemanticSearchRequest,
@@ -59,6 +68,25 @@ app = FastAPI(title="HealthCare AI Service", version="0.1.0")
 # Shared RAG service. Local/test keeps the in-memory implementation by default,
 # while explicit Supabase configuration can switch to the durable store.
 rag_service = build_rag_service(settings)
+
+
+def _metadata_revision(metadata: dict[str, str], key: str) -> int | None:
+    raw = metadata.get(key)
+    if raw is None and key == "content_revision":
+        raw = metadata.get("_sync_revision")
+    try:
+        value = int(raw) if raw is not None else None
+    except (TypeError, ValueError):
+        return None
+    return value if value is not None and value >= 0 else None
+
+
+def _metadata_value(metadata: dict[str, str], key: str) -> str | None:
+    value = metadata.get(key)
+    if value is None:
+        return None
+    normalized = value.strip()
+    return normalized or None
 
 
 def _embedding_parts(value: object) -> tuple[list[float], str, ProviderProvenance]:
@@ -86,6 +114,14 @@ async def provider_unavailable_handler(request: Request, exc: ProviderUnavailabl
 async def embedding_contract_handler(request: Request, exc: EmbeddingContractError) -> JSONResponse:
     del request, exc
     return JSONResponse(status_code=503, content={"detail": "AI embedding contract unavailable"})
+
+
+@app.exception_handler(ChatContractError)
+async def chat_contract_handler(request: Request, exc: ChatContractError) -> JSONResponse:
+    """Return stable, content-free errors for the Spring two-step contract."""
+
+    del request
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.code})
 
 
 def _configured_secret(value: object) -> bool:
@@ -178,6 +214,23 @@ def health(response: Response) -> HealthResponse:
     )
 
 
+@app.get("/livez")
+def livez() -> dict[str, str]:
+    """Process liveness probe; it intentionally does not call providers."""
+
+    return {"status": "ok", "service": settings.service_name}
+
+
+@app.get("/readyz", response_model=HealthResponse)
+def readyz(
+    response: Response,
+    _service_auth: None = Depends(require_service_auth),
+) -> HealthResponse:
+    """Readiness mirrors `/health` while retaining the service-token boundary."""
+
+    return health(response)
+
+
 @app.post("/triage", response_model=TriageResponse, dependencies=[Depends(require_service_auth)])
 def symptom_triage(request: TriageRequest) -> TriageResponse:
     symptoms = _enforce_input_limit(
@@ -242,8 +295,52 @@ def chat(request: ChatRequest) -> ChatResponse:
     )
     final_provenance = merge_provenance(response.provenance, embedding_provenance)
     if final_provenance == "local_fallback":
-        return response.model_copy(update={"provenance": final_provenance, "citations": []})
-    return response.model_copy(update={"provenance": final_provenance})
+        return response.model_copy(
+            update={
+                "provenance": final_provenance,
+                "citations": [],
+                "mode": request.mode,
+            }
+        )
+    return response.model_copy(update={"provenance": final_provenance, "mode": request.mode})
+
+
+@app.post(
+    "/chat/retrieve",
+    response_model=ChatRetrieveResponse,
+    dependencies=[Depends(require_service_auth)],
+)
+def chat_retrieve(request: ChatRetrieveRequest) -> ChatRetrieveResponse:
+    """Return bounded candidates without invoking a language model.
+
+    Spring must re-authorize these identities against its current SQL catalog
+    before forwarding them to `/chat/generate`.
+    """
+
+    message = _enforce_input_limit(
+        request.message,
+        label="Chat message",
+        setting_name="ai_max_input_chars",
+    )
+    bounded_request = request.model_copy(update={"message": message})
+    return retrieve_chat_candidates(bounded_request, settings, rag_service, embedder=embed)
+
+
+@app.post(
+    "/chat/generate",
+    response_model=ChatResponse,
+    dependencies=[Depends(require_service_auth)],
+)
+def chat_generate(request: ChatGenerateRequest) -> ChatResponse:
+    """Generate only from Spring's exact, revisioned source allowlist."""
+
+    message = _enforce_input_limit(
+        request.message,
+        label="Chat message",
+        setting_name="ai_max_input_chars",
+    )
+    bounded_request = request.model_copy(update={"message": message})
+    return generate_chat_response(bounded_request, settings, rag_service)
 
 
 @app.post("/embeddings", response_model=EmbeddingResponse, dependencies=[Depends(require_service_auth)])
@@ -289,19 +386,57 @@ def require_rag_ingest_token(token: str | None) -> None:
         raise HTTPException(status_code=403, detail="Invalid RAG ingestion token")
 
 
-@app.get("/rag/sources", response_model=RAGSourcesResponse)
+@app.get("/rag/sources", response_model=RAGSourcesResponse, response_model_exclude_none=True)
 def rag_sources(
     x_rag_ingest_token: str | None = Header(default=None),
+    cursor: str | None = Query(default=None, pattern=r"^[0-9]{1,12}$"),
+    limit: int = Query(default=1_000, ge=1, le=5_000),
     _service_auth: None = Depends(require_service_auth),
 ) -> RAGSourcesResponse:
     """Expose source identities so a trusted catalog sync can tombstone deletes."""
 
     require_rag_ingest_token(x_rag_ingest_token)
+    start = int(cursor or "0")
+    page_reader = getattr(rag_service, "source_page", None)
+    if callable(page_reader):
+        page, total = page_reader(start, limit)
+    else:
+        documents = sorted(
+            rag_service.index.documents,
+            key=lambda item: (item.source_type, item.source_id, item.id),
+        )
+        total = len(documents)
+        page = documents[start : start + limit]
+    source_rows: list[RAGSource] = []
+    for document in page:
+        projection = normalize_projection_kind(document.metadata)
+        content_revision = _metadata_revision(document.metadata, "content_revision")
+        eligibility_revision = _metadata_revision(document.metadata, "eligibility_revision")
+        source_rows.append(
+            RAGSource(
+                source_type=document.source_type,
+                source_id=document.source_id,
+                projection_kind=cast(ProjectionKind, projection) if projection is not None else None,
+                content_revision=content_revision,
+                eligibility_revision=eligibility_revision,
+                content_hash=_metadata_value(document.metadata, "content_hash"),
+                approval_state=_metadata_value(document.metadata, "approval_state"),
+                approval_id=_metadata_value(document.metadata, "approval_id"),
+                approval_expires_at=_metadata_value(document.metadata, "approval_expires_at"),
+            )
+        )
+    next_start = start + len(page)
+    complete = next_start >= total
+    # Preserve the old response shape for the first legacy request while
+    # exposing explicit completeness metadata whenever the caller asks for a
+    # cursor/limit page.
+    if cursor is None and limit == 1_000 and complete:
+        return RAGSourcesResponse(sources=source_rows)
     return RAGSourcesResponse(
-        sources=[
-            RAGSource(source_type=source_type, source_id=source_id)
-            for source_type, source_id in rag_service.sources()
-        ]
+        sources=source_rows,
+        next_cursor=None if complete else str(next_start),
+        complete=complete,
+        total=total,
     )
 
 
@@ -315,10 +450,20 @@ def rag_delete(
 
     require_rag_ingest_token(x_rag_ingest_token)
     existed = any(
-        source_type == payload.source_type and source_id == payload.source_id
-        for source_type, source_id in rag_service.sources()
+        document.source_type == payload.source_type
+        and document.source_id == payload.source_id
+        and (
+            payload.projection_kind is None
+            or normalize_projection_kind(document.metadata) == payload.projection_kind
+        )
+        for document in rag_service.index.documents
     )
-    rag_service.remove(payload.source_type, payload.source_id, revision=payload.revision)
+    rag_service.remove(
+        payload.source_type,
+        payload.source_id,
+        revision=payload.revision,
+        projection=payload.projection_kind,
+    )
     return RAGDeleteResponse(removed=existed, index_size=rag_service.index.size)
 
 
@@ -350,10 +495,11 @@ def rag_index(
         metadata=payload.metadata,
         embedder=embed_document,
     )
+    projection = normalize_projection_kind(payload.metadata)
     return RAGIndexResponse(
         id=doc.id,
         index_size=rag_service.index.size,
-        indexed=rag_service.index.get(doc.id) is not None,
+        indexed=rag_service.index.get(doc.id, projection=projection) is not None,
     )
 
 

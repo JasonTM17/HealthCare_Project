@@ -33,6 +33,8 @@ public final class SyncOutboxContract {
         if (incoming.identity().revision() == existing.identity().revision()) {
             return existing.identity().equals(incoming.identity())
                 && existing.contentHash().equals(incoming.contentHash())
+                && java.util.Objects.equals(existing.sourceRevision(), incoming.sourceRevision())
+                && java.util.Objects.equals(existing.eligibilityRevision(), incoming.eligibilityRevision())
                 ? SyncAppendDecision.IDEMPOTENT_REPLAY
                 : SyncAppendDecision.CONFLICT;
         }

@@ -86,3 +86,12 @@ test("patient chat keeps medical and emergency limits visible and accessible", a
   assert.doesNotMatch(moduleStyles, /transition:\s*all/);
   assert.match(globalStyles, /\.portal-nav\s*\{\s*flex-wrap: wrap;\s*overflow-x: visible;/);
 });
+
+test("patient chat keeps consent fail-closed when policy is missing or changes", async () => {
+  const page = await read("app/patient/chat/page.tsx");
+
+  assert.match(page, /const currentConsentRequired = Boolean\(/);
+  assert.match(page, /!chatPolicy/);
+  assert.match(page, /const policy = await fetchAiChatPolicy\(\)/);
+  assert.match(page, /disabled=\{!selectedConversationId \|\| sendLocked \|\| currentConsentRequired\}/);
+});

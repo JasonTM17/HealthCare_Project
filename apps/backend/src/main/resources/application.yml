@@ -89,6 +89,13 @@ cms:
     channel: ${CMS_REALTIME_CHANNEL:healthcare:cms:changes}
     instance-id: ${CMS_INSTANCE_ID:${HOSTNAME:local}}
 
+patient:
+  consultation:
+    cleanup-enabled: ${PATIENT_CONSULTATION_CLEANUP_ENABLED:true}
+    cleanup-cron: ${PATIENT_CONSULTATION_CLEANUP_CRON:0 35 3 * * *}
+    cleanup-batch-size: ${PATIENT_CONSULTATION_CLEANUP_BATCH_SIZE:100}
+    cleanup-max-batches: ${PATIENT_CONSULTATION_CLEANUP_MAX_BATCHES:20}
+
 ai:
   chat:
     retention-days: ${AI_CHAT_RETENTION_DAYS:90}
@@ -97,6 +104,15 @@ ai:
     cleanup-batch-size: ${AI_CHAT_CLEANUP_BATCH_SIZE:200}
     cleanup-max-batches: ${AI_CHAT_CLEANUP_MAX_BATCHES:20}
     processing-lease-seconds: ${AI_CHAT_PROCESSING_LEASE_SECONDS:120}
+    # Clinical modes stay off unless the deployment has completed synthetic
+    # approval/reconciliation. These are also rollback safety switches.
+    # Remote providers (including DeepSeek) require a separate, reviewed opt-in.
+    remote-provider-enabled: ${AI_CHAT_REMOTE_PROVIDER_ENABLED:false}
+    # Internal assertion supplied only by a synthetic-beta fixture. It is not
+    # a browser-controlled flag and remains false for local/production traffic.
+    synthetic-beta-asserted: ${AI_CHAT_SYNTHETIC_BETA_ASSERTED:false}
+    symptom-triage-enabled: ${AI_CHAT_SYMPTOM_TRIAGE_ENABLED:false}
+    health-education-enabled: ${AI_CHAT_HEALTH_EDUCATION_ENABLED:false}
   service:
     url: ${AI_SERVICE_URL:http://localhost:8000}
     token: ${AI_SERVICE_TOKEN:}

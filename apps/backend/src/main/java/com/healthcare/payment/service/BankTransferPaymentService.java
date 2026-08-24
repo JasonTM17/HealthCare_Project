@@ -282,6 +282,16 @@ public class BankTransferPaymentService {
             if (reference.equals(payment.getTransactionReference())) return toResponse(payment);
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Thanh toán đã được xác nhận với mã giao dịch khác");
         }
+        // A bank webhook proves that the transfer was observed, but it is not
+        // the hospital's authorization to mark a patient payment as PAID.
+        // Keep the transaction in the same review queue as the patient
+        // submission so an ADMIN must explicitly verify it from the bank
+        // statement before the appointment becomes paid.
+        if (payment.getStatus() == PaymentStatus.PENDING_VERIFICATION) {
+            if (reference.equals(payment.getTransactionReference())) return toResponse(payment);
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                "Thanh toán đang chờ admin kiểm tra với một mã giao dịch khác");
+        }
         ensureAppointmentCanBePaid(payment.getAppointment());
         if (payment.getStatus() == PaymentStatus.REFUND_PENDING || payment.getStatus() == PaymentStatus.REFUNDED) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Khoản thanh toán đã vào quy trình hoàn tiền");
@@ -289,18 +299,18 @@ public class BankTransferPaymentService {
         PaymentStatus previousStatus = payment.getStatus();
         payment.setTransactionReference(reference);
         if (payment.getSubmittedAt() == null) payment.setSubmittedAt(OffsetDateTime.now(BUSINESS_ZONE));
-        payment.setStatus(PaymentStatus.PAID);
-        payment.setVerifiedAt(OffsetDateTime.now(BUSINESS_ZONE));
+        payment.setStatus(PaymentStatus.PENDING_VERIFICATION);
+        payment.setVerifiedAt(null);
         payment.setVerifiedBy(null);
         payment.setRejectionReason(null);
-        payment.getAppointment().setPaymentStatus(PaymentStatus.PAID.name());
+        payment.getAppointment().setPaymentStatus(PaymentStatus.PENDING_VERIFICATION.name());
         appointmentRepository.save(payment.getAppointment());
         BankTransferPayment saved = paymentRepository.save(payment);
-        auditService.record("webhook", "WEBHOOK_CONFIRMED", saved.getId(), saved.getAppointment().getId(),
-            transition(previousStatus, PaymentStatus.PAID) + ";eventFingerprint=" + fingerprint(eventId));
-        notifyPatient(saved.getAppointment(), EventType.PAYMENT_CONFIRMED, "Thanh toán đã được xác nhận",
-            "Thanh toán cho lịch " + saved.getAppointment().getBookingCode() + " đã được tự động xác nhận.");
-        statusEmailService.paymentConfirmed(saved);
+        auditService.record("webhook", "WEBHOOK_RECEIVED_FOR_REVIEW", saved.getId(), saved.getAppointment().getId(),
+            transition(previousStatus, PaymentStatus.PENDING_VERIFICATION) + ";eventFingerprint=" + fingerprint(eventId));
+        notifyPatient(saved.getAppointment(), EventType.PAYMENT_SUBMITTED, "Đã nhận giao dịch chuyển khoản",
+            "Giao dịch cho lịch " + saved.getAppointment().getBookingCode()
+                + " đã được ghi nhận và đang chờ admin kiểm tra trước khi xác nhận thanh toán.");
         return toResponse(saved);
     }
 

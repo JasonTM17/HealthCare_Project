@@ -1,5 +1,6 @@
 """Validated request and response contracts for the AI service."""
 
+from enum import Enum
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -8,10 +9,41 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 MAX_INPUT_CHARS = 10_000
 MAX_DOCUMENT_CHARS = 20_000
 MAX_RETRIEVED_CHUNKS = 20
+# The patient-chat projection is backed by pgvector(384).  Keep this separate
+# from MAX_EMBEDDING_DIMENSION, which remains the generic RAG safety ceiling
+# for legacy/in-memory fixtures.
+EMBEDDING_DIMENSION = 384
 MAX_EMBEDDING_DIMENSION = 4_096
 
-SOURCE_TYPES = Literal["specialty", "doctor", "service", "package", "article", "faq"]
+SOURCE_TYPES = Literal["branch", "specialty", "doctor", "service", "package", "article", "faq"]
 ProviderProvenance = Literal["local_provider", "remote_provider", "local_fallback"]
+
+
+class ChatMode(str, Enum):
+    """The immutable patient-chat intent selected when a conversation starts."""
+
+    HOSPITAL_SUPPORT = "HOSPITAL_SUPPORT"
+    SYMPTOM_TRIAGE = "SYMPTOM_TRIAGE"
+    HEALTH_EDUCATION = "HEALTH_EDUCATION"
+
+
+class ChatSafetyAction(str, Enum):
+    """Deterministic safety outcome; this value is never delegated to an LLM."""
+
+    ANSWER = "ANSWER"
+    REFUSE = "REFUSE"
+    EMERGENCY = "EMERGENCY"
+    HUMAN_HANDOFF = "HUMAN_HANDOFF"
+    INSUFFICIENT_EVIDENCE = "INSUFFICIENT_EVIDENCE"
+
+
+class TriageUrgency(str, Enum):
+    EMERGENCY = "EMERGENCY"
+    HIGH = "HIGH"
+    NORMAL = "NORMAL"
+
+
+ProjectionKind = Literal["OPERATIONAL", "CLINICAL"]
 
 ALLOWED_SPECIALTIES = (
     "Tim Mạch & Can Thiệp Mạch Máu",
@@ -75,6 +107,9 @@ class ChatRequest(BaseModel):
     message: str = Field(..., min_length=2, max_length=MAX_INPUT_CHARS)
     recent_turns: list[ChatTurn] = Field(default_factory=list, max_length=6)
     top_k: int = Field(default=5, ge=1, le=MAX_RETRIEVED_CHUNKS)
+    # Additive field: legacy callers that only send `message` retain the old
+    # /chat behavior while the two-step patient contract can select a mode.
+    mode: ChatMode = ChatMode.HOSPITAL_SUPPORT
 
     _trim_message = field_validator("message", mode="before")(_trim_text)
 
@@ -94,6 +129,84 @@ class Citation(BaseModel):
     title: str = Field(..., min_length=1, max_length=300)
 
 
+class TriageSummary(BaseModel):
+    """A bounded, non-diagnostic triage summary attached to patient chat."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    urgency_level: TriageUrgency
+    recommended_specialty: str | None = Field(default=None, max_length=100)
+
+
+class AuthorizedSource(BaseModel):
+    """Exact source identity authorized by Spring for one generation call.
+
+    The AI service resolves the identity against its current projection.  It
+    never accepts source content, URLs, or model-created identifiers from a
+    caller.  Revision/hash fields are optional for legacy operational rows but
+    are required by the clinical-mode validator.
+    """
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    source_type: SOURCE_TYPES
+    source_id: str = Field(..., min_length=1, max_length=200, pattern=r"^[A-Za-z0-9._:-]+$")
+    projection_kind: ProjectionKind = "OPERATIONAL"
+    content_revision: int | None = Field(default=None, ge=0)
+    eligibility_revision: int | None = Field(default=None, ge=0)
+    content_hash: str | None = Field(default=None, min_length=1, max_length=128)
+    approval_id: str | None = Field(default=None, min_length=1, max_length=200)
+
+
+class UsedSource(AuthorizedSource):
+    """Source metadata actually included in provider context.
+
+    Generation constructs this list from the validated projection, so it is
+    exhaustive and cannot contain a source not present in `authorized_sources`.
+    """
+
+
+class ChatRetrieveRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    message: str = Field(..., min_length=2, max_length=MAX_INPUT_CHARS)
+    mode: ChatMode = ChatMode.HOSPITAL_SUPPORT
+    recent_turns: list[ChatTurn] = Field(default_factory=list, max_length=6)
+    top_k: int = Field(default=5, ge=1, le=MAX_RETRIEVED_CHUNKS)
+    # Internal Spring assertion. It is never accepted from the browser and is
+    # required when a synthetic-beta runtime is allowed to call a remote model.
+    synthetic_beta: bool = False
+
+    _trim_message = field_validator("message", mode="before")(_trim_text)
+
+
+class ChatCandidate(AuthorizedSource):
+    """A retrieval candidate; content stays inside the AI service boundary."""
+
+    title: str = Field(..., min_length=1, max_length=300)
+    score: float = Field(..., ge=0, le=1)
+
+
+class ChatRetrieveResponse(BaseModel):
+    mode: ChatMode
+    candidates: list[ChatCandidate] = Field(default_factory=list, max_length=MAX_RETRIEVED_CHUNKS)
+    relevance_threshold: float = Field(..., ge=0, le=1)
+    safety_action: ChatSafetyAction = ChatSafetyAction.ANSWER
+    provenance: ProviderProvenance = "local_provider"
+
+
+class ChatGenerateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    message: str = Field(..., min_length=2, max_length=MAX_INPUT_CHARS)
+    mode: ChatMode = ChatMode.HOSPITAL_SUPPORT
+    recent_turns: list[ChatTurn] = Field(default_factory=list, max_length=6)
+    authorized_sources: list[AuthorizedSource] = Field(default_factory=list, max_length=MAX_RETRIEVED_CHUNKS)
+    synthetic_beta: bool = False
+
+    _trim_message = field_validator("message", mode="before")(_trim_text)
+
+
 class ChatResponse(BaseModel):
     answer: str = Field(..., min_length=1, max_length=4_000)
     disclaimer: str = (
@@ -102,6 +215,12 @@ class ChatResponse(BaseModel):
     )
     citations: list[Citation] = Field(default_factory=list, max_length=MAX_RETRIEVED_CHUNKS)
     provenance: ProviderProvenance = "local_provider"
+    # Additive fields used by the patient two-step contract.  Defaults keep
+    # existing /chat and direct `resolve_chat` callers source-compatible.
+    mode: ChatMode = ChatMode.HOSPITAL_SUPPORT
+    safety_action: ChatSafetyAction = ChatSafetyAction.ANSWER
+    used_sources: list[UsedSource] = Field(default_factory=list, max_length=MAX_RETRIEVED_CHUNKS)
+    triage: TriageSummary | None = None
 
 
 class TriageResponse(BaseModel):
@@ -158,7 +277,11 @@ class EmbeddingRequest(BaseModel):
 
 
 class EmbeddingResponse(BaseModel):
-    embedding: list[float] = Field(..., min_length=1, max_length=MAX_EMBEDDING_DIMENSION)
+    embedding: list[float] = Field(
+        ...,
+        min_length=EMBEDDING_DIMENSION,
+        max_length=EMBEDDING_DIMENSION,
+    )
     model: str
     provenance: ProviderProvenance = "local_provider"
 
@@ -202,16 +325,31 @@ class RAGIndexResponse(BaseModel):
 class RAGSource(BaseModel):
     source_type: SOURCE_TYPES
     source_id: str = Field(..., min_length=1, max_length=200, pattern=r"^[A-Za-z0-9._:-]+$")
+    # Optional provenance fields let the trusted Spring reconciler distinguish
+    # operational and governed clinical rows without exposing document text.
+    projection_kind: ProjectionKind | None = None
+    content_revision: int | None = Field(default=None, ge=0)
+    eligibility_revision: int | None = Field(default=None, ge=0)
+    content_hash: str | None = Field(default=None, min_length=64, max_length=64)
+    approval_state: str | None = Field(default=None, max_length=32)
+    approval_id: str | None = Field(default=None, max_length=128)
+    approval_expires_at: str | None = Field(default=None, max_length=80)
 
 
 class RAGSourcesResponse(BaseModel):
     sources: list[RAGSource]
+    # Optional so legacy callers keep the original JSON shape.  A complete
+    # reconciliation request receives all three fields.
+    next_cursor: str | None = None
+    complete: bool | None = None
+    total: int | None = Field(default=None, ge=0)
 
 
 class RAGDeleteRequest(BaseModel):
     source_type: SOURCE_TYPES
     source_id: str = Field(..., min_length=1, max_length=200, pattern=r"^[A-Za-z0-9._:-]+$")
     revision: int | None = Field(default=None, ge=0)
+    projection_kind: ProjectionKind | None = None
 
 
 class RAGDeleteResponse(BaseModel):

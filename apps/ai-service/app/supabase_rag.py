@@ -29,6 +29,7 @@ _IDENTIFIER = re.compile(r"^[a-z_][a-z0-9_]*$")
 _REVISION_KEY = "_sync_revision"
 _TOMBSTONE_KEY = "_tombstone"
 _LOCAL_RUNTIME_NAMES = frozenset({"local", "test", "demo"})
+_PROJECTION_KINDS = frozenset({"OPERATIONAL", "CLINICAL"})
 
 
 class SupabaseRagError(RuntimeError):
@@ -85,7 +86,11 @@ def parse_vector(value: object) -> list[float]:
 
 
 def _revision(metadata: Mapping[str, object]) -> int | None:
-    raw = metadata.get(_REVISION_KEY)
+    raw = metadata.get("eligibility_revision")
+    if raw is None:
+        raw = metadata.get("content_revision")
+    if raw is None:
+        raw = metadata.get(_REVISION_KEY)
     if raw is None:
         return None
     try:
@@ -93,6 +98,28 @@ def _revision(metadata: Mapping[str, object]) -> int | None:
     except (TypeError, ValueError):
         return None
     return value if value >= 0 else None
+
+
+def _projection(metadata: Mapping[str, object]) -> str:
+    value = str(metadata.get("projection_kind", "OPERATIONAL")).strip().upper()
+    if value not in _PROJECTION_KINDS:
+        raise SupabaseRagContractError("projection_kind must be OPERATIONAL or CLINICAL")
+    return value
+
+
+def _metadata_int(metadata: Mapping[str, object], *keys: str) -> int | None:
+    for key in keys:
+        raw = metadata.get(key)
+        if raw is None:
+            continue
+        try:
+            value = int(str(raw))
+        except (TypeError, ValueError):
+            raise SupabaseRagContractError(f"metadata field {key} must be an integer") from None
+        if value <= 0:
+            raise SupabaseRagContractError(f"metadata field {key} must be positive")
+        return value
+    return None
 
 
 def _metadata(value: object) -> dict[str, str]:
@@ -126,8 +153,8 @@ class SupabaseRagConfig:
 
     dsn: str
     schema: str = "healthcare"
-    table: str = "ai_documents"
-    rpc: str = "match_documents"
+    table: str = "ai_chat_documents"
+    rpc: str = "match_chat_documents"
     connect_timeout_seconds: float = 5.0
     embedding_dimension: int = 384
     max_documents: int = 5_000
@@ -137,10 +164,12 @@ class SupabaseRagConfig:
             raise SupabaseRagContractError("SUPABASE_DB_URL is required for the Supabase backend")
         for identifier in (self.schema, self.table, self.rpc):
             _quote_identifier(identifier)
-        if self.embedding_dimension != 384:
+        if self.table != "ai_chat_documents" or self.rpc != "match_chat_documents":
             raise SupabaseRagContractError(
-                "the healthcare.ai_documents migration currently supports exactly 384 dimensions"
+                "Supabase patient chat must use healthcare.ai_chat_documents and match_chat_documents"
             )
+        if self.embedding_dimension != 384:
+            raise SupabaseRagContractError("patient-chat vectors must use exactly 384 dimensions")
         if self.connect_timeout_seconds <= 0 or self.connect_timeout_seconds > 30:
             raise SupabaseRagContractError("Supabase connection timeout must be between 0 and 30 seconds")
         if self.max_documents < 1:
@@ -160,7 +189,7 @@ class SupabaseRagConfig:
 
 
 class SupabaseRagStore:
-    """Small parameterized repository over ``healthcare.ai_documents``."""
+    """Small parameterized repository over the protected chat projection."""
 
     def __init__(
         self,
@@ -216,15 +245,20 @@ class SupabaseRagStore:
     def _document_from_row(self, row: Sequence[object]) -> RagDocument:
         (
             _database_id,
+            projection_kind,
             source_type,
             source_id,
+            content_revision,
+            eligibility_revision,
+            database_content_hash,
+            approval_round,
+            approval_expires_at,
             title,
             content,
             metadata,
             embedding,
             embedding_model,
             embedding_provenance,
-            content_hash,
             active,
             published,
         ) = row
@@ -233,6 +267,20 @@ class SupabaseRagStore:
         # The UUID is a database identity; the public RAG contract identifies
         # a document by its stable source tuple.  Keeping that key here avoids
         # duplicate in-memory entries after hydration followed by an upsert.
+        normalized_metadata = _metadata(metadata)
+        normalized_metadata["projection_kind"] = str(projection_kind)
+        normalized_metadata["content_revision"] = str(content_revision)
+        normalized_metadata["eligibility_revision"] = str(eligibility_revision)
+        if approval_round is not None:
+            normalized_metadata["approval_id"] = str(approval_round)
+        if approval_expires_at is not None:
+            normalized_metadata["approval_expires_at"] = str(approval_expires_at)
+        # The projection's database hash is the canonical clinical revision
+        # hash.  RagDocument.content_hash remains the visible-text integrity
+        # hash expected by the in-memory chatbot contract.
+        visible_hash = hashlib.sha256(str(content).encode("utf-8")).hexdigest()
+        if str(projection_kind).upper() == "CLINICAL":
+            normalized_metadata["content_hash"] = str(database_content_hash)
         return RagDocument(
             id=f"{normalized_source_type}:{normalized_source_id}",
             source_type=normalized_source_type,
@@ -242,10 +290,10 @@ class SupabaseRagStore:
             embedding=parse_vector(embedding),
             embedding_model=str(embedding_model),
             embedding_provenance=cast(ProviderProvenance, str(embedding_provenance)),
-            content_hash=str(content_hash),
+            content_hash=visible_hash,
             active=bool(active),
             published=bool(published),
-            metadata=_metadata(metadata),
+            metadata=normalized_metadata,
         )
 
     def _read_active_profile(self, connection: Any) -> tuple[str, ProviderProvenance] | None:
@@ -263,9 +311,7 @@ class SupabaseRagStore:
         if not rows:
             return None
         if len(rows) > 1:
-            raise SupabaseRagContractError(
-                "multiple embedding profiles exist in healthcare.ai_documents"
-            )
+            raise SupabaseRagContractError("multiple embedding profiles exist in ai_chat_documents")
         return _profile_tuple(*rows[0][:2])
 
     def active_profile(self) -> tuple[str, ProviderProvenance] | None:
@@ -286,8 +332,10 @@ class SupabaseRagStore:
 
     def _select_columns(self) -> str:
         return (
-            "id, source_type, source_id, title, content, metadata, "
-            "embedding::text, embedding_model, embedding_provenance, content_hash, active, published"
+            "id, projection_kind, source_type, source_id, content_revision, "
+            "eligibility_revision, content_hash, approval_round, approval_expires_at, "
+            "title, content, metadata, embedding::text, embedding_model, "
+            "embedding_provenance, active, published"
         )
 
     def upsert(self, document: RagDocument) -> bool:
@@ -296,25 +344,38 @@ class SupabaseRagStore:
         if not document.embedding:
             raise SupabaseRagContractError("searchable documents require an embedding")
         embedding = vector_literal(document.embedding, self.config.embedding_dimension)
-        revision = _revision(document.metadata)
-        revision_value = revision if revision is not None else 0
-        metadata = json.dumps(document.metadata, ensure_ascii=False, separators=(",", ":"))
-        content_hash = document.content_hash or hashlib.sha256(document.content.encode("utf-8")).hexdigest()
-        revision_guard = (
-            f"where excluded.sync_revision >= {self._table}.sync_revision"
-            if revision is not None
-            else ""
+        projection = _projection(document.metadata)
+        content_revision = _metadata_int(document.metadata, "content_revision", _REVISION_KEY)
+        eligibility_revision = _metadata_int(
+            document.metadata, "eligibility_revision", "content_revision", _REVISION_KEY
         )
+        if content_revision is None:
+            content_revision = 1
+        if eligibility_revision is None:
+            eligibility_revision = content_revision
+        canonical_hash = str(document.metadata.get("content_hash", document.content_hash)).strip().lower()
+        if not re.fullmatch(r"[0-9a-f]{64}", canonical_hash):
+            raise SupabaseRagContractError("content_hash must be a lowercase SHA-256 value")
+        approval_round = _metadata_int(document.metadata, "approval_round", "approval_id")
+        approval_expires_at = document.metadata.get("approval_expires_at")
+        if projection == "CLINICAL" and (approval_round is None or not approval_expires_at):
+            raise SupabaseRagContractError("clinical projections require approval round and expiry")
+        metadata = json.dumps(document.metadata, ensure_ascii=False, separators=(",", ":"))
         sql = f"""
             insert into {self._table} (
-                source_type, source_id, title, content, metadata, embedding,
-                embedding_model, embedding_provenance, content_hash,
-                sync_revision, active, published, deleted_at
+                projection_kind, source_type, source_id, content_revision,
+                eligibility_revision, content_hash, approval_round,
+                approval_expires_at, title, content, metadata, embedding,
+                embedding_model, embedding_provenance, active, published, deleted_at
             ) values (
-                %s, %s, %s, %s, %s::jsonb, %s::{self._vector_type},
-                %s, %s, %s, %s, %s, %s, null
+                %s, %s, %s, %s, %s, %s, %s, %s::timestamptz,
+                %s, %s, %s::jsonb, %s::{self._vector_type}, %s, %s, %s, %s, null
             )
-            on conflict (source_type, source_id) do update set
+            on conflict (projection_kind, source_type, source_id) do update set
+                content_revision = excluded.content_revision,
+                eligibility_revision = excluded.eligibility_revision,
+                approval_round = excluded.approval_round,
+                approval_expires_at = excluded.approval_expires_at,
                 title = excluded.title,
                 content = excluded.content,
                 metadata = excluded.metadata,
@@ -322,25 +383,37 @@ class SupabaseRagStore:
                 embedding_model = excluded.embedding_model,
                 embedding_provenance = excluded.embedding_provenance,
                 content_hash = excluded.content_hash,
-                sync_revision = excluded.sync_revision,
                 active = excluded.active,
                 published = excluded.published,
                 deleted_at = null,
                 updated_at = now()
-            {revision_guard}
+            where (
+                    excluded.eligibility_revision > {self._table}.eligibility_revision
+                 or (
+                    {self._table}.deleted_at is null
+                    and
+                    excluded.eligibility_revision = {self._table}.eligibility_revision
+                    and excluded.content_revision = {self._table}.content_revision
+                    and excluded.content_hash = {self._table}.content_hash
+                 )
+              )
             returning id
         """
         params = (
+            projection,
             document.source_type,
             document.source_id,
+            content_revision,
+            eligibility_revision,
+            canonical_hash,
+            approval_round,
+            approval_expires_at,
             document.title,
             document.content,
             metadata,
             embedding,
             document.embedding_model,
             document.embedding_provenance,
-            content_hash,
-            revision_value,
             document.active,
             document.published,
         )
@@ -350,16 +423,26 @@ class SupabaseRagStore:
                 cursor.execute(sql, params)
                 return cursor.fetchone() is not None
 
-    def get(self, source_type: SOURCE_TYPES, source_id: str) -> RagDocument | None:
+    def get(
+        self,
+        source_type: SOURCE_TYPES,
+        source_id: str,
+        *,
+        projection: str | None = None,
+    ) -> RagDocument | None:
         sql = f"""
             select {self._select_columns()}
             from {self._table}
             where source_type = %s and source_id = %s
+              and projection_kind = %s
         """
+        normalized_projection = (projection or "OPERATIONAL").strip().upper()
+        if normalized_projection not in _PROJECTION_KINDS:
+            raise SupabaseRagContractError("invalid projection kind")
         with self._connection() as connection:
             self._read_active_profile(connection)
             with connection.cursor() as cursor:
-                cursor.execute(sql, (source_type, source_id))
+                cursor.execute(sql, (source_type, source_id, normalized_projection))
                 row = cursor.fetchone()
         return self._document_from_row(row) if row is not None else None
 
@@ -378,6 +461,32 @@ class SupabaseRagStore:
                 cursor.execute(sql, (bounded_limit,))
                 rows = cursor.fetchall()
         return [self._document_from_row(row) for row in rows]
+
+    def list_documents_page(self, offset: int = 0, limit: int = 1_000) -> tuple[list[RagDocument], int]:
+        """Read a complete active-source snapshot a page at a time."""
+
+        bounded_offset = max(0, int(offset))
+        bounded_limit = max(1, min(int(limit), 5_000))
+        sql = f"""
+            select {self._select_columns()}
+            from {self._table}
+            where active and published and deleted_at is null and embedding is not null
+            order by source_type, source_id, id
+            offset %s limit %s
+        """
+        count_sql = f"""
+            select count(*) from {self._table}
+            where active and published and deleted_at is null and embedding is not null
+        """
+        with self._connection() as connection:
+            self._read_active_profile(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(count_sql)
+                count_row = cursor.fetchone()
+                total = int(count_row[0]) if count_row else 0
+                cursor.execute(sql, (bounded_offset, bounded_limit))
+                rows = cursor.fetchall()
+        return [self._document_from_row(row) for row in rows], total
 
     def list_sources(self) -> list[tuple[SOURCE_TYPES, str]]:
         sql = f"""
@@ -412,30 +521,39 @@ class SupabaseRagStore:
         source_type: SOURCE_TYPES,
         source_id: str,
         revision: int | None,
+        *,
+        projection: str = "OPERATIONAL",
     ) -> bool:
         """Persist a deletion marker so stale sync work cannot resurrect a source."""
 
-        revision_value = revision if revision is not None else 0
+        normalized_projection = projection.strip().upper()
+        if normalized_projection not in _PROJECTION_KINDS:
+            raise SupabaseRagContractError("invalid projection kind")
+        revision_value = revision if revision is not None and revision > 0 else 1
         metadata = json.dumps(
-            {_REVISION_KEY: str(revision_value), _TOMBSTONE_KEY: "true"},
+            {
+                "projection_kind": normalized_projection,
+                "content_revision": str(revision_value),
+                "eligibility_revision": str(revision_value),
+                _REVISION_KEY: str(revision_value),
+                _TOMBSTONE_KEY: "true",
+            },
             separators=(",", ":"),
         )
         content = "[tombstone]"
-        revision_guard = (
-            f"where excluded.sync_revision >= {self._table}.sync_revision"
-            if revision is not None
-            else ""
-        )
         sql = f"""
             insert into {self._table} (
-                source_type, source_id, title, content, metadata, embedding,
-                embedding_model, embedding_provenance, content_hash,
-                sync_revision, active, published, deleted_at
+                projection_kind, source_type, source_id, content_revision,
+                eligibility_revision, content_hash, title, content, metadata,
+                embedding, embedding_model, embedding_provenance,
+                active, published, deleted_at
             ) values (
-                %s, %s, '[tombstone]', %s, %s::jsonb, null,
-                'local-hash', 'local_provider', %s, %s, false, false, now()
+                %s, %s, %s, %s, %s, %s, '[tombstone]', %s, %s::jsonb,
+                null, 'local-hash', 'local_provider', false, false, now()
             )
-            on conflict (source_type, source_id) do update set
+            on conflict (projection_kind, source_type, source_id) do update set
+                content_revision = excluded.content_revision,
+                eligibility_revision = excluded.eligibility_revision,
                 title = excluded.title,
                 content = excluded.content,
                 metadata = excluded.metadata,
@@ -443,12 +561,16 @@ class SupabaseRagStore:
                 embedding_model = excluded.embedding_model,
                 embedding_provenance = excluded.embedding_provenance,
                 content_hash = excluded.content_hash,
-                sync_revision = excluded.sync_revision,
                 active = false,
                 published = false,
                 deleted_at = now(),
                 updated_at = now()
-            {revision_guard}
+            where excluded.eligibility_revision > {self._table}.eligibility_revision
+               or (
+                    excluded.eligibility_revision = {self._table}.eligibility_revision
+                    and excluded.content_hash = {self._table}.content_hash
+                    and {self._table}.deleted_at is not null
+               )
             returning id
         """
         content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
@@ -457,7 +579,16 @@ class SupabaseRagStore:
             with connection.cursor() as cursor:
                 cursor.execute(
                     sql,
-                    (source_type, source_id, content, metadata, content_hash, revision_value),
+                    (
+                        normalized_projection,
+                        source_type,
+                        source_id,
+                        revision_value,
+                        revision_value,
+                        content_hash,
+                        content,
+                        metadata,
+                    ),
                 )
                 return cursor.fetchone() is not None
 
@@ -483,8 +614,10 @@ class SupabaseRagStore:
         filters = list(source_types) if source_types else None
         sql = f"""
             select id, source_type, source_id, title, content, metadata,
+                   projection_kind, content_revision, eligibility_revision,
+                   content_hash, approval_round, approval_expires_at,
                    null::text as embedding, embedding_model, embedding_provenance,
-                   content_hash, active, published, score
+                   active, published, score
             from {self._rpc}(
                 %s::{self._vector_type}, %s::real, %s::integer, %s::text[], %s::text
             )
@@ -500,8 +633,14 @@ class SupabaseRagStore:
                 rows = cursor.fetchall()
         results: list[tuple[RagDocument, float]] = []
         for row in rows:
-            document = self._document_from_row(row[:12])
-            results.append((document, float(row[12])))
+            # RPC result order is normalized to the table projection contract.
+            normalized_row = (
+                row[0], row[6], row[1], row[2], row[7], row[8], row[9],
+                row[10], row[11], row[3], row[4], row[5], row[12],
+                row[13], row[14], row[15], row[16],
+            )
+            document = self._document_from_row(normalized_row)
+            results.append((document, float(row[17])))
         return results[:bounded_top_k]
 
 
@@ -604,11 +743,34 @@ class PersistentRagService(RagService):
             if document.searchable:
                 applied = self.store.upsert(document)
                 if not applied and revision is not None:
-                    current = self.store.get(source_type, document.source_id)
-                    if current is not None and current.searchable and current.embedding:
-                        self.index.add(current)
+                    current = self.store.get(
+                        source_type,
+                        document.source_id,
+                        projection=_projection(document.metadata),
+                    )
+                    if current is not None:
+                        # A stale event must never reintroduce a local row
+                        # that the durable store rejected, including a
+                        # tombstone. Restore the pre-event in-memory state.
+                        self._restore_state(snapshot)
+                        if current.searchable and current.embedding:
+                            self.index.add(current)
+                        else:
+                            projection_kind = _projection(document.metadata)
+                            self.index.remove(document.id, projection=projection_kind)
+                            if projection_kind == "OPERATIONAL":
+                                # Legacy operational rows predate the
+                                # discriminator and live under the direct
+                                # source key; clear that compatibility key as
+                                # well without touching clinical projections.
+                                self.index.remove(
+                                    document.id,
+                                    projection=None,
+                                    include_projections=False,
+                                )
                         self.persistence_available = True
                         return current
+                    self._restore_state(snapshot)
             else:
                 self.store.tombstone(source_type, document.source_id, revision)
             self.persistence_available = True
@@ -627,13 +789,26 @@ class PersistentRagService(RagService):
         revision: int | None = None,
         *,
         operation_token: int | None = None,
+        projection: str | None = None,
     ) -> None:
         document_id = f"{source_type}:{source_id}"
-        previous = self.index.get(document_id)
+        previous = self.index.get(document_id, projection=projection)
         snapshot = self._snapshot_state()
-        super().remove(source_type, source_id, revision=revision, operation_token=operation_token)
+        super().remove(
+            source_type,
+            source_id,
+            revision=revision,
+            operation_token=operation_token,
+            projection=projection,
+        )
         try:
-            self.store.tombstone(source_type, source_id, revision)
+            normalized_projection = projection.strip().upper() if projection else "OPERATIONAL"
+            self.store.tombstone(
+                source_type,
+                source_id,
+                revision,
+                projection=normalized_projection,
+            )
             self.persistence_available = True
         except Exception as error:
             if not self.fallback_to_memory:
@@ -652,6 +827,18 @@ class PersistentRagService(RagService):
             if not self.fallback_to_memory:
                 raise SupabaseRagUnavailable("Supabase RAG operation failed") from error
             return super().sources()
+
+    def source_page(self, offset: int = 0, limit: int = 1_000) -> tuple[list[RagDocument], int]:
+        if not self.persistence_available:
+            self._require_fallback()
+            return super().source_page(offset, limit)
+        try:
+            return self.store.list_documents_page(offset, limit)
+        except Exception as error:
+            self._fallback_or_raise(error)
+            if not self.fallback_to_memory:
+                raise SupabaseRagUnavailable("Supabase RAG operation failed") from error
+            return super().source_page(offset, limit)
 
     def search(
         self,
