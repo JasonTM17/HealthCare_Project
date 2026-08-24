@@ -9,11 +9,29 @@ from pydantic import ValidationError
 from app.llm import resolve_chat
 from app.rag import RagService
 from app.main import app, rag_service, settings
+from app.providers import ProviderUnavailable
 from app.schemas import ChatRequest, Citation
 from app.embeddings import EmbeddingResult
 
 
 client = TestClient(app)
+
+
+def _synthetic_remote_settings() -> MagicMock:
+    """Use the same isolated canary contract as production remote tests."""
+
+    configured = MagicMock()
+    configured.ai_provider = "deepseek"
+    configured.ai_service_runtime = "synthetic-beta"
+    configured.ai_patient_chat_remote_enabled = True
+    configured.ai_chat_remote_provider_enabled = True
+    configured.remote_ai_synthetic_only = True
+    configured.rag_storage_backend = "supabase"
+    configured.supabase_rag_fallback_to_memory = False
+    configured.ai_base_url = "https://api.deepseek.com"
+    configured.remote_ai_provider_allowlist = "deepseek"
+    configured.remote_ai_https_host_allowlist = "api.deepseek.com"
+    return configured
 
 
 def test_chat_request_validates_turns_and_rejects_unknown_fields() -> None:
@@ -40,9 +58,7 @@ def test_chat_remote_provider_receives_turns_and_rag_context() -> None:
     provider = MagicMock()
     provider.complete_json.return_value = {"answer": "Bạn có thể xem hướng dẫn phù hợp."}
     citation = Citation(source_type="faq", source_id="faq-1", title="Đặt lịch")
-    local_settings = MagicMock()
-    local_settings.ai_service_runtime = "test"
-    local_settings.ai_patient_chat_remote_enabled = True
+    local_settings = _synthetic_remote_settings()
 
     result = resolve_chat(
         "Làm sao đặt lịch?",
@@ -64,9 +80,7 @@ def test_chat_remote_provider_receives_turns_and_rag_context() -> None:
 def test_opted_in_remote_provider_receives_clearly_non_pii_location_question() -> None:
     provider = MagicMock()
     provider.complete_json.return_value = {"answer": "Bạn có thể xem trang thông tin cơ sở."}
-    local_settings = MagicMock()
-    local_settings.ai_service_runtime = "test"
-    local_settings.ai_patient_chat_remote_enabled = True
+    local_settings = _synthetic_remote_settings()
 
     result = resolve_chat("Địa chỉ bệnh viện ở đâu?", local_settings, client=provider)
 
@@ -82,6 +96,21 @@ def test_configured_remote_provider_is_not_used_without_patient_chat_opt_in() ->
     local_settings.ai_provider = "deepseek"
     local_settings.ai_service_runtime = "test"
     local_settings.ai_patient_chat_remote_enabled = False
+
+    result = resolve_chat("Tôi cần thông tin", local_settings, client=provider)
+
+    assert result.provenance == "local_fallback"
+    provider.complete_json.assert_not_called()
+
+
+def test_test_runtime_cannot_override_synthetic_remote_gate() -> None:
+    provider = MagicMock()
+    local_settings = MagicMock()
+    local_settings.ai_provider = "deepseek"
+    local_settings.ai_service_runtime = "test"
+    local_settings.ai_patient_chat_remote_enabled = True
+    local_settings.ai_chat_remote_provider_enabled = True
+    local_settings.remote_ai_synthetic_only = False
 
     result = resolve_chat("Tôi cần thông tin", local_settings, client=provider)
 
@@ -122,9 +151,7 @@ def test_configured_remote_provider_is_not_used_without_patient_chat_opt_in() ->
 )
 def test_sensitive_identity_data_never_reaches_remote_provider(pii_message: str) -> None:
     provider = MagicMock()
-    local_settings = MagicMock()
-    local_settings.ai_service_runtime = "test"
-    local_settings.ai_patient_chat_remote_enabled = True
+    local_settings = _synthetic_remote_settings()
 
     result = resolve_chat(
         pii_message,
@@ -150,9 +177,7 @@ def test_sensitive_identity_data_never_reaches_remote_provider(pii_message: str)
 )
 def test_sensitive_history_never_reaches_remote_provider(sensitive_history: str) -> None:
     provider = MagicMock()
-    local_settings = MagicMock()
-    local_settings.ai_service_runtime = "test"
-    local_settings.ai_patient_chat_remote_enabled = True
+    local_settings = _synthetic_remote_settings()
 
     result = resolve_chat(
         "What information should I bring to my visit?",
@@ -169,9 +194,7 @@ def test_sensitive_history_never_reaches_remote_provider(sensitive_history: str)
 
 def test_sensitive_retrieved_context_never_reaches_remote_provider() -> None:
     provider = MagicMock()
-    local_settings = MagicMock()
-    local_settings.ai_service_runtime = "test"
-    local_settings.ai_patient_chat_remote_enabled = True
+    local_settings = _synthetic_remote_settings()
 
     result = resolve_chat(
         "What information should I bring to my visit?",
@@ -184,17 +207,15 @@ def test_sensitive_retrieved_context_never_reaches_remote_provider() -> None:
     provider.complete_json.assert_not_called()
 
 
-def test_chat_provider_timeout_uses_local_fallback() -> None:
+def test_chat_provider_timeout_fails_closed_in_synthetic_beta() -> None:
     provider = MagicMock()
     provider.complete_json.side_effect = TimeoutError("provider timeout")
-    local_settings = MagicMock()
-    local_settings.ai_service_runtime = "test"
-    local_settings.ai_patient_chat_remote_enabled = True
+    local_settings = _synthetic_remote_settings()
 
-    result = resolve_chat("Tôi cần thông tin về giờ làm việc", local_settings, client=provider)
+    with pytest.raises(ProviderUnavailable):
+        resolve_chat("Tôi cần thông tin về giờ làm việc", local_settings, client=provider)
 
-    assert result.provenance == "local_fallback"
-    assert "tham khảo" in result.answer
+    provider.complete_json.assert_called_once()
 
 
 @pytest.mark.parametrize(
@@ -242,9 +263,7 @@ def test_chat_short_circuits_unsafe_requests(
     expected: str,
 ) -> None:
     provider = MagicMock()
-    local_settings = MagicMock()
-    local_settings.ai_service_runtime = "test"
-    local_settings.ai_patient_chat_remote_enabled = True
+    local_settings = _synthetic_remote_settings()
 
     result = resolve_chat(message, local_settings, client=provider)
 

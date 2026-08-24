@@ -134,13 +134,14 @@ class Settings(BaseSettings):
                 raise ValueError("Remote patient chat requires the Spring provenance gate")
             if self.remote_ai_kill_switch:
                 raise ValueError("Remote patient chat kill switch is enabled")
-            if self.remote_ai_synthetic_only and runtime not in {"synthetic-beta", "synthetic_beta"}:
+            if not self.remote_ai_synthetic_only:
+                raise ValueError("Remote patient chat requires the synthetic-only guard")
+            if runtime not in {"synthetic-beta", "synthetic_beta"}:
                 raise ValueError("Remote patient chat requires synthetic-beta runtime")
-            if self.remote_ai_synthetic_only:
-                if self.rag_storage_backend != "supabase":
-                    raise ValueError("Synthetic remote patient chat requires Supabase RAG")
-                if self.supabase_rag_fallback_to_memory:
-                    raise ValueError("Synthetic remote patient chat cannot fall back to memory RAG")
+            if self.rag_storage_backend != "supabase":
+                raise ValueError("Synthetic remote patient chat requires Supabase RAG")
+            if self.supabase_rag_fallback_to_memory:
+                raise ValueError("Synthetic remote patient chat cannot fall back to memory RAG")
             provider = self.ai_provider.strip().casefold()
             allowed_providers = {
                 item.strip().casefold()
