@@ -45,6 +45,10 @@ def test_resolve_deepseek_success() -> None:
     settings.deepseek_api_key = "test-key"
     settings.deepseek_model = "deepseek-chat"
     settings.deepseek_base_url = "https://api.deepseek.com"
+    settings.ai_service_runtime = "test"
+    settings.ai_patient_chat_remote_enabled = True
+    settings.ai_chat_remote_provider_enabled = True
+    settings.remote_ai_synthetic_only = False
 
     mock_message = MagicMock()
     mock_message.content = '{"recommended_specialty":"Thần Kinh & Đột Quỵ","urgency_level":"HIGH","clinical_advice":"advice","suggested_questions":["q1"]}'
@@ -69,6 +73,10 @@ def test_remote_provider_uses_configured_timeout() -> None:
     settings.ai_chat_model = "deepseek-chat"
     settings.ai_base_url = "https://api.deepseek.com"
     settings.ai_timeout_seconds = 4.25
+    settings.ai_service_runtime = "test"
+    settings.ai_patient_chat_remote_enabled = True
+    settings.ai_chat_remote_provider_enabled = True
+    settings.remote_ai_synthetic_only = False
 
     mock_message = MagicMock()
     mock_message.content = (
@@ -224,9 +232,17 @@ def test_fenced_json_remote_response_is_decoded() -> None:
     settings = SimpleNamespace(
         ai_provider="deepseek",
         ai_api_key="test-key",
+        ai_base_url="https://api.deepseek.com",
         deepseek_model="deepseek-v4-flash",
         deepseek_base_url="https://api.deepseek.com",
-        ai_service_runtime="staging",
+        ai_service_runtime="synthetic-beta",
+        ai_patient_chat_remote_enabled=True,
+        ai_chat_remote_provider_enabled=True,
+        remote_ai_synthetic_only=True,
+        rag_storage_backend="supabase",
+        supabase_rag_fallback_to_memory=False,
+        remote_ai_provider_allowlist="deepseek",
+        remote_ai_https_host_allowlist="api.deepseek.com",
     )
     response = MagicMock()
     response.choices = [

@@ -521,6 +521,14 @@ def deepseek_triage(
     if _triage_requires_local(symptoms) or context_contains_sensitive_data(context):
         return fallback
     allow_fallback = runtime_allows_local_fallback(settings)
+    # Triage is an independently callable endpoint, so it must enforce the
+    # same explicit remote-egress gate as patient chat.  Without this check a
+    # configured DeepSeek key could send non-synthetic triage text directly to
+    # the provider even when patient-chat remote access is disabled.
+    if not patient_chat_remote_enabled(settings):
+        if allow_fallback:
+            return fallback
+        raise ProviderUnavailable()
     client = client or build_llm_client(settings)
     if client is None:
         if allow_fallback:
@@ -567,6 +575,10 @@ def resolve_triage(
         return rule_based_triage(symptoms).model_copy(update={"provenance": "local_fallback"})
     remote_requested = remote_provider_requested(settings, "ai_provider", LOCAL_CHAT_PROVIDERS)
     if remote_requested:
+        if not patient_chat_remote_enabled(settings):
+            if runtime_allows_local_fallback(settings):
+                return rule_based_triage(symptoms).model_copy(update={"provenance": "local_fallback"})
+            raise ProviderUnavailable()
         client = build_llm_client(settings)
         if client is None and not runtime_allows_local_fallback(settings):
             raise ProviderUnavailable()

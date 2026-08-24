@@ -83,6 +83,25 @@ def test_remote_embedding_failure_fails_closed_outside_local_runtime() -> None:
             embed("đau đầu", settings)
 
 
+def test_remote_embedding_never_calls_provider_without_remote_egress_gate() -> None:
+    settings = SimpleNamespace(
+        embedding_provider="deepseek",
+        ai_provider="deepseek",
+        ai_api_key="test-key",
+        ai_embedding_model="test-embedding",
+        ai_base_url="https://api.deepseek.com",
+        ai_timeout_seconds=3.5,
+        ai_service_runtime="staging",
+        ai_patient_chat_remote_enabled=False,
+        ai_chat_remote_provider_enabled=False,
+    )
+    with patch("openai.OpenAI") as remote_client:
+        with pytest.raises(ProviderUnavailable):
+            embed("đau đầu", settings)
+
+    remote_client.assert_not_called()
+
+
 def test_openai_embedding_does_not_use_deepseek_alias_credentials() -> None:
     settings = SimpleNamespace(
         ai_provider="openai",
