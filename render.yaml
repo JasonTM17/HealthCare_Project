@@ -22,7 +22,9 @@ services:
     runtime: docker
     dockerfilePath: ./apps/ai-service/Dockerfile
     dockerContext: ./apps/ai-service
-    healthCheckPath: /readyz
+    # Render private services use a TCP port check. `healthCheckPath` is a
+    # web-service-only field; application readiness is verified internally
+    # with the service token by Spring/synthetic smoke tests.
     envVars:
       - key: AI_SERVICE_RUNTIME
         value: synthetic-beta
