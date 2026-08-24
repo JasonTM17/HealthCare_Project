@@ -435,6 +435,14 @@ public class AiService {
 
     private String endpoint(String path) {
         String base = aiServiceUrl == null ? "" : aiServiceUrl.strip();
+        // Render's `fromService.property: hostport` intentionally supplies a
+        // private-network host:port without a scheme. Normalize that value at
+        // the gateway boundary so URI.create receives an absolute URL while
+        // preserving explicit http/https configuration for local and hosted
+        // environments.
+        if (!base.isEmpty() && !base.matches("^[a-zA-Z][a-zA-Z0-9+.-]*://.*$")) {
+            base = "http://" + base;
+        }
         while (base.endsWith("/")) {
             base = base.substring(0, base.length() - 1);
         }

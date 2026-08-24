@@ -84,7 +84,9 @@ services:
         fromService:
           type: pserv
           name: healthcare-beta-ai
-          property: host
+          # Render's private-network reference is a host:port pair. The
+          # Spring gateway normalizes this to an internal HTTP URL.
+          property: hostport
       - key: AI_SERVICE_TOKEN
         sync: false
       - key: AI_CHAT_REMOTE_PROVIDER_ENABLED
