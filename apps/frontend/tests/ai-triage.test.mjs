@@ -6,39 +6,19 @@ const root = new URL("../", import.meta.url);
 const read = (relativePath) => readFile(new URL(relativePath, root), "utf8");
 
 test("AI triage fails closed for emergency and unresolved specialty results", async () => {
-  const [modal, shell, home, phone] = await Promise.all([
-    read("components/AiTriageModal.tsx"),
+  const [shell, home, assistant, phone] = await Promise.all([
     read("components/PublicPageShell.tsx"),
     read("app/page.tsx"),
+    read("components/FloatingHealthAssistant.tsx"),
     read("lib/phone.ts"),
   ]);
 
-  assert.match(modal, /emergencyContact\?/);
-  assert.match(modal, /safeTelephoneHref/);
   assert.match(phone, /Never normalize an arbitrary URI-like value/);
   assert.match(phone, /trimmed\.replace/);
-  assert.doesNotMatch(modal, /value\?\.trim\(\)\.replace/);
-  assert.match(modal, /result\.urgencyLevel !== "EMERGENCY"/);
-  assert.match(modal, /result\.specialtyResolution === "RESOLVED"/);
-  assert.match(modal, /href="\/specialties"/);
-  assert.match(modal, /role=\{result\.urgencyLevel === "EMERGENCY" \? "alert" : "status"\}/);
-  assert.match(modal, /aria-live=\{result\.urgencyLevel === "EMERGENCY" \? "assertive" : "polite"\}/);
-  assert.match(modal, /Xem cơ sở gần nhất/);
-  assert.match(modal, /analysisRequestRef/);
-  assert.match(modal, /invalidatePendingAnalysis/);
-  assert.match(modal, /clearAnalysisState/);
-  assert.match(modal, /useEffect\(\(\) => \{/);
-  assert.match(modal, /if \(isOpen\) return;/);
-  assert.match(modal, /if \(!isOpen\) return null;/);
-  assert.match(modal, /closeDialog/);
-  assert.match(modal, /analysisRequestRef\.current \+= 1;/);
-  assert.match(modal, /setLastSubmittedSymptoms\(""\);/);
-  assert.match(modal, /MAX_SYMPTOM_LENGTH = 1200/);
-  assert.match(modal, /SYMPTOM_PROMPTS/);
-  assert.match(modal, /triage-character-count/);
-  assert.match(modal, /Không nhập số CCCD, mã BHYT/);
-  assert.match(modal, /h-11 w-11/);
-  assert.match(modal, /aria-describedby="triage-input-help triage-privacy-note triage-character-count"/);
-  assert.match(shell, /emergencyContact=\{emergencyBranch\?\.emergencyHotline\}/);
-  assert.match(home, /emergencyContact=\{emergencyBranch\?\.emergencyHotline\}/);
+  assert.match(shell, /requestPublicAssistantOpen/);
+  assert.match(shell, /detail: \{ mode: "SYMPTOM_TRIAGE" \}/);
+  assert.match(assistant, /PUBLIC_ASSISTANT_OPEN_EVENT/);
+  assert.match(assistant, /handleModeChangeRef/);
+  assert.doesNotMatch(shell, /AiTriageModal/);
+  assert.doesNotMatch(home, /AiTriageModal|isAiTriageOpen|handleAiSpecialtySelect/);
 });

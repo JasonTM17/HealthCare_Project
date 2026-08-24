@@ -72,6 +72,7 @@ def test_sync_revision_tombstone_rejects_stale_resurrection() -> None:
     document = service.index.get("specialty:cardio")
     assert document is not None
     assert document.title == "Tim mạch mới"
+    assert document.title == "Tim mạch mới"
 
 
 def test_sync_revision_guard_rechecks_after_concurrent_delete() -> None:
@@ -148,7 +149,71 @@ def test_sync_revision_guard_survives_delete_then_newer_ingest() -> None:
 
     document = service.index.get("specialty:cardio")
     assert document is not None
-    assert document.title == "Tim mạch mới"
+
+
+def test_projection_specific_tombstone_does_not_remove_newer_other_projection() -> None:
+    service = RagService()
+    vector = [1.0, 0.0]
+    service.ingest(
+        "specialty",
+        "shared",
+        "Operational",
+        "Operational content",
+        vector,
+        metadata={"projection_kind": "OPERATIONAL", "_sync_revision": "20"},
+    )
+    service.ingest(
+        "specialty",
+        "shared",
+        "Clinical",
+        "Clinical content",
+        vector,
+        metadata={"projection_kind": "CLINICAL", "content_revision": "30"},
+    )
+
+    # A delayed operational delete must not erase the independent clinical
+    # projection, even though both rows share one catalog source identity.
+    service.remove("specialty", "shared", revision=21, projection="OPERATIONAL")
+
+    assert service.index.get("specialty:shared", projection="OPERATIONAL") is None
+    clinical = service.index.get("specialty:shared", projection="CLINICAL")
+    assert clinical is not None
+    assert clinical.content == "Clinical content"
+
+
+def test_clinical_eligibility_revision_allows_same_content_renewal_after_revoke() -> None:
+    service = RagService()
+    vector = [1.0, 0.0]
+    service.ingest(
+        "article",
+        "renewal",
+        "Approved article",
+        "Stable reviewed content",
+        vector,
+        metadata={
+            "projection_kind": "CLINICAL",
+            "content_revision": "1",
+            "eligibility_revision": "1",
+        },
+    )
+
+    service.remove("article", "renewal", revision=2, projection="CLINICAL")
+
+    renewed = service.ingest(
+        "article",
+        "renewal",
+        "Approved article",
+        "Stable reviewed content",
+        vector,
+        metadata={
+            "projection_kind": "CLINICAL",
+            "content_revision": "1",
+            "eligibility_revision": "3",
+        },
+    )
+
+    assert service.index.get("article:renewal", projection="CLINICAL") is renewed
+    assert renewed.metadata["eligibility_revision"] == "3"
 
 
 def test_index_search_waits_for_mutation_lock() -> None:

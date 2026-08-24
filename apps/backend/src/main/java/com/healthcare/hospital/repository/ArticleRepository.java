@@ -16,4 +16,7 @@ public interface ArticleRepository extends JpaRepository<Article, UUID> {
     Optional<Article> findBySlugAndActiveTrueAndPublishedAtIsNotNull(String slug);
 
     Page<Article> findByActiveTrueAndPublishedAtIsNotNullOrderByPublishedAtDesc(Pageable pageable);
+
+    Page<Article> findByContentKindAndActiveTrueAndPublishedAtIsNotNullOrderByPublishedAtDesc(
+        String contentKind, Pageable pageable);
 }

@@ -20,6 +20,7 @@ export default function ArticleDetailPage() {
   const [article, setArticle] = useState<Article | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -36,7 +37,7 @@ export default function ArticleDetailPage() {
       .finally(() => { if (!cancelled) setLoading(false); });
     void task;
     return () => { cancelled = true; };
-  }, [slug]);
+  }, [retryCount, slug]);
 
   const structuredSections = article?.sections?.filter((section) => section.heading.trim() || section.body.trim()) ?? [];
   const bodyParagraphs = article?.body?.split(/\n\s*\n/).map((paragraph) => paragraph.trim()).filter(Boolean) ?? [];
@@ -52,7 +53,14 @@ export default function ArticleDetailPage() {
           <p>Thông tin tham khảo giúp bạn chủ động chuẩn bị câu hỏi và chăm sóc sức khỏe tốt hơn.</p>
         </header>
         {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải bài viết…</p> : null}
-        {error ? <p className="catalog-status catalog-status--error" role="alert">{error}</p> : null}
+        {error ? (
+          <div aria-live="assertive" className="catalog-status catalog-status--error" role="alert">
+            <span>{error}</span>
+            <button className="outline-button outline-button--small" onClick={() => setRetryCount((count) => count + 1)} type="button">
+              Thử tải lại
+            </button>
+          </div>
+        ) : null}
         {!loading && !error && !article ? <p className="catalog-status" role="status">Không tìm thấy bài viết đã xuất bản.</p> : null}
         {article ? (
           <>

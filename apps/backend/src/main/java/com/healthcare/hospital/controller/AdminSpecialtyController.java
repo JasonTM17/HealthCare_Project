@@ -9,6 +9,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -35,18 +37,25 @@ public class AdminSpecialtyController {
     }
 
     @PostMapping
-    public ResponseEntity<Specialty> create(@Valid @RequestBody SpecialtyRequest request) {
-        return ResponseEntity.ok(adminSpecialtyService.create(request));
+    public ResponseEntity<Specialty> create(
+            @Valid @RequestBody SpecialtyRequest request,
+            @AuthenticationPrincipal UserDetails actor) {
+        return ResponseEntity.ok(adminSpecialtyService.create(request, actor));
     }
 
     @PutMapping("/{slug}")
-    public ResponseEntity<Specialty> update(@PathVariable String slug, @Valid @RequestBody SpecialtyRequest request) {
-        return ResponseEntity.ok(adminSpecialtyService.update(slug, request));
+    public ResponseEntity<Specialty> update(
+            @PathVariable String slug,
+            @Valid @RequestBody SpecialtyRequest request,
+            @AuthenticationPrincipal UserDetails actor) {
+        return ResponseEntity.ok(adminSpecialtyService.update(slug, request, actor));
     }
 
     @DeleteMapping("/{slug}")
-    public ResponseEntity<Void> delete(@PathVariable String slug) {
-        adminSpecialtyService.delete(slug);
+    public ResponseEntity<Void> delete(
+            @PathVariable String slug,
+            @AuthenticationPrincipal UserDetails actor) {
+        adminSpecialtyService.delete(slug, actor);
         return ResponseEntity.noContent().build();
     }
 }

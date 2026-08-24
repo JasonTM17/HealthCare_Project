@@ -1,0 +1,103 @@
+# Render blueprint for the synthetic HealthCare beta.
+#
+# This file is intentionally a deployment manifest, not deployment evidence.
+# Create a separate Render project/database from production, set every secret
+# in Render's secret store, and keep the remote patient-chat switches disabled
+# until the synthetic-only gates in docs/deployment-beta.md pass.
+
+databases:
+  - name: healthcare-beta-postgres
+    plan: free
+    databaseName: healthcare
+    user: healthcare
+
+services:
+  - type: redis
+    name: healthcare-beta-redis
+    plan: free
+    maxmemoryPolicy: noeviction
+
+  - type: pserv
+    name: healthcare-beta-ai
+    runtime: docker
+    dockerfilePath: ./apps/ai-service/Dockerfile
+    dockerContext: ./apps/ai-service
+    healthCheckPath: /readyz
+    envVars:
+      - key: AI_SERVICE_RUNTIME
+        value: synthetic-beta
+      - key: AI_SERVICE_TOKEN
+        sync: false
+      - key: AI_PROVIDER
+        value: local
+      - key: EMBEDDING_PROVIDER
+        value: local
+      - key: AI_PATIENT_CHAT_REMOTE_ENABLED
+        value: "false"
+      - key: AI_CHAT_REMOTE_PROVIDER_ENABLED
+        value: "false"
+      - key: REMOTE_AI_SYNTHETIC_ONLY
+        value: "true"
+      - key: REMOTE_AI_KILL_SWITCH
+        value: "true"
+      - key: RAG_STORAGE_BACKEND
+        value: supabase
+      - key: SUPABASE_DB_URL
+        sync: false
+      - key: SUPABASE_RAG_FALLBACK_TO_MEMORY
+        value: "false"
+      - key: RAG_EMBEDDING_DIMENSION
+        value: "384"
+
+  - type: web
+    name: healthcare-beta-backend
+    runtime: docker
+    dockerfilePath: ./apps/backend/Dockerfile
+    dockerContext: ./apps/backend
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: render-beta
+      - key: DATABASE_URL
+        fromDatabase:
+          name: healthcare-beta-postgres
+          property: connectionString
+      - key: DATABASE_USERNAME
+        fromDatabase:
+          name: healthcare-beta-postgres
+          property: user
+      - key: DATABASE_PASSWORD
+        fromDatabase:
+          name: healthcare-beta-postgres
+          property: password
+      - key: REDIS_HOST
+        fromService:
+          type: redis
+          name: healthcare-beta-redis
+          property: host
+      - key: REDIS_PORT
+        fromService:
+          type: redis
+          name: healthcare-beta-redis
+          property: port
+      - key: AI_SERVICE_URL
+        fromService:
+          type: pserv
+          name: healthcare-beta-ai
+          property: host
+      - key: AI_SERVICE_TOKEN
+        sync: false
+      - key: AI_CHAT_REMOTE_PROVIDER_ENABLED
+        value: "false"
+      - key: AI_CHAT_SYMPTOM_TRIAGE_ENABLED
+        value: "false"
+      - key: AI_CHAT_HEALTH_EDUCATION_ENABLED
+        value: "false"
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: APP_MAIL_ENABLED
+        value: "false"
+      - key: APP_PAYMENT_BANK_TRANSFER_ENABLED
+        value: "false"

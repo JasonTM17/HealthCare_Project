@@ -1,8 +1,11 @@
 package com.healthcare.ai.chat.controller;
 
 import com.healthcare.ai.chat.dto.ChatContracts.ChatExchangeResponse;
+import com.healthcare.ai.chat.dto.ChatContracts.ConsentRequest;
 import com.healthcare.ai.chat.dto.ChatContracts.ConversationResponse;
 import com.healthcare.ai.chat.dto.ChatContracts.CreateConversationRequest;
+import com.healthcare.ai.chat.dto.ChatContracts.FeedbackRequest;
+import com.healthcare.ai.chat.dto.ChatContracts.FeedbackResponse;
 import com.healthcare.ai.chat.dto.ChatContracts.MessagePageResponse;
 import com.healthcare.ai.chat.dto.ChatContracts.SendMessageRequest;
 import com.healthcare.ai.chat.service.AiConversationService;
@@ -16,6 +19,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -40,8 +44,7 @@ public class AiConversationController {
     public ResponseEntity<ConversationResponse> create(
             @AuthenticationPrincipal UserDetails principal,
             @Valid @RequestBody(required = false) CreateConversationRequest request) {
-        String title = request == null ? null : request.title();
-        return ResponseEntity.status(HttpStatus.CREATED).body(conversationService.create(principal, title));
+        return ResponseEntity.status(HttpStatus.CREATED).body(conversationService.create(principal, request));
     }
 
     @GetMapping
@@ -75,6 +78,33 @@ public class AiConversationController {
         return ResponseEntity.ok(
             conversationService.send(principal, conversationId, idempotencyKey, request.content())
         );
+    }
+
+    @PutMapping("/{conversationId}/consent")
+    public ResponseEntity<ConversationResponse> consent(
+            @AuthenticationPrincipal UserDetails principal,
+            @PathVariable UUID conversationId,
+            @Valid @RequestBody ConsentRequest request) {
+        return ResponseEntity.ok(conversationService.acceptConsent(principal, conversationId, request));
+    }
+
+    @PutMapping("/{conversationId}/messages/{messageId}/feedback")
+    public ResponseEntity<FeedbackResponse> feedback(
+            @AuthenticationPrincipal UserDetails principal,
+            @PathVariable UUID conversationId,
+            @PathVariable UUID messageId,
+            @Valid @RequestBody FeedbackRequest request) {
+        return ResponseEntity.ok(conversationService.setFeedback(
+            principal, conversationId, messageId, request.rating()));
+    }
+
+    @DeleteMapping("/{conversationId}/messages/{messageId}/feedback")
+    public ResponseEntity<Void> deleteFeedback(
+            @AuthenticationPrincipal UserDetails principal,
+            @PathVariable UUID conversationId,
+            @PathVariable UUID messageId) {
+        conversationService.deleteFeedback(principal, conversationId, messageId);
+        return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/{conversationId}")

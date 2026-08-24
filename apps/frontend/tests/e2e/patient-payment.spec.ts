@@ -64,7 +64,7 @@ function pageEnvelope<T>(content: T[]): PageEnvelope<T> {
 }
 
 async function installPaymentMocks(context: BrowserContext): Promise<void> {
-  let paymentStatus: "UNPAID" | "PAID" = "UNPAID";
+  let paymentStatus: "UNPAID" | "PENDING_VERIFICATION" | "PAID" = "UNPAID";
   let paymentReads = 0;
 
   const appointment = (): PatientPortalAppointment => ({
@@ -100,8 +100,8 @@ async function installPaymentMocks(context: BrowserContext): Promise<void> {
     accountHolder: "HEALTHCARE E2E",
     qrCodeUrl: "https://img.vietqr.io/image/payment-e2e.png",
     transferContent: "APT PAY E2E",
-    transactionReference: paymentStatus === "PAID" ? "FT123456789" : null,
-    submittedAt: paymentStatus === "PAID" ? "2026-08-23T01:00:00Z" : null,
+    transactionReference: paymentStatus === "UNPAID" ? null : "FT123456789",
+    submittedAt: paymentStatus === "UNPAID" ? null : "2026-08-23T01:00:00Z",
     verifiedAt: paymentStatus === "PAID" ? "2026-08-23T01:01:00Z" : null,
     rejectionReason: null,
     refundReference: null,
@@ -128,7 +128,10 @@ async function installPaymentMocks(context: BrowserContext): Promise<void> {
 
     if (url.pathname === `/api/v1/patient/appointments/${APPOINTMENT_ID}/payment`) {
       paymentReads += 1;
-      if (paymentReads > 1) paymentStatus = "PAID";
+      // The first refresh represents the bank event entering the admin queue;
+      // the next refresh represents an explicit admin approval.
+      if (paymentReads === 2) paymentStatus = "PENDING_VERIFICATION";
+      if (paymentReads > 2) paymentStatus = "PAID";
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(payment()) });
       return;
     }
@@ -147,10 +150,12 @@ async function installPaymentMocks(context: BrowserContext): Promise<void> {
   });
 }
 
-test("mobile patient payment keeps QR actions accessible and synchronizes a confirmed status", async ({ context, page }) => {
+test("mobile patient payment keeps QR actions accessible and waits for admin approval", async ({ context, page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await installPaymentMocks(context);
-  await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: "http://127.0.0.1:3100" });
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], {
+    origin: `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? "3000"}`,
+  });
   await context.addInitScript(({ key, session }) => {
     window.sessionStorage.setItem(key, JSON.stringify(session));
   }, { key: AUTH_STORAGE_KEY, session: PATIENT_SESSION });
@@ -172,8 +177,14 @@ test("mobile patient payment keeps QR actions accessible and synchronizes a conf
   expect(download.suggestedFilename()).toBe("vietqr-APT-PAY-E2E.png");
 
   await page.getByRole("button", { name: "Kiểm tra ngay" }).click();
+  await expect(page.getByText("đang chờ admin kiểm tra, phê duyệt")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Thanh toán chuyển khoản" }).getByLabel("Trạng thái thanh toán: Đang chờ đối soát")).toBeVisible();
+
+  // A second refresh is the mocked admin approval boundary; the patient UI
+  // must not mark the payment as paid before this transition.
+  await page.getByRole("button", { name: "Kiểm tra ngay" }).click();
   await expect(page.getByText("Khoản thanh toán đã được xác nhận.")).toBeVisible();
-  await expect(page.getByLabel("Trạng thái thanh toán: Đã thanh toán")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Thanh toán chuyển khoản" }).getByLabel("Trạng thái thanh toán: Đã thanh toán")).toBeVisible();
   await expect(page.getByRole("button", { name: /cho lịch APT-PAY-E2E/ })).toHaveCount(0);
 
   const horizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);

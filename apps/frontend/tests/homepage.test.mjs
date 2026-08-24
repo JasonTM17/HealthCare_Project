@@ -33,7 +33,7 @@ test("homepage mounts the published CMS hero slot for realtime updates", async (
   }
   assert.match(page, /<Footer branches=\{branches\} cmsSlug="home" \/>/);
   assert.match(page, /<main id="main-content" tabIndex=\{-1\}>/);
-  assert.match(page, /handleOpenBooking\(undefined, specialtyId, undefined\)/);
+  assert.doesNotMatch(page, /AiTriageModal|handleAiSpecialtySelect/);
   assert.match(page, /hideWhenNotFound/);
 });
 
@@ -51,6 +51,6 @@ test("homepage mounts the published CMS hero slot for realtime updates", async (
   }
   assert.match(page, /<Footer branches=\{branches\} cmsSlug="home" \/>/);
   assert.match(page, /<main id="main-content" tabIndex=\{-1\}>/);
-  assert.match(page, /handleOpenBooking\(undefined, specialtyId, undefined\)/);
+  assert.doesNotMatch(page, /AiTriageModal|handleAiSpecialtySelect/);
   assert.match(page, /hideWhenNotFound/);
 });

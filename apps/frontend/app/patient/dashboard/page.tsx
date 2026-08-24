@@ -17,6 +17,7 @@ import {
   fetchPatientDiagnosticResults,
   fetchPatientMedicalRecords,
   fetchPatientPrescriptions,
+  fetchPatientOverview,
   hasRole,
   markAllNotificationsAsRead,
   markNotificationAsRead,
@@ -36,6 +37,7 @@ import type {
   Prescription,
   PatientProfile,
   PaymentStatus,
+  PatientOverview,
   TimeSlot,
 } from "../../../types/hospital";
 import {
@@ -61,6 +63,7 @@ const initialPrescriptions: Loadable<Prescription[]> = { status: "loading" };
 const initialDiagnostics: Loadable<DiagnosticResult[]> = { status: "loading" };
 const initialNotifications: Loadable<Page<Notification>> = { status: "loading" };
 const initialProfile: Loadable<PatientProfile> = { status: "loading" };
+const initialOverview: Loadable<PatientOverview> = { status: "loading" };
 
 interface ProfileForm {
   fullName: string;
@@ -287,6 +290,7 @@ export default function PatientDashboardPage() {
   const [diagnostics, setDiagnostics] = useState<Loadable<DiagnosticResult[]>>(initialDiagnostics);
   const [notifications, setNotifications] = useState<Loadable<Page<Notification>>>(initialNotifications);
   const [profile, setProfile] = useState<Loadable<PatientProfile>>(initialProfile);
+  const [overview, setOverview] = useState<Loadable<PatientOverview>>(initialOverview);
   const [profileForm, setProfileForm] = useState<ProfileForm>(EMPTY_PROFILE_FORM);
   const [profileOperation, setProfileOperation] = useState<"idle" | "saving">("idle");
   const [profileNotice, setProfileNotice] = useState<string | null>(null);
@@ -324,7 +328,8 @@ export default function PatientDashboardPage() {
       fetchPatientPrescriptions(),
       fetchPatientDiagnosticResults(),
       fetchNotifications(),
-    ]).then(([profileResult, appointmentsResult, recordsResult, prescriptionsResult, diagnosticsResult, notificationsResult]) => {
+      fetchPatientOverview(),
+    ]).then(([profileResult, appointmentsResult, recordsResult, prescriptionsResult, diagnosticsResult, notificationsResult, overviewResult]) => {
       if (cancelled) return;
 
       const results = [profileResult, appointmentsResult, recordsResult, prescriptionsResult, diagnosticsResult, notificationsResult];
@@ -350,6 +355,7 @@ export default function PatientDashboardPage() {
       setPrescriptions(toLoadable(prescriptionsResult));
       setDiagnostics(toLoadable(diagnosticsResult));
       setNotifications(toLoadable(notificationsResult));
+      setOverview(toLoadable(overviewResult));
     });
 
     return () => {
@@ -364,6 +370,7 @@ export default function PatientDashboardPage() {
     setDiagnostics(initialDiagnostics);
     setNotifications(initialNotifications);
     setProfile(initialProfile);
+    setOverview(initialOverview);
     setReloadKey((value) => value + 1);
   };
 
@@ -733,6 +740,13 @@ export default function PatientDashboardPage() {
           <a className="portal-summary-card" href="#diagnostics"><span>Kết quả</span><strong>{countOf(diagnostics)}</strong><small>Cận lâm sàng</small></a>
         </section>
 
+        <section className="portal-panel portal-panel--notice" aria-labelledby="care-hub-title">
+          <div className="portal-panel__heading"><div><p className="section-note">TRUNG TÂM CHĂM SÓC</p><h2 id="care-hub-title">Bước tiếp theo của bạn</h2></div><span aria-hidden="true" className="portal-panel__icon">+</span></div>
+          {overview.status === "loading" ? <LoadingState label="Đang tổng hợp trạng thái chăm sóc…" /> : null}
+          {overview.status === "error" ? <p className="portal-panel__intro">Tóm tắt chăm sóc tạm thời chưa tải được; các khu vực chi tiết vẫn sử dụng được.</p> : null}
+          {overview.status === "success" ? <div className="portal-grid portal-grid--main"><div><p className="portal-panel__intro">{overview.data.unreadConsultationCount ? <><strong>{overview.data.unreadConsultationCount}</strong> tin tư vấn chưa đọc.</> : "Không có tin tư vấn chưa đọc."} {overview.data.openCarePlanTaskCount ? <><strong>{overview.data.openCarePlanTaskCount}</strong> việc chăm sóc đang mở.</> : null}</p><Link className="button button--primary" href="/patient/consultations">Mở tư vấn riêng</Link></div><div><p className="portal-panel__intro">Thanh toán chỉ được ghi nhận sau khi admin đối soát. Nếu trạng thái đang chờ, bạn không cần chuyển lại.</p><Link className="outline-button" href="/benh-pho-bien">Xem kiến thức bệnh phổ biến</Link></div></div> : null}
+        </section>
+
         <section className="portal-panel" aria-labelledby="appointments-title" id="appointments">
           <div className="portal-panel__heading">
             <div>
@@ -827,7 +841,7 @@ export default function PatientDashboardPage() {
                       {payment.data.transactionReference ? <div><dt>Mã giao dịch đã gửi</dt><dd><code>{payment.data.transactionReference}</code></dd></div> : null}
                       <div>
                         <dt>Trạng thái</dt>
-                        <dd><span className={paymentStyles.status} data-status={payment.data.status}>{formatPaymentStatus(payment.data.status)}</span></dd>
+                        <dd><span aria-label={`Trạng thái thanh toán: ${formatPaymentStatus(payment.data.status)}`} className={paymentStyles.status} data-status={payment.data.status}>{formatPaymentStatus(payment.data.status)}</span></dd>
                       </div>
                     </dl>
                   </div>
@@ -835,7 +849,7 @@ export default function PatientDashboardPage() {
                   {isPollablePaymentStatus(payment.data.status) ? (
                     <div aria-live="polite" className={paymentStyles.polling} role="status">
                       <UiIcon name="clock" size={19} />
-                      <span>{payment.data.status === "PENDING_VERIFICATION" ? "Hệ thống đang tự kiểm tra kết quả đối soát." : "Trạng thái sẽ tự cập nhật nếu ngân hàng xác nhận giao dịch."}</span>
+                      <span>{payment.data.status === "PENDING_VERIFICATION" ? "Giao dịch đã được ghi nhận và đang chờ admin kiểm tra, phê duyệt." : "Sau khi bạn gửi mã giao dịch, giao dịch sẽ chờ admin đối soát trước khi được xác nhận."}</span>
                       <button className={paymentStyles.refreshButton} disabled={paymentRefreshing} onClick={() => void handleRefreshPayment()} type="button">{paymentRefreshing ? "Đang kiểm tra…" : "Kiểm tra ngay"}</button>
                     </div>
                   ) : null}
@@ -863,7 +877,7 @@ export default function PatientDashboardPage() {
                     </form>
                   ) : null}
 
-                  {payment.data.status === "PENDING_VERIFICATION" ? <p className={paymentStyles.infoCard}>Bạn có thể rời trang. Hệ thống vẫn tiếp tục đối soát và sẽ cập nhật thông báo khi hoàn tất.</p> : null}
+                  {payment.data.status === "PENDING_VERIFICATION" ? <p className={paymentStyles.infoCard}>Bạn có thể rời trang. Trạng thái chỉ chuyển thành “Đã thanh toán” sau khi admin kiểm tra sao kê và phê duyệt.</p> : null}
                   {payment.data.refundReference ? <p className={paymentStyles.successCard}><strong>Mã hoàn tiền:</strong> {payment.data.refundReference}</p> : null}
                 </>
               ) : null}

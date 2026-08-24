@@ -29,12 +29,19 @@ export default function PortalChrome({ role, user, children }: PortalChromeProps
     ? [
         { href: homePath, label: "Tổng quan" },
         { href: "/patient/appointments", label: "Lịch hẹn" },
+        { href: "/patient/consultations", label: "Tư vấn riêng" },
+        { href: "/patient/care-plan", label: "Kế hoạch chăm sóc" },
+        { href: "/patient/health-questions", label: "Hỏi đáp sức khỏe" },
         { href: "/patient/chat", label: "Trợ lý sức khỏe" },
         { href: "/patient/preferences", label: "Tài khoản" },
       ]
     : [
-        { href: homePath, label: "Tổng quan" },
-        { href: "/doctor/appointments", label: "Lịch hôm nay" },
+      { href: homePath, label: "Tổng quan" },
+      { href: "/doctor/appointments", label: "Lịch hôm nay" },
+      { href: "/doctor/consultations", label: "Tư vấn bệnh nhân" },
+        { href: "/doctor/care-plans", label: "Kế hoạch chăm sóc" },
+        { href: "/doctor/health-questions", label: "Hỏi đáp bệnh" },
+        { href: "/doctor/ai-content-reviews", label: "Duyệt nội dung AI" },
       ];
 
   const isActive = (href: string): boolean => (

@@ -9,7 +9,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class JdbcSyncOutboxAdapterSqlTest {
 
     @Test
-    void insertUsesV30GeneratedIdempotencyAndLeaseColumnNames() throws Exception {
+    void insertUsesServerGeneratedIdempotencyAndGovernanceMetadata() throws Exception {
         String insert = sql("INSERT_EVENT");
         String select = sql("SELECT_COLUMNS");
         String claim = sql("CLAIM_EVENT");
@@ -18,12 +18,14 @@ class JdbcSyncOutboxAdapterSqlTest {
 
         assertThat(insertColumns)
             .contains("entity_classification")
+            .contains("source_revision")
+            .contains("eligibility_revision")
             .doesNotContain("idempotency_key")
             .doesNotContain("\n            classification,")
             .doesNotContain("lease_token");
         assertThat(insert)
-            .contains("VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', 0, ?, ?)");
-        assertThat(count(insert, '?')).isEqualTo(11);
+            .contains("VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', 0, ?, ?)");
+        assertThat(count(insert, '?')).isEqualTo(13);
         assertThat(select)
             .contains("entity_classification")
             .contains("lease_token");

@@ -35,6 +35,16 @@ public class AiConversation {
     @Column(name = "status", nullable = false, length = 24)
     private AiConversationStatus status = AiConversationStatus.ACTIVE;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "mode", nullable = false, length = 32)
+    private ChatMode mode = ChatMode.HOSPITAL_SUPPORT;
+
+    @Column(name = "consent_version", length = 64)
+    private String consentVersion;
+
+    @Column(name = "consented_at")
+    private OffsetDateTime consentedAt;
+
     @Column(name = "in_flight", nullable = false)
     private boolean inFlight;
 
@@ -64,6 +74,12 @@ public class AiConversation {
     public void setTitle(String title) { this.title = title; }
     public AiConversationStatus getStatus() { return status; }
     public void setStatus(AiConversationStatus status) { this.status = status; }
+    public ChatMode getMode() { return mode; }
+    public void setMode(ChatMode mode) { this.mode = mode == null ? ChatMode.HOSPITAL_SUPPORT : mode; }
+    public String getConsentVersion() { return consentVersion; }
+    public void setConsentVersion(String consentVersion) { this.consentVersion = consentVersion; }
+    public OffsetDateTime getConsentedAt() { return consentedAt; }
+    public void setConsentedAt(OffsetDateTime consentedAt) { this.consentedAt = consentedAt; }
     public boolean isInFlight() { return inFlight; }
     public void setInFlight(boolean inFlight) { this.inFlight = inFlight; }
     public OffsetDateTime getInFlightStartedAt() { return inFlightStartedAt; }

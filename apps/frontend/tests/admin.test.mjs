@@ -20,7 +20,15 @@ test("admin routes expose the complete operations surface", async () => {
     access(new URL("catalog/page.tsx", appRoot)),
     access(new URL("schedules/page.tsx", appRoot)),
     access(new URL("content/page.tsx", appRoot)),
+    access(new URL("health-questions/page.tsx", appRoot)),
   ]);
+});
+
+test("admin FAQ editing keeps AI review governance visible", async () => {
+  const catalog = await source("catalog/page.tsx");
+  assert.match(catalog, /FAQ đang hiển thị công khai chưa đồng nghĩa/);
+  assert.match(catalog, /\/admin\/ai-content-reviews/);
+  assert.match(catalog, /bác sĩ độc lập review/);
 });
 test("admin layout gates access and exposes real account actions", async () => {
   const layout = await source("layout.tsx");

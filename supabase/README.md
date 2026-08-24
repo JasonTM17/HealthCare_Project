@@ -37,8 +37,9 @@ in-memory service unless a database is explicitly configured.
 RAG_STORAGE_BACKEND=memory|supabase
 SUPABASE_DB_URL=postgresql://<role>:<password>@<host>:<port>/<database>
 SUPABASE_DB_SCHEMA=healthcare
-SUPABASE_RAG_TABLE=ai_documents
-SUPABASE_RAG_RPC=match_documents
+# Patient-chat projection; keep the legacy catalog index separate.
+SUPABASE_RAG_TABLE=ai_chat_documents
+SUPABASE_RAG_RPC=match_chat_documents
 SUPABASE_DB_CONNECT_TIMEOUT_SECONDS=5
 SUPABASE_RAG_FALLBACK_TO_MEMORY=true|false
 RAG_EMBEDDING_DIMENSION=384
@@ -57,18 +58,33 @@ to the durable store.
 
 ## Data model and seed mapping
 
+### Dashboard schema note
+
+The HealthCare tables intentionally live in the `healthcare` schema, not
+`public`. In Supabase Table Editor open the schema selector currently showing
+`public` and choose `healthcare`; an empty `public` table list is expected. The
+customer/profile/checkpoint/chat-projection tables remain server-only even
+though they are visible to an authenticated dashboard administrator.
+
 - Catalog tables: `specialties`, `branches`, `doctors`, `services`, `packages`,
   `articles`, `faqs`, and the two doctor join tables.
 - Synthetic mirror: `customers` and one-to-one `patient_profiles`. The first
   1,000 synthetic `legacy_user_id` values match the existing backend
   `md5('large-user:' || i)::uuid` family. `auth_user_id` is correlation-only;
   Spring Boot/PostgreSQL remains the account and authorization authority.
-- Vector store: one `ai_documents` row per `(source_type, source_id)`, with a
-  384-dimensional `extensions.vector`, content hash, embedding provenance,
-  active/published flags, and monotonic `sync_revision` tombstones.
-- Retrieval: `healthcare.match_documents` applies active/published/deleted
-  filters, source filters, a bounded top-k, cosine similarity, and the same
-  75/25 vector/keyword weighting used by the local RAG index.
+- Legacy catalog vector store: one `ai_documents` row per `(source_type,
+  source_id)`. It remains the public catalog/old-index contract and is not the
+  patient-chat projection.
+- Patient chatbot projection: `ai_chat_documents` is a separate service-only
+  table keyed by `(projection_kind, source_type, source_id)`. It stores only
+  de-identified operational or approved clinical source content, a
+  384-dimensional `extensions.vector`, canonical content/eligibility
+  revisions, approval expiry metadata, provenance, and monotonic tombstones.
+- Patient retrieval: `healthcare.match_chat_documents` is `SECURITY INVOKER`,
+  accepts only the protected 384-dim vector contract, filters inactive,
+  unpublished, deleted, and expired clinical rows, and is executable only by
+  `service_role`. Spring still performs the authoritative SQL checks before
+  provider context and again before display/persistence.
 
 The seed creates 30 specialties, 20 branches, 500 doctors, 200 services, 100
 packages, 500 articles, 150 FAQs, 10,000 customers, 7,500 patient profiles,
@@ -111,6 +127,12 @@ browser APIs. Apply the structural gate with:
 ```text
 psql <database-url> -f supabase/tests/big_data_vector_contract.sql
 ```
+
+The reviewed remote expansion currently uses the default `v2-100k-75k-10k`
+contract: 100,000 synthetic customers, 75,000 synthetic profiles and 10,000
+384-dimensional public RAG documents. It is separate from the protected
+patient-chat projection (`ai_chat_documents`), which only receives operational
+or independently approved clinical projections.
 
 ## Security boundary
 

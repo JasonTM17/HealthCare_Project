@@ -20,24 +20,25 @@ export default function ArticlesPage() {
   const [page, setPage] = useState<Page<Article> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     const task = Promise.resolve().then(() => {
-      if (cancelled) return undefined;
-      setLoading(true);
-      setError(null);
-      setPage(null);
-      return fetchArticles(currentPage, 12);
+        if (cancelled) return undefined;
+        setLoading(true);
+        setError(null);
+        setPage(null);
+        return fetchArticles(currentPage, 12);
     })
       .then((data) => { if (data !== undefined && !cancelled) setPage(data); })
-      .catch((reason: unknown) => {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : "Không thể tải bài viết.");
+      .catch(() => {
+        if (!cancelled) setError("Tạm thời chưa thể tải bài viết. Vui lòng thử lại sau.");
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     void task;
     return () => { cancelled = true; };
-  }, [currentPage]);
+  }, [currentPage, retryCount]);
 
   const featuredArticle = page?.content[0];
   const articleCount = page?.totalElements ?? page?.content.length ?? 0;
@@ -126,7 +127,14 @@ export default function ArticlesPage() {
         </div>
 
         {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải cẩm nang…</p> : null}
-        {error ? <p className="catalog-status catalog-status--error" role="alert">{error} Không có bài viết demo thay thế.</p> : null}
+        {error ? (
+          <div aria-live="assertive" className="catalog-status catalog-status--error" role="alert">
+            <span>{error} Không có bài viết demo thay thế.</span>
+            <button className="outline-button outline-button--small" onClick={() => setRetryCount((count) => count + 1)} type="button">
+              Thử tải lại
+            </button>
+          </div>
+        ) : null}
         {!loading && !error && page?.empty ? <p className="catalog-status" role="status">Backend chưa có bài viết đã xuất bản.</p> : null}
         {page && !page.empty ? (
           <>

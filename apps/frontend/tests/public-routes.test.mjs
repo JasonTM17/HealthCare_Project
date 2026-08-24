@@ -122,6 +122,23 @@ test("paginated catalog routes clear stale pages before a retry", async () => {
   }
 });
 
+test("health knowledge and booking guidance surfaces provide bounded retry actions", async () => {
+  const [articles, articleDetail, faq, guidance] = await Promise.all([
+    read("app/articles/page.tsx"),
+    read("app/articles/[slug]/page.tsx"),
+    read("app/faq/page.tsx"),
+    read("app/huong-dan/page.tsx"),
+  ]);
+
+  for (const source of [articles, articleDetail, faq, guidance]) {
+    assert.match(source, /retryCount/);
+    assert.match(source, /Thử tải lại/);
+    assert.match(source, /outline-button--small/);
+  }
+  assert.match(articles, /Tạm thời chưa thể tải bài viết/);
+  assert.match(faq, /Tạm thời chưa thể tải câu hỏi thường gặp/);
+});
+
 test("contact and guidance pages do not invent branch, insurance, or FAQ data", async () => {
   const [contact, guidance, about] = await Promise.all([
     read("app/contact/page.tsx"),

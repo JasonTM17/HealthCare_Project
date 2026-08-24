@@ -227,6 +227,11 @@ jobs:
             "PAYMENT_WEBHOOK_SECRET=validation-webhook-xxxxxxxxxxxxxxxxxxxxxxxx"
             "PAYMENT_WEBHOOK_TOLERANCE_SECONDS=300"
             "RAG_INGEST_ENABLED=false"
+            "AI_PATIENT_CHAT_REMOTE_ENABLED=false"
+            "AI_CHAT_REMOTE_PROVIDER_ENABLED=false"
+            "REMOTE_AI_KILL_SWITCH=true"
+            "REMOTE_AI_SYNTHETIC_ONLY=true"
+            "SUPABASE_RAG_FALLBACK_TO_MEMORY=false"
           ) | Set-Content -LiteralPath $fixture -Encoding utf8NoBOM
           & pwsh -NoProfile -File scripts/validate-production-env.ps1 -EnvFile $fixture
 

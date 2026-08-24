@@ -8,7 +8,9 @@ import com.healthcare.appointment.dto.UpdatePatientProfileRequest;
 import com.healthcare.clinical.dto.DiagnosticResultResponse;
 import com.healthcare.clinical.dto.MedicalRecordResponse;
 import com.healthcare.clinical.dto.PrescriptionResponse;
+import com.healthcare.clinical.dto.PatientOverviewResponse;
 import com.healthcare.clinical.service.ClinicalService;
+import com.healthcare.clinical.service.PatientOverviewService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -33,14 +35,23 @@ public class PatientPortalController {
     private final ClinicalService clinicalService;
     private final AppointmentPortalService appointmentPortalService;
     private final PatientProfileService patientProfileService;
+    private final PatientOverviewService patientOverviewService;
 
     public PatientPortalController(
             ClinicalService clinicalService,
             AppointmentPortalService appointmentPortalService,
-            PatientProfileService patientProfileService) {
+            PatientProfileService patientProfileService,
+            PatientOverviewService patientOverviewService) {
         this.clinicalService = clinicalService;
         this.appointmentPortalService = appointmentPortalService;
         this.patientProfileService = patientProfileService;
+        this.patientOverviewService = patientOverviewService;
+    }
+
+    @GetMapping("/overview")
+    public ResponseEntity<PatientOverviewResponse> getOverview(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(patientOverviewService.getOverview(userDetails));
     }
 
     @GetMapping("/profile")

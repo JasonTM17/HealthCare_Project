@@ -362,7 +362,7 @@ async function expectAdminCanSeePayment(
     await expect(paymentRow).toBeVisible();
     await expect(paymentRow).toContainText(reference);
     await expect(paymentRow).toContainText("Chờ đối soát");
-    await expect(paymentRow.getByRole("button", { name: "Xác nhận đã nhận" })).toBeVisible();
+    await expect(paymentRow.getByRole("button", { name: "Duyệt thanh toán" })).toBeVisible();
   } finally {
     await context.close();
   }

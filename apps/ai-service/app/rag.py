@@ -14,7 +14,7 @@ import re
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
 from threading import RLock
-from typing import Callable, Collection, List, Optional, Protocol
+from typing import Callable, Collection, List, Mapping, Optional, Protocol
 
 from app.schemas import MAX_EMBEDDING_DIMENSION, ProviderProvenance, SOURCE_TYPES
 
@@ -23,6 +23,38 @@ MAX_DOCUMENT_CHARS = 20_000
 MAX_RAG_DOCUMENTS = 5_000
 SYNC_REVISION_METADATA_KEY = "_sync_revision"
 _IGNORED_HTML_TAGS = frozenset({"script", "style", "noscript", "template"})
+_PROJECTION_METADATA_KEY = "projection_kind"
+_PROJECTION_KINDS = frozenset({"OPERATIONAL", "CLINICAL"})
+
+
+def normalize_projection_kind(metadata: Mapping[str, object] | None = None, value: str | None = None) -> str | None:
+    """Normalize the optional projection discriminator used by patient chat.
+
+    The legacy public RAG contract keys documents by ``source_type:source_id``.
+    Patient chat has two intentionally separate projections for a specialty,
+    so an explicit discriminator is required before those rows share an index.
+    """
+
+    candidate = value
+    if candidate is None and metadata is not None:
+        candidate = metadata.get(_PROJECTION_METADATA_KEY)  # type: ignore[assignment]
+    normalized = str(candidate).strip().upper() if candidate is not None else ""
+    return normalized if normalized in _PROJECTION_KINDS else None
+
+
+def document_storage_key(
+    source_type: str,
+    source_id: str,
+    *,
+    metadata: Mapping[str, object] | None = None,
+    projection: str | None = None,
+) -> str:
+    """Return an index key without changing the legacy ``RagDocument.id``."""
+
+    normalized_projection = normalize_projection_kind(metadata, projection)
+    if normalized_projection is None:
+        return f"{source_type}:{source_id}"
+    return f"{normalized_projection.lower()}:{source_type}:{source_id}"
 
 
 class EmbeddingContractError(ValueError):
@@ -196,7 +228,7 @@ class RagIndex:
     def add(self, doc: RagDocument) -> None:
         with self._lock:
             if not doc.searchable:
-                self.remove(doc.id)
+                self.remove(doc.id, projection=normalize_projection_kind(doc.metadata))
                 return
 
             vector, model, provenance = _normalize_embedding(
@@ -208,20 +240,80 @@ class RagIndex:
             contract = (len(vector), model, provenance)
             if reference and contract != reference:
                 raise EmbeddingContractError("embedding model, provenance, or dimension is incompatible")
-            if doc.id not in self._documents and self.size >= self.max_documents:
+            storage_key = document_storage_key(
+                doc.source_type,
+                doc.source_id,
+                metadata=doc.metadata,
+            )
+            legacy_key = f"{doc.source_type}:{doc.source_id}"
+            legacy = self._documents.get(legacy_key)
+            if (
+                legacy is not None
+                and storage_key != legacy_key
+                and normalize_projection_kind(legacy.metadata) == normalize_projection_kind(doc.metadata)
+            ):
+                # Upgrade a legacy operational row in place when the writer
+                # starts emitting an explicit projection discriminator.
+                self._documents.pop(legacy_key, None)
+            if storage_key not in self._documents and self.size >= self.max_documents:
                 raise EmbeddingContractError("RAG document limit reached")
             doc.embedding = vector
             doc.embedding_model = model
             doc.embedding_provenance = provenance
-            self._documents[doc.id] = doc
+            self._documents[storage_key] = doc
 
-    def remove(self, doc_id: str) -> None:
+    def remove(
+        self,
+        doc_id: str,
+        *,
+        projection: str | None = None,
+        include_projections: bool = True,
+    ) -> None:
         with self._lock:
+            if projection is not None and ":" in doc_id:
+                source_type, source_id = doc_id.split(":", 1)
+                self._documents.pop(
+                    document_storage_key(source_type, source_id, projection=projection),
+                    None,
+                )
+                return
             self._documents.pop(doc_id, None)
+            # A legacy caller does not carry a projection. Remove both bounded
+            # patient-chat projections while preserving unrelated source IDs.
+            if projection is None and include_projections and ":" in doc_id:
+                source_type, source_id = doc_id.split(":", 1)
+                for kind in _PROJECTION_KINDS:
+                    self._documents.pop(
+                        document_storage_key(source_type, source_id, projection=kind),
+                        None,
+                    )
 
-    def get(self, doc_id: str) -> Optional[RagDocument]:
+    def get(self, doc_id: str, *, projection: str | None = None) -> Optional[RagDocument]:
         with self._lock:
-            return self._documents.get(doc_id)
+            if projection is not None and ":" in doc_id:
+                source_type, source_id = doc_id.split(":", 1)
+                keyed = self._documents.get(
+                    document_storage_key(source_type, source_id, projection=projection)
+                )
+                if keyed is not None:
+                    return keyed
+                legacy = self._documents.get(doc_id)
+                normalized_target = normalize_projection_kind(value=projection)
+                if (
+                    legacy is not None
+                    and normalized_target == "OPERATIONAL"
+                    and normalize_projection_kind(legacy.metadata) in {None, "OPERATIONAL"}
+                ):
+                    return legacy
+                return None
+            direct = self._documents.get(doc_id)
+            if direct is not None:
+                return direct
+            # Preserve compatibility for callers that only know the public
+            # source identity. If both projections exist, ambiguity is a hard
+            # miss; mode-specific callers must pass the projection.
+            matches = [document for document in self._documents.values() if document.id == doc_id]
+            return matches[0] if len(matches) == 1 else None
 
     @property
     def size(self) -> int:
@@ -308,6 +400,16 @@ class RagServiceContract(Protocol):
     ) -> List[tuple[RagDocument, float]]:
         """Retrieve bounded public documents."""
 
+    def remove(
+        self,
+        source_type: SOURCE_TYPES,
+        source_id: str,
+        revision: int | None = None,
+        *,
+        projection: str | None = None,
+    ) -> None:
+        """Tombstone one projection, or all projections for a legacy caller."""
+
 
 class RagService:
     """Coordinates normalized, idempotent ingestion and hybrid retrieval."""
@@ -349,12 +451,27 @@ class RagService:
         document_id = f"{source_type}:{source_id}"
         content_hash = hashlib.sha256(normalized_content.encode("utf-8")).hexdigest()
         document_metadata = dict(metadata or {})
+        # Keep the database-owned governance hash (when supplied) separate
+        # from the integrity hash of the visible text actually embedded.  A
+        # canonical JSON snapshot hash and a rendered RAG-text hash are not
+        # interchangeable; both must be carried for clinical authorization.
+        document_metadata["visible_content_hash"] = content_hash
+        projection = normalize_projection_kind(document_metadata)
+        state_key = document_storage_key(
+            source_type,
+            source_id,
+            projection=projection,
+        )
+        # Clinical approval can be revoked and renewed without changing the
+        # immutable content revision.  Its eligibility revision is therefore
+        # the monotonic projection watermark; operational catalog sync keeps
+        # using the explicit `_sync_revision` value.
         revision = self._revision(document_metadata)
         with self._revision_lock:
-            existing = self.index.get(document_id)
-            tombstone_revision = self._tombstones.get(document_id)
+            existing = self.index.get(document_id, projection=projection)
+            tombstone_revision = self._tombstones.get(state_key)
             existing_revision = self._revision(existing.metadata) if existing else None
-            latest_revision = self._latest_revisions.get(document_id)
+            latest_revision = self._latest_revisions.get(state_key)
             if revision is not None:
                 known_revision = max(
                     revision if tombstone_revision is None else tombstone_revision,
@@ -370,10 +487,10 @@ class RagService:
                         content=normalized_content,
                         metadata=document_metadata,
                     )
-                self._latest_revisions[document_id] = revision
+                self._latest_revisions[state_key] = revision
             self._operation_sequence += 1
             operation_token = self._operation_sequence
-            self._latest_operations[document_id] = operation_token
+            self._latest_operations[state_key] = operation_token
 
         document = RagDocument(
             id=document_id,
@@ -395,7 +512,7 @@ class RagService:
         # revision retain the legacy replace behavior.
         with self._revision_lock:
             if revision is None:
-                self._tombstones.pop(document_id, None)
+                self._tombstones.pop(state_key, None)
             else:
                 if tombstone_revision is not None and revision <= tombstone_revision:
                     return existing or document
@@ -406,7 +523,13 @@ class RagService:
         # Inactive or unpublished records are tombstoned from the searchable
         # index. This prevents stale public knowledge from remaining visible.
         if not document.searchable:
-            self.remove(source_type, source_id, revision=revision, operation_token=operation_token)
+            self.remove(
+                source_type,
+                source_id,
+                revision=revision,
+                operation_token=operation_token,
+                projection=projection,
+            )
             return document
 
         # Reuse a prior vector when only metadata/title/publication state
@@ -442,19 +565,19 @@ class RagService:
         # completes so a newer delete/update cannot be overwritten by an older
         # in-flight request.
         with self._revision_lock:
-            current = self.index.get(document_id)
-            if self._latest_operations.get(document_id) != operation_token:
+            current = self.index.get(document_id, projection=projection)
+            if self._latest_operations.get(state_key) != operation_token:
                 return current or document
             if revision is not None:
                 current_revision = self._revision(current.metadata) if current else None
-                current_tombstone = self._tombstones.get(document_id)
+                current_tombstone = self._tombstones.get(state_key)
                 if current_tombstone is not None and revision <= current_tombstone:
                     return current or document
                 if current_revision is not None and revision < current_revision:
                     assert current is not None
                     return current
                 if current_tombstone is not None and revision > current_tombstone:
-                    self._tombstones.pop(document_id, None)
+                    self._tombstones.pop(state_key, None)
             self.index.add(document)
         return document
 
@@ -465,31 +588,59 @@ class RagService:
         revision: int | None = None,
         *,
         operation_token: int | None = None,
+        projection: str | None = None,
     ) -> None:
-        document_id = f"{source_type}:{source_id}"
+        normalized_projection = normalize_projection_kind(value=projection)
+        target_projections: list[str | None] = (
+            [normalized_projection]
+            if normalized_projection is not None
+            else [None, "OPERATIONAL", "CLINICAL"]
+        )
         with self._revision_lock:
-            existing = self.index.get(document_id)
-            if revision is not None:
-                current_revision = self._revision(existing.metadata) if existing else None
-                latest_revision = self._latest_revisions.get(document_id)
-                known_revision = max(
-                    self._tombstones.get(document_id, revision),
-                    current_revision if current_revision is not None else revision,
-                    latest_revision if latest_revision is not None else revision,
+            for target_projection in target_projections:
+                state_key = document_storage_key(
+                    source_type,
+                    source_id,
+                    projection=target_projection,
                 )
-                if revision < known_revision:
-                    return
-                self._latest_revisions[document_id] = revision
-                self._tombstones[document_id] = known_revision
-            if operation_token is None:
-                self._operation_sequence += 1
-                operation_token = self._operation_sequence
-                self._latest_operations[document_id] = operation_token
-            self.index.remove(document_id)
+                existing = self.index.get(
+                    f"{source_type}:{source_id}",
+                    projection=target_projection,
+                )
+                if revision is not None:
+                    current_revision = self._revision(existing.metadata) if existing else None
+                    latest_revision = self._latest_revisions.get(state_key)
+                    known_revision = max(
+                        self._tombstones.get(state_key, revision),
+                        current_revision if current_revision is not None else revision,
+                        latest_revision if latest_revision is not None else revision,
+                    )
+                    if revision < known_revision:
+                        continue
+                    self._latest_revisions[state_key] = revision
+                    self._tombstones[state_key] = known_revision
+                current_operation_token = operation_token
+                if current_operation_token is None:
+                    self._operation_sequence += 1
+                    current_operation_token = self._operation_sequence
+                    self._latest_operations[state_key] = current_operation_token
+                self.index.remove(
+                    f"{source_type}:{source_id}",
+                    projection=target_projection,
+                    include_projections=False,
+                )
 
     @staticmethod
     def _revision(metadata: dict[str, str]) -> int | None:
         raw_revision = metadata.get(SYNC_REVISION_METADATA_KEY)
+        if raw_revision is None:
+            projection = normalize_projection_kind(metadata)
+            if projection == "CLINICAL":
+                # Approval/revocation/renewal changes advance eligibility even
+                # when the canonical content snapshot remains unchanged.
+                raw_revision = metadata.get("eligibility_revision")
+            if raw_revision is None:
+                raw_revision = metadata.get("content_revision")
         if raw_revision is None:
             return None
         try:
@@ -501,6 +652,18 @@ class RagService:
     def sources(self) -> list[tuple[SOURCE_TYPES, str]]:
         with self._revision_lock:
             return [(document.source_type, document.source_id) for document in self.index.documents]
+
+    def source_page(self, offset: int = 0, limit: int = 1_000) -> tuple[list[RagDocument], int]:
+        """Return a deterministic page and total for complete reconciliation."""
+
+        bounded_offset = max(0, int(offset))
+        bounded_limit = max(1, min(int(limit), 5_000))
+        with self._revision_lock:
+            documents = sorted(
+                self.index.documents,
+                key=lambda item: (item.source_type, item.source_id, item.id),
+            )
+        return documents[bounded_offset : bounded_offset + bounded_limit], len(documents)
 
     def search(
         self,

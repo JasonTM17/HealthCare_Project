@@ -7,6 +7,7 @@ import re
 import threading
 import time
 import unicodedata
+from urllib.parse import urlparse
 from dataclasses import dataclass
 from typing import Any, Protocol, Sequence
 
@@ -28,6 +29,8 @@ from app.schemas import (
     TriageResponse,
     ChatResponse,
     Citation,
+    ChatSafetyAction,
+    UsedSource,
 )
 
 RULE_BASED = "rule_based_triage"
@@ -127,9 +130,55 @@ _MAX_PROVIDER_RESPONSE_CHARS = 32_000
 
 
 def patient_chat_remote_enabled(settings: Any) -> bool:
-    """Require an explicit boolean opt-in; truthy mocks or strings do not qualify."""
+    """Require an explicit opt-in and never permit remote patient chat in prod."""
 
-    return getattr(settings, "ai_patient_chat_remote_enabled", False) is True
+    if getattr(settings, "ai_patient_chat_remote_enabled", False) is not True:
+        return False
+    runtime = string_setting(settings, "ai_service_runtime", "non-local").casefold()
+    if runtime in {"prod", "production"}:
+        return False
+    # In the real synthetic-beta runtime Spring and FastAPI must both opt in.
+    # Test doubles that use `test`/`demo` keep the historical adapter behavior.
+    if runtime in {"synthetic-beta", "synthetic_beta"} and getattr(
+        settings, "ai_chat_remote_provider_enabled", False
+    ) is not True:
+        return False
+    # Use an identity check here: lightweight test doubles often expose
+    # arbitrary attributes as ``MagicMock`` objects, which must not be
+    # interpreted as an enabled safety switch.
+    if getattr(settings, "remote_ai_kill_switch", False) is True:
+        return False
+    if getattr(settings, "remote_ai_synthetic_only", False) is True:
+        if runtime not in {"synthetic-beta", "synthetic_beta"}:
+            return False
+        if str(getattr(settings, "rag_storage_backend", "memory")).casefold() != "supabase":
+            return False
+        if getattr(settings, "supabase_rag_fallback_to_memory", True) is True:
+            return False
+        provider = string_setting(settings, "ai_provider").casefold()
+        allowed = {
+            item.strip().casefold()
+            for item in string_setting(settings, "remote_ai_provider_allowlist", "deepseek").split(",")
+            if item.strip()
+        }
+        if provider not in allowed:
+            return False
+        parsed = urlparse(string_setting(settings, "ai_base_url"))
+        hosts = {
+            item.strip().casefold()
+            for item in string_setting(settings, "remote_ai_https_host_allowlist", "api.deepseek.com").split(",")
+            if item.strip()
+        }
+        if parsed.scheme.casefold() != "https" or not parsed.hostname or parsed.hostname.casefold() not in hosts:
+            return False
+    return True
+
+
+def contains_prompt_injection(value: str) -> bool:
+    """Return whether untrusted text contains a known instruction override."""
+
+    normalized = _normalize_sensitive_text(value)
+    return any(_normalize_sensitive_text(term) in normalized for term in _INJECTION_TERMS)
 
 
 def _normalize_sensitive_text(value: str) -> str:
@@ -185,6 +234,7 @@ def chat_safety_response(
                 "nội bộ. Tôi vẫn có thể hỗ trợ thông tin sức khỏe ở mức tham khảo."
             ),
             provenance="local_fallback",
+            safety_action=ChatSafetyAction.REFUSE,
         )
     if any(_normalize_sensitive_text(term) in normalized for term in _EMERGENCY_TERMS):
         return ChatResponse(
@@ -193,6 +243,7 @@ def chat_safety_response(
                 "tại địa phương hoặc đến cơ sở cấp cứu gần nhất ngay; không chờ trợ lý AI."
             ),
             provenance="local_fallback",
+            safety_action=ChatSafetyAction.EMERGENCY,
         )
     if any(_normalize_sensitive_text(term) in normalized for term in _UNSUPPORTED_CLINICAL_TERMS):
         return ChatResponse(
@@ -201,6 +252,7 @@ def chat_safety_response(
                 "với bác sĩ hoặc dược sĩ đang theo dõi để được đánh giá an toàn."
             ),
             provenance="local_fallback",
+            safety_action=ChatSafetyAction.REFUSE,
         )
     if chat_contains_sensitive_data(message, recent_turns):
         return ChatResponse(
@@ -209,6 +261,7 @@ def chat_safety_response(
                 "mã hồ sơ hoặc thông tin định danh. Bạn có thể mô tả triệu chứng mà không nêu danh tính."
             ),
             provenance="local_fallback",
+            safety_action=ChatSafetyAction.REFUSE,
         )
     return None
 
@@ -543,6 +596,7 @@ def resolve_chat(
     recent_turns: Sequence[tuple[str, str]] = (),
     context: Sequence[str] = (),
     citations: Sequence[Citation] = (),
+    used_sources: Sequence[UsedSource] = (),
     client: LLMClient | None = None,
 ) -> ChatResponse:
     """Resolve a bounded chat request without accepting model-created citations."""
@@ -554,18 +608,18 @@ def resolve_chat(
     fallback_allowed = runtime_allows_local_fallback(settings)
     fallback = _chat_fallback(message, context)
     if context_contains_sensitive_data(context):
-        return ChatResponse(answer=fallback, provenance="local_fallback")
+        return ChatResponse(answer=fallback, provenance="local_fallback", used_sources=list(used_sources))
     if not patient_chat_remote_enabled(settings):
-        return ChatResponse(answer=fallback, provenance="local_fallback")
+        return ChatResponse(answer=fallback, provenance="local_fallback", used_sources=list(used_sources))
     client = client or build_llm_client(settings)
     if client is None:
         if not fallback_allowed:
             raise ProviderUnavailable()
-        return ChatResponse(answer=fallback, provenance="local_fallback")
+        return ChatResponse(answer=fallback, provenance="local_fallback", used_sources=list(used_sources))
 
     if not _circuit_allows_request():
         if fallback_allowed:
-            return ChatResponse(answer=fallback, provenance="local_fallback")
+            return ChatResponse(answer=fallback, provenance="local_fallback", used_sources=list(used_sources))
         raise ProviderUnavailable()
 
     conversation = [f"{role}: {content[:2_000]}" for role, content in recent_turns[-6:]]
@@ -589,6 +643,7 @@ def resolve_chat(
             answer=answer.strip(),
             citations=list(citations),
             provenance="remote_provider",
+            used_sources=list(used_sources),
         )
     except ProviderUnavailable:
         _record_provider_failure(settings)
@@ -596,5 +651,5 @@ def resolve_chat(
     except Exception:
         _record_provider_failure(settings)
         if fallback_allowed:
-            return ChatResponse(answer=fallback, provenance="local_fallback")
+            return ChatResponse(answer=fallback, provenance="local_fallback", used_sources=list(used_sources))
         raise ProviderUnavailable()

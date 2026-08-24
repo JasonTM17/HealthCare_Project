@@ -4200,6 +4200,48 @@ main {
   color: var(--color-ink-muted);
 }
 
+.portal-thread {
+  display: grid;
+  gap: var(--sp-3);
+  max-height: min(58vh, 42rem);
+  overflow-y: auto;
+  padding: var(--sp-2);
+  border: 1px solid var(--color-line);
+  background: var(--color-paper-bright);
+}
+
+.portal-thread__message {
+  max-width: min(76ch, 92%);
+  padding: var(--sp-3) var(--sp-4);
+  border-left: 3px solid var(--color-teal-300);
+  background: var(--color-mint-light);
+}
+
+.portal-thread__message--mine {
+  justify-self: end;
+  border-left: 0;
+  border-right: 3px solid var(--color-amber);
+  background: var(--color-surface);
+}
+
+.portal-thread__message p:last-child { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.portal-panel textarea {
+  width: 100%;
+  min-height: 7rem;
+  margin-top: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-paper-bright);
+  resize: vertical;
+}
+
+@media (max-width: 720px) {
+  .portal-thread { max-height: 52vh; }
+  .portal-thread__message { max-width: 96%; }
+}
+
 .portal-panel__intro {
   max-width: 70ch;
 }
