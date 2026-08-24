@@ -36,8 +36,8 @@ def _settings() -> Settings:
         ai_service_runtime="test",
         ai_service_allow_unauthenticated_local=True,
         ai_chat_relevance_threshold=0.0,
-        # This fixture exercises provider-contract behavior with a test double;
-        # the real Settings default remains synthetic-beta-only fail-closed.
+        # Local contract fixture; remote tests below opt into the complete
+        # synthetic-beta gate explicitly.
         remote_ai_synthetic_only=False,
     )
 
@@ -451,6 +451,7 @@ def test_production_rejects_opted_in_remote_patient_chat() -> None:
             ChatGenerateRequest(
                 message="Giờ mở cửa?",
                 authorized_sources=[AuthorizedSource(source_type="service", source_id="hours")],
+                synthetic_beta=True,
             ),
             local,
             _service(),
@@ -461,7 +462,14 @@ def test_remote_response_missing_used_sources_fails_closed(monkeypatch: pytest.M
     local = _settings()
     local.ai_provider = "deepseek"
     local.ai_patient_chat_remote_enabled = True
-    local.ai_service_runtime = "staging"
+    local.ai_chat_remote_provider_enabled = True
+    local.ai_service_runtime = "synthetic-beta"
+    local.remote_ai_synthetic_only = True
+    local.rag_storage_backend = "supabase"
+    local.supabase_rag_fallback_to_memory = False
+    local.ai_base_url = "https://api.deepseek.com"
+    local.remote_ai_provider_allowlist = "deepseek"
+    local.remote_ai_https_host_allowlist = "api.deepseek.com"
     monkeypatch.setattr(
         "app.chatbot.resolve_chat",
         lambda *args, **kwargs: ChatResponse(answer="grounded?", provenance="remote_provider"),
@@ -471,6 +479,7 @@ def test_remote_response_missing_used_sources_fails_closed(monkeypatch: pytest.M
             ChatGenerateRequest(
                 message="Giờ mở cửa?",
                 authorized_sources=[AuthorizedSource(source_type="service", source_id="hours")],
+                synthetic_beta=True,
             ),
             local,
             _service(),

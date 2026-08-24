@@ -137,40 +137,41 @@ def patient_chat_remote_enabled(settings: Any) -> bool:
     runtime = string_setting(settings, "ai_service_runtime", "non-local").casefold()
     if runtime in {"prod", "production"}:
         return False
-    # In the real synthetic-beta runtime Spring and FastAPI must both opt in.
-    # Test doubles that use `test`/`demo` keep the historical adapter behavior.
-    if runtime in {"synthetic-beta", "synthetic_beta"} and getattr(
-        settings, "ai_chat_remote_provider_enabled", False
-    ) is not True:
+    # Spring and FastAPI must both opt in, and the only allowed remote runtime
+    # is the isolated synthetic-beta canary.  Local/test callers deliberately
+    # stay on deterministic providers; provider-adapter tests use the same
+    # synthetic contract with a mocked client.
+    if getattr(settings, "ai_chat_remote_provider_enabled", False) is not True:
+        return False
+    if runtime not in {"synthetic-beta", "synthetic_beta"}:
         return False
     # Use an identity check here: lightweight test doubles often expose
     # arbitrary attributes as ``MagicMock`` objects, which must not be
     # interpreted as an enabled safety switch.
     if getattr(settings, "remote_ai_kill_switch", False) is True:
         return False
-    if getattr(settings, "remote_ai_synthetic_only", False) is True:
-        if runtime not in {"synthetic-beta", "synthetic_beta"}:
-            return False
-        if str(getattr(settings, "rag_storage_backend", "memory")).casefold() != "supabase":
-            return False
-        if getattr(settings, "supabase_rag_fallback_to_memory", True) is True:
-            return False
-        provider = string_setting(settings, "ai_provider").casefold()
-        allowed = {
-            item.strip().casefold()
-            for item in string_setting(settings, "remote_ai_provider_allowlist", "deepseek").split(",")
-            if item.strip()
-        }
-        if provider not in allowed:
-            return False
-        parsed = urlparse(string_setting(settings, "ai_base_url"))
-        hosts = {
-            item.strip().casefold()
-            for item in string_setting(settings, "remote_ai_https_host_allowlist", "api.deepseek.com").split(",")
-            if item.strip()
-        }
-        if parsed.scheme.casefold() != "https" or not parsed.hostname or parsed.hostname.casefold() not in hosts:
-            return False
+    if getattr(settings, "remote_ai_synthetic_only", False) is not True:
+        return False
+    if str(getattr(settings, "rag_storage_backend", "memory")).casefold() != "supabase":
+        return False
+    if getattr(settings, "supabase_rag_fallback_to_memory", True) is True:
+        return False
+    provider = string_setting(settings, "ai_provider").casefold()
+    allowed = {
+        item.strip().casefold()
+        for item in string_setting(settings, "remote_ai_provider_allowlist", "deepseek").split(",")
+        if item.strip()
+    }
+    if provider not in allowed:
+        return False
+    parsed = urlparse(string_setting(settings, "ai_base_url"))
+    hosts = {
+        item.strip().casefold()
+        for item in string_setting(settings, "remote_ai_https_host_allowlist", "api.deepseek.com").split(",")
+        if item.strip()
+    }
+    if parsed.scheme.casefold() != "https" or not parsed.hostname or parsed.hostname.casefold() not in hosts:
+        return False
     return True
 
 
