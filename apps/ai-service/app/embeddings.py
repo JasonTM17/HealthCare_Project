@@ -16,6 +16,7 @@ from app.providers import (
     runtime_allows_local_fallback,
     string_setting,
 )
+from app.llm import patient_chat_remote_enabled
 from app.schemas import EMBEDDING_DIMENSION, ProviderProvenance
 
 DIMENSION = EMBEDDING_DIMENSION
@@ -144,6 +145,14 @@ def embed(text: str, settings: Any) -> EmbeddingResult:
     provider = string_setting(settings, "embedding_provider", "local").lower()
     api_key = provider_secret(settings, provider)
     if remote_requested and not api_key:
+        if allow_fallback:
+            local = LocalEmbeddingClient().embed(text)
+            return EmbeddingResult(local.vector, local.model, "local_fallback")
+        raise ProviderUnavailable()
+
+    # Embeddings are also provider egress.  The public /embeddings and /rag
+    # endpoints must not bypass the synthetic-beta/consent gate used by chat.
+    if remote_requested and not patient_chat_remote_enabled(settings):
         if allow_fallback:
             local = LocalEmbeddingClient().embed(text)
             return EmbeddingResult(local.vector, local.model, "local_fallback")

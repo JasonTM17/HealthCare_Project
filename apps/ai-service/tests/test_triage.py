@@ -75,6 +75,29 @@ def test_emergency_triage_never_calls_remote_provider_outside_local_runtime(
     remote_client.assert_not_called()
 
 
+def test_non_emergency_triage_never_calls_remote_without_remote_egress_gate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "ai_provider", "deepseek")
+    monkeypatch.setattr(settings, "deepseek_api_key", "test-key")
+    monkeypatch.setattr(settings, "ai_api_key", "")
+    monkeypatch.setattr(settings, "ai_service_runtime", "staging")
+    monkeypatch.setattr(settings, "ai_patient_chat_remote_enabled", False)
+    monkeypatch.setattr(settings, "ai_chat_remote_provider_enabled", False)
+    monkeypatch.setattr(settings, "ai_service_token", "service-token")
+
+    with patch("openai.OpenAI") as remote_client:
+        response = client.post(
+            "/triage",
+            json={"symptoms": "đau đầu nhẹ"},
+            headers={"X-AI-Service-Token": "service-token"},
+        )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "AI provider unavailable"
+    remote_client.assert_not_called()
+
+
 def test_local_provider_failure_is_explicitly_labeled_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
