@@ -43,10 +43,13 @@ test("floating assistant exposes real recovery, safety and accessible actions", 
   assert.match(component, /Thử lại/);
   assert.match(component, /aria-expanded=\{open\}/);
   assert.match(component, /role="dialog"/);
+  assert.match(component, /aria-modal="true"/);
   assert.match(component, /maxLength=\{MAX_MESSAGE_LENGTH\}/);
   assert.match(styles, /launcherAvatar/);
   assert.match(styles, /border-radius: 50%/);
   assert.match(styles, /launcherMascot/);
+  assert.match(styles, /launcher::after/);
+  assert.match(styles, /object-fit: contain/);
   assert.match(styles, /min-height: 2\.75rem/);
   assert.match(styles, /--assistant-bottom-clearance/);
   assert.match(styles, /max\(0\.75rem, env\(safe-area-inset-bottom\)\)/);
