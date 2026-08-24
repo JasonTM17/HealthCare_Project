@@ -61,6 +61,18 @@ class AiServiceTest {
     }
 
     @Test
+    void renderPrivateServiceHostPortIsNormalizedToAnHttpEndpoint() {
+        ReflectionTestUtils.setField(aiService, "aiServiceUrl", "ai.internal:8000/");
+        server.expect(requestTo("http://ai.internal:8000/triage"))
+            .andExpect(method(HttpMethod.POST))
+            .andRespond(withSuccess("{\"recommended_specialty\":\"Nội thần kinh\"}", MediaType.APPLICATION_JSON));
+
+        assertThat(aiService.symptomCheck(Map.of("symptoms", "đau đầu")))
+            .containsEntry("recommended_specialty", "Nội thần kinh");
+        server.verify();
+    }
+
+    @Test
     void chatUsesFastApiChatContract() {
         server.expect(requestTo("http://ai.test/chat"))
             .andExpect(method(HttpMethod.POST))
