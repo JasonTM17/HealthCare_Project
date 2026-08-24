@@ -87,6 +87,8 @@ class TriageRequest(BaseModel):
     )
     age: int | None = Field(None, ge=0, le=120, description="Patient age in years")
     gender: str | None = Field(None, max_length=50, description="Optional gender")
+    # Remote triage requires an explicit synthetic-beta assertion from Spring.
+    synthetic_beta: bool = False
 
     _trim_symptoms = field_validator("symptoms", mode="before")(_trim_text)
     _trim_gender = field_validator("gender", mode="before")(_trim_text)
@@ -110,6 +112,8 @@ class ChatRequest(BaseModel):
     # Additive field: legacy callers that only send `message` retain the old
     # /chat behavior while the two-step patient contract can select a mode.
     mode: ChatMode = ChatMode.HOSPITAL_SUPPORT
+    # Internal Spring assertion; browser callers cannot enable remote egress.
+    synthetic_beta: bool = False
 
     _trim_message = field_validator("message", mode="before")(_trim_text)
 
@@ -272,6 +276,8 @@ class LLMRecommendation(BaseModel):
 
 class EmbeddingRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=MAX_INPUT_CHARS)
+    # Remote embeddings are internal-only and require the synthetic assertion.
+    synthetic_beta: bool = False
 
     _trim_text = field_validator("text", mode="before")(_trim_text)
 
@@ -289,6 +295,7 @@ class EmbeddingResponse(BaseModel):
 class RAGSearchRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=MAX_INPUT_CHARS)
     top_k: int = Field(default=5, ge=1, le=MAX_RETRIEVED_CHUNKS)
+    synthetic_beta: bool = False
 
     _trim_query = field_validator("query", mode="before")(_trim_text)
 
@@ -301,6 +308,7 @@ class RAGIndexRequest(BaseModel):
     active: bool = True
     published: bool = True
     metadata: dict[str, str] = Field(default_factory=dict)
+    synthetic_beta: bool = False
 
     _trim_title = field_validator("title", mode="before")(_trim_text)
     _trim_content = field_validator("content", mode="before")(_trim_text)
@@ -391,6 +399,7 @@ class SemanticSearchRequest(BaseModel):
     query: str = Field(default="", max_length=MAX_INPUT_CHARS)
     specialty: str = Field(default="", max_length=200)
     top_k: int = Field(default=10, ge=1, le=MAX_RETRIEVED_CHUNKS)
+    synthetic_beta: bool = False
 
     _trim_query = field_validator("query", mode="before")(_trim_text)
     _trim_specialty = field_validator("specialty", mode="before")(_trim_text)
@@ -398,5 +407,6 @@ class SemanticSearchRequest(BaseModel):
 
 class SpecialtyRecommendationRequest(BaseModel):
     symptoms: str = Field(..., min_length=2, max_length=MAX_INPUT_CHARS)
+    synthetic_beta: bool = False
 
     _trim_symptoms = field_validator("symptoms", mode="before")(_trim_text)

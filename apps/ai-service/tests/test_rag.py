@@ -318,6 +318,39 @@ def test_specialty_recommendation_cites_indexed_sources_only() -> None:
     assert "url" not in response.json()["citations"][0]
 
 
+def test_specialty_recommendation_runs_safety_before_embedding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for name, value in {
+        "ai_provider": "deepseek",
+        "embedding_provider": "deepseek",
+        "deepseek_api_key": "test-key",
+        "ai_api_key": "",
+        "ai_service_runtime": "synthetic-beta",
+        "ai_patient_chat_remote_enabled": True,
+        "ai_chat_remote_provider_enabled": True,
+        "remote_ai_synthetic_only": True,
+        "rag_storage_backend": "supabase",
+        "supabase_rag_fallback_to_memory": False,
+        "ai_base_url": "https://api.deepseek.com",
+        "remote_ai_provider_allowlist": "deepseek",
+        "remote_ai_https_host_allowlist": "api.deepseek.com",
+        "ai_service_token": "service-token",
+    }.items():
+        monkeypatch.setattr(settings, name, value)
+
+    with patch("app.main.embed") as remote_embedding:
+        response = client.post(
+            "/recommendations/specialty",
+            json={"symptoms": "đau ngực dữ dội và khó thở"},
+            headers={"X-AI-Service-Token": "service-token"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["urgency_level"] == "EMERGENCY"
+    remote_embedding.assert_not_called()
+
+
 def test_local_fallback_recommendation_suppresses_retrieved_citations(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

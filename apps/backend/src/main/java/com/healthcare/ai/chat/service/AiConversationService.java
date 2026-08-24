@@ -99,6 +99,7 @@ public class AiConversationService {
     private final boolean symptomTriageEnabled;
     private final boolean healthEducationEnabled;
     private final boolean syntheticBetaAsserted;
+    private final SyntheticBetaGuardService syntheticBetaGuard;
 
     @Autowired
     public AiConversationService(
@@ -117,7 +118,8 @@ public class AiConversationService {
             @Value("${ai.chat.remote-provider-enabled:false}") boolean remoteProviderEnabled,
             @Value("${ai.chat.symptom-triage-enabled:false}") boolean symptomTriageEnabled,
             @Value("${ai.chat.health-education-enabled:false}") boolean healthEducationEnabled,
-            @Value("${ai.chat.synthetic-beta-asserted:false}") boolean syntheticBetaAsserted) {
+            @Value("${ai.chat.synthetic-beta-asserted:false}") boolean syntheticBetaAsserted,
+            SyntheticBetaGuardService syntheticBetaGuard) {
         this.conversationRepository = conversationRepository;
         this.messageRepository = messageRepository;
         this.feedbackRepository = feedbackRepository;
@@ -134,6 +136,8 @@ public class AiConversationService {
         this.symptomTriageEnabled = symptomTriageEnabled;
         this.healthEducationEnabled = healthEducationEnabled;
         this.syntheticBetaAsserted = syntheticBetaAsserted;
+        this.syntheticBetaGuard = syntheticBetaGuard == null
+            ? SyntheticBetaGuardService.disabled() : syntheticBetaGuard;
     }
 
     /** Compatibility constructor for focused unit tests and older callers. */
@@ -166,7 +170,8 @@ public class AiConversationService {
             false,
             true,
             true,
-            false
+            false,
+            SyntheticBetaGuardService.disabled()
         );
     }
 
@@ -203,7 +208,8 @@ public class AiConversationService {
             remoteProviderEnabled,
             symptomTriageEnabled,
             healthEducationEnabled,
-            false
+            false,
+            SyntheticBetaGuardService.disabled()
         );
     }
 
@@ -327,7 +333,7 @@ public class AiConversationService {
             AiConversation conversation = conversationRepository.findByIdAndUserId(conversationId, userId)
                 .orElseThrow(this::notFound);
             SanitizedAiResponse sanitized = groundedResponse(
-                conversation.getMode(), content, recentTurns(conversationId));
+                userId, conversation.getMode(), content, recentTurns(conversationId));
             ChatExchangeResponse completed = transactions.execute(status ->
                 complete(
                     userId,
@@ -360,6 +366,7 @@ public class AiConversationService {
      * the response is then checked again before persistence.
      */
     private SanitizedAiResponse groundedResponse(
+            UUID userId,
             ChatMode mode,
             String content,
             List<Map<String, String>> turns) {
@@ -367,10 +374,11 @@ public class AiConversationService {
         request.put("message", content);
         request.put("mode", mode.name());
         request.put("recent_turns", turns);
-        // This assertion is server configuration only. In a synthetic-beta
-        // canary it is set after Spring has verified the synthetic fixture
-        // markers; browsers cannot set it through the public request body.
-        request.put("synthetic_beta", syntheticBetaAsserted);
+        // This assertion is a server-owned conjunction: the deployment flag
+        // must be enabled and the current database guard must authorize this
+        // user's complete synthetic fixture graph. Browsers cannot set it
+        // through the public request body.
+        request.put("synthetic_beta", syntheticBetaAsserted && syntheticBetaGuard.eligible(userId));
         Map<String, Object> retrieved = aiService.retrieveChat(request);
 
         // Legacy test doubles and older local binaries may not implement the
@@ -398,7 +406,7 @@ public class AiConversationService {
         generation.put("message", content);
         generation.put("mode", mode.name());
         generation.put("recent_turns", turns);
-        generation.put("synthetic_beta", syntheticBetaAsserted);
+        generation.put("synthetic_beta", syntheticBetaAsserted && syntheticBetaGuard.eligible(userId));
         generation.put("authorized_sources", sourceResolver.authorizedPayload(authorized));
         Map<String, Object> generated = aiService.generateChat(generation);
         return sanitize(generated, mode, authorized);
