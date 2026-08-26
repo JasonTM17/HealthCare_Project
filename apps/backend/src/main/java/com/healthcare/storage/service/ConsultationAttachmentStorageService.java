@@ -5,6 +5,7 @@ import io.minio.GetObjectArgs;
 import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
+import io.minio.RemoveObjectArgs;
 import io.minio.StatObjectArgs;
 import io.minio.StatObjectResponse;
 import io.minio.http.Method;
@@ -26,6 +27,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Locale;
+import java.util.Collection;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -321,6 +323,36 @@ public class ConsultationAttachmentStorageService implements ConsultationAttachm
                     null);
         } catch (Exception ex) {
             return DownloadUrl.disabled(request.attachmentId(), "ATTACHMENT_DOWNLOAD_UNAVAILABLE");
+        }
+    }
+
+    @Override
+    public void deleteObjects(Collection<String> privateObjectKeys) {
+        if (privateObjectKeys == null || privateObjectKeys.isEmpty()) {
+            return;
+        }
+        if (!enabled) {
+            throw new IllegalStateException("attachment storage is disabled while objects require cleanup");
+        }
+        for (String objectKey : privateObjectKeys) {
+            if (objectKey == null || objectKey.isBlank()
+                    || !objectKey.startsWith("private/consultations/")
+                    || objectKey.contains("..")
+                    || objectKey.indexOf('\\') >= 0
+                    || objectKey.chars().anyMatch(Character::isISOControl)) {
+                throw new IllegalStateException("attachment cleanup key is invalid");
+            }
+            try {
+                minioClient.removeObject(RemoveObjectArgs.builder()
+                        .bucket(bucket)
+                        .object(objectKey)
+                        .build());
+            } catch (Exception ex) {
+                // S3/MinIO delete is idempotent for a missing key. Any other
+                // failure is closed so retention can retry without deleting
+                // the authoritative database rows.
+                throw new IllegalStateException("attachment cleanup failed", ex);
+            }
         }
     }
 

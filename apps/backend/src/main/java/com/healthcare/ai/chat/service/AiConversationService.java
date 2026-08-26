@@ -381,15 +381,12 @@ public class AiConversationService {
         request.put("synthetic_beta", syntheticBetaAsserted && syntheticBetaGuard.eligible(userId));
         Map<String, Object> retrieved = aiService.retrieveChat(request);
 
-        // Legacy test doubles and older local binaries may not implement the
-        // additive endpoint yet. Keep a compatibility escape only when the
-        // retrieve call returns null; a real upstream failure still fails
-        // closed through AiService's gateway exception.
+        // Retrieval is a mandatory authorization boundary. A null response
+        // means the upstream did not return a valid candidate envelope; never
+        // fall back to the legacy single-step chat endpoint because that path
+        // has no SQL source allowlist or final provenance revalidation.
         if (retrieved == null) {
-            Map<String, Object> legacy = new LinkedHashMap<>();
-            legacy.put("message", content);
-            legacy.put("recent_turns", turns);
-            return sanitize(aiService.chat(legacy), mode, List.of());
+            return insufficient(mode);
         }
 
         String safety = stringValue(retrieved.get("safety_action"));

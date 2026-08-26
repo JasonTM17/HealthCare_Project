@@ -47,10 +47,11 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
 
     @BeforeEach
     void configureLegacyProviderDouble() {
-        // These persistence/lease tests exercise the old AiService.chat stub;
-        // explicitly make the additive retrieve endpoint unavailable so the
-        // service's narrowly-scoped test compatibility path is selected.
-        when(aiService.retrieveChat(any())).thenReturn(null);
+        // Patient chat must always enter through the retrieval authorization
+        // boundary.  A deterministic safety response keeps ordinary tests
+        // local and provider-free while concurrency tests below override this
+        // same retrieval call with their latch-controlled schedule.
+        when(aiService.retrieveChat(any())).thenReturn(Map.of("safety_action", "REFUSE"));
     }
 
     @Test
@@ -132,12 +133,7 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
     @WithMockUser(username = "patient.chat@example.com", roles = "PATIENT")
     void createsConversationAndReplaysTheSameIdempotentExchange() throws Exception {
         createUser("patient.chat@example.com");
-        when(aiService.chat(any())).thenReturn(Map.of(
-            "answer", "Ban co the tham khao chuyen khoa Noi tong quat.",
-            "disclaimer", "Thong tin tham khao, khong thay the bac si.",
-            "provenance", "local_fallback",
-            "citations", List.of()
-        ));
+        when(aiService.retrieveChat(any())).thenReturn(Map.of("safety_action", "REFUSE"));
 
         String conversationId = mockMvc.perform(post("/api/v1/ai/conversations")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -156,7 +152,7 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
                 .content("{\"content\":\"Toi bi dau dau nhe\"}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.replayed").value(false))
-            .andExpect(jsonPath("$.assistantMessage.provenance").value("local_fallback"));
+            .andExpect(jsonPath("$.assistantMessage.provenance").value("local_provider"));
 
         mockMvc.perform(post(endpoint)
                 .header("Idempotency-Key", "chat-request-0001")
@@ -246,12 +242,7 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
         stale.setCreatedAt(OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(3));
         stale = aiMessageRepository.saveAndFlush(stale);
 
-        when(aiService.chat(any())).thenReturn(Map.of(
-            "answer", "Recovered response",
-            "disclaimer", "Reference only",
-            "provenance", "local_fallback",
-            "citations", List.of()
-        ));
+        when(aiService.retrieveChat(any())).thenReturn(Map.of("safety_action", "REFUSE"));
 
         mockMvc.perform(post("/api/v1/ai/conversations/{id}/messages", conversation.getId())
                 .header("Idempotency-Key", "fresh-request-0001")
@@ -285,7 +276,7 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
         CountDownLatch releaseFirstProviderCall = new CountDownLatch(1);
         AtomicInteger providerCalls = new AtomicInteger();
 
-        when(aiService.chat(any())).thenAnswer(invocation -> {
+        when(aiService.retrieveChat(any())).thenAnswer(invocation -> {
             int call = providerCalls.incrementAndGet();
             if (call == 1) {
                 firstProviderCallStarted.countDown();
@@ -293,12 +284,7 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
                     throw new IllegalStateException("Timed out waiting to release the expired provider response");
                 }
             }
-            return Map.of(
-                "answer", call == 1 ? "Expired response" : "Current response",
-                "disclaimer", "Reference only",
-                "provenance", "local_fallback",
-                "citations", List.of()
-            );
+            return Map.of("safety_action", "REFUSE");
         });
 
         CompletableFuture<Object> expiredAttempt = CompletableFuture.supplyAsync(() -> {
@@ -330,12 +316,12 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
 
         assertThat(expiredResult).isInstanceOf(BusinessException.class);
         assertThat(((BusinessException) expiredResult).getCode()).isEqualTo("AI_UNAVAILABLE");
-        assertThat(current.assistantMessage().content()).isEqualTo("Current response");
+        assertThat(current.assistantMessage().safetyAction().name()).isEqualTo("REFUSE");
         assertThat(aiMessageRepository.findAll())
             .filteredOn(message -> message.getRole() == AiMessageRole.ASSISTANT)
             .singleElement()
-            .extracting(AiMessage::getContent)
-            .isEqualTo("Current response");
+            .extracting(AiMessage::getSafetyAction)
+            .isEqualTo(com.healthcare.ai.chat.entity.ChatSafetyAction.REFUSE);
     }
 
     @Test
@@ -355,7 +341,7 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
         CountDownLatch releaseFirstProviderCall = new CountDownLatch(1);
         AtomicInteger providerCalls = new AtomicInteger();
 
-        when(aiService.chat(any())).thenAnswer(invocation -> {
+        when(aiService.retrieveChat(any())).thenAnswer(invocation -> {
             int call = providerCalls.incrementAndGet();
             if (call == 1) {
                 firstProviderCallStarted.countDown();
@@ -363,12 +349,7 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
                     throw new IllegalStateException("Timed out waiting to release the stale provider response");
                 }
             }
-            return Map.of(
-                "answer", call == 1 ? "Stale response" : "Current response",
-                "disclaimer", "Reference only",
-                "provenance", "local_fallback",
-                "citations", List.of()
-            );
+            return Map.of("safety_action", "REFUSE");
         });
 
         CompletableFuture<Object> staleAttempt = CompletableFuture.supplyAsync(() -> {
@@ -398,14 +379,14 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
         releaseFirstProviderCall.countDown();
         Object staleResult = staleAttempt.get(5, TimeUnit.SECONDS);
 
-        assertThat(current.assistantMessage().content()).isEqualTo("Current response");
+        assertThat(current.assistantMessage().safetyAction().name()).isEqualTo("REFUSE");
         assertThat(staleResult).isInstanceOf(BusinessException.class);
         assertThat(((BusinessException) staleResult).getCode()).isEqualTo("AI_UNAVAILABLE");
         assertThat(aiMessageRepository.findAll())
             .filteredOn(message -> message.getRole() == AiMessageRole.ASSISTANT)
             .singleElement()
-            .extracting(AiMessage::getContent)
-            .isEqualTo("Current response");
+            .extracting(AiMessage::getSafetyAction)
+            .isEqualTo(com.healthcare.ai.chat.entity.ChatSafetyAction.REFUSE);
         AiConversation completed = aiConversationRepository.findById(conversation.getId()).orElseThrow();
         assertThat(completed.isInFlight()).isFalse();
         assertThat(completed.getInFlightToken()).isNull();
@@ -427,17 +408,12 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
         CountDownLatch providerCallStarted = new CountDownLatch(1);
         CountDownLatch releaseProviderCall = new CountDownLatch(1);
 
-        when(aiService.chat(any())).thenAnswer(invocation -> {
+        when(aiService.retrieveChat(any())).thenAnswer(invocation -> {
             providerCallStarted.countDown();
             if (!releaseProviderCall.await(5, TimeUnit.SECONDS)) {
                 throw new IllegalStateException("Timed out waiting to release deleted conversation response");
             }
-            return Map.of(
-                "answer", "Response after delete",
-                "disclaimer", "Reference only",
-                "provenance", "local_fallback",
-                "citations", List.of()
-            );
+            return Map.of("safety_action", "REFUSE");
         });
 
         CompletableFuture<Object> providerAttempt = CompletableFuture.supplyAsync(() -> {
