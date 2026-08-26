@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import CatalogPagination from "../../components/CatalogPagination";
 import ClinicalIcon from "../../components/ClinicalIcon";
 import { PublicAiButton, PublicBookingButton, PublicPageShell } from "../../components/PublicPageShell";
-import { fetchArticles, type Page } from "../../lib/api-client";
+import { ApiError, fetchArticles, type Page } from "../../lib/api-client";
 import { formatBusinessDate } from "../../lib/business-time";
+import { presentApiError } from "../../lib/present-api-error";
 import type { Article } from "../../types/hospital";
 
 const READING_STEPS = [
@@ -15,12 +16,20 @@ const READING_STEPS = [
   ["03", "Xác nhận với chuyên môn", "Bài viết chỉ để tham khảo; quyết định điều trị cần được bác sĩ thăm khám trực tiếp."],
 ] as const;
 
+function safeErrorCopy(reason: unknown): string {
+  return presentApiError(
+    reason instanceof ApiError ? reason.code : undefined,
+    reason instanceof ApiError ? reason.status : undefined,
+  );
+}
+
 export default function ArticlesPage() {
   const [currentPage, setCurrentPage] = useState(0);
   const [page, setPage] = useState<Page<Article> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const loadedPageRef = useRef<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -28,12 +37,13 @@ export default function ArticlesPage() {
         if (cancelled) return undefined;
         setLoading(true);
         setError(null);
-        setPage(null);
+        if (loadedPageRef.current !== currentPage) setPage(null);
+        loadedPageRef.current = currentPage;
         return fetchArticles(currentPage, 12);
     })
       .then((data) => { if (data !== undefined && !cancelled) setPage(data); })
-      .catch(() => {
-        if (!cancelled) setError("Tạm thời chưa thể tải bài viết. Vui lòng thử lại sau.");
+      .catch((reason: unknown) => {
+        if (!cancelled) setError(`Tạm thời chưa thể tải bài viết. ${safeErrorCopy(reason)}`);
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     void task;
@@ -45,7 +55,7 @@ export default function ArticlesPage() {
 
   return (
     <PublicPageShell>
-      <div className="catalog-page section-inner">
+      <div aria-busy={loading} className="catalog-page section-inner">
         <header className="resource-page__header">
           <p className="section-note">Cẩm nang sức khỏe</p>
           <h1>Kiến thức y khoa trong nhịp sống hằng ngày</h1>
@@ -59,7 +69,7 @@ export default function ArticlesPage() {
             <ClinicalIcon name="article" />
           </div>
           <div className="resource-hero-card__body">
-            <p className="resource-chip">Tin tức & blog sức khỏe</p>
+            <p className="resource-chip">Nội dung tham khảo · cập nhật theo dữ liệu công khai</p>
             <h2>Cập nhật kiến thức chăm sóc sức khỏe theo hướng dễ hiểu và có điểm dừng an toàn.</h2>
             <p className="resource-lead">
               Đọc bài viết để chuẩn bị câu hỏi tốt hơn, sau đó dùng trợ lý hoặc đặt lịch nếu triệu chứng cần
@@ -75,11 +85,11 @@ export default function ArticlesPage() {
             <dl className="resource-meta-grid">
               <div>
                 <dt>Bài đã xuất bản</dt>
-                <dd>{articleCount || "Đang cập nhật"}</dd>
+                <dd>{loading ? "Đang tải…" : articleCount || "Chưa có dữ liệu"}</dd>
               </div>
               <div>
                 <dt>Bài mới nhất</dt>
-                <dd>{featuredArticle ? formatBusinessDate(featuredArticle.publishedAt) : "Chưa có dữ liệu"}</dd>
+                <dd>{loading ? "Đang tải…" : featuredArticle ? formatBusinessDate(featuredArticle.publishedAt) : "Chưa có dữ liệu"}</dd>
               </div>
             </dl>
           </div>
@@ -107,13 +117,13 @@ export default function ArticlesPage() {
               <>
                 <p>{featuredArticle.summary}</p>
                 <div className="resource-actions">
-                  <Link className="text-button" href={`/articles/${featuredArticle.slug}`}>
+                  <Link className="text-button" href={`/articles/${encodeURIComponent(featuredArticle.slug)}`}>
                     Đọc tóm tắt →
                   </Link>
                   {featuredArticle.relatedSpecialtySlug ? (
                     <Link
                       className="outline-button outline-button--small"
-                      href={`/specialties/${featuredArticle.relatedSpecialtySlug}`}
+                      href={`/specialties/${encodeURIComponent(featuredArticle.relatedSpecialtySlug)}`}
                     >
                       Chuyên khoa liên quan
                     </Link>
@@ -126,19 +136,27 @@ export default function ArticlesPage() {
           </section>
         </div>
 
-        {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải cẩm nang…</p> : null}
+        {loading ? <p className="catalog-status catalog-status--loading" role="status">{page ? "Đang cập nhật cẩm nang…" : "Đang tải cẩm nang…"}</p> : null}
         {error ? (
           <div aria-live="assertive" className="catalog-status catalog-status--error" role="alert">
-            <span>{error} Không có bài viết demo thay thế.</span>
+            <span>{page ? `Chưa thể cập nhật trang này. ${error} Đang hiển thị nội dung đã tải trước đó.` : error}</span>
             <button className="outline-button outline-button--small" onClick={() => setRetryCount((count) => count + 1)} type="button">
               Thử tải lại
             </button>
           </div>
         ) : null}
-        {!loading && !error && page?.empty ? <p className="catalog-status" role="status">Backend chưa có bài viết đã xuất bản.</p> : null}
+        {!loading && !error && page?.empty ? (
+          <div className="catalog-status" role="status">
+            <p>Chưa có bài viết đã xuất bản trong cẩm nang. Bạn có thể xem chuyên khoa hoặc đặt lịch để được hướng dẫn theo tình huống cụ thể.</p>
+            <div className="resource-actions">
+              <Link className="outline-button outline-button--small" href="/specialties">Xem chuyên khoa</Link>
+              <PublicBookingButton className="button button--amber">Đặt lịch khám</PublicBookingButton>
+            </div>
+          </div>
+        ) : null}
         {page && !page.empty ? (
           <>
-            <p className="catalog-meta">{page.totalElements} bài viết · Trang {page.number + 1}/{page.totalPages}</p>
+            <p aria-live="polite" className="catalog-meta">{page.totalElements} bài viết · Trang {page.number + 1}/{page.totalPages}</p>
             <div className="catalog-grid catalog-grid--articles">
               {page.content.map((article) => (
                 <article className="catalog-card" key={article.id}>
@@ -146,9 +164,9 @@ export default function ArticlesPage() {
                     <ClinicalIcon name="article" />
                   </div>
                   <p className="section-note">{formatBusinessDate(article.publishedAt)}</p>
-                  <h2>{article.title}</h2>
+                  <h3>{article.title}</h3>
                   <p>{article.summary}</p>
-                  <Link className="text-button" href={`/articles/${article.slug}`}>Đọc tóm tắt →</Link>
+                  <Link className="text-button" href={`/articles/${encodeURIComponent(article.slug)}`}>Đọc tóm tắt →</Link>
                 </article>
               ))}
             </div>

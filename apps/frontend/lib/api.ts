@@ -1,4 +1,4 @@
-import {
+import type {
   TimeSlot,
   HoldSlotPayload,
   HoldSlotResult,
@@ -6,8 +6,10 @@ import {
   AppointmentDetails,
 } from "../types/hospital";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "/api/v1";
+// Keep booking traffic on the same-origin Next.js rewrite.  A public runtime
+// API-base override would bypass the Vercel proxy and create a second CORS
+// and credential boundary.
+const API_BASE_URL = "/api/v1";
 const BOOKING_REQUEST_TIMEOUT_MS = 12_000;
 
 const VIETNAMESE_TEXT = /[ăâđêôơưáàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]/i;
@@ -34,7 +36,8 @@ async function fetchBookingApi(
 
   try {
     return await fetch(url, { ...init, signal: timeoutController.signal });
-  } catch {
+  } catch (error) {
+    if (callerSignal?.aborted) throw error;
     throw new Error(networkMessage);
   } finally {
     clearTimeout(timeoutId);
@@ -68,12 +71,13 @@ async function parseBookingResponse<T>(response: Response, fallback: string): Pr
 export async function fetchDoctorSlots(
   doctorId: string,
   branchId: string,
-  date: string
+  date: string,
+  signal?: AbortSignal,
 ): Promise<TimeSlot[]> {
   const query = new URLSearchParams({ date, branchId });
   const res = await fetchBookingApi(
     `${API_BASE_URL}/appointments/doctors/${encodeURIComponent(doctorId)}/slots?${query.toString()}`,
-    { cache: "no-store" },
+    { cache: "no-store", signal },
     "Không thể kết nối với hệ thống lịch khám. Vui lòng thử lại sau.",
   );
   if (!res.ok) {

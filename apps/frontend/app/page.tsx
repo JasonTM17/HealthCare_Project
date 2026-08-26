@@ -26,6 +26,7 @@ import {
 import { formatBusinessDate } from "../lib/business-time";
 import { isSafeCmsUrl, type CmsContent, type CmsHeroPayload } from "../lib/cms-client";
 import { safeTelephoneHref } from "../lib/phone";
+import { presentApiError } from "../lib/present-api-error";
 import type { Article, Branch, Doctor, HealthPackage, Specialty } from "../types/hospital";
 
 const HERO_IMAGE = "/media/about-care-poster.jpg";
@@ -454,7 +455,10 @@ export default function Home(): React.ReactElement {
       } catch (error: unknown) {
         if (!cancelled) {
           setCatalogUnavailable(!(error instanceof ApiError) || error.status >= 500);
-          setCatalogError(error instanceof Error ? error.message : "Không thể tải catalog hiện tại.");
+          setCatalogError(presentApiError(
+            error instanceof ApiError ? error.code : null,
+            error instanceof ApiError ? error.status : undefined,
+          ));
         }
       } finally {
         if (!cancelled) setCatalogLoading(false);

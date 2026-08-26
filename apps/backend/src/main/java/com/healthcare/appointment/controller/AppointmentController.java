@@ -5,6 +5,8 @@ import com.healthcare.appointment.dto.CancelAppointmentRequest;
 import com.healthcare.appointment.dto.ConfirmAppointmentRequest;
 import com.healthcare.appointment.dto.HoldSlotRequest;
 import com.healthcare.appointment.dto.HoldSlotResponse;
+import com.healthcare.appointment.dto.ResendBookingOtpRequest;
+import com.healthcare.appointment.dto.ResendOtpResponse;
 import com.healthcare.appointment.dto.RescheduleAppointmentRequest;
 import com.healthcare.appointment.dto.TimeSlotDto;
 import com.healthcare.appointment.security.BookingRateLimiter;
@@ -15,6 +17,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -54,7 +57,9 @@ public class AppointmentController {
             @PathVariable UUID doctorId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(required = false) UUID branchId) {
-        return ResponseEntity.ok(scheduleService.getAvailableSlots(doctorId, branchId, date));
+        return ResponseEntity.ok()
+            .cacheControl(CacheControl.noStore())
+            .body(scheduleService.getAvailableSlots(doctorId, branchId, date));
     }
 
     @PostMapping("/hold")
@@ -66,6 +71,20 @@ public class AppointmentController {
         bookingRateLimiter.check("hold", httpRequest, request.phone());
         HoldSlotResponse response = bookingService.holdSlot(request, userDetails);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @PostMapping("/{bookingCode}/otp/resend")
+    @Operation(summary = "Resend OTP for the existing appointment hold")
+    public ResponseEntity<ResendOtpResponse> resendOtp(
+            @PathVariable String bookingCode,
+            @RequestBody(required = false) ResendBookingOtpRequest request,
+            @AuthenticationPrincipal UserDetails userDetails,
+            HttpServletRequest httpRequest) {
+        bookingRateLimiter.check("otp-resend", httpRequest, bookingCode);
+        String phone = request == null ? null : request.phone();
+        return ResponseEntity.accepted().body(
+            bookingService.resendBookingOtp(bookingCode, phone, userDetails)
+        );
     }
 
     @PostMapping("/confirm")

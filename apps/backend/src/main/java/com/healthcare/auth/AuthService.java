@@ -27,6 +27,9 @@ import com.healthcare.appointment.entity.PatientProfile;
 import com.healthcare.appointment.repository.PatientProfileRepository;
 import com.healthcare.appointment.service.AppointmentClaimService;
 import com.healthcare.auth.security.AuthRateLimiter;
+import com.healthcare.auth.dto.BrowserSessionCreateRequest;
+import com.healthcare.auth.service.BrowserSessionService;
+import com.healthcare.notification.service.NotificationPreferenceService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AccountStatusException;
@@ -61,6 +64,8 @@ public class AuthService {
     private final AuthOtpService authOtpService;
     private final AuthRateLimiter authRateLimiter;
     private final AppointmentClaimService appointmentClaimService;
+    private final BrowserSessionService browserSessionService;
+    private final NotificationPreferenceService notificationPreferenceService;
 
     public AuthService(UserRepository userRepository,
                        UserSecurityLock userSecurityLock,
@@ -73,7 +78,9 @@ public class AuthService {
                        PatientProfileRepository patientProfileRepository,
                        AuthOtpService authOtpService,
                        AuthRateLimiter authRateLimiter,
-                       AppointmentClaimService appointmentClaimService) {
+                       AppointmentClaimService appointmentClaimService,
+                       BrowserSessionService browserSessionService,
+                       NotificationPreferenceService notificationPreferenceService) {
         this.userRepository = userRepository;
         this.userSecurityLock = userSecurityLock;
         this.roleRepository = roleRepository;
@@ -86,6 +93,8 @@ public class AuthService {
         this.authOtpService = authOtpService;
         this.authRateLimiter = authRateLimiter;
         this.appointmentClaimService = appointmentClaimService;
+        this.browserSessionService = browserSessionService;
+        this.notificationPreferenceService = notificationPreferenceService;
     }
 
     @Transactional
@@ -128,6 +137,9 @@ public class AuthService {
         user.addRole(patientRole);
 
         user = userRepository.save(user);
+        // V45 materializes existing accounts once, while this idempotent
+        // upsert covers registrations that happen after the migration.
+        notificationPreferenceService.ensureDefaultsForUser(user.getId());
 
         if (normalizedPhone != null) {
             PatientProfile profile = reusableProfile == null ? new PatientProfile() : reusableProfile;
@@ -151,19 +163,23 @@ public class AuthService {
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
+        return issueTokens(authenticatePasswordLocked(request));
+    }
+
+    private User authenticatePasswordLocked(LoginRequest request) {
         String normalizedEmail = request.email().toLowerCase().trim();
         authRateLimiter.checkEmail(normalizedEmail, "login");
 
+        User user = userSecurityLock.findByEmailForUpdate(normalizedEmail)
+            .orElseThrow(() -> new BadCredentialsException("Invalid email or password"));
+
         try {
-            Authentication authentication = authenticationManager.authenticate(
+            authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(normalizedEmail, request.password())
             );
         } catch (BadCredentialsException | AccountStatusException e) {
             throw new BadCredentialsException("Invalid email or password");
         }
-
-        User user = userSecurityLock.findByEmailForUpdate(normalizedEmail)
-            .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         if (!user.isEmailVerified()) {
             throw new BusinessException(
@@ -172,19 +188,53 @@ public class AuthService {
                 "Email verification is required before login"
             );
         }
-
-        return issueTokens(user);
+        return user;
     }
 
     @Transactional(noRollbackFor = OtpVerificationException.class)
     public AuthResponse confirmEmail(EmailVerificationRequest request, HttpServletRequest httpRequest) {
+        return issueTokens(confirmEmailLocked(request, httpRequest));
+    }
+
+    private User confirmEmailLocked(
+            EmailVerificationRequest request,
+            HttpServletRequest httpRequest) {
         User user = authOtpService.confirmEmail(request.email(), request.code(), httpRequest);
         user.setEmailVerified(true);
         user.setEmailVerifiedAt(OffsetDateTime.now());
         user.setUpdatedAt(OffsetDateTime.now());
         userRepository.save(user);
         appointmentClaimService.claimAfterEmailVerification(user);
-        return issueTokens(user);
+        return user;
+    }
+
+    /**
+     * Linearizes a browser grant, the stable user-row security lock, session
+     * issuance and ambient-session rotation in one database transaction.
+     */
+    @Transactional(noRollbackFor = OtpVerificationException.class)
+    public BrowserSessionService.IssuedBrowserSession createBrowserSession(
+            BrowserSessionCreateRequest request,
+            HttpServletRequest httpRequest) {
+        User user = switch (request.grantType()) {
+            case PASSWORD -> {
+                requireGrantValue(request.password(), request.code());
+                yield authenticatePasswordLocked(new LoginRequest(request.email(), request.password()));
+            }
+            case EMAIL_VERIFICATION -> {
+                requireGrantValue(request.code(), request.password());
+                yield confirmEmailLocked(
+                    new EmailVerificationRequest(request.email(), request.code()),
+                    httpRequest
+                );
+            }
+        };
+
+        String replacedSecret = browserSessionService.cookieValue(
+            httpRequest,
+            BrowserSessionService.SESSION_COOKIE_NAME
+        );
+        return browserSessionService.issueReplacing(user.getId(), replacedSecret);
     }
 
     @Transactional
@@ -304,6 +354,7 @@ public class AuthService {
                 rt.setRevokedAt(OffsetDateTime.now());
                 refreshTokenRepository.save(rt);
             });
+        browserSessionService.revokeAllForUser(lockedUser.getId(), "SECURITY_REVOKE_ALL");
     }
 
     private AuthResponse buildAuthResponse(User user, String accessToken, String refreshToken) {
@@ -331,6 +382,16 @@ public class AuthService {
         String refreshToken = tokenProvider.generateRefreshToken(user.getId());
         saveRefreshToken(user, refreshToken);
         return buildAuthResponse(user, accessToken, refreshToken);
+    }
+
+    private void requireGrantValue(String required, String forbidden) {
+        if (required == null || required.isBlank() || (forbidden != null && !forbidden.isBlank())) {
+            throw new BusinessException(
+                400,
+                ErrorCodes.VALIDATION_ERROR,
+                "Browser session grant is invalid"
+            );
+        }
     }
 
     private String hashToken(String token) {

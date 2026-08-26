@@ -1,20 +1,12 @@
 import { expect, test, type BrowserContext } from "@playwright/test";
-import type { AiChatExchange, AiChatMessage, AiConversation, AuthSession } from "../../types/hospital";
+import type { AiChatExchange, AiChatMessage, AiConversation } from "../../types/hospital";
+import {
+  assertNoSensitiveBrowserStorage,
+  browserSessionFixture,
+  installMockBrowserSession,
+} from "./helpers/browser-session";
 
-const AUTH_STORAGE_KEY = "healthcare.auth.session";
-
-const PATIENT_SESSION: AuthSession = {
-  accessToken: "floating-assistant-token",
-  refreshToken: "floating-assistant-refresh",
-  tokenType: "Bearer",
-  expiresIn: 3600,
-  user: {
-    id: "floating-assistant-patient",
-    email: "floating.patient@healthcare.local",
-    displayName: "Nguyễn An",
-    roles: ["ROLE_PATIENT"],
-  },
-};
+const PATIENT_SESSION = browserSessionFixture("PATIENT", "floating-assistant-patient", "Nguyễn An");
 
 const CONVERSATION: AiConversation = {
   id: "floating-conversation-1",
@@ -57,11 +49,9 @@ async function installChatMocks(
 ) {
   let history: AiChatMessage[] = [];
   let failedFirstSend = false;
-  await context.addInitScript(({ key, value }) => {
-    window.sessionStorage.setItem(key, value);
-  }, { key: AUTH_STORAGE_KEY, value: JSON.stringify(PATIENT_SESSION) });
 
   await context.route("**/api/v1/ai/chat-policy", async (route) => {
+    expect(route.request().headers()["authorization"]).toBeUndefined();
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -77,6 +67,7 @@ async function installChatMocks(
 
   await context.route("**/api/v1/ai/conversations**", async (route) => {
     const request = route.request();
+    expect(request.headers()["authorization"]).toBeUndefined();
     const url = new URL(request.url());
     if (url.pathname === "/api/v1/ai/conversations" && request.method() === "GET") {
       await route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
@@ -125,9 +116,11 @@ async function installChatMocks(
     }
     throw new Error(`Unexpected floating assistant request: ${request.method()} ${url.pathname}`);
   });
+  await installMockBrowserSession(context, PATIENT_SESSION);
 }
 
-test("guest launcher exposes a real login action", async ({ page }) => {
+test("guest launcher exposes a real login action", async ({ context, page }) => {
+  await installMockBrowserSession(context, null);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/about");
   await page.getByRole("button", { name: "Mở trợ lý sức khỏe" }).click();
@@ -140,6 +133,7 @@ test("guest launcher exposes a real login action", async ({ page }) => {
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
   await expect(page.getByRole("button", { name: "Mở trợ lý sức khỏe" })).toBeFocused();
+  await assertNoSensitiveBrowserStorage(page);
 });
 
 test("patient mobile widget creates and sends through the REST conversation API", async ({ context, page }) => {
@@ -170,10 +164,7 @@ test("patient mobile widget creates and sends through the REST conversation API"
   expect(careRailBox).not.toBeNull();
   expect(launcherBox!.y + launcherBox!.height).toBeLessThan(careRailBox!.y);
 
-  const storedChatContent = await page.evaluate(() => (
-    [...Object.values(localStorage), ...Object.values(sessionStorage)].join("\n")
-  ));
-  expect(storedChatContent).not.toContain("Tôi nên chuẩn bị gì trước khi đi khám?");
+  await assertNoSensitiveBrowserStorage(page, ["Tôi nên chuẩn bị gì trước khi đi khám?"]);
 });
 
 test("provider unavailable state offers a real retry without storing the draft", async ({ context, page }) => {
@@ -194,4 +185,5 @@ test("provider unavailable state offers a real retry without storing the draft",
   await expect(dialog.getByText("Chế độ dự phòng tại chỗ", { exact: true })).toBeVisible();
   expect(observedKeys).toHaveLength(2);
   expect(observedKeys[0]).not.toBe(observedKeys[1]);
+  await assertNoSensitiveBrowserStorage(page, [question]);
 });

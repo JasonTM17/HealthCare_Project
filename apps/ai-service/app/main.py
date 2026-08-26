@@ -13,6 +13,7 @@ from app.chatbot import (
 from app.embeddings import EmbeddingResult, embed
 from app.llm import (
     chat_safety_response,
+    contains_sensitive_or_injection,
     patient_chat_remote_enabled,
     resolve_chat,
     resolve_triage,
@@ -141,6 +142,40 @@ def _enforce_input_limit(value: str, *, label: str, setting_name: str) -> str:
     return text
 
 
+def _reject_unsafe_egress_text(
+    *values: str,
+    allow_public_operational: bool = False,
+) -> None:
+    """Reject unsafe text before any embedding or provider operation.
+
+    This gate is intentionally generic and does not echo the rejected value;
+    callers may use it for both local and remote embedding routes because the
+    endpoint contract is an egress boundary, not a redaction service.
+    """
+
+    if any(
+        contains_sensitive_or_injection(
+            value,
+            allow_public_operational=allow_public_operational,
+        )
+        for value in values
+        if isinstance(value, str)
+    ):
+        raise HTTPException(status_code=422, detail="Input rejected by safety policy")
+
+
+def _public_operational_branch(payload: RAGIndexRequest) -> bool:
+    """Recognize Spring's closed marker for public branch catalog text."""
+
+    marker = payload.metadata.get("public_operational")
+    return (
+        payload.source_type == "branch"
+        and normalize_projection_kind(payload.metadata) == "OPERATIONAL"
+        and isinstance(marker, str)
+        and marker.casefold() == "true"
+    )
+
+
 def _citation(source_type: str, source_id: str, title: str) -> Citation:
     return Citation(source_type=cast(SOURCE_TYPES, source_type), source_id=source_id, title=title)
 
@@ -164,6 +199,20 @@ def local_auth_escape_hatch_enabled() -> bool:
         settings.ai_service_runtime.lower() == "local"
         and settings.ai_service_allow_unauthenticated_local
     )
+
+
+def _rag_ready() -> bool:
+    """Probe the configured RAG backend without exposing dependency errors."""
+
+    probe = getattr(rag_service, "health_probe", None)
+    if not callable(probe):
+        return True
+    try:
+        return bool(probe())
+    except Exception:
+        # Readiness must fail closed without returning database/provider error
+        # text to callers or logs.
+        return False
 
 
 @app.get("/health", response_model=HealthResponse, dependencies=[Depends(require_service_auth)])
@@ -195,7 +244,8 @@ def health(response: Response) -> HealthResponse:
         LOCAL_EMBEDDING_PROVIDERS,
     )
     auth_ready = auth_configured or local_auth_escape_hatch_enabled()
-    ready = auth_ready and provider_ready and not remote_probe_required
+    rag_ready = _rag_ready()
+    ready = auth_ready and provider_ready and not remote_probe_required and rag_ready
     status = "ok" if ready else "degraded" if fallback_allowed and auth_ready else "misconfigured"
     response.status_code = 200 if ready else 503
     return HealthResponse(
@@ -212,6 +262,7 @@ def health(response: Response) -> HealthResponse:
         provider_configured=provider_ready,
         fallback_allowed=fallback_allowed,
         remote_probe_required=remote_probe_required,
+        rag_ready=rag_ready,
     )
 
 
@@ -355,6 +406,7 @@ def chat_generate(request: ChatGenerateRequest) -> ChatResponse:
 @app.post("/embeddings", response_model=EmbeddingResponse, dependencies=[Depends(require_service_auth)])
 def embeddings(request: EmbeddingRequest) -> EmbeddingResponse:
     text = _enforce_input_limit(request.text, label="Embedding input", setting_name="ai_max_input_chars")
+    _reject_unsafe_egress_text(text)
     vector, model, provenance = _embedding_parts(
         embed(text, settings, synthetic_beta=request.synthetic_beta)
     )
@@ -364,6 +416,7 @@ def embeddings(request: EmbeddingRequest) -> EmbeddingResponse:
 @app.post("/rag/search", response_model=RAGSearchResponse, dependencies=[Depends(require_service_auth)])
 def rag_search(request: RAGSearchRequest) -> RAGSearchResponse:
     query = _enforce_input_limit(request.query, label="RAG query", setting_name="ai_max_input_chars")
+    _reject_unsafe_egress_text(query)
     query_embedding, query_model, provenance = _embedding_parts(
         embed(query, settings, synthetic_beta=request.synthetic_beta)
     )
@@ -495,9 +548,24 @@ def rag_index(
         label="RAG document",
         setting_name="rag_max_document_chars",
     )
+    public_operational = _public_operational_branch(payload)
+    _reject_unsafe_egress_text(
+        payload.title,
+        *payload.metadata.keys(),
+        *payload.metadata.values(),
+    )
+    _reject_unsafe_egress_text(
+        content,
+        allow_public_operational=public_operational,
+    )
     def embed_document(normalized_content: str) -> tuple[list[float], str, ProviderProvenance]:
         return _embedding_parts(
-            embed(normalized_content, settings, synthetic_beta=payload.synthetic_beta)
+            embed(
+                normalized_content,
+                settings,
+                synthetic_beta=payload.synthetic_beta,
+                allow_public_operational=public_operational,
+            )
         )
 
     doc = rag_service.ingest(
@@ -598,6 +666,7 @@ def _semantic_search(
 
     query = _enforce_input_limit(query_input, label="Search query", setting_name="ai_max_input_chars")
     specialty_filter = specialty_input.strip()
+    _reject_unsafe_egress_text(query, specialty_filter)
     if not query and not specialty_filter:
         return SemanticSearchResponse(results=[])
     search_text = query or specialty_filter

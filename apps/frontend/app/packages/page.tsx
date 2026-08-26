@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import ClinicalIcon from "../../components/ClinicalIcon";
 import { PublicAiButton, PublicBookingButton, PublicPageShell } from "../../components/PublicPageShell";
-import { fetchPackages, type Page } from "../../lib/api-client";
+import { ApiError, fetchPackages, type Page } from "../../lib/api-client";
+import { presentApiError } from "../../lib/present-api-error";
 import type { HealthPackage } from "../../types/hospital";
 import CatalogPagination from "../../components/CatalogPagination";
 import PackageVisualCard, { packageVisualStyles } from "../../components/PackageVisualCard";
@@ -47,7 +48,12 @@ export default function PackagesPage() {
         if (data !== undefined && !cancelled) setPage(data);
       })
       .catch((reason: unknown) => {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : "Không thể tải gói khám.");
+        if (!cancelled) {
+          setError(presentApiError(
+            reason instanceof ApiError ? reason.code : null,
+            reason instanceof ApiError ? reason.status : undefined,
+          ));
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

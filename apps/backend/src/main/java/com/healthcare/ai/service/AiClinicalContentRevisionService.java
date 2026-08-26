@@ -84,6 +84,21 @@ public class AiClinicalContentRevisionService {
         record("FAQ", source.getId(), faqSnapshot(source), actor, "UPSERT");
     }
 
+    /**
+     * Records a FAQ draft produced by the independently reviewed patient Q&A
+     * workflow. The Q&A reviewer is an editor at this boundary, never the
+     * clinical approver: the head remains DRAFT until another eligible doctor
+     * approves the exact revision through the clinical-review workflow.
+     */
+    @Transactional
+    public void recordFaqFromDoctorReview(Faq source, UUID doctorUserId) {
+        requireId(source == null ? null : source.getId(), "FAQ");
+        if (doctorUserId == null) {
+            throw new IllegalArgumentException("doctor user id is required for Q&A materialization");
+        }
+        record("FAQ", source.getId(), faqSnapshot(source), doctorUserId, "DOCTOR", "UPSERT");
+    }
+
     /** Record a tombstone before the catalog row is physically deleted. */
     @Transactional
     public void recordSpecialtyDeletion(Specialty source, UserDetails actor) {
@@ -109,14 +124,23 @@ public class AiClinicalContentRevisionService {
             Map<String, Object> snapshot,
             UserDetails actor,
             String operation) {
+        UUID actorId = actorId(actor);
+        record(sourceType, sourceId, snapshot, actorId, actorRole(actorId), operation);
+    }
+
+    private void record(
+            String sourceType,
+            UUID sourceId,
+            Map<String, Object> snapshot,
+            UUID actorId,
+            String actorRole,
+            String operation) {
         if (entityManager != null) {
             // Repository save() may otherwise leave the source INSERT queued
             // behind the JDBC snapshot query in the same transaction.
             entityManager.flush();
         }
 
-        UUID actorId = actorId(actor);
-        String actorRole = actorId == null ? "SYSTEM" : "ADMIN";
         String json = canonicalSnapshot(sourceType, sourceId, operation, snapshot);
         lockSource(sourceType, sourceId);
         Map<String, Object> previous = one("""

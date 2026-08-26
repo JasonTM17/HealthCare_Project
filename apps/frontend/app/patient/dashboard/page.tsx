@@ -15,6 +15,7 @@ import {
   fetchPatientAppointments,
   fetchNotifications,
   fetchPatientDiagnosticResults,
+  fetchPatientCarePlans,
   fetchPatientMedicalRecords,
   fetchPatientPrescriptions,
   fetchPatientOverview,
@@ -30,6 +31,7 @@ import { useAuthSession } from "../../../components/useAuthSession";
 import type {
   AuthUser,
   BankTransferPayment,
+  CarePlan,
   PatientPortalAppointment,
   DiagnosticResult,
   MedicalRecord,
@@ -48,8 +50,9 @@ import {
   LoginRequiredState,
 } from "../../../components/PortalStates";
 import PortalAppointments from "../../../components/PortalAppointments";
-import { businessDate, formatBusinessDate, formatBusinessDateTime } from "../../../lib/business-time";
-import UiIcon from "../../../components/UiIcon";
+import { BUSINESS_TIME_ZONE, businessDate, formatBusinessDate, formatBusinessDateTime } from "../../../lib/business-time";
+import UiIcon, { type IconName } from "../../../components/UiIcon";
+import careHubStyles from "./CareHub.module.css";
 import paymentStyles from "./PaymentPanel.module.css";
 
 type Loadable<T> =
@@ -64,6 +67,19 @@ const initialDiagnostics: Loadable<DiagnosticResult[]> = { status: "loading" };
 const initialNotifications: Loadable<Page<Notification>> = { status: "loading" };
 const initialProfile: Loadable<PatientProfile> = { status: "loading" };
 const initialOverview: Loadable<PatientOverview> = { status: "loading" };
+const initialCarePlans: Loadable<CarePlan[]> = { status: "loading" };
+
+interface DashboardLoadSnapshot {
+  userId: string;
+  records: Loadable<MedicalRecord[]>;
+  appointments: Loadable<Page<PatientPortalAppointment>>;
+  prescriptions: Loadable<Prescription[]>;
+  diagnostics: Loadable<DiagnosticResult[]>;
+  notifications: Loadable<Page<Notification>>;
+  profile: Loadable<PatientProfile>;
+  overview: Loadable<PatientOverview>;
+  carePlans: Loadable<CarePlan[]>;
+}
 
 interface ProfileForm {
   fullName: string;
@@ -99,6 +115,14 @@ function toLoadable<T>(result: PromiseSettledResult<T>): Loadable<T> {
         message: getErrorMessage(result.reason),
         statusCode: getErrorStatus(result.reason),
       };
+}
+
+function prepareRetry<T>(state: Loadable<T>): Loadable<T> {
+  return state.status === "error" ? { status: "loading" } : state;
+}
+
+function loadOrReuse<T>(state: Loadable<T> | undefined, load: () => Promise<T>): Promise<T> {
+  return state?.status === "success" ? Promise.resolve(state.data) : load();
 }
 
 function isUnauthorized(result: PromiseSettledResult<unknown>): boolean {
@@ -139,7 +163,7 @@ function formatPaymentStatus(status: string): string {
     REFUND_PENDING: "Đang chờ hoàn tiền",
     REFUNDED: "Đã hoàn tiền",
   };
-  return labels[status] ?? status;
+  return labels[status] ?? "Đang cập nhật";
 }
 
 function formatMoney(amount: number): string {
@@ -275,6 +299,370 @@ function StateContent<T>({
   return children(state.data);
 }
 
+const ACTIVE_APPOINTMENT_STATUSES = new Set([
+  "PENDING_CONFIRMATION",
+  "CONFIRMED",
+  "CHECKED_IN",
+  "IN_PROGRESS",
+]);
+
+type PatientOverviewWireCompatibility = PatientOverview & {
+  newDiagnosticResult?: boolean;
+  newPrescription?: boolean;
+};
+
+interface CareHubTask {
+  action: string;
+  description: string;
+  href: string;
+  icon: IconName;
+  id: string;
+  title: string;
+  tone: "attention" | "default" | "new";
+}
+
+function overviewHasNewDiagnosticResult(value: PatientOverview): boolean {
+  const compatibleValue = value as PatientOverviewWireCompatibility;
+  return compatibleValue.hasNewDiagnosticResult ?? compatibleValue.newDiagnosticResult ?? false;
+}
+
+function overviewHasNewPrescription(value: PatientOverview): boolean {
+  const compatibleValue = value as PatientOverviewWireCompatibility;
+  return compatibleValue.hasNewPrescription ?? compatibleValue.newPrescription ?? false;
+}
+
+function formatPortalTime(value: string): string {
+  return value.length >= 5 ? value.slice(0, 5) : value;
+}
+
+function currentBusinessDateTimeKey(now: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    hour: "2-digit",
+    hourCycle: "h23",
+    minute: "2-digit",
+    month: "2-digit",
+    timeZone: BUSINESS_TIME_ZONE,
+    year: "numeric",
+  }).formatToParts(now);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`;
+}
+
+function appointmentDateTimeKey(appointment: PatientPortalAppointment): string {
+  return `${appointment.appointmentDate}T${formatPortalTime(appointment.startTime)}`;
+}
+
+function findUpcomingAppointment(page: Page<PatientPortalAppointment>): PatientPortalAppointment | null {
+  const nowKey = currentBusinessDateTimeKey();
+  return [...page.content]
+    .filter((appointment) => (
+      ACTIVE_APPOINTMENT_STATUSES.has(appointment.status)
+      && appointmentDateTimeKey(appointment) >= nowKey
+    ))
+    .sort((left, right) => appointmentDateTimeKey(left).localeCompare(appointmentDateTimeKey(right)))[0] ?? null;
+}
+
+function isOverdueCarePlanItem(item: CarePlan["items"][number]): boolean {
+  return item.status === "OPEN" && Boolean(item.dueAt) && Date.parse(item.dueAt ?? "") < Date.now();
+}
+
+function CareHubSkeleton({ announce = true }: { announce?: boolean }) {
+  return (
+    <div aria-live={announce ? "polite" : undefined} className={careHubStyles.loading} role={announce ? "status" : undefined}>
+      <span className={careHubStyles.skeletonLine} aria-hidden="true" />
+      <span className={careHubStyles.skeletonLineShort} aria-hidden="true" />
+      {announce ? <span>Đang tổng hợp lịch hẹn và tiến trình chăm sóc…</span> : null}
+    </div>
+  );
+}
+
+function PatientCareHub({
+  appointments,
+  carePlans,
+  overview,
+  retry,
+}: {
+  appointments: Loadable<Page<PatientPortalAppointment>>;
+  carePlans: Loadable<CarePlan[]>;
+  overview: Loadable<PatientOverview>;
+  retry: () => void;
+}) {
+  const sourceStatuses = [appointments.status, carePlans.status, overview.status];
+  const loadingCount = sourceStatuses.filter((status) => status === "loading").length;
+  const errorCount = sourceStatuses.filter((status) => status === "error").length;
+  const isLoading = loadingCount > 0;
+  const isInitialLoading = loadingCount === sourceStatuses.length;
+  const isUnavailable = errorCount === sourceStatuses.length;
+  const hasPartialError = errorCount > 0 && !isUnavailable;
+
+  const upcomingAppointment = appointments.status === "success"
+    ? findUpcomingAppointment(appointments.data)
+    : null;
+  const pendingVerificationAppointments = appointments.status === "success"
+    ? appointments.data.content.filter((appointment) => appointment.paymentStatus === "PENDING_VERIFICATION")
+    : [];
+  const firstPendingVerification = pendingVerificationAppointments[0] ?? null;
+
+  const openCarePlanItems = carePlans.status === "success"
+    ? carePlans.data.flatMap((plan) => plan.items).filter((item) => item.status === "OPEN")
+    : [];
+  const overdueCarePlanItems = openCarePlanItems.filter(isOverdueCarePlanItem);
+  const fallbackOpenCarePlanCount = overview.status === "success" ? overview.data.openCarePlanTaskCount : 0;
+  const openCarePlanCount = carePlans.status === "success" ? openCarePlanItems.length : fallbackOpenCarePlanCount;
+  const unreadConsultationCount = overview.status === "success" ? overview.data.unreadConsultationCount : 0;
+  const hasNewDiagnosticResult = overview.status === "success" && overviewHasNewDiagnosticResult(overview.data);
+  const hasNewPrescription = overview.status === "success" && overviewHasNewPrescription(overview.data);
+
+  const careTasks: CareHubTask[] = [];
+  if (firstPendingVerification) {
+    careTasks.push({
+      action: "Xem trạng thái",
+      description: pendingVerificationAppointments.length > 1
+        ? `${pendingVerificationAppointments.length} giao dịch đã gửi, đang chờ thu ngân kiểm tra sao kê.`
+        : "Mã giao dịch đã gửi, đang chờ thu ngân kiểm tra sao kê.",
+      href: `/patient/dashboard?paymentAppointmentId=${encodeURIComponent(firstPendingVerification.bookingCode)}#appointments`,
+      icon: "clock",
+      id: "payment-verification",
+      title: "Chờ thu ngân đối soát",
+      tone: "attention",
+    });
+  }
+  if (openCarePlanCount > 0) {
+    const overdueCount = overdueCarePlanItems.length;
+    careTasks.push({
+      action: "Mở kế hoạch",
+      description: overdueCount > 0
+        ? `${overdueCount} trong ${openCarePlanCount} việc đang mở đã quá hạn.`
+        : carePlans.status === "error"
+          ? `${openCarePlanCount} việc đang mở. Chưa thể xác định mục quá hạn ở bản tóm tắt.`
+          : carePlans.status === "loading"
+            ? `${openCarePlanCount} việc đang mở. Đang kiểm tra thời hạn từng mục.`
+            : `${openCarePlanCount} việc đang mở theo hướng dẫn của bác sĩ.`,
+      href: "/patient/care-plan",
+      icon: overdueCount > 0 ? "alert-triangle" : "check",
+      id: "care-plan",
+      title: overdueCount > 0 ? "Kế hoạch có việc quá hạn" : "Tiếp tục kế hoạch chăm sóc",
+      tone: overdueCount > 0 || carePlans.status === "error" ? "attention" : "default",
+    });
+  }
+  if (unreadConsultationCount > 0) {
+    careTasks.push({
+      action: "Đọc tư vấn",
+      description: `${unreadConsultationCount} tin mới trong kênh trao đổi riêng với bác sĩ.`,
+      href: "/patient/consultations",
+      icon: "message-square",
+      id: "consultation",
+      title: "Có tin tư vấn chưa đọc",
+      tone: "new",
+    });
+  }
+
+  const newClinicalUpdates: CareHubTask[] = [];
+  if (hasNewDiagnosticResult) {
+    newClinicalUpdates.push({
+      action: "Xem kết quả",
+      description: "Kết quả cận lâm sàng mới đã được ghi nhận trong hồ sơ.",
+      href: "#diagnostics",
+      icon: "activity",
+      id: "diagnostic-result",
+      title: "Có kết quả mới",
+      tone: "new",
+    });
+  }
+  if (hasNewPrescription) {
+    newClinicalUpdates.push({
+      action: "Xem đơn thuốc",
+      description: "Đơn thuốc mới đã được bác sĩ cập nhật.",
+      href: "#prescriptions",
+      icon: "book-open",
+      id: "prescription",
+      title: "Có đơn thuốc mới",
+      tone: "new",
+    });
+  }
+
+  const hasRecordedData = (
+    appointments.status === "success" && appointments.data.totalElements > 0
+  ) || (
+    carePlans.status === "success" && carePlans.data.length > 0
+  ) || (
+    overview.status === "success" && (
+      overview.data.appointmentCount > 0
+      || overview.data.diagnosticResultCount > 0
+      || overview.data.prescriptionCount > 0
+    )
+  );
+  const attentionGroupCount = careTasks.length + newClinicalUpdates.length;
+  const hasAttentionTask = careTasks.some((task) => task.tone === "attention");
+  const statusLabel = isInitialLoading
+    ? "Đang tổng hợp"
+    : isUnavailable
+      ? "Tạm gián đoạn"
+      : attentionGroupCount > 0
+        ? `${attentionGroupCount} nhóm cần xem`
+        : hasPartialError
+          ? "Một phần chưa tải"
+          : hasRecordedData
+            ? "Đang đúng tiến độ"
+            : "Chưa có dữ liệu";
+  const statusTone = isUnavailable || hasPartialError || hasAttentionTask
+    ? "attention"
+    : attentionGroupCount > 0
+      ? "active"
+      : "healthy";
+
+  return (
+    <section
+      aria-busy={isLoading}
+      aria-describedby="care-hub-description"
+      aria-labelledby="care-hub-title"
+      className={careHubStyles.careHub}
+    >
+      <header className={careHubStyles.header}>
+        <div>
+          <h2 id="care-hub-title">Việc cần làm hôm nay</h2>
+          <p id="care-hub-description">Một nơi để kiểm tra lịch khám, đối soát và cập nhật chăm sóc mới nhất.</p>
+        </div>
+        <span aria-live="polite" className={careHubStyles.status} data-tone={statusTone}>{statusLabel}</span>
+      </header>
+
+      {isUnavailable ? (
+        <div className={careHubStyles.unavailable} role="alert">
+          <span aria-hidden="true" className={careHubStyles.noticeIcon}><UiIcon name="alert-triangle" size={20} /></span>
+          <div>
+            <strong>Chưa thể tải trung tâm chăm sóc</strong>
+            <p>Kết nối đang bị gián đoạn. Các khu vực chi tiết bên dưới vẫn có thể được mở riêng.</p>
+          </div>
+          <button className={careHubStyles.retryButton} onClick={retry} type="button">Thử tải lại</button>
+        </div>
+      ) : isInitialLoading ? (
+        <div className={careHubStyles.initialLoading}>
+          <CareHubSkeleton />
+          <CareHubSkeleton announce={false} />
+          <CareHubSkeleton announce={false} />
+        </div>
+      ) : (
+        <>
+          {hasPartialError ? (
+            <div className={careHubStyles.partialError} role="status">
+              <span aria-hidden="true" className={careHubStyles.noticeIcon}><UiIcon name="alert-triangle" size={20} /></span>
+              <p>Một phần thông tin chưa tải được. Chỉ phần chưa tải sẽ được thử lại; dữ liệu đã tải vẫn được giữ trên màn hình.</p>
+              <button className={careHubStyles.retryButton} onClick={retry} type="button">Thử tải lại phần thiếu</button>
+            </div>
+          ) : null}
+
+          <div className={careHubStyles.body}>
+            <section aria-labelledby="care-hub-appointment-title" className={`${careHubStyles.lane} ${careHubStyles.appointmentLane}`}>
+              <div className={careHubStyles.laneHeading}>
+                <span aria-hidden="true" className={careHubStyles.laneIcon}><UiIcon name="calendar" size={20} /></span>
+                <h3 id="care-hub-appointment-title">Lịch khám sắp tới</h3>
+              </div>
+              {appointments.status === "loading" ? <CareHubSkeleton /> : null}
+              {appointments.status === "error" ? (
+                <p className={careHubStyles.inlineUnavailable}>Chưa thể xác định lịch sắp tới. Hãy tải lại hoặc mở danh sách lịch hẹn bên dưới.</p>
+              ) : null}
+              {appointments.status === "success" && upcomingAppointment ? (
+                <div className={careHubStyles.appointmentDetail}>
+                  <time dateTime={`${upcomingAppointment.appointmentDate}T${formatPortalTime(upcomingAppointment.startTime)}`}>
+                    <strong>{formatBusinessDate(upcomingAppointment.appointmentDate)}</strong>
+                    <span>{formatPortalTime(upcomingAppointment.startTime)} đến {formatPortalTime(upcomingAppointment.endTime)}</span>
+                  </time>
+                  <p className={careHubStyles.doctorName}>Bác sĩ {upcomingAppointment.doctorName}</p>
+                  <p className={careHubStyles.appointmentMeta}>
+                    {upcomingAppointment.specialtyName ?? "Chuyên khoa đang cập nhật"}
+                    {upcomingAppointment.branchName ? ` · ${upcomingAppointment.branchName}` : ""}
+                  </p>
+                  <a className={careHubStyles.inlineAction} href="#appointments">Xem lịch hẹn <UiIcon name="arrow-right" size={18} /></a>
+                </div>
+              ) : null}
+              {appointments.status === "success" && !upcomingAppointment ? (
+                <div className={careHubStyles.emptyState}>
+                  <strong>Chưa có lịch khám sắp tới</strong>
+                  <p>Khi lịch được xác nhận, ngày khám và bác sĩ sẽ xuất hiện tại đây.</p>
+                  <Link className={careHubStyles.inlineAction} href="/dat-lich">Đặt lịch khám <UiIcon name="arrow-right" size={18} /></Link>
+                </div>
+              ) : null}
+            </section>
+
+            <section aria-labelledby="care-hub-priority-title" className={careHubStyles.lane}>
+              <div className={careHubStyles.laneHeading}>
+                <span aria-hidden="true" className={careHubStyles.laneIcon}><UiIcon name="check" size={20} /></span>
+                <h3 id="care-hub-priority-title">Cần bạn kiểm tra</h3>
+              </div>
+              {careTasks.length > 0 ? (
+                <ul className={careHubStyles.taskList}>
+                  {careTasks.map((task) => (
+                    <li key={task.id}>
+                      <Link aria-label={`${task.title}. ${task.action}`} className={careHubStyles.taskLink} data-tone={task.tone} href={task.href}>
+                        <span aria-hidden="true" className={careHubStyles.taskIcon}><UiIcon name={task.icon} size={19} /></span>
+                        <span className={careHubStyles.taskCopy}>
+                          <strong>{task.title}</strong>
+                          <span>{task.description}</span>
+                          <small>{task.action}</small>
+                        </span>
+                        <UiIcon className={careHubStyles.chevron} name="chevron-right" size={18} />
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              ) : isLoading ? (
+                <CareHubSkeleton />
+              ) : hasPartialError ? (
+                <p className={careHubStyles.inlineUnavailable}>Chưa thể xác định đầy đủ việc cần xử lý.</p>
+              ) : hasRecordedData ? (
+                <div className={careHubStyles.healthyState}>
+                  <span aria-hidden="true"><UiIcon name="shield-check" size={22} /></span>
+                  <div><strong>Bạn đang theo dõi đúng tiến độ</strong><p>Hiện không có đối soát, tin tư vấn hoặc việc chăm sóc cần ưu tiên.</p></div>
+                </div>
+              ) : (
+                <div className={careHubStyles.emptyState}>
+                  <strong>Chưa có việc chăm sóc được ghi nhận</strong>
+                  <p>Thông tin sẽ xuất hiện sau khi bạn có lịch khám hoặc kế hoạch từ bác sĩ.</p>
+                </div>
+              )}
+            </section>
+
+            <section aria-labelledby="care-hub-update-title" className={careHubStyles.lane}>
+              <div className={careHubStyles.laneHeading}>
+                <span aria-hidden="true" className={careHubStyles.laneIcon}><UiIcon name="activity" size={20} /></span>
+                <h3 id="care-hub-update-title">Hồ sơ mới</h3>
+              </div>
+              {overview.status === "loading" ? <CareHubSkeleton /> : null}
+              {overview.status === "error" ? (
+                <p className={careHubStyles.inlineUnavailable}>Chưa thể kiểm tra kết quả và đơn thuốc mới.</p>
+              ) : null}
+              {overview.status === "success" && newClinicalUpdates.length > 0 ? (
+                <ul className={careHubStyles.taskList}>
+                  {newClinicalUpdates.map((task) => (
+                    <li key={task.id}>
+                      <a aria-label={`${task.title}. ${task.action}`} className={careHubStyles.taskLink} data-tone={task.tone} href={task.href}>
+                        <span aria-hidden="true" className={careHubStyles.taskIcon}><UiIcon name={task.icon} size={19} /></span>
+                        <span className={careHubStyles.taskCopy}>
+                          <strong>{task.title}</strong>
+                          <span>{task.description}</span>
+                          <small>{task.action}</small>
+                        </span>
+                        <UiIcon className={careHubStyles.chevron} name="chevron-right" size={18} />
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {overview.status === "success" && newClinicalUpdates.length === 0 ? (
+                <div className={careHubStyles.emptyState}>
+                  <strong>Chưa có cập nhật lâm sàng mới</strong>
+                  <p>Kết quả và đơn thuốc mới sẽ được báo tại đây khi bác sĩ ghi nhận.</p>
+                </div>
+              ) : null}
+            </section>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
 export default function PatientDashboardPage() {
   const session = useAuthSession();
   const searchParams = useSearchParams();
@@ -291,6 +679,7 @@ export default function PatientDashboardPage() {
   const [notifications, setNotifications] = useState<Loadable<Page<Notification>>>(initialNotifications);
   const [profile, setProfile] = useState<Loadable<PatientProfile>>(initialProfile);
   const [overview, setOverview] = useState<Loadable<PatientOverview>>(initialOverview);
+  const [carePlans, setCarePlans] = useState<Loadable<CarePlan[]>>(initialCarePlans);
   const [profileForm, setProfileForm] = useState<ProfileForm>(EMPTY_PROFILE_FORM);
   const [profileOperation, setProfileOperation] = useState<"idle" | "saving">("idle");
   const [profileNotice, setProfileNotice] = useState<string | null>(null);
@@ -312,6 +701,7 @@ export default function PatientDashboardPage() {
   const [notificationAction, setNotificationAction] = useState<string | null>(null);
   const [notificationError, setNotificationError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const retrySnapshotRef = useRef<DashboardLoadSnapshot | null>(null);
   const handledAppointmentIdRef = useRef<string | null>(null);
   const handledPaymentAppointmentIdRef = useRef<string | null>(null);
   const paymentHeadingRef = useRef<HTMLHeadingElement | null>(null);
@@ -320,19 +710,24 @@ export default function PatientDashboardPage() {
   useEffect(() => {
     if (!session || !hasRole(session.user, "PATIENT")) return;
     let cancelled = false;
+    const retrySnapshot = retrySnapshotRef.current?.userId === session.user.id
+      ? retrySnapshotRef.current
+      : null;
+    retrySnapshotRef.current = null;
 
     Promise.allSettled([
-      fetchPatientProfile(),
-      fetchPatientAppointments(),
-      fetchPatientMedicalRecords(),
-      fetchPatientPrescriptions(),
-      fetchPatientDiagnosticResults(),
-      fetchNotifications(),
-      fetchPatientOverview(),
-    ]).then(([profileResult, appointmentsResult, recordsResult, prescriptionsResult, diagnosticsResult, notificationsResult, overviewResult]) => {
+      loadOrReuse(retrySnapshot?.profile, () => fetchPatientProfile()),
+      loadOrReuse(retrySnapshot?.appointments, () => fetchPatientAppointments()),
+      loadOrReuse(retrySnapshot?.records, () => fetchPatientMedicalRecords()),
+      loadOrReuse(retrySnapshot?.prescriptions, () => fetchPatientPrescriptions()),
+      loadOrReuse(retrySnapshot?.diagnostics, () => fetchPatientDiagnosticResults()),
+      loadOrReuse(retrySnapshot?.notifications, () => fetchNotifications()),
+      loadOrReuse(retrySnapshot?.overview, () => fetchPatientOverview()),
+      loadOrReuse(retrySnapshot?.carePlans, () => fetchPatientCarePlans()),
+    ]).then(([profileResult, appointmentsResult, recordsResult, prescriptionsResult, diagnosticsResult, notificationsResult, overviewResult, carePlansResult]) => {
       if (cancelled) return;
 
-      const results = [profileResult, appointmentsResult, recordsResult, prescriptionsResult, diagnosticsResult, notificationsResult];
+      const results = [profileResult, appointmentsResult, recordsResult, prescriptionsResult, diagnosticsResult, notificationsResult, overviewResult, carePlansResult];
       if (results.some(isUnauthorized)) {
         clearAuthSession();
         return;
@@ -356,6 +751,7 @@ export default function PatientDashboardPage() {
       setDiagnostics(toLoadable(diagnosticsResult));
       setNotifications(toLoadable(notificationsResult));
       setOverview(toLoadable(overviewResult));
+      setCarePlans(toLoadable(carePlansResult));
     });
 
     return () => {
@@ -364,13 +760,25 @@ export default function PatientDashboardPage() {
   }, [reloadKey, session]);
 
   const retry = () => {
-    setAppointments(initialAppointments);
-    setRecords(initialRecords);
-    setPrescriptions(initialPrescriptions);
-    setDiagnostics(initialDiagnostics);
-    setNotifications(initialNotifications);
-    setProfile(initialProfile);
-    setOverview(initialOverview);
+    retrySnapshotRef.current = session ? {
+      userId: session.user.id,
+      appointments,
+      records,
+      prescriptions,
+      diagnostics,
+      notifications,
+      profile,
+      overview,
+      carePlans,
+    } : null;
+    setAppointments((current) => prepareRetry(current));
+    setRecords((current) => prepareRetry(current));
+    setPrescriptions((current) => prepareRetry(current));
+    setDiagnostics((current) => prepareRetry(current));
+    setNotifications((current) => prepareRetry(current));
+    setProfile((current) => prepareRetry(current));
+    setOverview((current) => prepareRetry(current));
+    setCarePlans((current) => prepareRetry(current));
     setReloadKey((value) => value + 1);
   };
 
@@ -740,12 +1148,7 @@ export default function PatientDashboardPage() {
           <a className="portal-summary-card" href="#diagnostics"><span>Kết quả</span><strong>{countOf(diagnostics)}</strong><small>Cận lâm sàng</small></a>
         </section>
 
-        <section className="portal-panel portal-panel--notice" aria-labelledby="care-hub-title">
-          <div className="portal-panel__heading"><div><p className="section-note">TRUNG TÂM CHĂM SÓC</p><h2 id="care-hub-title">Bước tiếp theo của bạn</h2></div><span aria-hidden="true" className="portal-panel__icon">+</span></div>
-          {overview.status === "loading" ? <LoadingState label="Đang tổng hợp trạng thái chăm sóc…" /> : null}
-          {overview.status === "error" ? <p className="portal-panel__intro">Tóm tắt chăm sóc tạm thời chưa tải được; các khu vực chi tiết vẫn sử dụng được.</p> : null}
-          {overview.status === "success" ? <div className="portal-grid portal-grid--main"><div><p className="portal-panel__intro">{overview.data.unreadConsultationCount ? <><strong>{overview.data.unreadConsultationCount}</strong> tin tư vấn chưa đọc.</> : "Không có tin tư vấn chưa đọc."} {overview.data.openCarePlanTaskCount ? <><strong>{overview.data.openCarePlanTaskCount}</strong> việc chăm sóc đang mở.</> : null}</p><Link className="button button--primary" href="/patient/consultations">Mở tư vấn riêng</Link></div><div><p className="portal-panel__intro">Thanh toán chỉ được ghi nhận sau khi admin đối soát. Nếu trạng thái đang chờ, bạn không cần chuyển lại.</p><Link className="outline-button" href="/benh-pho-bien">Xem kiến thức bệnh phổ biến</Link></div></div> : null}
-        </section>
+        <PatientCareHub appointments={appointments} carePlans={carePlans} overview={overview} retry={retry} />
 
         <section className="portal-panel" aria-labelledby="appointments-title" id="appointments">
           <div className="portal-panel__heading">

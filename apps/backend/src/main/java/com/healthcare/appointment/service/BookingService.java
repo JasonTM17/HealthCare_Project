@@ -4,6 +4,7 @@ import com.healthcare.appointment.dto.AppointmentResponse;
 import com.healthcare.appointment.dto.ConfirmAppointmentRequest;
 import com.healthcare.appointment.dto.HoldSlotRequest;
 import com.healthcare.appointment.dto.HoldSlotResponse;
+import com.healthcare.appointment.dto.OtpDeliveryStatus;
 import com.healthcare.appointment.dto.RescheduleAppointmentRequest;
 import com.healthcare.appointment.entity.Appointment;
 import com.healthcare.appointment.entity.AppointmentStatus;
@@ -47,6 +48,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.util.Map;
 import java.util.List;
 import java.util.UUID;
 
@@ -302,6 +304,7 @@ public class BookingService {
         appointment.setHoldExpiresAt(holdExpiry);
         appointment.setOtpCode(passwordEncoder.encode(otpCode));
         appointment.setOtpExpiresAt(otpExpiry);
+        appointment.setOtpIssuedAt(now);
         appointment.setOtpAttempts(0);
         appointment.setReasonForVisit(request.reasonForVisit());
         appointment.setHasInsurance(Boolean.TRUE.equals(request.hasInsurance()));
@@ -331,21 +334,145 @@ public class BookingService {
             "Lịch khám " + appointment.getBookingCode() + " đang được giữ trong "
                 + HOLD_DURATION_MINUTES + " phút để chờ xác nhận."
         );
-        emailSender.send(
+        emailSender.sendBookingOtp(
             otpRecipient,
-            "HealthCare booking verification",
-            "Your HealthCare booking code for " + bookingCode + " is " + otpCode
-                + ". It expires in " + OTP_DURATION_MINUTES
-                + " minutes. If you did not request this, you can ignore this email."
+            Map.of(
+                "code", otpCode,
+                "minutes", String.valueOf(OTP_DURATION_MINUTES)
+            ),
+            "booking-otp-" + appointment.getId(),
+            patient.getUserId(),
+            appointment.getId(),
+            OTP_DURATION_MINUTES * 60L
         );
+
+        // Hold creation runs inside a transaction and the non-outbox sender
+        // is deferred until after commit. We therefore cannot truthfully say
+        // SENT in this response; the durable outbox and the SMTP worker are
+        // the authority for delivery acknowledgement.
+        OtpDeliveryStatus otpDeliveryStatus = OtpDeliveryStatus.QUEUED;
 
         return new HoldSlotResponse(
             bookingCode,
             holdExpiry,
             otpExpiry,
             "Đã giữ chỗ thành công trong " + HOLD_DURATION_MINUTES + " phút. Mã OTP có hiệu lực trong " + OTP_DURATION_MINUTES + " phút.",
-            true
+            true,
+            otpDeliveryStatus
         );
+    }
+
+    /**
+     * Re-issues the OTP for the existing pending hold. This operation never
+     * creates another appointment or extends the hold window. Ownership is
+     * checked before any state is disclosed and the database row is locked so
+     * concurrent retries cannot create competing codes.
+     */
+    @Transactional
+    public com.healthcare.appointment.dto.ResendOtpResponse resendBookingOtp(
+            String bookingCode,
+            String phone,
+            UserDetails principal) {
+        String normalizedBookingCode = bookingCode == null ? "" : bookingCode.trim();
+        if (normalizedBookingCode.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy mã đặt lịch");
+        }
+
+        Appointment appointment = appointmentRepository.findByBookingCodeWithDetailsForUpdate(normalizedBookingCode)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy mã đặt lịch"));
+        authorizeOtpResend(appointment, phone, principal);
+
+        OffsetDateTime now = OffsetDateTime.now(BUSINESS_ZONE);
+        if (appointment.getStatus() != AppointmentStatus.PENDING_CONFIRMATION) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Lịch hẹn không còn chờ xác nhận");
+        }
+        if (appointment.getHoldExpiresAt() == null || !now.isBefore(appointment.getHoldExpiresAt())) {
+            appointment.setStatus(AppointmentStatus.CANCELLED);
+            appointment.setCancellationReason("Hết thời gian giữ chỗ (Quá 10 phút)");
+            appointment.setOtpCode(null);
+            appointment.setOtpExpiresAt(null);
+            appointment.setOtpIssuedAt(null);
+            appointment.setHoldExpiresAt(null);
+            appointmentRepository.saveAndFlush(appointment);
+            throw new ResponseStatusException(HttpStatus.GONE, "Thời gian giữ chỗ đã hết hạn. Vui lòng thực hiện đặt lại.");
+        }
+
+        long cooldownSeconds = configuredOtpResendCooldownSeconds();
+        OffsetDateTime lastIssuedAt = appointment.getOtpIssuedAt();
+        if (lastIssuedAt != null && now.isBefore(lastIssuedAt.plusSeconds(cooldownSeconds))) {
+            long retryAfter = Math.max(1L,
+                java.time.Duration.between(now, lastIssuedAt.plusSeconds(cooldownSeconds)).toSeconds() + 1L);
+            throw new BusinessException(
+                429,
+                ErrorCodes.OTP_RESEND_THROTTLED,
+                "Mã xác thực vừa được yêu cầu. Vui lòng thử lại sau " + retryAfter + " giây."
+            );
+        }
+        if (!emailSender.isDeliveryAvailable()) {
+            throw emailDeliveryUnavailable();
+        }
+
+        String otpCode = useFixedTestOtp()
+            ? "123456"
+            : String.format("%06d", RANDOM.nextInt(1_000_000));
+        OffsetDateTime otpExpiry = now.plusMinutes(OTP_DURATION_MINUTES);
+        if (appointment.getHoldExpiresAt().isBefore(otpExpiry)) {
+            otpExpiry = appointment.getHoldExpiresAt();
+        }
+        appointment.setOtpCode(passwordEncoder.encode(otpCode));
+        appointment.setOtpExpiresAt(otpExpiry);
+        appointment.setOtpIssuedAt(now);
+        appointment.setOtpAttempts(0);
+        appointmentRepository.saveAndFlush(appointment);
+
+        String otpRecipient = storedVerifiedDestination(appointment.getPatient());
+        if (otpRecipient == null) {
+            throw emailDeliveryUnavailable();
+        }
+        emailSender.sendBookingOtp(
+            otpRecipient,
+            Map.of("code", otpCode, "minutes", String.valueOf(OTP_DURATION_MINUTES)),
+            "booking-otp-resend-" + appointment.getId() + "-" + otpExpiry.toEpochSecond(),
+            appointment.getPatient().getUserId(),
+            appointment.getId(),
+            OTP_DURATION_MINUTES * 60L
+        );
+
+        return new com.healthcare.appointment.dto.ResendOtpResponse(
+            appointment.getBookingCode(),
+            appointment.getHoldExpiresAt(),
+            appointment.getOtpExpiresAt(),
+            true,
+            OtpDeliveryStatus.QUEUED,
+            "Mã xác thực đang được gửi đến email đã xác minh của bạn.",
+            0L
+        );
+    }
+
+    private void authorizeOtpResend(Appointment appointment, String phone, UserDetails principal) {
+        if (principal == null) {
+            String suppliedPhone = normalizePhone(phone == null ? "" : phone);
+            String storedPhone = normalizePhone(appointment.getPatient().getPhone());
+            if (suppliedPhone.isBlank() || !suppliedPhone.equals(storedPhone)) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy mã đặt lịch");
+            }
+            return;
+        }
+        if (!hasRole(principal, "PATIENT")) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy mã đặt lịch");
+        }
+        UUID userId = resolveUserId(principal);
+        PatientProfile patient = patientProfileRepository.findByUserId(userId).orElse(null);
+        if (patient == null || !patient.getId().equals(appointment.getPatient().getId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy mã đặt lịch");
+        }
+    }
+
+    private long configuredOtpResendCooldownSeconds() {
+        long configured = environment == null
+            ? 60L
+            : environment.getProperty("app.security.auth-otp.resend-cooldown-seconds", Long.class, 60L);
+        return Math.max(10L, Math.min(configured, 900L));
     }
 
     private PatientResolution resolvePatient(
@@ -431,13 +558,13 @@ public class BookingService {
         }
 
         if (appointment.getOtpExpiresAt() != null && !now.isBefore(appointment.getOtpExpiresAt())) {
-            appointment.setStatus(AppointmentStatus.CANCELLED);
-            appointment.setCancellationReason("Mã OTP đã hết hạn");
-            appointment.setHoldExpiresAt(null);
-            appointment.setOtpCode(null);
-            appointment.setOtpExpiresAt(null);
-            appointmentRepository.saveAndFlush(appointment);
-            throw new ResponseStatusException(HttpStatus.GONE, "Mã OTP đã hết hạn. Vui lòng thực hiện đặt lại lịch.");
+            // The hold remains valid until its own expiry. The patient can
+            // request a replacement OTP without creating another appointment.
+            throw new BusinessException(
+                410,
+                ErrorCodes.OTP_EXPIRED,
+                "Mã OTP đã hết hạn. Vui lòng yêu cầu gửi lại mã trong thời gian giữ chỗ."
+            );
         }
 
         String inputOtp = request.otpCode().trim();
@@ -450,6 +577,7 @@ public class BookingService {
                 appointment.setHoldExpiresAt(null);
                 appointment.setOtpCode(null);
                 appointment.setOtpExpiresAt(null);
+                appointment.setOtpIssuedAt(null);
                 appointmentRepository.saveAndFlush(appointment);
                 throw new ResponseStatusException(
                     HttpStatus.TOO_MANY_REQUESTS,
@@ -464,6 +592,7 @@ public class BookingService {
         appointment.setHoldExpiresAt(null);
         appointment.setOtpCode(null);
         appointment.setOtpExpiresAt(null);
+        appointment.setOtpIssuedAt(null);
         if (request.notes() != null && !request.notes().isBlank()) {
             appointment.setNotes(request.notes().trim());
         }
@@ -529,6 +658,7 @@ public class BookingService {
         appointment.setHoldExpiresAt(null);
         appointment.setOtpCode(null);
         appointment.setOtpExpiresAt(null);
+        appointment.setOtpIssuedAt(null);
         if (paymentService != null) {
             paymentService.markAppointmentCancelled(appointment);
         }

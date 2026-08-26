@@ -1,6 +1,7 @@
 package com.healthcare.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.healthcare.auth.security.BffRequestVerifier;
 import com.healthcare.exception.ApiError;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -26,6 +27,7 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
 
     private static final int MAX_TRACKED_KEYS = 50_000;
     private final ObjectMapper objectMapper;
+    private final BffRequestVerifier bffRequestVerifier;
     private final boolean enabled;
     private final long windowMillis;
     private final int authLimit;
@@ -36,8 +38,12 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
     private final int careerApplicationLimit;
     private final Map<String, WindowCounter> counters = new ConcurrentHashMap<>();
 
-    public RequestRateLimitFilter(ObjectMapper objectMapper, Environment environment) {
+    public RequestRateLimitFilter(
+            ObjectMapper objectMapper,
+            Environment environment,
+            BffRequestVerifier bffRequestVerifier) {
         this.objectMapper = objectMapper;
+        this.bffRequestVerifier = bffRequestVerifier;
         this.enabled = environment.getProperty("app.security.rate-limit.enabled", Boolean.class, true);
         this.windowMillis = environment.getProperty("app.security.rate-limit.window-seconds", Long.class, 60L) * 1_000L;
         this.authLimit = environment.getProperty("app.security.rate-limit.auth-limit", Integer.class, 20);
@@ -60,7 +66,9 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
         }
 
         long now = System.currentTimeMillis();
-        String key = request.getRemoteAddr() + ':' + rule.category();
+        String clientAddress = bffRequestVerifier.trustedClientIpLiteral(request)
+            .orElseGet(request::getRemoteAddr);
+        String key = clientAddress + ':' + rule.category();
         if (counters.size() >= MAX_TRACKED_KEYS && !counters.containsKey(key)) {
             reject(request, response, windowMillis / 1_000L);
             return;
@@ -85,6 +93,7 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         String method = request.getMethod();
         if ("POST".equals(method) && (path.equals("/api/v1/auth/login")
+                || path.equals("/api/v1/auth/browser-sessions")
                 || path.equals("/api/v1/auth/register") || path.equals("/api/v1/auth/refresh")
                 || path.equals("/api/v1/auth/email-verifications/confirm")
                 || path.equals("/api/v1/auth/email-verifications/resend")

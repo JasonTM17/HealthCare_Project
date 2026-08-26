@@ -17,7 +17,7 @@ public class FaqService {
     }
 
     public Page<FaqResponse> listActive(Pageable pageable) {
-        return faqRepository.findByActiveTrue(pageable).map(this::toResponse);
+        return faqRepository.findClinicallyEligibleActive(pageable).map(this::toResponse);
     }
 
     private FaqResponse toResponse(Faq faq) {

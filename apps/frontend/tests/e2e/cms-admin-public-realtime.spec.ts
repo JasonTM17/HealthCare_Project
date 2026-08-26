@@ -2,6 +2,11 @@ import { once } from "node:events";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { expect, test } from "@playwright/test";
+import {
+  assertNoSensitiveBrowserStorage,
+  browserSessionFixture,
+  installMockBrowserSession,
+} from "./helpers/browser-session";
 
 type CmsContent = {
   slotKey: string;
@@ -19,7 +24,6 @@ type CmsContent = {
   updatedAt: string;
 };
 
-const AUTH_STORAGE_KEY = "healthcare.auth.session";
 const SLOT_KEY = "homepage.hero";
 const INITIAL_TITLE = "Trung tâm chăm sóc chủ động";
 const UPDATED_TITLE = "Trung tâm chăm sóc realtime";
@@ -137,6 +141,11 @@ async function startCmsMockBackend() {
       const method = request.method ?? "GET";
       const apiPath = requestUrl.pathname.replace(/^\/api\/v1/, "");
 
+      if (method === "GET" && apiPath === "/auth/browser-sessions/current") {
+        sendJson(response, 401, { code: "BROWSER_SESSION_REQUIRED" });
+        return;
+      }
+
       if (apiPath.startsWith("/hospital/")) {
         sendJson(response, 200, pageEnvelope());
         return;
@@ -173,11 +182,8 @@ async function startCmsMockBackend() {
         return;
       }
 
-      if (apiPath.startsWith("/admin/cms/")
-        && request.headers.authorization !== "Bearer e2e-admin-token") {
-        serverErrors.push(`Missing admin bearer token for ${method} ${apiPath}.`);
-        sendJson(response, 401, { message: "Missing bearer token." });
-        return;
+      if (apiPath.startsWith("/admin/cms/") && request.headers.authorization) {
+        serverErrors.push(`Unexpected browser Authorization header for ${method} ${apiPath}.`);
       }
 
       if (method === "GET" && apiPath === "/admin/cms/content") {
@@ -294,20 +300,10 @@ test("admin publish updates the public homepage hero through the live CMS feed",
     });
 
     const adminPage = await context.newPage();
-    await adminPage.addInitScript(({ key }) => {
-      window.sessionStorage.setItem(key, JSON.stringify({
-        accessToken: "e2e-admin-token",
-        refreshToken: "e2e-refresh-token",
-        tokenType: "Bearer",
-        expiresIn: 3600,
-        user: {
-          id: "admin-1",
-          email: "admin@healthcare.local",
-          displayName: "E2E Admin",
-          roles: ["ROLE_ADMIN"],
-        },
-      }));
-    }, { key: AUTH_STORAGE_KEY });
+    await installMockBrowserSession(
+      adminPage,
+      browserSessionFixture("ADMIN", "admin-cms-e2e", "E2E Admin"),
+    );
 
     await adminPage.goto("/admin/content");
     await expect(adminPage.getByRole("heading", { name: "Chỉnh sửa một component theo slot" })).toBeVisible();
@@ -328,6 +324,7 @@ test("admin publish updates the public homepage hero through the live CMS feed",
     expect(backend.publicReadAfterPublish).toBe(true);
     expect(backend.unexpectedApiRequests).toEqual([]);
     expect(backend.serverErrors).toEqual([]);
+    await assertNoSensitiveBrowserStorage(adminPage);
   } finally {
     await backend.close();
   }

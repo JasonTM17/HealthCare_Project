@@ -56,6 +56,7 @@ services:
     environment:
       MINIO_ROOT_USER:     ${MINIO_ROOT_USER:-healthcare}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change-me}
+      MINIO_API_CORS_ALLOW_ORIGIN: ${BFF_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
     ports:
       - "${MINIO_API_HOST_PORT:-9000}:9000"
       - "${MINIO_CONSOLE_HOST_PORT:-9001}:9001"
@@ -67,6 +68,52 @@ services:
       timeout: 10s
       retries: 3
       start_period: 20s
+
+  # Only this disposable local profile provisions the private bucket. Hosted
+  # buckets are provisioned separately with least-privilege service credentials.
+  minio-init:
+    image: minio/minio:RELEASE.2025-07-23T15-54-02Z
+    restart: "no"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-healthcare}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change-me}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-healthcare-files}
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        mc alias set local http://minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}" >/dev/null 2>&1
+        mc mb --ignore-existing "local/$${STORAGE_BUCKET}" >/dev/null 2>&1
+        mc anonymous set none "local/$${STORAGE_BUCKET}" >/dev/null 2>&1
+
+  # ── Private ClamAV attachment scanner ──────────────────────────────────────
+  # clamd is never published to the host. The HTTP adapter below is also
+  # private and requires the same process-injected token used by Spring.
+  clamav:
+    image: clamav/clamav:1.4
+    restart: unless-stopped
+
+  attachment-scanner:
+    build:
+      context: ./av-scanner
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      SCANNER_SERVICE_TOKEN: ${STORAGE_AV_SERVICE_TOKEN:?STORAGE_AV_SERVICE_TOKEN is required}
+      CLAMD_HOST: clamav
+      CLAMD_PORT: "3310"
+      MAX_SCAN_BYTES: "10485760"
+    depends_on:
+      clamav:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/readyz', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   # ── Spring Boot Backend ─────────────────────────────────────────────────────
   backend:
@@ -84,7 +131,14 @@ services:
       JWT_SECRET:         ${JWT_SECRET:-local-jwt-secret-not-for-production}
       JWT_ACCESS_TTL:     ${JWT_ACCESS_TTL:-900}
       JWT_REFRESH_TTL:    ${JWT_REFRESH_TTL:-604800}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      # Server-to-server trust only. Compose refuses to start without an
+      # operator-provided value shared with the Next.js BFF.
+      BACKEND_BFF_SERVICE_TOKEN: ${BACKEND_BFF_SERVICE_TOKEN:?BACKEND_BFF_SERVICE_TOKEN is required}
+      BACKEND_BFF_REQUIRED: "true"
+      BFF_ALLOWED_ORIGINS: ${BFF_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      # The public Spring service is not a browser API. Non-browser clients do
+      # not send Origin and remain unaffected.
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
       APP_SECURITY_RATE_LIMIT_ENABLED: ${APP_SECURITY_RATE_LIMIT_ENABLED:-true}
       APP_SECURITY_RATE_LIMIT_WINDOW_SECONDS: ${APP_SECURITY_RATE_LIMIT_WINDOW_SECONDS:-60}
       APP_SECURITY_RATE_LIMIT_AUTH_LIMIT: ${APP_SECURITY_RATE_LIMIT_AUTH_LIMIT:-20}
@@ -92,6 +146,12 @@ services:
       APP_SECURITY_RATE_LIMIT_AI_LIMIT: ${APP_SECURITY_RATE_LIMIT_AI_LIMIT:-30}
       APP_SECURITY_RATE_LIMIT_PAYMENT_LIMIT: ${APP_SECURITY_RATE_LIMIT_PAYMENT_LIMIT:-20}
       APP_SECURITY_RATE_LIMIT_WEBHOOK_LIMIT: ${APP_SECURITY_RATE_LIMIT_WEBHOOK_LIMIT:-120}
+      # Redis-backed per-email/IP auth limits remain enabled. Overrides are
+      # reserved for repeated diagnostics in this disposable local stack; the
+      # committed defaults stay aligned with the application security policy.
+      APP_AUTH_OTP_WINDOW_SECONDS: ${APP_AUTH_OTP_WINDOW_SECONDS:-900}
+      APP_AUTH_OTP_IP_LIMIT: ${APP_AUTH_OTP_IP_LIMIT:-20}
+      APP_AUTH_OTP_EMAIL_LIMIT: ${APP_AUTH_OTP_EMAIL_LIMIT:-5}
       AI_SERVICE_URL:     http://ai-service:8000
       AI_SERVICE_RUNTIME: compose
       AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL: "false"
@@ -115,6 +175,13 @@ services:
       AI_CHAT_SYNTHETIC_BETA_ASSERTED: ${AI_CHAT_SYNTHETIC_BETA_ASSERTED:-false}
       APP_MAIL_ENABLED:      ${APP_MAIL_ENABLED:-true}
       APP_MAIL_FROM:         ${APP_MAIL_FROM:-no-reply@healthcare.local}
+      APP_MAIL_PORTAL_BASE_URL: ${APP_MAIL_PORTAL_BASE_URL:-}
+      APP_MAIL_OUTBOX_ENABLED: "true"
+      APP_MAIL_OUTBOX_ENCRYPTION_KEY: ${APP_MAIL_OUTBOX_ENCRYPTION_KEY:?APP_MAIL_OUTBOX_ENCRYPTION_KEY is required}
+      APP_MAIL_OUTBOX_POLL_MS: ${APP_MAIL_OUTBOX_POLL_MS:-1000}
+      APP_MAIL_OUTBOX_RETENTION_DAYS: "90"
+      APP_MAIL_OUTBOX_CLEANUP_MS: "3600000"
+      APP_MAIL_OUTBOX_CLEANUP_INITIAL_DELAY_MS: "3600000"
       SPRING_MAIL_HOST:      ${SPRING_MAIL_HOST:-mailpit}
       SPRING_MAIL_PORT:      ${SPRING_MAIL_PORT:-1025}
       SPRING_MAIL_USERNAME:  ${SPRING_MAIL_USERNAME:-}
@@ -137,18 +204,35 @@ services:
       PAYMENT_WEBHOOK_TOLERANCE_SECONDS: ${PAYMENT_WEBHOOK_TOLERANCE_SECONDS:-300}
       PAYMENT_STATUS_EMAIL_ENABLED: ${PAYMENT_STATUS_EMAIL_ENABLED:-true}
       CMS_DISTRIBUTED_REALTIME_ENABLED: "true"
+      REDIS_URL:          redis://redis:6379
       REDIS_HOST:         redis
       REDIS_PORT:         "6379"
       SPRING_FLYWAY_OUT_OF_ORDER: ${SPRING_FLYWAY_OUT_OF_ORDER:-false}
       MINIO_ENDPOINT:      http://minio:9000
       MINIO_ACCESS_KEY:    ${MINIO_ROOT_USER:-healthcare}
       MINIO_SECRET_KEY:    ${MINIO_ROOT_PASSWORD:-change-me}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-healthcare-files}
+      STORAGE_REGION: ${STORAGE_REGION:-us-east-1}
+      # A separate loopback host prevents portal cookies reaching the object
+      # store; signature Host is fixed here, never rewritten after signing.
+      STORAGE_PUBLIC_ENDPOINT: ${STORAGE_PUBLIC_ENDPOINT:-http://127.0.0.2:9000}
+      STORAGE_CONSULTATION_ENABLED: ${STORAGE_CONSULTATION_ENABLED:-true}
+      STORAGE_CONSULTATION_SCAN_WORKER_ENABLED: "true"
+      STORAGE_CONSULTATION_KEY_SIGNING_SECRET: ${STORAGE_CONSULTATION_KEY_SIGNING_SECRET:-local-compose-consultation-signing-secret-32-bytes}
+      STORAGE_AV_REQUIRED: "true"
+      STORAGE_AV_SERVICE_URL: http://attachment-scanner:8080/scan
+      STORAGE_AV_SERVICE_TOKEN: ${STORAGE_AV_SERVICE_TOKEN:?STORAGE_AV_SERVICE_TOKEN is required}
+      STORAGE_MIME_VALIDATION_REQUIRED: "true"
     ports:
       - "${BACKEND_HOST_PORT:-8080}:8080"
     depends_on:
       postgres:
         condition: service_healthy
       minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      attachment-scanner:
         condition: service_healthy
       ai-service:
         condition: service_healthy
@@ -191,18 +275,22 @@ services:
       context: ../apps/frontend
       dockerfile: Dockerfile
       args:
-        BACKEND_INTERNAL_URL: http://backend:8080
         VCS_REF: ${BUILD_VCS_REF:-unknown}
     restart: unless-stopped
     environment:
-      # Keep browser traffic same-origin. Rewrites are compiled in the build
-      # stage, while this value keeps the same contract visible at runtime.
+      # Browser traffic stays same-origin through the runtime Route Handler.
       BACKEND_INTERNAL_URL: http://backend:8080
+      BACKEND_BFF_SERVICE_TOKEN: ${BACKEND_BFF_SERVICE_TOKEN:?BACKEND_BFF_SERVICE_TOKEN is required}
+      # Next.js can expose localhost:3000 internally when a different host port
+      # is published, so the external browser origin is explicit and immutable.
+      BFF_PUBLIC_ORIGIN: ${BFF_PUBLIC_ORIGIN:-http://localhost:3000}
     ports:
       - "${FRONTEND_HOST_PORT:-3000}:3000"
     depends_on:
       backend:
         condition: service_healthy
+      local-seed:
+        condition: service_completed_successfully
 
   # ── FastAPI AI Service ──────────────────────────────────────────────────────
   ai-service:
@@ -236,12 +324,12 @@ services:
       SUPABASE_RAG_TABLE: ${SUPABASE_RAG_TABLE:-ai_chat_documents}
       SUPABASE_RAG_RPC: ${SUPABASE_RAG_RPC:-match_chat_documents}
       SUPABASE_DB_CONNECT_TIMEOUT_SECONDS: ${SUPABASE_DB_CONNECT_TIMEOUT_SECONDS:-5}
-      SUPABASE_RAG_FALLBACK_TO_MEMORY: ${SUPABASE_RAG_FALLBACK_TO_MEMORY:-true}
+      SUPABASE_RAG_FALLBACK_TO_MEMORY: ${SUPABASE_RAG_FALLBACK_TO_MEMORY:-false}
       RAG_EMBEDDING_DIMENSION: ${RAG_EMBEDDING_DIMENSION:-384}
       AI_PATIENT_CHAT_REMOTE_ENABLED: ${AI_PATIENT_CHAT_REMOTE_ENABLED:-false}
       AI_CHAT_REMOTE_PROVIDER_ENABLED: ${AI_CHAT_REMOTE_PROVIDER_ENABLED:-false}
       REMOTE_AI_SYNTHETIC_ONLY: ${REMOTE_AI_SYNTHETIC_ONLY:-true}
-      REMOTE_AI_KILL_SWITCH: ${REMOTE_AI_KILL_SWITCH:-false}
+      REMOTE_AI_KILL_SWITCH: ${REMOTE_AI_KILL_SWITCH:-true}
       REMOTE_AI_PROVIDER_ALLOWLIST: ${REMOTE_AI_PROVIDER_ALLOWLIST:-deepseek}
       REMOTE_AI_HTTPS_HOST_ALLOWLIST: ${REMOTE_AI_HTTPS_HOST_ALLOWLIST:-api.deepseek.com}
       AI_CHAT_CIRCUIT_FAILURE_THRESHOLD: ${AI_CHAT_CIRCUIT_FAILURE_THRESHOLD:-3}

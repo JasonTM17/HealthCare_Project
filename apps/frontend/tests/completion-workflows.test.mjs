@@ -4,23 +4,25 @@ import test from "node:test";
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 
-test("patient portal exposes profile, reschedule, and authenticated diagnostic download workflows", () => {
+test("patient portal exposes profile, reschedule, and cookie-authenticated diagnostic workflows", () => {
   const api = read("../lib/api-client.ts");
   const page = read("../app/patient/dashboard/page.tsx");
   assert.match(api, /fetchPatientProfile/);
   assert.match(api, /\/reschedule/);
-  assert.match(api, /Authorization.*accessToken/s);
+  assert.match(api, /downloadProtectedFile[\s\S]*credentials: "same-origin"/);
+  assert.doesNotMatch(api, /Authorization|Bearer|accessToken|refreshToken|tokenType/);
   assert.match(page, /handleSaveProfile/);
   assert.match(page, /handleReschedule/);
   assert.match(page, /downloadProtectedFile/);
 });
 
-test("patient self-registration creates a real authenticated portal entry", () => {
+test("patient self-registration waits for verification before issuing a browser session", () => {
   const api = read("../lib/api-client.ts");
   const login = read("../app/auth/login/page.tsx");
   const registration = read("../app/auth/register/page.tsx");
   assert.match(api, /\/auth\/register/);
-  assert.match(api, /storeAuthSession\(session\)/);
+  assert.match(api, /login[\s\S]*grantType: "PASSWORD"/);
+  assert.match(api, /verifyEmail[\s\S]*grantType: "EMAIL_VERIFICATION"/);
   assert.match(login, /\/auth\/register/);
   assert.match(login, /hasRole\(session\.user, "ADMIN"\)/);
   assert.match(registration, /patient\/dashboard/);
@@ -68,7 +70,7 @@ test("representative primary actions have browser-level network assertions", () 
   assert.match(actions, /PATCH[\s\S]*\/doctor\/appointments\/\$\{appointment\.id\}\/status/);
   assert.match(actions, /postDataJSON\(\)\)\.toEqual\(\{ status: "CHECKED_IN" \}\)/);
   assert.match(actions, /POST[\s\S]*\/admin\/specialties/);
-  assert.match(actions, /authorization[\s\S]*Bearer/);
+  assert.match(actions, /request\.postDataJSON\(\)/);
 });
 
 test("authenticated search augments bounded keyword results with related content", () => {

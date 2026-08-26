@@ -54,6 +54,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @ActiveProfiles("test")
@@ -145,6 +146,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         mockMvc.perform(get("/api/v1/appointments/doctors/" + doctor.getId() + "/slots")
                 .param("date", targetDate.toString()))
             .andExpect(status().isOk())
+            .andExpect(header().string("Cache-Control", org.hamcrest.Matchers.containsString("no-store")))
             .andExpect(jsonPath("$").isArray())
             .andExpect(jsonPath("$[0].startTime").exists())
             .andExpect(jsonPath("$[0].branchId").doesNotExist())
@@ -439,6 +441,35 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
                 .content("{\"reason\":\"Thay đổi kế hoạch công tác\",\"phone\":\"0901234567\"}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("CANCELLED"));
+    }
+
+    @Test
+    void slotsRejectInactiveCatalogAndDeduplicateEquivalentScheduleRows() throws Exception {
+        Branch branch = createBranchForDoctor("slot-authority");
+        LocalDate targetDate = nextDate(DayOfWeek.MONDAY);
+        saveSchedule(branch, targetDate, 9, 0, 10, 0, 30);
+        saveSchedule(branch, targetDate, 9, 0, 10, 0, 30);
+
+        mockMvc.perform(get("/api/v1/appointments/doctors/" + doctor.getId() + "/slots")
+                .param("date", targetDate.toString())
+                .param("branchId", branch.getId().toString()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()").value(2));
+
+        branch.setActive(false);
+        branchRepository.saveAndFlush(branch);
+        mockMvc.perform(get("/api/v1/appointments/doctors/" + doctor.getId() + "/slots")
+                .param("date", targetDate.toString())
+                .param("branchId", branch.getId().toString()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$").isEmpty());
+
+        doctor.setActive(false);
+        doctorRepository.saveAndFlush(doctor);
+        mockMvc.perform(get("/api/v1/appointments/doctors/" + doctor.getId() + "/slots")
+                .param("date", targetDate.plusDays(1).toString()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$").isEmpty());
     }
 
     @Test

@@ -64,11 +64,24 @@ public class FileStorageService {
     private final AppointmentRepository appointmentRepository;
     private final MedicalRecordRepository medicalRecordRepository;
 
-    @Value("${minio.bucket:healthcare-files}")
+    @Value("${storage.bucket:${minio.bucket:healthcare-files}}")
     private String bucket;
 
     @Value("${storage.max-file-size-bytes:" + DEFAULT_MAX_FILE_SIZE_BYTES + "}")
     private long maxFileSizeBytes;
+
+    /** Uploads stay disabled in beta until private storage and AV are provisioned. */
+    @Value("${storage.upload-enabled:true}")
+    private boolean uploadEnabled = true;
+
+    @Value("${storage.av.required:false}")
+    private boolean avRequired;
+
+    @Value("${storage.av.service-url:}")
+    private String avServiceUrl;
+
+    @Value("${storage.av.service-token:}")
+    private String avServiceToken;
 
     private volatile boolean bucketReady;
 
@@ -91,6 +104,7 @@ public class FileStorageService {
 
     /** Initializes the bucket lazily so a backend health check does not require MinIO. */
     public synchronized void init() throws Exception {
+        ensureStoragePathIsEnabled();
         if (bucketReady) {
             return;
         }
@@ -112,6 +126,7 @@ public class FileStorageService {
             UUID patientId,
             StoredFilePurpose purpose,
             UserDetails principal) throws Exception {
+        ensureUploadPathIsConfigured();
         validateUpload(file);
         User uploader = resolveUser(principal);
         PatientProfile patient = resolvePatientForUpload(patientId, principal);
@@ -214,6 +229,28 @@ public class FileStorageService {
         if (extensionStart < 0
                 || !ALLOWED_EXTENSIONS.contains(filename.substring(extensionStart).toLowerCase(Locale.ROOT))) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Phần mở rộng tệp không được hỗ trợ");
+        }
+    }
+
+    private void ensureUploadPathIsConfigured() {
+        if (!uploadEnabled) {
+            throw new ResponseStatusException(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "Kho tệp riêng tư chưa được bật cho môi trường này");
+        }
+        if (avRequired && (avServiceUrl == null || avServiceUrl.isBlank()
+                || avServiceToken == null || avServiceToken.isBlank())) {
+            throw new ResponseStatusException(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "Dịch vụ quét tệp chưa được cấu hình");
+        }
+    }
+
+    private void ensureStoragePathIsEnabled() {
+        if (!uploadEnabled) {
+            throw new ResponseStatusException(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "Kho tệp riêng tư chưa được bật cho môi trường này");
         }
     }
 

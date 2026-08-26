@@ -1,6 +1,12 @@
 package com.healthcare.auth;
 
-import com.healthcare.security.CustomUserDetailsService;
+import com.healthcare.security.HealthcareUserPrincipal;
+import com.healthcare.auth.dto.BrowserSessionCreateRequest;
+import com.healthcare.auth.dto.BrowserSessionResponse;
+import com.healthcare.auth.security.BrowserSessionContext;
+import com.healthcare.auth.service.BrowserSessionService;
+import com.healthcare.exception.BusinessException;
+import com.healthcare.exception.ErrorCodes;
 import com.healthcare.user.dto.AuthResponse;
 import com.healthcare.user.dto.AuthActionResponse;
 import com.healthcare.user.dto.EmailVerificationRequest;
@@ -12,6 +18,7 @@ import com.healthcare.user.dto.RegisterRequest;
 import com.healthcare.user.dto.RegistrationPendingResponse;
 import com.healthcare.user.dto.ResendVerificationRequest;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -22,7 +29,6 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -30,11 +36,13 @@ import java.util.UUID;
 public class AuthController {
 
     private final AuthService authService;
-    private final CustomUserDetailsService userDetailsService;
+    private final BrowserSessionService browserSessionService;
 
-    public AuthController(AuthService authService, CustomUserDetailsService userDetailsService) {
+    public AuthController(
+            AuthService authService,
+            BrowserSessionService browserSessionService) {
         this.authService = authService;
-        this.userDetailsService = userDetailsService;
+        this.browserSessionService = browserSessionService;
     }
 
     @PostMapping("/register")
@@ -83,17 +91,68 @@ public class AuthController {
     @Operation(summary = "Confirm a password reset", description = "Consumes a reset code and revokes all refresh sessions")
     public ResponseEntity<Void> confirmPasswordReset(
             @Valid @RequestBody PasswordResetConfirmRequest request,
-            HttpServletRequest httpRequest) {
+            HttpServletRequest httpRequest,
+            HttpServletResponse httpResponse) {
         authService.confirmPasswordReset(request, httpRequest);
+        browserSessionService.clearCookies(httpResponse);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/browser-sessions")
+    @Operation(summary = "Create a secure browser session", description = "Uses a password or email-verification grant and returns no bearer token")
+    public ResponseEntity<BrowserSessionResponse> createBrowserSession(
+            @Valid @RequestBody BrowserSessionCreateRequest request,
+            HttpServletRequest httpRequest,
+            HttpServletResponse httpResponse) {
+        BrowserSessionService.IssuedBrowserSession issued =
+            authService.createBrowserSession(request, httpRequest);
+        browserSessionService.writeIssuedCookies(httpResponse, issued);
+        return ResponseEntity.ok(issued.response());
+    }
+
+    @GetMapping("/browser-sessions/current")
+    @Operation(summary = "Get the current browser session", description = "Returns safe user and expiry metadata without session secrets")
+    public ResponseEntity<BrowserSessionResponse> currentBrowserSession(
+            @AuthenticationPrincipal HealthcareUserPrincipal principal,
+            HttpServletRequest request) {
+        BrowserSessionContext context = browserSessionService.context(request)
+            .filter(value -> principal != null && value.userId().equals(principal.getUserId()))
+            .orElseThrow(() -> new BusinessException(
+                401,
+                ErrorCodes.AUTHENTICATION_REQUIRED,
+                "Browser session is required"
+            ));
+        return ResponseEntity.ok(browserSessionService.responseFor(context));
+    }
+
+    @DeleteMapping("/browser-sessions/current")
+    @Operation(summary = "End the current browser session", description = "Revokes browser and refresh sessions for the authenticated user")
+    public ResponseEntity<Void> deleteBrowserSession(
+            @AuthenticationPrincipal HealthcareUserPrincipal principal,
+            HttpServletRequest request,
+            HttpServletResponse response) {
+        BrowserSessionContext context = browserSessionService.context(request)
+            .filter(value -> principal != null && value.userId().equals(principal.getUserId()))
+            .orElseThrow(() -> new BusinessException(
+                401,
+                ErrorCodes.AUTHENTICATION_REQUIRED,
+                "Browser session is required"
+            ));
+        authService.logout(context.userId());
+        browserSessionService.clearCookies(response);
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/logout")
     @Operation(summary = "Logout current user", description = "Revoke all refresh tokens for the authenticated user")
-    public ResponseEntity<Map<String, String>> logout(@AuthenticationPrincipal UserDetails userDetails) {
+    public ResponseEntity<Map<String, String>> logout(
+            @AuthenticationPrincipal UserDetails userDetails,
+            HttpServletResponse response) {
         if (userDetails != null) {
             authService.logoutByEmail(userDetails.getUsername());
         }
+        browserSessionService.clearCookies(response);
         return ResponseEntity.ok(Map.of("message", "Logged out successfully"));
     }
+
 }

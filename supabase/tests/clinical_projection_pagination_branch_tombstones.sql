@@ -93,4 +93,70 @@ begin
 end;
 $$;
 
+insert into healthcare.ai_chat_documents (
+    projection_kind,
+    source_type,
+    source_id,
+    content_revision,
+    eligibility_revision,
+    content_hash,
+    approval_round,
+    approval_expires_at,
+    title,
+    content,
+    metadata,
+    active,
+    published
+) values (
+    'CLINICAL',
+    'article',
+    'contract-equal-revision-test',
+    1,
+    7,
+    repeat('a', 64),
+    1,
+    current_timestamp + interval '30 days',
+    'Synthetic contract fixture',
+    'Synthetic approved content',
+    '{"approval_id":"round-1"}'::jsonb,
+    true,
+    true
+);
+
+-- An exact no-op replay may touch updated_at but cannot change authoritative
+-- projection state at the same eligibility revision.
+update healthcare.ai_chat_documents
+   set metadata = metadata
+ where projection_kind = 'CLINICAL'
+   and source_type = 'article'
+   and source_id = 'contract-equal-revision-test';
+
+do $$
+begin
+    begin
+        update healthcare.ai_chat_documents
+           set approval_expires_at = approval_expires_at + interval '365 days'
+         where projection_kind = 'CLINICAL'
+           and source_type = 'article'
+           and source_id = 'contract-equal-revision-test';
+        raise exception 'equal-revision approval expiry drift was accepted';
+    exception
+        when serialization_failure then
+            null;
+    end;
+
+    begin
+        update healthcare.ai_chat_documents
+           set metadata = jsonb_set(metadata, '{approval_id}', '"round-2"'::jsonb)
+         where projection_kind = 'CLINICAL'
+           and source_type = 'article'
+           and source_id = 'contract-equal-revision-test';
+        raise exception 'equal-revision approval metadata drift was accepted';
+    exception
+        when serialization_failure then
+            null;
+    end;
+end;
+$$;
+
 rollback;

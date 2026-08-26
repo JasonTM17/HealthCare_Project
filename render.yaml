@@ -1,25 +1,34 @@
 # Render blueprint for the synthetic HealthCare beta.
 #
 # This file is intentionally a deployment manifest, not deployment evidence.
-# Create a separate Render project/database from production, set every secret
-# in Render's secret store, and keep the remote patient-chat switches disabled
-# until the synthetic-only gates in docs/deployment-beta.md pass.
+# Create disposable beta resources in the already-authorized Render workspace;
+# never attach this blueprint to a production service. Set every secret in
+# Render's secret store. This build rejects remote patient-answer switches;
+# keep both disabled as required by docs/deployment-beta.md.
 
 databases:
   - name: healthcare-beta-postgres
     plan: free
+    region: singapore
+    postgresMajorVersion: "16"
     databaseName: healthcare
     user: healthcare
+    # Keep the beta database private; do not expose synthetic data publicly.
+    ipAllowList: []
 
 services:
-  - type: redis
+  - type: keyvalue
     name: healthcare-beta-redis
     plan: free
+    region: singapore
+    # Keep the cache reachable only over Render's private network.
+    ipAllowList: []
     maxmemoryPolicy: noeviction
 
   - type: pserv
     name: healthcare-beta-ai
     runtime: docker
+    region: singapore
     dockerfilePath: ./apps/ai-service/Dockerfile
     dockerContext: ./apps/ai-service
     # Render private services use a TCP port check. `healthCheckPath` is a
@@ -54,6 +63,7 @@ services:
   - type: web
     name: healthcare-beta-backend
     runtime: docker
+    region: singapore
     dockerfilePath: ./apps/backend/Dockerfile
     dockerContext: ./apps/backend
     healthCheckPath: /actuator/health
@@ -72,16 +82,14 @@ services:
         fromDatabase:
           name: healthcare-beta-postgres
           property: password
-      - key: REDIS_HOST
+      # Render's connectionString is postgres:// or postgresql://. The
+      # backend normalizes it to jdbc:postgresql:// before DataSource startup;
+      # discrete credentials remain separate and are never embedded in logs.
+      - key: REDIS_URL
         fromService:
-          type: redis
+          type: keyvalue
           name: healthcare-beta-redis
-          property: host
-      - key: REDIS_PORT
-        fromService:
-          type: redis
-          name: healthcare-beta-redis
-          property: port
+          property: connectionString
       - key: AI_SERVICE_URL
         fromService:
           type: pserv
@@ -97,11 +105,48 @@ services:
         value: "false"
       - key: AI_CHAT_HEALTH_EDUCATION_ENABLED
         value: "false"
-      - key: CORS_ALLOWED_ORIGINS
+      # Exact public Vercel beta origin(s) accepted only from the authenticated
+      # BFF's X-Healthcare-Original-Origin header. Direct browser CORS is off.
+      - key: BFF_ALLOWED_ORIGINS
         sync: false
       - key: JWT_SECRET
         sync: false
+      # Configure the same secret in the Vercel server environment. It must
+      # never be exposed through NEXT_PUBLIC_* or a browser-visible header.
+      - key: BACKEND_BFF_SERVICE_TOKEN
+        sync: false
+      - key: BACKEND_BFF_REQUIRED
+        value: "true"
       - key: APP_MAIL_ENABLED
         value: "false"
       - key: APP_PAYMENT_BANK_TRANSFER_ENABLED
         value: "false"
+      # Private S3/R2-compatible storage is mandatory for a deployed beta.
+      # Keep uploads off until the operator supplies the endpoint, credentials
+      # and a trusted AV/MIME worker through Render's secret store.
+      - key: STORAGE_ENDPOINT
+        sync: false
+      - key: STORAGE_ACCESS_KEY
+        sync: false
+      - key: STORAGE_SECRET_KEY
+        sync: false
+      - key: STORAGE_BUCKET
+        value: healthcare-beta-private
+      - key: STORAGE_REGION
+        value: auto
+      - key: STORAGE_REQUIRE_PRIVATE_ENDPOINT
+        value: "true"
+      - key: STORAGE_UPLOAD_ENABLED
+        value: "false"
+      - key: STORAGE_CONSULTATION_ENABLED
+        value: "false"
+      - key: STORAGE_CONSULTATION_KEY_SIGNING_SECRET
+        sync: false
+      - key: STORAGE_AV_REQUIRED
+        value: "true"
+      - key: STORAGE_AV_SERVICE_URL
+        sync: false
+      - key: STORAGE_AV_SERVICE_TOKEN
+        sync: false
+      - key: STORAGE_MIME_VALIDATION_REQUIRED
+        value: "true"

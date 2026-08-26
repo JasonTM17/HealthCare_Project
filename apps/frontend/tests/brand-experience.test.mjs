@@ -59,7 +59,8 @@ test("root layout renders content immediately without a blocking brand splash", 
   assert.doesNotMatch(layout, /next\/font\/google/);
   assert.doesNotMatch(layout, /BrandSplash/);
   assert.doesNotMatch(layout, /healthcare-brand-intro-v1/);
-  assert.doesNotMatch(layout, /dangerouslySetInnerHTML/);
+  assert.match(layout, /type="application\/ld\+json"/);
+  assert.match(layout, /JSON\.stringify\([\s\S]*\.replace\(\/<\/g, "\\\\u003c"\)/);
   assert.doesNotMatch(layout, /suppressHydrationWarning/);
   assert.match(layout, /<body>[\s\S]*\{children\}[\s\S]*<FloatingHealthAssistant \/>[\s\S]*<\/body>/);
 });

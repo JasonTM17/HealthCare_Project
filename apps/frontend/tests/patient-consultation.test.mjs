@@ -16,6 +16,47 @@ test("patient consultation UI keeps private-channel boundaries visible", () => {
   assert.doesNotMatch(page, /localStorage|sessionStorage|document\.cookie/);
 });
 
+test("patient consultation list and eligible appointments fail and retry independently", () => {
+  const page = read("app/patient/consultations/page.tsx");
+  const eligibility = page.match(/const ELIGIBLE_APPOINTMENT_STATUSES = new Set\(\[([^\]]+)]\)/)?.[1] ?? "";
+
+  assert.match(eligibility, /"CONFIRMED"/);
+  assert.match(eligibility, /"CHECKED_IN"/);
+  assert.match(eligibility, /"COMPLETED"/);
+  assert.doesNotMatch(eligibility, /IN_PROGRESS/);
+  assert.doesNotMatch(page, /Promise\.all\(\[fetchPatientConsultations\(\), fetchPatientAppointments/);
+  assert.match(page, /fetchPatientConsultations\(\)[\s\S]*setConsultationsError/);
+  assert.match(page, /fetchPatientAppointments\(0, 50\)[\s\S]*setAppointmentsError/);
+  assert.match(page, /setConsultationsRetry\(\(value\) => value \+ 1\)/);
+  assert.match(page, /setAppointmentsRetry\(\(value\) => value \+ 1\)/);
+  assert.match(page, /Đang tải danh sách tư vấn/);
+  assert.match(page, /Đang tải lịch hẹn đủ điều kiện/);
+});
+
+test("patient consultation detail keeps cursor, read-state and attachment gates explicit", () => {
+  const page = read("app/patient/consultations/[id]/page.tsx");
+  assert.match(page, /throughMessageId/);
+  assert.match(page, /serverReadWatermark\.threadId !== id[\s\S]*\|\| !messagesComplete[\s\S]*\|\| messagePageError/);
+  assert.match(page, /reconcileConsultationServerPage/);
+  assert.match(page, /snapshot\.stalled/);
+  assert.match(page, /isActiveThread\(threadId, epoch\)/);
+  assert.match(page, /requestEpochRef\.current === epoch/);
+  assert.match(page, /requestThreadRef\.current === threadId/);
+  assert.match(page, /pageControllerRef\.current\?\.abort\(\)/);
+  assert.match(page, /signal: controller\.signal/);
+  assert.match(page, /nextCursor/);
+  assert.match(page, /messages: \[\.\.\.current\.messages, \.\.\.newer\]/);
+  assert.doesNotMatch(page, /messages: \[\.\.\.older, \.\.\.current\.messages\]/);
+  assert.match(page, /attachments\/intents/);
+  assert.match(page, /sha256/);
+  assert.match(page, /scanStatus === \"CLEAN\"/);
+  assert.match(page, /resolved\.scanStatus !== "CLEAN" \|\| !resolved\.downloadUrl/);
+  assert.match(page, /pollConsultationAttachments/);
+  assert.match(page, /serverMessagesRef\.current = merge\(serverMessagesRef\.current\)/);
+  assert.match(page, /window\.matchMedia\(\"\(prefers-reduced-motion: reduce\)\"\)/);
+  assert.doesNotMatch(page, /error\.message/);
+});
+
 test("common-disease routes are real backend-driven routes", () => {
   const hub = read("app/benh-pho-bien/page.tsx");
   const detail = read("app/benh-pho-bien/[slug]/page.tsx");
@@ -29,10 +70,31 @@ test("common-disease routes are real backend-driven routes", () => {
 
 test("doctor consultation and Q&A surfaces keep independent-review copy", () => {
   const doctorConsultation = read("app/doctor/consultations/[id]/page.tsx");
+  const client = read("lib/api-client.ts");
   const doctorQuestions = read("app/doctor/health-questions/page.tsx");
   const adminQuestions = read("app/admin/health-questions/page.tsx");
   assert.match(doctorConsultation, /handoffDoctorConsultation/);
   assert.match(doctorConsultation, /Không gọi AI/);
+  assert.match(doctorConsultation, /fetchDoctorConsultationMessagePage/);
+  assert.match(doctorConsultation, /messages: \[\.\.\.current\.messages, \.\.\.newer\]/);
+  assert.match(doctorConsultation, /markDoctorConsultationRead/);
+  assert.match(doctorConsultation, /hasMore/);
+  assert.match(doctorConsultation, /serverReadWatermark\.threadId !== id[\s\S]*\|\| !messagesComplete[\s\S]*\|\| messagePageError/);
+  assert.match(doctorConsultation, /reconcileConsultationServerPage/);
+  assert.match(doctorConsultation, /snapshot\.stalled/);
+  assert.match(doctorConsultation, /isActiveThread\(threadId, epoch\)/);
+  assert.match(doctorConsultation, /requestEpochRef\.current === epoch/);
+  assert.match(doctorConsultation, /requestThreadRef\.current === threadId/);
+  assert.match(doctorConsultation, /pageControllerRef\.current\?\.abort\(\)/);
+  assert.match(client, /\/doctor\/consultations\/\$\{encodeURIComponent\(id\)\}\/messages/);
+  assert.match(client, /resolveDoctorConsultation/);
+  assert.match(client, /reopenDoctorConsultation/);
+  assert.match(doctorConsultation, /scanStatus === "CLEAN"/);
+  assert.match(doctorConsultation, /pollConsultationAttachments/);
+  assert.match(doctorConsultation, /fetchDoctorConsultationAttachmentStatus/);
+  assert.match(client, /\/doctor\/consultations\/\$\{encodeURIComponent\(id\)\}\/attachments\/\$\{encodeURIComponent\(attachmentId\)\}/);
+  assert.match(client, /fetchDoctorConsultationAttachmentStatus[\s\S]*cache: "no-store"/);
+  assert.doesNotMatch(doctorConsultation, /error\.message/);
   assert.match(doctorQuestions, /bác sĩ khác phải duyệt độc lập/);
   assert.match(adminQuestions, /Không xuất bản trực tiếp từ AI/);
   assert.match(adminQuestions, /adminListHealthQuestionReports/);

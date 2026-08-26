@@ -14,13 +14,10 @@ function deferred() {
   return { promise, resolve };
 }
 
-function createSession(account, suffix = "") {
-  const normalizedSuffix = suffix ? `-${suffix}` : "";
+function browserSession(account) {
   return {
-    accessToken: `access-${account}${normalizedSuffix}`,
-    refreshToken: `refresh-${account}${normalizedSuffix}`,
-    tokenType: "Bearer",
-    expiresIn: 900,
+    idleExpiresAt: "2026-08-25T12:30:00Z",
+    absoluteExpiresAt: "2026-08-25T23:59:00Z",
     user: {
       id: account,
       email: `${account}@example.test`,
@@ -38,22 +35,20 @@ function jsonResponse(body, status = 200) {
   });
 }
 
-function createSessionStorageWindow() {
-  const values = new Map();
+function createBrowserWindow() {
+  const listeners = new Map();
   return {
-    addEventListener() {},
-    dispatchEvent() {},
-    removeEventListener() {},
-    sessionStorage: {
-      getItem(key) {
-        return values.get(key) ?? null;
-      },
-      removeItem(key) {
-        values.delete(key);
-      },
-      setItem(key, value) {
-        values.set(key, String(value));
-      },
+    addEventListener(name, listener) {
+      const current = listeners.get(name) ?? new Set();
+      current.add(listener);
+      listeners.set(name, current);
+    },
+    dispatchEvent(event) {
+      for (const listener of listeners.get(event.type) ?? []) listener(event);
+      return true;
+    },
+    removeEventListener(name, listener) {
+      listeners.get(name)?.delete(listener);
     },
   };
 }
@@ -83,12 +78,12 @@ async function loadApiClient(fetchImplementation) {
     FormData,
     Headers,
     module: compiledModule,
-    process: { env: { NEXT_PUBLIC_API_BASE_URL: "/api/v1" } },
+    process: { env: {} },
     Response,
     setTimeout,
     URL,
     URLSearchParams,
-    window: createSessionStorageWindow(),
+    window: createBrowserWindow(),
   });
   const loadModule = new vm.Script(
     `(function (exports, require, module) {${transpiled.outputText}\n})`,
@@ -97,124 +92,259 @@ async function loadApiClient(fetchImplementation) {
   loadModule(compiledModule.exports, (specifier) => {
     throw new Error(`Unexpected runtime import: ${specifier}`);
   }, compiledModule);
-  return compiledModule.exports;
+  return { api: compiledModule.exports, window: context.window };
 }
 
-function createFetchHarness() {
-  const refreshA = deferred();
-  const refreshB = deferred();
-  const refreshRequests = [];
-  const protectedRequests = [];
-  const sessionB = createSession("b");
-
-  const fetchImplementation = (input, init = {}) => {
+test("late current-session hydration cannot overwrite a newer password login", async () => {
+  const oldHydration = deferred();
+  const requests = [];
+  const { api, window } = await loadApiClient(async (input, init = {}) => {
     const url = String(input);
-    if (url.endsWith("/auth/login")) return jsonResponse(sessionB);
-    if (url.endsWith("/auth/logout")) return new Response(null, { status: 204 });
-    if (url.endsWith("/auth/refresh")) {
-      const refreshToken = JSON.parse(String(init.body)).refreshToken;
-      refreshRequests.push(refreshToken);
-      if (refreshToken === "refresh-a") return refreshA.promise;
-      if (refreshToken === "refresh-b") return refreshB.promise;
-      throw new Error(`Unexpected refresh token: ${refreshToken}`);
-    }
-    if (url.endsWith("/users/me")) {
-      const authorization = new Headers(init.headers).get("Authorization");
-      protectedRequests.push(authorization);
-      if (authorization === "Bearer access-a" || authorization === "Bearer access-b") {
-        return jsonResponse({ message: "expired" }, 401);
-      }
-      if (authorization === "Bearer access-a-refreshed") {
-        return jsonResponse({ id: "a", roles: ["PATIENT"] });
-      }
-      if (authorization === "Bearer access-b-refreshed") {
-        return jsonResponse({ id: "b", roles: ["PATIENT"] });
-      }
-      throw new Error(`Unexpected authorization: ${authorization}`);
+    requests.push({ url, init });
+    if (url.endsWith("/auth/browser-sessions/current")) return oldHydration.promise;
+    if (url.endsWith("/auth/browser-sessions") && init.method === "POST") {
+      return jsonResponse(browserSession("account-b"));
     }
     throw new Error(`Unexpected request: ${url}`);
+  });
+
+  const hydration = api.hydrateAuthSession();
+  await new Promise((resolve) => setImmediate(resolve));
+  const loggedIn = await api.login({ email: "b@example.test", password: "not-real" });
+  oldHydration.resolve(jsonResponse(browserSession("account-a")));
+  await hydration;
+
+  assert.equal(loggedIn.user.id, "account-b");
+  assert.equal(api.readAuthSession()?.user.id, "account-b");
+  assert.equal(api.getAuthHydrationSnapshot(), "settled");
+  assert.equal("sessionStorage" in window, false);
+
+  const loginRequest = requests.find(({ url }) => url.endsWith("/auth/browser-sessions"));
+  assert.deepEqual(JSON.parse(String(loginRequest.init.body)), {
+    grantType: "PASSWORD",
+    email: "b@example.test",
+    password: "not-real",
+  });
+  assert.equal(new Headers(loginRequest.init.headers).get("authorization"), null);
+});
+
+test("logout invalidates an in-flight hydration and cannot be undone by its late result", async () => {
+  const oldHydration = deferred();
+  const requests = [];
+  const { api } = await loadApiClient(async (input, init = {}) => {
+    const url = String(input);
+    requests.push({ url, init });
+    if (url.endsWith("/auth/browser-sessions/current") && init.method === "GET") {
+      return oldHydration.promise;
+    }
+    if (url.endsWith("/auth/browser-sessions/current") && init.method === "DELETE") {
+      return new Response(null, { status: 204 });
+    }
+    throw new Error(`Unexpected request: ${url}`);
+  });
+
+  api.storeAuthSession(browserSession("account-a"));
+  const hydration = api.hydrateAuthSession(true);
+  await new Promise((resolve) => setImmediate(resolve));
+  const outcome = await api.logoutCurrentUser();
+  oldHydration.resolve(jsonResponse(browserSession("account-a")));
+  await hydration;
+
+  assert.equal(api.readAuthSession(), null);
+  assert.equal(api.getAuthHydrationSnapshot(), "settled");
+  assert.equal(outcome.status, "LOGGED_OUT");
+  assert.equal(outcome.authority, "DELETE_ACK");
+  assert.equal(
+    requests.filter(({ url, init }) => url.endsWith("/auth/browser-sessions/current") && init.method === "DELETE").length,
+    1,
+  );
+});
+
+test("failed logout preserves the session only after GET confirms the same active authority", async () => {
+  const activeSession = browserSession("account-a");
+  const deletion = deferred();
+  const reconciledSession = {
+    ...activeSession,
+    idleExpiresAt: "2026-08-25T12:45:00Z",
   };
+  let currentSessionRequests = 0;
+  const { api } = await loadApiClient(async (input, init = {}) => {
+    const url = String(input);
+    if (url.endsWith("/auth/browser-sessions/current") && init.method === "DELETE") {
+      return deletion.promise;
+    }
+    if (url.endsWith("/auth/browser-sessions/current") && init.method === "GET") {
+      currentSessionRequests += 1;
+      return jsonResponse(reconciledSession);
+    }
+    throw new Error(`Unexpected request: ${url}`);
+  });
+  api.storeAuthSession(activeSession);
 
-  return {
-    fetchImplementation,
-    protectedRequests,
-    refreshA,
-    refreshB,
-    refreshRequests,
-    sessionB,
-  };
-}
+  const logout = api.logoutCurrentUser();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(api.readAuthSession()?.user.id, "account-a");
+  assert.equal(api.getAuthHydrationSnapshot(), "settled");
+  deletion.resolve(jsonResponse({ message: "private upstream detail" }, 502));
+  const outcome = await logout;
+  assert.equal(outcome.status, "SESSION_ACTIVE");
+  assert.equal(outcome.authority, "RECONCILED_ACTIVE");
+  assert.equal(api.readAuthSession()?.user.id, "account-a");
+  assert.equal(api.readAuthSession()?.idleExpiresAt, reconciledSession.idleExpiresAt);
+  assert.equal(api.getAuthHydrationSnapshot(), "settled");
+  assert.equal(currentSessionRequests, 1);
 
-async function waitForRefreshCount(harness, count) {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    if (harness.refreshRequests.length >= count) return;
-    await new Promise((resolve) => setImmediate(resolve));
-  }
-}
+  const { api: reloadedApi } = await loadApiClient(async (input, init = {}) => {
+    const url = String(input);
+    if (url.endsWith("/auth/browser-sessions/current") && init.method === "GET") {
+      return jsonResponse(activeSession);
+    }
+    throw new Error(`Unexpected request: ${url}`);
+  });
+  const reloadedSession = await reloadedApi.hydrateAuthSession();
+  assert.equal(reloadedSession?.user.id, "account-a");
+  assert.equal(reloadedApi.getAuthHydrationSnapshot(), "settled");
+});
 
-test("late refresh A cannot overwrite login B or clear B's refresh flight", async () => {
-  const harness = createFetchHarness();
-  const api = await loadApiClient(harness.fetchImplementation);
-  api.storeAuthSession(createSession("a"));
+test("lost DELETE acknowledgement reconciles a committed server revocation as an explicit logout", async () => {
+  const requests = [];
+  const { api } = await loadApiClient(async (input, init = {}) => {
+    const url = String(input);
+    requests.push(`${init.method ?? "GET"} ${url}`);
+    if (url.endsWith("/auth/browser-sessions/current") && init.method === "DELETE") {
+      throw new Error("connection lost after server commit");
+    }
+    if (url.endsWith("/auth/browser-sessions/current") && init.method === "GET") {
+      return jsonResponse({ code: "AUTHENTICATION_REQUIRED" }, 401);
+    }
+    throw new Error(`Unexpected request: ${url}`);
+  });
+  api.storeAuthSession(browserSession("account-a"));
 
-  const requestA = api.fetchCurrentUser();
-  await waitForRefreshCount(harness, 1);
-  await api.login({ email: "b@example.test", password: "not-used" });
-  const requestB = api.fetchCurrentUser();
+  const outcome = await api.logoutCurrentUser();
 
-  try {
-    await waitForRefreshCount(harness, 2);
-    assert.deepEqual(harness.refreshRequests, ["refresh-a", "refresh-b"]);
+  assert.equal(outcome.status, "LOGGED_OUT");
+  assert.equal(outcome.authority, "RECONCILED_401");
+  assert.equal(api.readAuthSession(), null);
+  assert.equal(api.getAuthHydrationSnapshot(), "settled");
+  assert.deepEqual(requests, [
+    "DELETE /api/v1/auth/browser-sessions/current",
+    "GET /api/v1/auth/browser-sessions/current",
+  ]);
+});
 
-    harness.refreshA.resolve(jsonResponse(createSession("a", "refreshed")));
-    await assert.rejects(
-      requestA,
-      (error) => error instanceof api.ApiError && error.status === 401,
-    );
-    assert.equal(api.readAuthSession()?.user.id, "b");
-    assert.equal(api.readAuthSession()?.accessToken, "access-b");
+test("failed DELETE plus failed reconciliation enters a privacy-blocking state until retry succeeds", async () => {
+  let reconciliationAttempts = 0;
+  const activeSession = browserSession("account-a");
+  const { api } = await loadApiClient(async (input, init = {}) => {
+    const url = String(input);
+    if (url.endsWith("/auth/browser-sessions/current") && init.method === "DELETE") {
+      return jsonResponse({ code: "BFF_UPSTREAM_UNAVAILABLE" }, 502);
+    }
+    if (url.endsWith("/auth/browser-sessions/current") && init.method === "GET") {
+      reconciliationAttempts += 1;
+      if (reconciliationAttempts === 1) {
+        return jsonResponse({ code: "BFF_UPSTREAM_UNAVAILABLE" }, 502);
+      }
+      return jsonResponse(activeSession);
+    }
+    throw new Error(`Unexpected request: ${url}`);
+  });
+  api.storeAuthSession(activeSession);
 
-    const secondRequestB = api.fetchCurrentUser();
-    await new Promise((resolve) => setImmediate(resolve));
-    assert.deepEqual(
-      harness.refreshRequests,
-      ["refresh-a", "refresh-b"],
-      "refresh A's finally handler must not clear B's active refresh flight",
-    );
+  await assert.rejects(api.logoutCurrentUser(), (error) => {
+    assert.equal(error.code, "BROWSER_SESSION_AUTHORITY_INDETERMINATE");
+    assert.doesNotMatch(error.message, /BFF_UPSTREAM_UNAVAILABLE/i);
+    return true;
+  });
+  assert.equal(api.readAuthSession(), null);
+  assert.equal(api.getAuthHydrationSnapshot(), "indeterminate");
 
-    harness.refreshB.resolve(jsonResponse(createSession("b", "refreshed")));
-    const [profileB, secondProfileB] = await Promise.all([requestB, secondRequestB]);
-    assert.equal(profileB.id, "b");
-    assert.equal(secondProfileB.id, "b");
-    assert.equal(api.readAuthSession()?.user.id, "b");
-    assert.equal(api.readAuthSession()?.accessToken, "access-b-refreshed");
-  } finally {
-    harness.refreshA.resolve(jsonResponse(createSession("a", "refreshed")));
-    harness.refreshB.resolve(jsonResponse(createSession("b", "refreshed")));
-    await Promise.allSettled([requestA, requestB]);
+  const recovered = await api.hydrateAuthSession(true);
+  assert.equal(recovered?.user.id, "account-a");
+  assert.equal(api.getAuthHydrationSnapshot(), "settled");
+  assert.equal(reconciliationAttempts, 2);
+});
+
+test("logout reconciliation refuses a different user or different absolute session lifetime", async () => {
+  const activeSession = browserSession("account-a");
+  const mismatches = [
+    browserSession("account-b"),
+    { ...activeSession, absoluteExpiresAt: "2026-08-26T23:59:00Z" },
+  ];
+
+  for (const reconciledSession of mismatches) {
+    const { api } = await loadApiClient(async (input, init = {}) => {
+      const url = String(input);
+      if (url.endsWith("/auth/browser-sessions/current") && init.method === "DELETE") {
+        return jsonResponse({ code: "BFF_UPSTREAM_UNAVAILABLE" }, 502);
+      }
+      if (url.endsWith("/auth/browser-sessions/current") && init.method === "GET") {
+        return jsonResponse(reconciledSession);
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    api.storeAuthSession(activeSession);
+
+    await assert.rejects(api.logoutCurrentUser(), (error) => {
+      assert.equal(error.code, "BROWSER_SESSION_AUTHORITY_INDETERMINATE");
+      return true;
+    });
+    assert.equal(api.readAuthSession(), null);
+    assert.equal(api.getAuthHydrationSnapshot(), "indeterminate");
   }
 });
 
-test("logout invalidates an in-flight refresh so its late result cannot restore the session", async () => {
-  const harness = createFetchHarness();
-  const api = await loadApiClient(harness.fetchImplementation);
-  api.storeAuthSession(createSession("a"));
+test("an aborted logout cannot clear or restore over a newer successful login", async () => {
+  const { api } = await loadApiClient(async (input, init = {}) => {
+    const url = String(input);
+    if (url.endsWith("/auth/browser-sessions/current") && init.method === "DELETE") {
+      return new Promise((_resolve, reject) => {
+        const rejectAbort = () => {
+          const error = new Error("private abort detail");
+          error.name = "AbortError";
+          reject(error);
+        };
+        if (init.signal?.aborted) rejectAbort();
+        else init.signal?.addEventListener("abort", rejectAbort, { once: true });
+      });
+    }
+    if (url.endsWith("/auth/browser-sessions") && init.method === "POST") {
+      return jsonResponse(browserSession("account-b"));
+    }
+    throw new Error(`Unexpected request: ${url}`);
+  });
+  api.storeAuthSession(browserSession("account-a"));
 
-  const protectedRequest = api.fetchCurrentUser();
-  await waitForRefreshCount(harness, 1);
+  const obsoleteLogout = api.logoutCurrentUser();
+  const obsoleteLogoutRejected = assert.rejects(obsoleteLogout, (error) => {
+    assert.equal(error.code, "AUTH_MUTATION_SUPERSEDED");
+    assert.doesNotMatch(error.message, /private abort detail/i);
+    return true;
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  const loggedIn = await api.login({ email: "b@example.test", password: "not-real" });
+  await obsoleteLogoutRejected;
 
-  try {
-    await api.logoutCurrentUser();
-    assert.equal(api.readAuthSession(), null);
+  assert.equal(loggedIn.user.id, "account-b");
+  assert.equal(api.readAuthSession()?.user.id, "account-b");
+  assert.equal(api.getAuthHydrationSnapshot(), "settled");
+});
 
-    harness.refreshA.resolve(jsonResponse(createSession("a", "refreshed")));
-    await assert.rejects(
-      protectedRequest,
-      (error) => error instanceof api.ApiError && error.status === 401,
-    );
-    assert.equal(api.readAuthSession(), null);
-  } finally {
-    harness.refreshA.resolve(jsonResponse(createSession("a", "refreshed")));
-    await Promise.allSettled([protectedRequest]);
-  }
+test("email verification creates a browser session grant without bearer material", async () => {
+  let observed;
+  const { api } = await loadApiClient(async (input, init = {}) => {
+    observed = { input: String(input), init };
+    return jsonResponse(browserSession("verified-patient"));
+  });
+
+  const session = await api.verifyEmail({ email: "patient@example.test", code: "123456" });
+  assert.equal(observed.input, "/api/v1/auth/browser-sessions");
+  assert.deepEqual(JSON.parse(String(observed.init.body)), {
+    grantType: "EMAIL_VERIFICATION",
+    email: "patient@example.test",
+    code: "123456",
+  });
+  assert.deepEqual(Object.keys(session).sort(), ["absoluteExpiresAt", "idleExpiresAt", "user"]);
+  assert.doesNotMatch(JSON.stringify(session), /accessToken|refreshToken|tokenType|Bearer/i);
 });

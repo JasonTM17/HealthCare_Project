@@ -32,7 +32,7 @@ app:
       account-holder: "HEALTHCARE TEST"
       default-amount: 200000
   cors:
-    allowed-origins: "http://localhost:3000"
+    allowed-origins: ""
 ai:
   chat:
     # Integration tests prove the fail-closed rollback posture. A dedicated

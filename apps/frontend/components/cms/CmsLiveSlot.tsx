@@ -36,12 +36,29 @@ type LiveTransport = "connecting" | "sse" | "polling";
 type RefreshResult = "updated" | "not-found" | "failed";
 
 function errorMessage(error: unknown): string {
-  if (error instanceof CmsApiError && error.kind === "not-found") return "Chưa có nội dung PUBLISHED cho slot này.";
-  if (error instanceof CmsApiError && error.kind === "auth") return "CMS yêu cầu xác thực để đọc nội dung live.";
-  if (error instanceof CmsApiError && error.kind === "forbidden") return "Bạn không có quyền đọc nội dung live này.";
-  if (error instanceof CmsApiError && error.kind === "unavailable") return "Change-feed CMS tạm thời không khả dụng.";
-  if (error instanceof Error) return error.message;
-  return "Không thể tải nội dung live.";
+  if (!(error instanceof CmsApiError)) return "Không thể tải nội dung CMS lúc này.";
+  switch (error.kind) {
+    case "auth":
+      return "Phiên đọc nội dung CMS không còn hiệu lực.";
+    case "forbidden":
+      return "Tài khoản hiện tại không có quyền đọc nội dung CMS này.";
+    case "validation":
+      return "Nội dung CMS chưa thể hiển thị vì dữ liệu không hợp lệ.";
+    case "conflict":
+      return "Nội dung CMS vừa thay đổi và đang được đồng bộ lại.";
+    case "not-found":
+      return "Chưa có nội dung PUBLISHED cho slot này.";
+    case "network":
+      return "Chưa thể kết nối tới CMS.";
+    case "server":
+      return "CMS đang gặp sự cố và chưa thể trả nội dung.";
+    case "unavailable":
+      return "Change-feed CMS tạm thời không khả dụng.";
+    default:
+      return error.status === 429
+        ? "CMS đang nhận quá nhiều yêu cầu. Vui lòng thử lại sau."
+        : "Không thể tải nội dung CMS lúc này.";
+  }
 }
 
 const PUBLIC_TECHNICAL_COPY_PATTERN = /\b(?:live cms|change-feed|polling|transport|demo|placeholder)\b/i;

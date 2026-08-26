@@ -4,23 +4,14 @@ import type {
   AiChatMessage,
   AiChatMessagePage,
   AiConversation,
-  AuthSession,
 } from "../../types/hospital";
+import {
+  assertNoSensitiveBrowserStorage,
+  browserSessionFixture,
+  installMockBrowserSession,
+} from "./helpers/browser-session";
 
-const AUTH_STORAGE_KEY = "healthcare.auth.session";
-
-const PATIENT_SESSION: AuthSession = {
-  accessToken: "patient-chat-e2e-token",
-  refreshToken: "patient-chat-e2e-refresh",
-  tokenType: "Bearer",
-  expiresIn: 3600,
-  user: {
-    id: "patient-chat-e2e",
-    email: "patient.chat@healthcare.local",
-    displayName: "Nguyễn An",
-    roles: ["ROLE_PATIENT"],
-  },
-};
+const PATIENT_SESSION = browserSessionFixture("PATIENT", "patient-chat-e2e", "Nguyễn An");
 
 const BASE_CONVERSATION: AiConversation = {
   id: "conversation-1",
@@ -86,12 +77,8 @@ async function installPatientChatMocks(
   let responseLossInjected = false;
   let terminalFailureInjected = false;
 
-  await context.addInitScript(({ key, value }) => {
-    window.sessionStorage.setItem(key, value);
-    window.sessionStorage.setItem("healthcare-brand-intro-v1", "1");
-  }, { key: AUTH_STORAGE_KEY, value: JSON.stringify(PATIENT_SESSION) });
-
   await context.route("**/api/v1/ai/chat-policy", async (route) => {
+    expect(route.request().headers()["authorization"]).toBeUndefined();
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -107,6 +94,7 @@ async function installPatientChatMocks(
 
   await context.route("**/api/v1/ai/conversations**", async (route) => {
     const request = route.request();
+    expect(request.headers()["authorization"]).toBeUndefined();
     const url = new URL(request.url());
     const method = request.method();
 
@@ -242,6 +230,7 @@ async function installPatientChatMocks(
 
     throw new Error(`Unexpected chat request: ${method} ${url.pathname}${url.search}`);
   });
+  await installMockBrowserSession(context, PATIENT_SESSION);
 
   return {
     get history() {
@@ -292,6 +281,7 @@ for (const viewport of VIEWPORTS) {
       fullPage: true,
       animations: "disabled",
     });
+    await assertNoSensitiveBrowserStorage(page, ["Tôi cần chuẩn bị gì cho buổi khám tim mạch?"]);
   });
 }
 
@@ -326,6 +316,7 @@ test("patient chat gives a terminal failed message and a new composer message di
   await expect(dialog).toContainText("không thể khôi phục");
   await dialog.getByRole("button", { name: "Giữ lại" }).click();
   await expect(dialog).not.toBeVisible();
+  await assertNoSensitiveBrowserStorage(page, ["Tôi nên mang theo danh sách thuốc đang dùng không?"]);
 });
 
 test("patient chat reuses the idempotency key after response loss without a duplicate exchange", async ({ context, page }) => {
@@ -353,6 +344,7 @@ test("patient chat reuses the idempotency key after response loss without a dupl
   expect(idempotencyKeys[1]).toBe(idempotencyKeys[0]);
   expect(chat.history.filter((item) => item.role === "USER" && item.content === content)).toHaveLength(1);
   expect(chat.history.filter((item) => item.role === "ASSISTANT" && item.sequence > 5)).toHaveLength(1);
+  await assertNoSensitiveBrowserStorage(page, [content]);
 });
 
 test("patient chat retires the key only after an explicit terminal backend failure", async ({ context, page }) => {
@@ -374,4 +366,5 @@ test("patient chat retires the key only after an explicit terminal backend failu
   await expect(page.getByText("Trợ lý đã phản hồi. Lịch sử bên dưới được tải lại từ máy chủ.")).toBeVisible();
   expect(idempotencyKeys).toHaveLength(2);
   expect(idempotencyKeys[1]).not.toBe(idempotencyKeys[0]);
+  await assertNoSensitiveBrowserStorage(page, [content]);
 });

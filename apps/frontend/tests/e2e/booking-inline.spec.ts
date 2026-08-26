@@ -101,6 +101,11 @@ async function startBookingMockBackend() {
       return;
     }
 
+    if (method === "GET" && apiPath === "/auth/browser-sessions/current") {
+      sendJson(response, 401, { code: "BROWSER_SESSION_REQUIRED" });
+      return;
+    }
+
     if (method === "GET" && apiPath === "/hospital/branches") {
       sendJson(response, 200, pageEnvelope([BRANCH]));
       return;
@@ -266,4 +271,41 @@ test("booking landing keeps the appointment flow inline without auto-opening a d
   } finally {
     await backend.close();
   }
+});
+
+test("public booking modal settles catalog loading after its live catalog arrives", async ({ context }) => {
+  await context.route("**/api/v1/auth/browser-sessions/current", async (route) => {
+    await route.fulfill({
+      status: 401,
+      contentType: "application/json",
+      headers: { "Cache-Control": "no-store" },
+      body: JSON.stringify({ code: "BROWSER_SESSION_REQUIRED" }),
+    });
+  });
+  await context.route("**/api/v1/hospital/branches?**", async (route) => {
+    await route.fulfill({ json: pageEnvelope([BRANCH]) });
+  });
+  await context.route("**/api/v1/hospital/specialties?**", async (route) => {
+    await route.fulfill({ json: pageEnvelope([SPECIALTY]) });
+  });
+  await context.route("**/api/v1/hospital/doctors?**", async (route) => {
+    await route.fulfill({ json: pageEnvelope([DOCTOR]) });
+  });
+  await context.route("**/api/v1/hospital/packages?**", async (route) => {
+    await route.fulfill({ json: pageEnvelope([]) });
+  });
+  await context.route("**/api/v1/hospital/articles?**", async (route) => {
+    await route.fulfill({ json: pageEnvelope([]) });
+  });
+
+  const page = await context.newPage();
+  await page.goto("/");
+  await expect(page.getByText("1 cơ sở đang hiển thị", { exact: true })).toBeVisible();
+  await page.locator("button.button--nav").first().click();
+
+  const bookingDialog = page.getByRole("dialog", { name: "Đặt lịch trực tuyến nhanh chóng" });
+  await expect(bookingDialog).toBeVisible();
+  await expect(bookingDialog.getByText("Đang tải thông tin bác sĩ, chuyên khoa và cơ sở…")).toBeHidden();
+  await expect(bookingDialog.getByLabel("Chuyên khoa")).toHaveValue(SPECIALTY.id);
+  await expect(bookingDialog.getByRole("button", { name: /Tiếp tục: Chọn cơ sở/ })).toBeEnabled();
 });

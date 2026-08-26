@@ -18,7 +18,11 @@ public class ArticleService {
     }
 
     public Page<ArticleResponse> listPublished(Pageable pageable) {
-        return articleRepository.findByActiveTrueAndPublishedAtIsNotNullOrderByPublishedAtDesc(pageable)
+        // General articles remain a public operational catalog. Disease guides
+        // are exposed through the explicit content-kind path below so an
+        // unapproved/expired clinical source can never leak into the generic
+        // feed or receive the doctor-approved trust label.
+        return articleRepository.findByContentKindAndActiveTrueAndPublishedAtIsNotNullOrderByPublishedAtDesc("GENERAL", pageable)
             .map(this::toResponse);
     }
 
@@ -28,14 +32,21 @@ public class ArticleService {
         if (!java.util.Set.of("GENERAL", "DISEASE_GUIDE").contains(normalized)) {
             throw new com.healthcare.exception.BusinessException(400, "ARTICLE_CONTENT_KIND_INVALID", "Loại bài viết không hợp lệ");
         }
-        return articleRepository.findByContentKindAndActiveTrueAndPublishedAtIsNotNullOrderByPublishedAtDesc(normalized, pageable)
+        Page<Article> page = "DISEASE_GUIDE".equals(normalized)
+            ? articleRepository.findClinicallyEligibleDiseaseGuides(pageable)
+            : articleRepository.findByContentKindAndActiveTrueAndPublishedAtIsNotNullOrderByPublishedAtDesc(normalized, pageable);
+        return page
             .map(this::toResponse);
     }
 
     public ArticleResponse getBySlug(String slug) {
-        return articleRepository.findBySlugAndActiveTrueAndPublishedAtIsNotNull(slug)
-            .map(this::toResponse)
+        Article article = articleRepository.findBySlugAndActiveTrueAndPublishedAtIsNotNull(slug)
             .orElseThrow(() -> new ResourceNotFoundException("Article not found"));
+        if ("DISEASE_GUIDE".equalsIgnoreCase(article.getContentKind())) {
+            article = articleRepository.findClinicallyEligibleDiseaseGuideBySlug(slug)
+                .orElseThrow(() -> new ResourceNotFoundException("Article not found"));
+        }
+        return toResponse(article);
     }
 
     private ArticleResponse toResponse(Article article) {
