@@ -828,11 +828,6 @@ class PersistentRagService(RagService):
         the existing local fallback boundary narrow and explicit.
         """
 
-        if self._durable_probe_unhealthy:
-            self.persistence_available = False
-            if not self.fallback_to_memory:
-                raise SupabaseRagUnavailable("Supabase RAG mutation failed")
-            return True
         if self._durable_authority_seen:
             return False
         probe_obj = getattr(self.store, "health_probe", None)
@@ -918,30 +913,29 @@ class PersistentRagService(RagService):
         """Check durable RAG readiness without silently using stale memory."""
 
         with self._mutation_lock:
-            if self._durable_probe_unhealthy:
-                self.persistence_available = False
-                return False
+            if self._durable_probe_supported:
+                try:
+                    healthy = bool(self.store.health_probe())
+                    self.persistence_available = healthy
+                    self._durable_probe_unhealthy = not healthy
+                    if healthy:
+                        self._durable_authority_seen = True
+                    return healthy
+                except SupabaseRagContractError:
+                    self._durable_probe_unhealthy = True
+                    self._durable_authority_seen = True
+                    self.persistence_available = False
+                    return False
+                except Exception as error:
+                    self._durable_probe_unhealthy = True
+                    self.persistence_available = False
+                    if self._durable_authority_seen:
+                        return False
+                    self._fallback_or_raise(error)
+                    return False
             if not self.persistence_available:
                 return self.fallback_to_memory and not self._durable_authority_seen
-            try:
-                healthy = self.store.health_probe()
-                self.persistence_available = bool(healthy)
-                self._durable_probe_unhealthy = not healthy
-                if healthy:
-                    self._durable_authority_seen = True
-                return bool(healthy)
-            except SupabaseRagContractError:
-                self._durable_probe_unhealthy = True
-                self._durable_authority_seen = True
-                self.persistence_available = False
-                return False
-            except Exception as error:
-                self._durable_probe_unhealthy = True
-                self.persistence_available = False
-                if self._durable_authority_seen:
-                    return False
-                self._fallback_or_raise(error)
-                return False
+            return True
 
     @_mutation_guard
     def ingest(

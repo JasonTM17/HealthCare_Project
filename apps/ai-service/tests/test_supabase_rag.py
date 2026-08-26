@@ -1092,7 +1092,7 @@ def test_health_probe_does_not_report_memory_ready_after_durable_failure() -> No
     assert service.persistence_available is False
 
 
-def test_failed_health_probe_keeps_later_mutations_local_only() -> None:
+def test_failed_health_probe_keeps_later_mutations_fail_closed() -> None:
     class ProbeDownStore:
         def list_documents(self) -> list[RagDocument]:
             return []
@@ -1101,10 +1101,7 @@ def test_failed_health_probe_keeps_later_mutations_local_only() -> None:
             return False
 
         def upsert(self, *_: object, **__: object) -> bool:
-            raise AssertionError("durable write must not be attempted after a failed health probe")
-
-        def tombstone(self, *_: object, **__: object) -> bool:
-            raise AssertionError("durable delete must not be attempted after a failed health probe")
+            raise SupabaseRagUnavailable("offline")
 
     service = PersistentRagService(
         ProbeDownStore(),  # type: ignore[arg-type]
@@ -1115,7 +1112,46 @@ def test_failed_health_probe_keeps_later_mutations_local_only() -> None:
     assert service.health_probe() is False
     assert service.health_probe() is False
 
-    document = service.ingest(
+    with pytest.raises(SupabaseRagUnavailable, match="Supabase RAG mutation failed"):
+        service.ingest(
+            "branch",
+            "hcm",
+            "Chi nhánh",
+            "Khám tại cơ sở.",
+            embedding=[0.25] * 384,
+        )
+
+    assert service.index.size == 0
+    assert service.persistence_available is False
+
+
+def test_health_probe_can_recover_after_a_failed_probe() -> None:
+    class FlippingProbeStore:
+        probe_results = [False, True]
+        upsert_called = False
+
+        def list_documents(self) -> list[RagDocument]:
+            return []
+
+        def health_probe(self) -> bool:
+            return self.probe_results.pop(0)
+
+        def upsert(self, *_: object, **__: object) -> bool:
+            self.upsert_called = True
+            return True
+
+    store = FlippingProbeStore()
+    service = PersistentRagService(
+        store,  # type: ignore[arg-type]
+        max_documents=5,
+        fallback_to_memory=True,
+    )
+
+    assert service.health_probe() is False
+    assert service.health_probe() is True
+    assert service.persistence_available is True
+
+    service.ingest(
         "branch",
         "hcm",
         "Chi nhánh",
@@ -1123,13 +1159,7 @@ def test_failed_health_probe_keeps_later_mutations_local_only() -> None:
         embedding=[0.25] * 384,
     )
 
-    assert document.id == "branch:hcm"
-    assert service.persistence_available is False
-
-    service.remove("branch", "hcm")
-
-    assert service.index.get("branch:hcm") is None
-    assert service.persistence_available is False
+    assert store.upsert_called is True
 
 
 def test_remove_durable_failure_restores_memory_and_never_reports_success() -> None:
