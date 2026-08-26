@@ -202,6 +202,24 @@ def test_tombstone_many_rolls_back_both_projections_as_one_transaction() -> None
     assert connection.rollbacks == 1
 
 
+def test_clinical_tombstone_requires_database_owned_revision() -> None:
+    store = SupabaseRagStore(
+        _config(),
+        connection_factory=lambda _dsn, _timeout: FakeConnection(FakeCursor()),
+    )
+
+    with pytest.raises(
+        SupabaseRagContractError,
+        match="clinical tombstone requires a positive revision",
+    ):
+        store.tombstone_many(
+            "article",
+            "guide",
+            revision=None,
+            projections=["CLINICAL"],
+        )
+
+
 def test_projectionless_delete_persists_operational_and_clinical_tombstones() -> None:
     class RecordingStore:
         def __init__(self) -> None:
@@ -260,6 +278,37 @@ def test_projectionless_delete_uses_atomic_store_batch_when_available() -> None:
     service.remove("specialty", "cardio", revision=12)
 
     assert store.calls == [("specialty", "cardio", 12, ("OPERATIONAL", "CLINICAL"))]
+
+
+def test_projectionless_clinical_delete_without_revision_keeps_memory_authoritative() -> None:
+    class RecordingStore:
+        def list_documents(self) -> list[RagDocument]:
+            return []
+
+        def tombstone_many(self, *_: object, **__: object) -> int:
+            raise AssertionError("durable delete must not start without a clinical revision")
+
+    service = PersistentRagService(RecordingStore(), fallback_to_memory=False)  # type: ignore[arg-type]
+    document = RagDocument(
+        id="article:guide",
+        source_type="article",
+        source_id="guide",
+        title="Guide",
+        content="Clinical guide",
+        embedding=[0.1] * 384,
+        embedding_model="local-hash",
+        embedding_provenance="local_provider",
+        metadata={"projection_kind": "CLINICAL", "eligibility_revision": "7"},
+    )
+    service.index.add(document)
+
+    with pytest.raises(
+        SupabaseRagContractError,
+        match="clinical delete requires a positive revision",
+    ):
+        service.remove("article", "guide")
+
+    assert service.index.get("article:guide", projection="CLINICAL") is document
 
 
 def test_projection_scoped_delete_does_not_write_the_other_tombstone() -> None:

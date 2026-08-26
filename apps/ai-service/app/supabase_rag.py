@@ -30,6 +30,7 @@ _REVISION_KEY = "_sync_revision"
 _TOMBSTONE_KEY = "_tombstone"
 _LOCAL_RUNTIME_NAMES = frozenset({"local", "test", "demo"})
 _PROJECTION_KINDS = frozenset({"OPERATIONAL", "CLINICAL"})
+_CLINICAL_SOURCE_TYPES = frozenset({"specialty", "article", "faq"})
 
 
 class SupabaseRagError(RuntimeError):
@@ -575,6 +576,12 @@ class SupabaseRagStore:
                 normalized_projections.append(normalized_projection)
         if not normalized_projections:
             raise SupabaseRagContractError("at least one projection is required")
+        if "CLINICAL" in normalized_projections and (revision is None or revision <= 0):
+            # A clinical tombstone must carry the database-owned eligibility
+            # watermark.  Falling back to revision 1 would let a legacy
+            # delete remove only memory while a higher durable row survives
+            # and rehydrates after restart.
+            raise SupabaseRagContractError("clinical tombstone requires a positive revision")
         revision_value = revision if revision is not None and revision > 0 else 1
         content = "[tombstone]"
         sql = f"""
@@ -854,6 +861,21 @@ class PersistentRagService(RagService):
         operation_token: int | None = None,
         projection: str | None = None,
     ) -> None:
+        normalized_projection = projection.strip().upper() if projection else None
+        if normalized_projection not in {None, "OPERATIONAL", "CLINICAL"}:
+            raise SupabaseRagContractError("invalid projection kind")
+        if (
+            (normalized_projection == "CLINICAL" or (
+                normalized_projection is None
+                and source_type in _CLINICAL_SOURCE_TYPES
+            ))
+            and (revision is None or revision <= 0)
+        ):
+            # Do not clear the in-memory clinical projection unless the
+            # caller supplies the current database-owned eligibility revision.
+            # This keeps a failed legacy delete from creating a restart-only
+            # resurrection window.
+            raise SupabaseRagContractError("clinical delete requires a positive revision")
         document_id = f"{source_type}:{source_id}"
         previous = self.index.get(document_id, projection=projection)
         snapshot = self._snapshot_state()
