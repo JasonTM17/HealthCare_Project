@@ -865,12 +865,23 @@ class PersistentRagService(RagService):
                         return current
                     self._restore_state(snapshot)
             else:
-                self.store.tombstone(source_type, document.source_id, revision)
+                # ``RagService.ingest`` delegates non-searchable documents to
+                # ``self.remove``. Since this subclass overrides ``remove``,
+                # that call already wrote and verified the projection-aware
+                # durable tombstone; do not issue a second write here.
+                pass
             self.persistence_available = True
         except Exception as error:
             if not self.fallback_to_memory:
                 self._restore_state(snapshot)
                 self._restore_index_entry(previous, document_id)
+            elif not document.searchable:
+                # A durable delete/revoke cannot be treated as a successful
+                # memory fallback: the durable row may still be active. Keep
+                # the old memory state and require an explicit retry.
+                self._restore_state(snapshot)
+                self.persistence_available = False
+                raise SupabaseRagUnavailable("Supabase RAG mutation failed") from error
             self._fallback_or_raise(error)
         self._require_fallback()
         return document
