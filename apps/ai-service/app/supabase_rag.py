@@ -828,6 +828,9 @@ class PersistentRagService(RagService):
         the existing local fallback boundary narrow and explicit.
         """
 
+        if self._durable_probe_unhealthy:
+            self.persistence_available = False
+            raise SupabaseRagUnavailable("Supabase RAG mutation failed")
         if self._durable_authority_seen:
             return False
         probe_obj = getattr(self.store, "health_probe", None)
