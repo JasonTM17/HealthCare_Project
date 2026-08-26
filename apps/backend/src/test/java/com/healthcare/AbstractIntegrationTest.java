@@ -171,7 +171,11 @@ public abstract class AbstractIntegrationTest {
      */
     @BeforeEach
     void cleanDatabase() {
-        jdbcTemplate.execute("TRUNCATE TABLE email_outbox, notification_preferences");
+        jdbcTemplate.execute("""
+            TRUNCATE TABLE patient_consultation_object_cleanup,
+                           email_outbox,
+                           notification_preferences
+            """);
         // Consultation/Q&A/care-plan rows were added after the original test
         // baseline.  Truncate the complete child set together so append-only
         // audit and answer triggers cannot leak state between tests.  This is
