@@ -363,6 +363,8 @@ class RAGSourcesResponse(BaseModel):
 
 
 class RAGDeleteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     source_type: SOURCE_TYPES
     source_id: str = Field(..., min_length=1, max_length=200, pattern=r"^[A-Za-z0-9._:-]+$")
     revision: int | None = Field(default=None, ge=0)

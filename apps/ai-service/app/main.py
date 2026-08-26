@@ -33,7 +33,11 @@ from app.providers import (
     runtime_allows_local_fallback,
 )
 from app.rag import CLINICAL_SOURCE_TYPES, EmbeddingContractError, normalize_projection_kind
-from app.supabase_rag import build_rag_service
+from app.supabase_rag import (
+    SupabaseRagContractError,
+    SupabaseRagUnavailable,
+    build_rag_service,
+)
 from app.schemas import (
     Citation,
     ChatRequest,
@@ -648,12 +652,17 @@ def rag_delete(
         )
         for document in rag_service.index.documents
     )
-    rag_service.remove(
-        payload.source_type,
-        payload.source_id,
-        revision=payload.revision,
-        projection=payload.projection_kind,
-    )
+    try:
+        rag_service.remove(
+            payload.source_type,
+            payload.source_id,
+            revision=payload.revision,
+            projection=payload.projection_kind,
+        )
+    except SupabaseRagContractError:
+        raise HTTPException(status_code=409, detail="RAG source revision rejected") from None
+    except SupabaseRagUnavailable:
+        raise HTTPException(status_code=503, detail="RAG persistence unavailable") from None
     return RAGDeleteResponse(removed=existed, index_size=rag_service.index.size)
 
 
@@ -693,16 +702,21 @@ def rag_index(
             )
         )
 
-    doc = rag_service.ingest(
-        source_type=payload.source_type,
-        source_id=payload.source_id,
-        title=payload.title,
-        content=content,
-        active=payload.active,
-        published=payload.published,
-        metadata=payload.metadata,
-        embedder=embed_document,
-    )
+    try:
+        doc = rag_service.ingest(
+            source_type=payload.source_type,
+            source_id=payload.source_id,
+            title=payload.title,
+            content=content,
+            active=payload.active,
+            published=payload.published,
+            metadata=payload.metadata,
+            embedder=embed_document,
+        )
+    except SupabaseRagContractError:
+        raise HTTPException(status_code=409, detail="RAG source revision rejected") from None
+    except SupabaseRagUnavailable:
+        raise HTTPException(status_code=503, detail="RAG persistence unavailable") from None
     projection = normalize_projection_kind(payload.metadata)
     return RAGIndexResponse(
         id=doc.id,

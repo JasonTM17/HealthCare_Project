@@ -794,12 +794,6 @@ class PersistentRagService(RagService):
             self._fallback_or_raise(error)
             return self.fallback_to_memory
 
-    def _restore_index_entry(self, previous: RagDocument | None, document_id: str) -> None:
-        if previous is None:
-            self.index.remove(document_id)
-            return
-        self.index.add(previous)
-
     def ingest(
         self,
         source_type: SOURCE_TYPES,
@@ -815,8 +809,6 @@ class PersistentRagService(RagService):
         embedding_provenance: ProviderProvenance = "local_provider",
         embedder: EmbeddingCallback | None = None,
     ) -> RagDocument:
-        document_id = f"{source_type}:{source_id}"
-        previous = self.index.get(document_id)
         snapshot = self._snapshot_state()
         document = super().ingest(
             source_type,
@@ -831,11 +823,12 @@ class PersistentRagService(RagService):
             embedding_provenance=embedding_provenance,
             embedder=embedder,
         )
-        revision = _revision(document.metadata)
+        durable_rejection = False
         try:
             if document.searchable:
                 applied = self.store.upsert(document)
-                if not applied and revision is not None:
+                if not applied:
+                    durable_rejection = True
                     current = self.store.get(
                         source_type,
                         document.source_id,
@@ -863,7 +856,7 @@ class PersistentRagService(RagService):
                                 )
                         self.persistence_available = True
                         return current
-                    self._restore_state(snapshot)
+                    raise SupabaseRagContractError("durable upsert rejected")
             else:
                 # ``RagService.ingest`` delegates non-searchable documents to
                 # ``self.remove``. Since this subclass overrides ``remove``,
@@ -872,9 +865,16 @@ class PersistentRagService(RagService):
                 pass
             self.persistence_available = True
         except Exception as error:
+            if durable_rejection:
+                # A rejected durable write is never eligible for the local
+                # fallback: the database may still hold a newer row or
+                # tombstone. Restore the pre-event snapshot and require an
+                # explicit retry with authoritative provenance.
+                self._restore_state(snapshot)
+                self.persistence_available = False
+                raise SupabaseRagUnavailable("Supabase RAG mutation failed") from error
             if not self.fallback_to_memory:
                 self._restore_state(snapshot)
-                self._restore_index_entry(previous, document_id)
             elif not document.searchable:
                 # A durable delete/revoke cannot be treated as a successful
                 # memory fallback: the durable row may still be active. Keep
