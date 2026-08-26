@@ -115,19 +115,27 @@ public class PatientConsultationRetentionService {
 
     private int deleteThread(UUID threadId, UUID ownerUserId) {
         List<String> attachmentKeys = attachmentKeysForThread(threadId, ownerUserId);
-        if (!attachmentKeys.isEmpty()) {
-            if (attachmentStorage == null) {
-                throw new IllegalStateException("attachment cleanup is unavailable");
-            }
-            attachmentStorage.deleteObjects(attachmentKeys);
-        }
         String sql = ownerUserId == null
             ? "DELETE FROM patient_consultation_threads WHERE id = ?"
             : "DELETE FROM patient_consultation_threads t USING patient_profiles p "
                 + "WHERE t.id = ? AND p.id = t.patient_profile_id AND p.user_id = ?";
-        return ownerUserId == null
+        int deleted = ownerUserId == null
             ? jdbc.update(sql, threadId)
             : jdbc.update(sql, threadId, ownerUserId);
+        if (deleted == 1) {
+            for (String objectKey : attachmentKeys) {
+                queueObjectCleanup(threadId, objectKey);
+            }
+        }
+        return deleted;
+    }
+
+    private void queueObjectCleanup(UUID threadId, String objectKey) {
+        jdbc.update("""
+            INSERT INTO patient_consultation_object_cleanup(thread_id, object_key)
+            VALUES (?, ?)
+            ON CONFLICT (object_key) DO NOTHING
+            """, threadId, objectKey);
     }
 
     private List<String> attachmentKeysForThread(UUID threadId, UUID ownerUserId) {
