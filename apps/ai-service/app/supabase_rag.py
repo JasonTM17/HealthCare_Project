@@ -762,6 +762,9 @@ class PersistentRagService(RagService):
         # ``_durable_content_seen`` so a profile contract failure cannot be
         # followed by an unsafe memory fallback.
         self._durable_profile_seen = False
+        # A failed readiness probe should fence later mutations back to
+        # local-only until the durable authority answers cleanly again.
+        self._durable_probe_unhealthy = False
         self._durable_probe_supported = callable(getattr(self.store, "health_probe", None))
         try:
             self._hydrate()
@@ -825,6 +828,11 @@ class PersistentRagService(RagService):
         the existing local fallback boundary narrow and explicit.
         """
 
+        if self._durable_probe_unhealthy:
+            self.persistence_available = False
+            if not self.fallback_to_memory:
+                raise SupabaseRagUnavailable("Supabase RAG mutation failed")
+            return True
         if self._durable_authority_seen:
             return False
         probe_obj = getattr(self.store, "health_probe", None)
@@ -839,15 +847,19 @@ class PersistentRagService(RagService):
             healthy = bool(probe())
         except SupabaseRagContractError:
             self._durable_authority_seen = True
+            self._durable_probe_unhealthy = True
             self.persistence_available = False
             raise
         except Exception:
+            self._durable_probe_unhealthy = True
             self.persistence_available = False
             return True
         if healthy:
             self._durable_authority_seen = True
+            self._durable_probe_unhealthy = False
             self.persistence_available = True
             return False
+        self._durable_probe_unhealthy = True
         self.persistence_available = False
         return True
 
@@ -906,23 +918,30 @@ class PersistentRagService(RagService):
         """Check durable RAG readiness without silently using stale memory."""
 
         with self._mutation_lock:
+            if self._durable_probe_unhealthy:
+                self.persistence_available = False
+                return False
             if not self.persistence_available:
                 return self.fallback_to_memory and not self._durable_authority_seen
             try:
                 healthy = self.store.health_probe()
-                self._durable_authority_seen = True
                 self.persistence_available = bool(healthy)
+                self._durable_probe_unhealthy = not healthy
+                if healthy:
+                    self._durable_authority_seen = True
                 return bool(healthy)
             except SupabaseRagContractError:
+                self._durable_probe_unhealthy = True
                 self._durable_authority_seen = True
                 self.persistence_available = False
                 return False
             except Exception as error:
+                self._durable_probe_unhealthy = True
                 self.persistence_available = False
                 if self._durable_authority_seen:
                     return False
                 self._fallback_or_raise(error)
-                return self.fallback_to_memory
+                return False
 
     @_mutation_guard
     def ingest(
