@@ -32,7 +32,7 @@ from app.providers import (
     remote_provider_requested,
     runtime_allows_local_fallback,
 )
-from app.rag import EmbeddingContractError, normalize_projection_kind
+from app.rag import CLINICAL_SOURCE_TYPES, EmbeddingContractError, normalize_projection_kind
 from app.supabase_rag import build_rag_service
 from app.schemas import (
     Citation,
@@ -108,7 +108,7 @@ _RAG_CLINICAL_METADATA_KEYS = frozenset(
         "approval_expires_at",
     }
 )
-_RAG_CLINICAL_SOURCE_TYPES = frozenset({"specialty", "article", "faq"})
+_RAG_CLINICAL_SOURCE_TYPES = CLINICAL_SOURCE_TYPES
 _RAG_REVISION_PATTERN = re.compile(r"^[0-9]{1,19}$")
 _RAG_SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _RAG_SAFE_TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
