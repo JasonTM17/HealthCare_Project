@@ -1092,6 +1092,46 @@ def test_health_probe_does_not_report_memory_ready_after_durable_failure() -> No
     assert service.persistence_available is False
 
 
+def test_failed_health_probe_keeps_later_mutations_local_only() -> None:
+    class ProbeDownStore:
+        def list_documents(self) -> list[RagDocument]:
+            return []
+
+        def health_probe(self) -> bool:
+            return False
+
+        def upsert(self, *_: object, **__: object) -> bool:
+            raise AssertionError("durable write must not be attempted after a failed health probe")
+
+        def tombstone(self, *_: object, **__: object) -> bool:
+            raise AssertionError("durable delete must not be attempted after a failed health probe")
+
+    service = PersistentRagService(
+        ProbeDownStore(),  # type: ignore[arg-type]
+        max_documents=5,
+        fallback_to_memory=True,
+    )
+
+    assert service.health_probe() is False
+    assert service.health_probe() is False
+
+    document = service.ingest(
+        "branch",
+        "hcm",
+        "Chi nhánh",
+        "Khám tại cơ sở.",
+        embedding=[0.25] * 384,
+    )
+
+    assert document.id == "branch:hcm"
+    assert service.persistence_available is False
+
+    service.remove("branch", "hcm")
+
+    assert service.index.get("branch:hcm") is None
+    assert service.persistence_available is False
+
+
 def test_remove_durable_failure_restores_memory_and_never_reports_success() -> None:
     class FailingDeleteStore:
         def list_documents(self) -> list[RagDocument]:
