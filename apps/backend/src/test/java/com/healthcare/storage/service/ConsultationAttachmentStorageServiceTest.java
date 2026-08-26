@@ -3,6 +3,7 @@ package com.healthcare.storage.service;
 import io.minio.GetObjectResponse;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
+import io.minio.RemoveObjectArgs;
 import io.minio.StatObjectResponse;
 import okhttp3.Headers;
 import org.junit.jupiter.api.BeforeEach;
@@ -191,6 +192,19 @@ class ConsultationAttachmentStorageServiceTest {
                 UUID.randomUUID(), UUID.randomUUID(), "image/jpeg", 3, "a".repeat(64), null));
         assertThat(result.availability()).isEqualTo(ConsultationAttachmentStorage.Availability.DISABLED);
         assertThat(result.failureCode()).isEqualTo("PRIVATE_STORAGE_NOT_CONFIGURED");
+    }
+
+    @Test
+    void retentionDeleteRemovesOnlyServerOwnedConsultationKeys() throws Exception {
+        UUID threadId = UUID.randomUUID();
+        service.deleteObjects(java.util.List.of(
+            "private/consultations/" + threadId + "/upload/a",
+            "private/consultations/" + threadId + "/verified/a"));
+
+        var removed = org.mockito.ArgumentCaptor.forClass(RemoveObjectArgs.class);
+        verify(minio, org.mockito.Mockito.times(2)).removeObject(removed.capture());
+        assertThat(removed.getAllValues()).allSatisfy(args ->
+            assertThat(args.object()).startsWith("private/consultations/" + threadId + "/"));
     }
 
     @Test

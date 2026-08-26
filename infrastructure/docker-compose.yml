@@ -217,7 +217,7 @@ services:
       STORAGE_REGION: ${STORAGE_REGION:-us-east-1}
       # A separate loopback host prevents portal cookies reaching the object
       # store; signature Host is fixed here, never rewritten after signing.
-      STORAGE_PUBLIC_ENDPOINT: ${STORAGE_PUBLIC_ENDPOINT:-http://127.0.0.2:9000}
+      STORAGE_PUBLIC_ENDPOINT: ${STORAGE_PUBLIC_ENDPOINT:-http://127.0.0.1:9000}
       STORAGE_CONSULTATION_ENABLED: ${STORAGE_CONSULTATION_ENABLED:-true}
       STORAGE_CONSULTATION_SCAN_WORKER_ENABLED: "true"
       STORAGE_CONSULTATION_KEY_SIGNING_SECRET: ${STORAGE_CONSULTATION_KEY_SIGNING_SECRET:-local-compose-consultation-signing-secret-32-bytes}
