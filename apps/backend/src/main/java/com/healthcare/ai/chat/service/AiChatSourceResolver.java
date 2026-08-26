@@ -20,6 +20,8 @@ import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -95,6 +97,135 @@ public class AiChatSourceResolver {
     public ResolvedSource revalidate(ChatMode mode, String type, String id) {
         if (type == null || id == null) return null;
         return resolve(mode, type.toLowerCase(Locale.ROOT), id);
+    }
+
+    /**
+     * Revalidate the exact sources used for an answer at the persistence
+     * linearization point.  Clinical sources are fenced with the same
+     * per-source advisory lock used by the review/revision service, then the
+     * catalog row, review head and current approval row are locked before the
+     * live eligibility query runs.  A concurrent edit/revoke therefore either
+     * completes before this check (and is detected as drift) or waits until the
+     * answer transaction commits; an old approved context can never be
+     * persisted after the lock is acquired.
+     *
+     * Operational sources are still re-resolved against the current catalog,
+     * but do not take clinical review locks.  The returned list keeps the
+     * caller's order so citations remain deterministic.  Any malformed,
+     * duplicated, missing or drifted source fails closed as an empty list.
+     */
+    public List<ResolvedSource> revalidateForPersistence(
+            ChatMode mode,
+            List<ResolvedSource> expected) {
+        if (expected == null || expected.isEmpty()) return List.of();
+
+        Set<String> keys = new HashSet<>();
+        for (ResolvedSource source : expected) {
+            if (source == null || source.type() == null || source.id() == null
+                    || !keys.add(source.key())) {
+                return List.of();
+            }
+        }
+
+        // Lock in stable order so two simultaneous conversations citing the
+        // same clinical sources cannot deadlock by acquiring them in provider
+        // ranking order.
+        try {
+            expected.stream()
+                .filter(source -> isClinicalSource(mode, source))
+                .sorted(Comparator.comparing(ResolvedSource::key))
+                .forEach(source -> lockClinicalSource(source.type(), source.id()));
+
+            List<ResolvedSource> current = new ArrayList<>(expected.size());
+            for (ResolvedSource source : expected) {
+                if (isClinicalMode(mode) && !isClinicalSource(mode, source)) {
+                    return List.of();
+                }
+                ResolvedSource refreshed = revalidate(mode, source.type(), source.id());
+                if (refreshed == null || !sameProvenance(source, refreshed)) {
+                    return List.of();
+                }
+                current.add(refreshed);
+            }
+            return List.copyOf(current);
+        } catch (RuntimeException ex) {
+            // Governance/catalog availability is a hard deny.  Do not let a
+            // transient SQL/lock error turn into an answer without provenance.
+            return List.of();
+        }
+    }
+
+    private boolean isClinicalMode(ChatMode mode) {
+        return mode == ChatMode.SYMPTOM_TRIAGE || mode == ChatMode.HEALTH_EDUCATION;
+    }
+
+    private boolean isClinicalSource(ChatMode mode, ResolvedSource source) {
+        return isClinicalMode(mode)
+            && "CLINICAL".equals(source.projectionKind())
+            && CLINICAL_TYPES.contains(source.type());
+    }
+
+    private void lockClinicalSource(String type, String id) {
+        String table = switch (type) {
+            case "specialty" -> "specialties";
+            case "article" -> "articles";
+            case "faq" -> "faqs";
+            default -> throw new IllegalArgumentException("Unsupported clinical source");
+        };
+        // Catalog writers flush the source entity before taking the shared
+        // advisory fence.  Acquire the row lock first to preserve that order
+        // and avoid a resolver/writer cycle (advisory -> row vs row ->
+        // advisory) while still fencing the review head below.
+        if (jdbc.queryForList(
+                "SELECT id FROM " + table + " WHERE id = CAST(? AS uuid) FOR UPDATE", id)
+                .isEmpty()) {
+            throw new IllegalStateException("Clinical source row is missing");
+        }
+
+        // This advisory key is deliberately identical to the key acquired by
+        // AiClinicalContentRevisionService before mutating a governed source.
+        jdbc.queryForList(
+            "SELECT pg_advisory_xact_lock(hashtextextended(? || ':' || ?::text, 0))",
+            type.toUpperCase(Locale.ROOT), id);
+
+        List<Map<String, Object>> heads = jdbc.queryForList("""
+            SELECT content_revision, content_hash, current_approval_round
+              FROM ai_content_review_heads
+             WHERE upper(source_type) = upper(?)
+               AND source_id = CAST(? AS uuid)
+             FOR UPDATE
+            """, type, id);
+        if (heads.isEmpty()) {
+            throw new IllegalStateException("Clinical review head is missing");
+        }
+        Map<String, Object> head = heads.get(0);
+        Object round = head.get("current_approval_round");
+        if (round == null) {
+            throw new IllegalStateException("Clinical approval round is missing");
+        }
+        if (jdbc.queryForList("""
+            SELECT approval_round
+              FROM ai_content_approval_rounds
+             WHERE upper(source_type) = upper(?)
+               AND source_id = CAST(? AS uuid)
+               AND content_revision = ?
+               AND content_hash = ?
+               AND approval_round = ?
+             FOR UPDATE
+            """, type, id, head.get("content_revision"), head.get("content_hash"), round)
+            .isEmpty()) {
+            throw new IllegalStateException("Clinical approval row is missing");
+        }
+    }
+
+    private boolean sameProvenance(ResolvedSource expected, ResolvedSource actual) {
+        return java.util.Objects.equals(expected.type(), actual.type())
+            && java.util.Objects.equals(expected.id(), actual.id())
+            && java.util.Objects.equals(expected.projectionKind(), actual.projectionKind())
+            && java.util.Objects.equals(expected.contentRevision(), actual.contentRevision())
+            && java.util.Objects.equals(expected.eligibilityRevision(), actual.eligibilityRevision())
+            && java.util.Objects.equals(expected.contentHash(), actual.contentHash())
+            && java.util.Objects.equals(expected.approvalId(), actual.approvalId());
     }
 
     /**
