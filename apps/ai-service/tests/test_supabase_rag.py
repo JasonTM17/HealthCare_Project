@@ -655,6 +655,69 @@ def test_contract_error_from_durable_upsert_never_falls_back_to_memory() -> None
     assert service.index.size == 0
 
 
+def test_hydration_contract_error_sticks_to_fail_closed() -> None:
+    class ContractStore:
+        def list_documents(self) -> list[RagDocument]:
+            raise SupabaseRagContractError("malformed durable snapshot")
+
+    service = PersistentRagService(
+        ContractStore(),  # type: ignore[arg-type]
+        fallback_to_memory=True,
+    )
+    service.index.add(
+        RagDocument(
+            id="branch:hcm",
+            source_type="branch",
+            source_id="hcm",
+            title="Chi nhánh",
+            content="Khám tại cơ sở.",
+            embedding=[0.25] * 384,
+            embedding_model="provided",
+            embedding_provenance="local_provider",
+        )
+    )
+
+    with pytest.raises(SupabaseRagUnavailable, match="Supabase RAG operation failed"):
+        service.search([0.25] * 384, source_types=["branch"])
+
+
+def test_upsert_contract_error_after_startup_outage_poison_fences_fallback() -> None:
+    class ContractStore:
+        def list_documents(self) -> list[RagDocument]:
+            raise SupabaseRagUnavailable("offline during startup")
+
+        def upsert(self, *_: object, **__: object) -> bool:
+            raise SupabaseRagContractError("invalid durable projection")
+
+    service = PersistentRagService(
+        ContractStore(),  # type: ignore[arg-type]
+        fallback_to_memory=True,
+    )
+    with pytest.raises(SupabaseRagContractError, match="invalid durable projection"):
+        service.ingest(
+            "branch",
+            "hcm",
+            "Chi nhánh",
+            "Khám tại cơ sở.",
+            embedding=[0.25] * 384,
+        )
+
+    service.index.add(
+        RagDocument(
+            id="branch:stale",
+            source_type="branch",
+            source_id="stale",
+            title="Stale",
+            content="Stale content.",
+            embedding=[0.25] * 384,
+            embedding_model="provided",
+            embedding_provenance="local_provider",
+        )
+    )
+    with pytest.raises(SupabaseRagUnavailable, match="Supabase RAG operation failed"):
+        service.search([0.25] * 384, source_types=["branch"])
+
+
 def test_search_fails_closed_for_clinical_memory_after_durable_outage() -> None:
     class OutageStore:
         def list_documents(self) -> list[RagDocument]:
@@ -923,11 +986,50 @@ def test_stale_durable_tombstone_restores_memory_and_never_reports_success() -> 
         metadata={"_sync_revision": "1"},
     )
 
-    with pytest.raises(SupabaseRagUnavailable, match="Supabase RAG mutation failed"):
+    with pytest.raises(SupabaseRagContractError, match="durable tombstone rejected"):
         service.remove("branch", "hcm", revision=2)
 
     assert service.index.get("branch:hcm") is document
     assert service.persistence_available is False
+
+
+def test_projectionless_clinical_remove_rolls_back_equal_revision_conflict() -> None:
+    class RecordingStore:
+        def list_documents(self) -> list[RagDocument]:
+            return []
+
+        def upsert(self, _document: RagDocument) -> bool:
+            return True
+
+        def tombstone(self, *_: object, **__: object) -> bool:
+            raise AssertionError("equal-revision conflict must fail before durable delete")
+
+    service = PersistentRagService(RecordingStore(), fallback_to_memory=False)  # type: ignore[arg-type]
+    operational = service.ingest(
+        "article",
+        "guide",
+        "Operational guide",
+        "Operational content.",
+        embedding=[0.25] * 384,
+        metadata={"projection_kind": "OPERATIONAL", "_sync_revision": "3"},
+    )
+    clinical = service.ingest(
+        "article",
+        "guide",
+        "Clinical guide",
+        "Clinical content.",
+        embedding=[0.25] * 384,
+        metadata={"projection_kind": "CLINICAL", "eligibility_revision": "3"},
+    )
+
+    with pytest.raises(ValueError, match="equal-revision projection update"):
+        service.remove("article", "guide", revision=3)
+
+    assert service.index.get("article:guide", projection="OPERATIONAL") is operational
+    assert service.index.get("article:guide", projection="CLINICAL") is clinical
+    assert service._tombstones == {}
+    assert service._latest_projection_states.get("operational:article:guide") is not None
+    assert service.persistence_available is True
 
 
 def test_inactive_clinical_ingest_tombstones_the_clinical_projection() -> None:
@@ -983,7 +1085,7 @@ def test_inactive_durable_tombstone_rejection_restores_memory_and_fails_closed()
         fallback_to_memory=True,
     )
 
-    with pytest.raises(SupabaseRagUnavailable, match="Supabase RAG mutation failed"):
+    with pytest.raises(SupabaseRagContractError, match="durable tombstone rejected"):
         service.ingest(
             "branch",
             "hcm",
@@ -1238,6 +1340,82 @@ def test_concurrent_remove_failure_cannot_erase_other_source_mutation() -> None:
     assert isinstance(failures[0], SupabaseRagUnavailable)
     assert service.index.get("branch:failed") is failed_document
     assert service.index.get("branch:other") is None
+
+
+def test_fallback_search_linearizes_before_durable_mutation() -> None:
+    entered = Event()
+    release = Event()
+    durable_written = Event()
+
+    class Store:
+        def list_documents(self) -> list[RagDocument]:
+            raise SupabaseRagUnavailable("offline during startup")
+
+        def upsert(self, _document: RagDocument) -> bool:
+            durable_written.set()
+            return True
+
+    service = PersistentRagService(Store(), fallback_to_memory=True)  # type: ignore[arg-type]
+    local = RagDocument(
+        id="branch:local",
+        source_type="branch",
+        source_id="local",
+        title="Local",
+        content="Local content.",
+        embedding=[0.25] * 384,
+        embedding_model="provided",
+        embedding_provenance="local_provider",
+    )
+    service.index.add(local)
+    original_search = service.index.search
+
+    def blocking_search(*args: object, **kwargs: object) -> list[tuple[RagDocument, float]]:
+        entered.set()
+        assert release.wait(timeout=5)
+        return original_search(*args, **kwargs)  # type: ignore[arg-type]
+
+    service.index.search = blocking_search  # type: ignore[method-assign]
+    search_results: list[list[tuple[RagDocument, float]]] = []
+    search_errors: list[Exception] = []
+
+    def run_search() -> None:
+        try:
+            search_results.append(service.search([0.25] * 384, source_types=["branch"]))
+        except Exception as error:  # pragma: no cover - asserted below
+            search_errors.append(error)
+
+    ingest_errors: list[Exception] = []
+
+    def run_ingest() -> None:
+        try:
+            service.ingest(
+                "branch",
+                "durable",
+                "Durable",
+                "Durable content.",
+                embedding=[0.25] * 384,
+            )
+        except Exception as error:  # pragma: no cover - asserted below
+            ingest_errors.append(error)
+
+    search_thread = Thread(target=run_search)
+    search_thread.start()
+    assert entered.wait(timeout=5)
+    ingest_thread = Thread(target=run_ingest)
+    ingest_thread.start()
+    assert not durable_written.wait(timeout=0.1)
+
+    release.set()
+    search_thread.join(timeout=5)
+    ingest_thread.join(timeout=5)
+
+    assert not search_thread.is_alive()
+    assert not ingest_thread.is_alive()
+    assert search_errors == []
+    assert ingest_errors == []
+    assert search_results and search_results[0][0][0] is local
+    assert durable_written.is_set()
+    assert service.persistence_available is True
 
 
 def test_artifacts_declare_catalog_customer_and_vector_contract() -> None:
