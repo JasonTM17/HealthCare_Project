@@ -62,10 +62,9 @@ class PatientConsultationRetentionServiceTest {
     }
 
     @Test
-    void deletesAllAttachmentObjectsBeforeDeletingOwnedThreadRows() {
+    void deletesOwnedThreadAndQueuesAllAttachmentObjectsForDurableCleanup() {
         JdbcTemplate jdbc = mock(JdbcTemplate.class);
         UserRepository users = mock(UserRepository.class);
-        ConsultationAttachmentStorage storage = mock(ConsultationAttachmentStorage.class);
         UserDetails principal = mock(UserDetails.class);
         UUID userId = UUID.randomUUID();
         UUID threadId = UUID.randomUUID();
@@ -82,21 +81,19 @@ class PatientConsultationRetentionServiceTest {
             .thenReturn(1);
 
         PatientConsultationRetentionService service = new PatientConsultationRetentionService(
-            jdbc, users, storage, true, 100, 20);
+            jdbc, users, true, 100, 20);
         service.deleteForPatient(threadId, principal);
 
-        InOrder order = inOrder(storage, jdbc);
-        order.verify(storage).deleteObjects(List.of(
-            "private/consultations/" + threadId + "/upload/a",
-            "private/consultations/" + threadId + "/verified/a"));
+        InOrder order = inOrder(jdbc);
         order.verify(jdbc).update(contains("DELETE FROM patient_consultation_threads"), eq(threadId), eq(userId));
+        order.verify(jdbc, times(2)).update(contains("patient_consultation_object_cleanup"),
+            eq(threadId), anyString());
     }
 
     @Test
-    void storageFailureKeepsDatabaseRowsForRetry() {
+    void cleanupQueueFailureRollsBackOwnedDeletionForRetry() {
         JdbcTemplate jdbc = mock(JdbcTemplate.class);
         UserRepository users = mock(UserRepository.class);
-        ConsultationAttachmentStorage storage = mock(ConsultationAttachmentStorage.class);
         UserDetails principal = mock(UserDetails.class);
         UUID userId = UUID.randomUUID();
         UUID threadId = UUID.randomUUID();
@@ -109,13 +106,15 @@ class PatientConsultationRetentionServiceTest {
                 "private/consultations/" + threadId + "/upload/a",
                 "private/consultations/" + threadId + "/upload/a",
                 "private/consultations/" + threadId + "/verified/a")));
-        doThrow(new IllegalStateException("closed storage failure"))
-            .when(storage).deleteObjects(anyCollection());
+        when(jdbc.update(contains("DELETE FROM patient_consultation_threads"), eq(threadId), eq(userId)))
+            .thenReturn(1);
+        doThrow(new IllegalStateException("queue database failure"))
+            .when(jdbc).update(contains("patient_consultation_object_cleanup"), eq(threadId), anyString());
 
         PatientConsultationRetentionService service = new PatientConsultationRetentionService(
-            jdbc, users, storage, true, 100, 20);
+            jdbc, users, true, 100, 20);
         assertThatThrownBy(() -> service.deleteForPatient(threadId, principal))
             .isInstanceOf(IllegalStateException.class);
-        verify(jdbc, never()).update(contains("DELETE FROM patient_consultation_threads"), any(), any());
+        verify(jdbc).update(contains("DELETE FROM patient_consultation_threads"), eq(threadId), eq(userId));
     }
 }

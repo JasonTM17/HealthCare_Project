@@ -1,9 +1,8 @@
 -- DB-authoritative cleanup for every private consultation object.
 --
--- A clean scan promotes the uploaded quarantine object to a verified key
--- before the fenced attachment-row update. The quarantine upload identity is
--- retained here; V51 persists the deterministic verified identity before any
--- new promotion so a stale worker or storage outage cannot make it
+-- A clean scan promotes the uploaded quarantine object to a new verified key
+-- before the fenced attachment-row update.  Both keys are retained here so a
+-- stale worker, retention race, or storage outage cannot make an object
 -- undiscoverable.
 
 ALTER TABLE patient_consultation_attachments
