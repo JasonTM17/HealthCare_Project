@@ -57,20 +57,23 @@ public class ConsultationAttachmentObjectCleanupWorker {
         transactions.executeWithoutResult(status -> acknowledge(claim, completed));
     }
 
-    private CleanupClaim claimOne(org.springframework.transaction.TransactionStatus ignored) {
+    CleanupClaim claimOne(org.springframework.transaction.TransactionStatus ignored) {
         UUID lease = UUID.randomUUID();
         return jdbc.query("""
             WITH candidate AS (
                 SELECT id FROM patient_consultation_object_cleanup
-                 WHERE (status IN ('PENDING', 'FAILED') AND next_attempt_at <= CURRENT_TIMESTAMP)
-                    OR (status = 'PROCESSING' AND lease_expires_at <= CURRENT_TIMESTAMP)
+                 WHERE ((status IN ('PENDING', 'FAILED') AND attempts < ?
+                         AND next_attempt_at <= CURRENT_TIMESTAMP)
+                    OR (status = 'PROCESSING' AND attempts <= ?
+                        AND lease_expires_at <= CURRENT_TIMESTAMP))
                  ORDER BY next_attempt_at, created_at, id
                  FOR UPDATE SKIP LOCKED LIMIT 1
             )
             UPDATE patient_consultation_object_cleanup q
                SET status = 'PROCESSING', lease_token = ?,
                    lease_expires_at = CURRENT_TIMESTAMP + (? * INTERVAL '1 second'),
-                   attempts = attempts + 1
+                   attempts = CASE WHEN q.status = 'PROCESSING'
+                       THEN q.attempts ELSE q.attempts + 1 END
               FROM candidate c WHERE q.id = c.id
             RETURNING q.id, q.object_key, q.lease_token, q.lease_expires_at
             """, (rs, rowNum) -> new CleanupClaim(
@@ -78,7 +81,7 @@ public class ConsultationAttachmentObjectCleanupWorker {
                 rs.getString("object_key"),
                 rs.getObject("lease_token", UUID.class),
                 rs.getObject("lease_expires_at", OffsetDateTime.class)),
-            lease, leaseSeconds).stream().findFirst().orElse(null);
+            MAX_ATTEMPTS, MAX_ATTEMPTS, lease, leaseSeconds).stream().findFirst().orElse(null);
     }
 
     private void acknowledge(CleanupClaim claim, boolean deleted) {

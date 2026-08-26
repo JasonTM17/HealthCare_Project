@@ -4,22 +4,27 @@ import com.healthcare.storage.service.AttachmentScanAuditHook;
 import com.healthcare.storage.service.ConsultationAttachmentStorage;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.inOrder;
 
 class ConsultationAttachmentScanWorkerTest {
 
     @Test
-    void staleCleanPromotionQueuesUploadAndVerifiedKeysBeforeFencedUpdate() {
+    void staleCleanPromotionQueuesOnlyUploadBeforeFencedUpdate() {
         JdbcTemplate jdbc = mock(JdbcTemplate.class);
         ConsultationAttachmentStorage storage = mock(ConsultationAttachmentStorage.class);
         PlatformTransactionManager transactions = mock(PlatformTransactionManager.class);
@@ -48,9 +53,38 @@ class ConsultationAttachmentScanWorkerTest {
 
         worker.finish(claim, result);
 
-        verify(jdbc, times(2)).update(contains("patient_consultation_object_cleanup"),
-            any(), any(), any());
-        verify(jdbc).update(contains("UPDATE patient_consultation_attachments"),
+        var order = inOrder(jdbc);
+        order.verify(jdbc).update(contains("patient_consultation_object_cleanup"),
+            eq(threadId), eq(attachmentId), eq(uploadKey));
+        order.verify(jdbc).update(contains("UPDATE patient_consultation_attachments"),
             any(Object[].class));
+        verify(jdbc, times(1)).update(contains("patient_consultation_object_cleanup"),
+            eq(threadId), eq(attachmentId), eq(uploadKey));
+        verify(jdbc, never()).update(contains("patient_consultation_object_cleanup"),
+            eq(threadId), eq(attachmentId), eq(verifiedKey));
+    }
+
+    @Test
+    void expiredUploadQueuesPrivateObjectsBeforeAudit() {
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        ConsultationAttachmentStorage storage = mock(ConsultationAttachmentStorage.class);
+        PlatformTransactionManager transactions = mock(PlatformTransactionManager.class);
+        ConsultationAttachmentScanWorker worker = new ConsultationAttachmentScanWorker(
+            jdbc, storage, transactions, true, 120);
+        UUID threadId = UUID.randomUUID();
+        UUID attachmentId = UUID.randomUUID();
+        String uploadKey = "private/consultations/" + threadId + "/upload/upload";
+        String staleKey = "private/consultations/" + threadId + "/upload/stale";
+        when(jdbc.query(contains("RETURNING a.thread_id"), any(RowMapper.class), any(Integer.class)))
+            .thenReturn(List.of(new ConsultationAttachmentScanWorker.ExpiredAttachment(
+                threadId, attachmentId, uploadKey, staleKey)));
+
+        worker.expireAbandoned();
+
+        verify(jdbc).update(contains("patient_consultation_object_cleanup"),
+            eq(threadId), eq(attachmentId), eq(uploadKey));
+        verify(jdbc).update(contains("patient_consultation_object_cleanup"),
+            eq(threadId), eq(attachmentId), eq(staleKey));
+        verify(jdbc).update(contains("patient_consultation_events"), eq(threadId), eq(attachmentId));
     }
 }
