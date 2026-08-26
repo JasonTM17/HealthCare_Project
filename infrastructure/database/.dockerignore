@@ -1,0 +1,13 @@
+.git
+.tmp/
+.next/
+.next-*/
+.env
+.env.*
+!.env.example
+secrets/
+credentials/
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx

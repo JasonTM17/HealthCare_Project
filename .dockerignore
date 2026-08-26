@@ -10,6 +10,15 @@ engineer
 plans
 **/node_modules
 **/.next
+**/.next-*
+**/.tmp
+**/.tmp/
+**/.vercel
+**/.vercel/
+secrets/
+credentials/
+**/secrets/
+**/credentials/
 **/target
 **/.venv
 **/__pycache__

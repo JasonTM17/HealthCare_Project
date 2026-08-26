@@ -1,3 +1,11 @@
 __pycache__/
 *.pyc
 test_*.py
+.tmp/
+.next/
+.next-*/
+.env
+.env.*
+!.env.example
+secrets/
+credentials/
