@@ -830,6 +830,10 @@ class PersistentRagService(RagService):
 
         if self._durable_probe_unhealthy:
             self.persistence_available = False
+            if not self._durable_authority_seen:
+                if not self.fallback_to_memory:
+                    raise SupabaseRagUnavailable("Supabase RAG mutation failed")
+                return True
             raise SupabaseRagUnavailable("Supabase RAG mutation failed")
         if self._durable_authority_seen:
             return False

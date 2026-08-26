@@ -1092,6 +1092,42 @@ def test_health_probe_does_not_report_memory_ready_after_durable_failure() -> No
     assert service.persistence_available is False
 
 
+def test_failed_health_probe_keeps_initial_mutations_local_only() -> None:
+    class ProbeDownStore:
+        upsert_called = False
+
+        def list_documents(self) -> list[RagDocument]:
+            raise SupabaseRagUnavailable("offline during startup")
+
+        def health_probe(self) -> bool:
+            return False
+
+        def upsert(self, *_: object, **__: object) -> bool:
+            self.upsert_called = True
+            raise AssertionError("durable write must not be attempted on an initial failed probe")
+
+    store = ProbeDownStore()
+    service = PersistentRagService(
+        store,  # type: ignore[arg-type]
+        max_documents=5,
+        fallback_to_memory=True,
+    )
+
+    assert service.health_probe() is False
+
+    document = service.ingest(
+        "branch",
+        "hcm",
+        "Chi nhánh",
+        "Khám tại cơ sở.",
+        embedding=[0.25] * 384,
+    )
+
+    assert document.id == "branch:hcm"
+    assert store.upsert_called is False
+    assert service.persistence_available is False
+
+
 def test_failed_health_probe_keeps_later_mutations_fail_closed() -> None:
     class ProbeDownStore:
         def list_documents(self) -> list[RagDocument]:
