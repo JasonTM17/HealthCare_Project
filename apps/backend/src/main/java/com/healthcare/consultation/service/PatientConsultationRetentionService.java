@@ -134,7 +134,13 @@ public class PatientConsultationRetentionService {
         jdbc.update("""
             INSERT INTO patient_consultation_object_cleanup(thread_id, object_key)
             VALUES (?, ?)
-            ON CONFLICT (object_key) DO NOTHING
+            ON CONFLICT (object_key) DO UPDATE
+               SET thread_id = EXCLUDED.thread_id,
+                   attachment_id = NULL,
+                   status = 'PENDING', attempts = 0,
+                   next_attempt_at = CURRENT_TIMESTAMP,
+                   lease_token = NULL, lease_expires_at = NULL,
+                   last_failure_code = NULL, completed_at = NULL
             """, threadId, objectKey);
     }
 

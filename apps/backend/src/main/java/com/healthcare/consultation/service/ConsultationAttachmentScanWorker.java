@@ -137,6 +137,13 @@ public class ConsultationAttachmentScanWorker {
             "REJECTED".equals(scanStatus) ? "REJECTED" : "UPLOADED", code, scanStatus,
             Math.min(300, 1 << Math.min(8, claim.attempts())), request.attachmentId(), request.threadId(),
             request.privateObjectKey(), claim.lease().leaseId());
+        if (changed == 0 && clean) {
+            // Storage promotion won the race but the lease/thread authority no
+            // longer exists. Revive the deterministic verified-key cleanup
+            // intent even when retention already completed an older queue row.
+            // Resetting the lease fences any older cleanup acknowledgement.
+            queueObjectCleanup(request.threadId(), request.attachmentId(), result.privateObjectKey());
+        }
         if (changed == 1) audit(claim, scanStatus);
         // The cleanup queue is drained independently, so a stale/expired
         // worker cannot leave a verified object permanently undiscoverable.
@@ -148,7 +155,13 @@ public class ConsultationAttachmentScanWorker {
             INSERT INTO patient_consultation_object_cleanup
                 (thread_id, attachment_id, object_key)
             VALUES (?, ?, ?)
-            ON CONFLICT (object_key) DO NOTHING
+            ON CONFLICT (object_key) DO UPDATE
+               SET thread_id = EXCLUDED.thread_id,
+                   attachment_id = EXCLUDED.attachment_id,
+                   status = 'PENDING', attempts = 0,
+                   next_attempt_at = CURRENT_TIMESTAMP,
+                   lease_token = NULL, lease_expires_at = NULL,
+                   last_failure_code = NULL, completed_at = NULL
             """, threadId, attachmentId, objectKey);
     }
 
