@@ -302,6 +302,43 @@ def test_equal_revision_projection_is_exactly_idempotent_and_tombstone_wins() ->
     assert service.index.get("article:equal-revision", projection="CLINICAL") is None
 
 
+def test_equal_revision_delete_is_rejected_until_database_newer_watermark_arrives() -> None:
+    """A stale worker cannot delete an active row at its old watermark.
+
+    Clinical revoke/expiry callers must resolve the PostgreSQL review-head
+    eligibility revision before issuing the delete.  Once that newer
+    database-owned watermark is supplied, removal is safe and an exact retry
+    is idempotent.
+    """
+
+    service = RagService()
+    metadata = {
+        "projection_kind": "CLINICAL",
+        "content_revision": "2",
+        "eligibility_revision": "5",
+        "content_hash": "canonical-hash",
+        "approval_id": "round-1",
+        "approval_expires_at": "2026-12-01T00:00:00Z",
+    }
+    service.ingest(
+        "article",
+        "stale-delete",
+        "Approved article",
+        "Stable reviewed content",
+        [1.0, 0.0],
+        metadata=metadata,
+    )
+
+    with pytest.raises(ValueError, match="equal-revision projection update must be idempotent"):
+        service.remove("article", "stale-delete", revision=5, projection="CLINICAL")
+    assert service.index.get("article:stale-delete", projection="CLINICAL") is not None
+
+    service.remove("article", "stale-delete", revision=6, projection="CLINICAL")
+    assert service.index.get("article:stale-delete", projection="CLINICAL") is None
+    # The same database-owned tombstone can be replayed safely.
+    service.remove("article", "stale-delete", revision=6, projection="CLINICAL")
+
+
 def test_index_search_waits_for_mutation_lock() -> None:
     index = RagIndex()
     index.add(_doc("cardio", "Tim mạch", "Khám tim mạch.", [1.0, 0.0]))

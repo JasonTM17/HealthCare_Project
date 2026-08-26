@@ -153,6 +153,25 @@ def test_upsert_is_parameterized_and_revision_guarded() -> None:
     assert connection.closed is True
 
 
+def test_tombstone_only_advances_database_watermark_and_is_idempotent() -> None:
+    profile_cursor = FakeCursor(many=[])
+    tombstone_cursor = FakeCursor(one=None)
+    connection = FakeConnection(profile_cursor, tombstone_cursor)
+    store = SupabaseRagStore(_config(), connection_factory=lambda _dsn, _timeout: connection)
+
+    # A durable row with a newer database-owned revision must remain
+    # authoritative.  PostgreSQL returns no row for this stale/equal delete;
+    # the adapter treats that as a safe no-op rather than resurrecting or
+    # mutating the active projection.
+    assert store.tombstone("article", "stale", revision=5, projection="CLINICAL") is False
+    sql, params = tombstone_cursor.executed[0]
+    assert "excluded.eligibility_revision > \"healthcare\".\"ai_chat_documents\".eligibility_revision" in sql
+    assert "excluded.eligibility_revision = \"healthcare\".\"ai_chat_documents\".eligibility_revision" in sql
+    assert params is not None
+    assert params[0:4] == ("CLINICAL", "article", "stale", 5)
+    assert connection.commits == 1
+
+
 def test_health_probe_checks_protected_projection_without_reading_content() -> None:
     cursor = FakeCursor(one=(False,))
     connection = FakeConnection(cursor)
