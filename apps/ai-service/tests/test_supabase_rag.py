@@ -1162,6 +1162,53 @@ def test_health_probe_can_recover_after_a_failed_probe() -> None:
     assert store.upsert_called is True
 
 
+def test_remove_fails_closed_after_a_later_bad_health_probe() -> None:
+    class FlippingProbeStore:
+        probe_results = [False, False]
+        upsert_called = False
+        tombstone_called = False
+
+        def list_documents(self) -> list[RagDocument]:
+            return []
+
+        def health_probe(self) -> bool:
+            return self.probe_results.pop(0)
+
+        def upsert(self, *_: object, **__: object) -> bool:
+            self.upsert_called = True
+            return True
+
+        def tombstone(self, *_: object, **__: object) -> bool:
+            self.tombstone_called = True
+            raise SupabaseRagUnavailable("offline")
+
+    store = FlippingProbeStore()
+    service = PersistentRagService(
+        store,  # type: ignore[arg-type]
+        max_documents=5,
+        fallback_to_memory=True,
+    )
+
+    document = service.ingest(
+        "branch",
+        "hcm",
+        "Chi nhánh",
+        "Khám tại cơ sở.",
+        embedding=[0.25] * 384,
+    )
+    assert document.id == "branch:hcm"
+    assert store.upsert_called is True
+
+    assert service.health_probe() is False
+
+    with pytest.raises(SupabaseRagUnavailable, match="Supabase RAG mutation failed"):
+        service.remove("branch", "hcm")
+
+    assert store.tombstone_called is False
+    assert service.index.get("branch:hcm") is document
+    assert service.persistence_available is False
+
+
 def test_remove_durable_failure_restores_memory_and_never_reports_success() -> None:
     class FailingDeleteStore:
         def list_documents(self) -> list[RagDocument]:
