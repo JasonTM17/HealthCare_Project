@@ -451,11 +451,11 @@ public class PatientConsultationService {
         OffsetDateTime uploadExpiresAt = intent.putUrlExpiresAt().atOffset(ZoneOffset.UTC);
         jdbc.update("""
             INSERT INTO patient_consultation_attachments
-                (id, thread_id, message_id, private_object_key, actual_mime_type,
+                (id, thread_id, message_id, private_object_key, upload_object_key, actual_mime_type,
                  declared_mime_type, size_bytes, sha256_hash, upload_status,
                  upload_expires_at)
-            VALUES (?, ?, ?, ?, NULL, ?, ?, ?, 'REQUESTED', ?)
-            """, attachmentId, id, request.messageId(), objectKey, request.mimeType(),
+            VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, 'REQUESTED', ?)
+            """, attachmentId, id, request.messageId(), objectKey, objectKey, request.mimeType(),
             request.sizeBytes(), request.sha256Hash().toLowerCase(), uploadExpiresAt);
         appendEvent(id, userId, isDoctor(userId) ? "DOCTOR" : "PATIENT", "SCAN_RESULT", "{\"attachmentId\":\"" + attachmentId + "\",\"status\":\"PENDING\"}");
         return new ConsultationContracts.Attachment(attachmentId, request.mimeType(), request.sizeBytes(),
