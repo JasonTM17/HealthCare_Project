@@ -114,9 +114,10 @@ Spring emits no CORS grant for them.
    leases, object-cleanup queue, or email-outbox payload/retention contracts.
 3. Reconcile the Supabase projection and verify revoked/unpublished/expired
    clinical sources and their CTAs disappear from provider context.
-4. Disable consultation retention, attachment scan, and email-outbox workers
-   if the V40/V43/V44/V47 audit, lease, or queue migrations have not been
-   applied; never run a V39/V42-only binary against a V51 database.
+4. Disable consultation retention, attachment scan, object-cleanup, and
+   email-outbox workers if the V40/V43/V44/V47/V50/V51 audit, lease, or queue
+   migrations have not been applied; never run a V39/V42-only binary against a
+   V51 database.
 5. Restore the disposable database only after a tested backup/restore drill.
 
 Hosting credentials, provider/legal evidence, AV/MIME scanning, backup/restore,

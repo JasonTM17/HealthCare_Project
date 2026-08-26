@@ -539,7 +539,7 @@ public class PatientConsultationService {
         try {
             return jdbc.queryForMap("""
                 SELECT actual_mime_type, private_object_key, declared_mime_type,
-                       size_bytes, sha256_hash, scan_status, upload_status, upload_expires_at,
+                       size_bytes, sha256_hash, verified_object_key, scan_status, upload_status, upload_expires_at,
                        clock_timestamp() AS database_now, message_id
                  FROM patient_consultation_attachments
                  WHERE id = ? AND thread_id = ? AND retention_expires_at > CURRENT_TIMESTAMP
