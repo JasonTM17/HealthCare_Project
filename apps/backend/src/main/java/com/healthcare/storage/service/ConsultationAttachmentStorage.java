@@ -24,7 +24,7 @@ public interface ConsultationAttachmentStorage {
 
     /**
      * HEADs and reads the uploaded object, verifies bytes, runs the scanner,
-     * and promotes CLEAN bytes to a fresh server-only verified key.
+     * and promotes CLEAN bytes to a deterministic server-only verified key.
      */
     CompletionResult complete(CompletionRequest request);
 
@@ -80,14 +80,27 @@ public interface ConsultationAttachmentStorage {
             Availability availability,
             UUID attachmentId,
             String privateObjectKey,
+            String verifiedObjectKey,
             URI signedPutUrl,
             Instant putUrlExpiresAt,
             String status,
             String failureCode) {
 
+        public UploadIntent(
+                Availability availability,
+                UUID attachmentId,
+                String privateObjectKey,
+                URI signedPutUrl,
+                Instant putUrlExpiresAt,
+                String status,
+                String failureCode) {
+            this(availability, attachmentId, privateObjectKey, null, signedPutUrl,
+                putUrlExpiresAt, status, failureCode);
+        }
+
         public static UploadIntent disabled(String failureCode) {
             return new UploadIntent(
-                    Availability.DISABLED, null, null, null, null, "DISABLED", failureCode);
+                    Availability.DISABLED, null, null, null, null, null, "DISABLED", failureCode);
         }
     }
 
@@ -97,7 +110,19 @@ public interface ConsultationAttachmentStorage {
             String privateObjectKey,
             String expectedMimeType,
             long expectedSizeBytes,
-            String expectedSha256) {
+            String expectedSha256,
+            String expectedVerifiedObjectKey) {
+
+        public CompletionRequest(
+                UUID threadId,
+                UUID attachmentId,
+                String privateObjectKey,
+                String expectedMimeType,
+                long expectedSizeBytes,
+                String expectedSha256) {
+            this(threadId, attachmentId, privateObjectKey, expectedMimeType,
+                expectedSizeBytes, expectedSha256, null);
+        }
     }
 
     record CompletionResult(

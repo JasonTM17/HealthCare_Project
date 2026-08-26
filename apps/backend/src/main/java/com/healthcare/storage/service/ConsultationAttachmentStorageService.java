@@ -188,12 +188,14 @@ public class ConsultationAttachmentStorageService implements ConsultationAttachm
         }
         UUID attachmentId = UUID.randomUUID();
         String objectKey = keyGenerator.generateUpload(request.threadId(), attachmentId);
+        String verifiedObjectKey = keyGenerator.generateVerified(request.threadId(), attachmentId);
         try {
             URI signedUrl = presign(objectKey, Method.PUT, putUrlTtlSeconds);
             return new UploadIntent(
                     Availability.ENABLED,
                     attachmentId,
                     objectKey,
+                    verifiedObjectKey,
                     signedUrl,
                     Instant.now(clock).plusSeconds(putUrlTtlSeconds),
                     "PENDING",
@@ -419,6 +421,11 @@ public class ConsultationAttachmentStorageService implements ConsultationAttachm
         }
         String verifiedObjectKey = keyGenerator.generateVerified(
                 request.threadId(), request.attachmentId());
+        if (request.expectedVerifiedObjectKey() != null
+                && !request.expectedVerifiedObjectKey().equals(verifiedObjectKey)) {
+            return CompletionResult.pending(request.attachmentId(), request.privateObjectKey(),
+                "ATTACHMENT_VERIFIED_KEY_MISMATCH");
+        }
         try {
             minioClient.putObject(
                     PutObjectArgs.builder()

@@ -48,7 +48,12 @@ public final class ConsultationObjectKeyGenerator {
     }
 
     public String generateVerified(UUID threadId, UUID attachmentId) {
-        return generate(threadId, attachmentId, Purpose.VERIFIED);
+        if (threadId == null || attachmentId == null) {
+            throw new IllegalArgumentException("threadId and attachmentId are required");
+        }
+        String token = deterministicVerifiedToken(threadId, attachmentId);
+        String payload = threadId + "/" + attachmentId + "/" + Purpose.VERIFIED.pathSegment() + "/" + token;
+        return PREFIX + payload + "." + sign(payload);
     }
 
     private String generate(UUID threadId, UUID attachmentId, Purpose purpose) {
@@ -60,6 +65,18 @@ public final class ConsultationObjectKeyGenerator {
         String token = Base64.getUrlEncoder().withoutPadding().encodeToString(tokenBytes);
         String payload = threadId + "/" + attachmentId + "/" + purpose.pathSegment() + "/" + token;
         return PREFIX + payload + "." + sign(payload);
+    }
+
+    private String deterministicVerifiedToken(UUID threadId, UUID attachmentId) {
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(signingSecret, "HmacSHA256"));
+            String purposeBoundIdentity = threadId + "/" + attachmentId + "/verified-object";
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(
+                mac.doFinal(purposeBoundIdentity.getBytes(StandardCharsets.UTF_8)));
+        } catch (GeneralSecurityException ex) {
+            throw new IllegalStateException("Unable to derive verified object key", ex);
+        }
     }
 
     public boolean isValid(String objectKey, UUID expectedThreadId, UUID expectedAttachmentId) {
