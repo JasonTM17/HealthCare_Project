@@ -21,7 +21,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Callable, Collection, Iterator, List, Mapping, Sequence, cast
 
-from app.rag import EmbeddingCallback, RagDocument, RagService
+from app.rag import CLINICAL_SOURCE_TYPES, EmbeddingCallback, RagDocument, RagService
 from app.schemas import MAX_INPUT_CHARS, ProviderProvenance, SOURCE_TYPES
 
 
@@ -30,7 +30,7 @@ _REVISION_KEY = "_sync_revision"
 _TOMBSTONE_KEY = "_tombstone"
 _LOCAL_RUNTIME_NAMES = frozenset({"local", "test", "demo"})
 _PROJECTION_KINDS = frozenset({"OPERATIONAL", "CLINICAL"})
-_CLINICAL_SOURCE_TYPES = frozenset({"specialty", "article", "faq"})
+_CLINICAL_SOURCE_TYPES = CLINICAL_SOURCE_TYPES
 
 
 class SupabaseRagError(RuntimeError):
@@ -734,23 +734,46 @@ class PersistentRagService(RagService):
 
     def _snapshot_state(
         self,
-    ) -> tuple[dict[str, RagDocument], dict[str, int], dict[str, int], int, dict[str, int]]:
+    ) -> tuple[
+        dict[str, RagDocument],
+        dict[str, int],
+        dict[str, int],
+        dict[str, tuple[object, ...]],
+        int,
+        dict[str, int],
+    ]:
         return (
             dict(self.index._documents),
             dict(self._tombstones),
             dict(self._latest_revisions),
+            dict(self._latest_projection_states),
             self._operation_sequence,
             dict(self._latest_operations),
         )
 
     def _restore_state(
         self,
-        snapshot: tuple[dict[str, RagDocument], dict[str, int], dict[str, int], int, dict[str, int]],
+        snapshot: tuple[
+            dict[str, RagDocument],
+            dict[str, int],
+            dict[str, int],
+            dict[str, tuple[object, ...]],
+            int,
+            dict[str, int],
+        ],
     ) -> None:
-        documents, tombstones, latest_revisions, operation_sequence, latest_operations = snapshot
+        (
+            documents,
+            tombstones,
+            latest_revisions,
+            latest_projection_states,
+            operation_sequence,
+            latest_operations,
+        ) = snapshot
         self.index._documents = dict(documents)
         self._tombstones = dict(tombstones)
         self._latest_revisions = dict(latest_revisions)
+        self._latest_projection_states = dict(latest_projection_states)
         self._operation_sequence = operation_sequence
         self._latest_operations = dict(latest_operations)
 
@@ -876,8 +899,6 @@ class PersistentRagService(RagService):
             # This keeps a failed legacy delete from creating a restart-only
             # resurrection window.
             raise SupabaseRagContractError("clinical delete requires a positive revision")
-        document_id = f"{source_type}:{source_id}"
-        previous = self.index.get(document_id, projection=projection)
         snapshot = self._snapshot_state()
         super().remove(
             source_type,
@@ -887,22 +908,26 @@ class PersistentRagService(RagService):
             projection=projection,
         )
         try:
-            # A projection-less legacy delete removes every in-memory view.
-            # Persist the same all-projection intent so a restart cannot
-            # hydrate a clinical row that the caller already deleted.
-            if projection is None and hasattr(self.store, "tombstone_many"):
+            # A projection-less clinical delete removes every in-memory view;
+            # operational legacy deletes only need an operational tombstone.
+            # Never manufacture a clinical watermark for an operational source.
+            if projection is None:
+                projections = (
+                    ["OPERATIONAL", "CLINICAL"]
+                    if source_type in _CLINICAL_SOURCE_TYPES
+                    else ["OPERATIONAL"]
+                )
+            else:
+                assert normalized_projection is not None
+                projections = [normalized_projection]
+            if len(projections) > 1 and hasattr(self.store, "tombstone_many"):
                 self.store.tombstone_many(  # type: ignore[attr-defined]
                     source_type,
                     source_id,
                     revision,
-                    projections=["OPERATIONAL", "CLINICAL"],
+                    projections=projections,
                 )
             else:
-                projections = (
-                    [projection.strip().upper()]
-                    if projection
-                    else ["OPERATIONAL", "CLINICAL"]
-                )
                 for normalized_projection in projections:
                     self.store.tombstone(
                         source_type,
@@ -912,10 +937,12 @@ class PersistentRagService(RagService):
                     )
             self.persistence_available = True
         except Exception as error:
-            if not self.fallback_to_memory:
-                self._restore_state(snapshot)
-                self._restore_index_entry(previous, document_id)
-            self._fallback_or_raise(error)
+            # A mutation cannot safely fall back after durable failure. Keep
+            # the pre-delete snapshot intact so a later restart cannot
+            # rehydrate a durable row that this process reported as removed.
+            self._restore_state(snapshot)
+            self.persistence_available = False
+            raise SupabaseRagUnavailable("Supabase RAG mutation failed") from error
 
     def sources(self) -> list[tuple[SOURCE_TYPES, str]]:
         if not self.persistence_available:

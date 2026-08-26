@@ -280,6 +280,33 @@ def test_projectionless_delete_uses_atomic_store_batch_when_available() -> None:
     assert store.calls == [("specialty", "cardio", 12, ("OPERATIONAL", "CLINICAL"))]
 
 
+def test_projectionless_operational_delete_only_writes_operational_tombstone() -> None:
+    class RecordingStore:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, str, int | None, str]] = []
+
+        def list_documents(self) -> list[RagDocument]:
+            return []
+
+        def tombstone(
+            self,
+            source_type: str,
+            source_id: str,
+            revision: int | None,
+            *,
+            projection: str,
+        ) -> bool:
+            self.calls.append((source_type, source_id, revision, projection))
+            return True
+
+    store = RecordingStore()
+    service = PersistentRagService(store, fallback_to_memory=False)  # type: ignore[arg-type]
+
+    service.remove("branch", "hcm")
+
+    assert store.calls == [("branch", "hcm", None, "OPERATIONAL")]
+
+
 def test_projectionless_clinical_delete_without_revision_keeps_memory_authoritative() -> None:
     class RecordingStore:
         def list_documents(self) -> list[RagDocument]:
@@ -544,6 +571,36 @@ def test_persistent_service_fails_closed_without_fallback() -> None:
         )
     assert service.persistence_available is False
     assert service.index.size == 0
+
+
+def test_remove_durable_failure_restores_memory_and_never_reports_success() -> None:
+    class FailingDeleteStore:
+        def list_documents(self) -> list[RagDocument]:
+            return []
+
+        def tombstone(self, *_: object, **__: object) -> bool:
+            raise SupabaseRagUnavailable("offline")
+
+    service = PersistentRagService(
+        FailingDeleteStore(),  # type: ignore[arg-type]
+        max_documents=5,
+        fallback_to_memory=True,
+    )
+    document = service.ingest(
+        "branch",
+        "hcm",
+        "Chi nhánh",
+        "Khám tại cơ sở.",
+        embedding=[0.25] * 384,
+        metadata={"_sync_revision": "1"},
+    )
+    assert service.persistence_available is False
+
+    with pytest.raises(SupabaseRagUnavailable, match="Supabase RAG mutation failed"):
+        service.remove("branch", "hcm")
+
+    assert service.index.get("branch:hcm") is document
+    assert service.persistence_available is False
 
 
 def test_artifacts_declare_catalog_customer_and_vector_contract() -> None:
