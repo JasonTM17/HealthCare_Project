@@ -48,12 +48,15 @@ Spring emits no CORS grant for them.
    `connectionString` is a `postgres://`/`postgresql://` URL; the Spring
    startup environment post-processor converts it to `jdbc:postgresql://` and
    keeps the username/password references separate.
-2. Apply Flyway V36–V46 and load only the reviewed synthetic fixture manifest.
+2. Apply Flyway V36–V49 and load only the reviewed synthetic fixture manifest.
    V40 keeps consultation audit events after the 90-day transcript purge;
-   V42 adds the opaque browser-session authority and V43 adds the
-   server-owned attachment upload/scan lease lifecycle. These migrations are
-   additive and must be applied before retention or attachment workers are
-   enabled.
+   V42 adds the opaque browser-session authority; V43 adds the server-owned
+   attachment upload/scan lease lifecycle; V44 adds the encrypted email outbox;
+   V45 adds notification preference categories; V46 adds the server-owned OTP
+   issue timestamp; V47 adds the asynchronous attachment scan queue; V48 binds
+   outbox payloads to a logical delivery id; and V49 adds the terminal-row
+   retention index. These migrations are additive and must be applied before
+   retention, email, or attachment workers are enabled.
 3. Configure the private AI service with `AI_PROVIDER=local`, remote flags
    disabled and `SUPABASE_RAG_FALLBACK_TO_MEMORY=false`.
 4. Configure Spring's CORS origin and service tokens, then wait for
@@ -97,13 +100,14 @@ Spring emits no CORS grant for them.
 
 1. Keep both remote switches `false`, set clinical mode switches to `false`,
    and drain traffic.
-2. Keep V36–V43 audit/schema tables; do not run an old binary that can ignore
-   consent, synthetic guards or clinical approval metadata.
+2. Keep V36–V49 audit/schema tables; do not run an old binary that can ignore
+   consent, synthetic guards, clinical approval metadata, attachment scan
+   leases, or email-outbox payload/retention contracts.
 3. Reconcile the Supabase projection and verify revoked/unpublished/expired
    clinical sources and their CTAs disappear from provider context.
-4. Disable consultation retention and attachment workers if the V40/V43 audit
-   and lease migrations have not been applied; never run a V39/V42-only binary
-   against a V43 database.
+4. Disable consultation retention, attachment scan, and email-outbox workers
+   if the V40/V43/V44/V47 audit, lease, or queue migrations have not been
+   applied; never run a V39/V42-only binary against a V49 database.
 5. Restore the disposable database only after a tested backup/restore drill.
 
 Hosting credentials, provider/legal evidence, AV/MIME scanning, backup/restore,

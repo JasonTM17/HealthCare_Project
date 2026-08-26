@@ -31,6 +31,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import org.mockito.ArgumentCaptor;
@@ -239,5 +240,30 @@ class AiChatContractsTest {
         ArgumentCaptor<Map<String, Object>> request = ArgumentCaptor.forClass(Map.class);
         verify(upstream).retrieveChat(request.capture());
         assertThat(request.getValue()).containsEntry("synthetic_beta", false);
+    }
+
+    @Test
+    void nullRetrievalFailsClosedWithoutLegacyProviderCall() {
+        AiService upstream = mock(AiService.class);
+        when(upstream.retrieveChat(org.mockito.ArgumentMatchers.any())).thenReturn(null);
+        AiConversationService service = new AiConversationService(
+            mock(AiConversationRepository.class),
+            mock(AiMessageRepository.class),
+            mock(AiMessageFeedbackRepository.class),
+            mock(UserRepository.class),
+            upstream,
+            mock(com.healthcare.ai.chat.service.AiChatSourceResolver.class),
+            mock(PlatformTransactionManager.class),
+            90, true, 200, 20, 120);
+
+        Object response = ReflectionTestUtils.invokeMethod(
+            service, "groundedResponse", UUID.randomUUID(), ChatMode.HOSPITAL_SUPPORT,
+            "thong tin chi nhanh", List.of());
+
+        Object safetyAction = ReflectionTestUtils.invokeMethod(response, "safetyAction");
+        assertThat((Object) safetyAction)
+            .isEqualTo(ChatSafetyAction.INSUFFICIENT_EVIDENCE);
+        verify(upstream, never()).chat(org.mockito.ArgumentMatchers.any());
+        verify(upstream).retrieveChat(org.mockito.ArgumentMatchers.any());
     }
 }

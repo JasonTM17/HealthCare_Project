@@ -36,6 +36,9 @@ def test_compose_keeps_attachment_scanner_private_and_fail_closed() -> None:
     assert backend_env["APP_AUTH_OTP_IP_LIMIT"].endswith(":-20}")
     assert backend_env["APP_AUTH_OTP_EMAIL_LIMIT"].endswith(":-5}")
 
+    minio_ports = services["minio"]["ports"]
+    assert all(str(port).startswith("127.0.0.1:") for port in minio_ports)
+
 
 def test_compose_ai_defaults_keep_remote_path_killed_and_rag_fail_closed() -> None:
     compose = yaml.safe_load(
