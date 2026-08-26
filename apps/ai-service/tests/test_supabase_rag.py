@@ -703,6 +703,91 @@ def test_inactive_durable_tombstone_rejection_restores_memory_and_fails_closed()
     assert service.persistence_available is False
 
 
+def test_revisionless_durable_upsert_rejection_restores_memory_and_fails_closed() -> None:
+    class RejectingStore:
+        def list_documents(self) -> list[RagDocument]:
+            return []
+
+        def upsert(self, *_: object, **__: object) -> bool:
+            # Simulates a newer durable tombstone winning the conflict.
+            return False
+
+        def get(self, *_: object, **__: object) -> RagDocument | None:
+            return None
+
+    service = PersistentRagService(
+        RejectingStore(),  # type: ignore[arg-type]
+        max_documents=5,
+        fallback_to_memory=True,
+    )
+
+    with pytest.raises(SupabaseRagUnavailable, match="Supabase RAG mutation failed"):
+        service.ingest(
+            "branch",
+            "hcm",
+            "Chi nhánh",
+            "Bản ghi cũ.",
+            embedding=[0.25] * 384,
+        )
+
+    assert service.index.size == 0
+    assert service.persistence_available is False
+
+
+def test_failed_upsert_preserves_other_projection_state() -> None:
+    class FailingStore:
+        def list_documents(self) -> list[RagDocument]:
+            return []
+
+        def upsert(self, *_: object, **__: object) -> bool:
+            raise SupabaseRagUnavailable("offline")
+
+    service = PersistentRagService(FailingStore(), fallback_to_memory=False)  # type: ignore[arg-type]
+    vector = [0.25] * 384
+    operational = RagDocument(
+        id="article:guide",
+        source_type="article",
+        source_id="guide",
+        title="Operational",
+        content="Operational content",
+        embedding=vector.copy(),
+        embedding_model="local-hash",
+        embedding_provenance="local_provider",
+        metadata={"projection_kind": "OPERATIONAL", "_sync_revision": "1"},
+    )
+    clinical = RagDocument(
+        id="article:guide",
+        source_type="article",
+        source_id="guide",
+        title="Clinical",
+        content="Clinical content",
+        embedding=vector.copy(),
+        embedding_model="local-hash",
+        embedding_provenance="local_provider",
+        metadata={
+            "projection_kind": "CLINICAL",
+            "content_revision": "1",
+            "eligibility_revision": "1",
+        },
+    )
+    service.index.add(operational)
+    service.index.add(clinical)
+
+    with pytest.raises(SupabaseRagUnavailable):
+        service.ingest(
+            "article",
+            "guide",
+            "Updated",
+            "Updated content",
+            embedding=vector,
+            embedding_model="local-hash",
+            metadata={"projection_kind": "OPERATIONAL", "_sync_revision": "2"},
+        )
+
+    assert service.index.get("article:guide", projection="OPERATIONAL") is operational
+    assert service.index.get("article:guide", projection="CLINICAL") is clinical
+
+
 def test_artifacts_declare_catalog_customer_and_vector_contract() -> None:
     root = Path(__file__).resolve().parents[3]
     migration = (root / "supabase" / "migrations" / "20260822101722_healthcare_data_platform.sql").read_text(
