@@ -105,4 +105,28 @@ class AiClinicalProjectionIndexServiceTest {
             .isInstanceOf(IllegalStateException.class)
             .hasMessage("clinical review head revision is unavailable");
     }
+
+    @Test
+    void ignoresUnsupportedClinicalProjectionTypesWithoutAbortingReconciliation() {
+        AiService aiService = mock(AiService.class);
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        when(aiService.isRagIngestConfigured()).thenReturn(true);
+        when(jdbc.queryForList(org.mockito.ArgumentMatchers.anyString())).thenReturn(List.of());
+        when(aiService.listIndexedDocuments()).thenReturn(List.of(Map.of(
+            "source_type", "branch",
+            "source_id", UUID.randomUUID().toString(),
+            "projection_kind", "CLINICAL",
+            "content_revision", 7L,
+            "eligibility_revision", 7L
+        )));
+
+        AiClinicalProjectionIndexService service = new AiClinicalProjectionIndexService(aiService, jdbc);
+
+        assertThat(service.synchronizeClinicalNow()).isZero();
+        org.mockito.Mockito.verify(aiService, org.mockito.Mockito.never())
+            .removeIndexedDocument(org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.eq("CLINICAL"));
+    }
 }

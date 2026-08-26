@@ -833,6 +833,72 @@ def test_rag_index_accepts_structured_clinical_provenance(
     embedder.assert_called_once()
 
 
+@pytest.mark.parametrize("source_type", ["branch", "doctor", "service", "package"])
+def test_rag_index_rejects_operational_source_marked_clinical(
+    source_type: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Only governed clinical entities may cross the clinical ingest boundary."""
+
+    monkeypatch.setattr(settings, "ai_service_token", "service-token")
+    monkeypatch.setattr(settings, "rag_ingest_enabled", True)
+    monkeypatch.setattr(settings, "rag_ingest_token", "ingest-token")
+    with patch("app.main.embed", side_effect=AssertionError("invalid source reached embedding")) as embedder:
+        response = client.post(
+            "/rag/index",
+            json={
+                "source_type": source_type,
+                "source_id": "operational-clinical-forged",
+                "title": "Nguồn không hợp lệ",
+                "content": "Nội dung không được phân loại là clinical.",
+                "metadata": {
+                    "projection_kind": "CLINICAL",
+                    "content_revision": "4",
+                    "eligibility_revision": "9",
+                    "content_hash": "a" * 64,
+                    "approval_id": "12",
+                    "approval_state": "APPROVED",
+                    "approval_expires_at": "2027-01-01T00:00:00Z",
+                },
+                "synthetic_beta": True,
+            },
+            headers={
+                "X-AI-Service-Token": "service-token",
+                "X-RAG-Ingest-Token": "ingest-token",
+            },
+        )
+    assert response.status_code == 422
+    assert response.json()["detail"] == "RAG metadata rejected by contract"
+    embedder.assert_not_called()
+
+
+def test_rag_index_rejects_zero_sync_revision(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "ai_service_token", "service-token")
+    monkeypatch.setattr(settings, "rag_ingest_enabled", True)
+    monkeypatch.setattr(settings, "rag_ingest_token", "ingest-token")
+    with patch("app.main.embed", side_effect=AssertionError("invalid revision reached embedding")) as embedder:
+        response = client.post(
+            "/rag/index",
+            json={
+                "source_type": "branch",
+                "source_id": "zero-sync-revision",
+                "title": "Nguồn operational",
+                "content": "Nội dung operational.",
+                "metadata": {"projection_kind": "OPERATIONAL", "_sync_revision": "0"},
+                "synthetic_beta": True,
+            },
+            headers={
+                "X-AI-Service-Token": "service-token",
+                "X-RAG-Ingest-Token": "ingest-token",
+            },
+        )
+    assert response.status_code == 422
+    assert response.json()["detail"] == "RAG metadata rejected by contract"
+    embedder.assert_not_called()
+
+
 @pytest.mark.parametrize(
     "metadata",
     [
