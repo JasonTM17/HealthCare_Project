@@ -762,6 +762,7 @@ class PersistentRagService(RagService):
         # ``_durable_content_seen`` so a profile contract failure cannot be
         # followed by an unsafe memory fallback.
         self._durable_profile_seen = False
+        self._durable_probe_supported = callable(getattr(self.store, "health_probe", None))
         try:
             self._hydrate()
             self.persistence_available = True
@@ -810,6 +811,45 @@ class PersistentRagService(RagService):
         self.persistence_available = False
         if not self.fallback_to_memory:
             raise SupabaseRagUnavailable("Supabase RAG operation failed") from error
+
+    def _prepare_durable_mutation(self) -> bool:
+        """Return whether this mutation must stay local-only.
+
+        A process that started during a Supabase outage may still be allowed
+        to use the explicit local-development fallback for operational
+        upserts.  Before it writes, probe the durable authority when the store
+        exposes that capability.  If the probe succeeds, fence the mutation
+        before the write so a later commit-then-timeout cannot be reported as
+        a successful memory fallback.  If the probe fails before any durable
+        authority has ever answered, skip the durable write entirely and keep
+        the existing local fallback boundary narrow and explicit.
+        """
+
+        if self._durable_authority_seen:
+            return False
+        probe_obj = getattr(self.store, "health_probe", None)
+        if not callable(probe_obj):
+            # Constructor-time capability checks are cached for the normal
+            # store, but keep the call site guarded as the authority boundary
+            # in case a test double or adapter mutates after initialization.
+            self.persistence_available = False
+            return True
+        probe = cast(Callable[[], bool], probe_obj)
+        try:
+            healthy = bool(probe())
+        except SupabaseRagContractError:
+            self._durable_authority_seen = True
+            self.persistence_available = False
+            raise
+        except Exception:
+            self.persistence_available = False
+            return True
+        if healthy:
+            self._durable_authority_seen = True
+            self.persistence_available = True
+            return False
+        self.persistence_available = False
+        return True
 
     def _snapshot_state(
         self,
@@ -902,6 +942,15 @@ class PersistentRagService(RagService):
     ) -> RagDocument:
         snapshot = self._snapshot_state()
         prior_persistence_available = self.persistence_available
+        memory_only_mutation = False
+        if not self._durable_probe_supported and not self._durable_authority_seen:
+            if not self.fallback_to_memory:
+                self._restore_state(snapshot)
+                self.persistence_available = False
+                raise SupabaseRagUnavailable("Supabase RAG mutation failed")
+            memory_only_mutation = True
+        else:
+            memory_only_mutation = self._prepare_durable_mutation()
         try:
             document = super().ingest(
                 source_type,
@@ -940,6 +989,13 @@ class PersistentRagService(RagService):
             self._restore_state(snapshot)
             self.persistence_available = prior_persistence_available
             raise
+        if memory_only_mutation:
+            try:
+                self._require_fallback()
+            except SupabaseRagUnavailable:
+                self._restore_state(snapshot)
+                raise
+            return document
         durable_rejection = False
         try:
             if document.searchable:
@@ -1072,6 +1128,15 @@ class PersistentRagService(RagService):
             raise SupabaseRagContractError("clinical delete requires a positive revision")
         snapshot = self._snapshot_state()
         prior_persistence_available = self.persistence_available
+        memory_only_mutation = False
+        if not self._durable_probe_supported and not self._durable_authority_seen:
+            if not self.fallback_to_memory:
+                self._restore_state(snapshot)
+                self.persistence_available = False
+                raise SupabaseRagUnavailable("Supabase RAG mutation failed")
+            memory_only_mutation = True
+        else:
+            memory_only_mutation = self._prepare_durable_mutation()
         try:
             # Base-service validation and watermark updates are part of the
             # same rollback boundary as the durable tombstone. Projectionless
@@ -1085,6 +1150,9 @@ class PersistentRagService(RagService):
                 operation_token=operation_token,
                 projection=projection,
             )
+            if memory_only_mutation:
+                self._require_fallback()
+                return
             # A projection-less clinical delete removes every in-memory view;
             # operational legacy deletes only need an operational tombstone.
             # Never manufacture a clinical watermark for an operational source.
