@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from threading import Event, Thread
 from pathlib import Path
 from typing import Any, Collection
 
@@ -721,6 +722,73 @@ def test_search_fails_closed_after_hydrating_durable_content() -> None:
     assert service.persistence_available is False
 
 
+def test_ingest_fails_closed_after_hydrating_durable_content() -> None:
+    durable = RagDocument(
+        id="branch:hcm",
+        source_type="branch",
+        source_id="hcm",
+        title="Chi nhánh",
+        content="Khám tại cơ sở.",
+        embedding=[0.25] * 384,
+        embedding_model="provided",
+        embedding_provenance="local_provider",
+        metadata={"projection_kind": "OPERATIONAL", "eligibility_revision": "1"},
+    )
+
+    class OutageStore:
+        def list_documents(self) -> list[RagDocument]:
+            return [durable]
+
+        def upsert(self, *_: object, **__: object) -> bool:
+            raise SupabaseRagUnavailable("offline")
+
+    service = PersistentRagService(
+        OutageStore(),  # type: ignore[arg-type]
+        fallback_to_memory=True,
+    )
+
+    with pytest.raises(SupabaseRagUnavailable, match="Supabase RAG mutation failed"):
+        service.ingest(
+            "branch",
+            "new",
+            "Cơ sở mới",
+            "Nội dung mới.",
+            embedding=[0.25] * 384,
+        )
+
+    assert service.persistence_available is False
+    assert service.index.get("branch:hcm") is durable
+    assert service.index.get("branch:new") is None
+
+
+def test_empty_durable_snapshot_sticks_to_fail_closed_on_later_outage() -> None:
+    class OutageStore:
+        def list_documents(self) -> list[RagDocument]:
+            return []
+
+        def upsert(self, *_: object, **__: object) -> bool:
+            raise SupabaseRagUnavailable("offline")
+
+    service = PersistentRagService(
+        OutageStore(),  # type: ignore[arg-type]
+        fallback_to_memory=True,
+    )
+
+    # An empty successful snapshot is still an authoritative durable read;
+    # it must not open a later local-cache write path after an outage.
+    with pytest.raises(SupabaseRagUnavailable, match="Supabase RAG mutation failed"):
+        service.ingest(
+            "branch",
+            "new",
+            "Cơ sở mới",
+            "Nội dung mới.",
+            embedding=[0.25] * 384,
+        )
+
+    assert service.index.size == 0
+    assert service.persistence_available is False
+
+
 def test_search_contract_mismatch_never_uses_memory_fallback() -> None:
     class ContractStore:
         def list_documents(self) -> list[RagDocument]:
@@ -753,12 +821,56 @@ def test_search_contract_mismatch_never_uses_memory_fallback() -> None:
         service.search([0.25] * 384)
 
     assert service.persistence_available is False
+    with pytest.raises(SupabaseRagUnavailable, match="Supabase RAG operation failed"):
+        service.search([0.25] * 384)
+
+
+def test_sources_and_pages_fail_closed_after_durable_outage() -> None:
+    class OutageStore:
+        def list_documents(self) -> list[RagDocument]:
+            return []
+
+        def list_sources(self) -> list[tuple[str, str]]:
+            raise SupabaseRagUnavailable("offline")
+
+        def list_documents_page(self, *_: object, **__: object) -> tuple[list[RagDocument], int]:
+            raise SupabaseRagUnavailable("offline")
+
+    service = PersistentRagService(
+        OutageStore(),  # type: ignore[arg-type]
+        fallback_to_memory=True,
+    )
+
+    with pytest.raises(SupabaseRagUnavailable, match="Supabase RAG operation failed"):
+        service.sources()
+    with pytest.raises(SupabaseRagUnavailable, match="Supabase RAG operation failed"):
+        service.source_page()
+
+
+def test_health_probe_does_not_report_memory_ready_after_durable_failure() -> None:
+    class OutageStore:
+        def list_documents(self) -> list[RagDocument]:
+            return []
+
+        def health_probe(self) -> bool:
+            raise SupabaseRagUnavailable("offline")
+
+    service = PersistentRagService(
+        OutageStore(),  # type: ignore[arg-type]
+        fallback_to_memory=True,
+    )
+
+    assert service.health_probe() is False
+    assert service.persistence_available is False
 
 
 def test_remove_durable_failure_restores_memory_and_never_reports_success() -> None:
     class FailingDeleteStore:
         def list_documents(self) -> list[RagDocument]:
             return []
+
+        def upsert(self, _document: RagDocument) -> bool:
+            return True
 
         def tombstone(self, *_: object, **__: object) -> bool:
             raise SupabaseRagUnavailable("offline")
@@ -776,7 +888,7 @@ def test_remove_durable_failure_restores_memory_and_never_reports_success() -> N
         embedding=[0.25] * 384,
         metadata={"_sync_revision": "1"},
     )
-    assert service.persistence_available is False
+    assert service.persistence_available is True
 
     with pytest.raises(SupabaseRagUnavailable, match="Supabase RAG mutation failed"):
         service.remove("branch", "hcm")
@@ -968,6 +1080,164 @@ def test_failed_upsert_preserves_other_projection_state() -> None:
 
     assert service.index.get("article:guide", projection="OPERATIONAL") is operational
     assert service.index.get("article:guide", projection="CLINICAL") is clinical
+
+
+def test_concurrent_ingest_failure_cannot_erase_other_source_mutation() -> None:
+    """A failed snapshot rollback must not race a successful ingest."""
+
+    failed_entered = Event()
+    release_failed = Event()
+    other_completed = Event()
+
+    class BarrierStore:
+        def list_documents(self) -> list[RagDocument]:
+            return []
+
+        def upsert(self, document: RagDocument) -> bool:
+            if document.source_id == "failed":
+                failed_entered.set()
+                if not release_failed.wait(timeout=5):
+                    raise AssertionError("failed ingest barrier was not released")
+                raise SupabaseRagUnavailable("synthetic outage")
+            return True
+
+    service = PersistentRagService(
+        BarrierStore(),  # type: ignore[arg-type]
+        fallback_to_memory=False,
+    )
+    failures: list[Exception] = []
+
+    def run_failed_ingest() -> None:
+        try:
+            service.ingest(
+                "branch",
+                "failed",
+                "Cơ sở lỗi",
+                "Nội dung lỗi.",
+                embedding=[0.25] * 384,
+                metadata={"_sync_revision": "1"},
+            )
+        except Exception as error:  # pragma: no cover - asserted below
+            failures.append(error)
+
+    def run_other_ingest() -> None:
+        try:
+            service.ingest(
+                "branch",
+                "other",
+                "Cơ sở khác",
+                "Nội dung khác.",
+                embedding=[0.25] * 384,
+                metadata={"_sync_revision": "1"},
+            )
+            other_completed.set()
+        except Exception as error:  # pragma: no cover - asserted below
+            failures.append(error)
+
+    failed_thread = Thread(target=run_failed_ingest)
+    failed_thread.start()
+    assert failed_entered.wait(timeout=5)
+
+    other_thread = Thread(target=run_other_ingest)
+    other_thread.start()
+    # The mutation guard keeps the second operation behind the first
+    # operation's durable barrier; without it the event is set here and the
+    # failed operation's whole-service restore erases ``branch:other``.
+    assert not other_completed.wait(timeout=0.1)
+
+    release_failed.set()
+    failed_thread.join(timeout=5)
+    other_thread.join(timeout=5)
+
+    assert not failed_thread.is_alive()
+    assert not other_thread.is_alive()
+    assert len(failures) == 1
+    assert isinstance(failures[0], SupabaseRagUnavailable)
+    assert service.index.get("branch:other") is not None
+    assert service.index.get("branch:failed") is None
+
+
+def test_concurrent_remove_failure_cannot_erase_other_source_mutation() -> None:
+    """A failed snapshot rollback must not race a successful remove."""
+
+    failed_entered = Event()
+    release_failed = Event()
+    other_completed = Event()
+
+    class BarrierStore:
+        def list_documents(self) -> list[RagDocument]:
+            return []
+
+        def upsert(self, _document: RagDocument) -> bool:
+            return True
+
+        def tombstone(
+            self,
+            _source_type: str,
+            source_id: str,
+            _revision: int | None,
+            *,
+            projection: str,
+        ) -> bool:
+            assert projection == "OPERATIONAL"
+            if source_id == "failed":
+                failed_entered.set()
+                if not release_failed.wait(timeout=5):
+                    raise AssertionError("failed remove barrier was not released")
+                raise SupabaseRagUnavailable("synthetic outage")
+            return True
+
+    service = PersistentRagService(
+        BarrierStore(),  # type: ignore[arg-type]
+        fallback_to_memory=False,
+    )
+    for source_id in ("failed", "other"):
+        service.ingest(
+            "branch",
+            source_id,
+            f"Cơ sở {source_id}",
+            "Nội dung.",
+            embedding=[0.25] * 384,
+            metadata={"_sync_revision": "1"},
+        )
+    failed_document = service.index.get("branch:failed")
+    other_document = service.index.get("branch:other")
+    assert failed_document is not None
+    assert other_document is not None
+
+    failures: list[Exception] = []
+
+    def run_failed_remove() -> None:
+        try:
+            service.remove("branch", "failed")
+        except Exception as error:  # pragma: no cover - asserted below
+            failures.append(error)
+
+    def run_other_remove() -> None:
+        try:
+            service.remove("branch", "other")
+            other_completed.set()
+        except Exception as error:  # pragma: no cover - asserted below
+            failures.append(error)
+
+    failed_thread = Thread(target=run_failed_remove)
+    failed_thread.start()
+    assert failed_entered.wait(timeout=5)
+
+    other_thread = Thread(target=run_other_remove)
+    other_thread.start()
+    assert not other_completed.wait(timeout=0.1)
+
+    release_failed.set()
+    failed_thread.join(timeout=5)
+    other_thread.join(timeout=5)
+
+    assert not failed_thread.is_alive()
+    assert not other_thread.is_alive()
+    assert len(failures) == 1
+    assert isinstance(failures[0], SupabaseRagUnavailable)
+    assert service.index.get("branch:failed") is failed_document
+    assert service.index.get("branch:other") is None
 
 
 def test_artifacts_declare_catalog_customer_and_vector_contract() -> None:
