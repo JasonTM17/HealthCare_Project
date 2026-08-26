@@ -636,6 +636,73 @@ def test_stale_durable_tombstone_restores_memory_and_never_reports_success() -> 
     assert service.persistence_available is False
 
 
+def test_inactive_clinical_ingest_tombstones_the_clinical_projection() -> None:
+    class RecordingStore:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, str, int | None, str]] = []
+
+        def list_documents(self) -> list[RagDocument]:
+            return []
+
+        def tombstone(
+            self,
+            source_type: str,
+            source_id: str,
+            revision: int | None,
+            *,
+            projection: str,
+        ) -> bool:
+            self.calls.append((source_type, source_id, revision, projection))
+            return True
+
+    store = RecordingStore()
+    service = PersistentRagService(store, fallback_to_memory=False)  # type: ignore[arg-type]
+
+    service.ingest(
+        "article",
+        "guide",
+        "Hướng dẫn",
+        "Nội dung đã duyệt.",
+        embedding=[0.25] * 384,
+        active=False,
+        metadata={
+            "projection_kind": "CLINICAL",
+            "content_revision": "4",
+            "eligibility_revision": "7",
+        },
+    )
+
+    assert store.calls == [("article", "guide", 7, "CLINICAL")]
+
+
+def test_inactive_durable_tombstone_rejection_restores_memory_and_fails_closed() -> None:
+    class RejectingStore:
+        def list_documents(self) -> list[RagDocument]:
+            return []
+
+        def tombstone(self, *_: object, **__: object) -> bool:
+            return False
+
+    service = PersistentRagService(
+        RejectingStore(),  # type: ignore[arg-type]
+        max_documents=5,
+        fallback_to_memory=True,
+    )
+
+    with pytest.raises(SupabaseRagUnavailable, match="Supabase RAG mutation failed"):
+        service.ingest(
+            "branch",
+            "hcm",
+            "Chi nhánh",
+            "Không còn hoạt động.",
+            embedding=[0.25] * 384,
+            active=False,
+        )
+
+    assert service.index.size == 0
+    assert service.persistence_available is False
+
+
 def test_artifacts_declare_catalog_customer_and_vector_contract() -> None:
     root = Path(__file__).resolve().parents[3]
     migration = (root / "supabase" / "migrations" / "20260822101722_healthcare_data_platform.sql").read_text(
