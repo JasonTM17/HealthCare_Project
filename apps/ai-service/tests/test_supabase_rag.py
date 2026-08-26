@@ -603,6 +603,39 @@ def test_remove_durable_failure_restores_memory_and_never_reports_success() -> N
     assert service.persistence_available is False
 
 
+def test_stale_durable_tombstone_restores_memory_and_never_reports_success() -> None:
+    class StaleDeleteStore:
+        def list_documents(self) -> list[RagDocument]:
+            return []
+
+        def upsert(self, *_: object, **__: object) -> bool:
+            return True
+
+        def tombstone(self, *_: object, **__: object) -> bool:
+            # Simulates PostgreSQL ON CONFLICT rejecting an older revision.
+            return False
+
+    service = PersistentRagService(
+        StaleDeleteStore(),  # type: ignore[arg-type]
+        max_documents=5,
+        fallback_to_memory=False,
+    )
+    document = service.ingest(
+        "branch",
+        "hcm",
+        "Chi nhánh",
+        "Khám tại cơ sở.",
+        embedding=[0.25] * 384,
+        metadata={"_sync_revision": "1"},
+    )
+
+    with pytest.raises(SupabaseRagUnavailable, match="Supabase RAG mutation failed"):
+        service.remove("branch", "hcm", revision=2)
+
+    assert service.index.get("branch:hcm") is document
+    assert service.persistence_available is False
+
+
 def test_artifacts_declare_catalog_customer_and_vector_contract() -> None:
     root = Path(__file__).resolve().parents[3]
     migration = (root / "supabase" / "migrations" / "20260822101722_healthcare_data_platform.sql").read_text(
