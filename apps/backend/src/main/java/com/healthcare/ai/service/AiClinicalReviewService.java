@@ -1,5 +1,7 @@
 package com.healthcare.ai.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.healthcare.exception.BusinessException;
 import com.healthcare.security.HealthcareUserPrincipal;
 import com.healthcare.user.entity.User;
@@ -10,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.LinkedHashMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -25,20 +28,30 @@ public class AiClinicalReviewService {
     private final JdbcTemplate jdbc;
     private final UserRepository userRepository;
     private final AiClinicalOutboxService outboxService;
+    private final ObjectMapper objectMapper;
 
     /** Compatibility constructor retained for focused unit fixtures. */
     public AiClinicalReviewService(JdbcTemplate jdbc, UserRepository userRepository) {
-        this(jdbc, userRepository, null);
+        this(jdbc, userRepository, null, new ObjectMapper());
+    }
+
+    public AiClinicalReviewService(
+            JdbcTemplate jdbc,
+            UserRepository userRepository,
+            AiClinicalOutboxService outboxService) {
+        this(jdbc, userRepository, outboxService, new ObjectMapper());
     }
 
     @Autowired
     public AiClinicalReviewService(
             JdbcTemplate jdbc,
             UserRepository userRepository,
-            AiClinicalOutboxService outboxService) {
+            AiClinicalOutboxService outboxService,
+            ObjectMapper objectMapper) {
         this.jdbc = jdbc;
         this.userRepository = userRepository;
         this.outboxService = outboxService;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional
@@ -117,7 +130,12 @@ public class AiClinicalReviewService {
                        WHEN 'ARTICLE' THEN (SELECT a.title FROM articles a WHERE a.id = h.source_id)
                        WHEN 'FAQ' THEN (SELECT f.question FROM faqs f WHERE f.id = h.source_id)
                      END,
-                     h.source_id::text
+                     CASE h.source_type
+                       WHEN 'SPECIALTY' THEN 'Chuyên khoa chưa có tiêu đề'
+                       WHEN 'ARTICLE' THEN 'Bài viết chưa có tiêu đề'
+                       WHEN 'FAQ' THEN 'Câu hỏi thường gặp chưa có tiêu đề'
+                       ELSE 'Nội dung bệnh viện'
+                     END
                    ) AS title
               FROM ai_content_review_heads h
              WHERE h.eligibility_state = ?
@@ -138,6 +156,61 @@ public class AiClinicalReviewService {
         result.put("page", safePage);
         result.put("size", safeSize);
         result.put("hasMore", content.size() == safeSize);
+        return result;
+    }
+
+    /**
+     * Admin inventory endpoint. It deliberately reuses the same head query as
+     * the doctor queue, but permits a bounded source-type filter so the admin
+     * can submit the exact current revision/hash shown by the database.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> adminQueuePage(String rawType, String state, int page, int size) {
+        String normalizedState = state == null || state.isBlank() || "ALL".equalsIgnoreCase(state.trim())
+            ? null : state.trim().toUpperCase(Locale.ROOT);
+        if (normalizedState != null && !Set.of("SUBMITTED", "APPROVED", "CHANGES_REQUESTED", "REVOKED", "EXPIRED", "DRAFT")
+            .contains(normalizedState)) {
+            throw error(400, "AI_CONTENT_STATE_INVALID", "Invalid review state");
+        }
+        String normalizedType = null;
+        if (rawType != null && !rawType.isBlank()) normalizedType = type(rawType);
+        int safePage = Math.max(0, page);
+        int safeSize = Math.max(1, Math.min(size, 100));
+        String sql = """
+            SELECT h.source_type, h.source_id, h.content_revision, h.content_hash,
+                   h.eligibility_revision, h.eligibility_state, h.current_approval_round,
+                   h.submitted_at, h.approved_at, h.approval_expires_at,
+                   COALESCE(
+                     CASE h.source_type
+                       WHEN 'SPECIALTY' THEN (SELECT s.name FROM specialties s WHERE s.id = h.source_id)
+                       WHEN 'ARTICLE' THEN (SELECT a.title FROM articles a WHERE a.id = h.source_id)
+                       WHEN 'FAQ' THEN (SELECT f.question FROM faqs f WHERE f.id = h.source_id)
+                     END,
+                     CASE h.source_type
+                       WHEN 'SPECIALTY' THEN 'Chuyên khoa chưa có tiêu đề'
+                       WHEN 'ARTICLE' THEN 'Bài viết chưa có tiêu đề'
+                       WHEN 'FAQ' THEN 'Câu hỏi thường gặp chưa có tiêu đề'
+                       ELSE 'Nội dung bệnh viện'
+                     END
+                   ) AS title
+              FROM ai_content_review_heads h
+             WHERE 1 = 1
+            """ + (normalizedState == null ? "" : " AND h.eligibility_state = ?")
+                + (normalizedType == null ? "" : " AND h.source_type = ?") + """
+             ORDER BY h.submitted_at NULLS LAST, h.source_type, h.source_id
+             LIMIT ? OFFSET ?
+            """;
+        List<Object> args = new ArrayList<>();
+        if (normalizedState != null) args.add(normalizedState);
+        if (normalizedType != null) args.add(normalizedType);
+        args.add(safeSize);
+        args.add(safePage * safeSize);
+        List<Map<String, Object>> rows = jdbc.queryForList(sql, args.toArray());
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("content", rows.stream().map(this::summary).toList());
+        result.put("page", safePage);
+        result.put("size", safeSize);
+        result.put("hasMore", rows.size() == safeSize);
         return result;
     }
 
@@ -272,7 +345,12 @@ public class AiClinicalReviewService {
                        WHEN 'ARTICLE' THEN (SELECT a.title FROM articles a WHERE a.id = source_id)
                        WHEN 'FAQ' THEN (SELECT f.question FROM faqs f WHERE f.id = source_id)
                      END,
-                     source_id::text
+                     CASE source_type
+                       WHEN 'SPECIALTY' THEN 'Chuyên khoa chưa có tiêu đề'
+                       WHEN 'ARTICLE' THEN 'Bài viết chưa có tiêu đề'
+                       WHEN 'FAQ' THEN 'Câu hỏi thường gặp chưa có tiêu đề'
+                       ELSE 'Nội dung bệnh viện'
+                     END
                    ) AS title
               FROM ai_content_review_heads
              WHERE source_type = ? AND source_id = ?
@@ -284,7 +362,7 @@ public class AiClinicalReviewService {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("sourceType", row.get("source_type"));
         result.put("sourceId", row.get("source_id"));
-        result.put("title", row.getOrDefault("title", String.valueOf(row.get("source_id"))));
+        result.put("title", row.getOrDefault("title", "Nội dung bệnh viện"));
         result.put("state", row.get("eligibility_state"));
         result.put("revision", row.get("content_revision"));
         result.put("contentHash", row.get("content_hash"));
@@ -296,13 +374,50 @@ public class AiClinicalReviewService {
         return result;
     }
 
+    /** Normalize PostgreSQL JSONB driver shapes before crossing the HTTP
+     * boundary. Depending on the JDBC configuration a JSONB value can arrive
+     * as a Map, String, or PGobject; the browser contract is always an object. */
+    private Map<String, Object> normalizeSnapshot(Object raw) {
+        if (raw instanceof Map<?, ?> map) {
+            Map<String, Object> normalized = new LinkedHashMap<>();
+            map.forEach((key, value) -> normalized.put(String.valueOf(key), value));
+            return normalized;
+        }
+        String json = null;
+        if (raw != null) {
+            // PostgreSQL is a runtime-scoped dependency in this service. Use
+            // reflection for PGobject so compile-time contracts stay portable
+            // while still extracting its JSON value when the driver supplies
+            // that wrapper.
+            if ("org.postgresql.util.PGobject".equals(raw.getClass().getName())) {
+                try {
+                    Object value = raw.getClass().getMethod("getValue").invoke(raw);
+                    json = value == null ? null : String.valueOf(value);
+                } catch (ReflectiveOperationException ignored) {
+                    json = String.valueOf(raw);
+                }
+            } else {
+                json = String.valueOf(raw);
+            }
+        }
+        if (json != null && !json.isBlank()) {
+            try {
+                Map<String, Object> parsed = objectMapper.readValue(json, new TypeReference<>() {});
+                if (parsed != null) return parsed;
+            } catch (Exception ignored) {
+                // Fail closed below; raw JSONB/provider data never reaches UI.
+            }
+        }
+        throw error(502, "AI_CONTENT_REVISION_INVALID", "Clinical content revision is invalid");
+    }
+
     private Map<String, Object> revisionView(Map<String, Object> row) {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("sourceType", row.get("source_type"));
         result.put("sourceId", row.get("source_id"));
         result.put("revision", row.get("content_revision"));
         result.put("contentHash", row.get("content_hash"));
-        result.put("snapshot", row.get("content_snapshot"));
+        result.put("snapshot", normalizeSnapshot(row.get("content_snapshot")));
         result.put("createdBy", row.get("created_by"));
         result.put("createdAt", row.get("created_at"));
         Map<String, Object> head = one("""
@@ -313,7 +428,11 @@ public class AiClinicalReviewService {
             """, row.get("source_type"), row.get("source_id"), row.get("content_revision"));
         if (head != null) {
             result.put("state", head.get("eligibility_state"));
-            result.put("approvalId", head.get("current_approval_round"));
+            // The public FE contract treats the approval identifier as an
+            // opaque string.  The database currently owns a numeric round;
+            // never leak the driver-specific Long shape across the API.
+            Object approvalRound = head.get("current_approval_round");
+            result.put("approvalId", approvalRound == null ? null : String.valueOf(approvalRound));
             result.put("expiresAt", head.get("approval_expires_at"));
         } else {
             result.put("state", "DRAFT");

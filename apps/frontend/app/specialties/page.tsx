@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { fetchSpecialties, type Page } from "../../lib/api-client";
+import { ApiError, fetchSpecialties, type Page } from "../../lib/api-client";
+import { presentApiError } from "../../lib/present-api-error";
 import type { Specialty } from "../../types/hospital";
 import { ClinicalIcon } from "../../components/ClinicalIcon";
 import CatalogPagination from "../../components/CatalogPagination";
@@ -51,7 +52,12 @@ export default function SpecialtiesPage() {
         if (data !== undefined && !cancelled) setPage(data);
       })
       .catch((reason: unknown) => {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : "Không thể tải chuyên khoa.");
+        if (!cancelled) {
+          setError(presentApiError(
+            reason instanceof ApiError ? reason.code : null,
+            reason instanceof ApiError ? reason.status : undefined,
+          ));
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

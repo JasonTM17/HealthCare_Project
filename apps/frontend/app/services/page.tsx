@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { fetchServices, type Page } from "../../lib/api-client";
+import { ApiError, fetchServices, type Page } from "../../lib/api-client";
+import { presentApiError } from "../../lib/present-api-error";
 import type { MedicalService } from "../../types/hospital";
 import ClinicalIcon from "../../components/ClinicalIcon";
 import { PublicAiButton, PublicBookingButton, PublicPageShell } from "../../components/PublicPageShell";
@@ -46,7 +47,12 @@ export default function ServicesPage() {
         if (data !== undefined && !cancelled) setPage(data);
       })
       .catch((reason: unknown) => {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : "Không thể tải dịch vụ.");
+        if (!cancelled) {
+          setError(presentApiError(
+            reason instanceof ApiError ? reason.code : null,
+            reason instanceof ApiError ? reason.status : undefined,
+          ));
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

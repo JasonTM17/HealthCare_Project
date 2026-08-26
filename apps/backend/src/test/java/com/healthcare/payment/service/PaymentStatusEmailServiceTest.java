@@ -8,6 +8,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.util.Map;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
@@ -66,14 +68,13 @@ class PaymentStatusEmailServiceTest {
     }
 
     private void assertSafeDelivery(String expectedText) {
-        ArgumentCaptor<String> subject = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
-        verify(emailSender).sendBestEffort(
-            org.mockito.ArgumentMatchers.eq("patient@example.com"), subject.capture(), body.capture());
+        ArgumentCaptor<Map<String, String>> variables = ArgumentCaptor.forClass(Map.class);
+        verify(emailSender).sendTemplate(
+            org.mockito.ArgumentMatchers.eq(com.healthcare.auth.mail.EmailTemplateKey.PAYMENT_STATUS),
+            org.mockito.ArgumentMatchers.eq("patient@example.com"), variables.capture());
 
-        assertThat(subject.getValue()).startsWith("[HealthCare]");
-        assertThat(body.getValue())
-            .contains("APT-PAYMENT123", expectedText, "đăng nhập cổng bệnh nhân")
+        assertThat(variables.getValue().get("message"))
+            .contains("APT-PAYMENT123", expectedText)
             .doesNotContain("FT-SENSITIVE-REFERENCE", "RF-SENSITIVE-REFERENCE",
                 "Sensitive reconciliation detail", "account-number");
     }

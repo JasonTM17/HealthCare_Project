@@ -9,10 +9,12 @@ import FloatingHealthAssistant from "../components/FloatingHealthAssistant";
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  viewportFit: "cover",
   themeColor: "#087b78",
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://healthcare-beta.example"),
   title: {
     default: "HealthCare | Bệnh viện đa khoa",
     template: "%s | HealthCare",
@@ -20,7 +22,9 @@ export const metadata: Metadata = {
   description:
     "Tìm hiểu chuyên khoa, bác sĩ, cơ sở và chủ động đặt lịch khám tại HealthCare.",
   keywords: ["y tế", "bệnh viện", "khám bệnh", "đặt lịch", "chuyên khoa"],
-  robots: { index: false, follow: false }, // foundation phase: not for indexing yet
+  robots: process.env.NEXT_PUBLIC_ALLOW_INDEXING === "true"
+    ? { index: true, follow: true }
+    : { index: false, follow: false },
   openGraph: {
     type: "website",
     locale: "vi_VN",
@@ -34,6 +38,18 @@ export default function RootLayout({
   return (
     <html lang="vi">
       <body>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "MedicalOrganization",
+              name: "HealthCare",
+              url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://healthcare-beta.example",
+              description: "Cổng thông tin và đặt lịch khám của HealthCare.",
+            }).replace(/</g, "\\u003c"),
+          }}
+        />
         {children}
         <FloatingHealthAssistant />
       </body>

@@ -1,14 +1,21 @@
 import { expect, test, type BrowserContext } from "@playwright/test";
 import type {
-  AuthSession,
   BankTransferPayment,
+  Branch,
+  CarePlan,
   DiagnosticResult,
   MedicalRecord,
   Notification,
+  PatientOverview,
   PatientPortalAppointment,
   PatientProfile,
   Prescription,
 } from "../../types/hospital";
+import {
+  assertNoSensitiveBrowserStorage,
+  browserSessionFixture,
+  installMockBrowserSession,
+} from "./helpers/browser-session";
 
 type PageEnvelope<T> = {
   content: T[];
@@ -21,21 +28,9 @@ type PageEnvelope<T> = {
   empty: boolean;
 };
 
-const AUTH_STORAGE_KEY = "healthcare.auth.session";
 const APPOINTMENT_ID = "appointment-payment-e2e";
 
-const PATIENT_SESSION: AuthSession = {
-  accessToken: "e2e-payment-token",
-  refreshToken: "e2e-payment-refresh-token",
-  tokenType: "Bearer",
-  expiresIn: 3600,
-  user: {
-    id: "patient-payment-e2e",
-    email: "payment.e2e@example.com",
-    displayName: "Bệnh nhân Thanh toán",
-    roles: ["ROLE_PATIENT"],
-  },
-};
+const PATIENT_SESSION = browserSessionFixture("PATIENT", "patient-payment-e2e", "Bệnh nhân Thanh toán");
 
 const PROFILE: PatientProfile = {
   id: "patient-payment-e2e",
@@ -121,6 +116,7 @@ async function installPaymentMocks(context: BrowserContext): Promise<void> {
 
   await context.route("**/api/v1/**", async (route) => {
     const request = route.request();
+    expect(request.headers()["authorization"]).toBeUndefined();
     const url = new URL(request.url());
     if (request.method() !== "GET") {
       throw new Error(`Unexpected payment E2E request: ${request.method()} ${url.pathname}`);
@@ -142,25 +138,43 @@ async function installPaymentMocks(context: BrowserContext): Promise<void> {
       "/api/v1/patient/medical-records": [] satisfies MedicalRecord[],
       "/api/v1/patient/prescriptions": [] satisfies Prescription[],
       "/api/v1/patient/diagnostic-results": [] satisfies DiagnosticResult[],
+      "/api/v1/patient/care-plans": [] satisfies CarePlan[],
       "/api/v1/notifications": pageEnvelope([] satisfies Notification[]),
+      "/api/v1/hospital/branches": pageEnvelope([] satisfies Branch[]),
+      "/api/v1/patient/overview": {
+        latestAppointment: {
+          appointmentDate: "2026-08-28",
+          startTime: "09:00:00",
+          status: "CONFIRMED",
+          paymentStatus,
+        },
+        appointmentCount: 1,
+        diagnosticResultCount: 0,
+        prescriptionCount: 0,
+        hasNewDiagnosticResult: false,
+        hasNewPrescription: false,
+        unreadNotificationCount: 0,
+        unreadConsultationCount: 0,
+        openCarePlanTaskCount: 0,
+      } satisfies PatientOverview,
     };
     const payload = payloadByPath[url.pathname];
     if (payload === undefined) throw new Error(`Unhandled payment E2E request: ${url.pathname}`);
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(payload) });
   });
+  await installMockBrowserSession(context, PATIENT_SESSION);
 }
 
 test("mobile patient payment keeps QR actions accessible and waits for admin approval", async ({ context, page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await installPaymentMocks(context);
-  await context.grantPermissions(["clipboard-read", "clipboard-write"], {
-    origin: `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? "3000"}`,
-  });
-  await context.addInitScript(({ key, session }) => {
-    window.sessionStorage.setItem(key, JSON.stringify(session));
-  }, { key: AUTH_STORAGE_KEY, session: PATIENT_SESSION });
-
   await page.goto("/patient/dashboard#appointments");
+  // Derive the permission origin from the configured Playwright base URL.
+  // The default test server uses port 3100; hard-coding 3000 made Chromium
+  // reject clipboard.writeText even though the page itself was healthy.
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], {
+    origin: new URL(page.url()).origin,
+  });
   await page.getByRole("button", { name: "Thanh toán cho lịch APT-PAY-E2E" }).click();
 
   await expect(page.getByRole("heading", { name: "Thanh toán lịch APT-PAY-E2E" })).toBeFocused();
@@ -192,4 +206,5 @@ test("mobile patient payment keeps QR actions accessible and waits for admin app
 
   await page.getByRole("button", { name: "Đóng thanh toán lịch APT-PAY-E2E" }).click();
   await expect(page.getByRole("heading", { name: "Lịch hẹn của tôi" })).toBeFocused();
+  await assertNoSensitiveBrowserStorage(page, ["APT PAY E2E"]);
 });

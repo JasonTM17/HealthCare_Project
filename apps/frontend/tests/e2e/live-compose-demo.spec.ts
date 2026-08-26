@@ -1,10 +1,10 @@
 import { expect, test, type Browser, type BrowserContext, type Page } from "@playwright/test";
+import { createHash } from "node:crypto";
 import { businessDate } from "../../lib/business-time";
-import type { CmsContent } from "../../lib/cms-client";
+import type { CmsContent, CmsContentHistoryEntry } from "../../lib/cms-client";
 import type {
   AppointmentDetails,
   AuthSession,
-  BankTransferPayment,
   Branch,
   Doctor,
   Specialty,
@@ -53,10 +53,44 @@ function appUrl(path: string): string {
 }
 
 type MailpitMessage = {
+  ID: string;
   Created: string;
-  Snippet: string;
   Subject: string;
   To: Array<{ Address: string }>;
+};
+
+type MailpitMessageDetail = {
+  HTML?: string;
+  Text?: string;
+};
+
+type ConsultationAttachment = {
+  id: string;
+  mimeType: string;
+  sizeBytes: number;
+  scanStatus: string;
+  downloadUrl?: string | null;
+  uploadStatus: string;
+  uploadUrl?: string | null;
+};
+
+type ConsultationMessage = {
+  id: string;
+  body: string;
+  status: string;
+  attachments?: ConsultationAttachment[];
+};
+
+type ConsultationSummary = {
+  id: string;
+  appointmentId: string;
+  status: string;
+};
+
+type CarePlan = {
+  id: string;
+  appointmentId: string;
+  items: Array<{ id: string; status: string }>;
 };
 
 async function waitForBookingOtp(bookingCode: string, recipient: string, issuedAfter: number): Promise<string> {
@@ -70,14 +104,21 @@ async function waitForBookingOtp(bookingCode: string, recipient: string, issuedA
         lastError = `Mailpit returned HTTP ${response.status}`;
       } else {
         const payload = await response.json() as { messages?: MailpitMessage[] };
-        const message = payload.messages?.find((item) => (
-          item.Subject === "HealthCare booking verification" &&
+        const messages = payload.messages?.filter((item) => (
+          item.Subject === "[HealthCare] Xác nhận đặt lịch" &&
           item.To.some((address) => address.Address.toLowerCase() === recipient.toLowerCase()) &&
-          item.Snippet.includes(bookingCode) &&
           Date.parse(item.Created) >= issuedAfter - 5_000
-        ));
-        const otp = message?.Snippet.match(/\bis (\d{6})\b/)?.[1];
-        if (otp) return otp;
+        )).sort((left, right) => Date.parse(right.Created) - Date.parse(left.Created)) ?? [];
+        for (const message of messages) {
+          const detailResponse = await fetch(
+            `${MAILPIT_API_URL}/api/v1/message/${encodeURIComponent(message.ID)}`,
+          );
+          if (!detailResponse.ok) continue;
+          const detail = await detailResponse.json() as MailpitMessageDetail;
+          const content = `${detail.Text ?? ""}\n${detail.HTML ?? ""}`;
+          const otp = content.match(/Mã xác minh của bạn là\s+(\d{6})\b/u)?.[1];
+          if (otp) return otp;
+        }
       }
     } catch (error) {
       lastError = error instanceof Error ? error.message : String(error);
@@ -185,6 +226,44 @@ async function loadPublishedHomepageHero(): Promise<CmsContent> {
   return apiJson<CmsContent>("/cms/content/homepage.hero?afterEventId=0");
 }
 
+async function restorePublishedHomepageHero(initialHero: CmsContent): Promise<void> {
+  const currentHero = await loadPublishedHomepageHero();
+  if (
+    currentHero.payload.title === initialHero.payload.title
+    && currentHero.payload.body === initialHero.payload.body
+  ) {
+    return;
+  }
+
+  const adminSession = await loginApi(DEMO_ADMIN_EMAIL);
+  const history = await apiJson<CmsContentHistoryEntry[]>(
+    "/admin/cms/content/homepage.hero/history?limit=50",
+    {},
+    adminSession,
+  );
+  const target = history.find((entry) => (
+    entry.rollbackAvailable
+    && entry.version === initialHero.version
+    && entry.payload?.title === initialHero.payload.title
+    && entry.payload?.body === initialHero.payload.body
+  ));
+  if (!target) {
+    throw new Error(`CMS cleanup could not find rollback snapshot for homepage.hero version ${initialHero.version}.`);
+  }
+
+  await apiJson<CmsContent>(
+    "/admin/cms/content/homepage.hero/rollback",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        changeId: target.eventId,
+        expectedVersion: currentHero.version,
+      }),
+    },
+    adminSession,
+  );
+}
+
 function requireCmsText(value: string | undefined, label: string): string {
   if (!value) {
     throw new Error(`Missing live CMS ${label} for homepage.hero.`);
@@ -259,6 +338,7 @@ async function loginViaUi(page: Page, email: string, nextPath: string, expectedH
 
 async function bookAppointmentThroughPublicUi(page: Page, selection: BookableDemoSlot): Promise<AppointmentDetails> {
   await page.goto(appUrl("/"));
+  await expect(page.getByText(/\d+ cơ sở đang hiển thị/, { exact: true })).toBeVisible();
   await page.locator("button.button--nav").first().click();
   const bookingDialog = page.getByRole("dialog", { name: "Đặt lịch trực tuyến nhanh chóng" });
   await expect(bookingDialog).toBeVisible();
@@ -346,7 +426,7 @@ async function submitPaymentThroughPatientUi(page: Page, bookingCode: string): P
   return reference;
 }
 
-async function expectAdminCanSeePayment(
+async function approvePaymentThroughAdminUi(
   browser: Browser,
   bookingCode: string,
   reference: string,
@@ -362,44 +442,30 @@ async function expectAdminCanSeePayment(
     await expect(paymentRow).toBeVisible();
     await expect(paymentRow).toContainText(reference);
     await expect(paymentRow).toContainText("Chờ đối soát");
-    await expect(paymentRow.getByRole("button", { name: "Duyệt thanh toán" })).toBeVisible();
+    page.once("dialog", async (dialog) => {
+      expect(dialog.type()).toBe("confirm");
+      await dialog.accept();
+    });
+    await paymentRow.getByRole("button", { name: "Duyệt thanh toán" }).click();
+    // The current queue is filtered to PENDING_VERIFICATION, so a successful
+    // ADMIN decision must remove the row before it can be verified in PAID.
+    await expect(paymentRow).toHaveCount(0);
+    await page.getByLabel("Trạng thái").selectOption("PAID");
+    const paidRow = page.getByRole("row").filter({ hasText: bookingCode });
+    await expect(paidRow).toBeVisible();
+    await expect(paidRow).toContainText("Đã thanh toán");
+    await expect(paidRow.getByRole("button", { name: "Duyệt thanh toán" })).toHaveCount(0);
   } finally {
     await context.close();
   }
 }
 
-async function rejectE2ePayment(bookingCode: string): Promise<void> {
-  const adminSession = await loginApi(DEMO_ADMIN_EMAIL);
-  const payments = await apiJson<PageEnvelope<BankTransferPayment>>(
-    "/admin/payments?status=PENDING_VERIFICATION&page=0&size=100",
-    {},
-    adminSession,
-  );
-  const payment = payments.content.find((item) => item.bookingCode === bookingCode);
-  if (!payment) throw new Error(`Pending E2E payment for ${bookingCode} was not found.`);
-
-  const rejected = await apiJson<BankTransferPayment>(
-    `/admin/payments/${encodeURIComponent(payment.id)}`,
-    {
-      method: "PATCH",
-      body: JSON.stringify({
-        decision: "REJECT",
-        reason: "Giao dịch kiểm thử E2E, không có trên sao kê ngân hàng.",
-      }),
-    },
-    adminSession,
-  );
-  if (rejected.status !== "REJECTED") {
-    throw new Error(`E2E payment rejection returned ${rejected.status}.`);
-  }
-}
-
-async function expectPatientSeesRejectedPayment(page: Page, bookingCode: string): Promise<void> {
+async function expectPatientSeesApprovedPayment(page: Page, bookingCode: string): Promise<void> {
   await page.reload();
   await page.waitForLoadState("networkidle");
   const appointmentCard = page.locator(".portal-appointment").filter({ hasText: bookingCode });
-  await expect(appointmentCard).toContainText("Cần kiểm tra lại");
-  await expect(page.locator("#notifications")).toContainText("Thanh toán cần kiểm tra lại");
+  await expect(appointmentCard).toContainText("Đã thanh toán");
+  await expect(page.locator("#notifications")).toContainText("Thanh toán đã được xác nhận");
 }
 
 async function expectDoctorCanSeeAppointment(
@@ -413,7 +479,7 @@ async function expectDoctorCanSeeAppointment(
   try {
     await loginViaUi(page, DEMO_DOCTOR_EMAIL, "/doctor/dashboard", "Không gian làm việc lâm sàng");
     await page.getByLabel("Ngày xem lịch").fill(date);
-    await page.getByRole("button", { name: "Tải lịch" }).click();
+    await page.getByRole("button", { name: "Làm mới lịch" }).click();
     await expect(page.locator("#daily-appointments")).toContainText(bookingCode);
     await expect(page.locator(".portal-appointment").filter({ hasText: bookingCode })).toContainText("Đã xác nhận");
   } finally {
@@ -437,9 +503,176 @@ async function expectAdminCanSeeAppointment(
     await page.getByRole("button", { name: "Lọc" }).click();
     const appointmentRow = page.getByRole("row").filter({ hasText: bookingCode });
     await expect(appointmentRow).toBeVisible();
-    await expect(appointmentRow).toContainText("CONFIRMED");
+    await expect(appointmentRow).toContainText("Đã xác nhận");
   } finally {
     await context.close();
+  }
+}
+
+async function exercisePrivateChannels(appointment: AppointmentDetails): Promise<void> {
+  const patientSession = await loginApi(DEMO_PATIENT.email);
+  const doctorSession = await loginApi(DEMO_DOCTOR_EMAIL);
+  const adminSession = await loginApi(DEMO_ADMIN_EMAIL);
+  let consultationId: string | undefined;
+  let conversationId: string | undefined;
+
+  try {
+    const consultation = await apiJson<ConsultationSummary>("/patient/consultations", {
+      method: "POST",
+      body: JSON.stringify({
+        appointmentId: appointment.id,
+        subject: "Theo dõi sau buổi khám synthetic",
+        consentAccepted: true,
+        consentVersion: "consultation-v1",
+      }),
+    }, patientSession);
+    consultationId = consultation.id;
+    expect(consultation.appointmentId).toBe(appointment.id);
+
+    const patientMessage = await apiJson<ConsultationMessage>(
+      `/patient/consultations/${consultationId}/messages`,
+      {
+        method: "POST",
+        headers: { "Idempotency-Key": `compose-consultation-${appointment.id}` },
+        body: JSON.stringify({ body: "Tôi muốn xác nhận hướng dẫn chuẩn bị sau buổi khám." }),
+      },
+      patientSession,
+    );
+    expect(patientMessage.status).toBe("SENT");
+
+    const adminQueue = await apiJson<Array<Record<string, unknown>>>(
+      "/admin/consultations/queue",
+      {},
+      adminSession,
+    );
+    const adminRow = adminQueue.find((row) => row.threadId === consultationId);
+    expect(adminRow).toBeDefined();
+    expect(Object.keys(adminRow ?? {})).not.toEqual(expect.arrayContaining([
+      "subject", "body", "patientName", "email", "phone", "patientProfileId",
+    ]));
+
+    const doctorMessage = await apiJson<ConsultationMessage>(
+      `/doctor/consultations/${consultationId}/messages`,
+      {
+        method: "POST",
+        headers: { "Idempotency-Key": `compose-doctor-reply-${appointment.id}` },
+        body: JSON.stringify({ body: "Bác sĩ đã nhận được câu hỏi và sẽ theo dõi trong cửa sổ tư vấn." }),
+      },
+      doctorSession,
+    );
+    expect(doctorMessage.status).toBe("SENT");
+    await apiJson<void>(`/patient/consultations/${consultationId}/read`, {
+      method: "POST",
+      body: JSON.stringify({ throughMessageId: doctorMessage.id }),
+    }, patientSession);
+
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      "base64",
+    );
+    const sha256Hash = createHash("sha256").update(png).digest("hex");
+    const intent = await apiJson<ConsultationAttachment>(
+      `/patient/consultations/${consultationId}/attachments/intents`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          messageId: patientMessage.id,
+          mimeType: "image/png",
+          sizeBytes: png.length,
+          sha256Hash,
+        }),
+      },
+      patientSession,
+    );
+    expect(intent.uploadStatus).toBe("REQUESTED");
+    expect(intent.uploadUrl).toBeTruthy();
+    const uploadResponse = await fetch(intent.uploadUrl!, {
+      method: "PUT",
+      headers: { "Content-Type": "image/png", "Content-Length": String(png.length) },
+      body: png,
+    });
+    expect(uploadResponse.ok).toBeTruthy();
+    await apiJson<ConsultationAttachment>(
+      `/patient/consultations/${consultationId}/attachments/${intent.id}/complete`,
+      { method: "POST", body: "{}" },
+      patientSession,
+    );
+
+    let scanned: ConsultationAttachment | undefined;
+    const scanDeadline = Date.now() + 30_000;
+    while (Date.now() < scanDeadline) {
+      scanned = await apiJson<ConsultationAttachment>(
+        `/patient/consultations/${consultationId}/attachments/${intent.id}`,
+        {},
+        patientSession,
+      );
+      if (scanned.scanStatus === "CLEAN" || scanned.scanStatus === "REJECTED") break;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+    expect(scanned?.scanStatus).toBe("CLEAN");
+    const patientDownload = await apiJson<ConsultationAttachment>(
+      `/patient/consultations/${consultationId}/attachments/${intent.id}/download`,
+      {},
+      patientSession,
+    );
+    expect(patientDownload.downloadUrl).toMatch(/^https?:\/\//u);
+    const downloaded = await fetch(patientDownload.downloadUrl!);
+    expect(downloaded.ok).toBeTruthy();
+    expect(Buffer.compare(Buffer.from(await downloaded.arrayBuffer()), png)).toBe(0);
+    const doctorAttachment = await apiJson<ConsultationAttachment>(
+      `/doctor/consultations/${consultationId}/attachments/${intent.id}`,
+      {},
+      doctorSession,
+    );
+    expect(doctorAttachment.scanStatus).toBe("CLEAN");
+
+    const carePlan = await apiJson<CarePlan>("/doctor/care-plans", {
+      method: "POST",
+      body: JSON.stringify({
+        appointmentId: appointment.id,
+        title: "Theo dõi sau khám",
+        items: [{ goal: "Theo dõi triệu chứng trong 7 ngày", reminder: "Ghi nhận mỗi tối" }],
+      }),
+    }, doctorSession);
+    expect(carePlan.appointmentId).toBe(appointment.id);
+    expect(carePlan.items[0]?.status).toBe("OPEN");
+    const patientPlans = await apiJson<CarePlan[]>("/patient/care-plans", {}, patientSession);
+    expect(patientPlans.some((plan) => plan.id === carePlan.id)).toBeTruthy();
+
+    const policy = await apiJson<{ policyVersion: string }>("/ai/chat-policy", {}, patientSession);
+    const conversation = await apiJson<{ id: string }>("/ai/conversations", {
+      method: "POST",
+      body: JSON.stringify({ title: "Compose synthetic support", mode: "HOSPITAL_SUPPORT" }),
+    }, patientSession);
+    conversationId = conversation.id;
+    await apiJson(`/ai/conversations/${conversationId}/consent`, {
+      method: "PUT",
+      body: JSON.stringify({ accepted: true, policyVersion: policy.policyVersion }),
+    }, patientSession);
+    const exchange = await apiJson<{
+      assistantMessage: { status: string; safetyAction: string; suggestedActions: Array<{ href: string }> };
+    }>(`/ai/conversations/${conversationId}/messages`, {
+      method: "POST",
+      headers: { "Idempotency-Key": `compose-chat-${appointment.id}` },
+      body: JSON.stringify({ content: "Bệnh viện có những dịch vụ nào?" }),
+    }, patientSession);
+    expect(exchange.assistantMessage.status).toBe("COMPLETED");
+    const emergency = await apiJson<{
+      assistantMessage: { safetyAction: string; suggestedActions: Array<{ href: string }> };
+    }>(`/ai/conversations/${conversationId}/messages`, {
+      method: "POST",
+      headers: { "Idempotency-Key": `compose-emergency-${appointment.id}` },
+      body: JSON.stringify({ content: "Tôi đang khó thở dữ dội, hãy gọi cấp cứu ngay." }),
+    }, patientSession);
+    expect(emergency.assistantMessage.safetyAction).toBe("EMERGENCY");
+    expect(emergency.assistantMessage.suggestedActions.some((action) => action.href === "tel:115")).toBeTruthy();
+  } finally {
+    if (conversationId) {
+      await apiJson(`/ai/conversations/${conversationId}`, { method: "DELETE" }, patientSession).catch(() => undefined);
+    }
+    if (consultationId) {
+      await apiJson(`/patient/consultations/${consultationId}`, { method: "DELETE" }, patientSession).catch(() => undefined);
+    }
   }
 }
 
@@ -462,9 +695,9 @@ test.describe("live Compose role-based demo", () => {
 
       await expectPatientCanSeeAppointment(patientPage, bookingCode);
       const paymentReference = await submitPaymentThroughPatientUi(patientPage, bookingCode);
-      await expectAdminCanSeePayment(browser, bookingCode, paymentReference, browserIssues);
-      await rejectE2ePayment(bookingCode);
-      await expectPatientSeesRejectedPayment(patientPage, bookingCode);
+      await approvePaymentThroughAdminUi(browser, bookingCode, paymentReference, browserIssues);
+      await expectPatientSeesApprovedPayment(patientPage, bookingCode);
+      await exercisePrivateChannels(appointment);
       await expectDoctorCanSeeAppointment(browser, bookingCode, selection.date, browserIssues);
       await expectAdminCanSeeAppointment(browser, bookingCode, selection.date, browserIssues);
       await cleanupLiveAppointment(bookingCode);
@@ -484,8 +717,8 @@ test.describe("live Compose role-based demo", () => {
     const initialHero = await loadPublishedHomepageHero();
     const initialTitle = requireCmsText(initialHero.payload.title, "title");
     const initialBody = requireCmsText(initialHero.payload.body, "body");
-    const updatedTitle = `${initialTitle} · Live Compose realtime`;
-    const updatedBody = `${initialBody} · Live Compose publish/rollback proof.`;
+    const updatedTitle = `${initialTitle} · Cập nhật chăm sóc trực tuyến`;
+    const updatedBody = `${initialBody} · Nội dung mới đã đi qua quy trình xuất bản và hoàn tác.`;
     const publishedVersion = initialHero.version + 1;
     const rolledBackVersion = initialHero.version + 2;
 
@@ -535,6 +768,7 @@ test.describe("live Compose role-based demo", () => {
       expect(publicMainFrameNavigationsAfterLoad).toBe(0);
       expect(browserIssues).toEqual([]);
     } finally {
+      await restorePublishedHomepageHero(initialHero);
       await adminPage.context().close();
       await publicPage.context().close();
     }

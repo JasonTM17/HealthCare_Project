@@ -5,16 +5,22 @@ import com.healthcare.auth.entity.AuthOtpChallenge;
 import com.healthcare.auth.entity.AuthOtpPurpose;
 import com.healthcare.auth.mail.EmailSender;
 import com.healthcare.auth.repository.AuthOtpChallengeRepository;
+import com.healthcare.auth.repository.BrowserSessionRepository;
+import com.healthcare.auth.dto.BrowserSessionCreateRequest;
+import com.healthcare.auth.service.BrowserSessionService;
 import com.healthcare.security.JwtProperties;
 import com.healthcare.security.JwtTokenProvider;
 import com.healthcare.user.UserSecurityLock;
 import com.healthcare.user.dto.AuthResponse;
+import com.healthcare.user.dto.PasswordResetConfirmRequest;
 import com.healthcare.user.dto.RefreshTokenRequest;
 import com.healthcare.user.entity.RefreshToken;
 import com.healthcare.user.entity.User;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
@@ -31,6 +37,9 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.times;
@@ -48,6 +57,9 @@ class AuthConcurrencyRegressionTest extends TestcontainersIntegrationTest {
     private AuthOtpChallengeRepository challengeRepository;
 
     @Autowired
+    private BrowserSessionRepository browserSessionRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -61,6 +73,95 @@ class AuthConcurrencyRegressionTest extends TestcontainersIntegrationTest {
 
     @MockitoSpyBean
     private JwtTokenProvider tokenProviderSpy;
+
+    @MockitoSpyBean
+    private BrowserSessionService browserSessionServiceSpy;
+
+    @Test
+    void passwordResetSerializesAfterAuthenticatedGrantAndRevokesIssuedBrowserSession() throws Exception {
+        User user = createVerifiedUser("browser.reset.race@example.com");
+        createPasswordResetChallenge(user, "123456");
+
+        CountDownLatch authenticatedBeforeIssue = new CountDownLatch(1);
+        CountDownLatch releaseIssuance = new CountDownLatch(1);
+        CountDownLatch resetOwnerLockAttempted = new CountDownLatch(1);
+
+        doAnswer(invocation -> {
+            if ("browser-issue-race".equals(Thread.currentThread().getName())) {
+                authenticatedBeforeIssue.countDown();
+                if (!releaseIssuance.await(10, TimeUnit.SECONDS)) {
+                    throw new AssertionError("Timed out waiting to release browser session issuance");
+                }
+            }
+            return invocation.callRealMethod();
+        }).when(browserSessionServiceSpy).issueReplacing(eq(user.getId()), isNull());
+
+        doAnswer(invocation -> {
+            if ("password-reset-race".equals(Thread.currentThread().getName())) {
+                resetOwnerLockAttempted.countDown();
+            }
+            return invocation.callRealMethod();
+        }).when(userSecurityLockSpy).findByEmailForUpdate(user.getEmail());
+
+        ExecutorService issueExecutor = namedExecutor("browser-issue-race");
+        ExecutorService resetExecutor = namedExecutor("password-reset-race");
+        Future<BrowserSessionService.IssuedBrowserSession> issuance = null;
+        Future<?> reset = null;
+        try {
+            issuance = issueExecutor.submit(() -> authService.createBrowserSession(
+                new BrowserSessionCreateRequest(
+                    BrowserSessionCreateRequest.GrantType.PASSWORD,
+                    user.getEmail(),
+                    "Str0ng!Pass",
+                    null
+                ),
+                new MockHttpServletRequest()
+            ));
+            boolean reachedIssueBoundary = authenticatedBeforeIssue.await(5, TimeUnit.SECONDS);
+            if (!reachedIssueBoundary && issuance.isDone()) {
+                issuance.get(1, TimeUnit.SECONDS);
+            }
+            assertThat(reachedIssueBoundary)
+                .as("password grant validated while holding the stable user lock")
+                .isTrue();
+
+            reset = resetExecutor.submit(() -> authService.confirmPasswordReset(
+                new PasswordResetConfirmRequest(user.getEmail(), "123456", "N3w!Password"),
+                null
+            ));
+            assertThat(resetOwnerLockAttempted.await(5, TimeUnit.SECONDS))
+                .as("password reset attempted the same stable user lock")
+                .isTrue();
+            assertThat(reset.isDone())
+                .as("reset cannot pass issuance's linearization point")
+                .isFalse();
+
+            releaseIssuance.countDown();
+            BrowserSessionService.IssuedBrowserSession issued = issuance.get(10, TimeUnit.SECONDS);
+            reset.get(10, TimeUnit.SECONDS);
+
+            assertThat(browserSessionRepository.findAllByUserId(user.getId()))
+                .singleElement()
+                .satisfies(session -> assertThat(session.getRevokedAt()).isNotNull());
+            assertThat(browserSessionServiceSpy.resolveAndTouch(issued.rawSessionSecret())).isEmpty();
+            assertThatThrownBy(() -> authService.createBrowserSession(
+                    new BrowserSessionCreateRequest(
+                        BrowserSessionCreateRequest.GrantType.PASSWORD,
+                        user.getEmail(),
+                        "Str0ng!Pass",
+                        null
+                    ),
+                    new MockHttpServletRequest()
+                ))
+                .isInstanceOf(BadCredentialsException.class);
+        } finally {
+            releaseIssuance.countDown();
+            issueExecutor.shutdownNow();
+            resetExecutor.shutdownNow();
+            issueExecutor.awaitTermination(5, TimeUnit.SECONDS);
+            resetExecutor.awaitTermination(5, TimeUnit.SECONDS);
+        }
+    }
 
     @Test
     void revokeAllWaitsForRefreshRotationAndRevokesItsReplacement() throws Exception {
@@ -213,6 +314,18 @@ class AuthConcurrencyRegressionTest extends TestcontainersIntegrationTest {
         stored.setExpiresAt(OffsetDateTime.now().plusSeconds(jwtProperties.refreshTokenTtl()));
         stored.setCreatedAt(OffsetDateTime.now());
         refreshTokenRepository.saveAndFlush(stored);
+    }
+
+    private void createPasswordResetChallenge(User user, String code) {
+        OffsetDateTime now = OffsetDateTime.now();
+        AuthOtpChallenge challenge = new AuthOtpChallenge();
+        challenge.setUser(user);
+        challenge.setOtpHash(passwordEncoder.encode(code));
+        challenge.setPurpose(AuthOtpPurpose.PASSWORD_RESET);
+        challenge.setExpiresAt(now.plusMinutes(10));
+        challenge.setAttempts(0);
+        challenge.setCreatedAt(now);
+        challengeRepository.saveAndFlush(challenge);
     }
 
     private String hashToken(String token) {

@@ -19,10 +19,17 @@ public interface DoctorScheduleRepository extends JpaRepository<DoctorSchedule, 
     @Query("""
         select s from AppointmentDoctorSchedule s
         where s.doctor.id = :doctorId
+          and s.doctor.active = true
+          and s.branch.active = true
           and s.active = true
           and s.effectiveFrom <= :date
           and (s.effectiveTo is null or s.effectiveTo >= :date)
           and s.dayOfWeek = :dayOfWeek
+          and exists (
+              select db.id from DoctorBranch db
+              where db.doctor = s.doctor
+                and db.branch = s.branch
+          )
         order by s.startTime
     """)
     List<DoctorSchedule> findActiveForDoctorOnDate(
@@ -35,10 +42,17 @@ public interface DoctorScheduleRepository extends JpaRepository<DoctorSchedule, 
         select s from AppointmentDoctorSchedule s
         where s.doctor.id = :doctorId
           and s.branch.id = :branchId
+          and s.doctor.active = true
+          and s.branch.active = true
           and s.active = true
           and s.effectiveFrom <= :date
           and (s.effectiveTo is null or s.effectiveTo >= :date)
           and s.dayOfWeek = :dayOfWeek
+          and exists (
+              select db.id from DoctorBranch db
+              where db.doctor = s.doctor
+                and db.branch = s.branch
+          )
         order by s.startTime
     """)
     List<DoctorSchedule> findActiveForDoctorAndBranchOnDate(

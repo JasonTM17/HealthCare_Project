@@ -3,6 +3,9 @@ package com.healthcare.auth;
 import com.healthcare.auth.entity.AuthOtpChallenge;
 import com.healthcare.auth.entity.AuthOtpPurpose;
 import com.healthcare.auth.mail.AfterCommitEmailSender;
+import com.healthcare.auth.mail.EmailOutboxService;
+import com.healthcare.auth.mail.EmailTemplateKey;
+import com.healthcare.auth.mail.EmailTemplateRenderer;
 import com.healthcare.auth.repository.AuthOtpChallengeRepository;
 import com.healthcare.auth.security.AuthRateLimiter;
 import com.healthcare.exception.BusinessException;
@@ -20,6 +23,7 @@ import java.security.SecureRandom;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.Map;
 
 /** Authentication OTPs are purpose-scoped and deliberately separate from booking OTPs. */
 @Service
@@ -34,7 +38,10 @@ public class AuthOtpService {
     private final UserSecurityLock userSecurityLock;
     private final PasswordEncoder passwordEncoder;
     private final AfterCommitEmailSender emailSender;
+    private final EmailOutboxService emailOutbox;
+    private final EmailTemplateRenderer emailTemplates;
     private final AuthRateLimiter rateLimiter;
+    private final Environment environment;
     private final long ttlSeconds;
     private final long resendCooldownSeconds;
 
@@ -43,6 +50,8 @@ public class AuthOtpService {
                           UserSecurityLock userSecurityLock,
                           PasswordEncoder passwordEncoder,
                           AfterCommitEmailSender emailSender,
+                          EmailOutboxService emailOutbox,
+                          EmailTemplateRenderer emailTemplates,
                           AuthRateLimiter rateLimiter,
                           Environment environment) {
         this.challengeRepository = challengeRepository;
@@ -50,7 +59,10 @@ public class AuthOtpService {
         this.userSecurityLock = userSecurityLock;
         this.passwordEncoder = passwordEncoder;
         this.emailSender = emailSender;
+        this.emailOutbox = emailOutbox;
+        this.emailTemplates = emailTemplates;
         this.rateLimiter = rateLimiter;
+        this.environment = environment;
         long configuredTtl = environment.getProperty("app.security.auth-otp.ttl-seconds", Long.class, 600L);
         this.ttlSeconds = Math.max(60L, Math.min(configuredTtl, 3600L));
         long configuredCooldown = environment.getProperty("app.security.auth-otp.resend-cooldown-seconds", Long.class, 60L);
@@ -131,14 +143,22 @@ public class AuthOtpService {
         challenge.setCreatedAt(now);
         challengeRepository.save(challenge);
 
-        String subject = purpose == AuthOtpPurpose.EMAIL_VERIFICATION
-            ? "HealthCare email verification"
-            : "HealthCare password reset";
-        String body = "Your HealthCare security code is " + code
-            + ". It expires in " + Math.max(1, ttlSeconds / 60)
-            + " minutes. If you did not request this, you can ignore this email.";
-        // The body is delivered only through the mail boundary; it is never logged or returned.
-        emailSender.send(lockedUser.getEmail(), subject, body);
+        EmailTemplateKey template = purpose == AuthOtpPurpose.EMAIL_VERIFICATION
+            ? EmailTemplateKey.EMAIL_VERIFICATION : EmailTemplateKey.PASSWORD_RESET;
+        Map<String, String> variables = Map.of("code", code, "minutes", String.valueOf(Math.max(1, ttlSeconds / 60)));
+        boolean outboxEnabled = environment.getProperty("app.mail.outbox.enabled", Boolean.class, false);
+        if (outboxEnabled) {
+            // The outbox row is written in this transaction. Its encrypted
+            // payload is cleared by the worker once delivery reaches a terminal state.
+            emailOutbox.enqueue(template, lockedUser.getEmail(), variables,
+                "auth-otp-" + challenge.getId(), lockedUser.getId(), challenge.getId(),
+                purpose.name(), ttlSeconds);
+        } else {
+            // The non-outbox fallback still uses the code-owned rich template
+            // and delivers only after the transaction commits. It never logs
+            // or returns the OTP and does not claim provider acceptance early.
+            emailSender.sendTemplate(template, lockedUser.getEmail(), variables);
+        }
     }
 
     private void verify(User user, AuthOtpPurpose purpose, String suppliedCode) {

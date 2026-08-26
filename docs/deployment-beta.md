@@ -16,18 +16,44 @@ present in this repository.
 - Build command: `npm run build`
 - Install command: `npm ci`
 - Server-only `BACKEND_INTERNAL_URL`: the HTTPS Render backend URL
-- Explicit beta origin in `CORS_ALLOWED_ORIGINS` on Spring
+- Server-only `BACKEND_BFF_SERVICE_TOKEN`: a unique secret that exactly matches
+  the Render backend value and contains at least 32 random bytes
+- Server-only `BFF_PUBLIC_ORIGIN`: the exact HTTPS Vercel beta origin, with no
+  path, query or fragment; this remains authoritative when the Route Handler
+  receives an internal proxy URL
+- Exact beta origin in `BFF_ALLOWED_ORIGINS` on Spring
+- Empty `CORS_ALLOWED_ORIGINS`: the public Render service is not a browser API
 
-Next's same-origin `/api/v1/*` rewrite remains the only browser API path. Do
-not expose `SUPABASE_DB_URL`, `AI_SERVICE_TOKEN`, database credentials or a
-provider key as a `NEXT_PUBLIC_*` variable.
+The Node Route Handler under `/api/v1/*` is the only browser API path. It
+forwards only the two HealthCare session/CSRF cookies and a closed header set;
+it does not persist or log request bodies. Do not expose
+`BACKEND_BFF_SERVICE_TOKEN`, `BACKEND_INTERNAL_URL`, `BFF_PUBLIC_ORIGIN`, `SUPABASE_DB_URL`,
+`AI_SERVICE_TOKEN`, database credentials or a provider key as a
+`NEXT_PUBLIC_*` variable. Store the BFF secret independently in the Vercel and
+Render secret stores, rotate both sides together, and drain traffic during
+rotation because there is no plaintext compatibility fallback. Set
+`BACKEND_BFF_REQUIRED=true` on Render. Legacy bearer endpoints remain available
+to non-browser API clients without an `Origin`, but the BFF rejects them and
+Spring emits no CORS grant for them.
 
 ## Render order
 
-1. Create a separate beta workspace and disposable managed PostgreSQL/Redis.
-2. Apply Flyway V36–V40 and load only the reviewed synthetic fixture manifest.
-   V40 keeps consultation audit events after the 90-day transcript purge; it
-   is additive and must be applied before any retention worker is enabled.
+1. In the already-authorized Render workspace, create the disposable beta
+   managed PostgreSQL/Key Value (Redis-compatible) resources. Do not reuse a
+   production service or silently switch workspaces. The checked-in blueprint
+   pins PostgreSQL 16 and the Singapore region so the runtime matches the
+   backend/Testcontainers target. Redis is wired through Render's private
+   `connectionString` as `REDIS_URL`; the Key Value public allow-list is empty.
+   Render's
+   `connectionString` is a `postgres://`/`postgresql://` URL; the Spring
+   startup environment post-processor converts it to `jdbc:postgresql://` and
+   keeps the username/password references separate.
+2. Apply Flyway V36–V46 and load only the reviewed synthetic fixture manifest.
+   V40 keeps consultation audit events after the 90-day transcript purge;
+   V42 adds the opaque browser-session authority and V43 adds the
+   server-owned attachment upload/scan lease lifecycle. These migrations are
+   additive and must be applied before retention or attachment workers are
+   enabled.
 3. Configure the private AI service with `AI_PROVIDER=local`, remote flags
    disabled and `SUPABASE_RAG_FALLBACK_TO_MEMORY=false`.
 4. Configure Spring's CORS origin and service tokens, then wait for
@@ -45,36 +71,39 @@ provider key as a `NEXT_PUBLIC_*` variable.
    trusted AV/MIME worker records `CLEAN`. The browser's completion call is
    deliberately unable to assert a clean result, and attachments never enter
    DeepSeek/RAG context.
-8. Keep DeepSeek disabled until provider retention/training/region/subprocessor
-   and deletion evidence is recorded. A synthetic canary, if later authorized,
-   requires all of the following at once:
-
-   ```text
-   AI_SERVICE_RUNTIME=synthetic-beta
-   AI_PROVIDER=deepseek
-   AI_PATIENT_CHAT_REMOTE_ENABLED=true
-   AI_CHAT_REMOTE_PROVIDER_ENABLED=true
-   REMOTE_AI_SYNTHETIC_ONLY=true
-   REMOTE_AI_KILL_SWITCH=false
-   RAG_STORAGE_BACKEND=supabase
-   SUPABASE_RAG_FALLBACK_TO_MEMORY=false
-   RAG_EMBEDDING_DIMENSION=384
-   ```
-
-   The Spring request path must additionally assert `synthetic_beta=true` only
-   after it has verified synthetic user/profile/appointment markers. Private
-   consultation messages and attachments never enter this provider path.
+   The beta blueprint sets `STORAGE_REQUIRE_PRIVATE_ENDPOINT=true`,
+   `STORAGE_UPLOAD_ENABLED=false` and `STORAGE_CONSULTATION_ENABLED=false` by
+   default. Before enabling uploads, provide
+   `STORAGE_ENDPOINT`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY`,
+   `STORAGE_BUCKET`, `STORAGE_REGION` and a 32-byte-plus
+   `STORAGE_CONSULTATION_KEY_SIGNING_SECRET` from Render's secret store, then
+   configure `STORAGE_AV_SERVICE_URL` and `STORAGE_AV_SERVICE_TOKEN` for a
+   trusted AV/MIME worker. `STORAGE_CONSULTATION_SCAN_LEASE_SECONDS` bounds
+   the database-owned lease to 15 minutes. Missing credentials, localhost
+   endpoints, or a missing scanner keep the backend fail-closed; no Render
+   beta path falls back to `localhost:9000`. Only the trusted service can
+   write scan status; a browser completion request cannot assert `CLEAN`.
+8. Keep DeepSeek disabled. This build rejects either patient remote flag at
+   startup and defensively disables patient-answer egress at runtime, so the
+   beta must use `AI_PROVIDER=local`, both remote flags `false`, and
+   `REMOTE_AI_KILL_SWITCH=true`. The provider adapters are retained only for
+   isolated contract tests and do not authorize patient text. A future
+   synthetic canary requires a separately reviewed implementation change plus
+   evidence for retention, training, region, subprocessors, DPA and deletion.
+   Private consultation messages and attachments must never enter that future
+   provider path.
 
 ## Rollback
 
-1. Set both remote switches to `false`, set clinical mode switches to `false`,
+1. Keep both remote switches `false`, set clinical mode switches to `false`,
    and drain traffic.
-2. Keep V36–V40 audit/schema tables; do not run an old binary that can ignore
+2. Keep V36–V43 audit/schema tables; do not run an old binary that can ignore
    consent, synthetic guards or clinical approval metadata.
 3. Reconcile the Supabase projection and verify revoked/unpublished/expired
    clinical sources and their CTAs disappear from provider context.
-4. Disable the consultation retention scheduler if the V40 audit trigger has
-   not been applied; never run a V39-only binary against a V40 database.
+4. Disable consultation retention and attachment workers if the V40/V43 audit
+   and lease migrations have not been applied; never run a V39/V42-only binary
+   against a V43 database.
 5. Restore the disposable database only after a tested backup/restore drill.
 
 Hosting credentials, provider/legal evidence, AV/MIME scanning, backup/restore,

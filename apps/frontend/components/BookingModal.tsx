@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useRef, useState, useEffect } from "react";
+import React, { useCallback, useRef, useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import {
   Doctor,
@@ -9,6 +9,7 @@ import {
   HealthPackage,
   TimeSlot,
   AppointmentDetails,
+  HoldSlotResult,
 } from "../types/hospital";
 import {
   fetchDoctorSlots,
@@ -19,8 +20,11 @@ import {
   fetchBranches,
   fetchDoctors,
   fetchSpecialties,
+  ApiError,
+  resendAppointmentOtp,
 } from "../lib/api-client";
 import { businessDate } from "../lib/business-time";
+import { presentApiError } from "../lib/present-api-error";
 import Icon from "./UiIcon";
 import useDialogFocus from "./useDialogFocus";
 
@@ -28,6 +32,7 @@ const EMPTY_DOCTORS: Doctor[] = [];
 const EMPTY_SPECIALTIES: Specialty[] = [];
 const EMPTY_BRANCHES: Branch[] = [];
 const EMPTY_PACKAGES: HealthPackage[] = [];
+const EMPTY_SLOTS: TimeSlot[] = [];
 const BOOKING_STEPS = [
   { id: 1, label: "Chuyên khoa" },
   { id: 2, label: "Cơ sở" },
@@ -37,6 +42,261 @@ const BOOKING_STEPS = [
   { id: 6, label: "Thông tin" },
   { id: 7, label: "Xác nhận" },
 ] as const;
+
+export interface BookingSlotQueryIdentity {
+  key: string;
+  doctorId: string;
+  branchId: string;
+  date: string;
+}
+
+export interface BookingSlotQueryAttempt {
+  active: boolean;
+  identityKey: string | null;
+  lifecycleEpoch: number;
+  attemptSequence: number;
+  retryNonce: number;
+}
+
+interface BookingSlotQueryRunOptions {
+  identity: BookingSlotQueryIdentity | null;
+  retryNonce: number;
+  load: (signal: AbortSignal) => Promise<TimeSlot[]>;
+  onStart: (attempt: BookingSlotQueryAttempt) => void;
+  onIdle: (attempt: BookingSlotQueryAttempt) => void;
+  onSuccess: (slots: TimeSlot[], attempt: BookingSlotQueryAttempt) => void;
+  onError: (error: unknown, attempt: BookingSlotQueryAttempt) => void;
+  onFinally: (attempt: BookingSlotQueryAttempt) => void;
+}
+
+export interface BookingSlotQueryExecution {
+  cancel: () => void;
+  settled: Promise<void>;
+}
+
+interface InternalBookingSlotQueryAttempt extends BookingSlotQueryAttempt {
+  controller: AbortController | null;
+}
+
+export interface BookingSlotQueryState {
+  identityKey: string | null;
+  attemptSequence: number;
+  retryNonce: number;
+  loading: boolean;
+  slots: TimeSlot[];
+  error: string;
+}
+
+export interface BookingSlotSelectionState {
+  identityKey: string | null;
+  startTime: string;
+}
+
+type BookingSlotQueryStateEvent =
+  | { type: "START"; attempt: BookingSlotQueryAttempt }
+  | { type: "IDLE"; attempt: BookingSlotQueryAttempt }
+  | { type: "SUCCESS"; attempt: BookingSlotQueryAttempt; slots: TimeSlot[] }
+  | { type: "ERROR"; attempt: BookingSlotQueryAttempt; message: string }
+  | { type: "FINALLY"; attempt: BookingSlotQueryAttempt };
+
+type BookingSlotSelectionEvent =
+  | { type: "START"; attempt: BookingSlotQueryAttempt }
+  | { type: "IDLE" }
+  | { type: "SUCCESS"; attempt: BookingSlotQueryAttempt; slots: TimeSlot[]; branchId: string }
+  | { type: "ERROR"; attempt: BookingSlotQueryAttempt };
+
+function ownsBookingSlotState(
+  state: BookingSlotQueryState,
+  attempt: BookingSlotQueryAttempt,
+): boolean {
+  return state.identityKey === attempt.identityKey
+    && state.attemptSequence === attempt.attemptSequence
+    && state.retryNonce === attempt.retryNonce;
+}
+
+/**
+ * The last successful slot list remains authoritative through transport errors.
+ * Only a current successful response (including an empty response) may replace it.
+ */
+export function reduceBookingSlotQueryState(
+  state: BookingSlotQueryState,
+  event: BookingSlotQueryStateEvent,
+): BookingSlotQueryState {
+  if (event.type === "START") {
+    return {
+      identityKey: event.attempt.identityKey,
+      attemptSequence: event.attempt.attemptSequence,
+      retryNonce: event.attempt.retryNonce,
+      loading: true,
+      slots: state.identityKey === event.attempt.identityKey ? state.slots : EMPTY_SLOTS,
+      error: "",
+    };
+  }
+  if (event.type === "IDLE") {
+    return {
+      identityKey: null,
+      attemptSequence: event.attempt.attemptSequence,
+      retryNonce: event.attempt.retryNonce,
+      loading: false,
+      slots: EMPTY_SLOTS,
+      error: "",
+    };
+  }
+  if (!ownsBookingSlotState(state, event.attempt)) return state;
+  if (event.type === "SUCCESS") return { ...state, slots: event.slots, error: "" };
+  if (event.type === "ERROR") return { ...state, error: event.message };
+  return { ...state, loading: false };
+}
+
+/** Keep a user choice until a current authoritative success proves it unavailable. */
+export function reduceBookingSlotSelectionState(
+  state: BookingSlotSelectionState,
+  event: BookingSlotSelectionEvent,
+): BookingSlotSelectionState {
+  if (event.type === "START") {
+    return state.identityKey === event.attempt.identityKey
+      ? state
+      : { identityKey: event.attempt.identityKey, startTime: "" };
+  }
+  if (event.type === "IDLE") return { identityKey: null, startTime: "" };
+  if (event.type === "ERROR") return state;
+
+  const retained = state.identityKey === event.attempt.identityKey
+    && event.slots.some((slot) => (
+      slot.available
+      && slot.branchId === event.branchId
+      && slot.startTime === state.startTime
+    ));
+  if (retained) return state;
+  const firstAvailable = event.slots.find((slot) => (
+    slot.available && slot.branchId === event.branchId
+  ));
+  return {
+    identityKey: event.attempt.identityKey,
+    startTime: firstAvailable?.startTime ?? "",
+  };
+}
+
+interface BookingSelectedSlotState {
+  identityKey: string | null;
+  startTime: string;
+}
+
+export function normalizeBookingSlotQueryIdentity(
+  doctorId: string,
+  branchId: string,
+  date: string,
+): BookingSlotQueryIdentity | null {
+  const normalizedDoctorId = doctorId.trim();
+  const normalizedBranchId = branchId.trim();
+  const normalizedDate = date.trim();
+  if (!normalizedDoctorId || !normalizedBranchId || !normalizedDate) return null;
+
+  return {
+    doctorId: normalizedDoctorId,
+    branchId: normalizedBranchId,
+    date: normalizedDate,
+    key: [normalizedDoctorId, normalizedBranchId, normalizedDate]
+      .map((part) => encodeURIComponent(part))
+      .join("|"),
+  };
+}
+
+function isAbortError(error: unknown): boolean {
+  return Boolean(
+    error
+    && typeof error === "object"
+    && "name" in error
+    && (error as { name?: unknown }).name === "AbortError",
+  );
+}
+
+export class BookingSlotQueryOwner {
+  private active = false;
+  private lifecycleEpoch = 0;
+  private attemptSequence = 0;
+  private currentAttempt: InternalBookingSlotQueryAttempt | null = null;
+
+  private abortCurrentAttempt(): void {
+    this.currentAttempt?.controller?.abort();
+  }
+
+  enterLifecycle(active: boolean): () => void {
+    this.abortCurrentAttempt();
+    this.lifecycleEpoch += 1;
+    this.active = active;
+    const enteredEpoch = this.lifecycleEpoch;
+
+    return () => {
+      if (this.lifecycleEpoch !== enteredEpoch) return;
+      this.abortCurrentAttempt();
+      this.active = false;
+      this.lifecycleEpoch += 1;
+    };
+  }
+
+  private beginAttempt(
+    identity: BookingSlotQueryIdentity | null,
+    retryNonce: number,
+  ): InternalBookingSlotQueryAttempt {
+    this.abortCurrentAttempt();
+    const attempt: InternalBookingSlotQueryAttempt = {
+      active: this.active,
+      identityKey: identity?.key ?? null,
+      lifecycleEpoch: this.lifecycleEpoch,
+      attemptSequence: this.attemptSequence + 1,
+      retryNonce,
+      controller: this.active && identity ? new AbortController() : null,
+    };
+    this.attemptSequence = attempt.attemptSequence;
+    this.currentAttempt = attempt;
+    return attempt;
+  }
+
+  private owns(attempt: InternalBookingSlotQueryAttempt, requireActive: boolean): boolean {
+    const current = this.currentAttempt;
+    return Boolean(
+      current === attempt
+      && current.lifecycleEpoch === this.lifecycleEpoch
+      && current.attemptSequence === this.attemptSequence
+      && current.retryNonce === attempt.retryNonce
+      && current.identityKey === attempt.identityKey
+      && current.active === this.active
+      && (!requireActive || (this.active && attempt.active))
+      && !attempt.controller?.signal.aborted,
+    );
+  }
+
+  run(options: BookingSlotQueryRunOptions): BookingSlotQueryExecution {
+    const attempt = this.beginAttempt(options.identity, options.retryNonce);
+    const cancel = (): void => {
+      if (this.currentAttempt === attempt) attempt.controller?.abort();
+    };
+
+    if (!attempt.active || !options.identity || !attempt.controller) {
+      if (this.owns(attempt, false)) options.onIdle(attempt);
+      if (this.owns(attempt, false)) options.onFinally(attempt);
+      return { cancel, settled: Promise.resolve() };
+    }
+
+    if (this.owns(attempt, true)) options.onStart(attempt);
+    const settled = Promise.resolve().then(async () => {
+      if (!this.owns(attempt, true) || !attempt.controller) return;
+      try {
+        const slots = await options.load(attempt.controller.signal);
+        if (this.owns(attempt, true)) options.onSuccess(slots, attempt);
+      } catch (error) {
+        if (this.owns(attempt, true) && !isAbortError(error)) {
+          options.onError(error, attempt);
+        }
+      } finally {
+        if (this.owns(attempt, true)) options.onFinally(attempt);
+      }
+    });
+
+    return { cancel, settled };
+  }
+}
 
 function doctorMatchesBranch(doctor: Doctor, branchId: string): boolean {
   if (!branchId) return true;
@@ -151,11 +411,38 @@ function BookingExperience({
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     return businessDate(1);
   });
-  const [slots, setSlots] = useState<TimeSlot[]>([]);
-  const [selectedSlot, setSelectedSlot] = useState<string>("");
-  const [loadingSlots, setLoadingSlots] = useState<boolean>(false);
-  const [slotError, setSlotError] = useState<string>("");
+  const [slotQueryState, setSlotQueryState] = useState<BookingSlotQueryState>({
+    identityKey: null,
+    attemptSequence: 0,
+    retryNonce: 0,
+    loading: false,
+    slots: EMPTY_SLOTS,
+    error: "",
+  });
+  const [selectedSlotState, setSelectedSlotState] = useState<BookingSelectedSlotState>({
+    identityKey: null,
+    startTime: "",
+  });
   const [slotRefreshNonce, setSlotRefreshNonce] = useState<number>(0);
+  const [slotQueryOwner] = useState(() => new BookingSlotQueryOwner());
+  const slotQueryIdentity = useMemo(
+    () => normalizeBookingSlotQueryIdentity(selectedDoctor, selectedBranch, selectedDate),
+    [selectedBranch, selectedDate, selectedDoctor],
+  );
+  const slotQueryMatchesSelection = Boolean(
+    active
+    && slotQueryIdentity
+    && slotQueryState.identityKey === slotQueryIdentity.key,
+  );
+  const slots = slotQueryMatchesSelection ? slotQueryState.slots : EMPTY_SLOTS;
+  const selectedSlot = slotQueryMatchesSelection
+    && selectedSlotState.identityKey === slotQueryIdentity?.key
+    ? selectedSlotState.startTime
+    : "";
+  const loadingSlots = slotQueryMatchesSelection
+    ? slotQueryState.loading
+    : Boolean(active && slotQueryIdentity);
+  const slotError = slotQueryMatchesSelection ? slotQueryState.error : "";
 
   // Patient Info
   const [fullName, setFullName] = useState<string>("");
@@ -170,12 +457,17 @@ function BookingExperience({
   const [otpCode, setOtpCode] = useState<string>("");
   const [holdExpiresAt, setHoldExpiresAt] = useState<string>("");
   const [otpExpiresAt, setOtpExpiresAt] = useState<string>("");
+  const [otpDeliveryStatus, setOtpDeliveryStatus] = useState<HoldSlotResult["otpDeliveryStatus"]>(undefined);
   const [secondsRemaining, setSecondsRemaining] = useState<number>(600);
   const [otpSecondsRemaining, setOtpSecondsRemaining] = useState<number>(0);
+  const [resendCooldownSeconds, setResendCooldownSeconds] = useState<number>(0);
+  const [isResendingOtp, setIsResendingOtp] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [confirmedAppointment, setConfirmedAppointment] = useState<AppointmentDetails | null>(null);
   const bookingSessionRef = useRef(0);
+  const otpResendAttemptRef = useRef(0);
+  const otpResendControllerRef = useRef<AbortController | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const closePresentation = useCallback(() => {
     onClose?.();
@@ -183,9 +475,19 @@ function BookingExperience({
 
   const invalidateBookingSession = useCallback(() => {
     bookingSessionRef.current += 1;
+    otpResendAttemptRef.current += 1;
+    otpResendControllerRef.current?.abort();
+    otpResendControllerRef.current = null;
+    setIsResendingOtp(false);
   }, []);
 
   useDialogFocus(dialogRef, active && isModal, closePresentation);
+
+  useEffect(() => () => {
+    otpResendAttemptRef.current += 1;
+    otpResendControllerRef.current?.abort();
+    otpResendControllerRef.current = null;
+  }, []);
 
   const resetBookingState = useCallback(() => {
     setStep(1);
@@ -194,9 +496,6 @@ function BookingExperience({
     setSelectedBranch(initialBranchId || "");
     setSelectedPackage(initialPackageId || "");
     setSelectedDate(businessDate(1));
-    setSlots([]);
-    setSelectedSlot("");
-    setSlotError("");
     setFullName("");
     setPhone("");
     setEmail("");
@@ -207,8 +506,11 @@ function BookingExperience({
     setOtpCode("");
     setHoldExpiresAt("");
     setOtpExpiresAt("");
+    setOtpDeliveryStatus(undefined);
     setSecondsRemaining(600);
     setOtpSecondsRemaining(0);
+    setResendCooldownSeconds(0);
+    setIsResendingOtp(false);
     setIsSubmitting(false);
     setErrorMessage("");
     setSelectionError("");
@@ -222,16 +524,21 @@ function BookingExperience({
   }, [invalidateBookingSession, onClose, resetBookingState]);
 
   useEffect(() => {
-    if (!active || (doctors.length > 0 && specialties.length > 0 && branches.length > 0)) return;
+    if (!active) return;
 
+    const needsDoctors = providedDoctors.length === 0;
+    const needsSpecialties = providedSpecialties.length === 0;
+    const needsBranches = providedBranches.length === 0;
     let cancelled = false;
     const task = Promise.resolve().then(async () => {
       if (cancelled) return;
+      if (!needsDoctors && !needsSpecialties && !needsBranches) {
+        setCatalogLoading(false);
+        setCatalogError("");
+        return;
+      }
       setCatalogLoading(true);
       setCatalogError("");
-      const needsDoctors = providedDoctors.length === 0;
-      const needsSpecialties = providedSpecialties.length === 0;
-      const needsBranches = providedBranches.length === 0;
       const [doctorResult, specialtyResult, branchResult] = await Promise.allSettled([
         needsDoctors ? fetchDoctors({ page: 0, size: 100 }) : Promise.resolve(null),
         needsSpecialties ? fetchSpecialties(0, 100) : Promise.resolve(null),
@@ -275,7 +582,7 @@ function BookingExperience({
       cancelled = true;
       void task;
     };
-  }, [active, branches.length, catalogRequest, doctors.length, providedBranches.length, providedDoctors.length, providedSpecialties.length, specialties.length]);
+  }, [active, catalogRequest, providedBranches.length, providedDoctors.length, providedSpecialties.length]);
 
   const syncSelection = useCallback(() => {
     if (!active) return;
@@ -308,41 +615,63 @@ function BookingExperience({
     return () => void task;
   }, [syncSelection]);
 
-  // Load doctor slots when doctor or date changes
+  useEffect(() => slotQueryOwner.enterLifecycle(active), [active, slotQueryOwner]);
+
+  // One owner controls slot identity, active lifecycle, retry attempts, aborts,
+  // and every response-derived state commit.
   useEffect(() => {
-    let ignore = false;
+    const execution = slotQueryOwner.run({
+      identity: slotQueryIdentity,
+      retryNonce: slotRefreshNonce,
+      load: (signal) => {
+        if (!slotQueryIdentity) return Promise.resolve(EMPTY_SLOTS);
+        return fetchDoctorSlots(
+          slotQueryIdentity.doctorId,
+          slotQueryIdentity.branchId,
+          slotQueryIdentity.date,
+          signal,
+        );
+      },
+      onStart: (attempt) => {
+        setSlotQueryState((previous) => reduceBookingSlotQueryState(previous, { type: "START", attempt }));
+        setSelectedSlotState((previous) => reduceBookingSlotSelectionState(previous, { type: "START", attempt }));
+      },
+      onIdle: (attempt) => {
+        setSlotQueryState((previous) => reduceBookingSlotQueryState(previous, { type: "IDLE", attempt }));
+        setSelectedSlotState((previous) => reduceBookingSlotSelectionState(previous, { type: "IDLE" }));
+      },
+      onSuccess: (data, attempt) => {
+        setSlotQueryState((previous) => reduceBookingSlotQueryState(previous, {
+          type: "SUCCESS",
+          attempt,
+          slots: data,
+        }));
+        setSelectedSlotState((previous) => reduceBookingSlotSelectionState(previous, {
+          type: "SUCCESS",
+          attempt,
+          slots: data,
+          branchId: slotQueryIdentity?.branchId ?? "",
+        }));
+      },
+      onError: (_error, attempt) => {
+        setSlotQueryState((previous) => reduceBookingSlotQueryState(previous, {
+          type: "ERROR",
+          attempt,
+          message: presentApiError(),
+        }));
+        setSelectedSlotState((previous) => reduceBookingSlotSelectionState(previous, {
+          type: "ERROR",
+          attempt,
+        }));
+      },
+      onFinally: (attempt) => {
+        setSlotQueryState((previous) => reduceBookingSlotQueryState(previous, { type: "FINALLY", attempt }));
+      },
+    });
 
-    const loadSlots = async () => {
-      setLoadingSlots(true);
-      setSlots([]);
-      setSelectedSlot("");
-      setSlotError("");
-      if (!selectedDoctor || !selectedBranch || !selectedDate) {
-        setLoadingSlots(false);
-        return;
-      }
-
-      try {
-        const data = await fetchDoctorSlots(selectedDoctor, selectedBranch, selectedDate);
-        if (ignore) return;
-        const firstAvailable = data.find((slot) => slot.available && slot.branchId === selectedBranch);
-        setSlots(data);
-        if (firstAvailable) setSelectedSlot(firstAvailable.startTime);
-      } catch (error) {
-        if (!ignore) {
-          setSlots([]);
-          setSlotError(error instanceof Error ? error.message : "Không thể tải lịch khám.");
-        }
-      } finally {
-        if (!ignore) setLoadingSlots(false);
-      }
-    };
-
-    void loadSlots();
-    return () => {
-      ignore = true;
-    };
-  }, [selectedDoctor, selectedBranch, selectedDate, slotRefreshNonce]);
+    void execution.settled;
+    return execution.cancel;
+  }, [active, slotQueryIdentity, slotRefreshNonce, slotQueryOwner]);
 
   // Count down from the server-authoritative expiry instead of a client-side
   // decrement. Tab suspension and clock drift must not extend a hold.
@@ -378,6 +707,14 @@ function BookingExperience({
     return () => clearInterval(timer);
   }, [step, otpExpiresAt, confirmedAppointment]);
 
+  useEffect(() => {
+    if (resendCooldownSeconds <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldownSeconds((remaining) => Math.max(0, remaining - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldownSeconds]);
+
   if (!active) return null;
 
   const minimumAppointmentDate = businessDate(1);
@@ -402,16 +739,18 @@ function BookingExperience({
     setBookingCode("");
     setHoldExpiresAt("");
     setOtpExpiresAt("");
+    setOtpDeliveryStatus(undefined);
     setOtpCode("");
     setSecondsRemaining(0);
     setOtpSecondsRemaining(0);
+    setResendCooldownSeconds(0);
+    setIsResendingOtp(false);
     setErrorMessage("");
-    setSelectedSlot("");
-    setSlots([]);
     setSlotRefreshNonce((value) => value + 1);
   };
 
   const handleSpecialtyChange = (specialtyId: string): void => {
+    if (specialtyId === selectedSpecialty) return;
     invalidateBookingSession();
     const nextSpecialty = specialties.find((specialty) => specialty.id === specialtyId);
     const doctorsForSelection = doctors.filter((doctor) =>
@@ -422,17 +761,12 @@ function BookingExperience({
     if (!doctorsForSelection.some((doctor) => doctor.id === selectedDoctor)) {
       setSelectedDoctor(doctorsForSelection[0]?.id ?? "");
     }
-    setSlots([]);
-    setSelectedSlot("");
-    setSlotError("");
   };
 
   const handleBranchChange = (branchId: string): void => {
+    if (branchId === selectedBranch) return;
     invalidateBookingSession();
     setSelectedBranch(branchId);
-    setSlots([]);
-    setSelectedSlot("");
-    setSlotError("");
     const firstDoctorAtBranch = doctors.find((doctor) =>
       doctorMatchesBranch(doctor, branchId) && doctorMatchesSpecialty(doctor, currentSpecialty),
     );
@@ -440,24 +774,28 @@ function BookingExperience({
   };
 
   const handleDoctorChange = (doctorId: string): void => {
+    if (doctorId === selectedDoctor) return;
     invalidateBookingSession();
     setSelectedDoctor(doctorId);
-    setSlots([]);
-    setSelectedSlot("");
-    setSlotError("");
   };
 
   const handleDateChange = (date: string): void => {
+    if (date === selectedDate) return;
     invalidateBookingSession();
     setSelectedDate(date);
-    setSlots([]);
-    setSelectedSlot("");
-    setSlotError("");
   };
 
   const handleSlotChange = (slotTime: string): void => {
+    if (
+      !slotQueryIdentity
+      || !slots.some((slot) => (
+        slot.available
+        && slot.branchId === slotQueryIdentity.branchId
+        && slot.startTime === slotTime
+      ))
+    ) return;
     invalidateBookingSession();
-    setSelectedSlot(slotTime);
+    setSelectedSlotState({ identityKey: slotQueryIdentity.key, startTime: slotTime });
   };
 
   // Handle Step 3: Hold Slot
@@ -524,15 +862,83 @@ function BookingExperience({
       setBookingCode(result.bookingCode);
       setHoldExpiresAt(result.holdExpiresAt);
       setOtpExpiresAt(result.otpExpiresAt);
+      setOtpDeliveryStatus(result.otpDeliveryStatus ?? "QUEUED");
+      // Give the first delivery attempt time to settle before exposing a
+      // retry affordance. A failed delivery remains immediately retryable.
+      setResendCooldownSeconds(result.otpDeliveryStatus === "FAILED" ? 0 : 60);
       setSecondsRemaining(secondsUntil(result.holdExpiresAt));
       setOtpSecondsRemaining(secondsUntil(result.otpExpiresAt));
       setStep(7);
     } catch (error: unknown) {
       if (bookingSession === bookingSessionRef.current) {
-        setErrorMessage(error instanceof Error ? error.message : "Không thể giữ chỗ khung giờ này.");
+        setErrorMessage("Không thể giữ chỗ khung giờ này. Vui lòng tải lại lịch và thử lại.");
       }
     } finally {
       if (bookingSession === bookingSessionRef.current) setIsSubmitting(false);
+    }
+  };
+
+  const handleResendOtp = async (): Promise<void> => {
+    if (
+      !bookingCode
+      || holdExpired
+      || confirmedAppointment
+      || isResendingOtp
+      || resendCooldownSeconds > 0
+    ) return;
+
+    otpResendControllerRef.current?.abort();
+    const controller = new AbortController();
+    const attempt = otpResendAttemptRef.current + 1;
+    otpResendAttemptRef.current = attempt;
+    otpResendControllerRef.current = controller;
+    const bookingSession = bookingSessionRef.current;
+
+    setErrorMessage("");
+    setIsResendingOtp(true);
+
+    try {
+      const result = await resendAppointmentOtp(bookingCode, phone, controller.signal);
+      if (
+        controller.signal.aborted
+        || bookingSession !== bookingSessionRef.current
+        || attempt !== otpResendAttemptRef.current
+      ) return;
+      if (result.bookingCode !== bookingCode) {
+        setErrorMessage("Mã giữ chỗ đã thay đổi. Vui lòng tải lại bước xác nhận trước khi thử lại.");
+        return;
+      }
+
+      setHoldExpiresAt(result.holdExpiresAt);
+      setOtpExpiresAt(result.otpExpiresAt);
+      setOtpSecondsRemaining(secondsUntil(result.otpExpiresAt));
+      setSecondsRemaining(secondsUntil(result.holdExpiresAt));
+      setOtpDeliveryStatus(result.otpDeliveryStatus);
+      setOtpCode("");
+      setResendCooldownSeconds(
+        result.otpDeliveryStatus === "FAILED"
+          ? 0
+          : Math.max(1, Math.min(result.retryAfterSeconds || 60, 900)),
+      );
+    } catch (error: unknown) {
+      if (
+        controller.signal.aborted
+        || bookingSession !== bookingSessionRef.current
+        || attempt !== otpResendAttemptRef.current
+        || isAbortError(error)
+      ) return;
+      if (error instanceof ApiError && error.status === 429) {
+        setResendCooldownSeconds(60);
+      }
+      setErrorMessage(presentApiError(
+        error instanceof ApiError ? error.code : undefined,
+        error instanceof ApiError ? error.status : undefined,
+      ));
+    } finally {
+      if (attempt === otpResendAttemptRef.current) {
+        otpResendControllerRef.current = null;
+        setIsResendingOtp(false);
+      }
     }
   };
 
@@ -544,7 +950,7 @@ function BookingExperience({
       return;
     }
     if (otpExpired) {
-      setErrorMessage("Mã OTP đã hết hạn. Vui lòng chọn lại khung giờ để nhận mã mới.");
+      setErrorMessage("Mã OTP đã hết hạn. Hãy bấm Gửi lại mã để dùng cùng khung giờ đang giữ.");
       return;
     }
     if (!/^\d{6}$/.test(otpCode.trim())) {
@@ -564,7 +970,10 @@ function BookingExperience({
       setConfirmedAppointment(details);
     } catch (error: unknown) {
       if (bookingSession === bookingSessionRef.current) {
-        setErrorMessage(error instanceof Error ? error.message : "Mã OTP không chính xác.");
+        setErrorMessage(presentApiError(
+          error instanceof ApiError ? error.code : undefined,
+          error instanceof ApiError ? error.status : undefined,
+        ));
       }
     } finally {
       if (bookingSession === bookingSessionRef.current) setIsSubmitting(false);
@@ -1017,9 +1426,9 @@ function BookingExperience({
                   {otpExpired && !holdExpired ? (
                     <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-left text-sm text-red-900" role="alert" aria-live="assertive">
                       <p className="font-bold">Mã OTP đã hết hiệu lực.</p>
-                      <p className="mt-1 text-xs leading-5">Mã xác nhận đã hết hiệu lực. Hãy chọn lại một khung giờ để nhận mã mới.</p>
-                      <button type="button" disabled={isSubmitting} onClick={restartSlotSelection} className="mt-3 rounded-full border border-red-300 bg-white px-4 py-2 text-xs font-bold text-red-800 transition-colors hover:bg-red-100 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400 focus-visible:ring-2 focus-visible:ring-red-500">
-                        Chọn lại khung giờ
+                      <p className="mt-1 text-xs leading-5">Bạn có thể yêu cầu gửi lại mã trong thời gian giữ chỗ vẫn còn hiệu lực.</p>
+                      <button type="button" disabled={isSubmitting || isResendingOtp || resendCooldownSeconds > 0} onClick={() => void handleResendOtp()} className="mt-3 min-h-11 rounded-full border border-red-300 bg-white px-4 py-2 text-xs font-bold text-red-800 transition-colors hover:bg-red-100 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400 focus-visible:ring-2 focus-visible:ring-red-500">
+                        {isResendingOtp ? "Đang gửi lại mã..." : resendCooldownSeconds > 0 ? `Thử lại sau ${formatTimer(resendCooldownSeconds)}` : "Gửi lại mã OTP"}
                       </button>
                     </div>
                   ) : null}
@@ -1036,8 +1445,33 @@ function BookingExperience({
                       Nhập mã OTP 6 số xác thực
                     </label>
                     <p className="text-xs text-gray-500 mb-3" id="booking-otp-help">
-                      Mã OTP đã được gửi đến email <span className="font-semibold text-gray-700">{maskEmail(email)}</span>.
+                      {otpDeliveryStatus === "QUEUED"
+                        ? <>Mã OTP đang được gửi đến email <span className="font-semibold text-gray-700">{maskEmail(email)}</span>. Bạn có thể nhập mã ngay khi nhận được.</>
+                        : otpDeliveryStatus === "FAILED"
+                          ? "Chưa thể gửi mã OTP. Vui lòng thử gửi lại hoặc chọn khung giờ khác."
+                          : <>Mã OTP đã được gửi đến email <span className="font-semibold text-gray-700">{maskEmail(email)}</span>.</>}
                     </p>
+                    {!holdExpired && !otpExpired ? (
+                      <div className="flex flex-col items-center gap-1.5" aria-live="polite">
+                        <button
+                          type="button"
+                          onClick={() => void handleResendOtp()}
+                          disabled={isSubmitting || isResendingOtp || resendCooldownSeconds > 0}
+                          className="inline-flex min-h-11 items-center justify-center rounded-full border border-brand-300 bg-white px-4 py-2 text-sm font-bold text-brand-800 transition-colors hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-55 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
+                        >
+                          {isResendingOtp
+                            ? "Đang gửi lại mã..."
+                            : resendCooldownSeconds > 0
+                              ? `Gửi lại sau ${formatTimer(resendCooldownSeconds)}`
+                              : "Gửi lại mã OTP"}
+                        </button>
+                        <span className="text-[11px] text-gray-500">
+                          {resendCooldownSeconds > 0
+                            ? "Mã mới chỉ có thể yêu cầu lại sau khi hết thời gian chờ."
+                            : "Không tạo thêm lịch hẹn; mã mới sẽ thay thế mã cũ."}
+                        </span>
+                      </div>
+                    ) : null}
                     <input
                       id="booking-otp"
                       name="otp"
@@ -1051,7 +1485,7 @@ function BookingExperience({
                       placeholder="123456"
                       value={otpCode}
                       onChange={(e) => setOtpCode(e.target.value)}
-                      disabled={holdExpired || otpExpired || isSubmitting}
+                      disabled={holdExpired || isSubmitting || isResendingOtp}
                       className="w-48 text-center p-3 text-2xl font-mono tracking-widest bg-gray-50 border-2 border-brand-600 rounded-xl focus:ring-4 focus:ring-brand-100 focus:outline-none"
                     />
                   </div>
@@ -1060,14 +1494,14 @@ function BookingExperience({
                     <button
                       type="button"
                       onClick={holdExpired ? restartSlotSelection : () => navigateToStep(6)}
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || isResendingOtp}
                       className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium text-sm disabled:opacity-50"
                     >
                       {holdExpired ? "← Chọn lại khung giờ" : "← Sửa thông tin"}
                     </button>
                     <button
                       type="submit"
-                      disabled={isSubmitting || holdExpired || otpExpired}
+                      disabled={isSubmitting || isResendingOtp || holdExpired || otpExpired}
                       className="px-8 py-2.5 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-bold rounded-full shadow-lg hover:shadow-xl transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
                     >
                       {isSubmitting ? "Đang xác nhận..." : "Hoàn tất đặt lịch khám"}

@@ -26,13 +26,13 @@ import {
   updateAiConversationConsent,
   updateAiMessageFeedback,
   sendAiConversationMessage,
+  type AuthSession,
 } from "../lib/api-client";
 import type {
   AiChatMessage,
   AiChatPolicy,
   AiChatProvenance,
   AiConversation,
-  AuthSession,
   ChatMode,
   FeedbackRating,
 } from "../types/hospital";

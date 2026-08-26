@@ -12,10 +12,10 @@ test("public browser API clients use the same-origin proxy by default", async ()
     read("lib/cms-client.ts"),
   ]);
 
-  for (const source of [client, booking, tracking]) {
-    assert.match(source, /process\.env\.NEXT_PUBLIC_API_BASE_URL \|\| "\/api\/v1"/);
+  for (const source of [client, booking, tracking, cms]) {
+    assert.match(source, /(?:const|let)\s+(?:API_BASE_URL|DEFAULT_BASE_URL)\s*=\s+"\/api\/v1"/);
+    assert.doesNotMatch(source, /NEXT_PUBLIC_(?:CMS_)?API_BASE_URL/);
   }
-  assert.match(cms, /process\.env\.NEXT_PUBLIC_API_BASE_URL \|\|\s+"\/api\/v1"/);
 });
 
 test("route-param API clients encode slug path segments before hitting backend routes", async () => {
@@ -41,29 +41,59 @@ test("route-param API clients encode slug path segments before hitting backend r
   assert.doesNotMatch(client, /\/admin\/(?:doctors|specialties|branches|services|packages|articles)\/\$\{slug\}/);
 });
 
-test("Compose routes same-origin frontend traffic through the backend service", async () => {
-  const [compose, dockerfile, dockerignore, nextConfig] = await Promise.all([
+test("Compose keeps browser traffic same-origin through the server-only BFF", async () => {
+  const [compose, dockerfile, dockerignore, nextConfig, routeHandler, bff, render, envExample] = await Promise.all([
     read("../../infrastructure/docker-compose.yml"),
     read("Dockerfile"),
     read(".dockerignore"),
     read("next.config.ts"),
+    read("app/api/v1/[...path]/route.ts"),
+    read("lib/server/healthcare-bff.ts"),
+    read("../../render.yaml"),
+    read("../../.env.example"),
   ]);
 
-  assert.match(compose, /args:\s+BACKEND_INTERNAL_URL:\s+http:\/\/backend:8080/);
   assert.match(compose, /BACKEND_INTERNAL_URL:\s+http:\/\/backend:8080/);
+  assert.match(compose, /BACKEND_BFF_SERVICE_TOKEN:\s+\$\{BACKEND_BFF_SERVICE_TOKEN:\?BACKEND_BFF_SERVICE_TOKEN is required\}/);
+  assert.match(compose, /BFF_PUBLIC_ORIGIN:\s+\$\{BFF_PUBLIC_ORIGIN:-http:\/\/localhost:3000\}/);
+  assert.match(compose, /BACKEND_BFF_REQUIRED:\s+"true"/);
+  assert.match(compose, /BFF_ALLOWED_ORIGINS:\s+\$\{BFF_ALLOWED_ORIGINS:-http:\/\/localhost:3000,http:\/\/127\.0\.0\.1:3000\}/);
   assert.match(compose, /AI_SERVICE_URL:\s+http:\/\/ai-service:8000/);
+  assert.match(compose, /REDIS_URL:\s+redis:\/\/redis:6379/);
+  assert.match(compose, /CORS_ALLOWED_ORIGINS:\s+\$\{CORS_ALLOWED_ORIGINS:-\}/);
   assert.doesNotMatch(compose, /container_name:/);
   assert.doesNotMatch(compose, /healthcare-ai-service:8000/);
   assert.doesNotMatch(compose, /NEXT_PUBLIC_API_BASE_URL:\s+http:\/\/localhost:8080/);
   assert.match(compose, /\$\{BACKEND_HOST_PORT:-8080\}:8080/);
   assert.match(compose, /\$\{FRONTEND_HOST_PORT:-3000\}:3000/);
   assert.match(compose, /127\.0\.0\.1:\$\{AI_SERVICE_HOST_PORT:-8000\}:8000/);
-  assert.match(dockerfile, /ARG BACKEND_INTERNAL_URL=http:\/\/backend:8080/);
-  assert.match(dockerfile, /ENV BACKEND_INTERNAL_URL=\$\{BACKEND_INTERNAL_URL\}/);
+  assert.doesNotMatch(dockerfile, /ARG BACKEND_INTERNAL_URL/);
+  assert.match(dockerfile, /ENV BACKEND_INTERNAL_URL=http:\/\/backend:8080/);
+  assert.doesNotMatch(dockerfile, /BACKEND_BFF_SERVICE_TOKEN/);
   assert.match(dockerignore, /^node_modules$/m);
   assert.match(dockerignore, /^\.next$/m);
-  assert.match(nextConfig, /source:\s*"\/api\/v1\/:path\*"/);
-  assert.match(nextConfig, /destination:\s*`\$\{backendOrigin\}\/api\/v1\/:path\*`/);
+  assert.doesNotMatch(nextConfig, /async rewrites\(\)/);
+  assert.match(routeHandler, /proxyHealthcareRequest\(request, path\)/);
+  assert.match(routeHandler, /export const runtime = "nodejs"/);
+  assert.match(bff, /process\.env\.BACKEND_INTERNAL_URL/);
+  assert.match(bff, /process\.env\.BACKEND_BFF_SERVICE_TOKEN/);
+  assert.match(bff, /process\.env\.BFF_PUBLIC_ORIGIN/);
+  assert.match(bff, /BFF_CONFIGURATION_UNAVAILABLE/);
+  assert.match(bff, /X-Healthcare-Bff-Token/);
+  assert.match(bff, /X-Healthcare-Original-Origin/);
+  assert.match(bff, /redirect: "manual"/);
+  assert.doesNotMatch(routeHandler, /NEXT_PUBLIC_|BACKEND_INTERNAL_URL|BACKEND_BFF_SERVICE_TOKEN/);
+  assert.doesNotMatch(nextConfig, /NEXT_PUBLIC_(?:CMS_)?API_BASE_URL/);
+  assert.match(render, /- key: BACKEND_BFF_SERVICE_TOKEN\s+sync: false/);
+  assert.match(render, /- key: BACKEND_BFF_REQUIRED\s+value: "true"/);
+  assert.match(render, /- key: BFF_ALLOWED_ORIGINS\s+sync: false/);
+  assert.doesNotMatch(render, /- key: CORS_ALLOWED_ORIGINS/);
+  assert.doesNotMatch(envExample, /NEXT_PUBLIC_(?:CMS_)?API_BASE_URL/);
+  assert.match(envExample, /^BACKEND_BFF_SERVICE_TOKEN=$/m);
+  assert.match(envExample, /^BACKEND_BFF_REQUIRED=true$/m);
+  assert.match(envExample, /^BFF_PUBLIC_ORIGIN=http:\/\/localhost:3000$/m);
+  assert.match(envExample, /^BFF_ALLOWED_ORIGINS=http:\/\/localhost:3000,http:\/\/127\.0\.0\.1:3000$/m);
+  assert.match(envExample, /^CORS_ALLOWED_ORIGINS=$/m);
 });
 
 test("local MVP helper binds rebuilt application images to an immutable Git source revision", async () => {

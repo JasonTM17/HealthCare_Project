@@ -76,9 +76,12 @@ class HealthResponse(BaseModel):
     provider_configured: bool = True
     fallback_allowed: bool = False
     remote_probe_required: bool = False
+    rag_ready: bool = True
 
 
 class TriageRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     symptoms: str = Field(
         ...,
         min_length=2,
@@ -275,6 +278,8 @@ class LLMRecommendation(BaseModel):
 
 
 class EmbeddingRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     text: str = Field(..., min_length=1, max_length=MAX_INPUT_CHARS)
     # Remote embeddings are internal-only and require the synthetic assertion.
     synthetic_beta: bool = False
@@ -293,6 +298,8 @@ class EmbeddingResponse(BaseModel):
 
 
 class RAGSearchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     query: str = Field(..., min_length=1, max_length=MAX_INPUT_CHARS)
     top_k: int = Field(default=5, ge=1, le=MAX_RETRIEVED_CHUNKS)
     synthetic_beta: bool = False
@@ -301,6 +308,8 @@ class RAGSearchRequest(BaseModel):
 
 
 class RAGIndexRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     source_type: SOURCE_TYPES
     source_id: str = Field(..., min_length=1, max_length=200, pattern=r"^[A-Za-z0-9._:-]+$")
     title: str = Field(..., min_length=1, max_length=300)
@@ -396,6 +405,8 @@ class SemanticSearchResponse(BaseModel):
 
 
 class SemanticSearchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     query: str = Field(default="", max_length=MAX_INPUT_CHARS)
     specialty: str = Field(default="", max_length=200)
     top_k: int = Field(default=10, ge=1, le=MAX_RETRIEVED_CHUNKS)
@@ -406,6 +417,8 @@ class SemanticSearchRequest(BaseModel):
 
 
 class SpecialtyRecommendationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     symptoms: str = Field(..., min_length=2, max_length=MAX_INPUT_CHARS)
     synthetic_beta: bool = False
 

@@ -16,7 +16,7 @@ from app.providers import (
     runtime_allows_local_fallback,
     string_setting,
 )
-from app.llm import patient_chat_remote_enabled
+from app.llm import contains_sensitive_or_injection, patient_chat_remote_enabled
 from app.schemas import EMBEDDING_DIMENSION, ProviderProvenance
 
 DIMENSION = EMBEDDING_DIMENSION
@@ -128,7 +128,13 @@ def build_embedding_client(settings: Any) -> EmbeddingClient:
     return LocalEmbeddingClient()
 
 
-def embed(text: str, settings: Any, *, synthetic_beta: bool = False) -> EmbeddingResult:
+def embed(
+    text: str,
+    settings: Any,
+    *,
+    synthetic_beta: bool = False,
+    allow_public_operational: bool = False,
+) -> EmbeddingResult:
     """Return a result with explicit local/remote provenance.
 
     A selected remote provider may fall back only in local/demo/test runtime.
@@ -144,6 +150,17 @@ def embed(text: str, settings: Any, *, synthetic_beta: bool = False) -> Embeddin
     allow_fallback = runtime_allows_local_fallback(settings)
     provider = string_setting(settings, "embedding_provider", "local").lower()
     api_key = provider_secret(settings, provider)
+    # Never export identifiers, dates, or instruction-like payloads to a
+    # remote embedding provider. Synthetic-beta is fail-closed; local/demo/
+    # test runtimes may use the deterministic fallback without egress.
+    if remote_requested and contains_sensitive_or_injection(
+        text,
+        allow_public_operational=allow_public_operational,
+    ):
+        if allow_fallback:
+            local = LocalEmbeddingClient().embed(text)
+            return EmbeddingResult(local.vector, local.model, "local_fallback")
+        raise ProviderUnavailable()
     if remote_requested and not api_key:
         if allow_fallback:
             local = LocalEmbeddingClient().embed(text)

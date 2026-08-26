@@ -7,6 +7,7 @@ import com.healthcare.appointment.repository.AppointmentRepository;
 import com.healthcare.appointment.repository.DoctorScheduleRepository;
 import com.healthcare.scheduling.entity.DoctorScheduleException;
 import com.healthcare.scheduling.repository.DoctorScheduleExceptionRepository;
+import com.healthcare.hospital.repository.DoctorRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,14 +37,17 @@ public class ScheduleService {
     private final DoctorScheduleRepository doctorScheduleRepository;
     private final DoctorScheduleExceptionRepository exceptionRepository;
     private final AppointmentRepository appointmentRepository;
+    private final DoctorRepository doctorRepository;
 
     public ScheduleService(
             DoctorScheduleRepository doctorScheduleRepository,
             DoctorScheduleExceptionRepository exceptionRepository,
-            AppointmentRepository appointmentRepository) {
+            AppointmentRepository appointmentRepository,
+            DoctorRepository doctorRepository) {
         this.doctorScheduleRepository = doctorScheduleRepository;
         this.exceptionRepository = exceptionRepository;
         this.appointmentRepository = appointmentRepository;
+        this.doctorRepository = doctorRepository;
     }
 
     /** Computes configured slots and marks every interval overlapping an appointment as occupied. */
@@ -59,7 +63,8 @@ public class ScheduleService {
      */
     public List<TimeSlotDto> getAvailableSlots(UUID doctorId, UUID branchId, LocalDate date) {
         LocalDate today = LocalDate.now(BUSINESS_ZONE);
-        if (date == null || date.isBefore(today)) {
+        if (doctorId == null || date == null || date.isBefore(today)
+                || doctorRepository.findById(doctorId).filter(doctor -> doctor.isActive()).isEmpty()) {
             return Collections.emptyList();
         }
 
@@ -77,7 +82,7 @@ public class ScheduleService {
                     doctorId, requestedBranchId, date, now)
             );
         }
-        List<TimeSlotDto> slots = new ArrayList<>();
+        Map<SlotKey, TimeSlotDto> slots = new LinkedHashMap<>();
         LocalTime currentTime = LocalTime.now(BUSINESS_ZONE);
         boolean isToday = date.equals(today);
 
@@ -99,12 +104,16 @@ public class ScheduleService {
                     ? "Đã qua giờ khám"
                     : (isOccupied ? "Đã có người đặt / Đang giữ chỗ" : "Còn trống");
 
-                slots.add(new TimeSlotDto(window.branchId(), slotStart, slotEnd, available, note));
+                SlotKey slotKey = new SlotKey(window.branchId(), slotStart, slotEnd);
+                slots.putIfAbsent(
+                    slotKey,
+                    new TimeSlotDto(window.branchId(), slotStart, slotEnd, available, note)
+                );
                 slotStart = slotEnd;
             }
         }
 
-        return slots;
+        return List.copyOf(slots.values());
     }
 
     /** Resolves the exact interval used by booking, including configured duration. */
@@ -287,5 +296,8 @@ public class ScheduleService {
             LocalTime endTime,
             int slotDurationMinutes,
             UUID branchId) {
+    }
+
+    private record SlotKey(UUID branchId, LocalTime startTime, LocalTime endTime) {
     }
 }

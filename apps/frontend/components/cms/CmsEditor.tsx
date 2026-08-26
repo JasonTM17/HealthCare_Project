@@ -146,7 +146,7 @@ function slotSelection(slotKey: string): { slug: string; slot: CmsSlotKey } | nu
 
 function asCmsError(error: unknown): CmsApiError {
   if (error instanceof CmsApiError) return error;
-  return new CmsApiError("network", 0, error instanceof Error ? error.message : "Không thể kết nối CMS.");
+  return new CmsApiError("network", 0, "Không thể kết nối CMS.");
 }
 
 function apiErrorMessage(error: CmsApiError): string {
@@ -156,7 +156,7 @@ function apiErrorMessage(error: CmsApiError): string {
     case "forbidden":
       return "Tài khoản hiện tại không có quyền ADMIN (403). Nội dung chưa được thay đổi.";
     case "validation":
-      return `${error.message} (400/422).`;
+      return "Dữ liệu CMS chưa hợp lệ (400/422). Hãy kiểm tra các trường và thử lại.";
     case "conflict":
       return "Nội dung đã thay đổi ở nơi khác (409). Tải lại slot trước khi ghi đè.";
     case "not-found":
@@ -164,9 +164,13 @@ function apiErrorMessage(error: CmsApiError): string {
     case "unavailable":
       return "CMS backend hiện không khả dụng (503). Không có dữ liệu demo thay thế.";
     case "network":
-      return `Không thể kết nối live CMS${error.message ? `: ${error.message}` : ""}`;
+      return "Không thể kết nối live CMS. Hãy kiểm tra kết nối và thử lại.";
+    case "server":
+      return "CMS backend đang gặp sự cố (5xx). Nội dung chưa được thay đổi.";
     default:
-      return `${error.message} (HTTP ${error.status || "không xác định"}).`;
+      return error.status === 429
+        ? "CMS đang nhận quá nhiều yêu cầu (429). Vui lòng chờ một lát rồi thử lại."
+        : `CMS chưa thể hoàn tất yêu cầu${error.status > 0 ? ` (HTTP ${error.status})` : ""}. Vui lòng thử lại.`;
   }
 }
 
@@ -651,11 +655,6 @@ export function CmsEditor({
       {apiError ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-950" role="alert">
           <p>{apiErrorMessage(apiError)}</p>
-          {apiError.fieldErrors ? (
-            <ul className="mt-2 list-disc space-y-1 pl-5">
-              {Object.entries(apiError.fieldErrors).map(([field, message]) => <li key={field}>{field}: {message}</li>)}
-            </ul>
-          ) : null}
           {apiError.kind === "conflict" ? (
             <button className="mt-3 min-h-11 rounded-xl bg-red-800 px-4 py-2 text-sm font-bold text-white hover:bg-red-900 disabled:opacity-60" disabled={isBusy} onClick={() => void loadContent(loadedSelection?.slug ?? loadedSlug, loadedSelection?.slot ?? selectedSlot)} type="button">
               Tải version mới nhất

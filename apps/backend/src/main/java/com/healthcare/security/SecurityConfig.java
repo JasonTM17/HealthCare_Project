@@ -1,6 +1,9 @@
 package com.healthcare.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.healthcare.auth.security.BrowserCsrfFilter;
+import com.healthcare.auth.security.BrowserSessionAuthenticationFilter;
+import com.healthcare.auth.security.BffRequestVerifier;
 import com.healthcare.exception.ApiError;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
@@ -23,7 +26,6 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.time.Instant;
 import java.util.List;
@@ -36,13 +38,19 @@ public class SecurityConfig {
     private final ObjectMapper objectMapper;
     private final Environment environment;
     private final RequestRateLimitFilter requestRateLimitFilter;
+    private final BrowserSessionAuthenticationFilter browserSessionAuthenticationFilter;
+    private final BrowserCsrfFilter browserCsrfFilter;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter, ObjectMapper objectMapper, Environment environment,
-            RequestRateLimitFilter requestRateLimitFilter) {
+            RequestRateLimitFilter requestRateLimitFilter,
+            BrowserSessionAuthenticationFilter browserSessionAuthenticationFilter,
+            BrowserCsrfFilter browserCsrfFilter) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.objectMapper = objectMapper;
         this.environment = environment;
         this.requestRateLimitFilter = requestRateLimitFilter;
+        this.browserSessionAuthenticationFilter = browserSessionAuthenticationFilter;
+        this.browserCsrfFilter = browserCsrfFilter;
     }
 
     @Bean
@@ -86,6 +94,7 @@ public class SecurityConfig {
                     "/api/v1/auth/password-reset-requests/**", "/api/v1/auth/forgot-password",
                     "/api/v1/auth/password-reset/**", "/api/v1/auth/reset-password/**"
                 ).permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/v1/auth/browser-sessions").permitAll()
                 .requestMatchers("/api/v1/health").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/payments/webhooks/bank-transfer").permitAll()
                 .requestMatchers("/api/v1/hospital/**").permitAll()
@@ -95,9 +104,10 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/v1/careers/jobs/*/applications").permitAll()
                 .requestMatchers("/api/v1/admin/careers/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/v1/appointments/doctors/*/slots").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/v1/appointments/hold").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/v1/appointments/confirm").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/v1/appointments/*").permitAll()
+                 .requestMatchers(HttpMethod.POST, "/api/v1/appointments/hold").permitAll()
+                 .requestMatchers(HttpMethod.POST, "/api/v1/appointments/confirm").permitAll()
+                 .requestMatchers(HttpMethod.POST, "/api/v1/appointments/*/otp/resend").permitAll()
+                 .requestMatchers(HttpMethod.GET, "/api/v1/appointments/*").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/appointments/*/cancel").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/appointments/*/reschedule").permitAll()
                 .requestMatchers("/api/v1/ai/**").authenticated()
@@ -107,6 +117,8 @@ public class SecurityConfig {
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterAfter(browserSessionAuthenticationFilter, JwtAuthenticationFilter.class)
+            .addFilterAfter(browserCsrfFilter, BrowserSessionAuthenticationFilter.class)
             .addFilterBefore(requestRateLimitFilter, JwtAuthenticationFilter.class);
 
         return http.build();
@@ -131,22 +143,35 @@ public class SecurityConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-        String allowedOrigins = environment.getProperty("app.cors.allowed-origins", "http://localhost:3000");
-        CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of(allowedOrigins.split(",")).stream()
+        String allowedOrigins = environment.getProperty("app.cors.allowed-origins", "");
+        List<String> configuredOrigins = List.of(allowedOrigins.split(",")).stream()
             .map(String::trim)
             .filter(origin -> !origin.isEmpty())
-            .toList());
+            .toList();
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(configuredOrigins);
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(List.of(
-            "Authorization", "Content-Type", "X-Requested-With", "Idempotency-Key"
+            "Authorization", "Content-Type", "X-Requested-With", "Idempotency-Key", "X-CSRF-Token"
         ));
         configuration.setExposedHeaders(List.of("Authorization"));
-        configuration.setAllowCredentials(true);
+        configuration.setAllowCredentials(!configuredOrigins.isEmpty());
         configuration.setMaxAge(3600L);
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
-        return source;
+        CorsConfiguration bearerMintDenied = new CorsConfiguration();
+        bearerMintDenied.setAllowedOrigins(List.of());
+        bearerMintDenied.setAllowedMethods(List.of());
+        bearerMintDenied.setAllowedHeaders(List.of());
+        bearerMintDenied.setAllowCredentials(false);
+
+        return request -> BffRequestVerifier.isLegacyBearerMintRoute(
+                request.getMethod(), request.getRequestURI())
+            || (HttpMethod.OPTIONS.matches(request.getMethod())
+                && BffRequestVerifier.isLegacyBearerMintRoute(
+                    request.getHeader("Access-Control-Request-Method"),
+                    request.getRequestURI()
+                ))
+            ? bearerMintDenied
+            : configuration;
     }
 }

@@ -2,12 +2,17 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import AdminState from "./_components/AdminState";
-import { logoutCurrentUser } from "../../lib/api-client";
+import {
+  AUTH_SESSION_INDETERMINATE_MESSAGE,
+  hasRole,
+  hydrateAuthSession,
+  logoutCurrentUser,
+  SAFE_LOGOUT_ERROR_MESSAGE,
+} from "../../lib/api-client";
 import UiIcon from "../../components/UiIcon";
-
-const AUTH_STORAGE_KEY = "healthcare.auth.session";
+import { useAuthSession, useAuthSessionStatus } from "../../components/useAuthSession";
 
 const NAV = [
   { href: "/admin", label: "Tổng quan" },
@@ -30,58 +35,57 @@ type GateState =
   | { status: "forbidden" }
   | { status: "ready"; displayName?: string };
 
-function hasAdminRole(roles: unknown): boolean {
-  return Array.isArray(roles) && roles.some(
-    (role) => typeof role === "string" && role.replace(/^ROLE_/, "").toUpperCase() === "ADMIN",
-  );
-}
-
-function readGateState(): GateState {
-  try {
-    const raw = window.sessionStorage.getItem(AUTH_STORAGE_KEY);
-    if (!raw) return { status: "unauthenticated" };
-
-    const parsed = JSON.parse(raw) as {
-      accessToken?: unknown;
-      user?: { displayName?: unknown; roles?: unknown };
-    };
-
-    if (typeof parsed.accessToken !== "string" || !parsed.accessToken || !parsed.user) {
-      return { status: "unauthenticated" };
-    }
-
-    if (!hasAdminRole(parsed.user.roles)) return { status: "forbidden" };
-
-    return {
-      status: "ready",
-      displayName: typeof parsed.user.displayName === "string" ? parsed.user.displayName : undefined,
-    };
-  } catch {
-    return { status: "unauthenticated" };
-  }
-}
-
 function AdminAccessGate({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const [gate, setGate] = useState<GateState>({ status: "checking" });
+  const session = useAuthSession();
+  const hydrationStatus = useAuthSessionStatus();
   const [switchingAccount, setSwitchingAccount] = useState(false);
-
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => setGate(readGateState()));
-    return () => window.cancelAnimationFrame(frame);
-  }, []);
+  const [switchAccountError, setSwitchAccountError] = useState<string | null>(null);
+  const gate: GateState = hydrationStatus !== "settled"
+    ? { status: "checking" }
+    : !session
+      ? { status: "unauthenticated" }
+      : !hasRole(session.user, "ADMIN")
+        ? { status: "forbidden" }
+        : { status: "ready", displayName: session.user.displayName };
 
   const handleSwitchAccount = async (): Promise<void> => {
     if (switchingAccount) return;
     setSwitchingAccount(true);
+    setSwitchAccountError(null);
     try {
-      await logoutCurrentUser();
+      const outcome = await logoutCurrentUser();
+      if (outcome.status === "LOGGED_OUT") {
+        router.replace("/auth/login?next=%2Fadmin");
+      } else {
+        setSwitchAccountError(SAFE_LOGOUT_ERROR_MESSAGE);
+      }
     } catch {
-      // Browser session is cleared even when remote sign-out is unavailable.
+      setSwitchAccountError(SAFE_LOGOUT_ERROR_MESSAGE);
     } finally {
-      router.replace("/auth/login?next=%2Fadmin");
+      setSwitchingAccount(false);
     }
   };
+
+  if (hydrationStatus === "indeterminate") {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
+        <div className="w-full max-w-lg">
+          <AdminState
+            tone="error"
+            title="Không thể xác định trạng thái phiên đăng nhập"
+            description={AUTH_SESSION_INDETERMINATE_MESSAGE}
+            action={(
+              <div className="flex flex-wrap gap-3">
+                <button className="min-h-11 rounded-lg bg-teal-800 px-4 text-sm font-bold text-white" onClick={() => void hydrateAuthSession(true)} type="button">Thử xác minh lại</button>
+                <button className="min-h-11 rounded-lg border border-teal-800 px-4 text-sm font-bold text-teal-900" onClick={() => window.location.reload()} type="button">Tải lại trang</button>
+              </div>
+            )}
+          />
+        </div>
+      </main>
+    );
+  }
 
   if (gate.status === "checking") {
     return (
@@ -116,7 +120,15 @@ function AdminAccessGate({ children }: { children: ReactNode }) {
             tone="forbidden"
             title="Tài khoản không có quyền quản trị"
             description="Phiên hiện tại thuộc một vai trò khác. Bạn có thể đổi tài khoản hoặc quay về trang chính."
-            action={<div className="flex flex-wrap gap-3"><button className="min-h-11 rounded-lg bg-teal-800 px-4 text-sm font-bold text-white disabled:opacity-50" disabled={switchingAccount} onClick={() => void handleSwitchAccount()} type="button">{switchingAccount ? "Đang chuyển..." : "Đổi tài khoản"}</button><Link className="inline-flex min-h-11 items-center px-2 text-sm font-bold text-teal-800 underline underline-offset-4" href="/">Về trang chính</Link></div>}
+            action={(
+              <div className="grid gap-3">
+                <div className="flex flex-wrap gap-3">
+                  <button className="min-h-11 rounded-lg bg-teal-800 px-4 text-sm font-bold text-white disabled:opacity-50" disabled={switchingAccount} onClick={() => void handleSwitchAccount()} type="button">{switchingAccount ? "Đang chuyển..." : "Đổi tài khoản"}</button>
+                  <Link className="inline-flex min-h-11 items-center px-2 text-sm font-bold text-teal-800 underline underline-offset-4" href="/">Về trang chính</Link>
+                </div>
+                {switchAccountError ? <p aria-live="polite" className="text-sm font-semibold text-amber-900" role="status">{switchAccountError}</p> : null}
+              </div>
+            )}
           />
         </div>
       </main>
@@ -130,16 +142,23 @@ function AdminShell({ children, displayName }: { children: ReactNode; displayNam
   const pathname = usePathname();
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
 
   const handleLogout = async (): Promise<void> => {
     if (loggingOut) return;
     setLoggingOut(true);
+    setLogoutError(null);
     try {
-      await logoutCurrentUser();
+      const outcome = await logoutCurrentUser();
+      if (outcome.status === "LOGGED_OUT") {
+        router.replace("/auth/login");
+      } else {
+        setLogoutError(SAFE_LOGOUT_ERROR_MESSAGE);
+      }
     } catch {
-      // Browser session is cleared even when remote sign-out is unavailable.
+      setLogoutError(SAFE_LOGOUT_ERROR_MESSAGE);
     } finally {
-      router.replace("/auth/login");
+      setLoggingOut(false);
     }
   };
 
@@ -181,6 +200,7 @@ function AdminShell({ children, displayName }: { children: ReactNode; displayNam
             <button className="min-h-11 w-fit text-left text-sm font-semibold text-amber-200 hover:text-amber-100 disabled:opacity-50" disabled={loggingOut} onClick={() => void handleLogout()} type="button">
               {loggingOut ? "Đang đăng xuất..." : "Đăng xuất"}
             </button>
+            {logoutError ? <p aria-live="polite" className="text-xs font-semibold leading-5 text-amber-100" role="status">{logoutError}</p> : null}
           </div>
         </div>
       </aside>

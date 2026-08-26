@@ -18,8 +18,7 @@ from typing import Any, Callable, Sequence
 from app.embeddings import EmbeddingResult, LocalEmbeddingClient, embed
 from app.llm import (
     chat_safety_response,
-    contains_prompt_injection,
-    context_contains_sensitive_data,
+    context_contains_unsafe_data,
     patient_chat_remote_enabled,
     resolve_chat,
     rule_based_triage,
@@ -83,10 +82,25 @@ _APPROVAL_STATE_KEYS = ("approval_state", "review_state", "_approval_state")
 # approved article may discuss diagnosis in an educational disclaimer; direct
 # claims or medication instructions are never repeated as an AI assertion.
 _UNSAFE_CLAIM_PATTERNS = (
-    re.compile(r"\b(bạn|you)\s+(bị|mắc|have|has)\b", re.IGNORECASE),
+    re.compile(
+        r"\b(?:bạn|ban|you)\s+(?:(?:có|co)\s+(?:thể|the|khả\s+năng|kha\s+nang)|"
+        r"có\s+lẽ|co\s+le|may|might|could|likely)?\s*(?:bị|bi|mắc|mac|have|has)\b",
+        re.IGNORECASE,
+    ),
     re.compile(r"\b(chẩn đoán là|diagnosed as|i diagnose)\b", re.IGNORECASE),
     re.compile(r"\b(kê đơn|prescribe|prescription|liều thuốc|dosage)\b", re.IGNORECASE),
     re.compile(r"\b(?:uống|take|dùng)\s+\d+(?:[.,]\d+)?\s*(?:mg|ml|viên)\b", re.IGNORECASE),
+    re.compile(
+        r"\b(?:(?:hãy|hay|bạn\s+nên|ban\s+nen)\s+(?:uống|uong|dùng|dung|sử\s+dụng|su\s+dung)|"
+        r"you\s+should\s+(?:take|use))\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:uống|uong|dùng|dung|sử\s+dụng|su\s+dung|take|use)\s+(?:thuốc\s+|thuoc\s+)?"
+        r"(?:aspirin|paracetamol|acetaminophen|ibuprofen|amoxicillin|antibiotic|"
+        r"kháng\s+sinh|khang\s+sinh)\b",
+        re.IGNORECASE,
+    ),
     re.compile(r"\b(ngừng thuốc|stop medication|change your medication)\b", re.IGNORECASE),
 )
 
@@ -246,6 +260,25 @@ def _mode_allows(meta: _SourceMetadata, mode: ChatMode) -> bool:
     return meta.projection_kind == "OPERATIONAL"
 
 
+def _public_operational_context(meta: _SourceMetadata) -> bool:
+    """Allow only Spring-marked public branch contact/address fields."""
+
+    marker = _metadata_value(meta.document, ("public_operational",))
+    return (
+        meta.projection_kind == "OPERATIONAL"
+        and meta.document.source_type == "branch"
+        and marker is not None
+        and marker.casefold() == "true"
+    )
+
+
+def _context_is_safe(meta: _SourceMetadata) -> bool:
+    return not context_contains_unsafe_data(
+        [meta.document.title, meta.document.content],
+        allow_public_operational=_public_operational_context(meta),
+    )
+
+
 def _expired(meta: _SourceMetadata) -> bool:
     return meta.expires_at is not None and meta.expires_at <= datetime.now(timezone.utc)
 
@@ -357,11 +390,7 @@ def _local_grounded_response(
 ) -> ChatResponse:
     if not metas:
         return _insufficient_response(mode)
-    if any(
-        contains_prompt_injection(meta.document.content)
-        or context_contains_sensitive_data([meta.document.content])
-        for meta in metas
-    ):
+    if any(not _context_is_safe(meta) for meta in metas):
         return _insufficient_response(mode)
 
     citations = [
@@ -562,7 +591,7 @@ def retrieve_chat_candidates(
         meta = _source_metadata(document)
         if not _mode_allows(meta, request.mode) or _expired(meta):
             continue
-        if contains_prompt_injection(document.content) or context_contains_sensitive_data([document.content]):
+        if not _context_is_safe(meta):
             # Quarantine untrusted content instead of returning it as an
             # authorized candidate.
             continue
@@ -606,11 +635,7 @@ def generate_chat_response(
     if not metas:
         return _insufficient_response(request.mode)
 
-    if any(
-        contains_prompt_injection(meta.document.content)
-        or context_contains_sensitive_data([meta.document.content])
-        for meta in metas
-    ):
+    if any(not _context_is_safe(meta) for meta in metas):
         return _insufficient_response(request.mode)
 
     remote_requested = remote_provider_requested(settings, "ai_provider", LOCAL_CHAT_PROVIDERS)
@@ -624,6 +649,10 @@ def generate_chat_response(
     if not remote_requested or not patient_chat_remote_enabled(settings):
         response = _local_grounded_response(request.message, request.mode, metas)
     else:
+        allow_public_operational = (
+            request.mode is ChatMode.HOSPITAL_SUPPORT
+            and all(_public_operational_context(meta) for meta in metas)
+        )
         context = [
             f"{meta.document.title}: {meta.document.content[:MAX_CONTEXT_CHARS]}" for meta in metas
         ]
@@ -644,7 +673,10 @@ def generate_chat_response(
             used_sources=expected_used,
             client=client,
             synthetic_beta=request.synthetic_beta,
+            allow_public_operational=allow_public_operational,
         )
+        if response.safety_action is ChatSafetyAction.INSUFFICIENT_EVIDENCE:
+            return _insufficient_response(request.mode)
         if response.provenance == "remote_provider" and _unsafe_claim(response.answer):
             return _insufficient_response(request.mode)
 

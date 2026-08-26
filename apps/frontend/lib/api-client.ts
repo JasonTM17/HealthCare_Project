@@ -1,5 +1,4 @@
 import type {
-  AuthSession,
   AuthUser,
   Doctor,
   DiagnosticResult,
@@ -12,6 +11,10 @@ import type {
   ArticleSection,
   MedicalRecord,
   Notification,
+  NotificationCategory,
+  NotificationChannel,
+  NotificationPreference,
+  NotificationPreferencePatchPayload,
   Prescription,
   PrescriptionItem,
   UserProfile,
@@ -57,7 +60,10 @@ import type {
   ConsultationSummary,
   ConsultationDetail,
   ConsultationMessage,
+  ConsultationMessagePage,
   ConsultationAttachment,
+  ConsultationHandoffDoctor,
+  ConsultationAdminQueueItem,
   HealthQuestionSummary,
   HealthQuestionReport,
   CarePlan,
@@ -65,7 +71,6 @@ import type {
 } from "../types/hospital";
 
 export type {
-  AuthSession,
   AuthUser,
   Doctor,
   DiagnosticResult,
@@ -78,6 +83,10 @@ export type {
   ArticleSection,
   MedicalRecord,
   Notification,
+  NotificationCategory,
+  NotificationChannel,
+  NotificationPreference,
+  NotificationPreferencePatchPayload,
   Prescription,
   PrescriptionItem,
   UserProfile,
@@ -123,16 +132,40 @@ export type {
   ConsultationSummary,
   ConsultationDetail,
   ConsultationMessage,
+  ConsultationMessagePage,
   ConsultationAttachment,
+  ConsultationHandoffDoctor,
+  ConsultationAdminQueueItem,
   HealthQuestionSummary,
   HealthQuestionReport,
   CarePlan,
   CarePlanItem,
 };
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "/api/v1";
+// Browser requests always use the same-origin Route Handler BFF. Only its
+// server-only helper can read the private backend origin and BFF credential;
+// keeping this path literal prevents either value from entering client code.
+const API_BASE_URL = "/api/v1";
 const API_REQUEST_TIMEOUT_MS = 12_000;
+
+/**
+ * Browser-visible session metadata. Authentication secrets live only in
+ * Secure HttpOnly cookies and are intentionally absent from this shape.
+ */
+export interface AuthSession {
+  user: AuthUser;
+  idleExpiresAt: string;
+  absoluteExpiresAt: string;
+}
+
+export type AuthHydrationStatus = "idle" | "loading" | "settled" | "indeterminate";
+
+export type LogoutOutcome =
+  | { status: "LOGGED_OUT"; authority: "DELETE_ACK" | "RECONCILED_401" }
+  | { status: "SESSION_ACTIVE"; authority: "RECONCILED_ACTIVE" };
+
+export const SAFE_LOGOUT_ERROR_MESSAGE = "Không thể đăng xuất an toàn. Phiên của bạn vẫn đang hoạt động. Vui lòng thử lại.";
+export const AUTH_SESSION_INDETERMINATE_MESSAGE = "Không thể xác định trạng thái phiên đăng nhập. Dữ liệu bảo vệ đã được ẩn cho đến khi xác minh lại.";
 
 /** Spring Data page envelope. */
 export interface Page<T> {
@@ -254,6 +287,7 @@ async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     res = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
+      credentials: "same-origin",
       headers,
       signal: requestController.signal,
     });
@@ -279,13 +313,19 @@ async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
   }
 }
 
-const AUTH_STORAGE_KEY = "healthcare.auth.session";
 const AUTH_CHANGE_EVENT = "healthcare-auth-session-change";
-let authSessionSnapshotCache: { raw: string | null; session: AuthSession | null } = {
-  raw: null,
-  session: null,
-};
+let authSessionSnapshot: AuthSession | null = null;
+let authHydrationStatus: AuthHydrationStatus = "idle";
 let authSessionVersion = 0;
+let authMutationVersion: number | null = null;
+let authMutationController: AbortController | null = null;
+
+interface AuthHydrationFlight {
+  expectedVersion: number;
+  promise: Promise<AuthSession | null>;
+}
+
+let authHydrationFlight: AuthHydrationFlight | null = null;
 
 function notifyAuthSessionChange(): void {
   if (typeof window !== "undefined") {
@@ -311,60 +351,124 @@ function normalizeAuthUser(user: AuthUser): AuthUser {
 }
 
 export function readAuthSession(): AuthSession | null {
-  if (typeof window === "undefined") return null;
-
-  const raw = window.sessionStorage.getItem(AUTH_STORAGE_KEY);
-  if (raw === authSessionSnapshotCache.raw) return authSessionSnapshotCache.session;
-  authSessionSnapshotCache.raw = raw;
-  if (!raw) {
-    authSessionSnapshotCache.session = null;
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as Partial<AuthSession>;
-    if (
-      typeof parsed.accessToken !== "string" ||
-      typeof parsed.refreshToken !== "string" ||
-      typeof parsed.tokenType !== "string" ||
-      typeof parsed.expiresIn !== "number" ||
-      !isAuthUser(parsed.user)
-    ) {
-      authSessionSnapshotCache.session = null;
-      return null;
-    }
-    authSessionSnapshotCache.session = {
-      ...(parsed as AuthSession),
-      user: normalizeAuthUser(parsed.user),
-    };
-    return authSessionSnapshotCache.session;
-  } catch {
-    authSessionSnapshotCache.session = null;
-    return null;
-  }
+  return authSessionSnapshot;
 }
 
-export function storeAuthSession(session: AuthSession): void {
-  if (typeof window !== "undefined") {
-    const normalizedSession: AuthSession = {
-      ...session,
-      user: normalizeAuthUser(session.user),
-    };
-    const raw = JSON.stringify(normalizedSession);
-    window.sessionStorage.setItem(AUTH_STORAGE_KEY, raw);
-    authSessionSnapshotCache = { raw, session: normalizedSession };
-    authSessionVersion += 1;
-    notifyAuthSessionChange();
+function normalizeAuthSession(value: unknown, path: string): AuthSession {
+  if (!isRecord(value) || !isAuthUser(value.user)) {
+    throw new ApiError("Hệ thống trả về dữ liệu phiên không hợp lệ.", 502, path);
   }
+  if (
+    typeof value.idleExpiresAt !== "string"
+    || !Number.isFinite(Date.parse(value.idleExpiresAt))
+    || typeof value.absoluteExpiresAt !== "string"
+    || !Number.isFinite(Date.parse(value.absoluteExpiresAt))
+  ) {
+    throw new ApiError("Hệ thống trả về dữ liệu phiên không hợp lệ.", 502, path);
+  }
+  return {
+    user: normalizeAuthUser(value.user),
+    idleExpiresAt: value.idleExpiresAt,
+    absoluteExpiresAt: value.absoluteExpiresAt,
+  };
+}
+
+function commitAuthSession(session: AuthSession | null, status: AuthHydrationStatus): void {
+  authSessionSnapshot = session;
+  authHydrationStatus = status;
+  authSessionVersion += 1;
+  authMutationVersion = null;
+  authMutationController = null;
+  notifyAuthSessionChange();
+}
+
+interface AuthMutationAttempt {
+  version: number;
+  controller: AbortController;
+  previousSession: AuthSession | null;
+}
+
+function isCurrentAuthMutation(attempt: AuthMutationAttempt): boolean {
+  return (
+    authSessionVersion === attempt.version
+    && authMutationVersion === attempt.version
+    && authMutationController === attempt.controller
+  );
+}
+
+function authMutationSupersededError(path: string): ApiError {
+  return new ApiError(
+    "Yêu cầu xác thực đã được thay thế bởi một thao tác mới hơn.",
+    409,
+    path,
+    { code: "AUTH_MUTATION_SUPERSEDED" },
+  );
+}
+
+function commitIndeterminateAuthState(): void {
+  authSessionSnapshot = null;
+  authHydrationStatus = "indeterminate";
+  authSessionVersion += 1;
+  authMutationVersion = null;
+  authMutationController = null;
+  notifyAuthSessionChange();
+}
+
+function enterIndeterminateAuthState(attempt: AuthMutationAttempt): boolean {
+  if (!isCurrentAuthMutation(attempt)) return false;
+  commitIndeterminateAuthState();
+  return true;
+}
+
+function beginAuthMutation(preserveCurrentSession = false): AuthMutationAttempt {
+  authMutationController?.abort();
+  const controller = new AbortController();
+  const previousSession = authSessionSnapshot;
+  if (!preserveCurrentSession) {
+    authSessionSnapshot = null;
+    authHydrationStatus = "loading";
+  }
+  authSessionVersion += 1;
+  authMutationVersion = authSessionVersion;
+  authMutationController = controller;
+  authHydrationFlight = null;
+  if (!preserveCurrentSession) notifyAuthSessionChange();
+  return { version: authSessionVersion, controller, previousSession };
+}
+
+function settleFailedAuthMutation(attempt: AuthMutationAttempt): void {
+  if (!isCurrentAuthMutation(attempt)) return;
+  authSessionSnapshot = attempt.previousSession;
+  authHydrationStatus = "settled";
+  authMutationVersion = null;
+  authMutationController = null;
+  notifyAuthSessionChange();
+}
+
+function commitIssuedAuthSession(value: unknown, attempt: AuthMutationAttempt, path: string): AuthSession {
+  const session = normalizeAuthSession(value, path);
+  commitAuthMutationSession(session, attempt, path);
+  return session;
+}
+
+function commitAuthMutationSession(
+  session: AuthSession | null,
+  attempt: AuthMutationAttempt,
+  path: string,
+): void {
+  if (!isCurrentAuthMutation(attempt)) throw authMutationSupersededError(path);
+  commitAuthSession(session, "settled");
+}
+
+/** Kept as an in-memory compatibility helper for UI tests and session grants. */
+export function storeAuthSession(session: AuthSession): void {
+  authMutationController?.abort();
+  commitAuthSession(normalizeAuthSession(session, "/auth/browser-sessions/current"), "settled");
 }
 
 export function clearAuthSession(): void {
-  if (typeof window !== "undefined") {
-    window.sessionStorage.removeItem(AUTH_STORAGE_KEY);
-    authSessionSnapshotCache = { raw: null, session: null };
-    authSessionVersion += 1;
-    notifyAuthSessionChange();
-  }
+  authMutationController?.abort();
+  commitAuthSession(null, "settled");
 }
 
 export function subscribeToAuthSession(onChange: () => void): () => void {
@@ -381,6 +485,14 @@ export function getServerAuthSessionSnapshot(): AuthSession | null {
   return null;
 }
 
+export function getAuthHydrationSnapshot(): AuthHydrationStatus {
+  return authHydrationStatus;
+}
+
+export function getServerAuthHydrationSnapshot(): AuthHydrationStatus {
+  return "idle";
+}
+
 export function hasRole(user: AuthUser | UserProfile, role: string): boolean {
   const expected = role.replace(/^ROLE_/, "").toUpperCase();
   return user.roles.some(
@@ -388,125 +500,66 @@ export function hasRole(user: AuthUser | UserProfile, role: string): boolean {
   );
 }
 
-interface RefreshAuthSessionFlight {
-  refreshToken: string;
-  sessionVersion: number;
-  promise: Promise<AuthSession | null>;
-}
-
-let refreshAuthSessionFlight: RefreshAuthSessionFlight | null = null;
-
-function authSessionsMatch(
-  currentSession: AuthSession | null,
-  expectedSession: AuthSession,
-): boolean {
-  return Boolean(
-    currentSession
-    && currentSession.user.id === expectedSession.user.id
-    && currentSession.accessToken === expectedSession.accessToken
-    && currentSession.refreshToken === expectedSession.refreshToken,
-  );
-}
-
-function clearAuthSessionIfCurrent(
-  expectedSession: AuthSession,
-  expectedVersion: number,
-): void {
-  if (
-    authSessionVersion === expectedVersion
-    && authSessionsMatch(readAuthSession(), expectedSession)
-  ) {
-    clearAuthSession();
-  }
-}
-
 function expiredSessionError(path: string): ApiError {
   return new ApiError("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.", 401, path);
 }
 
-async function refreshStoredAuthSession(currentSession: AuthSession): Promise<AuthSession | null> {
-  const latestSession = readAuthSession();
-  if (!authSessionsMatch(latestSession, currentSession)) {
-    return null;
-  }
+export async function hydrateAuthSession(force = false): Promise<AuthSession | null> {
+  if (typeof window === "undefined") return null;
+  if (authMutationVersion !== null) return authSessionSnapshot;
+  if (!force && authHydrationStatus === "settled") return authSessionSnapshot;
+  if (authHydrationFlight) return authHydrationFlight.promise;
 
-  const sessionVersion = authSessionVersion;
-  if (
-    refreshAuthSessionFlight
-    && refreshAuthSessionFlight.refreshToken === currentSession.refreshToken
-    && refreshAuthSessionFlight.sessionVersion === sessionVersion
-  ) {
-    return refreshAuthSessionFlight.promise;
-  }
-
-  const flight: RefreshAuthSessionFlight = {
-    refreshToken: currentSession.refreshToken,
-    sessionVersion,
+  const expectedVersion = authSessionVersion;
+  authHydrationStatus = "loading";
+  notifyAuthSessionChange();
+  const flight: AuthHydrationFlight = {
+    expectedVersion,
     promise: Promise.resolve(null),
   };
-  flight.promise = getJson<AuthSession>("/auth/refresh", {
-    method: "POST",
-    body: JSON.stringify({ refreshToken: currentSession.refreshToken }),
+  flight.promise = getJson<unknown>("/auth/browser-sessions/current", {
+    method: "GET",
+    cache: "no-store",
   })
-    .then((session) => {
-      if (
-        authSessionVersion !== sessionVersion
-        || !authSessionsMatch(readAuthSession(), currentSession)
-      ) {
-        return null;
-      }
-      storeAuthSession(session);
-      return readAuthSession();
+    .then((value) => {
+      const session = normalizeAuthSession(value, "/auth/browser-sessions/current");
+      if (authSessionVersion === expectedVersion) commitAuthSession(session, "settled");
+      return authSessionSnapshot;
     })
-    .catch(() => {
-      clearAuthSessionIfCurrent(currentSession, sessionVersion);
-      return null;
+    .catch((error: unknown) => {
+      if (error instanceof ApiError && error.status === 401 && authSessionVersion === expectedVersion) {
+        commitAuthSession(null, "settled");
+      } else if (authSessionVersion === expectedVersion) {
+        commitIndeterminateAuthState();
+      }
+      return authSessionSnapshot;
     })
     .finally(() => {
-      if (refreshAuthSessionFlight === flight) {
-        refreshAuthSessionFlight = null;
-      }
+      if (authHydrationFlight === flight) authHydrationFlight = null;
     });
-  refreshAuthSessionFlight = flight;
-
+  authHydrationFlight = flight;
   return flight.promise;
 }
 
 async function withAuthenticatedSession<T>(
   path: string,
-  request: (session: AuthSession) => Promise<T>,
+  request: () => Promise<T>,
 ): Promise<T> {
-  const session = readAuthSession();
-  if (!session) {
-    throw new ApiError("Bạn cần đăng nhập để xem nội dung này.", 401, path);
-  }
-
+  if (!readAuthSession()) throw expiredSessionError(path);
+  const expectedVersion = authSessionVersion;
   try {
-    return await request(session);
+    return await request();
   } catch (error) {
-    if (!(error instanceof ApiError) || error.status !== 401) throw error;
-
-    const refreshedSession = await refreshStoredAuthSession(session);
-    if (!refreshedSession) throw expiredSessionError(path);
-
-    const retrySessionVersion = authSessionVersion;
-    try {
-      return await request(refreshedSession);
-    } catch (retryError) {
-      if (retryError instanceof ApiError && retryError.status === 401) {
-        clearAuthSessionIfCurrent(refreshedSession, retrySessionVersion);
-      }
-      throw retryError;
+    if (error instanceof ApiError && error.status === 401 && authSessionVersion === expectedVersion) {
+      clearAuthSession();
+      throw expiredSessionError(path);
     }
+    throw error;
   }
 }
 
 async function getAuthenticatedJson<T>(path: string, init?: RequestInit): Promise<T> {
-  return withAuthenticatedSession(path, (session) => {
-    const headers = new Headers(init?.headers);
-    headers.set("Authorization", `${session.tokenType} ${session.accessToken}`);
-    return getJson<T>(path, { ...init, headers });
-  });
+  return withAuthenticatedSession(path, () => getJson<T>(path, init));
 }
 
 interface SpecialtyRecommendationResponse {
@@ -1189,14 +1242,36 @@ export async function fetchPatientConsultations(): Promise<ConsultationSummary[]
   return getAuthenticatedJson<ConsultationSummary[]>("/patient/consultations");
 }
 
-export async function fetchPatientConsultation(id: string): Promise<ConsultationDetail> {
-  return getAuthenticatedJson<ConsultationDetail>(`/patient/consultations/${encodeURIComponent(id)}`);
+export async function fetchPatientConsultation(id: string, signal?: AbortSignal): Promise<ConsultationDetail> {
+  return getAuthenticatedJson<ConsultationDetail>(`/patient/consultations/${encodeURIComponent(id)}`, { signal });
 }
 
 export async function fetchPatientConsultationMessages(id: string, limit = 100): Promise<ConsultationMessage[]> {
-  return getAuthenticatedJson<ConsultationMessage[]>(
+  const value = await getAuthenticatedJson<ConsultationMessage[] | ConsultationMessagePage>(
     `/patient/consultations/${encodeURIComponent(id)}/messages${toQuery({ limit })}`,
   );
+  return Array.isArray(value) ? value : value.items;
+}
+
+export async function fetchPatientConsultationMessagePage(
+  id: string,
+  cursor?: string | null,
+  limit = 50,
+  signal?: AbortSignal,
+): Promise<ConsultationMessagePage> {
+  const page = await getAuthenticatedJson<unknown>(
+    `/patient/consultations/${encodeURIComponent(id)}/messages${toQuery({ cursor: cursor ?? undefined, limit })}`,
+    { signal },
+  );
+  if (!page || typeof page !== "object" || !Array.isArray((page as { items?: unknown }).items)) {
+    throw new ApiError("Hệ thống trả về dữ liệu tin nhắn không hợp lệ.", 502, `/patient/consultations/${id}/messages`);
+  }
+  const value = page as Partial<ConsultationMessagePage>;
+  return {
+    items: value.items as ConsultationMessage[],
+    nextCursor: typeof value.nextCursor === "string" ? value.nextCursor : null,
+    hasMore: value.hasMore === true,
+  };
 }
 
 export async function createPatientConsultation(payload: {
@@ -1210,15 +1285,40 @@ export async function createPatientConsultation(payload: {
   });
 }
 
-export async function sendPatientConsultationMessage(id: string, body: string, idempotencyKey: string): Promise<ConsultationMessage> {
+export async function sendPatientConsultationMessage(id: string, body: string, idempotencyKey: string, signal?: AbortSignal): Promise<ConsultationMessage> {
   return getAuthenticatedJson<ConsultationMessage>(`/patient/consultations/${encodeURIComponent(id)}/messages`, {
-    method: "POST", headers: { "Idempotency-Key": idempotencyKey }, body: JSON.stringify({ body }),
+    method: "POST", headers: { "Idempotency-Key": idempotencyKey }, body: JSON.stringify({ body }), signal,
   });
+}
+
+export async function reopenPatientConsultation(id: string): Promise<void> {
+  await getAuthenticatedJson<void>(`/patient/consultations/${encodeURIComponent(id)}/reopen`, { method: "POST" });
+}
+
+export async function createPatientConsultationAttachmentIntent(
+  id: string,
+  payload: { messageId: string; mimeType: string; sizeBytes: number; sha256Hash: string },
+): Promise<ConsultationAttachment> {
+  return getAuthenticatedJson<ConsultationAttachment>(`/patient/consultations/${encodeURIComponent(id)}/attachments/intents`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function completePatientConsultationAttachment(id: string, attachmentId: string): Promise<ConsultationAttachment> {
+  return getAuthenticatedJson<ConsultationAttachment>(`/patient/consultations/${encodeURIComponent(id)}/attachments/${encodeURIComponent(attachmentId)}/complete`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+export async function fetchPatientConsultationAttachmentDownload(id: string, attachmentId: string): Promise<ConsultationAttachment> {
+  return getAuthenticatedJson<ConsultationAttachment>(`/patient/consultations/${encodeURIComponent(id)}/attachments/${encodeURIComponent(attachmentId)}/download`);
 }
 
 export async function markPatientConsultationRead(id: string, lastReadMessageId?: string): Promise<void> {
   await getAuthenticatedJson<void>(`/patient/consultations/${encodeURIComponent(id)}/read`, {
-    method: "POST", body: JSON.stringify({ lastReadMessageId: lastReadMessageId ?? null }),
+    method: "POST", body: JSON.stringify({ throughMessageId: lastReadMessageId ?? null }),
   });
 }
 
@@ -1250,8 +1350,29 @@ export async function fetchDoctorConsultations(): Promise<ConsultationSummary[]>
   return getAuthenticatedJson<ConsultationSummary[]>("/doctor/consultations");
 }
 
-export async function fetchDoctorConsultation(id: string): Promise<ConsultationDetail> {
-  return getAuthenticatedJson<ConsultationDetail>(`/doctor/consultations/${encodeURIComponent(id)}`);
+export async function fetchDoctorConsultation(id: string, signal?: AbortSignal): Promise<ConsultationDetail> {
+  return getAuthenticatedJson<ConsultationDetail>(`/doctor/consultations/${encodeURIComponent(id)}`, { signal });
+}
+
+export async function fetchDoctorConsultationMessagePage(
+  id: string,
+  cursor?: string | null,
+  limit = 50,
+  signal?: AbortSignal,
+): Promise<ConsultationMessagePage> {
+  const page = await getAuthenticatedJson<unknown>(
+    `/doctor/consultations/${encodeURIComponent(id)}/messages${toQuery({ cursor: cursor ?? undefined, limit })}`,
+    { signal },
+  );
+  if (!page || typeof page !== "object" || !Array.isArray((page as { items?: unknown }).items)) {
+    throw new ApiError("Hệ thống trả về dữ liệu tin nhắn không hợp lệ.", 502, `/doctor/consultations/${id}/messages`);
+  }
+  const value = page as Partial<ConsultationMessagePage>;
+  return {
+    items: value.items as ConsultationMessage[],
+    nextCursor: typeof value.nextCursor === "string" ? value.nextCursor : null,
+    hasMore: value.hasMore === true,
+  };
 }
 
 export async function sendDoctorConsultationMessage(id: string, body: string, idempotencyKey: string): Promise<ConsultationMessage> {
@@ -1260,9 +1381,63 @@ export async function sendDoctorConsultationMessage(id: string, body: string, id
   });
 }
 
+export async function markDoctorConsultationRead(
+  id: string,
+  throughMessageId?: string | null,
+  signal?: AbortSignal,
+): Promise<void> {
+  await getAuthenticatedJson<void>(`/doctor/consultations/${encodeURIComponent(id)}/read`, {
+    method: "POST",
+    body: JSON.stringify({ throughMessageId: throughMessageId ?? null }),
+    signal,
+  });
+}
+
+export async function resolveDoctorConsultation(id: string): Promise<void> {
+  await getAuthenticatedJson<void>(`/doctor/consultations/${encodeURIComponent(id)}/resolve`, { method: "POST" });
+}
+
+export async function reopenDoctorConsultation(id: string): Promise<void> {
+  await getAuthenticatedJson<void>(`/doctor/consultations/${encodeURIComponent(id)}/reopen`, { method: "POST" });
+}
+
+/** The backend only returns a signed URL for an attachment that is CLEAN. */
+export async function fetchDoctorConsultationAttachmentDownload(id: string, attachmentId: string): Promise<ConsultationAttachment> {
+  return getAuthenticatedJson<ConsultationAttachment>(
+    `/doctor/consultations/${encodeURIComponent(id)}/attachments/${encodeURIComponent(attachmentId)}/download`,
+  );
+}
+
+/** Metadata-only polling endpoint; it never returns a download URL before CLEAN. */
+export async function fetchDoctorConsultationAttachmentStatus(
+  id: string,
+  attachmentId: string,
+  signal?: AbortSignal,
+): Promise<ConsultationAttachment> {
+  return getAuthenticatedJson<ConsultationAttachment>(
+    `/doctor/consultations/${encodeURIComponent(id)}/attachments/${encodeURIComponent(attachmentId)}`,
+    { signal, cache: "no-store" },
+  );
+}
+
 export async function handoffDoctorConsultation(id: string, doctorId: string): Promise<void> {
   await getAuthenticatedJson<void>(`/doctor/consultations/${encodeURIComponent(id)}/handoff`, {
     method: "PUT", body: JSON.stringify({ doctorId }),
+  });
+}
+
+export async function fetchDoctorConsultationHandoffDirectory(id: string): Promise<ConsultationHandoffDoctor[]> {
+  return getAuthenticatedJson<ConsultationHandoffDoctor[]>(`/doctor/consultations/${encodeURIComponent(id)}/handoff-directory`);
+}
+
+export async function fetchAdminConsultationQueue(): Promise<ConsultationAdminQueueItem[]> {
+  return getAuthenticatedJson<ConsultationAdminQueueItem[]>("/admin/consultations/queue");
+}
+
+export async function assignAdminConsultation(id: string, doctorId: string): Promise<void> {
+  await getAuthenticatedJson<void>(`/admin/consultations/${encodeURIComponent(id)}/assignment`, {
+    method: "PUT",
+    body: JSON.stringify({ doctorId }),
   });
 }
 
@@ -1465,12 +1640,23 @@ export async function register(payload: RegisterPayload): Promise<RegistrationPe
 }
 
 export async function login(payload: LoginPayload): Promise<AuthSession> {
-  const session = await getJson<AuthSession>("/auth/login", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-  storeAuthSession(session);
-  return session;
+  const path = "/auth/browser-sessions";
+  const attempt = beginAuthMutation();
+  try {
+    const response = await getJson<unknown>(path, {
+      method: "POST",
+      signal: attempt.controller.signal,
+      body: JSON.stringify({
+        grantType: "PASSWORD",
+        email: payload.email,
+        password: payload.password,
+      }),
+    });
+    return commitIssuedAuthSession(response, attempt, path);
+  } catch (error) {
+    settleFailedAuthMutation(attempt);
+    throw error;
+  }
 }
 
 export interface VerifyEmailPayload {
@@ -1497,12 +1683,23 @@ export interface AuthActionResponse {
 }
 
 export async function verifyEmail(payload: VerifyEmailPayload): Promise<AuthSession> {
-  const session = await getJson<AuthSession>("/auth/email-verifications/confirm", {
-    method: "POST",
-    body: JSON.stringify({ email: payload.email, otp: payload.code }),
-  });
-  storeAuthSession(session);
-  return session;
+  const path = "/auth/browser-sessions";
+  const attempt = beginAuthMutation();
+  try {
+    const response = await getJson<unknown>(path, {
+      method: "POST",
+      signal: attempt.controller.signal,
+      body: JSON.stringify({
+        grantType: "EMAIL_VERIFICATION",
+        email: payload.email,
+        code: payload.code,
+      }),
+    });
+    return commitIssuedAuthSession(response, attempt, path);
+  } catch (error) {
+    settleFailedAuthMutation(attempt);
+    throw error;
+  }
 }
 
 export async function resendVerificationEmail(
@@ -1528,6 +1725,7 @@ export async function resetPassword(payload: ResetPasswordPayload): Promise<void
     method: "POST",
     body: JSON.stringify({ email: payload.email, otp: payload.code, newPassword: payload.password }),
   });
+  clearAuthSession();
 }
 
 export async function fetchUserPreferences(): Promise<UserPreferences> {
@@ -1539,6 +1737,93 @@ export async function updateUserPreferences(payload: UserPreferences): Promise<U
     method: "PATCH",
     body: JSON.stringify(payload),
   });
+}
+
+const NOTIFICATION_CATEGORIES = [
+  "SECURITY",
+  "APPOINTMENT",
+  "PAYMENT",
+  "CLINICAL_UPDATE",
+  "CONSULTATION",
+  "CARE_PLAN",
+  "MARKETING",
+] as const;
+
+const NOTIFICATION_CHANNELS = ["EMAIL", "IN_APP"] as const;
+
+function isNotificationCategory(value: unknown): value is NotificationCategory {
+  return (NOTIFICATION_CATEGORIES as readonly unknown[]).includes(value);
+}
+
+function isNotificationChannel(value: unknown): value is NotificationChannel {
+  return (NOTIFICATION_CHANNELS as readonly unknown[]).includes(value);
+}
+
+function isStringOrNull(value: unknown): value is string | null {
+  return value === null || typeof value === "string";
+}
+
+function parseNotificationPreference(value: unknown, path: string): NotificationPreference {
+  if (!isRecord(value)) throw new ApiError("Hệ thống trả về dữ liệu thông báo không hợp lệ.", 502, path);
+  const category = value.category ?? value.notificationCategory;
+  const channel = value.channel ?? value.notificationChannel;
+  const quietHoursStart = value.quietHoursStart ?? value.quiet_hours_start ?? null;
+  const quietHoursEnd = value.quietHoursEnd ?? value.quiet_hours_end ?? null;
+  const timezone = value.timezone ?? value.timeZone;
+  if (
+    !isNotificationCategory(category)
+    || !isNotificationChannel(channel)
+    || typeof value.enabled !== "boolean"
+    || !isStringOrNull(quietHoursStart)
+    || !isStringOrNull(quietHoursEnd)
+    || typeof timezone !== "string"
+    || !timezone.trim()
+  ) {
+    throw new ApiError("Hệ thống trả về dữ liệu thông báo không hợp lệ.", 502, path);
+  }
+  return {
+    category,
+    channel,
+    enabled: value.enabled,
+    quietHoursStart,
+    quietHoursEnd,
+    timezone: timezone.trim(),
+  };
+}
+
+export async function fetchNotificationPreferences(options: { signal?: AbortSignal } = {}): Promise<NotificationPreference[]> {
+  const path = "/users/me/notification-preferences";
+  const response = await getAuthenticatedJson<unknown>(path, { signal: options.signal });
+  if (!Array.isArray(response)) {
+    throw new ApiError("Hệ thống trả về danh sách thông báo không hợp lệ.", 502, path);
+  }
+  return response.map((item) => parseNotificationPreference(item, path));
+}
+
+export async function updateNotificationPreference(
+  category: NotificationCategory,
+  channel: NotificationChannel,
+  payload: NotificationPreferencePatchPayload,
+  options: { signal?: AbortSignal } = {},
+): Promise<NotificationPreference> {
+  const path = `/users/me/notification-preferences/${encodeURIComponent(category)}/${encodeURIComponent(channel)}`;
+  if (!isNotificationCategory(category) || !isNotificationChannel(channel)) {
+    throw new ApiError("Tùy chọn thông báo không hợp lệ.", 400, path, { code: "PREFERENCES_INVALID" });
+  }
+
+  const body: NotificationPreferencePatchPayload = {};
+  if (typeof payload.enabled === "boolean") body.enabled = payload.enabled;
+  if (typeof payload.quietHoursStart === "string" || payload.quietHoursStart === null) body.quietHoursStart = payload.quietHoursStart;
+  if (typeof payload.quietHoursEnd === "string" || payload.quietHoursEnd === null) body.quietHoursEnd = payload.quietHoursEnd;
+  if (typeof payload.timezone === "string" || payload.timezone === null) body.timezone = payload.timezone;
+  if (typeof payload.clearQuietHours === "boolean") body.clearQuietHours = payload.clearQuietHours;
+
+  const response = await getAuthenticatedJson<unknown>(path, {
+    method: "PUT",
+    body: JSON.stringify(body),
+    signal: options.signal,
+  });
+  return parseNotificationPreference(response, path);
 }
 
 export async function fetchCurrentUser(): Promise<UserProfile> {
@@ -1647,6 +1932,78 @@ export async function rescheduleAppointment(
     `/appointments/${encodeURIComponent(bookingCode)}/reschedule`,
     { method: "POST", body: JSON.stringify(payload) },
   );
+}
+
+export type OtpDeliveryStatus = "QUEUED" | "SENT" | "FAILED" | "EXPIRED";
+
+/**
+ * Public state returned by the idempotent booking-OTP resend endpoint.
+ * It deliberately contains no patient identifiers or provider details.
+ */
+export interface ResendOtpResponse {
+  bookingCode: string;
+  holdExpiresAt: string;
+  otpExpiresAt: string;
+  otpRequired: boolean;
+  otpDeliveryStatus: OtpDeliveryStatus;
+  message?: string;
+  retryAfterSeconds: number;
+}
+
+function parseResendOtpResponse(value: unknown, path: string): ResendOtpResponse {
+  if (!isRecord(value)) {
+    throw new ApiError("Hệ thống trả về dữ liệu OTP không hợp lệ.", 502, path);
+  }
+
+  const status = value.otpDeliveryStatus;
+  const allowedStatuses: readonly OtpDeliveryStatus[] = ["QUEUED", "SENT", "FAILED", "EXPIRED"];
+  const retryAfterSeconds = value.retryAfterSeconds;
+  if (
+    typeof value.bookingCode !== "string" || !value.bookingCode.trim()
+    || typeof value.holdExpiresAt !== "string" || !Number.isFinite(Date.parse(value.holdExpiresAt))
+    || typeof value.otpExpiresAt !== "string" || !Number.isFinite(Date.parse(value.otpExpiresAt))
+    || typeof value.otpRequired !== "boolean"
+    || typeof status !== "string" || !allowedStatuses.includes(status as OtpDeliveryStatus)
+    || typeof retryAfterSeconds !== "number" || !Number.isInteger(retryAfterSeconds)
+    || retryAfterSeconds < 0 || retryAfterSeconds > 900
+    || (typeof value.message !== "undefined" && value.message !== null && typeof value.message !== "string")
+  ) {
+    throw new ApiError("Hệ thống trả về dữ liệu OTP không hợp lệ.", 502, path);
+  }
+
+  return {
+    bookingCode: value.bookingCode.trim(),
+    holdExpiresAt: value.holdExpiresAt,
+    otpExpiresAt: value.otpExpiresAt,
+    otpRequired: value.otpRequired,
+    otpDeliveryStatus: status as OtpDeliveryStatus,
+    message: typeof value.message === "string" ? value.message : undefined,
+    retryAfterSeconds,
+  };
+}
+
+/**
+ * Re-queues the OTP for the existing hold. This endpoint never creates a new
+ * hold; the caller owns request cancellation when the booking flow changes.
+ */
+export async function resendAppointmentOtp(
+  bookingCode: string,
+  phone?: string,
+  signal?: AbortSignal,
+): Promise<ResendOtpResponse> {
+  const normalizedBookingCode = bookingCode.trim();
+  const path = `/appointments/${encodeURIComponent(normalizedBookingCode)}/otp/resend`;
+  if (!normalizedBookingCode) {
+    throw new ApiError("Mã giữ chỗ không hợp lệ.", 400, path, { code: "VALIDATION_ERROR" });
+  }
+
+  const normalizedPhone = phone?.trim();
+  const response = await getJson<unknown>(path, {
+    method: "POST",
+    signal,
+    body: JSON.stringify(normalizedPhone ? { phone: normalizedPhone } : {}),
+  });
+  return parseResendOtpResponse(response, path);
 }
 
 export async function fetchDoctorSlots(
@@ -1852,7 +2209,9 @@ function parseAiContentReviewSummary(value: unknown, path: string): AiContentRev
   const sourceId = value.sourceId ?? value.source_id;
   const contentHash = value.contentHash ?? value.content_hash;
   const eligibilityRevision = value.eligibilityRevision ?? value.eligibility_revision;
+  const approvalRound = value.approvalRound ?? value.approval_round;
   const submittedAt = value.submittedAt ?? value.submitted_at;
+  const approvedAt = value.approvedAt ?? value.approved_at;
   const expiresAt = value.expiresAt ?? value.expires_at;
   if (
     !isAiContentType(sourceType) || typeof sourceId !== "string" || !sourceId.trim()
@@ -1860,8 +2219,10 @@ function parseAiContentReviewSummary(value: unknown, path: string): AiContentRev
     || !isAiContentReviewState(value.state)
     || typeof value.revision !== "number" || !Number.isInteger(value.revision) || value.revision < 1
      || typeof contentHash !== "string" || !SHA256_PATTERN.test(contentHash.trim())
-    || (typeof eligibilityRevision !== "undefined" && typeof eligibilityRevision !== "number")
-    || (typeof submittedAt !== "undefined" && submittedAt !== null && typeof submittedAt !== "string")
+     || (typeof eligibilityRevision !== "undefined" && typeof eligibilityRevision !== "number")
+     || (typeof approvalRound !== "undefined" && approvalRound !== null && typeof approvalRound !== "number")
+     || (typeof submittedAt !== "undefined" && submittedAt !== null && typeof submittedAt !== "string")
+     || (typeof approvedAt !== "undefined" && approvedAt !== null && typeof approvedAt !== "string")
     || (typeof expiresAt !== "undefined" && expiresAt !== null && typeof expiresAt !== "string")
   ) throw invalidAiChatResponse(path);
   return {
@@ -1872,7 +2233,9 @@ function parseAiContentReviewSummary(value: unknown, path: string): AiContentRev
     revision: value.revision,
     contentHash,
     eligibilityRevision: eligibilityRevision as number | undefined,
+    approvalRound: (approvalRound as number | null | undefined) ?? null,
     submittedAt: (submittedAt as string | null | undefined) ?? null,
+    approvedAt: (approvedAt as string | null | undefined) ?? null,
     expiresAt: (expiresAt as string | null | undefined) ?? null,
   };
 }
@@ -1931,6 +2294,29 @@ export async function fetchDoctorAiContentReviews(
     throw new ApiError("Trạng thái review không hợp lệ.", 400, path);
   }
   const response = await getAuthenticatedJson<unknown>(`${path}${toQuery({ state: filters.state, page: filters.page ?? 0, size: filters.size ?? 20 })}`);
+  if (!isRecord(response) || !Array.isArray(response.content)) throw invalidAiChatResponse(path);
+  return {
+    ...(response as unknown as Page<AiContentReviewSummary>),
+    content: response.content.map((item) => parseAiContentReviewSummary(item, path)),
+  };
+}
+
+export async function fetchAdminAiContentReviews(
+  filters: { type?: AiContentType; state?: AiContentReviewState; page?: number; size?: number } = {},
+): Promise<Page<AiContentReviewSummary>> {
+  const path = "/admin/ai-content";
+  if (filters.type && !isAiContentType(filters.type)) {
+    throw new ApiError("Loại nội dung AI không hợp lệ.", 400, path, { code: "AI_CONTENT_TYPE_INVALID" });
+  }
+  if (filters.state && !isAiContentReviewState(filters.state)) {
+    throw new ApiError("Trạng thái review không hợp lệ.", 400, path, { code: "AI_CONTENT_STATE_INVALID" });
+  }
+  const response = await getAuthenticatedJson<unknown>(`${path}${toQuery({
+    type: filters.type,
+    state: filters.state,
+    page: filters.page ?? 0,
+    size: filters.size ?? 20,
+  })}`);
   if (!isRecord(response) || !Array.isArray(response.content)) throw invalidAiChatResponse(path);
   return {
     ...(response as unknown as Page<AiContentReviewSummary>),
@@ -2026,16 +2412,70 @@ export async function createMedicalRecord(payload: CreateMedicalRecordPayload): 
   });
 }
 
-export async function logoutCurrentUser(): Promise<void> {
-  const session = readAuthSession();
-  if (!session) return;
-  const sessionVersion = authSessionVersion;
+function isSameBrowserSessionAuthority(expected: AuthSession, actual: AuthSession): boolean {
+  return (
+    expected.user.id === actual.user.id
+    && Date.parse(expected.absoluteExpiresAt) === Date.parse(actual.absoluteExpiresAt)
+  );
+}
+
+function indeterminateAuthError(path: string): ApiError {
+  return new ApiError(
+    AUTH_SESSION_INDETERMINATE_MESSAGE,
+    503,
+    path,
+    { code: "BROWSER_SESSION_AUTHORITY_INDETERMINATE" },
+  );
+}
+
+async function reconcileFailedLogout(
+  attempt: AuthMutationAttempt,
+  path: string,
+): Promise<LogoutOutcome> {
+  if (!isCurrentAuthMutation(attempt)) throw authMutationSupersededError(path);
+
+  let reconciledSession: AuthSession;
   try {
-    const headers = new Headers();
-    headers.set("Authorization", `${session.tokenType} ${session.accessToken}`);
-    await getJson<void>("/auth/logout", { method: "POST", headers });
-  } finally {
-    clearAuthSessionIfCurrent(session, sessionVersion);
+    const value = await getJson<unknown>(path, {
+      method: "GET",
+      cache: "no-store",
+      signal: attempt.controller.signal,
+    });
+    reconciledSession = normalizeAuthSession(value, path);
+  } catch (error) {
+    if (!isCurrentAuthMutation(attempt)) throw authMutationSupersededError(path);
+    if (error instanceof ApiError && error.status === 401) {
+      commitAuthMutationSession(null, attempt, path);
+      return { status: "LOGGED_OUT", authority: "RECONCILED_401" };
+    }
+    if (!enterIndeterminateAuthState(attempt)) throw authMutationSupersededError(path);
+    throw indeterminateAuthError(path);
+  }
+
+  if (
+    attempt.previousSession
+    && isSameBrowserSessionAuthority(attempt.previousSession, reconciledSession)
+  ) {
+    commitAuthMutationSession(reconciledSession, attempt, path);
+    return { status: "SESSION_ACTIVE", authority: "RECONCILED_ACTIVE" };
+  }
+
+  if (!enterIndeterminateAuthState(attempt)) throw authMutationSupersededError(path);
+  throw indeterminateAuthError(path);
+}
+
+export async function logoutCurrentUser(): Promise<LogoutOutcome> {
+  const path = "/auth/browser-sessions/current";
+  const attempt = beginAuthMutation(true);
+  try {
+    await getJson<void>(path, {
+      method: "DELETE",
+      signal: attempt.controller.signal,
+    });
+    commitAuthMutationSession(null, attempt, path);
+    return { status: "LOGGED_OUT", authority: "DELETE_ACK" };
+  } catch {
+    return reconcileFailedLogout(attempt, path);
   }
 }
 
@@ -2093,12 +2533,12 @@ export async function uploadDiagnosticFile(file: File, patientId: string): Promi
   form.set("patientId", patientId);
   form.set("purpose", "DIAGNOSTIC_RESULT");
 
-  return withAuthenticatedSession(path, async (session) => {
+  return withAuthenticatedSession(path, async () => {
     let response: Response;
     try {
       response = await fetch(`${API_BASE_URL}${path}`, {
         method: "POST",
-        headers: { Authorization: `${session.tokenType} ${session.accessToken}` },
+        credentials: "same-origin",
         body: form,
       });
     } catch {
@@ -2130,10 +2570,10 @@ export async function createDoctorDiagnosticResult(
 
 export async function downloadProtectedFile(fileUrl: string, filename = "ket-qua"): Promise<void> {
   const normalizedPath = fileUrl.startsWith("/api/v1") ? fileUrl.slice("/api/v1".length) : fileUrl;
-  const response = await withAuthenticatedSession(normalizedPath, async (session) => {
+  const response = await withAuthenticatedSession(normalizedPath, async () => {
     try {
       const result = await fetch(`${API_BASE_URL}${normalizedPath}`, {
-        headers: { Authorization: `${session.tokenType} ${session.accessToken}` },
+        credentials: "same-origin",
       });
       if (!result.ok) {
         throw await apiErrorFromResponse(result, normalizedPath, "Không thể tải tệp kết quả.");

@@ -120,6 +120,36 @@ select:focus-visible {
   outline-offset: 3px;
 }
 
+/* Keep the portal usable when Windows High Contrast/forced colors replaces the
+   product palette. Explicit system colors preserve affordance and focus
+   contrast without requiring every component to opt in individually. */
+@media (forced-colors: active) {
+  a {
+    color: LinkText;
+    text-decoration: underline;
+    text-decoration-thickness: 0.12em;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    border: 1px solid ButtonText;
+    background: ButtonFace;
+    color: ButtonText;
+  }
+
+  :focus-visible {
+    outline: 3px solid Highlight;
+    outline-offset: 3px;
+  }
+
+  [aria-invalid="true"] {
+    outline: 2px solid Mark;
+    outline-offset: 2px;
+  }
+}
+
 img {
   max-width: 100%;
 }
@@ -3733,6 +3763,14 @@ main {
   display: flex;
   flex-direction: column;
   background: var(--color-paper);
+  padding-inline: max(0px, env(safe-area-inset-left)) max(0px, env(safe-area-inset-right));
+}
+
+/* Mobile browser chrome can cover the first/last interactive control. Keep
+   both authenticated shells inside the device safe area without changing the
+   desktop rhythm. */
+.admin-shell {
+  padding-inline: max(0px, env(safe-area-inset-left)) max(0px, env(safe-area-inset-right));
 }
 
 .cms-live-slot__fallback-note {
@@ -4589,6 +4627,7 @@ main {
 
 .portal-footer {
   padding: var(--sp-6) max(2rem, calc((100% - 78rem) / 2));
+  padding-bottom: max(var(--sp-6), calc(var(--sp-6) + env(safe-area-inset-bottom)));
   border-top: 1px solid var(--color-line-dark);
   background: var(--color-teal-950);
   color: oklch(78% 0.04 182);
@@ -6597,7 +6636,8 @@ main {
 
 /* Final interaction layer for the Stitch-aligned public shell. */
 .site-shell main#main-content:focus {
-  outline: none;
+  outline: 3px solid var(--color-amber);
+  outline-offset: 4px;
 }
 
 .dialog-layer {
@@ -7889,6 +7929,244 @@ main {
   margin-top: var(--sp-2);
 }
 
+.preferences-card__lede {
+  margin: var(--sp-3) 0 0;
+  color: var(--color-ink-muted);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+.notification-preferences-grid {
+  display: grid;
+  gap: var(--sp-4);
+  margin-top: var(--sp-6);
+}
+
+.notification-preference-card {
+  display: grid;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-paper-bright);
+  box-shadow: var(--shadow-soft);
+}
+
+.notification-preference-card--locked {
+  border-color: color-mix(in srgb, var(--color-amber-dark) 24%, var(--color-line));
+  background: color-mix(in srgb, var(--color-amber) 8%, var(--color-paper-bright));
+}
+
+.notification-preference-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.notification-preference-card__header h3 {
+  margin: var(--sp-1) 0 0;
+  color: var(--color-teal-950);
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  line-height: 1.25;
+}
+
+.notification-preference-card__badge {
+  min-height: 2rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  background: var(--color-mint-light);
+  color: var(--color-teal-800);
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.notification-preference-card__badge--locked {
+  background: color-mix(in srgb, var(--color-amber) 20%, white);
+  color: var(--color-amber-dark);
+}
+
+.notification-preference-card__description,
+.notification-preference-card__hint {
+  margin: 0;
+  color: var(--color-ink-muted);
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+.notification-preference-card__hint {
+  color: var(--color-amber-dark);
+  font-weight: 700;
+}
+
+.notification-preference-card__channels {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.notification-preference-toggle {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--sp-3);
+  align-items: center;
+  min-height: 4.5rem;
+  padding: var(--sp-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-paper-bright);
+  cursor: pointer;
+}
+
+.notification-preference-toggle:hover {
+  border-color: var(--color-teal-300);
+  background: color-mix(in srgb, var(--color-mint-light) 72%, white);
+}
+
+.notification-preference-toggle--locked {
+  cursor: not-allowed;
+  opacity: 0.92;
+}
+
+.notification-preference-toggle strong {
+  display: block;
+  color: var(--color-teal-950);
+  font-size: 0.95rem;
+}
+
+.notification-preference-toggle small {
+  display: block;
+  margin-top: var(--sp-1);
+  color: var(--color-ink-muted);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.notification-preference-toggle__control {
+  display: grid;
+  justify-items: end;
+  gap: var(--sp-1);
+  min-width: 3.5rem;
+}
+
+.notification-preference-toggle__state {
+  color: var(--color-teal-800);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.notification-preference-toggle input {
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: 0;
+  accent-color: var(--color-teal-700);
+}
+
+.notification-preference-toggle input:focus-visible,
+.notification-preference-card__schedule input:focus-visible,
+.notification-preference-card__schedule select:focus-visible {
+  outline: 3px solid var(--color-amber);
+  outline-offset: 2px;
+}
+
+.notification-preference-card__schedule {
+  min-width: 0;
+  margin: var(--sp-1) 0 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-surface) 72%, white);
+}
+
+.notification-preference-card__schedule legend {
+  padding: 0 var(--sp-1);
+  color: var(--color-teal-900);
+  font-size: 0.8125rem;
+  font-weight: 800;
+}
+
+.notification-preference-card__schedule p {
+  margin: 0 0 var(--sp-3);
+  color: var(--color-ink-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.notification-preference-card__schedule-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-2);
+}
+
+.notification-preference-card__schedule-grid label {
+  display: grid;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.notification-preference-card__schedule-grid label > span {
+  color: var(--color-ink-soft);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.notification-preference-card__schedule-grid input,
+.notification-preference-card__schedule-grid select {
+  width: 100%;
+  min-height: 44px;
+  min-width: 0;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-paper-bright);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.8125rem;
+}
+
+.notification-preference-card__timezone {
+  grid-column: 1 / -1;
+}
+
+.notification-preference-card__schedule:disabled {
+  opacity: 0.7;
+}
+
+.preferences-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-top: var(--sp-4);
+}
+
+.preferences-form__summary {
+  margin: 0;
+  color: var(--color-ink-muted);
+  font-size: 0.875rem;
+}
+
+.preferences-form__submit {
+  width: auto;
+  min-width: 12rem;
+}
+
+@media (min-width: 768px) {
+  .notification-preferences-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1440px) {
+  .notification-preferences-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 900px) {
   .preferences-layout {
     grid-template-columns: 1fr;
@@ -7936,6 +8214,23 @@ main {
 
   .preferences-form__selects {
     grid-template-columns: 1fr;
+  }
+
+  .preferences-form__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .preferences-form__submit {
+    width: 100%;
+  }
+
+  .notification-preference-card__schedule-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .notification-preference-card__timezone {
+    grid-column: auto;
   }
 }
 

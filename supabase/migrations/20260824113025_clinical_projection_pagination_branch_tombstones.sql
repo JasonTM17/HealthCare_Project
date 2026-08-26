@@ -133,6 +133,12 @@ language plpgsql
 set search_path = healthcare, pg_catalog
 as $$
 begin
+    if new.deleted_at is not null then
+        new.tombstone_revision := coalesce(new.tombstone_revision, new.eligibility_revision);
+    else
+        new.tombstone_revision := null;
+    end if;
+
     if tg_op = 'UPDATE' then
         if new.eligibility_revision < old.eligibility_revision then
             raise exception 'projection eligibility revision cannot move backwards'
@@ -140,7 +146,43 @@ begin
         end if;
 
         if new.eligibility_revision = old.eligibility_revision
-           and new.content_hash <> old.content_hash then
+           and row(
+               new.projection_kind,
+               new.source_type,
+               new.source_id,
+               new.content_revision,
+               new.content_hash,
+               new.approval_round,
+               new.approval_expires_at,
+               new.title,
+               new.content,
+               new.metadata,
+               new.embedding::text,
+               new.embedding_model,
+               new.embedding_provenance,
+               new.active,
+               new.published,
+               new.deleted_at,
+               new.tombstone_revision
+           ) is distinct from row(
+               old.projection_kind,
+               old.source_type,
+               old.source_id,
+               old.content_revision,
+               old.content_hash,
+               old.approval_round,
+               old.approval_expires_at,
+               old.title,
+               old.content,
+               old.metadata,
+               old.embedding::text,
+               old.embedding_model,
+               old.embedding_provenance,
+               old.active,
+               old.published,
+               old.deleted_at,
+               old.tombstone_revision
+           ) then
             raise exception 'equal-revision projection update must be idempotent'
                 using errcode = '40001';
         end if;
@@ -158,11 +200,6 @@ begin
         end if;
     end if;
 
-    if new.deleted_at is not null then
-        new.tombstone_revision := coalesce(new.tombstone_revision, new.eligibility_revision);
-    else
-        new.tombstone_revision := null;
-    end if;
     return new;
 end;
 $$;

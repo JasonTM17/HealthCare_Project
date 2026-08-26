@@ -120,7 +120,8 @@ class AiCatalogIndexServiceTest {
         assertThat(payload.getValue().get("metadata"))
             .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
             .containsEntry("slug", "co-so-trung-tam")
-            .containsEntry("projection_kind", "OPERATIONAL");
+            .containsEntry("projection_kind", "OPERATIONAL")
+            .containsEntry("public_operational", "true");
         assertThat(processed).isEqualTo(1);
     }
 

@@ -49,6 +49,16 @@ class ClinicalProjectionContractTest(unittest.TestCase):
         self.assertIn("tg_op = 'update'", self.normalized)
         self.assertIn("eligibility revision cannot move backwards", self.normalized)
         self.assertIn("equal-revision projection update must be idempotent", self.normalized)
+        for field in (
+            "new.approval_expires_at",
+            "new.approval_round",
+            "new.metadata",
+            "new.active",
+            "new.published",
+            "new.deleted_at",
+            "new.tombstone_revision",
+        ):
+            self.assertIn(field, self.normalized)
         self.assertIn("stale projection cannot resurrect a tombstone", self.normalized)
 
     def test_service_only_keyset_functions(self) -> None:

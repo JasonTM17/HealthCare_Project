@@ -9,10 +9,9 @@ import Icon from "./UiIcon";
 import { safeTelephoneHref } from "../lib/phone";
 import {
   hasRole,
-  readAuthSession,
-  subscribeToAuthSession,
   type AuthSession,
 } from "../lib/api-client";
+import { useAuthSession } from "./useAuthSession";
 
 interface NavbarProps {
   onOpenBooking: () => void;
@@ -41,7 +40,7 @@ function getAccountDestination(session: AuthSession | null, pathname: string | n
 
 const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
-  const [authSession, setAuthSession] = useState<AuthSession | null>(null);
+  const authSession = useAuthSession();
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
   const pathname = usePathname();
@@ -52,12 +51,6 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
   const accountDestination = getAccountDestination(authSession, pathname);
 
   const closeMobileMenu = (): void => setMobileMenuOpen(false);
-
-  useEffect(() => {
-    const updateSession = (): void => setAuthSession(readAuthSession());
-    updateSession();
-    return subscribeToAuthSession(updateSession);
-  }, []);
 
   useEffect(() => {
     if (!mobileMenuOpen) return;

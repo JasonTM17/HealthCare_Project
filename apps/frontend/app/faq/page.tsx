@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { fetchFaqs, type Page } from "../../lib/api-client";
+import { useEffect, useRef, useState } from "react";
+import { ApiError, fetchFaqs, type Page } from "../../lib/api-client";
 import type { Faq } from "../../types/hospital";
 import { PublicAiButton, PublicBookingButton, PublicPageShell } from "../../components/PublicPageShell";
 import CatalogPagination from "../../components/CatalogPagination";
+import { presentApiError } from "../../lib/present-api-error";
 
 const FAQ_STEPS = [
   {
@@ -25,12 +26,20 @@ const FAQ_STEPS = [
   },
 ] as const;
 
+function safeErrorCopy(reason: unknown): string {
+  return presentApiError(
+    reason instanceof ApiError ? reason.code : undefined,
+    reason instanceof ApiError ? reason.status : undefined,
+  );
+}
+
 export default function FaqPage() {
   const [currentPage, setCurrentPage] = useState(0);
   const [page, setPage] = useState<Page<Faq> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const loadedPageRef = useRef<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -39,14 +48,15 @@ export default function FaqPage() {
         if (cancelled) return undefined;
         setLoading(true);
         setError(null);
-        setPage(null);
+        if (loadedPageRef.current !== currentPage) setPage(null);
+        loadedPageRef.current = currentPage;
         return fetchFaqs(currentPage, 10);
       })
       .then((data) => {
         if (data !== undefined && !cancelled) setPage(data);
       })
-      .catch(() => {
-        if (!cancelled) setError("Tạm thời chưa thể tải câu hỏi thường gặp. Vui lòng thử lại sau.");
+      .catch((reason: unknown) => {
+        if (!cancelled) setError(`Tạm thời chưa thể tải câu hỏi thường gặp. ${safeErrorCopy(reason)}`);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -59,7 +69,7 @@ export default function FaqPage() {
 
   return (
     <PublicPageShell>
-      <div className="resource-page section-inner">
+      <div aria-busy={loading} className="resource-page section-inner">
         <header className="resource-page__header">
           <p className="section-note">Hỗ trợ người bệnh</p>
           <h1>Giải đáp nhanh, rồi mới tới cuộc hẹn</h1>
@@ -69,16 +79,24 @@ export default function FaqPage() {
           </p>
         </header>
 
-        {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải câu hỏi…</p> : null}
+        {loading ? <p className="catalog-status catalog-status--loading" role="status">{page ? "Đang cập nhật câu hỏi…" : "Đang tải câu hỏi…"}</p> : null}
         {error ? (
           <div aria-live="assertive" className="catalog-status catalog-status--error" role="alert">
-            <span>{error}</span>
+            <span>{page ? `Chưa thể cập nhật trang FAQ. ${error} Đang hiển thị nội dung đã tải trước đó.` : error}</span>
             <button className="outline-button outline-button--small" onClick={() => setRetryCount((count) => count + 1)} type="button">
               Thử tải lại
             </button>
           </div>
         ) : null}
-        {!loading && !error && page?.empty ? <p className="catalog-status" role="status">Nội dung câu hỏi thường gặp đang được cập nhật.</p> : null}
+        {!loading && !error && page?.empty ? (
+          <div className="catalog-status" role="status">
+            <p>Nội dung câu hỏi thường gặp đang được cập nhật. Nếu cần xác nhận ngay, đội ngũ bệnh viện có thể hỗ trợ theo tình huống cụ thể.</p>
+            <div className="resource-actions">
+              <Link className="outline-button outline-button--small" href="/contact">Liên hệ bệnh viện</Link>
+              <PublicBookingButton className="button button--amber">Đặt lịch khám</PublicBookingButton>
+            </div>
+          </div>
+        ) : null}
 
         <section className="resource-hero-card resource-hero-card--teal">
           <div className="resource-icon" aria-hidden="true">
@@ -100,11 +118,11 @@ export default function FaqPage() {
             <dl className="resource-meta-grid">
               <div>
                 <dt>Câu hỏi</dt>
-                <dd>{page?.totalElements ?? "Đang cập nhật"}</dd>
+                <dd>{loading ? "Đang tải…" : page?.totalElements ?? "Chưa có dữ liệu"}</dd>
               </div>
               <div>
                 <dt>Trạng thái</dt>
-                <dd>{page && !page.empty ? "Có thể tra cứu" : "Đang bổ sung"}</dd>
+                <dd>{loading ? "Đang tải" : page && !page.empty ? "Có thể tra cứu" : "Đang bổ sung"}</dd>
               </div>
             </dl>
           </div>
@@ -142,12 +160,12 @@ export default function FaqPage() {
 
         {page && !page.empty ? (
           <>
-            <p className="catalog-meta">{page.totalElements} câu hỏi · Trang {page.number + 1}/{page.totalPages}</p>
-            <div className="faq-list">
+            <p aria-live="polite" className="catalog-meta">{page.totalElements} câu hỏi · Trang {page.number + 1}/{page.totalPages}</p>
+            <div aria-label="Danh sách câu hỏi thường gặp" className="faq-list">
               {page.content.map((item) => (
                 <details className="faq-item" key={item.id}>
                   <summary>{item.question}</summary>
-                  <p>{item.answer}</p>
+                  <p>{item.answer || "Câu trả lời đang được cập nhật. Vui lòng liên hệ bệnh viện nếu cần xác nhận."}</p>
                 </details>
               ))}
             </div>

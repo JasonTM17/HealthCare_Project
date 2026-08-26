@@ -117,6 +117,10 @@ public abstract class AbstractIntegrationTest {
         registry.add("app.security.rate-limit.enabled", () -> "false");
         registry.add("app.payment.bank-transfer.webhook-secret",
                 () -> "test-only-payment-webhook-secret-at-least-32-chars");
+        // Deterministic test-only AES key; never reused outside disposable
+        // Testcontainers databases and never populated from a real secret.
+        registry.add("app.mail.outbox.encryption-key",
+                () -> "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=");
     }
 
     @Autowired
@@ -167,6 +171,7 @@ public abstract class AbstractIntegrationTest {
      */
     @BeforeEach
     void cleanDatabase() {
+        jdbcTemplate.execute("TRUNCATE TABLE email_outbox, notification_preferences");
         // Consultation/Q&A/care-plan rows were added after the original test
         // baseline.  Truncate the complete child set together so append-only
         // audit and answer triggers cannot leak state between tests.  This is

@@ -9,8 +9,7 @@ import { CmsReconciliationLedger } from "../lib/cms-reconciliation.mjs";
 const read = (relativePath) => readFile(new URL(`../${relativePath}`, import.meta.url), "utf8");
 
 async function loadCmsClientModule() {
-  const source = (await read("lib/cms-client.ts"))
-    .replace('import { readAuthSession } from "./api-client";', "const readAuthSession = () => null;");
+  const source = await read("lib/cms-client.ts");
   const directory = await mkdtemp(join(tmpdir(), "healthcare-cms-client-"));
   const file = join(directory, "cms-client-runtime.ts");
   await writeFile(file, source, "utf8");
@@ -210,7 +209,6 @@ test("CMS client carries admin publish versions into the public change feed", as
   const client = new CmsClient({
     baseUrl: "https://api.example.test/api/v1",
     fetchImpl,
-    getAccessToken: () => "admin-token",
     eventSourceFactory: (url) => new FakeEventSource(url),
   });
 
@@ -246,7 +244,7 @@ test("CMS client carries admin publish versions into the public change feed", as
   assert.equal(requests[0].method, "PUT");
   assert.equal(requests[0].cache, "no-store");
   assert.equal(requests[0].credentials, "include");
-  assert.equal(requests[0].headers.get("authorization"), "Bearer admin-token");
+  assert.equal(requests[0].headers.get("authorization"), null);
   assert.deepEqual(requests[0].body, {
     componentType: "HERO",
     payload: {
@@ -341,7 +339,9 @@ test("admin editor exposes typed status/version and protected API states", async
   assert.doesNotMatch(source, /rollbackPage/);
   assert.match(adminPage, /authenticatedCmsClient/);
   assert.match(adminPage, /<CmsEditor client=\{authenticatedCmsClient\}/);
-  assert.match(client, /getAccessToken: \(\) => readAuthSession\(\)\?\.accessToken/);
+  assert.match(client, /authenticatedCmsClient = new CmsClient\(\)/);
+  assert.match(client, /credentials: init\.credentials \?\? "include"/);
+  assert.doesNotMatch(client, /Authorization|Bearer|getAccessToken|accessToken/);
   assert.match(source, /setSelectedSlot\(requestedSlot\)/);
   assert.match(source, /loadedSelection\?\.slot/);
   assert.match(source, /disabled=\{isBusy\}/);

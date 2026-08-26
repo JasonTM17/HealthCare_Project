@@ -9,6 +9,7 @@ import {
   adminModerateHealthQuestion,
   ApiError,
 } from "../../../lib/api-client";
+import { presentApiError } from "../../../lib/present-api-error";
 import type { HealthQuestionReport, HealthQuestionSummary } from "../../../types/hospital";
 
 const reportReasonLabels: Record<string, string> = {
@@ -51,7 +52,12 @@ export default function AdminHealthQuestionsPage() {
         if (!cancelled) setItems(value);
       })
       .catch((reason) => {
-        if (!cancelled) setError(reason instanceof ApiError ? reason.message : "Không thể tải hàng đợi hỏi đáp.");
+        if (!cancelled) {
+          setError(presentApiError(
+            reason instanceof ApiError ? reason.code : null,
+            reason instanceof ApiError ? reason.status : undefined,
+          ));
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -72,7 +78,10 @@ export default function AdminHealthQuestionsPage() {
           : item,
       ));
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : "Không thể cập nhật kiểm duyệt.");
+      setError(presentApiError(
+        reason instanceof ApiError ? reason.code : null,
+        reason instanceof ApiError ? reason.status : undefined,
+      ));
     } finally {
       setBusy(null);
     }
@@ -88,7 +97,10 @@ export default function AdminHealthQuestionsPage() {
       const reports = await adminListHealthQuestionReports(questionId);
       setReportsByQuestion((current) => ({ ...current, [questionId]: reports }));
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : "Không thể tải báo cáo của câu hỏi.");
+      setError(presentApiError(
+        reason instanceof ApiError ? reason.code : null,
+        reason instanceof ApiError ? reason.status : undefined,
+      ));
     } finally {
       setReportBusy(null);
     }
@@ -112,7 +124,10 @@ export default function AdminHealthQuestionsPage() {
         setItems((current) => current.map((item) => item.id === questionId ? { ...item, status: "CLOSED" } : item));
       }
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : "Không thể xử lý báo cáo.");
+      setError(presentApiError(
+        reason instanceof ApiError ? reason.code : null,
+        reason instanceof ApiError ? reason.status : undefined,
+      ));
     } finally {
       setReportBusy(null);
     }

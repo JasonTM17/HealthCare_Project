@@ -318,6 +318,24 @@ class SupabaseRagStore:
         with self._connection() as connection:
             return self._read_active_profile(connection)
 
+    def health_probe(self) -> bool:
+        """Verify the database and protected projection are reachable.
+
+        The probe reads no document content and succeeds for an empty
+        projection. Referencing the table also proves the service connection
+        still has the required schema/table grant.
+        """
+
+        sql = f"select exists (select 1 from {self._table} limit 1)"
+        try:
+            with self._connection() as connection:
+                with connection.cursor() as cursor:
+                    cursor.execute(sql)
+                    row = cursor.fetchone()
+            return bool(row and row[0] is not None)
+        except Exception as exc:
+            raise SupabaseRagUnavailable("Supabase RAG readiness probe failed") from exc
+
     def _assert_profile(
         self,
         connection: Any,
@@ -700,6 +718,19 @@ class PersistentRagService(RagService):
     def _require_fallback(self) -> None:
         if not self.persistence_available and not self.fallback_to_memory:
             raise SupabaseRagUnavailable("Supabase RAG operation failed")
+
+    def health_probe(self) -> bool:
+        """Check durable RAG readiness without silently using stale memory."""
+
+        if not self.persistence_available:
+            return self.fallback_to_memory
+        try:
+            healthy = self.store.health_probe()
+            self.persistence_available = bool(healthy)
+            return bool(healthy)
+        except Exception as error:
+            self._fallback_or_raise(error)
+            return self.fallback_to_memory
 
     def _restore_index_entry(self, previous: RagDocument | None, document_id: str) -> None:
         if previous is None:

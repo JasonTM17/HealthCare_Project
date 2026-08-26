@@ -41,6 +41,8 @@ public final class ErrorCodes {
     public static final String AI_CONTENT_NOT_SUBMITTED = "AI_CONTENT_NOT_SUBMITTED";
     public static final String AI_CONTENT_APPROVER_NOT_INDEPENDENT = "AI_CONTENT_APPROVER_NOT_INDEPENDENT";
     public static final String AI_CONTENT_ALREADY_DECIDED = "AI_CONTENT_ALREADY_DECIDED";
+    public static final String CONSULTATION_ATTACHMENT_STORAGE_UNAVAILABLE =
+        "CONSULTATION_ATTACHMENT_STORAGE_UNAVAILABLE";
 
     private ErrorCodes() {
     }

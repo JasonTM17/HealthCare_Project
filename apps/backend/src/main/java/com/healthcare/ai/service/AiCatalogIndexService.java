@@ -213,6 +213,11 @@ public class AiCatalogIndexService {
         if (slug != null) metadata.put("slug", slug);
         metadata.put("_sync_revision", Long.toString(syncRevision));
         metadata.put("projection_kind", "OPERATIONAL");
+        if ("branch".equals(type)) {
+            // The protected AI ingest endpoint uses this closed marker to
+            // distinguish public branch phone/address data from patient PII.
+            metadata.put("public_operational", "true");
+        }
         payload.put("metadata", metadata);
         aiService.indexDocument(payload);
         return type + ":" + id;
