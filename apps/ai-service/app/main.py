@@ -1,4 +1,6 @@
+import re
 import secrets
+from datetime import datetime
 from typing import cast
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
@@ -70,6 +72,122 @@ app = FastAPI(title="HealthCare AI Service", version="0.1.0")
 # Shared RAG service. Local/test keeps the in-memory implementation by default,
 # while explicit Supabase configuration can switch to the durable store.
 rag_service = build_rag_service(settings)
+
+
+# RAG metadata is a service-to-service contract, not an arbitrary text bag.
+# Spring's projection workers send these fields as provenance for the source
+# that was already authorized in PostgreSQL.  Keep the allow-list closed so a
+# future caller cannot smuggle arbitrary text through this boundary while still
+# allowing structured clinical provenance (notably ISO timestamps, which the
+# generic PII detector intentionally treats as dates).
+_RAG_METADATA_KEYS = frozenset(
+    {
+        "_sync_revision",
+        "projection_kind",
+        "public_operational",
+        "slug",
+        "content_revision",
+        "eligibility_revision",
+        "content_hash",
+        "approval_id",
+        "approval_state",
+        "approval_expires_at",
+    }
+)
+_RAG_OPERATIONAL_METADATA_KEYS = frozenset(
+    {"_sync_revision", "projection_kind", "public_operational", "slug"}
+)
+_RAG_CLINICAL_METADATA_KEYS = frozenset(
+    {
+        "projection_kind",
+        "content_revision",
+        "eligibility_revision",
+        "content_hash",
+        "approval_id",
+        "approval_state",
+        "approval_expires_at",
+    }
+)
+_RAG_REVISION_PATTERN = re.compile(r"^[0-9]{1,19}$")
+_RAG_SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+_RAG_SAFE_TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
+
+
+def _reject_invalid_rag_metadata(payload: RAGIndexRequest) -> None:
+    """Validate the closed provenance schema before any embedding operation.
+
+    Clinical provenance values are typed identifiers rather than user-facing
+    prose.  Validating each field here lets us skip the generic egress text
+    scanner for those fields without weakening the title/content safety gate.
+    Unknown keys and cross-projection fields fail closed.
+    """
+
+    metadata = payload.metadata
+    unknown = set(metadata).difference(_RAG_METADATA_KEYS)
+    if unknown:
+        raise HTTPException(status_code=422, detail="RAG metadata rejected by contract")
+
+    for key, raw_value in metadata.items():
+        if not isinstance(raw_value, str):
+            raise HTTPException(status_code=422, detail="RAG metadata rejected by contract")
+        value = raw_value.strip()
+        if not value or any(ord(character) < 0x20 for character in value):
+            raise HTTPException(status_code=422, detail="RAG metadata rejected by contract")
+
+        if key == "projection_kind":
+            if value.upper() not in {"OPERATIONAL", "CLINICAL"}:
+                raise HTTPException(status_code=422, detail="RAG metadata rejected by contract")
+        elif key in {"_sync_revision", "content_revision", "eligibility_revision"}:
+            if not _RAG_REVISION_PATTERN.fullmatch(value):
+                raise HTTPException(status_code=422, detail="RAG metadata rejected by contract")
+            numeric = int(value)
+            if key != "_sync_revision" and numeric < 1:
+                raise HTTPException(status_code=422, detail="RAG metadata rejected by contract")
+        elif key == "content_hash":
+            if not _RAG_SHA256_PATTERN.fullmatch(value):
+                raise HTTPException(status_code=422, detail="RAG metadata rejected by contract")
+        elif key == "approval_id":
+            if not _RAG_SAFE_TOKEN_PATTERN.fullmatch(value):
+                raise HTTPException(status_code=422, detail="RAG metadata rejected by contract")
+        elif key == "approval_state":
+            if value.upper() != "APPROVED":
+                raise HTTPException(status_code=422, detail="RAG metadata rejected by contract")
+        elif key == "approval_expires_at":
+            try:
+                expiry = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError:
+                raise HTTPException(status_code=422, detail="RAG metadata rejected by contract") from None
+            if expiry.tzinfo is None or expiry.utcoffset() is None:
+                raise HTTPException(status_code=422, detail="RAG metadata rejected by contract")
+        elif key == "public_operational":
+            if value.casefold() not in {"true", "false"}:
+                raise HTTPException(status_code=422, detail="RAG metadata rejected by contract")
+        elif key == "slug":
+            if not _RAG_SAFE_TOKEN_PATTERN.fullmatch(value):
+                raise HTTPException(status_code=422, detail="RAG metadata rejected by contract")
+
+    projection = metadata.get("projection_kind")
+    normalized_projection = projection.strip().upper() if isinstance(projection, str) else None
+    if normalized_projection is None:
+        # Legacy operational rows may omit the discriminator, but clinical
+        # provenance is never accepted without an explicit projection marker.
+        if set(metadata).difference(_RAG_OPERATIONAL_METADATA_KEYS):
+            raise HTTPException(status_code=422, detail="RAG metadata rejected by contract")
+        normalized_projection = "OPERATIONAL"
+
+    if normalized_projection == "CLINICAL":
+        required = _RAG_CLINICAL_METADATA_KEYS.difference({"projection_kind"})
+        if not required.issubset(metadata):
+            raise HTTPException(status_code=422, detail="RAG metadata rejected by contract")
+        if set(metadata).difference(_RAG_CLINICAL_METADATA_KEYS):
+            raise HTTPException(status_code=422, detail="RAG metadata rejected by contract")
+    elif set(metadata).difference(_RAG_OPERATIONAL_METADATA_KEYS):
+        raise HTTPException(status_code=422, detail="RAG metadata rejected by contract")
+
+    public_marker = metadata.get("public_operational")
+    if isinstance(public_marker, str) and public_marker.casefold() == "true":
+        if payload.source_type != "branch" or normalized_projection != "OPERATIONAL":
+            raise HTTPException(status_code=422, detail="RAG metadata rejected by contract")
 
 
 def _metadata_revision(metadata: dict[str, str], key: str) -> int | None:
@@ -549,11 +667,12 @@ def rag_index(
         setting_name="rag_max_document_chars",
     )
     public_operational = _public_operational_branch(payload)
-    _reject_unsafe_egress_text(
-        payload.title,
-        *payload.metadata.keys(),
-        *payload.metadata.values(),
-    )
+    _reject_invalid_rag_metadata(payload)
+    # Metadata has now passed the closed provenance schema above.  Only the
+    # human-authored title/content remain on the generic egress text path;
+    # hashes, revisions, approval IDs/state and expiry timestamps are typed
+    # values and must not be mistaken for PII dates or identifiers.
+    _reject_unsafe_egress_text(payload.title)
     _reject_unsafe_egress_text(
         content,
         allow_public_operational=public_operational,
