@@ -340,7 +340,8 @@ public class AiConversationService {
                     conversationId,
                     prepared.userMessageId(),
                     prepared.processingToken(),
-                    sanitized
+                    sanitized,
+                    conversation.getMode()
                 )
             );
             if (completed == null) {
@@ -508,7 +509,8 @@ public class AiConversationService {
             UUID conversationId,
             UUID userMessageId,
             UUID processingToken,
-            SanitizedAiResponse response) {
+            SanitizedAiResponse response,
+            ChatMode mode) {
         AiConversation conversation = requireOwnedForUpdate(conversationId, userId);
         OffsetDateTime completedAt = now();
         if (!conversation.isInFlight()
@@ -527,6 +529,26 @@ public class AiConversationService {
                 ErrorCodes.AI_CONVERSATION_NOT_FOUND,
                 "Conversation not found"
             ));
+
+        // Final linearization point: source/review rows are revalidated while
+        // this transaction owns the conversation lock. Clinical edit, revoke,
+        // or expiry either happened before this check (and fail closed) or
+        // waits on the same source fence until after persistence.
+        if (!response.finalSources().isEmpty()) {
+            List<AiChatSourceResolver.ResolvedSource> currentSources =
+                sourceResolver.revalidateForPersistence(mode, response.finalSources());
+            if (currentSources.isEmpty() || !sameSourceSet(response.finalSources(), currentSources)) {
+                response = insufficient(mode);
+            } else {
+                // Refresh SQL-owned labels/actions for operational sources;
+                // clinical metadata remains byte-for-byte equivalent.
+                response = response.withSources(
+                    currentSources,
+                    sourceResolver.citations(currentSources),
+                    sourceResolver.actions(currentSources));
+            }
+        }
+
         AiMessage existingReply = messageRepository.findByRequestMessageId(userMessageId).orElse(null);
         if (existingReply != null) {
             conversation.setInFlight(false);
@@ -573,6 +595,26 @@ public class AiConversationService {
         conversation.setExpiresAt(expiry(completedAt));
         conversationRepository.save(conversation);
         return new ChatExchangeResponse(toMessage(request), toMessage(reply), false);
+    }
+
+    private boolean sameSourceSet(
+            List<AiChatSourceResolver.ResolvedSource> expected,
+            List<AiChatSourceResolver.ResolvedSource> actual) {
+        if (expected.size() != actual.size()) return false;
+        for (int index = 0; index < expected.size(); index++) {
+            AiChatSourceResolver.ResolvedSource left = expected.get(index);
+            AiChatSourceResolver.ResolvedSource right = actual.get(index);
+            if (!java.util.Objects.equals(left.type(), right.type())
+                    || !java.util.Objects.equals(left.id(), right.id())
+                    || !java.util.Objects.equals(left.projectionKind(), right.projectionKind())
+                    || !java.util.Objects.equals(left.contentRevision(), right.contentRevision())
+                    || !java.util.Objects.equals(left.eligibilityRevision(), right.eligibilityRevision())
+                    || !java.util.Objects.equals(left.contentHash(), right.contentHash())
+                    || !java.util.Objects.equals(left.approvalId(), right.approvalId())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private void markFailed(
@@ -717,7 +759,8 @@ public class AiConversationService {
             safetyAction,
             triage,
             actions,
-            finalSources.isEmpty() ? "UNAVAILABLE" : "CURRENT"
+            finalSources.isEmpty() ? "UNAVAILABLE" : "CURRENT",
+            List.copyOf(finalSources)
         );
     }
 
@@ -841,7 +884,8 @@ public class AiConversationService {
             action,
             null,
             action == ChatSafetyAction.EMERGENCY ? emergencyActions() : List.of(),
-            "CURRENT"
+            "CURRENT",
+            List.of()
         );
     }
 
@@ -854,7 +898,8 @@ public class AiConversationService {
             ChatSafetyAction.INSUFFICIENT_EVIDENCE,
             null,
             List.of(),
-            "UNAVAILABLE"
+            "UNAVAILABLE",
+            List.of()
         );
     }
 
@@ -1224,7 +1269,24 @@ public class AiConversationService {
         ChatSafetyAction safetyAction,
         TriageSummary triage,
         List<Map<String, String>> suggestedActions,
-        String sourceStatus
+        String sourceStatus,
+        List<AiChatSourceResolver.ResolvedSource> finalSources
     ) {
+        SanitizedAiResponse withSources(
+                List<AiChatSourceResolver.ResolvedSource> sources,
+                List<Map<String, String>> refreshedCitations,
+                List<Map<String, String>> refreshedActions) {
+            return new SanitizedAiResponse(
+                answer,
+                disclaimer,
+                provenance,
+                refreshedCitations,
+                safetyAction,
+                triage,
+                refreshedActions,
+                sourceStatus,
+                List.copyOf(sources)
+            );
+        }
     }
 }

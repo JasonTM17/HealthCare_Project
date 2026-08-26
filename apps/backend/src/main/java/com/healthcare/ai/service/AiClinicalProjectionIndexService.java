@@ -11,6 +11,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -218,11 +219,14 @@ public class AiClinicalProjectionIndexService {
             Object projection = indexed.get("projection_kind");
             if (type == null || id == null || !"CLINICAL".equalsIgnoreCase(String.valueOf(projection))) continue;
             if (!current.contains(type + ":" + id)) {
-                // Clinical tombstones use the eligibility revision.  A review
-                // revoke/renewal can keep content_revision unchanged while
-                // eligibility_revision advances, so content revision would
-                // incorrectly reject a later valid renewal.
-                Long revision = indexed.get("eligibility_revision") instanceof Number n ? n.longValue() : null;
+                // Clinical tombstones use the database-owned eligibility
+                // revision.  The indexed row may be stale after a revoke or
+                // expiry, and using that old value can be rejected as an
+                // equal-revision update by the durable tombstone guard. Read
+                // the current review head instead of inventing a worker-local
+                // revision; if the head is unavailable, fail closed and let
+                // the scheduled reconciliation retry.
+                long revision = currentEligibilityRevision(type, id);
                 aiService.removeIndexedDocument(type, id, revision, "CLINICAL");
                 processed++;
             }
@@ -288,5 +292,23 @@ public class AiClinicalProjectionIndexService {
     private long number(Object value) {
         if (value instanceof Number number && number.longValue() > 0) return number.longValue();
         throw new IllegalStateException("clinical projection returned an invalid revision");
+    }
+
+    private long currentEligibilityRevision(String sourceType, String sourceId) {
+        UUID parsedId;
+        try {
+            parsedId = UUID.fromString(sourceId);
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalStateException("clinical projection returned an invalid source id", exception);
+        }
+        Long revision = jdbc.queryForObject("""
+            SELECT eligibility_revision
+              FROM ai_content_review_heads
+             WHERE source_type = ? AND source_id = ?
+            """, Long.class, sourceType.toUpperCase(java.util.Locale.ROOT), parsedId);
+        if (revision == null || revision <= 0) {
+            throw new IllegalStateException("clinical review head revision is unavailable");
+        }
+        return revision;
     }
 }

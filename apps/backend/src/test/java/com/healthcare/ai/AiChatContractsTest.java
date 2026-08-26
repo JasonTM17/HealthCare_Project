@@ -2,9 +2,14 @@ package com.healthcare.ai;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.healthcare.ai.chat.dto.ChatContracts;
+import com.healthcare.ai.chat.entity.AiConversation;
+import com.healthcare.ai.chat.entity.AiConversationStatus;
 import com.healthcare.ai.chat.entity.AiMessage;
+import com.healthcare.ai.chat.entity.AiMessageRole;
+import com.healthcare.ai.chat.entity.AiMessageStatus;
 import com.healthcare.ai.chat.entity.ChatMode;
 import com.healthcare.ai.chat.entity.ChatSafetyAction;
+import com.healthcare.ai.chat.service.AiChatSourceResolver;
 import com.healthcare.ai.chat.entity.FeedbackRating;
 import com.healthcare.ai.chat.service.AiConversationService;
 import com.healthcare.ai.service.AiService;
@@ -24,6 +29,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -31,6 +37,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -265,5 +272,120 @@ class AiChatContractsTest {
             .isEqualTo(ChatSafetyAction.INSUFFICIENT_EVIDENCE);
         verify(upstream, never()).chat(org.mockito.ArgumentMatchers.any());
         verify(upstream).retrieveChat(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void finalPersistenceValidationDowngradesAnswerWhenClinicalSourceDrifts() {
+        AiConversationRepository conversations = mock(AiConversationRepository.class);
+        AiMessageRepository messages = mock(AiMessageRepository.class);
+        AiMessageFeedbackRepository feedback = mock(AiMessageFeedbackRepository.class);
+        UserRepository users = mock(UserRepository.class);
+        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
+        PlatformTransactionManager transactionManager = mock(PlatformTransactionManager.class);
+        AiConversationService service = new AiConversationService(
+            conversations,
+            messages,
+            feedback,
+            users,
+            mock(AiService.class),
+            resolver,
+            transactionManager,
+            90, true, 200, 20, 120);
+
+        UUID userId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        UUID userMessageId = UUID.randomUUID();
+        UUID processingToken = UUID.randomUUID();
+        UUID sourceId = UUID.randomUUID();
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+
+        AiConversation conversation = new AiConversation();
+        conversation.setId(conversationId);
+        conversation.setTitle("Test conversation");
+        conversation.setStatus(AiConversationStatus.ACTIVE);
+        conversation.setInFlight(true);
+        conversation.setInFlightStartedAt(now);
+        conversation.setInFlightToken(processingToken);
+        conversation.setCreatedAt(now);
+        conversation.setUpdatedAt(now);
+        conversation.setExpiresAt(now.plusDays(90));
+
+        AiMessage request = new AiMessage();
+        request.setId(userMessageId);
+        request.setConversation(conversation);
+        request.setRole(AiMessageRole.USER);
+        request.setStatus(AiMessageStatus.PENDING);
+        request.setContent("Dấu hiệu bệnh tim");
+        request.setSequenceNumber(1);
+        request.setCreatedAt(now);
+
+        String contentHash = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        AiChatSourceResolver.ResolvedSource source = new AiChatSourceResolver.ResolvedSource(
+            "article", sourceId.toString(), "Dấu hiệu bệnh tim", "dau-hieu-benh-tim",
+            true, true, "CLINICAL", 1L, 2L, contentHash, "3",
+            "/articles/dau-hieu-benh-tim", null);
+
+        when(conversations.findOwnedForUpdate(conversationId, userId)).thenReturn(java.util.Optional.of(conversation));
+        when(messages.findById(userMessageId)).thenReturn(java.util.Optional.of(request));
+        when(messages.findByRequestMessageId(userMessageId)).thenReturn(java.util.Optional.empty());
+        when(messages.findMaxSequence(conversationId)).thenReturn(1L);
+        when(messages.save(org.mockito.ArgumentMatchers.any(AiMessage.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        when(conversations.save(org.mockito.ArgumentMatchers.any(AiConversation.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        when(feedback.findById(org.mockito.ArgumentMatchers.any())).thenReturn(java.util.Optional.empty());
+        when(resolver.revalidate(ChatMode.HEALTH_EDUCATION, "article", sourceId.toString()))
+            .thenReturn(source);
+        when(resolver.citations(org.mockito.ArgumentMatchers.any())).thenReturn(List.of(
+            Map.of("source_type", "article", "source_id", sourceId.toString(),
+                "title", "Dấu hiệu bệnh tim", "projection_kind", "CLINICAL",
+                "content_revision", "1", "eligibility_revision", "2",
+                "content_hash", contentHash, "approval_id", "3")));
+        when(resolver.actions(org.mockito.ArgumentMatchers.any())).thenReturn(List.of(
+            Map.of("kind", "VIEW_SOURCE", "label", "Dấu hiệu bệnh tim",
+                "href", "/articles/dau-hieu-benh-tim")));
+        // Simulate a revoke/edit committed after sanitize but before complete.
+        when(resolver.revalidateForPersistence(
+                org.mockito.ArgumentMatchers.eq(ChatMode.HEALTH_EDUCATION),
+                org.mockito.ArgumentMatchers.any())).thenReturn(List.of());
+
+        Object sanitized = ReflectionTestUtils.invokeMethod(
+            service,
+            "sanitize",
+            Map.of(
+                "answer", "Câu trả lời cũ không được phép lưu",
+                "provenance", "local_provider",
+                "safety_action", "ANSWER",
+                "used_sources", List.of(Map.of(
+                    "source_type", "article", "source_id", sourceId.toString(),
+                    "projection_kind", "CLINICAL", "content_revision", 1,
+                    "eligibility_revision", 2, "content_hash", contentHash,
+                    "approval_id", "3"))),
+            ChatMode.HEALTH_EDUCATION,
+            List.of(source));
+
+        ReflectionTestUtils.invokeMethod(
+            service,
+            "complete",
+            userId,
+            conversationId,
+            userMessageId,
+            processingToken,
+            sanitized,
+            ChatMode.HEALTH_EDUCATION);
+
+        org.mockito.ArgumentCaptor<AiMessage> saved = org.mockito.ArgumentCaptor.forClass(AiMessage.class);
+        verify(messages, atLeastOnce()).save(saved.capture());
+        AiMessage assistant = saved.getAllValues().stream()
+            .filter(message -> message.getRole() == AiMessageRole.ASSISTANT)
+            .findFirst()
+            .orElseThrow();
+        assertThat(assistant.getSafetyAction()).isEqualTo(ChatSafetyAction.INSUFFICIENT_EVIDENCE);
+        assertThat(assistant.getContent()).contains("chưa tìm thấy nguồn");
+        assertThat(assistant.getContent()).doesNotContain("Câu trả lời cũ");
+        assertThat(assistant.getCitations()).isEmpty();
+        verify(resolver).revalidateForPersistence(
+            org.mockito.ArgumentMatchers.eq(ChatMode.HEALTH_EDUCATION),
+            org.mockito.ArgumentMatchers.any());
     }
 }

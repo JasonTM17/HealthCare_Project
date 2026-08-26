@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -46,6 +47,12 @@ class AiClinicalProjectionIndexServiceTest {
             "content_revision", 3L,
             "eligibility_revision", 3L
         )));
+        when(jdbc.queryForObject(
+            org.mockito.ArgumentMatchers.anyString(),
+            org.mockito.ArgumentMatchers.eq(Long.class),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any()
+        )).thenReturn(4L);
 
         AiClinicalProjectionIndexService service = new AiClinicalProjectionIndexService(aiService, jdbc);
         assertThat(service.synchronizeClinicalNow()).isEqualTo(2);
@@ -68,6 +75,34 @@ class AiClinicalProjectionIndexServiceTest {
             .containsEntry("approval_state", "APPROVED")
             .containsEntry("approval_id", "2")
             .containsEntry("content_hash", "a".repeat(64));
-        verify(aiService).removeIndexedDocument("faq", staleId.toString(), 3L, "CLINICAL");
+        verify(aiService).removeIndexedDocument("faq", staleId.toString(), 4L, "CLINICAL");
+    }
+
+    @Test
+    void failsClosedWhenStaleClinicalSourceHasNoDatabaseReviewHead() {
+        AiService aiService = mock(AiService.class);
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        when(aiService.isRagIngestConfigured()).thenReturn(true);
+        UUID staleId = UUID.randomUUID();
+        when(jdbc.queryForList(org.mockito.ArgumentMatchers.anyString())).thenReturn(List.of());
+        when(aiService.listIndexedDocuments()).thenReturn(List.of(Map.of(
+            "source_type", "article",
+            "source_id", staleId.toString(),
+            "projection_kind", "CLINICAL",
+            "content_revision", 3L,
+            "eligibility_revision", 3L
+        )));
+        when(jdbc.queryForObject(
+            org.mockito.ArgumentMatchers.anyString(),
+            org.mockito.ArgumentMatchers.eq(Long.class),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any()
+        )).thenReturn(null);
+
+        AiClinicalProjectionIndexService service = new AiClinicalProjectionIndexService(aiService, jdbc);
+
+        assertThatThrownBy(service::synchronizeClinicalNow)
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessage("clinical review head revision is unavailable");
     }
 }
