@@ -21,7 +21,13 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Callable, Collection, Iterator, List, Mapping, Sequence, cast
 
-from app.rag import CLINICAL_SOURCE_TYPES, EmbeddingCallback, RagDocument, RagService
+from app.rag import (
+    CLINICAL_SOURCE_TYPES,
+    EmbeddingCallback,
+    RagDocument,
+    RagService,
+    normalize_projection_kind,
+)
 from app.schemas import MAX_INPUT_CHARS, ProviderProvenance, SOURCE_TYPES
 
 
@@ -715,6 +721,11 @@ class PersistentRagService(RagService):
         self.store = store
         self.fallback_to_memory = fallback_to_memory
         self.persistence_available = False
+        # A successful durable read/write means the in-memory index may carry
+        # data that is newer or older than the database after a dependency
+        # failure.  Once that authority has been observed, never answer from
+        # the stale local copy while the durable service is unavailable.
+        self._durable_content_seen = False
         try:
             self._hydrate()
             self.persistence_available = True
@@ -723,9 +734,31 @@ class PersistentRagService(RagService):
                 raise
 
     def _hydrate(self) -> None:
-        for document in self.store.list_documents():
+        documents = self.store.list_documents()
+        self._durable_content_seen = bool(documents)
+        for document in documents:
             if document.embedding:
                 self.index.add(document)
+
+    def _memory_fallback_is_safe(self, source_types: Collection[str] | None) -> bool:
+        """Return whether memory-only retrieval is safe after a DB outage.
+
+        Clinical projections are never served from memory after the durable
+        authority is unavailable.  A service that hydrated any durable
+        content is likewise fail-closed so a restart/failover cannot expose a
+        stale snapshot.  A brand-new local-only service may still use its
+        explicit development fallback.
+        """
+
+        if self._durable_content_seen:
+            return False
+        allowed_source_types = set(source_types) if source_types else None
+        for document in self.index.documents:
+            if normalize_projection_kind(document.metadata) != "CLINICAL":
+                continue
+            if allowed_source_types is None or document.source_type in allowed_source_types:
+                return False
+        return True
 
     def _fallback_or_raise(self, error: Exception) -> None:
         self.persistence_available = False
@@ -810,19 +843,37 @@ class PersistentRagService(RagService):
         embedder: EmbeddingCallback | None = None,
     ) -> RagDocument:
         snapshot = self._snapshot_state()
-        document = super().ingest(
-            source_type,
-            source_id,
-            title,
-            content,
-            embedding,
-            active=active,
-            published=published,
-            metadata=metadata,
-            embedding_model=embedding_model,
-            embedding_provenance=embedding_provenance,
-            embedder=embedder,
-        )
+        prior_persistence_available = self.persistence_available
+        try:
+            document = super().ingest(
+                source_type,
+                source_id,
+                title,
+                content,
+                embedding,
+                active=active,
+                published=published,
+                metadata=metadata,
+                embedding_model=embedding_model,
+                embedding_provenance=embedding_provenance,
+                embedder=embedder,
+            )
+        except SupabaseRagUnavailable:
+            # ``RagService.ingest`` can delegate inactive documents to this
+            # class' durable ``remove`` method.  That method has already
+            # restored the pre-event snapshot and marked persistence
+            # unavailable; preserve that signal instead of resetting it to
+            # the value observed before entering ``super()``.
+            self._restore_state(snapshot)
+            raise
+        except Exception:
+            # ``RagService.ingest`` advances revision/operation watermarks
+            # before it invokes an embedder.  If embedding or normalization
+            # fails, restore every mutation so a deterministic retry with the
+            # same revision is accepted rather than treated as a stale event.
+            self._restore_state(snapshot)
+            self.persistence_available = prior_persistence_available
+            raise
         durable_rejection = False
         try:
             if document.searchable:
@@ -855,8 +906,15 @@ class PersistentRagService(RagService):
                                     include_projections=False,
                                 )
                         self.persistence_available = True
+                        if current.searchable and current.embedding:
+                            self._durable_content_seen = True
                         return current
-                    raise SupabaseRagContractError("durable upsert rejected")
+                    # A false return is the store's conflict/no-op signal,
+                    # not a provider contract exception.  Preserve the
+                    # historical unavailable error so callers cannot mistake
+                    # a rejected write for a successful memory fallback.
+                    raise SupabaseRagUnavailable("durable upsert rejected")
+                self._durable_content_seen = True
             else:
                 # ``RagService.ingest`` delegates non-searchable documents to
                 # ``self.remove``. Since this subclass overrides ``remove``,
@@ -864,7 +922,14 @@ class PersistentRagService(RagService):
                 # durable tombstone; do not issue a second write here.
                 pass
             self.persistence_available = True
-        except Exception as error:
+        except SupabaseRagContractError:
+            # Contract violations are deterministic and cannot be made safe
+            # by serving a potentially stale local document, even when the
+            # development fallback flag is enabled.
+            self._restore_state(snapshot)
+            self.persistence_available = False
+            raise
+        except SupabaseRagUnavailable as error:
             if durable_rejection:
                 # A rejected durable write is never eligible for the local
                 # fallback: the database may still hold a newer row or
@@ -883,6 +948,22 @@ class PersistentRagService(RagService):
                 self.persistence_available = False
                 raise SupabaseRagUnavailable("Supabase RAG mutation failed") from error
             self._fallback_or_raise(error)
+        except AttributeError as error:
+            # A test/local adapter that does not expose the optional durable
+            # write method behaves like an unavailable dependency.  Keep the
+            # explicit fallback narrow to this capability-missing case;
+            # arbitrary adapter errors remain fail-closed below.
+            if not self.fallback_to_memory:
+                self._restore_state(snapshot)
+                self.persistence_available = False
+                raise SupabaseRagUnavailable("Supabase RAG mutation failed") from error
+            self._fallback_or_raise(SupabaseRagUnavailable("Supabase RAG adapter unavailable"))
+        except Exception as error:
+            # Only an explicitly classified dependency outage is eligible for
+            # memory fallback.  Unexpected adapter errors fail closed.
+            self._restore_state(snapshot)
+            self.persistence_available = False
+            raise SupabaseRagUnavailable("Supabase RAG mutation failed") from error
         self._require_fallback()
         return document
 
@@ -994,6 +1075,8 @@ class PersistentRagService(RagService):
         embedding_provenance: ProviderProvenance = "local_provider",
     ) -> list[tuple[RagDocument, float]]:
         if not self.persistence_available:
+            if not self._memory_fallback_is_safe(source_types):
+                raise SupabaseRagUnavailable("Supabase RAG operation failed")
             self._require_fallback()
             return super().search(
                 query_embedding,
@@ -1018,10 +1101,19 @@ class PersistentRagService(RagService):
                     embedding_model=embedding_model,
                     embedding_provenance=embedding_provenance,
                 )
-            except Exception as error:
+            except SupabaseRagContractError:
+                self.persistence_available = False
+                raise
+            except SupabaseRagUnavailable as error:
+                if not self._memory_fallback_is_safe(source_types):
+                    self.persistence_available = False
+                    raise SupabaseRagUnavailable("Supabase RAG operation failed") from error
                 self._fallback_or_raise(error)
                 if not self.fallback_to_memory:
                     raise SupabaseRagUnavailable("Supabase RAG operation failed") from error
+            except Exception as error:
+                self.persistence_available = False
+                raise SupabaseRagUnavailable("Supabase RAG operation failed") from error
         return super().search(
             query_embedding,
             top_k,
