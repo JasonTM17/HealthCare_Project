@@ -25,6 +25,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 public class AiClinicalProjectionIndexService {
 
     private static final Logger log = LoggerFactory.getLogger(AiClinicalProjectionIndexService.class);
+    private static final Set<String> CLINICAL_SOURCE_TYPES = Set.of("specialty", "article", "faq");
 
     private static final String CURRENT_APPROVED_SOURCES = """
         SELECT 'specialty' AS source_type,
@@ -218,6 +219,14 @@ public class AiClinicalProjectionIndexService {
             String id = text(indexed.get("source_id"));
             Object projection = indexed.get("projection_kind");
             if (type == null || id == null || !"CLINICAL".equalsIgnoreCase(String.valueOf(projection))) continue;
+            if (!CLINICAL_SOURCE_TYPES.contains(type.toLowerCase(java.util.Locale.ROOT))) {
+                // A legacy or forged row must never make reconciliation look
+                // up a review head for an entity type that has no clinical
+                // approval workflow.  It is quarantined from this pass and
+                // cannot enter a patient-chat source allowlist.
+                log.warn("Ignoring unsupported clinical projection source type during reconciliation");
+                continue;
+            }
             if (!current.contains(type + ":" + id)) {
                 // Clinical tombstones use the database-owned eligibility
                 // revision.  The indexed row may be stale after a revoke or

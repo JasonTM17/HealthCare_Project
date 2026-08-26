@@ -108,6 +108,7 @@ _RAG_CLINICAL_METADATA_KEYS = frozenset(
         "approval_expires_at",
     }
 )
+_RAG_CLINICAL_SOURCE_TYPES = frozenset({"specialty", "article", "faq"})
 _RAG_REVISION_PATTERN = re.compile(r"^[0-9]{1,19}$")
 _RAG_SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _RAG_SAFE_TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
@@ -141,7 +142,7 @@ def _reject_invalid_rag_metadata(payload: RAGIndexRequest) -> None:
             if not _RAG_REVISION_PATTERN.fullmatch(value):
                 raise HTTPException(status_code=422, detail="RAG metadata rejected by contract")
             numeric = int(value)
-            if key != "_sync_revision" and numeric < 1:
+            if numeric < 1:
                 raise HTTPException(status_code=422, detail="RAG metadata rejected by contract")
         elif key == "content_hash":
             if not _RAG_SHA256_PATTERN.fullmatch(value):
@@ -176,6 +177,11 @@ def _reject_invalid_rag_metadata(payload: RAGIndexRequest) -> None:
         normalized_projection = "OPERATIONAL"
 
     if normalized_projection == "CLINICAL":
+        # Clinical eligibility is owned by the review heads for governed
+        # content only.  Operational catalog entities must never be able to
+        # masquerade as approved clinical sources at this service boundary.
+        if payload.source_type not in _RAG_CLINICAL_SOURCE_TYPES:
+            raise HTTPException(status_code=422, detail="RAG metadata rejected by contract")
         required = _RAG_CLINICAL_METADATA_KEYS.difference({"projection_kind"})
         if not required.issubset(metadata):
             raise HTTPException(status_code=422, detail="RAG metadata rejected by contract")
