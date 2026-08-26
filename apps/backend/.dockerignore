@@ -18,3 +18,7 @@ credentials/
 **/credentials/
 *.log
 .idea/
+.next/
+.next-*/
+.tmp/
+.vercel/
