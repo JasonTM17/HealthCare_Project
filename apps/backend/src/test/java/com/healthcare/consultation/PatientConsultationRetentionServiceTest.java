@@ -76,6 +76,7 @@ class PatientConsultationRetentionServiceTest {
         when(jdbc.query(contains("patient_consultation_attachments"), any(RowMapper.class),
                 eq(threadId), eq(userId))).thenReturn(List.of(List.of(
                 "private/consultations/" + threadId + "/upload/a",
+                "private/consultations/" + threadId + "/upload/a",
                 "private/consultations/" + threadId + "/verified/a")));
         when(jdbc.update(contains("DELETE FROM patient_consultation_threads"), eq(threadId), eq(userId)))
             .thenReturn(1);
@@ -105,7 +106,9 @@ class PatientConsultationRetentionServiceTest {
         when(users.findByEmail("patient@example.test")).thenReturn(Optional.of(user));
         when(jdbc.query(contains("patient_consultation_attachments"), any(RowMapper.class),
                 eq(threadId), eq(userId))).thenReturn(List.of(java.util.Arrays.asList(
-                "private/consultations/" + threadId + "/upload/a", null)));
+                "private/consultations/" + threadId + "/upload/a",
+                "private/consultations/" + threadId + "/upload/a",
+                "private/consultations/" + threadId + "/verified/a")));
         doThrow(new IllegalStateException("closed storage failure"))
             .when(storage).deleteObjects(anyCollection());
 

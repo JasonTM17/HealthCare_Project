@@ -102,8 +102,9 @@ class ConsultationAttachmentIntegrationTest extends AbstractIntegrationTest {
             UUID.randomUUID().toString(), patient).id();
         attachment = UUID.randomUUID();
         uploadKey = "private/consultations/" + thread + "/upload/" + attachment;
+        String verifiedKey = "private/consultations/" + thread + "/verified/" + attachment;
         when(storage.createUploadIntent(any())).thenReturn(new ConsultationAttachmentStorage.UploadIntent(
-            ConsultationAttachmentStorage.Availability.ENABLED, attachment, uploadKey,
+            ConsultationAttachmentStorage.Availability.ENABLED, attachment, uploadKey, verifiedKey,
             URI.create("https://objects.example.test/synthetic"), Instant.now().plusSeconds(300), "PENDING", null));
         consultations.attachmentIntent(thread, new ConsultationContracts.AttachmentIntentRequest(
             message, "image/jpeg", 5L, "a".repeat(64)), patient);
@@ -231,7 +232,9 @@ class ConsultationAttachmentIntegrationTest extends AbstractIntegrationTest {
 
     private ConsultationAttachmentStorage.CompletionResult clean(ConsultationAttachmentStorage.CompletionRequest request) {
         return new ConsultationAttachmentStorage.CompletionResult(ConsultationAttachmentStorage.Availability.ENABLED,
-            request.attachmentId(), "private/consultations/" + request.threadId() + "/verified/" + UUID.randomUUID(),
+            request.attachmentId(), request.expectedVerifiedObjectKey() != null
+                ? request.expectedVerifiedObjectKey()
+                : "private/consultations/" + request.threadId() + "/verified/" + UUID.randomUUID(),
             request.expectedMimeType(), request.expectedSizeBytes(), request.expectedSha256(),
             ConsultationAttachmentStorage.ScanStatus.CLEAN, Instant.now(), null);
     }

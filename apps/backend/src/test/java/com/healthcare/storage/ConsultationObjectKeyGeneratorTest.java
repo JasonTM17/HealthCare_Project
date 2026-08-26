@@ -17,10 +17,12 @@ class ConsultationObjectKeyGeneratorTest {
 
         String key = generator.generateUpload(thread, attachment);
         String verifiedKey = generator.generateVerified(thread, attachment);
+        String verifiedRetryKey = generator.generateVerified(thread, attachment);
 
         assertThat(key).startsWith("private/consultations/");
         assertThat(key).contains("/upload/");
         assertThat(verifiedKey).contains("/verified/");
+        assertThat(verifiedRetryKey).isEqualTo(verifiedKey);
         assertThat(generator.isValid(key, thread, attachment)).isTrue();
         assertThat(generator.isValid(key, ConsultationObjectKeyGenerator.Purpose.UPLOAD,
             thread, attachment)).isTrue();

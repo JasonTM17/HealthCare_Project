@@ -133,27 +133,29 @@ public class PatientConsultationRetentionService {
     private List<String> attachmentKeysForThread(UUID threadId, UUID ownerUserId) {
         if (ownerUserId == null) {
             List<String> keys = jdbc.query(
-                "SELECT a.private_object_key, a.upload_object_key FROM patient_consultation_attachments a WHERE a.thread_id = ?",
+                "SELECT a.private_object_key, a.upload_object_key, a.verified_object_key FROM patient_consultation_attachments a WHERE a.thread_id = ?",
                 (rs, rowNum) -> {
-                    List<String> rowKeys = new ArrayList<>(2);
+                    List<String> rowKeys = new ArrayList<>(3);
                     rowKeys.add(rs.getString("private_object_key"));
                     rowKeys.add(rs.getString("upload_object_key"));
+                    rowKeys.add(rs.getString("verified_object_key"));
                     return rowKeys;
                 }, threadId).stream().flatMap(List::stream).filter(key -> key != null && !key.isBlank()).toList();
             return new ArrayList<>(new LinkedHashSet<>(keys));
         }
         List<String> keys = jdbc.query(
             """
-            SELECT a.private_object_key, a.upload_object_key
+            SELECT a.private_object_key, a.upload_object_key, a.verified_object_key
               FROM patient_consultation_attachments a
               JOIN patient_consultation_threads t ON t.id = a.thread_id
               JOIN patient_profiles p ON p.id = t.patient_profile_id
              WHERE a.thread_id = ? AND p.user_id = ?
             """,
             (rs, rowNum) -> {
-                List<String> rowKeys = new ArrayList<>(2);
+                List<String> rowKeys = new ArrayList<>(3);
                 rowKeys.add(rs.getString("private_object_key"));
                 rowKeys.add(rs.getString("upload_object_key"));
+                rowKeys.add(rs.getString("verified_object_key"));
                 return rowKeys;
             }, threadId, ownerUserId).stream().flatMap(List::stream).filter(key -> key != null && !key.isBlank()).toList();
         return new ArrayList<>(new LinkedHashSet<>(keys));

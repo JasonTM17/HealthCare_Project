@@ -72,6 +72,7 @@ class ConsultationAttachmentStorageServiceTest {
         assertThat(intent.availability()).isEqualTo(ConsultationAttachmentStorage.Availability.ENABLED);
         assertThat(intent.privateObjectKey()).isNotEqualTo("private/consultations/another-thread/forged");
         assertThat(intent.privateObjectKey()).startsWith("private/consultations/" + threadId + "/");
+        assertThat(intent.verifiedObjectKey()).contains("/verified/");
 
         StatObjectResponse stat = mock(StatObjectResponse.class);
         doReturn((long) jpeg.length).when(stat).size();
@@ -91,6 +92,7 @@ class ConsultationAttachmentStorageServiceTest {
         assertThat(result.actualSha256()).isEqualTo(hash);
         assertThat(result.privateObjectKey()).isNotEqualTo(intent.privateObjectKey());
         assertThat(result.privateObjectKey()).contains("/verified/");
+        assertThat(result.privateObjectKey()).isEqualTo(intent.verifiedObjectKey());
         var promoted = org.mockito.ArgumentCaptor.forClass(PutObjectArgs.class);
         verify(minio).putObject(promoted.capture());
         assertThat(promoted.getValue().object()).isEqualTo(result.privateObjectKey());

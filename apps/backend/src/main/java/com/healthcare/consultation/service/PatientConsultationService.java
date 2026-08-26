@@ -442,6 +442,7 @@ public class PatientConsultationService {
                 request.sha256Hash().toLowerCase(), null));
         if (intent.availability() != ConsultationAttachmentStorage.Availability.ENABLED
                 || intent.attachmentId() == null || intent.privateObjectKey() == null
+                || intent.verifiedObjectKey() == null
                 || intent.signedPutUrl() == null || intent.putUrlExpiresAt() == null) {
             throw new BusinessException(503, ErrorCodes.CONSULTATION_ATTACHMENT_STORAGE_UNAVAILABLE,
                 "Kho tệp tư vấn chưa sẵn sàng");
@@ -451,11 +452,11 @@ public class PatientConsultationService {
         OffsetDateTime uploadExpiresAt = intent.putUrlExpiresAt().atOffset(ZoneOffset.UTC);
         jdbc.update("""
             INSERT INTO patient_consultation_attachments
-                (id, thread_id, message_id, private_object_key, upload_object_key, actual_mime_type,
+                (id, thread_id, message_id, private_object_key, upload_object_key, verified_object_key, actual_mime_type,
                  declared_mime_type, size_bytes, sha256_hash, upload_status,
                  upload_expires_at)
-            VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, 'REQUESTED', ?)
-            """, attachmentId, id, request.messageId(), objectKey, objectKey, request.mimeType(),
+            VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, 'REQUESTED', ?)
+            """, attachmentId, id, request.messageId(), objectKey, objectKey, intent.verifiedObjectKey(), request.mimeType(),
             request.sizeBytes(), request.sha256Hash().toLowerCase(), uploadExpiresAt);
         appendEvent(id, userId, isDoctor(userId) ? "DOCTOR" : "PATIENT", "SCAN_RESULT", "{\"attachmentId\":\"" + attachmentId + "\",\"status\":\"PENDING\"}");
         return new ConsultationContracts.Attachment(attachmentId, request.mimeType(), request.sizeBytes(),
@@ -507,7 +508,8 @@ public class PatientConsultationService {
         }
         if (!attachmentStorageEnabled || attachmentStorage == null || !attachmentStorage.isEnabled()
                 || !attachmentStorage.isUploadPresent(new ConsultationAttachmentStorage.CompletionRequest(
-                    id, attachmentId, objectKey, declaredMime, expectedSize, expectedSha))) {
+                    id, attachmentId, objectKey, declaredMime, expectedSize, expectedSha,
+                    (String) row.get("verified_object_key")))) {
             throw new BusinessException(503, ErrorCodes.CONSULTATION_ATTACHMENT_STORAGE_UNAVAILABLE,
                 "Chưa xác nhận được tệp tải lên, vui lòng thử lại");
         }

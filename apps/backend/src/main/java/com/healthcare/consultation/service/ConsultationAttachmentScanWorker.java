@@ -10,6 +10,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -80,7 +81,8 @@ public class ConsultationAttachmentScanWorker {
                 UUID thread = rs.getObject("thread_id", UUID.class);
                 String key = rs.getString("private_object_key");
                 return new Claim(new ConsultationAttachmentStorage.CompletionRequest(thread, id, key,
-                    rs.getString("declared_mime_type"), rs.getLong("size_bytes"), rs.getString("sha256_hash")),
+                    rs.getString("declared_mime_type"), rs.getLong("size_bytes"), rs.getString("sha256_hash"),
+                    rs.getString("verified_object_key")),
                     new AttachmentScanAuditHook.ScanLease(lease, id, key,
                         rs.getObject("database_now", OffsetDateTime.class).toInstant(),
                         rs.getObject("scan_lease_expires_at", OffsetDateTime.class).toInstant()),
@@ -97,6 +99,8 @@ public class ConsultationAttachmentScanWorker {
             && result.scanStatus() == ConsultationAttachmentStorage.ScanStatus.CLEAN
             && request.attachmentId().equals(result.attachmentId())
             && result.privateObjectKey() != null && !request.privateObjectKey().equals(result.privateObjectKey())
+            && (request.expectedVerifiedObjectKey() == null
+                || request.expectedVerifiedObjectKey().equals(result.privateObjectKey()))
             && request.expectedMimeType().equals(result.actualMimeType())
             && request.expectedSizeBytes() == result.actualSizeBytes()
             && request.expectedSha256().equals(result.actualSha256());
@@ -107,16 +111,13 @@ public class ConsultationAttachmentScanWorker {
         String code = clean ? null : rejected ? result.failureCode()
             : exhausted ? "ATTACHMENT_SCAN_RETRY_EXHAUSTED" : "ATTACHMENT_SCAN_RETRY_PENDING";
         if (clean || rejected || exhausted) {
-            // Queue both the quarantine upload and the verified promotion
-            // before the lease-fenced row update. If the lease expires or the
-            // thread is deleted while storage work is in flight, the queue is
-            // still the DB authority for discovering every private object.
+            // Queue only the quarantine upload. A verified key is retained by
+            // the attachment row and is deleted by retention/privacy cleanup;
+            // queuing it here would delete a still-downloadable CLEAN object.
+            // The verified identity was persisted at intent time, so a crash
+            // after promotion remains discoverable by retention.
             queueObjectCleanup(claim.request().threadId(), claim.request().attachmentId(),
                 claim.request().privateObjectKey());
-            if (clean) {
-                queueObjectCleanup(claim.request().threadId(), claim.request().attachmentId(),
-                    result.privateObjectKey());
-            }
         }
         int changed = jdbc.update("""
             UPDATE patient_consultation_attachments AS a
@@ -158,8 +159,8 @@ public class ConsultationAttachmentScanWorker {
             """, claim.request().threadId(), claim.request().attachmentId(), state);
     }
 
-    private void expireAbandoned() {
-        jdbc.update("""
+    void expireAbandoned() {
+        List<ExpiredAttachment> expired = jdbc.query("""
             WITH due AS (
                 SELECT id FROM patient_consultation_attachments
                  WHERE scan_status = 'PENDING'
@@ -167,20 +168,31 @@ public class ConsultationAttachmentScanWorker {
                      OR (upload_status = 'UPLOADED' AND scan_attempts >= ?
                          AND (scan_lease_token IS NULL OR scan_lease_expires_at <= CURRENT_TIMESTAMP)))
                  ORDER BY created_at, id FOR UPDATE SKIP LOCKED LIMIT 20
-            ), expired AS (
+            )
                 UPDATE patient_consultation_attachments a
                    SET scan_status = 'REJECTED',
                        rejection_code = CASE WHEN a.upload_status = 'UPLOADED'
                            THEN 'ATTACHMENT_SCAN_RETRY_EXHAUSTED' ELSE 'ATTACHMENT_UPLOAD_EXPIRED' END,
                        upload_status = CASE WHEN a.upload_status = 'UPLOADED' THEN 'REJECTED' ELSE 'EXPIRED' END,
                        scanned_at = CURRENT_TIMESTAMP, scan_lease_token = NULL, scan_lease_expires_at = NULL
-                  FROM due WHERE a.id = due.id RETURNING a.thread_id, a.id
-            )
-            INSERT INTO patient_consultation_events(thread_id, actor_role_snapshot, event_type, metadata)
-            SELECT thread_id, 'SYSTEM', 'SCAN_RESULT', jsonb_build_object('attachmentId', id, 'status', 'REJECTED')
-              FROM expired
-            """, MAX_ATTEMPTS);
+                  FROM due WHERE a.id = due.id
+                RETURNING a.thread_id, a.id, a.private_object_key, a.upload_object_key
+            """, (rs, rowNum) -> new ExpiredAttachment(
+                rs.getObject("thread_id", UUID.class),
+                rs.getObject("id", UUID.class),
+                rs.getString("private_object_key"),
+                rs.getString("upload_object_key")), MAX_ATTEMPTS).stream().toList();
+        for (ExpiredAttachment attachment : expired) {
+            queueObjectCleanup(attachment.threadId(), attachment.attachmentId(), attachment.privateObjectKey());
+            queueObjectCleanup(attachment.threadId(), attachment.attachmentId(), attachment.uploadObjectKey());
+            jdbc.update("""
+                INSERT INTO patient_consultation_events(thread_id, actor_role_snapshot, event_type, metadata)
+                VALUES (?, 'SYSTEM', 'SCAN_RESULT', jsonb_build_object('attachmentId', CAST(? AS text), 'status', 'REJECTED'))
+                """, attachment.threadId(), attachment.attachmentId());
+        }
     }
+
+    record ExpiredAttachment(UUID threadId, UUID attachmentId, String privateObjectKey, String uploadObjectKey) {}
 
     record Claim(ConsultationAttachmentStorage.CompletionRequest request,
                  AttachmentScanAuditHook.ScanLease lease, int attempts) {}
