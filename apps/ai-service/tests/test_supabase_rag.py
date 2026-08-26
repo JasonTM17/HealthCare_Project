@@ -556,6 +556,168 @@ def test_persistent_service_falls_back_to_memory_only_when_enabled() -> None:
     assert service.index.size == 1
 
 
+def test_missing_health_probe_skips_ambiguous_durable_upsert_before_first_authority() -> None:
+    class ProbeMissingStore:
+        upsert_called = False
+
+        def list_documents(self, *_: object, **__: object) -> list[RagDocument]:
+            raise SupabaseRagUnavailable("offline during startup")
+
+        def upsert(self, *_: object, **__: object) -> bool:
+            self.upsert_called = True
+            raise AssertionError("durable write must not be attempted after a failed preflight probe")
+
+    store = ProbeMissingStore()
+    service = PersistentRagService(
+        store,  # type: ignore[arg-type]
+        max_documents=5,
+        fallback_to_memory=True,
+    )
+
+    document = service.ingest(
+        "branch",
+        "hcm",
+        "Chi nhánh",
+        "Khám tại cơ sở.",
+        embedding=[0.25] * 384,
+    )
+
+    assert document.id == "branch:hcm"
+    assert service.index.size == 1
+    assert service.persistence_available is False
+    assert store.upsert_called is False
+
+
+def test_vanished_health_probe_skips_ambiguous_durable_upsert_before_first_authority() -> None:
+    class VanishingProbeStore:
+        upsert_called = False
+        probe_available = True
+
+        def __getattribute__(self, name: str) -> object:
+            if name == "health_probe" and not object.__getattribute__(self, "probe_available"):
+                return None
+            return object.__getattribute__(self, name)
+
+        def list_documents(self, *_: object, **__: object) -> list[RagDocument]:
+            raise SupabaseRagUnavailable("offline during startup")
+
+        def health_probe(self) -> bool:
+            return True
+
+        def upsert(self, *_: object, **__: object) -> bool:
+            self.upsert_called = True
+            raise AssertionError("durable write must not be attempted after a lost preflight probe")
+
+    store = VanishingProbeStore()
+    service = PersistentRagService(
+        store,  # type: ignore[arg-type]
+        max_documents=5,
+        fallback_to_memory=True,
+    )
+    store.probe_available = False
+
+    document = service.ingest(
+        "branch",
+        "hcm",
+        "Chi nhánh",
+        "Khám tại cơ sở.",
+        embedding=[0.25] * 384,
+    )
+
+    assert document.id == "branch:hcm"
+    assert service.index.size == 1
+    assert service.persistence_available is False
+    assert store.upsert_called is False
+
+
+def test_missing_health_probe_skips_ambiguous_durable_remove_before_first_authority() -> None:
+    class ProbeMissingStore:
+        tombstone_called = False
+        tombstone_many_called = False
+
+        def list_documents(self, *_: object, **__: object) -> list[RagDocument]:
+            raise SupabaseRagUnavailable("offline during startup")
+
+        def tombstone_many(self, *_: object, **__: object) -> int:
+            self.tombstone_many_called = True
+            raise AssertionError("durable delete-many must not be attempted after a failed preflight probe")
+
+        def tombstone(self, *_: object, **__: object) -> bool:
+            self.tombstone_called = True
+            raise AssertionError("durable delete must not be attempted after a failed preflight probe")
+
+    store = ProbeMissingStore()
+    service = PersistentRagService(
+        store,  # type: ignore[arg-type]
+        max_documents=5,
+        fallback_to_memory=True,
+    )
+    service.index.add(
+        RagDocument(
+            id="branch:hcm",
+            source_type="branch",
+            source_id="hcm",
+            title="Chi nhánh",
+            content="Khám tại cơ sở.",
+            embedding=[0.25] * 384,
+            embedding_model="provided",
+            embedding_provenance="local_provider",
+        )
+    )
+
+    service.remove("branch", "hcm")
+
+    assert service.index.get("branch:hcm") is None
+    assert service.persistence_available is False
+    assert store.tombstone_called is False
+    assert store.tombstone_many_called is False
+
+
+def test_recovered_durable_upsert_timeout_after_startup_outage_never_falls_back() -> None:
+    class CommitThenTimeoutStore:
+        def list_documents(self, *_: object, **__: object) -> list[RagDocument]:
+            raise SupabaseRagUnavailable("offline during startup")
+
+        def health_probe(self) -> bool:
+            return True
+
+        def upsert(self, *_: object, **__: object) -> bool:
+            raise SupabaseRagUnavailable("timeout after commit")
+
+    service = PersistentRagService(
+        CommitThenTimeoutStore(),  # type: ignore[arg-type]
+        max_documents=5,
+        fallback_to_memory=True,
+    )
+
+    with pytest.raises(SupabaseRagUnavailable, match="Supabase RAG mutation failed"):
+        service.ingest(
+            "branch",
+            "hcm",
+            "Chi nhánh",
+            "Khám tại cơ sở.",
+            embedding=[0.25] * 384,
+        )
+
+    assert service.index.size == 0
+    assert service.persistence_available is False
+
+    service.index.add(
+        RagDocument(
+            id="branch:stale",
+            source_type="branch",
+            source_id="stale",
+            title="Stale",
+            content="Stale content.",
+            embedding=[0.25] * 384,
+            embedding_model="provided",
+            embedding_provenance="local_provider",
+        )
+    )
+    with pytest.raises(SupabaseRagUnavailable, match="Supabase RAG operation failed"):
+        service.search([0.25] * 384, source_types=["branch"])
+
+
 def test_persistent_service_fails_closed_without_fallback() -> None:
     service = PersistentRagService(
         FlakyStore(),  # type: ignore[arg-type]
@@ -685,6 +847,9 @@ def test_upsert_contract_error_after_startup_outage_poison_fences_fallback() -> 
     class ContractStore:
         def list_documents(self) -> list[RagDocument]:
             raise SupabaseRagUnavailable("offline during startup")
+
+        def health_probe(self) -> bool:
+            return True
 
         def upsert(self, *_: object, **__: object) -> bool:
             raise SupabaseRagContractError("invalid durable projection")
@@ -1184,6 +1349,53 @@ def test_failed_upsert_preserves_other_projection_state() -> None:
     assert service.index.get("article:guide", projection="CLINICAL") is clinical
 
 
+def test_failed_tombstone_many_preserves_projection_state() -> None:
+    class FailingStore:
+        def list_documents(self) -> list[RagDocument]:
+            return []
+
+        def tombstone_many(self, *_: object, **__: object) -> int:
+            raise SupabaseRagUnavailable("timeout after partial tombstone")
+
+    service = PersistentRagService(FailingStore(), fallback_to_memory=False)  # type: ignore[arg-type]
+    vector = [0.25] * 384
+    operational = RagDocument(
+        id="article:guide",
+        source_type="article",
+        source_id="guide",
+        title="Operational",
+        content="Operational content",
+        embedding=vector.copy(),
+        embedding_model="local-hash",
+        embedding_provenance="local_provider",
+        metadata={"projection_kind": "OPERATIONAL", "_sync_revision": "1"},
+    )
+    clinical = RagDocument(
+        id="article:guide",
+        source_type="article",
+        source_id="guide",
+        title="Clinical",
+        content="Clinical content",
+        embedding=vector.copy(),
+        embedding_model="local-hash",
+        embedding_provenance="local_provider",
+        metadata={
+            "projection_kind": "CLINICAL",
+            "content_revision": "1",
+            "eligibility_revision": "1",
+        },
+    )
+    service.index.add(operational)
+    service.index.add(clinical)
+
+    with pytest.raises(SupabaseRagUnavailable, match="Supabase RAG mutation failed"):
+        service.remove("article", "guide", revision=2)
+
+    assert service.index.get("article:guide", projection="OPERATIONAL") is operational
+    assert service.index.get("article:guide", projection="CLINICAL") is clinical
+    assert service.persistence_available is False
+
+
 def test_concurrent_ingest_failure_cannot_erase_other_source_mutation() -> None:
     """A failed snapshot rollback must not race a successful ingest."""
 
@@ -1350,6 +1562,9 @@ def test_fallback_search_linearizes_before_durable_mutation() -> None:
     class Store:
         def list_documents(self) -> list[RagDocument]:
             raise SupabaseRagUnavailable("offline during startup")
+
+        def health_probe(self) -> bool:
+            return True
 
         def upsert(self, _document: RagDocument) -> bool:
             durable_written.set()
