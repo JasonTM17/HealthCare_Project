@@ -58,13 +58,26 @@ public class ConsultationAttachmentObjectCleanupWorker {
     }
 
     CleanupClaim claimOne(org.springframework.transaction.TransactionStatus ignored) {
+        // A worker whose storage call outlives its lease must not be allowed to
+        // cycle forever at the attempts ceiling. Terminalize saturated,
+        // expired leases before selecting the next claim; the old worker's
+        // lease token is fenced by the status transition.
+        jdbc.update("""
+            UPDATE patient_consultation_object_cleanup
+               SET status = 'FAILED', lease_token = NULL, lease_expires_at = NULL,
+                   completed_at = NULL,
+                   next_attempt_at = CURRENT_TIMESTAMP,
+                   last_failure_code = 'ATTACHMENT_OBJECT_CLEANUP_LEASE_EXPIRED'
+             WHERE status = 'PROCESSING' AND attempts >= ?
+               AND lease_expires_at <= CURRENT_TIMESTAMP
+            """, MAX_ATTEMPTS);
         UUID lease = UUID.randomUUID();
         return jdbc.query("""
             WITH candidate AS (
                 SELECT id FROM patient_consultation_object_cleanup
                  WHERE ((status IN ('PENDING', 'FAILED') AND attempts < ?
                          AND next_attempt_at <= CURRENT_TIMESTAMP)
-                    OR (status = 'PROCESSING' AND attempts <= ?
+                    OR (status = 'PROCESSING' AND attempts < ?
                         AND lease_expires_at <= CURRENT_TIMESTAMP))
                  ORDER BY next_attempt_at, created_at, id
                  FOR UPDATE SKIP LOCKED LIMIT 1
@@ -72,8 +85,7 @@ public class ConsultationAttachmentObjectCleanupWorker {
             UPDATE patient_consultation_object_cleanup q
                SET status = 'PROCESSING', lease_token = ?,
                    lease_expires_at = CURRENT_TIMESTAMP + (? * INTERVAL '1 second'),
-                   attempts = CASE WHEN q.status = 'PROCESSING'
-                       THEN q.attempts ELSE q.attempts + 1 END
+                   attempts = q.attempts + 1
               FROM candidate c WHERE q.id = c.id
             RETURNING q.id, q.object_key, q.lease_token, q.lease_expires_at
             """, (rs, rowNum) -> new CleanupClaim(

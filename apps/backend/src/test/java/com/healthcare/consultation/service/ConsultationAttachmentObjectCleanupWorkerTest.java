@@ -34,6 +34,32 @@ class ConsultationAttachmentObjectCleanupWorkerTest {
 
         assertThat(worker.claimOne(new SimpleTransactionStatus())).isNull();
         verify(jdbc).query(anyString(), any(RowMapper.class), any(Object[].class));
-        assertThat(sql[0]).contains("attempts < ?", "CASE WHEN q.status = 'PROCESSING'");
+        assertThat(sql[0])
+            .contains("attempts < ?", "attempts = q.attempts + 1")
+            .doesNotContain("attempts <= ?");
+    }
+
+    @Test
+    void expiredLeaseAtAttemptCeilingIsTerminalizedBeforeReclaim() {
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        ConsultationAttachmentStorage storage = mock(ConsultationAttachmentStorage.class);
+        PlatformTransactionManager transactions = mock(PlatformTransactionManager.class);
+        String[] updateSql = new String[1];
+        doAnswer(invocation -> {
+            updateSql[0] = invocation.getArgument(0, String.class);
+            return 1;
+        }).when(jdbc).update(anyString(), any(Object[].class));
+        doAnswer(invocation -> List.of())
+            .when(jdbc).query(anyString(), any(RowMapper.class), any(Object[].class));
+
+        ConsultationAttachmentObjectCleanupWorker worker = new ConsultationAttachmentObjectCleanupWorker(
+            jdbc, storage, transactions, true, 120);
+
+        assertThat(worker.claimOne(new SimpleTransactionStatus())).isNull();
+        assertThat(updateSql[0])
+            .contains("status = 'FAILED'", "attempts >= ?",
+                "lease_expires_at <= CURRENT_TIMESTAMP",
+                "ATTACHMENT_OBJECT_CLEANUP_LEASE_EXPIRED");
+        verify(jdbc).update(anyString(), org.mockito.ArgumentMatchers.eq(20));
     }
 }
