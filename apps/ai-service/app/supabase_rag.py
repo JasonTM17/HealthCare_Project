@@ -19,6 +19,8 @@ import math
 import re
 from contextlib import contextmanager
 from dataclasses import dataclass
+from functools import wraps
+from threading import RLock
 from typing import Any, Callable, Collection, Iterator, List, Mapping, Sequence, cast
 
 from app.rag import (
@@ -52,6 +54,24 @@ class SupabaseRagContractError(SupabaseRagError, ValueError):
 
 
 ConnectionFactory = Callable[[str, float], Any]
+
+
+def _mutation_guard(method: Callable[..., Any]) -> Callable[..., Any]:
+    """Serialize durable mutations that use whole-service snapshot rollback.
+
+    ``PersistentRagService`` restores all in-memory watermarks when a durable
+    write fails.  Without a service-wide guard, a concurrent mutation for a
+    different source could commit between the snapshot and restore and then
+    be erased by the failed operation.  The wrapped methods intentionally use
+    an ``RLock`` because inactive ingestion delegates to ``self.remove``.
+    """
+
+    @wraps(method)
+    def guarded(self: "PersistentRagService", *args: Any, **kwargs: Any) -> Any:
+        with self._mutation_lock:
+            return method(self, *args, **kwargs)
+
+    return guarded
 
 
 def _quote_identifier(value: str) -> str:
@@ -721,11 +741,27 @@ class PersistentRagService(RagService):
         self.store = store
         self.fallback_to_memory = fallback_to_memory
         self.persistence_available = False
+        # Mutations below restore a complete in-memory snapshot when durable
+        # persistence rejects/fails.  Serialize those critical sections so a
+        # concurrent mutation for another source cannot be erased by the
+        # rollback.  This is re-entrant because inactive ingestion delegates
+        # to ``self.remove``.
+        self._mutation_lock = RLock()
+        # Memory fallback is permitted only when this process has never
+        # completed a durable operation. Once Supabase has answered any
+        # authoritative read/write (even an empty snapshot or tombstone), a
+        # later outage must fail closed instead of serving a divergent cache.
+        self._durable_authority_seen = False
         # A successful durable read/write means the in-memory index may carry
         # data that is newer or older than the database after a dependency
         # failure.  Once that authority has been observed, never answer from
         # the stale local copy while the durable service is unavailable.
         self._durable_content_seen = False
+        # A durable embedding profile is authority even when the projection
+        # has no documents yet.  Remember that observation separately from
+        # ``_durable_content_seen`` so a profile contract failure cannot be
+        # followed by an unsafe memory fallback.
+        self._durable_profile_seen = False
         try:
             self._hydrate()
             self.persistence_available = True
@@ -735,6 +771,7 @@ class PersistentRagService(RagService):
 
     def _hydrate(self) -> None:
         documents = self.store.list_documents()
+        self._durable_authority_seen = True
         self._durable_content_seen = bool(documents)
         for document in documents:
             if document.embedding:
@@ -750,7 +787,9 @@ class PersistentRagService(RagService):
         explicit development fallback.
         """
 
-        if self._durable_content_seen:
+        if self._durable_authority_seen:
+            return False
+        if self._durable_profile_seen:
             return False
         allowed_source_types = set(source_types) if source_types else None
         for document in self.index.documents:
@@ -818,15 +857,24 @@ class PersistentRagService(RagService):
         """Check durable RAG readiness without silently using stale memory."""
 
         if not self.persistence_available:
-            return self.fallback_to_memory
+            return self.fallback_to_memory and not self._durable_authority_seen
         try:
             healthy = self.store.health_probe()
+            self._durable_authority_seen = True
             self.persistence_available = bool(healthy)
             return bool(healthy)
+        except SupabaseRagContractError:
+            self._durable_authority_seen = True
+            self.persistence_available = False
+            return False
         except Exception as error:
+            self.persistence_available = False
+            if self._durable_authority_seen:
+                return False
             self._fallback_or_raise(error)
             return self.fallback_to_memory
 
+    @_mutation_guard
     def ingest(
         self,
         source_type: SOURCE_TYPES,
@@ -878,6 +926,7 @@ class PersistentRagService(RagService):
         try:
             if document.searchable:
                 applied = self.store.upsert(document)
+                self._durable_authority_seen = True
                 if not applied:
                     durable_rejection = True
                     current = self.store.get(
@@ -885,6 +934,7 @@ class PersistentRagService(RagService):
                         document.source_id,
                         projection=_projection(document.metadata),
                     )
+                    self._durable_authority_seen = True
                     if current is not None:
                         # A stale event must never reintroduce a local row
                         # that the durable store rejected, including a
@@ -947,13 +997,22 @@ class PersistentRagService(RagService):
                 self._restore_state(snapshot)
                 self.persistence_available = False
                 raise SupabaseRagUnavailable("Supabase RAG mutation failed") from error
+            elif self._durable_authority_seen:
+                # Once durable authority has been observed, a local-only
+                # success would be misleading: a restart could rehydrate a
+                # different durable row and the caller would have no durable
+                # acknowledgement for this mutation. Restore the pre-event
+                # snapshot and fail closed instead.
+                self._restore_state(snapshot)
+                self.persistence_available = False
+                raise SupabaseRagUnavailable("Supabase RAG mutation failed") from error
             self._fallback_or_raise(error)
         except AttributeError as error:
             # A test/local adapter that does not expose the optional durable
             # write method behaves like an unavailable dependency.  Keep the
             # explicit fallback narrow to this capability-missing case;
             # arbitrary adapter errors remain fail-closed below.
-            if not self.fallback_to_memory:
+            if not self.fallback_to_memory or self._durable_authority_seen:
                 self._restore_state(snapshot)
                 self.persistence_available = False
                 raise SupabaseRagUnavailable("Supabase RAG mutation failed") from error
@@ -967,6 +1026,7 @@ class PersistentRagService(RagService):
         self._require_fallback()
         return document
 
+    @_mutation_guard
     def remove(
         self,
         source_type: SOURCE_TYPES,
@@ -1019,6 +1079,7 @@ class PersistentRagService(RagService):
                     revision,
                     projections=projections,
                 )
+                self._durable_authority_seen = True
                 if applied != len(projections):
                     raise SupabaseRagContractError("durable tombstone rejected")
             else:
@@ -1029,6 +1090,7 @@ class PersistentRagService(RagService):
                         revision,
                         projection=normalized_projection,
                     )
+                    self._durable_authority_seen = True
                     if not applied:
                         raise SupabaseRagContractError("durable tombstone rejected")
             self.persistence_available = True
@@ -1042,11 +1104,22 @@ class PersistentRagService(RagService):
 
     def sources(self) -> list[tuple[SOURCE_TYPES, str]]:
         if not self.persistence_available:
+            if self._durable_authority_seen:
+                raise SupabaseRagUnavailable("Supabase RAG operation failed")
             self._require_fallback()
             return super().sources()
         try:
-            return self.store.list_sources()
+            sources = self.store.list_sources()
+            self._durable_authority_seen = True
+            return sources
+        except SupabaseRagContractError:
+            self._durable_authority_seen = True
+            self.persistence_available = False
+            raise
         except Exception as error:
+            if self._durable_authority_seen:
+                self.persistence_available = False
+                raise SupabaseRagUnavailable("Supabase RAG operation failed") from error
             self._fallback_or_raise(error)
             if not self.fallback_to_memory:
                 raise SupabaseRagUnavailable("Supabase RAG operation failed") from error
@@ -1054,11 +1127,22 @@ class PersistentRagService(RagService):
 
     def source_page(self, offset: int = 0, limit: int = 1_000) -> tuple[list[RagDocument], int]:
         if not self.persistence_available:
+            if self._durable_authority_seen:
+                raise SupabaseRagUnavailable("Supabase RAG operation failed")
             self._require_fallback()
             return super().source_page(offset, limit)
         try:
-            return self.store.list_documents_page(offset, limit)
+            page = self.store.list_documents_page(offset, limit)
+            self._durable_authority_seen = True
+            return page
+        except SupabaseRagContractError:
+            self._durable_authority_seen = True
+            self.persistence_available = False
+            raise
         except Exception as error:
+            if self._durable_authority_seen:
+                self.persistence_available = False
+                raise SupabaseRagUnavailable("Supabase RAG operation failed") from error
             self._fallback_or_raise(error)
             if not self.fallback_to_memory:
                 raise SupabaseRagUnavailable("Supabase RAG operation failed") from error
@@ -1089,6 +1173,8 @@ class PersistentRagService(RagService):
         if self.persistence_available:
             try:
                 profile = self.store.active_profile()
+                self._durable_authority_seen = True
+                self._durable_profile_seen = profile is not None
                 if profile and profile != (embedding_model, embedding_provenance):
                     raise SupabaseRagContractError(
                         "query embedding profile does not match the persisted profile"
@@ -1102,6 +1188,11 @@ class PersistentRagService(RagService):
                     embedding_provenance=embedding_provenance,
                 )
             except SupabaseRagContractError:
+                # A contract failure (including multiple persisted profiles)
+                # is itself durable-authority evidence.  Do not allow a later
+                # request to silently fall back to stale in-memory content.
+                self._durable_profile_seen = True
+                self._durable_authority_seen = True
                 self.persistence_available = False
                 raise
             except SupabaseRagUnavailable as error:
