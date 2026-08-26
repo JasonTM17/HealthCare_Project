@@ -172,6 +172,56 @@ def test_tombstone_only_advances_database_watermark_and_is_idempotent() -> None:
     assert connection.commits == 1
 
 
+def test_projectionless_delete_persists_operational_and_clinical_tombstones() -> None:
+    class RecordingStore:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, str, int | None, str]] = []
+
+        def list_documents(self) -> list[RagDocument]:
+            return []
+
+        def tombstone(
+            self,
+            source_type: str,
+            source_id: str,
+            revision: int | None,
+            *,
+            projection: str,
+        ) -> bool:
+            self.calls.append((source_type, source_id, revision, projection))
+            return True
+
+    store = RecordingStore()
+    service = PersistentRagService(store, fallback_to_memory=False)  # type: ignore[arg-type]
+
+    service.remove("specialty", "cardio", revision=12)
+
+    assert store.calls == [
+        ("specialty", "cardio", 12, "OPERATIONAL"),
+        ("specialty", "cardio", 12, "CLINICAL"),
+    ]
+
+
+def test_projection_scoped_delete_does_not_write_the_other_tombstone() -> None:
+    class RecordingStore:
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        def list_documents(self) -> list[RagDocument]:
+            return []
+
+        def tombstone(self, *_: object, projection: str) -> bool:
+            self.calls.append(projection)
+            return True
+
+    store = RecordingStore()
+    service = PersistentRagService(store, fallback_to_memory=False)  # type: ignore[arg-type]
+
+    service.remove("article", "guide", revision=3, projection="CLINICAL")
+
+    assert store.calls == ["CLINICAL"]
+
+
 def test_health_probe_checks_protected_projection_without_reading_content() -> None:
     cursor = FakeCursor(one=(False,))
     connection = FakeConnection(cursor)

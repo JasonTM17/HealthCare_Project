@@ -833,13 +833,21 @@ class PersistentRagService(RagService):
             projection=projection,
         )
         try:
-            normalized_projection = projection.strip().upper() if projection else "OPERATIONAL"
-            self.store.tombstone(
-                source_type,
-                source_id,
-                revision,
-                projection=normalized_projection,
+            # A projection-less legacy delete removes every in-memory view.
+            # Persist the same all-projection intent so a restart cannot
+            # hydrate a clinical row that the caller already deleted.
+            projections = (
+                [projection.strip().upper()]
+                if projection
+                else ["OPERATIONAL", "CLINICAL"]
             )
+            for normalized_projection in projections:
+                self.store.tombstone(
+                    source_type,
+                    source_id,
+                    revision,
+                    projection=normalized_projection,
+                )
             self.persistence_available = True
         except Exception as error:
             if not self.fallback_to_memory:
