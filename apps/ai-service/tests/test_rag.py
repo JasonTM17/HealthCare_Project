@@ -759,6 +759,86 @@ def test_rag_index_rejects_unmarked_public_branch_contact_context(
     embedder.assert_not_called()
 
 
+def test_rag_index_accepts_structured_clinical_provenance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A database-owned clinical projection is not rejected as PII text."""
+
+    monkeypatch.setattr(settings, "ai_service_token", "service-token")
+    monkeypatch.setattr(settings, "rag_ingest_enabled", True)
+    monkeypatch.setattr(settings, "rag_ingest_token", "ingest-token")
+    with patch("app.main.embed", return_value=([0.1] * 384, "local-hash")) as embedder:
+        response = client.post(
+            "/rag/index",
+            json={
+                "source_type": "article",
+                "source_id": "clinical-provenance-accepted",
+                "title": "Hướng dẫn kiểm soát huyết áp",
+                "content": "Theo dõi huyết áp và trao đổi với bác sĩ khi cần.",
+                "metadata": {
+                    "projection_kind": "CLINICAL",
+                    "content_revision": "4",
+                    "eligibility_revision": "9",
+                    "content_hash": "a" * 64,
+                    "approval_id": "12",
+                    "approval_state": "APPROVED",
+                    "approval_expires_at": "2027-01-01T00:00:00Z",
+                },
+                "synthetic_beta": True,
+            },
+            headers={
+                "X-AI-Service-Token": "service-token",
+                "X-RAG-Ingest-Token": "ingest-token",
+            },
+        )
+    assert response.status_code == 200
+    assert response.json()["indexed"] is True
+    embedder.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        {"projection_kind": "CLINICAL", "unknown": "system prompt"},
+        {
+            "projection_kind": "CLINICAL",
+            "content_revision": "4",
+            "eligibility_revision": "9",
+            "content_hash": "not-a-sha256",
+            "approval_id": "12",
+            "approval_state": "APPROVED",
+            "approval_expires_at": "2027-01-01T00:00:00Z",
+        },
+    ],
+)
+def test_rag_index_rejects_unknown_or_malformed_clinical_metadata(
+    metadata: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "ai_service_token", "service-token")
+    monkeypatch.setattr(settings, "rag_ingest_enabled", True)
+    monkeypatch.setattr(settings, "rag_ingest_token", "ingest-token")
+    with patch("app.main.embed", side_effect=AssertionError("invalid metadata reached embedding")) as embedder:
+        response = client.post(
+            "/rag/index",
+            json={
+                "source_type": "article",
+                "source_id": "clinical-provenance-rejected",
+                "title": "Hướng dẫn kiểm soát huyết áp",
+                "content": "Nội dung an toàn.",
+                "metadata": metadata,
+                "synthetic_beta": True,
+            },
+            headers={
+                "X-AI-Service-Token": "service-token",
+                "X-RAG-Ingest-Token": "ingest-token",
+            },
+        )
+    assert response.status_code == 422
+    assert response.json()["detail"] == "RAG metadata rejected by contract"
+    embedder.assert_not_called()
+
+
 @pytest.mark.parametrize(
     "model",
     [
