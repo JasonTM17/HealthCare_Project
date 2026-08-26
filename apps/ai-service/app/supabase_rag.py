@@ -542,22 +542,40 @@ class SupabaseRagStore:
         *,
         projection: str = "OPERATIONAL",
     ) -> bool:
-        """Persist a deletion marker so stale sync work cannot resurrect a source."""
+        """Persist one deletion marker in one database transaction."""
 
-        normalized_projection = projection.strip().upper()
-        if normalized_projection not in _PROJECTION_KINDS:
-            raise SupabaseRagContractError("invalid projection kind")
+        return self.tombstone_many(
+            source_type,
+            source_id,
+            revision,
+            projections=[projection],
+        ) == 1
+
+    def tombstone_many(
+        self,
+        source_type: SOURCE_TYPES,
+        source_id: str,
+        revision: int | None,
+        *,
+        projections: Collection[str],
+    ) -> int:
+        """Persist multiple projection tombstones atomically.
+
+        A projection-less legacy delete has an all-projection meaning.  Keep
+        both upserts on one connection/transaction so a restart cannot see a
+        partially applied delete and hydrate the clinical projection.
+        """
+
+        normalized_projections: list[str] = []
+        for projection in projections:
+            normalized_projection = projection.strip().upper()
+            if normalized_projection not in _PROJECTION_KINDS:
+                raise SupabaseRagContractError("invalid projection kind")
+            if normalized_projection not in normalized_projections:
+                normalized_projections.append(normalized_projection)
+        if not normalized_projections:
+            raise SupabaseRagContractError("at least one projection is required")
         revision_value = revision if revision is not None and revision > 0 else 1
-        metadata = json.dumps(
-            {
-                "projection_kind": normalized_projection,
-                "content_revision": str(revision_value),
-                "eligibility_revision": str(revision_value),
-                _REVISION_KEY: str(revision_value),
-                _TOMBSTONE_KEY: "true",
-            },
-            separators=(",", ":"),
-        )
         content = "[tombstone]"
         sql = f"""
             insert into {self._table} (
@@ -595,20 +613,34 @@ class SupabaseRagStore:
         with self._connection() as connection:
             self._read_active_profile(connection)
             with connection.cursor() as cursor:
-                cursor.execute(
-                    sql,
-                    (
-                        normalized_projection,
-                        source_type,
-                        source_id,
-                        revision_value,
-                        revision_value,
-                        content_hash,
-                        content,
-                        metadata,
-                    ),
-                )
-                return cursor.fetchone() is not None
+                applied = 0
+                for normalized_projection in normalized_projections:
+                    metadata = json.dumps(
+                        {
+                            "projection_kind": normalized_projection,
+                            "content_revision": str(revision_value),
+                            "eligibility_revision": str(revision_value),
+                            _REVISION_KEY: str(revision_value),
+                            _TOMBSTONE_KEY: "true",
+                        },
+                        separators=(",", ":"),
+                    )
+                    cursor.execute(
+                        sql,
+                        (
+                            normalized_projection,
+                            source_type,
+                            source_id,
+                            revision_value,
+                            revision_value,
+                            content_hash,
+                            content,
+                            metadata,
+                        ),
+                    )
+                    if cursor.fetchone() is not None:
+                        applied += 1
+                return applied
 
     def search(
         self,
@@ -836,18 +868,26 @@ class PersistentRagService(RagService):
             # A projection-less legacy delete removes every in-memory view.
             # Persist the same all-projection intent so a restart cannot
             # hydrate a clinical row that the caller already deleted.
-            projections = (
-                [projection.strip().upper()]
-                if projection
-                else ["OPERATIONAL", "CLINICAL"]
-            )
-            for normalized_projection in projections:
-                self.store.tombstone(
+            if projection is None and hasattr(self.store, "tombstone_many"):
+                self.store.tombstone_many(  # type: ignore[attr-defined]
                     source_type,
                     source_id,
                     revision,
-                    projection=normalized_projection,
+                    projections=["OPERATIONAL", "CLINICAL"],
                 )
+            else:
+                projections = (
+                    [projection.strip().upper()]
+                    if projection
+                    else ["OPERATIONAL", "CLINICAL"]
+                )
+                for normalized_projection in projections:
+                    self.store.tombstone(
+                        source_type,
+                        source_id,
+                        revision,
+                        projection=normalized_projection,
+                    )
             self.persistence_available = True
         except Exception as error:
             if not self.fallback_to_memory:

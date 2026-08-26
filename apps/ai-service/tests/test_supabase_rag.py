@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Collection
 
 import pytest
 
@@ -172,6 +172,36 @@ def test_tombstone_only_advances_database_watermark_and_is_idempotent() -> None:
     assert connection.commits == 1
 
 
+def test_tombstone_many_rolls_back_both_projections_as_one_transaction() -> None:
+    class FailOnSecondExecuteCursor(FakeCursor):
+        def __init__(self) -> None:
+            super().__init__(many=[])
+            self.calls = 0
+
+        def execute(self, sql: str, params: tuple[Any, ...] | None = None) -> None:
+            self.calls += 1
+            if self.calls == 2:
+                raise RuntimeError("synthetic clinical tombstone failure")
+            super().execute(sql, params)
+
+    profile_cursor = FakeCursor(many=[])
+    tombstone_cursor = FailOnSecondExecuteCursor()
+    connection = FakeConnection(profile_cursor, tombstone_cursor)
+    store = SupabaseRagStore(_config(), connection_factory=lambda _dsn, _timeout: connection)
+
+    with pytest.raises(RuntimeError, match="synthetic clinical tombstone failure"):
+        store.tombstone_many(
+            "specialty",
+            "cardio",
+            revision=12,
+            projections=["OPERATIONAL", "CLINICAL"],
+        )
+
+    assert tombstone_cursor.calls == 2
+    assert connection.commits == 0
+    assert connection.rollbacks == 1
+
+
 def test_projectionless_delete_persists_operational_and_clinical_tombstones() -> None:
     class RecordingStore:
         def __init__(self) -> None:
@@ -200,6 +230,36 @@ def test_projectionless_delete_persists_operational_and_clinical_tombstones() ->
         ("specialty", "cardio", 12, "OPERATIONAL"),
         ("specialty", "cardio", 12, "CLINICAL"),
     ]
+
+
+def test_projectionless_delete_uses_atomic_store_batch_when_available() -> None:
+    class AtomicStore:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, str, int | None, tuple[str, ...]]] = []
+
+        def list_documents(self) -> list[RagDocument]:
+            return []
+
+        def tombstone_many(
+            self,
+            source_type: str,
+            source_id: str,
+            revision: int | None,
+            *,
+            projections: Collection[str],
+        ) -> int:
+            self.calls.append((source_type, source_id, revision, tuple(projections)))
+            return len(tuple(projections))
+
+        def tombstone(self, *_: object, **__: object) -> bool:
+            raise AssertionError("legacy per-projection fallback must not be used")
+
+    store = AtomicStore()
+    service = PersistentRagService(store, fallback_to_memory=False)  # type: ignore[arg-type]
+
+    service.remove("specialty", "cardio", revision=12)
+
+    assert store.calls == [("specialty", "cardio", 12, ("OPERATIONAL", "CLINICAL"))]
 
 
 def test_projection_scoped_delete_does_not_write_the_other_tombstone() -> None:
