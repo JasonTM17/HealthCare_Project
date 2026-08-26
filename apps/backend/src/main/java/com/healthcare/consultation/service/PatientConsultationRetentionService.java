@@ -2,8 +2,10 @@ package com.healthcare.consultation.service;
 
 import com.healthcare.exception.ResourceNotFoundException;
 import com.healthcare.security.HealthcareUserPrincipal;
+import com.healthcare.storage.service.ConsultationAttachmentStorage;
 import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.UserRepository;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.AccessDeniedException;
@@ -27,18 +29,49 @@ import java.util.UUID;
 public class PatientConsultationRetentionService {
     private final JdbcTemplate jdbc;
     private final UserRepository users;
+    private final ConsultationAttachmentStorage attachmentStorage;
     private final boolean enabled;
     private final int batchSize;
     private final int maxBatches;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public PatientConsultationRetentionService(
             JdbcTemplate jdbc,
             UserRepository users,
+            ObjectProvider<ConsultationAttachmentStorage> attachmentStorageProvider,
             @Value("${patient.consultation.cleanup-enabled:true}") boolean enabled,
             @Value("${patient.consultation.cleanup-batch-size:100}") int batchSize,
             @Value("${patient.consultation.cleanup-max-batches:20}") int maxBatches) {
         this.jdbc = jdbc;
         this.users = users;
+        this.attachmentStorage = attachmentStorageProvider == null
+            ? null
+            : attachmentStorageProvider.getIfAvailable();
+        this.enabled = enabled;
+        this.batchSize = Math.max(1, Math.min(batchSize, 500));
+        this.maxBatches = Math.max(1, Math.min(maxBatches, 100));
+    }
+
+    /** Compatibility constructor for focused retention tests without storage. */
+    public PatientConsultationRetentionService(
+            JdbcTemplate jdbc,
+            UserRepository users,
+            boolean enabled,
+            int batchSize,
+            int maxBatches) {
+        this(jdbc, users, (ConsultationAttachmentStorage) null, enabled, batchSize, maxBatches);
+    }
+
+    public PatientConsultationRetentionService(
+            JdbcTemplate jdbc,
+            UserRepository users,
+            ConsultationAttachmentStorage attachmentStorage,
+            boolean enabled,
+            int batchSize,
+            int maxBatches) {
+        this.jdbc = jdbc;
+        this.users = users;
+        this.attachmentStorage = attachmentStorage;
         this.enabled = enabled;
         this.batchSize = Math.max(1, Math.min(batchSize, 500));
         this.maxBatches = Math.max(1, Math.min(maxBatches, 100));
@@ -79,6 +112,13 @@ public class PatientConsultationRetentionService {
     }
 
     private int deleteThread(UUID threadId, UUID ownerUserId) {
+        List<String> attachmentKeys = attachmentKeysForThread(threadId, ownerUserId);
+        if (!attachmentKeys.isEmpty()) {
+            if (attachmentStorage == null) {
+                throw new IllegalStateException("attachment cleanup is unavailable");
+            }
+            attachmentStorage.deleteObjects(attachmentKeys);
+        }
         String sql = ownerUserId == null
             ? "DELETE FROM patient_consultation_threads WHERE id = ?"
             : "DELETE FROM patient_consultation_threads t USING patient_profiles p "
@@ -86,6 +126,26 @@ public class PatientConsultationRetentionService {
         return ownerUserId == null
             ? jdbc.update(sql, threadId)
             : jdbc.update(sql, threadId, ownerUserId);
+    }
+
+    private List<String> attachmentKeysForThread(UUID threadId, UUID ownerUserId) {
+        if (ownerUserId == null) {
+            List<String> keys = jdbc.query(
+                "SELECT a.private_object_key FROM patient_consultation_attachments a WHERE a.thread_id = ?",
+                (rs, rowNum) -> rs.getString("private_object_key"), threadId);
+            return keys == null ? List.of() : keys;
+        }
+        List<String> keys = jdbc.query(
+            """
+            SELECT a.private_object_key
+              FROM patient_consultation_attachments a
+              JOIN patient_consultation_threads t ON t.id = a.thread_id
+              JOIN patient_profiles p ON p.id = t.patient_profile_id
+             WHERE a.thread_id = ? AND p.user_id = ?
+            """,
+            (rs, rowNum) -> rs.getString("private_object_key"),
+            threadId, ownerUserId);
+        return keys == null ? List.of() : keys;
     }
 
     private UUID currentUserId(UserDetails principal) {

@@ -2,6 +2,7 @@ package com.healthcare.storage.service;
 
 import java.net.URI;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.UUID;
 
 /**
@@ -35,6 +36,14 @@ public interface ConsultationAttachmentStorage {
      * CLEAN whose persisted key has the verified/download purpose.
      */
     DownloadUrl issueDownloadUrl(DownloadRequest request);
+
+    /**
+     * Delete all object keys owned by a consultation before its database rows
+     * are purged. Implementations must be idempotent for already-missing keys
+     * and must throw a closed exception when the object store cannot confirm
+     * deletion, so retention never silently removes only the database rows.
+     */
+    void deleteObjects(Collection<String> privateObjectKeys);
 
     /** Whether this boundary is enabled for the current runtime. */
     boolean isEnabled();
