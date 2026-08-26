@@ -59,7 +59,7 @@ def test_local_bootstrap_requires_private_bucket_and_encrypted_outbox() -> None:
     assert backend["environment"]["APP_MAIL_OUTBOX_ENCRYPTION_KEY"].endswith(
         "APP_MAIL_OUTBOX_ENCRYPTION_KEY is required}"
     )
-    assert backend["environment"]["STORAGE_PUBLIC_ENDPOINT"].endswith(":-http://127.0.0.2:9000}")
+    assert backend["environment"]["STORAGE_PUBLIC_ENDPOINT"].endswith(":-http://127.0.0.1:9000}")
     assert backend["environment"]["STORAGE_REGION"].endswith(":-us-east-1}")
     assert backend["depends_on"]["minio-init"]["condition"] == "service_completed_successfully"
     bootstrap = services["minio-init"]

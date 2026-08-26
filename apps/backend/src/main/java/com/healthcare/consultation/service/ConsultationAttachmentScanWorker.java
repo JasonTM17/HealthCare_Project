@@ -91,7 +91,7 @@ public class ConsultationAttachmentScanWorker {
             }).orElse(null);
     }
 
-    private void finish(Claim claim, ConsultationAttachmentStorage.CompletionResult result) {
+    void finish(Claim claim, ConsultationAttachmentStorage.CompletionResult result) {
         var request = claim.request();
         boolean clean = result != null && result.availability() == ConsultationAttachmentStorage.Availability.ENABLED
             && result.scanStatus() == ConsultationAttachmentStorage.ScanStatus.CLEAN
@@ -106,6 +106,18 @@ public class ConsultationAttachmentScanWorker {
         String scanStatus = clean ? "CLEAN" : rejected || exhausted ? "REJECTED" : "PENDING";
         String code = clean ? null : rejected ? result.failureCode()
             : exhausted ? "ATTACHMENT_SCAN_RETRY_EXHAUSTED" : "ATTACHMENT_SCAN_RETRY_PENDING";
+        if (clean || rejected || exhausted) {
+            // Queue both the quarantine upload and the verified promotion
+            // before the lease-fenced row update. If the lease expires or the
+            // thread is deleted while storage work is in flight, the queue is
+            // still the DB authority for discovering every private object.
+            queueObjectCleanup(claim.request().threadId(), claim.request().attachmentId(),
+                claim.request().privateObjectKey());
+            if (clean) {
+                queueObjectCleanup(claim.request().threadId(), claim.request().attachmentId(),
+                    result.privateObjectKey());
+            }
+        }
         int changed = jdbc.update("""
             UPDATE patient_consultation_attachments AS a
                SET private_object_key = ?, actual_mime_type = ?, scan_status = ?,
@@ -125,8 +137,18 @@ public class ConsultationAttachmentScanWorker {
             Math.min(300, 1 << Math.min(8, claim.attempts())), request.attachmentId(), request.threadId(),
             request.privateObjectKey(), claim.lease().leaseId());
         if (changed == 1) audit(claim, scanStatus);
-        // A stale/expired worker may leave an unreferenced verified object, but
-        // it can never authorize download or overwrite a newer scan result.
+        // The cleanup queue is drained independently, so a stale/expired
+        // worker cannot leave a verified object permanently undiscoverable.
+    }
+
+    private void queueObjectCleanup(UUID threadId, UUID attachmentId, String objectKey) {
+        if (objectKey == null || objectKey.isBlank()) return;
+        jdbc.update("""
+            INSERT INTO patient_consultation_object_cleanup
+                (thread_id, attachment_id, object_key)
+            VALUES (?, ?, ?)
+            ON CONFLICT (object_key) DO NOTHING
+            """, threadId, attachmentId, objectKey);
     }
 
     private void audit(Claim claim, String state) {
@@ -160,6 +182,6 @@ public class ConsultationAttachmentScanWorker {
             """, MAX_ATTEMPTS);
     }
 
-    private record Claim(ConsultationAttachmentStorage.CompletionRequest request,
-                         AttachmentScanAuditHook.ScanLease lease, int attempts) {}
+    record Claim(ConsultationAttachmentStorage.CompletionRequest request,
+                 AttachmentScanAuditHook.ScanLease lease, int attempts) {}
 }
