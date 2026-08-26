@@ -7,6 +7,7 @@ import pytest
 
 from app.config import Settings
 from app.rag import RagDocument, RagService
+from app.schemas import ProviderProvenance
 from app.supabase_rag import (
     PersistentRagService,
     SupabaseRagConfig,
@@ -571,6 +572,187 @@ def test_persistent_service_fails_closed_without_fallback() -> None:
         )
     assert service.persistence_available is False
     assert service.index.size == 0
+
+
+def test_embedder_failure_restores_revision_state_for_deterministic_retry() -> None:
+    class DurableStore:
+        def list_documents(self) -> list[RagDocument]:
+            return []
+
+        def upsert(self, document: RagDocument) -> bool:
+            assert document.source_id == "cardio"
+            return True
+
+    attempts = 0
+
+    def flaky_embedder(
+        _: str,
+    ) -> list[float] | tuple[list[float], str, ProviderProvenance]:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise ValueError("transient embedding failure")
+        return ([0.25] * 384, "local-hash", "local_provider")
+
+    service = PersistentRagService(
+        DurableStore(),  # type: ignore[arg-type]
+        fallback_to_memory=False,
+    )
+    with pytest.raises(ValueError, match="transient embedding failure"):
+        service.ingest(
+            "specialty",
+            "cardio",
+            "Tim mach",
+            "Kham tim mach.",
+            metadata={"_sync_revision": "11"},
+            embedder=flaky_embedder,
+        )
+
+    # ``RagService.ingest`` had already advanced these before the callback;
+    # the durable wrapper must roll them back so the same event can retry.
+    assert service.index.size == 0
+    assert service._latest_revisions == {}
+    assert service._latest_projection_states == {}
+    assert service._latest_operations == {}
+    assert service._operation_sequence == 0
+
+    retried = service.ingest(
+        "specialty",
+        "cardio",
+        "Tim mach",
+        "Kham tim mach.",
+        metadata={"_sync_revision": "11"},
+        embedder=flaky_embedder,
+    )
+    assert retried.id == "specialty:cardio"
+    assert service.index.get("specialty:cardio", projection="OPERATIONAL") is retried
+
+
+def test_contract_error_from_durable_upsert_never_falls_back_to_memory() -> None:
+    class ContractStore:
+        def list_documents(self) -> list[RagDocument]:
+            return []
+
+        def upsert(self, *_: object, **__: object) -> bool:
+            raise SupabaseRagContractError("invalid durable projection")
+
+    service = PersistentRagService(
+        ContractStore(),  # type: ignore[arg-type]
+        fallback_to_memory=True,
+    )
+
+    with pytest.raises(SupabaseRagContractError, match="invalid durable projection"):
+        service.ingest(
+            "branch",
+            "hcm",
+            "Chi nhánh",
+            "Khám tại cơ sở.",
+            embedding=[0.25] * 384,
+        )
+
+    assert service.persistence_available is False
+    assert service.index.size == 0
+
+
+def test_search_fails_closed_for_clinical_memory_after_durable_outage() -> None:
+    class OutageStore:
+        def list_documents(self) -> list[RagDocument]:
+            return []
+
+        def search(self, *_: object, **__: object) -> list[tuple[RagDocument, float]]:
+            raise SupabaseRagUnavailable("offline")
+
+    service = PersistentRagService(
+        OutageStore(),  # type: ignore[arg-type]
+        fallback_to_memory=True,
+    )
+    clinical = RagDocument(
+        id="article:guide",
+        source_type="article",
+        source_id="guide",
+        title="Clinical guide",
+        content="Nội dung đã duyệt.",
+        embedding=[0.25] * 384,
+        embedding_model="provided",
+        embedding_provenance="local_provider",
+        metadata={"projection_kind": "CLINICAL", "eligibility_revision": "4"},
+    )
+    service.index.add(clinical)
+
+    with pytest.raises(SupabaseRagUnavailable, match="Supabase RAG operation failed"):
+        service.search(
+            [0.25] * 384,
+            source_types=["article"],
+        )
+
+    assert service.persistence_available is False
+
+
+def test_search_fails_closed_after_hydrating_durable_content() -> None:
+    durable = RagDocument(
+        id="branch:hcm",
+        source_type="branch",
+        source_id="hcm",
+        title="Chi nhánh",
+        content="Khám tại cơ sở.",
+        embedding=[0.25] * 384,
+        embedding_model="provided",
+        embedding_provenance="local_provider",
+        metadata={"projection_kind": "OPERATIONAL", "eligibility_revision": "1"},
+    )
+
+    class OutageStore:
+        def list_documents(self) -> list[RagDocument]:
+            return [durable]
+
+        def active_profile(self) -> tuple[str, str] | None:
+            return ("provided", "local_provider")
+
+        def search(self, *_: object, **__: object) -> list[tuple[RagDocument, float]]:
+            raise SupabaseRagUnavailable("offline")
+
+    service = PersistentRagService(
+        OutageStore(),  # type: ignore[arg-type]
+        fallback_to_memory=True,
+    )
+    with pytest.raises(SupabaseRagUnavailable, match="Supabase RAG operation failed"):
+        service.search([0.25] * 384)
+
+    assert service.persistence_available is False
+
+
+def test_search_contract_mismatch_never_uses_memory_fallback() -> None:
+    class ContractStore:
+        def list_documents(self) -> list[RagDocument]:
+            return []
+
+        def active_profile(self) -> tuple[str, str] | None:
+            return ("durable-model", "local_provider")
+
+        def search(self, *_: object, **__: object) -> list[tuple[RagDocument, float]]:
+            raise AssertionError("search should not be called after profile mismatch")
+
+    service = PersistentRagService(
+        ContractStore(),  # type: ignore[arg-type]
+        fallback_to_memory=True,
+    )
+    service.index.add(
+        RagDocument(
+            id="branch:hcm",
+            source_type="branch",
+            source_id="hcm",
+            title="Chi nhánh",
+            content="Khám tại cơ sở.",
+            embedding=[0.25] * 384,
+            embedding_model="provided",
+            embedding_provenance="local_provider",
+        )
+    )
+
+    with pytest.raises(SupabaseRagContractError, match="query embedding profile"):
+        service.search([0.25] * 384)
+
+    assert service.persistence_available is False
 
 
 def test_remove_durable_failure_restores_memory_and_never_reports_success() -> None:
