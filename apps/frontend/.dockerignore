@@ -1,6 +1,9 @@
 node_modules
 .next
 .next-*
+.tmp
+.tmp-*
+.vercel
 test-results
 playwright-report
 coverage
@@ -8,3 +11,5 @@ coverage
 npm-debug.log*
 .env
 .env.*
+secrets/
+credentials/
