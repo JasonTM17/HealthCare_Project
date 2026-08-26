@@ -1,11 +1,15 @@
 package com.healthcare.healthqa.service;
 
+import com.healthcare.ai.service.AiClinicalContentRevisionService;
 import com.healthcare.exception.BusinessException;
 import com.healthcare.exception.ResourceNotFoundException;
 import com.healthcare.healthqa.dto.HealthQuestionContracts;
+import com.healthcare.hospital.entity.Faq;
+import com.healthcare.hospital.repository.FaqRepository;
 import com.healthcare.security.HealthcareUserPrincipal;
 import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -32,8 +36,25 @@ public class HealthQuestionService {
         "REMOVED", "ESCALATED", "DUPLICATE", "DISMISSED", "NO_ACTION");
     private final JdbcTemplate jdbc;
     private final UserRepository users;
+    private final FaqRepository faqs;
+    private final AiClinicalContentRevisionService clinicalRevisions;
 
-    public HealthQuestionService(JdbcTemplate jdbc, UserRepository users) { this.jdbc = jdbc; this.users = users; }
+    /** Compatibility constructor retained for focused tests outside approval paths. */
+    public HealthQuestionService(JdbcTemplate jdbc, UserRepository users) {
+        this(jdbc, users, null, null);
+    }
+
+    @Autowired
+    public HealthQuestionService(
+            JdbcTemplate jdbc,
+            UserRepository users,
+            FaqRepository faqs,
+            AiClinicalContentRevisionService clinicalRevisions) {
+        this.jdbc = jdbc;
+        this.users = users;
+        this.faqs = faqs;
+        this.clinicalRevisions = clinicalRevisions;
+    }
 
     @Transactional
     public HealthQuestionContracts.Summary create(HealthQuestionContracts.CreateRequest request, UserDetails principal) {
@@ -134,7 +155,7 @@ public class HealthQuestionService {
         if (changed == 0) throw reportNotFound();
         if ("RESOLVED".equals(status) && "REMOVED".equals(resolution)) {
             jdbc.update("UPDATE health_questions SET status = 'CLOSED', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'PUBLISHED'", questionId);
-            jdbc.update("UPDATE faqs SET active = FALSE, published_at = NULL WHERE origin_question_id = ?", questionId);
+            unpublishMaterializedFaqs(questionId, principal);
         }
         return reportById(questionId, reportId);
     }
@@ -194,33 +215,42 @@ public class HealthQuestionService {
         if (!"APPROVE".equals(decision) && (request.reasonCode() == null || request.reasonCode().isBlank())) {
             throw new BusinessException(400, "HEALTH_QUESTION_REASON_REQUIRED", "Cần nêu lý do khi yêu cầu sửa hoặc revoke");
         }
-        lockQuestion(id, "ANSWER_SUBMITTED");
+        // Approval/rework operate on a newly submitted answer. Revoke is a
+        // post-publication operation and must invalidate the already
+        // materialized FAQ in this same transaction.
+        lockQuestion(id, "REVOKE".equals(decision) ? "PUBLISHED" : "ANSWER_SUBMITTED");
+        if ("APPROVED".equals(status) || "REVOKE".equals(decision)) requireClinicalMaterializer();
         MapRow answer = latestAnswer(id);
         if (answer.doctorId().equals(reviewer)) throw new BusinessException(403, "HEALTH_QUESTION_SELF_APPROVAL", "Bác sĩ không thể tự duyệt câu trả lời của mình");
-        int changed = jdbc.update("""
-            UPDATE health_question_answers SET status = ?, reviewer_user_id = ?, reviewed_at = CURRENT_TIMESTAMP,
-                   review_reason_code = ? WHERE id = ? AND status = 'SUBMITTED'
-            """, status, reviewer, request.reasonCode(), answer.id());
-        if (changed == 0) throw new BusinessException(409, "HEALTH_QUESTION_ALREADY_DECIDED", "Câu trả lời đã được quyết định");
+        if ("REVOKE".equals(decision)
+                && (answer.status() == null || !"APPROVED".equals(answer.status())
+                    || answer.reviewerId() == null || answer.reviewerId().equals(reviewer))) {
+            throw new BusinessException(409, "HEALTH_QUESTION_NOT_APPROVED", "Câu trả lời không ở trạng thái có thể revoke");
+        }
         if ("APPROVED".equals(status)) {
+            int changed = jdbc.update("""
+                UPDATE health_question_answers SET status = ?, reviewer_user_id = ?, reviewed_at = CURRENT_TIMESTAMP,
+                       review_reason_code = ? WHERE id = ? AND status = 'SUBMITTED'
+                """, status, reviewer, request.reasonCode(), answer.id());
+            if (changed == 0) throw new BusinessException(409, "HEALTH_QUESTION_ALREADY_DECIDED", "Câu trả lời đã được quyết định");
             jdbc.update("UPDATE health_questions SET status = 'PUBLISHED' WHERE id = ?", id);
-            // Materialize an inactive FAQ revision for the existing clinical
-            // review queue. It is intentionally not public/RAG-eligible until
-            // the normal AI content approval workflow approves it.
-            jdbc.update("""
-                INSERT INTO faqs(id, question, answer, category, topic_slug, origin_question_id,
-                                 active, published_at, published_by, version)
-                SELECT gen_random_uuid(), q.normalized_question, a.answer_text, 'Q&A', q.topic_slug,
-                       q.id, FALSE, NULL, NULL, 1
-                  FROM health_questions q
-                  JOIN health_question_answers a ON a.question_id = q.id AND a.id = ?
-                 WHERE q.id = ? AND NOT EXISTS (
-                       SELECT 1 FROM faqs f WHERE f.origin_question_id = q.id)
-                """, answer.id(), id);
+            materializeDraftFaq(id, answer.id(), reviewer);
         } else if ("CHANGES_REQUESTED".equals(status)) {
+            int changed = jdbc.update("""
+                UPDATE health_question_answers SET status = ?, reviewer_user_id = ?, reviewed_at = CURRENT_TIMESTAMP,
+                       review_reason_code = ? WHERE id = ? AND status = 'SUBMITTED'
+                """, status, reviewer, request.reasonCode(), answer.id());
+            if (changed == 0) throw new BusinessException(409, "HEALTH_QUESTION_ALREADY_DECIDED", "Câu trả lời đã được quyết định");
             jdbc.update("UPDATE health_questions SET status = 'AWAITING_DOCTOR' WHERE id = ?", id);
         } else {
+            int changed = jdbc.update("""
+                UPDATE health_question_answers SET status = 'REVOKED', reviewer_user_id = ?,
+                       reviewed_at = CURRENT_TIMESTAMP, review_reason_code = ?
+                 WHERE id = ? AND status = 'APPROVED'
+                """, reviewer, request.reasonCode(), answer.id());
+            if (changed == 0) throw new BusinessException(409, "HEALTH_QUESTION_ALREADY_DECIDED", "Câu trả lời đã được quyết định");
             jdbc.update("UPDATE health_questions SET status = 'CLOSED' WHERE id = ?", id);
+            unpublishMaterializedFaqs(id, principal);
         }
     }
 
@@ -253,10 +283,69 @@ public class HealthQuestionService {
     }
 
     private MapRow latestAnswer(UUID id) {
-        try { return jdbc.queryForObject("SELECT id, doctor_user_id FROM health_question_answers WHERE question_id = ? ORDER BY revision DESC LIMIT 1", (rs, n) -> new MapRow(rs.getObject("id", UUID.class), rs.getObject("doctor_user_id", UUID.class)), id); }
+        try { return jdbc.queryForObject("SELECT id, doctor_user_id, reviewer_user_id, status FROM health_question_answers WHERE question_id = ? ORDER BY revision DESC LIMIT 1", (rs, n) -> new MapRow(
+            rs.getObject("id", UUID.class), rs.getObject("doctor_user_id", UUID.class),
+            rs.getObject("reviewer_user_id", UUID.class), rs.getString("status")), id); }
         catch (DataAccessException ex) { throw notFound(); }
     }
-    private record MapRow(UUID id, UUID doctorId) {}
+    private record MapRow(UUID id, UUID doctorId, UUID reviewerId, String status) {}
+
+    private void materializeDraftFaq(UUID questionId, UUID answerId, UUID reviewer) {
+        ClinicalFaqSource source;
+        try {
+            source = jdbc.queryForObject("""
+                SELECT q.normalized_question, q.topic_slug, a.answer_text
+                  FROM health_questions q
+                  JOIN health_question_answers a ON a.question_id = q.id
+                 WHERE q.id = ? AND a.id = ? AND a.status = 'APPROVED'
+                """, (rs, n) -> new ClinicalFaqSource(
+                    rs.getString("normalized_question"), rs.getString("topic_slug"),
+                    rs.getString("answer_text")), questionId, answerId);
+        } catch (DataAccessException ex) {
+            throw notFound();
+        }
+        if (source == null) throw notFound();
+
+        Faq faq = new Faq();
+        faq.setQuestion(source.question());
+        faq.setAnswer(source.answer());
+        faq.setCategory("Q&A");
+        faq.setTopicSlug(source.topicSlug());
+        faq.setOriginQuestionId(questionId);
+        faq.setActive(false);
+        faq.setPublishedAt(null);
+        faq.setPublishedBy(null);
+        Faq saved = faqs.saveAndFlush(faq);
+        if (saved == null || saved.getId() == null) {
+            throw new IllegalStateException("clinical FAQ draft was not persisted");
+        }
+        clinicalRevisions.recordFaqFromDoctorReview(saved, reviewer);
+    }
+
+    private void unpublishMaterializedFaqs(UUID questionId, UserDetails actor) {
+        List<UUID> faqIds = jdbc.query(
+            "SELECT id FROM faqs WHERE origin_question_id = ?",
+            (rs, n) -> rs.getObject("id", UUID.class), questionId);
+        if (faqIds.isEmpty()) return;
+        requireClinicalMaterializer();
+        for (UUID faqId : faqIds) {
+            Faq faq = faqs.findById(faqId).orElseThrow(() -> new IllegalStateException(
+                "materialized clinical FAQ disappeared during unpublish"));
+            faq.setActive(false);
+            faq.setPublishedAt(null);
+            faq.setPublishedBy(null);
+            Faq saved = faqs.saveAndFlush(faq);
+            clinicalRevisions.recordFaq(saved, actor);
+        }
+    }
+
+    private void requireClinicalMaterializer() {
+        if (faqs == null || clinicalRevisions == null) {
+            throw new IllegalStateException("clinical FAQ revision authority is unavailable");
+        }
+    }
+
+    private record ClinicalFaqSource(String question, String topicSlug, String answer) {}
 
     private void requirePublishedQuestion(UUID id) {
         try {

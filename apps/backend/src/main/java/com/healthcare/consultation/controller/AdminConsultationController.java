@@ -19,7 +19,7 @@ public class AdminConsultationController {
     public AdminConsultationController(PatientConsultationService service) { this.service = service; }
 
     @GetMapping("/queue")
-    public List<ConsultationContracts.ConsultationSummary> queue() { return service.listForAdmin(); }
+    public List<ConsultationContracts.AdminQueueItem> queue() { return service.listForAdmin(); }
 
     @PutMapping("/{id}/assignment")
     public void assign(@PathVariable UUID id, @Valid @RequestBody ConsultationContracts.HandoffRequest request,

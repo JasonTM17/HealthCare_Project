@@ -6,8 +6,6 @@ hard limits in the request schemas remain the final safety boundary; the
 configured limits may make those bounds stricter for a deployment.
 """
 
-from urllib.parse import urlparse
-
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -40,11 +38,13 @@ class Settings(BaseSettings):
     # deployment must opt into the patient-chat egress path twice: once in the
     # AI service and once in Spring's provenance gate.
     ai_chat_remote_provider_enabled: bool = False
-    # Remote patient chat is a synthetic-beta capability only.  The default is
-    # fail-closed; local/test callers can still exercise provider adapters with
-    # an in-memory test double without constructing a synthetic runtime.
+    # Remote provider adapters remain available for isolated contract tests,
+    # but patient-answer egress is HOLD in this build. These fields are kept
+    # so an old deployment fails clearly instead of silently changing meaning.
     remote_ai_synthetic_only: bool = True
-    remote_ai_kill_switch: bool = False
+    # Remote patient-chat egress is fail-closed until a deployment explicitly
+    # disables this switch as part of an approved synthetic-beta canary.
+    remote_ai_kill_switch: bool = True
     remote_ai_provider_allowlist: str = "deepseek"
     remote_ai_https_host_allowlist: str = "api.deepseek.com"
     ai_chat_circuit_failure_threshold: int = Field(default=3, ge=1, le=10)
@@ -129,35 +129,8 @@ class Settings(BaseSettings):
             if not self.ai_base_url.strip():
                 self.ai_base_url = self.deepseek_base_url.strip() or "https://api.deepseek.com"
 
-        if self.ai_patient_chat_remote_enabled:
-            if not self.ai_chat_remote_provider_enabled:
-                raise ValueError("Remote patient chat requires the Spring provenance gate")
-            if self.remote_ai_kill_switch:
-                raise ValueError("Remote patient chat kill switch is enabled")
-            if not self.remote_ai_synthetic_only:
-                raise ValueError("Remote patient chat requires the synthetic-only guard")
-            if runtime not in {"synthetic-beta", "synthetic_beta"}:
-                raise ValueError("Remote patient chat requires synthetic-beta runtime")
-            if self.rag_storage_backend != "supabase":
-                raise ValueError("Synthetic remote patient chat requires Supabase RAG")
-            if self.supabase_rag_fallback_to_memory:
-                raise ValueError("Synthetic remote patient chat cannot fall back to memory RAG")
-            provider = self.ai_provider.strip().casefold()
-            allowed_providers = {
-                item.strip().casefold()
-                for item in self.remote_ai_provider_allowlist.split(",")
-                if item.strip()
-            }
-            if provider not in allowed_providers:
-                raise ValueError("AI_PROVIDER is not in the remote provider allowlist")
-            parsed = urlparse(self.ai_base_url.strip())
-            allowed_hosts = {
-                item.strip().casefold()
-                for item in self.remote_ai_https_host_allowlist.split(",")
-                if item.strip()
-            }
-            if parsed.scheme.casefold() != "https" or not parsed.hostname or parsed.hostname.casefold() not in allowed_hosts:
-                raise ValueError("Remote AI base URL must use an allowlisted HTTPS host")
-            if not self.ai_api_key.strip():
-                raise ValueError("Remote patient chat requires an AI provider secret")
+        if remote_requested:
+            raise ValueError(
+                "Remote patient-answer egress is HOLD in this build; use the local provider"
+            )
         return self

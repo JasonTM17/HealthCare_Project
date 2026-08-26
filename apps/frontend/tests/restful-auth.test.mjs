@@ -14,23 +14,36 @@ test("REST auth routes and client actions are present", async () => {
 
   const api = await read("lib/api-client.ts");
   for (const path of [
-    "/auth/email-verifications/confirm",
+    "/auth/browser-sessions",
+    "/auth/browser-sessions/current",
     "/auth/email-verifications/resend",
     "/auth/password-reset-requests",
     "/auth/password-reset-requests/confirm",
     "/users/me/preferences",
+    "/users/me/notification-preferences",
   ]) {
     assert.match(api, new RegExp(path.replaceAll("/", "\\/")));
   }
   assert.match(api, /UserPreferences/);
+  assert.match(api, /NotificationPreference/);
   assert.match(api, /emailVerified/);
   assert.match(api, /readonly code: string \| null/);
   assert.match(api, /readonly fieldErrors/);
+  assert.match(api, /grantType: "PASSWORD"/);
+  assert.match(api, /grantType: "EMAIL_VERIFICATION"/);
+  assert.match(api, /method: "DELETE"/);
+  assert.doesNotMatch(api, /sessionStorage|localStorage|Authorization|Bearer|accessToken|refreshToken|tokenType/);
+
+  const authFlow = await read("lib/auth-flow.ts");
+  assert.match(authFlow, /safeAuthNextPath/);
+  assert.match(authFlow, /decodeURIComponent/);
+  assert.match(authFlow, /decoded\.startsWith\("\/\/"\)/);
+  assert.match(authFlow, /\\u0000-\\u001f/);
 
   const registerStart = api.indexOf("export async function register");
   const loginStart = api.indexOf("export async function login");
   assert.ok(registerStart >= 0 && loginStart > registerStart);
-  assert.doesNotMatch(api.slice(registerStart, loginStart), /storeAuthSession/);
+  assert.doesNotMatch(api.slice(registerStart, loginStart), /beginAuthMutation|commitIssuedAuthSession/);
 });
 
 test("registration waits for email verification and exposes bounded resend", async () => {
@@ -63,7 +76,9 @@ test("login and recovery surfaces map verification and reset states", async () =
   assert.match(reset, /reset-email/);
   assert.match(reset, /confirmPassword/);
   assert.match(preferences, /hasRole\(session\.user, "PATIENT"\)/);
-  assert.match(preferences, /fetchUserPreferences/);
-  assert.match(preferences, /updateUserPreferences/);
+  assert.match(preferences, /fetchNotificationPreferences/);
+  assert.match(preferences, /updateNotificationPreference/);
+  assert.match(preferences, /BẮT BUỘC/);
+  assert.match(preferences, /Khóa/);
   assert.match(preferences, /Thử lại/);
 });

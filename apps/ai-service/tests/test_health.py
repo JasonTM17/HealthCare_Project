@@ -2,7 +2,7 @@ from fastapi.testclient import TestClient
 import pytest
 from unittest.mock import patch
 
-from app.main import app, settings
+from app.main import app, rag_service, settings
 
 client = TestClient(app)
 
@@ -13,6 +13,22 @@ def test_health_returns_ok() -> None:
     assert response.json()["status"] == "ok"
     assert "service" in response.json()
     assert "ai_provider" in response.json()
+    assert response.json()["rag_ready"] is True
+
+
+def test_readyz_fails_closed_when_rag_probe_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "ai_service_token", "")
+    monkeypatch.setattr(settings, "ai_service_runtime", "local")
+    monkeypatch.setattr(settings, "ai_service_allow_unauthenticated_local", True)
+    monkeypatch.setattr(rag_service, "health_probe", lambda: False)
+
+    response = client.get("/readyz")
+
+    assert response.status_code == 503
+    assert response.json()["ready"] is False
+    assert response.json()["rag_ready"] is False
 
 
 def test_health_misconfiguration_is_not_http_ready(monkeypatch: pytest.MonkeyPatch) -> None:

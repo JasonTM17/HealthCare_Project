@@ -1,26 +1,18 @@
 import { expect, test, type BrowserContext } from "@playwright/test";
 import type {
-  AuthSession,
+  Branch,
   Doctor,
   DoctorPortalAppointment,
   Specialty,
 } from "../../types/hospital";
+import {
+  assertNoSensitiveBrowserStorage,
+  browserSessionFixture,
+  installMockBrowserSession,
+} from "./helpers/browser-session";
 
-const AUTH_STORAGE_KEY = "healthcare.auth.session";
-
-function session(role: "DOCTOR" | "ADMIN"): AuthSession {
-  return {
-    accessToken: `primary-action-${role.toLowerCase()}-token`,
-    refreshToken: `primary-action-${role.toLowerCase()}-refresh`,
-    tokenType: "Bearer",
-    expiresIn: 3600,
-    user: {
-      id: `primary-action-${role.toLowerCase()}`,
-      email: `${role.toLowerCase()}@primary-action.local`,
-      displayName: `Primary Action ${role}`,
-      roles: [`ROLE_${role}`],
-    },
-  };
+function session(role: "DOCTOR" | "ADMIN") {
+  return browserSessionFixture(role, `primary-action-${role.toLowerCase()}`, `Primary Action ${role}`);
 }
 
 function pageEnvelope<T>(content: T[]) {
@@ -34,13 +26,6 @@ function pageEnvelope<T>(content: T[]) {
     last: true,
     empty: content.length === 0,
   };
-}
-
-async function installSession(context: BrowserContext, value: AuthSession): Promise<void> {
-  await context.addInitScript(({ key, authSession }) => {
-    window.sessionStorage.setItem(key, JSON.stringify(authSession));
-    window.sessionStorage.setItem("healthcare-brand-intro-v1", "1");
-  }, { key: AUTH_STORAGE_KEY, authSession: value });
 }
 
 test("doctor primary appointment action sends the authorized status mutation", async ({ context, page }) => {
@@ -71,9 +56,9 @@ test("doctor primary appointment action sends the authorized status mutation", a
   };
   const unexpectedRequests: string[] = [];
 
-  await installSession(context, doctorSession);
   await context.route("**/api/v1/**", async (route) => {
     const request = route.request();
+    expect(request.headers()["authorization"]).toBeUndefined();
     const url = new URL(request.url());
     if (request.method() === "GET" && url.pathname === "/api/v1/doctor/appointments") {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(pageEnvelope([appointment])) });
@@ -81,6 +66,17 @@ test("doctor primary appointment action sends the authorized status mutation", a
     }
     if (request.method() === "GET" && url.pathname === "/api/v1/doctor/profile") {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(doctor) });
+      return;
+    }
+    if (request.method() === "GET" && url.pathname === "/api/v1/hospital/branches") {
+      const branch: Branch = {
+        id: "branch-primary-action",
+        name: "HealthCare Quận 1",
+        slug: "healthcare-quan-1",
+        address: "Quận 1, TP.HCM",
+        active: true,
+      };
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(pageEnvelope([branch])) });
       return;
     }
     if (request.method() === "PATCH" && url.pathname === `/api/v1/doctor/appointments/${appointment.id}/status`) {
@@ -93,6 +89,7 @@ test("doctor primary appointment action sends the authorized status mutation", a
     unexpectedRequests.push(`${request.method()} ${url.pathname}`);
     await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ message: "Unhandled doctor action request" }) });
   });
+  await installMockBrowserSession(context, doctorSession);
 
   await page.goto("/doctor/dashboard");
   await expect(page.getByText("HC-DOCTOR-0001", { exact: true })).toBeVisible();
@@ -104,13 +101,14 @@ test("doctor primary appointment action sends the authorized status mutation", a
   await page.getByRole("button", { name: "Tiếp nhận" }).click();
   const request = await requestPromise;
 
-  expect(request.headers()["authorization"]).toBe(`Bearer ${doctorSession.accessToken}`);
+  expect(request.headers()["authorization"]).toBeUndefined();
   expect(request.postDataJSON()).toEqual({ status: "CHECKED_IN" });
   await expect(page.getByRole("status").filter({ hasText: "Đã cập nhật lịch HC-DOCTOR-0001." })).toBeVisible();
   await expect(
     page.getByLabel("Lịch hẹn trong ngày của bác sĩ").getByText("Đã tiếp nhận", { exact: true }),
   ).toBeVisible();
   expect(unexpectedRequests).toEqual([]);
+  await assertNoSensitiveBrowserStorage(page);
 });
 
 test("admin primary mutation creates a specialty with the authorized REST payload", async ({ context, page }) => {
@@ -124,9 +122,9 @@ test("admin primary mutation creates a specialty with the authorized REST payloa
   }];
   const unexpectedRequests: string[] = [];
 
-  await installSession(context, adminSession);
   await context.route("**/api/v1/**", async (route) => {
     const request = route.request();
+    expect(request.headers()["authorization"]).toBeUndefined();
     const url = new URL(request.url());
     if (request.method() === "GET" && url.pathname === "/api/v1/admin/specialties") {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(pageEnvelope(specialties)) });
@@ -143,6 +141,7 @@ test("admin primary mutation creates a specialty with the authorized REST payloa
     unexpectedRequests.push(`${request.method()} ${url.pathname}`);
     await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ message: "Unhandled admin action request" }) });
   });
+  await installMockBrowserSession(context, adminSession);
 
   await page.goto("/admin/specialties");
   await expect(page.getByRole("heading", { name: "Quản lý chuyên khoa" })).toBeVisible();
@@ -157,7 +156,7 @@ test("admin primary mutation creates a specialty with the authorized REST payloa
   await page.getByRole("button", { name: "Tạo chuyên khoa" }).click();
   const request = await requestPromise;
 
-  expect(request.headers()["authorization"]).toBe(`Bearer ${adminSession.accessToken}`);
+  expect(request.headers()["authorization"]).toBeUndefined();
   expect(request.postDataJSON()).toEqual({
     name: "Y học giấc ngủ",
     slug: "y-hoc-giac-ngu",
@@ -167,4 +166,5 @@ test("admin primary mutation creates a specialty with the authorized REST payloa
   await expect(page.getByText("Đã tạo chuyên khoa", { exact: true })).toBeVisible();
   await expect(page.getByText("Y học giấc ngủ", { exact: true })).toBeVisible();
   expect(unexpectedRequests).toEqual([]);
+  await assertNoSensitiveBrowserStorage(page);
 });

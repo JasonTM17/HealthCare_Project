@@ -26,8 +26,16 @@ doctor-scoped daily Page contract from
 `GET /api/v1/doctor/appointments?date=yyyy-MM-dd[&status=...]`. The client
 uses the least-privilege `PatientPortalAppointment` and
 `DoctorPortalAppointment` types, so each portal mirrors the fields its backend
-DTO actually exposes. Both reads use the stored session token and never fall
+DTO actually exposes. Both reads use the same-origin BFF session and never fall
 back to mock appointments; loading, empty, auth, forbidden, error, or
 unavailable states remain explicit when a live backend cannot respond.
 
-The portal stores the backend access/refresh response in `sessionStorage` for this local educational flow, never fabricates medical data, and surfaces 401/403/empty/loading/error states in the UI.
+The portal uses an opaque Secure HttpOnly browser session through the same-origin
+Next.js BFF; JavaScript keeps only non-secret session metadata in memory. It
+never fabricates medical data and surfaces 401/403/empty/loading/error states in
+the UI.
+
+For a reverse-proxied build, configure server-only `BFF_PUBLIC_ORIGIN` to the
+exact external origin (for example, the HTTPS Vercel beta domain). This keeps
+the CSRF origin check stable even when the Route Handler sees an internal URL;
+never expose this configuration or the BFF service token through `NEXT_PUBLIC_*`.

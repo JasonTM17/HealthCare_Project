@@ -1,5 +1,3 @@
-import { readAuthSession } from "./api-client";
-
 /**
  * Typed client for the slot-scoped CMS contract.
  *
@@ -225,14 +223,12 @@ export interface CmsChangeSubscriptionOptions {
 export interface CmsClientOptions {
   baseUrl?: string;
   fetchImpl?: typeof fetch;
-  getAccessToken?: () => string | null | Promise<string | null>;
   eventSourceFactory?: (url: string) => EventSource;
 }
 
-const DEFAULT_BASE_URL =
-  process.env.NEXT_PUBLIC_CMS_API_BASE_URL ||
-  process.env.NEXT_PUBLIC_API_BASE_URL ||
-  "/api/v1";
+// CMS reads and writes stay behind the same-origin Route Handler BFF. Do not
+// expose a configurable backend URL through NEXT_PUBLIC_* client variables.
+const DEFAULT_BASE_URL = "/api/v1";
 
 const SLOT_KEY_PATTERN = /^[a-z0-9]+(?:[._-][a-z0-9]+)*$/;
 const MAX_TEXT_LENGTH = 4_000;
@@ -636,7 +632,6 @@ function parseHeartbeatEvent(raw: unknown): CmsHeartbeatEvent {
 export class CmsClient {
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof fetch;
-  private readonly getAccessToken?: CmsClientOptions["getAccessToken"];
   private readonly eventSourceFactory: (url: string) => EventSource;
   private readonly supportsEventSource: boolean;
   private readonly changeSubscribers = new Map<number, CmsChangeSubscriptionOptions>();
@@ -651,7 +646,6 @@ export class CmsClient {
   constructor(options: CmsClientOptions = {}) {
     this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, "");
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
-    this.getAccessToken = options.getAccessToken;
     this.eventSourceFactory = options.eventSourceFactory ?? ((url) => new EventSource(url));
     this.supportsEventSource = options.eventSourceFactory !== undefined || typeof EventSource !== "undefined";
   }
@@ -674,11 +668,9 @@ export class CmsClient {
   }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
-    const token = this.getAccessToken ? await this.getAccessToken() : null;
     const headers = new Headers(init.headers);
     headers.set("Accept", "application/json");
     if (init.body !== undefined) headers.set("Content-Type", "application/json");
-    if (token) headers.set("Authorization", `Bearer ${token}`);
 
     let response: Response;
     try {
@@ -950,7 +942,5 @@ export class CmsClient {
 
 export const defaultCmsClient = new CmsClient();
 
-/** CMS editor client: reads the current browser session for ADMIN requests. */
-export const authenticatedCmsClient = new CmsClient({
-  getAccessToken: () => readAuthSession()?.accessToken ?? null,
-});
+/** CMS editor client uses the same-origin HttpOnly browser session. */
+export const authenticatedCmsClient = new CmsClient();

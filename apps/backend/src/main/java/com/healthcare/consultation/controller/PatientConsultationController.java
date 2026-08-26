@@ -45,9 +45,11 @@ public class PatientConsultationController {
     }
 
     @GetMapping("/{id}/messages")
-    public List<ConsultationContracts.Message> messages(@PathVariable UUID id,
-            @RequestParam(defaultValue = "50") int limit, @AuthenticationPrincipal UserDetails principal) {
-        return service.messages(id, principal, limit);
+    public ConsultationContracts.MessagePage messages(@PathVariable UUID id,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "50") int limit,
+            @AuthenticationPrincipal UserDetails principal) {
+        return service.messages(id, principal, cursor, limit);
     }
 
     @PostMapping("/{id}/messages")
@@ -67,6 +69,12 @@ public class PatientConsultationController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void close(@PathVariable UUID id, @AuthenticationPrincipal UserDetails principal) { service.close(id, principal); }
 
+    @PostMapping("/{id}/reopen")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void reopen(@PathVariable UUID id, @AuthenticationPrincipal UserDetails principal) {
+        service.reopen(id, principal);
+    }
+
     /** Immediate patient privacy deletion; audit evidence is retained. */
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
@@ -83,9 +91,21 @@ public class PatientConsultationController {
 
     @PostMapping("/{id}/attachments/{attachmentId}/complete")
     public ConsultationContracts.Attachment complete(@PathVariable UUID id, @PathVariable UUID attachmentId,
-            @Valid @RequestBody ConsultationContracts.AttachmentCompleteRequest request,
+            @RequestBody(required = false) ConsultationContracts.AttachmentCompleteRequest request,
             @AuthenticationPrincipal UserDetails principal) {
         return service.completeAttachment(id, attachmentId, request, principal);
+    }
+
+    @GetMapping("/{id}/attachments/{attachmentId}/download")
+    public ConsultationContracts.Attachment download(@PathVariable UUID id, @PathVariable UUID attachmentId,
+                                                     @AuthenticationPrincipal UserDetails principal) {
+        return service.downloadIntent(id, attachmentId, principal);
+    }
+
+    @GetMapping("/{id}/attachments/{attachmentId}")
+    public ConsultationContracts.Attachment attachmentStatus(@PathVariable UUID id, @PathVariable UUID attachmentId,
+            @AuthenticationPrincipal UserDetails principal) {
+        return service.attachmentStatus(id, attachmentId, principal);
     }
 
 }

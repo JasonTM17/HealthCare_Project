@@ -54,4 +54,61 @@ class AiClinicalReviewServiceTest {
         verify(jdbc).queryForList(sql.capture(), any(Object[].class));
         assertThat(sql.getValue()).contains("FOR UPDATE");
     }
+
+    @Test
+    void adminInventoryAppliesBoundedTypeAndStateFilters() {
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        UserRepository users = mock(UserRepository.class);
+        when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of());
+
+        Map<String, Object> page = new AiClinicalReviewService(jdbc, users)
+            .adminQueuePage("ARTICLE", "DRAFT", 2, 25);
+
+        assertThat(page).containsEntry("page", 2).containsEntry("size", 25)
+            .containsEntry("hasMore", false).containsEntry("content", List.of());
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        verify(jdbc).queryForList(sql.capture(), any(Object[].class));
+        assertThat(sql.getValue()).contains("h.eligibility_state = ?")
+            .contains("h.source_type = ?")
+            .contains("LIMIT ? OFFSET ?");
+    }
+
+    @Test
+    void adminInventoryRejectsUnknownTypeWithoutQueryingDatabase() {
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        UserRepository users = mock(UserRepository.class);
+
+        assertThatThrownBy(() -> new AiClinicalReviewService(jdbc, users)
+            .adminQueuePage("UNKNOWN", "DRAFT", 0, 20))
+            .extracting(error -> ((com.healthcare.exception.BusinessException) error).getCode())
+            .isEqualTo("AI_CONTENT_TYPE_INVALID");
+        org.mockito.Mockito.verifyNoInteractions(jdbc);
+    }
+
+    @Test
+    void revisionNormalizesJdbcJsonbAndOpaqueApprovalRound() {
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        UserRepository users = mock(UserRepository.class);
+        UUID sourceId = UUID.randomUUID();
+        when(jdbc.queryForList(anyString(), any(Object[].class)))
+            .thenReturn(List.of(Map.of(
+                "source_type", "ARTICLE",
+                "source_id", sourceId,
+                "content_revision", 2L,
+                "content_hash", "b".repeat(64),
+                "content_snapshot", "{\"title\":\"Hướng dẫn\"}",
+                "created_by", UUID.randomUUID(),
+                "created_at", "2026-08-25T10:15:30Z")))
+            .thenReturn(List.of(Map.of(
+                "eligibility_state", "SUBMITTED",
+                "current_approval_round", 2L,
+                "approval_expires_at", "2027-02-25T10:15:30Z")));
+
+        Map<String, Object> result = new AiClinicalReviewService(jdbc, users)
+            .revision("ARTICLE", sourceId, 2);
+
+        assertThat(result.get("snapshot")).isInstanceOf(Map.class);
+        assertThat(((Map<?, ?>) result.get("snapshot")).get("title")).isEqualTo("Hướng dẫn");
+        assertThat(result.get("approvalId")).isEqualTo("2");
+    }
 }

@@ -117,7 +117,8 @@ public class CarePlanService {
                    p.title, p.status, p.starts_at, p.ends_at
               FROM patient_care_plans p
               JOIN doctors d ON d.id = p.doctor_id
-             WHERE p.deleted_at IS NULL AND p.retention_expires_at > CURRENT_TIMESTAMP AND """ + predicate + " ORDER BY p.updated_at DESC", args);
+             WHERE p.deleted_at IS NULL AND p.retention_expires_at > CURRENT_TIMESTAMP
+             """ + " AND " + predicate + " ORDER BY p.updated_at DESC", args);
         List<CarePlanContracts.Plan> result = new ArrayList<>();
         for (Map<String, Object> row : planRows) {
             UUID id = (UUID) row.get("id");

@@ -423,8 +423,14 @@ class RagService:
         self._revision_lock = RLock()
         self._tombstones: dict[str, int] = {}
         self._latest_revisions: dict[str, int] = {}
+        self._latest_projection_states: dict[str, tuple[object, ...]] = {}
         self._operation_sequence = 0
         self._latest_operations: dict[str, int] = {}
+
+    def health_probe(self) -> bool:
+        """Return whether the in-memory index is ready for local use."""
+
+        return True
 
     def ingest(
         self,
@@ -462,36 +468,6 @@ class RagService:
             source_id,
             projection=projection,
         )
-        # Clinical approval can be revoked and renewed without changing the
-        # immutable content revision.  Its eligibility revision is therefore
-        # the monotonic projection watermark; operational catalog sync keeps
-        # using the explicit `_sync_revision` value.
-        revision = self._revision(document_metadata)
-        with self._revision_lock:
-            existing = self.index.get(document_id, projection=projection)
-            tombstone_revision = self._tombstones.get(state_key)
-            existing_revision = self._revision(existing.metadata) if existing else None
-            latest_revision = self._latest_revisions.get(state_key)
-            if revision is not None:
-                known_revision = max(
-                    revision if tombstone_revision is None else tombstone_revision,
-                    existing_revision if existing_revision is not None else revision,
-                    latest_revision if latest_revision is not None else revision,
-                )
-                if revision < known_revision:
-                    return existing or RagDocument(
-                        id=document_id,
-                        source_type=source_type,
-                        source_id=source_id,
-                        title=normalized_title,
-                        content=normalized_content,
-                        metadata=document_metadata,
-                    )
-                self._latest_revisions[state_key] = revision
-            self._operation_sequence += 1
-            operation_token = self._operation_sequence
-            self._latest_operations[state_key] = operation_token
-
         document = RagDocument(
             id=document_id,
             source_type=source_type,
@@ -506,6 +482,58 @@ class RagService:
             published=published,
             metadata=document_metadata,
         )
+        incoming_state = self._projection_state(document)
+        # Clinical approval can be revoked and renewed without changing the
+        # immutable content revision.  Its eligibility revision is therefore
+        # the monotonic projection watermark; operational catalog sync keeps
+        # using the explicit `_sync_revision` value.
+        revision = self._revision(document_metadata)
+        with self._revision_lock:
+            existing = self.index.get(document_id, projection=projection)
+            tombstone_revision = self._tombstones.get(state_key)
+            existing_revision = self._revision(existing.metadata) if existing else None
+            latest_revision = self._latest_revisions.get(state_key)
+            if revision is not None:
+                known_revisions = [
+                    candidate
+                    for candidate in (tombstone_revision, existing_revision, latest_revision)
+                    if candidate is not None
+                ]
+                known_revision = max(known_revisions) if known_revisions else None
+                if known_revision is not None and revision == known_revision:
+                    authoritative_state = self._latest_projection_states.get(state_key)
+                    if authoritative_state is None and existing is not None:
+                        authoritative_state = self._projection_state(existing)
+                    if (
+                        authoritative_state is None
+                        and tombstone_revision is not None
+                        and existing is None
+                    ):
+                        authoritative_state = ("TOMBSTONE", projection)
+                    if authoritative_state != incoming_state:
+                        raise ValueError(
+                            "equal-revision projection update must be idempotent"
+                        )
+                    if existing is not None:
+                        return existing
+                    # An exact replay of an inactive projection stays
+                    # tombstoned and never performs embedding work.
+                    if tombstone_revision is not None:
+                        return document
+                if known_revision is not None and revision < known_revision:
+                    return existing or RagDocument(
+                        id=document_id,
+                        source_type=source_type,
+                        source_id=source_id,
+                        title=normalized_title,
+                        content=normalized_content,
+                        metadata=document_metadata,
+                    )
+                self._latest_revisions[state_key] = revision
+                self._latest_projection_states[state_key] = incoming_state
+            self._operation_sequence += 1
+            operation_token = self._operation_sequence
+            self._latest_operations[state_key] = operation_token
 
         # A sync revision prevents an older in-flight request from resurrecting
         # a source after a newer delete. Direct local/test calls without a
@@ -610,15 +638,32 @@ class RagService:
                 if revision is not None:
                     current_revision = self._revision(existing.metadata) if existing else None
                     latest_revision = self._latest_revisions.get(state_key)
-                    known_revision = max(
-                        self._tombstones.get(state_key, revision),
-                        current_revision if current_revision is not None else revision,
-                        latest_revision if latest_revision is not None else revision,
-                    )
-                    if revision < known_revision:
+                    current_tombstone = self._tombstones.get(state_key)
+                    known_revisions = [
+                        candidate
+                        for candidate in (current_tombstone, current_revision, latest_revision)
+                        if candidate is not None
+                    ]
+                    known_revision = max(known_revisions) if known_revisions else None
+                    if known_revision is not None and revision < known_revision:
                         continue
+                    if (
+                        operation_token is None
+                        and known_revision is not None
+                        and revision == known_revision
+                    ):
+                        if current_tombstone is not None and existing is None:
+                            continue
+                        raise ValueError(
+                            "equal-revision projection update must be idempotent"
+                        )
                     self._latest_revisions[state_key] = revision
-                    self._tombstones[state_key] = known_revision
+                    if operation_token is None:
+                        self._latest_projection_states[state_key] = (
+                            "TOMBSTONE",
+                            target_projection,
+                        )
+                    self._tombstones[state_key] = revision
                 current_operation_token = operation_token
                 if current_operation_token is None:
                     self._operation_sequence += 1
@@ -629,6 +674,18 @@ class RagService:
                     projection=target_projection,
                     include_projections=False,
                 )
+
+    @staticmethod
+    def _projection_state(document: RagDocument) -> tuple[object, ...]:
+        """Return the complete authoritative state for an idempotent revision."""
+
+        return (
+            document.title,
+            document.content,
+            document.active,
+            document.published,
+            tuple(sorted((str(key), str(value)) for key, value in document.metadata.items())),
+        )
 
     @staticmethod
     def _revision(metadata: dict[str, str]) -> int | None:

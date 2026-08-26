@@ -94,8 +94,8 @@ def test_non_emergency_triage_never_calls_remote_without_remote_egress_gate(
             headers={"X-AI-Service-Token": "service-token"},
         )
 
-    assert response.status_code == 503
-    assert response.json()["detail"] == "AI provider unavailable"
+    assert response.status_code == 200
+    assert response.json()["provenance"] == "local_fallback"
     remote_client.assert_not_called()
 
 
@@ -126,7 +126,8 @@ def test_triage_request_marker_is_required_even_for_synthetic_runtime(
             headers={"X-AI-Service-Token": "service-token"},
         )
 
-    assert response.status_code == 503
+    assert response.status_code == 200
+    assert response.json()["provenance"] == "local_fallback"
     remote_client.assert_not_called()
 
 

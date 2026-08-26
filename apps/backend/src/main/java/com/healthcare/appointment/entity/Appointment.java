@@ -94,6 +94,9 @@ public class Appointment {
     @Column(name = "otp_expires_at")
     private OffsetDateTime otpExpiresAt;
 
+    @Column(name = "otp_issued_at")
+    private OffsetDateTime otpIssuedAt;
+
     @Column(name = "otp_attempts", nullable = false)
     private int otpAttempts;
 
@@ -281,6 +284,14 @@ public class Appointment {
 
     public void setOtpExpiresAt(OffsetDateTime otpExpiresAt) {
         this.otpExpiresAt = otpExpiresAt;
+    }
+
+    public OffsetDateTime getOtpIssuedAt() {
+        return otpIssuedAt;
+    }
+
+    public void setOtpIssuedAt(OffsetDateTime otpIssuedAt) {
+        this.otpIssuedAt = otpIssuedAt;
     }
 
     public int getOtpAttempts() {

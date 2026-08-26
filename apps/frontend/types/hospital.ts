@@ -182,6 +182,7 @@ export interface HoldSlotResult {
   otpExpiresAt: string;
   message: string;
   otpRequired: boolean;
+  otpDeliveryStatus?: "QUEUED" | "SENT" | "FAILED" | "EXPIRED";
 }
 
 export interface ConfirmAppointmentPayload {
@@ -338,6 +339,35 @@ export interface UserPreferences {
   locale: string;
   timezone: string;
   updatedAt?: string | null;
+}
+
+export type NotificationCategory =
+  | "SECURITY"
+  | "APPOINTMENT"
+  | "PAYMENT"
+  | "CLINICAL_UPDATE"
+  | "CONSULTATION"
+  | "CARE_PLAN"
+  | "MARKETING";
+
+export type NotificationChannel = "EMAIL" | "IN_APP";
+
+export interface NotificationPreference {
+  category: NotificationCategory;
+  channel: NotificationChannel;
+  enabled: boolean;
+  quietHoursStart?: string | null;
+  quietHoursEnd?: string | null;
+  timezone: string;
+}
+
+export interface NotificationPreferencePatchPayload {
+  enabled?: boolean;
+  quietHoursStart?: string | null;
+  quietHoursEnd?: string | null;
+  timezone?: string | null;
+  /** Explicitly clears a previously saved quiet-hours pair. */
+  clearQuietHours?: boolean;
 }
 
 export type PatientGender = "MALE" | "FEMALE" | "OTHER" | "UNSPECIFIED";
@@ -499,8 +529,10 @@ export interface AiContentReviewSummary {
   revision: number;
   contentHash: string;
   eligibilityRevision?: number;
+  approvalRound?: number | null;
   expiresAt?: string | null;
   submittedAt?: string | null;
+  approvedAt?: string | null;
 }
 
 export interface PatientOverview {
@@ -542,17 +574,46 @@ export interface ConsultationMessage {
   attachments: ConsultationAttachment[];
 }
 
+export interface ConsultationMessagePage {
+  items: ConsultationMessage[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
 export interface ConsultationAttachment {
   id: string;
   mimeType: string;
   sizeBytes: number;
   scanStatus: "PENDING" | "CLEAN" | "REJECTED";
   downloadUrl?: string | null;
+  uploadStatus?: "REQUESTED" | "UPLOADING" | "PENDING" | "CLEAN" | "REJECTED" | "EXPIRED" | string;
+  uploadUrl?: string | null;
+  uploadExpiresAt?: string | null;
 }
 
 export interface ConsultationDetail {
   consultation: ConsultationSummary;
   messages: ConsultationMessage[];
+}
+
+export interface ConsultationHandoffDoctor {
+  doctorId: string;
+  fullName: string;
+  specialtySlug?: string | null;
+  branchSlug?: string | null;
+}
+
+export interface ConsultationAdminQueueItem {
+  threadId: string;
+  status: string;
+  firstResponseDueAt?: string | null;
+  firstRespondedAt?: string | null;
+  consultationOpenUntil: string;
+  updatedAt: string;
+  specialtySlug?: string | null;
+  assignmentRole?: string | null;
+  assignmentPermission?: string | null;
+  assignedAt?: string | null;
 }
 
 export interface HealthQuestionSummary {

@@ -7,6 +7,9 @@ const patientPagePath = new URL("../app/patient/dashboard/page.tsx", import.meta
 const doctorPagePath = new URL("../app/doctor/dashboard/page.tsx", import.meta.url);
 const statesPath = new URL("../components/PortalStates.tsx", import.meta.url);
 const chromePath = new URL("../components/PortalChrome.tsx", import.meta.url);
+const accessGatePath = new URL("../components/PortalAccessGate.tsx", import.meta.url);
+const patientLayoutPath = new URL("../app/patient/layout.tsx", import.meta.url);
+const doctorLayoutPath = new URL("../app/doctor/layout.tsx", import.meta.url);
 const stylesPath = new URL("../app/styles.css", import.meta.url);
 const patientAliasRoutes = [
   ["../app/patient/page.tsx", "/patient/dashboard"],
@@ -22,10 +25,12 @@ const patientAliasRoutes = [
   ["../app/doctor/appointments/page.tsx", "/doctor/dashboard#daily-appointments"],
 ];
 
-test("authenticated client exposes the backend-owned portal contracts", async () => {
+test("authenticated client exposes portal contracts without browser bearer storage", async () => {
   const source = await readFile(apiClientPath, "utf8");
 
-  assert.match(source, /sessionStorage/);
+  assert.match(source, /\/auth\/browser-sessions\/current/);
+  assert.match(source, /credentials: "same-origin"/);
+  assert.doesNotMatch(source, /sessionStorage|localStorage|Authorization|Bearer|accessToken|refreshToken|tokenType/);
   assert.match(source, /\/patient\/medical-records/);
   assert.match(source, /\/patient\/appointments/);
   assert.match(source, /\/patient\/prescriptions/);
@@ -33,6 +38,33 @@ test("authenticated client exposes the backend-owned portal contracts", async ()
   assert.match(source, /\/notifications/);
   assert.match(source, /\/doctor\/patients\/\$\{encodeURIComponent\(patientId\)\}\/medical-records/);
   assert.match(source, /class ApiError/);
+});
+
+test("patient and doctor layouts defer children until cookie-session hydration settles", async () => {
+  const [gate, patientLayout, doctorLayout] = await Promise.all([
+    readFile(accessGatePath, "utf8"),
+    readFile(patientLayoutPath, "utf8"),
+    readFile(doctorLayoutPath, "utf8"),
+  ]);
+
+  assert.match(gate, /useAuthSessionStatus/);
+  assert.match(gate, /hydrationStatus !== "settled"/);
+  assert.match(gate, /LoadingState/);
+  assert.match(gate, /window\.location\.pathname/);
+  assert.match(gate, /window\.location\.search/);
+  assert.match(gate, /window\.location\.hash/);
+  assert.match(gate, /!currentPath\.startsWith\("\/"\)/);
+  assert.match(gate, /currentPath\.startsWith\("\/\/"\)/);
+  assert.match(gate, /RETURN_PATH_CONTROL_PATTERN\.test\(currentPath\)/);
+  assert.match(gate, /if \(!session\)[\s\S]*LoginRequiredState/);
+  assert.match(gate, /if \(!hasRole\(session\.user, role\)\)[\s\S]*ForbiddenState/);
+  assert.match(gate, /return children/);
+  assert.match(patientLayout, /PortalAccessGate role="PATIENT"/);
+  assert.match(doctorLayout, /PortalAccessGate role="DOCTOR"/);
+  assert.ok(
+    gate.indexOf('hydrationStatus !== "settled"') < gate.indexOf("return children"),
+    "children must not mount before cookie-session hydration has settled",
+  );
 });
 
 test("patient portal keeps missing appointment list data explicit", async () => {
@@ -97,6 +129,15 @@ test("portal chrome exposes complete role navigation and keyboard landmarks", as
   assert.match(source, /\/doctor\/appointments/);
   assert.match(source, /aria-current/);
   assert.match(source, /logoutCurrentUser/);
+  assert.match(source, /SAFE_LOGOUT_ERROR_MESSAGE/);
+  assert.match(source, /role="status"/);
+  assert.match(source, /aria-live="polite"/);
+  assert.match(source, /const outcome = await logoutCurrentUser\(\)/);
+  assert.match(source, /outcome\.status === "LOGGED_OUT"[\s\S]*?router\.replace\("\/auth\/login"\)/);
+  assert.match(source, /else\s*\{\s*setLogoutError\(SAFE_LOGOUT_ERROR_MESSAGE\)/);
+  assert.match(source, /setLoggingOut\(false\)/);
+  assert.doesNotMatch(source, /logoutCurrentUser clears the browser session even when remote sign-out is unavailable/);
+  assert.doesNotMatch(source, /finally\s*\{[^}]*router\.replace\("\/auth\/login/);
   assert.match(source, /UiIcon/);
 });
 

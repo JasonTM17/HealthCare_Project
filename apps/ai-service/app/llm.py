@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import json
+import html
 import re
 import threading
 import time
 import unicodedata
-from urllib.parse import urlparse
 from dataclasses import dataclass
 from typing import Any, Protocol, Sequence
 
@@ -51,6 +51,21 @@ _MEDICAL_RECORD_ID_PATTERN = re.compile(
 )
 _APPOINTMENT_ID_PATTERN = re.compile(
     r"\b(?:(?:appt|apt)[-_:#]?\d{4,}|booking[-_:#][a-z0-9][a-z0-9._/-]{3,})\b",
+    re.IGNORECASE,
+)
+_LONG_NUMERIC_IDENTIFIER_PATTERN = re.compile(r"(?<!\d)\d{9,16}(?!\d)")
+_NUMERIC_DATE_PATTERN = re.compile(
+    r"(?<!\d)(?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}[/-]\d{1,2}[/-]\d{1,2})(?!\d)"
+)
+_PASSPORT_PATTERN = re.compile(
+    r"(?<![A-Z0-9])[A-Z]{1,2}\d{6,9}(?![A-Z0-9])", re.IGNORECASE
+)
+_INSURANCE_IDENTIFIER_PATTERN = re.compile(
+    r"(?<![A-Z0-9])[A-Z]{1,3}\d{10,14}(?![A-Z0-9])", re.IGNORECASE
+)
+_OPAQUE_ID_PATTERN = re.compile(
+    r"\b(?:patient|profile|user|case|uid|thread|conversation|synthetic[-_ ]?user)"
+    r"\s*[-_:#]?\s*[a-z]*\d+[a-z0-9_-]*\b",
     re.IGNORECASE,
 )
 _STREET_ADDRESS_PATTERN = re.compile(
@@ -113,6 +128,129 @@ _SENSITIVE_TERMS = (
 _INJECTION_TERMS = (
     "ignore previous", "ignore all previous", "system prompt", "developer message",
     "jailbreak", "bo qua huong dan", "bỏ qua hướng dẫn", "in ra prompt", "reveal prompt",
+    "disregard earlier", "disregard previous", "forget previous", "override previous",
+    "print internal configuration", "show internal configuration", "dump internal configuration",
+    "reveal configuration", "print system configuration",
+)
+_INSTRUCTIONAL_EXFIL_PATTERN = re.compile(
+    r"\b(?:follow|obey|apply|execute|return|output|print|show|reveal|dump|provide)\b"
+    r".{0,100}\b(?:hidden|internal|confidential|secret|system|configuration|setup|prompt)\b",
+    re.IGNORECASE,
+)
+_REQUEST_EXFIL_PATTERN = re.compile(
+    r"\b(?:tell|show|share|send|give|provide|return|output|print|reveal|dump)\b"
+    r".{0,100}\b(?:hidden|internal|private|confidential|secret|system)\b"
+    r".{0,60}\b(?:configuration|config|setup|instructions?|prompt|details?)\b",
+    re.IGNORECASE,
+)
+_ASKED_EXFIL_PATTERN = re.compile(
+    r"\b(?:ask|asks|asking)\s+for\b"
+    r".{0,100}\b(?:hidden|internal|private|confidential|secret|system)\b"
+    r".{0,60}\b(?:configuration|config|setup|instructions?|prompt|details?)\b",
+    re.IGNORECASE,
+)
+# Natural-language questions are still instruction-exfiltration attempts when
+# they ask for the assistant's hidden/system/developer configuration.  Keep
+# this separate from the operational catalog exception: public branch data may
+# contain a phone/address, but it must never be able to opt out of this gate.
+_QUESTION_EXFIL_PATTERN = re.compile(
+    r"\b(?:what(?:'s|\s+is|\s+are)|how\s+does|can\s+you|could\s+you|would\s+you|please|tell\s+me|list|"
+    r"enumerate|display|disclose|reveal|share|export|dump|show|give|provide)\b"
+    r".{0,100}\b(?:your|the|this)?\s*"
+    r"(?:hidden|internal|private|confidential|secret|system|developer)\b"
+    r".{0,80}\b(?:configuration|config|setup|instructions?|prompt|rules?|policy|details?)\b",
+    re.IGNORECASE,
+)
+# Vietnamese support requests commonly contain "hãy/vui lòng hướng dẫn".
+# Treat only a compact sensitive object as exfiltration; never block generic
+# booking/preparation guidance merely because it uses the word "hướng dẫn".
+_VIETNAMESE_EXFIL_OBJECT_PATTERN = re.compile(
+    r"\b(?:"
+    r"(?:cau\s+hinh|cai\s+dat|thiet\s+lap|chi\s+dan|huong\s+dan|quy\s+tac|chinh\s+sach)"
+    r"\s+(?:cua\s+)?(?:he\s+thong|noi\s+bo|bi\s+mat|an|rieng\s+tu|nha\s+phat\s+trien|developer)"
+    r"|(?:he\s+thong|noi\s+bo|bi\s+mat|an|rieng\s+tu|nha\s+phat\s+trien|developer)"
+    r"\s+(?:cau\s+hinh|cai\s+dat|thiet\s+lap|chi\s+dan|huong\s+dan|quy\s+tac|chinh\s+sach|prompt)"
+    r"|thong\s+tin\s+(?:noi\s+bo|bi\s+mat|an|rieng\s+tu|nha\s+phat\s+trien|developer)"
+    r"|prompt(?:\s+(?:he\s+thong|noi\s+bo|bi\s+mat|an|rieng\s+tu|nha\s+phat\s+trien|developer))?"
+    r")\b",
+    re.IGNORECASE,
+)
+_SAFEGUARD_BYPASS_PATTERN = re.compile(
+    r"\b(?:ignore|bypass|disable|circumvent|override)\b"
+    r".{0,60}\b(?:all\s+)?(?:safeguards?|safety|guardrails?|policies?|rules?)\b",
+    re.IGNORECASE,
+)
+_UNRESTRICTED_ASSISTANT_PATTERN = re.compile(
+    r"\b(?:unrestricted|unfiltered|no[- ]?rules|developer[- ]?mode)\b"
+    r".{0,60}\b(?:assistant|agent|model)\b",
+    re.IGNORECASE,
+)
+_REMOTE_OUTPUT_FORBIDDEN_PATTERN = re.compile(
+    r"(?:https?://|www\.|javascript:|data:|href\s*=|source[_ -]?id|doctor[_ -]?id|"
+    r"\bcitation\b|\b(?:ban|you)\s+(?:(?:co\s+(?:the|kha\s+nang)|co\s+le|may|might|could|likely)\s+)?(?:bi|mac|have|has)\b|"
+    r"\b(?:chan\s+doan\s+la|diagnosed\s+as|i\s+diagnose|ke\s+don|prescribe|"
+    r"prescription|lieu\s+thuoc|dosage|ngung\s+thuoc|stop\s+medication|"
+    r"change\s+your\s+medication)\b|"
+    r"\b(?:(?:ban\s+nen|hay)\s+(?:uong|dung|su\s+dung)|you\s+should\s+(?:take|use))\b|"
+    r"\b(?:uong|dung|su\s+dung|take|use)\s+(?:thuoc\s+)?(?:aspirin|paracetamol|"
+    r"acetaminophen|ibuprofen|amoxicillin|antibiotic|khang\s+sinh)\b|"
+    r"\b(?:uong|take|dung)\s+(?:[a-z][a-z0-9-]*\s+){0,4}"
+    r"\d+(?:[.,]\d+)?\s*(?:mg|ml|vien)\b)",
+    re.IGNORECASE,
+)
+_GROUNDING_TOKEN_PATTERN = re.compile(r"\b[a-z0-9]{3,}\b", re.IGNORECASE)
+_GROUNDING_NUMBER_PATTERN = re.compile(r"(?<!\w)\d+(?:[.:/-]\d+)*(?!\w)")
+_GROUNDING_STOPWORDS = frozenset(
+    {
+        "ban",
+        "duoc",
+        "huong",
+        "khong",
+        "nguon",
+        "tham",
+        "theo",
+        "thong",
+        "trong",
+        "your",
+    }
+)
+_PUBLIC_OPERATIONAL_CONNECTOR_TOKENS = frozenset(
+    {
+        "ban",
+        "co",
+        "the",
+        "xem",
+        "tai",
+        "la",
+        "cua",
+        "va",
+        "lien",
+        "he",
+        "so",
+        "dien",
+        "thoai",
+        "hotline",
+        "dia",
+        "chi",
+        "thong",
+        "tin",
+        "tham",
+        "khao",
+    }
+)
+_PUBLIC_CONTACT_CLAIM_PATTERN = re.compile(
+    r"\b(?:hotline|dien\s+thoai|so\s+dien\s+thoai)\b"
+    r".{0,24}?(?P<number>\d(?:[\s().-]*\d){2,14})",
+    re.IGNORECASE,
+)
+_PUBLIC_LOCATION_KEYWORD_PATTERN = re.compile(
+    r"\b(?:duong|pho|phuong|quan|huyen|xa|thi\s+xa|thanh\s+pho|tinh|"
+    r"khu\s+pho|thon|ap|to|street|road|avenue|ward|district|city)\b",
+    re.IGNORECASE,
+)
+_PUBLIC_LOCATION_INTRO_PATTERN = re.compile(
+    r"\b(?:o|tai|located\s+at|address\s+is|dia\s+chi(?:\s+la|\s+tai)?)\s+",
+    re.IGNORECASE,
 )
 _EMERGENCY_TERMS = (
     "đau ngực dữ dội", "dau nguc du doi", "khó thở", "kho tho", "méo miệng",
@@ -130,60 +268,35 @@ _MAX_PROVIDER_RESPONSE_CHARS = 32_000
 
 
 def patient_chat_remote_enabled(settings: Any) -> bool:
-    """Require an explicit opt-in and never permit remote patient chat in prod."""
+    """Keep every patient-answer provider path disabled in this beta build."""
 
-    if getattr(settings, "ai_patient_chat_remote_enabled", False) is not True:
-        return False
-    runtime = string_setting(settings, "ai_service_runtime", "non-local").casefold()
-    if runtime in {"prod", "production"}:
-        return False
-    # Spring and FastAPI must both opt in, and the only allowed remote runtime
-    # is the isolated synthetic-beta canary.  Local/test callers deliberately
-    # stay on deterministic providers; provider-adapter tests use the same
-    # synthetic contract with a mocked client.
-    if getattr(settings, "ai_chat_remote_provider_enabled", False) is not True:
-        return False
-    if runtime not in {"synthetic-beta", "synthetic_beta"}:
-        return False
-    # Use an identity check here: lightweight test doubles often expose
-    # arbitrary attributes as ``MagicMock`` objects, which must not be
-    # interpreted as an enabled safety switch.
-    if getattr(settings, "remote_ai_kill_switch", False) is True:
-        return False
-    if getattr(settings, "remote_ai_synthetic_only", False) is not True:
-        return False
-    if str(getattr(settings, "rag_storage_backend", "memory")).casefold() != "supabase":
-        return False
-    if getattr(settings, "supabase_rag_fallback_to_memory", True) is True:
-        return False
-    provider = string_setting(settings, "ai_provider").casefold()
-    allowed = {
-        item.strip().casefold()
-        for item in string_setting(settings, "remote_ai_provider_allowlist", "deepseek").split(",")
-        if item.strip()
-    }
-    if provider not in allowed:
-        return False
-    parsed = urlparse(string_setting(settings, "ai_base_url"))
-    hosts = {
-        item.strip().casefold()
-        for item in string_setting(settings, "remote_ai_https_host_allowlist", "api.deepseek.com").split(",")
-        if item.strip()
-    }
-    if parsed.scheme.casefold() != "https" or not parsed.hostname or parsed.hostname.casefold() not in hosts:
-        return False
-    return True
+    del settings
+    return False
 
 
 def contains_prompt_injection(value: str) -> bool:
     """Return whether untrusted text contains a known instruction override."""
 
     normalized = _normalize_sensitive_text(value)
-    return any(_normalize_sensitive_text(term) in normalized for term in _INJECTION_TERMS)
+    return (
+        any(_normalize_sensitive_text(term) in normalized for term in _INJECTION_TERMS)
+        or bool(_INSTRUCTIONAL_EXFIL_PATTERN.search(normalized))
+        or bool(_REQUEST_EXFIL_PATTERN.search(normalized))
+        or bool(_ASKED_EXFIL_PATTERN.search(normalized))
+        or bool(_QUESTION_EXFIL_PATTERN.search(normalized))
+        or bool(_VIETNAMESE_EXFIL_OBJECT_PATTERN.search(normalized))
+        or bool(_SAFEGUARD_BYPASS_PATTERN.search(normalized))
+        or bool(_UNRESTRICTED_ASSISTANT_PATTERN.search(normalized))
+    )
 
 
 def _normalize_sensitive_text(value: str) -> str:
-    compatibility = unicodedata.normalize("NFKC", value).translate(_VIETNAMESE_D_TRANSLATION)
+    # Strip markup and decode entities before policy matching so an
+    # instruction cannot evade the gate by splitting it across HTML tags.
+    # Input schemas cap text at 10k, so an unbounded tag body remains bounded
+    # while avoiding a length-based bypass with a deliberately long attribute.
+    markup_free = re.sub(r"<[^>]*>", " ", html.unescape(value))
+    compatibility = unicodedata.normalize("NFKC", markup_free).translate(_VIETNAMESE_D_TRANSLATION)
     without_diacritics = "".join(
         character
         for character in unicodedata.normalize("NFKD", compatibility)
@@ -195,9 +308,19 @@ def _normalize_sensitive_text(value: str) -> str:
 def chat_contains_sensitive_data(
     message: str,
     recent_turns: Sequence[tuple[str, str]] = (),
+    *,
+    allow_public_operational: bool = False,
 ) -> bool:
     combined = "\n".join([*(content for _, content in recent_turns), message])
     normalized = _normalize_sensitive_text(combined)
+    if allow_public_operational:
+        # Branch/catalog projections may legitimately contain public phone
+        # numbers and street addresses.  Mask only those well-formed public
+        # contact fields before running the normal PII detector; identifiers,
+        # dates, medical IDs, prompt injection and identity context remain
+        # blocked.  The caller must separately prove the closed operational
+        # projection marker before enabling this narrow exception.
+        normalized = _mask_public_operational_fields(normalized)
     return bool(
         _EMAIL_PATTERN.search(normalized)
         or _PHONE_PATTERN.search(normalized)
@@ -205,6 +328,11 @@ def chat_contains_sensitive_data(
         or _UUID_PATTERN.search(normalized)
         or _MEDICAL_RECORD_ID_PATTERN.search(normalized)
         or _APPOINTMENT_ID_PATTERN.search(normalized)
+        or _LONG_NUMERIC_IDENTIFIER_PATTERN.search(normalized)
+        or _NUMERIC_DATE_PATTERN.search(normalized)
+        or _PASSPORT_PATTERN.search(normalized)
+        or _INSURANCE_IDENTIFIER_PATTERN.search(normalized)
+        or _OPAQUE_ID_PATTERN.search(normalized)
         or _STREET_ADDRESS_PATTERN.search(normalized)
         or _VIETNAMESE_ADDRESS_PATTERN.search(normalized)
         or any(term in normalized for term in _IDENTITY_CONTEXT_TERMS)
@@ -214,10 +342,137 @@ def chat_contains_sensitive_data(
     )
 
 
-def context_contains_sensitive_data(context: Sequence[str]) -> bool:
+def _mask_public_operational_fields(value: str) -> str:
+    """Remove only public contact/address patterns from trusted catalog text."""
+
+    masked = _INTERNATIONAL_PHONE_PATTERN.sub(" public operational contact ", value)
+    masked = _PHONE_PATTERN.sub(" public operational contact ", masked)
+    masked = _STREET_ADDRESS_PATTERN.sub(" public operational address ", masked)
+    masked = _VIETNAMESE_ADDRESS_PATTERN.sub(" public operational address ", masked)
+    return masked
+
+
+def contains_sensitive_or_injection(
+    value: str,
+    *,
+    allow_public_operational: bool = False,
+) -> bool:
+    """Shared fail-closed gate for any text that could leave the service."""
+
+    return (
+        chat_contains_sensitive_data(value, allow_public_operational=allow_public_operational)
+        or contains_prompt_injection(value)
+    )
+
+
+def context_contains_sensitive_data(
+    context: Sequence[str],
+    *,
+    allow_public_operational: bool = False,
+) -> bool:
     """Fail closed if retrieved context contains identity or clinical markers."""
 
-    return any(chat_contains_sensitive_data(item) for item in context if isinstance(item, str))
+    return any(
+        chat_contains_sensitive_data(item, allow_public_operational=allow_public_operational)
+        for item in context
+        if isinstance(item, str)
+    )
+
+
+def context_contains_unsafe_data(
+    context: Sequence[str],
+    *,
+    allow_public_operational: bool = False,
+) -> bool:
+    """Fail closed for PII or instruction-like text in provider context."""
+
+    return any(
+        contains_sensitive_or_injection(
+            item,
+            allow_public_operational=allow_public_operational,
+        )
+        for item in context
+        if isinstance(item, str)
+    )
+
+
+def remote_text_output_is_safe(
+    value: str,
+    *,
+    allow_public_operational: bool = False,
+) -> bool:
+    """Reject provider-created PII, authority claims, actions, and markup."""
+
+    if any(ord(character) < 0x20 and character not in {"\n", "\r", "\t"} for character in value):
+        return False
+    if re.search(r"<[^>]*>", value):
+        return False
+    normalized = _normalize_sensitive_text(value)
+    return not (
+        contains_sensitive_or_injection(
+            value,
+            allow_public_operational=allow_public_operational,
+        )
+        or _REMOTE_OUTPUT_FORBIDDEN_PATTERN.search(normalized)
+    )
+
+
+def remote_answer_is_grounded(
+    answer: str,
+    context: Sequence[str],
+    *,
+    allow_public_operational: bool = False,
+) -> bool:
+    """Apply a conservative lexical/numeric grounding check to remote text."""
+
+    if not context:
+        return True
+    normalized_answer = _normalize_sensitive_text(answer)
+    normalized_context = _normalize_sensitive_text("\n".join(context))
+    if allow_public_operational:
+        context_phones = {
+            re.sub(r"\D", "", match.group(0))
+            for pattern in (_INTERNATIONAL_PHONE_PATTERN, _PHONE_PATTERN)
+            for match in pattern.finditer(normalized_context)
+        }
+        answer_phones = {
+            re.sub(r"\D", "", match.group(0))
+            for pattern in (_INTERNATIONAL_PHONE_PATTERN, _PHONE_PATTERN)
+            for match in pattern.finditer(normalized_answer)
+        }
+        if not answer_phones.issubset(context_phones):
+            return False
+        contact_claims = {
+            re.sub(r"\D", "", match.group("number"))
+            for match in _PUBLIC_CONTACT_CLAIM_PATTERN.finditer(normalized_answer)
+        }
+        if not contact_claims.issubset(context_phones):
+            return False
+        claim_starts = {
+            *(match.start() for match in _PUBLIC_LOCATION_KEYWORD_PATTERN.finditer(normalized_answer)),
+            *(match.end() for match in _PUBLIC_LOCATION_INTRO_PATTERN.finditer(normalized_answer)),
+        }
+        for start in claim_starts:
+            tail = normalized_answer[start:]
+            claim = re.split(r"[,.;:\n]", tail, maxsplit=1)[0].strip()
+            if claim and claim not in normalized_context:
+                return False
+    if any(number not in normalized_context for number in _GROUNDING_NUMBER_PATTERN.findall(normalized_answer)):
+        return False
+    answer_tokens = {
+        token
+        for token in _GROUNDING_TOKEN_PATTERN.findall(normalized_answer)
+        if token not in _GROUNDING_STOPWORDS
+    }
+    context_tokens = set(_GROUNDING_TOKEN_PATTERN.findall(normalized_context))
+    if allow_public_operational:
+        # Branch facts are closed catalog data. Every non-present content token
+        # must be a small presentation connector; generic lexical overlap is
+        # insufficient because it would allow invented hours, services,
+        # amenities, accreditation, or proximity claims.
+        if answer_tokens - context_tokens - _PUBLIC_OPERATIONAL_CONNECTOR_TOKENS:
+            return False
+    return len(answer_tokens.intersection(context_tokens)) >= 2
 
 
 def chat_safety_response(
@@ -228,7 +483,7 @@ def chat_safety_response(
 
     combined = "\n".join([*(content for _, content in recent_turns), message])
     normalized = _normalize_sensitive_text(combined)
-    if any(_normalize_sensitive_text(term) in normalized for term in _INJECTION_TERMS):
+    if contains_prompt_injection(combined):
         return ChatResponse(
             answer=(
                 "Tôi không thể cung cấp chỉ dẫn hệ thống, thông tin xác thực hoặc cấu hình "
@@ -272,7 +527,7 @@ def _triage_requires_local(symptoms: str) -> bool:
 
     normalized = _normalize_sensitive_text(symptoms)
     protected_terms = (*_INJECTION_TERMS, *_EMERGENCY_TERMS, *_UNSUPPORTED_CLINICAL_TERMS)
-    return chat_contains_sensitive_data(symptoms) or any(
+    return chat_contains_sensitive_data(symptoms) or contains_prompt_injection(symptoms) or any(
         _normalize_sensitive_text(term) in normalized for term in protected_terms
     )
 
@@ -495,6 +750,7 @@ def _validated_llm_response(
     fallback: TriageResponse,
     *,
     fallback_allowed: bool = True,
+    context: Sequence[str] = (),
 ) -> TriageResponse:
     """Accept only the strict structured recommendation contract."""
 
@@ -508,6 +764,14 @@ def _validated_llm_response(
     questions = [question for question in candidate.suggested_questions if question][:3]
     if not questions:
         questions = fallback.suggested_questions
+    provider_text = "\n".join([candidate.clinical_advice, *questions])
+    if not remote_text_output_is_safe(provider_text) or not remote_answer_is_grounded(
+        provider_text,
+        context,
+    ):
+        if fallback_allowed:
+            return fallback
+        raise ProviderUnavailable()
     return TriageResponse(
         recommended_specialty=candidate.recommended_specialty,
         urgency_level=candidate.urgency_level,
@@ -527,7 +791,7 @@ def deepseek_triage(
     """Ask an OpenAI-compatible provider with explicit runtime policy."""
 
     fallback = rule_based_triage(symptoms).model_copy(update={"provenance": "local_fallback"})
-    if _triage_requires_local(symptoms) or context_contains_sensitive_data(context):
+    if _triage_requires_local(symptoms) or context_contains_unsafe_data(context):
         return fallback
     allow_fallback = runtime_allows_local_fallback(settings)
     # Triage is an independently callable endpoint, so it must enforce the
@@ -535,9 +799,7 @@ def deepseek_triage(
     # configured DeepSeek key could send non-synthetic triage text directly to
     # the provider even when patient-chat remote access is disabled.
     if not synthetic_beta or not patient_chat_remote_enabled(settings):
-        if allow_fallback:
-            return fallback
-        raise ProviderUnavailable()
+        return fallback
     client = client or build_llm_client(settings)
     if client is None:
         if allow_fallback:
@@ -561,6 +823,7 @@ def deepseek_triage(
             data,
             fallback,
             fallback_allowed=allow_fallback,
+            context=context,
         )
         if response.provenance == "local_fallback":
             return response
@@ -582,14 +845,12 @@ def resolve_triage(
     *,
     synthetic_beta: bool = False,
 ) -> TriageResponse:
-    if _triage_requires_local(symptoms) or context_contains_sensitive_data(context):
+    if _triage_requires_local(symptoms) or context_contains_unsafe_data(context):
         return rule_based_triage(symptoms).model_copy(update={"provenance": "local_fallback"})
     remote_requested = remote_provider_requested(settings, "ai_provider", LOCAL_CHAT_PROVIDERS)
     if remote_requested:
         if not synthetic_beta or not patient_chat_remote_enabled(settings):
-            if runtime_allows_local_fallback(settings):
-                return rule_based_triage(symptoms).model_copy(update={"provenance": "local_fallback"})
-            raise ProviderUnavailable()
+            return rule_based_triage(symptoms).model_copy(update={"provenance": "local_fallback"})
         client = build_llm_client(settings)
         if client is None and not runtime_allows_local_fallback(settings):
             raise ProviderUnavailable()
@@ -628,6 +889,7 @@ def resolve_chat(
     used_sources: Sequence[UsedSource] = (),
     client: LLMClient | None = None,
     synthetic_beta: bool = False,
+    allow_public_operational: bool = False,
 ) -> ChatResponse:
     """Resolve a bounded chat request without accepting model-created citations."""
 
@@ -637,7 +899,10 @@ def resolve_chat(
 
     fallback_allowed = runtime_allows_local_fallback(settings)
     fallback = _chat_fallback(message, context)
-    if context_contains_sensitive_data(context):
+    if context_contains_unsafe_data(
+        context,
+        allow_public_operational=allow_public_operational,
+    ):
         return ChatResponse(answer=fallback, provenance="local_fallback", used_sources=list(used_sources))
     if not synthetic_beta or not patient_chat_remote_enabled(settings):
         return ChatResponse(answer=fallback, provenance="local_fallback", used_sources=list(used_sources))
@@ -668,9 +933,24 @@ def resolve_chat(
         answer = data.get("answer") if isinstance(data, dict) else None
         if not isinstance(answer, str) or not answer.strip() or len(answer.strip()) > 4_000:
             raise ValueError("invalid chat response")
+        answer = answer.strip()
+        if not remote_text_output_is_safe(
+            answer,
+            allow_public_operational=allow_public_operational,
+        ) or not remote_answer_is_grounded(
+            answer,
+            context,
+            allow_public_operational=allow_public_operational,
+        ):
+            return ChatResponse(
+                answer=fallback,
+                provenance="local_fallback",
+                safety_action=ChatSafetyAction.INSUFFICIENT_EVIDENCE,
+                used_sources=list(used_sources),
+            )
         _record_provider_success()
         return ChatResponse(
-            answer=answer.strip(),
+            answer=answer,
             citations=list(citations),
             provenance="remote_provider",
             used_sources=list(used_sources),

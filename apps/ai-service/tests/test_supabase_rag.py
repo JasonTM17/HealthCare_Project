@@ -153,6 +153,18 @@ def test_upsert_is_parameterized_and_revision_guarded() -> None:
     assert connection.closed is True
 
 
+def test_health_probe_checks_protected_projection_without_reading_content() -> None:
+    cursor = FakeCursor(one=(False,))
+    connection = FakeConnection(cursor)
+    store = SupabaseRagStore(_config(), connection_factory=lambda _dsn, _timeout: connection)
+
+    assert store.health_probe() is True
+    sql, params = cursor.executed[0]
+    assert "select exists" in sql.lower()
+    assert "ai_chat_documents" in sql
+    assert params is None
+
+
 def test_search_maps_rpc_rows_to_citations_without_needing_raw_vectors() -> None:
     profile_cursor = FakeCursor(many=[("local-hash", "local_provider")])
     row = (
@@ -277,7 +289,6 @@ def test_stale_upsert_rejected_by_durable_tombstone_cannot_resurrect_memory() ->
             return tombstone
 
     service = PersistentRagService(RejectingStore(), fallback_to_memory=False)  # type: ignore[arg-type]
-    service.index.add(_document())
     service.ingest(
         "specialty",
         "cardio",

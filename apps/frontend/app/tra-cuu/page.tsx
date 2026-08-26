@@ -7,8 +7,9 @@ import { PublicAiButton, PublicBookingButton, PublicPageShell } from "../../comp
 import useDialogFocus from "../../components/useDialogFocus";
 import { AppointmentDetails } from "../../types/hospital";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "/api/v1";
+// Lookup/cancellation must use the same-origin proxy, just like the rest of
+// the patient portal.  The backend origin remains server-only in Next config.
+const API_BASE_URL = "/api/v1";
 const LOOKUP_TIMEOUT_MS = 12_000;
 
 const TRACKING_STEPS = [

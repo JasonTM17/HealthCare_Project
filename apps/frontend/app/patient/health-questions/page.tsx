@@ -6,6 +6,7 @@ import PortalChrome from "../../../components/PortalChrome";
 import { EmptyState, ErrorState, ForbiddenState, LoadingState, LoginRequiredState } from "../../../components/PortalStates";
 import { useAuthSession } from "../../../components/useAuthSession";
 import { ApiError, createPatientHealthQuestion, fetchPatientHealthQuestions, hasRole } from "../../../lib/api-client";
+import { presentApiError } from "../../../lib/present-api-error";
 import type { HealthQuestionSummary } from "../../../types/hospital";
 
 const statusLabels: Record<string, string> = {
@@ -107,7 +108,10 @@ export default function PatientHealthQuestionsPage() {
           <label className="grid gap-1 text-sm font-bold" htmlFor="health-question-body">Câu hỏi
             <textarea id="health-question-body" className="min-h-32 rounded-lg border border-slate-300 p-3" maxLength={4000} onChange={(event) => setQuestion(event.target.value)} placeholder="Mô tả ngắn gọn điều bạn muốn bệnh viện giải thích…" value={question} />
           </label>
-          {createError ? <p aria-live="assertive" className="error-banner" role="alert">{createError instanceof ApiError ? createError.message : "Không thể gửi câu hỏi."}</p> : null}
+          {createError ? <p aria-live="assertive" className="error-banner" role="alert">{presentApiError(
+            createError instanceof ApiError ? createError.code : null,
+            createError instanceof ApiError ? createError.status : undefined,
+          )}</p> : null}
           <button className="button button--primary w-fit" disabled={creating || !topicSlug.trim() || !question.trim() || !publicAlias.trim()} onClick={() => void create()} type="button">{creating ? "Đang gửi…" : "Gửi để kiểm duyệt"}</button>
         </section>
 

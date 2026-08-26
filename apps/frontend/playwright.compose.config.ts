@@ -1,6 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000";
+const browserChannel = process.env.PLAYWRIGHT_BROWSER_CHANNEL as
+  | "chrome"
+  | "msedge"
+  | undefined;
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -15,6 +19,7 @@ export default defineConfig({
     baseURL,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
+    ...(browserChannel ? { channel: browserChannel } : {}),
   },
   projects: [
     {

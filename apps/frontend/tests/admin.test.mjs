@@ -33,7 +33,9 @@ test("admin FAQ editing keeps AI review governance visible", async () => {
 test("admin layout gates access and exposes real account actions", async () => {
   const layout = await source("layout.tsx");
 
-  assert.match(layout, /healthcare\.auth\.session/);
+  assert.match(layout, /useAuthSessionStatus/);
+  assert.match(layout, /hydrateAuthSession/);
+  assert.match(layout, /AUTH_SESSION_INDETERMINATE_MESSAGE/);
   assert.match(layout, /ADMIN/);
   assert.match(layout, /unauthenticated/);
   assert.match(layout, /forbidden/);
@@ -42,6 +44,7 @@ test("admin layout gates access and exposes real account actions", async () => {
   assert.match(layout, /\/auth\/login\?next=%2Fadmin/);
   assert.match(layout, /href="#main-content"/);
   assert.match(layout, /id="main-content"/);
+  assert.doesNotMatch(layout, /healthcare\.auth\.session|sessionStorage|localStorage/);
   assert.doesNotMatch(layout, /Backend kiểm tra quyền ADMIN|Bản demo local/);
 });
 

@@ -67,7 +67,10 @@ slots in `app/page.tsx` and mounts `homepage.footer` through
 `components/Footer.tsx`. The admin content screen offers a public route
 directory plus inventory quick selections before allowing a manual slug entry.
 
-Set `NEXT_PUBLIC_CMS_API_BASE_URL` to the API base (including `/api/v1`). Admin
-requests can receive a bearer token through the `CmsClient` option and also
-send same-origin credentials for cookie sessions. The direct admin editor is
-available at `/admin/content`.
+The browser always uses the same-origin `/api/v1` path. The Next.js Route
+Handler BFF forwards that path on the server using the private
+`BACKEND_INTERNAL_URL`; do not configure a `NEXT_PUBLIC_*` API-base variable
+because it would bypass the proxy and expose the backend boundary to every
+client bundle. Admin requests use same-origin credentials for the opaque
+HttpOnly browser session; bearer tokens are not a browser contract. The direct
+admin editor is available at `/admin/content`.

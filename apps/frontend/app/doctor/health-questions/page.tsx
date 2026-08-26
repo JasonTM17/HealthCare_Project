@@ -11,6 +11,7 @@ import {
   doctorListHealthQuestions,
   hasRole,
 } from "../../../lib/api-client";
+import { presentApiError } from "../../../lib/present-api-error";
 import type { HealthQuestionSummary } from "../../../types/hospital";
 
 type Decision = "APPROVE" | "REQUEST_CHANGES" | "REVOKE";
@@ -42,7 +43,10 @@ export default function DoctorHealthQuestionsPage() {
       setItems(next);
       setDrafts((current) => Object.fromEntries(next.map((item) => [item.id, current[item.id] ?? ""])));
     } catch (cause) {
-      setError(cause instanceof ApiError ? cause.message : "Không thể tải hàng đợi hỏi đáp.");
+      setError(presentApiError(
+        cause instanceof ApiError ? cause.code : null,
+        cause instanceof ApiError ? cause.status : undefined,
+      ));
     } finally {
       setLoading(false);
     }
@@ -67,7 +71,10 @@ export default function DoctorHealthQuestionsPage() {
       setNotice(success);
       setReloadToken((value) => value + 1);
     } catch (cause) {
-      setError(cause instanceof ApiError ? cause.message : "Không thể cập nhật câu hỏi.");
+      setError(presentApiError(
+        cause instanceof ApiError ? cause.code : null,
+        cause instanceof ApiError ? cause.status : undefined,
+      ));
     } finally {
       setBusy(null);
     }

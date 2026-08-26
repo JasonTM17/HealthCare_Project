@@ -28,6 +28,20 @@ public class DoctorConsultationController {
         return service.detail(id, principal);
     }
 
+    @GetMapping("/{id}/messages")
+    public ConsultationContracts.MessagePage messages(@PathVariable UUID id,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "50") int limit,
+            @AuthenticationPrincipal UserDetails principal) {
+        return service.messages(id, principal, cursor, limit);
+    }
+
+    @GetMapping("/{id}/handoff-directory")
+    public List<ConsultationContracts.HandoffDoctor> handoffDirectory(
+            @PathVariable UUID id, @AuthenticationPrincipal UserDetails principal) {
+        return service.handoffDirectory(id, principal);
+    }
+
     @PostMapping("/{id}/messages")
     public ConsultationContracts.Message send(@PathVariable UUID id,
             @Valid @RequestBody ConsultationContracts.MessageRequest request,
@@ -36,12 +50,40 @@ public class DoctorConsultationController {
         return service.send(id, request, idempotencyKey, principal);
     }
 
+    @PostMapping("/{id}/resolve")
+    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
+    public void resolve(@PathVariable UUID id, @AuthenticationPrincipal UserDetails principal) {
+        service.resolve(id, principal);
+    }
+
+    @PostMapping("/{id}/reopen")
+    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
+    public void reopen(@PathVariable UUID id, @AuthenticationPrincipal UserDetails principal) {
+        service.reopen(id, principal);
+    }
+
     @PostMapping("/{id}/read")
     @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
     public void read(@PathVariable UUID id,
                      @RequestBody(required = false) ConsultationContracts.ReadRequest request,
                      @AuthenticationPrincipal UserDetails principal) {
         service.markRead(id, request, principal);
+    }
+
+    /** Only a participating doctor may obtain a short-lived URL for a CLEAN attachment. */
+    @GetMapping("/{id}/attachments/{attachmentId}")
+    public ConsultationContracts.Attachment attachmentStatus(
+            @PathVariable UUID id, @PathVariable UUID attachmentId,
+            @AuthenticationPrincipal UserDetails principal) {
+        return service.attachmentStatus(id, attachmentId, principal);
+    }
+
+    /** Only a participating doctor may obtain a short-lived URL for a CLEAN attachment. */
+    @GetMapping("/{id}/attachments/{attachmentId}/download")
+    public ConsultationContracts.Attachment downloadAttachment(
+            @PathVariable UUID id, @PathVariable UUID attachmentId,
+            @AuthenticationPrincipal UserDetails principal) {
+        return service.downloadIntent(id, attachmentId, principal);
     }
 
     @PutMapping("/{id}/handoff")

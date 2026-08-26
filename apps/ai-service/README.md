@@ -78,7 +78,7 @@ AI_PATIENT_CHAT_REMOTE_ENABLED=false
 AI_CHAT_REMOTE_PROVIDER_ENABLED=false
 AI_SERVICE_RUNTIME=local
 REMOTE_AI_SYNTHETIC_ONLY=true
-REMOTE_AI_KILL_SWITCH=false
+REMOTE_AI_KILL_SWITCH=true
 REMOTE_AI_PROVIDER_ALLOWLIST=deepseek
 REMOTE_AI_HTTPS_HOST_ALLOWLIST=api.deepseek.com
 AI_CHAT_CIRCUIT_FAILURE_THRESHOLD=3
@@ -109,13 +109,15 @@ model. Keep `EMBEDDING_PROVIDER=local` and the deterministic 384-dimensional
 `local-hash` profile for local/test and for the initial Supabase projection.
 Only switch to a remote embedding provider after its endpoint, dimension,
 model provenance, privacy review, and negative-PII tests have been approved.
-Remote patient chat requires a synthetic-beta runtime, `AI_PROVIDER=deepseek`,
-`AI_PATIENT_CHAT_REMOTE_ENABLED=true`, `RAG_STORAGE_BACKEND=supabase`, and
-`SUPABASE_RAG_FALLBACK_TO_MEMORY=false`. The Spring provenance switch
-`AI_CHAT_REMOTE_PROVIDER_ENABLED` is a second independent gate. Production
-startup rejects the combination and `REMOTE_AI_KILL_SWITCH=true` disables it;
-local/test defaults never call DeepSeek. Every generate request in the
-synthetic-beta runtime must carry the internal `synthetic_beta=true` assertion.
+Remote patient-answer egress is **HOLD in this build**. Startup rejects either
+`AI_PATIENT_CHAT_REMOTE_ENABLED=true` or
+`AI_CHAT_REMOTE_PROVIDER_ENABLED=true`, and the runtime patient-chat gate also
+returns false defensively. The OpenAI-compatible adapters remain only for
+isolated provider-contract tests and non-patient experimentation; they are not
+an authorization path for patient text. The synthetic beta therefore uses the
+grounded local provider with the deterministic 384-dimensional embedding
+profile. Enabling a future DeepSeek canary requires a separately reviewed code
+change in addition to provider/privacy evidence and the synthetic-only guard.
 
 Embedding vectors are capped at 4,096 dimensions. Indexed documents retain
 their embedding model and provenance, reject mixed model/provenance/dimension
@@ -124,21 +126,18 @@ contracts, and are bounded by `RAG_MAX_DOCUMENTS` (10,000 by default). The
 `next_cursor`, `complete`, and `total` metadata on paged requests; callers must
 not treat a single 5,000-row page as a complete snapshot.
 
-Provider calls use no automatic retries and a bounded timeout of at most 60
-seconds. In `local`,
-`demo`, or `test` runtime, a remote provider error may return deterministic
-output only with `provenance: "local_fallback"`. In every other runtime, a
-selected remote provider that is missing or unavailable fails with HTTP 503;
-local output is never presented as a successful remote result. `/health`
-returns HTTP 503 when authentication or selected-provider readiness is not
-valid, including a degraded local fallback mode. No remote liveness probe is
-performed: a configured remote provider reports `remote_probe_required: true`
-and remains unready until a bounded probe is added. Patient text and secrets
-are not logged.
+Provider adapters use no automatic retries and a bounded timeout of at most 60
+seconds. Patient chat and triage always resolve through the local provider in
+this build; local output is never presented as a successful remote result.
+`/health` returns HTTP 503 when authentication or the selected non-patient
+provider readiness is not valid. No remote liveness probe is performed: a
+configured remote provider reports `remote_probe_required: true` and remains
+unready until a bounded probe is added. Patient text and secrets are not
+logged.
 
-Patient conversation requests are local-only by default, independently of the
-provider chosen for non-patient AI routes. Enabling remote patient chat requires
-`AI_PATIENT_CHAT_REMOTE_ENABLED=true` plus an approved provider/privacy contract.
+Patient conversation requests are local-only, independently of the provider
+chosen for non-patient AI routes. The two patient remote flags are fail-closed
+configuration errors rather than feature toggles in this release.
 Email addresses, phone numbers, UUID-like identifiers, access tokens and
 sensitive clinical markers are rejected before any remote call. A bounded
 circuit opens after repeated provider failures. Spring remains the only owner

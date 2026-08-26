@@ -41,15 +41,21 @@ test("AI specialty identity fails closed when the live booking catalog is stale"
 
 test("branch two selection resets slot identity and passes the selected branch to hold", async () => {
   const source = await readFile(modalPath, "utf8");
+  const branchHandler = source.slice(
+    source.indexOf("const handleBranchChange"),
+    source.indexOf("const handleDoctorChange"),
+  );
 
   assert.match(source, /const handleBranchChange = \(branchId: string\)/);
+  assert.match(source, /if \(branchId === selectedBranch\) return/);
   assert.match(source, /doctors\.find\(\(doctor\) =>[\s\S]*doctorMatchesBranch\(doctor, branchId\)/);
   assert.match(source, /doctor\.branchIds\.includes\(branchId\)/);
   assert.match(source, /doctorMatchesSpecialty\(doctor, currentSpecialty\)/);
-  assert.match(source, /fetchDoctorSlots\(selectedDoctor, selectedBranch, selectedDate\)/);
+  assert.match(source, /fetchDoctorSlots\([\s\S]*slotQueryIdentity\.doctorId,[\s\S]*slotQueryIdentity\.branchId,[\s\S]*slotQueryIdentity\.date,[\s\S]*signal/);
+  assert.match(source, /normalizeBookingSlotQueryIdentity\(selectedDoctor, selectedBranch, selectedDate\)/);
   assert.match(source, /branchId: selectedBranch/);
   assert.match(source, /chosenSlot\.branchId !== selectedBranch/);
-  assert.match(source, /setSelectedSlot\(""\)/);
+  assert.doesNotMatch(branchHandler, /setSlots|setSlotQueryState|setSelectedSlot/);
 });
 
 test("booking invalidates pending responses across navigation and labels patient fields", async () => {

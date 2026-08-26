@@ -7,8 +7,8 @@ const read = (relativePath) => readFile(new URL(`../${relativePath}`, import.met
 test("public navbar exposes role-aware account entry points", async () => {
   const navbar = await read("components/Navbar.tsx");
 
-  assert.match(navbar, /readAuthSession/);
-  assert.match(navbar, /subscribeToAuthSession/);
+  assert.match(navbar, /useAuthSession/);
+  assert.doesNotMatch(navbar, /readAuthSession|subscribeToAuthSession/);
   assert.match(navbar, /hasRole\(session\.user, "PATIENT"\)/);
   assert.match(navbar, /\/patient\/dashboard/);
   assert.match(navbar, /\/doctor\/dashboard/);

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import type { AuthUser } from "../types/hospital";
-import { logoutCurrentUser } from "../lib/api-client";
+import { logoutCurrentUser, SAFE_LOGOUT_ERROR_MESSAGE } from "../lib/api-client";
 import UiIcon from "./UiIcon";
 
 export type PortalRole = "PATIENT" | "DOCTOR";
@@ -24,6 +24,7 @@ export default function PortalChrome({ role, user, children }: PortalChromeProps
   const pathname = usePathname();
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
   const homePath = role === "PATIENT" ? "/patient/dashboard" : "/doctor/dashboard";
   const links = role === "PATIENT"
     ? [
@@ -49,13 +50,20 @@ export default function PortalChrome({ role, user, children }: PortalChromeProps
   );
 
   const handleLogout = async () => {
+    if (loggingOut) return;
     setLoggingOut(true);
+    setLogoutError(null);
     try {
-      await logoutCurrentUser();
+      const outcome = await logoutCurrentUser();
+      if (outcome.status === "LOGGED_OUT") {
+        router.replace("/auth/login");
+      } else {
+        setLogoutError(SAFE_LOGOUT_ERROR_MESSAGE);
+      }
     } catch {
-      // logoutCurrentUser clears the browser session even when remote sign-out is unavailable.
+      setLogoutError(SAFE_LOGOUT_ERROR_MESSAGE);
     } finally {
-      router.replace("/auth/login");
+      setLoggingOut(false);
     }
   };
 
@@ -91,9 +99,12 @@ export default function PortalChrome({ role, user, children }: PortalChromeProps
               <strong>{user.displayName}</strong>
               <span>{user.email}</span>
             </div>
-            <button className="outline-button outline-button--small" disabled={loggingOut} onClick={handleLogout} type="button">
-              {loggingOut ? "Đang thoát..." : "Đăng xuất"}
-            </button>
+            <div className="grid max-w-xs justify-items-end gap-1">
+              <button className="outline-button outline-button--small" disabled={loggingOut} onClick={handleLogout} type="button">
+                {loggingOut ? "Đang thoát..." : "Đăng xuất"}
+              </button>
+              {logoutError ? <p aria-live="polite" className="text-right text-xs font-semibold leading-5 text-amber-800" role="status">{logoutError}</p> : null}
+            </div>
           </div>
         </div>
       </header>

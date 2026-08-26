@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactElement } from 
 import { PublicAiButton, PublicBackLink, PublicBookingButton, PublicPageShell } from "../../components/PublicPageShell";
 import Icon from "../../components/UiIcon";
 import {
+  ApiError,
   fetchArticles,
   fetchAllContent,
   fetchDoctors,
@@ -14,6 +15,7 @@ import {
   fetchServices,
   fetchSpecialties,
 } from "../../lib/api-client";
+import { presentApiError } from "../../lib/present-api-error";
 import { useAuthSession } from "../../components/useAuthSession";
 import type { AiTriageCitation, Article, Doctor, HealthPackage, MedicalService, SemanticSearchResponse, Specialty } from "../../types/hospital";
 
@@ -127,7 +129,12 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
           : null);
       })
       .catch((reason: unknown) => {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : "Không thể tải catalog tìm kiếm.");
+        if (!cancelled) {
+          setError(presentApiError(
+            reason instanceof ApiError ? reason.code : null,
+            reason instanceof ApiError ? reason.status : undefined,
+          ));
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

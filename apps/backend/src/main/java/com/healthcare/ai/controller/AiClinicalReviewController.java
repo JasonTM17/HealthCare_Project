@@ -39,6 +39,16 @@ public class AiClinicalReviewController {
         return ResponseEntity.ok(service.submit(type, id, request.revision(), request.contentHash(), principal));
     }
 
+    @GetMapping("/admin/ai-content")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Map<String, Object>> adminInventory(
+            @RequestParam(required = false) String type,
+            @RequestParam(defaultValue = "ALL") String state,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(service.adminQueuePage(type, state, page, size));
+    }
+
     @GetMapping("/doctor/ai-content/reviews")
     @PreAuthorize("hasRole('DOCTOR')")
     public ResponseEntity<Map<String, Object>> queue(

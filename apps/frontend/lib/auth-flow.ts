@@ -1,4 +1,5 @@
 import { ApiError } from "./api-client";
+import { presentApiError } from "./present-api-error";
 
 export type AuthFieldName =
   | "displayName"
@@ -21,13 +22,23 @@ const FIELD_ALIASES: Record<string, AuthFieldName> = {
   resetToken: "token",
 };
 
+const FIELD_ERROR_COPY: Record<AuthFieldName, string> = {
+  displayName: "Vui lòng kiểm tra lại họ tên.",
+  phone: "Vui lòng kiểm tra lại số điện thoại.",
+  email: "Vui lòng kiểm tra lại địa chỉ email.",
+  password: "Mật khẩu chưa đáp ứng yêu cầu bảo mật.",
+  confirmPassword: "Mật khẩu xác nhận chưa khớp.",
+  code: "Mã xác minh chưa hợp lệ.",
+  token: "Mã xác minh chưa hợp lệ hoặc đã hết hạn.",
+};
+
 export function authFieldErrors(error: unknown): AuthFieldErrors {
   if (!(error instanceof ApiError)) return {};
 
   return Object.fromEntries(
-    Object.entries(error.fieldErrors).flatMap(([key, message]) => {
+    Object.keys(error.fieldErrors).flatMap((key) => {
       const field = FIELD_ALIASES[key] ?? (key as AuthFieldName);
-      return message.trim() ? [[field, message.trim()]] : [];
+      return Object.hasOwn(FIELD_ERROR_COPY, field) ? [[field, FIELD_ERROR_COPY[field]]] : [];
     }),
   );
 }
@@ -54,10 +65,23 @@ export function authErrorMessage(error: unknown, fallback: string): string {
   if (error.status === 400 || error.status === 409 || error.status === 422) {
     return "Thông tin chưa hợp lệ hoặc đã được sử dụng. Vui lòng kiểm tra và thử lại.";
   }
-  return error.message.trim() || fallback;
+  return presentApiError(error.code, error.status);
 }
 
 export function safeAuthNextPath(value: string | null): string | null {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) return null;
+  if (!value || value.length > 2_048 || !value.startsWith("/") || value.startsWith("//")) return null;
+  let decoded = value;
+  try {
+    for (let pass = 0; pass < 2 && decoded.includes("%"); pass += 1) {
+      const next = decodeURIComponent(decoded);
+      if (next === decoded) break;
+      decoded = next;
+    }
+  } catch {
+    return null;
+  }
+  if (!decoded.startsWith("/") || decoded.startsWith("//") || /[\\\u0000-\u001f\u007f]/u.test(decoded)) {
+    return null;
+  }
   return value;
 }

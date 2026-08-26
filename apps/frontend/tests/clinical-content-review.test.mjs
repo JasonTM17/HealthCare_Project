@@ -50,3 +50,16 @@ test("doctor review queue and snapshot fetch fail closed on stale responses", as
   assert.match(doctor, /requestId !== revisionRequestRef\.current/);
   assert.match(api, /fetchDoctorAiContentRevision[\s\S]*options: \{ signal\?: AbortSignal \} = \{\}/);
 });
+
+test("doctor review queue exposes approved history and keeps decision states contract-correct", async () => {
+  const doctor = await read("app/doctor/ai-content-reviews/page.tsx");
+
+  assert.match(doctor, /QUEUE_STATES/);
+  assert.match(doctor, /"SUBMITTED", "APPROVED"/);
+  assert.match(doctor, /fetchDoctorAiContentReviews\(\{ state: requestedState \}\)/);
+  assert.match(doctor, /revision\.state === "SUBMITTED"/);
+  assert.match(doctor, /revision\.state === "APPROVED"/);
+  assert.match(doctor, /decision === "REVOKE"/);
+  assert.match(doctor, /availableDecisions/);
+  assert.doesNotMatch(doctor, /fetchDoctorAiContentReviews\(\{ state: "SUBMITTED" \}\)/);
+});
