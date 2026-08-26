@@ -921,20 +921,24 @@ class PersistentRagService(RagService):
                 assert normalized_projection is not None
                 projections = [normalized_projection]
             if len(projections) > 1 and hasattr(self.store, "tombstone_many"):
-                self.store.tombstone_many(  # type: ignore[attr-defined]
+                applied = self.store.tombstone_many(  # type: ignore[attr-defined]
                     source_type,
                     source_id,
                     revision,
                     projections=projections,
                 )
+                if applied != len(projections):
+                    raise SupabaseRagContractError("durable tombstone rejected")
             else:
                 for normalized_projection in projections:
-                    self.store.tombstone(
+                    applied = self.store.tombstone(
                         source_type,
                         source_id,
                         revision,
                         projection=normalized_projection,
                     )
+                    if not applied:
+                        raise SupabaseRagContractError("durable tombstone rejected")
             self.persistence_available = True
         except Exception as error:
             # A mutation cannot safely fall back after durable failure. Keep
