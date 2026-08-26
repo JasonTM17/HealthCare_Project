@@ -41,10 +41,46 @@ def test_index_empty_search_returns_empty() -> None:
 
 def test_service_ingest_and_remove() -> None:
     service = RagService()
-    service.ingest("specialty", "cardio", "Tim mạch", "Khám tim mạch.", [1.0, 0.0])
+    service.ingest("branch", "hcm", "Chi nhánh", "Khám tại cơ sở.", [1.0, 0.0])
     assert service.index.size == 1
-    service.remove("specialty", "cardio")
+    service.remove("branch", "hcm")
     assert service.index.size == 0
+
+
+def test_memory_service_rejects_projectionless_clinical_delete_without_revision() -> None:
+    service = RagService()
+    service.ingest("specialty", "cardio", "Tim mạch", "Khám tim mạch.", [1.0, 0.0])
+
+    with pytest.raises(ValueError, match="clinical delete requires a positive revision"):
+        service.remove("specialty", "cardio")
+
+    assert service.index.get("specialty:cardio") is not None
+
+
+def test_rag_delete_endpoint_rejects_unversioned_clinical_delete_before_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    local_service = RagService()
+    local_service.ingest(
+        "specialty",
+        "cardio",
+        "Tim mạch",
+        "Khám tim mạch.",
+        [1.0, 0.0],
+    )
+    monkeypatch.setattr("app.main.rag_service", local_service)
+    monkeypatch.setattr(settings, "rag_ingest_enabled", True)
+    monkeypatch.setattr(settings, "rag_ingest_token", "test-ingest-token")
+
+    response = client.post(
+        "/rag/delete",
+        json={"source_type": "specialty", "source_id": "cardio"},
+        headers={"X-RAG-Ingest-Token": "test-ingest-token"},
+    )
+
+    assert response.status_code == 422
+    assert "clinical delete requires a positive revision" in response.text
+    assert local_service.index.get("specialty:cardio") is not None
 
 
 def test_sync_revision_tombstone_rejects_stale_resurrection() -> None:
@@ -381,12 +417,12 @@ def test_ingest_normalizes_visible_content_and_reuses_embedding() -> None:
 
 def test_inactive_and_unpublished_documents_are_not_searchable() -> None:
     service = RagService()
-    service.ingest("specialty", "cardio", "Tim mạch", "Khám tim.", [1.0, 0.0])
+    service.ingest("branch", "hcm", "Chi nhánh", "Khám tại cơ sở.", [1.0, 0.0])
 
     inactive = service.ingest(
-        "specialty",
-        "cardio",
-        "Tim mạch",
+        "branch",
+        "hcm",
+        "Chi nhánh",
         "Khám tim.",
         active=False,
     )
@@ -402,6 +438,7 @@ def test_inactive_and_unpublished_documents_are_not_searchable() -> None:
         "Chưa công bố.",
         published=False,
         embedding=[1.0, 0.0],
+        metadata={"projection_kind": "OPERATIONAL"},
     )
     assert service.index.size == 0
 
@@ -548,10 +585,10 @@ def test_index_bounds_embedding_dimension_and_document_count() -> None:
 def test_rag_ingest_is_disabled_or_token_protected(monkeypatch: pytest.MonkeyPatch) -> None:
     rag_service.index = __import__("app.rag", fromlist=["RagIndex"]).RagIndex()
     payload = {
-        "source_type": "specialty",
-        "source_id": "cardio",
-        "title": "Tim mạch",
-        "content": "Khám tim mạch.",
+        "source_type": "branch",
+        "source_id": "hcm",
+        "title": "Chi nhánh",
+        "content": "Khám tại cơ sở.",
     }
     monkeypatch.setattr(settings, "rag_ingest_enabled", False)
     disabled = client.post("/rag/index", json=payload)
@@ -568,18 +605,18 @@ def test_rag_ingest_is_disabled_or_token_protected(monkeypatch: pytest.MonkeyPat
         headers={"X-RAG-Ingest-Token": "test-ingest-token"},
     )
     assert accepted.status_code == 200
-    assert accepted.json()["id"] == "specialty:cardio"
+    assert accepted.json()["id"] == "branch:hcm"
 
     sources = client.get(
         "/rag/sources",
         headers={"X-RAG-Ingest-Token": "test-ingest-token"},
     )
     assert sources.status_code == 200
-    assert sources.json()["sources"] == [{"source_type": "specialty", "source_id": "cardio"}]
+    assert sources.json()["sources"] == [{"source_type": "branch", "source_id": "hcm"}]
 
     deleted = client.post(
         "/rag/delete",
-        json={"source_type": "specialty", "source_id": "cardio"},
+        json={"source_type": "branch", "source_id": "hcm"},
         headers={"X-RAG-Ingest-Token": "test-ingest-token"},
     )
     assert deleted.status_code == 200
@@ -986,6 +1023,7 @@ def test_rag_ingest_skips_inactive_source(monkeypatch: pytest.MonkeyPatch) -> No
             "content": "Không được hiển thị.",
             "active": False,
             "published": False,
+            "metadata": {"projection_kind": "OPERATIONAL"},
         },
         headers={"X-RAG-Ingest-Token": "test-ingest-token"},
     )

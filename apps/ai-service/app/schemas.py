@@ -3,7 +3,7 @@
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 MAX_INPUT_CHARS = 10_000
@@ -367,6 +367,20 @@ class RAGDeleteRequest(BaseModel):
     source_id: str = Field(..., min_length=1, max_length=200, pattern=r"^[A-Za-z0-9._:-]+$")
     revision: int | None = Field(default=None, ge=0)
     projection_kind: ProjectionKind | None = None
+
+    @model_validator(mode="after")
+    def require_clinical_revision(self) -> "RAGDeleteRequest":
+        # A projection-less delete of governed source types is an
+        # all-projection operation, so it must carry the current database-owned
+        # eligibility revision. Explicit operational deletes remain usable by
+        # legacy writers without a clinical watermark.
+        clinical_source = self.source_type in {"specialty", "article", "faq"}
+        if (
+            self.projection_kind == "CLINICAL"
+            or (self.projection_kind is None and clinical_source)
+        ) and (self.revision is None or self.revision <= 0):
+            raise ValueError("clinical delete requires a positive revision")
+        return self
 
 
 class RAGDeleteResponse(BaseModel):

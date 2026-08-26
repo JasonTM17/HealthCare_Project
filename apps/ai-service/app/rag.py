@@ -22,6 +22,7 @@ from app.schemas import MAX_EMBEDDING_DIMENSION, ProviderProvenance, SOURCE_TYPE
 MAX_DOCUMENT_CHARS = 20_000
 MAX_RAG_DOCUMENTS = 5_000
 SYNC_REVISION_METADATA_KEY = "_sync_revision"
+CLINICAL_SOURCE_TYPES = frozenset({"specialty", "article", "faq"})
 _IGNORED_HTML_TAGS = frozenset({"script", "style", "noscript", "template"})
 _PROJECTION_METADATA_KEY = "projection_kind"
 _PROJECTION_KINDS = frozenset({"OPERATIONAL", "CLINICAL"})
@@ -619,10 +620,24 @@ class RagService:
         projection: str | None = None,
     ) -> None:
         normalized_projection = normalize_projection_kind(value=projection)
+        if projection is not None and normalized_projection is None:
+            raise ValueError("invalid projection kind")
+        if (
+            normalized_projection == "CLINICAL"
+            or (normalized_projection is None and source_type in CLINICAL_SOURCE_TYPES)
+        ) and (revision is None or revision <= 0):
+            # Clinical tombstones must carry the database-owned eligibility
+            # watermark. This guard also applies to the in-memory service so
+            # the local HTTP fallback cannot bypass the durable contract.
+            raise ValueError("clinical delete requires a positive revision")
         target_projections: list[str | None] = (
             [normalized_projection]
             if normalized_projection is not None
-            else [None, "OPERATIONAL", "CLINICAL"]
+            else (
+                [None, "OPERATIONAL", "CLINICAL"]
+                if source_type in CLINICAL_SOURCE_TYPES
+                else [None, "OPERATIONAL"]
+            )
         )
         with self._revision_lock:
             for target_projection in target_projections:
