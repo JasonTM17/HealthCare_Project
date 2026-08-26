@@ -88,6 +88,8 @@ class PatientConsultationRetentionServiceTest {
         order.verify(jdbc).update(contains("DELETE FROM patient_consultation_threads"), eq(threadId), eq(userId));
         order.verify(jdbc, times(2)).update(contains("patient_consultation_object_cleanup"),
             eq(threadId), anyString());
+        verify(jdbc, times(2)).update(contains("ON CONFLICT (object_key) DO UPDATE"),
+            eq(threadId), anyString());
     }
 
     @Test
