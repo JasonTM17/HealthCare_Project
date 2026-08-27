@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import Event
 from unittest.mock import patch
 from fastapi.testclient import TestClient
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from app.rag import EmbeddingContractError, RagDocument, RagIndex, RagService
 from app.schemas import (
@@ -993,7 +993,7 @@ def test_rag_index_rejects_unknown_or_malformed_clinical_metadata(
     ],
 )
 def test_egress_request_models_reject_unknown_fields(model: type[object]) -> None:
-    valid_payloads: dict[type[object], dict[str, object]] = {
+    valid_payloads: dict[type[BaseModel], dict[str, object]] = {
         TriageRequest: {"symptoms": "đau đầu"},
         EmbeddingRequest: {"text": "đau đầu"},
         RAGSearchRequest: {"query": "đau đầu"},

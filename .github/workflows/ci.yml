@@ -174,6 +174,9 @@ jobs:
       JWT_SECRET: ci-only-jwt-secret-with-no-production-value
       AI_SERVICE_TOKEN: ci-only-ai-service-token
       RAG_INGEST_TOKEN: ci-only-rag-ingest-token
+      APP_MAIL_OUTBOX_ENCRYPTION_KEY: ci-only-mail-outbox-encryption-key-xxxxxxxxxxxxxxxx
+      BACKEND_BFF_SERVICE_TOKEN: ci-only-bff-service-token-xxxxxxxxxxxxxxxx
+      STORAGE_AV_SERVICE_TOKEN: ci-only-storage-av-service-token-xxxxxxxxxxxxxxxx
     steps:
       - uses: actions/checkout@v4
         with:
