@@ -9,6 +9,26 @@ This is a deployment recipe, not proof that a hosted environment exists. No
 provider credentials, domain, secret-manager access or production traffic are
 present in this repository.
 
+## Immutable GHCR packages
+
+The beta application images are published by the manually-triggered
+`Publish beta application images` workflow only after a successful CI run for
+the exact requested commit. It creates four canonical packages with immutable
+tags:
+
+```text
+ghcr.io/jasontm17/healthcare-project-backend:sha-<40-char-commit>
+ghcr.io/jasontm17/healthcare-project-frontend:sha-<40-char-commit>
+ghcr.io/jasontm17/healthcare-project-ai-service:sha-<40-char-commit>
+ghcr.io/jasontm17/healthcare-project-attachment-scanner:sha-<40-char-commit>
+```
+
+Each build passes the source revision as `VCS_REF` and enables BuildKit SBOM
+and provenance attestations. Deploy a digest resolved from the workflow log,
+not a mutable `latest` tag. The standalone seeded database remains
+`healthcare-project-database:sha-<40-char-commit>` and is published by its
+separate verified workflow.
+
 ## Required Vercel settings
 
 - Root directory: `apps/frontend`

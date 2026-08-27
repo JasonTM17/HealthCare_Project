@@ -209,6 +209,32 @@ test("database publish workflow binds packages to a verified exact source SHA", 
   assert.doesNotMatch(dockerfile, /^FROM postgres:16-alpine$/m);
 });
 
+test("application publish workflow emits canonical digest-bound GHCR packages", async () => {
+  const workflow = await read("../../.github/workflows/publish-images.yml");
+
+  assert.match(workflow, /workflow_dispatch/);
+  assert.match(workflow, /source_ref:[\s\S]*required: true/);
+  assert.match(workflow, /source_ref must be a lowercase 40-character commit SHA/);
+  assert.match(workflow, /Checked out SHA \$source_sha does not match requested source_ref/);
+  assert.match(workflow, /gh run list --workflow ci\.yml --commit \"\$source_sha\"/);
+  assert.match(workflow, /No successful ci\.yml run found for exact SHA \$source_sha/);
+  for (const image of [
+    "healthcare-project-backend",
+    "healthcare-project-frontend",
+    "healthcare-project-ai-service",
+    "healthcare-project-attachment-scanner",
+  ]) {
+    assert.match(workflow, new RegExp(image));
+  }
+  assert.match(workflow, /docker\/build-push-action@v6/);
+  assert.match(workflow, /sbom: true/);
+  assert.match(workflow, /provenance: mode=max/);
+  assert.match(workflow, /VCS_REF=\$\{\{ needs\.resolve\.outputs\.source_sha \}\}/);
+  assert.match(workflow, /packages: write/);
+  assert.match(workflow, /attestations: write/);
+  assert.doesNotMatch(workflow, /:[ ]*latest\b/);
+});
+
 test("database publish workflow rejects SHA-looking manual aliases case-insensitively", () => {
   const sourceSha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
   const otherSha = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
