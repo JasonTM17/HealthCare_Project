@@ -279,6 +279,16 @@ With PostgreSQL and MinIO running, create a uniquely named backup directory:
 .\scripts\backup-local-data.ps1 -OutputDirectory D:\encrypted-backups\healthcare
 ```
 
+When the stack uses a private Compose fixture, pass its environment file
+explicitly so the backup command resolves the same required bootstrap secret
+contract as `compose up`:
+
+```powershell
+.\scripts\backup-local-data.ps1 -ProjectName healthcare-beta-fe95805 `
+  -EnvFile D:\secure\healthcare-beta.runtime.env `
+  -OutputDirectory D:\encrypted-backups\healthcare-beta
+```
+
 The script streams a PostgreSQL custom archive without text transcoding, copies
 MinIO source data without changing it, and writes file sizes plus SHA-256 hashes
 to `manifest.json`. It never deletes source data or overwrites an existing

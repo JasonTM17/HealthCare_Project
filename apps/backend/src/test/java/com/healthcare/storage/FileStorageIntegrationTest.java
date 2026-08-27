@@ -104,7 +104,7 @@ class FileStorageIntegrationTest extends AbstractIntegrationTest {
     @Test
     void adminCanUploadFile() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
-            "file", "test-document.pdf", MediaType.APPLICATION_PDF_VALUE, "test content".getBytes());
+            "file", "test-document.pdf", MediaType.APPLICATION_PDF_VALUE, "%PDF-1.7\ntest content".getBytes());
 
         mockMvc.perform(multipart("/api/v1/files/upload")
                 .file(file)
@@ -155,6 +155,18 @@ class FileStorageIntegrationTest extends AbstractIntegrationTest {
                 .file(file)
                 .header("Authorization", adminToken()))
             .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void rejectsUploadWhoseBytesDoNotMatchDeclaredMime() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+            "file", "spoofed.pdf", MediaType.APPLICATION_PDF_VALUE, "plain text pretending to be a PDF".getBytes());
+
+        mockMvc.perform(multipart("/api/v1/files/upload")
+                .file(file)
+                .header("Authorization", adminToken()))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.objectName").doesNotExist());
     }
 
     @Test
@@ -213,7 +225,7 @@ class FileStorageIntegrationTest extends AbstractIntegrationTest {
     void patientCanDownloadFileLinkedToOwnProfile() throws Exception {
         PatientAuth patient = createPatientAuth();
         MockMultipartFile file = new MockMultipartFile(
-            "file", "patient-result.pdf", MediaType.APPLICATION_PDF_VALUE, "result".getBytes());
+            "file", "patient-result.pdf", MediaType.APPLICATION_PDF_VALUE, "%PDF-1.7\nresult".getBytes());
         String result = mockMvc.perform(multipart("/api/v1/files/upload")
                 .file(file)
                 .param("patientId", patient.profile().getId().toString())
