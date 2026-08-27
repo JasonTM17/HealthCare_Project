@@ -138,7 +138,7 @@ test("local MVP helper binds rebuilt application images to an immutable Git sour
   assert.match(verifier, /Assert-ExpectedRevision -Revision \$ExpectedRevision/);
   assert.match(verifier, /function Get-ComposeServiceContainerId/);
   assert.match(verifier, /Assert-ContainerRevision -ContainerName \$container -Revision \$ExpectedRevision -DockerExecutable \$DockerPath/);
-  assert.match(verifier, /foreach \(\$service in @\("backend", "frontend", "ai-service"\)\)/);
+  assert.match(verifier, /foreach \(\$service in @\("backend", "frontend", "ai-service", "attachment-scanner"\)\)/);
   assert.doesNotMatch(verifier, /healthcare-backend", "healthcare-frontend", "healthcare-ai-service/);
   assert.match(runtimeWorkflow, /name: Runtime Compose MVP/);
   assert.match(runtimeWorkflow, /workflow_dispatch/);
@@ -213,7 +213,7 @@ test("application publish workflow emits canonical digest-bound GHCR packages", 
   const workflow = await read("../../.github/workflows/publish-images.yml");
 
   assert.match(workflow, /workflow_dispatch/);
-  assert.match(workflow, /push:[\s\S]*branches: \["release\/\*\*"\]/);
+  assert.doesNotMatch(workflow, /\n  push:/);
   assert.match(workflow, /source_ref:[\s\S]*required: true/);
   assert.match(workflow, /source_ref must be a lowercase 40-character commit SHA/);
   assert.match(workflow, /Checked out SHA \$source_sha does not match requested source_ref/);
@@ -231,6 +231,11 @@ test("application publish workflow emits canonical digest-bound GHCR packages", 
   assert.match(workflow, /docker\/setup-buildx-action@v3/);
   assert.match(workflow, /sbom: true/);
   assert.match(workflow, /provenance: mode=max/);
+  assert.match(workflow, /GITHUB_EVENT_NAME:-/);
+  assert.match(workflow, /Reject an existing immutable tag/);
+  assert.match(workflow, /docker buildx imagetools inspect/);
+  assert.match(workflow, /steps\.publish\.outputs\.digest/);
+  assert.match(workflow, /actions\/attest-build-provenance@v4/);
   assert.match(workflow, /VCS_REF=\$\{\{ needs\.resolve\.outputs\.source_sha \}\}/);
   assert.match(workflow, /image_owner=\$\{GITHUB_REPOSITORY_OWNER,,\}/);
   assert.match(workflow, /ghcr\.io\/\$\{\{ needs\.resolve\.outputs\.image_owner \}\}/);
