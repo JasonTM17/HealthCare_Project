@@ -182,6 +182,7 @@ $hold = Invoke-JsonApi -Uri "$ApiBaseUrl/appointments/hold" -Method POST -Token 
     phone = "0900000001"
     email = "patient@healthcare.local"
     reasonForVisit = "E2E smoke: đau đầu và chóng mặt"
+    privacyConsent = $true
     specialtyId = $bookingSpecialty.id
     branchId = $branchId
 }
