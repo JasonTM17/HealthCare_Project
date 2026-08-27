@@ -93,6 +93,20 @@ if ($prepareEnvironment) {
         $environmentText = Set-EnvironmentValue $environmentText "RAG_INGEST_TOKEN" $ragToken
     }
 
+    # Compose is intentionally fail-closed. Generate disposable local-only
+    # values for every required service secret so a fresh checkout does not
+    # need a manual edit, while preserving any operator-provided value.
+    foreach ($requiredSecret in @(
+            @{ Key = "APP_MAIL_OUTBOX_ENCRYPTION_KEY"; Bytes = 32 },
+            @{ Key = "BACKEND_BFF_SERVICE_TOKEN"; Bytes = 32 },
+            @{ Key = "STORAGE_AV_SERVICE_TOKEN"; Bytes = 32 }
+        )) {
+        $existingSecret = Get-EnvironmentValue $environmentText $requiredSecret.Key
+        if ([string]::IsNullOrWhiteSpace($existingSecret)) {
+            $environmentText = Set-EnvironmentValue $environmentText $requiredSecret.Key (New-DisposableSecret $requiredSecret.Bytes)
+        }
+    }
+
     # This explicit local-only preparation enables the protected catalog sync.
     # Ordinary Compose remains fail-closed when no environment opts in.
     $environmentText = Set-EnvironmentValue $environmentText "RAG_INGEST_ENABLED" "true"
