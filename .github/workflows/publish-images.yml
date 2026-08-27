@@ -16,6 +16,10 @@ permissions:
   artifact-metadata: write
   id-token: write
 
+concurrency:
+  group: beta-images-${{ github.event.inputs.source_ref || github.sha }}
+  cancel-in-progress: false
+
 jobs:
   resolve:
     runs-on: ubuntu-latest
