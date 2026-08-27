@@ -25,6 +25,7 @@ jobs:
     outputs:
       source_sha: ${{ steps.source.outputs.source_sha }}
       source_created: ${{ steps.source.outputs.source_created }}
+      image_owner: ${{ steps.source.outputs.image_owner }}
     steps:
       - name: Check out exact source
         uses: actions/checkout@v4
@@ -64,6 +65,7 @@ jobs:
           done
           echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
           echo "source_created=$(git show -s --format=%cI "$source_sha")" >> "$GITHUB_OUTPUT"
+          echo "image_owner=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
 
   publish:
     needs: resolve
@@ -113,7 +115,7 @@ jobs:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:sha-${{ needs.resolve.outputs.source_sha }}
+          tags: ghcr.io/${{ needs.resolve.outputs.image_owner }}/${{ matrix.image }}:sha-${{ needs.resolve.outputs.source_sha }}
           build-args: |
             VCS_REF=${{ needs.resolve.outputs.source_sha }}
           labels: |
