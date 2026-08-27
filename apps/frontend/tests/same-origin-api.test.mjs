@@ -213,6 +213,7 @@ test("application publish workflow emits canonical digest-bound GHCR packages", 
   const workflow = await read("../../.github/workflows/publish-images.yml");
 
   assert.match(workflow, /workflow_dispatch/);
+  assert.match(workflow, /push:[\s\S]*branches: \["release\/\*\*"\]/);
   assert.match(workflow, /source_ref:[\s\S]*required: true/);
   assert.match(workflow, /source_ref must be a lowercase 40-character commit SHA/);
   assert.match(workflow, /Checked out SHA \$source_sha does not match requested source_ref/);

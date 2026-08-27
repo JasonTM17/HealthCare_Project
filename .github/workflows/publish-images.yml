@@ -1,6 +1,8 @@
 name: Publish beta application images
 
 on:
+  push:
+    branches: ["release/**"]
   workflow_dispatch:
     inputs:
       source_ref:
@@ -27,7 +29,7 @@ jobs:
       - name: Check out exact source
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.source_ref }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.source_ref || github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -35,7 +37,7 @@ jobs:
         id: source
         shell: bash
         env:
-          SOURCE_REF: ${{ inputs.source_ref }}
+          SOURCE_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.source_ref || github.sha }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
@@ -48,12 +50,18 @@ jobs:
             echo "::error::Checked out SHA $source_sha does not match requested source_ref $SOURCE_REF"
             exit 1
           fi
-          success_count="$(gh run list --workflow ci.yml --commit "$source_sha" --limit 20 --json status,conclusion,headSha \
-            --jq '[.[] | select(.headSha == "'"$source_sha"'" and .status == "completed" and .conclusion == "success")] | length')"
-          if [ "$success_count" -lt 1 ]; then
-            echo "::error::No successful ci.yml run found for exact SHA $source_sha"
-            exit 1
-          fi
+          for attempt in $(seq 1 30); do
+            success_count="$(gh run list --workflow ci.yml --commit "$source_sha" --limit 20 --json status,conclusion,headSha \
+              --jq '[.[] | select(.headSha == "'"$source_sha"'" and .status == "completed" and .conclusion == "success")] | length')"
+            if [ "$success_count" -ge 1 ]; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              echo "::error::No successful ci.yml run found for exact SHA $source_sha"
+              exit 1
+            fi
+            sleep 10
+          done
           echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
           echo "source_created=$(git show -s --format=%cI "$source_sha")" >> "$GITHUB_OUTPUT"
 
