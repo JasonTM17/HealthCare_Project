@@ -85,7 +85,8 @@ class FileStorageAvFailClosedIntegrationTest extends AbstractIntegrationTest {
 
     private MockMultipartFile uploadFile(String filename) {
         MediaType type = filename.endsWith(".pdf") ? MediaType.APPLICATION_PDF : MediaType.TEXT_PLAIN;
-        return new MockMultipartFile("file", filename, type.toString(), "synthetic upload".getBytes());
+        String content = filename.endsWith(".pdf") ? "%PDF-1.7\nsynthetic upload" : "synthetic upload";
+        return new MockMultipartFile("file", filename, type.toString(), content.getBytes());
     }
 
     private String tokenFor(String roleCode) {

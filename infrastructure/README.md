@@ -61,6 +61,9 @@ the MinIO data directory from a running local stack:
 .\scripts\backup-local-data.ps1
 ```
 
+For an isolated Compose project, pass the same private environment file used to
+start it with `-EnvFile <path>` and the project name with `-ProjectName <name>`.
+
 Every snapshot has a unique directory and SHA-256 manifest; existing backups
 are never overwritten. Backups may contain personal and clinical data, so they
 must be encrypted, access-controlled, retained according to policy, and tested

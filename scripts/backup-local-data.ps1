@@ -2,7 +2,8 @@
 param(
     [string]$ComposeFile = (Join-Path (Split-Path $PSScriptRoot -Parent) "infrastructure/docker-compose.yml"),
     [string]$OutputDirectory = (Join-Path (Split-Path $PSScriptRoot -Parent) "backups"),
-    [string]$ProjectName = ""
+    [string]$ProjectName = "",
+    [string]$EnvFile = ""
 )
 
 Set-StrictMode -Version Latest
@@ -74,6 +75,13 @@ if (-not $snapshotDirectory.StartsWith($outputRoot.TrimEnd('\', '/') + [System.I
 [void](New-Item -ItemType Directory -Path $snapshotDirectory)
 
 $composeArguments = @("compose", "-f", $composePath)
+if (-not [string]::IsNullOrWhiteSpace($EnvFile)) {
+    $envPath = [System.IO.Path]::GetFullPath($EnvFile)
+    if (-not (Test-Path -LiteralPath $envPath -PathType Leaf)) {
+        throw "Compose environment file does not exist: $envPath"
+    }
+    $composeArguments = @("compose", "--env-file", $envPath, "-f", $composePath)
+}
 if (-not [string]::IsNullOrWhiteSpace($ProjectName)) {
     $composeArguments += @("--project-name", $ProjectName.Trim())
 }

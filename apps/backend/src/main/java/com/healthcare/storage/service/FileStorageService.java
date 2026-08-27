@@ -33,13 +33,21 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Locale;
+import java.util.Map;
 import java.util.EnumSet;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 @Service
 public class FileStorageService {
@@ -56,6 +64,16 @@ public class FileStorageService {
     );
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
         ".pdf", ".jpg", ".jpeg", ".png", ".txt", ".doc", ".docx", ".xlsx"
+    );
+    private static final Map<String, String> CONTENT_TYPE_BY_EXTENSION = Map.ofEntries(
+        Map.entry(".pdf", "application/pdf"),
+        Map.entry(".jpg", "image/jpeg"),
+        Map.entry(".jpeg", "image/jpeg"),
+        Map.entry(".png", "image/png"),
+        Map.entry(".txt", "text/plain"),
+        Map.entry(".doc", "application/msword"),
+        Map.entry(".docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+        Map.entry(".xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     );
 
     private final MinioClient minioClient;
@@ -85,6 +103,9 @@ public class FileStorageService {
 
     @Value("${storage.av.service-token:}")
     private String avServiceToken;
+
+    @Value("${storage.av.mime-validation-required:true}")
+    private boolean mimeValidationRequired = true;
 
     private volatile boolean bucketReady;
 
@@ -167,6 +188,7 @@ public class FileStorageService {
             content = readLimited(inputStream);
         }
         String contentType = file.getContentType().toLowerCase(Locale.ROOT);
+        ensureMimeMatches(contentType, content);
         ensureCleanScan(objectName, contentType, content);
         init();
         try (InputStream inputStream = new ByteArrayInputStream(content)) {
@@ -261,9 +283,16 @@ public class FileStorageService {
         }
         String filename = safeFilename(file.getOriginalFilename());
         int extensionStart = filename.lastIndexOf('.');
-        if (extensionStart < 0
-                || !ALLOWED_EXTENSIONS.contains(filename.substring(extensionStart).toLowerCase(Locale.ROOT))) {
+        String extension = extensionStart < 0
+            ? ""
+            : filename.substring(extensionStart).toLowerCase(Locale.ROOT);
+        if (!ALLOWED_EXTENSIONS.contains(extension)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Phần mở rộng tệp không được hỗ trợ");
+        }
+        if (!contentType.equals(CONTENT_TYPE_BY_EXTENSION.get(extension))) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Loại nội dung không khớp với phần mở rộng tệp");
         }
     }
 
@@ -311,6 +340,109 @@ public class FileStorageService {
         throw new ResponseStatusException(
             HttpStatus.SERVICE_UNAVAILABLE,
             "Dịch vụ quét tệp chưa sẵn sàng");
+    }
+
+    /**
+     * Do not trust the multipart Content-Type header as evidence of the bytes
+     * being stored. The detector intentionally supports only the allowlisted
+     * beta document formats and rejects ambiguous or binary content.
+     */
+    private void ensureMimeMatches(String declaredContentType, byte[] content) {
+        if (!mimeValidationRequired) {
+            return;
+        }
+        String detectedContentType = detectMime(content);
+        if (!declaredContentType.equals(detectedContentType)) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Nội dung tệp không khớp với định dạng đã khai báo");
+        }
+    }
+
+    private String detectMime(byte[] bytes) {
+        if (hasPrefix(bytes, new int[] {0x25, 0x50, 0x44, 0x46, 0x2d})) {
+            return "application/pdf";
+        }
+        if (hasPrefix(bytes, new int[] {0xff, 0xd8, 0xff})) {
+            return "image/jpeg";
+        }
+        if (hasPrefix(bytes, new int[] {0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a})) {
+            return "image/png";
+        }
+        if (hasPrefix(bytes, new int[] {0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1})) {
+            return "application/msword";
+        }
+        String openXmlMime = detectOpenXmlMime(bytes);
+        if (openXmlMime != null) {
+            return openXmlMime;
+        }
+        return isUtf8PlainText(bytes) ? "text/plain" : null;
+    }
+
+    private String detectOpenXmlMime(byte[] bytes) {
+        if (!hasPrefix(bytes, new int[] {0x50, 0x4b, 0x03, 0x04})) {
+            return null;
+        }
+        boolean contentTypes = false;
+        boolean wordDocument = false;
+        boolean excelWorkbook = false;
+        int entryCount = 0;
+        try (ZipInputStream archive = new ZipInputStream(new ByteArrayInputStream(bytes))) {
+            ZipEntry entry;
+            while ((entry = archive.getNextEntry()) != null) {
+                if (++entryCount > 1024) {
+                    return null;
+                }
+                String name = entry.getName().replace('\\', '/').toLowerCase(Locale.ROOT);
+                contentTypes |= "[content_types].xml".equals(name);
+                wordDocument |= "word/document.xml".equals(name);
+                excelWorkbook |= "xl/workbook.xml".equals(name);
+            }
+        } catch (IOException | RuntimeException exception) {
+            return null;
+        }
+        if (contentTypes && wordDocument && !excelWorkbook) {
+            return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        }
+        if (contentTypes && excelWorkbook && !wordDocument) {
+            return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+        }
+        return null;
+    }
+
+    private boolean isUtf8PlainText(byte[] bytes) {
+        try {
+            CharBuffer characters = StandardCharsets.UTF_8.newDecoder()
+                .onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT)
+                .decode(ByteBuffer.wrap(bytes));
+            while (characters.hasRemaining()) {
+                char character = characters.get();
+                if (character == '\0'
+                        || (Character.isISOControl(character)
+                            && character != '\n'
+                            && character != '\r'
+                            && character != '\t'
+                            && character != '\f')) {
+                    return false;
+                }
+            }
+            return true;
+        } catch (CharacterCodingException exception) {
+            return false;
+        }
+    }
+
+    private boolean hasPrefix(byte[] bytes, int[] prefix) {
+        if (bytes.length < prefix.length) {
+            return false;
+        }
+        for (int index = 0; index < prefix.length; index++) {
+            if ((bytes[index] & 0xff) != prefix[index]) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private void ensureStoragePathIsEnabled() {
