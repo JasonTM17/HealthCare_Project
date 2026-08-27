@@ -1,0 +1,114 @@
+name: Publish beta application images
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: "40-character Git commit SHA to publish"
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+  packages: write
+  attestations: write
+  artifact-metadata: write
+  id-token: write
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      source_sha: ${{ steps.source.outputs.source_sha }}
+      source_created: ${{ steps.source.outputs.source_created }}
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate exact source and successful CI
+        id: source
+        shell: bash
+        env:
+          SOURCE_REF: ${{ inputs.source_ref }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$SOURCE_REF" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::source_ref must be a lowercase 40-character commit SHA"
+            exit 1
+          fi
+          source_sha="$(git rev-parse HEAD)"
+          if [ "$source_sha" != "$SOURCE_REF" ]; then
+            echo "::error::Checked out SHA $source_sha does not match requested source_ref $SOURCE_REF"
+            exit 1
+          fi
+          success_count="$(gh run list --workflow ci.yml --commit "$source_sha" --limit 20 --json status,conclusion,headSha \
+            --jq '[.[] | select(.headSha == "'"$source_sha"'" and .status == "completed" and .conclusion == "success")] | length')"
+          if [ "$success_count" -lt 1 ]; then
+            echo "::error::No successful ci.yml run found for exact SHA $source_sha"
+            exit 1
+          fi
+          echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
+          echo "source_created=$(git show -s --format=%cI "$source_sha")" >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: resolve
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - service: backend
+            image: healthcare-project-backend
+            context: apps/backend
+            file: Dockerfile
+          - service: frontend
+            image: healthcare-project-frontend
+            context: apps/frontend
+            file: Dockerfile
+          - service: ai-service
+            image: healthcare-project-ai-service
+            context: apps/ai-service
+            file: Dockerfile
+          - service: attachment-scanner
+            image: healthcare-project-attachment-scanner
+            context: infrastructure/av-scanner
+            file: Dockerfile
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.source_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish immutable image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:sha-${{ needs.resolve.outputs.source_sha }}
+          build-args: |
+            VCS_REF=${{ needs.resolve.outputs.source_sha }}
+          labels: |
+            org.opencontainers.image.created=${{ needs.resolve.outputs.source_created }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.resolve.outputs.source_sha }}
+            org.opencontainers.image.title=HealthCare Project ${{ matrix.service }}
+          sbom: true
+          provenance: mode=max
