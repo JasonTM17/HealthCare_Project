@@ -232,6 +232,8 @@ test("application publish workflow emits canonical digest-bound GHCR packages", 
   assert.match(workflow, /sbom: true/);
   assert.match(workflow, /provenance: mode=max/);
   assert.match(workflow, /VCS_REF=\$\{\{ needs\.resolve\.outputs\.source_sha \}\}/);
+  assert.match(workflow, /image_owner=\$\{GITHUB_REPOSITORY_OWNER,,\}/);
+  assert.match(workflow, /ghcr\.io\/\$\{\{ needs\.resolve\.outputs\.image_owner \}\}/);
   assert.match(workflow, /packages: write/);
   assert.match(workflow, /attestations: write/);
   assert.doesNotMatch(workflow, /:[ ]*latest\b/);
