@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$ApiBaseUrl = "http://localhost:8080/api/v1",
+    [string]$BackendHealthUrl = "http://localhost:8080",
     [string]$FrontendUrl = "http://localhost:3000",
     [string]$DemoPassword = "LocalDemo!2026",
     [switch]$RequireClinicalFlow,
@@ -118,7 +119,7 @@ if ($ExpectedRevision) {
     $checks.Add("provenance:backend+frontend+ai-service")
 }
 
-$backendHealth = Invoke-RestMethod "http://localhost:8080/actuator/health"
+$backendHealth = Invoke-RestMethod "$BackendHealthUrl/actuator/health"
 if ($backendHealth.status -ne "UP") { throw "Backend health is not UP" }
 $frontend = Invoke-WebRequest $FrontendUrl -UseBasicParsing
 if ($frontend.StatusCode -ne 200) { throw "Frontend did not return HTTP 200" }
