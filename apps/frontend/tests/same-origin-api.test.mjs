@@ -228,6 +228,7 @@ test("application publish workflow emits canonical digest-bound GHCR packages", 
     assert.match(workflow, new RegExp(image));
   }
   assert.match(workflow, /docker\/build-push-action@v6/);
+  assert.match(workflow, /docker\/setup-buildx-action@v3/);
   assert.match(workflow, /sbom: true/);
   assert.match(workflow, /provenance: mode=max/);
   assert.match(workflow, /VCS_REF=\$\{\{ needs\.resolve\.outputs\.source_sha \}\}/);
