@@ -8,7 +8,7 @@ services:
       POSTGRES_USER:     ${POSTGRES_USER:-healthcare}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
     ports:
-      - "${POSTGRES_HOST_PORT:-5434}:5432"
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5434}:5432"
     networks: [default, edge]
     volumes:
       - postgres-data:/var/lib/postgresql/data
@@ -232,7 +232,7 @@ services:
       STORAGE_AV_SERVICE_TOKEN: ${STORAGE_AV_SERVICE_TOKEN:?STORAGE_AV_SERVICE_TOKEN is required}
       STORAGE_MIME_VALIDATION_REQUIRED: "true"
     ports:
-      - "${BACKEND_HOST_PORT:-8080}:8080"
+      - "127.0.0.1:${BACKEND_HOST_PORT:-8080}:8080"
     networks: [default, edge]
     depends_on:
       postgres:
@@ -294,7 +294,7 @@ services:
       # is published, so the external browser origin is explicit and immutable.
       BFF_PUBLIC_ORIGIN: ${BFF_PUBLIC_ORIGIN:-http://localhost:3000}
     ports:
-      - "${FRONTEND_HOST_PORT:-3000}:3000"
+      - "127.0.0.1:${FRONTEND_HOST_PORT:-3000}:3000"
     networks: [default, edge]
     depends_on:
       backend:

@@ -46,7 +46,7 @@ function Invoke-MultipartUploadStatus {
         [System.Net.Http.HttpMethod]::Post,
         "$ApiBaseUrl/files/upload"
     )
-    $request.Headers.TryAddWithoutValidation("Authorization", $Token) | Out-Null
+    $request.Headers.TryAddWithoutValidation("Authorization", "Bearer $Token") | Out-Null
     $request.Content = $multipart
     try {
         $response = $client.SendAsync($request).GetAwaiter().GetResult()
