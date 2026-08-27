@@ -992,7 +992,7 @@ def test_rag_index_rejects_unknown_or_malformed_clinical_metadata(
         SpecialtyRecommendationRequest,
     ],
 )
-def test_egress_request_models_reject_unknown_fields(model: type[object]) -> None:
+def test_egress_request_models_reject_unknown_fields(model: type[BaseModel]) -> None:
     valid_payloads: dict[type[BaseModel], dict[str, object]] = {
         TriageRequest: {"symptoms": "đau đầu"},
         EmbeddingRequest: {"text": "đau đầu"},
