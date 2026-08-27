@@ -19,6 +19,7 @@ import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
@@ -28,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -63,6 +65,7 @@ public class FileStorageService {
     private final DoctorRepository doctorRepository;
     private final AppointmentRepository appointmentRepository;
     private final MedicalRecordRepository medicalRecordRepository;
+    private final AttachmentScanner attachmentScanner;
 
     @Value("${storage.bucket:${minio.bucket:healthcare-files}}")
     private String bucket;
@@ -85,6 +88,30 @@ public class FileStorageService {
 
     private volatile boolean bucketReady;
 
+    /** Spring runtime constructor. */
+    @Autowired
+    public FileStorageService(
+            MinioClient minioClient,
+            StoredFileRepository storedFileRepository,
+            UserRepository userRepository,
+            PatientProfileRepository patientProfileRepository,
+            DoctorRepository doctorRepository,
+            AppointmentRepository appointmentRepository,
+            MedicalRecordRepository medicalRecordRepository,
+            AttachmentScanner attachmentScanner) {
+        this.minioClient = minioClient;
+        this.storedFileRepository = storedFileRepository;
+        this.userRepository = userRepository;
+        this.patientProfileRepository = patientProfileRepository;
+        this.doctorRepository = doctorRepository;
+        this.appointmentRepository = appointmentRepository;
+        this.medicalRecordRepository = medicalRecordRepository;
+        this.attachmentScanner = attachmentScanner == null
+            ? new UnavailableAttachmentScanner()
+            : attachmentScanner;
+    }
+
+    /** Compatibility constructor for focused adapters that do not provision AV. */
     public FileStorageService(
             MinioClient minioClient,
             StoredFileRepository storedFileRepository,
@@ -93,13 +120,15 @@ public class FileStorageService {
             DoctorRepository doctorRepository,
             AppointmentRepository appointmentRepository,
             MedicalRecordRepository medicalRecordRepository) {
-        this.minioClient = minioClient;
-        this.storedFileRepository = storedFileRepository;
-        this.userRepository = userRepository;
-        this.patientProfileRepository = patientProfileRepository;
-        this.doctorRepository = doctorRepository;
-        this.appointmentRepository = appointmentRepository;
-        this.medicalRecordRepository = medicalRecordRepository;
+        this(
+            minioClient,
+            storedFileRepository,
+            userRepository,
+            patientProfileRepository,
+            doctorRepository,
+            appointmentRepository,
+            medicalRecordRepository,
+            new UnavailableAttachmentScanner());
     }
 
     /** Initializes the bucket lazily so a backend health check does not require MinIO. */
@@ -130,17 +159,23 @@ public class FileStorageService {
         validateUpload(file);
         User uploader = resolveUser(principal);
         PatientProfile patient = resolvePatientForUpload(patientId, principal);
-        init();
 
         String filename = safeFilename(file.getOriginalFilename());
         String objectName = uploader.getId() + "-" + UUID.randomUUID() + "-" + filename;
+        byte[] content;
         try (InputStream inputStream = file.getInputStream()) {
+            content = readLimited(inputStream);
+        }
+        String contentType = file.getContentType().toLowerCase(Locale.ROOT);
+        ensureCleanScan(objectName, contentType, content);
+        init();
+        try (InputStream inputStream = new ByteArrayInputStream(content)) {
             minioClient.putObject(
                 PutObjectArgs.builder()
                     .bucket(bucket)
                     .object(objectName)
-                    .stream(inputStream, file.getSize(), -1)
-                    .contentType(file.getContentType())
+                    .stream(inputStream, content.length, -1)
+                    .contentType(contentType)
                     .build()
             );
         }
@@ -150,8 +185,8 @@ public class FileStorageService {
         storedFile.setUploader(uploader);
         storedFile.setPatient(patient);
         storedFile.setOriginalFilename(filename);
-        storedFile.setContentType(file.getContentType().toLowerCase(Locale.ROOT));
-        storedFile.setSizeBytes(file.getSize());
+        storedFile.setContentType(contentType);
+        storedFile.setSizeBytes(content.length);
         storedFile.setPurpose(purpose == null ? StoredFilePurpose.GENERAL : purpose);
         try {
             return storedFileRepository.saveAndFlush(storedFile);
@@ -244,6 +279,38 @@ public class FileStorageService {
                 HttpStatus.SERVICE_UNAVAILABLE,
                 "Dịch vụ quét tệp chưa được cấu hình");
         }
+    }
+
+    /**
+     * Generic uploads share the same AV boundary as consultation attachments.
+     * Nothing is written to object storage until a required scanner returns
+     * CLEAN. Scanner failures are intentionally opaque to callers so provider
+     * details and raw exception text cannot leak through the API.
+     */
+    private void ensureCleanScan(String objectName, String contentType, byte[] content) {
+        if (!avRequired) {
+            return;
+        }
+        AttachmentScanner.ScanResult scanResult;
+        try {
+            scanResult = attachmentScanner == null
+                ? AttachmentScanner.ScanResult.unavailable("scanner-not-configured")
+                : attachmentScanner.scan(new AttachmentScanner.ScanRequest(
+                    objectName, contentType, content.length, content));
+        } catch (RuntimeException exception) {
+            scanResult = AttachmentScanner.ScanResult.error("scanner-failed");
+        }
+        if (scanResult != null && scanResult.verdict() == AttachmentScanner.Verdict.CLEAN) {
+            return;
+        }
+        if (scanResult != null && scanResult.verdict() == AttachmentScanner.Verdict.INFECTED) {
+            throw new ResponseStatusException(
+                HttpStatus.UNPROCESSABLE_ENTITY,
+                "Tệp bị từ chối bởi dịch vụ quét");
+        }
+        throw new ResponseStatusException(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "Dịch vụ quét tệp chưa sẵn sàng");
     }
 
     private void ensureStoragePathIsEnabled() {
