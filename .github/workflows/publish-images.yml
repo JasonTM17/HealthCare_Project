@@ -51,6 +51,10 @@ jobs:
             echo "::error::Checked out SHA $source_sha does not match requested source_ref $SOURCE_REF"
             exit 1
           fi
+          if [ "${GITHUB_EVENT_NAME:-}" = "workflow_dispatch" ] && [ "${GITHUB_SHA:-}" != "$SOURCE_REF" ]; then
+            echo "::error::workflow_dispatch must be launched with --ref equal to source_ref so the signed attestation binds the release SHA"
+            exit 1
+          fi
           for attempt in $(seq 1 30); do
             success_count="$(gh run list --workflow ci.yml --commit "$source_sha" --limit 20 --json status,conclusion,headSha \
               --jq '[.[] | select(.headSha == "'"$source_sha"'" and .status == "completed" and .conclusion == "success")] | length')"
@@ -109,8 +113,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Reject an existing immutable tag
+        shell: bash
+        env:
+          IMAGE_REF: ghcr.io/${{ needs.resolve.outputs.image_owner }}/${{ matrix.image }}:sha-${{ needs.resolve.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          if docker buildx imagetools inspect "$IMAGE_REF" >/dev/null 2>&1; then
+            echo "::error::Immutable image tag already exists: $IMAGE_REF"
+            exit 1
+          fi
+
       - name: Build and publish immutable image
         uses: docker/build-push-action@v6
+        id: publish
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
@@ -125,3 +141,28 @@ jobs:
             org.opencontainers.image.title=HealthCare Project ${{ matrix.service }}
           sbom: true
           provenance: mode=max
+
+      - name: Record published digest
+        shell: bash
+        env:
+          IMAGE_REF: ghcr.io/${{ needs.resolve.outputs.image_owner }}/${{ matrix.image }}:sha-${{ needs.resolve.outputs.source_sha }}
+          DIGEST: ${{ steps.publish.outputs.digest }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::Buildx did not return a content digest for $IMAGE_REF"
+            exit 1
+          fi
+          resolved_digest="$(docker buildx imagetools inspect "$IMAGE_REF" --format '{{json .Manifest.Digest}}' | tr -d '\"')"
+          if [ "$resolved_digest" != "$DIGEST" ]; then
+            echo "::error::Registry digest $resolved_digest does not match Buildx digest $DIGEST"
+            exit 1
+          fi
+          echo "${IMAGE_REF}@${DIGEST}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Attest published image provenance
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ghcr.io/${{ needs.resolve.outputs.image_owner }}/${{ matrix.image }}
+          subject-digest: ${{ steps.publish.outputs.digest }}
+          push-to-registry: true

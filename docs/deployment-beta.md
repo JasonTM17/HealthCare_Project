@@ -24,8 +24,11 @@ ghcr.io/jasontm17/healthcare-project-attachment-scanner:sha-<40-char-commit>
 ```
 
 Each build passes the source revision as `VCS_REF` and enables BuildKit SBOM
-and provenance attestations. Deploy a digest resolved from the workflow log,
-not a mutable `latest` tag. The standalone seeded database remains
+and provenance attestations. It also publishes a signed GitHub build-provenance
+attestation for the exact registry digest. The workflow rejects an already-existing
+`sha-<commit>` tag and writes the resulting immutable digest to the run
+summary. Deploy that recorded digest, not a mutable `latest` tag. The
+standalone seeded database remains
 `healthcare-project-database:sha-<40-char-commit>` and is published by its
 separate verified workflow.
 
@@ -148,5 +151,8 @@ Spring emits no CORS grant for them.
 
 Hosting credentials, provider/legal evidence, AV/MIME scanning, backup/restore,
 live browser/Compose proof and production compliance remain explicit HOLD
-gates. This repository contains a synthetic beta implementation; it is not
+gates. The local Compose verifier exercises scanner readiness, MIME mismatch
+rejection and infected-upload rejection; Compose's default network is marked
+internal for disposable egress isolation, while remote patient AI remains off.
+This repository contains a synthetic beta implementation; it is not
 authorization to accept real patient traffic.

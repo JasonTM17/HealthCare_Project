@@ -55,4 +55,16 @@ class EmailTemplateRendererTest {
         assertThrows(IllegalArgumentException.class,
             () -> renderer.render(EmailTemplateKey.SYSTEM_NOTIFICATION, Map.of("message", "ok", "extra", "nope")));
     }
+
+    @Test
+    void includesBookingCodeWhenProvidedForConcurrentMailboxCorrelation() {
+        RenderedEmail rendered = renderer.render(EmailTemplateKey.BOOKING_OTP, Map.of(
+            "code", "123456",
+            "minutes", "5",
+            "bookingCode", "APT-20260828-0001"
+        ));
+
+        assertTrue(rendered.textBody().contains("Mã đặt lịch: APT-20260828-0001."));
+        assertTrue(rendered.htmlBody().contains("APT-20260828-0001"));
+    }
 }

@@ -68,3 +68,8 @@ def test_local_bootstrap_requires_private_bucket_and_encrypted_outbox() -> None:
     assert "mc anonymous set public" not in bootstrap["command"][0]
     assert "*" not in services["minio"]["environment"]["MINIO_API_CORS_ALLOW_ORIGIN"]
     assert services["frontend"]["depends_on"]["local-seed"]["condition"] == "service_completed_successfully"
+
+
+def test_compose_default_network_is_egress_isolated() -> None:
+    compose = yaml.safe_load((ROOT / "infrastructure" / "docker-compose.yml").read_text(encoding="utf-8"))
+    assert compose["networks"]["default"]["internal"] is True

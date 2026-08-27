@@ -338,7 +338,8 @@ public class BookingService {
             otpRecipient,
             Map.of(
                 "code", otpCode,
-                "minutes", String.valueOf(OTP_DURATION_MINUTES)
+                "minutes", String.valueOf(OTP_DURATION_MINUTES),
+                "bookingCode", appointment.getBookingCode()
             ),
             "booking-otp-" + appointment.getId(),
             patient.getUserId(),
@@ -431,7 +432,11 @@ public class BookingService {
         }
         emailSender.sendBookingOtp(
             otpRecipient,
-            Map.of("code", otpCode, "minutes", String.valueOf(OTP_DURATION_MINUTES)),
+            Map.of(
+                "code", otpCode,
+                "minutes", String.valueOf(OTP_DURATION_MINUTES),
+                "bookingCode", appointment.getBookingCode()
+            ),
             "booking-otp-resend-" + appointment.getId() + "-" + otpExpiry.toEpochSecond(),
             appointment.getPatient().getUserId(),
             appointment.getId(),
