@@ -89,7 +89,8 @@ missing scanner is a configuration failure rather than an upload bypass.
 
 Release image publication is restricted to the protected release workflow: the
 manual source ref must equal the checked-out commit, an existing SHA tag is
-rejected, and the pushed digest is verified and attested before it is recorded.
+rejected, same-source runs are serialized, and the pushed digest is verified
+and attested before it is recorded.
 
 ## Large database fixture
 

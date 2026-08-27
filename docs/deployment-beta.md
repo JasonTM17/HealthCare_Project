@@ -25,7 +25,8 @@ ghcr.io/jasontm17/healthcare-project-attachment-scanner:sha-<40-char-commit>
 
 Each build passes the source revision as `VCS_REF` and enables BuildKit SBOM
 and provenance attestations. It also publishes a signed GitHub build-provenance
-attestation for the exact registry digest. The workflow rejects an already-existing
+attestation for the exact registry digest. A per-source concurrency lock and
+preflight reject an already-existing
 `sha-<commit>` tag and writes the resulting immutable digest to the run
 summary. Deploy that recorded digest, not a mutable `latest` tag. The
 standalone seeded database remains
