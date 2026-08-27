@@ -48,6 +48,7 @@ def test_local_verifier_reads_current_mailpit_message_detail() -> None:
     assert '"attachment-scanner"' in script
     assert 'MIME mismatch upload was not rejected' in script
     assert 'AV infected upload was not rejected' in script
+    assert 'TryAddWithoutValidation("Authorization", "Bearer $Token")' in script
     assert 'Wait-ForBookingOtp $hold.bookingCode "patient@healthcare.local" $holdStartedAt' in script
 
 
@@ -70,6 +71,12 @@ def test_application_publication_binds_manual_attestation_and_tag_immutability()
     assert 'must be launched with --ref equal to source_ref' in workflow
     assert 'Reject an existing immutable tag' in workflow
     assert '\n  push:' not in workflow
+
+
+def test_database_publication_rejects_immutable_tag_replacement() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "publish-database.yml").read_text(encoding="utf-8")
+    assert "Reject an existing immutable database SHA tag" in workflow
+    assert "Verify published database digest and immutable SHA tag" in workflow
 
 
 def test_production_env_requires_fail_closed_attachment_scanning() -> None:
