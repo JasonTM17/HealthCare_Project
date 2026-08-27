@@ -28,10 +28,11 @@ MinIO on 9000 (console 9001). Override `FRONTEND_HOST_PORT`,
 isolated local run when another worktree or stack already owns the defaults.
 Compose container and volume names stay project-scoped; do not add fixed
 `container_name` values when collecting runtime proof from multiple worktrees.
-The default Compose network is marked `internal: true` so disposable
-containers cannot use the default bridge for arbitrary internet egress. Host
-published loopback ports and service-to-service traffic remain available; this
-does not authorize remote patient AI, which stays disabled by default.
+The default Compose network is marked `internal: true` so the AI service cannot
+use the default bridge for arbitrary internet egress. Host-facing services are
+also attached to a separate `edge` bridge so their loopback ports remain
+reachable; the AI service stays internal-only and remote patient AI remains
+disabled by default.
 
 The local seed includes the fictional ADMIN fixture `admin@healthcare.local`
 with the documented local demo password from `docs/LOCAL_RUNBOOK.md` so the CMS

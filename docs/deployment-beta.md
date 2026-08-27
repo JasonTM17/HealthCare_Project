@@ -152,7 +152,9 @@ Spring emits no CORS grant for them.
 Hosting credentials, provider/legal evidence, AV/MIME scanning, backup/restore,
 live browser/Compose proof and production compliance remain explicit HOLD
 gates. The local Compose verifier exercises scanner readiness, MIME mismatch
-rejection and infected-upload rejection; Compose's default network is marked
-internal for disposable egress isolation, while remote patient AI remains off.
+rejection and infected-upload rejection; Compose keeps the AI service on an
+internal-only network while host-facing services use a separate edge bridge,
+so disposable egress isolation does not hide the backend/frontend loopback
+ports. Remote patient AI remains off.
 This repository contains a synthetic beta implementation; it is not
 authorization to accept real patient traffic.
