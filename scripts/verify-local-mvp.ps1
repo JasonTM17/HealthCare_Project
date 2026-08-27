@@ -29,6 +29,38 @@ function Invoke-JsonApi {
     Invoke-RestMethod @parameters
 }
 
+function Invoke-MultipartUploadStatus {
+    param(
+        [Parameter(Mandatory)] [string]$Token,
+        [Parameter(Mandatory)] [string]$Filename,
+        [Parameter(Mandatory)] [string]$ContentType,
+        [Parameter(Mandatory)] [byte[]]$Content
+    )
+
+    $client = [System.Net.Http.HttpClient]::new()
+    $multipart = [System.Net.Http.MultipartFormDataContent]::new()
+    $part = [System.Net.Http.ByteArrayContent]::new($Content)
+    $part.Headers.ContentType = [System.Net.Http.Headers.MediaTypeHeaderValue]::Parse($ContentType)
+    [void]$multipart.Add($part, "file", $Filename)
+    $request = [System.Net.Http.HttpRequestMessage]::new(
+        [System.Net.Http.HttpMethod]::Post,
+        "$ApiBaseUrl/files/upload"
+    )
+    $request.Headers.TryAddWithoutValidation("Authorization", $Token) | Out-Null
+    $request.Content = $multipart
+    try {
+        $response = $client.SendAsync($request).GetAwaiter().GetResult()
+        [pscustomobject]@{
+            StatusCode = [int]$response.StatusCode
+            Body = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+        }
+    } finally {
+        $request.Dispose()
+        $multipart.Dispose()
+        $client.Dispose()
+    }
+}
+
 function Login-DemoRole([string]$Email) {
     $session = Invoke-JsonApi -Uri "$ApiBaseUrl/auth/login" -Method POST -Body @{
         email = $Email
@@ -51,6 +83,9 @@ function Wait-ForBookingOtp([string]$BookingCode, [string]$Recipient, [DateTimeO
             foreach ($message in $messages) {
                 $detail = Invoke-RestMethod "$MailpitApiUrl/api/v1/message/$($message.ID)"
                 $content = "$($detail.Text)`n$($detail.HTML)"
+                # Bind the OTP to this hold. Filtering only by recipient and
+                # timestamp can consume a concurrent booking's code.
+                if ($content -notmatch [regex]::Escape($BookingCode)) { continue }
                 if (($content -match '(?i)Mã xác minh của bạn là\s*(?<Otp>\d{6})\b') -or ($content -match '(?i)\bis\s*(?<Otp>\d{6})\b')) {
                     return $Matches.Otp
                 }
@@ -116,11 +151,11 @@ if ($ExpectedRevision) {
     }
 
     Assert-ExpectedRevision -Revision $ExpectedRevision
-    foreach ($service in @("backend", "frontend", "ai-service")) {
+    foreach ($service in @("backend", "frontend", "ai-service", "attachment-scanner")) {
         $container = Get-ComposeServiceContainerId -ServiceName $service
         Assert-ContainerRevision -ContainerName $container -Revision $ExpectedRevision -DockerExecutable $DockerPath
     }
-    $checks.Add("provenance:backend+frontend+ai-service")
+    $checks.Add("provenance:backend+frontend+ai-service+attachment-scanner")
 }
 
 $backendHealth = Invoke-RestMethod "$BackendHealthUrl/actuator/health"
@@ -140,6 +175,15 @@ if ($specialties.totalElements -lt 1 -or $doctors.totalElements -lt 1 -or $branc
     throw "Local catalog seed is incomplete"
 }
 $checks.Add("catalog:seeded")
+
+$mimeMismatch = Invoke-MultipartUploadStatus -Token $adminToken -Filename "spoofed.pdf" -ContentType "application/pdf" -Content ([Text.Encoding]::UTF8.GetBytes("plain text pretending to be a PDF"))
+if ($mimeMismatch.StatusCode -ne 400) { throw "MIME mismatch upload was not rejected" }
+$cleanUpload = Invoke-MultipartUploadStatus -Token $adminToken -Filename "verification.txt" -ContentType "text/plain" -Content ([Text.Encoding]::UTF8.GetBytes("synthetic clean upload"))
+if ($cleanUpload.StatusCode -ne 200) { throw "Clean upload did not pass storage verification" }
+$eicar = [Text.Encoding]::ASCII.GetBytes('X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*')
+$infectedUpload = Invoke-MultipartUploadStatus -Token $adminToken -Filename "verification.txt" -ContentType "text/plain" -Content $eicar
+if ($infectedUpload.StatusCode -ne 422) { throw "AV infected upload was not rejected" }
+$checks.Add("storage:mime+av")
 
 $sync = Invoke-JsonApi -Uri "$ApiBaseUrl/admin/ai/catalog/sync" -Method POST -Token $adminToken
 if ($sync.status -ne "COMPLETED" -or $sync.processedDocuments -lt 1) { throw "AI catalog synchronization failed" }

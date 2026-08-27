@@ -78,33 +78,23 @@ if (-not $environmentAlreadyExists) {
 }
 
 $prepareEnvironment = -not $environmentAlreadyExists -or $PrepareOnly
+$environmentChanged = $false
 if ($prepareEnvironment) {
     $jwtSecret = Get-EnvironmentValue $environmentText "JWT_SECRET"
     if ([string]::IsNullOrWhiteSpace($jwtSecret) -or $jwtSecret -eq "change-me-use-a-256-bit-secret-key-for-production-environment-please") {
         $environmentText = Set-EnvironmentValue $environmentText "JWT_SECRET" (New-DisposableSecret 48)
+        $environmentChanged = $true
     }
     $aiToken = Get-EnvironmentValue $environmentText "AI_SERVICE_TOKEN"
     if ([string]::IsNullOrWhiteSpace($aiToken) -or $aiToken -eq "local-development-token-not-for-production") {
         $environmentText = Set-EnvironmentValue $environmentText "AI_SERVICE_TOKEN" (New-DisposableSecret 32)
+        $environmentChanged = $true
     }
     $ragToken = Get-EnvironmentValue $environmentText "RAG_INGEST_TOKEN"
     if ([string]::IsNullOrWhiteSpace($ragToken) -or $ragToken -eq "local-rag-ingest-token-not-for-production") {
         $ragToken = New-DisposableSecret 32
         $environmentText = Set-EnvironmentValue $environmentText "RAG_INGEST_TOKEN" $ragToken
-    }
-
-    # Compose is intentionally fail-closed. Generate disposable local-only
-    # values for every required service secret so a fresh checkout does not
-    # need a manual edit, while preserving any operator-provided value.
-    foreach ($requiredSecret in @(
-            @{ Key = "APP_MAIL_OUTBOX_ENCRYPTION_KEY"; Bytes = 32 },
-            @{ Key = "BACKEND_BFF_SERVICE_TOKEN"; Bytes = 32 },
-            @{ Key = "STORAGE_AV_SERVICE_TOKEN"; Bytes = 32 }
-        )) {
-        $existingSecret = Get-EnvironmentValue $environmentText $requiredSecret.Key
-        if ([string]::IsNullOrWhiteSpace($existingSecret)) {
-            $environmentText = Set-EnvironmentValue $environmentText $requiredSecret.Key (New-DisposableSecret $requiredSecret.Bytes)
-        }
+        $environmentChanged = $true
     }
 
     # This explicit local-only preparation enables the protected catalog sync.
@@ -112,13 +102,36 @@ if ($prepareEnvironment) {
     $environmentText = Set-EnvironmentValue $environmentText "RAG_INGEST_ENABLED" "true"
     $environmentText = Set-EnvironmentValue $environmentText "AI_RAG_INGEST_ENABLED" "true"
     $environmentText = Set-EnvironmentValue $environmentText "AI_RAG_INGEST_TOKEN" $ragToken
-    [System.IO.File]::WriteAllText($EnvFile, $environmentText, [Text.UTF8Encoding]::new($false))
-    Write-Host "Prepared local .env for the full MVP with generated missing JWT/AI/RAG secrets."
 } else {
     $ragEnabled = Get-EnvironmentValue $environmentText "RAG_INGEST_ENABLED"
     $ragToken = Get-EnvironmentValue $environmentText "RAG_INGEST_TOKEN"
     if ($ragEnabled -ne "true" -or [string]::IsNullOrWhiteSpace($ragToken)) {
         throw "Existing .env does not opt into protected RAG catalog sync. Review it, then run '$PSScriptRoot\start-and-verify-local-mvp.ps1 -PrepareOnly' to prepare a disposable local MVP environment."
+    }
+}
+
+# Compose is intentionally fail-closed. Repair missing disposable values even
+# when an existing .env is reused, so a previously prepared checkout does not
+# fail later at `docker compose config` merely because new required secrets
+# were added. Never replace an operator-provided value.
+foreach ($requiredSecret in @(
+        @{ Key = "APP_MAIL_OUTBOX_ENCRYPTION_KEY"; Bytes = 32 },
+        @{ Key = "BACKEND_BFF_SERVICE_TOKEN"; Bytes = 32 },
+        @{ Key = "STORAGE_AV_SERVICE_TOKEN"; Bytes = 32 }
+    )) {
+    $existingSecret = Get-EnvironmentValue $environmentText $requiredSecret.Key
+    if ([string]::IsNullOrWhiteSpace($existingSecret)) {
+        $environmentText = Set-EnvironmentValue $environmentText $requiredSecret.Key (New-DisposableSecret $requiredSecret.Bytes)
+        $environmentChanged = $true
+    }
+}
+
+if ($prepareEnvironment -or $environmentChanged) {
+    [System.IO.File]::WriteAllText($EnvFile, $environmentText, [Text.UTF8Encoding]::new($false))
+    if ($prepareEnvironment) {
+        Write-Host "Prepared local .env for the full MVP with generated missing JWT/AI/RAG secrets."
+    } else {
+        Write-Host "Added missing disposable Compose secrets to the existing local .env."
     }
 }
 

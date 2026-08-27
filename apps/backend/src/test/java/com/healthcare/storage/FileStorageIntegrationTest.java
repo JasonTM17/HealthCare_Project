@@ -24,6 +24,9 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 
 import java.util.UUID;
+import java.io.ByteArrayOutputStream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 @Transactional
 class FileStorageIntegrationTest extends AbstractIntegrationTest {
@@ -161,6 +164,32 @@ class FileStorageIntegrationTest extends AbstractIntegrationTest {
     void rejectsUploadWhoseBytesDoNotMatchDeclaredMime() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
             "file", "spoofed.pdf", MediaType.APPLICATION_PDF_VALUE, "plain text pretending to be a PDF".getBytes());
+
+        mockMvc.perform(multipart("/api/v1/files/upload")
+                .file(file)
+                .header("Authorization", adminToken()))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.objectName").doesNotExist());
+    }
+
+    @Test
+    void rejectsZipWithExpandedPayloadAboveInspectionLimit() throws Exception {
+        byte[] expandedPayload = new byte[11 * 1024 * 1024];
+        ByteArrayOutputStream archiveBytes = new ByteArrayOutputStream();
+        try (ZipOutputStream archive = new ZipOutputStream(archiveBytes)) {
+            archive.putNextEntry(new ZipEntry("[Content_Types].xml"));
+            archive.write("<Types/>".getBytes());
+            archive.closeEntry();
+            archive.putNextEntry(new ZipEntry("word/document.xml"));
+            archive.write(expandedPayload);
+            archive.closeEntry();
+        }
+
+        MockMultipartFile file = new MockMultipartFile(
+            "file",
+            "oversized.docx",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            archiveBytes.toByteArray());
 
         mockMvc.perform(multipart("/api/v1/files/upload")
                 .file(file)

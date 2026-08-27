@@ -73,6 +73,9 @@ if (-not [string]::IsNullOrWhiteSpace((Get-ConfigValue "DATABASE_PASSWORD"))) {
 }
 Require-Secret "MINIO_ROOT_PASSWORD" 16
 Require-Secret "AI_SERVICE_TOKEN" 32
+Require-Boolean "STORAGE_AV_REQUIRED" $true
+[void](Require-Value "STORAGE_AV_SERVICE_URL")
+Require-Secret "STORAGE_AV_SERVICE_TOKEN" 32
 Require-Boolean "APP_BOOKING_ALLOW_TEST_OTP" $false
 Require-Boolean "APP_SECURITY_RATE_LIMIT_ENABLED" $true
 # Patient-chat egress is a separate production kill switch. A provider key or

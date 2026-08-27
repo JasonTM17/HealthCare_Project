@@ -20,6 +20,7 @@ public class EmailTemplateRenderer {
     private static final String FOOTER =
         "Nếu bạn không mong đợi email này, hãy bỏ qua và đăng nhập cổng bệnh nhân nếu cần kiểm tra.";
     private static final Set<String> OTP_VARIABLES = Set.of("code", "minutes", "portalUrl");
+    private static final Set<String> BOOKING_OTP_VARIABLES = Set.of("code", "minutes", "portalUrl", "bookingCode");
     private static final Set<String> MESSAGE_VARIABLES = Set.of("message", "portalUrl");
     private final URI portalOrigin;
 
@@ -46,7 +47,9 @@ public class EmailTemplateRenderer {
     }
 
     private void validateVariables(EmailTemplateKey templateKey, Map<String, String> variables) {
-        Set<String> allowed = isOtp(templateKey) ? OTP_VARIABLES : MESSAGE_VARIABLES;
+        Set<String> allowed = isBookingOtp(templateKey)
+            ? BOOKING_OTP_VARIABLES
+            : (isOtp(templateKey) ? OTP_VARIABLES : MESSAGE_VARIABLES);
         if (!allowed.containsAll(variables.keySet())) {
             throw new IllegalArgumentException("Unknown email template variable");
         }
@@ -75,6 +78,11 @@ public class EmailTemplateRenderer {
             || templateKey == EmailTemplateKey.BOOKING_VERIFICATION_OTP;
     }
 
+    private boolean isBookingOtp(EmailTemplateKey templateKey) {
+        return templateKey == EmailTemplateKey.BOOKING_OTP
+            || templateKey == EmailTemplateKey.BOOKING_VERIFICATION_OTP;
+    }
+
     private String buildTextBody(
         EmailTemplateKey templateKey,
         Map<String, String> variables,
@@ -92,6 +100,9 @@ public class EmailTemplateRenderer {
                 String code = firstNonBlank(variables.get("code"), "******");
                 String minutes = firstNonBlank(variables.get("minutes"), "10");
                 lines.add("Mã xác minh của bạn là " + code + ".");
+                if (isBookingOtp(templateKey) && variables.containsKey("bookingCode")) {
+                    lines.add("Mã đặt lịch: " + variables.get("bookingCode") + ".");
+                }
                 lines.add("Mã này hết hạn sau " + minutes + " phút.");
             }
             default -> {

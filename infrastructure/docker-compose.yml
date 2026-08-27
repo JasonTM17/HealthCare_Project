@@ -354,3 +354,10 @@ volumes:
   postgres-data:
   redis-data:
   minio-data:
+
+# The disposable beta is intentionally egress-isolated. Services communicate
+# over Docker DNS and published loopback ports remain available to the host,
+# but an AI provider key cannot create an unreviewed internet path.
+networks:
+  default:
+    internal: true
