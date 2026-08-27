@@ -78,19 +78,19 @@ jobs:
           - service: backend
             image: healthcare-project-backend
             context: apps/backend
-            file: Dockerfile
+            file: apps/backend/Dockerfile
           - service: frontend
             image: healthcare-project-frontend
             context: apps/frontend
-            file: Dockerfile
+            file: apps/frontend/Dockerfile
           - service: ai-service
             image: healthcare-project-ai-service
             context: apps/ai-service
-            file: Dockerfile
+            file: apps/ai-service/Dockerfile
           - service: attachment-scanner
             image: healthcare-project-attachment-scanner
             context: infrastructure/av-scanner
-            file: Dockerfile
+            file: infrastructure/av-scanner/Dockerfile
     steps:
       - name: Check out exact source
         uses: actions/checkout@v4
