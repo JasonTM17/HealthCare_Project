@@ -28,3 +28,10 @@ def test_isolated_verifier_accepts_backend_health_endpoint() -> None:
 def test_local_verifier_records_booking_privacy_consent() -> None:
     script = (ROOT / "scripts" / "verify-local-mvp.ps1").read_text(encoding="utf-8")
     assert 'privacyConsent = $true' in script
+
+
+def test_local_verifier_reads_current_mailpit_message_detail() -> None:
+    script = (ROOT / "scripts" / "verify-local-mvp.ps1").read_text(encoding="utf-8")
+    assert '[HealthCare] Xác nhận đặt lịch' in script
+    assert '$MailpitApiUrl/api/v1/message/$($message.ID)' in script
+    assert 'Wait-ForBookingOtp $hold.bookingCode "patient@healthcare.local" $holdStartedAt' in script
