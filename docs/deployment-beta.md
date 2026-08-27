@@ -100,6 +100,10 @@ Spring emits no CORS grant for them.
    trusted AV/MIME worker records `CLEAN`. The browser's completion call is
    deliberately unable to assert a clean result, and attachments never enter
    DeepSeek/RAG context.
+   The generic `POST /api/v1/files/upload` path is subject to the same
+   scanner gate whenever `STORAGE_AV_REQUIRED=true`; the backend does not
+   write object storage or metadata until the trusted scanner returns
+   `CLEAN`, and scanner outages fail closed with `503`.
    The beta blueprint sets `STORAGE_REQUIRE_PRIVATE_ENDPOINT=true`,
    `STORAGE_UPLOAD_ENABLED=false` and `STORAGE_CONSULTATION_ENABLED=false` by
    default. Before enabling uploads, provide
