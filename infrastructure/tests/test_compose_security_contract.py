@@ -73,3 +73,7 @@ def test_local_bootstrap_requires_private_bucket_and_encrypted_outbox() -> None:
 def test_compose_default_network_is_egress_isolated() -> None:
     compose = yaml.safe_load((ROOT / "infrastructure" / "docker-compose.yml").read_text(encoding="utf-8"))
     assert compose["networks"]["default"]["internal"] is True
+    assert compose["services"]["ai-service"]["networks"] == ["default"]
+    for service in ("backend", "frontend", "postgres", "redis", "mailpit", "minio"):
+        assert set(compose["services"][service]["networks"]) == {"default", "edge"}
+    assert compose["networks"]["edge"]["driver"] == "bridge"

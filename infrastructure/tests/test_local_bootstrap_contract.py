@@ -69,6 +69,7 @@ def test_application_publication_binds_manual_attestation_and_tag_immutability()
     assert 'GITHUB_EVENT_NAME:-' in workflow
     assert 'must be launched with --ref equal to source_ref' in workflow
     assert 'Reject an existing immutable tag' in workflow
+    assert '\n  push:' not in workflow
 
 
 def test_production_env_requires_fail_closed_attachment_scanning() -> None:
