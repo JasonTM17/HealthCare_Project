@@ -56,6 +56,10 @@ jobs:
               echo "::error::Checked out SHA $source_sha does not match requested source_ref $MANUAL_SOURCE_REF"
               exit 1
             fi
+            if [ "${GITHUB_SHA:-}" != "$MANUAL_SOURCE_REF" ]; then
+              echo "::error::workflow_dispatch must be launched with --ref equal to source_ref so the signed attestation binds the release SHA"
+              exit 1
+            fi
           fi
 
           declare -a requested_tags=("${image_name}:sha-${source_sha}")
