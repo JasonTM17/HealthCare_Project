@@ -233,6 +233,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Reject an existing immutable database SHA tag
+        shell: bash
+        env:
+          PRIMARY_TAG: ${{ steps.source.outputs.primary_tag }}
+        run: |
+          set -euo pipefail
+          if docker buildx imagetools inspect "$PRIMARY_TAG" >/dev/null 2>&1; then
+            echo "::error::Immutable database image tag already exists: $PRIMARY_TAG"
+            exit 1
+          fi
+
       - name: Push verified database image
         id: push
         shell: bash
@@ -257,6 +268,24 @@ jobs:
             exit 1
           fi
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Verify published database digest and immutable SHA tag
+        shell: bash
+        env:
+          PRIMARY_TAG: ${{ steps.source.outputs.primary_tag }}
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          set -euo pipefail
+          if [[ "$PRIMARY_TAG" != *":sha-"* ]]; then
+            echo "::error::Primary database tag must be the canonical sha-<source_sha> tag"
+            exit 1
+          fi
+          resolved_digest="$(docker buildx imagetools inspect "$PRIMARY_TAG" --format '{{json .Manifest.Digest}}' | tr -d '\"')"
+          if [ "$resolved_digest" != "$DIGEST" ]; then
+            echo "::error::Registry digest $resolved_digest does not match pushed digest $DIGEST"
+            exit 1
+          fi
+          echo "$PRIMARY_TAG@$DIGEST" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Attest database image provenance
         uses: actions/attest-build-provenance@v4
