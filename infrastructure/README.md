@@ -28,6 +28,10 @@ MinIO on 9000 (console 9001). Override `FRONTEND_HOST_PORT`,
 isolated local run when another worktree or stack already owns the defaults.
 Compose container and volume names stay project-scoped; do not add fixed
 `container_name` values when collecting runtime proof from multiple worktrees.
+The default Compose network is marked `internal: true` so disposable
+containers cannot use the default bridge for arbitrary internet egress. Host
+published loopback ports and service-to-service traffic remain available; this
+does not authorize remote patient AI, which stays disabled by default.
 
 The local seed includes the fictional ADMIN fixture `admin@healthcare.local`
 with the documented local demo password from `docs/LOCAL_RUNBOOK.md` so the CMS
@@ -77,6 +81,14 @@ only and never prints secret values:
 ```powershell
 .\scripts\validate-production-env.ps1 -EnvFile C:\secure\healthcare.production.env
 ```
+
+Production validation requires `STORAGE_AV_REQUIRED=true`, a private
+`STORAGE_AV_SERVICE_URL`, and a 32-byte-plus `STORAGE_AV_SERVICE_TOKEN`; a
+missing scanner is a configuration failure rather than an upload bypass.
+
+Release image publication is restricted to the protected release workflow: the
+manual source ref must equal the checked-out commit, an existing SHA tag is
+rejected, and the pushed digest is verified and attested before it is recorded.
 
 ## Large database fixture
 

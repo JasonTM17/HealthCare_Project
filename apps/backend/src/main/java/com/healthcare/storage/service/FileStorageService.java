@@ -387,6 +387,8 @@ public class FileStorageService {
         boolean wordDocument = false;
         boolean excelWorkbook = false;
         int entryCount = 0;
+        long expandedBytes = 0L;
+        byte[] inspectionBuffer = new byte[8192];
         try (ZipInputStream archive = new ZipInputStream(new ByteArrayInputStream(bytes))) {
             ZipEntry entry;
             while ((entry = archive.getNextEntry()) != null) {
@@ -397,6 +399,13 @@ public class FileStorageService {
                 contentTypes |= "[content_types].xml".equals(name);
                 wordDocument |= "word/document.xml".equals(name);
                 excelWorkbook |= "xl/workbook.xml".equals(name);
+                int read;
+                while ((read = archive.read(inspectionBuffer)) != -1) {
+                    expandedBytes += read;
+                    if (expandedBytes > maxFileSizeBytes) {
+                        return null;
+                    }
+                }
             }
         } catch (IOException | RuntimeException exception) {
             return null;
