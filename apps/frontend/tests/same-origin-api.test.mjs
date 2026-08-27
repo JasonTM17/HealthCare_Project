@@ -97,11 +97,12 @@ test("Compose keeps browser traffic same-origin through the server-only BFF", as
 });
 
 test("local MVP helper binds rebuilt application images to an immutable Git source revision", async () => {
-  const [compose, backendDockerfile, frontendDockerfile, aiDockerfile, backendDockerignore, aiDockerignore, helper, verifier, provenance, runtimeWorkflow] = await Promise.all([
+  const [compose, backendDockerfile, frontendDockerfile, aiDockerfile, scannerDockerfile, backendDockerignore, aiDockerignore, helper, verifier, provenance, runtimeWorkflow] = await Promise.all([
     read("../../infrastructure/docker-compose.yml"),
     read("../../apps/backend/Dockerfile"),
     read("Dockerfile"),
     read("../../apps/ai-service/Dockerfile"),
+    read("../../infrastructure/av-scanner/Dockerfile"),
     read("../../apps/backend/.dockerignore"),
     read("../../apps/ai-service/.dockerignore"),
     read("../../scripts/start-and-verify-local-mvp.ps1"),
@@ -110,8 +111,8 @@ test("local MVP helper binds rebuilt application images to an immutable Git sour
     read("../../.github/workflows/runtime-compose.yml"),
   ]);
 
-  assert.equal((compose.match(/VCS_REF:\s+\$\{BUILD_VCS_REF:-unknown\}/g) || []).length, 3);
-  for (const dockerfile of [backendDockerfile, frontendDockerfile, aiDockerfile]) {
+  assert.equal((compose.match(/VCS_REF:\s+\$\{BUILD_VCS_REF:-unknown\}/g) || []).length, 4);
+  for (const dockerfile of [backendDockerfile, frontendDockerfile, aiDockerfile, scannerDockerfile]) {
     assert.match(dockerfile, /ARG VCS_REF=unknown/);
     assert.match(dockerfile, /org\.opencontainers\.image\.revision=\$\{VCS_REF\}/);
   }
