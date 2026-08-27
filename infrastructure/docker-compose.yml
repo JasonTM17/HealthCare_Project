@@ -101,6 +101,8 @@ services:
     build:
       context: ./av-scanner
       dockerfile: Dockerfile
+      args:
+        VCS_REF: ${BUILD_VCS_REF:-unknown}
     restart: unless-stopped
     environment:
       SCANNER_SERVICE_TOKEN: ${STORAGE_AV_SERVICE_TOKEN:?STORAGE_AV_SERVICE_TOKEN is required}
