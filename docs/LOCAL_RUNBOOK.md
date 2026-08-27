@@ -98,6 +98,10 @@ local slot:
 .\scripts\verify-local-mvp.ps1 -RequireClinicalFlow
 ```
 
+When the API is published on an isolated host port, pass the matching health
+origin as well as `-ApiBaseUrl`, for example:
+`.\scripts\verify-local-mvp.ps1 -ApiBaseUrl http://127.0.0.1:<backend-port>/api/v1 -BackendHealthUrl http://127.0.0.1:<backend-port> -FrontendUrl http://127.0.0.1:<frontend-port> -MailpitApiUrl http://127.0.0.1:<mailpit-ui-port>`.
+
 This mode intentionally fails when there is no available same-day slot. It does
 not fabricate a visit date or bypass the doctor status-transition rules. It
 uses the hospital's Vietnam business date (`Asia/Ho_Chi_Minh` / Windows `SE Asia

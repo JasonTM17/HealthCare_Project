@@ -17,3 +17,9 @@ def test_local_bootstrap_generates_all_required_compose_secrets() -> None:
     ):
         marker = f'Key = "{key}"'
         assert marker in block
+
+
+def test_isolated_verifier_accepts_backend_health_endpoint() -> None:
+    script = (ROOT / "scripts" / "verify-local-mvp.ps1").read_text(encoding="utf-8")
+    assert '[string]$BackendHealthUrl = "http://localhost:8080"' in script
+    assert 'Invoke-RestMethod "$BackendHealthUrl/actuator/health"' in script
