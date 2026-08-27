@@ -39,17 +39,21 @@ function Login-DemoRole([string]$Email) {
     $session.accessToken
 }
 
-function Wait-ForBookingOtp([string]$BookingCode, [string]$Recipient) {
+function Wait-ForBookingOtp([string]$BookingCode, [string]$Recipient, [DateTimeOffset]$AfterUtc) {
     for ($attempt = 1; $attempt -le 40; $attempt++) {
         try {
             $mailbox = Invoke-RestMethod "$MailpitApiUrl/api/v1/messages?limit=50"
-            $message = $mailbox.messages | Where-Object {
-                $_.Subject -eq "HealthCare booking verification" `
-                    -and $_.Snippet -like "*$BookingCode*" `
-                    -and ($_.To.Address -contains $Recipient)
-            } | Select-Object -First 1
-            if ($message -and $message.Snippet -match '\bis (?<Otp>\d{6})\b') {
-                return $Matches.Otp
+            $messages = $mailbox.messages | Where-Object {
+                $_.Subject -in @("HealthCare booking verification", "[HealthCare] Xác nhận đặt lịch") `
+                    -and (@($_.To | ForEach-Object { $_.Address }) -contains $Recipient) `
+                    -and ((-not $_.Created) -or ([DateTimeOffset]$_.Created -gt $AfterUtc))
+            } | Sort-Object Created -Descending
+            foreach ($message in $messages) {
+                $detail = Invoke-RestMethod "$MailpitApiUrl/api/v1/message/$($message.ID)"
+                $content = "$($detail.Text)`n$($detail.HTML)"
+                if (($content -match '(?i)Mã xác minh của bạn là\s*(?<Otp>\d{6})\b') -or ($content -match '(?i)\bis\s*(?<Otp>\d{6})\b')) {
+                    return $Matches.Otp
+                }
             }
         } catch {
             if ($attempt -eq 40) { throw }
@@ -174,6 +178,7 @@ if (-not $selectedSlot) {
     throw "No available slot found for the demo doctor in the next 21 days"
 }
 
+$holdStartedAt = [DateTimeOffset]::UtcNow
 $hold = Invoke-JsonApi -Uri "$ApiBaseUrl/appointments/hold" -Method POST -Token $patientToken -Body @{
     doctorId = $demoDoctor.id
     appointmentDate = $selectedDate
@@ -186,7 +191,7 @@ $hold = Invoke-JsonApi -Uri "$ApiBaseUrl/appointments/hold" -Method POST -Token 
     specialtyId = $bookingSpecialty.id
     branchId = $branchId
 }
-$bookingOtp = Wait-ForBookingOtp $hold.bookingCode "patient@healthcare.local"
+$bookingOtp = Wait-ForBookingOtp $hold.bookingCode "patient@healthcare.local" $holdStartedAt
 $confirmed = Invoke-JsonApi -Uri "$ApiBaseUrl/appointments/confirm" -Method POST -Body @{
     bookingCode = $hold.bookingCode
     otpCode = $bookingOtp
