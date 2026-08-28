@@ -81,6 +81,11 @@ def test_database_publication_rejects_immutable_tag_replacement() -> None:
     assert "group: beta-database-${{ github.event.inputs.source_ref || github.sha }}" in workflow
 
 
+def test_example_env_keeps_remote_ai_kill_switch_on_by_default() -> None:
+    env_example = (ROOT / ".env.example").read_text(encoding="utf-8")
+    assert "\nREMOTE_AI_KILL_SWITCH=true\n" in env_example
+
+
 def test_production_env_requires_fail_closed_attachment_scanning() -> None:
     script = (ROOT / "scripts" / "validate-production-env.ps1").read_text(encoding="utf-8")
     assert 'Require-Boolean "STORAGE_AV_REQUIRED" $true' in script
@@ -88,3 +93,5 @@ def test_production_env_requires_fail_closed_attachment_scanning() -> None:
     assert 'Require-Value "STORAGE_AV_ALLOWED_HOSTS"' in script
     assert 'Require-Secret "STORAGE_AV_SERVICE_TOKEN" 32' in script
     assert 'Require-Boolean "STORAGE_MIME_VALIDATION_REQUIRED" $true' in script
+    assert '"http://$endpointText/scan"' in script
+    assert 'STORAGE_AV_SERVICE_URL hostport must not contain credentials' in script
