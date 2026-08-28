@@ -41,9 +41,12 @@ jobs:
       - name: Run live role and payment browser journeys
         working-directory: apps/frontend
         env:
-          PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
-          PLAYWRIGHT_API_BASE_URL: http://127.0.0.1:8080/api/v1
-          PLAYWRIGHT_MAILPIT_API_URL: http://127.0.0.1:8025
+          # Keep the browser origin identical to BFF_PUBLIC_ORIGIN generated
+          # by the local bootstrap.  Mixing loopback hostnames breaks cookie
+          # scope and turns successful logins into redirects to /auth/login.
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+          PLAYWRIGHT_API_BASE_URL: http://localhost:8080/api/v1
+          PLAYWRIGHT_MAILPIT_API_URL: http://localhost:8025
         run: npm run test:e2e:compose
 
       - name: Collect Compose diagnostics
