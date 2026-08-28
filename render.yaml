@@ -3,8 +3,10 @@
 # This file is intentionally a deployment manifest, not deployment evidence.
 # Create disposable beta resources in the already-authorized Render workspace;
 # never attach this blueprint to a production service. Set every secret in
-# Render's secret store. This build rejects remote patient-answer switches;
-# keep both disabled as required by docs/deployment-beta.md.
+# Render's secret store. The application services are image-backed so hosted
+# beta evidence can name the exact GHCR artifact instead of a Render rebuild.
+# Refresh the sha-<commit> image URLs only after the matching GHCR publication
+# workflow has completed and its digest/provenance is recorded.
 
 databases:
   - name: healthcare-beta-postgres
@@ -27,10 +29,10 @@ services:
 
   - type: pserv
     name: healthcare-beta-ai
-    runtime: docker
+    runtime: image
     region: singapore
-    dockerfilePath: ./apps/ai-service/Dockerfile
-    dockerContext: ./apps/ai-service
+    image:
+      url: ghcr.io/jasontm17/healthcare-project-ai-service:sha-7d8e055e3008b6688ece6a0ceb29df17af6b1e39
     # Render private services use a TCP port check. `healthCheckPath` is a
     # web-service-only field; application readiness is verified internally
     # with the service token by Spring/synthetic smoke tests.
@@ -60,12 +62,38 @@ services:
       - key: RAG_EMBEDDING_DIMENSION
         value: "384"
 
+  - type: pserv
+    name: healthcare-beta-clamav
+    runtime: image
+    region: singapore
+    image:
+      url: clamav/clamav:1.4
+
+  - type: pserv
+    name: healthcare-beta-av-scanner
+    runtime: image
+    region: singapore
+    image:
+      url: ghcr.io/jasontm17/healthcare-project-attachment-scanner:sha-7d8e055e3008b6688ece6a0ceb29df17af6b1e39
+    envVars:
+      - key: SCANNER_SERVICE_TOKEN
+        sync: false
+      - key: CLAMD_HOST
+        fromService:
+          type: pserv
+          name: healthcare-beta-clamav
+          property: host
+      - key: CLAMD_PORT
+        value: "3310"
+      - key: MAX_SCAN_BYTES
+        value: "10485760"
+
   - type: web
     name: healthcare-beta-backend
-    runtime: docker
+    runtime: image
     region: singapore
-    dockerfilePath: ./apps/backend/Dockerfile
-    dockerContext: ./apps/backend
+    image:
+      url: ghcr.io/jasontm17/healthcare-project-backend:sha-7d8e055e3008b6688ece6a0ceb29df17af6b1e39
     healthCheckPath: /actuator/health
     envVars:
       - key: SPRING_PROFILES_ACTIVE
@@ -145,10 +173,19 @@ services:
       - key: STORAGE_AV_REQUIRED
         value: "true"
       - key: STORAGE_AV_SERVICE_URL
-        sync: false
+        fromService:
+          type: pserv
+          name: healthcare-beta-av-scanner
+          property: hostport
       - key: STORAGE_AV_SERVICE_TOKEN
-        sync: false
+        fromService:
+          type: pserv
+          name: healthcare-beta-av-scanner
+          envVarKey: SCANNER_SERVICE_TOKEN
       - key: STORAGE_AV_ALLOWED_HOSTS
-        sync: false
+        fromService:
+          type: pserv
+          name: healthcare-beta-av-scanner
+          property: host
       - key: STORAGE_MIME_VALIDATION_REQUIRED
         value: "true"

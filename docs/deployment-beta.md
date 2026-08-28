@@ -1,9 +1,11 @@
 # Synthetic beta deployment runbook
 
 The checked-in [`render.yaml`](../render.yaml) describes the intended Render
-topology for the Spring API, private FastAPI service, Redis and a disposable
-PostgreSQL database. The Next.js app belongs in a separate Vercel project with
-`apps/frontend` as its root directory.
+topology for the Spring API, private FastAPI service, private ClamAV scanner,
+Redis and a disposable PostgreSQL database. The Render application services
+are image-backed and pin GHCR `sha-<commit>` references instead of asking
+Render to rebuild from source. The Next.js app belongs in a separate Vercel
+project with `apps/frontend` as its root directory.
 
 This is a deployment recipe, not proof that a hosted environment exists. No
 provider credentials, domain, secret-manager access or production traffic are
@@ -32,6 +34,12 @@ summary. Deploy that recorded digest, not a mutable `latest` tag. The
 standalone seeded database remains
 `healthcare-project-database:sha-<40-char-commit>` and is published by its
 separate verified workflow.
+
+Render Blueprints do not interpolate variables inside `image.url`, so refresh
+the checked-in image URLs only after the matching manual GHCR workflow has
+finished. Treat that pinned image source SHA as the application identity for
+the hosted beta; the manifest commit that records the pins can be newer than
+the application image source.
 
 ## Required Vercel settings
 
@@ -88,7 +96,8 @@ Spring emits no CORS grant for them.
    additive and must be applied before retention, email, or attachment workers
    are enabled.
 3. Configure the private AI service with `AI_PROVIDER=local`, remote flags
-   disabled and `SUPABASE_RAG_FALLBACK_TO_MEMORY=false`.
+   disabled and `SUPABASE_RAG_FALLBACK_TO_MEMORY=false`. The image URL in the
+   blueprint must match the GHCR digest recorded for the approved source SHA.
 4. Configure Spring's CORS origin and service tokens, then wait for
    `/actuator/health` to pass. Render's private AI service uses its TCP port
    check; from a service on the same private network, run the authenticated
@@ -115,11 +124,16 @@ Spring emits no CORS grant for them.
    default. Before enabling uploads, provide
    `STORAGE_ENDPOINT`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY`,
    `STORAGE_BUCKET`, `STORAGE_REGION` and a 32-byte-plus
-   `STORAGE_CONSULTATION_KEY_SIGNING_SECRET` from Render's secret store, then
-   configure `STORAGE_AV_SERVICE_URL`, `STORAGE_AV_SERVICE_TOKEN`, and the
-   exact scanner hostname in `STORAGE_AV_ALLOWED_HOSTS` for a trusted AV/MIME
-   worker; keep `STORAGE_MIME_VALIDATION_REQUIRED=true`. URLs with credentials,
-   query/fragment data, or a host outside that allowlist fail startup/validation.
+   `STORAGE_CONSULTATION_KEY_SIGNING_SECRET` from Render's secret store. The
+   blueprint provisions `healthcare-beta-clamav` and
+   `healthcare-beta-av-scanner` as private image-backed services. Spring
+   receives the scanner `hostport` and exact host from Render service
+   references, normalizes the internal hostport to `http://<hostport>/scan`,
+   and references the scanner's `SCANNER_SERVICE_TOKEN` as
+   `STORAGE_AV_SERVICE_TOKEN`; keep `STORAGE_MIME_VALIDATION_REQUIRED=true`.
+   URLs with credentials,
+   query/fragment data, wrong path data, or a host outside that allowlist fail
+   startup/validation.
    `STORAGE_CONSULTATION_SCAN_LEASE_SECONDS` bounds
    the database-owned lease to 15 minutes. Missing credentials, localhost
    endpoints, or a missing scanner keep the backend fail-closed; no Render

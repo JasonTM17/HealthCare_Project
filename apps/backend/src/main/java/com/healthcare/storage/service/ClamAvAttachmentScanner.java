@@ -41,6 +41,12 @@ public final class ClamAvAttachmentScanner implements AttachmentScanner {
         if (candidate.isBlank()) {
             return "";
         }
+        if (!candidate.contains("://")) {
+            if (candidate.contains("/") || candidate.contains("?") || candidate.contains("#") || candidate.contains("@")) {
+                throw new IllegalArgumentException("scanner endpoint hostport must not contain credentials, path, query, or fragment");
+            }
+            candidate = "http://" + candidate + "/scan";
+        }
 
         URI uri;
         try {
@@ -56,6 +62,10 @@ public final class ClamAvAttachmentScanner implements AttachmentScanner {
                 || uri.getFragment() != null
                 || uri.getQuery() != null) {
             throw new IllegalArgumentException("scanner endpoint must be an absolute HTTP(S) URL without credentials, query, or fragment");
+        }
+        String path = uri.getPath() == null ? "" : uri.getPath();
+        if (!"/scan".equals(path)) {
+            throw new IllegalArgumentException("scanner endpoint path must be /scan");
         }
 
         Set<String> allowedHosts = Arrays.stream((rawAllowedHosts == null ? "" : rawAllowedHosts).split(","))

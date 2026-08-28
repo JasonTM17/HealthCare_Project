@@ -69,14 +69,27 @@ function Require-TrustedScannerEndpoint {
         return
     }
 
+    $endpointText = $rawEndpoint.Trim()
+    if ($endpointText -notmatch '^[A-Za-z][A-Za-z0-9+.-]*://') {
+        if ($endpointText -match '[/@?#]') {
+            $failures.Add("STORAGE_AV_SERVICE_URL hostport must not contain credentials, path, query, or fragment.")
+            return
+        }
+        $endpointText = "http://$endpointText/scan"
+    }
+
     $endpoint = $null
-    if (-not [Uri]::TryCreate($rawEndpoint, [UriKind]::Absolute, [ref]$endpoint) -or
+    if (-not [Uri]::TryCreate($endpointText, [UriKind]::Absolute, [ref]$endpoint) -or
             $endpoint.Scheme -notin @("http", "https") -or
             [string]::IsNullOrWhiteSpace($endpoint.DnsSafeHost) -or
             -not [string]::IsNullOrWhiteSpace($endpoint.UserInfo) -or
             -not [string]::IsNullOrWhiteSpace($endpoint.Query) -or
             -not [string]::IsNullOrWhiteSpace($endpoint.Fragment)) {
         $failures.Add("STORAGE_AV_SERVICE_URL must be an absolute HTTP(S) URL without credentials, query, or fragment.")
+        return
+    }
+    if ($endpoint.AbsolutePath -ne "/scan") {
+        $failures.Add("STORAGE_AV_SERVICE_URL path must be /scan.")
         return
     }
 
