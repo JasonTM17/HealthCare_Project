@@ -116,8 +116,11 @@ Spring emits no CORS grant for them.
    `STORAGE_ENDPOINT`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY`,
    `STORAGE_BUCKET`, `STORAGE_REGION` and a 32-byte-plus
    `STORAGE_CONSULTATION_KEY_SIGNING_SECRET` from Render's secret store, then
-   configure `STORAGE_AV_SERVICE_URL` and `STORAGE_AV_SERVICE_TOKEN` for a
-   trusted AV/MIME worker. `STORAGE_CONSULTATION_SCAN_LEASE_SECONDS` bounds
+   configure `STORAGE_AV_SERVICE_URL`, `STORAGE_AV_SERVICE_TOKEN`, and the
+   exact scanner hostname in `STORAGE_AV_ALLOWED_HOSTS` for a trusted AV/MIME
+   worker; keep `STORAGE_MIME_VALIDATION_REQUIRED=true`. URLs with credentials,
+   query/fragment data, or a host outside that allowlist fail startup/validation.
+   `STORAGE_CONSULTATION_SCAN_LEASE_SECONDS` bounds
    the database-owned lease to 15 minutes. Missing credentials, localhost
    endpoints, or a missing scanner keep the backend fail-closed; no Render
    beta path falls back to `localhost:9000`. Only the trusted service can

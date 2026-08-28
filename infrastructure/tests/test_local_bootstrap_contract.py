@@ -84,5 +84,7 @@ def test_database_publication_rejects_immutable_tag_replacement() -> None:
 def test_production_env_requires_fail_closed_attachment_scanning() -> None:
     script = (ROOT / "scripts" / "validate-production-env.ps1").read_text(encoding="utf-8")
     assert 'Require-Boolean "STORAGE_AV_REQUIRED" $true' in script
-    assert 'Require-Value "STORAGE_AV_SERVICE_URL"' in script
+    assert 'Require-TrustedScannerEndpoint' in script
+    assert 'Require-Value "STORAGE_AV_ALLOWED_HOSTS"' in script
     assert 'Require-Secret "STORAGE_AV_SERVICE_TOKEN" 32' in script
+    assert 'Require-Boolean "STORAGE_MIME_VALIDATION_REQUIRED" $true' in script

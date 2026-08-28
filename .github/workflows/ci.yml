@@ -213,6 +213,8 @@ jobs:
             "STORAGE_AV_REQUIRED=true"
             "STORAGE_AV_SERVICE_URL=https://scanner.healthcare.invalid/scan"
             "STORAGE_AV_SERVICE_TOKEN=validation-storage-av-token-xxxxxxxxxxxxxxxxxxxx"
+            "STORAGE_AV_ALLOWED_HOSTS=scanner.healthcare.invalid"
+            "STORAGE_MIME_VALIDATION_REQUIRED=true"
             "APP_BOOKING_ALLOW_TEST_OTP=false"
             "APP_SECURITY_RATE_LIMIT_ENABLED=true"
             "CORS_ALLOWED_ORIGINS=https://healthcare.invalid"

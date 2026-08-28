@@ -230,6 +230,7 @@ services:
       STORAGE_AV_REQUIRED: "true"
       STORAGE_AV_SERVICE_URL: http://attachment-scanner:8080/scan
       STORAGE_AV_SERVICE_TOKEN: ${STORAGE_AV_SERVICE_TOKEN:?STORAGE_AV_SERVICE_TOKEN is required}
+      STORAGE_AV_ALLOWED_HOSTS: attachment-scanner
       STORAGE_MIME_VALIDATION_REQUIRED: "true"
     ports:
       - "127.0.0.1:${BACKEND_HOST_PORT:-8080}:8080"
