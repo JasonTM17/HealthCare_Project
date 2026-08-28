@@ -102,6 +102,12 @@ if ($prepareEnvironment) {
     $environmentText = Set-EnvironmentValue $environmentText "RAG_INGEST_ENABLED" "true"
     $environmentText = Set-EnvironmentValue $environmentText "AI_RAG_INGEST_ENABLED" "true"
     $environmentText = Set-EnvironmentValue $environmentText "AI_RAG_INGEST_TOKEN" $ragToken
+
+    # The disposable full-MVP fixture includes MinIO and the private
+    # attachment-scanner sidecar, so opt consultation storage in explicitly.
+    # `.env.example` keeps this false for ordinary development; never mutate
+    # an operator-provided environment outside this preparation branch.
+    $environmentText = Set-EnvironmentValue $environmentText "STORAGE_CONSULTATION_ENABLED" "true"
 } else {
     $ragEnabled = Get-EnvironmentValue $environmentText "RAG_INGEST_ENABLED"
     $ragToken = Get-EnvironmentValue $environmentText "RAG_INGEST_TOKEN"
