@@ -29,6 +29,11 @@ def test_local_bootstrap_repairs_required_secrets_when_existing_env_is_reused() 
     assert required_loop > prepare_branch
 
 
+def test_full_local_mvp_bootstrap_enables_disposable_consultation_storage() -> None:
+    script = (ROOT / "scripts" / "start-and-verify-local-mvp.ps1").read_text(encoding="utf-8")
+    assert 'Set-EnvironmentValue $environmentText "STORAGE_CONSULTATION_ENABLED" "true"' in script
+
+
 def test_isolated_verifier_accepts_backend_health_endpoint() -> None:
     script = (ROOT / "scripts" / "verify-local-mvp.ps1").read_text(encoding="utf-8")
     assert '[string]$BackendHealthUrl = "http://localhost:8080"' in script
