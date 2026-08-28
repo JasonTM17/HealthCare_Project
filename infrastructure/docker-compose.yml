@@ -190,8 +190,11 @@ services:
       APP_MAIL_OUTBOX_RETENTION_DAYS: "90"
       APP_MAIL_OUTBOX_CLEANUP_MS: "3600000"
       APP_MAIL_OUTBOX_CLEANUP_INITIAL_DELAY_MS: "3600000"
-      SPRING_MAIL_HOST:      ${SPRING_MAIL_HOST:-mailpit}
-      SPRING_MAIL_PORT:      ${SPRING_MAIL_PORT:-1025}
+      # Compose always routes SMTP through the private Mailpit service.  The
+      # root .env.example also supports a bare-host process, where localhost is
+      # correct, but that value must never leak into this container network.
+      SPRING_MAIL_HOST:      mailpit
+      SPRING_MAIL_PORT:      "1025"
       SPRING_MAIL_USERNAME:  ${SPRING_MAIL_USERNAME:-}
       SPRING_MAIL_PASSWORD:  ${SPRING_MAIL_PASSWORD:-}
       SPRING_MAIL_SMTP_AUTH: ${SPRING_MAIL_SMTP_AUTH:-false}
