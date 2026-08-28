@@ -25,6 +25,8 @@ def test_compose_keeps_attachment_scanner_private_and_fail_closed() -> None:
 
     backend = services["backend"]
     backend_env = backend["environment"]
+    assert backend_env["SPRING_MAIL_HOST"] == "mailpit"
+    assert backend_env["SPRING_MAIL_PORT"] == "1025"
     assert backend_env["STORAGE_AV_REQUIRED"] == "true"
     assert backend_env["STORAGE_AV_SERVICE_URL"] == "http://attachment-scanner:8080/scan"
     assert backend_env["STORAGE_AV_SERVICE_TOKEN"].endswith(
