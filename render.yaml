@@ -152,5 +152,3 @@ services:
         sync: false
       - key: STORAGE_MIME_VALIDATION_REQUIRED
         value: "true"
-      - key: STORAGE_MIME_VALIDATION_REQUIRED
-        value: "true"
