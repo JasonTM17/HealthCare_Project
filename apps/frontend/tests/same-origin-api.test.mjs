@@ -145,6 +145,9 @@ test("local MVP helper binds rebuilt application images to an immutable Git sour
   assert.match(runtimeWorkflow, /Start and verify full local MVP stack/);
   assert.match(runtimeWorkflow, /HEALTHCARE_RUNTIME_ENV: \$\{\{ runner\.temp \}\}\/healthcare-runtime\.env/);
   assert.match(runtimeWorkflow, /COMPOSE_PROJECT_NAME: healthcare-runtime-ci-\$\{\{ github\.run_id \}\}/);
+  assert.match(runtimeWorkflow, /PLAYWRIGHT_BASE_URL: http:\/\/localhost:3000/);
+  assert.match(runtimeWorkflow, /PLAYWRIGHT_API_BASE_URL: http:\/\/localhost:8080\/api\/v1/);
+  assert.match(runtimeWorkflow, /PLAYWRIGHT_MAILPIT_API_URL: http:\/\/localhost:8025/);
   assert.match(runtimeWorkflow, /"down", "--remove-orphans"/);
   for (const dockerignore of [backendDockerignore, aiDockerignore]) {
     assert.match(dockerignore, /^\.git$/m);
