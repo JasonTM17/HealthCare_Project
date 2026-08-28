@@ -32,7 +32,7 @@ services:
     runtime: image
     region: singapore
     image:
-      url: ghcr.io/jasontm17/healthcare-project-ai-service:sha-d4474d7382bf4fe04051afa76b248c1ab579ec13
+      url: ghcr.io/jasontm17/healthcare-project-ai-service:sha-bc106cf1e451c006b80ce7df30681c9c746c7ce1
     # Render private services use a TCP port check. `healthCheckPath` is a
     # web-service-only field; application readiness is verified internally
     # with the service token by Spring/synthetic smoke tests.
@@ -74,7 +74,7 @@ services:
     runtime: image
     region: singapore
     image:
-      url: ghcr.io/jasontm17/healthcare-project-attachment-scanner:sha-d4474d7382bf4fe04051afa76b248c1ab579ec13
+      url: ghcr.io/jasontm17/healthcare-project-attachment-scanner:sha-bc106cf1e451c006b80ce7df30681c9c746c7ce1
     envVars:
       - key: SCANNER_SERVICE_TOKEN
         sync: false
@@ -93,7 +93,7 @@ services:
     runtime: image
     region: singapore
     image:
-      url: ghcr.io/jasontm17/healthcare-project-backend:sha-d4474d7382bf4fe04051afa76b248c1ab579ec13
+      url: ghcr.io/jasontm17/healthcare-project-backend:sha-bc106cf1e451c006b80ce7df30681c9c746c7ce1
     healthCheckPath: /actuator/health
     envVars:
       - key: SPRING_PROFILES_ACTIVE
