@@ -5,7 +5,11 @@ import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+import java.net.URI;
+import java.util.Arrays;
 import java.util.Locale;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Small HTTP adapter for a trusted ClamAV/scanner sidecar.  The sidecar
@@ -19,13 +23,53 @@ public final class ClamAvAttachmentScanner implements AttachmentScanner {
     private final String endpoint;
     private final String serviceToken;
 
-    public ClamAvAttachmentScanner(RestClient.Builder builder, String endpoint, String serviceToken) {
+    public ClamAvAttachmentScanner(
+            RestClient.Builder builder,
+            String endpoint,
+            String serviceToken,
+            String allowedHosts) {
         if (builder == null) {
             throw new IllegalArgumentException("scanner HTTP client is required");
         }
         this.client = builder.build();
-        this.endpoint = endpoint == null ? "" : endpoint.trim();
+        this.endpoint = validateEndpoint(endpoint, allowedHosts);
         this.serviceToken = serviceToken == null ? "" : serviceToken.trim();
+    }
+
+    private String validateEndpoint(String rawEndpoint, String rawAllowedHosts) {
+        String candidate = rawEndpoint == null ? "" : rawEndpoint.trim();
+        if (candidate.isBlank()) {
+            return "";
+        }
+
+        URI uri;
+        try {
+            uri = URI.create(candidate);
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException("scanner endpoint must be an absolute HTTP(S) URL", exception);
+        }
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
+        String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
+        if (!("http".equals(scheme) || "https".equals(scheme))
+                || host.isBlank()
+                || uri.getUserInfo() != null
+                || uri.getFragment() != null
+                || uri.getQuery() != null) {
+            throw new IllegalArgumentException("scanner endpoint must be an absolute HTTP(S) URL without credentials, query, or fragment");
+        }
+
+        Set<String> allowedHosts = Arrays.stream((rawAllowedHosts == null ? "" : rawAllowedHosts).split(","))
+            .map(String::trim)
+            .filter(value -> !value.isBlank())
+            .map(value -> value.toLowerCase(Locale.ROOT))
+            .collect(Collectors.toUnmodifiableSet());
+        if (allowedHosts.isEmpty() || allowedHosts.stream().anyMatch(value -> value.contains("*") || value.contains(":") || value.contains("/"))) {
+            throw new IllegalArgumentException("scanner allowed hosts must contain exact hostnames only");
+        }
+        if (!allowedHosts.contains(host)) {
+            throw new IllegalArgumentException("scanner endpoint host is not allowlisted");
+        }
+        return uri.toString();
     }
 
     @Override

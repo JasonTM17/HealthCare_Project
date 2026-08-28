@@ -55,6 +55,7 @@ class FileStorageAvFailClosedIntegrationTest extends AbstractIntegrationTest {
         registry.add("storage.av.required", () -> "true");
         registry.add("storage.av.service-url", () -> "http://127.0.0.1:1/scan");
         registry.add("storage.av.service-token", () -> "disposable-av-test-token");
+        registry.add("storage.av.allowed-hosts", () -> "127.0.0.1");
     }
 
     @Autowired private RoleRepository roleRepository;

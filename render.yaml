@@ -148,5 +148,9 @@ services:
         sync: false
       - key: STORAGE_AV_SERVICE_TOKEN
         sync: false
+      - key: STORAGE_AV_ALLOWED_HOSTS
+        sync: false
+      - key: STORAGE_MIME_VALIDATION_REQUIRED
+        value: "true"
       - key: STORAGE_MIME_VALIDATION_REQUIRED
         value: "true"
