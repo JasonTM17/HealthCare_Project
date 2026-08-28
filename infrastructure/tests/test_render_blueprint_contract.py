@@ -4,7 +4,7 @@ import yaml
 
 
 ROOT = Path(__file__).resolve().parents[2]
-SOURCE_SHA = "bc106cf1e451c006b80ce7df30681c9c746c7ce1"
+SOURCE_SHA = "0fff2aeb1a8f75a39aec64fe3141517c9f38913e"
 
 
 def _services_by_name() -> dict[str, dict]:
