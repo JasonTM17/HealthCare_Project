@@ -30,6 +30,8 @@ def test_compose_keeps_attachment_scanner_private_and_fail_closed() -> None:
     assert backend_env["STORAGE_AV_SERVICE_TOKEN"].endswith(
         "STORAGE_AV_SERVICE_TOKEN is required}"
     )
+    assert backend_env["STORAGE_AV_ALLOWED_HOSTS"] == "attachment-scanner"
+    assert backend_env["STORAGE_MIME_VALIDATION_REQUIRED"] == "true"
     assert backend["depends_on"]["attachment-scanner"]["condition"] == "service_healthy"
 
     assert backend_env["APP_AUTH_OTP_WINDOW_SECONDS"].endswith(":-900}")
