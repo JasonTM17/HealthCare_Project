@@ -62,6 +62,42 @@ function Require-Boolean([string]$Name, [bool]$Expected) {
     }
 }
 
+function Require-TrustedScannerEndpoint {
+    $rawEndpoint = Require-Value "STORAGE_AV_SERVICE_URL"
+    $rawAllowedHosts = Require-Value "STORAGE_AV_ALLOWED_HOSTS"
+    if ([string]::IsNullOrWhiteSpace($rawEndpoint) -or [string]::IsNullOrWhiteSpace($rawAllowedHosts)) {
+        return
+    }
+
+    $endpoint = $null
+    if (-not [Uri]::TryCreate($rawEndpoint, [UriKind]::Absolute, [ref]$endpoint) -or
+            $endpoint.Scheme -notin @("http", "https") -or
+            [string]::IsNullOrWhiteSpace($endpoint.DnsSafeHost) -or
+            -not [string]::IsNullOrWhiteSpace($endpoint.UserInfo) -or
+            -not [string]::IsNullOrWhiteSpace($endpoint.Query) -or
+            -not [string]::IsNullOrWhiteSpace($endpoint.Fragment)) {
+        $failures.Add("STORAGE_AV_SERVICE_URL must be an absolute HTTP(S) URL without credentials, query, or fragment.")
+        return
+    }
+
+    $allowedHosts = @($rawAllowedHosts -split ',' | ForEach-Object { $_.Trim().ToLowerInvariant() } | Where-Object { $_ })
+    $invalidAllowedHosts = @($allowedHosts | Where-Object { $_ -match '[*:/]' })
+    if ($allowedHosts.Count -eq 0 -or $invalidAllowedHosts.Count -gt 0) {
+        $failures.Add("STORAGE_AV_ALLOWED_HOSTS must contain exact hostnames only.")
+        return
+    }
+    $endpointHost = $endpoint.DnsSafeHost.ToLowerInvariant()
+    if ($endpointHost -notin $allowedHosts) {
+        $failures.Add("STORAGE_AV_SERVICE_URL host must be listed in STORAGE_AV_ALLOWED_HOSTS.")
+    }
+
+    $privateHttpHost = $endpointHost -notmatch '\.' -or
+        $endpointHost -match '(?i)(^localhost$|\.internal$|^127\.|^10\.|^192\.168\.|^172\.(1[6-9]|2\d|3[01])\.)'
+    if ($endpoint.Scheme -eq "http" -and -not $privateHttpHost) {
+        $failures.Add("STORAGE_AV_SERVICE_URL must use HTTPS unless it targets an explicit private/internal host.")
+    }
+}
+
 $profile = Require-Value "SPRING_PROFILES_ACTIVE"
 if ($profile -match '(?i)(^|,)(test|standalone|local)(,|$)') {
     $failures.Add("SPRING_PROFILES_ACTIVE must not enable test, standalone, or local profiles in production.")
@@ -74,8 +110,9 @@ if (-not [string]::IsNullOrWhiteSpace((Get-ConfigValue "DATABASE_PASSWORD"))) {
 Require-Secret "MINIO_ROOT_PASSWORD" 16
 Require-Secret "AI_SERVICE_TOKEN" 32
 Require-Boolean "STORAGE_AV_REQUIRED" $true
-[void](Require-Value "STORAGE_AV_SERVICE_URL")
+Require-TrustedScannerEndpoint
 Require-Secret "STORAGE_AV_SERVICE_TOKEN" 32
+Require-Boolean "STORAGE_MIME_VALIDATION_REQUIRED" $true
 Require-Boolean "APP_BOOKING_ALLOW_TEST_OTP" $false
 Require-Boolean "APP_SECURITY_RATE_LIMIT_ENABLED" $true
 # Patient-chat egress is a separate production kill switch. A provider key or

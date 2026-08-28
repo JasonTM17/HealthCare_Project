@@ -20,8 +20,9 @@ public class AttachmentScannerConfiguration {
     AttachmentScanner clamAvAttachmentScanner(
             RestClient.Builder builder,
             @Value("${storage.av.service-url:}") String endpoint,
-            @Value("${storage.av.service-token:}") String token) {
-        return new ClamAvAttachmentScanner(builder, endpoint, token);
+            @Value("${storage.av.service-token:}") String token,
+            @Value("${storage.av.allowed-hosts:}") String allowedHosts) {
+        return new ClamAvAttachmentScanner(builder, endpoint, token, allowedHosts);
     }
 
     @Bean

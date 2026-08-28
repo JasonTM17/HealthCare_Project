@@ -84,8 +84,10 @@ only and never prints secret values:
 ```
 
 Production validation requires `STORAGE_AV_REQUIRED=true`, a private
-`STORAGE_AV_SERVICE_URL`, and a 32-byte-plus `STORAGE_AV_SERVICE_TOKEN`; a
-missing scanner is a configuration failure rather than an upload bypass.
+`STORAGE_AV_SERVICE_URL`, its exact hostname in `STORAGE_AV_ALLOWED_HOSTS`, a
+32-byte-plus `STORAGE_AV_SERVICE_TOKEN`, and
+`STORAGE_MIME_VALIDATION_REQUIRED=true`; a missing or untrusted scanner is a
+configuration failure rather than an upload bypass.
 
 Release image publication is restricted to the protected release workflow: the
 manual source ref must equal the checked-out commit, an existing SHA tag is
