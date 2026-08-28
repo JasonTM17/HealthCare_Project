@@ -19,6 +19,16 @@ class ClamAvAttachmentScannerTest {
     }
 
     @Test
+    void acceptsRenderPrivateHostportForTheAllowlistedScannerHost() {
+        assertThatCode(() -> new ClamAvAttachmentScanner(
+            RestClient.builder(),
+            "healthcare-beta-av-scanner:8080",
+            "disposable-test-token",
+            "healthcare-beta-av-scanner"
+        )).doesNotThrowAnyException();
+    }
+
+    @Test
     void rejectsScannerEndpointOutsideTheExactAllowlist() {
         assertThatThrownBy(() -> new ClamAvAttachmentScanner(
             RestClient.builder(),
@@ -46,5 +56,13 @@ class ClamAvAttachmentScannerTest {
             "*.beta.internal"
         )).isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("exact hostnames");
+
+        assertThatThrownBy(() -> new ClamAvAttachmentScanner(
+            RestClient.builder(),
+            "healthcare-beta-av-scanner:8080/scan?forward=collector",
+            "disposable-test-token",
+            "healthcare-beta-av-scanner"
+        )).isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("hostport");
     }
 }
