@@ -10,8 +10,11 @@ import com.healthcare.ai.chat.dto.ChatContracts.MessagePageResponse;
 import com.healthcare.ai.chat.dto.ChatContracts.SendMessageRequest;
 import com.healthcare.ai.chat.service.AiConversationService;
 import jakarta.validation.Valid;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -35,9 +38,11 @@ import java.util.UUID;
 public class AiConversationController {
 
     private final AiConversationService conversationService;
+    private final ObjectMapper objectMapper;
 
-    public AiConversationController(AiConversationService conversationService) {
+    public AiConversationController(AiConversationService conversationService, ObjectMapper objectMapper) {
         this.conversationService = conversationService;
+        this.objectMapper = objectMapper;
     }
 
     @PostMapping
@@ -78,6 +83,31 @@ public class AiConversationController {
         return ResponseEntity.ok(
             conversationService.send(principal, conversationId, idempotencyKey, request.content())
         );
+    }
+
+    @PostMapping(value = "/{conversationId}/messages/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter sendStream(
+            @AuthenticationPrincipal UserDetails principal,
+            @PathVariable UUID conversationId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @Valid @RequestBody SendMessageRequest request) throws Exception {
+        if (!conversationService.isChunkedDeliveryEnabled()) {
+            throw new com.healthcare.exception.BusinessException(
+                404,
+                com.healthcare.exception.ErrorCodes.RESOURCE_NOT_FOUND,
+                "Chunked chat delivery is disabled"
+            );
+        }
+        ChatExchangeResponse exchange = conversationService.send(
+            principal, conversationId, idempotencyKey, request.content());
+        SseEmitter emitter = new SseEmitter(15_000L);
+        String answer = exchange.assistantMessage().content() == null ? "" : exchange.assistantMessage().content();
+        for (String slice : com.healthcare.ai.chat.service.ChatAnswerChunker.slices(answer)) {
+            emitter.send(SseEmitter.event().name("delta").data(slice));
+        }
+        emitter.send(SseEmitter.event().name("done").data(objectMapper.writeValueAsString(exchange)));
+        emitter.complete();
+        return emitter;
     }
 
     @PutMapping("/{conversationId}/consent")

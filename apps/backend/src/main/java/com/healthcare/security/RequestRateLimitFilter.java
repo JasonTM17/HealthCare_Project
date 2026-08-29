@@ -35,6 +35,7 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
     private final int paymentLimit;
     private final int webhookLimit;
     private final int aiLimit;
+    private final int publicTriageLimit;
     private final int careerApplicationLimit;
     private final Map<String, WindowCounter> counters = new ConcurrentHashMap<>();
 
@@ -51,6 +52,9 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
         this.paymentLimit = environment.getProperty("app.security.rate-limit.payment-limit", Integer.class, 20);
         this.webhookLimit = environment.getProperty("app.security.rate-limit.webhook-limit", Integer.class, 120);
         this.aiLimit = environment.getProperty("app.security.rate-limit.ai-limit", Integer.class, 30);
+        this.publicTriageLimit = environment.getProperty(
+            "app.security.rate-limit.public-triage-limit", Integer.class, 20
+        );
         this.careerApplicationLimit = environment.getProperty(
             "app.security.rate-limit.career-application-limit", Integer.class, 10
         );
@@ -122,6 +126,9 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
         }
         if ("POST".equals(method) && path.matches("^/api/v1/careers/jobs/[^/]+/applications$")) {
             return new LimitRule("career-applications", careerApplicationLimit);
+        }
+        if ("POST".equals(method) && path.equals("/api/v1/public/specialty-recommendation")) {
+            return new LimitRule("public-triage", publicTriageLimit);
         }
         if (path.startsWith("/api/v1/ai/")) {
             return new LimitRule("ai", aiLimit);

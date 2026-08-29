@@ -45,6 +45,72 @@ class ClinicalAuthorizationTest extends AbstractIntegrationTest {
     @Autowired private JwtTokenProvider tokenProvider;
 
     @Test
+    void ownAndCrossPatientRecordReadsWriteAllowDenyAuditWithoutPhi() throws Exception {
+        ClinicalFixture fixture = fixture();
+        MedicalRecord record = createRecord(fixture, true);
+
+        mockMvc.perform(get("/api/v1/clinical/records/{id}", record.getId())
+                .header("Authorization", bearer(fixture.patientUser())))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/clinical/records/{id}", record.getId())
+                .header("Authorization", bearer(fixture.otherPatientUser())))
+            .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/v1/patient/diagnostic-results")
+                .header("Authorization", bearer(fixture.patientUser())))
+            .andExpect(status().isOk());
+
+        Integer allowCount = jdbcTemplate.queryForObject(
+            """
+            select count(*) from clinical_access_audit
+            where target_type = 'MEDICAL_RECORD' and decision = 'ALLOW'
+              and target_id = ? and actor_email = ?
+            """,
+            Integer.class,
+            record.getId().toString(),
+            fixture.patientUser().getEmail()
+        );
+        Integer denyCount = jdbcTemplate.queryForObject(
+            """
+            select count(*) from clinical_access_audit
+            where target_type = 'MEDICAL_RECORD' and decision = 'DENY'
+              and target_id = ? and actor_email = ?
+            """,
+            Integer.class,
+            record.getId().toString(),
+            fixture.otherPatientUser().getEmail()
+        );
+        Integer diagnosticAllow = jdbcTemplate.queryForObject(
+            """
+            select count(*) from clinical_access_audit
+            where target_type = 'DIAGNOSTIC' and decision = 'ALLOW'
+              and actor_email = ?
+            """,
+            Integer.class,
+            fixture.patientUser().getEmail()
+        );
+        Integer phiLeaks = jdbcTemplate.queryForObject(
+            """
+            select count(*) from clinical_access_audit
+            where actor_email in (?, ?)
+              and (
+                target_id ilike '%Fixture diagnosis%'
+                or actor_email ilike '%Fixture diagnosis%'
+                or target_type ilike '%Fixture diagnosis%'
+              )
+            """,
+            Integer.class,
+            fixture.patientUser().getEmail(),
+            fixture.otherPatientUser().getEmail()
+        );
+        assertThat(allowCount).isEqualTo(1);
+        assertThat(denyCount).isEqualTo(1);
+        assertThat(diagnosticAllow).isEqualTo(1);
+        assertThat(phiLeaks).isZero();
+    }
+
+    @Test
     void unauthenticatedClinicalReadIsRejected() throws Exception {
         ClinicalFixture fixture = fixture();
         MedicalRecord record = createRecord(fixture, true);

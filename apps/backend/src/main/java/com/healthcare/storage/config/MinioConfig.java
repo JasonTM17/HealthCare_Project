@@ -26,17 +26,13 @@ public class MinioConfig {
     @Value("${storage.require-private-endpoint:false}")
     private boolean requirePrivateEndpoint;
 
-    @Value("${storage.upload-enabled:true}")
-    private boolean uploadEnabled;
-
     @Value("${storage.region:}")
     private String region;
 
     @Bean
     @Primary
     public MinioClient minioClient() {
-        StorageEndpointPolicy.validatePrivateEndpoint(
-            requirePrivateEndpoint && uploadEnabled, endpoint, accessKey, secretKey);
+        StorageEndpointPolicy.validatePrivateEndpoint(requirePrivateEndpoint, endpoint, accessKey, secretKey);
         MinioClient.Builder builder = MinioClient.builder()
             .endpoint(endpoint.trim())
             .credentials(accessKey, secretKey);
@@ -64,11 +60,10 @@ public class MinioConfig {
                 || !("https".equals(external.getScheme()) || "http".equals(external.getScheme()))) {
             throw new IllegalStateException("Public object storage endpoint must be an HTTP(S) origin");
         }
-        if (requirePrivateEndpoint && uploadEnabled && !"https".equals(external.getScheme())) {
+        if (requirePrivateEndpoint && !"https".equals(external.getScheme())) {
             throw new IllegalStateException("Hosted browser object storage requires HTTPS");
         }
-        StorageEndpointPolicy.validatePrivateEndpoint(
-            requirePrivateEndpoint && uploadEnabled, publicEndpoint, accessKey, secretKey);
+        StorageEndpointPolicy.validatePrivateEndpoint(requirePrivateEndpoint, publicEndpoint, accessKey, secretKey);
         // Explicit region prevents MinIO from making bucket-location requests
         // through the browser endpoint, which may not be reachable in Docker.
         if (region == null || region.isBlank()) {

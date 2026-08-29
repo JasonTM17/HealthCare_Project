@@ -101,6 +101,9 @@ public class AiConversationService {
     private final boolean syntheticBetaAsserted;
     private final SyntheticBetaGuardService syntheticBetaGuard;
 
+    @Value("${ai.chat.chunked-enabled:false}")
+    private boolean chunkedEnabled = false;
+
     @Autowired
     public AiConversationService(
             AiConversationRepository conversationRepository,
@@ -359,6 +362,18 @@ public class AiConversationService {
                 "AI assistant is temporarily unavailable. Please try again."
             );
         }
+    }
+
+    public boolean isChunkedDeliveryEnabled() {
+        return chunkedEnabled;
+    }
+
+    public ChatExchangeResponse sendPersisted(
+            UserDetails principal,
+            UUID conversationId,
+            String rawIdempotencyKey,
+            String content) {
+        return send(principal, conversationId, rawIdempotencyKey, content);
     }
 
     /**
@@ -709,6 +724,7 @@ public class AiConversationService {
         if (answer.isEmpty() || answer.length() > MAX_ANSWER_LENGTH) {
             throw invalidAiResponse();
         }
+        ChatMedicalSafety.rejectDiagnoseOrPrescribe(answer);
         String provenance = response.get("provenance") instanceof String value ? value : "";
         if (!PROVENANCE.contains(provenance)) {
             throw invalidAiResponse();

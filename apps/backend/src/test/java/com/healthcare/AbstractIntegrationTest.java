@@ -174,7 +174,8 @@ public abstract class AbstractIntegrationTest {
         jdbcTemplate.execute("""
             TRUNCATE TABLE patient_consultation_object_cleanup,
                            email_outbox,
-                           notification_preferences
+                           notification_preferences,
+                           clinical_access_audit
             """);
         // Consultation/Q&A/care-plan rows were added after the original test
         // baseline.  Truncate the complete child set together so append-only

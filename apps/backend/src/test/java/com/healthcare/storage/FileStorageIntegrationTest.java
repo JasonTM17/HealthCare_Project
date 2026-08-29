@@ -1,5 +1,6 @@
 package com.healthcare.storage;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -51,6 +52,8 @@ class FileStorageIntegrationTest extends AbstractIntegrationTest {
         registry.add("minio.access-key", () -> MINIO_ACCESS_KEY);
         registry.add("minio.secret-key", () -> TEST_MINIO_PASSWORD);
         registry.add("minio.bucket", () -> "healthcare-files");
+        registry.add("storage.upload-enabled", () -> "true");
+        registry.add("storage.allow-unscanned-upload", () -> "true");
     }
 
     @Autowired private ObjectMapper objectMapper;
@@ -147,6 +150,19 @@ class FileStorageIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(get("/api/v1/files/" + objectName)
                 .header("Authorization", otherDoctorToken))
             .andExpect(status().isForbidden());
+
+        Integer allowCount = jdbcTemplate.queryForObject(
+            "select count(*) from clinical_access_audit where target_type = 'FILE' and decision = 'ALLOW' and target_id = ?",
+            Integer.class,
+            objectName
+        );
+        Integer denyCount = jdbcTemplate.queryForObject(
+            "select count(*) from clinical_access_audit where target_type = 'FILE' and decision = 'DENY' and target_id = ?",
+            Integer.class,
+            objectName
+        );
+        assertThat(allowCount).isEqualTo(1);
+        assertThat(denyCount).isEqualTo(1);
     }
 
     @Test
