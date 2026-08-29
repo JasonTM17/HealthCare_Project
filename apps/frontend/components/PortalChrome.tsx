@@ -30,6 +30,9 @@ export default function PortalChrome({ role, user, children }: PortalChromeProps
     ? [
         { href: homePath, label: "Tổng quan" },
         { href: "/patient/appointments", label: "Lịch hẹn" },
+        { href: "/patient/medical-records", label: "Hồ sơ bệnh án" },
+        { href: "/patient/prescriptions", label: "Đơn thuốc" },
+        { href: "/patient/diagnostic-results", label: "Kết quả CLS" },
         { href: "/patient/consultations", label: "Tư vấn riêng" },
         { href: "/patient/care-plan", label: "Kế hoạch chăm sóc" },
         { href: "/patient/health-questions", label: "Hỏi đáp sức khỏe" },

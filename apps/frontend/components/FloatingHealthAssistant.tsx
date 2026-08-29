@@ -25,7 +25,7 @@ import {
   hasRole,
   updateAiConversationConsent,
   updateAiMessageFeedback,
-  sendAiConversationMessage,
+  sendAiConversationMessageStream,
   type AuthSession,
 } from "../lib/api-client";
 import type {
@@ -536,7 +536,7 @@ function FloatingHealthAssistantPanel({
         : createIdempotencyKey();
       retainedAttemptRef.current = { conversationId: currentConversation.id, content: normalized, key };
       // Compatibility signature: sendAiConversationMessage(currentConversation.id, normalized, key)
-      const exchange = await sendAiConversationMessage(currentConversation.id, normalized, key, { signal: controller.signal });
+      const exchange = await sendAiConversationMessageStream(currentConversation.id, normalized, key, { signal: controller.signal });
       if (!isCurrentLocalRequest(epoch, currentConversation.id)) return;
       retainedAttemptRef.current = null;
       setDraft("");
@@ -708,7 +708,7 @@ function FloatingHealthAssistantPanel({
                     ) : null}
                     {message.role === "ASSISTANT" && message.citations.length > 0 ? (
                       <div className={styles.citations}>
-                        {message.citations.slice(0, 2).map((citation) => (
+                        {message.citations.map((citation) => (
                           <span
                             aria-label={`Nguồn tham khảo: ${citation.title}`}
                             key={`${citation.source_type}-${citation.source_id}`}

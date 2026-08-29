@@ -26,7 +26,7 @@ import {
   hasRole,
   updateAiConversationConsent,
   updateAiMessageFeedback,
-  sendAiConversationMessage,
+  sendAiConversationMessageStream,
 } from "../../../lib/api-client";
 import type {
   AiChatCitation,
@@ -663,7 +663,7 @@ export default function PatientChatPage() {
     setNotice(null);
     try {
       // Compatibility shape: sendAiConversationMessage(conversationId, normalizedContent, idempotencyKey)
-      await sendAiConversationMessage(conversationId, normalizedContent, idempotencyKey, { signal: controller.signal });
+      await sendAiConversationMessageStream(conversationId, normalizedContent, idempotencyKey, { signal: controller.signal });
       retainedSendAttemptsRef.current.delete(attemptMapKey);
       if (options.clearDraftOnSuccess) setDraft("");
       setNotice("Trợ lý đã phản hồi. Lịch sử bên dưới được tải lại từ máy chủ.");

@@ -17,7 +17,7 @@ test("floating assistant is mounted globally and stays on the REST chat contract
   assert.match(component, /session\?\.user\.id/);
   assert.match(component, /fetchAiConversations\(\)/);
   assert.match(component, /fetchAiConversationMessages\(latest\.id/);
-  assert.match(component, /sendAiConversationMessage\(currentConversation\.id, normalized, key\)/);
+  assert.match(component, /sendAiConversationMessageStream\(currentConversation\.id, normalized, key/);
   assert.match(component, /Idempotency/);
   assert.match(component, /\/patient\/chat/);
   assert.match(component, /healthcare-assistant-chibi\.png/);

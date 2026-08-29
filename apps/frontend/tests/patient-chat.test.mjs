@@ -12,6 +12,7 @@ test("patient chat client exposes every locked REST conversation resource", asyn
   assert.match(apiClient, /fetchAiConversation\(conversationId/);
   assert.match(apiClient, /fetchAiConversationMessages[\s\S]*cursor/);
   assert.match(apiClient, /sendAiConversationMessage[\s\S]*"Idempotency-Key"/);
+  assert.match(apiClient, /sendAiConversationMessageStream[\s\S]*text\/event-stream/);
   assert.match(apiClient, /deleteAiConversation[\s\S]*method: "DELETE"/);
 });
 
@@ -32,7 +33,7 @@ test("patient chat is role gated and keeps server history authoritative", async 
   assert.match(page, /hasRole\(session\.user, "PATIENT"\)/);
   assert.match(page, /ForbiddenState/);
   assert.match(page, /Promise\.all\(\[\s*fetchAiConversation\(conversationId\),\s*fetchAiConversationMessages/);
-  assert.match(page, /await sendAiConversationMessage[\s\S]*await Promise\.all\(\[[\s\S]*loadThread/);
+  assert.match(page, /await sendAiConversationMessageStream[\s\S]*await Promise\.all\(\[[\s\S]*loadThread/);
   assert.match(page, /fetchAiConversationMessages\(conversationId, cursor, MESSAGE_LIMIT\)/);
   assert.match(page, /mergeMessages\(page\.content, current\)/);
 });
@@ -62,10 +63,10 @@ test("patient chat reuses one idempotency key for an ambiguous logical attempt",
 
   assert.match(page, /retainedSendAttemptsRef = useRef\(new Map/);
   assert.match(page, /retainedAttempt\?\.content === normalizedContent[\s\S]*retainedAttempt\.idempotencyKey[\s\S]*createIdempotencyKey\(\)/);
-  assert.match(page, /sendAiConversationMessage\(conversationId, normalizedContent, idempotencyKey\)/);
+  assert.match(page, /sendAiConversationMessageStream\(conversationId, normalizedContent, idempotencyKey/);
   assert.match(page, /backendRequiresNewIdempotencyKey\(error\)[\s\S]*delete\(attemptMapKey\)/);
   assert.match(page, /failed-message:\$\{options\.sourceMessageId\}/);
-  assert.doesNotMatch(page, /sendAiConversationMessage\([^\n]+createIdempotencyKey\(\)/);
+  assert.doesNotMatch(page, /sendAiConversationMessageStream\([^\n]+createIdempotencyKey\(\)/);
 });
 
 test("patient chat keeps medical and emergency limits visible and accessible", async () => {

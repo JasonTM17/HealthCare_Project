@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { useEffect } from "react";
 import { fetchBranches } from "../lib/api-client";
+import AiTriageModal from "./AiTriageModal";
 import BookingModal, { type BookingSelection } from "./BookingModal";
 import Footer from "./Footer";
 import Navbar from "./Navbar";
@@ -77,6 +78,7 @@ export function PublicPageShell({
 }: PublicPageShellProps) {
   const pathname = usePathname();
   const [bookingOpen, setBookingOpen] = useState(bookingInitiallyOpen && !onBookingRequest);
+  const [triageOpen, setTriageOpen] = useState(false);
   const [selection, setSelection] = useState<Parameters<PublicPageActions["openBooking"]>[0]>();
   const [shellBranches, setShellBranches] = useState<Branch[]>(EMPTY_BRANCHES);
 
@@ -111,7 +113,7 @@ export function PublicPageShell({
       setSelection(nextSelection);
       setBookingOpen(true);
     },
-    openAi: requestPublicAssistantOpen,
+    openAi: () => setTriageOpen(true),
   };
 
   return (
@@ -121,6 +123,17 @@ export function PublicPageShell({
         <PublicRouteBreadcrumb pathname={pathname} />
         <main id="main-content" tabIndex={-1}><RouteCmsSlots>{children}</RouteCmsSlots></main>
         <Footer branches={effectiveBranches} cmsSlug={cmsSlug ?? undefined} />
+        <AiTriageModal
+          emergencyContact={effectiveBranches.find((branch) => branch.emergencyHotline || branch.phone)?.emergencyHotline
+            ?? effectiveBranches.find((branch) => branch.phone)?.phone
+            ?? undefined}
+          isOpen={triageOpen}
+          onClose={() => setTriageOpen(false)}
+          onSelectSpecialtyForBooking={(_name, specialtyId) => {
+            setTriageOpen(false);
+            actions.openBooking({ specialtyId });
+          }}
+        />
         {!onBookingRequest && bookingOpen ? (
           <BookingModal
             branches={effectiveBranches}
