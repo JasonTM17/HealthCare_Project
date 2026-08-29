@@ -93,6 +93,8 @@ def test_example_env_keeps_remote_ai_kill_switch_on_by_default() -> None:
 
 def test_production_env_requires_fail_closed_attachment_scanning() -> None:
     script = (ROOT / "scripts" / "validate-production-env.ps1").read_text(encoding="utf-8")
+    assert 'Require-Secret "BACKEND_BFF_SERVICE_TOKEN" 32' in script
+    assert 'Require-Boolean "BACKEND_BFF_REQUIRED" $true' in script
     assert 'Require-Boolean "STORAGE_AV_REQUIRED" $true' in script
     assert 'Require-TrustedScannerEndpoint' in script
     assert 'Require-Value "STORAGE_AV_ALLOWED_HOSTS"' in script
