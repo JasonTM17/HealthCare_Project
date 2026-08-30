@@ -11,6 +11,57 @@ wsl --install
 
 Restart Windows, open Docker Desktop, and wait until the engine reports ready.
 
+### Windows build 26200 socket recovery
+
+On Windows build 26200, Docker Desktop may leave an inaccessible AF_UNIX
+runtime endpoint (`dockerInference`, `sailor-ingest.sock`, or
+`docker-secrets-engine\engine.sock`). The backend then exits during the next
+start with `The file cannot be accessed by the system`. Do not use **Reset to
+factory defaults** for this error: it is not required and can put local data at
+risk.
+
+Use the repository recovery launcher from PowerShell instead (the default
+startup allowance is six minutes because a cold WSL resume can take longer
+than the normal Docker UI spinner):
+
+```powershell
+.\scripts\start-docker-safe.ps1
+```
+
+For a deliberate restart, pass `-Restart`:
+
+```powershell
+.\scripts\start-docker-safe.ps1 -Restart
+```
+
+The launcher first uses Docker's supported stop command, waits for Docker
+processes, the engine pipe, and the `docker-desktop` WSL distribution to
+quiesce, and only then renames the two exact runtime parent directories to
+timestamped `.stale-*` folders before recreating them. A parent that is itself
+a reparse point is rejected rather than traversed. Active Docker containers
+are therefore stopped, but no container/image/volume data is removed. The
+launcher does not touch images/volumes/VHDX data, shut down other WSL
+distributions, or change Hibernate. It verifies the local named-pipe engine
+and holds a short post-start stability gate.
+
+Docker AI/Model Runner and Inference are disabled and verified by default
+before the launcher reports success because they are optional sources of the
+same socket failure; use `-KeepDockerAI` only when that feature is explicitly
+needed. Failed starts preserve the quarantined folders for diagnostics and
+manual rollback. The launcher reports the number and accessible byte size of
+known `.stale-*` folders but never deletes them automatically.
+
+The installer changes only the Start Menu shortcut by default; it leaves the
+existing per-user AutoStart setting unchanged. `-InstallAutoStart` is an
+explicit opt-in, and `-Restore` returns the shortcut/Run entry from retained
+backups:
+
+```powershell
+.\scripts\install-docker-safe-launcher.ps1
+.\scripts\install-docker-safe-launcher.ps1 -InstallAutoStart
+.\scripts\install-docker-safe-launcher.ps1 -Restore
+```
+
 ## Start the complete stack
 
 From the repository root, copy `.env.example` to `.env` and replace the local
