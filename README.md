@@ -10,15 +10,16 @@ The repository currently has auth/RBAC, branch-aware booking and rescheduling, b
 
 This is an evidence record for the current synthetic beta, not a production
 readiness or healthcare-compliance claim. The integration target is `main`.
-The current release-record tip is
-`439d9055676b23180da4b9c77bc520a79b810b89` (documentation-only). The
+The last audited documentation checkpoint is
+`439d9055676b23180da4b9c77bc520a79b810b89` (CI run `33312268255`). The
 package/application source and all published image digests remain bound to
 `caedef092c2df9dff1e489b8696d7720817a4928`; later documentation commits do not
-silently change that artifact. Never replace these references with `latest`.
+silently change that artifact. Before promotion, verify the actual checkout
+with `git rev-parse HEAD` and never replace these references with `latest`.
 
 - GitHub CI run [33310018202](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33310018202) passed all six jobs for the exact package source SHA.
 - The follow-up pin/manifest commit `5de6205442597582e76de5c7e6b27c7f94131caf` was independently validated by CI run [33310401105](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33310401105), which passed all six jobs; it does not change the application source or any published digest.
-- The preceding Render wording correction `3881a657c8fc25d7e3c52cac85f34cb9885ac589` was validated by CI run [33312067036](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33312067036), which passed all six jobs. The current release-record tip `439d9055676b23180da4b9c77bc520a79b810b89` is validated by CI run [33312268255](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33312268255), which also passed all six jobs; it only aligns package/deployment documentation.
+- The preceding Render wording correction `3881a657c8fc25d7e3c52cac85f34cb9885ac589` was validated by CI run [33312067036](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33312067036), which passed all six jobs. The audited package/deployment documentation checkpoint `439d9055676b23180da4b9c77bc520a79b810b89` was validated by CI run [33312268255](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33312268255), which also passed all six jobs; later docs-only commits require the same exact-head check before promotion.
 - The [application image publish run 33310156810](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33310156810) passed all four image jobs, and the [database package run 33310158307](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33310158307) passed. Each package below uses the immutable `sha-caedef092c2df9dff1e489b8696d7720817a4928` audit tag and has a verified provenance attestation bound to that source SHA.
 
 | GHCR package | Immutable reference | Audit tag |
