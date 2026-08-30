@@ -9,23 +9,24 @@ The repository currently has auth/RBAC, branch-aware booking and rescheduling, b
 ## Hosted Beta Release Record
 
 This is an evidence record for the current synthetic beta, not a production
-readiness or healthcare-compliance claim. The integration target is `main`;
-the package source is `efdd401da3a6b4906d7a5e679e570cafad687bb7`, and
-`8d796e67b648f5d5c6179427e5c1fe515db9f7e8` is the manifest commit that pins
-those package digests. A later documentation-only commit does not change the
-image or Vercel application source.
+readiness or healthcare-compliance claim. The integration target is `main`.
+The current package/application source is
+`bac24bc0715e0583e646110207c3b49d15519320`; the checked-in Render pins and
+this record may be committed after that source, but every digest below remains
+bound to the exact source SHA. Never replace these references with `latest`.
 
-- GitHub CI run [33307230814](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33307230814) passed all six jobs for the manifest commit.
-- The [image publish run 33306989595](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33306989595) passed all four image jobs. Each package below is public, uses the immutable `sha-efdd401da3a6b4906d7a5e679e570cafad687bb7` audit tag, and has a verified SLSA provenance attestation. The image source SHA predates the manifest-only commit that records the pins; never replace these references with `latest`.
+- GitHub CI run [33309116305](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33309116305) passed all six jobs for the exact package source SHA.
+- The [application image publish run 33309369876](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33309369876) passed all four image jobs, and the [database package run 33309371657](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33309371657) passed. Each package below uses the immutable `sha-bac24bc0715e0583e646110207c3b49d15519320` audit tag and has a verified provenance attestation bound to that source SHA.
 
 | GHCR package | Immutable reference | Audit tag |
 | --- | --- | --- |
-| [backend](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-backend) | `ghcr.io/jasontm17/healthcare-project-backend@sha256:b6f8ccde4eeb1acc55134623df348225fbf00fcd8eae6e6401534cfd13fb49f2` | `sha-efdd401da3a6b4906d7a5e679e570cafad687bb7` |
-| [AI service](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-ai-service) | `ghcr.io/jasontm17/healthcare-project-ai-service@sha256:249f43ca70d63bd3c5a1378fe7417b5fac456aea8de7b28212cab3c653045870` | `sha-efdd401da3a6b4906d7a5e679e570cafad687bb7` |
-| [attachment scanner](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-attachment-scanner) | `ghcr.io/jasontm17/healthcare-project-attachment-scanner@sha256:066a1454607b9cc1be68c5bec529b53b8c2dee520ec446b1d8340e0bce7690bc` | `sha-efdd401da3a6b4906d7a5e679e570cafad687bb7` |
-| [frontend](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-frontend) | `ghcr.io/jasontm17/healthcare-project-frontend@sha256:2c4ebeab9c653d1e42349885e6c1e89aac35aeb0029151dd12c3085470ea8320` | `sha-efdd401da3a6b4906d7a5e679e570cafad687bb7` |
+| [backend](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-backend) | `ghcr.io/jasontm17/healthcare-project-backend@sha256:ff7a2d6a5df501ec07d7ba5cd6519a67912a217da1e157635b03e1ecb5c383ea` | `sha-bac24bc0715e0583e646110207c3b49d15519320` |
+| [AI service](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-ai-service) | `ghcr.io/jasontm17/healthcare-project-ai-service@sha256:0975fc41d617633107b65f522eee6c3b9badf15297c1f06364903184c3680856` | `sha-bac24bc0715e0583e646110207c3b49d15519320` |
+| [attachment scanner](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-attachment-scanner) | `ghcr.io/jasontm17/healthcare-project-attachment-scanner@sha256:1db60a438d13d4a0952c5566e98779d41ddcac651f3fd2ba8876f244c440322d` | `sha-bac24bc0715e0583e646110207c3b49d15519320` |
+| [frontend](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-frontend) | `ghcr.io/jasontm17/healthcare-project-frontend@sha256:4233f9b76f2a089c3edaadfcb6d0cfbbc79cd5859dc1fd61adaf91bfcd04ed35` | `sha-bac24bc0715e0583e646110207c3b49d15519320` |
+| [database fixture](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-database) | `ghcr.io/jasontm17/healthcare-project-database@sha256:7d2100426febd5efeec46cc85a8111475669eba444c29eeab8f3a18335fe3b38` | `sha-bac24bc0715e0583e646110207c3b49d15519320` |
 
-- Vercel has a `READY` production deployment at [healthcare-two-olive.vercel.app](https://healthcare-two-olive.vercel.app), deployment `dpl_7jfUBYypa2jYPK9d33TVf2uhZ49X`, observed with source SHA `efdd401da3a6b4906d7a5e679e570cafad687bb7` and `gitDirty=false`; twenty public route probes and sixteen route×viewport Chromium accessibility probes passed. The browser BFF probes intentionally return `503 BFF_CONFIGURATION_UNAVAILABLE` until the server-only Render/Vercel variables are configured.
+- Vercel has a `READY` production deployment at [healthcare-two-olive.vercel.app](https://healthcare-two-olive.vercel.app), deployment `dpl_QmC2JKzuwVrSR1t3AuBUYUVZf2h4`, with authenticated metadata `gitCommitSha=bac24bc0715e0583e646110207c3b49d15519320`. It was submitted from a clean detached source worktree and is aliased to the stable beta domain; twenty public route probes passed with CSP, frame-deny and nosniff headers. The browser BFF probes intentionally return `503 BFF_CONFIGURATION_UNAVAILABLE` until the server-only Render/Vercel variables are configured.
 - Render has the free beta PostgreSQL and Redis-compatible resources, but its image-backed application services are still blocked by the provider `need_payment_info` gate. No substitute service or paid upgrade was created.
 - Supabase project `awaknzhadjglbfkhigck` is on the Free plan with the reviewed migration history and synthetic counts. The exact reapply gate is read-only green; a fresh guarded write remains HOLD until the manual-rollback/no-PITR boundary is explicitly accepted.
 

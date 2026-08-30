@@ -18,9 +18,12 @@ recipe:
 
 - Vercel has a `READY` production deployment for the static Next.js shell at
   `healthcare-two-olive.vercel.app` (deployment
-  `dpl_7jfUBYypa2jYPK9d33TVf2uhZ49X`). The deployment metadata is bound to
-  source SHA `efdd401da3a6b4906d7a5e679e570cafad687bb7` with `gitDirty=false`.
-  The linked project currently has only the two public indexing/site variables;
+  `dpl_QmC2JKzuwVrSR1t3AuBUYUVZf2h4`). Authenticated deployment metadata
+  reports `gitCommitSha=bac24bc0715e0583e646110207c3b49d15519320`; the source
+  was submitted from a clean detached worktree, with no `.env.local` or
+  untracked instruction files in the deployment payload. The linked project
+  retains only the two public indexing/site variables, so BFF routes remain
+  intentionally fail-closed;
   the server-only BFF variables are intentionally absent, so
   `/api/v1/health`, catalog and triage probes return
   `503 BFF_CONFIGURATION_UNAVAILABLE`. Twenty public route probes and sixteen
@@ -73,15 +76,20 @@ Render Blueprints do not interpolate variables inside `image.url`, so refresh
 the checked-in digest URLs only after the matching manual GHCR workflow has
 finished and its registry digest/config label has been independently recorded.
 The current application digest pins resolve the verified exact source
-`efdd401da3a6b4906d7a5e679e570cafad687bb7` artifacts published by workflow run
-`33306989595`; each image has a SLSA provenance attestation bound to that
-source. The recorded Render pins are backend
-`sha256:b6f8ccde4eeb1acc55134623df348225fbf00fcd8eae6e6401534cfd13fb49f2`, AI
-`sha256:249f43ca70d63bd3c5a1378fe7417b5fac456aea8de7b28212cab3c653045870`,
+`bac24bc0715e0583e646110207c3b49d15519320` artifacts published by workflow
+run `33309369876`; the standalone database package was published by run
+`33309371657`. Each package has a provenance attestation bound to that source.
+The recorded Render pins are backend
+`sha256:ff7a2d6a5df501ec07d7ba5cd6519a67912a217da1e157635b03e1ecb5c383ea`, AI
+`sha256:0975fc41d617633107b65f522eee6c3b9badf15297c1f06364903184c3680856`,
 and attachment scanner
-`sha256:066a1454607b9cc1be68c5bec529b53b8c2dee520ec446b1d8340e0bce7690bc`.
-The manifest commit that records those pins can be newer than the application
-image source. Do not substitute a tag or `latest` for a digest.
+`sha256:1db60a438d13d4a0952c5566e98779d41ddcac651f3fd2ba8876f244c440322d`.
+The frontend digest is
+`sha256:4233f9b76f2a089c3edaadfcb6d0cfbbc79cd5859dc1fd61adaf91bfcd04ed35`,
+and the database fixture digest is
+`sha256:7d2100426febd5efeec46cc85a8111475669eba444c29eeab8f3a18335fe3b38`.
+The manifest/documentation commit can be newer than the application image
+source; do not substitute a tag or `latest` for a digest.
 
 ## Required Vercel settings
 
