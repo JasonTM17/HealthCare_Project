@@ -188,6 +188,10 @@ async function startBookingMockBackend() {
 async function closeServer(server: Server, sseClients: Set<ServerResponse>): Promise<void> {
   for (const client of sseClients) {
     client.end();
+    // EventSource keeps the HTTP connection alive by design. `end()` alone
+    // can leave the socket in the server's active-connection set under CI,
+    // making `server.close()` wait until Playwright's 30s test timeout.
+    client.destroy();
   }
   if (!server.listening) return;
   await new Promise<void>((resolve, reject) => {
