@@ -18,13 +18,14 @@ recipe:
 
 - Vercel has a `READY` production deployment for the static Next.js shell at
   `healthcare-two-olive.vercel.app` (deployment
-  `dpl_9jbyhuR1ufDe95wWqxFGWWbjcd7S`). The deployment metadata is bound to
-  source SHA `0113a87c3aeb5700a50466753f36432ae34ff0e0` with `gitDirty=false`.
+  `dpl_7jfUBYypa2jYPK9d33TVf2uhZ49X`). The deployment metadata is bound to
+  source SHA `efdd401da3a6b4906d7a5e679e570cafad687bb7` with `gitDirty=false`.
   The linked project currently has only the two public indexing/site variables;
   the server-only BFF variables are intentionally absent, so
   `/api/v1/health`, catalog and triage probes return
-  `503 BFF_CONFIGURATION_UNAVAILABLE`. Sixteen public route probes returned
-  `200` with CSP, `X-Frame-Options: DENY`, and `nosniff` headers. This is
+  `503 BFF_CONFIGURATION_UNAVAILABLE`. Twenty public route probes and sixteen
+  route×viewport Chromium accessibility probes returned `200` with CSP,
+  `X-Frame-Options: DENY`, and `nosniff` headers. This is
   static-hosting evidence only; it is not a functional chatbot or backend
   deployment.
 - Render has the disposable `healthcare-beta-postgres` and
