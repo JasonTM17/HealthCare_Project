@@ -14,8 +14,10 @@ present in this repository.
 The application package source and immutable image provenance are bound to
 `caedef092c2df9dff1e489b8696d7720817a4928`. The later pin/manifest follow-up
 commit `5de6205442597582e76de5c7e6b27c7f94131caf` passed CI run
-`33310401105` (all six jobs), and the current release-record tip
-`3881a657c8fc25d7e3c52cac85f34cb9885ac589` passed CI run `33312067036` (all
+`33310401105` (all six jobs), the Render wording correction
+`3881a657c8fc25d7e3c52cac85f34cb9885ac589` passed CI run `33312067036`, and
+the current release-record tip
+`439d9055676b23180da4b9c77bc520a79b810b89` passed CI run `33312268255` (all
 six jobs). Neither documentation-only follow-up changes that application
 source or its digests. Keep this distinction when promoting a release.
 
