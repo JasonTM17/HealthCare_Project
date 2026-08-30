@@ -40,6 +40,7 @@ export function RouteCmsSlots({ children }: { children: ReactNode }): ReactEleme
       <section aria-label="Nội dung đầu trang do bệnh viện xuất bản" className="native-route-cms__hero">
         <CmsLiveSlot
           className="native-route-cms__slot native-route-cms__hero-slot"
+          hideOnError
           hideWhenNotFound
           hideWhileLoading
           renderContent={(content) => (
@@ -56,6 +57,7 @@ export function RouteCmsSlots({ children }: { children: ReactNode }): ReactEleme
       <section aria-label="Nội dung hỗ trợ do bệnh viện xuất bản" className="native-route-cms__support">
         <CmsLiveSlot
           className="native-route-cms__slot native-route-cms__body"
+          hideOnError
           hideWhenNotFound
           hideWhileLoading
           showSourceLabel={false}
@@ -65,6 +67,7 @@ export function RouteCmsSlots({ children }: { children: ReactNode }): ReactEleme
         <aside aria-label="Thông tin bên lề do bệnh viện xuất bản" className="native-route-cms__sidebar">
           <CmsLiveSlot
             className="native-route-cms__slot native-route-cms__sidebar-slot"
+            hideOnError
             hideWhenNotFound
             hideWhileLoading
             showSourceLabel={false}

@@ -26,6 +26,8 @@ export interface CmsLiveSlotProps {
   hideWhenNotFound?: boolean;
   /** Optional route slots should not reserve layout space during their first read. */
   hideWhileLoading?: boolean;
+  /** Optional public slots should stay out of the layout when their read fails. */
+  hideOnError?: boolean;
   /** Render a published component in the page's native layout instead of the generic CMS card. */
   renderContent?: (content: CmsContent) => ReactNode;
   /** Keep the native page composition visible while the live slot is loading or unavailable. */
@@ -79,6 +81,7 @@ export function CmsLiveSlot({
   quiet = false,
   hideWhenNotFound = false,
   hideWhileLoading = false,
+  hideOnError = false,
   renderContent,
   fallback,
 }: CmsLiveSlotProps): ReactElement {
@@ -419,6 +422,11 @@ export function CmsLiveSlot({
   }, [backendSlotKey, client, pollIntervalMs]);
 
   if (hideWhileLoading && loading && !content && !error) return <></>;
+
+  // A public optional slot must not turn a transient backend outage into a
+  // late layout insertion. An explicit fallback remains authoritative and is
+  // handled by the normal fallback wrapper below.
+  if (hideOnError && !loading && !content && error && fallback === undefined) return <></>;
 
   const sourceLabel = transport === "polling"
     ? "Live CMS · polling dự phòng"
