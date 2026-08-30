@@ -1,8 +1,8 @@
 # Hosted Supabase reconciliation gate
 
 This is an operator-reviewed, additive reconciliation plan for the currently
-observed hosted target. It is documentation and evidence only; it does not
-authorize a remote mutation.
+observed hosted target. It records the gate and observed apply; it does not
+authorize any future remote mutation by itself.
 
 ## Frozen read-only target
 
@@ -80,3 +80,25 @@ check fails. Stop immediately on any object collision, unexpected policy,
 patient-history column, missing restore proof, or target/ref mismatch. Never
 drop tables, reset the project, import real patients, or expose a database URL
 to the browser.
+
+## Observed hosted apply (2026-08-30)
+
+The project owner explicitly authorized the single guarded reconciliation
+migration after the exact-ref check, disposable `pgvector/pg16` rehearsal,
+idempotency run, and induced-drift rollback test. The Supabase Free project
+does not provide a named restore point, PITR, or development branch; that
+provider limitation and the resulting manual-rollback risk were accepted for
+this additive, synthetic-only operation. No paid feature was enabled and no
+wholesale `db push` or seed was run.
+
+The MCP apply recorded migration
+`20260830075505_reconcile_hosted_clinical_projection_security` (source file
+`20260830102500_reconcile_hosted_clinical_projection_security.sql`). The
+read-only post-apply contract passed: the four-entry history became five,
+`healthcare.ai_chat_documents` remained at 830 rows, the tombstone column,
+validated constraint, trigger, cursor indexes, and service-only pagination/
+vector functions exist, browser roles have no access to server-only tables or
+functions, and `public.rls_auto_enable()` is no longer executable by external
+roles. The projection canaries returned 3 list rows and 2 vector matches with
+zero invalid tombstone rows. Supabase consumers remain disabled until the
+Render backend/AI and Vercel server-only BFF gates are separately satisfied.
