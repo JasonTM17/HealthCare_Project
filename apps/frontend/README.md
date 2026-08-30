@@ -5,6 +5,13 @@ Next.js TypeScript frontend baseline for HealthCare_Project.
 Use Node.js 22-24 with npm 10-11. `npm ci` consumes the committed lockfile and
 is the same install mode used by CI and Vercel.
 
+The package contract is intentionally bounded: Node.js `>=22 <25`, npm
+`>=10 <12`, and lockfile version 3. The direct runtime/tooling pins are Next.js
+`16.3.3`, React `19.2.8`, `eslint-config-next` `16.3.3`, and TypeScript
+`6.0.3`; the Playwright range currently resolves to `1.62.1`. Keep
+`package.json` and `package-lock.json` in sync;
+use `npm ci` for CI, Vercel, and release builds.
+
 ## Commands
 
 ```bash
@@ -13,6 +20,11 @@ npm run verify
 npm run test:e2e
 npm run dev
 ```
+
+`npm run verify` is the local release gate (lint, typecheck, unit tests, and
+production build). Run `npm run test:e2e` separately for the browser gate.
+Major toolchain upgrades are intentionally deferred until their compatibility
+with the current Next.js/Tailwind setup is reviewed.
 
 ## Design Rules
 
