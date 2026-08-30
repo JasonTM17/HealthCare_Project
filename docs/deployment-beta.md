@@ -121,6 +121,10 @@ route through the exact Vercel-to-Render path.
    post-apply ACL/RLS/projection contract. If a restore point or rehearsal is
    unavailable, stop here; do not enable `RAG_STORAGE_BACKEND=supabase` and do
    not deploy the AI/backend pair against the drifted projection.
+   The guarded migration was applied to the confirmed synthetic project on
+   2026-08-30 and its read-only contract/canaries passed; the Free-plan
+   no-PITR limitation remains an explicit recovery risk, so the Supabase RAG
+   consumer stays disabled until the hosted service gates below are green.
 3. Configure the private AI service with `AI_PROVIDER=local`, remote flags
    disabled, `RAG_INGEST_ENABLED=false` and
    `SUPABASE_RAG_FALLBACK_TO_MEMORY=false`. The image URL in the blueprint must
