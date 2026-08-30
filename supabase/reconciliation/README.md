@@ -9,7 +9,8 @@ authorize any future remote mutation by itself.
 - Project ref: `awaknzhadjglbfkhigck`
 - URL: `https://awaknzhadjglbfkhigck.supabase.co`
 - Observed remote migration history: `20260823085754`, `20260823085812`,
-  `20260823102718`, `20260824102515`
+  `20260823102718`, `20260824102515`, `20260830075505`,
+  `20260830075737`, `20260830080646`, `20260830143140`
 - Local migration files: seven files under `supabase/migrations/`
 
 The semantic mapping observed from the hosted `schema_migrations.statements`
@@ -21,19 +22,25 @@ and local SQL is:
 | `20260823085812` | `20260823123000_enforce_spring_identity_authority.sql` | Spring identity authority |
 | `20260823102718` | `20260823092135_big_data_vector_contract.sql` | vector and synthetic-seed contract |
 | `20260824102515` | `20260824102515_patient_chat_projection_contract.sql` | de-identified chat projection |
+| `20260830075505` | historical provider reconciliation | first guarded hosted reconciliation (later rolled back) |
+| `20260830075737` | historical provider rollback | compensating rollback for the first apply |
+| `20260830080646` | historical provider helper lockdown | restored the event-trigger helper ACL |
+| `20260830143140` | `20260830102500_reconcile_hosted_clinical_projection_security.sql` | current writer-locked reconciliation |
 
 The mapping must be rechecked from a fresh target snapshot before any apply.
 Do not rename files, rewrite `supabase_migrations.schema_migrations`, or mark
 versions applied merely to make `supabase db push` appear clean.
 
-## Why direct push is blocked
+## Why wholesale direct push remains blocked
 
-The hosted catalog tables and triggers already exist under the four hosted
+The hosted catalog tables and triggers already existed under four provider
 versions, while the corresponding local versions differ. The first local SQL
 contains unguarded `CREATE TABLE` and trigger statements, so a normal push of
-all six files would collide with existing objects. The target is also missing
-the local clinical columns, tombstone guard, cursor indexes, and pagination
-functions, and still grants browser roles execute on `public.rls_auto_enable()`.
+the full local history would collide with existing objects. The reviewed
+reconciliation has now installed the missing clinical columns, tombstone
+guard, cursor indexes, pagination functions, and service-only helper ACL as a
+separate eighth provider migration. That does not make wholesale history push
+or repair safe.
 
 Therefore the safe sequence is not `db reset`, history repair, or wholesale
 `db push`.
@@ -81,7 +88,7 @@ that residual recovery risk:
 3. Run `supabase/tests/hosted_reconciliation_contract.sql` and the read-only
    ACL/count/canary checks before enabling any Supabase RAG consumer. Keep all
    patient-chat and ingestion switches disabled until those checks pass.
-4. If the exact observed five-row apply must be reverted, use
+4. The original observed five-row apply was reverted with
    `free-plan-rollback.sql` as a separate, newly recorded migration only after
    the URL/ref has been checked externally. Its preflight requires the captured
    cluster identifier, exact migration history and statement fingerprint,
@@ -91,12 +98,14 @@ that residual recovery risk:
    helper ACL/comment. The checked-in file is a hardened reconstruction of the
    historical operation; its provider ledger hash identifies the earlier
    executed text, not every guard currently checked in. It is not a provider
-   backup and cannot recover an independently lost project. A new apply must
-   receive a new, exact rollback artifact; do not reuse this historical
-   five-row procedure blindly. For a future apply, freeze the new baseline and
-   run the gate first, apply while writers remain stopped, capture the
-   provider's new audit row, and only then generate/verify a new compensating
-   artifact before enabling consumers.
+   backup and cannot recover an independently lost project. The current
+   writer-locked apply has its own exact eight-row compensating capsule,
+   `free-plan-rollback-writer-lock-20260830.sql`; do not reuse the historical
+   five-row procedure. That new capsule binds the cluster identifier, all
+   eight provider statement hashes, object definitions/ACLs, row watermarks,
+   and baseline-compatible `xmin` fingerprints. It aborts if any consumer has
+   written into the new columns and preserves the already-hardened
+   `public.rls_auto_enable()` ACL instead of reopening browser execution.
 
 The baseline JSON is an operator evidence capsule, not a backup. It is valid
 only for project ref `awaknzhadjglbfkhigck`, cluster system identifier
@@ -128,11 +137,13 @@ authority throughout.
 
 The migrations are additive and have no automatic destructive down path.
 Disable Supabase consumers and restore the named backup if one exists. On the
-Free-only beta path, stop consumers and run the historical
-`free-plan-rollback.sql` procedure only while its exact five-row history,
-cluster identifier, object fingerprints, and row/xmin fences still match;
-otherwise stop and obtain a new operator recovery decision and a newly frozen
-compensating artifact.
+current Free-only beta path, stop consumers and use
+`free-plan-rollback-writer-lock-20260830.sql` only while its exact eight-row
+history, cluster identifier, statement hashes, object/ACL fingerprints, and
+row/xmin fences still match. The historical `free-plan-rollback.sql` applies
+only to the earlier five-row incident and must not be used against the current
+state. If a fence has drifted, stop and obtain a new operator recovery decision
+and a newly frozen compensating artifact.
 Stop immediately on any object collision, unexpected policy, patient-history
 column, missing recovery acceptance, or target/ref mismatch. Never drop tables,
 reset the project, import real patients, or expose a database URL to the
@@ -163,18 +174,48 @@ hash in the provider ledger is the hash of the earlier executed statement, not
 the hash of this later reconstruction; any future committed apply requires a
 new snapshot and a newly generated, exact compensating artifact.
 
-The current read-only snapshot is consequently: `articles=500`,
-`specialties=30`, `faqs=150`, `ai_documents=10000`, `customers=100000`,
-`patient_profiles=75000`, `ai_chat_documents=830`, branch documents `0`,
-deleted chat rows `0`; reconciliation candidate columns, trigger, indexes and
-pagination functions are absent; and `public.rls_auto_enable()` is owned by
-`postgres`, executable only by `postgres`, with its restricted comment. The
-read-only `free-plan-reapply-preapply.sql` gate passes for the exact seven-row
-history, cluster identity, migration statement hashes, and row fingerprints.
-This is an auditable rolled-back state, not proof that a future commit can be
-recovered automatically. The historical rollback capsule is intentionally
-bound to the earlier five-row state and cannot be reused for a new apply. Keep
-RAG/ingestion/patient-chat consumers off until a decision owner explicitly
-accepts the Free manual-rollback boundary, produces a newly frozen compensating
-artifact for that apply, and reruns the hosted ACL/RLS/count/canary contract.
-Never combine the forward SQL and rollback in one `execute_sql` call.
+That seven-row snapshot was the baseline for the later writer-locked apply
+described below. It remains useful historical evidence, not the current remote
+state and not proof of provider backup or automatic recovery. Never combine
+the forward SQL and rollback in one `execute_sql` call.
+
+## Current writer-locked apply (2026-08-30)
+
+The decision owner explicitly accepted the Supabase Free manual-recovery risk
+and authorized a writer-quiesced maintenance window. The forward migration was
+first hardened to acquire `ACCESS EXCLUSIVE` locks on the five mutated tables
+before its preflight. Commit `ccaa8a69cffb55ba71da2f9fb7f29afc73be508b`
+passed the database and infrastructure contracts and all six GitHub CI jobs.
+The exact seven-row `free-plan-reapply-preapply.sql` gate then returned
+`FREE_PLAN_REAPPLY_PREAPPLY_OK`, and the full reviewed migration was sent once
+through the provider migration API.
+
+Supabase recorded the apply as:
+
+- Version: `20260830143140`
+- Name: `reconcile_hosted_clinical_projection_security_writer_lock_20260830`
+- Statement count: `1`
+- Provider statement MD5: `141b596b4ebe0867cda9a7d6a1311b82`
+
+Post-apply evidence confirms all 33 candidate columns, four new validated
+constraints, seven valid/ready indexes, three routines, and the tombstone
+trigger; all 15 healthcare tables retain RLS. Browser roles cannot select the
+server-only customer/profile/chat tables or execute either projection RPC;
+`service_role` can execute both RPCs and the transactional list/vector canaries
+each returned two rows. The hosted reconciliation contract and the
+transactional tombstone negative canary both completed without error.
+
+Counts and watermarks remain unchanged: `articles=500`, `specialties=30`,
+`faqs=150`, `ai_documents=10000`, `ai_chat_documents=830`, branch documents
+`0`, deleted chat rows `0`. Baseline-compatible row fingerprints still match
+the frozen preapply values. Security advisors report only the five intentional
+INFO notices for service-only RLS tables with no policies; no ERROR-level
+advisor finding was introduced.
+
+The exact compensating artifact is
+`free-plan-rollback-writer-lock-20260830.sql`. Its parser/static contract is
+covered by `test_writer_lock_rollback_contract.py`. It has not been executed:
+the migration remains applied, and RAG/ingestion/patient-chat consumers remain
+disabled pending the coordinated Render/backend/BFF release. This Free-plan
+capsule is a bounded manual recovery operation, not PITR, a managed backup, or
+a project-loss restore mechanism.
