@@ -9,10 +9,13 @@ The repository currently has auth/RBAC, branch-aware booking and rescheduling, b
 ## Hosted Beta Release Record
 
 This is an evidence record for the current synthetic beta, not a production
-readiness or healthcare-compliance claim. The integration target is `main` at
-`efdd401da3a6b4906d7a5e679e570cafad687bb7`, with no unmerged remote branch.
+readiness or healthcare-compliance claim. The integration target is `main`;
+the package source is `efdd401da3a6b4906d7a5e679e570cafad687bb7`, and
+`8d796e67b648f5d5c6179427e5c1fe515db9f7e8` is the manifest commit that pins
+those package digests. A later documentation-only commit does not change the
+image or Vercel application source.
 
-- GitHub CI run [33306827597](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33306827597) passed all six jobs for the exact integration SHA.
+- GitHub CI run [33307230814](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33307230814) passed all six jobs for the manifest commit.
 - The [image publish run 33306989595](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33306989595) passed all four image jobs. Each package below is public, uses the immutable `sha-efdd401da3a6b4906d7a5e679e570cafad687bb7` audit tag, and has a verified SLSA provenance attestation. The image source SHA predates the manifest-only commit that records the pins; never replace these references with `latest`.
 
 | GHCR package | Immutable reference | Audit tag |
