@@ -43,6 +43,15 @@ wholesale `supabase db push`. Then run the read-only
 `supabase/tests/hosted_reconciliation_contract.sql` against the same confirmed
 ref.
 
+For the currently confirmed project `awaknzhadjglbfkhigck`, that guarded
+reconciliation was applied on 2026-08-30 after a disposable pgvector rehearsal
+and rollback drill. Supabase recorded
+`20260830075505_reconcile_hosted_clinical_projection_security`; the hosted
+post-apply ACL/RLS/projection contract and bounded list/vector canaries passed.
+The project remains on Free with no PITR/restore point, so this is not a
+recovery-proof or production-cutover signal. Keep Supabase consumers disabled
+until the Render backend/AI and Vercel server-only BFF gates are green.
+
 The reconciliation must preserve Spring PostgreSQL as the transactional
 identity/clinical authority. Supabase is only the `healthcare`-schema catalog
 and de-identified chatbot projection; it is not a drop-in replacement for the
