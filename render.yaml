@@ -6,8 +6,9 @@
 # Render's secret store. The application services are image-backed so hosted
 # beta evidence can name the exact GHCR artifact instead of a Render rebuild.
 # Refresh the digest-pinned image URLs only after the matching GHCR publication
-# workflow has completed and its digest/provenance is recorded. The current
-# pins are the verified registry manifests for source SHA 0fff2aeb...
+# workflow has completed and its digest/provenance is recorded. The sha-
+# <commit> tags remain the discovery/audit handles; hosted Render must consume
+# the recorded content digests below.
 
 databases:
   - name: healthcare-beta-postgres

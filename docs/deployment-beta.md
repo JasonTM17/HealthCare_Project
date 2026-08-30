@@ -3,9 +3,9 @@
 The checked-in [`render.yaml`](../render.yaml) describes the intended Render
 topology for the Spring API, private FastAPI service, private ClamAV scanner,
 Redis and a disposable PostgreSQL database. The Render application services
-are image-backed and pin GHCR manifest digests instead of asking Render to
-rebuild from source. The Next.js app belongs in a separate Vercel project with
-`apps/frontend` as its root directory.
+are image-backed and pin GHCR content digests (with `sha-<commit>` audit tags)
+instead of asking Render to rebuild from source. The Next.js app belongs in a
+separate Vercel project with `apps/frontend` as its root directory.
 
 This is a deployment recipe, not proof that a hosted environment exists. No
 provider credentials, domain, secret-manager access or production traffic are
@@ -19,10 +19,10 @@ the exact requested commit. It creates four canonical packages with immutable
 tags:
 
 ```text
-ghcr.io/jasontm17/healthcare-project-backend:sha-<40-char-commit>
-ghcr.io/jasontm17/healthcare-project-frontend:sha-<40-char-commit>
-ghcr.io/jasontm17/healthcare-project-ai-service:sha-<40-char-commit>
-ghcr.io/jasontm17/healthcare-project-attachment-scanner:sha-<40-char-commit>
+ghcr.io/jasontm17/healthcare-project-backend@sha256:<recorded-digest>
+ghcr.io/jasontm17/healthcare-project-frontend@sha256:<recorded-digest>
+ghcr.io/jasontm17/healthcare-project-ai-service@sha256:<recorded-digest>
+ghcr.io/jasontm17/healthcare-project-attachment-scanner@sha256:<recorded-digest>
 ```
 
 Each build passes the source revision as `VCS_REF` and enables BuildKit SBOM
@@ -30,7 +30,7 @@ and provenance attestations. It also publishes a signed GitHub build-provenance
 attestation for the exact registry digest. A per-source concurrency lock and
 preflight reject an already-existing
 `sha-<commit>` tag and writes the resulting immutable digest to the run
-summary. Deploy that recorded digest, not a mutable `latest` tag. The
+summary. Deploy that recorded digest, not a tag or mutable `latest` reference. The
 standalone seeded database remains
 `healthcare-project-database:sha-<40-char-commit>` and is published by its
 separate verified workflow.
