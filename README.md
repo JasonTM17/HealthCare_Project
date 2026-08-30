@@ -6,6 +6,31 @@ HealthCare_Project is a healthcare MVP for a Vietnamese hospital-style experienc
 
 The repository currently has auth/RBAC, branch-aware booking and rescheduling, bounded OTP confirmation, appointment lifecycle/reminders, patient and doctor portals, bank-transfer payment reconciliation, authorized clinical records and diagnostic files, complete hospital catalog administration, recurring schedule administration, AI/RAG/search guardrails, MinIO metadata, and CI definitions. Backend, AI, frontend static/typecheck/lint/build, Compose-configuration, database-fixture, and a Playwright CMS realtime browser gate are wired in CI. The browser gate proves the admin-to-public homepage CMS flow against a mocked backend contract; full live Compose browser E2E, backup/restore drills, external AI provider validation, compliance, and production deployment remain separate gates.
 
+## Hosted Beta Release Record
+
+This is an evidence record for the current synthetic beta, not a production
+readiness or healthcare-compliance claim. The integration target is `main` at
+`0113a87c3aeb5700a50466753f36432ae34ff0e0`, with no unmerged remote branch.
+
+- GitHub CI run [33306320795](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33306320795) passed all six jobs for the exact integration SHA.
+- The [image publish run 33306135660](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33306135660) passed all four image jobs. Each package below is public, uses the immutable `sha-f0c2363821741efe28df70d8721b6835ba86fa8f` audit tag, and has a verified SLSA provenance attestation. The image source SHA predates the manifest-only commit that records the pins; never replace these references with `latest`.
+
+| GHCR package | Immutable reference | Audit tag |
+| --- | --- | --- |
+| [backend](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-backend) | `ghcr.io/jasontm17/healthcare-project-backend@sha256:0b0523ca2e2d9758a2a4d87dfbb826d9089b862e54cf652babf79d9c0e33bd84` | `sha-f0c2363821741efe28df70d8721b6835ba86fa8f` |
+| [AI service](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-ai-service) | `ghcr.io/jasontm17/healthcare-project-ai-service@sha256:ea18c14623bfd1d65d0ffdb1d5af0631d56a6703ff0bc8e775032bb42d9f19bc` | `sha-f0c2363821741efe28df70d8721b6835ba86fa8f` |
+| [attachment scanner](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-attachment-scanner) | `ghcr.io/jasontm17/healthcare-project-attachment-scanner@sha256:052efa75e8f78147e8549f9487ec297988f0f00d61554fca77fc35a445a5235e` | `sha-f0c2363821741efe28df70d8721b6835ba86fa8f` |
+| [frontend](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-frontend) | `ghcr.io/jasontm17/healthcare-project-frontend@sha256:9e864114820c7fe414cd7cf3a2bda8073c47d9c12f92be4468c0cc95786c36c9` | `sha-f0c2363821741efe28df70d8721b6835ba86fa8f` |
+
+- Vercel has a `READY` production deployment at [healthcare-two-olive.vercel.app](https://healthcare-two-olive.vercel.app), observed with source SHA `0113a87c3aeb5700a50466753f36432ae34ff0e0`; sixteen public route probes passed. The browser BFF probes intentionally return `503 BFF_CONFIGURATION_UNAVAILABLE` until the server-only Render/Vercel variables are configured.
+- Render has the free beta PostgreSQL and Redis-compatible resources, but its image-backed application services are still blocked by the provider `need_payment_info` gate. No substitute service or paid upgrade was created.
+- Supabase project `awaknzhadjglbfkhigck` is on the Free plan with the reviewed migration history and synthetic counts. The exact reapply gate is read-only green; a fresh guarded write remains HOLD until the manual-rollback/no-PITR boundary is explicitly accepted.
+
+For the exact settings, rollback gates, Docker recovery procedure, and the
+current PASS/HOLD/NOT_RUN matrix, see
+[docs/deployment-beta.md](docs/deployment-beta.md) and
+[docs/LOCAL_RUNBOOK.md](docs/LOCAL_RUNBOOK.md).
+
 ## Monorepo Layout
 
 ```text

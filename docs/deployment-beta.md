@@ -18,8 +18,8 @@ recipe:
 
 - Vercel has a `READY` production deployment for the static Next.js shell at
   `healthcare-two-olive.vercel.app` (deployment
-  `dpl_DCr8sQAE6rQzZEZEHR8mBR6Ee4Qp`). The deployment metadata is bound to
-  source SHA `373f087e7662736b6271c578b5fbd489bb224fb5` with `gitDirty=false`.
+  `dpl_9jbyhuR1ufDe95wWqxFGWWbjcd7S`). The deployment metadata is bound to
+  source SHA `0113a87c3aeb5700a50466753f36432ae34ff0e0` with `gitDirty=false`.
   The linked project currently has only the two public indexing/site variables;
   the server-only BFF variables are intentionally absent, so
   `/api/v1/health`, catalog and triage probes return
