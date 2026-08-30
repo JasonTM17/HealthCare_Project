@@ -28,6 +28,7 @@ class HostedReconciliationMigrationTest(unittest.TestCase):
         self.assertTrue(self.normalized.endswith("commit;"))
         self.assertIn("set local lock_timeout = '5s'", self.normalized)
         self.assertIn("set local statement_timeout = '120s'", self.normalized)
+        self.assertIn("set local search_path = pg_catalog, extensions", self.normalized)
         self.assertNotRegex(
             self.normalized,
             r"\b(?:drop\s+table|delete\s+from|create\s+table)\b",
@@ -64,12 +65,40 @@ class HostedReconciliationMigrationTest(unittest.TestCase):
         self.assertIn("healthcare table acl contains an unexpected grantee", self.normalized)
         self.assertIn("baseline chat retrieval body/security/search_path fingerprint drifted", self.normalized)
         self.assertIn("baseline updated_at function fingerprint drifted", self.normalized)
-        self.assertIn("md5(regexp_replace(lower(pg_get_triggerdef(t.oid))", self.normalized)
+        self.assertIn("pg_get_triggerdef(t.oid)", self.normalized)
         self.assertIn("n.nspname = 'extensions'", self.normalized)
         self.assertIn("t.typname = 'vector'", self.normalized)
         self.assertIn("a.atttypmod = 384", self.normalized)
         self.assertIn("embedding vector contract is not extensions.vector(384)", self.normalized)
         self.assertIn("('ai_chat_documents', 'embedding', 'user-defined', 'yes')", self.normalized)
+
+    def test_chat_baseline_fingerprint_matches_live_projection_contract(self) -> None:
+        """Keep the guard aligned with the reviewed four-migration baseline.
+
+        PostgreSQL can emit the same ``extensions.vector`` argument as either a
+        qualified or bare type depending on the caller's ``search_path``.  The
+        migration canonicalizes that representation before hashing, while the
+        separate type/typmod checks keep the vector identity load-bearing.
+        """
+        self.assertIn(
+            "replace(lower(pg_get_functiondef(p.oid)), 'extensions.vector', 'vector')",
+            self.normalized,
+        )
+        self.assertIn("= 'e5032819be774757b87dcfa208fe45d9'", self.normalized)
+        self.assertNotIn("a8ef57bb1fd42243d9f02380799f8baf", self.normalized)
+
+    def test_pgvector_constraint_deparser_is_search_path_independent(self) -> None:
+        self.assertIn("replace( regexp_replace(lower(definition)", self.normalized)
+        self.assertIn("'extensions.vector_dims', 'vector_dims'", self.normalized)
+        self.assertIn("'check (((embedding is null) or (vector_dims(embedding) = 384)))'", self.normalized)
+
+    def test_existing_trigger_fingerprints_canonicalize_schema_qualification(self) -> None:
+        self.assertIn("'healthcare.touch_updated_at()', 'touch_updated_at()'", self.normalized)
+        self.assertIn("'touch_updated_at()', 'healthcare.touch_updated_at()'", self.normalized)
+        self.assertIn(
+            "'healthcare.ai_chat_documents_tombstone_guard()', 'ai_chat_documents_tombstone_guard()'",
+            self.normalized,
+        )
 
     def test_all_columns_used_by_projection_are_baseline_fingerprinted(self) -> None:
         for column in (
@@ -114,7 +143,7 @@ class HostedReconciliationMigrationTest(unittest.TestCase):
         self.assertIn("t.tgtype = 19", self.normalized)
         self.assertIn("t.tgenabled = 'o'", self.normalized)
         self.assertIn("t.tgfoid = touch_oid", self.normalized)
-        self.assertIn("md5(regexp_replace(lower(pg_get_triggerdef(t.oid))", self.normalized)
+        self.assertIn("pg_get_triggerdef(t.oid)", self.normalized)
 
     def test_projection_functions_and_tables_remain_service_only(self) -> None:
         for function_name in (
