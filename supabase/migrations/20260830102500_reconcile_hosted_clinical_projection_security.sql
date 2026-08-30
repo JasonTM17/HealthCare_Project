@@ -19,6 +19,18 @@ set local statement_timeout = '120s';
 -- helper functions while extensions keeps pgvector types/functions visible.
 set local search_path = pg_catalog, extensions;
 
+-- Close the preflight/DDL race. A writer that already holds a conflicting
+-- lock either drains before this point or makes the bounded lock_timeout abort;
+-- no catalog or projection row can change after the fingerprints are checked.
+-- Keep this order stable with the compensating rollback to avoid a
+-- cross-session deadlock during recovery.
+lock table healthcare.articles,
+           healthcare.specialties,
+           healthcare.faqs,
+           healthcare.ai_documents,
+           healthcare.ai_chat_documents
+    in access exclusive mode;
+
 do $preflight$
 declare
     baseline record;
