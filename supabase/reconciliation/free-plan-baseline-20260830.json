@@ -1,0 +1,62 @@
+{
+  "purpose": "Read-only baseline captured immediately before a possible Free-plan reconciliation apply",
+  "project_ref": "awaknzhadjglbfkhigck",
+  "captured_at": "2026-08-30T07:48:00.392799Z",
+  "plan_constraint": "Supabase Free only; no scheduled backup, PITR, or development branch",
+  "migration_history": [
+    "20260823085754",
+    "20260823085812",
+    "20260823102718",
+    "20260824102515"
+  ],
+  "baseline_constraint": "CHECK ((source_type = ANY (ARRAY['specialty'::text, 'doctor'::text, 'service'::text, 'package'::text, 'article'::text, 'faq'::text])))",
+  "platform_helper": {
+    "function": "public.rls_auto_enable()",
+    "owner": "postgres",
+    "acl": "{=X/postgres,postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+    "comment": null,
+    "public_execute": true,
+    "anon_execute": true,
+    "authenticated_execute": true,
+    "service_role_execute": true,
+    "postgres_execute": true
+  },
+  "row_state": {
+    "articles": {
+      "count": 500,
+      "max_updated_at": "2026-08-23T09:00:41.102364Z"
+    },
+    "specialties": {
+      "count": 30,
+      "max_updated_at": "2026-08-23T09:00:41.102364Z"
+    },
+    "faqs": {
+      "count": 150,
+      "max_updated_at": "2026-08-23T09:00:41.102364Z"
+    },
+    "ai_documents": {
+      "count": 10000,
+      "branch_count": 0,
+      "max_updated_at": "2026-08-24T10:48:53.018817Z"
+    },
+    "ai_chat_documents": {
+      "count": 830,
+      "deleted_count": 0,
+      "max_updated_at": "2026-08-24T10:35:10.579576Z"
+    }
+  },
+  "candidate_objects_absent": {
+    "tombstone_column": true,
+    "list_page_function": true,
+    "match_page_function": true,
+    "tombstone_trigger": true,
+    "rich_constraints": true,
+    "rich_indexes": true
+  },
+  "database_size_bytes": 160230547,
+  "limitations": [
+    "This is an operator snapshot, not a Supabase provider backup.",
+    "It is valid only for the named project/ref and the observed pre-apply state.",
+    "Do not apply or roll back if counts, max_updated_at, ACLs, or object fingerprints drift."
+  ]
+}
