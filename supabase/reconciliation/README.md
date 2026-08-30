@@ -61,10 +61,18 @@ signals must never be represented as `PASS`. The repository includes a bounded
 operator path for a synthetic beta when the decision owner explicitly accepts
 that residual recovery risk:
 
-1. Run `free-plan-preapply.sql` (or the exact-history
+1. Resolve the project URL/ref with the Supabase management API and compare it
+   to `awaknzhadjglbfkhigck` before sending any SQL. PostgreSQL does not expose
+   the Supabase project ref to SQL; the capsule therefore also checks the
+   captured cluster `pg_control_system().system_identifier` and exact migration
+   statement/row fingerprints. Run `free-plan-preapply.sql` (or the exact-state
    `free-plan-reapply-preapply.sql`) as a read-only gate immediately before the
-   apply. It checks the named ref, migration history, object absence, ACLs and
-   row-count/update watermarks captured in `free-plan-baseline-20260830.json`.
+   apply. A literal `expected_project_ref` result is informational, not proof.
+   This is a point-in-time gate, not a database lock: place the apply in a
+   maintenance window with all projection/catalog writers stopped, and send
+   the reviewed migration immediately. If a writer can run between the gate
+   and `apply_migration`, capture a fresh snapshot (or produce a new atomic
+   target-specific migration); do not treat a previously green gate as current.
 2. Call `apply_migration` once with only
    `20260830102500_reconcile_hosted_clinical_projection_security.sql`. Do not
    concatenate that SQL with a rollback probe in one `execute_sql` request:
@@ -73,15 +81,27 @@ that residual recovery risk:
 3. Run `supabase/tests/hosted_reconciliation_contract.sql` and the read-only
    ACL/count/canary checks before enabling any Supabase RAG consumer. Keep all
    patient-chat and ingestion switches disabled until those checks pass.
-4. If a committed change must be reverted, use `free-plan-rollback.sql` as a
-   separate, newly recorded migration. Its preflight refuses to run after any
-   catalog/projection write or watermark drift, and it never edits
-   `supabase_migrations.schema_migrations`. The rollback artifact restores the
-   observed baseline constraint, routines, indexes, columns and helper ACL;
-   it is not a provider backup and cannot recover an independently lost project.
+4. If the exact observed five-row apply must be reverted, use
+   `free-plan-rollback.sql` as a separate, newly recorded migration only after
+   the URL/ref has been checked externally. Its preflight requires the captured
+   cluster identifier, exact migration history and statement fingerprint,
+   reviewed object definitions, and ordered `xmin`/row fingerprints; any drift
+   aborts before destructive DDL. It never edits
+   `supabase_migrations.schema_migrations` and restores the observed baseline
+   helper ACL/comment. The checked-in file is a hardened reconstruction of the
+   historical operation; its provider ledger hash identifies the earlier
+   executed text, not every guard currently checked in. It is not a provider
+   backup and cannot recover an independently lost project. A new apply must
+   receive a new, exact rollback artifact; do not reuse this historical
+   five-row procedure blindly. For a future apply, freeze the new baseline and
+   run the gate first, apply while writers remain stopped, capture the
+   provider's new audit row, and only then generate/verify a new compensating
+   artifact before enabling consumers.
 
 The baseline JSON is an operator evidence capsule, not a backup. It is valid
-only for project ref `awaknzhadjglbfkhigck` and the captured synthetic dataset.
+only for project ref `awaknzhadjglbfkhigck`, cluster system identifier
+`7666007964130682852`, and the captured synthetic dataset. The ref check is an
+operator/API gate; the SQL enforces the cluster binding and schema/data fences.
 If the Free-plan manual-rollback risk is not explicitly accepted, leave the
 reconciliation migration unapplied and keep consumers disabled.
 
@@ -108,9 +128,11 @@ authority throughout.
 
 The migrations are additive and have no automatic destructive down path.
 Disable Supabase consumers and restore the named backup if one exists. On the
-Free-only beta path, stop consumers and run the guarded
-`free-plan-rollback.sql` procedure only while its exact baseline watermarks
-still match; otherwise stop and obtain a new operator recovery decision.
+Free-only beta path, stop consumers and run the historical
+`free-plan-rollback.sql` procedure only while its exact five-row history,
+cluster identifier, object fingerprints, and row/xmin fences still match;
+otherwise stop and obtain a new operator recovery decision and a newly frozen
+compensating artifact.
 Stop immediately on any object collision, unexpected policy, patient-history
 column, missing recovery acceptance, or target/ref mismatch. Never drop tables,
 reset the project, import real patients, or expose a database URL to the
@@ -136,6 +158,11 @@ trigger, indexes and functions without rewriting migration history. A separate
 (`20260830080646_lock_down_public_event_trigger_free_plan_20260830`) then
 restored the platform helper's service-only ACL/comment.
 
+The checked-in rollback file has since been hardened as a review capsule. Its
+hash in the provider ledger is the hash of the earlier executed statement, not
+the hash of this later reconstruction; any future committed apply requires a
+new snapshot and a newly generated, exact compensating artifact.
+
 The current read-only snapshot is consequently: `articles=500`,
 `specialties=30`, `faqs=150`, `ai_documents=10000`, `customers=100000`,
 `patient_profiles=75000`, `ai_chat_documents=830`, branch documents `0`,
@@ -143,8 +170,11 @@ deleted chat rows `0`; reconciliation candidate columns, trigger, indexes and
 pagination functions are absent; and `public.rls_auto_enable()` is owned by
 `postgres`, executable only by `postgres`, with its restricted comment. The
 read-only `free-plan-reapply-preapply.sql` gate passes for the exact seven-row
-history. This is an auditable rolled-back state, not proof that a future commit
-can be recovered automatically. Keep RAG/ingestion/patient-chat consumers off
-until a decision owner explicitly accepts the Free manual-rollback boundary,
-performs a fresh isolated apply and reruns the hosted ACL/RLS/count/canary
-contract. Never combine the forward SQL and rollback in one `execute_sql` call.
+history, cluster identity, migration statement hashes, and row fingerprints.
+This is an auditable rolled-back state, not proof that a future commit can be
+recovered automatically. The historical rollback capsule is intentionally
+bound to the earlier five-row state and cannot be reused for a new apply. Keep
+RAG/ingestion/patient-chat consumers off until a decision owner explicitly
+accepts the Free manual-rollback boundary, produces a newly frozen compensating
+artifact for that apply, and reruns the hosted ACL/RLS/count/canary contract.
+Never combine the forward SQL and rollback in one `execute_sql` call.
