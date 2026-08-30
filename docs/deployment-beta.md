@@ -18,8 +18,8 @@ recipe:
 
 - Vercel has a `READY` production deployment for the static Next.js shell at
   `healthcare-two-olive.vercel.app` (deployment
-  `dpl_QmC2JKzuwVrSR1t3AuBUYUVZf2h4`). Authenticated deployment metadata
-  reports `gitCommitSha=bac24bc0715e0583e646110207c3b49d15519320`; the source
+  `dpl_F95VVwT1s9NHZNmPsLcrsHE87R75`). Authenticated deployment metadata
+  reports `gitCommitSha=caedef092c2df9dff1e489b8696d7720817a4928`; the source
   was submitted from a clean detached worktree, with no `.env.local` or
   untracked instruction files in the deployment payload. The linked project
   retains only the two public indexing/site variables, so BFF routes remain
@@ -76,18 +76,18 @@ Render Blueprints do not interpolate variables inside `image.url`, so refresh
 the checked-in digest URLs only after the matching manual GHCR workflow has
 finished and its registry digest/config label has been independently recorded.
 The current application digest pins resolve the verified exact source
-`bac24bc0715e0583e646110207c3b49d15519320` artifacts published by workflow
-run `33309369876`; the standalone database package was published by run
-`33309371657`. Each package has a provenance attestation bound to that source.
+`caedef092c2df9dff1e489b8696d7720817a4928` artifacts published by workflow
+run `33310156810`; the standalone database package was published by run
+`33310158307`. Each package has a provenance attestation bound to that source.
 The recorded Render pins are backend
-`sha256:ff7a2d6a5df501ec07d7ba5cd6519a67912a217da1e157635b03e1ecb5c383ea`, AI
-`sha256:0975fc41d617633107b65f522eee6c3b9badf15297c1f06364903184c3680856`,
+`sha256:165ae73c81b1236c1e4499c1f75bf50cef2d387e92ef2bf22f95452cf1f8020d`, AI
+`sha256:676df026d8f4ecbc8e4e9d70a424a164e8408c3933c324bda972316568bbb68e`,
 and attachment scanner
-`sha256:1db60a438d13d4a0952c5566e98779d41ddcac651f3fd2ba8876f244c440322d`.
+`sha256:7b445d77b20417f4d7921b3914dd3e7f9b054a5f9a7230dc2e87df13f810c9ba`.
 The frontend digest is
-`sha256:4233f9b76f2a089c3edaadfcb6d0cfbbc79cd5859dc1fd61adaf91bfcd04ed35`,
+`sha256:b32ca5fbe572a2b142e50562e81f2176e0b4f1e1c84212d9095ceb33ae1aa5f4`,
 and the database fixture digest is
-`sha256:7d2100426febd5efeec46cc85a8111475669eba444c29eeab8f3a18335fe3b38`.
+`sha256:76d4d7827bb61ca36995ae9119adc151e37f7e2639495bbb204a1f34a54efe5f`.
 The manifest/documentation commit can be newer than the application image
 source; do not substitute a tag or `latest` for a digest.
 
