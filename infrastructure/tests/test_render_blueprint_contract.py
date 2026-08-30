@@ -42,6 +42,23 @@ def test_render_blueprint_uses_prebuilt_immutable_ghcr_images() -> None:
         assert "@sha256:" in image_url
 
 
+def test_render_blueprint_makes_compute_cost_boundary_explicit() -> None:
+    services = _services_by_name()
+
+    # The backend can run as a Free web service for the beta. Render private
+    # services have no Free compute tier, so keep the smallest paid plan
+    # explicit instead of relying on a provider default.
+    assert services["healthcare-beta-backend"]["plan"] == "free"
+    for service_name in (
+        "healthcare-beta-ai",
+        "healthcare-beta-clamav",
+        "healthcare-beta-av-scanner",
+    ):
+        service = services[service_name]
+        assert service["type"] == "pserv"
+        assert service["plan"] == "0.5c-512mb"
+
+
 def test_render_application_image_pins_are_immutable_digest_references() -> None:
     services = _services_by_name()
     for service_name in IMAGE_DIGESTS:
