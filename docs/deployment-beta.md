@@ -114,17 +114,26 @@ route through the exact Vercel-to-Render path.
    or clinical access-audit reporting are enabled.
 2a. Before starting any service that reads the Supabase projection, complete
    the Supabase gate in the reconciliation runbook: confirm the exact project
-   ref, record a named backup/PITR restore point (or document the provider
-   capability blocker), rehearse the guarded migration on an isolated branch
-   or disposable target, apply only
+   ref, record a named backup/PITR restore point when the provider plan offers
+   one, rehearse the guarded migration, apply only
    `20260830102500_reconcile_hosted_clinical_projection_security`, and run the
-   post-apply ACL/RLS/projection contract. If a restore point or rehearsal is
-   unavailable, stop here; do not enable `RAG_STORAGE_BACKEND=supabase` and do
-   not deploy the AI/backend pair against the drifted projection.
-   The guarded migration was applied to the confirmed synthetic project on
-   2026-08-30 and its read-only contract/canaries passed; the Free-plan
-   no-PITR limitation remains an explicit recovery risk, so the Supabase RAG
-   consumer stays disabled until the hosted service gates below are green.
+   post-apply ACL/RLS/projection contract. The selected project is Free-only,
+   so scheduled backup/PITR/branch evidence is unavailable; the documented
+   exception is to run `supabase/reconciliation/free-plan-preapply.sql` (or
+   its exact-history reapply gate), obtain explicit manual-rollback acceptance,
+   and retain `free-plan-rollback.sql` as a separate guarded migration. Never
+   combine the forward SQL and rollback in one `execute_sql` call. If the
+   Free-plan recovery decision or any contract check is missing, stop here; do
+   not enable `RAG_STORAGE_BACKEND=supabase` and do not deploy the AI/backend
+   pair against the drifted projection.
+   A guarded apply was observed on the confirmed synthetic project on
+   2026-08-30, then reverted by the separately recorded, watermark-guarded
+   Free-plan rollback migration; a helper-hardening migration remains applied.
+   The current reconciliation objects are absent and the exact seven-row
+   reapply gate passes. The Free-plan no-PITR limitation remains an explicit
+   manual-recovery risk, so the Supabase RAG consumer stays disabled until a
+   decision owner authorizes a fresh isolated apply and the hosted service
+   gates below are green.
 3. Configure the private AI service with `AI_PROVIDER=local`, remote flags
    disabled, `RAG_INGEST_ENABLED=false` and
    `SUPABASE_RAG_FALLBACK_TO_MEMORY=false`. The image URL in the blueprint must
