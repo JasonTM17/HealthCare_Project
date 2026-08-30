@@ -5,8 +5,10 @@
 # never attach this blueprint to a production service. Set every secret in
 # Render's secret store. The application services are image-backed so hosted
 # beta evidence can name the exact GHCR artifact instead of a Render rebuild.
-# Refresh the sha-<commit> image URLs only after the matching GHCR publication
-# workflow has completed and its digest/provenance is recorded.
+# Refresh the digest-pinned image URLs only after the matching GHCR publication
+# workflow has completed and its digest/provenance is recorded. The sha-
+# <commit> tags remain the discovery/audit handles; hosted Render must consume
+# the recorded content digests below.
 
 databases:
   - name: healthcare-beta-postgres
@@ -32,7 +34,7 @@ services:
     runtime: image
     region: singapore
     image:
-      url: ghcr.io/jasontm17/healthcare-project-ai-service:sha-0fff2aeb1a8f75a39aec64fe3141517c9f38913e
+      url: ghcr.io/jasontm17/healthcare-project-ai-service@sha256:af3b01610afc69e79b88f61af2912af5ea9c3578b2cf2f5b07ce8ab223b5376d
     # Render private services use a TCP port check. `healthCheckPath` is a
     # web-service-only field; application readiness is verified internally
     # with the service token by Spring/synthetic smoke tests.
@@ -67,14 +69,14 @@ services:
     runtime: image
     region: singapore
     image:
-      url: clamav/clamav:1.4
+      url: clamav/clamav@sha256:761f6c99b8d9134b39431f8c200189cda749b17310091561bfa8b732f32bfada
 
   - type: pserv
     name: healthcare-beta-av-scanner
     runtime: image
     region: singapore
     image:
-      url: ghcr.io/jasontm17/healthcare-project-attachment-scanner:sha-0fff2aeb1a8f75a39aec64fe3141517c9f38913e
+      url: ghcr.io/jasontm17/healthcare-project-attachment-scanner@sha256:b66df7b6ec51b7b5e43bdb5b331caeed9d47da041d48d07dfe704b36b5155044
     envVars:
       - key: SCANNER_SERVICE_TOKEN
         sync: false
@@ -93,7 +95,7 @@ services:
     runtime: image
     region: singapore
     image:
-      url: ghcr.io/jasontm17/healthcare-project-backend:sha-0fff2aeb1a8f75a39aec64fe3141517c9f38913e
+      url: ghcr.io/jasontm17/healthcare-project-backend@sha256:c40153864a659aa5dc9ee0969505d72c40b3aeba4d44ee628d40332d37ab1803
     healthCheckPath: /actuator/health
     envVars:
       - key: SPRING_PROFILES_ACTIVE
