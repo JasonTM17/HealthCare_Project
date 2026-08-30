@@ -13,6 +13,11 @@ begin;
 
 set local lock_timeout = '5s';
 set local statement_timeout = '120s';
+-- Keep catalog deparsing and name resolution deterministic regardless of the
+-- session that invokes the migration.  All application objects below are
+-- schema-qualified; pg_catalog first prevents a user schema from shadowing
+-- helper functions while extensions keeps pgvector types/functions visible.
+set local search_path = pg_catalog, extensions;
 
 do $preflight$
 declare
@@ -382,8 +387,17 @@ begin
            and not p.prosecdef
            and p.provolatile = 's'
            and p.proconfig = ARRAY['search_path=healthcare, extensions, pg_catalog']::text[]
-           and md5(regexp_replace(lower(pg_get_functiondef(p.oid)), '\s+', '', 'g'))
-               = 'e5032819be774757b87dcfa208fe45d9'
+           -- PostgreSQL's deparser qualifies the pgvector argument type only
+           -- when the caller's search_path cannot see extensions.  Canonicalize
+           -- that representation before hashing; the concrete
+           -- extensions.vector(384) identity is checked independently below.
+           and md5(
+               regexp_replace(
+                   replace(lower(pg_get_functiondef(p.oid)),
+                       'extensions.vector', 'vector'),
+                   '\s+', '', 'g'
+               )
+           ) = 'e5032819be774757b87dcfa208fe45d9'
     ) then
         raise exception 'baseline chat retrieval body/security/search_path fingerprint drifted';
     end if;
@@ -502,8 +516,16 @@ begin
                and t.tgtype = 19
                and t.tgenabled = 'O'
                and t.tgfoid = touch_oid
-               and md5(regexp_replace(lower(pg_get_triggerdef(t.oid)), '\s+', '', 'g'))
-                   = baseline.expected_hash
+                and md5(
+                    regexp_replace(
+                        replace(
+                            replace(lower(pg_get_triggerdef(t.oid)),
+                                'healthcare.touch_updated_at()', 'touch_updated_at()'),
+                            'touch_updated_at()', 'healthcare.touch_updated_at()'
+                        ),
+                        '\s+', '', 'g'
+                    )
+                ) = baseline.expected_hash
         ) then
             raise exception 'baseline trigger healthcare.% exact fingerprint drifted',
                 baseline.trigger_name;
@@ -544,8 +566,18 @@ begin
            and t.tgtype = 23
            and t.tgenabled = 'O'
            and t.tgfoid = guard_oid
-           and md5(regexp_replace(lower(pg_get_triggerdef(t.oid)), '\s+', '', 'g'))
-               = '169a6d1f37436d6ccc49e3624de7455c'
+            and md5(
+                regexp_replace(
+                    replace(
+                        replace(lower(pg_get_triggerdef(t.oid)),
+                            'healthcare.ai_chat_documents_tombstone_guard()',
+                            'ai_chat_documents_tombstone_guard()'),
+                        'ai_chat_documents_tombstone_guard()',
+                        'healthcare.ai_chat_documents_tombstone_guard()'
+                    ),
+                    '\s+', '', 'g'
+                )
+            ) = '169a6d1f37436d6ccc49e3624de7455c'
     ) then
         raise exception 'existing tombstone trigger is not the reviewed exact definition';
     end if;
@@ -808,7 +840,10 @@ begin
            and c.conname = expected.constraint_name;
         if definition is null
            or not is_validated
-           or regexp_replace(lower(definition), '\s+', '', 'g')
+           or replace(
+                  regexp_replace(lower(definition), '\s+', '', 'g'),
+                  'extensions.vector_dims', 'vector_dims'
+              )
               <> regexp_replace(lower(expected.expected_definition), '\s+', '', 'g') then
             raise exception 'baseline healthcare.%.% constraint is missing or incompatible',
                 expected.table_name, expected.constraint_name;
