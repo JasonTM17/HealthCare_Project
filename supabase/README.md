@@ -43,14 +43,19 @@ wholesale `supabase db push`. Then run the read-only
 `supabase/tests/hosted_reconciliation_contract.sql` against the same confirmed
 ref.
 
-For the currently confirmed project `awaknzhadjglbfkhigck`, that guarded
-reconciliation was applied on 2026-08-30 after a disposable pgvector rehearsal
-and rollback drill. Supabase recorded
-`20260830075505_reconcile_hosted_clinical_projection_security`; the hosted
-post-apply ACL/RLS/projection contract and bounded list/vector canaries passed.
-The project remains on Free with no PITR/restore point, so this is not a
-recovery-proof or production-cutover signal. Keep Supabase consumers disabled
-until the Render backend/AI and Vercel server-only BFF gates are green.
+For the currently confirmed project `awaknzhadjglbfkhigck`, a guarded
+reconciliation apply was observed on 2026-08-30 and then reverted through the
+separate, guarded Free-plan rollback migration after the committed-state
+recovery boundary was reviewed. The remote audit history therefore contains
+the reconciliation row (`20260830075505`), its rollback row
+(`20260830075737`), and the follow-up helper-hardening row (`20260830080646`),
+while the reconciliation columns, trigger, indexes and pagination functions
+are currently absent. The read-only reapply gate passes against this exact
+seven-row history and baseline dataset. The project remains on Free with no
+PITR/restore point, so the rollback is manual evidence rather than a provider
+backup or production-cutover signal. Keep Supabase consumers disabled until a
+fresh apply decision, hosted contract, Render backend/AI and Vercel server-only
+BFF gates are all green.
 
 The reconciliation must preserve Spring PostgreSQL as the transactional
 identity/clinical authority. Supabase is only the `healthcare`-schema catalog
@@ -170,6 +175,22 @@ contract: 100,000 synthetic customers, 75,000 synthetic profiles and 10,000
 384-dimensional public RAG documents. It is separate from the protected
 patient-chat projection (`ai_chat_documents`), which only receives operational
 or independently approved clinical projections.
+
+## Supabase Free deployment boundary
+
+This project is configured for the Supabase **Free** plan only. Do not upgrade
+the project, create a paid development branch, or claim scheduled backup/PITR
+coverage. Before enabling a hosted RAG consumer, run the read-only gate and
+follow the operator recovery capsule in
+[`reconciliation/README.md`](reconciliation/README.md):
+`free-plan-preapply.sql` (or the exact-history reapply gate), one isolated
+`apply_migration` call for the reviewed reconciliation migration, then the
+hosted ACL/RLS/count/canary contract. The checked-in
+`free-plan-rollback.sql` is a separate guarded migration for the observed
+synthetic baseline; it is manual recovery evidence, not a provider backup.
+Keep `RAG_INGEST_ENABLED`, `AI_RAG_INGEST_ENABLED` and patient-chat consumers
+off until the post-apply contract passes and the decision owner has accepted
+the Free-plan recovery boundary.
 
 ## Security boundary
 
