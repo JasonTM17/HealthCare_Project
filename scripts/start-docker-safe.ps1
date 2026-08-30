@@ -87,8 +87,8 @@ function Get-DockerProcesses {
 function Test-DockerWslRunning {
     try {
         $running = @(& wsl.exe --list --running --quiet 2>$null | ForEach-Object {
-            ([string]$_).Replace([char]0, '').Trim()
-        })
+            (([string]$_) -replace "`0", '').Trim()
+        } | Where-Object { $_ })
         return $running -contains 'docker-desktop'
     } catch {
         return $false
