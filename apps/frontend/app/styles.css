@@ -5359,7 +5359,7 @@ main {
 }
 
 .site-shell .hero-search__help {
-  color: #71868d;
+  color: var(--hospital-muted);
 }
 
 .site-shell .hero-actions {
@@ -7281,7 +7281,7 @@ main {
 }
 
 .site-shell .booking-panel__progress .text-gray-400 {
-  color: #84979a !important;
+  color: var(--hospital-muted) !important;
 }
 
 .site-shell .booking-panel__progress .text-brand-500,

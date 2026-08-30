@@ -61,4 +61,6 @@ test("public light and dark surfaces keep text-button contrast scoped", async ()
   assert.match(styles, /\.site-shell \.resource-muted\s*\{[\s\S]*?color:\s*#5f6969\s*!important/);
   assert.match(styles, /\.site-shell \.resource-breadcrumb > span\s*\{[\s\S]*?color:\s*#5f6969/);
   assert.match(styles, /\.site-shell \.video-card \.text-button\s*\{[\s\S]*?color:\s*#bce4dc/);
+  assert.match(styles, /\.site-shell \.hero-search__help\s*\{[\s\S]*?color:\s*var\(--hospital-muted\)/);
+  assert.match(styles, /\.site-shell \.booking-panel__progress \.text-gray-400\s*\{[\s\S]*?color:\s*var\(--hospital-muted\)\s*!important/);
 });
