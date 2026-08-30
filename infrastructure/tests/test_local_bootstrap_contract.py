@@ -53,7 +53,8 @@ def test_local_verifier_reads_current_mailpit_message_detail() -> None:
     assert '"attachment-scanner"' in script
     assert 'MIME mismatch upload was not rejected' in script
     assert 'AV infected upload was not rejected' in script
-    assert 'TryAddWithoutValidation("Authorization", "Bearer $Token")' in script
+    assert 'TryAddWithoutValidation("Origin", $apiUri.GetLeftPart([System.UriPartial]::Authority))' in script
+    assert 'TryAddWithoutValidation("Cookie", [string]$WebSession.CookieHeader)' in script
     assert 'Wait-ForBookingOtp $hold.bookingCode "patient@healthcare.local" $holdStartedAt' in script
 
 

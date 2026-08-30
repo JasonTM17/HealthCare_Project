@@ -5,16 +5,20 @@
 # never attach this blueprint to a production service. Set every secret in
 # Render's secret store. The application services are image-backed so hosted
 # beta evidence can name the exact GHCR artifact instead of a Render rebuild.
-# Refresh the sha-<commit> image URLs only after the matching GHCR publication
-# workflow has completed and its digest/provenance is recorded.
+# Refresh the digest-pinned image URLs only after the matching GHCR publication
+# workflow has completed and its digest/provenance is recorded. The current
+# pins are the verified registry manifests for source SHA 0fff2aeb...
 
 databases:
   - name: healthcare-beta-postgres
     plan: free
     region: singapore
     postgresMajorVersion: "16"
-    databaseName: healthcare
-    user: healthcare
+    # Match the already-provisioned beta database identity. Render treats
+    # databaseName and user as immutable after creation; changing these here
+    # would cause Blueprint reconciliation to fail or request replacement.
+    databaseName: healthcare_beta_postgres
+    user: healthcare_beta_postgres_user
     # Keep the beta database private; do not expose synthetic data publicly.
     ipAllowList: []
 
@@ -26,13 +30,17 @@ services:
     # Keep the cache reachable only over Render's private network.
     ipAllowList: []
     maxmemoryPolicy: noeviction
+    # Match the existing beta Key Value instance; this is intentionally
+    # ephemeral for the disposable beta and is not a production durability
+    # setting.
+    persistenceMode: "off"
 
   - type: pserv
     name: healthcare-beta-ai
     runtime: image
     region: singapore
     image:
-      url: ghcr.io/jasontm17/healthcare-project-ai-service:sha-0fff2aeb1a8f75a39aec64fe3141517c9f38913e
+      url: ghcr.io/jasontm17/healthcare-project-ai-service@sha256:af3b01610afc69e79b88f61af2912af5ea9c3578b2cf2f5b07ce8ab223b5376d
     # Render private services use a TCP port check. `healthCheckPath` is a
     # web-service-only field; application readiness is verified internally
     # with the service token by Spring/synthetic smoke tests.
@@ -61,20 +69,27 @@ services:
         value: "false"
       - key: RAG_EMBEDDING_DIMENSION
         value: "384"
+      # FastAPI ingestion is independently protected from Spring's projection
+      # worker; keep the HTTP ingestion surface closed until a token and
+      # backup/rollback drill are approved.
+      - key: RAG_INGEST_ENABLED
+        value: "false"
 
   - type: pserv
     name: healthcare-beta-clamav
     runtime: image
     region: singapore
     image:
-      url: clamav/clamav:1.4
+      # Immutable multi-architecture manifest for ClamAV 1.4 (Docker Hub).
+      # Do not replace this with a floating tag without recording a new digest.
+      url: clamav/clamav@sha256:761f6c99b8d9134b39431f8c200189cda749b17310091561bfa8b732f32bfada
 
   - type: pserv
     name: healthcare-beta-av-scanner
     runtime: image
     region: singapore
     image:
-      url: ghcr.io/jasontm17/healthcare-project-attachment-scanner:sha-0fff2aeb1a8f75a39aec64fe3141517c9f38913e
+      url: ghcr.io/jasontm17/healthcare-project-attachment-scanner@sha256:b66df7b6ec51b7b5e43bdb5b331caeed9d47da041d48d07dfe704b36b5155044
     envVars:
       - key: SCANNER_SERVICE_TOKEN
         sync: false
@@ -93,7 +108,7 @@ services:
     runtime: image
     region: singapore
     image:
-      url: ghcr.io/jasontm17/healthcare-project-backend:sha-0fff2aeb1a8f75a39aec64fe3141517c9f38913e
+      url: ghcr.io/jasontm17/healthcare-project-backend@sha256:c40153864a659aa5dc9ee0969505d72c40b3aeba4d44ee628d40332d37ab1803
     healthCheckPath: /actuator/health
     envVars:
       - key: SPRING_PROFILES_ACTIVE
@@ -118,6 +133,8 @@ services:
           type: keyvalue
           name: healthcare-beta-redis
           property: connectionString
+      - key: APP_SECURITY_RATE_LIMIT_REDIS_REQUIRED
+        value: "true"
       - key: AI_SERVICE_URL
         fromService:
           type: pserv
@@ -132,6 +149,25 @@ services:
       - key: AI_CHAT_SYMPTOM_TRIAGE_ENABLED
         value: "false"
       - key: AI_CHAT_HEALTH_EDUCATION_ENABLED
+        value: "false"
+      # Keep optional patient-chat modes and persisted-answer chunking closed
+      # until the hosted synthetic canary has an approved provider/projection
+      # manifest. The application defaults are fail-closed as well; declaring
+      # them here prevents a future image/config drift from opening them.
+      - key: AI_CHAT_SYNTHETIC_BETA_ASSERTED
+        value: "false"
+      - key: AI_CHAT_CHUNKED_ENABLED
+        value: "false"
+      # This endpoint is a bounded SQL-catalog lookup (no FastAPI call and no
+      # chat-row persistence), so the synthetic beta can expose the reviewed
+      # guest homepage triage flow. Its request rate limit remains enforced in
+      # Spring and emergency/PII/diagnose-prescribe cases fail closed.
+      - key: APP_PUBLIC_SPECIALTY_TRIAGE_ENABLED
+        value: "true"
+      # Hosted RAG reads the reconciled Supabase projection. Ingestion remains
+      # disabled until a separately managed ingest token and backup/rollback
+      # drill are supplied.
+      - key: AI_RAG_INGEST_ENABLED
         value: "false"
       # Exact public Vercel beta origin(s) accepted only from the authenticated
       # BFF's X-Healthcare-Original-Origin header. Direct browser CORS is off.

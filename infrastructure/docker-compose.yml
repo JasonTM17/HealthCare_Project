@@ -98,7 +98,7 @@ services:
   # clamd is never published to the host. The HTTP adapter below is also
   # private and requires the same process-injected token used by Spring.
   clamav:
-    image: clamav/clamav:1.4
+    image: clamav/clamav@sha256:761f6c99b8d9134b39431f8c200189cda749b17310091561bfa8b732f32bfada
     restart: unless-stopped
 
   attachment-scanner:
@@ -148,6 +148,7 @@ services:
       # not send Origin and remain unaffected.
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
       APP_SECURITY_RATE_LIMIT_ENABLED: ${APP_SECURITY_RATE_LIMIT_ENABLED:-true}
+      APP_SECURITY_RATE_LIMIT_REDIS_REQUIRED: ${APP_SECURITY_RATE_LIMIT_REDIS_REQUIRED:-true}
       APP_SECURITY_RATE_LIMIT_WINDOW_SECONDS: ${APP_SECURITY_RATE_LIMIT_WINDOW_SECONDS:-60}
       APP_SECURITY_RATE_LIMIT_AUTH_LIMIT: ${APP_SECURITY_RATE_LIMIT_AUTH_LIMIT:-20}
       APP_SECURITY_RATE_LIMIT_APPOINTMENT_LIMIT: ${APP_SECURITY_RATE_LIMIT_APPOINTMENT_LIMIT:-60}
@@ -164,9 +165,9 @@ services:
       AI_SERVICE_RUNTIME: compose
       AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL: "false"
       AI_SERVICE_TOKEN:   ${AI_SERVICE_TOKEN:-local-development-token-not-for-production}
-      # Protected local catalog reconciliation is enabled for the disposable
-      # Compose profile; replace both placeholder tokens before any shared run.
-      AI_RAG_INGEST_ENABLED: ${RAG_INGEST_ENABLED:-true}
+      # Protected local catalog reconciliation is opt-in. The disposable
+      # Compose helper sets both flags and tokens only for its isolated run.
+      AI_RAG_INGEST_ENABLED: ${RAG_INGEST_ENABLED:-false}
       AI_RAG_INGEST_TOKEN:   ${RAG_INGEST_TOKEN:-local-rag-ingest-token-not-for-production}
       AI_CHAT_RETENTION_DAYS: ${AI_CHAT_RETENTION_DAYS:-90}
       AI_CHAT_CLEANUP_ENABLED: ${AI_CHAT_CLEANUP_ENABLED:-true}
@@ -178,6 +179,7 @@ services:
       # approval/reconciliation gate; production should override both false.
       AI_CHAT_SYMPTOM_TRIAGE_ENABLED: ${AI_CHAT_SYMPTOM_TRIAGE_ENABLED:-false}
       AI_CHAT_HEALTH_EDUCATION_ENABLED: ${AI_CHAT_HEALTH_EDUCATION_ENABLED:-false}
+      AI_CHAT_CHUNKED_ENABLED: ${AI_CHAT_CHUNKED_ENABLED:-false}
       # Spring provenance gate stays closed even if an AI provider key exists.
       AI_CHAT_REMOTE_PROVIDER_ENABLED: ${AI_CHAT_REMOTE_PROVIDER_ENABLED:-false}
       AI_CHAT_SYNTHETIC_BETA_ASSERTED: ${AI_CHAT_SYNTHETIC_BETA_ASSERTED:-false}
@@ -227,11 +229,13 @@ services:
       # A separate loopback host prevents portal cookies reaching the object
       # store; signature Host is fixed here, never rewritten after signing.
       STORAGE_PUBLIC_ENDPOINT: ${STORAGE_PUBLIC_ENDPOINT:-http://127.0.0.1:9000}
-      STORAGE_CONSULTATION_ENABLED: ${STORAGE_CONSULTATION_ENABLED:-true}
+      # Generic and consultation uploads stay off unless an operator or the
+      # disposable helper explicitly opts in with private storage and AV.
+      STORAGE_CONSULTATION_ENABLED: ${STORAGE_CONSULTATION_ENABLED:-false}
       STORAGE_CONSULTATION_SCAN_WORKER_ENABLED: "true"
       STORAGE_CONSULTATION_KEY_SIGNING_SECRET: ${STORAGE_CONSULTATION_KEY_SIGNING_SECRET:-local-compose-consultation-signing-secret-32-bytes}
       APP_PUBLIC_SPECIALTY_TRIAGE_ENABLED: "true"
-      STORAGE_UPLOAD_ENABLED: "true"
+      STORAGE_UPLOAD_ENABLED: ${STORAGE_UPLOAD_ENABLED:-false}
       STORAGE_AV_REQUIRED: "true"
       STORAGE_AV_SERVICE_URL: http://attachment-scanner:8080/scan
       STORAGE_AV_SERVICE_TOKEN: ${STORAGE_AV_SERVICE_TOKEN:?STORAGE_AV_SERVICE_TOKEN is required}
@@ -330,7 +334,7 @@ services:
       DEEPSEEK_EMBEDDING_MODEL: ${DEEPSEEK_EMBEDDING_MODEL:-}
       DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-local}
-      RAG_INGEST_ENABLED: ${RAG_INGEST_ENABLED:-true}
+      RAG_INGEST_ENABLED: ${RAG_INGEST_ENABLED:-false}
       RAG_INGEST_TOKEN: ${RAG_INGEST_TOKEN:-local-rag-ingest-token-not-for-production}
       RAG_MAX_DOCUMENTS: ${RAG_MAX_DOCUMENTS:-10000}
       RAG_STORAGE_BACKEND: ${RAG_STORAGE_BACKEND:-memory}
