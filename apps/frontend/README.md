@@ -2,13 +2,15 @@
 
 Next.js TypeScript frontend baseline for HealthCare_Project.
 
+Use Node.js 22-24 with npm 10-11. `npm ci` consumes the committed lockfile and
+is the same install mode used by CI and Vercel.
+
 ## Commands
 
 ```bash
-npm install
-npm run lint
-npm run typecheck
-npm run build
+npm ci
+npm run verify
+npm run test:e2e
 npm run dev
 ```
 
