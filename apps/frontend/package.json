@@ -2,6 +2,10 @@
   "name": "healthcare-frontend",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22 <25",
+    "npm": ">=10 <12"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -9,22 +13,23 @@
     "lint": "eslint .",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "node --test tests/*.test.mjs",
+    "verify": "npm run lint && npm run typecheck && npm run test && npm run build",
     "test:e2e": "playwright test",
     "test:e2e:compose": "playwright test --config=playwright.compose.config.ts"
   },
   "dependencies": {
-    "next": "16.3.1",
+    "next": "16.3.3",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
-    "@types/node": "26.2.0",
+    "@types/node": "26.4.0",
     "@types/react": "19.2.18",
-    "@types/react-dom": "19.2.4",
+    "@types/react-dom": "19.2.5",
     "autoprefixer": "10.5.4",
     "eslint": "9.39.5",
-    "eslint-config-next": "16.3.1",
+    "eslint-config-next": "16.3.3",
     "postcss": "8.5.26",
     "tailwindcss": "3.4.17",
     "typescript": "6.0.3"
