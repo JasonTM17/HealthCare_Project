@@ -112,6 +112,15 @@ route through the exact Vercel-to-Render path.
    maintenance window before rerunning Flyway. These migrations are
    additive and must be applied before retention, email, attachment workers,
    or clinical access-audit reporting are enabled.
+2a. Before starting any service that reads the Supabase projection, complete
+   the Supabase gate in the reconciliation runbook: confirm the exact project
+   ref, record a named backup/PITR restore point (or document the provider
+   capability blocker), rehearse the guarded migration on an isolated branch
+   or disposable target, apply only
+   `20260830102500_reconcile_hosted_clinical_projection_security`, and run the
+   post-apply ACL/RLS/projection contract. If a restore point or rehearsal is
+   unavailable, stop here; do not enable `RAG_STORAGE_BACKEND=supabase` and do
+   not deploy the AI/backend pair against the drifted projection.
 3. Configure the private AI service with `AI_PROVIDER=local`, remote flags
    disabled, `RAG_INGEST_ENABLED=false` and
    `SUPABASE_RAG_FALLBACK_TO_MEMORY=false`. The image URL in the blueprint must
@@ -124,7 +133,9 @@ route through the exact Vercel-to-Render path.
    `/readyz` smoke (`X-AI-Service-Token`) and record `/livez` separately. The
    Blueprint intentionally does not set `healthCheckPath` for the private
    service because Render exposes that field for web services only.
-5. Run admin submit → independent doctor approval → projection reconciliation.
+5. After the Supabase gate and service health checks pass, run admin submit →
+   independent doctor approval → projection reconciliation. This operational
+   reconciliation is distinct from the schema/ACL gate in step 2a.
 6. Run the patient overview, consultation, patient Q&A submission/report,
    admin moderation, and three chat-mode smoke flows. A bank transfer remains
    `PENDING_VERIFICATION` until an ADMIN explicitly accepts the statement; a
