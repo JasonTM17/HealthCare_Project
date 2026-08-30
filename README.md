@@ -16,6 +16,7 @@ this record may be committed after that source, but every digest below remains
 bound to the exact source SHA. Never replace these references with `latest`.
 
 - GitHub CI run [33310018202](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33310018202) passed all six jobs for the exact package source SHA.
+- The follow-up pin/manifest commit `5de6205442597582e76de5c7e6b27c7f94131caf` was independently validated by CI run [33310401105](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33310401105), which passed all six jobs; it does not change the application source or any published digest.
 - The [application image publish run 33310156810](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33310156810) passed all four image jobs, and the [database package run 33310158307](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33310158307) passed. Each package below uses the immutable `sha-caedef092c2df9dff1e489b8696d7720817a4928` audit tag and has a verified provenance attestation bound to that source SHA.
 
 | GHCR package | Immutable reference | Audit tag |
@@ -25,6 +26,24 @@ bound to the exact source SHA. Never replace these references with `latest`.
 | [attachment scanner](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-attachment-scanner) | `ghcr.io/jasontm17/healthcare-project-attachment-scanner@sha256:7b445d77b20417f4d7921b3914dd3e7f9b054a5f9a7230dc2e87df13f810c9ba` | `sha-caedef092c2df9dff1e489b8696d7720817a4928` |
 | [frontend](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-frontend) | `ghcr.io/jasontm17/healthcare-project-frontend@sha256:b32ca5fbe572a2b142e50562e81f2176e0b4f1e1c84212d9095ceb33ae1aa5f4` | `sha-caedef092c2df9dff1e489b8696d7720817a4928` |
 | [database fixture](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-database) | `ghcr.io/jasontm17/healthcare-project-database@sha256:76d4d7827bb61ca36995ae9119adc151e37f7e2639495bbb204a1f34a54efe5f` | `sha-caedef092c2df9dff1e489b8696d7720817a4928` |
+
+### Frontend package contract
+
+The only npm workspace is `apps/frontend`; `package.json` and
+`package-lock.json` are kept in lockfile v3 sync. The release-tested contract
+is Node.js `>=22 <25` with npm `>=10 <12`, installed with `npm ci`.
+
+- Runtime pins: Next.js `16.3.3`, React `19.2.8`, and React DOM `19.2.8`.
+- Tooling pins: `eslint-config-next` `16.3.3` and TypeScript `6.0.3`; the
+  `@playwright/test` range currently resolves to `1.62.1` in the lockfile.
+- The local/CI gate is `npm run verify` (lint, typecheck, unit tests, and
+  production build), followed by `npm run test:e2e` for the browser gate.
+
+On 2026-08-30, `npm ci --dry-run --ignore-scripts --no-audit --no-fund`, the
+manifest/lockfile synchronization check, and `npm audit --package-lock-only`
+all passed; the audit reported zero vulnerabilities. `npm outdated` reports
+only major upgrade lines (ESLint 10, Tailwind CSS 4, and TypeScript 7), which
+remain deliberately deferred until a separate compatibility review.
 
 - Vercel has a `READY` production deployment at [healthcare-two-olive.vercel.app](https://healthcare-two-olive.vercel.app), deployment `dpl_F95VVwT1s9NHZNmPsLcrsHE87R75`, with authenticated metadata `gitCommitSha=caedef092c2df9dff1e489b8696d7720817a4928`. It was submitted from a clean detached source worktree and is aliased to the stable beta domain; twenty public route probes passed with CSP, frame-deny and nosniff headers. The browser BFF probes intentionally return `503 BFF_CONFIGURATION_UNAVAILABLE` until the server-only Render/Vercel variables are configured.
 - Render has the free beta PostgreSQL and Redis-compatible resources, but its image-backed application services are still blocked by the provider `need_payment_info` gate. No substitute service or paid upgrade was created.
