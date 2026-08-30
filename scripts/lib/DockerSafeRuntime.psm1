@@ -16,6 +16,26 @@ function Assert-ExactAllowedPath {
         throw "Refusing to rotate a path outside the exact Docker runtime allowlist: $Path"
     }
 
+    # Resolve only the existing ancestor chain.  A junction/symlink anywhere
+    # above the exact runtime path could redirect Move-Item into user data;
+    # reject it instead of following it.  Missing leaves are allowed because
+    # the caller may be creating a fresh runtime directory.
+    $cursor = $resolvedCandidate
+    while ($cursor) {
+        if (Test-Path -LiteralPath $cursor) {
+            $item = Get-Item -LiteralPath $cursor -Force
+            if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+                throw "Refusing to traverse a reparse-point ancestor of the Docker runtime path: $cursor"
+            }
+        }
+
+        $parent = Split-Path -Parent $cursor
+        if ((-not $parent) -or [string]::Equals($parent, $cursor, [System.StringComparison]::OrdinalIgnoreCase)) {
+            break
+        }
+        $cursor = $parent
+    }
+
     return $resolvedCandidate
 }
 
