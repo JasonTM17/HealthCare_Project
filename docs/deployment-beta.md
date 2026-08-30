@@ -38,9 +38,11 @@ separate verified workflow.
 Render Blueprints do not interpolate variables inside `image.url`, so refresh
 the checked-in digest URLs only after the matching manual GHCR workflow has
 finished and its registry digest/config label has been independently recorded.
-The current digest pins resolve the verified `sha-0fff2aeb1a8f75a39aec64fe3141517c9f38913e`
-artifacts; the manifest commit that records those pins can be newer than the
-application image source. Do not substitute a tag or `latest` for a digest.
+The current application digest pins resolve the verified exact source
+`f1667e18481fd9c6e79d1661e77541b18194a6fd` artifacts published by the
+post-merge workflow. The manifest commit that records those pins can be newer
+than the application image source. Do not substitute a tag or `latest` for a
+digest.
 
 ## Required Vercel settings
 
