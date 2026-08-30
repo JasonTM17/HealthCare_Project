@@ -147,10 +147,40 @@ try {{
     Rotate-DockerRuntimeDirectory -Path $junction -AllowedPaths @($junction) | Out-Null
     throw 'reparse parent was unexpectedly changed'
 }} catch {{
-    if ($_.Exception.Message -notmatch 'reparse point') {{ throw }}
+    if ($_.Exception.Message -notmatch 'reparse[- ]point') {{ throw }}
 }}
 if (-not (Test-Path -LiteralPath (Join-Path $target 'sentinel.txt') -PathType Leaf)) {{ throw 'target was touched' }}
 [IO.Directory]::Delete($junction, $false)
+Write-Output 'PASS'
+"""
+        result = _run_powershell(command)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "PASS" in result.stdout
+
+
+@pytest.mark.skipif(POWERSHELL is None, reason="Windows PowerShell 5.1 or pwsh is unavailable")
+def test_reparse_ancestor_is_refused_without_touching_target() -> None:
+    with tempfile.TemporaryDirectory(prefix="docker-safe ancestor ") as temporary:
+        root = Path(temporary)
+        command = f"""
+$ErrorActionPreference = 'Stop'
+Import-Module {_ps_quote(MODULE)} -Force
+$root = {_ps_quote(root)}
+$target = Join-Path $root 'target'
+$ancestor = Join-Path $root 'ancestor-link'
+New-Item -ItemType Directory -Path $target | Out-Null
+New-Item -ItemType Directory -Path (Join-Path $target 'run') | Out-Null
+Set-Content -LiteralPath (Join-Path $target 'run\\sentinel.txt') -Value 'keep'
+New-Item -ItemType Junction -Path $ancestor -Target $target | Out-Null
+$runtime = Join-Path $ancestor 'run'
+try {{
+    Rotate-DockerRuntimeDirectory -Path $runtime -AllowedPaths @($runtime) | Out-Null
+    throw 'reparse ancestor was unexpectedly traversed'
+}} catch {{
+    if ($_.Exception.Message -notmatch 'reparse-point ancestor') {{ throw }}
+}}
+if (-not (Test-Path -LiteralPath (Join-Path $target 'run\\sentinel.txt') -PathType Leaf)) {{ throw 'target was touched' }}
+[IO.Directory]::Delete($ancestor, $false)
 Write-Output 'PASS'
 """
         result = _run_powershell(command)
