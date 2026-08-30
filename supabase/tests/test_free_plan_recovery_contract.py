@@ -32,18 +32,27 @@ class FreePlanRecoveryContractTest(unittest.TestCase):
     def test_baseline_is_named_and_free_only(self) -> None:
         self.assertEqual(self.baseline["project_ref"], "awaknzhadjglbfkhigck")
         self.assertIn("free", self.baseline["plan_constraint"].lower())
+        self.assertEqual(self.baseline["postgres_system_identifier"], "7666007964130682852")
         self.assertEqual(
             self.baseline["migration_history"],
             ["20260823085754", "20260823085812", "20260823102718", "20260824102515"],
         )
         self.assertEqual(self.baseline["row_state"]["ai_chat_documents"]["deleted_count"], 0)
+        self.assertEqual(
+            set(self.baseline["row_fingerprints"])
+            - {"method", "note"},
+            {"articles", "specialties", "faqs", "ai_documents", "ai_chat_documents"},
+        )
 
     def test_preapply_is_read_only_and_fails_closed(self) -> None:
         self.assertIn("begin transaction read only", self.preapply)
         self.assertTrue(self.preapply.endswith("rollback;"))
         self.assertIn("free_plan_preapply_ok", self.preapply)
-        self.assertIn("migration history drifted before free-plan apply", self.preapply)
+        self.assertIn("migration history/name drifted before free-plan apply", self.preapply)
         self.assertIn("baseline row counts or update watermarks drifted", self.preapply)
+        self.assertIn("pg_control_system()", self.preapply)
+        self.assertIn("candidate tombstone guard function already exists", self.preapply)
+        self.assertIn("baseline row fingerprint drifted", self.preapply)
         # Ignore prose/comments; the remaining SQL must not contain a DDL/DML
         # statement at the beginning of a line.
         executable = re.sub(r"--[^\r\n]*", "", self.preapply_raw, flags=re.MULTILINE)
@@ -61,6 +70,12 @@ class FreePlanRecoveryContractTest(unittest.TestCase):
         self.assertIn("select count(*)", self.rollback)
         self.assertIn("from supabase_migrations.schema_migrations", self.rollback)
         self.assertIn("no migration-history row is rewritten", self.rollback)
+        self.assertIn("exact observed five-row state", self.rollback)
+        self.assertIn("a6be7e503ca7505a07a7df4fe864e9b0", self.rollback)
+        self.assertIn("7666007964130682852", self.rollback)
+        self.assertIn("system_identifier", self.rollback)
+        self.assertIn("lock table healthcare.articles", self.rollback)
+        self.assertIn("in access exclusive mode", self.rollback)
 
     def test_every_forward_added_column_has_a_guarded_drop(self) -> None:
         columns = (
@@ -88,13 +103,20 @@ class FreePlanRecoveryContractTest(unittest.TestCase):
             "drop constraint faqs_rich_content_shape",
             "drop constraint ai_documents_source_type",
             "baseline source_type constraint was not restored",
-            "platform helper secure acl/comment was not preserved",
+            "platform helper baseline acl/comment/owner was not restored",
+            "platform helper post-apply acl/comment/owner drifted",
+            "reconciliation tombstone guard definition fingerprint drifted",
+            "reconciliation list function definition fingerprint drifted",
+            "reconciliation match function definition fingerprint drifted",
+            "reconciliation index definition fingerprint drifted",
+            "reconciliation constraint definition fingerprint drifted",
+            "reconciliation column definition drifted",
+            "md5((to_jsonb(t) - $1::text[])::text)",
         ):
             self.assertIn(phrase, self.rollback)
-        self.assertNotIn(
-            "grant execute on function public.rls_auto_enable() to public, anon, authenticated",
-            self.rollback,
-        )
+        self.assertIn("grant execute on function public.rls_auto_enable()", self.rollback)
+        self.assertIn("comment on function public.rls_auto_enable() is null", self.rollback)
+        self.assertIn("no migration-history row is rewritten", self.rollback)
 
     def test_rollback_blocks_post_apply_writes(self) -> None:
         for phrase in (
@@ -103,6 +125,8 @@ class FreePlanRecoveryContractTest(unittest.TestCase):
             "where source_type = 'branch'",
             "where deleted_at is not null",
             "where tombstone_revision is not null",
+            "xmin::text",
+            "post-rollback row fingerprint mismatch",
         ):
             self.assertIn(phrase, self.rollback)
 
@@ -118,15 +142,26 @@ class FreePlanRecoveryContractTest(unittest.TestCase):
             self.assertIn(entry, self.reapply_preapply)
         self.assertIn("free-plan reapply history is not the reviewed seven-row state", self.reapply_preapply)
         self.assertIn("hardened acl/comment drifted", self.reapply_preapply)
+        self.assertIn("pg_control_system()", self.reapply_preapply)
+        self.assertIn("a6be7e503ca7505a07a7df4fe864e9b0", self.reapply_preapply)
+        self.assertIn("9d091b4911befb714b7a3adec6aa17f9", self.reapply_preapply)
+        self.assertIn("1cd1aa7d221ac68192ed052be5eb8071", self.reapply_preapply)
+        self.assertIn("baseline row fingerprint drifted", self.reapply_preapply)
+        self.assertIn("helper_acl <> '{postgres=x/postgres}'", self.reapply_preapply)
         self.assertIn("never concatenate the forward and rollback sql", self.reapply_preapply)
 
-    def test_helper_hardening_is_idempotent_and_fail_closed(self) -> None:
+    def test_helper_hardening_is_one_time_and_fail_closed(self) -> None:
         self.assertIn("begin;", self.lock_down_helper)
         self.assertTrue(self.lock_down_helper.endswith("commit;"))
         self.assertIn("revoke execute on function public.rls_auto_enable()", self.lock_down_helper)
         self.assertIn("from public, anon, authenticated, service_role", self.lock_down_helper)
         self.assertIn("grant execute on function public.rls_auto_enable() to postgres", self.lock_down_helper)
         self.assertIn("platform helper hardening postcondition failed", self.lock_down_helper)
+        self.assertIn("helper lockdown history is not the exact observed six-row state", self.lock_down_helper)
+        self.assertIn("not re-runnable after its own audit row is recorded", self.lock_down_helper)
+        self.assertIn("pg_control_system()", self.lock_down_helper)
+        self.assertIn("obj_description(helper_oid, 'pg_proc') is distinct from", self.lock_down_helper)
+        self.assertIn("<> '{postgres=x/postgres}'", self.lock_down_helper)
         self.assertNotRegex(self.lock_down_helper, r"\b(?:insert|update|delete|truncate)\b")
 
 

@@ -3,12 +3,18 @@
   "project_ref": "awaknzhadjglbfkhigck",
   "captured_at": "2026-08-30T07:48:00.392799Z",
   "plan_constraint": "Supabase Free only; no scheduled backup, PITR, or development branch",
+  "postgres_system_identifier": "7666007964130682852",
   "migration_history": [
     "20260823085754",
     "20260823085812",
     "20260823102718",
     "20260824102515"
   ],
+  "observed_migration_statement_fingerprints": {
+    "20260830075505_reconcile_hosted_clinical_projection_security": "a6be7e503ca7505a07a7df4fe864e9b0",
+    "20260830075737_rollback_free_plan_reconciliation_20260830": "9d091b4911befb714b7a3adec6aa17f9",
+    "20260830080646_lock_down_public_event_trigger_free_plan_20260830": "1cd1aa7d221ac68192ed052be5eb8071"
+  },
   "baseline_constraint": "CHECK ((source_type = ANY (ARRAY['specialty'::text, 'doctor'::text, 'service'::text, 'package'::text, 'article'::text, 'faq'::text])))",
   "platform_helper": {
     "function": "public.rls_auto_enable()",
@@ -52,6 +58,19 @@
     "tombstone_trigger": true,
     "rich_constraints": true,
     "rich_indexes": true
+  },
+  "row_fingerprints": {
+    "method": "md5(string_agg(xmin::text || ':' || md5(to_jsonb(row)::text), '' ORDER BY id))",
+    "articles": "9ecf3b45b518f9a505bd77b1a8e2529b",
+    "specialties": "80c44b33331823193c04a67863effb59",
+    "faqs": "0437a1dbbb5d28da2a2ab7c961d2feb2",
+    "ai_documents": "0f3aea1fd31021b4ddf7666aaef27d64",
+    "ai_chat_documents": "22f69fa4e6336e41d4e6fa2f66ddefa4",
+    "note": "xmin changes on any row update; a mismatch fails closed. This is an integrity fence, not a provider backup."
+  },
+  "baseline_server_acls": {
+    "healthcare_schema": "{postgres=UC/postgres,anon=U/postgres,authenticated=U/postgres,service_role=U/postgres}",
+    "server_only_tables": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres}"
   },
   "database_size_bytes": 160230547,
   "limitations": [

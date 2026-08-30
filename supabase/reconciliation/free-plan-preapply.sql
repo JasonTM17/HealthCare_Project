@@ -4,18 +4,28 @@
 -- 20260830102500_reconcile_hosted_clinical_projection_security. It proves the
 -- baseline captured in free-plan-baseline-20260830.json is still present. A
 -- result without an exception is the only acceptable pre-apply signal.
+--
+-- The URL/ref is verified by the operator through the Supabase management
+-- surface before this SQL is sent. SQL cannot discover a Supabase project ref,
+-- so this gate additionally binds the session to the captured PostgreSQL
+-- system_identifier. A literal SELECT of the expected ref is not a target
+-- check.
 
 begin transaction read only;
 set local lock_timeout = '5s';
 set local statement_timeout = '120s';
+set local search_path = pg_catalog, extensions;
 
 do $free_plan_preapply$
 declare
     versions text[];
+    system_identifier text;
+    fingerprint text;
     actual text;
     helper_oid oid;
     helper_acl text;
     helper_comment text;
+    expected record;
     expected_columns text[] := array[
         'articles.content_language', 'articles.audience',
         'articles.topic_tags', 'articles.key_takeaways',
@@ -36,18 +46,27 @@ declare
     ];
     item text;
 begin
+    select pcs.system_identifier::text
+      into system_identifier
+      from pg_control_system() pcs;
+    if system_identifier <> '7666007964130682852' then
+        raise exception 'PostgreSQL system identifier does not match the named Supabase target';
+    end if;
+
     if current_schema() is null then
         raise exception 'unable to resolve current schema';
     end if;
 
-    select array_agg(sm.version::text order by sm.version::text)
+    select array_agg(format('%s:%s', sm.version, coalesce(sm.name, '')) order by sm.version::text)
       into versions
       from supabase_migrations.schema_migrations sm;
     if versions is distinct from array[
-        '20260823085754', '20260823085812',
-        '20260823102718', '20260824102515'
+        '20260823085754:healthcare_data_platform',
+        '20260823085812:enforce_spring_identity_authority',
+        '20260823102718:big_data_vector_contract',
+        '20260824102515:patient_chat_projection_contract'
     ]::text[] then
-        raise exception 'migration history drifted before Free-plan apply';
+        raise exception 'migration history/name drifted before Free-plan apply';
     end if;
 
     foreach item in array expected_columns loop
@@ -68,6 +87,10 @@ begin
         'healthcare.match_chat_documents_page(extensions.vector,real,integer,text[],text,real,uuid)'
     ) is not null then
         raise exception 'candidate pagination function already exists';
+    end if;
+
+    if to_regprocedure('healthcare.ai_chat_documents_tombstone_guard()') is not null then
+        raise exception 'candidate tombstone guard function already exists';
     end if;
 
     if exists (
@@ -159,8 +182,29 @@ begin
        or (select count(*) from healthcare.ai_chat_documents where deleted_at is not null) <> 0
        or (select max(updated_at) from healthcare.ai_chat_documents)
           <> timestamptz '2026-08-24 10:35:10.579576+00' then
-        raise exception 'baseline row counts or update watermarks drifted';
+         raise exception 'baseline row counts or update watermarks drifted';
     end if;
+
+    -- Include xmin in the ordered row fingerprint. Any post-snapshot update,
+    -- including an update that writes a default value, fails closed. A vacuum
+    -- freeze also fails closed rather than permitting an uncertain rollback.
+    for expected in
+        select * from (values
+            ('articles', '9ecf3b45b518f9a505bd77b1a8e2529b', '{}'::text[]),
+            ('specialties', '80c44b33331823193c04a67863effb59', '{}'::text[]),
+            ('faqs', '0437a1dbbb5d28da2a2ab7c961d2feb2', '{}'::text[]),
+            ('ai_documents', '0f3aea1fd31021b4ddf7666aaef27d64', '{}'::text[]),
+            ('ai_chat_documents', '22f69fa4e6336e41d4e6fa2f66ddefa4', '{}'::text[])
+        ) as baseline(table_name, expected_fingerprint, excluded_columns)
+    loop
+        execute format(
+            'select md5(coalesce(string_agg(xmin::text || '':'' || md5((to_jsonb(t) - $1::text[])::text), '''' order by id), '''')) from healthcare.%I t',
+            expected.table_name
+        ) into fingerprint using expected.excluded_columns;
+        if fingerprint <> expected.expected_fingerprint then
+            raise exception 'baseline row fingerprint drifted for healthcare.%', expected.table_name;
+        end if;
+    end loop;
 end
 $free_plan_preapply$;
 

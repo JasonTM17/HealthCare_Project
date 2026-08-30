@@ -6,18 +6,26 @@
 -- intentional that this gate accepts those three audit rows and no other
 -- history drift. Run it immediately before a separate apply_migration call;
 -- never concatenate the forward and rollback SQL in one execute_sql request.
+--
+-- The operator must first verify the Supabase URL/ref through the management
+-- API. SQL cannot discover a project ref; the captured PostgreSQL
+-- system_identifier below is the enforceable cluster binding.
 
 begin transaction read only;
 set local lock_timeout = '5s';
 set local statement_timeout = '120s';
+set local search_path = pg_catalog, extensions;
 
 do $free_plan_reapply_preapply$
 declare
     history text[];
+    system_identifier text;
+    fingerprint text;
     helper_oid oid;
     helper_owner name;
     helper_acl text;
     helper_comment text;
+    expected record;
     expected_columns text[] := array[
         'articles.content_language', 'articles.audience',
         'articles.topic_tags', 'articles.key_takeaways',
@@ -38,6 +46,13 @@ declare
     ];
     item text;
 begin
+    select pcs.system_identifier::text
+      into system_identifier
+      from pg_control_system() pcs;
+    if system_identifier <> '7666007964130682852' then
+        raise exception 'PostgreSQL system identifier does not match the named Supabase target';
+    end if;
+
     select array_agg(format('%s:%s', version, coalesce(name, '')) order by version)
       into history
       from supabase_migrations.schema_migrations;
@@ -52,6 +67,28 @@ begin
     ]::text[] then
         raise exception 'Free-plan reapply history is not the reviewed seven-row state';
     end if;
+
+    -- The history names alone are not provenance. These hashes are the exact
+    -- one-statement records returned by the hosted migration ledger for the
+    -- observed audit rows, including the provider's trailing line ending.
+    for expected in
+        select * from (values
+            ('20260830075505', 'reconcile_hosted_clinical_projection_security', 'a6be7e503ca7505a07a7df4fe864e9b0'),
+            ('20260830075737', 'rollback_free_plan_reconciliation_20260830', '9d091b4911befb714b7a3adec6aa17f9'),
+            ('20260830080646', 'lock_down_public_event_trigger_free_plan_20260830', '1cd1aa7d221ac68192ed052be5eb8071')
+        ) as recorded(version, migration_name, expected_hash)
+    loop
+        if not exists (
+            select 1
+              from supabase_migrations.schema_migrations sm
+             where sm.version = expected.version
+               and sm.name = expected.migration_name
+               and array_length(sm.statements, 1) = 1
+               and md5(sm.statements[1]) = expected.expected_hash
+        ) then
+            raise exception 'hosted migration statement fingerprint drifted for %', expected.migration_name;
+        end if;
+    end loop;
 
     foreach item in array expected_columns loop
         if exists (
@@ -136,7 +173,7 @@ begin
      where p.oid = to_regprocedure('public.rls_auto_enable()');
     if helper_oid is null
        or helper_owner <> 'postgres'
-       or helper_acl = '<NULL>'
+       or helper_acl <> '{postgres=X/postgres}'
        or has_function_privilege('anon', helper_oid, 'EXECUTE')
        or has_function_privilege('authenticated', helper_oid, 'EXECUTE')
        or has_function_privilege('service_role', helper_oid, 'EXECUTE')
@@ -162,8 +199,26 @@ begin
        or (select count(*) from healthcare.ai_chat_documents where deleted_at is not null) <> 0
        or (select max(updated_at) from healthcare.ai_chat_documents)
           <> timestamptz '2026-08-24 10:35:10.579576+00' then
-        raise exception 'baseline row counts or update watermarks drifted';
+         raise exception 'baseline row counts or update watermarks drifted';
     end if;
+
+    for expected in
+        select * from (values
+            ('articles', '9ecf3b45b518f9a505bd77b1a8e2529b', '{}'::text[]),
+            ('specialties', '80c44b33331823193c04a67863effb59', '{}'::text[]),
+            ('faqs', '0437a1dbbb5d28da2a2ab7c961d2feb2', '{}'::text[]),
+            ('ai_documents', '0f3aea1fd31021b4ddf7666aaef27d64', '{}'::text[]),
+            ('ai_chat_documents', '22f69fa4e6336e41d4e6fa2f66ddefa4', '{}'::text[])
+        ) as baseline(table_name, expected_fingerprint, excluded_columns)
+    loop
+        execute format(
+            'select md5(coalesce(string_agg(xmin::text || '':'' || md5((to_jsonb(t) - $1::text[])::text), '''' order by id), '''')) from healthcare.%I t',
+            expected.table_name
+        ) into fingerprint using expected.excluded_columns;
+        if fingerprint <> expected.expected_fingerprint then
+            raise exception 'baseline row fingerprint drifted for healthcare.%', expected.table_name;
+        end if;
+    end loop;
 end
 $free_plan_reapply_preapply$;
 
