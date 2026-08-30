@@ -27,13 +27,16 @@ supabase db push
 ### Hosted migration gate (mandatory)
 
 Never run `supabase db push`, `db reset`, or the seed against an unverified
-project. First capture a backup/PITR point, confirm the exact project reference,
-inspect `supabase migration list`, inspect the current tables/RLS/policies and
-run the local SQL contracts. The local tree currently contains seven additive
-migrations, while the reviewed hosted target has a different four-entry
-history. The first local migration contains non-idempotent `CREATE TABLE`
-statements, so pushing it directly to that target can collide with existing
-objects and must remain blocked until a reviewed reconciliation is chosen.
+project. First capture a backup/PITR point when the plan provides one, confirm
+the exact project reference, inspect `supabase migration list`, inspect the
+current tables/RLS/policies and run the local SQL contracts. The local tree has
+seven additive migrations and the currently reviewed hosted target also has a
+seven-row audited history, but the histories are not interchangeable: the
+hosted rows include the separately recorded reconciliation, rollback and
+helper-hardening operations. The first local migration contains non-idempotent
+`CREATE TABLE` statements, so pushing it directly to that target can collide
+with existing objects and must remain blocked until a reviewed reconciliation
+is chosen.
 
 For the reviewed existing target, the only structural candidate is
 `20260830102500_reconcile_hosted_clinical_projection_security.sql`. Apply that
