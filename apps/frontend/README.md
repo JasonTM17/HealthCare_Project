@@ -26,6 +26,26 @@ production build). Run `npm run test:e2e` separately for the browser gate.
 Major toolchain upgrades are intentionally deferred until their compatibility
 with the current Next.js/Tailwind setup is reviewed.
 
+## Hosted build contract
+
+Vercel must use `apps/frontend` as the project root. The checked-in
+`vercel.json` pins the install command to `npm ci` and the build command to
+`npm run build`; do not use `npm install` or a floating package version in a
+release build. The current immutable beta application source is
+`caedef092c2df9dff1e489b8696d7720817a4928`; later `main` commits may update
+release documentation without changing that published image provenance.
+
+The browser-facing API is the same-origin Next.js BFF. Keep
+`BACKEND_INTERNAL_URL`, `BFF_PUBLIC_ORIGIN`, and `BACKEND_BFF_SERVICE_TOKEN`
+server-only; never rename them to `NEXT_PUBLIC_*`. Until a reachable Render
+backend and the paired secret values exist, BFF routes intentionally fail
+closed with `503 BFF_CONFIGURATION_UNAVAILABLE`.
+
+Before opening a release, run `npm audit --package-lock-only` and verify that
+the manifest fields in `package.json` match the root package entry in
+`package-lock.json` (lockfile version 3). A passing local check does not prove
+that Vercel or Render has deployed the same SHA.
+
 ## Design Rules
 
 Use original healthcare content and visual identity. Hoan My is reference-only for information architecture patterns and must not be copied.
