@@ -142,11 +142,11 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
           </nav>
 
           <div className="site-nav__actions">
-            <Link className="nav-account-link" href={accountDestination.href}>
+            <Link aria-label={accountDestination.label} className="nav-account-link" href={accountDestination.href}>
               <Icon name="user" size={16} />
               <span>{accountDestination.label}</span>
             </Link>
-            <button className="button button--nav" onClick={onOpenBooking} type="button">
+            <button aria-label="Đặt lịch khám" className="button button--nav" onClick={onOpenBooking} type="button">
               <Icon name="arrow-right" size={17} />
               <span>Đặt lịch khám</span>
             </button>
