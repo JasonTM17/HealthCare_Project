@@ -73,13 +73,13 @@ Render Blueprints do not interpolate variables inside `image.url`, so refresh
 the checked-in digest URLs only after the matching manual GHCR workflow has
 finished and its registry digest/config label has been independently recorded.
 The current application digest pins resolve the verified exact source
-`f0c2363821741efe28df70d8721b6835ba86fa8f` artifacts published by workflow run
-`33306135660`; each image has a SLSA provenance attestation bound to that
+`efdd401da3a6b4906d7a5e679e570cafad687bb7` artifacts published by workflow run
+`33306989595`; each image has a SLSA provenance attestation bound to that
 source. The recorded Render pins are backend
-`sha256:0b0523ca2e2d9758a2a4d87dfbb826d9089b862e54cf652babf79d9c0e33bd84`, AI
-`sha256:ea18c14623bfd1d65d0ffdb1d5af0631d56a6703ff0bc8e775032bb42d9f19bc`,
+`sha256:b6f8ccde4eeb1acc55134623df348225fbf00fcd8eae6e6401534cfd13fb49f2`, AI
+`sha256:249f43ca70d63bd3c5a1378fe7417b5fac456aea8de7b28212cab3c653045870`,
 and attachment scanner
-`sha256:052efa75e8f78147e8549f9487ec297988f0f00d61554fca77fc35a445a5235e`.
+`sha256:066a1454607b9cc1be68c5bec529b53b8c2dee520ec446b1d8340e0bce7690bc`.
 The manifest commit that records those pins can be newer than the application
 image source. Do not substitute a tag or `latest` for a digest.
 
