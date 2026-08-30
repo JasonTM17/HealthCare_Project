@@ -39,6 +39,10 @@ services:
   - type: pserv
     name: healthcare-beta-ai
     runtime: image
+    # Render private services do not support the Free compute plan. Keep the
+    # smallest paid plan explicit so a sync cannot silently select a larger
+    # resource or misrepresent the billing requirement.
+    plan: 0.5c-512mb
     region: singapore
     image:
       url: ghcr.io/jasontm17/healthcare-project-ai-service@sha256:249f43ca70d63bd3c5a1378fe7417b5fac456aea8de7b28212cab3c653045870
@@ -79,6 +83,7 @@ services:
   - type: pserv
     name: healthcare-beta-clamav
     runtime: image
+    plan: 0.5c-512mb
     region: singapore
     image:
       # Immutable multi-architecture manifest for ClamAV 1.4 (Docker Hub).
@@ -88,6 +93,7 @@ services:
   - type: pserv
     name: healthcare-beta-av-scanner
     runtime: image
+    plan: 0.5c-512mb
     region: singapore
     image:
       url: ghcr.io/jasontm17/healthcare-project-attachment-scanner@sha256:066a1454607b9cc1be68c5bec529b53b8c2dee520ec446b1d8340e0bce7690bc
@@ -107,6 +113,7 @@ services:
   - type: web
     name: healthcare-beta-backend
     runtime: image
+    plan: free
     region: singapore
     image:
       url: ghcr.io/jasontm17/healthcare-project-backend@sha256:b6f8ccde4eeb1acc55134623df348225fbf00fcd8eae6e6401534cfd13fb49f2
