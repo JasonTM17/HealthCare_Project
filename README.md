@@ -10,13 +10,15 @@ The repository currently has auth/RBAC, branch-aware booking and rescheduling, b
 
 This is an evidence record for the current synthetic beta, not a production
 readiness or healthcare-compliance claim. The integration target is `main`.
-The current package/application source is
-`caedef092c2df9dff1e489b8696d7720817a4928`; the checked-in Render pins and
-this record may be committed after that source, but every digest below remains
-bound to the exact source SHA. Never replace these references with `latest`.
+The current release-record tip is
+`3881a657c8fc25d7e3c52cac85f34cb9885ac589` (documentation-only). The
+package/application source and all published image digests remain bound to
+`caedef092c2df9dff1e489b8696d7720817a4928`; later documentation commits do not
+silently change that artifact. Never replace these references with `latest`.
 
 - GitHub CI run [33310018202](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33310018202) passed all six jobs for the exact package source SHA.
 - The follow-up pin/manifest commit `5de6205442597582e76de5c7e6b27c7f94131caf` was independently validated by CI run [33310401105](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33310401105), which passed all six jobs; it does not change the application source or any published digest.
+- The current release-record tip `3881a657c8fc25d7e3c52cac85f34cb9885ac589` was validated by CI run [33312067036](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33312067036), which passed all six jobs; this commit only corrects the observed Render validation wording.
 - The [application image publish run 33310156810](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33310156810) passed all four image jobs, and the [database package run 33310158307](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33310158307) passed. Each package below uses the immutable `sha-caedef092c2df9dff1e489b8696d7720817a4928` audit tag and has a verified provenance attestation bound to that source SHA.
 
 | GHCR package | Immutable reference | Audit tag |
@@ -57,7 +59,7 @@ remain deliberately deferred until a separate compatibility review.
   promotion. The browser BFF probes intentionally return
   `503 BFF_CONFIGURATION_UNAVAILABLE` until the server-only Render/Vercel
   variables are configured.
-- Render has the free beta PostgreSQL and Redis-compatible resources, but its image-backed application services are still blocked by the provider `need_payment_info` gate. No substitute service or paid upgrade was created.
+- Render has the free beta PostgreSQL and Redis-compatible resources. The validator accepts the Spring web service's `free` plan, but the three private/image services (AI, ClamAV and scanner) still fail the provider `need_payment_info` gate; creating only the web service would leave required private dependencies missing. No substitute service or paid upgrade was created.
 - Supabase project `awaknzhadjglbfkhigck` is on the Free plan with the reviewed migration history and synthetic counts. The exact reapply gate is read-only green; a fresh guarded write remains HOLD until the manual-rollback/no-PITR boundary is explicitly accepted.
 
 For the exact settings, rollback gates, Docker recovery procedure, and the
