@@ -23,20 +23,24 @@ The following is the current evidence boundary, recorded separately from this
 recipe:
 
 - Vercel has a `READY` production deployment for the static Next.js shell at
-  `healthcare-two-olive.vercel.app` (deployment
-  `dpl_F95VVwT1s9NHZNmPsLcrsHE87R75`). Authenticated deployment metadata
-  reports `gitCommitSha=caedef092c2df9dff1e489b8696d7720817a4928`; the source
-  was submitted from a clean detached worktree, with no `.env.local` or
-  untracked instruction files in the deployment payload. The linked project
-  retains only the two public indexing/site variables, so BFF routes remain
-  intentionally fail-closed;
+  `healthcare-two-olive.vercel.app`. The latest deployment recorded in this
+  snapshot is `dpl_35HGQrKwgTbbALNff8GAGSYvQc8E`, whose authenticated metadata
+  reports `gitCommitSha=22c283e8244f139d90b40b16039e6b843536f461`; it is a
+  documentation-only follow-up over application source
+  `caedef092c2df9dff1e489b8696d7720817a4928` (the previous application
+  deployment was `dpl_F95VVwT1s9NHZNmPsLcrsHE87R75`). The source was submitted
+  from a clean detached worktree, with no `.env.local` or untracked
+  instruction files in the deployment payload. The linked project retains only
+  the two public indexing/site variables, so BFF routes remain intentionally
+  fail-closed;
   the server-only BFF variables are intentionally absent, so
   `/api/v1/health`, catalog and triage probes return
   `503 BFF_CONFIGURATION_UNAVAILABLE`. Twenty public route probes and sixteen
   route×viewport Chromium accessibility probes returned `200` with CSP,
   `X-Frame-Options: DENY`, and `nosniff` headers. This is
   static-hosting evidence only; it is not a functional chatbot or backend
-  deployment.
+  deployment. Vercel auto-deploys every `main` push, so refresh the exact
+  deployment/source metadata immediately before promotion.
 - Render has the disposable `healthcare-beta-postgres` and
   `healthcare-beta-redis` resources, but no HealthCare application services.
   The official Blueprint validation rejected the four private/image services

@@ -45,7 +45,18 @@ all passed; the audit reported zero vulnerabilities. `npm outdated` reports
 only major upgrade lines (ESLint 10, Tailwind CSS 4, and TypeScript 7), which
 remain deliberately deferred until a separate compatibility review.
 
-- Vercel has a `READY` production deployment at [healthcare-two-olive.vercel.app](https://healthcare-two-olive.vercel.app), deployment `dpl_F95VVwT1s9NHZNmPsLcrsHE87R75`, with authenticated metadata `gitCommitSha=caedef092c2df9dff1e489b8696d7720817a4928`. It was submitted from a clean detached source worktree and is aliased to the stable beta domain; twenty public route probes passed with CSP, frame-deny and nosniff headers. The browser BFF probes intentionally return `503 BFF_CONFIGURATION_UNAVAILABLE` until the server-only Render/Vercel variables are configured.
+- Vercel's stable [beta alias](https://healthcare-two-olive.vercel.app) is
+  `READY`/production. The latest deployment recorded in this snapshot is
+  `dpl_35HGQrKwgTbbALNff8GAGSYvQc8E`, with authenticated
+  `gitCommitSha=22c283e8244f139d90b40b16039e6b843536f461`; that commit is a
+  documentation-only follow-up over the application source
+  `caedef092c2df9dff1e489b8696d7720817a4928` (previous application deployment
+  `dpl_F95VVwT1s9NHZNmPsLcrsHE87R75`). Twenty public route probes passed with
+  CSP, frame-deny and nosniff headers. Vercel auto-deploys `main`, so operators
+  must re-check the alias's exact deployment/source immediately before
+  promotion. The browser BFF probes intentionally return
+  `503 BFF_CONFIGURATION_UNAVAILABLE` until the server-only Render/Vercel
+  variables are configured.
 - Render has the free beta PostgreSQL and Redis-compatible resources, but its image-backed application services are still blocked by the provider `need_payment_info` gate. No substitute service or paid upgrade was created.
 - Supabase project `awaknzhadjglbfkhigck` is on the Free plan with the reviewed migration history and synthetic counts. The exact reapply gate is read-only green; a fresh guarded write remains HOLD until the manual-rollback/no-PITR boundary is explicitly accepted.
 
