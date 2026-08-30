@@ -16,10 +16,11 @@ The application package source and immutable image provenance are bound to
 commit `5de6205442597582e76de5c7e6b27c7f94131caf` passed CI run
 `33310401105` (all six jobs), the Render wording correction
 `3881a657c8fc25d7e3c52cac85f34cb9885ac589` passed CI run `33312067036`, and
-the current release-record tip
+the audited package/deployment documentation checkpoint
 `439d9055676b23180da4b9c77bc520a79b810b89` passed CI run `33312268255` (all
-six jobs). Neither documentation-only follow-up changes that application
-source or its digests. Keep this distinction when promoting a release.
+six jobs). Neither those nor later documentation-only follow-ups change the
+application source or its digests. Verify the actual checkout SHA immediately
+before promotion.
 
 ## Observed provider snapshot (2026-08-30)
 
