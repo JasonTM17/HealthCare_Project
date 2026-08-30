@@ -109,6 +109,7 @@ test("CMS renderer is allowlisted and never interprets raw HTML", async () => {
 test("public live slot listens to named SSE changes and has polling fallback", async () => {
   const client = await read("lib/cms-client.ts");
   const liveSlot = await read("components/cms/CmsLiveSlot.tsx");
+  const routeSlots = await read("components/cms/RouteCmsSlots.tsx");
 
   assert.match(client, /register\("cms-content-changed"/);
   assert.match(client, /register\("ready"/);
@@ -145,6 +146,9 @@ test("public live slot listens to named SSE changes and has polling fallback", a
   assert.match(liveSlot, /refresh\(0, heartbeat\.latestEventId\)/);
   assert.match(liveSlot, /setError\(new CmsApiError\("not-found", 404/);
   assert.match(liveSlot, /CmsReconciliationLedger/);
+  assert.match(liveSlot, /hideOnError\?: boolean/);
+  assert.match(liveSlot, /hideOnError && !loading && !content && error && fallback === undefined/);
+  assert.equal((routeSlots.match(/hideOnError/g) ?? []).length, 3);
   assert.match(liveSlot, /reconciliation\.observe\(event\.eventId\)/);
   assert.match(liveSlot, /acknowledgeThrough/);
   assert.match(liveSlot, /refreshGeneration/);
