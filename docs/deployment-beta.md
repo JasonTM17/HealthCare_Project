@@ -16,11 +16,17 @@ present in this repository.
 The following is the current evidence boundary, recorded separately from this
 recipe:
 
-- Vercel has a `READY` production deployment for the static Next.js shell. The
-  linked project currently has zero environment variables, so the server-only
-  BFF cannot reach Spring: `/api/v1/health`, catalog and triage probes return
-  `503 BFF_CONFIGURATION_UNAVAILABLE`. This is static-hosting evidence only;
-  it is not a functional chatbot or backend deployment.
+- Vercel has a `READY` production deployment for the static Next.js shell at
+  `healthcare-two-olive.vercel.app` (deployment
+  `dpl_DCr8sQAE6rQzZEZEHR8mBR6Ee4Qp`). The deployment metadata is bound to
+  source SHA `373f087e7662736b6271c578b5fbd489bb224fb5` with `gitDirty=false`.
+  The linked project currently has only the two public indexing/site variables;
+  the server-only BFF variables are intentionally absent, so
+  `/api/v1/health`, catalog and triage probes return
+  `503 BFF_CONFIGURATION_UNAVAILABLE`. Sixteen public route probes returned
+  `200` with CSP, `X-Frame-Options: DENY`, and `nosniff` headers. This is
+  static-hosting evidence only; it is not a functional chatbot or backend
+  deployment.
 - Render has the disposable `healthcare-beta-postgres` and
   `healthcare-beta-redis` resources, but no HealthCare application services.
   The official Blueprint validation rejected the four private/image services
