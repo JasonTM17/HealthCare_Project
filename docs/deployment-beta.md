@@ -43,10 +43,12 @@ recipe:
   deployment/source metadata immediately before promotion.
 - Render has the disposable `healthcare-beta-postgres` and
   `healthcare-beta-redis` resources, but no HealthCare application services.
-  The official Blueprint validation rejected the four private/image services
-  (AI, ClamAV, scanner and Spring) with `need_payment_info`; no card, paid
-  upgrade or substitute public service was created. Re-run validation only
-  after the workspace billing gate is deliberately resolved. See the official
+  The official Blueprint validation currently rejects the three private/image
+  services (AI, ClamAV and scanner) with `need_payment_info`; the Spring web
+  service on `free` is accepted by the validator but cannot be created safely
+  without those private dependencies. No card, paid upgrade or substitute
+  public service was created. Re-run validation only after the workspace
+  billing gate is deliberately resolved. See the official
   [Render Blueprint validation API](https://api-docs.render.com/reference/validate-blueprint)
   for the provider contract.
 - Supabase is the confirmed Free project. The guarded reconciliation was
