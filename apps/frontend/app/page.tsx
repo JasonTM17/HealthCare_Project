@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useMemo, useState } from "react";
 import BranchMap from "../components/BranchMap";
+import AiTriageModal from "../components/AiTriageModal";
 import BookingModal from "../components/BookingModal";
 import CareExperience from "../components/CareExperience";
 import { CmsLiveSlot } from "../components/cms";
@@ -219,6 +220,7 @@ interface HomeHeroCopyProps {
   setSearchQuery: (value: string) => void;
   onSearchSubmit: () => void;
   onBooking: () => void;
+  onTriage: () => void;
   cmsHero?: CmsHeroPayload;
 }
 
@@ -238,6 +240,7 @@ function HomeHeroCopy({
   setSearchQuery,
   onSearchSubmit,
   onBooking,
+  onTriage,
   cmsHero,
 }: HomeHeroCopyProps): React.ReactElement {
   const activeCmsHero = cmsHero && !isPlaceholderCmsHeroPayload(cmsHero) ? cmsHero : null;
@@ -289,10 +292,10 @@ function HomeHeroCopy({
             <Icon name="calendar" size={18} />
           </button>
         )}
-        <Link className="button button--hero-secondary" href="/specialties">
-          Xem chuyên khoa
-          <Icon name="arrow-up-right" size={18} />
-        </Link>
+        <button className="button button--hero-secondary" onClick={onTriage} type="button">
+          Gợi ý chuyên khoa
+          <Icon name="stethoscope" size={18} />
+        </button>
       </div>
     </div>
   );
@@ -409,6 +412,7 @@ function HomeCmsFallbackCard({
 export default function Home(): React.ReactElement {
   const router = useRouter();
   const [isBookingOpen, setIsBookingOpen] = useState<boolean>(false);
+  const [isAiTriageOpen, setIsAiTriageOpen] = useState<boolean>(false);
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | undefined>();
   const [selectedSpecialtyId, setSelectedSpecialtyId] = useState<string | undefined>();
   const [selectedPackageId, setSelectedPackageId] = useState<string | undefined>();
@@ -526,6 +530,12 @@ export default function Home(): React.ReactElement {
     setSearchQuery,
     onSearchSubmit: handleHeroSearchSubmit,
     onBooking: () => handleOpenBooking(),
+    onTriage: () => setIsAiTriageOpen(true),
+  };
+
+  const handleAiSpecialtySelect = (specialtyName: string, specialtyId?: string): void => {
+    void specialtyName;
+    handleOpenBooking(undefined, specialtyId);
   };
   const branchAreaLabel = catalogLoading && branches.length === 0
     ? "Đang tải cơ sở"
@@ -918,6 +928,13 @@ export default function Home(): React.ReactElement {
       </main>
 
       <Footer branches={branches} cmsSlug="home" />
+
+      <AiTriageModal
+        isOpen={isAiTriageOpen}
+        onClose={() => setIsAiTriageOpen(false)}
+        onSelectSpecialtyForBooking={handleAiSpecialtySelect}
+        emergencyContact={contactPhone}
+      />
 
       {isBookingOpen ? (
         <BookingModal

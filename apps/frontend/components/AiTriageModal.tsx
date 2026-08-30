@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { ApiError, recommendSpecialty } from "../lib/api-client";
+import { ApiError, recommendPublicSpecialty } from "../lib/api-client";
 import { safeTelephoneHref } from "../lib/phone";
 import type {
   AiTriageCitation,
@@ -20,7 +20,7 @@ interface AiTriageModalProps {
 
 type TriageErrorKind = "login" | "forbidden" | "unavailable" | "error";
 
-const MAX_SYMPTOM_LENGTH = 1200;
+const MAX_SYMPTOM_LENGTH = 500;
 
 const SYMPTOM_PROMPTS = [
   "Đau hoặc khó chịu ở vị trí nào?",
@@ -122,7 +122,7 @@ export default function AiTriageModal({
     setResult(null);
     setErrorKind(null);
     try {
-      const triage = await recommendSpecialty(normalizedSymptoms);
+      const triage = await recommendPublicSpecialty(normalizedSymptoms);
       if (requestId !== analysisRequestRef.current) return;
       setResult(triage);
     } catch (error) {

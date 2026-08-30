@@ -6,11 +6,17 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.data.redis.RedisConnectionFailureException;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class RequestRateLimitFilterTest {
 
@@ -36,6 +42,68 @@ class RequestRateLimitFilterTest {
             }
         }
         assertThat(accepted).hasValue(2);
+    }
+
+    @Test
+    void sharedRedisCounterLimitsAcrossFilterInstances() throws Exception {
+        MockEnvironment environment = rateLimitEnvironment();
+        StringRedisTemplate redis = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> values = mock(ValueOperations.class);
+        when(redis.opsForValue()).thenReturn(values);
+        when(values.increment(any(String.class))).thenReturn(1L, 2L);
+        when(redis.getExpire(any(String.class))).thenReturn(60L);
+        RequestRateLimitFilter first = filter(environment, redis);
+        RequestRateLimitFilter second = filter(environment, redis);
+        AtomicInteger accepted = new AtomicInteger();
+
+        MockHttpServletResponse firstResponse = invokeAuth(
+            first, accepted, "10.0.0.12", null, null, null, null
+        );
+        MockHttpServletResponse secondResponse = invokeAuth(
+            second, accepted, "10.0.0.12", null, null, null, null
+        );
+
+        assertThat(firstResponse.getStatus()).isEqualTo(200);
+        assertThat(secondResponse.getStatus()).isEqualTo(429);
+        assertThat(accepted).hasValue(1);
+    }
+
+    @Test
+    void redisRequiredModeFailsClosedWhenDistributedCounterIsUnavailable() throws Exception {
+        MockEnvironment environment = rateLimitEnvironment()
+            .withProperty("app.security.rate-limit.redis-required", "true");
+        StringRedisTemplate redis = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> values = mock(ValueOperations.class);
+        when(redis.opsForValue()).thenReturn(values);
+        when(values.increment(any(String.class)))
+            .thenThrow(new RedisConnectionFailureException("synthetic outage"));
+        RequestRateLimitFilter filter = filter(environment, redis);
+        AtomicInteger accepted = new AtomicInteger();
+
+        MockHttpServletResponse response = invokeAuth(
+            filter, accepted, "10.0.0.13", null, null, null, null
+        );
+
+        assertThat(response.getStatus()).isEqualTo(503);
+        assertThat(response.getContentAsString()).contains("RATE_LIMIT_BACKEND_UNAVAILABLE");
+        assertThat(accepted).hasValue(0);
+    }
+
+    @Test
+    void redisRequiredModeAlsoFailsClosedWhenNoRedisTemplateIsAvailable() throws Exception {
+        MockEnvironment environment = rateLimitEnvironment()
+            .withProperty("app.security.rate-limit.redis-required", "true");
+        RequestRateLimitFilter filter = filter(environment);
+        AtomicInteger accepted = new AtomicInteger();
+
+        MockHttpServletResponse response = invokeAuth(
+            filter, accepted, "10.0.0.14", null, null, null, null
+        );
+
+        assertThat(response.getStatus()).isEqualTo(503);
+        assertThat(accepted).hasValue(0);
     }
 
     @Test
@@ -245,6 +313,15 @@ class RequestRateLimitFilterTest {
             new ObjectMapper().findAndRegisterModules(),
             environment,
             new BffRequestVerifier(environment)
+        );
+    }
+
+    private RequestRateLimitFilter filter(MockEnvironment environment, StringRedisTemplate redisTemplate) {
+        return new RequestRateLimitFilter(
+            new ObjectMapper().findAndRegisterModules(),
+            environment,
+            new BffRequestVerifier(environment),
+            redisTemplate
         );
     }
 

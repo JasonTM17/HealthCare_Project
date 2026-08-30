@@ -18,11 +18,11 @@ Use application-owned email/password authentication with BCrypt password hashes,
 
 - Password hashes must never be returned from APIs or logs.
 - Refresh-token rotation, reuse rejection, and logout revocation are covered by backend regression tests.
-- The local frontend stores the backend access/refresh response in
-  `sessionStorage` and sends bearer tokens to authenticated endpoints. This is
-  intentionally bounded to the local educational flow; a production release
-  still requires an approved transport, CSP/XSS posture, rate limiting, and
-  deployment evidence.
+- Browser traffic uses HttpOnly `__Host-healthcare_session` cookies through the
+  Next.js same-origin BFF. Direct bearer tokens remain for non-browser API
+  clients and tests. Packaged/beta runtimes should set `BACKEND_BFF_REQUIRED=true`.
+  Production still requires TLS/CSP, distributed rate limiting, and deployment
+  evidence; those are not claimed by this ADR.
 
 ## JWT policy
 

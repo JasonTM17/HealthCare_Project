@@ -35,14 +35,16 @@ test("AI triage uses the authenticated backend contract without a local answer",
   ]);
 
   assert.match(apiClient, /export async function recommendSpecialty/);
+  assert.match(apiClient, /export async function recommendPublicSpecialty/);
   assert.match(apiClient, /getAuthenticatedJson<SpecialtyRecommendationResponse>/);
   assert.match(apiClient, /\/ai\/specialty-recommendation/);
+  assert.match(apiClient, /\/public\/specialty-recommendation/);
   assert.match(apiClient, /JSON\.stringify\(\{ symptoms: normalized \}\)/);
   assert.match(apiClient, /recommended_specialty/);
   assert.match(apiClient, /urgency_level/);
   assert.match(apiClient, /clinical_advice/);
   assert.match(apiClient, /suggested_questions/);
-  assert.match(aiModal, /recommendSpecialty/);
+  assert.match(aiModal, /recommendPublicSpecialty/);
   assert.match(aiModal, /Vui lòng đăng nhập/);
   assert.match(aiModal, /Chưa thể sử dụng tính năng này/);
   assert.match(aiModal, /Tạm thời chưa thể xử lý/);

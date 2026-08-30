@@ -5,9 +5,10 @@ import test from "node:test";
 const read = (relativePath) => readFile(new URL(`../${relativePath}`, import.meta.url), "utf8");
 
 test("floating assistant is mounted globally and stays on the REST chat contract", async () => {
-  const [layout, component] = await Promise.all([
+  const [layout, component, provider] = await Promise.all([
     read("app/layout.tsx"),
     read("components/FloatingHealthAssistant.tsx"),
+    read("components/AssistantProvider.tsx"),
   ]);
 
   assert.match(layout, /FloatingHealthAssistant/);
@@ -17,15 +18,17 @@ test("floating assistant is mounted globally and stays on the REST chat contract
   assert.match(component, /session\?\.user\.id/);
   assert.match(component, /fetchAiConversations\(\)/);
   assert.match(component, /fetchAiConversationMessages\(latest\.id/);
-  assert.match(component, /sendAiConversationMessage\(currentConversation\.id, normalized, key\)/);
-  assert.match(component, /Idempotency/);
+  assert.match(component, /sendMessage\(currentConversation\.id, normalized/);
+  assert.match(component, /onDelta: \(delta\) => \{[\s\S]*isCurrentLocalRequest\(epoch, currentConversation\?\.id\)[\s\S]*setStreamingReply/);
+  assert.match(component, /data-testid="floating-chat-streaming-reply"/);
+  assert.match(provider, /Idempotency-Key|idempotencyKey/);
   assert.match(component, /\/patient\/chat/);
   assert.match(component, /healthcare-assistant-chibi\.png/);
   assert.match(component, /launcherMascot/);
   assert.match(component, /provenanceLabel/);
   assert.match(component, /DEFAULT_DISCLAIMER/);
   assert.match(component, /citationHref/);
-  assert.match(component, /AI_UNAVAILABLE/);
+  assert.match(provider, /AI_UNAVAILABLE/);
   assert.match(component, /className="sr-only">Trợ lý sức khỏe/);
   assert.match(component, /MutationObserver/);
   assert.match(component, /event\.key === "Escape"/);
@@ -33,12 +36,14 @@ test("floating assistant is mounted globally and stays on the REST chat contract
 });
 
 test("floating assistant exposes real recovery, safety and accessible actions", async () => {
-  const [component, styles] = await Promise.all([
+  const [component, provider, styles] = await Promise.all([
     read("components/FloatingHealthAssistant.tsx"),
+    read("components/AssistantProvider.tsx"),
     read("components/FloatingHealthAssistant.module.css"),
   ]);
 
-  assert.match(component, /CHAT_CONTENT_BLOCKED/);
+  assert.match(provider, /CHAT_CONTENT_BLOCKED/);
+  assert.match(provider, /REQUEST_TIMEOUT/);
   assert.match(component, /Trường hợp cấp cứu, gọi 115/);
   assert.match(component, /Thử lại/);
   assert.match(component, /aria-expanded=\{open\}/);
@@ -71,7 +76,8 @@ test("floating assistant fails closed across mode changes and policy refreshes",
   assert.match(component, /disabled=\{creatingMode \|\| sending \|\| consentBusy\}/);
   assert.match(component, /refreshChatPolicy/);
   assert.match(component, /hasCurrentChatConsent\(currentConversation, currentPolicy\)/);
-  assert.match(component, /updateAiConversationConsent\(conversationId, currentPolicy\.policyVersion, \{ signal: controller\.signal \}\)/);
+  assert.match(component, /acceptConversationConsent\(conversationId, currentPolicy\.policyVersion, controller\.signal\)/);
+  assert.match(component, /if \(externalModal && open\) closeAssistant\(\)/);
   assert.match(apiClient, /CTA_LABEL_CONTROL_PATTERN/);
   assert.match(apiClient, /\{0,219\}/);
   assert.match(apiClient, /CTA_LABEL_CONTROL_PATTERN\.test\(value\.label\)/);

@@ -46,6 +46,15 @@ function message(
   };
 }
 
+function persistedExchangeSse(exchange: AiChatExchange): string {
+  const answer = exchange.assistantMessage.content ?? "";
+  const delta = answer
+    .split(/\r?\n/)
+    .map((line) => `data: ${line}`)
+    .join("\n");
+  return `event: delta\n${delta}\n\nevent: done\ndata: ${JSON.stringify(exchange)}\n\n`;
+}
+
 interface PatientChatMockOptions {
   loseFirstResponseForContent?: string;
   terminallyFailFirstResponseForContent?: string;
@@ -118,9 +127,10 @@ async function installPatientChatMocks(
       return;
     }
 
-    const match = url.pathname.match(/^\/api\/v1\/ai\/conversations\/([^/]+)(?:\/(messages))?$/);
+    const match = url.pathname.match(/^\/api\/v1\/ai\/conversations\/([^/]+)(?:\/(messages)(?:\/(stream))?)?$/);
     if (!match) throw new Error(`Unexpected chat request: ${method} ${url.pathname}${url.search}`);
-    const [, conversationId, resource] = match;
+    const [, conversationId, resource, streamResource] = match;
+    const isStreamingSend = streamResource === "stream";
 
     if (!resource && method === "GET") {
       const found = conversations.find((item) => item.id === conversationId);
@@ -149,6 +159,7 @@ async function installPatientChatMocks(
     }
 
     if (resource === "messages" && method === "POST") {
+      if (isStreamingSend) expect(request.headers()["accept"]).toContain("text/event-stream");
       const idempotencyKey = request.headers()["idempotency-key"];
       if (!idempotencyKey) throw new Error("Patient chat POST omitted Idempotency-Key");
       idempotencyKeys.push(idempotencyKey);
@@ -163,11 +174,10 @@ async function installPatientChatMocks(
           });
           return;
         }
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({ ...priorAttempt.exchange, replayed: true }),
-        });
+        const replayedExchange = { ...priorAttempt.exchange, replayed: true };
+        await route.fulfill(isStreamingSend
+          ? { status: 200, contentType: "text/event-stream", body: persistedExchangeSse(replayedExchange) }
+          : { status: 200, contentType: "application/json", body: JSON.stringify(replayedExchange) });
         return;
       }
 
@@ -224,7 +234,9 @@ async function installPatientChatMocks(
         await route.abort("connectionreset");
         return;
       }
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(exchange) });
+      await route.fulfill(isStreamingSend
+        ? { status: 200, contentType: "text/event-stream", body: persistedExchangeSse(exchange) }
+        : { status: 200, contentType: "application/json", body: JSON.stringify(exchange) });
       return;
     }
 

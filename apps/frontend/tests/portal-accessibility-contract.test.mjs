@@ -21,6 +21,10 @@ test("patient, doctor and admin shells keep role gates and keyboard landmarks ex
   assert.match(portalChrome, /<nav aria-label="Điều hướng cổng thông tin"/);
   assert.match(portalChrome, /aria-current=\{isActive\(link\.href\) \? "page" : undefined\}/);
   assert.match(portalChrome, /<main className="portal-main" id="portal-main-content" tabIndex=\{-1\}>/);
+  assert.match(portalChrome, /href: "\/patient\/medical-records"/);
+  assert.match(portalChrome, /href: "\/patient\/prescriptions"/);
+  assert.match(portalChrome, /href: "\/patient\/diagnostic-results"/);
+  assert.match(adminLayout, /href: "\/admin\/consultations"/);
 
   assert.match(adminLayout, /<a className="skip-link" href="#main-content">/);
   assert.match(adminLayout, /<nav aria-label="Điều hướng quản trị"/);

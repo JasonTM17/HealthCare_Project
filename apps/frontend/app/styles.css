@@ -4,7 +4,7 @@
 
 :root {
   /* Aura Health Intelligence / Stitch source of truth. */
-  --color-paper: #f9f7f2;
+  --color-paper: #f9f9fc;
   --color-paper-bright: #ffffff;
   --color-surface: #e0f2f1;
   --color-surface-strong: #beebee;
@@ -25,11 +25,11 @@
   --color-red: #ba1a1a;
   --color-line: #c0c8c8;
   --color-line-dark: #20302f;
-  --color-warm-sand: #f9f7f2;
+  --color-warm-sand: #f9f9fc;
   --color-soft-mint: #e0f2f1;
   --color-calm-ink: #1a1c1e;
-  --color-primary: #001c1e;
-  --color-primary-container: #003336;
+  --color-primary: #003336;
+  --color-primary-container: #004b50;
   --color-secondary: #7c5800;
   --color-tertiary: #20302f;
   --font-be-vietnam-pro: "Be Vietnam Pro", "Noto Sans", "Segoe UI", sans-serif;
