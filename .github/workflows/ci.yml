@@ -183,6 +183,13 @@ jobs:
           persist-credentials: false
       - name: Validate Compose configuration
         run: docker compose -f infrastructure/docker-compose.yml config --quiet
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate Render blueprint contract
+        run: |
+          python -m pip install --disable-pip-version-check pyyaml pytest
+          python -m pytest -q infrastructure/tests/test_render_blueprint_contract.py
       - name: Validate operational PowerShell contracts
         shell: pwsh
         run: |

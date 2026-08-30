@@ -5,6 +5,12 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE_SHA = "0fff2aeb1a8f75a39aec64fe3141517c9f38913e"
+IMAGE_DIGESTS = {
+    "healthcare-project-ai-service": "sha256:af3b01610afc69e79b88f61af2912af5ea9c3578b2cf2f5b07ce8ab223b5376d",
+    "healthcare-project-backend": "sha256:c40153864a659aa5dc9ee0969505d72c40b3aeba4d44ee628d40332d37ab1803",
+    "healthcare-project-attachment-scanner": "sha256:b66df7b6ec51b7b5e43bdb5b331caeed9d47da041d48d07dfe704b36b5155044",
+}
+CLAMAV_DIGEST = "sha256:761f6c99b8d9134b39431f8c200189cda749b17310091561bfa8b732f32bfada"
 
 
 def _services_by_name() -> dict[str, dict]:
@@ -29,9 +35,11 @@ def test_render_blueprint_uses_prebuilt_immutable_ghcr_images() -> None:
         assert service["runtime"] == "image"
         assert "dockerfilePath" not in service
         assert "dockerContext" not in service
-        assert service["image"]["url"] == (
-            f"ghcr.io/jasontm17/{image_name}:sha-{SOURCE_SHA}"
+        image_url = service["image"]["url"]
+        assert image_url == (
+            f"ghcr.io/jasontm17/{image_name}@{IMAGE_DIGESTS[image_name]}"
         )
+        assert f"sha-{SOURCE_SHA}" not in image_url
 
 
 def test_render_blueprint_provisions_private_attachment_scanner() -> None:
@@ -43,7 +51,8 @@ def test_render_blueprint_provisions_private_attachment_scanner() -> None:
 
     assert clamav["type"] == "pserv"
     assert clamav["runtime"] == "image"
-    assert clamav["image"]["url"] == "clamav/clamav:1.4"
+    assert clamav["image"]["url"] == f"clamav/clamav@{CLAMAV_DIGEST}"
+    assert ":1.4" not in clamav["image"]["url"]
     assert scanner["type"] == "pserv"
     assert scanner["runtime"] == "image"
     assert scanner_env["SCANNER_SERVICE_TOKEN"]["sync"] is False
