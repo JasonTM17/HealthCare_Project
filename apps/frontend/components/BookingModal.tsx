@@ -1030,7 +1030,7 @@ function BookingExperience({
         {/* Wizard Step Progress */}
         {!confirmedAppointment && (
           <div className="booking-panel__progress border-b border-brand-100/60 bg-brand-50/70 px-6 py-3" aria-label="Tiến trình đặt lịch" role="group">
-            <div className="flex items-center gap-2 overflow-x-auto text-xs font-semibold text-brand-900">
+            <div aria-label="Tiến trình đặt lịch, có thể cuộn ngang" className="flex items-center gap-2 overflow-x-auto text-xs font-semibold text-brand-900" role="region" tabIndex={0}>
               {BOOKING_STAGES.map((stage, index) => {
                 const current = stage.ids.includes(step);
                 const complete = stage.ids[stage.ids.length - 1] < step;

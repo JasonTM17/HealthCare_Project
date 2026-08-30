@@ -5831,6 +5831,26 @@ main {
   color: var(--hospital-teal-dark);
 }
 
+/* Keep muted copy readable on the public light surfaces while preserving
+   the darker hospital palette used by the shell. */
+.site-shell .resource-muted {
+  color: #5f6969 !important;
+}
+
+.site-shell .resource-breadcrumb > span {
+  color: #5f6969;
+}
+
+/* The editorial video card uses a dark surface, so the shell's default
+   text-button color needs an explicit light-card override. */
+.site-shell .video-card .text-button {
+  color: #bce4dc;
+}
+
+.site-shell .video-card .text-button:hover {
+  color: #ffffff;
+}
+
 .site-shell .section--specialties,
 .site-shell .section--packages,
 .site-shell .section--content {

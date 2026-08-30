@@ -15,6 +15,8 @@ test("public Navbar mobile navigation has a labelled dialog and complete keyboar
   assert.match(source, /aria-label=\{mobileMenuOpen \? "Đóng menu" : "Mở menu"\}/);
   assert.match(source, /<div aria-label="Menu điều hướng" aria-modal="true"[^>]*id="mobile-navigation"[^>]*role="dialog"/);
   assert.match(source, /aria-current=\{isActive \? "page" : undefined\}/);
+  assert.match(source, /<Link aria-label=\{accountDestination\.label\} className="nav-account-link"/);
+  assert.match(source, /<button aria-label="Đặt lịch khám" className="button button--nav"/);
 
   assert.match(source, /const previouslyFocused = document\.activeElement instanceof HTMLElement/);
   assert.match(source, /const focusableSelector = "a\[href\], button:not\(\[disabled\]\), input/);
@@ -43,4 +45,20 @@ test("Navbar actions close the menu and keep interactive targets touch-safe", as
   assert.match(styles, /\.button--nav\s*\{[\s\S]*?min-height:\s*46px/);
   assert.match(styles, /\.mobile-menu__link\s*\{[\s\S]*?min-height:\s*48px/);
   assert.match(styles, /a:focus-visible,[\s\S]*?button:focus-visible,[\s\S]*?outline:\s*3px solid/);
+});
+
+test("booking progress remains named and keyboard reachable when it scrolls", async () => {
+  const source = await read("components/BookingModal.tsx");
+
+  assert.match(source, /aria-label="Tiến trình đặt lịch, có thể cuộn ngang"/);
+  assert.match(source, /className="flex items-center gap-2 overflow-x-auto text-xs font-semibold text-brand-900"/);
+  assert.match(source, /role="region" tabIndex=\{0\}/);
+});
+
+test("public light and dark surfaces keep text-button contrast scoped", async () => {
+  const styles = await read("app/styles.css");
+
+  assert.match(styles, /\.site-shell \.resource-muted\s*\{[\s\S]*?color:\s*#5f6969\s*!important/);
+  assert.match(styles, /\.site-shell \.resource-breadcrumb > span\s*\{[\s\S]*?color:\s*#5f6969/);
+  assert.match(styles, /\.site-shell \.video-card \.text-button\s*\{[\s\S]*?color:\s*#bce4dc/);
 });
