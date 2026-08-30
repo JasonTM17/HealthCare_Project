@@ -103,3 +103,9 @@ def test_production_env_requires_fail_closed_attachment_scanning() -> None:
     assert 'Require-Boolean "STORAGE_MIME_VALIDATION_REQUIRED" $true' in script
     assert '"http://$endpointText/scan"' in script
     assert 'STORAGE_AV_SERVICE_URL hostport must not contain credentials' in script
+
+
+def test_ci_production_validation_fixture_supplies_bff_requirements() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    assert '("BACKEND_BFF_SERVICE_TOKEN=" + ("v" * 40))' in workflow
+    assert '"BACKEND_BFF_REQUIRED=true"' in workflow
