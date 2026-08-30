@@ -5,6 +5,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
@@ -31,6 +33,12 @@ public class ClinicalAccessAuditService {
         this.jdbcTemplate = jdbcTemplate;
     }
 
+    /**
+     * Persist evidence independently of the caller's transaction mode. Clinical
+     * reads are intentionally marked read-only, but their allow/deny audit row
+     * is still a required append-only side effect.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void record(
             UserDetails principal,
             UUID patientId,

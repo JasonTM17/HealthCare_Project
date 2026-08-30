@@ -92,6 +92,10 @@ app:
       allowed-origins: ${BFF_ALLOWED_ORIGINS:http://localhost:3000}
     rate-limit:
       enabled: ${APP_SECURITY_RATE_LIMIT_ENABLED:true}
+      # Hosted replicas must share the counter through Redis and fail closed
+      # when that dependency is unavailable. Local bare-process runs may keep
+      # the bounded in-memory fallback by leaving this false.
+      redis-required: ${APP_SECURITY_RATE_LIMIT_REDIS_REQUIRED:false}
       window-seconds: ${APP_SECURITY_RATE_LIMIT_WINDOW_SECONDS:60}
       auth-limit: ${APP_SECURITY_RATE_LIMIT_AUTH_LIMIT:20}
       appointment-limit: ${APP_SECURITY_RATE_LIMIT_APPOINTMENT_LIMIT:60}

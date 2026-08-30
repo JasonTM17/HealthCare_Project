@@ -14,7 +14,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -86,28 +85,38 @@ public class AiConversationController {
     }
 
     @PostMapping(value = "/{conversationId}/messages/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter sendStream(
+    public ResponseEntity<String> sendStream(
             @AuthenticationPrincipal UserDetails principal,
             @PathVariable UUID conversationId,
             @RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody SendMessageRequest request) throws Exception {
         if (!conversationService.isChunkedDeliveryEnabled()) {
-            throw new com.healthcare.exception.BusinessException(
-                404,
-                com.healthcare.exception.ErrorCodes.RESOURCE_NOT_FOUND,
-                "Chunked chat delivery is disabled"
-            );
+            // Return an empty response directly. The route only produces SSE,
+            // so routing this state through the JSON exception handler causes
+            // content negotiation to replace the intended 404 with a 500.
+            return ResponseEntity.notFound().build();
         }
         ChatExchangeResponse exchange = conversationService.send(
             principal, conversationId, idempotencyKey, request.content());
-        SseEmitter emitter = new SseEmitter(15_000L);
         String answer = exchange.assistantMessage().content() == null ? "" : exchange.assistantMessage().content();
+        StringBuilder events = new StringBuilder();
         for (String slice : com.healthcare.ai.chat.service.ChatAnswerChunker.slices(answer)) {
-            emitter.send(SseEmitter.event().name("delta").data(slice));
+            appendSseEvent(events, "delta", slice);
         }
-        emitter.send(SseEmitter.event().name("done").data(objectMapper.writeValueAsString(exchange)));
-        emitter.complete();
-        return emitter;
+        appendSseEvent(events, "done", objectMapper.writeValueAsString(exchange));
+        return ResponseEntity.ok()
+            .contentType(MediaType.TEXT_EVENT_STREAM)
+            .header("X-Accel-Buffering", "no")
+            .body(events.toString());
+    }
+
+    private void appendSseEvent(StringBuilder target, String eventName, String data) {
+        target.append("event: ").append(eventName).append('\n');
+        String normalized = data == null ? "" : data.replace("\r\n", "\n").replace('\r', '\n');
+        for (String line : normalized.split("\\n", -1)) {
+            target.append("data: ").append(line).append('\n');
+        }
+        target.append('\n');
     }
 
     @PutMapping("/{conversationId}/consent")
