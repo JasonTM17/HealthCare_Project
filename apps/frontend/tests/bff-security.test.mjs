@@ -38,6 +38,7 @@ async function loadBff(env = {}) {
     module: compiledModule,
     process: { env: { ...env } },
     Request,
+    ReadableStream,
     Response,
     setTimeout,
     URL,
@@ -499,6 +500,31 @@ test("BFF bounds a slow chunked request body before contacting the backend", asy
   assert.equal(fetchCalls, 0);
 });
 
+test("BFF keeps its deadline active while forwarding an upstream response body", async () => {
+  const bff = await loadBff();
+  let upstreamSignal;
+  const response = await bff.proxyHealthcareRequest(
+    browserRequest("/api/v1/hospital/branches"),
+    ["hospital", "branches"],
+    {
+      runtimeConfig: { ...runtimeConfig, requestTimeoutMs: 20 },
+      fetchImpl: async (_target, init = {}) => {
+        upstreamSignal = init.signal;
+        return new Response(new ReadableStream({
+          start(controller) {
+            init.signal?.addEventListener("abort", () => {
+              controller.error(new Error("upstream aborted"));
+            }, { once: true });
+          },
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      },
+    },
+  );
+
+  await assert.rejects(response.text(), /upstream aborted/);
+  assert.equal(upstreamSignal?.aborted, true, "BFF deadline must abort the upstream body");
+});
+
 test("BFF fails closed on missing service credentials, oversized bodies and upstream redirects", async () => {
   const bff = await loadBff();
   const noToken = await bff.proxyHealthcareRequest(
@@ -613,4 +639,34 @@ test("BFF cancels a chunked request as soon as its streamed body exceeds 12 MiB"
   assert.deepEqual(await response.json(), { code: "BFF_BODY_TOO_LARGE" });
   assert.equal(cancelled, true);
   assert.equal(fetchCalls, 0);
+});
+
+test("BFF gives the chunked chat route its longer generation deadline", async () => {
+  const bff = await loadBff();
+  let capturedSignal;
+  const runtime = { ...runtimeConfig, requestTimeoutMs: 10, streamRequestTimeoutMs: 40 };
+  const response = await bff.proxyHealthcareRequest(
+    browserRequest("/api/v1/ai/conversations/c-1/messages/stream", {
+      method: "POST",
+      headers: { Origin: "https://beta.healthcare.test", "Content-Type": "application/json" },
+      body: "{}",
+    }),
+    ["ai", "conversations", "c-1", "messages", "stream"],
+    {
+      runtimeConfig: runtime,
+      fetchImpl: async (_target, init) => {
+        capturedSignal = init.signal;
+        await new Promise((resolve, reject) => {
+          const timer = setTimeout(resolve, 20);
+          init.signal.addEventListener("abort", () => {
+            clearTimeout(timer);
+            reject(new DOMException("aborted", "AbortError"));
+          }, { once: true });
+        });
+        return Response.json({ ok: true });
+      },
+    },
+  );
+  assert.equal(response.status, 200);
+  assert.equal(capturedSignal.aborted, false);
 });

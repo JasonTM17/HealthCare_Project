@@ -6,6 +6,7 @@ import { isIP } from "node:net";
 const API_PREFIX = "/api/v1/";
 const DEFAULT_BACKEND_ORIGIN = "http://127.0.0.1:8080";
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
+const DEFAULT_STREAM_REQUEST_TIMEOUT_MS = 30_000;
 const MAX_REQUEST_BYTES = 12 * 1024 * 1024;
 const MAX_PATH_LENGTH = 2_048;
 const MAX_HEADER_VALUE_LENGTH = 16_384;
@@ -66,6 +67,7 @@ export interface HealthcareBffRuntimeConfig {
   publicOrigin?: string;
   serviceToken: string;
   requestTimeoutMs: number;
+  streamRequestTimeoutMs?: number;
 }
 
 export interface HealthcareBffProxyOptions {
@@ -136,6 +138,7 @@ export function readHealthcareBffRuntimeConfig(): HealthcareBffRuntimeConfig {
     publicOrigin,
     serviceToken,
     requestTimeoutMs: DEFAULT_REQUEST_TIMEOUT_MS,
+    streamRequestTimeoutMs: DEFAULT_STREAM_REQUEST_TIMEOUT_MS,
   };
 }
 
@@ -465,7 +468,11 @@ function allowlistedSetCookie(rawCookie: string): string | null {
   return rawCookie;
 }
 
-function createBrowserResponse(upstream: Response, requestMethod: string): Response {
+function createBrowserResponse(
+  upstream: Response,
+  requestMethod: string,
+  onBodySettled?: () => void,
+): Response {
   const headers = new Headers();
   for (const [name, value] of upstream.headers.entries()) {
     if (RESPONSE_HEADER_ALLOWLIST.has(name.toLowerCase())) headers.set(name, value);
@@ -477,7 +484,45 @@ function createBrowserResponse(upstream: Response, requestMethod: string): Respo
   headers.set("Cache-Control", "no-store");
 
   const withoutBody = requestMethod === "HEAD" || upstream.status === 204 || upstream.status === 304;
-  return new Response(withoutBody ? null : upstream.body, {
+  if (withoutBody || !upstream.body || !onBodySettled) {
+    onBodySettled?.();
+    return new Response(withoutBody ? null : upstream.body, {
+      status: upstream.status,
+      headers,
+    });
+  }
+
+  const reader = upstream.body.getReader();
+  let settled = false;
+  const settle = () => {
+    if (settled) return;
+    settled = true;
+    onBodySettled();
+  };
+  const body = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const chunk = await reader.read();
+        if (chunk.done) {
+          controller.close();
+          settle();
+        } else if (chunk.value) {
+          controller.enqueue(chunk.value);
+        }
+      } catch (error) {
+        controller.error(error);
+        settle();
+      }
+    },
+    async cancel(reason) {
+      try {
+        await reader.cancel(reason);
+      } finally {
+        settle();
+      }
+    },
+  });
+  return new Response(body, {
     status: upstream.status,
     headers,
   });
@@ -498,6 +543,11 @@ export async function proxyHealthcareRequest(
 
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   let abortFromBrowser: (() => void) | undefined;
+  let responseBodyOwnsCleanup = false;
+  const cleanup = () => {
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
+    if (abortFromBrowser) request.signal.removeEventListener("abort", abortFromBrowser);
+  };
   try {
     const requestUrl = new URL(request.url);
     const apiPath = buildValidatedApiPath(requestUrl, pathSegments);
@@ -531,7 +581,10 @@ export async function proxyHealthcareRequest(
     abortFromBrowser = () => requestController.abort(request.signal.reason);
     if (request.signal.aborted) abortFromBrowser();
     else request.signal.addEventListener("abort", abortFromBrowser, { once: true });
-    timeoutId = setTimeout(() => requestController.abort(), runtime.requestTimeoutMs);
+    const requestTimeoutMs = apiPath.endsWith("/messages/stream")
+      ? runtime.streamRequestTimeoutMs ?? runtime.requestTimeoutMs
+      : runtime.requestTimeoutMs;
+    timeoutId = setTimeout(() => requestController.abort(), requestTimeoutMs);
     const body = await boundedRequestBody(request, requestController.signal);
 
     const upstream = await (options.fetchImpl ?? fetch)(target, {
@@ -545,12 +598,13 @@ export async function proxyHealthcareRequest(
     if (upstream.status >= 300 && upstream.status < 400) {
       return jsonError(502, "BFF_UPSTREAM_REDIRECT_REJECTED");
     }
-    return createBrowserResponse(upstream, method);
+    const response = createBrowserResponse(upstream, method, cleanup);
+    responseBodyOwnsCleanup = true;
+    return response;
   } catch (error) {
     if (error instanceof BffRequestError) return jsonError(error.status, error.code);
     return jsonError(502, "BFF_UPSTREAM_UNAVAILABLE");
   } finally {
-    if (timeoutId !== undefined) clearTimeout(timeoutId);
-    if (abortFromBrowser) request.signal.removeEventListener("abort", abortFromBrowser);
+    if (!responseBodyOwnsCleanup) cleanup();
   }
 }

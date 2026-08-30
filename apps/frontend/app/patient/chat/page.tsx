@@ -19,14 +19,11 @@ import {
   createAiConversation,
   deleteAiMessageFeedback,
   deleteAiConversation,
-  fetchAiChatPolicy,
   fetchAiConversation,
   fetchAiConversationMessages,
   fetchAiConversations,
   hasRole,
-  updateAiConversationConsent,
   updateAiMessageFeedback,
-  sendAiConversationMessageStream,
 } from "../../../lib/api-client";
 import type {
   AiChatCitation,
@@ -40,7 +37,10 @@ import {
   ASSISTANT_MODE_OPTIONS,
   AssistantProvider,
   DEFAULT_CHAT_MODE,
+  assistantErrorMessage,
+  assistantFailureFromError,
   isNearBottom,
+  useAssistant,
 } from "../../../components/AssistantProvider";
 import styles from "./chat.module.css";
 
@@ -53,34 +53,10 @@ interface ChatFailure {
   status?: number;
 }
 
-interface RetainedSendAttempt {
-  conversationId: string;
-  content: string;
-  idempotencyKey: string;
-}
-
 interface SendContentOptions {
   clearDraftOnSuccess: boolean;
   sourceMessageId?: string;
 }
-
-const ERROR_COPY: Readonly<Record<string, string>> = {
-  AI_CONVERSATION_NOT_FOUND: "Cuộc trò chuyện này không còn tồn tại. Hãy chọn cuộc trò chuyện khác.",
-  CHAT_MESSAGE_IN_PROGRESS: "Trợ lý đang xử lý một tin nhắn khác trong cuộc trò chuyện này.",
-  CHAT_IDEMPOTENCY_CONFLICT: "Yêu cầu gửi lại không còn khớp với tin nhắn ban đầu. Hãy thử lại từ lịch sử.",
-  CHAT_INPUT_INVALID: "Tin nhắn phải có từ 2 đến 10.000 ký tự.",
-  AI_UNAVAILABLE: "Trợ lý tạm thời chưa thể phản hồi. Tin nhắn thất bại có thể được gửi lại bằng nút Thử lại.",
-  AI_RESPONSE_INVALID: "Phản hồi của trợ lý chưa đạt yêu cầu an toàn. Hãy thử gửi lại sau.",
-  CHAT_CONTENT_BLOCKED: "Nội dung này không thể được xử lý. Hãy bỏ thông tin nhận dạng và diễn đạt lại câu hỏi.",
-  CHAT_RETENTION_EXPIRED: "Cuộc trò chuyện đã hết thời hạn lưu trữ và không còn truy cập được.",
-};
-
-const TERMINAL_IDEMPOTENCY_CODES = new Set([
-  "AI_UNAVAILABLE",
-  "AI_RESPONSE_INVALID",
-  "CHAT_CONTENT_BLOCKED",
-  "CHAT_IDEMPOTENCY_CONFLICT",
-]);
 
 const SOURCE_LABEL: Readonly<Record<AiChatCitation["source_type"], string>> = {
   branch: "Cơ sở",
@@ -93,34 +69,12 @@ const SOURCE_LABEL: Readonly<Record<AiChatCitation["source_type"], string>> = {
 };
 
 function toFailure(error: unknown): ChatFailure {
-  if (error instanceof ApiError) {
-    const knownMessage = error.code ? ERROR_COPY[error.code] : undefined;
-    const statusMessage = error.status === 401
-      ? "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại."
-      : error.status === 403
-        ? "Tài khoản hiện tại không có quyền sử dụng trợ lý sức khỏe."
-        : error.status === 429
-          ? "Bạn đang gửi yêu cầu quá nhanh. Vui lòng chờ một lát rồi thử lại."
-          : error.status === 0 || error.status >= 500
-            ? "Kết nối tới trợ lý đang bị gián đoạn. Vui lòng thử lại sau ít phút."
-            : "Yêu cầu chưa thể hoàn tất. Vui lòng kiểm tra và thử lại.";
-    return { code: error.code, message: knownMessage ?? statusMessage, status: error.status };
-  }
-
-  return {
-    code: null,
-    message: "Kết nối tới trợ lý đang bị gián đoạn. Vui lòng thử lại sau ít phút.",
-  };
+  const failure = assistantFailureFromError(error);
+  return { code: failure.code, message: failure.message, status: failure.status };
 }
 
 function handleUnauthorized(failure: ChatFailure): void {
   if (failure.status === 401) clearAuthSession();
-}
-
-function backendRequiresNewIdempotencyKey(error: unknown): boolean {
-  return error instanceof ApiError
-    && error.code !== null
-    && TERMINAL_IDEMPOTENCY_CODES.has(error.code);
 }
 
 function mergeMessages(...groups: AiChatMessage[][]): AiChatMessage[] {
@@ -148,10 +102,6 @@ function formatExpiry(value: string): string {
 // not become client navigation targets. Their stable identity is still
 // source_type: citation.source_type plus source_id: citation.source_id; the
 // server owns suggestedActions.
-
-function createIdempotencyKey(): string {
-  return `chat-${crypto.randomUUID()}`;
-}
 
 function feedbackRating(message: AiChatMessage): FeedbackRating | null {
   if (!message.feedback) return null;
@@ -263,8 +213,16 @@ function MessageItem({
   );
 }
 
-export default function PatientChatPage() {
+function PatientChatPageContent() {
   const session = useAuthSession();
+  const {
+    setConversation: setAssistantConversation,
+    setPolicy: setAssistantPolicy,
+    refreshPolicy,
+    acceptConversationConsent,
+    sendMessage,
+    resetSendAttempt,
+  } = useAssistant();
   const [conversations, setConversations] = useState<AiConversation[]>([]);
   const [conversationsLoading, setConversationsLoading] = useState(false);
   const [conversationFailure, setConversationFailure] = useState<ChatFailure | null>(null);
@@ -279,6 +237,7 @@ export default function PatientChatPage() {
   const [olderMessagesFailure, setOlderMessagesFailure] = useState<ChatFailure | null>(null);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [streamingReply, setStreamingReply] = useState("");
   const [sendFailure, setSendFailure] = useState<ChatFailure | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -299,21 +258,38 @@ export default function PatientChatPage() {
   const deleteDialogRef = useRef<HTMLDialogElement | null>(null);
   const shouldScrollToLatestRef = useRef(false);
   const sendInFlightRef = useRef(false);
-  const retainedSendAttemptsRef = useRef(new Map<string, RetainedSendAttempt>());
+  const sendRequestRef = useRef(0);
   const requestControllerRef = useRef<AbortController | null>(null);
   const modeCreateInFlightRef = useRef(false);
+  const consentRequestRef = useRef(0);
+
+  const invalidateSendRequest = useCallback(() => {
+    sendRequestRef.current += 1;
+    sendInFlightRef.current = false;
+    setSending(false);
+    setStreamingReply("");
+  }, []);
+
+  const invalidateConsentRequest = useCallback(() => {
+    consentRequestRef.current += 1;
+    setConsentBusy(false);
+  }, []);
 
   const clearThread = useCallback(() => {
     threadRequestRef.current += 1;
+    invalidateSendRequest();
+    invalidateConsentRequest();
     activeIdRef.current = null;
+    setAssistantConversation(null);
     setSelectedConversationId(null);
     setActiveConversation(null);
     setMessages([]);
+    setStreamingReply("");
     setNextCursor(null);
     setHasMoreMessages(false);
     setThreadFailure(null);
     setThreadLoading(false);
-  }, []);
+  }, [invalidateConsentRequest, invalidateSendRequest, setAssistantConversation]);
 
   const loadThread = useCallback(async (
     conversationId: string,
@@ -321,8 +297,13 @@ export default function PatientChatPage() {
   ): Promise<void> => {
     const requestId = ++threadRequestRef.current;
     const controller = new AbortController();
+    if (!options.background) {
+      invalidateSendRequest();
+      invalidateConsentRequest();
+    }
     requestControllerRef.current?.abort();
     requestControllerRef.current = controller;
+    setStreamingReply("");
     activeIdRef.current = conversationId;
     setSelectedConversationId(conversationId);
     setThreadFailure(null);
@@ -345,6 +326,7 @@ export default function PatientChatPage() {
 
       shouldScrollToLatestRef.current = true;
       setActiveConversation(conversation);
+      setAssistantConversation(conversation);
       if (conversation.mode) setSelectedMode(conversation.mode);
       setMessages(page.content);
       setNextCursor(page.nextCursor ?? null);
@@ -360,7 +342,7 @@ export default function PatientChatPage() {
       if (requestId === threadRequestRef.current) setThreadLoading(false);
       if (requestControllerRef.current === controller) requestControllerRef.current = null;
     }
-  }, []);
+  }, [invalidateConsentRequest, invalidateSendRequest, setAssistantConversation]);
 
   const loadConversationList = useCallback(async (
     preferredId?: string | null,
@@ -412,8 +394,11 @@ export default function PatientChatPage() {
   useEffect(() => {
     if (!session || !hasRole(session.user, "PATIENT")) return;
     const controller = new AbortController();
-    void fetchAiChatPolicy({ signal: controller.signal })
-      .then((policy) => setChatPolicy(policy))
+    void refreshPolicy(controller.signal)
+      .then((policy) => {
+        setChatPolicy(policy);
+        setAssistantPolicy(policy);
+      })
       .catch((error: unknown) => {
         if (isAbortError(error)) return;
         const failure = toFailure(error);
@@ -421,7 +406,7 @@ export default function PatientChatPage() {
         setConversationFailure((current) => current ?? failure);
       });
     return () => controller.abort();
-  }, [session]);
+  }, [refreshPolicy, session, setAssistantPolicy]);
 
   useEffect(() => {
     if (!shouldScrollToLatestRef.current || !messageViewportRef.current) return;
@@ -488,7 +473,7 @@ export default function PatientChatPage() {
       ),
   );
   const sendLocked = sending;
-  const interactionLocked = sendLocked || creating || deleting;
+  const interactionLocked = sendLocked || creating || deleting || consentBusy;
   const normalizedDraft = draft.trim();
   const draftIsValid = normalizedDraft.length >= 2 && normalizedDraft.length <= MAX_MESSAGE_LENGTH;
 
@@ -544,26 +529,41 @@ export default function PatientChatPage() {
   const handleConsent = async (): Promise<void> => {
     const conversation = activeConversation;
     if (!conversation || consentBusy) return;
+    const consentRequestId = ++consentRequestRef.current;
+    const controller = new AbortController();
+    requestControllerRef.current?.abort();
+    requestControllerRef.current = controller;
+    const isCurrentConsentRequest = (): boolean => (
+      consentRequestRef.current === consentRequestId
+      && activeIdRef.current === conversation.id
+    );
     setConsentBusy(true);
     setConsentFailure(null);
     try {
       // Always refresh the policy at the consent boundary.  A policy version
       // can change while this page remains open, so a cached value is not
       // sufficient evidence for the PUT consent request.
-      const policy = await fetchAiChatPolicy();
+      const policy = await refreshPolicy(controller.signal);
+      if (!isCurrentConsentRequest()) return;
       setChatPolicy(policy);
-      const updated = await updateAiConversationConsent(conversation.id, policy.policyVersion);
+      setAssistantPolicy(policy);
+      const updated = await acceptConversationConsent(conversation.id, policy.policyVersion, controller.signal);
+      if (!isCurrentConsentRequest()) return;
       setActiveConversation(updated);
+      setAssistantConversation(updated);
       setConversations((current) => current.map((item) => item.id === updated.id ? updated : item));
       setNotice("Đã ghi nhận đồng ý. Bạn có thể gửi câu hỏi trong cuộc trò chuyện này.");
     } catch (error) {
-      if (isAbortError(error)) return;
+      if (isAbortError(error) || !isCurrentConsentRequest()) return;
       const failure = toFailure(error);
       setConsentFailure(error instanceof ApiError && error.code === "CHAT_CONSENT_VERSION_STALE"
         ? "Chính sách đã thay đổi. Hãy tải lại trang để nhận phiên bản mới."
         : failure.message);
     } finally {
-      setConsentBusy(false);
+      if (isCurrentConsentRequest()) {
+        setConsentBusy(false);
+        if (requestControllerRef.current === controller) requestControllerRef.current = null;
+      }
     }
   };
 
@@ -628,7 +628,7 @@ export default function PatientChatPage() {
     const normalizedContent = content.trim();
     if (!conversationId || sendInFlightRef.current) return;
     if (normalizedContent.length < 2 || normalizedContent.length > MAX_MESSAGE_LENGTH) {
-      setSendFailure({ code: "CHAT_INPUT_INVALID", message: ERROR_COPY.CHAT_INPUT_INVALID, status: 400 });
+      setSendFailure({ code: "CHAT_INPUT_INVALID", message: assistantErrorMessage("CHAT_INPUT_INVALID"), status: 400 });
       return;
     }
 
@@ -642,29 +642,28 @@ export default function PatientChatPage() {
       return;
     }
 
-    const attemptSlot = options.sourceMessageId ? `failed-message:${options.sourceMessageId}` : "composer";
-    const attemptMapKey = `${conversationId}|${attemptSlot}`;
-    const retainedAttempt = retainedSendAttemptsRef.current.get(attemptMapKey);
-    const idempotencyKey = retainedAttempt?.content === normalizedContent
-      ? retainedAttempt.idempotencyKey
-      : createIdempotencyKey();
-    retainedSendAttemptsRef.current.set(attemptMapKey, {
-      conversationId,
-      content: normalizedContent,
-      idempotencyKey,
-    });
-
     sendInFlightRef.current = true;
+    const sendRequestId = ++sendRequestRef.current;
     const controller = new AbortController();
     requestControllerRef.current?.abort();
     requestControllerRef.current = controller;
+    const isCurrentSendRequest = (): boolean => (
+      sendRequestRef.current === sendRequestId
+      && activeIdRef.current === conversationId
+    );
     setSending(true);
+    setStreamingReply("");
     setSendFailure(null);
     setNotice(null);
     try {
-      // Compatibility shape: sendAiConversationMessage(conversationId, normalizedContent, idempotencyKey)
-      await sendAiConversationMessageStream(conversationId, normalizedContent, idempotencyKey, { signal: controller.signal });
-      retainedSendAttemptsRef.current.delete(attemptMapKey);
+      await sendMessage(conversationId, normalizedContent, {
+        attemptId: options.sourceMessageId ? `failed-message:${options.sourceMessageId}` : "composer",
+        signal: controller.signal,
+        onDelta: (delta) => {
+          if (isCurrentSendRequest()) setStreamingReply((current) => current + delta);
+        },
+      });
+      if (!isCurrentSendRequest()) return;
       if (options.clearDraftOnSuccess) setDraft("");
       setNotice("Trợ lý đã phản hồi. Lịch sử bên dưới được tải lại từ máy chủ.");
       await Promise.all([
@@ -672,21 +671,21 @@ export default function PatientChatPage() {
         loadConversationList(conversationId, { hydrateThread: false, background: true }),
       ]);
     } catch (error) {
-      if (isAbortError(error)) return;
+      if (isAbortError(error) || !isCurrentSendRequest()) return;
       const failure = toFailure(error);
       handleUnauthorized(failure);
-      if (backendRequiresNewIdempotencyKey(error)) {
-        retainedSendAttemptsRef.current.delete(attemptMapKey);
-      }
       setSendFailure(failure);
       await Promise.allSettled([
         loadThread(conversationId, { background: true }),
         loadConversationList(conversationId, { hydrateThread: false, background: true }),
       ]);
     } finally {
-      sendInFlightRef.current = false;
-      setSending(false);
-      if (requestControllerRef.current === controller) requestControllerRef.current = null;
+      if (isCurrentSendRequest()) {
+        sendInFlightRef.current = false;
+        setStreamingReply("");
+        setSending(false);
+        if (requestControllerRef.current === controller) requestControllerRef.current = null;
+      }
     }
   };
 
@@ -813,13 +812,19 @@ export default function PatientChatPage() {
               retryDisabled={sendLocked}
             />
           ))}
+          {streamingReply ? (
+            <li className={`${styles.message} ${styles.messageAssistant}`} data-testid="chat-streaming-reply">
+              <div className={styles.messageMeta}><strong>Trợ lý HealthCare</strong></div>
+              <p className={styles.messageContent}>{streamingReply}</p>
+              <p className={styles.messageStatus}>Đang nhận phản hồi theo từng phần…</p>
+            </li>
+          ) : null}
         </ol>
       </>
     );
   };
 
   return (
-    <AssistantProvider initialMode={selectedMode} conversation={activeConversation} policy={chatPolicy}>
       <PortalChrome role="PATIENT" user={session.user}>
       <div className={`portal-content ${styles.page}`}>
         <header className={`portal-hero ${styles.hero}`}>
@@ -934,7 +939,7 @@ export default function PatientChatPage() {
                         <button
                           aria-current={selected ? "true" : undefined}
                           className={styles.conversationSelect}
-                          disabled={deleting}
+                          disabled={deleting || sending}
                           onClick={() => void loadThread(conversation.id)}
                           type="button"
                         >
@@ -1022,13 +1027,7 @@ export default function PatientChatPage() {
                   onChange={(event) => {
                     const nextDraft = event.target.value;
                     const conversationId = activeIdRef.current;
-                    if (conversationId) {
-                      const attemptMapKey = `${conversationId}|composer`;
-                      const retainedAttempt = retainedSendAttemptsRef.current.get(attemptMapKey);
-                      if (retainedAttempt && retainedAttempt.content !== nextDraft.trim()) {
-                        retainedSendAttemptsRef.current.delete(attemptMapKey);
-                      }
-                    }
+                    if (conversationId) resetSendAttempt(conversationId);
                     setDraft(nextDraft);
                     if (sendFailure?.code === "CHAT_INPUT_INVALID") setSendFailure(null);
                   }}
@@ -1098,6 +1097,13 @@ export default function PatientChatPage() {
         </dialog>
       </div>
       </PortalChrome>
+  );
+}
+
+export default function PatientChatPage() {
+  return (
+    <AssistantProvider initialMode={DEFAULT_CHAT_MODE}>
+      <PatientChatPageContent />
     </AssistantProvider>
   );
 }

@@ -78,7 +78,7 @@ test("public API requests compose caller cancellation with a bounded timeout", a
   assert.match(client, /const API_REQUEST_TIMEOUT_MS = 12_000/);
   assert.match(client, /const requestController = new AbortController\(\)/);
   assert.match(client, /callerSignal\?\.addEventListener\("abort", abortFromCaller, \{ once: true \}\)/);
-  assert.match(client, /setTimeout\(\(\) => requestController\.abort\(\), API_REQUEST_TIMEOUT_MS\)/);
+  assert.match(client, /setTimeout\(\(\) => \{[\s\S]*timedOut = true;[\s\S]*requestController\.abort\(\);[\s\S]*\}, API_REQUEST_TIMEOUT_MS\)/);
   assert.match(client, /signal: requestController\.signal/);
   assert.match(client, /finally \{/);
   assert.match(client, /clearTimeout\(timeoutId\)/);

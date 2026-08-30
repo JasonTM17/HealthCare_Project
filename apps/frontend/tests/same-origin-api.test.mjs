@@ -87,6 +87,10 @@ test("Compose keeps browser traffic same-origin through the server-only BFF", as
   assert.match(render, /- key: BACKEND_BFF_SERVICE_TOKEN\s+sync: false/);
   assert.match(render, /- key: BACKEND_BFF_REQUIRED\s+value: "true"/);
   assert.match(render, /- key: BFF_ALLOWED_ORIGINS\s+sync: false/);
+  assert.match(render, /- key: AI_CHAT_SYNTHETIC_BETA_ASSERTED\s+value: "false"/);
+  assert.match(render, /- key: AI_CHAT_CHUNKED_ENABLED\s+value: "false"/);
+  assert.match(render, /- key: APP_PUBLIC_SPECIALTY_TRIAGE_ENABLED\s+value: "true"/);
+  assert.match(render, /- key: AI_RAG_INGEST_ENABLED\s+value: "false"/);
   assert.doesNotMatch(render, /- key: CORS_ALLOWED_ORIGINS/);
   assert.doesNotMatch(envExample, /NEXT_PUBLIC_(?:CMS_)?API_BASE_URL/);
   assert.match(envExample, /^BACKEND_BFF_SERVICE_TOKEN=$/m);

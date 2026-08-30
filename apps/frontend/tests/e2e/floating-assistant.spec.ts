@@ -42,6 +42,15 @@ function message(
   };
 }
 
+function persistedExchangeSse(exchange: AiChatExchange): string {
+  const answer = exchange.assistantMessage.content ?? "";
+  const delta = answer
+    .split(/\r?\n/)
+    .map((line) => `data: ${line}`)
+    .join("\n");
+  return `event: delta\n${delta}\n\nevent: done\ndata: ${JSON.stringify(exchange)}\n\n`;
+}
+
 async function installChatMocks(
   context: BrowserContext,
   observedKeys: string[],
@@ -77,7 +86,9 @@ async function installChatMocks(
       await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify(CONVERSATION) });
       return;
     }
-    if (url.pathname.endsWith("/messages") && request.method() === "POST") {
+    const isStreamingSend = url.pathname.endsWith("/messages/stream");
+    if ((url.pathname.endsWith("/messages") || isStreamingSend) && request.method() === "POST") {
+      if (isStreamingSend) expect(request.headers()["accept"]).toContain("text/event-stream");
       const key = request.headers()["idempotency-key"];
       if (!key) throw new Error("Floating assistant omitted Idempotency-Key");
       observedKeys.push(key);
@@ -103,7 +114,9 @@ async function installChatMocks(
         replayed: false,
       };
       history = [exchange.userMessage, exchange.assistantMessage];
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(exchange) });
+      await route.fulfill(isStreamingSend
+        ? { status: 200, contentType: "text/event-stream", body: persistedExchangeSse(exchange) }
+        : { status: 200, contentType: "application/json", body: JSON.stringify(exchange) });
       return;
     }
     if (url.pathname.endsWith("/messages") && request.method() === "GET") {

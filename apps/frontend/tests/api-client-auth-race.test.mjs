@@ -53,7 +53,7 @@ function createBrowserWindow() {
   };
 }
 
-async function loadApiClient(fetchImplementation) {
+async function loadApiClient(fetchImplementation, runtime = {}) {
   const source = await readFile(apiClientPath, "utf8");
   const transpiled = ts.transpileModule(source, {
     compilerOptions: {
@@ -73,6 +73,7 @@ async function loadApiClient(fetchImplementation) {
     AbortController,
     Blob,
     clearTimeout,
+    DOMException,
     Event,
     fetch: fetchImplementation,
     FormData,
@@ -80,7 +81,9 @@ async function loadApiClient(fetchImplementation) {
     module: compiledModule,
     process: { env: {} },
     Response,
-    setTimeout,
+    ReadableStream,
+    TextDecoder,
+    setTimeout: runtime.setTimeout ?? setTimeout,
     URL,
     URLSearchParams,
     window: createBrowserWindow(),
@@ -94,6 +97,123 @@ async function loadApiClient(fetchImplementation) {
   }, compiledModule);
   return { api: compiledModule.exports, window: context.window };
 }
+
+function validChatMessage(id, role, sequence, content) {
+  return {
+    id,
+    role,
+    status: "COMPLETED",
+    content,
+    sequence,
+    disclaimer: "Thông tin chỉ mang tính tham khảo.",
+    provenance: "local_provider",
+    citations: [],
+    createdAt: "2026-08-30T00:00:00Z",
+    completedAt: "2026-08-30T00:00:01Z",
+  };
+}
+
+test("chat stream forwards sanitized deltas before the persisted done exchange", async () => {
+  const deltas = [];
+  const exchange = {
+    userMessage: validChatMessage("u-1", "USER", 1, "Xin chào"),
+    assistantMessage: validChatMessage("a-1", "ASSISTANT", 2, "Xin chào bạn"),
+    replayed: false,
+  };
+  const encoder = new TextEncoder();
+  const { api } = await loadApiClient(async (_input, init = {}) => new Response(new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoder.encode("event: delta\ndata: Xin chào \n\n"));
+      controller.enqueue(encoder.encode("event: delta\ndata: bạn\n\n"));
+      controller.enqueue(encoder.encode(`event: done\ndata: ${JSON.stringify(exchange)}\n\n`));
+      controller.close();
+      assert.equal(init.headers.get("Accept"), "text/event-stream");
+    },
+  }), { status: 200, headers: { "Content-Type": "text/event-stream" } }));
+  api.storeAuthSession(browserSession("stream-account"));
+
+  const result = await api.sendAiConversationMessageStream("conversation-1", "Xin chào", "stream-key", {
+    onDelta: (delta) => deltas.push(delta),
+  });
+  assert.deepEqual(deltas, ["Xin chào ", "bạn"]);
+  assert.equal(result.assistantMessage.content, "Xin chào bạn");
+});
+
+test("chat stream converts a body deadline into a retryable REQUEST_TIMEOUT", async () => {
+  const { api } = await loadApiClient(async (_input, init = {}) => new Response(new ReadableStream({
+    start(controller) {
+      init.signal?.addEventListener("abort", () => controller.error(new DOMException("aborted", "AbortError")), { once: true });
+    },
+  }), { status: 200 }), {
+    setTimeout: (callback, _delay) => setTimeout(callback, 20),
+  });
+  api.storeAuthSession(browserSession("stream-timeout"));
+  await assert.rejects(
+    api.sendAiConversationMessageStream("conversation-1", "Xin chào", "stream-timeout-key"),
+    (error) => error?.code === "REQUEST_TIMEOUT" && error?.status === 408,
+  );
+});
+
+test("chat stream preserves caller cancellation after response headers", async () => {
+  let bodyStarted;
+  const bodyReady = new Promise((resolve) => { bodyStarted = resolve; });
+  const { api } = await loadApiClient(async (_input, init = {}) => new Response(new ReadableStream({
+    start(controller) {
+      bodyStarted();
+      init.signal?.addEventListener("abort", () => controller.error(new DOMException("aborted", "AbortError")), { once: true });
+    },
+  }), { status: 200 }));
+  api.storeAuthSession(browserSession("stream-caller"));
+  const caller = new AbortController();
+  const request = api.sendAiConversationMessageStream("conversation-1", "Xin chào", "stream-caller-key", { signal: caller.signal });
+  await bodyReady;
+  caller.abort();
+  await assert.rejects(request, (error) => error?.name === "AbortError");
+});
+
+test("shared API client keeps timeout and caller abort active while reading a response body", async () => {
+  const { api } = await loadApiClient(async (_input, init = {}) => new Response(new ReadableStream({
+    start(controller) {
+      init.signal?.addEventListener("abort", () => {
+        controller.error(new DOMException("aborted", "AbortError"));
+      }, { once: true });
+    },
+  }), { status: 200 }), {
+    setTimeout: (callback, _delay) => setTimeout(callback, 20),
+  });
+  api.storeAuthSession(browserSession("account-a"));
+
+  await assert.rejects(
+    api.sendPatientConsultationMessage("00000000-0000-4000-8000-000000000001", "Xin chào", "body-stall-key"),
+    (error) => error?.code === "REQUEST_TIMEOUT" && error?.status === 408,
+  );
+});
+
+test("shared API client forwards caller cancellation through a response body", async () => {
+  const bodyStarted = deferred();
+  const { api } = await loadApiClient(async (_input, init = {}) => new Response(new ReadableStream({
+    start(controller) {
+      bodyStarted.resolve();
+      init.signal?.addEventListener("abort", () => {
+        controller.error(new DOMException("aborted", "AbortError"));
+      }, { once: true });
+    },
+  }), { status: 200 }), {
+    setTimeout: (callback, _delay) => setTimeout(callback, 1_000),
+  });
+  api.storeAuthSession(browserSession("account-a"));
+  const caller = new AbortController();
+  const request = api.sendPatientConsultationMessage(
+    "00000000-0000-4000-8000-000000000001",
+    "Xin chào",
+    "body-caller-abort-key",
+    caller.signal,
+  );
+  await bodyStarted.promise;
+  caller.abort();
+
+  await assert.rejects(request, (error) => error?.name === "AbortError");
+});
 
 test("late current-session hydration cannot overwrite a newer password login", async () => {
   const oldHydration = deferred();

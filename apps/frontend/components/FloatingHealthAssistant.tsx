@@ -19,13 +19,10 @@ import {
   clearAuthSession,
   createAiConversation,
   deleteAiMessageFeedback,
-  fetchAiChatPolicy,
   fetchAiConversationMessages,
   fetchAiConversations,
   hasRole,
-  updateAiConversationConsent,
   updateAiMessageFeedback,
-  sendAiConversationMessageStream,
   type AuthSession,
 } from "../lib/api-client";
 import type {
@@ -38,6 +35,8 @@ import type {
 } from "../types/hospital";
 import {
   ASSISTANT_MODE_OPTIONS,
+  assistantFailureFromError as failureFromError,
+  type AssistantFailure,
   AssistantProvider,
   DEFAULT_CHAT_MODE,
   hasCurrentChatConsent,
@@ -58,67 +57,19 @@ const SUGGESTED_QUESTIONS = [
 ];
 const PUBLIC_ASSISTANT_OPEN_EVENT = "healthcare:open-assistant";
 
-function createIdempotencyKey(): string {
-  return `floating-chat-${crypto.randomUUID()}`;
-}
-
 function formatTime(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Vừa xong";
   return new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit" }).format(date);
 }
 
-type AssistantFailureKind = "access" | "blocked" | "unavailable" | "generic";
-
-interface AssistantFailure {
-  kind: AssistantFailureKind;
-  message: string;
-  retryable: boolean;
-}
-
-function failureFromError(error: unknown): AssistantFailure {
-  if (!(error instanceof ApiError)) {
-    return {
-      kind: "unavailable",
-      message: "Kết nối tới trợ lý bị gián đoạn. Hãy thử lại sau ít phút.",
-      retryable: true,
-    };
-  }
-
-  if (error.status === 401) {
-    return { kind: "access", message: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.", retryable: false };
-  }
-  if (error.status === 403) {
-    return { kind: "access", message: "Tài khoản hiện tại không có quyền dùng trợ lý sức khỏe.", retryable: false };
-  }
-  if (error.status === 429) {
-    return { kind: "unavailable", message: "Bạn đang gửi hơi nhanh. Vui lòng chờ một lát rồi thử lại.", retryable: true };
-  }
-  if (error.code === "CHAT_CONTENT_BLOCKED") {
-    return { kind: "blocked", message: "Hãy bỏ thông tin nhận dạng cá nhân và thử diễn đạt lại câu hỏi.", retryable: false };
-  }
-  if (error.code === "CHAT_MESSAGE_IN_PROGRESS") {
-    return { kind: "unavailable", message: "Trợ lý đang xử lý tin nhắn trước đó. Hãy thử lại sau giây lát.", retryable: true };
-  }
-  if (error.code === "CHAT_INPUT_INVALID") {
-    return { kind: "blocked", message: "Tin nhắn phải có từ 2 đến 10.000 ký tự.", retryable: false };
-  }
-  if (error.code === "AI_UNAVAILABLE") {
-    return { kind: "unavailable", message: "Trợ lý tạm thời chưa thể phản hồi. Bạn có thể gửi lại câu hỏi.", retryable: true };
-  }
-  if (error.code === "AI_RESPONSE_INVALID") {
-    return { kind: "unavailable", message: "Phản hồi của trợ lý chưa đạt yêu cầu an toàn. Hãy thử lại sau.", retryable: true };
-  }
-
-  return {
-    kind: error.status === 0 || error.status >= 500 ? "unavailable" : "generic",
-    message: "Trợ lý chưa thể phản hồi lúc này. Bạn có thể thử lại.",
-    retryable: error.status === 0 || error.status >= 500,
-  };
-}
-
 function inputFailure(): AssistantFailure {
-  return { kind: "blocked", message: "Tin nhắn phải có từ 2 đến 10.000 ký tự.", retryable: false };
+  return failureFromError(new ApiError(
+    "Tin nhắn không hợp lệ.",
+    400,
+    "/ai/conversations/messages",
+    { code: "CHAT_INPUT_INVALID" },
+  ));
 }
 
 function provenanceLabel(provenance: AiChatProvenance): string {
@@ -167,6 +118,10 @@ function FloatingHealthAssistantPanel({
     policy,
     setPolicy,
     invalidateRequests,
+    refreshPolicy,
+    acceptConversationConsent,
+    resetSendAttempt,
+    sendMessage,
   } = assistant;
   const [open, setOpen] = useState(false);
   const [conversation, setConversation] = useState<AiConversation | null>(null);
@@ -174,6 +129,7 @@ function FloatingHealthAssistantPanel({
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [streamingReply, setStreamingReply] = useState("");
   const [failure, setFailure] = useState<AssistantFailure | null>(null);
   const [lastFailedContent, setLastFailedContent] = useState<string | null>(null);
   const [blockedByModal, setBlockedByModal] = useState(false);
@@ -181,7 +137,6 @@ function FloatingHealthAssistantPanel({
   const [consentError, setConsentError] = useState<string | null>(null);
   const [feedbackBusy, setFeedbackBusy] = useState<string | null>(null);
   const [creatingMode, setCreatingMode] = useState(false);
-  const retainedAttemptRef = useRef<{ conversationId: string; content: string; key: string } | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const panelRef = useRef<HTMLElement>(null);
   const launcherRef = useRef<HTMLButtonElement>(null);
@@ -221,6 +176,7 @@ function FloatingHealthAssistantPanel({
     policyEpochRef.current += 1;
     requestControllerRef.current?.abort();
     requestControllerRef.current = null;
+    setStreamingReply("");
     policyControllerRef.current?.abort();
     policyControllerRef.current = null;
     invalidateRequests();
@@ -234,10 +190,10 @@ function FloatingHealthAssistantPanel({
   const refreshChatPolicy = useCallback(async (signal?: AbortSignal): Promise<AiChatPolicy> => {
     const policyEpoch = policyEpochRef.current + 1;
     policyEpochRef.current = policyEpoch;
-    const nextPolicy = await fetchAiChatPolicy({ signal });
+    const nextPolicy = await refreshPolicy(signal);
     if (policyEpochRef.current === policyEpoch && !signal?.aborted) setPolicy(nextPolicy);
     return nextPolicy;
-  }, [setPolicy]);
+  }, [refreshPolicy, setPolicy]);
 
   const closeAssistant = useCallback(() => {
     invalidateLocalRequests();
@@ -259,7 +215,7 @@ function FloatingHealthAssistantPanel({
         && (element.matches("dialog[open]") || element.getAttribute("aria-modal") === "true")
       ));
       setBlockedByModal(externalModal);
-      if (externalModal) setOpen(false);
+      if (externalModal && open) closeAssistant();
     };
 
     syncModalBoundary();
@@ -271,7 +227,7 @@ function FloatingHealthAssistantPanel({
       attributeFilter: ["aria-modal", "open", "role"],
     });
     return () => observer.disconnect();
-  }, [open]);
+  }, [closeAssistant, open]);
 
   useEffect(() => {
     const handlePublicOpen = (event: Event): void => {
@@ -384,7 +340,7 @@ function FloatingHealthAssistantPanel({
     setPolicy(null);
     policyControllerRef.current?.abort();
     policyControllerRef.current = controller;
-    void fetchAiChatPolicy({ signal: controller.signal })
+    void refreshPolicy(controller.signal)
       .then((nextPolicy) => {
         if (policyEpochRef.current === policyEpoch && !controller.signal.aborted) setPolicy(nextPolicy);
       })
@@ -398,7 +354,7 @@ function FloatingHealthAssistantPanel({
         policyControllerRef.current = null;
       }
     };
-  }, [hidden, isPatient, open, setPolicy]);
+  }, [hidden, isPatient, open, refreshPolicy, setPolicy]);
 
   useEffect(() => {
     shouldScrollRef.current = true;
@@ -442,7 +398,6 @@ function FloatingHealthAssistantPanel({
     setLoading(true);
     setSending(false);
     setFailure(null);
-    retainedAttemptRef.current = null;
     try {
       syncConversation(null);
       setMessages([]);
@@ -469,7 +424,7 @@ function FloatingHealthAssistantPanel({
     try {
       const currentPolicy = await refreshChatPolicy(controller.signal);
       if (!isCurrentLocalRequest(epoch, conversationId)) return;
-      const updated = await updateAiConversationConsent(conversationId, currentPolicy.policyVersion, { signal: controller.signal });
+      const updated = await acceptConversationConsent(conversationId, currentPolicy.policyVersion, controller.signal);
       if (!isCurrentLocalRequest(epoch, conversationId)) return;
       syncConversation(updated);
     } catch (error) {
@@ -514,6 +469,7 @@ function FloatingHealthAssistantPanel({
 
     const { controller, epoch } = beginLocalRequest();
     setSending(true);
+    setStreamingReply("");
     setFailure(null);
     setLastFailedContent(null);
     let currentConversation: AiConversation | null = null;
@@ -528,17 +484,16 @@ function FloatingHealthAssistantPanel({
           return;
         }
       }
-      const retained = retainedAttemptRef.current;
-      const key = retained
-        && retained.conversationId === currentConversation.id
-        && retained.content === normalized
-        ? retained.key
-        : createIdempotencyKey();
-      retainedAttemptRef.current = { conversationId: currentConversation.id, content: normalized, key };
-      // Compatibility signature: sendAiConversationMessage(currentConversation.id, normalized, key)
-      const exchange = await sendAiConversationMessageStream(currentConversation.id, normalized, key, { signal: controller.signal });
+      const exchange = await sendMessage(currentConversation.id, normalized, {
+        attemptId: "composer",
+        signal: controller.signal,
+        onDelta: (delta) => {
+          if (isCurrentLocalRequest(epoch, currentConversation?.id)) {
+            setStreamingReply((current) => current + delta);
+          }
+        },
+      });
       if (!isCurrentLocalRequest(epoch, currentConversation.id)) return;
-      retainedAttemptRef.current = null;
       setDraft("");
       setMessages((current) => [...current, exchange.userMessage, exchange.assistantMessage].slice(-8));
       const page = await fetchAiConversationMessages(currentConversation.id, null, 12, { signal: controller.signal });
@@ -547,14 +502,12 @@ function FloatingHealthAssistantPanel({
     } catch (error: unknown) {
       if (isAbortError(error) || !isCurrentLocalRequest(epoch, currentConversation?.id)) return;
       if (error instanceof ApiError && error.status === 401) clearAuthSession();
-      if (error instanceof ApiError && ["AI_UNAVAILABLE", "AI_RESPONSE_INVALID", "CHAT_CONTENT_BLOCKED", "CHAT_IDEMPOTENCY_CONFLICT"].includes(error.code ?? "")) {
-        retainedAttemptRef.current = null;
-      }
       const nextFailure = failureFromError(error);
       setLastFailedContent(nextFailure.retryable ? normalized : null);
       setFailure(nextFailure);
     } finally {
       if (isCurrentLocalRequest(epoch, currentConversation?.id)) {
+        setStreamingReply("");
         if (requestControllerRef.current === controller) requestControllerRef.current = null;
         setSending(false);
       }
@@ -720,6 +673,13 @@ function FloatingHealthAssistantPanel({
                     ) : null}
                   </article>
                 ))}
+                {streamingReply ? (
+                  <article className={`${styles.message} ${styles.assistant}`} data-testid="floating-chat-streaming-reply">
+                    <span className={styles.messageRole}>HealthCare</span>
+                    <p>{streamingReply}</p>
+                    <span className={styles.provenance}>Đang nhận phản hồi theo từng phần…</span>
+                  </article>
+                ) : null}
                 {sending ? <p className={styles.status} role="status"><UiIcon name="clock" size={15} /> Trợ lý đang xử lý câu hỏi...</p> : null}
               </div>
 
@@ -750,7 +710,10 @@ function FloatingHealthAssistantPanel({
                   disabled={sending || consentBlocked}
                   id="floating-health-assistant-input"
                   maxLength={MAX_MESSAGE_LENGTH}
-                  onChange={(event) => setDraft(event.target.value)}
+                  onChange={(event) => {
+                    if (conversationIdRef.current) resetSendAttempt(conversationIdRef.current);
+                    setDraft(event.target.value);
+                  }}
                   onKeyDown={handleKeyDown}
                   placeholder="Nhập câu hỏi của bạn..."
                   ref={inputRef}
