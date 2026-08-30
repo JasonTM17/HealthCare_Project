@@ -98,6 +98,7 @@ def test_operation_order_is_stop_rotate_start_then_verify() -> None:
     assert text.index("Start-Process -FilePath $desktopPath") < text.rindex("Disable-AndVerifyDockerAi")
     assert "desktop stop --timeout $StopTimeoutSeconds" in text
     assert "Wait-DockerStopped" in text
+    assert "-replace \"`0\", ''" in text
 
 
 @pytest.mark.skipif(POWERSHELL is None, reason="Windows PowerShell 5.1 or pwsh is unavailable")
