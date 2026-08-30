@@ -42,6 +42,15 @@ function message(
   };
 }
 
+function persistedExchangeSse(exchange: AiChatExchange): string {
+  const answer = exchange.assistantMessage.content ?? "";
+  const delta = answer
+    .split(/\r?\n/)
+    .map((line) => `data: ${line}`)
+    .join("\n");
+  return `event: delta\n${delta}\n\nevent: done\ndata: ${JSON.stringify(exchange)}\n\n`;
+}
+
 async function installChatMocks(
   context: BrowserContext,
   observedKeys: string[],
@@ -77,7 +86,9 @@ async function installChatMocks(
       await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify(CONVERSATION) });
       return;
     }
-    if (url.pathname.endsWith("/messages") && request.method() === "POST") {
+    const isStreamingSend = url.pathname.endsWith("/messages/stream");
+    if ((url.pathname.endsWith("/messages") || isStreamingSend) && request.method() === "POST") {
+      if (isStreamingSend) expect(request.headers()["accept"]).toContain("text/event-stream");
       const key = request.headers()["idempotency-key"];
       if (!key) throw new Error("Floating assistant omitted Idempotency-Key");
       observedKeys.push(key);
@@ -103,7 +114,9 @@ async function installChatMocks(
         replayed: false,
       };
       history = [exchange.userMessage, exchange.assistantMessage];
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(exchange) });
+      await route.fulfill(isStreamingSend
+        ? { status: 200, contentType: "text/event-stream", body: persistedExchangeSse(exchange) }
+        : { status: 200, contentType: "application/json", body: JSON.stringify(exchange) });
       return;
     }
     if (url.pathname.endsWith("/messages") && request.method() === "GET") {
@@ -147,6 +160,7 @@ test("patient mobile widget creates and sends through the REST conversation API"
   await dialog.getByLabel("Câu hỏi cho trợ lý sức khỏe").fill("Tôi nên chuẩn bị gì trước khi đi khám?");
   await dialog.getByRole("button", { name: "Gửi câu hỏi" }).click();
 
+  await expect(dialog.getByTestId("floating-chat-streaming-reply")).toBeHidden();
   await expect(dialog.getByText("Bạn nên mang giấy tờ tùy thân, kết quả cũ và danh sách thuốc đang dùng.")).toBeVisible();
   await expect(dialog.getByText("Nguồn HealthCare", { exact: true })).toBeVisible();
   await expect(dialog.getByText("Thông tin chỉ dùng để tham khảo.", { exact: true })).toBeVisible();
@@ -156,7 +170,7 @@ test("patient mobile widget creates and sends through the REST conversation API"
   await expect(dialog.locator("a[href*='source_type=faq']")).toHaveCount(0);
   await expect(dialog.getByRole("link", { name: /Mở trợ lý đầy đủ/ })).toHaveAttribute("href", "/patient/chat");
   expect(observedKeys).toHaveLength(1);
-  expect(observedKeys[0]).toMatch(/^floating-chat-/);
+  expect(observedKeys[0]).toMatch(/^chat-[0-9a-f-]{36}$/iu);
 
   const launcherBox = await page.locator("button[aria-controls=\"floating-health-assistant-panel\"]").boundingBox();
   const careRailBox = await page.locator(".mobile-care-rail").boundingBox();
@@ -181,6 +195,7 @@ test("provider unavailable state offers a real retry without storing the draft",
   await expect(dialog.getByText("Trợ lý tạm thời gián đoạn", { exact: true })).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Thử lại" })).toBeVisible();
   await dialog.getByRole("button", { name: "Thử lại" }).click();
+  await expect(dialog.getByTestId("floating-chat-streaming-reply")).toBeHidden();
   await expect(dialog.getByText("Bạn nên mang giấy tờ tùy thân, kết quả cũ và danh sách thuốc đang dùng.")).toBeVisible();
   await expect(dialog.getByText("Chế độ dự phòng tại chỗ", { exact: true })).toBeVisible();
   expect(observedKeys).toHaveLength(2);

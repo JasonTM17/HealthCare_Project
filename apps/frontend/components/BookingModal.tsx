@@ -43,6 +43,13 @@ const BOOKING_STEPS = [
   { id: 7, label: "Xác nhận" },
 ] as const;
 
+const BOOKING_STAGES = [
+  { ids: [1, 2, 3], title: "1. Chọn nhu cầu khám" },
+  { ids: [4, 5], title: "2. Chọn cơ sở và khung giờ" },
+  { ids: [6], title: "3. Điền thông tin liên hệ" },
+  { ids: [7], title: "4. Xác nhận OTP" },
+];
+
 export interface BookingSlotQueryIdentity {
   key: string;
   doctorId: string;
@@ -1024,20 +1031,24 @@ function BookingExperience({
         {!confirmedAppointment && (
           <div className="booking-panel__progress border-b border-brand-100/60 bg-brand-50/70 px-6 py-3" aria-label="Tiến trình đặt lịch" role="group">
             <div className="flex items-center gap-2 overflow-x-auto text-xs font-semibold text-brand-900">
-              {BOOKING_STEPS.map(({ id, label }, index) => (
-                <React.Fragment key={id}>
+              {BOOKING_STAGES.map((stage, index) => {
+                const current = stage.ids.includes(step);
+                const complete = stage.ids[stage.ids.length - 1] < step;
+                return (
+                <React.Fragment key={stage.title}>
                   {index > 0 ? <span aria-hidden="true" className="text-brand-300">→</span> : null}
                   <div
-                    className={`flex min-w-max items-center gap-1.5 ${step === id ? "font-bold text-brand-700" : step > id ? "text-brand-500" : "text-gray-400"}`}
-                    aria-current={step === id ? "step" : undefined}
+                    className={`flex min-w-max items-center gap-1.5 ${current ? "font-bold text-brand-700" : complete ? "text-brand-500" : "text-gray-400"}`}
+                    aria-current={current ? "step" : undefined}
                   >
-                    <span className={`flex h-5 w-5 items-center justify-center rounded-full ${step >= id ? "bg-brand-700 text-white" : "bg-gray-200 text-gray-500"}`}>
-                      {step > id ? "✓" : id}
+                    <span className={`flex h-5 w-5 items-center justify-center rounded-full ${current || complete ? "bg-brand-700 text-white" : "bg-gray-200 text-gray-500"}`}>
+                      {complete ? "✓" : index + 1}
                     </span>
-                    <span>{label}</span>
+                    <span>{stage.title}</span>
                   </div>
                 </React.Fragment>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

@@ -15,7 +15,7 @@
   overflow: hidden;
   border: 0;
   border-radius: 13px;
-  background: #087b78;
+  background: #003336;
   color: #ffffff;
   box-shadow: 0 8px 20px rgb(7 95 94 / 18%);
 }
@@ -63,7 +63,7 @@
 }
 
 .brand-identity .brand-copy strong span:last-child {
-  color: #087b78;
+  color: #003336;
 }
 
 .brand-identity .brand-copy small {

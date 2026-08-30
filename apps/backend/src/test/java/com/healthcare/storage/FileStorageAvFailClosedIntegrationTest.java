@@ -52,6 +52,7 @@ class FileStorageAvFailClosedIntegrationTest extends AbstractIntegrationTest {
         registry.add("minio.access-key", () -> MINIO_ACCESS_KEY);
         registry.add("minio.secret-key", () -> MINIO_PASSWORD);
         registry.add("minio.bucket", () -> "healthcare-files");
+        registry.add("storage.upload-enabled", () -> "true");
         registry.add("storage.av.required", () -> "true");
         registry.add("storage.av.service-url", () -> "http://127.0.0.1:1/scan");
         registry.add("storage.av.service-token", () -> "disposable-av-test-token");

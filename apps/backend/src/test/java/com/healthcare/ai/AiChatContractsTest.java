@@ -189,6 +189,14 @@ class AiChatContractsTest {
             .isInstanceOf(BusinessException.class)
             .extracting(error -> ((BusinessException) error).getCode())
             .isEqualTo("AI_RESPONSE_INVALID");
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+            disabled, "sanitize",
+            Map.of("answer", "Chẩn đoán là viêm phổi cấp", "provenance", "local_provider"),
+            ChatMode.HOSPITAL_SUPPORT, List.of()))
+            .isInstanceOf(BusinessException.class)
+            .extracting(error -> ((BusinessException) error).getCode())
+            .isEqualTo("CHAT_CONTENT_BLOCKED");
     }
 
     @Test

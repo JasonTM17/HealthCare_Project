@@ -122,6 +122,11 @@ if (-not [string]::IsNullOrWhiteSpace((Get-ConfigValue "DATABASE_PASSWORD"))) {
 }
 Require-Secret "MINIO_ROOT_PASSWORD" 16
 Require-Secret "AI_SERVICE_TOKEN" 32
+Require-Secret "BACKEND_BFF_SERVICE_TOKEN" 32
+Require-Boolean "BACKEND_BFF_REQUIRED" $true
+if ((Get-ConfigValue "APP_MAIL_OUTBOX_ENABLED").ToLowerInvariant() -eq "true") {
+    Require-Secret "APP_MAIL_OUTBOX_ENCRYPTION_KEY" 16
+}
 Require-Boolean "STORAGE_AV_REQUIRED" $true
 Require-TrustedScannerEndpoint
 Require-Secret "STORAGE_AV_SERVICE_TOKEN" 32

@@ -34,6 +34,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -162,6 +163,30 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
             .andExpect(jsonPath("$.replayed").value(true));
 
         assertThat(aiMessageRepository.findAll()).hasSize(2);
+    }
+
+    @Test
+    @WithMockUser(username = "patient.stream-enabled@example.com", roles = "PATIENT")
+    void enabledStreamReturnsPersistedDeltaAndDoneEvents() throws Exception {
+        User patient = createUser("patient.stream-enabled@example.com");
+        AiConversation conversation = createConversation(
+            patient,
+            false,
+            OffsetDateTime.now(ZoneOffset.UTC).plusDays(90)
+        );
+
+        mockMvc.perform(post("/api/v1/ai/conversations/{id}/messages/stream", conversation.getId())
+                .header("Idempotency-Key", "stream-enabled-regression")
+                .accept(MediaType.TEXT_EVENT_STREAM)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"Xin tu van\"}"))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_EVENT_STREAM))
+            .andExpect(content().string(org.hamcrest.Matchers.allOf(
+                org.hamcrest.Matchers.containsString("event: delta\n"),
+                org.hamcrest.Matchers.containsString("event: done\n"),
+                org.hamcrest.Matchers.containsString("\"safetyAction\":\"REFUSE\"")
+            )));
     }
 
     @Test

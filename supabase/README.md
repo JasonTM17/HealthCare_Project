@@ -15,14 +15,42 @@ supabase db reset
 psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -f supabase/tests/healthcare_data_platform.sql
 ```
 
-For a hosted project, link the project and push the migration from a trusted
-operator machine. The database URL and database password are secrets and must
-not be committed or exposed to the browser:
+For a new empty hosted project, link the project and push migrations from a
+trusted operator machine. The database URL and database password are secrets
+and must not be committed or exposed to the browser:
 
 ```text
 supabase link --project-ref <project-ref>
 supabase db push
 ```
+
+### Hosted migration gate (mandatory)
+
+Never run `supabase db push`, `db reset`, or the seed against an unverified
+project. First capture a backup/PITR point, confirm the exact project reference,
+inspect `supabase migration list`, inspect the current tables/RLS/policies and
+run the local SQL contracts. The local tree currently contains seven additive
+migrations, while the reviewed hosted target has a different four-entry
+history. The first local migration contains non-idempotent `CREATE TABLE`
+statements, so pushing it directly to that target can collide with existing
+objects and must remain blocked until a reviewed reconciliation is chosen.
+
+For the reviewed existing target, the only structural candidate is
+`20260830102500_reconcile_hosted_clinical_projection_security.sql`. Apply that
+single migration only after the gate in
+`supabase/reconciliation/README.md` is satisfied; do not substitute a
+wholesale `supabase db push`. Then run the read-only
+`supabase/tests/hosted_reconciliation_contract.sql` against the same confirmed
+ref.
+
+The reconciliation must preserve Spring PostgreSQL as the transactional
+identity/clinical authority. Supabase is only the `healthcare`-schema catalog
+and de-identified chatbot projection; it is not a drop-in replacement for the
+Spring `public` Flyway database. Use a disposable branch or a newly confirmed
+target to rehearse the full migration sequence, verify the lock-down ACL and
+projection invariants, record a restore drill, and only then schedule a
+reviewed additive apply. Do not use a destructive reset to make histories look
+equal.
 
 `supabase/seed.sql` is deterministic and non-destructive. It is loaded by a
 local `db reset`; for a remote environment, run it only after reviewing the

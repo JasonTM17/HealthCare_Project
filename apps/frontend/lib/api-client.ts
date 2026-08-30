@@ -147,6 +147,7 @@ export type {
 // keeping this path literal prevents either value from entering client code.
 const API_BASE_URL = "/api/v1";
 const API_REQUEST_TIMEOUT_MS = 12_000;
+const AI_STREAM_REQUEST_TIMEOUT_MS = 35_000;
 
 /**
  * Browser-visible session metadata. Authentication secrets live only in
@@ -248,6 +249,12 @@ function parseFieldErrors(value: unknown): Record<string, string> {
   return {};
 }
 
+function isAbortErrorLike(error: unknown): boolean {
+  if (error instanceof Error) return error.name === "AbortError";
+  return typeof error === "object" && error !== null
+    && "name" in error && (error as { name?: unknown }).name === "AbortError";
+}
+
 async function apiErrorFromResponse(
   res: Response,
   path: string,
@@ -282,34 +289,43 @@ async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
 
-  const timeoutId = setTimeout(() => requestController.abort(), API_REQUEST_TIMEOUT_MS);
-  let res: Response;
+  let timedOut = false;
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    requestController.abort();
+  }, API_REQUEST_TIMEOUT_MS);
   try {
-    res = await fetch(`${API_BASE_URL}${path}`, {
+    const res = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
       credentials: "same-origin",
       headers,
       signal: requestController.signal,
     });
+    if (!res.ok) {
+      throw await apiErrorFromResponse(res, path);
+    }
+    if (res.status === 204) return undefined as T;
+    const responseText = await res.text();
+    if (!responseText) return undefined as T;
+    try {
+      return JSON.parse(responseText) as T;
+    } catch {
+      throw new ApiError("Hệ thống trả về dữ liệu không hợp lệ. Vui lòng thử lại sau.", 502, path);
+    }
   } catch (error) {
+    if (timedOut) {
+      throw new ApiError("Yêu cầu mất quá nhiều thời gian. Vui lòng thử lại sau.", 408, path, {
+        code: "REQUEST_TIMEOUT",
+      });
+    }
     // Preserve caller cancellation so stale chat requests can be ignored by
     // the experience instead of being rendered as a provider outage.
-    if (error instanceof Error && error.name === "AbortError") throw error;
+    if (isAbortErrorLike(error)) throw error;
+    if (error instanceof ApiError) throw error;
     throw new ApiError("Không thể kết nối đến hệ thống. Vui lòng thử lại sau.", 0, path);
   } finally {
     clearTimeout(timeoutId);
     callerSignal?.removeEventListener("abort", abortFromCaller);
-  }
-  if (!res.ok) {
-    throw await apiErrorFromResponse(res, path);
-  }
-  if (res.status === 204) return undefined as T;
-  const responseText = await res.text();
-  if (!responseText) return undefined as T;
-  try {
-    return JSON.parse(responseText) as T;
-  } catch {
-    throw new ApiError("Hệ thống trả về dữ liệu không hợp lệ. Vui lòng thử lại sau.", 502, path);
   }
 }
 
@@ -575,6 +591,7 @@ interface SpecialtyRecommendationResponse {
 }
 
 const AI_SPECIALTY_RECOMMENDATION_PATH = "/ai/specialty-recommendation";
+const PUBLIC_SPECIALTY_RECOMMENDATION_PATH = "/public/specialty-recommendation";
 const AI_URGENCY_LEVELS = ["EMERGENCY", "HIGH", "NORMAL"] as const;
 const AI_CITATION_SOURCE_TYPES = ["branch", "specialty", "doctor", "service", "package", "article", "faq"] as const;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -883,23 +900,36 @@ function parseAiChatExchange(value: unknown, path: string): AiChatExchange {
  * Calls the authenticated backend AI contract. This deliberately has no
  * client-side fallback: a result is only shown when the backend returns one.
  */
+export async function recommendPublicSpecialty(symptoms: string): Promise<AiTriageResult> {
+  return recommendSpecialtyFromPath(symptoms, PUBLIC_SPECIALTY_RECOMMENDATION_PATH, 500, false);
+}
+
 export async function recommendSpecialty(symptoms: string): Promise<AiTriageResult> {
+  return recommendSpecialtyFromPath(symptoms, AI_SPECIALTY_RECOMMENDATION_PATH, 10000, true);
+}
+
+async function recommendSpecialtyFromPath(
+  symptoms: string,
+  path: string,
+  maxLength: number,
+  authenticated: boolean,
+): Promise<AiTriageResult> {
   const normalized = symptoms.trim();
-  if (normalized.length < 2 || normalized.length > 10000) {
+  if (normalized.length < 2 || normalized.length > maxLength) {
     throw new ApiError(
-      "Mô tả triệu chứng phải dài từ 2 đến 10000 ký tự.",
+      `Mô tả triệu chứng phải dài từ 2 đến ${maxLength} ký tự.`,
       400,
-      AI_SPECIALTY_RECOMMENDATION_PATH,
+      path,
     );
   }
 
-  const response = await getAuthenticatedJson<SpecialtyRecommendationResponse>(
-    AI_SPECIALTY_RECOMMENDATION_PATH,
-    {
-      method: "POST",
-      body: JSON.stringify({ symptoms: normalized }),
-    },
-  );
+  const request = {
+    method: "POST",
+    body: JSON.stringify({ symptoms: normalized }),
+  } as const;
+  const response = authenticated
+    ? await getAuthenticatedJson<SpecialtyRecommendationResponse>(path, request)
+    : await getJson<SpecialtyRecommendationResponse>(path, request);
 
   if (
     typeof response.recommended_specialty !== "string" ||
@@ -910,7 +940,7 @@ export async function recommendSpecialty(symptoms: string): Promise<AiTriageResu
     throw new ApiError(
       "Dịch vụ AI trả về dữ liệu không đúng định dạng.",
       502,
-      AI_SPECIALTY_RECOMMENDATION_PATH,
+      path,
     );
   }
 
@@ -921,7 +951,7 @@ export async function recommendSpecialty(symptoms: string): Promise<AiTriageResu
     throw new ApiError(
       "Dịch vụ AI trả về mức độ ưu tiên không hợp lệ.",
       502,
-      AI_SPECIALTY_RECOMMENDATION_PATH,
+      path,
     );
   }
 
@@ -2142,6 +2172,149 @@ export async function sendAiConversationMessage(
     signal: options.signal,
   });
   return parseAiChatExchange(response, path);
+}
+
+export async function sendAiConversationMessageStream(
+  conversationId: string,
+  content: string,
+  idempotencyKey: string,
+  options: { signal?: AbortSignal; onDelta?: (delta: string) => void } = {},
+): Promise<AiChatExchange> {
+  const path = `/ai/conversations/${encodeURIComponent(conversationId)}/messages/stream`;
+  return withAuthenticatedSession(path, async () => {
+    const requestController = new AbortController();
+    const callerSignal = options.signal;
+    const abortFromCaller = () => requestController.abort(callerSignal?.reason);
+    if (callerSignal?.aborted) abortFromCaller();
+    else callerSignal?.addEventListener("abort", abortFromCaller, { once: true });
+    let timedOut = false;
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      requestController.abort();
+    }, AI_STREAM_REQUEST_TIMEOUT_MS);
+    try {
+      const headers = new Headers({
+        "Content-Type": "application/json",
+        Accept: "text/event-stream",
+        "Idempotency-Key": idempotencyKey,
+      });
+      const res = await fetch(`${API_BASE_URL}${path}`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers,
+        body: JSON.stringify({ content }),
+        signal: requestController.signal,
+      });
+      if (res.status === 404) {
+        return sendAiConversationMessage(conversationId, content, idempotencyKey, options);
+      }
+      if (!res.ok) {
+        throw await apiErrorFromResponse(res, path);
+      }
+      const { deltas, done } = await readPersistedChatSse(res, path, options.onDelta);
+      const exchange = parseAiChatExchange(done, path);
+      const concatenated = deltas.join("");
+      if (concatenated && concatenated !== (exchange.assistantMessage.content ?? "")) {
+        throw new ApiError("Phản hồi theo từng phần không khớp nội dung đã lưu.", 502, path);
+      }
+      return exchange;
+    } catch (error) {
+      if (timedOut) {
+        throw new ApiError("Yêu cầu mất quá nhiều thời gian. Vui lòng thử lại sau.", 408, path, {
+          code: "REQUEST_TIMEOUT",
+        });
+      }
+      if (isAbortErrorLike(error)) throw error;
+      if (error instanceof ApiError) throw error;
+      throw new ApiError("Không thể kết nối đến hệ thống. Vui lòng thử lại sau.", 0, path);
+    } finally {
+      clearTimeout(timeoutId);
+      callerSignal?.removeEventListener("abort", abortFromCaller);
+    }
+  });
+}
+
+async function readPersistedChatSse(
+  response: Response,
+  path: string,
+  onDelta?: (delta: string) => void,
+): Promise<{ deltas: string[]; done: unknown }> {
+  if (!response.body) return parsePersistedChatSse(await response.text(), path, onDelta);
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const deltas: string[] = [];
+  let done: unknown = null;
+  let buffered = "";
+  const processBlock = (block: string): void => {
+    if (!block.trim()) return;
+    const parsed = parseChatSseBlock(block);
+    if (parsed.eventName === "delta") {
+      deltas.push(parsed.body);
+      onDelta?.(parsed.body);
+    } else if (parsed.eventName === "done" && parsed.body) {
+      try {
+        done = JSON.parse(parsed.body) as unknown;
+      } catch {
+        done = null;
+      }
+    }
+  };
+  try {
+    while (true) {
+      const chunk = await reader.read();
+      buffered += decoder.decode(chunk.value ?? new Uint8Array(), { stream: !chunk.done });
+      let separator = buffered.search(/\r?\n\r?\n/);
+      while (separator >= 0) {
+        const match = buffered.slice(separator).match(/^\r?\n\r?\n/);
+        const length = match?.[0].length ?? 2;
+        processBlock(buffered.slice(0, separator));
+        buffered = buffered.slice(separator + length);
+        separator = buffered.search(/\r?\n\r?\n/);
+      }
+      if (chunk.done) break;
+    }
+    if (buffered.trim()) processBlock(buffered);
+  } finally {
+    reader.releaseLock();
+  }
+  if (done == null) {
+    throw new ApiError("Phản hồi theo từng phần thiếu sự kiện hoàn tất.", 502, path);
+  }
+  return { deltas, done };
+}
+
+function parseChatSseBlock(block: string): { eventName: string; body: string } {
+  let eventName = "message";
+  const data: string[] = [];
+  for (const line of block.split(/\r?\n/)) {
+    if (line.startsWith("event:")) eventName = line.slice(6).trim();
+    else if (line.startsWith("data:")) data.push(line.slice(5).replace(/^\s/, ""));
+  }
+  return { eventName, body: data.join("\n") };
+}
+
+function parsePersistedChatSse(payload: string, path = "/ai/conversations/messages/stream", onDelta?: (delta: string) => void): { deltas: string[]; done: unknown } {
+  const deltas: string[] = [];
+  let done: unknown = null;
+  for (const block of payload.split(/\r?\n\r?\n/)) {
+    if (!block.trim()) continue;
+    const { eventName, body } = parseChatSseBlock(block);
+    if (eventName === "delta") {
+      deltas.push(body);
+      onDelta?.(body);
+    }
+    if (eventName === "done" && body) {
+      try {
+        done = JSON.parse(body) as unknown;
+      } catch {
+        done = null;
+      }
+    }
+  }
+  if (done == null) {
+    throw new ApiError("Phản hồi theo từng phần thiếu sự kiện hoàn tất.", 502, path);
+  }
+  return { deltas, done };
 }
 
 function parseFeedbackState(value: unknown, path: string): AiChatFeedback {

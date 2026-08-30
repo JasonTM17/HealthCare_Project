@@ -8,6 +8,8 @@ import com.healthcare.appointment.repository.PatientProfileRepository;
 import com.healthcare.clinical.repository.MedicalRecordRepository;
 import com.healthcare.hospital.entity.Doctor;
 import com.healthcare.hospital.repository.DoctorRepository;
+import com.healthcare.clinical.service.ClinicalAccessAuditService;
+import com.healthcare.storage.FailClosedStoragePolicy;
 import com.healthcare.storage.entity.StoredFile;
 import com.healthcare.storage.entity.StoredFilePurpose;
 import com.healthcare.storage.repository.StoredFileRepository;
@@ -84,6 +86,7 @@ public class FileStorageService {
     private final AppointmentRepository appointmentRepository;
     private final MedicalRecordRepository medicalRecordRepository;
     private final AttachmentScanner attachmentScanner;
+    private final ClinicalAccessAuditService clinicalAccessAuditService;
 
     @Value("${storage.bucket:${minio.bucket:healthcare-files}}")
     private String bucket;
@@ -91,9 +94,12 @@ public class FileStorageService {
     @Value("${storage.max-file-size-bytes:" + DEFAULT_MAX_FILE_SIZE_BYTES + "}")
     private long maxFileSizeBytes;
 
-    /** Uploads stay disabled in beta until private storage and AV are provisioned. */
-    @Value("${storage.upload-enabled:true}")
-    private boolean uploadEnabled = true;
+    /** Unpackaged default is off; Compose/beta must enable upload together with AV. */
+    @Value("${storage.upload-enabled:false}")
+    private boolean uploadEnabled = false;
+
+    @Value("${storage.allow-unscanned-upload:false}")
+    private boolean allowUnscannedUpload = false;
 
     @Value("${storage.av.required:false}")
     private boolean avRequired;
@@ -119,7 +125,8 @@ public class FileStorageService {
             DoctorRepository doctorRepository,
             AppointmentRepository appointmentRepository,
             MedicalRecordRepository medicalRecordRepository,
-            AttachmentScanner attachmentScanner) {
+            AttachmentScanner attachmentScanner,
+            ClinicalAccessAuditService clinicalAccessAuditService) {
         this.minioClient = minioClient;
         this.storedFileRepository = storedFileRepository;
         this.userRepository = userRepository;
@@ -130,6 +137,7 @@ public class FileStorageService {
         this.attachmentScanner = attachmentScanner == null
             ? new UnavailableAttachmentScanner()
             : attachmentScanner;
+        this.clinicalAccessAuditService = clinicalAccessAuditService;
     }
 
     /** Compatibility constructor for focused adapters that do not provision AV. */
@@ -149,7 +157,8 @@ public class FileStorageService {
             doctorRepository,
             appointmentRepository,
             medicalRecordRepository,
-            new UnavailableAttachmentScanner());
+            new UnavailableAttachmentScanner(),
+            null);
     }
 
     /** Initializes the bucket lazily so a backend health check does not require MinIO. */
@@ -226,10 +235,19 @@ public class FileStorageService {
     public byte[] download(String objectName, UserDetails principal) throws Exception {
         validateObjectName(objectName);
         StoredFile metadata = storedFileRepository.findByObjectKey(objectName).orElse(null);
-        if (metadata == null) {
-            authorizeLegacyObjectAccess(objectName, principal);
-        } else {
-            authorizeMetadataAccess(metadata, principal);
+        UUID patientId = metadata != null && metadata.getPatient() != null
+            ? metadata.getPatient().getId()
+            : null;
+        try {
+            if (metadata == null) {
+                authorizeLegacyObjectAccess(objectName, principal);
+            } else {
+                authorizeMetadataAccess(metadata, principal);
+            }
+            auditFileAccess(principal, patientId, objectName, ClinicalAccessAuditService.DECISION_ALLOW);
+        } catch (AccessDeniedException exception) {
+            auditFileAccess(principal, patientId, objectName, ClinicalAccessAuditService.DECISION_DENY);
+            throw exception;
         }
         init();
         try (InputStream stream = minioClient.getObject(
@@ -301,6 +319,11 @@ public class FileStorageService {
             throw new ResponseStatusException(
                 HttpStatus.SERVICE_UNAVAILABLE,
                 "Kho tệp riêng tư chưa được bật cho môi trường này");
+        }
+        try {
+            FailClosedStoragePolicy.validate(uploadEnabled, avRequired, allowUnscannedUpload);
+        } catch (IllegalStateException exception) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, exception.getMessage());
         }
         if (avRequired && (avServiceUrl == null || avServiceUrl.isBlank()
                 || avServiceToken == null || avServiceToken.isBlank())) {
@@ -549,6 +572,20 @@ public class FileStorageService {
             throw new AccessDeniedException("Bác sĩ không có quan hệ điều trị với bệnh nhân này");
         }
         return patient;
+    }
+
+    private void auditFileAccess(UserDetails principal, UUID patientId, String objectName, String decision) {
+        if (clinicalAccessAuditService == null) {
+            return;
+        }
+        clinicalAccessAuditService.record(
+            principal,
+            patientId,
+            ClinicalAccessAuditService.TARGET_FILE,
+            objectName,
+            ClinicalAccessAuditService.ACTION_DOWNLOAD,
+            decision
+        );
     }
 
     private UUID resolveUserId(UserDetails principal) {

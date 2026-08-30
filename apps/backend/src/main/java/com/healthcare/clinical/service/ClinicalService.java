@@ -58,6 +58,7 @@ public class ClinicalService {
     private final UserRepository userRepository;
     private final StoredFileRepository storedFileRepository;
     private final NotificationService notificationService;
+    private final ClinicalAccessAuditService clinicalAccessAuditService;
 
     public ClinicalService(
             MedicalRecordRepository medicalRecordRepository,
@@ -68,7 +69,8 @@ public class ClinicalService {
             AppointmentRepository appointmentRepository,
             UserRepository userRepository,
             StoredFileRepository storedFileRepository,
-            NotificationService notificationService) {
+            NotificationService notificationService,
+            ClinicalAccessAuditService clinicalAccessAuditService) {
         this.medicalRecordRepository = medicalRecordRepository;
         this.prescriptionRepository = prescriptionRepository;
         this.diagnosticResultRepository = diagnosticResultRepository;
@@ -78,6 +80,7 @@ public class ClinicalService {
         this.userRepository = userRepository;
         this.storedFileRepository = storedFileRepository;
         this.notificationService = notificationService;
+        this.clinicalAccessAuditService = clinicalAccessAuditService;
     }
 
     @Transactional
@@ -181,7 +184,14 @@ public class ClinicalService {
     public MedicalRecordResponse getMedicalRecord(UUID id, UserDetails principal) {
         MedicalRecord record = medicalRecordRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Medical record not found with ID: " + id));
-        authorizeRecord(record, principal);
+        authorizeAudited(
+            principal,
+            record.getPatient().getId(),
+            ClinicalAccessAuditService.TARGET_MEDICAL_RECORD,
+            record.getId().toString(),
+            ClinicalAccessAuditService.ACTION_READ,
+            () -> authorizeRecord(record, principal)
+        );
         return mapToResponse(record);
     }
 
@@ -191,39 +201,50 @@ public class ClinicalService {
             Pageable pageable,
             UserDetails principal) {
         requireAuthenticated(principal);
-        if (hasRole(principal, "ADMIN")) {
+        authorizeAudited(
+            principal,
+            patientId,
+            ClinicalAccessAuditService.TARGET_MEDICAL_RECORD,
+            patientId.toString(),
+            ClinicalAccessAuditService.ACTION_READ,
+            () -> authorizePatientHistory(patientId, principal)
+        );
+        if (hasRole(principal, "ADMIN") || hasRole(principal, "PATIENT")) {
             return medicalRecordRepository.findByPatientIdOrderByCreatedAtDesc(patientId, pageable)
                     .map(this::mapToResponse);
         }
-        if (hasRole(principal, "PATIENT")) {
-            PatientProfile linkedPatient = requireLinkedPatient(principal);
-            if (!linkedPatient.getId().equals(patientId)) {
-                throw new AccessDeniedException("The authenticated patient cannot access this history");
-            }
-            return medicalRecordRepository.findByPatientIdOrderByCreatedAtDesc(patientId, pageable)
-                    .map(this::mapToResponse);
-        }
-        if (hasRole(principal, "DOCTOR")) {
-            Doctor linkedDoctor = requireLinkedDoctor(principal);
-            ensureDoctorCanAccessPatient(patientId, linkedDoctor.getId());
-            return medicalRecordRepository
-                    .findByPatientIdAndDoctorIdOrderByCreatedAtDesc(patientId, linkedDoctor.getId(), pageable)
-                    .map(this::mapToResponse);
-        }
-        throw new AccessDeniedException("Clinical history access denied");
+        Doctor linkedDoctor = requireLinkedDoctor(principal);
+        return medicalRecordRepository
+                .findByPatientIdAndDoctorIdOrderByCreatedAtDesc(patientId, linkedDoctor.getId(), pageable)
+                .map(this::mapToResponse);
     }
 
     @Transactional(readOnly = true)
     public PrescriptionResponse getPrescriptionByCode(String code, UserDetails principal) {
         Prescription prescription = prescriptionRepository.findByPrescriptionCodeWithItems(code.trim())
                 .orElseThrow(() -> new ResourceNotFoundException("Prescription not found with code: " + code));
-        authorizePrescription(prescription, principal);
+        authorizeAudited(
+            principal,
+            prescription.getPatient().getId(),
+            ClinicalAccessAuditService.TARGET_PRESCRIPTION,
+            prescription.getId().toString(),
+            ClinicalAccessAuditService.ACTION_READ,
+            () -> authorizePrescription(prescription, principal)
+        );
         return mapToPrescriptionResponse(prescription);
     }
 
     @Transactional(readOnly = true)
     public List<MedicalRecordResponse> getPatientPortalRecords(UserDetails principal) {
         PatientProfile patient = requireLinkedPatient(principal);
+        authorizeAudited(
+            principal,
+            patient.getId(),
+            ClinicalAccessAuditService.TARGET_MEDICAL_RECORD,
+            patient.getId().toString(),
+            ClinicalAccessAuditService.ACTION_READ,
+            () -> { }
+        );
         return medicalRecordRepository.findByPatientIdOrderByCreatedAtDesc(patient.getId()).stream()
                 .map(this::mapToResponse)
                 .toList();
@@ -232,6 +253,14 @@ public class ClinicalService {
     @Transactional(readOnly = true)
     public List<PrescriptionResponse> getPatientPortalPrescriptions(UserDetails principal) {
         PatientProfile patient = requireLinkedPatient(principal);
+        authorizeAudited(
+            principal,
+            patient.getId(),
+            ClinicalAccessAuditService.TARGET_PRESCRIPTION,
+            patient.getId().toString(),
+            ClinicalAccessAuditService.ACTION_READ,
+            () -> { }
+        );
         return prescriptionRepository.findByPatientIdOrderByCreatedAtDesc(patient.getId()).stream()
                 .map(this::mapToPrescriptionResponse)
                 .toList();
@@ -240,6 +269,14 @@ public class ClinicalService {
     @Transactional(readOnly = true)
     public List<DiagnosticResultResponse> getPatientPortalDiagnostics(UserDetails principal) {
         PatientProfile patient = requireLinkedPatient(principal);
+        authorizeAudited(
+            principal,
+            patient.getId(),
+            ClinicalAccessAuditService.TARGET_DIAGNOSTIC,
+            patient.getId().toString(),
+            ClinicalAccessAuditService.ACTION_READ,
+            () -> { }
+        );
         return diagnosticResultRepository.findByPatientIdOrderByTestDateDesc(patient.getId()).stream()
                 .map(this::mapToDiagnosticResponse)
                 .toList();
@@ -248,7 +285,14 @@ public class ClinicalService {
     @Transactional(readOnly = true)
     public List<MedicalRecordResponse> getDoctorPatientRecords(UUID patientId, UserDetails principal) {
         Doctor doctor = requireLinkedDoctor(principal);
-        ensureDoctorCanAccessPatient(patientId, doctor.getId());
+        authorizeAudited(
+            principal,
+            patientId,
+            ClinicalAccessAuditService.TARGET_MEDICAL_RECORD,
+            patientId.toString(),
+            ClinicalAccessAuditService.ACTION_READ,
+            () -> ensureDoctorCanAccessPatient(patientId, doctor.getId())
+        );
         return medicalRecordRepository.findByPatientIdAndDoctorIdOrderByCreatedAtDesc(patientId, doctor.getId())
                 .stream()
                 .map(this::mapToResponse)
@@ -258,7 +302,14 @@ public class ClinicalService {
     @Transactional(readOnly = true)
     public List<DiagnosticResultResponse> getDoctorPatientDiagnostics(UUID patientId, UserDetails principal) {
         Doctor doctor = requireLinkedDoctor(principal);
-        ensureDoctorCanAccessPatient(patientId, doctor.getId());
+        authorizeAudited(
+            principal,
+            patientId,
+            ClinicalAccessAuditService.TARGET_DIAGNOSTIC,
+            patientId.toString(),
+            ClinicalAccessAuditService.ACTION_READ,
+            () -> ensureDoctorCanAccessPatient(patientId, doctor.getId())
+        );
         return diagnosticResultRepository
                 .findByPatientIdAndDoctorIdOrderByTestDateDesc(patientId, doctor.getId())
                 .stream()
@@ -310,6 +361,53 @@ public class ClinicalService {
             );
         }
         return mapToDiagnosticResponse(saved);
+    }
+
+    private void authorizePatientHistory(UUID patientId, UserDetails principal) {
+        if (hasRole(principal, "ADMIN")) {
+            return;
+        }
+        if (hasRole(principal, "PATIENT")) {
+            if (!requireLinkedPatient(principal).getId().equals(patientId)) {
+                throw new AccessDeniedException("The authenticated patient cannot access this history");
+            }
+            return;
+        }
+        if (hasRole(principal, "DOCTOR")) {
+            ensureDoctorCanAccessPatient(patientId, requireLinkedDoctor(principal).getId());
+            return;
+        }
+        throw new AccessDeniedException("Clinical history access denied");
+    }
+
+    private void authorizeAudited(
+            UserDetails principal,
+            UUID patientId,
+            String targetType,
+            String targetId,
+            String action,
+            Runnable authorization) {
+        try {
+            authorization.run();
+            clinicalAccessAuditService.record(
+                principal,
+                patientId,
+                targetType,
+                targetId,
+                action,
+                ClinicalAccessAuditService.DECISION_ALLOW
+            );
+        } catch (AccessDeniedException exception) {
+            clinicalAccessAuditService.record(
+                principal,
+                patientId,
+                targetType,
+                targetId,
+                action,
+                ClinicalAccessAuditService.DECISION_DENY
+            );
+            throw exception;
+        }
     }
 
     private void authorizeRecord(MedicalRecord record, UserDetails principal) {

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import BrandMark from "../../../components/BrandMark";
 import { ApiError, hasRole, login } from "../../../lib/api-client";
 import { authErrorMessage, authFieldErrors, safeAuthNextPath, type AuthFieldErrors } from "../../../lib/auth-flow";
 
@@ -52,10 +53,11 @@ export default function LoginPage() {
 
   return (
     <main className="auth-page">
+      <a className="skip-link" href="#login-title">Bỏ qua điều hướng</a>
       <section aria-labelledby="login-title" className="auth-card">
         <Link className="auth-card__back" href="/">← Về trang chính</Link>
         <div className="auth-card__brand">
-          <span aria-hidden="true" className="portal-brand__mark">+</span>
+          <BrandMark />
           <span>
             <strong>HealthCare</strong>
             <small>Đăng nhập an toàn</small>

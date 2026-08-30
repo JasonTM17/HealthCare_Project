@@ -7,13 +7,16 @@ import { EmptyState, ErrorState, ForbiddenState, LoadingState, LoginRequiredStat
 import { useAuthSession } from "../../../../components/useAuthSession";
 import {
   ApiError,
-  closePatientConsultation,
-  fetchPatientConsultation,
   hasRole,
   sendPatientConsultationMessage,
 } from "../../../../lib/api-client";
 import { reconcileConsultationServerPage } from "../../../../lib/consultation-read-watermark";
 import { pollConsultationAttachments } from "../../../../lib/consultation-attachment-polling";
+import {
+  ConsultationRequestTimeoutError,
+  fetchConsultationResponseBody,
+  fetchConsultationUploadResponse,
+} from "../../../../lib/consultation-request";
 import { presentApiError } from "../../../../lib/present-api-error";
 import type { ConsultationAttachment, ConsultationDetail, ConsultationMessage } from "../../../../types/hospital";
 
@@ -47,6 +50,7 @@ interface ServerReadWatermark {
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_FILES_PER_MESSAGE = 3;
+const CONSULTATION_UPLOAD_TIMEOUT_MS = 120_000;
 const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "application/pdf"]);
 
 const STATUS_LABELS: Record<string, string> = {
@@ -102,30 +106,31 @@ function isAbortError(error: unknown): boolean {
 async function requestConsultationJson<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
-  const response = await fetch(`/api/v1${path}`, {
-    ...init,
-    credentials: "same-origin",
-    cache: "no-store",
-    headers,
-  });
-  if (!response.ok) {
-    let code: string | null = null;
-    try {
-      const body = await response.json() as { code?: unknown; errorCode?: unknown };
-      const candidate = body.code ?? body.errorCode;
-      if (typeof candidate === "string") code = candidate;
-    } catch {
-      // The user-facing copy remains code-owned even when the response is not JSON.
-    }
-    throw new ApiError("Yêu cầu tư vấn chưa thể hoàn tất.", response.status, path, { code });
-  }
-  if (response.status === 204) return undefined as T;
-  const text = await response.text();
-  if (!text) return undefined as T;
   try {
-    return JSON.parse(text) as T;
-  } catch {
-    throw new ApiError("Dữ liệu tư vấn không hợp lệ.", 502, path);
+    const { response, text: responseText } = await fetchConsultationResponseBody(path, { ...init, headers });
+    if (!response.ok) {
+      let code: string | null = null;
+      try {
+        const body = JSON.parse(responseText) as { code?: unknown; errorCode?: unknown };
+        const candidate = body.code ?? body.errorCode;
+        if (typeof candidate === "string") code = candidate;
+      } catch {
+        // The user-facing copy remains code-owned even when the response is not JSON.
+      }
+      throw new ApiError("Yêu cầu tư vấn chưa thể hoàn tất.", response.status, path, { code });
+    }
+    if (response.status === 204) return undefined as T;
+    if (!responseText) return undefined as T;
+    try {
+      return JSON.parse(responseText) as T;
+    } catch {
+      throw new ApiError("Dữ liệu tư vấn không hợp lệ.", 502, path);
+    }
+  } catch (error) {
+    if (error instanceof ConsultationRequestTimeoutError) {
+      throw new ApiError("Yêu cầu tư vấn mất quá nhiều thời gian. Vui lòng thử lại.", 408, path);
+    }
+    throw error;
   }
 }
 
@@ -180,7 +185,7 @@ export default function PatientConsultationDetailPage({ params }: { params: Prom
 
   const load = useCallback(async (signal: AbortSignal) => {
     const [loaded, rawPage] = await Promise.all([
-      fetchPatientConsultation(id, signal),
+      requestConsultationJson<ConsultationDetail>(`/patient/consultations/${encodeURIComponent(id)}`, { signal }),
       requestConsultationJson<unknown>(`/patient/consultations/${encodeURIComponent(id)}/messages?limit=50`, { signal }),
     ]);
     const page = normalizeMessagePage(rawPage);
@@ -422,8 +427,10 @@ export default function PatientConsultationDetailPage({ params }: { params: Prom
         if (!isActiveThread(threadId, epoch)) return;
         if (!intent.uploadUrl) throw new ApiError("Kho tệp tư vấn chưa sẵn sàng.", 503, "attachments", { code: "CONSULTATION_ATTACHMENT_STORAGE_UNAVAILABLE" });
         setStage("UPLOADING", { attachmentId: intent.id });
-        const uploadResponse = await fetch(intent.uploadUrl, { method: "PUT", body: file, signal,
-          credentials: "omit", referrerPolicy: "no-referrer", redirect: "error", headers: { "Content-Type": file.type } });
+        const uploadResponse = await fetchConsultationUploadResponse(intent.uploadUrl, { method: "PUT", body: file, signal,
+          credentials: "omit", referrerPolicy: "no-referrer", redirect: "error", headers: { "Content-Type": file.type } }, {
+          timeoutMs: CONSULTATION_UPLOAD_TIMEOUT_MS,
+        });
         if (!isActiveThread(threadId, epoch)) return;
         if (!uploadResponse.ok) throw new ApiError("Không thể tải tệp lên kho riêng.", 502, "attachments");
         setStage("SCANNING", { attachmentId: intent.id });
@@ -493,7 +500,9 @@ export default function PatientConsultationDetailPage({ params }: { params: Prom
     const threadId = id;
     const epoch = requestEpochRef.current;
     try {
-      await closePatientConsultation(threadId);
+      await requestConsultationJson<void>(`/patient/consultations/${encodeURIComponent(threadId)}/close`, {
+        method: "POST", signal: requestControllerRef.current?.signal,
+      });
       if (!isActiveThread(threadId, epoch)) return;
       setDetail((current) => current && isActiveThread(threadId, epoch)
         ? { ...current, consultation: { ...current.consultation, status: "CLOSED" } }
@@ -512,7 +521,9 @@ export default function PatientConsultationDetailPage({ params }: { params: Prom
     const threadId = id;
     const epoch = requestEpochRef.current;
     try {
-      await requestConsultationJson<void>(`/patient/consultations/${encodeURIComponent(threadId)}/reopen`, { method: "POST" });
+      await requestConsultationJson<void>(`/patient/consultations/${encodeURIComponent(threadId)}/reopen`, {
+        method: "POST", signal: requestControllerRef.current?.signal,
+      });
       if (!isActiveThread(threadId, epoch)) return;
       setDetail((current) => current && isActiveThread(threadId, epoch)
         ? { ...current, consultation: { ...current.consultation, status: "WAITING_FOR_DOCTOR" } }
@@ -529,7 +540,9 @@ export default function PatientConsultationDetailPage({ params }: { params: Prom
     const threadId = id;
     const epoch = requestEpochRef.current;
     try {
-      const resolved = await requestConsultationJson<ConsultationAttachment>(`/patient/consultations/${encodeURIComponent(threadId)}/attachments/${encodeURIComponent(attachment.id)}/download`);
+      const resolved = await requestConsultationJson<ConsultationAttachment>(`/patient/consultations/${encodeURIComponent(threadId)}/attachments/${encodeURIComponent(attachment.id)}/download`, {
+        signal: requestControllerRef.current?.signal,
+      });
       if (resolved.scanStatus !== "CLEAN" || !resolved.downloadUrl) {
         throw new ApiError("Tệp chưa sẵn sàng để mở.", 409, "attachments", { code: "CONSULTATION_ATTACHMENT_INVALID" });
       }

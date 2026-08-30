@@ -48,6 +48,10 @@ test("patient consultation detail keeps cursor, read-state and attachment gates 
   assert.match(page, /messages: \[\.\.\.current\.messages, \.\.\.newer\]/);
   assert.doesNotMatch(page, /messages: \[\.\.\.older, \.\.\.current\.messages\]/);
   assert.match(page, /attachments\/intents/);
+  assert.match(page, /requestConsultationJson<ConsultationDetail>.*patient\/consultations/);
+  assert.match(page, /fetchConsultationUploadResponse/);
+  assert.match(page, /CONSULTATION_UPLOAD_TIMEOUT_MS/);
+  assert.match(page, /Yêu cầu tư vấn mất quá nhiều thời gian/);
   assert.match(page, /sha256/);
   assert.match(page, /scanStatus === \"CLEAN\"/);
   assert.match(page, /resolved\.scanStatus !== "CLEAN" \|\| !resolved\.downloadUrl/);

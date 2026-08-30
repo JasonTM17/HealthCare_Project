@@ -17,6 +17,10 @@ spring:
 
 # JWT secret injected by DynamicPropertySource in AbstractIntegrationTest.
 # Fallback is a safe test-only placeholder; never used in production.
+app.public:
+  specialty-triage:
+    enabled: true
+
 app:
   jwt:
     access-token-ttl: 900
@@ -40,6 +44,7 @@ ai:
     remote-provider-enabled: false
     symptom-triage-enabled: false
     health-education-enabled: false
+    chunked-enabled: true
   service:
     runtime: local
     allow-unauthenticated-local: true

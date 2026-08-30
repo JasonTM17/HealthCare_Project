@@ -17,8 +17,8 @@ export default function GlobalError({ reset }: { error: Error & { digest?: strin
             <h1 id="global-error-title" style={{ margin: "0.5rem 0", fontSize: "clamp(1.7rem, 4vw, 2.4rem)" }}>Hệ thống đang tạm gián đoạn</h1>
             <p style={{ lineHeight: 1.7 }}>Dữ liệu của bạn vẫn được bảo vệ. Hãy thử tải lại trang hoặc quay về trang chủ để tiếp tục.</p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: ".75rem", marginTop: "1.25rem" }}>
-              <button onClick={reset} style={{ minHeight: 44, border: 0, borderRadius: 10, padding: "0 1rem", background: "#087b78", color: "#fff", fontWeight: 700 }} type="button">Thử tải lại</button>
-              <Link href="/" style={{ minHeight: 44, display: "inline-flex", alignItems: "center", border: "1px solid #087b78", borderRadius: 10, padding: "0 1rem", color: "#075e5b", fontWeight: 700, textDecoration: "none" }}>Về trang chủ</Link>
+              <button onClick={reset} style={{ minHeight: 44, border: 0, borderRadius: 10, padding: "0 1rem", background: "#003336", color: "#fff", fontWeight: 700 }} type="button">Thử tải lại</button>
+              <Link href="/" style={{ minHeight: 44, display: "inline-flex", alignItems: "center", border: "1px solid #003336", borderRadius: 10, padding: "0 1rem", color: "#003336", fontWeight: 700, textDecoration: "none" }}>Về trang chủ</Link>
             </div>
           </section>
         </main>
