@@ -65,6 +65,22 @@ test("root layout renders content immediately without a blocking brand splash", 
   assert.match(layout, /<body>[\s\S]*\{children\}[\s\S]*<FloatingHealthAssistant \/>[\s\S]*<\/body>/);
 });
 
+test("live CSS uses one documented primary teal without dual live brand greens", async () => {
+  const [styles, layout, brand] = await Promise.all([
+    read("app/styles.css"),
+    read("app/layout.tsx"),
+    read("app/brand-experience.css"),
+  ]);
+
+  assert.match(styles, /--color-primary:\s*#003336/);
+  assert.match(styles, /--color-paper:\s*#f9f9fc/);
+  assert.match(styles, /--color-mint:\s*#e0f2f1/);
+  assert.match(layout, /themeColor: "#003336"/);
+  assert.doesNotMatch(styles, /--color-primary:\s*#001c1e/);
+  assert.doesNotMatch(layout, /#087b78/);
+  assert.doesNotMatch(brand, /#087b78/);
+});
+
 test("typography variables provide deterministic font fallbacks without build-time remote fetches", async () => {
   const styles = await read("app/styles.css");
 

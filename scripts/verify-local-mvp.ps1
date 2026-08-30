@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$ApiBaseUrl = "http://localhost:8080/api/v1",
+    [string]$ApiBaseUrl = "http://localhost:3000/api/v1",
     [string]$BackendHealthUrl = "http://localhost:8080",
     [string]$FrontendUrl = "http://localhost:3000",
     [string]$DemoPassword = "LocalDemo!2026",
@@ -21,22 +21,32 @@ function Invoke-JsonApi {
         [Parameter(Mandatory)] [string]$Uri,
         [ValidateSet("GET", "POST", "PATCH")] [string]$Method = "GET",
         [object]$Body,
-        [string]$Token
+        [string]$Token,
+        [object]$WebSession
     )
     $parameters = @{ Uri = $Uri; Method = $Method; ContentType = "application/json" }
     if ($null -ne $Body) { $parameters.Body = $Body | ConvertTo-Json -Depth 8 }
     if ($Token) { $parameters.Headers = @{ Authorization = "Bearer $Token" } }
+    if ($Method -notin @("GET", "HEAD", "OPTIONS")) {
+        if (-not $parameters.Headers) { $parameters.Headers = @{} }
+        $parameters.Headers.Origin = ([Uri]$Uri).GetLeftPart([System.UriPartial]::Authority)
+    }
+    if ($WebSession -and $WebSession.CookieHeader) {
+        if (-not $parameters.Headers) { $parameters.Headers = @{} }
+        $parameters.Headers.Cookie = $WebSession.CookieHeader
+    }
     Invoke-RestMethod @parameters
 }
 
 function Invoke-MultipartUploadStatus {
     param(
-        [Parameter(Mandatory)] [string]$Token,
+        [Parameter(Mandatory)] [object]$WebSession,
         [Parameter(Mandatory)] [string]$Filename,
         [Parameter(Mandatory)] [string]$ContentType,
         [Parameter(Mandatory)] [byte[]]$Content
     )
 
+    $apiUri = [Uri]$ApiBaseUrl
     $client = [System.Net.Http.HttpClient]::new()
     $multipart = [System.Net.Http.MultipartFormDataContent]::new()
     $part = [System.Net.Http.ByteArrayContent]::new($Content)
@@ -46,7 +56,8 @@ function Invoke-MultipartUploadStatus {
         [System.Net.Http.HttpMethod]::Post,
         "$ApiBaseUrl/files/upload"
     )
-    $request.Headers.TryAddWithoutValidation("Authorization", "Bearer $Token") | Out-Null
+    $request.Headers.TryAddWithoutValidation("Origin", $apiUri.GetLeftPart([System.UriPartial]::Authority)) | Out-Null
+    $request.Headers.TryAddWithoutValidation("Cookie", [string]$WebSession.CookieHeader) | Out-Null
     $request.Content = $multipart
     try {
         $response = $client.SendAsync($request).GetAwaiter().GetResult()
@@ -62,13 +73,25 @@ function Invoke-MultipartUploadStatus {
 }
 
 function Login-DemoRole([string]$Email) {
-    $session = Invoke-JsonApi -Uri "$ApiBaseUrl/auth/login" -Method POST -Body @{
+    $loginUri = "$ApiBaseUrl/auth/browser-sessions"
+    $response = Invoke-WebRequest -Uri $loginUri -Method POST -ContentType "application/json" -Headers @{
+        Origin = ([Uri]$loginUri).GetLeftPart([System.UriPartial]::Authority)
+    } -Body (@{
+        grantType = "PASSWORD"
         email = $Email
         password = $DemoPassword
+    } | ConvertTo-Json -Depth 8)
+    $session = $response.Content | ConvertFrom-Json
+    if (-not $session.user -or -not $session.user.email) { throw "Browser session was not issued for $Email" }
+    $cookieHeaders = @($response.Headers["Set-Cookie"])
+    $cookiePairs = foreach ($header in $cookieHeaders) {
+        foreach ($cookie in ($header -split ',(?=\s*__Host-)')) {
+            ($cookie -split ';', 2)[0].Trim()
+        }
     }
-    if (-not $session.accessToken) { throw "Login did not return an access token for $Email" }
+    if ($cookiePairs.Count -lt 2) { throw "Browser session did not return both security cookies for $Email" }
     $checks.Add("login:$Email")
-    $session.accessToken
+    [pscustomobject]@{ CookieHeader = ($cookiePairs -join "; ") }
 }
 
 function Wait-ForBookingOtp([string]$BookingCode, [string]$Recipient, [DateTimeOffset]$AfterUtc) {
@@ -176,26 +199,26 @@ if ($specialties.totalElements -lt 1 -or $doctors.totalElements -lt 1 -or $branc
 }
 $checks.Add("catalog:seeded")
 
-$mimeMismatch = Invoke-MultipartUploadStatus -Token $adminToken -Filename "spoofed.pdf" -ContentType "application/pdf" -Content ([Text.Encoding]::UTF8.GetBytes("plain text pretending to be a PDF"))
+$mimeMismatch = Invoke-MultipartUploadStatus -WebSession $adminToken -Filename "spoofed.pdf" -ContentType "application/pdf" -Content ([Text.Encoding]::UTF8.GetBytes("plain text pretending to be a PDF"))
 if ($mimeMismatch.StatusCode -ne 400) { throw "MIME mismatch upload was not rejected" }
-$cleanUpload = Invoke-MultipartUploadStatus -Token $adminToken -Filename "verification.txt" -ContentType "text/plain" -Content ([Text.Encoding]::UTF8.GetBytes("synthetic clean upload"))
+$cleanUpload = Invoke-MultipartUploadStatus -WebSession $adminToken -Filename "verification.txt" -ContentType "text/plain" -Content ([Text.Encoding]::UTF8.GetBytes("synthetic clean upload"))
 if ($cleanUpload.StatusCode -ne 200) { throw "Clean upload did not pass storage verification" }
 $eicar = [Text.Encoding]::ASCII.GetBytes('X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*')
-$infectedUpload = Invoke-MultipartUploadStatus -Token $adminToken -Filename "verification.txt" -ContentType "text/plain" -Content $eicar
+$infectedUpload = Invoke-MultipartUploadStatus -WebSession $adminToken -Filename "verification.txt" -ContentType "text/plain" -Content $eicar
 if ($infectedUpload.StatusCode -ne 422) { throw "AV infected upload was not rejected" }
 $checks.Add("storage:mime+av")
 
-$sync = Invoke-JsonApi -Uri "$ApiBaseUrl/admin/ai/catalog/sync" -Method POST -Token $adminToken
+$sync = Invoke-JsonApi -Uri "$ApiBaseUrl/admin/ai/catalog/sync" -Method POST -WebSession $adminToken
 if ($sync.status -ne "COMPLETED" -or $sync.processedDocuments -lt 1) { throw "AI catalog synchronization failed" }
-$recommendation = Invoke-JsonApi -Uri "$ApiBaseUrl/ai/specialty-recommendation" -Method POST -Token $patientToken -Body @{
+$recommendation = Invoke-JsonApi -Uri "$ApiBaseUrl/ai/specialty-recommendation" -Method POST -WebSession $patientToken -Body @{
     symptoms = "Tôi bị đau đầu và chóng mặt"
 }
 if ($recommendation.specialty_resolution -ne "RESOLVED") { throw "AI specialty recommendation was not resolved against SQL catalog" }
-$semantic = Invoke-JsonApi -Uri "$ApiBaseUrl/ai/search?q=$([uri]::EscapeDataString('đau đầu chóng mặt'))&top_k=5" -Token $patientToken
+$semantic = Invoke-JsonApi -Uri "$ApiBaseUrl/ai/search?q=$([uri]::EscapeDataString('đau đầu chóng mặt'))&top_k=5" -WebSession $patientToken
 if (-not $semantic.results -or $semantic.results.Count -lt 1) { throw "Semantic search returned no grounded result" }
 $checks.Add("ai:sync+recommendation+search")
 
-$doctorProfile = Invoke-JsonApi -Uri "$ApiBaseUrl/doctor/profile" -Token $doctorToken
+$doctorProfile = Invoke-JsonApi -Uri "$ApiBaseUrl/doctor/profile" -WebSession $doctorToken
 $demoDoctor = $doctors.content | Where-Object { $_.id -eq $doctorProfile.id } | Select-Object -First 1
 if (-not $demoDoctor -or -not $demoDoctor.branchIds -or $demoDoctor.branchIds.Count -lt 1) {
     throw "Demo doctor is not connected to an active branch"
@@ -223,7 +246,7 @@ if (-not $selectedSlot) {
 }
 
 $holdStartedAt = [DateTimeOffset]::UtcNow
-$hold = Invoke-JsonApi -Uri "$ApiBaseUrl/appointments/hold" -Method POST -Token $patientToken -Body @{
+$hold = Invoke-JsonApi -Uri "$ApiBaseUrl/appointments/hold" -Method POST -WebSession $patientToken -Body @{
     doctorId = $demoDoctor.id
     appointmentDate = $selectedDate
     startTime = $selectedSlot.startTime
@@ -244,9 +267,9 @@ $confirmed = Invoke-JsonApi -Uri "$ApiBaseUrl/appointments/confirm" -Method POST
 if ($confirmed.status -ne "CONFIRMED") { throw "Appointment confirmation failed" }
 $checks.Add("appointment:hold+otp-confirm")
 
-$patientAppointments = Invoke-JsonApi -Uri "$ApiBaseUrl/patient/appointments?size=100" -Token $patientToken
-$doctorAppointments = Invoke-JsonApi -Uri "$ApiBaseUrl/doctor/appointments?date=$selectedDate&size=100" -Token $doctorToken
-$adminAppointments = Invoke-JsonApi -Uri "$ApiBaseUrl/admin/appointments?date=$selectedDate&size=100" -Token $adminToken
+$patientAppointments = Invoke-JsonApi -Uri "$ApiBaseUrl/patient/appointments?size=100" -WebSession $patientToken
+$doctorAppointments = Invoke-JsonApi -Uri "$ApiBaseUrl/doctor/appointments?date=$selectedDate&size=100" -WebSession $doctorToken
+$adminAppointments = Invoke-JsonApi -Uri "$ApiBaseUrl/admin/appointments?date=$selectedDate&size=100" -WebSession $adminToken
 foreach ($view in @($patientAppointments, $doctorAppointments, $adminAppointments)) {
     if (-not ($view.content | Where-Object { $_.bookingCode -eq $confirmed.bookingCode })) {
         throw "Confirmed booking is missing from a role-specific appointment view"
@@ -254,7 +277,7 @@ foreach ($view in @($patientAppointments, $doctorAppointments, $adminAppointment
 }
 $checks.Add("appointments:patient+doctor+admin-visible")
 
-$patientNotifications = Invoke-JsonApi -Uri "$ApiBaseUrl/notifications?size=100" -Token $patientToken
+$patientNotifications = Invoke-JsonApi -Uri "$ApiBaseUrl/notifications?size=100" -WebSession $patientToken
 $confirmedNotification = $patientNotifications.content | Where-Object {
     $_.referenceId -eq $confirmed.id -and $_.eventType -eq "APPOINTMENT_CONFIRMED"
 } | Select-Object -First 1
@@ -268,17 +291,17 @@ if ($RequireClinicalFlow) {
     if (-not $doctorAppointment -or -not $doctorAppointment.patientId) {
         throw "Doctor appointment view is missing the patient identity required for the clinical flow"
     }
-    $patientProfile = Invoke-JsonApi -Uri "$ApiBaseUrl/patient/profile" -Token $patientToken
+    $patientProfile = Invoke-JsonApi -Uri "$ApiBaseUrl/patient/profile" -WebSession $patientToken
     if ($doctorAppointment.patientId -ne $patientProfile.id) {
         throw "Doctor appointment patient identity does not match the authenticated patient profile"
     }
 
-    $checkedIn = Invoke-JsonApi -Uri "$ApiBaseUrl/doctor/appointments/$($doctorAppointment.id)/status" -Method PATCH -Token $doctorToken -Body @{ status = "CHECKED_IN" }
+    $checkedIn = Invoke-JsonApi -Uri "$ApiBaseUrl/doctor/appointments/$($doctorAppointment.id)/status" -Method PATCH -WebSession $doctorToken -Body @{ status = "CHECKED_IN" }
     if ($checkedIn.status -ne "CHECKED_IN") { throw "Doctor check-in transition failed" }
-    $inProgress = Invoke-JsonApi -Uri "$ApiBaseUrl/doctor/appointments/$($doctorAppointment.id)/status" -Method PATCH -Token $doctorToken -Body @{ status = "IN_PROGRESS" }
+    $inProgress = Invoke-JsonApi -Uri "$ApiBaseUrl/doctor/appointments/$($doctorAppointment.id)/status" -Method PATCH -WebSession $doctorToken -Body @{ status = "IN_PROGRESS" }
     if ($inProgress.status -ne "IN_PROGRESS") { throw "Doctor in-progress transition failed" }
 
-    $record = Invoke-JsonApi -Uri "$ApiBaseUrl/clinical/records" -Method POST -Token $doctorToken -Body @{
+    $record = Invoke-JsonApi -Uri "$ApiBaseUrl/clinical/records" -Method POST -WebSession $doctorToken -Body @{
         appointmentId = $doctorAppointment.id
         patientId = $patientProfile.id
         doctorId = $doctorProfile.id
@@ -290,15 +313,15 @@ if ($RequireClinicalFlow) {
     if ($record.appointmentId -ne $doctorAppointment.id -or $record.patientId -ne $patientProfile.id) {
         throw "Clinical record did not retain the verified appointment and patient identity"
     }
-    $patientRecords = Invoke-JsonApi -Uri "$ApiBaseUrl/patient/medical-records" -Token $patientToken
+    $patientRecords = Invoke-JsonApi -Uri "$ApiBaseUrl/patient/medical-records" -WebSession $patientToken
     if (-not ($patientRecords | Where-Object { $_.id -eq $record.id })) {
         throw "Patient portal does not expose the newly authorized clinical record"
     }
 
     $completedAppointmentViews = @(
-        Invoke-JsonApi -Uri "$ApiBaseUrl/patient/appointments?size=100" -Token $patientToken
-        Invoke-JsonApi -Uri "$ApiBaseUrl/doctor/appointments?date=$selectedDate&size=100" -Token $doctorToken
-        Invoke-JsonApi -Uri "$ApiBaseUrl/admin/appointments?date=$selectedDate&size=100" -Token $adminToken
+        Invoke-JsonApi -Uri "$ApiBaseUrl/patient/appointments?size=100" -WebSession $patientToken
+        Invoke-JsonApi -Uri "$ApiBaseUrl/doctor/appointments?date=$selectedDate&size=100" -WebSession $doctorToken
+        Invoke-JsonApi -Uri "$ApiBaseUrl/admin/appointments?date=$selectedDate&size=100" -WebSession $adminToken
     )
     foreach ($view in $completedAppointmentViews) {
         $completedAppointment = $view.content | Where-Object { $_.bookingCode -eq $confirmed.bookingCode } | Select-Object -First 1
@@ -310,7 +333,7 @@ if ($RequireClinicalFlow) {
 }
 
 try {
-    Invoke-JsonApi -Uri "$ApiBaseUrl/admin/appointments" -Token $patientToken | Out-Null
+    Invoke-JsonApi -Uri "$ApiBaseUrl/admin/appointments" -WebSession $patientToken | Out-Null
     throw "Patient token unexpectedly accessed the ADMIN appointment endpoint"
 } catch {
     if ([int]$_.Exception.Response.StatusCode -ne 403) { throw }

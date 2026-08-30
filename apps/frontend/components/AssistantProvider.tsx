@@ -12,9 +12,16 @@ import {
 } from "react";
 import type {
   AiChatPolicy,
+  AiChatExchange,
   AiConversation,
   ChatMode,
 } from "../types/hospital";
+import {
+  ApiError,
+  fetchAiChatPolicy,
+  sendAiConversationMessageStream,
+  updateAiConversationConsent,
+} from "../lib/api-client";
 
 export const ASSISTANT_MODE_OPTIONS: ReadonlyArray<{
   value: ChatMode;
@@ -64,6 +71,93 @@ export function hasCurrentChatConsent(
   );
 }
 
+const TERMINAL_IDEMPOTENCY_CODES = new Set([
+  "AI_UNAVAILABLE",
+  "AI_RESPONSE_INVALID",
+  "CHAT_CONTENT_BLOCKED",
+  "CHAT_IDEMPOTENCY_CONFLICT",
+]);
+
+export interface AssistantSendOptions {
+  /** Stable logical attempt identity. Retries must pass the same value. */
+  attemptId?: string;
+  signal?: AbortSignal;
+  onDelta?: (delta: string) => void;
+}
+
+export type AssistantFailureKind = "access" | "blocked" | "unavailable" | "generic";
+
+export interface AssistantFailure {
+  code: string | null;
+  kind: AssistantFailureKind;
+  message: string;
+  retryable: boolean;
+  status?: number;
+}
+
+const ASSISTANT_ERROR_COPY: Readonly<Record<string, string>> = {
+  AI_CONVERSATION_NOT_FOUND: "Cuộc trò chuyện này không còn tồn tại. Hãy chọn cuộc trò chuyện khác.",
+  CHAT_MESSAGE_IN_PROGRESS: "Trợ lý đang xử lý một tin nhắn khác trong cuộc trò chuyện này.",
+  CHAT_IDEMPOTENCY_CONFLICT: "Yêu cầu gửi lại không còn khớp với tin nhắn ban đầu. Hãy thử lại từ lịch sử.",
+  CHAT_INPUT_INVALID: "Tin nhắn phải có từ 2 đến 10.000 ký tự.",
+  AI_UNAVAILABLE: "Trợ lý tạm thời chưa thể phản hồi. Bạn có thể gửi lại câu hỏi.",
+  AI_RESPONSE_INVALID: "Phản hồi của trợ lý chưa đạt yêu cầu an toàn. Hãy thử lại sau.",
+  CHAT_CONTENT_BLOCKED: "Hãy bỏ thông tin nhận dạng cá nhân và thử diễn đạt lại câu hỏi.",
+  CHAT_RETENTION_EXPIRED: "Cuộc trò chuyện đã hết thời hạn lưu trữ và không còn truy cập được.",
+  REQUEST_TIMEOUT: "Phản hồi mất quá nhiều thời gian. Kết quả có thể đã được lưu; hãy kiểm tra lịch sử trước khi thử lại.",
+};
+
+export function assistantFailureFromError(error: unknown): AssistantFailure {
+  if (!(error instanceof ApiError)) {
+    return {
+      code: null,
+      kind: "unavailable",
+      message: "Kết nối tới trợ lý đang bị gián đoạn. Vui lòng thử lại sau ít phút.",
+      retryable: true,
+    };
+  }
+
+  const code = error.code;
+  const status = error.status;
+  const knownMessage = code ? ASSISTANT_ERROR_COPY[code] : undefined;
+  if (status === 401 || status === 403) {
+    return {
+      code,
+      kind: "access",
+      message: status === 401
+        ? "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại."
+        : "Tài khoản hiện tại không có quyền dùng trợ lý sức khỏe.",
+      retryable: false,
+      status,
+    };
+  }
+  if (code === "CHAT_CONTENT_BLOCKED" || code === "CHAT_INPUT_INVALID") {
+    return { code, kind: "blocked", message: knownMessage ?? "Yêu cầu chưa thể hoàn tất.", retryable: false, status };
+  }
+  const retryable = status === 0
+    || status >= 500
+    || status === 429
+    || code === "CHAT_MESSAGE_IN_PROGRESS"
+    || code === "REQUEST_TIMEOUT"
+    || code === "AI_UNAVAILABLE"
+    || code === "AI_RESPONSE_INVALID";
+  return {
+    code,
+    kind: retryable ? "unavailable" : "generic",
+    message: knownMessage ?? (status === 429
+      ? "Bạn đang gửi yêu cầu quá nhanh. Vui lòng chờ một lát rồi thử lại."
+      : retryable
+        ? "Kết nối tới trợ lý đang bị gián đoạn. Vui lòng thử lại sau ít phút."
+        : "Yêu cầu chưa thể hoàn tất. Vui lòng kiểm tra và thử lại."),
+    retryable,
+    status,
+  };
+}
+
+export function assistantErrorMessage(code: string): string {
+  return ASSISTANT_ERROR_COPY[code] ?? "Yêu cầu chưa thể hoàn tất. Vui lòng kiểm tra và thử lại.";
+}
+
 interface AssistantContextValue {
   mode: ChatMode;
   /** Mode changes are rejected once a conversation has been created. */
@@ -77,6 +171,19 @@ interface AssistantContextValue {
   requestEpoch: number;
   invalidateRequests: () => void;
   beginRequest: () => { signal: AbortSignal; epoch: number };
+  refreshPolicy: (signal?: AbortSignal) => Promise<AiChatPolicy>;
+  acceptConversationConsent: (
+    conversationId: string,
+    policyVersion: string,
+    signal?: AbortSignal,
+  ) => Promise<AiConversation>;
+  sendMessage: (
+    conversationId: string,
+    content: string,
+    options?: AssistantSendOptions,
+  ) => Promise<AiChatExchange>;
+  resetSendAttempt: (conversationId: string, attemptId?: string) => void;
+  assistantFailureFromError: (error: unknown) => AssistantFailure;
 }
 
 const AssistantContext = createContext<AssistantContextValue | null>(null);
@@ -104,10 +211,13 @@ export function AssistantProvider({
   const [localConversation, setLocalConversation] = useState<AiConversation | null>(controlledConversation ?? null);
   const [localPolicy, setLocalPolicy] = useState<AiChatPolicy | null>(controlledPolicy ?? null);
   const [requestEpoch, setRequestEpoch] = useState(0);
+  const requestEpochRef = useRef(0);
+  const policyEpochRef = useRef(0);
   const controllerRef = useRef<AbortController | null>(null);
   const conversation = controlledConversation === undefined ? localConversation : controlledConversation;
   const policy = controlledPolicy === undefined ? localPolicy : controlledPolicy;
   const [localMode, setLocalMode] = useState<ChatMode>(initialMode);
+  const sendAttemptsRef = useRef(new Map<string, { content: string; idempotencyKey: string }>());
   const mode = conversation?.mode && isAssistantMode(conversation.mode) ? conversation.mode : localMode;
   const modeLocked = Boolean(conversation?.id);
 
@@ -130,17 +240,70 @@ export function AssistantProvider({
   const invalidateRequests = useCallback((): void => {
     controllerRef.current?.abort();
     controllerRef.current = null;
-    setRequestEpoch((current) => current + 1);
+    requestEpochRef.current += 1;
+    setRequestEpoch(requestEpochRef.current);
   }, []);
 
   const beginRequest = useCallback((): { signal: AbortSignal; epoch: number } => {
     controllerRef.current?.abort();
     const controller = new AbortController();
     controllerRef.current = controller;
-    const epoch = requestEpoch + 1;
+    const epoch = requestEpochRef.current + 1;
+    requestEpochRef.current = epoch;
     setRequestEpoch(epoch);
     return { signal: controller.signal, epoch };
-  }, [requestEpoch]);
+  }, []);
+
+  const refreshPolicy = useCallback(async (signal?: AbortSignal): Promise<AiChatPolicy> => {
+    const policyEpoch = policyEpochRef.current + 1;
+    policyEpochRef.current = policyEpoch;
+    const nextPolicy = await fetchAiChatPolicy({ signal });
+    if (policyEpochRef.current === policyEpoch && !signal?.aborted) setLocalPolicy(nextPolicy);
+    return nextPolicy;
+  }, []);
+
+  const acceptConversationConsent = useCallback(async (
+    conversationId: string,
+    policyVersion: string,
+    signal?: AbortSignal,
+  ): Promise<AiConversation> => {
+    return updateAiConversationConsent(conversationId, policyVersion, { signal });
+  }, []);
+
+  const sendMessage = useCallback(async (
+    conversationId: string,
+    content: string,
+    options: AssistantSendOptions = {},
+  ): Promise<AiChatExchange> => {
+    const normalizedContent = content.trim();
+    const attemptId = options.attemptId ?? "composer";
+    const attemptKey = `${conversationId}|${attemptId}`;
+    const retained = sendAttemptsRef.current.get(attemptKey);
+    const idempotencyKey = retained?.content === normalizedContent
+      ? retained.idempotencyKey
+      : `chat-${crypto.randomUUID()}`;
+    sendAttemptsRef.current.set(attemptKey, { content: normalizedContent, idempotencyKey });
+
+    try {
+      const exchange = await sendAiConversationMessageStream(
+        conversationId,
+        normalizedContent,
+        idempotencyKey,
+        { signal: options.signal, onDelta: options.onDelta },
+      );
+      sendAttemptsRef.current.delete(attemptKey);
+      return exchange;
+    } catch (error) {
+      if (error instanceof ApiError && TERMINAL_IDEMPOTENCY_CODES.has(error.code ?? "")) {
+        sendAttemptsRef.current.delete(attemptKey);
+      }
+      throw error;
+    }
+  }, []);
+
+  const resetSendAttempt = useCallback((conversationId: string, attemptId = "composer"): void => {
+    sendAttemptsRef.current.delete(`${conversationId}|${attemptId}`);
+  }, []);
 
   useEffect(() => () => {
     controllerRef.current?.abort();
@@ -158,7 +321,13 @@ export function AssistantProvider({
     requestEpoch,
     invalidateRequests,
     beginRequest,
+    refreshPolicy,
+    acceptConversationConsent,
+    sendMessage,
+    resetSendAttempt,
+    assistantFailureFromError,
   }), [
+    acceptConversationConsent,
     beginRequest,
     conversation,
     invalidateRequests,
@@ -166,6 +335,9 @@ export function AssistantProvider({
     modeLocked,
     policy,
     requestEpoch,
+    refreshPolicy,
+    sendMessage,
+    resetSendAttempt,
     setConversation,
     setMode,
     setPolicy,

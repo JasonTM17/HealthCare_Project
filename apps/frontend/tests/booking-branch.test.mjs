@@ -239,6 +239,7 @@ test("booking form fields have stable accessible labels and progress state", asy
     assert.match(source, new RegExp(`id="${fieldId}"`));
   }
   assert.match(source, /const BOOKING_STEPS = \[[\s\S]*\{ id: 7, label: "Xác nhận" \}/);
-  assert.match(source, /aria-current=\{step === id \? "step" : undefined\}/);
+  assert.match(source, /const BOOKING_STAGES = \[[\s\S]*Xác nhận OTP/);
+  assert.match(source, /aria-current=\{current \? "step" : undefined\}/);
   assert.match(source, /aria-live="assertive"[\s\S]*role="alert"/);
 });

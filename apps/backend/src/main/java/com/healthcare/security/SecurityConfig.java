@@ -40,17 +40,20 @@ public class SecurityConfig {
     private final RequestRateLimitFilter requestRateLimitFilter;
     private final BrowserSessionAuthenticationFilter browserSessionAuthenticationFilter;
     private final BrowserCsrfFilter browserCsrfFilter;
+    private final com.healthcare.auth.security.BffRequiredFilter bffRequiredFilter;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter, ObjectMapper objectMapper, Environment environment,
             RequestRateLimitFilter requestRateLimitFilter,
             BrowserSessionAuthenticationFilter browserSessionAuthenticationFilter,
-            BrowserCsrfFilter browserCsrfFilter) {
+            BrowserCsrfFilter browserCsrfFilter,
+            com.healthcare.auth.security.BffRequiredFilter bffRequiredFilter) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.objectMapper = objectMapper;
         this.environment = environment;
         this.requestRateLimitFilter = requestRateLimitFilter;
         this.browserSessionAuthenticationFilter = browserSessionAuthenticationFilter;
         this.browserCsrfFilter = browserCsrfFilter;
+        this.bffRequiredFilter = bffRequiredFilter;
     }
 
     @Bean
@@ -110,6 +113,7 @@ public class SecurityConfig {
                  .requestMatchers(HttpMethod.GET, "/api/v1/appointments/*").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/appointments/*/cancel").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/appointments/*/reschedule").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/v1/public/specialty-recommendation").permitAll()
                 .requestMatchers("/api/v1/ai/**").authenticated()
                 .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").hasRole("ADMIN")
@@ -119,7 +123,8 @@ public class SecurityConfig {
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterAfter(browserSessionAuthenticationFilter, JwtAuthenticationFilter.class)
             .addFilterAfter(browserCsrfFilter, BrowserSessionAuthenticationFilter.class)
-            .addFilterBefore(requestRateLimitFilter, JwtAuthenticationFilter.class);
+            .addFilterBefore(requestRateLimitFilter, JwtAuthenticationFilter.class)
+            .addFilterBefore(bffRequiredFilter, RequestRateLimitFilter.class);
 
         return http.build();
     }
@@ -127,6 +132,14 @@ public class SecurityConfig {
     @Bean
     public FilterRegistrationBean<RequestRateLimitFilter> disableContainerRateLimitRegistration() {
         FilterRegistrationBean<RequestRateLimitFilter> registration = new FilterRegistrationBean<>(requestRateLimitFilter);
+        registration.setEnabled(false);
+        return registration;
+    }
+
+    @Bean
+    public FilterRegistrationBean<com.healthcare.auth.security.BffRequiredFilter> disableContainerBffRequiredRegistration() {
+        FilterRegistrationBean<com.healthcare.auth.security.BffRequiredFilter> registration =
+            new FilterRegistrationBean<>(bffRequiredFilter);
         registration.setEnabled(false);
         return registration;
     }

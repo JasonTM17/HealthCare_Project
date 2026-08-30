@@ -10,7 +10,9 @@ import com.healthcare.ai.chat.dto.ChatContracts.MessagePageResponse;
 import com.healthcare.ai.chat.dto.ChatContracts.SendMessageRequest;
 import com.healthcare.ai.chat.service.AiConversationService;
 import jakarta.validation.Valid;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -35,9 +37,11 @@ import java.util.UUID;
 public class AiConversationController {
 
     private final AiConversationService conversationService;
+    private final ObjectMapper objectMapper;
 
-    public AiConversationController(AiConversationService conversationService) {
+    public AiConversationController(AiConversationService conversationService, ObjectMapper objectMapper) {
         this.conversationService = conversationService;
+        this.objectMapper = objectMapper;
     }
 
     @PostMapping
@@ -78,6 +82,41 @@ public class AiConversationController {
         return ResponseEntity.ok(
             conversationService.send(principal, conversationId, idempotencyKey, request.content())
         );
+    }
+
+    @PostMapping(value = "/{conversationId}/messages/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public ResponseEntity<String> sendStream(
+            @AuthenticationPrincipal UserDetails principal,
+            @PathVariable UUID conversationId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @Valid @RequestBody SendMessageRequest request) throws Exception {
+        if (!conversationService.isChunkedDeliveryEnabled()) {
+            // Return an empty response directly. The route only produces SSE,
+            // so routing this state through the JSON exception handler causes
+            // content negotiation to replace the intended 404 with a 500.
+            return ResponseEntity.notFound().build();
+        }
+        ChatExchangeResponse exchange = conversationService.send(
+            principal, conversationId, idempotencyKey, request.content());
+        String answer = exchange.assistantMessage().content() == null ? "" : exchange.assistantMessage().content();
+        StringBuilder events = new StringBuilder();
+        for (String slice : com.healthcare.ai.chat.service.ChatAnswerChunker.slices(answer)) {
+            appendSseEvent(events, "delta", slice);
+        }
+        appendSseEvent(events, "done", objectMapper.writeValueAsString(exchange));
+        return ResponseEntity.ok()
+            .contentType(MediaType.TEXT_EVENT_STREAM)
+            .header("X-Accel-Buffering", "no")
+            .body(events.toString());
+    }
+
+    private void appendSseEvent(StringBuilder target, String eventName, String data) {
+        target.append("event: ").append(eventName).append('\n');
+        String normalized = data == null ? "" : data.replace("\r\n", "\n").replace('\r', '\n');
+        for (String line : normalized.split("\\n", -1)) {
+            target.append("data: ").append(line).append('\n');
+        }
+        target.append('\n');
     }
 
     @PutMapping("/{conversationId}/consent")

@@ -20,8 +20,11 @@
 - PostgreSQL for transactional data and Flyway migrations.
 - Redis for cache/session-ready infrastructure.
 - MinIO-compatible object storage for file upload/download flows.
-- The backend AI gateway calls the internal AI service at `/triage` and
-  `/recommendations/specialty`; Compose wires this as `AI_SERVICE_URL`.
+- The backend AI gateway calls the internal AI service at `/triage`,
+  `/recommendations/specialty`, and two-step `/chat/retrieve` + `/chat/generate`.
+  Guest specialty triage is a separate public Spring endpoint that resolves only
+  the SQL catalog and does not open `/api/v1/ai/**`. Compose wires AI as
+  `AI_SERVICE_URL`.
 
 ## Verified Boundaries
 

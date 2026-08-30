@@ -4,9 +4,8 @@ The checked-in [`render.yaml`](../render.yaml) describes the intended Render
 topology for the Spring API, private FastAPI service, private ClamAV scanner,
 Redis and a disposable PostgreSQL database. The Render application services
 are image-backed and pin GHCR content digests (with `sha-<commit>` audit tags)
-instead of asking
-Render to rebuild from source. The Next.js app belongs in a separate Vercel
-project with `apps/frontend` as its root directory.
+instead of asking Render to rebuild from source. The Next.js app belongs in a
+separate Vercel project with `apps/frontend` as its root directory.
 
 This is a deployment recipe, not proof that a hosted environment exists. No
 provider credentials, domain, secret-manager access or production traffic are
@@ -37,10 +36,11 @@ standalone seeded database remains
 separate verified workflow.
 
 Render Blueprints do not interpolate variables inside `image.url`, so refresh
-the checked-in image URLs only after the matching manual GHCR workflow has
-finished. Treat that pinned image source SHA as the application identity for
-the hosted beta; the manifest commit that records the pins can be newer than
-the application image source.
+the checked-in digest URLs only after the matching manual GHCR workflow has
+finished and its registry digest/config label has been independently recorded.
+The current digest pins resolve the verified `sha-0fff2aeb1a8f75a39aec64fe3141517c9f38913e`
+artifacts; the manifest commit that records those pins can be newer than the
+application image source. Do not substitute a tag or `latest` for a digest.
 
 ## Required Vercel settings
 
@@ -69,6 +69,13 @@ rotation because there is no plaintext compatibility fallback. Set
 to non-browser API clients without an `Origin`, but the BFF rejects them and
 Spring emits no CORS grant for them.
 
+The chunked patient-chat route is opt-in and uses the persisted-answer SSE
+contract. Its BFF deadline is 30 seconds and the browser deadline is 35
+seconds; a timeout is surfaced as a retryable, potentially-ambiguous result so
+operators must check the server history before replaying the same idempotency
+key. Keep `AI_CHAT_CHUNKED_ENABLED=false` until the live canary proves this
+route through the exact Vercel-to-Render path.
+
 ## Render order
 
 1. In the already-authorized Render workspace, create the disposable beta
@@ -77,11 +84,18 @@ Spring emits no CORS grant for them.
    pins PostgreSQL 16 and the Singapore region so the runtime matches the
    backend/Testcontainers target. Redis is wired through Render's private
    `connectionString` as `REDIS_URL`; the Key Value public allow-list is empty.
+   Set `APP_SECURITY_RATE_LIMIT_REDIS_REQUIRED=true` on the backend. The
+   request limiter then uses the shared Redis counter across Render replicas
+   and returns a safe 503 during a Redis outage instead of silently falling
+   back to a per-process limit.
    Render's
    `connectionString` is a `postgres://`/`postgresql://` URL; the Spring
    startup environment post-processor converts it to `jdbc:postgresql://` and
    keeps the username/password references separate.
-2. Apply Flyway V36–V51 and load only the reviewed synthetic fixture manifest.
+2. Apply the complete Spring Flyway history (currently V1–V52, including
+   V10.4/V10.5) and load only the reviewed synthetic fixture manifest. Never
+   stop at V51: V52 adds the append-only clinical access-audit contract used
+   by the current backend.
    V40 keeps consultation audit events after the 90-day transcript purge;
    V42 adds the opaque browser-session authority; V43 adds the server-owned
    attachment upload/scan lease lifecycle; V44 adds the encrypted email outbox;
@@ -94,11 +108,14 @@ Spring emits no CORS grant for them.
    legacy consultation attachments exist because V43–V50 cannot reconstruct
    historical upload keys; inventory or purge that synthetic data in a
    maintenance window before rerunning Flyway. These migrations are
-   additive and must be applied before retention, email, or attachment workers
-   are enabled.
+   additive and must be applied before retention, email, attachment workers,
+   or clinical access-audit reporting are enabled.
 3. Configure the private AI service with `AI_PROVIDER=local`, remote flags
-   disabled and `SUPABASE_RAG_FALLBACK_TO_MEMORY=false`. The image URL in the
-   blueprint must match the GHCR digest recorded for the approved source SHA.
+   disabled, `RAG_INGEST_ENABLED=false` and
+   `SUPABASE_RAG_FALLBACK_TO_MEMORY=false`. The image URL in the blueprint must
+   match the GHCR digest recorded for the approved source SHA. Spring's
+   separate projection worker remains closed with `AI_RAG_INGEST_ENABLED=false`
+   until its token and backup/rollback drill are approved.
 4. Configure Spring's CORS origin and service tokens, then wait for
    `/actuator/health` to pass. Render's private AI service uses its TCP port
    check; from a service on the same private network, run the authenticated
@@ -157,15 +174,15 @@ Spring emits no CORS grant for them.
 
 1. Keep both remote switches `false`, set clinical mode switches to `false`,
    and drain traffic.
-2. Keep V36–V51 audit/schema tables; do not run an old binary that can ignore
+2. Keep V36–V52 audit/schema tables; do not run an old binary that can ignore
    consent, synthetic guards, clinical approval metadata, attachment scan
    leases, object-cleanup queue, or email-outbox payload/retention contracts.
 3. Reconcile the Supabase projection and verify revoked/unpublished/expired
    clinical sources and their CTAs disappear from provider context.
 4. Disable consultation retention, attachment scan, object-cleanup, and
-   email-outbox workers if the V40/V43/V44/V47/V50/V51 audit, lease, or queue
+   email-outbox workers if the V40/V43/V44/V47/V50/V51/V52 audit, lease, or queue
    migrations have not been applied; never run a V39/V42-only binary against a
-   V51 database.
+   V52 database.
 5. Restore the disposable database only after a tested backup/restore drill.
 
 Hosting credentials, provider/legal evidence, AV/MIME scanning, backup/restore,

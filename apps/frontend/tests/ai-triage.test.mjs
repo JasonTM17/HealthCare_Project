@@ -19,6 +19,8 @@ test("AI triage fails closed for emergency and unresolved specialty results", as
   assert.match(shell, /detail: \{ mode: "SYMPTOM_TRIAGE" \}/);
   assert.match(assistant, /PUBLIC_ASSISTANT_OPEN_EVENT/);
   assert.match(assistant, /handleModeChangeRef/);
-  assert.doesNotMatch(shell, /AiTriageModal/);
-  assert.doesNotMatch(home, /AiTriageModal|isAiTriageOpen|handleAiSpecialtySelect/);
+  assert.match(shell, /AiTriageModal/);
+  assert.match(home, /AiTriageModal/);
+  assert.match(home, /isAiTriageOpen/);
+  assert.match(home, /handleAiSpecialtySelect/);
 });

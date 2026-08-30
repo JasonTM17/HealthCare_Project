@@ -33,6 +33,10 @@ app:
       encryption-key: ${APP_MAIL_OUTBOX_ENCRYPTION_KEY:}
       poll-ms: ${APP_MAIL_OUTBOX_POLL_MS:5000}
 
+app.public:
+  specialty-triage:
+    enabled: true
+
 ai:
   service:
     runtime: ${AI_SERVICE_RUNTIME:local}

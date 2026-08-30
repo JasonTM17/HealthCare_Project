@@ -14,8 +14,10 @@ Restart Windows, open Docker Desktop, and wait until the engine reports ready.
 ## Start the complete stack
 
 From the repository root, copy `.env.example` to `.env` and replace the local
-placeholder values for `JWT_SECRET`, `AI_SERVICE_TOKEN`, and the separate
-`RAG_INGEST_TOKEN`. Then run:
+placeholder values for `JWT_SECRET`, `AI_SERVICE_TOKEN`, and the required
+service secrets. Ordinary Compose keeps protected RAG ingestion disabled by
+default; use the helper below when the disposable catalog-sync flow is needed.
+Then run:
 
 ```powershell
 docker compose -f infrastructure/docker-compose.yml config --quiet
@@ -153,6 +155,18 @@ user ID or authoritative history. Spring stores conversations for 90 days by
 default and supports user-initiated deletion; Supabase stores only public
 catalog/RAG documents. Remote patient-chat providers remain disabled by default
 with `AI_PATIENT_CHAT_REMOTE_ENABLED=false`.
+
+When `AI_CHAT_CHUNKED_ENABLED=true`, the patient composer may use
+`POST /api/v1/ai/conversations/{conversationId}/messages/stream`. Spring first
+generates, safety-sanitizes, persists and revalidates the complete answer, then
+emits the accepted text as `delta` events followed by a `done` event containing
+the persisted exchange. The frontend verifies that the concatenated deltas
+match the stored answer; a `404` response means the flag is off and triggers the
+normal JSON message endpoint. This is persisted-answer chunking, not raw
+token-level provider streaming. The browser renders only these sanitized
+deltas, keeps the idempotency key for an ambiguous attempt, and reports a
+retryable `REQUEST_TIMEOUT` if the stream body exceeds its 35-second deadline;
+the BFF allows 30 seconds for this route (15 seconds for ordinary requests).
 
 For local RAG durability, start/reset the isolated Supabase stack from the repo
 root, then run its read-only SQL contract:

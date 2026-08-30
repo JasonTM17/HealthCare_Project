@@ -247,6 +247,8 @@ jobs:
             "REMOTE_AI_KILL_SWITCH=true"
             "REMOTE_AI_SYNTHETIC_ONLY=true"
             "SUPABASE_RAG_FALLBACK_TO_MEMORY=false"
+            ("BACKEND_BFF_SERVICE_TOKEN=" + ("v" * 40))
+            "BACKEND_BFF_REQUIRED=true"
           ) | Set-Content -LiteralPath $fixture -Encoding utf8NoBOM
           & pwsh -NoProfile -File scripts/validate-production-env.ps1 -EnvFile $fixture
 

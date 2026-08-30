@@ -4,7 +4,6 @@ import { businessDate } from "../../lib/business-time";
 import type { CmsContent, CmsContentHistoryEntry } from "../../lib/cms-client";
 import type {
   AppointmentDetails,
-  AuthSession,
   Branch,
   Doctor,
   Specialty,
@@ -33,6 +32,12 @@ type BookableDemoSlot = {
 const API_BASE_URL = process.env.PLAYWRIGHT_API_BASE_URL ?? "http://127.0.0.1:8080/api/v1";
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000";
 const MAILPIT_API_URL = process.env.PLAYWRIGHT_MAILPIT_API_URL ?? "http://127.0.0.1:8025";
+// The disposable Compose profile keeps the Spring API behind the same
+// server-to-server credential used by the Next.js BFF. Direct live-test API
+// calls may present that credential through the process environment without
+// ever storing it in the repository or browser.
+const BFF_SERVICE_TOKEN = process.env.PLAYWRIGHT_BFF_SERVICE_TOKEN?.trim() ?? "";
+const API_REQUESTS_BYPASS_BFF = new URL(API_BASE_URL).origin !== new URL(BASE_URL).origin;
 const API_TIMEOUT_MS = 12_000;
 const DEMO_PASSWORD = "LocalDemo!2026";
 const DEMO_PATIENT = {
@@ -50,6 +55,14 @@ function apiUrl(path: string): string {
 
 function appUrl(path: string): string {
   return new URL(path, BASE_URL).toString();
+}
+
+function applyBffCredential(headers: Headers): void {
+  // The same-origin Route Handler owns this reserved header. Only attach it
+  // when a diagnostic run intentionally targets Spring directly.
+  if (API_REQUESTS_BYPASS_BFF && BFF_SERVICE_TOKEN) {
+    headers.set("X-Healthcare-Bff-Token", BFF_SERVICE_TOKEN);
+  }
 }
 
 type MailpitMessage = {
@@ -91,6 +104,11 @@ type CarePlan = {
   id: string;
   appointmentId: string;
   items: Array<{ id: string; status: string }>;
+};
+
+type BrowserSession = {
+  cookieHeader: string;
+  csrfToken: string;
 };
 
 async function waitForBookingOtp(bookingCode: string, recipient: string, issuedAfter: number): Promise<string> {
@@ -135,7 +153,7 @@ async function waitForBookingOtp(bookingCode: string, recipient: string, issuedA
 async function apiJson<T>(
   path: string,
   init: RequestInit = {},
-  session?: AuthSession,
+  session?: BrowserSession,
 ): Promise<T> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
@@ -145,9 +163,14 @@ async function apiJson<T>(
   if (init.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
-  if (session) {
-    headers.set("Authorization", `${session.tokenType} ${session.accessToken}`);
+  const method = (init.method ?? "GET").toUpperCase();
+  if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
+    headers.set("Origin", new URL(API_BASE_URL).origin);
   }
+  if (session) {
+    headers.set("Cookie", session.cookieHeader);
+  }
+  applyBffCredential(headers);
 
   let response: Response | null = null;
   try {
@@ -179,11 +202,72 @@ async function apiJson<T>(
   return (text ? JSON.parse(text) : undefined) as T;
 }
 
-async function loginApi(email: string): Promise<AuthSession> {
-  return apiJson<AuthSession>("/auth/login", {
-    method: "POST",
-    body: JSON.stringify({ email, password: DEMO_PASSWORD }),
+async function apiSse(
+  path: string,
+  init: RequestInit,
+  session: BrowserSession,
+): Promise<{ deltas: string[]; done: Record<string, unknown> }> {
+  const headers = new Headers(init.headers);
+  headers.set("Accept", "text/event-stream");
+  headers.set("Content-Type", "application/json");
+  headers.set("Origin", new URL(API_BASE_URL).origin);
+  headers.set("Cookie", session.cookieHeader);
+  applyBffCredential(headers);
+  const response = await fetch(apiUrl(path), { ...init, headers });
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`Live SSE ${path} returned ${response.status}: ${text.slice(0, 400)}`);
+  }
+
+  const deltas: string[] = [];
+  let done: Record<string, unknown> | null = null;
+  for (const block of text.split(/\r?\n\r?\n/u)) {
+    if (!block.trim()) continue;
+    let eventName = "message";
+    const data: string[] = [];
+    for (const line of block.split(/\r?\n/u)) {
+      if (line.startsWith("event:")) eventName = line.slice(6).trim();
+      else if (line.startsWith("data:")) data.push(line.slice(5).replace(/^\s/u, ""));
+    }
+    const body = data.join("\n");
+    if (eventName === "delta") deltas.push(body);
+    if (eventName === "done" && body) done = JSON.parse(body) as Record<string, unknown>;
+  }
+  if (!done) throw new Error(`Live SSE ${path} did not return a done event.`);
+  return { deltas, done };
+}
+
+async function loginApi(email: string): Promise<BrowserSession> {
+  const headers = new Headers({
+    Accept: "application/json",
+    "Content-Type": "application/json",
+    Origin: new URL(API_BASE_URL).origin,
   });
+  applyBffCredential(headers);
+  const response = await fetch(apiUrl("/auth/browser-sessions"), {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ grantType: "PASSWORD", email, password: DEMO_PASSWORD }),
+  });
+  const responseText = await response.text();
+  if (!response.ok) {
+    throw new Error(`Live API /auth/browser-sessions returned ${response.status}: ${responseText.slice(0, 400)}`);
+  }
+
+  const headerValues = typeof (response.headers as Headers & { getSetCookie?: () => string[] }).getSetCookie === "function"
+    ? (response.headers as Headers & { getSetCookie: () => string[] }).getSetCookie()
+    : (response.headers.get("set-cookie") ?? "").split(/,(?=\s*__Host-)/u).filter(Boolean);
+  const cookiePairs = headerValues
+    .map((value) => value.split(";", 1)[0]?.trim())
+    .filter((value): value is string => Boolean(value && value.includes("=")));
+  const cookieHeader = cookiePairs.join("; ");
+  const csrfToken = cookiePairs
+    .find((value) => value.startsWith("__Host-healthcare_csrf="))
+    ?.slice("__Host-healthcare_csrf=".length);
+  if (!cookieHeader || !csrfToken) {
+    throw new Error("Live API browser-session login did not return both security cookies.");
+  }
+  return { cookieHeader, csrfToken };
 }
 
 function monitorPageForBrowserIssues(page: Page, browserIssues: string[]): void {
@@ -657,6 +741,20 @@ async function exercisePrivateChannels(appointment: AppointmentDetails): Promise
       body: JSON.stringify({ content: "Bệnh viện có những dịch vụ nào?" }),
     }, patientSession);
     expect(exchange.assistantMessage.status).toBe("COMPLETED");
+    const streamed = await apiSse(
+      `/ai/conversations/${conversationId}/messages/stream`,
+      {
+        method: "POST",
+        headers: { "Idempotency-Key": `compose-stream-${appointment.id}` },
+        body: JSON.stringify({ content: "Hãy tóm tắt cách đặt lịch khám." }),
+      },
+      patientSession,
+    );
+    const streamedExchange = streamed.done as {
+      assistantMessage?: { status?: string; content?: string | null };
+    };
+    expect(streamedExchange.assistantMessage?.status).toBe("COMPLETED");
+    expect(streamed.deltas.join("")).toBe(streamedExchange.assistantMessage?.content ?? "");
     const emergency = await apiJson<{
       assistantMessage: { safetyAction: string; suggestedActions: Array<{ href: string }> };
     }>(`/ai/conversations/${conversationId}/messages`, {

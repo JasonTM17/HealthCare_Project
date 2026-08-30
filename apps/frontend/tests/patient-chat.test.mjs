@@ -12,6 +12,7 @@ test("patient chat client exposes every locked REST conversation resource", asyn
   assert.match(apiClient, /fetchAiConversation\(conversationId/);
   assert.match(apiClient, /fetchAiConversationMessages[\s\S]*cursor/);
   assert.match(apiClient, /sendAiConversationMessage[\s\S]*"Idempotency-Key"/);
+  assert.match(apiClient, /sendAiConversationMessageStream[\s\S]*text\/event-stream/);
   assert.match(apiClient, /deleteAiConversation[\s\S]*method: "DELETE"/);
 });
 
@@ -32,7 +33,9 @@ test("patient chat is role gated and keeps server history authoritative", async 
   assert.match(page, /hasRole\(session\.user, "PATIENT"\)/);
   assert.match(page, /ForbiddenState/);
   assert.match(page, /Promise\.all\(\[\s*fetchAiConversation\(conversationId\),\s*fetchAiConversationMessages/);
-  assert.match(page, /await sendAiConversationMessage[\s\S]*await Promise\.all\(\[[\s\S]*loadThread/);
+  assert.match(page, /await sendMessage[\s\S]*await Promise\.all\(\[[\s\S]*loadThread/);
+  assert.match(page, /onDelta: \(delta\) => \{[\s\S]*isCurrentSendRequest\(\)[\s\S]*setStreamingReply/);
+  assert.match(page, /data-testid="chat-streaming-reply"/);
   assert.match(page, /fetchAiConversationMessages\(conversationId, cursor, MESSAGE_LIMIT\)/);
   assert.match(page, /mergeMessages\(page\.content, current\)/);
 });
@@ -42,10 +45,12 @@ test("patient chat includes bounded composer, recovery, citations, and destructi
 
   assert.match(page, /MAX_MESSAGE_LENGTH = 10_000/);
   assert.match(page, /maxLength=\{MAX_MESSAGE_LENGTH\}/);
-  assert.match(page, /crypto\.randomUUID\(\)/);
-  assert.match(page, /CHAT_MESSAGE_IN_PROGRESS/);
-  assert.match(page, /AI_UNAVAILABLE/);
-  assert.match(page, /CHAT_CONTENT_BLOCKED/);
+  const provider = await read("components/AssistantProvider.tsx");
+  assert.match(provider, /crypto\.randomUUID\(\)/);
+  assert.match(provider, /CHAT_MESSAGE_IN_PROGRESS/);
+  assert.match(provider, /AI_UNAVAILABLE/);
+  assert.match(provider, /CHAT_CONTENT_BLOCKED/);
+  assert.match(provider, /REQUEST_TIMEOUT/);
   assert.match(page, /onRetry=\{\(failedMessage\)[\s\S]*sourceMessageId: failedMessage\.id/);
   assert.match(page, /source_type: citation\.source_type/);
   assert.match(page, /source_id: citation\.source_id/);
@@ -53,19 +58,22 @@ test("patient chat includes bounded composer, recovery, citations, and destructi
   assert.match(page, /showModal\(\)/);
   assert.match(page, /deleteAiConversation\(target\.id\)/);
   assert.match(page, /const sendLocked = sending;/);
-  assert.match(page, /disabled=\{deleting\}/);
+  assert.match(page, /disabled=\{deleting \|\| sending\}/);
   assert.match(page, /selectedSummary\?\.inFlight \? "Thử gửi lại"/);
 });
 
 test("patient chat reuses one idempotency key for an ambiguous logical attempt", async () => {
   const page = await read("app/patient/chat/page.tsx");
 
-  assert.match(page, /retainedSendAttemptsRef = useRef\(new Map/);
-  assert.match(page, /retainedAttempt\?\.content === normalizedContent[\s\S]*retainedAttempt\.idempotencyKey[\s\S]*createIdempotencyKey\(\)/);
-  assert.match(page, /sendAiConversationMessage\(conversationId, normalizedContent, idempotencyKey\)/);
-  assert.match(page, /backendRequiresNewIdempotencyKey\(error\)[\s\S]*delete\(attemptMapKey\)/);
+  const provider = await read("components/AssistantProvider.tsx");
+
+  assert.match(provider, /sendAttemptsRef = useRef\(new Map/);
+  assert.match(provider, /retained\?\.content === normalizedContent[\s\S]*retained\.idempotencyKey[\s\S]*crypto\.randomUUID\(\)/);
+  assert.match(provider, /sendAiConversationMessageStream\([\s\S]*idempotencyKey/);
+  assert.match(provider, /TERMINAL_IDEMPOTENCY_CODES[\s\S]*sendAttemptsRef\.current\.delete/);
+  assert.match(page, /sendMessage\(conversationId, normalizedContent[\s\S]*attemptId:/);
   assert.match(page, /failed-message:\$\{options\.sourceMessageId\}/);
-  assert.doesNotMatch(page, /sendAiConversationMessage\([^\n]+createIdempotencyKey\(\)/);
+  assert.doesNotMatch(page, /sendAiConversationMessageStream/);
 });
 
 test("patient chat keeps medical and emergency limits visible and accessible", async () => {
@@ -92,6 +100,20 @@ test("patient chat keeps consent fail-closed when policy is missing or changes",
 
   assert.match(page, /const currentConsentRequired = Boolean\(/);
   assert.match(page, /!chatPolicy/);
-  assert.match(page, /const policy = await fetchAiChatPolicy\(\)/);
+  assert.match(page, /const policy = await refreshPolicy\(controller\.signal\)/);
+  assert.match(page, /const isCurrentConsentRequest = \(\): boolean/);
+  assert.match(page, /if \(!isCurrentConsentRequest\(\)\) return/);
+  assert.match(page, /const interactionLocked = sendLocked \|\| creating \|\| deleting \|\| consentBusy/);
   assert.match(page, /disabled=\{!selectedConversationId \|\| sendLocked \|\| currentConsentRequired\}/);
+});
+
+test("patient chat drops late stream updates after a conversation switch", async () => {
+  const page = await read("app/patient/chat/page.tsx");
+
+  assert.match(page, /sendRequestRef = useRef\(0\)/);
+  assert.match(page, /const isCurrentSendRequest = \(\): boolean/);
+  assert.match(page, /if \(isCurrentSendRequest\(\)\) setStreamingReply/);
+  assert.match(page, /if \(isAbortError\(error\) \|\| !isCurrentSendRequest\(\)\) return/);
+  assert.match(page, /if \(isCurrentSendRequest\(\)\) \{[\s\S]*sendInFlightRef\.current = false/);
+  assert.match(page, /if \(!options\.background\) \{[\s\S]*invalidateSendRequest\(\)[\s\S]*invalidateConsentRequest\(\)/);
 });

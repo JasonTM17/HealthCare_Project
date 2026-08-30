@@ -53,7 +53,8 @@ def test_local_verifier_reads_current_mailpit_message_detail() -> None:
     assert '"attachment-scanner"' in script
     assert 'MIME mismatch upload was not rejected' in script
     assert 'AV infected upload was not rejected' in script
-    assert 'TryAddWithoutValidation("Authorization", "Bearer $Token")' in script
+    assert 'TryAddWithoutValidation("Origin", $apiUri.GetLeftPart([System.UriPartial]::Authority))' in script
+    assert 'TryAddWithoutValidation("Cookie", [string]$WebSession.CookieHeader)' in script
     assert 'Wait-ForBookingOtp $hold.bookingCode "patient@healthcare.local" $holdStartedAt' in script
 
 
@@ -93,6 +94,8 @@ def test_example_env_keeps_remote_ai_kill_switch_on_by_default() -> None:
 
 def test_production_env_requires_fail_closed_attachment_scanning() -> None:
     script = (ROOT / "scripts" / "validate-production-env.ps1").read_text(encoding="utf-8")
+    assert 'Require-Secret "BACKEND_BFF_SERVICE_TOKEN" 32' in script
+    assert 'Require-Boolean "BACKEND_BFF_REQUIRED" $true' in script
     assert 'Require-Boolean "STORAGE_AV_REQUIRED" $true' in script
     assert 'Require-TrustedScannerEndpoint' in script
     assert 'Require-Value "STORAGE_AV_ALLOWED_HOSTS"' in script
@@ -100,3 +103,9 @@ def test_production_env_requires_fail_closed_attachment_scanning() -> None:
     assert 'Require-Boolean "STORAGE_MIME_VALIDATION_REQUIRED" $true' in script
     assert '"http://$endpointText/scan"' in script
     assert 'STORAGE_AV_SERVICE_URL hostport must not contain credentials' in script
+
+
+def test_ci_production_validation_fixture_supplies_bff_requirements() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    assert '("BACKEND_BFF_SERVICE_TOKEN=" + ("v" * 40))' in workflow
+    assert '"BACKEND_BFF_REQUIRED=true"' in workflow

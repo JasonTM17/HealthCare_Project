@@ -176,6 +176,11 @@ public abstract class AbstractIntegrationTest {
                            email_outbox,
                            notification_preferences
             """);
+        // Keep this cleanup lock compatible with the REQUIRES_NEW audit writer
+        // exercised by @Transactional integration tests. PostgreSQL TRUNCATE
+        // holds AccessExclusiveLock until the test transaction ends, which
+        // would otherwise deadlock the audit INSERT on its new connection.
+        jdbcTemplate.execute("DELETE FROM clinical_access_audit");
         // Consultation/Q&A/care-plan rows were added after the original test
         // baseline.  Truncate the complete child set together so append-only
         // audit and answer triggers cannot leak state between tests.  This is

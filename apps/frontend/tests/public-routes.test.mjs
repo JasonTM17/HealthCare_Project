@@ -471,8 +471,8 @@ test("AI and CMS live boundaries fail closed across reconnect and unresolved res
   assert.match(specialties, /PublicPageShell/);
   assert.match(branchDetail, /phoneHref/);
   assert.match(home, /safeTelephoneHref\(branch\.phone\)/);
-  assert.doesNotMatch(home, /setIsAiTriageOpen\(true\)/);
-  assert.doesNotMatch(home, /Trợ lý triệu chứng/);
+  assert.match(home, /setIsAiTriageOpen\(true\)/);
+  assert.match(home, /Gợi ý chuyên khoa/);
   assert.match(tracking, /useDialogFocus/);
   assert.match(tracking, /role="dialog"/);
   assert.match(tracking, /cancel-dialog-title/);

@@ -86,16 +86,23 @@ app:
       # Shared only between the Next.js server and Spring. Leave blank for
       # direct local API-client testing; hosted beta must inject a secret.
       service-token: ${BACKEND_BFF_SERVICE_TOKEN:}
+      # Packaged/beta runtimes must set BACKEND_BFF_REQUIRED=true. Tests and a
+      # bare local process keep the escape hatch off so MockMvc bearer clients work.
       required: ${BACKEND_BFF_REQUIRED:false}
       allowed-origins: ${BFF_ALLOWED_ORIGINS:http://localhost:3000}
     rate-limit:
       enabled: ${APP_SECURITY_RATE_LIMIT_ENABLED:true}
+      # Hosted replicas must share the counter through Redis and fail closed
+      # when that dependency is unavailable. Local bare-process runs may keep
+      # the bounded in-memory fallback by leaving this false.
+      redis-required: ${APP_SECURITY_RATE_LIMIT_REDIS_REQUIRED:false}
       window-seconds: ${APP_SECURITY_RATE_LIMIT_WINDOW_SECONDS:60}
       auth-limit: ${APP_SECURITY_RATE_LIMIT_AUTH_LIMIT:20}
       appointment-limit: ${APP_SECURITY_RATE_LIMIT_APPOINTMENT_LIMIT:60}
       payment-limit: ${APP_SECURITY_RATE_LIMIT_PAYMENT_LIMIT:20}
       webhook-limit: ${APP_SECURITY_RATE_LIMIT_WEBHOOK_LIMIT:120}
       ai-limit: ${APP_SECURITY_RATE_LIMIT_AI_LIMIT:30}
+      public-triage-limit: ${APP_SECURITY_RATE_LIMIT_PUBLIC_TRIAGE_LIMIT:20}
     auth-otp:
       enabled: ${APP_AUTH_OTP_ENABLED:true}
       ttl-seconds: ${APP_AUTH_OTP_TTL_SECONDS:600}
@@ -131,7 +138,10 @@ storage:
   bucket: ${STORAGE_BUCKET:${minio.bucket:healthcare-files}}
   region: ${STORAGE_REGION:}
   require-private-endpoint: ${STORAGE_REQUIRE_PRIVATE_ENDPOINT:false}
-  upload-enabled: ${STORAGE_UPLOAD_ENABLED:true}
+  # Unpackaged default is off. Enabling upload without AV fails startup unless
+  # STORAGE_ALLOW_UNSCANNED_UPLOAD is an explicit disposable escape.
+  upload-enabled: ${STORAGE_UPLOAD_ENABLED:false}
+  allow-unscanned-upload: ${STORAGE_ALLOW_UNSCANNED_UPLOAD:false}
   max-file-size-bytes: ${STORAGE_MAX_FILE_SIZE_BYTES:10485760}
   consultation:
     # Consultation attachments stay off unless a private bucket, durable key
@@ -149,6 +159,10 @@ storage:
     service-token: ${STORAGE_AV_SERVICE_TOKEN:}
     allowed-hosts: ${STORAGE_AV_ALLOWED_HOSTS:}
     mime-validation-required: ${STORAGE_MIME_VALIDATION_REQUIRED:true}
+
+app.public:
+  specialty-triage:
+    enabled: ${APP_PUBLIC_SPECIALTY_TRIAGE_ENABLED:false}
 
 ai:
   chat:
@@ -168,6 +182,7 @@ ai:
     synthetic-beta-asserted: ${AI_CHAT_SYNTHETIC_BETA_ASSERTED:false}
     symptom-triage-enabled: ${AI_CHAT_SYMPTOM_TRIAGE_ENABLED:false}
     health-education-enabled: ${AI_CHAT_HEALTH_EDUCATION_ENABLED:false}
+    chunked-enabled: ${AI_CHAT_CHUNKED_ENABLED:false}
   service:
     url: ${AI_SERVICE_URL:http://localhost:8000}
     token: ${AI_SERVICE_TOKEN:}
