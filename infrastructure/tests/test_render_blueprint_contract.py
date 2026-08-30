@@ -5,9 +5,9 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 IMAGE_DIGESTS = {
-    "healthcare-beta-ai": "sha256:5fb34f66df688625d98edbeca897c1597b4e5bb8a70c9b5d0f0324797256f5dc",
-    "healthcare-beta-backend": "sha256:0877e3eaeac04189673910a458b4b87a3c1637dbb6311fceeb27ab1bdda578e1",
-    "healthcare-beta-av-scanner": "sha256:192bd03fe43f94b59b99ffba439834704de9006f777b17b60412294dde394224",
+    "healthcare-beta-ai": "sha256:ea18c14623bfd1d65d0ffdb1d5af0631d56a6703ff0bc8e775032bb42d9f19bc",
+    "healthcare-beta-backend": "sha256:0b0523ca2e2d9758a2a4d87dfbb826d9089b862e54cf652babf79d9c0e33bd84",
+    "healthcare-beta-av-scanner": "sha256:052efa75e8f78147e8549f9487ec297988f0f00d61554fca77fc35a445a5235e",
 }
 CLAMAV_IMAGE = (
     "clamav/clamav@sha256:"
