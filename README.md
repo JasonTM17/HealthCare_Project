@@ -51,7 +51,7 @@ plans             AgentKit implementation plans
 - Git
 - Java 21 for the backend target runtime
 - Maven 3.9+
-- Node.js 22+ and npm
+- Node.js 22-24 and npm 10-11 (the frontend package enforces this tested range)
 - Python 3.12+
 - Docker for local infrastructure
 
@@ -75,11 +75,9 @@ Frontend:
 
 ```bash
 cd apps/frontend
-npm install
-npm run lint
-npm run typecheck
-npm run test
-npm run build
+npm ci
+npm run verify
+npm run test:e2e
 npm run dev
 ```
 
