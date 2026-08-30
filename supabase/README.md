@@ -57,6 +57,14 @@ backup or production-cutover signal. Keep Supabase consumers disabled until a
 fresh apply decision, hosted contract, Render backend/AI and Vercel server-only
 BFF gates are all green.
 
+The read-only reapply gate is a point-in-time check, not a database lock. A
+future apply must run in a writer-quiesced maintenance window and immediately
+follow the gate; otherwise capture a new snapshot and review a new
+target-specific migration. The checked-in rollback SQL is a hardened
+reconstruction of the historical operation, while the provider ledger hash
+identifies the older executed text; it must not be presented as an exact replay
+of that earlier SQL.
+
 The reconciliation must preserve Spring PostgreSQL as the transactional
 identity/clinical authority. Supabase is only the `healthcare`-schema catalog
 and de-identified chatbot projection; it is not a drop-in replacement for the

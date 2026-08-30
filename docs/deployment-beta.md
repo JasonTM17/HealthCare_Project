@@ -11,6 +11,33 @@ This is a deployment recipe, not proof that a hosted environment exists. No
 provider credentials, domain, secret-manager access or production traffic are
 present in this repository.
 
+## Observed provider snapshot (2026-08-30)
+
+The following is the current evidence boundary, recorded separately from this
+recipe:
+
+- Vercel has a `READY` production deployment for the static Next.js shell. The
+  linked project currently has zero environment variables, so the server-only
+  BFF cannot reach Spring: `/api/v1/health`, catalog and triage probes return
+  `503 BFF_CONFIGURATION_UNAVAILABLE`. This is static-hosting evidence only;
+  it is not a functional chatbot or backend deployment.
+- Render has the disposable `healthcare-beta-postgres` and
+  `healthcare-beta-redis` resources, but no HealthCare application services.
+  The official Blueprint validation rejected the four private/image services
+  (AI, ClamAV, scanner and Spring) with `need_payment_info`; no card, paid
+  upgrade or substitute public service was created. Re-run validation only
+  after the workspace billing gate is deliberately resolved. See the official
+  [Render Blueprint validation API](https://api-docs.render.com/reference/validate-blueprint)
+  for the provider contract.
+- Supabase is the confirmed Free project. The guarded reconciliation was
+  applied once, then reverted as a separate recorded migration, and the DDL
+  helper was hardened. The current seven-row history is baseline-shaped and
+  the exact-state reapply gate passes, but no PITR/backup/branch entitlement is
+  available; projection/RAG consumers remain disabled.
+
+These observations do not authorize production traffic or override any gate
+below. They must be refreshed against the exact commit being shipped.
+
 ## Immutable GHCR packages
 
 The beta application images are published by the manually-triggered
@@ -80,16 +107,18 @@ route through the exact Vercel-to-Render path.
 
 ## Render order
 
-1. In the already-authorized Render workspace, create the disposable beta
-   managed PostgreSQL/Key Value (Redis-compatible) resources. Do not reuse a
-   production service or silently switch workspaces. The checked-in blueprint
-   pins PostgreSQL 16 and the Singapore region so the runtime matches the
-   backend/Testcontainers target. Redis is wired through Render's private
+1. In the already-authorized Render workspace, verify or create the disposable
+   beta managed PostgreSQL/Key Value (Redis-compatible) resources. Do not reuse
+   a production service or silently switch workspaces. The checked-in
+   blueprint pins PostgreSQL 16 and the Singapore region so the runtime matches
+   the backend/Testcontainers target. Redis is wired through Render's private
    `connectionString` as `REDIS_URL`; the Key Value public allow-list is empty.
    Set `APP_SECURITY_RATE_LIMIT_REDIS_REQUIRED=true` on the backend. The
    request limiter then uses the shared Redis counter across Render replicas
    and returns a safe 503 during a Redis outage instead of silently falling
-   back to a per-process limit.
+   back to a per-process limit. On the observed Hobby workspace the two data
+   resources exist, but the image-backed application services remain blocked by
+   the provider payment gate described above.
    Render's
    `connectionString` is a `postgres://`/`postgresql://` URL; the Spring
    startup environment post-processor converts it to `jdbc:postgresql://` and
@@ -121,8 +150,13 @@ route through the exact Vercel-to-Render path.
    so scheduled backup/PITR/branch evidence is unavailable; the documented
    exception is to run `supabase/reconciliation/free-plan-preapply.sql` (or
    its exact-history reapply gate), obtain explicit manual-rollback acceptance,
-   and retain `free-plan-rollback.sql` as a separate guarded migration. Never
-   combine the forward SQL and rollback in one `execute_sql` call. If the
+   and retain `free-plan-rollback.sql` only as historical evidence for the
+   already-observed five-row apply. For a new apply, freeze a new baseline and
+   run the gate first; with writers still stopped, apply the migration, capture
+   the provider's new audit row, then generate and verify a new compensating
+   artifact bound to that baseline and row before any consumer is enabled. The
+   checked-in historical rollback must fail closed after the new audit row.
+   Never combine the forward SQL and rollback in one `execute_sql` call. If the
    Free-plan recovery decision or any contract check is missing, stop here; do
    not enable `RAG_STORAGE_BACKEND=supabase` and do not deploy the AI/backend
    pair against the drifted projection.
@@ -134,6 +168,9 @@ route through the exact Vercel-to-Render path.
    manual-recovery risk, so the Supabase RAG consumer stays disabled until a
    decision owner authorizes a fresh isolated apply and the hosted service
    gates below are green.
+   The read-only gate is point-in-time only: freeze projection/catalog writers
+   for the maintenance window and invoke the reviewed migration immediately,
+   or capture a fresh baseline and produce a new target-specific artifact.
 3. Configure the private AI service with `AI_PROVIDER=local`, remote flags
    disabled, `RAG_INGEST_ENABLED=false` and
    `SUPABASE_RAG_FALLBACK_TO_MEMORY=false`. The image URL in the blueprint must
