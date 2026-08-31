@@ -8,7 +8,7 @@ is the same install mode used by CI and Vercel.
 The package contract is intentionally bounded: Node.js `>=22 <25`, npm
 `>=10 <12`, and lockfile version 3. The direct runtime/tooling pins are Next.js
 `16.3.3`, React `19.2.8`, `eslint-config-next` `16.3.3`, and TypeScript
-`6.0.3`; the Playwright range currently resolves to `1.62.1`. Keep
+`6.0.3`, and Playwright `1.62.1` (exactly pinned). Keep
 `package.json` and `package-lock.json` in sync;
 use `npm ci` for CI, Vercel, and release builds.
 
@@ -31,15 +31,23 @@ with the current Next.js/Tailwind setup is reviewed.
 Vercel must use `apps/frontend` as the project root. The checked-in
 `vercel.json` pins the install command to `npm ci` and the build command to
 `npm run build`; do not use `npm install` or a floating package version in a
-release build. The current immutable beta application source is
-`caedef092c2df9dff1e489b8696d7720817a4928`; later `main` commits may update
-release documentation without changing that published image provenance.
+release build. The currently published beta image baseline was built from
+application source `caedef092c2df9dff1e489b8696d7720817a4928`; this working
+tree's release/configuration changes require a new exact-head image publication
+before Render's image pin is advanced.
 
 The browser-facing API is the same-origin Next.js BFF. Keep
 `BACKEND_INTERNAL_URL`, `BFF_PUBLIC_ORIGIN`, and `BACKEND_BFF_SERVICE_TOKEN`
-server-only; never rename them to `NEXT_PUBLIC_*`. Until a reachable Render
-backend and the paired secret values exist, BFF routes intentionally fail
-closed with `503 BFF_CONFIGURATION_UNAVAILABLE`.
+server-only; never rename them to `NEXT_PUBLIC_*`. The production Vercel beta
+has these values paired with the Render Free backend, so catalog requests are
+served through the BFF (30 specialties, 475 active doctors, 20 branches;
+public services/packages/articles are filtered to 192/95/467 and public FAQs
+are 0 until an active doctor approval exists). If either provider secret is
+missing or mismatched,
+the BFF intentionally fails closed with `503 BFF_CONFIGURATION_UNAVAILABLE`.
+The separate `/api/v1/health` response may still be `503 degraded` while the
+optional AI subsystem is deliberately disabled on the Free beta; that status
+does not expose the backend secret or bypass the origin check.
 
 Before opening a release, run `npm audit --package-lock-only` and verify that
 the manifest fields in `package.json` match the root package entry in

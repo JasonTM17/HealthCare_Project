@@ -10,17 +10,26 @@ The repository currently has auth/RBAC, branch-aware booking and rescheduling, b
 
 This is an evidence record for the current synthetic beta, not a production
 readiness or healthcare-compliance claim. The integration target is `main`.
-The last audited documentation checkpoint is
-`439d9055676b23180da4b9c77bc520a79b810b89` (CI run `33312268255`). The
-package/application source and all published image digests remain bound to
-`caedef092c2df9dff1e489b8696d7720817a4928`; later documentation commits do not
-silently change that artifact. Before promotion, verify the actual checkout
-with `git rev-parse HEAD` and never replace these references with `latest`.
+The previous hosted checkpoint was inspected at
+`10b22040fd113c2addf679f0f10c36aabeaac1fa`; the current working tree adds the
+explicit Free-only Render manifest, hosted catalog seed/rollback capsules, and
+the mail-health guard. A release commit and its CI run must be refreshed after
+these changes are pushed; always bind a release to `git rev-parse HEAD` and an
+immutable image digest, not to `latest` or to a deployment label.
 
 - GitHub CI run [33310018202](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33310018202) passed all six jobs for the exact package source SHA.
 - The follow-up pin/manifest commit `5de6205442597582e76de5c7e6b27c7f94131caf` was independently validated by CI run [33310401105](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33310401105), which passed all six jobs; it does not change the application source or any published digest.
 - The preceding Render wording correction `3881a657c8fc25d7e3c52cac85f34cb9885ac589` was validated by CI run [33312067036](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33312067036), which passed all six jobs. The audited package/deployment documentation checkpoint `439d9055676b23180da4b9c77bc520a79b810b89` was validated by CI run [33312268255](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33312268255), which also passed all six jobs; later docs-only commits require the same exact-head check before promotion.
 - The [application image publish run 33310156810](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33310156810) passed all four image jobs, and the [database package run 33310158307](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33310158307) passed. Each package below uses the immutable `sha-caedef092c2df9dff1e489b8696d7720817a4928` audit tag and has a verified provenance attestation bound to that source SHA.
+
+The currently running hosted beta deliberately uses only Render Free resources;
+`render.yaml` is the canonical manifest and `render-free-beta.yaml` is a parity
+copy for review. AI/FastAPI, ClamAV and attachment scanning are not provisioned
+in this selected plan, and all related switches remain fail-closed. The backend
+image below is still the verified digest published from the application source
+SHA shown above; the new manifest, health configuration, and hosted catalog
+seed are release changes and need a new exact-head image publication before
+changing the Render image.
 
 | GHCR package | Immutable reference | Audit tag |
 | --- | --- | --- |
@@ -37,8 +46,8 @@ The only npm workspace is `apps/frontend`; `package.json` and
 is Node.js `>=22 <25` with npm `>=10 <12`, installed with `npm ci`.
 
 - Runtime pins: Next.js `16.3.3`, React `19.2.8`, and React DOM `19.2.8`.
-- Tooling pins: `eslint-config-next` `16.3.3` and TypeScript `6.0.3`; the
-  `@playwright/test` range currently resolves to `1.62.1` in the lockfile.
+- Tooling pins: `eslint-config-next` `16.3.3`, TypeScript `6.0.3`, and
+  `@playwright/test` `1.62.1` (exactly pinned in both manifests).
 - The local/CI gate is `npm run verify` (lint, typecheck, unit tests, and
   production build), followed by `npm run test:e2e` for the browser gate.
 
@@ -49,19 +58,37 @@ only major upgrade lines (ESLint 10, Tailwind CSS 4, and TypeScript 7), which
 remain deliberately deferred until a separate compatibility review.
 
 - Vercel's stable [beta alias](https://healthcare-two-olive.vercel.app) is
-  `READY`/production. The latest deployment recorded in this snapshot is
-  `dpl_35HGQrKwgTbbALNff8GAGSYvQc8E`, with authenticated
-  `gitCommitSha=22c283e8244f139d90b40b16039e6b843536f461`; that commit is a
-  documentation-only follow-up over the application source
-  `caedef092c2df9dff1e489b8696d7720817a4928` (previous application deployment
-  `dpl_F95VVwT1s9NHZNmPsLcrsHE87R75`). Twenty public route probes passed with
-  CSP, frame-deny and nosniff headers. Vercel auto-deploys `main`, so operators
-  must re-check the alias's exact deployment/source immediately before
-  promotion. The browser BFF probes intentionally return
-  `503 BFF_CONFIGURATION_UNAVAILABLE` until the server-only Render/Vercel
-  variables are configured.
-- Render has the free beta PostgreSQL and Redis-compatible resources. The validator accepts the Spring web service's `free` plan, but the three private/image services (AI, ClamAV and scanner) still fail the provider `need_payment_info` gate; creating only the web service would leave required private dependencies missing. No substitute service or paid upgrade was created.
-- Supabase project `awaknzhadjglbfkhigck` is on the Free plan with the reviewed migration history and synthetic counts. The exact reapply gate is read-only green; a fresh guarded write remains HOLD until the manual-rollback/no-PITR boundary is explicitly accepted.
+  `READY`/production at deployment
+  `dpl_DNJG5HhjgRuDYG9aaGJ8ij7gBzUq`. Production now has the three server-only
+  BFF variables (`BACKEND_INTERNAL_URL`, `BFF_PUBLIC_ORIGIN`, and
+  `BACKEND_BFF_SERVICE_TOKEN`); catalog probes through the BFF return `200`
+  with totals of 30 specialties, 475 active doctors, and 20 branches. The
+  health route returns an intentional `503 degraded` only because AI is
+  disabled on the Free beta. An evil `Origin` probe returns `403
+  BFF_ORIGIN_INVALID` without an allow-origin header. Re-check the alias's
+  exact deployment/source after every `main` push because Vercel auto-deploys.
+- Render has a live Free Singapore PostgreSQL (`dpg-da7r3uou01pc73boask0-a`),
+  Free Key Value (`red-daa3ub9f2nfc73956660`), and Free image-backed web service
+  (`srv-daa41a9f2nfc7395eg1g`). Deploy
+  `dep-daa4td4s728c73fd2190` is `live`; `/actuator/health`,
+  `/actuator/health/readiness`, and `/actuator/health/liveness` return `200`.
+  The short `/readiness` and `/liveness` paths remain protected (`401`). The hosted synthetic catalog contains 30
+  specialties, 20 branches, 500 doctors, 200 services, 100 packages, 500
+  articles, 150 raw FAQs, 1,251 doctor-specialty links, 751 doctor-branch
+  links, 7,130 schedules, and 5 CMS slots. Public filters expose 192 services,
+  95 packages, 467 articles and 0 FAQs because FAQ visibility requires a valid
+  active-doctor clinical approval; the seed does not fabricate approvals.
+  External PostgreSQL access is closed (`ipAllowList=[]`). The Free database
+  expires after its provider retention window and has no provider backup/PITR
+  guarantee; Key Value is ephemeral.
+- Supabase project `awaknzhadjglbfkhigck` is on the Free plan with eight audited
+  migration rows, 15 RLS-enabled `healthcare` tables, and the verified synthetic
+  projection (100,000 customers, 75,000 patient profiles, 10,000 public RAG
+  rows, and 830 patient-chat rows). The writer-locked reconciliation was
+  applied once and its contract/canaries passed; consumers and ingestion remain
+  disabled. The exact Render catalog rollback capsule is
+  [`infrastructure/database/seed-hosted-catalog-rollback.sql`](infrastructure/database/seed-hosted-catalog-rollback.sql)
+  and the Supabase compensating capsule remains unexecuted recovery evidence.
 
 For the exact settings, rollback gates, Docker recovery procedure, and the
 current PASS/HOLD/NOT_RUN matrix, see
@@ -130,12 +157,22 @@ python -m venv .venv
 Local infrastructure:
 
 ```bash
-docker compose -f infrastructure/docker-compose.yml config
-docker compose -f infrastructure/docker-compose.yml up
+docker compose --env-file .env -f infrastructure/docker-compose.yml config
+docker compose --env-file .env -f infrastructure/docker-compose.yml up
 ```
+
+Pass the root `.env` explicitly: Compose resolves its implicit project
+directory from `infrastructure/`, while the required local secrets live in the
+repository-root `.env`. Keeping the required variables fail-closed is
+intentional.
 
 For the Windows setup, local demo accounts, health checks, and troubleshooting,
 see [docs/LOCAL_RUNBOOK.md](docs/LOCAL_RUNBOOK.md).
+
+On Windows, use the repository safe launcher and keep a single Docker host
+owner during recovery. It serializes stop/start operations, fails closed when
+the Docker host drive has less than 2 GiB free, and preserves images, volumes,
+VHDX data, other WSL distributions, and Hibernate.
 
 After Docker Desktop is ready, Windows users can build, seed, and run the
 automated role-based smoke verification with the command below. If `.env` is

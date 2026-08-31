@@ -1,296 +1,184 @@
 # Synthetic beta deployment runbook
 
-The checked-in [`render.yaml`](../render.yaml) describes the intended Render
-topology for the Spring API, private FastAPI service, private ClamAV scanner,
-Redis and a disposable PostgreSQL database. The Render application services
-are image-backed and pin GHCR content digests (with `sha-<commit>` audit tags)
-instead of asking Render to rebuild from source. The Next.js app belongs in a
-separate Vercel project with `apps/frontend` as its root directory.
+This repository ships a synthetic beta only. The selected hosted topology is
+**Render Free + Supabase Free + Vercel**; it is not a production healthcare or
+compliance approval and must not receive real patient traffic.
 
-This is a deployment recipe, not proof that a hosted environment exists. No
-provider credentials, domain, secret-manager access or production traffic are
-present in this repository.
+## Canonical Free topology
 
-The application package source and immutable image provenance are bound to
-`caedef092c2df9dff1e489b8696d7720817a4928`. The later pin/manifest follow-up
-commit `5de6205442597582e76de5c7e6b27c7f94131caf` passed CI run
-`33310401105` (all six jobs), the Render wording correction
-`3881a657c8fc25d7e3c52cac85f34cb9885ac589` passed CI run `33312067036`, and
-the audited package/deployment documentation checkpoint
-`439d9055676b23180da4b9c77bc520a79b810b89` passed CI run `33312268255` (all
-six jobs). Neither those nor later documentation-only follow-ups change the
-application source or its digests. Verify the actual checkout SHA immediately
-before promotion.
+The canonical Render Blueprint is render.yaml. It provisions only:
 
-## Observed provider snapshot (2026-08-30)
+| Resource | Plan | Purpose |
+| --- | --- | --- |
+| healthcare-beta-postgres | Render Free PostgreSQL 16, Singapore | Spring transactional database |
+| healthcare-beta-redis | Render Free Key Value, Singapore | Rate-limit/realtime cache; ephemeral |
+| healthcare-beta-backend | Render Free image web service, Singapore | Spring API behind the Vercel BFF |
 
-The following is the current evidence boundary, recorded separately from this
-recipe:
+render-free-beta.yaml is a validation copy of the canonical manifest. Both files
+must stay equivalent after YAML parsing; Render Blueprint discovery uses
+render.yaml.
 
-- Vercel has a `READY` production deployment for the static Next.js shell at
-  `healthcare-two-olive.vercel.app`. The latest deployment recorded in this
-  snapshot is `dpl_35HGQrKwgTbbALNff8GAGSYvQc8E`, whose authenticated metadata
-  reports `gitCommitSha=22c283e8244f139d90b40b16039e6b843536f461`; it is a
-  documentation-only follow-up over application source
-  `caedef092c2df9dff1e489b8696d7720817a4928` (the previous application
-  deployment was `dpl_F95VVwT1s9NHZNmPsLcrsHE87R75`). The source was submitted
-  from a clean detached worktree, with no `.env.local` or untracked
-  instruction files in the deployment payload. The linked project retains only
-  the two public indexing/site variables, so BFF routes remain intentionally
-  fail-closed;
-  the server-only BFF variables are intentionally absent, so
-  `/api/v1/health`, catalog and triage probes return
-  `503 BFF_CONFIGURATION_UNAVAILABLE`. Twenty public route probes and sixteen
-  route×viewport Chromium accessibility probes returned `200` with CSP,
-  `X-Frame-Options: DENY`, and `nosniff` headers. This is
-  static-hosting evidence only; it is not a functional chatbot or backend
-  deployment. Vercel auto-deploys every `main` push, so refresh the exact
-  deployment/source metadata immediately before promotion.
-- Render has the disposable `healthcare-beta-postgres` and
-  `healthcare-beta-redis` resources, but no HealthCare application services.
-  The official Blueprint validation currently rejects the three private/image
-  services (AI, ClamAV and scanner) with `need_payment_info`; the Spring web
-  service on `free` is accepted by the validator but cannot be created safely
-  without those private dependencies. No card, paid upgrade or substitute
-  public service was created. Re-run validation only after the workspace
-  billing gate is deliberately resolved. See the official
-  [Render Blueprint validation API](https://api-docs.render.com/reference/validate-blueprint)
-  for the provider contract.
-- Supabase is the confirmed Free project. The guarded reconciliation was
-  applied once, then reverted as a separate recorded migration, and the DDL
-  helper was hardened. The current seven-row history is baseline-shaped and
-  the exact-state reapply gate passes, but no PITR/backup/branch entitlement is
-  available; projection/RAG consumers remain disabled.
+AI/FastAPI, ClamAV, attachment scanning, object storage, mail, payment,
+consultation uploads, remote AI, RAG ingestion and patient-chat consumers are
+explicitly disabled in this Free beta. No paid/private Render service is
+silently substituted, and no local Docker image is pulled to support it.
 
-These observations do not authorize production traffic or override any gate
-below. They must be refreshed against the exact commit being shipped.
+Provider credentials stay in Render/Vercel/Supabase secret stores. Never commit
+or print a database password, BFF token, JWT secret, Supabase DB URL, or API key.
 
-## Immutable GHCR packages
+## Current observed hosted snapshot (2026-08-30)
 
-The beta application images are published by the manually-triggered
-`Publish beta application images` workflow only after a successful CI run for
-the exact requested commit. It creates four canonical packages with immutable
-tags:
+Refresh this section after every release push; deployment IDs are evidence, not
+configuration:
 
-```text
-ghcr.io/jasontm17/healthcare-project-backend@sha256:<recorded-digest>
-ghcr.io/jasontm17/healthcare-project-frontend@sha256:<recorded-digest>
-ghcr.io/jasontm17/healthcare-project-ai-service@sha256:<recorded-digest>
-ghcr.io/jasontm17/healthcare-project-attachment-scanner@sha256:<recorded-digest>
-```
+- Vercel stable alias https://healthcare-two-olive.vercel.app is
+  Production/READY at deployment dpl_DNJG5HhjgRuDYG9aaGJ8ij7gBzUq. Catalog BFF
+  probes returned HTTP 200 with totals 30 specialties, 475 active doctors and
+  20 branches. A disallowed Origin returned HTTP 403 BFF_ORIGIN_INVALID without
+  an allow-origin header. /api/v1/health returned the intentional HTTP 503
+  degraded response because AI is off.
+- Render workspace tea-d7ev54q8qa3s7382ljcg has PostgreSQL
+  dpg-da7r3uou01pc73boask0-a, Key Value red-daa3ub9f2nfc73956660, and web
+  service srv-daa41a9f2nfc7395eg1g. The current live deploy is
+  dep-daa4td4s728c73fd2190. /actuator/health, /actuator/health/readiness and
+  /actuator/health/liveness returned HTTP 200; the short /readiness and
+  /liveness aliases correctly require authentication and return HTTP 401 without
+  credentials.
+- Render PostgreSQL contains only the deterministic public catalog: 30
+  specialties, 20 branches, 500 doctors, 200 services, 100 packages, 500
+  articles, 150 raw FAQs, 1,251 doctor-specialty links, 751 doctor-branch
+  links, 7,130 schedules and 5 CMS slots. Public filters expose 192 services,
+  95 packages, 467 articles and 0 FAQs because FAQ visibility requires a valid
+  active-doctor clinical approval; the seed deliberately does not fabricate
+  approvals. Customer, patient, appointment and clinical consumer tables
+  remain empty. The PostgreSQL external allowlist is empty.
+  Render Free PostgreSQL is time-limited and has no provider PITR or backup
+  guarantee; Free Key Value is ephemeral.
+- Supabase project awaknzhadjglbfkhigck is on Free with eight audited provider
+  migration rows, 15 RLS-enabled healthcare tables, 100,000 synthetic
+  customers, 75,000 profiles, 10,000 public RAG rows and 830 chat-projection
+  rows. The writer-locked reconciliation and hosted canaries passed once;
+  ingestion and patient-chat consumers remain disabled. Its exact compensating
+  rollback capsule is
+  supabase/reconciliation/free-plan-rollback-writer-lock-20260830.sql and is
+  intentionally unexecuted.
 
-Each build passes the source revision as `VCS_REF` and enables BuildKit SBOM
-and provenance attestations. It also publishes a signed GitHub build-provenance
-attestation for the exact registry digest. A per-source concurrency lock and
-preflight reject an already-existing
-`sha-<commit>` tag and writes the resulting immutable digest to the run
-summary. Deploy that recorded digest, not a tag or mutable `latest` reference. The
-standalone seeded database remains
-`healthcare-project-database:sha-<40-char-commit>` and is published by its
-separate verified workflow.
+The live Render image is the previously attested immutable artifact:
 
-Render Blueprints do not interpolate variables inside `image.url`, so refresh
-the checked-in digest URLs only after the matching manual GHCR workflow has
-finished and its registry digest/config label has been independently recorded.
-The current application digest pins resolve the verified exact source
-`caedef092c2df9dff1e489b8696d7720817a4928` artifacts published by workflow
-run `33310156810`; the standalone database package was published by run
-`33310158307`. Each package has a provenance attestation bound to that source.
-The recorded Render pins are backend
-`sha256:165ae73c81b1236c1e4499c1f75bf50cef2d387e92ef2bf22f95452cf1f8020d`, AI
-`sha256:676df026d8f4ecbc8e4e9d70a424a164e8408c3933c324bda972316568bbb68e`,
-and attachment scanner
-`sha256:7b445d77b20417f4d7921b3914dd3e7f9b054a5f9a7230dc2e87df13f810c9ba`.
-The frontend digest is
-`sha256:b32ca5fbe572a2b142e50562e81f2176e0b4f1e1c84212d9095ceb33ae1aa5f4`,
-and the database fixture digest is
-`sha256:76d4d7827bb61ca36995ae9119adc151e37f7e2639495bbb204a1f34a54efe5f`.
-The manifest/documentation commit can be newer than the application image
-source; do not substitute a tag or `latest` for a digest.
+    ghcr.io/jasontm17/healthcare-project-backend@sha256:165ae73c81b1236c1e4499c1f75bf50cef2d387e92ef2bf22f95452cf1f8020d
 
-## Required Vercel settings
+It resolves in the live deploy to
+sha256:c8a52ff42562713370849b19ce3367bb74fa18424a41d29ace2019f183ad456b
+and was published from application source
+caedef092c2df9dff1e489b8696d7720817a4928. The current checkout adds release
+metadata, the mail-health guard, and hosted catalog capsules; publish a new
+exact-SHA image through the checked-in workflow before changing this pin. The
+operator workstation never builds or pulls this image.
 
-- Root directory: `apps/frontend`
-- Framework: Next.js
-- Build command: `npm run build`
-- Install command: `npm ci`
-- Server-only `BACKEND_INTERNAL_URL`: the HTTPS Render backend URL
-- Server-only `BACKEND_BFF_SERVICE_TOKEN`: a unique secret that exactly matches
-  the Render backend value and contains at least 32 random bytes
-- Server-only `BFF_PUBLIC_ORIGIN`: the exact HTTPS Vercel beta origin, with no
-  path, query or fragment; this remains authoritative when the Route Handler
-  receives an internal proxy URL
-- Exact beta origin in `BFF_ALLOWED_ORIGINS` on Spring
-- Empty `CORS_ALLOWED_ORIGINS`: the public Render service is not a browser API
+## Vercel configuration
 
-The Node Route Handler under `/api/v1/*` is the only browser API path. It
-forwards only the two HealthCare session/CSRF cookies and a closed header set;
-it does not persist or log request bodies. Do not expose
-`BACKEND_BFF_SERVICE_TOKEN`, `BACKEND_INTERNAL_URL`, `BFF_PUBLIC_ORIGIN`, `SUPABASE_DB_URL`,
-`AI_SERVICE_TOKEN`, database credentials or a provider key as a
-`NEXT_PUBLIC_*` variable. Store the BFF secret independently in the Vercel and
-Render secret stores, rotate both sides together, and drain traffic during
-rotation because there is no plaintext compatibility fallback. Set
-`BACKEND_BFF_REQUIRED=true` on Render. Legacy bearer endpoints remain available
-to non-browser API clients without an `Origin`, but the BFF rejects them and
-Spring emits no CORS grant for them.
+Set the project root to apps/frontend, install with npm ci, and build with npm
+run build. Only these BFF variables are server-side:
 
-The chunked patient-chat route is opt-in and uses the persisted-answer SSE
-contract. Its BFF deadline is 30 seconds and the browser deadline is 35
-seconds; a timeout is surfaced as a retryable, potentially-ambiguous result so
-operators must check the server history before replaying the same idempotency
-key. Keep `AI_CHAT_CHUNKED_ENABLED=false` until the live canary proves this
-route through the exact Vercel-to-Render path.
+- BACKEND_INTERNAL_URL: the HTTPS Render backend URL.
+- BFF_PUBLIC_ORIGIN: the exact HTTPS Vercel origin, with no path/query.
+- BACKEND_BFF_SERVICE_TOKEN: a random secret shared exactly with Render.
 
-## Render order
+Do not rename these to NEXT_PUBLIC_*. Keep NEXT_PUBLIC_SITE_URL and
+NEXT_PUBLIC_ALLOW_INDEXING limited to public metadata. The BFF forwards only the
+closed session/CSRF cookie and header set. Missing or mismatched values must
+fail closed with 503 BFF_CONFIGURATION_UNAVAILABLE; an untrusted Origin must
+fail with 403 BFF_ORIGIN_INVALID.
 
-1. In the already-authorized Render workspace, verify or create the disposable
-   beta managed PostgreSQL/Key Value (Redis-compatible) resources. Do not reuse
-   a production service or silently switch workspaces. The checked-in
-   blueprint pins PostgreSQL 16 and the Singapore region so the runtime matches
-   the backend/Testcontainers target. Redis is wired through Render's private
-   `connectionString` as `REDIS_URL`; the Key Value public allow-list is empty.
-   Set `APP_SECURITY_RATE_LIMIT_REDIS_REQUIRED=true` on the backend. The
-   request limiter then uses the shared Redis counter across Render replicas
-   and returns a safe 503 during a Redis outage instead of silently falling
-   back to a per-process limit. On the observed Hobby workspace the two data
-   resources exist, but the image-backed application services remain blocked by
-   the provider payment gate described above.
-   Render's
-   `connectionString` is a `postgres://`/`postgresql://` URL; the Spring
-   startup environment post-processor converts it to `jdbc:postgresql://` and
-   keeps the username/password references separate.
-2. Apply the complete Spring Flyway history (currently V1–V52, including
-   V10.4/V10.5) and load only the reviewed synthetic fixture manifest. Never
-   stop at V51: V52 adds the append-only clinical access-audit contract used
-   by the current backend.
-   V40 keeps consultation audit events after the 90-day transcript purge;
-   V42 adds the opaque browser-session authority; V43 adds the server-owned
-   attachment upload/scan lease lifecycle; V44 adds the encrypted email outbox;
-   V45 adds notification preference categories; V46 adds the server-owned OTP
-   issue timestamp; V47 adds the asynchronous attachment scan queue; V48 binds
-   outbox payloads to a logical delivery id; V49 adds the terminal-row
-   retention index; V50 retains the upload identity plus a leased cleanup queue
-   for stale attachment workers; and V51 persists the deterministic verified
-   identity before any upload can be promoted. V51 intentionally stops when
-   legacy consultation attachments exist because V43–V50 cannot reconstruct
-   historical upload keys; inventory or purge that synthetic data in a
-   maintenance window before rerunning Flyway. These migrations are
-   additive and must be applied before retention, email, attachment workers,
-   or clinical access-audit reporting are enabled.
-2a. Before starting any service that reads the Supabase projection, complete
-   the Supabase gate in the reconciliation runbook: confirm the exact project
-   ref, record a named backup/PITR restore point when the provider plan offers
-   one, rehearse the guarded migration, apply only
-   `20260830102500_reconcile_hosted_clinical_projection_security`, and run the
-   post-apply ACL/RLS/projection contract. The selected project is Free-only,
-   so scheduled backup/PITR/branch evidence is unavailable; the documented
-   exception is to run `supabase/reconciliation/free-plan-preapply.sql` (or
-   its exact-history reapply gate), obtain explicit manual-rollback acceptance,
-   and retain `free-plan-rollback.sql` only as historical evidence for the
-   already-observed five-row apply. For a new apply, freeze a new baseline and
-   run the gate first; with writers still stopped, apply the migration, capture
-   the provider's new audit row, then generate and verify a new compensating
-   artifact bound to that baseline and row before any consumer is enabled. The
-   checked-in historical rollback must fail closed after the new audit row.
-   Never combine the forward SQL and rollback in one `execute_sql` call. If the
-   Free-plan recovery decision or any contract check is missing, stop here; do
-   not enable `RAG_STORAGE_BACKEND=supabase` and do not deploy the AI/backend
-   pair against the drifted projection.
-   A guarded apply was observed on the confirmed synthetic project on
-   2026-08-30, then reverted by the separately recorded, watermark-guarded
-   Free-plan rollback migration; a helper-hardening migration remains applied.
-   The current reconciliation objects are absent and the exact seven-row
-   reapply gate passes. The Free-plan no-PITR limitation remains an explicit
-   manual-recovery risk, so the Supabase RAG consumer stays disabled until a
-   decision owner authorizes a fresh isolated apply and the hosted service
-   gates below are green.
-   The read-only gate is point-in-time only: freeze projection/catalog writers
-   for the maintenance window and invoke the reviewed migration immediately,
-   or capture a fresh baseline and produce a new target-specific artifact.
-3. Configure the private AI service with `AI_PROVIDER=local`, remote flags
-   disabled, `RAG_INGEST_ENABLED=false` and
-   `SUPABASE_RAG_FALLBACK_TO_MEMORY=false`. The image URL in the blueprint must
-   match the GHCR digest recorded for the approved source SHA. Spring's
-   separate projection worker remains closed with `AI_RAG_INGEST_ENABLED=false`
-   until its token and backup/rollback drill are approved.
-4. Configure Spring's CORS origin and service tokens, then wait for
-   `/actuator/health` to pass. Render's private AI service uses its TCP port
-   check; from a service on the same private network, run the authenticated
-   `/readyz` smoke (`X-AI-Service-Token`) and record `/livez` separately. The
-   Blueprint intentionally does not set `healthCheckPath` for the private
-   service because Render exposes that field for web services only.
-5. After the Supabase gate and service health checks pass, run admin submit →
-   independent doctor approval → projection reconciliation. This operational
-   reconciliation is distinct from the schema/ACL gate in step 2a.
-6. Run the patient overview, consultation, patient Q&A submission/report,
-   admin moderation, and three chat-mode smoke flows. A bank transfer remains
-   `PENDING_VERIFICATION` until an ADMIN explicitly accepts the statement; a
-   browser or webhook cannot mark it `PAID` by itself.
-7. Keep consultation attachments private and quarantined as `PENDING` until a
-   trusted AV/MIME worker records `CLEAN`. The browser's completion call is
-   deliberately unable to assert a clean result, and attachments never enter
-   DeepSeek/RAG context.
-   The generic `POST /api/v1/files/upload` path first verifies that the
-   filename extension, declared Content-Type and detected byte signature
-   agree, then applies the same scanner gate whenever
-   `STORAGE_AV_REQUIRED=true`. A MIME mismatch returns `400`; infected bytes
-   return `422`; scanner outages return `503`. None of those failures writes
-   object storage or metadata.
-   The beta blueprint sets `STORAGE_REQUIRE_PRIVATE_ENDPOINT=true`,
-   `STORAGE_UPLOAD_ENABLED=false` and `STORAGE_CONSULTATION_ENABLED=false` by
-   default. Before enabling uploads, provide
-   `STORAGE_ENDPOINT`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY`,
-   `STORAGE_BUCKET`, `STORAGE_REGION` and a 32-byte-plus
-   `STORAGE_CONSULTATION_KEY_SIGNING_SECRET` from Render's secret store. The
-   blueprint provisions `healthcare-beta-clamav` and
-   `healthcare-beta-av-scanner` as private image-backed services. Spring
-   receives the scanner `hostport` and exact host from Render service
-   references, normalizes the internal hostport to `http://<hostport>/scan`,
-   and references the scanner's `SCANNER_SERVICE_TOKEN` as
-   `STORAGE_AV_SERVICE_TOKEN`; keep `STORAGE_MIME_VALIDATION_REQUIRED=true`.
-   URLs with credentials,
-   query/fragment data, wrong path data, or a host outside that allowlist fail
-   startup/validation.
-   `STORAGE_CONSULTATION_SCAN_LEASE_SECONDS` bounds
-   the database-owned lease to 15 minutes. Missing credentials, localhost
-   endpoints, or a missing scanner keep the backend fail-closed; no Render
-   beta path falls back to `localhost:9000`. Only the trusted service can
-   write scan status; a browser completion request cannot assert `CLEAN`.
-   Treat `STORAGE_CONSULTATION_KEY_SIGNING_SECRET` as immutable for this beta:
-   rotation would invalidate persisted upload/verified keys. A future rotation
-   requires a versioned dual-key migration and a drain/reconciliation window.
-8. Keep DeepSeek disabled. This build rejects either patient remote flag at
-   startup and defensively disables patient-answer egress at runtime, so the
-   beta must use `AI_PROVIDER=local`, both remote flags `false`, and
-   `REMOTE_AI_KILL_SWITCH=true`. The provider adapters are retained only for
-   isolated contract tests and do not authorize patient text. A future
-   synthetic canary requires a separately reviewed implementation change plus
-   evidence for retention, training, region, subprocessors, DPA and deletion.
-   Private consultation messages and attachments must never enter that future
-   provider path.
+After a Vercel auto-deploy, verify the stable alias:
+
+    GET /api/v1/hospital/specialties?page=0&size=3       -> 200, total 30
+    GET /api/v1/hospital/doctors?page=0&size=3           -> 200, total 475 active
+    GET /api/v1/hospital/branches?page=0&size=3          -> 200, total 20
+    GET /api/v1/health                                  -> 503 degraded (AI disabled)
+    GET catalog with Origin: https://evil.example        -> 403 BFF_ORIGIN_INVALID
+
+## Render Free procedure
+
+1. Validate both YAML files against the official Render schema. The canonical
+   file must contain exactly one Free database, one Free Key Value and one Free
+   image web service, with no pserv, worker or cron resource. Validate the exact
+   file submitted to the provider through the Render Blueprint validation API
+   (https://api-docs.render.com/reference/validate-blueprint) for owner
+   tea-d7ev54q8qa3s7382ljcg. Validation is read-only and must report valid=true
+   with three resource actions.
+2. Verify the existing resource IDs, plan, region, image digest and empty
+   database/Key Value allowlists before any update. Never change the immutable
+   database name/user to force a replacement.
+3. Keep autoDeployTrigger: off while the image is digest-pinned. A Git push
+   alone must not redeploy an unreviewed image. After a new exact-SHA image is
+   attested, update the digest in a reviewed commit and trigger one deploy; wait
+   for the three /actuator/health* probes.
+4. Render managed references provide DATABASE_URL, DATABASE_USERNAME,
+   DATABASE_PASSWORD and REDIS_URL. Set
+   MANAGEMENT_HEALTH_MAIL_ENABLED=false and all optional feature switches
+   false. Do not add localhost SMTP, AI, scanner or storage endpoints.
+5. Apply Flyway V1--V52 through backend startup, then run
+   infrastructure/database/seed-hosted-catalog.sql exactly once against the
+   confirmed database. It is transactional, advisory-lock protected,
+   idempotent and synthetic-only. Record expected counts/fingerprints before
+   enabling any consumer.
+6. Keep the database external allowlist empty after the seed. A connection
+   failure requiring TLS is a provider access-control signal; do not open
+   0.0.0.0/0 as a workaround.
+
+## Supabase Free procedure
+
+The existing Spring/Flyway public schema remains the account and clinical
+authority. Supabase owns only the additive healthcare catalog and de-identified
+projections. The confirmed target already has the exact eight-row provider
+history ending in 20260830143140; do not run wholesale supabase db push, db
+reset, or the local seven-migration history against it.
+
+Before any future write, confirm the project ref, take a provider backup when
+the plan offers one, inspect migrations/tables/RLS, freeze writers, and create a
+new target-specific compensating artifact. On Free there is no PITR, scheduled
+backup or development branch, so manual rollback is the accepted residual risk.
+The current writer-locked reconciliation, ACL/RLS/count/fingerprint checks and
+service-role canaries passed once. Keep RAG_INGEST_ENABLED,
+AI_RAG_INGEST_ENABLED and patient-chat consumers false until a new coordinated
+release gate is approved.
 
 ## Rollback
 
-1. Keep both remote switches `false`, set clinical mode switches to `false`,
-   and drain traffic.
-2. Keep V36–V52 audit/schema tables; do not run an old binary that can ignore
-   consent, synthetic guards, clinical approval metadata, attachment scan
-   leases, object-cleanup queue, or email-outbox payload/retention contracts.
-3. Reconcile the Supabase projection and verify revoked/unpublished/expired
-   clinical sources and their CTAs disappear from provider context.
-4. Disable consultation retention, attachment scan, object-cleanup, and
-   email-outbox workers if the V40/V43/V44/V47/V50/V51/V52 audit, lease, or queue
-   migrations have not been applied; never run a V39/V42-only binary against a
-   V52 database.
-5. Restore the disposable database only after a tested backup/restore drill.
+1. Drain the Vercel beta and keep all remote/clinical/ingestion switches false.
+2. For an application failure, redeploy the last known-good immutable image and
+   Vercel deployment. Never run an old binary against a newer Flyway schema
+   without a compatibility review.
+3. For the Render catalog, first confirm all consumer tables are empty and every
+   count/fingerprint still matches the exact snapshot. Then run
+   infrastructure/database/seed-hosted-catalog-rollback.sql in a maintenance
+   window. It takes an exclusive lock, refuses drift/consumer rows, deletes
+   only named synthetic catalog rows, and never uses TRUNCATE, CASCADE or
+   Flyway-history edits. If any guard fails, stop.
+4. For Supabase, use only the exact
+   free-plan-rollback-writer-lock-20260830.sql capsule while its eight-row
+   history, object/ACL definitions and row fences match. It is compensating
+   evidence, not PITR; never reuse it against a drifted target.
+5. Re-run Render health, Vercel origin rejection, Supabase RLS/ACL and all
+   catalog count checks after recovery. Keep real-patient traffic disabled.
 
-Hosting credentials, provider/legal evidence, AV/MIME scanning, backup/restore,
-live browser/Compose proof and production compliance remain explicit HOLD
-gates. The local Compose verifier exercises scanner readiness, MIME mismatch
-rejection and infected-upload rejection; Compose keeps the AI service on an
-internal-only network while host-facing services use a separate edge bridge,
-so disposable egress isolation does not hide the backend/frontend loopback
-ports. Remote patient AI remains off.
-This repository contains a synthetic beta implementation; it is not
-authorization to accept real patient traffic.
+## Local release gates
+
+With a temporary directory that has enough space:
+
+    python -m pytest -q infrastructure/tests
+    python -m pytest -q supabase/tests
+    cd apps/frontend
+    npm ci --dry-run --ignore-scripts --no-audit --no-fund
+    npm audit --package-lock-only --audit-level=moderate
+    npm run lint
+    npm run typecheck
+    npm test
+    npm run build
+
+When C: is constrained, set TEMP and TMP to a bounded directory on D: before
+frontend commands. Do not start Compose, pull Docker images, or delete
+Docker/IDE/Codex data as part of this release gate. Hibernate must remain
+enabled. Local gates prove source integrity only; they do not prove provider
+backup/restore, clinical compliance, or production cutover.

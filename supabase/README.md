@@ -30,13 +30,12 @@ Never run `supabase db push`, `db reset`, or the seed against an unverified
 project. First capture a backup/PITR point when the plan provides one, confirm
 the exact project reference, inspect `supabase migration list`, inspect the
 current tables/RLS/policies and run the local SQL contracts. The local tree has
-seven additive migrations and the currently reviewed hosted target also has a
-seven-row audited history, but the histories are not interchangeable: the
-hosted rows include the separately recorded reconciliation, rollback and
-helper-hardening operations. The first local migration contains non-idempotent
-`CREATE TABLE` statements, so pushing it directly to that target can collide
-with existing objects and must remain blocked until a reviewed reconciliation
-is chosen.
+seven additive migrations while the confirmed hosted target has eight audited
+provider rows; those histories are intentionally not interchangeable. The
+first local migration contains non-idempotent `CREATE TABLE` statements, so
+pushing it directly to the hosted target can collide with existing objects and
+remains blocked. The target was reconciled through one explicitly reviewed,
+writer-locked migration instead of a wholesale history push.
 
 For the reviewed existing target, the only structural candidate is
 `20260830102500_reconcile_hosted_clinical_projection_security.sql`. Apply that
@@ -46,36 +45,30 @@ wholesale `supabase db push`. Then run the read-only
 `supabase/tests/hosted_reconciliation_contract.sql` against the same confirmed
 ref.
 
-For the currently confirmed project `awaknzhadjglbfkhigck`, a guarded
-reconciliation apply was observed on 2026-08-30 and then reverted through the
-separate, guarded Free-plan rollback migration after the committed-state
-recovery boundary was reviewed. The remote audit history therefore contains
-the reconciliation row (`20260830075505`), its rollback row
-(`20260830075737`), and the follow-up helper-hardening row (`20260830080646`),
-while the reconciliation columns, trigger, indexes and pagination functions
-are currently absent. The read-only reapply gate passes against this exact
-seven-row history and baseline dataset. The project remains on Free with no
-PITR/restore point, so the rollback is manual evidence rather than a provider
-backup or production-cutover signal. Keep Supabase consumers disabled until a
-fresh apply decision, hosted contract, Render backend/AI and Vercel server-only
-BFF gates are all green.
+For the currently confirmed project `awaknzhadjglbfkhigck`, the writer-locked
+reconciliation was applied once on 2026-08-30 and the hosted contract passed.
+The remote audit history is the exact eight-row set ending in
+`20260830143140`; all reconciliation columns, constraints, indexes, routines
+and the tombstone trigger are present, while the original counts and
+watermarks remain unchanged. The exact compensating artifact is
+[`reconciliation/free-plan-rollback-writer-lock-20260830.sql`](reconciliation/free-plan-rollback-writer-lock-20260830.sql);
+it has not been executed. The project remains on Free with no PITR/restore
+point, so this is manual recovery evidence rather than a provider backup or
+production-cutover signal. Supabase RAG/ingestion and patient-chat consumers
+remain disabled until the coordinated hosted release is accepted.
 
-The read-only reapply gate is a point-in-time check, not a database lock. A
-future apply must run in a writer-quiesced maintenance window and immediately
-follow the gate; otherwise capture a new snapshot and review a new
-target-specific migration. The checked-in rollback SQL is a hardened
-reconstruction of the historical operation, while the provider ledger hash
-identifies the older executed text; it must not be presented as an exact replay
-of that earlier SQL.
+The read-only reapply gate is a point-in-time check, not a database lock. Any
+future change must run in a writer-quiesced maintenance window and immediately
+follow a fresh gate; otherwise capture a new snapshot and review a new
+target-specific migration. Never reuse either historical rollback migration
+against a drifted target or present a compensating capsule as PITR.
 
-The reconciliation must preserve Spring PostgreSQL as the transactional
-identity/clinical authority. Supabase is only the `healthcare`-schema catalog
-and de-identified chatbot projection; it is not a drop-in replacement for the
-Spring `public` Flyway database. Use a disposable branch or a newly confirmed
-target to rehearse the full migration sequence, verify the lock-down ACL and
-projection invariants, record a restore drill, and only then schedule a
-reviewed additive apply. Do not use a destructive reset to make histories look
-equal.
+The reconciliation preserves Spring PostgreSQL as the transactional identity
+and clinical authority. Supabase is the `healthcare`-schema catalog and
+de-identified chatbot projection; it is not a drop-in replacement for the
+Spring `public` Flyway database. The hosted ACL/RLS/count/canary evidence is
+recorded in `reconciliation/README.md`; do not use a destructive reset to make
+histories look equal.
 
 `supabase/seed.sql` is deterministic and non-destructive. It is loaded by a
 local `db reset`; for a remote environment, run it only after reviewing the
@@ -191,17 +184,16 @@ or independently approved clinical projections.
 
 This project is configured for the Supabase **Free** plan only. Do not upgrade
 the project, create a paid development branch, or claim scheduled backup/PITR
-coverage. Before enabling a hosted RAG consumer, run the read-only gate and
-follow the operator recovery capsule in
-[`reconciliation/README.md`](reconciliation/README.md):
-`free-plan-preapply.sql` (or the exact-history reapply gate), one isolated
-`apply_migration` call for the reviewed reconciliation migration, then the
-hosted ACL/RLS/count/canary contract. The checked-in
-`free-plan-rollback.sql` is a separate guarded migration for the observed
-synthetic baseline; it is manual recovery evidence, not a provider backup.
-Keep `RAG_INGEST_ENABLED`, `AI_RAG_INGEST_ENABLED` and patient-chat consumers
-off until the post-apply contract passes and the decision owner has accepted
-the Free-plan recovery boundary.
+coverage. The confirmed target has eight provider migration rows and the
+writer-locked reconciliation/canaries have passed once; the exact state and
+provider hashes are recorded in
+[`reconciliation/README.md`](reconciliation/README.md). The checked-in
+`free-plan-rollback-writer-lock-20260830.sql` is a guarded, target-specific
+compensating capsule. It is manual recovery evidence, has not been executed,
+and is not a provider backup. Any future apply needs a new point-in-time gate,
+writer quiescence, and a newly bound capsule. Keep `RAG_INGEST_ENABLED`,
+`AI_RAG_INGEST_ENABLED` and patient-chat consumers off until a coordinated
+release owner enables them after a fresh hosted contract.
 
 ## Security boundary
 
