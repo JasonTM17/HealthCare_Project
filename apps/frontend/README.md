@@ -32,8 +32,12 @@ Vercel must use `apps/frontend` as the project root. The checked-in
 `vercel.json` pins the install command to `npm ci` and the build command to
 `npm run build`; do not use `npm install` or a floating package version in a
 release build. The current published beta artifacts are bound to exact commit
-`7a083ab06557225077694a0b2b93e31b89d0c32e`; Render's backend pin is advanced
-only after the corresponding immutable image and CI provenance checks pass.
+`7a083ab06557225077694a0b2b93e31b89d0c32e`; Vercel deployment
+`dpl_o1ddh17yfggA7HsmxEFJiMCXe8m3` is `READY`/`PROMOTED` for production and
+reports that same source SHA. It was deployed from a clean checkout with the
+CLI; do not assume a Git integration auto-deploy after changing only release
+documentation. Render's backend pin is advanced only after the corresponding
+immutable image and CI provenance checks pass.
 
 The browser-facing API is the same-origin Next.js BFF. Keep
 `BACKEND_INTERNAL_URL`, `BFF_PUBLIC_ORIGIN`, and `BACKEND_BFF_SERVICE_TOKEN`
