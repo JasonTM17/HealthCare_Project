@@ -31,10 +31,9 @@ with the current Next.js/Tailwind setup is reviewed.
 Vercel must use `apps/frontend` as the project root. The checked-in
 `vercel.json` pins the install command to `npm ci` and the build command to
 `npm run build`; do not use `npm install` or a floating package version in a
-release build. The currently published beta image baseline was built from
-application source `caedef092c2df9dff1e489b8696d7720817a4928`; this working
-tree's release/configuration changes require a new exact-head image publication
-before Render's image pin is advanced.
+release build. The current published beta artifacts are bound to exact commit
+`7a083ab06557225077694a0b2b93e31b89d0c32e`; Render's backend pin is advanced
+only after the corresponding immutable image and CI provenance checks pass.
 
 The browser-facing API is the same-origin Next.js BFF. Keep
 `BACKEND_INTERNAL_URL`, `BFF_PUBLIC_ORIGIN`, and `BACKEND_BFF_SERVICE_TOKEN`

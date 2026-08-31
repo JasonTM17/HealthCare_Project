@@ -26,7 +26,7 @@ silently substituted, and no local Docker image is pulled to support it.
 Provider credentials stay in Render/Vercel/Supabase secret stores. Never commit
 or print a database password, BFF token, JWT secret, Supabase DB URL, or API key.
 
-## Current observed hosted snapshot (2026-08-30)
+## Current observed hosted snapshot (2026-08-31)
 
 Refresh this section after every release push; deployment IDs are evidence, not
 configuration:
@@ -63,17 +63,17 @@ configuration:
   supabase/reconciliation/free-plan-rollback-writer-lock-20260830.sql and is
   intentionally unexecuted.
 
-The live Render image is the previously attested immutable artifact:
+The newly published Render candidate (ready for the serialized promotion
+step) is the immutable artifact produced from application source
+`7a083ab06557225077694a0b2b93e31b89d0c32e`:
 
-    ghcr.io/jasontm17/healthcare-project-backend@sha256:165ae73c81b1236c1e4499c1f75bf50cef2d387e92ef2bf22f95452cf1f8020d
+    ghcr.io/jasontm17/healthcare-project-backend@sha256:c492898b8767119ab9417b55833b473aca65262f21ba713a77e51a972553dcf3
 
-It resolves in the live deploy to
-sha256:c8a52ff42562713370849b19ce3367bb74fa18424a41d29ace2019f183ad456b
-and was published from application source
-caedef092c2df9dff1e489b8696d7720817a4928. The current checkout adds release
-metadata, the mail-health guard, and hosted catalog capsules; publish a new
-exact-SHA image through the checked-in workflow before changing this pin. The
-operator workstation never builds or pulls this image.
+The image publish workflow run is
+https://github.com/JasonTM17/HealthCare_Project/actions/runs/33365774241 and
+the verified database fixture is
+`ghcr.io/jasontm17/healthcare-project-database@sha256:d3863eef07879b2fe46ac56636c2908c68d2619be5790f40af7fb522ea7da044`.
+The operator workstation never builds or pulls these images.
 
 ## Vercel configuration
 
