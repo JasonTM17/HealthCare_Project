@@ -42,7 +42,9 @@ def test_render_manifest_is_free_only() -> None:
     assert database["postgresMajorVersion"] == "16"
     assert database["user"] == "healthcare_beta_app_20260830r1"
     assert database["ipAllowList"] == []
-    assert set(services) == {"healthcare-beta-redis", "healthcare-beta-backend"}
+    assert set(services) == {
+        "healthcare-beta-redis", "healthcare-beta-ai", "healthcare-beta-backend"
+    }
     assert all(service["plan"] == "free" for service in services.values())
     assert all(service["type"] != "pserv" for service in services.values())
 
@@ -66,6 +68,28 @@ def test_render_manifest_uses_immutable_backend_image() -> None:
     assert backend["healthCheckPath"] == "/actuator/health"
 
 
+def test_render_manifest_runs_the_local_only_ai_service_on_free() -> None:
+    ai = _services()["healthcare-beta-ai"]
+    assert ai["runtime"] == "python"
+    assert ai["plan"] == "free"
+    assert ai["region"] == "singapore"
+    assert ai["autoDeployTrigger"] == "off"
+    assert ai["healthCheckPath"] == "/livez"
+    assert "pip install --no-cache-dir -r apps/ai-service/requirements.txt" in ai["buildCommand"]
+    assert "uvicorn app.main:app" in ai["startCommand"]
+    ai_env = _env(ai)
+    assert ai_env["AI_PROVIDER"]["value"] == "local"
+    assert ai_env["EMBEDDING_PROVIDER"]["value"] == "local"
+    assert ai_env["RAG_STORAGE_BACKEND"]["value"] == "memory"
+    assert ai_env["RAG_INGEST_ENABLED"]["value"] == "true"
+    assert ai_env["AI_SERVICE_TOKEN"]["generateValue"] is True
+    assert ai_env["RAG_INGEST_TOKEN"]["generateValue"] is True
+    for key in (
+        "AI_PATIENT_CHAT_REMOTE_ENABLED", "AI_CHAT_REMOTE_PROVIDER_ENABLED",
+    ):
+        assert ai_env[key]["value"] == "false"
+
+
 def test_render_manifest_wires_managed_dependencies_and_fail_closed_switches() -> None:
     services = _services()
     backend = _env(services["healthcare-beta-backend"])
@@ -86,17 +110,25 @@ def test_render_manifest_wires_managed_dependencies_and_fail_closed_switches() -
     assert backend["STORAGE_MIME_VALIDATION_REQUIRED"]["value"] == "true"
     assert backend["MANAGEMENT_HEALTH_MAIL_ENABLED"]["value"] == "false"
     assert backend["RAG_STORAGE_BACKEND"]["value"] == "memory"
+    assert backend["AI_SERVICE_URL"]["value"] == "https://healthcare-beta-ai.onrender.com"
+    assert backend["AI_SERVICE_TOKEN"]["fromService"] == {
+        "type": "web", "name": "healthcare-beta-ai", "envVarKey": "AI_SERVICE_TOKEN"
+    }
+    assert backend["AI_RAG_INGEST_TOKEN"]["fromService"] == {
+        "type": "web", "name": "healthcare-beta-ai", "envVarKey": "RAG_INGEST_TOKEN"
+    }
+    assert backend["AI_RAG_INGEST_ENABLED"]["value"] == "true"
     assert backend["CMS_DISTRIBUTED_REALTIME_ENABLED"]["value"] == "true"
     for key in (
         "AI_CHAT_REMOTE_PROVIDER_ENABLED", "AI_CHAT_SYMPTOM_TRIAGE_ENABLED",
         "AI_CHAT_HEALTH_EDUCATION_ENABLED", "AI_CHAT_SYNTHETIC_BETA_ASSERTED",
-        "AI_CHAT_CHUNKED_ENABLED", "AI_RAG_INGEST_ENABLED", "APP_MAIL_ENABLED",
+        "AI_CHAT_CHUNKED_ENABLED", "APP_MAIL_ENABLED",
         "APP_MAIL_OUTBOX_ENABLED", "APP_PAYMENT_BANK_TRANSFER_ENABLED",
         "STORAGE_UPLOAD_ENABLED", "STORAGE_CONSULTATION_ENABLED",
     ):
         assert backend[key]["value"] == "false"
     for key in (
-        "AI_SERVICE_URL", "AI_SERVICE_TOKEN", "SUPABASE_DB_URL",
+        "SUPABASE_DB_URL",
         "STORAGE_ENDPOINT", "STORAGE_ACCESS_KEY", "STORAGE_SECRET_KEY",
         "STORAGE_AV_SERVICE_URL", "STORAGE_AV_SERVICE_TOKEN",
         "STORAGE_CONSULTATION_KEY_SIGNING_SECRET",

@@ -87,6 +87,10 @@ def test_ai_settings_are_inserted_and_verified_without_exposing_secrets() -> Non
     text = (_script() + _module())
 
     assert "desktop disable model-runner" in text
+    assert "Wait-DockerEngineReady -Seconds $TimeoutSeconds" in text
+    assert "effective settings are already disabled" in text
+    assert "currentAi -eq $false" in text
+    assert "currentInference -eq $false" in text
     assert 'enableDockerAI\":false,"enableInference\":false' in text
     assert "EnableInference" in text
     assert "before-safe-start" in text

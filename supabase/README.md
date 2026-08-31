@@ -54,8 +54,11 @@ watermarks remain unchanged. The exact compensating artifact is
 [`reconciliation/free-plan-rollback-writer-lock-20260830.sql`](reconciliation/free-plan-rollback-writer-lock-20260830.sql);
 it has not been executed. The project remains on Free with no PITR/restore
 point, so this is manual recovery evidence rather than a provider backup or
-production-cutover signal. Supabase RAG/ingestion and patient-chat consumers
-remain disabled until the coordinated hosted release is accepted.
+production-cutover signal. The Render Free AI beta may ingest Spring's public
+operational catalog into its own ephemeral memory index; it does not use the
+Supabase patient-chat projection or a Supabase database DSN. Those durable
+RAG/patient-chat consumers remain disabled until a separately reviewed hosted
+release supplies a server-only connection contract.
 
 The read-only reapply gate is a point-in-time check, not a database lock. Any
 future change must run in a writer-quiesced maintenance window and immediately
@@ -191,9 +194,10 @@ provider hashes are recorded in
 `free-plan-rollback-writer-lock-20260830.sql` is a guarded, target-specific
 compensating capsule. It is manual recovery evidence, has not been executed,
 and is not a provider backup. Any future apply needs a new point-in-time gate,
-writer quiescence, and a newly bound capsule. Keep `RAG_INGEST_ENABLED`,
-`AI_RAG_INGEST_ENABLED` and patient-chat consumers off until a coordinated
-release owner enables them after a fresh hosted contract.
+writer quiescence, and a newly bound capsule. Enabling the separate in-memory
+Render catalog ingest does not authorize a Supabase database consumer. Keep
+Supabase durable-RAG and patient-chat consumers off until a coordinated release
+owner enables them after a fresh hosted contract.
 
 ## Security boundary
 

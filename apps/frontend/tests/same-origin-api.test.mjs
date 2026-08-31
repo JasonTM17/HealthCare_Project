@@ -75,6 +75,7 @@ test("Compose keeps browser traffic same-origin through the server-only BFF", as
   assert.doesNotMatch(nextConfig, /async rewrites\(\)/);
   assert.match(routeHandler, /proxyHealthcareRequest\(request, path\)/);
   assert.match(routeHandler, /export const runtime = "nodejs"/);
+  assert.match(routeHandler, /export const maxDuration = 60/);
   assert.match(bff, /process\.env\.BACKEND_INTERNAL_URL/);
   assert.match(bff, /process\.env\.BACKEND_BFF_SERVICE_TOKEN/);
   assert.match(bff, /process\.env\.BFF_PUBLIC_ORIGIN/);
@@ -82,6 +83,8 @@ test("Compose keeps browser traffic same-origin through the server-only BFF", as
   assert.match(bff, /X-Healthcare-Bff-Token/);
   assert.match(bff, /X-Healthcare-Original-Origin/);
   assert.match(bff, /redirect: "manual"/);
+  assert.match(bff, /DEFAULT_PUBLIC_AI_REQUEST_TIMEOUT_MS = 55_000/);
+  assert.match(bff, /apiPath === `\$\{API_PREFIX\}public\/ai\/chat`/);
   assert.doesNotMatch(routeHandler, /NEXT_PUBLIC_|BACKEND_INTERNAL_URL|BACKEND_BFF_SERVICE_TOKEN/);
   assert.doesNotMatch(nextConfig, /NEXT_PUBLIC_(?:CMS_)?API_BASE_URL/);
   assert.match(render, /- key: BACKEND_BFF_SERVICE_TOKEN\s+sync: false/);
@@ -90,7 +93,9 @@ test("Compose keeps browser traffic same-origin through the server-only BFF", as
   assert.match(render, /- key: AI_CHAT_SYNTHETIC_BETA_ASSERTED\s+value: "false"/);
   assert.match(render, /- key: AI_CHAT_CHUNKED_ENABLED\s+value: "false"/);
   assert.match(render, /- key: APP_PUBLIC_SPECIALTY_TRIAGE_ENABLED\s+value: "true"/);
-  assert.match(render, /- key: AI_RAG_INGEST_ENABLED\s+value: "false"/);
+  assert.match(render, /- key: AI_RAG_INGEST_ENABLED\s+value: "true"/);
+  assert.match(render, /name: healthcare-beta-ai[\s\S]*runtime: python[\s\S]*healthCheckPath: \/livez/);
+  assert.match(render, /AI_SERVICE_URL\s+value: https:\/\/healthcare-beta-ai\.onrender\.com/);
   assert.doesNotMatch(render, /- key: CORS_ALLOWED_ORIGINS/);
   assert.doesNotMatch(envExample, /NEXT_PUBLIC_(?:CMS_)?API_BASE_URL/);
   assert.match(envExample, /^BACKEND_BFF_SERVICE_TOKEN=$/m);

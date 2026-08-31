@@ -47,9 +47,23 @@ def test_render_free_blueprint_keeps_private_runtime_boundaries() -> None:
     assert env_vars["STORAGE_AV_REQUIRED"]["value"] == "false"
     assert env_vars["MANAGEMENT_HEALTH_MAIL_ENABLED"]["value"] == "false"
     assert env_vars["RAG_STORAGE_BACKEND"]["value"] == "memory"
-    assert env_vars["AI_RAG_INGEST_ENABLED"]["value"] == "false"
-    assert "AI_SERVICE_URL" not in env_vars
-    assert "AI_SERVICE_TOKEN" not in env_vars
+    assert env_vars["AI_RAG_INGEST_ENABLED"]["value"] == "true"
+    assert env_vars["AI_SERVICE_URL"]["value"] == "https://healthcare-beta-ai.onrender.com"
+    assert env_vars["AI_SERVICE_TOKEN"]["fromService"] == {
+        "type": "web", "name": "healthcare-beta-ai", "envVarKey": "AI_SERVICE_TOKEN"
+    }
+    assert env_vars["AI_RAG_INGEST_TOKEN"]["fromService"] == {
+        "type": "web", "name": "healthcare-beta-ai", "envVarKey": "RAG_INGEST_TOKEN"
+    }
+    ai = _service(blueprint, "healthcare-beta-ai")
+    ai_env = {item["key"]: item for item in ai["envVars"]}
+    assert ai["runtime"] == "python"
+    assert ai["plan"] == "free"
+    assert ai["healthCheckPath"] == "/livez"
+    assert ai_env["AI_PROVIDER"]["value"] == "local"
+    assert ai_env["RAG_INGEST_ENABLED"]["value"] == "true"
+    assert ai_env["AI_SERVICE_TOKEN"]["generateValue"] is True
+    assert ai_env["RAG_INGEST_TOKEN"]["generateValue"] is True
     assert "STORAGE_AV_SERVICE_URL" not in env_vars
     assert "STORAGE_AV_SERVICE_TOKEN" not in env_vars
     assert "SUPABASE_DB_URL" not in env_vars

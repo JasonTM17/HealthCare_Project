@@ -8,7 +8,7 @@ export default function Loading() {
           <p className="section-note">Đang chuẩn bị trải nghiệm</p>
           <h1 id="route-loading-title">Đang tải dữ liệu bệnh viện…</h1>
           <p>
-            HealthCare đang đồng bộ thông tin chuyên khoa, cơ sở và lịch khám mới nhất từ backend.
+            HealthCare đang cập nhật thông tin chuyên khoa, cơ sở và lịch khám mới nhất.
           </p>
           <div aria-hidden="true" className="route-state__skeletons">
             <span />

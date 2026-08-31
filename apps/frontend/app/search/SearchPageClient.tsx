@@ -16,6 +16,7 @@ import {
   fetchSpecialties,
 } from "../../lib/api-client";
 import { presentApiError } from "../../lib/present-api-error";
+import { dedupePublicDoctors } from "../../lib/public-catalog";
 import { useAuthSession } from "../../components/useAuthSession";
 import type { AiTriageCitation, Article, Doctor, HealthPackage, MedicalService, SemanticSearchResponse, Specialty } from "../../types/hospital";
 
@@ -33,8 +34,8 @@ interface SearchCatalog {
 
 const SEARCH_GUIDE_STEPS = [
   ["01", "Nhập nhu cầu", "Gõ triệu chứng, tên chuyên khoa, tên bác sĩ, dịch vụ hoặc chủ đề sức khỏe bạn đang quan tâm."],
-  ["02", "Đọc kết quả chính thức", "Ưu tiên các thẻ có đường dẫn tới catalog công khai vì đây là dữ liệu active đã xuất bản."],
-  ["03", "Dùng AI như gợi ý mở rộng", "Kết quả semantic giúp mở thêm hướng tìm hiểu, không thay thế tư vấn y khoa hoặc chẩn đoán."],
+  ["02", "Đọc thông tin bệnh viện", "Ưu tiên các kết quả có đường dẫn tới danh mục chính thức để xem thông tin có thể đặt lịch."],
+  ["03", "Mở gợi ý thông minh", "Gợi ý giúp bạn có thêm hướng tìm hiểu, không thay thế tư vấn y khoa hoặc chẩn đoán."],
 ] as const;
 
 function normalize(value: string): string {
@@ -119,7 +120,7 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
         const failedCount = responses.filter((response) => response.status === "rejected").length;
         setCatalog({
           specialties: settledContent(specialties),
-          doctors: settledContent(doctors),
+          doctors: dedupePublicDoctors(settledContent(doctors)),
           services: settledContent(services),
           packages: settledContent(packages),
           articles: settledContent(articles),
@@ -218,8 +219,8 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
             <p className="resource-chip">Cổng tìm kiếm thống nhất</p>
             <h2>Một ô tìm kiếm, hai lớp kiểm chứng.</h2>
             <p className="resource-lead">
-              Catalog công khai đưa bạn tới đúng trang có thể đặt lịch; lớp AI chỉ mở rộng gợi ý khi đã đăng nhập
-              và luôn hiển thị ranh giới nguồn.
+              Danh mục bệnh viện đưa bạn tới đúng trang có thể đặt lịch; gợi ý thông minh chỉ mở rộng
+              hướng tìm hiểu khi bạn đã đăng nhập và luôn nêu rõ nguồn tham khảo.
             </p>
             <div className="resource-actions">
               <PublicBookingButton>Đặt lịch khám</PublicBookingButton>
@@ -234,7 +235,7 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
                 <dd>{catalogGroupCount || "Đang tải"}/5</dd>
               </div>
               <div>
-                <dt>AI semantic</dt>
+                <dt>Gợi ý thông minh</dt>
                 <dd>{hasAuthSession ? "Có phiên đăng nhập" : "Cần đăng nhập"}</dd>
               </div>
             </dl>
@@ -269,8 +270,8 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
           <p>Bạn có thể nhập tên bác sĩ, chuyên khoa, dịch vụ hoặc chủ đề sức khỏe cần tìm hiểu.</p>
         </form>
 
-        {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải catalog tìm kiếm…</p> : null}
-        {error ? <p className="catalog-status catalog-status--error" role="alert">{error} Không có dữ liệu tĩnh thay thế.</p> : null}
+        {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải danh mục tìm kiếm…</p> : null}
+        {error ? <p className="catalog-status catalog-status--error" role="alert">{error} Bạn vẫn có thể thử lại sau.</p> : null}
         {!hasAuthSession && normalize(query) ? <p className="catalog-status">Đăng nhập để nhận thêm gợi ý nội dung liên quan đến nhu cầu của bạn.</p> : null}
         {semanticLoading ? <p className="catalog-status catalog-status--loading" role="status">Đang tìm thêm nội dung liên quan…</p> : null}
         {semanticError ? <p className="catalog-status catalog-status--error" role="alert">{semanticError}</p> : null}
@@ -278,10 +279,10 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
           <section className="search-results__section" aria-labelledby="semantic-results">
             <div className="section-heading search-results__heading">
               <div>
-                <p className="section-note">Gợi ý mở rộng có provenance</p>
+                <p className="section-note">Gợi ý thông minh có nguồn tham khảo</p>
                 <h2 id="semantic-results">Có thể bạn cũng quan tâm</h2>
                 <p className="search-results__assistive">
-                  Đây là gợi ý AI dựa trên tìm kiếm semantic. Hãy mở kết quả catalog chính thức hoặc đặt lịch để được xác nhận y khoa.
+                  Đây là gợi ý tự động dựa trên nội dung đã được chọn lọc. Hãy mở thông tin bệnh viện hoặc đặt lịch để được xác nhận y khoa.
                 </p>
               </div>
             </div>
@@ -305,13 +306,13 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
               ))}
             </div>
             <p className="search-results__provenance">
-              Provenance AI: {semantic.provenance || "Backend chưa trả về provenance."}
+              Nguồn gợi ý: {semantic.provenance || "HealthCare"}
               {semantic.specialty ? ` · Gợi ý chuyên khoa: ${semantic.specialty}` : ""}
             </p>
           </section>
         ) : null}
         {!loading && !normalize(query) ? <section className="resource-panel resource-panel--accent"><h2>Nhập một từ khóa để bắt đầu</h2><p>Hệ thống sẽ lọc theo dữ liệu active đã xuất bản, sau đó đưa bạn về đúng trang chuyên khoa, bác sĩ hoặc nội dung.</p></section> : null}
-        {!loading && result && resultCount === 0 ? <p className="catalog-status" role="status">{error ? "Chưa có nhóm catalog nào sẵn sàng để tìm kiếm." : `Không tìm thấy kết quả khớp với “${query.trim()}”.`}</p> : null}
+        {!loading && result && resultCount === 0 ? <p className="catalog-status" role="status">{error ? "Chưa có nhóm thông tin nào sẵn sàng để tìm kiếm." : `Không tìm thấy kết quả khớp với “${query.trim()}”.`}</p> : null}
 
         {!loading && result && resultCount > 0 ? (
           <div className="search-results" aria-live="polite">

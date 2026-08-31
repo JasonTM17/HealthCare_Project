@@ -114,6 +114,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/v1/appointments/*/cancel").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/appointments/*/reschedule").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/public/specialty-recommendation").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/v1/public/ai/chat").permitAll()
                 .requestMatchers("/api/v1/ai/**").authenticated()
                 .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").hasRole("ADMIN")

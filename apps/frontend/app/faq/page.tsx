@@ -90,7 +90,7 @@ export default function FaqPage() {
         ) : null}
         {!loading && !error && page?.empty ? (
           <div className="catalog-status" role="status">
-            <p>Nội dung câu hỏi thường gặp đang được cập nhật. Nếu cần xác nhận ngay, đội ngũ bệnh viện có thể hỗ trợ theo tình huống cụ thể.</p>
+            <p>Hiện chưa có dữ liệu thật của hệ thống để hiển thị câu hỏi đã duyệt. Bạn vẫn có thể xem hướng dẫn đặt lịch hoặc liên hệ bệnh viện để được hỗ trợ theo tình huống cụ thể.</p>
             <div className="resource-actions">
               <Link className="outline-button outline-button--small" href="/contact">Liên hệ bệnh viện</Link>
               <PublicBookingButton className="button button--amber">Đặt lịch khám</PublicBookingButton>
@@ -103,8 +103,8 @@ export default function FaqPage() {
             <span aria-hidden="true">?</span>
           </div>
           <div className="resource-hero-card__body">
-            <p className="resource-chip">FAQ công khai</p>
-            <h2>Những câu hỏi thường gặp theo dữ liệu thật của hệ thống.</h2>
+            <p className="resource-chip">Câu hỏi thường gặp</p>
+            <h2>Giải đáp những điều người bệnh thường quan tâm.</h2>
             <p className="resource-lead">
               Đọc câu trả lời nhanh trước, rồi quyết định có cần đặt lịch hay gọi hỗ trợ trực tiếp hay không.
             </p>
@@ -118,11 +118,11 @@ export default function FaqPage() {
             <dl className="resource-meta-grid">
               <div>
                 <dt>Câu hỏi</dt>
-                <dd>{loading ? "Đang tải…" : page?.totalElements ?? "Chưa có dữ liệu"}</dd>
+                <dd>{loading ? "Đang tải…" : page?.totalElements ?? "Chưa có câu hỏi"}</dd>
               </div>
               <div>
                 <dt>Trạng thái</dt>
-                <dd>{loading ? "Đang tải" : page && !page.empty ? "Có thể tra cứu" : "Đang bổ sung"}</dd>
+                <dd>{loading ? "Đang tải" : page && !page.empty ? "Có thể tra cứu" : "Chưa có câu hỏi đã duyệt"}</dd>
               </div>
             </dl>
           </div>

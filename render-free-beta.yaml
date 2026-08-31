@@ -5,9 +5,11 @@
 # operations.
 #
 # The selected deployment contract intentionally uses only resources available
-# on Render Free: PostgreSQL, Key Value, and one public Spring web service.
-# Optional AI, object-storage, mail, payment, and attachment-scanning features
-# remain fail-closed until a separately reviewed paid/private topology exists.
+# on Render Free: PostgreSQL, Key Value, one public Spring web service and one
+# public FastAPI web service. Render Free web services cannot receive private
+# network traffic, so the Spring-to-AI hop uses HTTPS plus a server-only token.
+# Object-storage, mail, payment, and attachment-scanning features remain
+# fail-closed until a separately reviewed paid/private topology exists.
 # The backend consumes an immutable GHCR digest, so Render never builds or
 # stores a Docker image on the operator workstation.
 
@@ -32,6 +34,47 @@ services:
     # Render Free Key Value is intentionally ephemeral. PostgreSQL remains the
     # transactional authority; Redis is limited to rate limits/realtime fanout.
     persistenceMode: "off"
+
+  - type: web
+    name: healthcare-beta-ai
+    runtime: python
+    plan: free
+    region: singapore
+    autoDeployTrigger: "off"
+    buildCommand: python -m pip install --no-cache-dir -r apps/ai-service/requirements.txt
+    startCommand: cd apps/ai-service && python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT --no-access-log
+    healthCheckPath: /livez
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.11"
+      - key: AI_PROVIDER
+        value: local
+      - key: EMBEDDING_PROVIDER
+        value: local
+      - key: AI_SERVICE_RUNTIME
+        value: render-beta
+      - key: AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL
+        value: "false"
+      - key: AI_PATIENT_CHAT_REMOTE_ENABLED
+        value: "false"
+      - key: AI_CHAT_REMOTE_PROVIDER_ENABLED
+        value: "false"
+      - key: REMOTE_AI_SYNTHETIC_ONLY
+        value: "true"
+      - key: REMOTE_AI_KILL_SWITCH
+        value: "true"
+      - key: RAG_STORAGE_BACKEND
+        value: memory
+      - key: RAG_INGEST_ENABLED
+        value: "true"
+      - key: RAG_MAX_DOCUMENTS
+        value: "10000"
+      - key: AI_MAX_RETRIEVED_CHUNKS
+        value: "5"
+      - key: AI_SERVICE_TOKEN
+        generateValue: true
+      - key: RAG_INGEST_TOKEN
+        generateValue: true
 
   - type: web
     name: healthcare-beta-backend
@@ -67,11 +110,24 @@ services:
       - key: CMS_DISTRIBUTED_REALTIME_ENABLED
         value: "true"
 
-      # Free mode has no private FastAPI service. All remote/clinical chat and
-      # RAG ingestion switches stay closed; the bounded SQL catalog triage can
-      # remain available because it does not call the AI service.
+      # HOSPITAL_SUPPORT uses the local-only FastAPI service. Clinical modes,
+      # remote providers and synthetic approval paths remain fail-closed.
+      - key: AI_SERVICE_URL
+        value: https://healthcare-beta-ai.onrender.com
+      - key: AI_SERVICE_TOKEN
+        fromService:
+          type: web
+          name: healthcare-beta-ai
+          envVarKey: AI_SERVICE_TOKEN
+      - key: AI_RAG_INGEST_TOKEN
+        fromService:
+          type: web
+          name: healthcare-beta-ai
+          envVarKey: RAG_INGEST_TOKEN
+      - key: AI_RAG_INGEST_ENABLED
+        value: "true"
       - key: AI_SERVICE_RUNTIME
-        value: non-local
+        value: render-beta
       - key: AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL
         value: "false"
       - key: AI_CHAT_REMOTE_PROVIDER_ENABLED
@@ -83,8 +139,6 @@ services:
       - key: AI_CHAT_SYNTHETIC_BETA_ASSERTED
         value: "false"
       - key: AI_CHAT_CHUNKED_ENABLED
-        value: "false"
-      - key: AI_RAG_INGEST_ENABLED
         value: "false"
       - key: RAG_STORAGE_BACKEND
         value: memory

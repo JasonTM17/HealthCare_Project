@@ -318,7 +318,24 @@ function doctorMatchesSpecialty(doctor: Doctor, specialty?: Specialty): boolean 
   if (doctor.specialtySlugs && doctor.specialtySlugs.length > 0) {
     return doctor.specialtySlugs.includes(specialty.slug);
   }
-  return !doctor.specialtyName || doctor.specialtyName === specialty.name;
+  // A selected specialty is a safety boundary: incomplete doctor metadata
+  // must not silently turn into an unfiltered choice.
+  return Boolean(doctor.specialtyName && doctor.specialtyName === specialty.name);
+}
+
+function specialtyIdForDoctor(doctor: Doctor | undefined, specialties: Specialty[]): string {
+  if (!doctor) return "";
+
+  const primaryName = doctor.specialtyName?.trim().toLocaleLowerCase("vi-VN");
+  if (primaryName) {
+    const byName = specialties.find((specialty) => (
+      specialty.name.trim().toLocaleLowerCase("vi-VN") === primaryName
+    ));
+    if (byName) return byName.id;
+  }
+
+  return doctor.specialtySlugs?.map((slug) => specialties.find((specialty) => specialty.slug === slug))
+    .find((specialty): specialty is Specialty => Boolean(specialty))?.id ?? "";
 }
 
 function secondsUntil(value: string): number {
@@ -593,9 +610,13 @@ function BookingExperience({
 
   const syncSelection = useCallback(() => {
     if (!active) return;
-    const firstBranch = branches.find((branch) => branch.id === initialBranchId) ?? branches[0];
+    const requestedDoctor = doctors.find((doctor) => doctor.id === initialDoctorId);
+    const firstBranch = branches.find((branch) => branch.id === initialBranchId)
+      ?? branches.find((branch) => requestedDoctor && doctorMatchesBranch(requestedDoctor, branch.id))
+      ?? branches[0];
     const nextBranchId = firstBranch?.id ?? "";
-    const requestedSpecialtyId = initialSpecialtyId?.trim() ?? "";
+    const requestedSpecialtyId = initialSpecialtyId?.trim()
+      || specialtyIdForDoctor(requestedDoctor, specialties);
     const requestedSpecialty = specialties.find((specialty) => specialty.id === requestedSpecialtyId);
     const nextSpecialtyId = requestedSpecialty
       ? requestedSpecialty.id
@@ -603,7 +624,7 @@ function BookingExperience({
         ? ""
         : specialties[0]?.id ?? "";
     setSelectionError(requestedSpecialtyId && !requestedSpecialty
-      ? "Chuyên khoa từ trợ lý không còn trong catalog live. Vui lòng chọn lại chuyên khoa trước khi tiếp tục."
+      ? "Chuyên khoa từ trợ lý không còn trong danh mục hiện tại (catalog live). Vui lòng chọn lại trước khi tiếp tục."
       : "");
     const nextSpecialty = specialties.find((specialty) => specialty.id === nextSpecialtyId);
     const firstDoctor = doctors.find((doctor) => doctor.id === initialDoctorId
@@ -809,7 +830,7 @@ function BookingExperience({
   const handleHoldSlot = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentSpecialty || !selectedSpecialty) {
-      setErrorMessage("Chuyên khoa không còn hợp lệ trong catalog live. Vui lòng chọn lại trước khi giữ lịch.");
+      setErrorMessage("Chuyên khoa không còn hợp lệ trong danh mục hiện tại. Vui lòng chọn lại trước khi giữ lịch.");
       navigateToStep(1);
       return;
     }
@@ -1161,7 +1182,8 @@ function BookingExperience({
               <div>
                 <label className="mb-1 block text-sm font-semibold text-gray-700" htmlFor="booking-doctor">Bác sĩ chuyên gia</label>
                 <select id="booking-doctor" name="doctor" required value={selectedDoctor} onChange={(e) => handleDoctorChange(e.target.value)} disabled={isSubmitting} className="w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-600">
-                  {availableDoctors.map((doc) => <option key={doc.id} value={doc.id}>{doc.fullName} ({doc.title || doc.specialtyName || "Bác sĩ chuyên khoa"})</option>)}
+                  <option value="" disabled>Chọn bác sĩ thuộc chuyên khoa đã chọn</option>
+                  {availableDoctors.map((doc) => <option key={doc.id} value={doc.id}>{doc.fullName} ({currentSpecialty?.name || doc.title || doc.specialtyName || "Bác sĩ chuyên khoa"})</option>)}
                 </select>
                 {!catalogLoading && selectedBranch && selectedSpecialty && availableDoctors.length === 0 ? <p className="mt-1.5 text-xs text-amber-800" role="status">Chưa có bác sĩ nhận lịch cho chuyên khoa này tại cơ sở đã chọn.</p> : null}
               </div>
@@ -1169,7 +1191,7 @@ function BookingExperience({
                 <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-brand-700 text-xl font-bold text-white"><Icon name="stethoscope" size={26} /></div>
                 <div>
                   <h4 className="text-base font-bold text-brand-900">{currentDoctor?.fullName ?? "Chưa chọn bác sĩ"}</h4>
-                  <p className="text-xs text-brand-700">{currentDoctor?.title ?? "Chưa có hồ sơ bác sĩ"}{currentDoctor?.experienceYears ? ` • ${currentDoctor.experienceYears} năm kinh nghiệm` : ""}</p>
+                  <p className="text-xs text-brand-700">{currentSpecialty?.name ?? currentDoctor?.title ?? "Chưa có hồ sơ bác sĩ"}{currentDoctor?.experienceYears ? ` • ${currentDoctor.experienceYears} năm kinh nghiệm` : ""}</p>
                   <p className="mt-1 line-clamp-2 text-xs text-gray-500">{currentDoctor?.bio ?? "Chọn bác sĩ để xem thông tin phù hợp."}</p>
                 </div>
               </div>

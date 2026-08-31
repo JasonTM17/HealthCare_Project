@@ -40,6 +40,7 @@ const PUBLIC_ROUTES = [
   "/bac-si/route-audit",
   "/chuyen-khoa/route-audit",
   "/goi-kham/route-audit",
+  "/login",
   "/auth/login",
   "/auth/register",
   "/auth/verify-email",

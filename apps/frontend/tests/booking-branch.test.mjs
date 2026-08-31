@@ -32,11 +32,21 @@ test("AI specialty identity fails closed when the live booking catalog is stale"
 
   assert.match(source, /requestedSpecialtyId/);
   assert.match(source, /requestedSpecialtyId && !requestedSpecialty/);
-  assert.match(source, /Chuyên khoa từ trợ lý không còn trong catalog live/);
+  assert.match(source, /Chuyên khoa từ trợ lý không còn trong danh mục hiện tại/);
   assert.match(source, /if \(!currentSpecialty \|\| !selectedSpecialty\)/);
   assert.match(source, /setStep\(1\)/);
   assert.doesNotMatch(source, /specialties\.some\(\(specialty\) => specialty\.id === initialSpecialtyId\)/);
   assert.doesNotMatch(source, /doctors\[0\]/);
+});
+
+test("booking keeps a doctor CTA scoped to that doctor's specialty and branch", async () => {
+  const source = await readFile(modalPath, "utf8");
+
+  assert.match(source, /const requestedDoctor = doctors\.find\(\(doctor\) => doctor\.id === initialDoctorId\)/);
+  assert.match(source, /specialtyIdForDoctor\(requestedDoctor, specialties\)/);
+  assert.match(source, /branches\.find\(\(branch\) => requestedDoctor && doctorMatchesBranch\(requestedDoctor, branch\.id\)\)/);
+  assert.match(source, /Chọn bác sĩ thuộc chuyên khoa đã chọn/);
+  assert.match(source, /currentSpecialty\?\.name \|\| doc\.title/);
 });
 
 test("branch two selection resets slot identity and passes the selected branch to hold", async () => {
