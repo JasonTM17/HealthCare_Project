@@ -202,9 +202,10 @@ For the Windows setup, local demo accounts, health checks, and troubleshooting,
 see [docs/LOCAL_RUNBOOK.md](docs/LOCAL_RUNBOOK.md).
 
 On Windows, use the repository safe launcher and keep a single Docker host
-owner during recovery. It serializes stop/start operations, fails closed when
-the Docker host drive has less than 2 GiB free, and preserves images, volumes,
-VHDX data, other WSL distributions, and Hibernate.
+owner during recovery. It serializes stop/start operations, bounds the Docker
+CLI stop call when a broken AF_UNIX socket would otherwise hang, fails closed
+when the Docker host drive has less than 2 GiB free, and preserves images,
+volumes, VHDX data, other WSL distributions, and Hibernate.
 
 After Docker Desktop is ready, Windows users can build, seed, and run the
 automated role-based smoke verification with the command below. If `.env` is

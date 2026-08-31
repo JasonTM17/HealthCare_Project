@@ -66,6 +66,11 @@ class PublicAiChatIntegrationTest extends AbstractIntegrationTest {
                 .content("{\"message\":\"" + "x".repeat(501) + "\"}"))
             .andExpect(status().isBadRequest());
 
+        mockMvc.perform(post("/api/v1/public/ai/chat")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"message\":\"Xin" + ((char) 1) + "chào\"}"))
+            .andExpect(status().isBadRequest());
+
         assertThat(aiConversationRepository.count()).isZero();
         assertThat(aiMessageRepository.count()).isZero();
     }

@@ -81,6 +81,9 @@ def test_recovery_waits_for_a_real_local_engine_response_and_stability_gate() ->
     assert "-WindowStyle Hidden" in text
     assert "MinimumHostFreeBytes" in text
     assert "Assert-DockerHostCapacity" in text
+    assert "docker desktop stop" in text
+    assert "WaitForExit($StopTimeoutSeconds * 1000)" in text
+    assert "if (Test-DockerEngine)" in text
 
 
 def test_ai_settings_are_inserted_and_verified_without_exposing_secrets() -> None:
@@ -154,7 +157,7 @@ def test_operation_order_is_stop_rotate_start_then_verify() -> None:
     assert text.index("Stop-DockerDesktopSafely") < text.index("Rotate-DockerRuntimeDirectories")
     assert text.index("Rotate-DockerRuntimeDirectories") < text.index("Start-Process -FilePath $desktopPath")
     assert text.index("Start-Process -FilePath $desktopPath") < text.rindex("Disable-AndVerifyDockerAi")
-    assert "desktop stop --timeout $StopTimeoutSeconds" in text
+    assert "@('desktop', 'stop', '--timeout'" in text
     assert "Wait-DockerStopped" in text
     assert "-replace \"`0\", ''" in text
     assert "finally" in text
