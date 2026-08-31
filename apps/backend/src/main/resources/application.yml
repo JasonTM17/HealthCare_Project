@@ -190,13 +190,20 @@ ai:
     allow-unauthenticated-local: ${AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL:false}
 
 server:
-  port: ${BACKEND_PORT:8080}
+  # Render supplies PORT (10000 by default). Keep BACKEND_PORT as the local
+  # override so Compose/standalone development remains on 8080.
+  port: ${PORT:${BACKEND_PORT:8080}}
 
 management:
   endpoints:
     web:
       exposure:
         include: health,info
+  health:
+    # A disabled mail subsystem must not keep a Render Free deployment in a
+    # permanent DOWN loop by probing the local-development SMTP placeholder.
+    mail:
+      enabled: ${MANAGEMENT_HEALTH_MAIL_ENABLED:${APP_MAIL_ENABLED:false}}
   endpoint:
     health:
       probes:

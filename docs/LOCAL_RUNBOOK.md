@@ -44,6 +44,16 @@ launcher does not touch images/volumes/VHDX data, shut down other WSL
 distributions, or change Hibernate. It verifies the local named-pipe engine
 and holds a short post-start stability gate.
 
+The launcher also holds an OS-backed exclusive file handle for its complete
+mutation window. A second launcher exits instead of racing a stop/start or
+runtime-folder rotation; a crashed process releases the handle automatically.
+Use exactly one terminal/task as the Docker host owner until the stability gate
+finishes. The default startup preflight requires at least 2 GiB free on the
+drive that hosts `%LOCALAPPDATA%\Docker`, because that drive still carries
+Docker Desktop logs, sockets, and temporary runtime state even when the WSL data
+disk is configured elsewhere. `-MinimumHostFreeBytes 0` is a diagnostic bypass,
+not a normal recovery setting.
+
 Docker AI/Model Runner and Inference are disabled and verified by default
 before the launcher reports success because they are optional sources of the
 same socket failure; use `-KeepDockerAI` only when that feature is explicitly
@@ -71,9 +81,14 @@ default; use the helper below when the disposable catalog-sync flow is needed.
 Then run:
 
 ```powershell
-docker compose -f infrastructure/docker-compose.yml config --quiet
-docker compose -f infrastructure/docker-compose.yml up --build
+docker compose --env-file .env -f infrastructure/docker-compose.yml config --quiet
+docker compose --env-file .env -f infrastructure/docker-compose.yml up --build
 ```
+
+Keep `--env-file .env` on every Compose command in this runbook. The Compose
+project directory is `infrastructure/`, while the required local secrets are
+in the repository-root `.env`; omitting the flag fails closed with a missing
+secret error.
 
 The default host ports are frontend `3000`, backend `8080`, AI service `8000`,
 PostgreSQL `5434`, Redis `6379`, MinIO `9000`/`9001`, and Mailpit SMTP/API
@@ -165,7 +180,7 @@ in the role-based checklist below as separate gates.
 
 The helper verifies that the backend, frontend, and AI service containers for
 the current Compose project carry the same Git revision it built. A direct
-`docker compose up --build` remains supported, but uses the explicit `unknown`
+`docker compose --env-file .env up --build` remains supported, but uses the explicit `unknown`
 provenance default and cannot establish an exact source-to-image runtime proof
 on its own.
 
@@ -238,7 +253,7 @@ Invoke-RestMethod http://localhost:8080/actuator/health
 Invoke-RestMethod http://localhost:8000/health -Headers @{"X-AI-Service-Token"=$env:AI_SERVICE_TOKEN}
 Invoke-WebRequest http://localhost:3000 -UseBasicParsing
 Invoke-WebRequest http://localhost:8025/livez -UseBasicParsing
-docker compose -f infrastructure/docker-compose.yml ps
+docker compose --env-file .env -f infrastructure/docker-compose.yml ps
 ```
 
 Open `http://localhost:3000/auth/login` and verify the patient, doctor and admin
@@ -398,8 +413,8 @@ Docker is not ready, Maven compilation still works with
 ## Stop and diagnose
 
 ```powershell
-docker compose -f infrastructure/docker-compose.yml logs --tail 200 backend ai-service frontend
-docker compose -f infrastructure/docker-compose.yml down
+docker compose --env-file .env -f infrastructure/docker-compose.yml logs --tail 200 backend ai-service frontend
+docker compose --env-file .env -f infrastructure/docker-compose.yml down
 ```
 
 Use `down -v` only when intentionally deleting all disposable local database,

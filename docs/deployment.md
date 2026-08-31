@@ -5,8 +5,12 @@
 ```bash
 cp .env.example .env
 # Replace the local AI/JWT values and set strong local-only values before sharing.
-docker compose -f infrastructure/docker-compose.yml up --build
+docker compose --env-file .env -f infrastructure/docker-compose.yml up --build
 ```
+
+The explicit `--env-file .env` is required when running from the repository
+root: the Compose file is under `infrastructure/`, but its fail-closed local
+secrets are stored in the root environment file.
 
 Services:
 - Frontend: http://localhost:3000

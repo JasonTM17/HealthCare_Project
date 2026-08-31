@@ -1,26 +1,24 @@
-# Render blueprint for the synthetic HealthCare beta.
+# Render Free blueprint for the synthetic HealthCare beta.
 #
-# This file is intentionally a deployment manifest, not deployment evidence.
-# Create disposable beta resources in the already-authorized Render workspace;
-# never attach this blueprint to a production service. Set every secret in
-# Render's secret store. The application services are image-backed so hosted
-# beta evidence can name the exact GHCR artifact instead of a Render rebuild.
-# Refresh the digest-pinned image URLs only after the matching GHCR publication
-# workflow has completed and its digest/provenance is recorded. The sha-
-# <commit> tags remain the discovery/audit handles; hosted Render must consume
-# the recorded content digests below.
+# This is the canonical hosted manifest for the disposable synthetic beta.
+# Keep all optional AI, storage, mail, payment and AV paths fail-closed.
+#
+# The selected deployment contract intentionally uses only resources available
+# on Render Free: PostgreSQL, Key Value, and one public Spring web service.
+# Optional AI, object-storage, mail, payment, and attachment-scanning features
+# remain fail-closed until a separately reviewed paid/private topology exists.
+# The backend consumes an immutable GHCR digest, so Render never builds or
+# stores a Docker image on the operator workstation.
 
 databases:
   - name: healthcare-beta-postgres
     plan: free
     region: singapore
     postgresMajorVersion: "16"
-    # Match the already-provisioned beta database identity. Render treats
-    # databaseName and user as immutable after creation; changing these here
-    # would cause Blueprint reconciliation to fail or request replacement.
     databaseName: healthcare_beta_postgres
-    user: healthcare_beta_postgres_user
-    # Keep the beta database private; do not expose synthetic data publicly.
+    # This is the rotated default credential identity. The password stays in
+    # Render's managed secret store and is never committed.
+    user: healthcare_beta_app_20260830r1
     ipAllowList: []
 
 services:
@@ -28,93 +26,18 @@ services:
     name: healthcare-beta-redis
     plan: free
     region: singapore
-    # Keep the cache reachable only over Render's private network.
     ipAllowList: []
     maxmemoryPolicy: noeviction
-    # Match the existing beta Key Value instance; this is intentionally
-    # ephemeral for the disposable beta and is not a production durability
-    # setting.
+    # Render Free Key Value is intentionally ephemeral. PostgreSQL remains the
+    # transactional authority; Redis is limited to rate limits/realtime fanout.
     persistenceMode: "off"
-
-  - type: pserv
-    name: healthcare-beta-ai
-    runtime: image
-    # Render private services do not support the Free compute plan. Keep the
-    # smallest paid plan explicit so a sync cannot silently select a larger
-    # resource or misrepresent the billing requirement.
-    plan: 0.5c-512mb
-    region: singapore
-    image:
-      url: ghcr.io/jasontm17/healthcare-project-ai-service@sha256:676df026d8f4ecbc8e4e9d70a424a164e8408c3933c324bda972316568bbb68e
-    # Render private services use a TCP port check. `healthCheckPath` is a
-    # web-service-only field; application readiness is verified internally
-    # with the service token by Spring/synthetic smoke tests.
-    envVars:
-      - key: AI_SERVICE_RUNTIME
-        value: synthetic-beta
-      - key: AI_SERVICE_TOKEN
-        sync: false
-      - key: AI_PROVIDER
-        value: local
-      - key: EMBEDDING_PROVIDER
-        value: local
-      - key: AI_PATIENT_CHAT_REMOTE_ENABLED
-        value: "false"
-      - key: AI_CHAT_REMOTE_PROVIDER_ENABLED
-        value: "false"
-      - key: REMOTE_AI_SYNTHETIC_ONLY
-        value: "true"
-      - key: REMOTE_AI_KILL_SWITCH
-        value: "true"
-      - key: RAG_STORAGE_BACKEND
-        value: supabase
-      - key: SUPABASE_DB_URL
-        sync: false
-      - key: SUPABASE_RAG_FALLBACK_TO_MEMORY
-        value: "false"
-      - key: RAG_EMBEDDING_DIMENSION
-        value: "384"
-      # FastAPI ingestion is independently protected from Spring's projection
-      # worker; keep the HTTP ingestion surface closed until a token and
-      # backup/rollback drill are approved.
-      - key: RAG_INGEST_ENABLED
-        value: "false"
-
-  - type: pserv
-    name: healthcare-beta-clamav
-    runtime: image
-    plan: 0.5c-512mb
-    region: singapore
-    image:
-      # Immutable multi-architecture manifest for ClamAV 1.4 (Docker Hub).
-      # Do not replace this with a floating tag without recording a new digest.
-      url: clamav/clamav@sha256:761f6c99b8d9134b39431f8c200189cda749b17310091561bfa8b732f32bfada
-
-  - type: pserv
-    name: healthcare-beta-av-scanner
-    runtime: image
-    plan: 0.5c-512mb
-    region: singapore
-    image:
-      url: ghcr.io/jasontm17/healthcare-project-attachment-scanner@sha256:7b445d77b20417f4d7921b3914dd3e7f9b054a5f9a7230dc2e87df13f810c9ba
-    envVars:
-      - key: SCANNER_SERVICE_TOKEN
-        sync: false
-      - key: CLAMD_HOST
-        fromService:
-          type: pserv
-          name: healthcare-beta-clamav
-          property: host
-      - key: CLAMD_PORT
-        value: "3310"
-      - key: MAX_SCAN_BYTES
-        value: "10485760"
 
   - type: web
     name: healthcare-beta-backend
     runtime: image
     plan: free
     region: singapore
+    autoDeployTrigger: "off"
     image:
       url: ghcr.io/jasontm17/healthcare-project-backend@sha256:165ae73c81b1236c1e4499c1f75bf50cef2d387e92ef2bf22f95452cf1f8020d
     healthCheckPath: /actuator/health
@@ -133,9 +56,6 @@ services:
         fromDatabase:
           name: healthcare-beta-postgres
           property: password
-      # Render's connectionString is postgres:// or postgresql://. The
-      # backend normalizes it to jdbc:postgresql:// before DataSource startup;
-      # discrete credentials remain separate and are never embedded in logs.
       - key: REDIS_URL
         fromService:
           type: keyvalue
@@ -143,93 +63,61 @@ services:
           property: connectionString
       - key: APP_SECURITY_RATE_LIMIT_REDIS_REQUIRED
         value: "true"
-      - key: AI_SERVICE_URL
-        fromService:
-          type: pserv
-          name: healthcare-beta-ai
-          # Render's private-network reference is a host:port pair. The
-          # Spring gateway normalizes this to an internal HTTP URL.
-          property: hostport
-      - key: AI_SERVICE_TOKEN
-        sync: false
+      - key: CMS_DISTRIBUTED_REALTIME_ENABLED
+        value: "true"
+
+      # Free mode has no private FastAPI service. All remote/clinical chat and
+      # RAG ingestion switches stay closed; the bounded SQL catalog triage can
+      # remain available because it does not call the AI service.
+      - key: AI_SERVICE_RUNTIME
+        value: non-local
+      - key: AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL
+        value: "false"
       - key: AI_CHAT_REMOTE_PROVIDER_ENABLED
         value: "false"
       - key: AI_CHAT_SYMPTOM_TRIAGE_ENABLED
         value: "false"
       - key: AI_CHAT_HEALTH_EDUCATION_ENABLED
         value: "false"
-      # Keep optional patient-chat modes and persisted-answer chunking closed
-      # until the hosted synthetic canary has an approved provider/projection
-      # manifest. The application defaults are fail-closed as well; declaring
-      # them here prevents a future image/config drift from opening them.
       - key: AI_CHAT_SYNTHETIC_BETA_ASSERTED
         value: "false"
       - key: AI_CHAT_CHUNKED_ENABLED
         value: "false"
-      # This endpoint is a bounded SQL-catalog lookup (no FastAPI call and no
-      # chat-row persistence), so the synthetic beta can expose the reviewed
-      # guest homepage triage flow. Its request rate limit remains enforced in
-      # Spring and emergency/PII/diagnose-prescribe cases fail closed.
-      - key: APP_PUBLIC_SPECIALTY_TRIAGE_ENABLED
-        value: "true"
-      # Hosted RAG reads the reconciled Supabase projection. Ingestion remains
-      # disabled until a separately managed ingest token and backup/rollback
-      # drill are supplied.
       - key: AI_RAG_INGEST_ENABLED
         value: "false"
-      # Exact public Vercel beta origin(s) accepted only from the authenticated
-      # BFF's X-Healthcare-Original-Origin header. Direct browser CORS is off.
+      - key: RAG_STORAGE_BACKEND
+        value: memory
+      - key: APP_PUBLIC_SPECIALTY_TRIAGE_ENABLED
+        value: "true"
+
+      # These values are server-only. The BFF token must exactly match the
+      # Vercel production secret and must never use a NEXT_PUBLIC_* name.
       - key: BFF_ALLOWED_ORIGINS
         sync: false
       - key: JWT_SECRET
         sync: false
-      # Configure the same secret in the Vercel server environment. It must
-      # never be exposed through NEXT_PUBLIC_* or a browser-visible header.
       - key: BACKEND_BFF_SERVICE_TOKEN
         sync: false
       - key: BACKEND_BFF_REQUIRED
         value: "true"
+
+      # Disabled subsystems must not make the Render health probe depend on
+      # localhost placeholders or unavailable paid/private services.
       - key: APP_MAIL_ENABLED
+        value: "false"
+      - key: APP_MAIL_OUTBOX_ENABLED
+        value: "false"
+      - key: MANAGEMENT_HEALTH_MAIL_ENABLED
         value: "false"
       - key: APP_PAYMENT_BANK_TRANSFER_ENABLED
         value: "false"
-      # Private S3/R2-compatible storage is mandatory for a deployed beta.
-      # Keep uploads off until the operator supplies the endpoint, credentials
-      # and a trusted AV/MIME worker through Render's secret store.
-      - key: STORAGE_ENDPOINT
-        sync: false
-      - key: STORAGE_ACCESS_KEY
-        sync: false
-      - key: STORAGE_SECRET_KEY
-        sync: false
-      - key: STORAGE_BUCKET
-        value: healthcare-beta-private
-      - key: STORAGE_REGION
-        value: auto
       - key: STORAGE_REQUIRE_PRIVATE_ENDPOINT
-        value: "true"
+        value: "false"
       - key: STORAGE_UPLOAD_ENABLED
         value: "false"
       - key: STORAGE_CONSULTATION_ENABLED
         value: "false"
-      - key: STORAGE_CONSULTATION_KEY_SIGNING_SECRET
-        sync: false
       - key: STORAGE_AV_REQUIRED
-        value: "true"
-      - key: STORAGE_AV_SERVICE_URL
-        fromService:
-          type: pserv
-          name: healthcare-beta-av-scanner
-          property: hostport
-      - key: STORAGE_AV_SERVICE_TOKEN
-        fromService:
-          type: pserv
-          name: healthcare-beta-av-scanner
-          envVarKey: SCANNER_SERVICE_TOKEN
-      - key: STORAGE_AV_ALLOWED_HOSTS
-        fromService:
-          type: pserv
-          name: healthcare-beta-av-scanner
-          property: host
+        value: "false"
       - key: STORAGE_MIME_VALIDATION_REQUIRED
         value: "true"

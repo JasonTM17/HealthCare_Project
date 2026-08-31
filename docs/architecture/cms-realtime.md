@@ -105,14 +105,14 @@ check, which is after Flyway startup. The default is the small fictional local
 seed:
 
 ```powershell
-docker compose -f infrastructure/docker-compose.yml up --build
+docker compose --env-file .env -f infrastructure/docker-compose.yml up --build
 ```
 
 To choose the larger fictional dataset for a run without changing `.env`:
 
 ```powershell
 $env:SEED_FILE = "../apps/backend/src/main/resources/db/seed/seed-large-data.sql"
-docker compose -f infrastructure/docker-compose.yml up --build
+docker compose --env-file .env -f infrastructure/docker-compose.yml up --build
 Remove-Item Env:SEED_FILE
 ```
 
@@ -123,10 +123,11 @@ fixture, and uniqueness by querying from the PostgreSQL container (the command
 does not print credentials):
 
 ```powershell
-docker compose -f infrastructure/docker-compose.yml run --rm local-seed
-docker compose -f infrastructure/docker-compose.yml exec -T postgres sh -ec 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select table_name from information_schema.tables where table_schema = ''public'' and table_name in (''cms_contents'',''cms_content_changes'') order by table_name; select slot_key, status, version, count(*) over (partition by slot_key) as rows_for_slot from cms_contents where slot_key = ''homepage.hero'';"'
+docker compose --env-file .env -f infrastructure/docker-compose.yml run --rm local-seed
+docker compose --env-file .env -f infrastructure/docker-compose.yml exec -T postgres sh -ec 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select table_name from information_schema.tables where table_schema = ''public'' and table_name in (''cms_contents'',''cms_content_changes'') order by table_name; select slot_key, status, version, count(*) over (partition by slot_key) as rows_for_slot from cms_contents where slot_key = ''homepage.hero'';"'
 ```
 
 Expected evidence is both CMS tables, one `homepage.hero` row, four active
 `job_positions`, zero `job_applications`, and `rows_for_slot = 1`.
-`docker compose config --quiet` is the safe config-only check before booting.
+`docker compose --env-file .env -f infrastructure/docker-compose.yml config --quiet`
+is the safe config-only check before booting.

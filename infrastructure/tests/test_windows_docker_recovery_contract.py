@@ -78,6 +78,9 @@ def test_recovery_waits_for_a_real_local_engine_response_and_stability_gate() ->
     assert "Wait-DockerStable" in text
     assert "Quarantine was preserved" in text
     assert "No Docker image, volume, WSL data disk, other WSL distribution, or Hibernate setting was changed." in text
+    assert "-WindowStyle Hidden" in text
+    assert "MinimumHostFreeBytes" in text
+    assert "Assert-DockerHostCapacity" in text
 
 
 def test_ai_settings_are_inserted_and_verified_without_exposing_secrets() -> None:
@@ -91,14 +94,67 @@ def test_ai_settings_are_inserted_and_verified_without_exposing_secrets() -> Non
     assert "supabase_service_role" not in text.lower()
 
 
+@pytest.mark.skipif(POWERSHELL is None, reason="Windows PowerShell 5.1 or pwsh is unavailable")
+def test_recovery_lock_rejects_a_second_launcher_without_stale_pid_state() -> None:
+    with tempfile.TemporaryDirectory(prefix="docker-safe lock ") as temporary:
+        lock_path = Path(temporary) / "safe-launcher.lock"
+        command = f"""
+$ErrorActionPreference = 'Stop'
+Import-Module {_ps_quote(MODULE)} -Force
+$path = {_ps_quote(lock_path)}
+$first = Open-DockerRecoveryLock -Path $path
+try {{
+    try {{
+        $second = Open-DockerRecoveryLock -Path $path
+        if ($null -ne $second) {{ $second.Dispose() }}
+        throw 'second lock unexpectedly acquired'
+    }} catch {{
+        if ($_.Exception.Message -notmatch 'already running') {{ throw }}
+    }}
+}} finally {{
+    $first.Dispose()
+}}
+$third = Open-DockerRecoveryLock -Path $path
+$third.Dispose()
+Write-Output 'PASS'
+"""
+        result = _run_powershell(command)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "PASS" in result.stdout
+
+
+@pytest.mark.skipif(POWERSHELL is None, reason="Windows PowerShell 5.1 or pwsh is unavailable")
+def test_host_capacity_check_is_fail_closed_and_can_be_explicitly_disabled() -> None:
+    with tempfile.TemporaryDirectory(prefix="docker-safe capacity ") as temporary:
+        command = f"""
+$ErrorActionPreference = 'Stop'
+Import-Module {_ps_quote(MODULE)} -Force
+$path = {_ps_quote(temporary)}
+Assert-DockerHostCapacity -Path $path -MinimumFreeBytes 0
+try {{
+    Assert-DockerHostCapacity -Path $path -MinimumFreeBytes ([long]::MaxValue)
+    throw 'capacity check unexpectedly passed'
+}} catch {{
+    if ($_.Exception.Message -notmatch 'at least .* GiB is required before startup') {{ throw }}
+}}
+Write-Output 'PASS'
+"""
+        result = _run_powershell(command)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "PASS" in result.stdout
+
+
 def test_operation_order_is_stop_rotate_start_then_verify() -> None:
     text = _script()
+    assert text.rindex("Assert-DockerHostCapacity -Path") < text.rindex("Open-DockerRecoveryLock -Path")
     assert text.index("Stop-DockerDesktopSafely") < text.index("Rotate-DockerRuntimeDirectories")
     assert text.index("Rotate-DockerRuntimeDirectories") < text.index("Start-Process -FilePath $desktopPath")
     assert text.index("Start-Process -FilePath $desktopPath") < text.rindex("Disable-AndVerifyDockerAi")
     assert "desktop stop --timeout $StopTimeoutSeconds" in text
     assert "Wait-DockerStopped" in text
     assert "-replace \"`0\", ''" in text
+    assert "finally" in text
+    assert "$recoveryLock.Dispose()" in text
 
 
 @pytest.mark.skipif(POWERSHELL is None, reason="Windows PowerShell 5.1 or pwsh is unavailable")
@@ -128,6 +184,35 @@ if (($settings.EnableDockerAI -ne $false) -or ($settings.EnableInference -ne $fa
         payload = json.loads(result.stdout.strip().splitlines()[-1])
         assert payload["ai"] is False
         assert payload["inference"] is False
+
+
+@pytest.mark.skipif(POWERSHELL is None, reason="Windows PowerShell 5.1 or pwsh is unavailable")
+def test_multi_path_rotation_rolls_back_in_reverse_order() -> None:
+    """A failed second rotation must restore the first path without shell errors."""
+    with tempfile.TemporaryDirectory(prefix="docker-safe rollback ") as temporary:
+        root = Path(temporary)
+        command = f"""
+$ErrorActionPreference = 'Stop'
+Import-Module {_ps_quote(MODULE)} -Force
+$root = {_ps_quote(root)}
+$run = Join-Path $root 'run'
+$bad = Join-Path $root 'bad'
+New-Item -ItemType Directory -Path $run | Out-Null
+Set-Content -LiteralPath (Join-Path $run 'sentinel.txt') -Value 'preserve'
+Set-Content -LiteralPath $bad -Value 'not-a-directory'
+try {{
+    Rotate-DockerRuntimeDirectories -Paths @($run, $bad) -AllowedPaths @($run, $bad) | Out-Null
+    throw 'multi-path rotation unexpectedly succeeded'
+}} catch {{
+    if ($_.Exception.Message -match 'Select-Object.*Reverse|parameter cannot be found') {{ throw }}
+}}
+if (-not (Test-Path -LiteralPath (Join-Path $run 'sentinel.txt') -PathType Leaf)) {{ throw 'first path was not restored' }}
+if ((Get-Content -Raw -LiteralPath (Join-Path $run 'sentinel.txt')).Trim() -ne 'preserve') {{ throw 'restored content mismatch' }}
+Write-Output 'PASS'
+"""
+        result = _run_powershell(command)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "PASS" in result.stdout
 
 
 @pytest.mark.skipif(POWERSHELL is None, reason="Windows PowerShell 5.1 or pwsh is unavailable")

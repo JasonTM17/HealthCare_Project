@@ -2,10 +2,14 @@
 
 Local development infrastructure for HealthCare_Project. This is not production deployment configuration.
 
-Copy the root `.env.example` to `.env` and replace its local-only placeholders before running the complete stack:
+Run these commands from the repository root. Copy the root `.env.example` to
+`.env` and replace its local-only placeholders before running the complete
+stack. Pass the root environment file explicitly because Compose's project
+directory is `infrastructure/` and otherwise the required secret variables are
+not loaded:
 
 ```bash
-docker compose -f infrastructure/docker-compose.yml up --build
+docker compose --env-file .env -f infrastructure/docker-compose.yml up --build
 ```
 
 Compose uses tracked local-only fallbacks for the AI and JWT boundaries when
@@ -109,7 +113,7 @@ Use the larger dataset with the existing Flyway-managed local stack:
 
 ```powershell
 $env:SEED_FILE = "../apps/backend/src/main/resources/db/seed/seed-large-data.sql"
-docker compose -f infrastructure/docker-compose.yml up --build
+docker compose --env-file .env -f infrastructure/docker-compose.yml up --build
 ```
 
 The release workflow also publishes a standalone GHCR image at
