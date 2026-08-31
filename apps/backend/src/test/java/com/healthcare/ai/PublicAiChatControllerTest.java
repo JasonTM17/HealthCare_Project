@@ -1,6 +1,8 @@
 package com.healthcare.ai;
 
 import com.healthcare.ai.controller.PublicAiChatController;
+import com.healthcare.ai.chat.entity.ChatMode;
+import com.healthcare.ai.chat.service.AiChatSourceResolver;
 import com.healthcare.ai.service.AiService;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -17,6 +19,17 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class PublicAiChatControllerTest {
+
+    private static final String SPECIALTY_ID = "00000000-0000-0000-0000-000000000001";
+
+    private AiChatSourceResolver resolverForSpecialty() {
+        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
+        when(resolver.revalidate(ChatMode.HOSPITAL_SUPPORT, "specialty", SPECIALTY_ID))
+            .thenReturn(new AiChatSourceResolver.ResolvedSource(
+                "specialty", SPECIALTY_ID, "Tim mạch", "tim-mach", true, true,
+                "OPERATIONAL", null, null, null, null, "/specialties/tim-mach", "/dat-lich?specialtyId=" + SPECIALTY_ID));
+        return resolver;
+    }
 
     @Test
     void rejectsBrowserControlledModeAndUnknownFields() {
@@ -42,14 +55,15 @@ class PublicAiChatControllerTest {
             "disclaimer", "Chỉ mang tính tham khảo.",
             "provenance", "local_provider",
             "safety_action", "ANSWER",
+            "mode", "HOSPITAL_SUPPORT",
             "recommended_specialty_id", "provider-id",
             "citations", List.of(Map.of(
-                "source_type", "specialty", "source_id", "tim-mach", "title", "Tim mạch",
+                "source_type", "specialty", "source_id", SPECIALTY_ID, "title", "untrusted provider title",
                 "url", "https://provider.example"
             ))
         ));
 
-        Map<String, Object> body = new PublicAiChatController(aiService)
+        Map<String, Object> body = new PublicAiChatController(aiService, resolverForSpecialty())
             .chat(new PublicAiChatController.PublicChatRequest(
                 "  Chuyên khoa nào? ",
                 List.of(new PublicAiChatController.PublicChatTurn("user", "Xin chào"))
@@ -62,7 +76,7 @@ class PublicAiChatControllerTest {
             .containsEntry("safety_action", "ANSWER")
             .doesNotContainKey("recommended_specialty_id")
             .containsEntry("citations", List.of(Map.of(
-                "source_type", "specialty", "source_id", "tim-mach", "title", "Tim mạch")));
+                "source_type", "specialty", "source_id", SPECIALTY_ID, "title", "Tim mạch")));
         verify(aiService).chat(Map.of(
             "message", "Chuyên khoa nào?",
             "recent_turns", List.of(new PublicAiChatController.PublicChatTurn("user", "Xin chào"))
@@ -70,11 +84,18 @@ class PublicAiChatControllerTest {
     }
 
     @Test
-    void suppliesSafeDefaultsWhenOptionalUpstreamFieldsAreMissing() {
+    void acceptsCompleteResponseWithNoCitations() {
         AiService aiService = mock(AiService.class);
-        when(aiService.chat(any())).thenReturn(Map.of("answer", "Được."));
+        when(aiService.chat(any())).thenReturn(Map.of(
+            "answer", "Được.",
+            "disclaimer", "Chỉ mang tính tham khảo.",
+            "provenance", "local_provider",
+            "safety_action", "ANSWER",
+            "mode", "HOSPITAL_SUPPORT",
+            "citations", List.of()
+        ));
 
-        Map<String, Object> body = new PublicAiChatController(aiService)
+        Map<String, Object> body = new PublicAiChatController(aiService, resolverForSpecialty())
             .chat(new PublicAiChatController.PublicChatRequest("Xin chào", null))
             .getBody();
 
@@ -91,10 +112,14 @@ class PublicAiChatControllerTest {
         AiService aiService = mock(AiService.class);
         when(aiService.chat(any())).thenReturn(Map.of(
             "answer", "Không được phép.",
-            "provenance", "remote_provider"
+            "provenance", "remote_provider",
+            "mode", "HOSPITAL_SUPPORT",
+            "disclaimer", "Chỉ mang tính tham khảo.",
+            "safety_action", "ANSWER",
+            "citations", List.of()
         ));
 
-        assertThatThrownBy(() -> new PublicAiChatController(aiService)
+        assertThatThrownBy(() -> new PublicAiChatController(aiService, resolverForSpecialty())
             .chat(new PublicAiChatController.PublicChatRequest("Xin chào", null)))
             .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
             .hasMessageContaining("502 BAD_GATEWAY");
@@ -106,10 +131,32 @@ class PublicAiChatControllerTest {
         when(aiService.chat(any())).thenReturn(Map.of(
             "answer", "Không chắc.",
             "mode", "SYMPTOM_TRIAGE",
-            "safety_action", "UNTRUSTED"
+            "safety_action", "UNTRUSTED",
+            "provenance", "local_provider",
+            "disclaimer", "Chỉ mang tính tham khảo.",
+            "citations", List.of()
         ));
 
-        assertThatThrownBy(() -> new PublicAiChatController(aiService)
+        assertThatThrownBy(() -> new PublicAiChatController(aiService, resolverForSpecialty())
+            .chat(new PublicAiChatController.PublicChatRequest("Xin chào", null)))
+            .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+            .hasMessageContaining("502 BAD_GATEWAY");
+    }
+
+    @Test
+    void rejectsMalformedOrUnresolvedCitationsInsteadOfDroppingThem() {
+        AiService aiService = mock(AiService.class);
+        when(aiService.chat(any())).thenReturn(Map.of(
+            "answer", "Bạn có thể xem danh sách.",
+            "disclaimer", "Chỉ mang tính tham khảo.",
+            "provenance", "local_provider",
+            "safety_action", "ANSWER",
+            "mode", "HOSPITAL_SUPPORT",
+            "citations", List.of(Map.of(
+                "source_type", "article", "source_id", SPECIALTY_ID, "title", "Sai mode"))
+        ));
+
+        assertThatThrownBy(() -> new PublicAiChatController(aiService, resolverForSpecialty())
             .chat(new PublicAiChatController.PublicChatRequest("Xin chào", null)))
             .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
             .hasMessageContaining("502 BAD_GATEWAY");
