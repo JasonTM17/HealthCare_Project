@@ -43,10 +43,12 @@ not to `latest` or to a deployment label.
 
 The hosted beta deliberately uses only Render Free resources; `render.yaml` is
 the canonical manifest and `render-free-beta.yaml` is a parity copy for review.
-AI/FastAPI, ClamAV and attachment scanning are not provisioned in this selected
-plan, and all related switches remain fail-closed. The backend image is now
-published from the exact source SHA above and is live on the existing Free
-service only after the digest pin and deploy health gates passed.
+The local-only FastAPI service is provisioned as a native Python Free web
+service for authenticated hospital-support chat and public-catalog RAG. Remote
+patient/clinical AI, ClamAV, attachment scanning, object storage, mail and
+payment consumers remain fail-closed. The backend image is published from the
+exact application source SHA above and is promoted only after the digest pin
+and deploy health gates pass.
 
 | GHCR package | Immutable reference | Audit tag |
 | --- | --- | --- |
@@ -58,9 +60,10 @@ service only after the digest pin and deploy health gates passed.
 
 ### Frontend package contract
 
-The only npm workspace is `apps/frontend`; `package.json` and
-`package-lock.json` are kept in lockfile v3 sync. The release-tested contract
-is Node.js `>=22 <25` with npm `>=10 <12`, installed with `npm ci`.
+The only npm workspace is `apps/frontend`; release `0.1.1` keeps `package.json`
+and `package-lock.json` in lockfile v3 sync. The release-tested contract is
+Node.js `>=22 <25` with npm `>=10 <12`, installed with `npm ci`; the focused
+`npm run test:chat-contract` gate covers the public chatbot/BFF boundary.
 
 - Runtime pins: Next.js `16.3.3`, React `19.2.8`, and React DOM `19.2.8`.
 - Tooling pins: `eslint-config-next` `16.3.3`, TypeScript `6.0.3`, and
@@ -82,11 +85,15 @@ remain deliberately deferred until a separate compatibility review.
   automatic Git integration deploy; repeat the exact-SHA CLI deploy after an
   application change. The three BFF variables remain server-only
   (`BACKEND_INTERNAL_URL`, `BFF_PUBLIC_ORIGIN`, and
-  `BACKEND_BFF_SERVICE_TOKEN`); `/api/v1/health` is allowed to report `503
-  degraded` while AI is disabled on the Free beta.
+  `BACKEND_BFF_SERVICE_TOKEN`). The BFF health route becomes healthy only when
+  both the Spring service and its authenticated AI dependency are ready; Free
+  service cold starts can make the first request slow.
 - Render has a Free Singapore PostgreSQL (`dpg-da7r3uou01pc73boask0-a`), Free
-  Key Value (`red-daa3ub9f2nfc73956660`), and Free image-backed web service
-  (`srv-daa41a9f2nfc7395eg1g`). Deploy
+  Key Value (`red-daa3ub9f2nfc73956660`), Free image-backed Spring web service
+  (`srv-daa41a9f2nfc7395eg1g`), and Free native-Python AI web service
+  (`srv-daal7kgn74is73bafjqg`). The AI deploy
+  `dep-daal7l8n74is73baflo0` is live with authenticated `/health`, local
+  provider/embeddings, and remote-patient flags disabled. Backend deploy
   `dep-daaidvp42hec73aj9080` is `live` with requested image digest
   `sha256:c492898b8767119ab9417b55833b473aca65262f21ba713a77e51a972553dcf3`
   and Render-resolved manifest digest
@@ -108,8 +115,10 @@ remain deliberately deferred until a separate compatibility review.
   migration rows, 15 RLS-enabled `healthcare` tables, and the verified synthetic
   projection (100,000 customers, 75,000 patient profiles, 10,000 public RAG
   rows, and 830 patient-chat rows). The writer-locked reconciliation was
-  applied once and its contract/canaries passed; consumers and ingestion remain
-  disabled. The exact Render catalog rollback capsule is
+  applied once and its contract/canaries passed. The hosted AI process ingests
+  only Spring's public operational catalog into an ephemeral memory index;
+  Supabase patient-chat/durable-RAG consumers remain disabled. The exact Render
+  catalog rollback capsule is
   [`infrastructure/database/seed-hosted-catalog-rollback.sql`](infrastructure/database/seed-hosted-catalog-rollback.sql)
   and the Supabase compensating capsule remains unexecuted recovery evidence.
 

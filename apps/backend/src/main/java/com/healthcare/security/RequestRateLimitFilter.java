@@ -204,7 +204,7 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
         if ("POST".equals(method) && path.equals("/api/v1/public/specialty-recommendation")) {
             return new LimitRule("public-triage", publicTriageLimit);
         }
-        if (path.startsWith("/api/v1/ai/")) {
+        if (path.startsWith("/api/v1/ai/") || path.equals("/api/v1/public/ai/chat")) {
             return new LimitRule("ai", aiLimit);
         }
         return null;

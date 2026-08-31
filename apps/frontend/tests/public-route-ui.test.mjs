@@ -51,6 +51,14 @@ test("all primary public route groups expose descriptive metadata", async () => 
   }
 });
 
+test("legacy login links redirect into the canonical auth route", async () => {
+  const source = await read("app/login/page.tsx");
+
+  assert.match(source, /redirect\(/);
+  assert.match(source, /\/auth\/login/);
+  assert.match(source, /startsWith\("\/\/"\)/);
+});
+
 test("public route styling keeps dark heroes legible and guidance responsive", async () => {
   const styles = await read("app/styles.css");
 
@@ -60,4 +68,25 @@ test("public route styling keeps dark heroes legible and guidance responsive", a
   assert.match(styles, /\.public-route-breadcrumb__list/);
   assert.match(styles, /@media \(max-width: 760px\)[\s\S]*\.site-shell--public-route \.resource-page__header h1/);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.site-shell--public-route \.catalog-status--loading::before/);
+});
+
+test("public catalog states and mobile assistance stay readable during slow loads", async () => {
+  const [doctors, assistant, assistantStyles, cms, styles, tracking] = await Promise.all([
+    read("app/doctors/DoctorsPageClient.tsx"),
+    read("components/FloatingHealthAssistant.tsx"),
+    read("components/FloatingHealthAssistant.module.css"),
+    read("components/cms/CmsRenderer.tsx"),
+    read("app/styles.css"),
+    read("app/tra-cuu/page.tsx"),
+  ]);
+
+  assert.match(doctors, /loading && !page/);
+  assert.match(doctors, /dedupePublicDoctors/);
+  assert.match(assistant, /data-page=\{pathname\}/);
+  assert.match(assistantStyles, /data-page="\/dat-lich"/);
+  assert.match(assistantStyles, /6\.5rem/);
+  assert.doesNotMatch(cms, /Nội dung CMS:/);
+  assert.match(cms, /Thông tin nổi bật từ bệnh viện/);
+  assert.match(styles, /\.resource-list li \{[\s\S]*display:\s*grid/);
+  assert.doesNotMatch(tracking, /Thông tin hiển thị từ backend/);
 });

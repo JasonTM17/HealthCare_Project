@@ -147,6 +147,26 @@ class RequestRateLimitFilterTest {
     }
 
     @Test
+    void rateLimitsStatelessPublicAiChat() throws Exception {
+        MockEnvironment environment = new MockEnvironment()
+            .withProperty("app.security.rate-limit.ai-limit", "1")
+            .withProperty("app.security.rate-limit.window-seconds", "60");
+        RequestRateLimitFilter filter = filter(environment);
+        AtomicInteger accepted = new AtomicInteger();
+
+        MockHttpServletResponse first = invokePost(
+            filter, accepted, "/api/v1/public/ai/chat", "203.0.113.70"
+        );
+        MockHttpServletResponse repeated = invokePost(
+            filter, accepted, "/api/v1/public/ai/chat", "203.0.113.70"
+        );
+
+        assertThat(first.getStatus()).isEqualTo(200);
+        assertThat(repeated.getStatus()).isEqualTo(429);
+        assertThat(accepted).hasValue(1);
+    }
+
+    @Test
     void trustedBffUsesCanonicalClientIpAsRateLimitKey() throws Exception {
         MockEnvironment environment = rateLimitEnvironment();
         RequestRateLimitFilter filter = filter(environment);

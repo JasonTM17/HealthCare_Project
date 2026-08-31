@@ -670,3 +670,33 @@ test("BFF gives the chunked chat route its longer generation deadline", async ()
   assert.equal(response.status, 200);
   assert.equal(capturedSignal.aborted, false);
 });
+
+test("BFF gives public hospital-support chat a bounded cold-start deadline", async () => {
+  const bff = await loadBff();
+  let capturedSignal;
+  const runtime = { ...runtimeConfig, requestTimeoutMs: 10, publicAiRequestTimeoutMs: 40 };
+  const response = await bff.proxyHealthcareRequest(
+    browserRequest("/api/v1/public/ai/chat", {
+      method: "POST",
+      headers: { Origin: "https://beta.healthcare.test", "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "Xin chào" }),
+    }),
+    ["public", "ai", "chat"],
+    {
+      runtimeConfig: runtime,
+      fetchImpl: async (_target, init) => {
+        capturedSignal = init.signal;
+        await new Promise((resolve, reject) => {
+          const timer = setTimeout(resolve, 20);
+          init.signal.addEventListener("abort", () => {
+            clearTimeout(timer);
+            reject(new DOMException("aborted", "AbortError"));
+          }, { once: true });
+        });
+        return Response.json({ ok: true });
+      },
+    },
+  );
+  assert.equal(response.status, 200);
+  assert.equal(capturedSignal.aborted, false);
+});

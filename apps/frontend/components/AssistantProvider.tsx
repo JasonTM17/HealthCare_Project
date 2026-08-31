@@ -100,6 +100,7 @@ const ASSISTANT_ERROR_COPY: Readonly<Record<string, string>> = {
   CHAT_MESSAGE_IN_PROGRESS: "Trợ lý đang xử lý một tin nhắn khác trong cuộc trò chuyện này.",
   CHAT_IDEMPOTENCY_CONFLICT: "Yêu cầu gửi lại không còn khớp với tin nhắn ban đầu. Hãy thử lại từ lịch sử.",
   CHAT_INPUT_INVALID: "Tin nhắn phải có từ 2 đến 10.000 ký tự.",
+  PUBLIC_CHAT_INPUT_INVALID: "Tin nhắn ở chế độ khách phải có từ 2 đến 500 ký tự.",
   AI_UNAVAILABLE: "Trợ lý tạm thời chưa thể phản hồi. Bạn có thể gửi lại câu hỏi.",
   AI_RESPONSE_INVALID: "Phản hồi của trợ lý chưa đạt yêu cầu an toàn. Hãy thử lại sau.",
   CHAT_CONTENT_BLOCKED: "Hãy bỏ thông tin nhận dạng cá nhân và thử diễn đạt lại câu hỏi.",
@@ -131,7 +132,7 @@ export function assistantFailureFromError(error: unknown): AssistantFailure {
       status,
     };
   }
-  if (code === "CHAT_CONTENT_BLOCKED" || code === "CHAT_INPUT_INVALID") {
+  if (code === "CHAT_CONTENT_BLOCKED" || code === "CHAT_INPUT_INVALID" || code === "PUBLIC_CHAT_INPUT_INVALID") {
     return { code, kind: "blocked", message: knownMessage ?? "Yêu cầu chưa thể hoàn tất.", retryable: false, status };
   }
   const retryable = status === 0

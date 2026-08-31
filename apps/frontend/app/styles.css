@@ -1004,6 +1004,15 @@ main {
   color: var(--color-ink-muted);
 }
 
+.resource-list li {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.resource-list li span {
+  display: block;
+}
+
 .resource-detail-block {
   margin-top: var(--sp-6);
 }

@@ -663,9 +663,16 @@
 
 @media (max-width: 640px) {
   .root {
-    --assistant-bottom-clearance: 4.75rem;
+    --assistant-bottom-clearance: 6.5rem;
     right: max(0.75rem, env(safe-area-inset-right));
     bottom: calc(var(--assistant-bottom-clearance) + max(0.75rem, env(safe-area-inset-bottom)));
+  }
+
+  /* The booking page already exposes a dedicated “Hỗ trợ chọn chuyên khoa”
+     action. Keep the floating launcher out of the dense first fold where it
+     would cover the booking heading or the fixed quick-action rail. */
+  .root[data-page="/dat-lich"] {
+    display: none;
   }
 
   .panel {

@@ -57,9 +57,13 @@ not a normal recovery setting.
 Docker AI/Model Runner and Inference are disabled and verified by default
 before the launcher reports success because they are optional sources of the
 same socket failure; use `-KeepDockerAI` only when that feature is explicitly
-needed. Failed starts preserve the quarantined folders for diagnostics and
-manual rollback. The launcher reports the number and accessible byte size of
-known `.stale-*` folders but never deletes them automatically.
+needed. The launcher reads the effective backend flags first and does not issue
+the CLI toggle when both are already false; this avoids an unnecessary
+asynchronous backend restart during the stability gate. If a toggle is needed,
+it waits for the named-pipe engine to return before checking the persisted flags.
+Failed starts preserve the quarantined folders for diagnostics and manual
+rollback. The launcher reports the number and accessible byte size of known
+`.stale-*` folders but never deletes them automatically.
 
 The installer changes only the Start Menu shortcut by default; it leaves the
 existing per-user AutoStart setting unchanged. `-InstallAutoStart` is an

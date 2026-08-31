@@ -235,10 +235,10 @@ test("search page now behaves like a guided discovery hub with bounded AI result
   assert.match(search, /resource-meta-grid/);
   assert.match(search, /SEARCH_GUIDE_STEPS/);
   assert.match(search, /resource-step-card/);
-  assert.match(search, /Gợi ý mở rộng có provenance/);
+  assert.match(search, /Gợi ý thông minh có nguồn tham khảo/);
   assert.match(search, /semanticScoreLabel/);
   assert.match(search, /citationLabel/);
-  assert.match(search, /Provenance AI/);
+  assert.match(search, /Nguồn gợi ý/);
   assert.match(search, /không thay thế tư vấn y khoa hoặc chẩn đoán/);
   assert.equal(search.includes("href={`/${item.source_type}"), false);
 });

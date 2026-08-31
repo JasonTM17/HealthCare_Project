@@ -19,6 +19,10 @@ test("floating assistant is mounted globally and stays on the REST chat contract
   assert.match(component, /fetchAiConversations\(\)/);
   assert.match(component, /fetchAiConversationMessages\(latest\.id/);
   assert.match(component, /sendMessage\(currentConversation\.id, normalized/);
+  assert.match(component, /sendPublicAiChat\(normalized, recentTurns/);
+  assert.match(component, /MAX_PUBLIC_MESSAGE_LENGTH/);
+  assert.match(component, /Bạn đang dùng chế độ khách/);
+  assert.match(component, /isPatient && message\.status === "COMPLETED"/);
   assert.match(component, /onDelta: \(delta\) => \{[\s\S]*isCurrentLocalRequest\(epoch, currentConversation\?\.id\)[\s\S]*setStreamingReply/);
   assert.match(component, /data-testid="floating-chat-streaming-reply"/);
   assert.match(provider, /Idempotency-Key|idempotencyKey/);
@@ -29,6 +33,7 @@ test("floating assistant is mounted globally and stays on the REST chat contract
   assert.match(component, /DEFAULT_DISCLAIMER/);
   assert.match(component, /citationHref/);
   assert.match(provider, /AI_UNAVAILABLE/);
+  assert.match(provider, /PUBLIC_CHAT_INPUT_INVALID/);
   assert.match(component, /className="sr-only">Trợ lý sức khỏe/);
   assert.match(component, /MutationObserver/);
   assert.match(component, /event\.key === "Escape"/);
@@ -49,7 +54,7 @@ test("floating assistant exposes real recovery, safety and accessible actions", 
   assert.match(component, /aria-expanded=\{open\}/);
   assert.match(component, /role="dialog"/);
   assert.match(component, /aria-modal="true"/);
-  assert.match(component, /maxLength=\{MAX_MESSAGE_LENGTH\}/);
+  assert.match(component, /maxLength=\{isPatient \? MAX_MESSAGE_LENGTH : MAX_PUBLIC_MESSAGE_LENGTH\}/);
   assert.match(styles, /launcherAvatar/);
   assert.match(styles, /border-radius: 50%/);
   assert.match(styles, /launcherMascot/);
@@ -81,4 +86,7 @@ test("floating assistant fails closed across mode changes and policy refreshes",
   assert.match(apiClient, /CTA_LABEL_CONTROL_PATTERN/);
   assert.match(apiClient, /\{0,219\}/);
   assert.match(apiClient, /CTA_LABEL_CONTROL_PATTERN\.test\(value\.label\)/);
+  assert.match(apiClient, /PUBLIC_CHAT_INPUT_INVALID/);
+  assert.match(apiClient, /value\.mode !== "HOSPITAL_SUPPORT"/);
+  assert.match(apiClient, /provenance !== "local_provider"/);
 });

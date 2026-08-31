@@ -5,6 +5,7 @@ import vm from "node:vm";
 import ts from "typescript";
 
 const apiClientPath = new URL("../lib/api-client.ts", import.meta.url);
+const publicCatalogPath = new URL("../lib/public-catalog.ts", import.meta.url);
 
 function deferred() {
   let resolve;
@@ -54,13 +55,24 @@ function createBrowserWindow() {
 }
 
 async function loadApiClient(fetchImplementation, runtime = {}) {
-  const source = await readFile(apiClientPath, "utf8");
+  const [source, publicCatalogSource] = await Promise.all([
+    readFile(apiClientPath, "utf8"),
+    readFile(publicCatalogPath, "utf8"),
+  ]);
   const transpiled = ts.transpileModule(source, {
     compilerOptions: {
       module: ts.ModuleKind.CommonJS,
       target: ts.ScriptTarget.ES2022,
     },
     fileName: "api-client.ts",
+    reportDiagnostics: true,
+  });
+  const publicCatalogTranspiled = ts.transpileModule(publicCatalogSource, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+    },
+    fileName: "public-catalog.ts",
     reportDiagnostics: true,
   });
   const compileErrors = (transpiled.diagnostics ?? []).filter(
@@ -92,7 +104,16 @@ async function loadApiClient(fetchImplementation, runtime = {}) {
     `(function (exports, require, module) {${transpiled.outputText}\n})`,
     { filename: "api-client.compiled.cjs" },
   ).runInContext(context);
+  const publicCatalogModule = { exports: {} };
+  const loadPublicCatalog = new vm.Script(
+    `(function (exports, require, module) {${publicCatalogTranspiled.outputText}\n})`,
+    { filename: "public-catalog.compiled.cjs" },
+  ).runInContext(context);
+  loadPublicCatalog(publicCatalogModule.exports, (specifier) => {
+    throw new Error(`Unexpected public-catalog runtime import: ${specifier}`);
+  }, publicCatalogModule);
   loadModule(compiledModule.exports, (specifier) => {
+    if (specifier === "./public-catalog") return publicCatalogModule.exports;
     throw new Error(`Unexpected runtime import: ${specifier}`);
   }, compiledModule);
   return { api: compiledModule.exports, window: context.window };

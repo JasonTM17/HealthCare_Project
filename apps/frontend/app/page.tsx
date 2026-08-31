@@ -278,7 +278,7 @@ function HomeHeroCopy({
         <button type="submit">Tìm kiếm</button>
       </form>
       <p className="hero-search__help" id="hero-search-help">
-        Tìm trong catalog công khai để chọn hướng đặt lịch phù hợp.
+        Tìm trong danh mục bệnh viện để chọn hướng đặt lịch phù hợp.
       </p>
       <div className="hero-actions">
         {cmsCta ? (
@@ -591,7 +591,7 @@ export default function Home(): React.ReactElement {
                 fallback={(
                   <HomeCmsFallbackCard
                     accent
-                    description="Giờ khám, thông báo quan trọng và tin bệnh viện sẽ hiển thị ở đây khi CMS chưa có nội dung live."
+                    description="Giờ khám, thông báo quan trọng và tin bệnh viện sẽ hiển thị ở đây khi chưa có cập nhật mới."
                     eyebrow="Thông báo bệnh viện"
                     href="/branches"
                     hrefLabel="Xem cơ sở"
@@ -828,7 +828,7 @@ export default function Home(): React.ReactElement {
               <div className="branch-intro">
                 <div className="branch-intro__topline"><Icon name="location" size={20} /><span>{branchAreaLabel}</span></div>
                 <h3>Chọn nơi bạn muốn bắt đầu chăm sóc.</h3>
-                <p>Địa chỉ và giờ làm việc lấy từ catalog công khai. Hãy kiểm tra lại trước khi đến.</p>
+                <p>Địa chỉ và giờ làm việc lấy từ danh mục bệnh viện. Hãy kiểm tra lại trước khi đến.</p>
                 {contactHref ? <a className="text-button" href={contactHref}>{emergencyBranch ? "Gọi hotline cấp cứu" : "Gọi cơ sở"} <Icon name="phone" size={17} /></a> : <Link className="text-button" href="/contact">Xem thông tin liên hệ <Icon name="arrow-up-right" size={17} /></Link>}
               </div>
               <div className="hm-branch-grid">

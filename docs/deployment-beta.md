@@ -22,22 +22,29 @@ capture time.
 
 ## Canonical Free topology
 
-The canonical Render Blueprint is render.yaml. It provisions only:
+The canonical Render Blueprint is render.yaml. It provisions only these four
+Free resources:
 
 | Resource | Plan | Purpose |
 | --- | --- | --- |
 | healthcare-beta-postgres | Render Free PostgreSQL 16, Singapore | Spring transactional database |
 | healthcare-beta-redis | Render Free Key Value, Singapore | Rate-limit/realtime cache; ephemeral |
 | healthcare-beta-backend | Render Free image web service, Singapore | Spring API behind the Vercel BFF |
+| healthcare-beta-ai | Render Free native Python web service, Singapore | Authenticated local-provider hospital-support chat and public-catalog RAG |
 
 render-free-beta.yaml is a validation copy of the canonical manifest. Both files
 must stay equivalent after YAML parsing; Render Blueprint discovery uses
 render.yaml.
 
-AI/FastAPI, ClamAV, attachment scanning, object storage, mail, payment,
-consultation uploads, remote AI, RAG ingestion and patient-chat consumers are
-explicitly disabled in this Free beta. No paid/private Render service is
-silently substituted, and no local Docker image is pulled to support it.
+The AI service is local-provider only (`AI_PROVIDER=local`,
+`EMBEDDING_PROVIDER=local`) and accepts hospital-support/catalog requests only.
+Remote patient/clinical AI, ClamAV, attachment scanning, object storage, mail,
+payment and consultation-upload consumers are explicitly disabled. The AI
+service ingests the Spring public operational catalog into an in-memory index;
+Supabase durable-RAG and patient-chat consumers remain disabled. Render Free
+web services use a public HTTPS hop protected by a server-only token: Free web
+services cannot receive private-network traffic. No paid/private Render service
+is silently substituted, and no local Docker image is pulled to support it.
 
 Provider credentials stay in Render/Vercel/Supabase secret stores. Never commit
 or print a database password, BFF token, JWT secret, Supabase DB URL, or API key.
@@ -55,7 +62,8 @@ configuration:
   totals 30 specialties, 475 active doctors and 20 branches. A disallowed
   Origin returned HTTP 403 `BFF_ORIGIN_INVALID` without an allow-origin
   header. `/api/v1/health` returned the intentional HTTP 503 `degraded`
-  response because AI is off.
+  response in the pre-AI snapshot; re-run it after the backend configuration
+  deploy and require the authenticated AI dependency to be healthy.
 - Render workspace tea-d7ev54q8qa3s7382ljcg has PostgreSQL
   dpg-da7r3uou01pc73boask0-a, Key Value red-daa3ub9f2nfc73956660, and web
   service srv-daa41a9f2nfc7395eg1g. The current live deploy is
@@ -63,6 +71,13 @@ configuration:
   `sha256:c492898b8767119ab9417b55833b473aca65262f21ba713a77e51a972553dcf3`
   and resolved manifest digest
   `sha256:15923632b9303225e65fa67b18cf7900c0f81500452424c1dea9f313dde3c270`.
+  The native Python AI service is `srv-daal7kgn74is73bafjqg`; deploy
+  `dep-daal7l8n74is73baflo0` is live and `/livez` plus authenticated `/health`
+  returned HTTP 200 with local provider, local embeddings, memory RAG and
+  service authentication enabled. The backend environment now points to
+  `https://healthcare-beta-ai.onrender.com`; its configuration deploy is
+  `dep-daalaeuk1f9s73aqekhg` and must reach terminal/live before the public
+  health/chat gate is accepted.
   `/actuator/health`, `/actuator/health/readiness` and
   `/actuator/health/liveness` returned HTTP 200/`UP`; the short `/readiness`
   and `/liveness` aliases correctly require authentication and return HTTP 401
@@ -82,7 +97,7 @@ configuration:
   migration rows, 15 RLS-enabled healthcare tables, 100,000 synthetic
   customers, 75,000 profiles, 10,000 public RAG rows and 830 chat-projection
   rows. The writer-locked reconciliation and hosted canaries passed once;
-  ingestion and patient-chat consumers remain disabled. Its exact compensating
+  Supabase durable ingestion and patient-chat consumers remain disabled. Its exact compensating
   rollback capsule is
   supabase/reconciliation/free-plan-rollback-writer-lock-20260830.sql and is
   intentionally unexecuted.
@@ -119,18 +134,19 @@ integration deploy), verify the stable alias:
     GET /api/v1/hospital/specialties?page=0&size=3       -> 200, total 30
     GET /api/v1/hospital/doctors?page=0&size=3           -> 200, total 475 active
     GET /api/v1/hospital/branches?page=0&size=3          -> 200, total 20
-    GET /api/v1/health                                  -> 503 degraded (AI disabled)
+    GET /api/v1/health                                  -> 200 when Spring + AI are ready; 503 while either is unavailable
     GET catalog with Origin: https://evil.example        -> 403 BFF_ORIGIN_INVALID
 
 ## Render Free procedure
 
 1. Validate both YAML files against the official Render schema. The canonical
-   file must contain exactly one Free database, one Free Key Value and one Free
-   image web service, with no pserv, worker or cron resource. Validate the exact
+   file must contain exactly one Free database, one Free Key Value and two Free
+   web services (one image-backed Spring service and one native Python AI
+   service), with no pserv, worker or cron resource. Validate the exact
    file submitted to the provider through the Render Blueprint validation API
    (https://api-docs.render.com/reference/validate-blueprint) for owner
    tea-d7ev54q8qa3s7382ljcg. Validation is read-only and must report valid=true
-   with three resource actions.
+   with four resource actions.
 2. Verify the existing resource IDs, plan, region, image digest and empty
    database/Key Value allowlists before any update. Never change the immutable
    database name/user to force a replacement.
@@ -141,7 +157,10 @@ integration deploy), verify the stable alias:
 4. Render managed references provide DATABASE_URL, DATABASE_USERNAME,
    DATABASE_PASSWORD and REDIS_URL. Set
    MANAGEMENT_HEALTH_MAIL_ENABLED=false and all optional feature switches
-   false. Do not add localhost SMTP, AI, scanner or storage endpoints.
+   false. The AI service must use local provider/embedding, a generated
+   non-empty service token, memory RAG and `RAG_INGEST_ENABLED=true`; do not
+   enable remote patient/clinical flags or add localhost SMTP, scanner or
+   storage endpoints.
 5. Apply Flyway V1--V52 through backend startup, then run
    infrastructure/database/seed-hosted-catalog.sql exactly once against the
    confirmed database. It is transactional, advisory-lock protected,
@@ -164,9 +183,10 @@ the plan offers one, inspect migrations/tables/RLS, freeze writers, and create a
 new target-specific compensating artifact. On Free there is no PITR, scheduled
 backup or development branch, so manual rollback is the accepted residual risk.
 The current writer-locked reconciliation, ACL/RLS/count/fingerprint checks and
-service-role canaries passed once. Keep RAG_INGEST_ENABLED,
-AI_RAG_INGEST_ENABLED and patient-chat consumers false until a new coordinated
-release gate is approved.
+service-role canaries passed once. The Render AI service's `RAG_INGEST_ENABLED`
+is true only for the public operational catalog and only into ephemeral memory;
+keep Supabase durable-RAG (`AI_RAG_INGEST_ENABLED`) and patient-chat consumers
+false until a new coordinated release gate is approved.
 
 ## Rollback
 

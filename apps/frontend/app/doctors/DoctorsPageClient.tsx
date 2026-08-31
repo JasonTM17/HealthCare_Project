@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { fetchDoctors, fetchSpecialties, type Page } from "../../lib/api-client";
 import type { Doctor, Specialty } from "../../types/hospital";
+import { dedupePublicDoctors } from "../../lib/public-catalog";
 import {
   PublicAiButton,
   PublicBackLink,
@@ -43,7 +44,6 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
         if (cancelled) return undefined;
         setLoading(true);
         setError(null);
-        setPage(null);
         return fetchDoctors({
           page: currentPage,
           size: 12,
@@ -66,9 +66,10 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
   }, [branchSlug, currentPage, specialtySlug]);
 
   const selectedSpecialty = specialties.find((item) => item.slug === specialtySlug);
+  const visibleDoctors = page ? dedupePublicDoctors(page.content) : [];
   const filterLabel = selectedSpecialty?.name ?? specialtySlug;
-  const featuredDoctor = page?.content[0];
-  const doctorCount = page?.totalElements ?? page?.content.length ?? 0;
+  const featuredDoctor = visibleDoctors[0];
+  const doctorCount = page?.totalElements ?? visibleDoctors.length;
 
   const handlePageChange = (nextPage: number) => {
     setLoading(true);
@@ -77,7 +78,7 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
   };
 
   return (
-    <PublicPageShell doctors={page?.content ?? []} specialties={specialties}>
+    <PublicPageShell doctors={visibleDoctors} specialties={specialties}>
       <div className="catalog-page section-inner">
         <PublicBackLink href="/">← Về trang chính</PublicBackLink>
         <header className="resource-page__header">
@@ -111,7 +112,7 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
             <dl className="resource-meta-grid">
               <div>
                 <dt>Tổng bác sĩ</dt>
-                <dd>{doctorCount || "Đang cập nhật"}</dd>
+                <dd>{loading && !page ? "Đang tải…" : doctorCount || "Chưa có dữ liệu"}</dd>
               </div>
               <div>
                 <dt>Bộ lọc hiện tại</dt>
@@ -143,7 +144,11 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
           <section className="resource-panel">
             <p className="section-note">Bác sĩ nổi bật</p>
             <h2>Điểm bắt đầu của danh mục</h2>
-            {featuredDoctor ? (
+            {loading && !page ? (
+              <p className="resource-muted" role="status">Đang tải hồ sơ bác sĩ…</p>
+            ) : error && !page ? (
+              <p className="resource-muted" role="status">Chưa thể tải hồ sơ lúc này. Vui lòng thử lại sau.</p>
+            ) : featuredDoctor ? (
               <>
                 <p>{featuredDoctor.bio || "Hồ sơ chưa có phần giới thiệu chi tiết."}</p>
                 <div className="resource-actions">
@@ -174,13 +179,13 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
 
         {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải hồ sơ bác sĩ…</p> : null}
         {error ? <p className="catalog-status catalog-status--error" role="alert">{error}</p> : null}
-        {!loading && !error && page?.empty ? <p className="catalog-status" role="status">Chưa tìm thấy bác sĩ phù hợp với lựa chọn này.</p> : null}
+        {!loading && !error && page && (page.empty || visibleDoctors.length === 0) ? <p className="catalog-status" role="status">Chưa tìm thấy bác sĩ phù hợp với lựa chọn này.</p> : null}
 
-        {page && !page.empty ? (
+        {page && !page.empty && visibleDoctors.length > 0 ? (
           <>
             <p className="catalog-meta">{page.totalElements} bác sĩ · Trang {page.number + 1}/{page.totalPages}</p>
             <div className="catalog-grid catalog-grid--doctors">
-              {page.content.map((doctor) => (
+              {visibleDoctors.map((doctor) => (
                 <article className="catalog-card" key={doctor.id}>
                   <div className="resource-avatar" aria-hidden="true">{initials(doctor.fullName)}</div>
                   {doctor.specialtyName ? <span className="resource-chip">{doctor.specialtyName}</span> : null}
