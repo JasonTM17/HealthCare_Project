@@ -6,6 +6,22 @@ HealthCare_Project is a healthcare MVP for a Vietnamese hospital-style experienc
 
 The repository currently has auth/RBAC, branch-aware booking and rescheduling, bounded OTP confirmation, appointment lifecycle/reminders, patient and doctor portals, bank-transfer payment reconciliation, authorized clinical records and diagnostic files, complete hospital catalog administration, recurring schedule administration, AI/RAG/search guardrails, MinIO metadata, and CI definitions. Backend, AI, frontend static/typecheck/lint/build, Compose-configuration, database-fixture, and a Playwright CMS realtime browser gate are wired in CI. The browser gate proves the admin-to-public homepage CMS flow against a mocked backend contract; full live Compose browser E2E, backup/restore drills, external AI provider validation, compliance, and production deployment remain separate gates.
 
+## Web preview
+
+These checked-in visuals were captured from the public synthetic beta alias on
+2026-08-31. They are a product preview of public pages only; they do not prove
+authenticated booking, clinical workflows, chatbot JSON/SSE, backup/restore,
+or production readiness. See the [beta deployment runbook](docs/deployment-beta.md)
+for the executable checks and current hosted evidence.
+
+[![HealthCare synthetic beta homepage](assets/images/healthcare-beta-home.png)](https://healthcare-two-olive.vercel.app/)
+
+![HealthCare synthetic beta public-route tour](assets/videos/healthcare-beta-tour.gif)
+
+The tour covers `/`, `/specialties`, `/doctors`, `/services`, and `/about` at a
+960×600 viewport. Each capture returned HTTP 200 when recorded; the GIF is an
+illustrative visual artifact, not a substitute for the browser and API gates.
+
 ## Hosted Beta Release Record
 
 This is an evidence record for the current synthetic beta, not a production
