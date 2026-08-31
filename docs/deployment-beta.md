@@ -4,6 +4,22 @@ This repository ships a synthetic beta only. The selected hosted topology is
 **Render Free + Supabase Free + Vercel**; it is not a production healthcare or
 compliance approval and must not receive real patient traffic.
 
+## Public beta preview
+
+The following assets were captured from the stable synthetic beta alias on
+2026-08-31 and show public pages without account or patient data. Use the
+[root release record](../README.md#hosted-beta-release-record) and this runbook
+for deployment, API, database, and rollback evidence; the visuals alone are
+not a production-readiness or clinical-flow test.
+
+[![HealthCare synthetic beta homepage](../assets/images/healthcare-beta-home.png)](https://healthcare-two-olive.vercel.app/)
+
+![HealthCare synthetic beta public-route tour](../assets/videos/healthcare-beta-tour.gif)
+
+The GIF cycles through `/`, `/specialties`, `/doctors`, `/services`, and
+`/about` at a 960×600 viewport. The five route loads returned HTTP 200 at
+capture time.
+
 ## Canonical Free topology
 
 The canonical Render Blueprint is render.yaml. It provisions only:
