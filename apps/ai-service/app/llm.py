@@ -175,6 +175,36 @@ _VIETNAMESE_EXFIL_OBJECT_PATTERN = re.compile(
     r")\b",
     re.IGNORECASE,
 )
+# Vietnamese safeguard-bypass requests often use a generic "quy tắc" (rules)
+# rather than naming the system prompt.  Match the override verb and the
+# protected policy object separately so an ordinary question about hospital
+# visiting rules remains answerable.
+_VIETNAMESE_SAFEGUARD_BYPASS_PATTERN = re.compile(
+    r"\b(?:bo\s+qua|vo\s+hieu\s+hoa|tat\s+bo|ghi\s+de|pha\s+bo)\b"
+    r".{0,80}\b(?:quy\s+tac|chinh\s+sach|bien\s+phap\s+an\s+toan|"
+    r"bao\s+ve|rang\s+buoc|huong\s+dan|chi\s+dan)\b",
+    re.IGNORECASE,
+)
+# Keep patient-data exfiltration distinct from generic catalog requests.  The
+# patient/medical-record qualifier is required, which prevents a benign query
+# such as "xuất danh sách chuyên khoa" from being quarantined accidentally.
+_VIETNAMESE_PATIENT_DATA_EXFIL_PATTERN = re.compile(
+    r"(?:"
+    r"\b(?:xuat|in|hien\s+thi|tiet\s+lo|cung\s+cap|liet\s+ke|tra\s+ve|"
+    r"chia\s+se|cho\s+toi\s+xem|cho\s+xem|gui)\b"
+    r".{0,80}\b(?:toan\s+bo|tat\s+ca|danh\s+sach)?\s*"
+    r"(?:du\s+lieu|thong\s+tin|ho\s+so|ban\s+ghi)\b"
+    r".{0,50}\b(?:cua\s+)?(?:benh\s+nhan|nguoi\s+benh|benh\s+an|"
+    r"nguoi\s+dung|ca\s+nhan)\b"
+    r"|"
+    r"\b(?:du\s+lieu|thong\s+tin|ho\s+so|ban\s+ghi)\b"
+    r".{0,50}\b(?:cua\s+)?(?:benh\s+nhan|nguoi\s+benh|benh\s+an|"
+    r"nguoi\s+dung|ca\s+nhan)\b"
+    r".{0,80}\b(?:xuat|in|hien\s+thi|tiet\s+lo|cung\s+cap|liet\s+ke|"
+    r"tra\s+ve|chia\s+se|gui)\b"
+    r")",
+    re.IGNORECASE,
+)
 _SAFEGUARD_BYPASS_PATTERN = re.compile(
     r"\b(?:ignore|bypass|disable|circumvent|override)\b"
     r".{0,60}\b(?:all\s+)?(?:safeguards?|safety|guardrails?|policies?|rules?)\b",
@@ -285,6 +315,8 @@ def contains_prompt_injection(value: str) -> bool:
         or bool(_ASKED_EXFIL_PATTERN.search(normalized))
         or bool(_QUESTION_EXFIL_PATTERN.search(normalized))
         or bool(_VIETNAMESE_EXFIL_OBJECT_PATTERN.search(normalized))
+        or bool(_VIETNAMESE_SAFEGUARD_BYPASS_PATTERN.search(normalized))
+        or bool(_VIETNAMESE_PATIENT_DATA_EXFIL_PATTERN.search(normalized))
         or bool(_SAFEGUARD_BYPASS_PATTERN.search(normalized))
         or bool(_UNRESTRICTED_ASSISTANT_PATTERN.search(normalized))
     )
