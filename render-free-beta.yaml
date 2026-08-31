@@ -1,7 +1,8 @@
 # Render Free blueprint for the synthetic HealthCare beta.
 #
-# This is the canonical hosted manifest for the disposable synthetic beta.
-# Keep all optional AI, storage, mail, payment and AV paths fail-closed.
+# This file is a named validation copy of the canonical `render.yaml` manifest.
+# Keep both files Free-only; Render auto-discovers `render.yaml` for Blueprint
+# operations.
 #
 # The selected deployment contract intentionally uses only resources available
 # on Render Free: PostgreSQL, Key Value, and one public Spring web service.

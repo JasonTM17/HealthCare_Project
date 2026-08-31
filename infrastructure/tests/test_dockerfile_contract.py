@@ -49,3 +49,13 @@ def test_build_context_ignores_generated_outputs_and_secrets() -> None:
         assert ".env" in text, relative
         assert "secrets" in text.lower(), relative
         assert "credentials" in text.lower(), relative
+
+
+def test_backend_honors_render_port_without_breaking_local_default() -> None:
+    application = _read("apps/backend/src/main/resources/application.yml")
+    standalone = _read("apps/backend/src/main/resources/application-standalone.yml")
+    assert "port: ${PORT:${BACKEND_PORT:8080}}" in application
+    assert "port: ${PORT:${BACKEND_PORT:8080}}" in standalone
+    dockerfile = _read("apps/backend/Dockerfile")
+    assert "CMD-SHELL" in dockerfile
+    assert "${PORT:-8080}" in dockerfile

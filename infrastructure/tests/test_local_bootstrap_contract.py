@@ -65,6 +65,22 @@ def test_backup_script_accepts_the_same_compose_environment_file() -> None:
     assert 'Compose environment file does not exist' in script
 
 
+def test_user_facing_compose_commands_explicitly_load_root_environment() -> None:
+    """Required Compose secrets must not depend on project-directory discovery."""
+    documents = (
+        ROOT / "README.md",
+        ROOT / "infrastructure" / "README.md",
+        ROOT / "docs" / "deployment.md",
+        ROOT / "docs" / "LOCAL_RUNBOOK.md",
+        ROOT / "docs" / "architecture" / "cms-realtime.md",
+    )
+    for document in documents:
+        text = document.read_text(encoding="utf-8")
+        for line in text.splitlines():
+            if "docker compose" in line and "infrastructure/docker-compose.yml" in line:
+                assert "--env-file .env" in line, document
+
+
 def test_database_publication_binds_manual_attestation_to_workflow_ref() -> None:
     workflow = (ROOT / ".github" / "workflows" / "publish-database.yml").read_text(encoding="utf-8")
     assert 'GITHUB_SHA:-' in workflow

@@ -3,6 +3,7 @@ param(
     [ValidateRange(30, 900)][int]$TimeoutSeconds = 360,
     [ValidateRange(10, 120)][int]$StopTimeoutSeconds = 45,
     [ValidateRange(0, 120)][int]$StabilitySeconds = 20,
+    [ValidateRange(0, 64GB)][long]$MinimumHostFreeBytes = 2GB,
     [switch]$Restart,
     [switch]$KeepDockerAI
 )
@@ -43,6 +44,7 @@ $runtimeDirectories = @(
 $enginePipe = '\\.\pipe\dockerDesktopLinuxEngine'
 $localDockerHost = 'npipe:////./pipe/dockerDesktopLinuxEngine'
 $settingsPath = Join-Path ${env:APPDATA} 'Docker\settings-store.json'
+$recoveryLockPath = Join-Path $dockerRoot 'safe-launcher.lock'
 $env:DOCKER_HOST = $localDockerHost
 
 function Test-DockerEngine {
@@ -239,58 +241,66 @@ function Wait-DockerStable {
     }
 }
 
-if (-not $KeepDockerAI) {
-    [void](Set-DockerAiStore -SettingsPath $settingsPath)
-}
-
-if ((-not $Restart) -and (Test-DockerEngine)) {
-    Disable-AndVerifyDockerAi
-    Wait-DockerStable
-    Write-Output 'Docker Desktop engine is healthy; AI/Inference settings were verified and no runtime rotation was needed.'
-    exit 0
-}
-
-Stop-DockerDesktopSafely
-$quarantined = @()
+Assert-DockerHostCapacity -Path $dockerRoot -MinimumFreeBytes $MinimumHostFreeBytes
+$recoveryLock = Open-DockerRecoveryLock -Path $recoveryLockPath
 try {
-    $rotated = Rotate-DockerRuntimeDirectories -Paths $runtimeDirectories -AllowedPaths $runtimeDirectories
-    foreach ($entry in $rotated) {
-        if ($entry.Quarantine) {
-            $quarantined += $entry.Quarantine
+    if (-not $KeepDockerAI) {
+        [void](Set-DockerAiStore -SettingsPath $settingsPath)
+    }
+
+    if ((-not $Restart) -and (Test-DockerEngine)) {
+        Disable-AndVerifyDockerAi
+        Wait-DockerStable
+        Write-Output 'Docker Desktop engine is healthy; AI/Inference settings were verified and no runtime rotation was needed.'
+        return
+    }
+
+    Stop-DockerDesktopSafely
+    $quarantined = @()
+    try {
+        $rotated = Rotate-DockerRuntimeDirectories -Paths $runtimeDirectories -AllowedPaths $runtimeDirectories
+        foreach ($entry in $rotated) {
+            if ($entry.Quarantine) {
+                $quarantined += $entry.Quarantine
+            }
+        }
+    } catch {
+        throw "Docker was stopped, but exact runtime rotation failed safely: $($_.Exception.Message)"
+    }
+
+    Start-Process -FilePath $desktopPath -WorkingDirectory (Split-Path -Parent $desktopPath) -WindowStyle Hidden | Out-Null
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        Start-Sleep -Seconds 3
+        if (Test-DockerEngine) {
+            break
         }
     }
-} catch {
-    throw "Docker was stopped, but exact runtime rotation failed safely: $($_.Exception.Message)"
-}
 
-Start-Process -FilePath $desktopPath -WorkingDirectory (Split-Path -Parent $desktopPath) | Out-Null
+    if (-not (Test-DockerEngine)) {
+        $errorPath = Join-Path $dockerRoot 'backend.error.json'
+        $detail = if (Test-Path -LiteralPath $errorPath -PathType Leaf) {
+            [System.IO.File]::ReadAllText($errorPath)
+        } else {
+            'No backend.error.json was produced.'
+        }
+        throw "Docker Desktop did not become healthy within $TimeoutSeconds seconds. Quarantine was preserved for rollback/diagnostics. $detail"
+    }
 
-$deadline = (Get-Date).AddSeconds($TimeoutSeconds)
-while ((Get-Date) -lt $deadline) {
-    Start-Sleep -Seconds 3
-    if (Test-DockerEngine) {
-        break
+    Disable-AndVerifyDockerAi
+    Wait-DockerStable
+
+    $serverVersion = (& $dockerPath version --format '{{.Server.Version}}' 2>$null | Select-Object -Last 1).Trim()
+    Write-Output "Docker Desktop is healthy (local engine $serverVersion)."
+    foreach ($directory in $quarantined) {
+        Write-Output "Runtime directory quarantined: $directory"
+    }
+    $summary = Get-DockerRuntimeQuarantineSummary -RuntimePaths $runtimeDirectories
+    Write-Output "Runtime quarantine summary: $($summary.Count) directories, $($summary.AccessibleBytes) accessible bytes. No automatic deletion was performed."
+    Write-Output 'No Docker image, volume, WSL data disk, other WSL distribution, or Hibernate setting was changed.'
+} finally {
+    if ($null -ne $recoveryLock) {
+        $recoveryLock.Dispose()
     }
 }
-
-if (-not (Test-DockerEngine)) {
-    $errorPath = Join-Path $dockerRoot 'backend.error.json'
-    $detail = if (Test-Path -LiteralPath $errorPath -PathType Leaf) {
-        [System.IO.File]::ReadAllText($errorPath)
-    } else {
-        'No backend.error.json was produced.'
-    }
-    throw "Docker Desktop did not become healthy within $TimeoutSeconds seconds. Quarantine was preserved for rollback/diagnostics. $detail"
-}
-
-Disable-AndVerifyDockerAi
-Wait-DockerStable
-
-$serverVersion = (& $dockerPath version --format '{{.Server.Version}}' 2>$null | Select-Object -Last 1).Trim()
-Write-Output "Docker Desktop is healthy (local engine $serverVersion)."
-foreach ($directory in $quarantined) {
-    Write-Output "Runtime directory quarantined: $directory"
-}
-$summary = Get-DockerRuntimeQuarantineSummary -RuntimePaths $runtimeDirectories
-Write-Output "Runtime quarantine summary: $($summary.Count) directories, $($summary.AccessibleBytes) accessible bytes. No automatic deletion was performed."
-Write-Output 'No Docker image, volume, WSL data disk, other WSL distribution, or Hibernate setting was changed.'

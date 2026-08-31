@@ -55,4 +55,6 @@ management:
       enabled: false
 
 server:
-  port: ${BACKEND_PORT:8080}
+  # Honor a hosting platform's injected port while retaining the local
+  # BACKEND_PORT override and 8080 fallback.
+  port: ${PORT:${BACKEND_PORT:8080}}

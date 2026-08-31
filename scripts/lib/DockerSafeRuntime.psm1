@@ -83,6 +83,56 @@ function Set-DockerAiStore {
     return $backup
 }
 
+function Assert-DockerHostCapacity {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [ValidateRange(0, [long]::MaxValue)][long]$MinimumFreeBytes
+    )
+
+    if ($MinimumFreeBytes -le 0) {
+        return
+    }
+
+    $resolvedPath = [System.IO.Path]::GetFullPath($Path)
+    $root = [System.IO.Path]::GetPathRoot($resolvedPath)
+    if ([string]::IsNullOrWhiteSpace($root)) {
+        throw "Docker host path has no filesystem root: $resolvedPath"
+    }
+
+    $driveName = $root.Substring(0, 1)
+    $drive = Get-PSDrive -Name $driveName -PSProvider FileSystem -ErrorAction Stop
+    if ($drive.Free -lt $MinimumFreeBytes) {
+        $freeGiB = [math]::Round($drive.Free / 1GB, 2)
+        $requiredGiB = [math]::Round($MinimumFreeBytes / 1GB, 2)
+        throw "Docker host drive $driveName`: has only $freeGiB GiB free; at least $requiredGiB GiB is required before startup. Free space or move Docker data, then retry."
+    }
+}
+
+function Open-DockerRecoveryLock {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Path)
+
+    $resolvedPath = [System.IO.Path]::GetFullPath($Path)
+    $parent = Split-Path -Parent $resolvedPath
+    if (-not (Test-Path -LiteralPath $parent -PathType Container)) {
+        New-Item -ItemType Directory -Path $parent -ErrorAction Stop | Out-Null
+    }
+
+    try {
+        # An OS-held handle is released automatically if a launcher crashes;
+        # unlike a PID/marker file, it cannot become a stale false lock.
+        return [System.IO.File]::Open(
+            $resolvedPath,
+            [System.IO.FileMode]::OpenOrCreate,
+            [System.IO.FileAccess]::ReadWrite,
+            [System.IO.FileShare]::None
+        )
+    } catch [System.IO.IOException] {
+        throw "Another Docker safe launcher is already running (lock: $resolvedPath)."
+    }
+}
+
 function Rotate-DockerRuntimeDirectory {
     [CmdletBinding()]
     param(
@@ -151,7 +201,12 @@ function Rotate-DockerRuntimeDirectories {
         # Roll back only newly created empty parents and moved parents.  If a
         # process recreated content, leave it in place and report the failure;
         # never recurse or remove user data during rollback.
-        foreach ($entry in @($rotated | Select-Object -Reverse)) {
+        # `Select-Object -Reverse` is not a PowerShell parameter (Windows
+        # PowerShell 5.1 and pwsh both reject it). Walk the array by index so
+        # rollback is compatible with every supported Windows shell and the
+        # last successfully rotated path is restored first.
+        for ($index = $rotated.Count - 1; $index -ge 0; $index--) {
+            $entry = $rotated[$index]
             try {
                 if (Test-Path -LiteralPath $entry.Path -PathType Container) {
                     [System.IO.Directory]::Delete($entry.Path, $false)
@@ -198,4 +253,4 @@ function Get-DockerRuntimeQuarantineSummary {
     }
 }
 
-Export-ModuleMember -Function Set-DockerAiStore, Rotate-DockerRuntimeDirectory, Rotate-DockerRuntimeDirectories, Get-DockerRuntimeQuarantineSummary
+Export-ModuleMember -Function Set-DockerAiStore, Assert-DockerHostCapacity, Open-DockerRecoveryLock, Rotate-DockerRuntimeDirectory, Rotate-DockerRuntimeDirectories, Get-DockerRuntimeQuarantineSummary
