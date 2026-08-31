@@ -57,5 +57,8 @@ def test_backend_honors_render_port_without_breaking_local_default() -> None:
     assert "port: ${PORT:${BACKEND_PORT:8080}}" in application
     assert "port: ${PORT:${BACKEND_PORT:8080}}" in standalone
     dockerfile = _read("apps/backend/Dockerfile")
-    assert "CMD-SHELL" in dockerfile
+    # Dockerfile HEALTHCHECK uses the Dockerfile `CMD` shell form. `CMD-SHELL`
+    # is a Compose-only healthcheck token and makes BuildKit reject the image.
+    assert "CMD wget" in dockerfile
+    assert "CMD-SHELL" not in dockerfile
     assert "${PORT:-8080}" in dockerfile
