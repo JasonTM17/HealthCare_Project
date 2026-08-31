@@ -22,6 +22,7 @@ import {
   fetchAiConversationMessages,
   fetchAiConversations,
   hasRole,
+  sendPublicAiChat,
   updateAiMessageFeedback,
   type AuthSession,
 } from "../lib/api-client";
@@ -49,6 +50,7 @@ import styles from "./FloatingHealthAssistant.module.css";
 // out of the active control; launcher uses the code-native AssistantMark.
 
 const MAX_MESSAGE_LENGTH = 10_000;
+const MAX_PUBLIC_MESSAGE_LENGTH = 500;
 const DEFAULT_DISCLAIMER = "Thông tin chỉ mang tính tham khảo, không thay thế thăm khám hoặc hướng dẫn của bác sĩ.";
 const SUGGESTED_QUESTIONS = [
   "Tôi nên chuẩn bị gì trước khi đi khám?",
@@ -63,12 +65,12 @@ function formatTime(value: string): string {
   return new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit" }).format(date);
 }
 
-function inputFailure(): AssistantFailure {
+function inputFailure(isPublic: boolean): AssistantFailure {
   return failureFromError(new ApiError(
     "Tin nhắn không hợp lệ.",
     400,
-    "/ai/conversations/messages",
-    { code: "CHAT_INPUT_INVALID" },
+    isPublic ? "/public/ai/chat" : "/ai/conversations/messages",
+    { code: isPublic ? "PUBLIC_CHAT_INPUT_INVALID" : "CHAT_INPUT_INVALID" },
   ));
 }
 
@@ -233,7 +235,9 @@ function FloatingHealthAssistantPanel({
     const handlePublicOpen = (event: Event): void => {
       if (hidden) return;
       const nextMode = (event as CustomEvent<{ mode?: ChatMode }>).detail?.mode;
-      const requestedMode: ChatMode = nextMode === "SYMPTOM_TRIAGE" ? nextMode : "SYMPTOM_TRIAGE";
+      const requestedMode: ChatMode = isPatient && nextMode === "SYMPTOM_TRIAGE"
+        ? nextMode
+        : "HOSPITAL_SUPPORT";
       setOpen(true);
       setFailure(null);
       setConsentError(null);
@@ -245,7 +249,7 @@ function FloatingHealthAssistantPanel({
     };
     window.addEventListener(PUBLIC_ASSISTANT_OPEN_EVENT, handlePublicOpen);
     return () => window.removeEventListener(PUBLIC_ASSISTANT_OPEN_EVENT, handlePublicOpen);
-  }, [conversation, hidden, setMode]);
+  }, [conversation, hidden, isPatient, setMode]);
 
   useEffect(() => {
     if (!open || hidden || blockedByModal) return;
@@ -386,6 +390,7 @@ function FloatingHealthAssistantPanel({
 
   async function handleModeChange(nextMode: ChatMode): Promise<void> {
     if (nextMode === mode || creatingMode || sending || consentBusy) return;
+    if (!isPatient && nextMode !== "HOSPITAL_SUPPORT") return;
     if (!conversation) {
       setMode(nextMode);
       return;
@@ -462,8 +467,9 @@ function FloatingHealthAssistantPanel({
 
   const handleSend = async (content = draft): Promise<void> => {
     const normalized = content.trim();
-    if (!isPatient || sending || normalized.length < 2 || normalized.length > MAX_MESSAGE_LENGTH) {
-      if (normalized.length > 0) setFailure(inputFailure());
+    const inputLimit = isPatient ? MAX_MESSAGE_LENGTH : MAX_PUBLIC_MESSAGE_LENGTH;
+    if (sending || normalized.length < 2 || normalized.length > inputLimit) {
+      if (normalized.length > 0) setFailure(inputFailure(!isPatient));
       return;
     }
 
@@ -474,6 +480,42 @@ function FloatingHealthAssistantPanel({
     setLastFailedContent(null);
     let currentConversation: AiConversation | null = null;
     try {
+      if (!isPatient) {
+        const recentTurns = messages.slice(-6).map((message) => ({
+          role: message.role === "USER" ? "user" as const : "assistant" as const,
+          content: message.content,
+        }));
+        const reply = await sendPublicAiChat(normalized, recentTurns, { signal: controller.signal });
+        if (!isCurrentLocalRequest(epoch)) return;
+        const createdAt = new Date().toISOString();
+        const sequence = messages.reduce((maximum, message) => Math.max(maximum, message.sequence), 0) + 1;
+        const userMessage: AiChatMessage = {
+          id: crypto.randomUUID(),
+          role: "USER",
+          status: "COMPLETED",
+          content: normalized,
+          sequence,
+          citations: [],
+          createdAt,
+          completedAt: createdAt,
+        };
+        const assistantMessage: AiChatMessage = {
+          id: crypto.randomUUID(),
+          role: "ASSISTANT",
+          status: "COMPLETED",
+          content: reply.answer,
+          sequence: sequence + 1,
+          disclaimer: reply.disclaimer,
+          provenance: reply.provenance,
+          citations: reply.citations,
+          safetyAction: reply.safetyAction,
+          createdAt,
+          completedAt: createdAt,
+        };
+        setDraft("");
+        setMessages((current) => [...current, userMessage, assistantMessage].slice(-8));
+        return;
+      }
       currentConversation = await ensureConversation(controller.signal, epoch);
       if (!isCurrentLocalRequest(epoch, currentConversation.id)) return;
       if (currentConversation.consentRequired) {
@@ -526,7 +568,7 @@ function FloatingHealthAssistantPanel({
   };
 
   return (
-    <div className={styles.root} data-testid="floating-health-assistant">
+    <div className={styles.root} data-page={pathname} data-testid="floating-health-assistant">
       {open && !hidden ? (
         <section
           aria-describedby="floating-health-assistant-help"
@@ -562,7 +604,9 @@ function FloatingHealthAssistantPanel({
           <div aria-label="Chế độ trợ lý" className={styles.modePicker} role="group">
             <span className={styles.modeLegend}>Mục đích cuộc trò chuyện</span>
             <div className={styles.modeOptions}>
-              {ASSISTANT_MODE_OPTIONS.map((option) => (
+              {ASSISTANT_MODE_OPTIONS
+                .filter((option) => isPatient || option.value === "HOSPITAL_SUPPORT")
+                .map((option) => (
                 <button
                   aria-pressed={mode === option.value}
                   className={mode === option.value ? styles.modeOptionActive : styles.modeOption}
@@ -574,27 +618,15 @@ function FloatingHealthAssistantPanel({
                 >
                   {option.label}
                 </button>
-              ))}
+                ))}
             </div>
             {modeLocked ? <span className={styles.modeLockedHint}>Mỗi cuộc trò chuyện giữ một chế độ; chọn mục đích khác sẽ mở cuộc trò chuyện mới.</span> : null}
           </div>
 
-          {!session ? (
-            <div className={styles.accessState}>
-              <UiIcon name="shield-check" size={30} />
-              <h2>Đăng nhập để trò chuyện</h2>
-              <p>Chọn mục đích ở trên để xem phạm vi hỗ trợ. Lịch sử chỉ dành cho bệnh nhân đã đăng nhập; không lưu tin nhắn trong trình duyệt.</p>
-              <Link className={styles.primaryButton} href="/auth/login?next=%2Fpatient%2Fchat">Đăng nhập</Link>
-            </div>
-          ) : !isPatient ? (
-            <div className={styles.accessState}>
-              <UiIcon name="shield-check" size={30} />
-              <h2>Trợ lý dành cho bệnh nhân</h2>
-              <p>Tài khoản bác sĩ và quản trị viên dùng các công cụ nghiệp vụ riêng trong cổng của mình.</p>
-              <Link className={styles.secondaryButton} href="/">Về trang chính</Link>
-            </div>
-          ) : (
-            <>
+          <>
+            {!isPatient ? (
+              <p className={styles.modeLockedHint}>Bạn đang dùng chế độ khách: câu hỏi không được lưu vào lịch sử.{!session ? <> Để lưu và xem lại hội thoại, <Link href="/auth/login?next=%2Fpatient%2Fchat">đăng nhập</Link>.</> : null}</p>
+            ) : null}
               {consentBlocked ? (
                 <section aria-describedby="floating-assistant-consent-copy" className={styles.consentPanel}>
                   <strong>Xác nhận trước khi trò chuyện</strong>
@@ -641,7 +673,7 @@ function FloatingHealthAssistantPanel({
                             ))}
                           </div>
                         ) : null}
-                        {message.status === "COMPLETED" ? (
+                        {isPatient && message.status === "COMPLETED" ? (
                           <div className={styles.feedback} aria-label="Đánh giá phản hồi">
                             <span>Phản hồi này hữu ích?</span>
                             {(["HELPFUL", "NOT_HELPFUL"] as const).map((rating) => (
@@ -709,7 +741,7 @@ function FloatingHealthAssistantPanel({
                   aria-describedby="floating-health-assistant-help"
                   disabled={sending || consentBlocked}
                   id="floating-health-assistant-input"
-                  maxLength={MAX_MESSAGE_LENGTH}
+                  maxLength={isPatient ? MAX_MESSAGE_LENGTH : MAX_PUBLIC_MESSAGE_LENGTH}
                   onChange={(event) => {
                     if (conversationIdRef.current) resetSendAttempt(conversationIdRef.current);
                     setDraft(event.target.value);
@@ -725,9 +757,10 @@ function FloatingHealthAssistantPanel({
                 </button>
               </form>
               <p className={styles.help} id="floating-health-assistant-help">Không thay thế bác sĩ. Trường hợp cấp cứu, gọi 115 hoặc đến cơ sở y tế gần nhất.</p>
-              <Link className={styles.fullChatLink} href="/patient/chat">Mở trợ lý đầy đủ <UiIcon name="arrow-up-right" size={15} /></Link>
-            </>
-          )}
+              {isPatient ? (
+                <Link className={styles.fullChatLink} href="/patient/chat">Mở trợ lý đầy đủ <UiIcon name="arrow-up-right" size={15} /></Link>
+              ) : null}
+          </>
         </section>
       ) : null}
 

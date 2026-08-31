@@ -158,7 +158,7 @@ export default function PackagesPage() {
         ) : null}
         {error ? (
           <p className="catalog-status catalog-status--error" role="alert">
-            {error} Không có gói khám demo thay thế.
+            {error} Bạn có thể thử lại sau hoặc liên hệ bệnh viện để được tư vấn.
           </p>
         ) : null}
         {!loading && !error && page?.empty ? (

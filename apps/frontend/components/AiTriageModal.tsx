@@ -316,7 +316,7 @@ export default function AiTriageModal({
               <p className="text-[11px] text-gray-600">
                 {result.recommendedSpecialtyId && result.specialtyResolution === "RESOLVED"
                   ? "Chuyên khoa này hiện có trong danh mục đặt lịch."
-                  : "AI chưa xác nhận được identity trong catalog live; hãy chọn chuyên khoa trực tiếp từ danh mục."}
+                  : "Chưa tìm thấy chuyên khoa phù hợp trong danh mục hiện tại; hãy chọn trực tiếp từ danh sách."}
               </p>
 
               <p className="flex items-start gap-2 rounded-lg border border-brand-100 bg-white/80 p-3 text-xs leading-relaxed text-gray-700">

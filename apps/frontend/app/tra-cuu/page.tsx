@@ -157,7 +157,7 @@ export default function TraCuuPage() {
             <p className="resource-chip">Tra cứu & quản lý lịch</p>
             <h2>Một nơi để kiểm tra mã hẹn, chuẩn bị trước khi đến và xử lý yêu cầu hủy khi đủ điều kiện.</h2>
             <p className="resource-lead">
-              Thông tin hiển thị từ backend theo mã hẹn và số điện thoại; trang này không tạo phiếu demo thay thế khi hệ thống chưa có dữ liệu.
+              Thông tin được tra theo mã hẹn và số điện thoại. Nếu chưa tìm thấy dữ liệu, bạn có thể thử lại hoặc liên hệ bệnh viện để được hỗ trợ.
             </p>
             <div className="resource-actions">
               <PublicBookingButton>Đặt lịch mới</PublicBookingButton>

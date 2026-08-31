@@ -69,6 +69,12 @@ import type {
   CarePlan,
   CarePlanItem,
 } from "../types/hospital";
+import {
+  presentPublicArticle,
+  presentPublicPackage,
+  presentPublicPage,
+  presentPublicService,
+} from "./public-catalog";
 
 export type {
   AuthUser,
@@ -148,6 +154,7 @@ export type {
 const API_BASE_URL = "/api/v1";
 const API_REQUEST_TIMEOUT_MS = 12_000;
 const AI_STREAM_REQUEST_TIMEOUT_MS = 35_000;
+const PUBLIC_AI_REQUEST_TIMEOUT_MS = 55_000;
 
 /**
  * Browser-visible session metadata. Authentication secrets live only in
@@ -279,7 +286,7 @@ async function apiErrorFromResponse(
   return new ApiError(message, res.status, path, { code, fieldErrors });
 }
 
-async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
+async function getJson<T>(path: string, init?: RequestInit, timeoutMs = API_REQUEST_TIMEOUT_MS): Promise<T> {
   const requestController = new AbortController();
   const callerSignal = init?.signal;
   const abortFromCaller = () => requestController.abort(callerSignal?.reason);
@@ -293,7 +300,7 @@ async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
   const timeoutId = setTimeout(() => {
     timedOut = true;
     requestController.abort();
-  }, API_REQUEST_TIMEOUT_MS);
+  }, timeoutMs);
   try {
     const res = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
@@ -1063,13 +1070,14 @@ export async function fetchPackages(
   page = 0,
   size = 50,
 ): Promise<Page<HealthPackage>> {
-  return getJson<Page<HealthPackage>>(
+  const result = await getJson<Page<HealthPackage>>(
     `/hospital/packages${toQuery({ page, size })}`,
   );
+  return presentPublicPage(result, presentPublicPackage) as Page<HealthPackage>;
 }
 
 export async function fetchPackageBySlug(slug: string): Promise<HealthPackage> {
-  return getJson<HealthPackage>(`/hospital/packages/${encodeURIComponent(slug)}`);
+  return presentPublicPackage(await getJson<HealthPackage>(`/hospital/packages/${encodeURIComponent(slug)}`));
 }
 
 // ── Services and FAQs ───────────────────────────────────────────────────────
@@ -1078,13 +1086,14 @@ export async function fetchServices(
   page = 0,
   size = 50,
 ): Promise<Page<MedicalService>> {
-  return getJson<Page<MedicalService>>(
+  const result = await getJson<Page<MedicalService>>(
     `/hospital/services${toQuery({ page, size })}`,
   );
+  return presentPublicPage(result, presentPublicService) as Page<MedicalService>;
 }
 
 export async function fetchServiceBySlug(slug: string): Promise<MedicalService> {
-  return getJson<MedicalService>(`/hospital/services/${encodeURIComponent(slug)}`);
+  return presentPublicService(await getJson<MedicalService>(`/hospital/services/${encodeURIComponent(slug)}`));
 }
 
 export async function fetchFaqs(
@@ -1257,11 +1266,12 @@ export async function fetchArticles(
   size = 50,
   contentKind?: "GENERAL" | "DISEASE_GUIDE",
 ): Promise<Page<Article>> {
-  return getJson<Page<Article>>(`/hospital/articles${toQuery({ page, size, contentKind })}`);
+  const result = await getJson<Page<Article>>(`/hospital/articles${toQuery({ page, size, contentKind })}`);
+  return presentPublicPage(result, presentPublicArticle) as Page<Article>;
 }
 
 export async function fetchArticleBySlug(slug: string): Promise<Article> {
-  return getJson<Article>(`/hospital/articles/${encodeURIComponent(slug)}`);
+  return presentPublicArticle(await getJson<Article>(`/hospital/articles/${encodeURIComponent(slug)}`));
 }
 
 export async function fetchPatientOverview(): Promise<PatientOverview> {
@@ -2232,6 +2242,86 @@ export async function sendAiConversationMessageStream(
       callerSignal?.removeEventListener("abort", abortFromCaller);
     }
   });
+}
+
+/** Stateless visitor chat response; no conversation or browser persistence is involved. */
+export interface PublicAiChatResult {
+  answer: string;
+  disclaimer: string;
+  citations: AiChatCitation[];
+  provenance: Exclude<AiChatProvenance, "remote_provider">;
+  mode: "HOSPITAL_SUPPORT";
+  safetyAction: ChatSafetyAction;
+}
+
+export interface PublicAiChatTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+
+function parsePublicAiChatResponse(value: unknown, path: string): PublicAiChatResult {
+  if (!isRecord(value)
+    || typeof value.answer !== "string"
+    || !value.answer.trim()
+    || value.answer.length > 4_000) {
+    throw invalidAiChatResponse(path);
+  }
+  const citations = value.citations ?? [];
+  const provenance = value.provenance;
+  const safetyAction = value.safety_action ?? value.safetyAction;
+  if (
+    value.mode !== "HOSPITAL_SUPPORT"
+    || !Array.isArray(citations)
+    || citations.some((citation) => !isSafeChatCitation(citation))
+    || (provenance !== "local_provider" && provenance !== "local_fallback")
+    || !isChatSafetyAction(safetyAction)
+  ) {
+    throw invalidAiChatResponse(path);
+  }
+  const disclaimer = value.disclaimer;
+  if (typeof disclaimer !== "string" || !disclaimer.trim() || disclaimer.length > 4_000) {
+    throw invalidAiChatResponse(path);
+  }
+  const safeCitations = citations.filter(isSafeChatCitation);
+  return {
+    answer: value.answer.trim(),
+    disclaimer: disclaimer.trim(),
+    citations: safeCitations.map((citation) => ({
+      ...citation,
+      ...(citation.source_status ? { source_status: citation.source_status } : {}),
+    })),
+    provenance,
+    mode: "HOSPITAL_SUPPORT",
+    safetyAction,
+  };
+}
+
+/**
+ * Calls the stateless public hospital-support contract. It intentionally
+ * cannot create a patient conversation or select a clinical/remote mode.
+ */
+export async function sendPublicAiChat(
+  message: string,
+  recentTurns: readonly PublicAiChatTurn[] = [],
+  options: { signal?: AbortSignal } = {},
+): Promise<PublicAiChatResult> {
+  const path = "/public/ai/chat";
+  const normalized = message.trim();
+  if (normalized.length < 2 || normalized.length > 500) {
+    throw new ApiError("Tin nhắn phải dài từ 2 đến 500 ký tự.", 400, path, {
+      code: "PUBLIC_CHAT_INPUT_INVALID",
+    });
+  }
+  const boundedTurns = recentTurns.slice(-6).map((turn) => ({
+    role: turn.role,
+    content: turn.content.trim().slice(0, 2_000),
+  }));
+  const response = await getJson<unknown>(path, {
+    method: "POST",
+    signal: options.signal,
+    body: JSON.stringify({ message: normalized, recent_turns: boundedTurns }),
+  }, PUBLIC_AI_REQUEST_TIMEOUT_MS);
+  return parsePublicAiChatResponse(response, path);
 }
 
 async function readPersistedChatSse(

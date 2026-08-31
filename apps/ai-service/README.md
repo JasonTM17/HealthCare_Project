@@ -28,6 +28,15 @@ enable trusted ingestion, configure both `RAG_INGEST_ENABLED=true` and a secret
 `RAG_INGEST_TOKEN`, then send that token in the `X-RAG-Ingest-Token` header.
 Do not expose this endpoint publicly.
 
+The hosted Free beta intentionally uses `AI_PROVIDER=local`,
+`EMBEDDING_PROVIDER=local`, `RAG_STORAGE_BACKEND=memory`, and protected
+ingestion from the Spring public catalog. Render Free web services can spin
+down and their local state is ephemeral, so Spring performs an initial sync and
+then reconciles every five minutes. This is a beta availability trade-off, not
+durable RAG persistence. The service and ingest tokens stay server-side in
+Render; only `/livez` is unauthenticated. Remote patient/clinical AI remains
+disabled.
+
 For the patient chatbot, the durable adapter must use the protected projection
 contract: `SUPABASE_DB_SCHEMA=healthcare`,
 `SUPABASE_RAG_TABLE=ai_chat_documents`, and

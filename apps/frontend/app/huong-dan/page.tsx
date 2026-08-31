@@ -73,7 +73,7 @@ export default function HuongDanPage() {
         </section>
         <section className="resource-panel resource-panel--wide">
           <div className="section-heading"><div><p className="section-note">Hỗ trợ người bệnh</p><h2>Câu hỏi thường gặp</h2></div><Link className="text-button" href="/faq">Xem tất cả câu hỏi →</Link></div>
-          {faqs && !faqs.empty ? <div className="faq-list">{faqs.content.map((item) => <details className="faq-item" key={item.id}><summary>{item.question}</summary><p>{item.answer}</p></details>)}</div> : <p className="resource-muted">Nội dung câu hỏi thường gặp đang được cập nhật.</p>}
+          {faqs && !faqs.empty ? <div className="faq-list">{faqs.content.map((item) => <details className="faq-item" key={item.id}><summary>{item.question}</summary><p>{item.answer}</p></details>)}</div> : <div className="resource-muted"><p>Hiện chưa có câu hỏi được duyệt để hiển thị.</p><p className="mt-2">Bạn vẫn có thể xem hướng dẫn đặt lịch hoặc liên hệ bệnh viện để được hỗ trợ ngay.</p><div className="resource-actions mt-4"><Link className="outline-button outline-button--small" href="/contact">Liên hệ bệnh viện</Link><PublicBookingButton className="button button--amber">Đặt lịch khám</PublicBookingButton></div></div>}
         </section>
       </div>
     </PublicPageShell>

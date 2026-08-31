@@ -208,8 +208,32 @@ function Get-BackendBoolean {
     return $null
 }
 
+function Wait-DockerEngineReady {
+    param([Parameter(Mandatory)][int]$Seconds)
+
+    $deadline = (Get-Date).AddSeconds($Seconds)
+    do {
+        if (Test-DockerEngine) {
+            return $true
+        }
+        Start-Sleep -Seconds 2
+    } while ((Get-Date) -lt $deadline)
+
+    return $false
+}
+
 function Disable-AndVerifyDockerAi {
     if ($KeepDockerAI) {
+        return
+    }
+
+    # The supported CLI toggle can restart the backend asynchronously.  Avoid
+    # issuing it when the effective settings are already disabled; otherwise a
+    # healthy engine can be needlessly taken offline during this safety check.
+    $current = Get-BackendSettings
+    $currentAi = Get-BackendBoolean -Container $current.desktop -Name 'enableDockerAI'
+    $currentInference = Get-BackendBoolean -Container $current.desktop -Name 'enableInference'
+    if (($currentAi -eq $false) -and ($currentInference -eq $false)) {
         return
     }
 
@@ -218,7 +242,15 @@ function Disable-AndVerifyDockerAi {
         throw 'Docker engine is healthy, but the supported model-runner disable command failed.'
     }
 
+    if (-not (Wait-DockerEngineReady -Seconds $TimeoutSeconds)) {
+        throw "Docker engine did not recover within $TimeoutSeconds seconds after disabling model-runner."
+    }
+
     [void](Invoke-DockerBackendApi -Method POST -Path '/app/settings' -JsonBody '{"enableDockerAI":false,"enableInference":false}')
+    if (-not (Wait-DockerEngineReady -Seconds $TimeoutSeconds)) {
+        throw "Docker engine did not remain reachable after persisting AI/Inference settings."
+    }
+
     $settings = Get-BackendSettings
     $ai = Get-BackendBoolean -Container $settings.desktop -Name 'enableDockerAI'
     $inference = Get-BackendBoolean -Container $settings.desktop -Name 'enableInference'

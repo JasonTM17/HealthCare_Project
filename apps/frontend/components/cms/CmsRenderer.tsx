@@ -121,7 +121,7 @@ export function CmsSlotRenderer({
 }: CmsSlotRendererProps): ReactElement {
   return (
     <section
-      aria-label={`Nội dung CMS: ${slotKey}`}
+      aria-label={slotKey === "hero" ? "Thông tin nổi bật từ bệnh viện" : "Thông tin hỗ trợ từ bệnh viện"}
       className={`cms-slot-renderer ${className}`}
       data-cms-slot={slotKey}
       data-cms-version={content?.version ?? undefined}

@@ -132,17 +132,41 @@ async function installChatMocks(
   await installMockBrowserSession(context, PATIENT_SESSION);
 }
 
-test("guest launcher exposes a real login action", async ({ context, page }) => {
+test("guest launcher sends stateless hospital-support chat and offers login for history", async ({ context, page }) => {
   await installMockBrowserSession(context, null);
+  await context.route("**/api/v1/public/ai/chat", async (route) => {
+    const request = route.request();
+    expect(request.headers()["authorization"]).toBeUndefined();
+    const payload = request.postDataJSON() as { message: string; recent_turns: unknown[] };
+    expect(payload.message).toBe("Bệnh viện có những chuyên khoa nào?");
+    expect(payload.recent_turns).toEqual([]);
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        answer: "Bạn có thể xem danh sách chuyên khoa và chọn cơ sở phù hợp.",
+        disclaimer: "Thông tin chỉ mang tính tham khảo.",
+        citations: [{ source_type: "specialty", source_id: "tim-mach", title: "Tim mạch" }],
+        provenance: "local_provider",
+        mode: "HOSPITAL_SUPPORT",
+        safety_action: "ANSWER",
+      }),
+    });
+  });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/about");
   await page.getByRole("button", { name: "Mở trợ lý sức khỏe" }).click();
 
   const dialog = page.getByRole("dialog", { name: "Trợ lý sức khỏe HealthCare" });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole("heading", { name: "Đăng nhập để trò chuyện" })).toBeVisible();
-  await expect(dialog.getByRole("link", { name: "Đăng nhập" })).toHaveAttribute("href", "/auth/login?next=%2Fpatient%2Fchat");
-  await expect(dialog.getByLabel("Câu hỏi cho trợ lý sức khỏe")).toBeHidden();
+  await expect(dialog.getByText("Bạn đang dùng chế độ khách", { exact: false })).toBeVisible();
+  await dialog.getByLabel("Câu hỏi cho trợ lý sức khỏe").fill("Bệnh viện có những chuyên khoa nào?");
+  await dialog.getByRole("button", { name: "Gửi câu hỏi" }).click();
+  await expect(dialog.getByText("Bạn có thể xem danh sách chuyên khoa và chọn cơ sở phù hợp.", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Tim mạch", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Thông tin chỉ mang tính tham khảo.", { exact: true })).toBeVisible();
+  await expect(dialog.getByRole("link", { name: "đăng nhập" })).toHaveAttribute("href", "/auth/login?next=%2Fpatient%2Fchat");
+  await expect(dialog.getByRole("button", { name: "Hữu ích" })).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
   await expect(page.getByRole("button", { name: "Mở trợ lý sức khỏe" })).toBeFocused();

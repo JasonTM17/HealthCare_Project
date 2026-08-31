@@ -5,8 +5,8 @@ Next.js TypeScript frontend baseline for HealthCare_Project.
 Use Node.js 22-24 with npm 10-11. `npm ci` consumes the committed lockfile and
 is the same install mode used by CI and Vercel.
 
-The package contract is intentionally bounded: Node.js `>=22 <25`, npm
-`>=10 <12`, and lockfile version 3. The direct runtime/tooling pins are Next.js
+The package contract is intentionally bounded: release `0.1.1`, Node.js
+`>=22 <25`, npm `>=10 <12`, and lockfile version 3. The direct runtime/tooling pins are Next.js
 `16.3.3`, React `19.2.8`, `eslint-config-next` `16.3.3`, and TypeScript
 `6.0.3`, and Playwright `1.62.1` (exactly pinned). Keep
 `package.json` and `package-lock.json` in sync;
@@ -30,7 +30,8 @@ with the current Next.js/Tailwind setup is reviewed.
 
 Vercel must use `apps/frontend` as the project root. The checked-in
 `vercel.json` pins the install command to `npm ci` and the build command to
-`npm run build`; do not use `npm install` or a floating package version in a
+`npm run build`; `npm run test:chat-contract` is the focused BFF/guest-chat gate;
+do not use `npm install` or a floating package version in a
 release build. The current published beta artifacts are bound to exact commit
 `7a083ab06557225077694a0b2b93e31b89d0c32e`; Vercel deployment
 `dpl_o1ddh17yfggA7HsmxEFJiMCXe8m3` is `READY`/`PROMOTED` for production and
@@ -46,11 +47,13 @@ has these values paired with the Render Free backend, so catalog requests are
 served through the BFF (30 specialties, 475 active doctors, 20 branches;
 public services/packages/articles are filtered to 192/95/467 and public FAQs
 are 0 until an active doctor approval exists). If either provider secret is
-missing or mismatched,
-the BFF intentionally fails closed with `503 BFF_CONFIGURATION_UNAVAILABLE`.
-The separate `/api/v1/health` response may still be `503 degraded` while the
-optional AI subsystem is deliberately disabled on the Free beta; that status
-does not expose the backend secret or bypass the origin check.
+missing or mismatched, the BFF intentionally fails closed with
+`503 BFF_CONFIGURATION_UNAVAILABLE`.
+The Free beta now connects Spring to an authenticated local-provider FastAPI
+service for hospital-support chat. `/api/v1/health` is healthy only while that
+dependency is ready; a spun-down Render Free service can make the first request
+slow. Remote patient/clinical providers remain disabled, and no AI or ingest
+token is exposed to the browser or bypasses the origin check.
 
 Before opening a release, run `npm audit --package-lock-only` and verify that
 the manifest fields in `package.json` match the root package entry in
