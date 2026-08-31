@@ -32,18 +32,26 @@ Refresh this section after every release push; deployment IDs are evidence, not
 configuration:
 
 - Vercel stable alias https://healthcare-two-olive.vercel.app is
-  Production/READY at deployment dpl_DNJG5HhjgRuDYG9aaGJ8ij7gBzUq. Catalog BFF
-  probes returned HTTP 200 with totals 30 specialties, 475 active doctors and
-  20 branches. A disallowed Origin returned HTTP 403 BFF_ORIGIN_INVALID without
-  an allow-origin header. /api/v1/health returned the intentional HTTP 503
-  degraded response because AI is off.
+  Production/READY/PROMOTED at deployment
+  `dpl_o1ddh17yfggA7HsmxEFJiMCXe8m3`. Authenticated deployment metadata reports
+  source SHA `7a083ab06557225077694a0b2b93e31b89d0c32e`; it was created from a
+  clean checkout with the CLI. Catalog BFF probes returned HTTP 200 with
+  totals 30 specialties, 475 active doctors and 20 branches. A disallowed
+  Origin returned HTTP 403 `BFF_ORIGIN_INVALID` without an allow-origin
+  header. `/api/v1/health` returned the intentional HTTP 503 `degraded`
+  response because AI is off.
 - Render workspace tea-d7ev54q8qa3s7382ljcg has PostgreSQL
   dpg-da7r3uou01pc73boask0-a, Key Value red-daa3ub9f2nfc73956660, and web
   service srv-daa41a9f2nfc7395eg1g. The current live deploy is
-  dep-daa4td4s728c73fd2190. /actuator/health, /actuator/health/readiness and
-  /actuator/health/liveness returned HTTP 200; the short /readiness and
-  /liveness aliases correctly require authentication and return HTTP 401 without
-  credentials.
+  `dep-daaidvp42hec73aj9080`, using requested image digest
+  `sha256:c492898b8767119ab9417b55833b473aca65262f21ba713a77e51a972553dcf3`
+  and resolved manifest digest
+  `sha256:15923632b9303225e65fa67b18cf7900c0f81500452424c1dea9f313dde3c270`.
+  `/actuator/health`, `/actuator/health/readiness` and
+  `/actuator/health/liveness` returned HTTP 200/`UP`; the short `/readiness`
+  and `/liveness` aliases correctly require authentication and return HTTP 401
+  without credentials. Render initially had to rediscover the platform port;
+  the final app log confirms Spring and Render both use port 10000.
 - Render PostgreSQL contains only the deterministic public catalog: 30
   specialties, 20 branches, 500 doctors, 200 services, 100 packages, 500
   articles, 150 raw FAQs, 1,251 doctor-specialty links, 751 doctor-branch
@@ -63,8 +71,7 @@ configuration:
   supabase/reconciliation/free-plan-rollback-writer-lock-20260830.sql and is
   intentionally unexecuted.
 
-The newly published Render candidate (ready for the serialized promotion
-step) is the immutable artifact produced from application source
+The promoted Render image is the immutable artifact produced from application source
 `7a083ab06557225077694a0b2b93e31b89d0c32e`:
 
     ghcr.io/jasontm17/healthcare-project-backend@sha256:c492898b8767119ab9417b55833b473aca65262f21ba713a77e51a972553dcf3
@@ -90,7 +97,8 @@ closed session/CSRF cookie and header set. Missing or mismatched values must
 fail closed with 503 BFF_CONFIGURATION_UNAVAILABLE; an untrusted Origin must
 fail with 403 BFF_ORIGIN_INVALID.
 
-After a Vercel auto-deploy, verify the stable alias:
+After a Vercel exact-SHA deploy (manual CLI or a provider-confirmed Git
+integration deploy), verify the stable alias:
 
     GET /api/v1/hospital/specialties?page=0&size=3       -> 200, total 30
     GET /api/v1/hospital/doctors?page=0&size=3           -> 200, total 475 active
@@ -148,8 +156,12 @@ release gate is approved.
 
 1. Drain the Vercel beta and keep all remote/clinical/ingestion switches false.
 2. For an application failure, redeploy the last known-good immutable image and
-   Vercel deployment. Never run an old binary against a newer Flyway schema
-   without a compatibility review.
+   Vercel deployment. The immediate Render rollback target is deploy
+   `dep-daahnhks728c738ds6jg` (the prior immutable backend image); verify its
+   status and digest before selecting it. Never run an old binary against a
+   newer Flyway schema without a compatibility review. For Vercel, use the
+   previous `READY` deployment in the project and verify its alias before
+   promoting it.
 3. For the Render catalog, first confirm all consumer tables are empty and every
    count/fingerprint still matches the exact snapshot. Then run
    infrastructure/database/seed-hosted-catalog-rollback.sql in a maintenance

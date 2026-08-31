@@ -11,10 +11,13 @@ The repository currently has auth/RBAC, branch-aware booking and rescheduling, b
 This is an evidence record for the current synthetic beta, not a production
 readiness or healthcare-compliance claim. The integration target is `main`.
 The previous hosted checkpoint was inspected at
-`10b22040fd113c2addf679f0f10c36aabeaac1fa`. The current application/release
-source is `7a083ab06557225077694a0b2b93e31b89d0c32e`; always bind a release to
-`git rev-parse HEAD` and an immutable image digest, not to `latest` or to a
-deployment label.
+`10b22040fd113c2addf679f0f10c36aabeaac1fa`. The pushed `main` tip inspected
+for this documentation checkpoint is
+`a113d50579f77074237e5ff51a7d9d37308db941` and contains release documentation;
+the application/release source used by the hosted beta is
+`7a083ab06557225077694a0b2b93e31b89d0c32e`. Always bind a release to
+`git rev-parse HEAD` plus the application source SHA and immutable image digest,
+not to `latest` or to a deployment label.
 
 - GitHub CI run [33365515571](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33365515571) passed all six jobs for `7a083ab06557225077694a0b2b93e31b89d0c32e` (frontend browser gate: 34 tests).
 - The first image publication attempt [33365399607](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33365399607) correctly failed on an invalid Dockerfile `CMD-SHELL` token. Commit `7a083ab` changed it to Dockerfile shell-form `CMD`; the succeeding [image run 33365774241](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33365774241) passed all four image jobs.
@@ -24,8 +27,8 @@ The hosted beta deliberately uses only Render Free resources; `render.yaml` is
 the canonical manifest and `render-free-beta.yaml` is a parity copy for review.
 AI/FastAPI, ClamAV and attachment scanning are not provisioned in this selected
 plan, and all related switches remain fail-closed. The backend image is now
-published from the exact source SHA above; Render is updated only after the
-digest pin is reviewed and the deploy health gates pass.
+published from the exact source SHA above and is live on the existing Free
+service only after the digest pin and deploy health gates passed.
 
 | GHCR package | Immutable reference | Audit tag |
 | --- | --- | --- |
@@ -54,18 +57,28 @@ only major upgrade lines (ESLint 10, Tailwind CSS 4, and TypeScript 7), which
 remain deliberately deferred until a separate compatibility review.
 
 - Vercel's stable [beta alias](https://healthcare-two-olive.vercel.app) is
-  configured for automatic deployment from `main`; re-check its exact
-  deployment/source after this release commit because Vercel auto-deploys.
-  The three BFF variables remain server-only (`BACKEND_INTERNAL_URL`,
-  `BFF_PUBLIC_ORIGIN`, and `BACKEND_BFF_SERVICE_TOKEN`); the health route is
-  allowed to report `503 degraded` while AI is disabled on the Free beta.
+  Production/READY at deployment `dpl_o1ddh17yfggA7HsmxEFJiMCXe8m3`,
+  PROMOTED and manually deployed from a clean checkout of application SHA
+  `7a083ab06557225077694a0b2b93e31b89d0c32e`. The deployment metadata reports
+  the same source SHA and the alias serves the verified BFF. Do not infer an
+  automatic Git integration deploy; repeat the exact-SHA CLI deploy after an
+  application change. The three BFF variables remain server-only
+  (`BACKEND_INTERNAL_URL`, `BFF_PUBLIC_ORIGIN`, and
+  `BACKEND_BFF_SERVICE_TOKEN`); `/api/v1/health` is allowed to report `503
+  degraded` while AI is disabled on the Free beta.
 - Render has a Free Singapore PostgreSQL (`dpg-da7r3uou01pc73boask0-a`), Free
   Key Value (`red-daa3ub9f2nfc73956660`), and Free image-backed web service
-  (`srv-daa41a9f2nfc7395eg1g`). The service is kept on the reviewed digest in
-  `render.yaml`; record the new deploy ID and all three health probes here only
-  after the provider reports `live`.
-  The short `/readiness` and `/liveness` paths remain protected (`401`). The hosted synthetic catalog contains 30
-  specialties, 20 branches, 500 doctors, 200 services, 100 packages, 500
+  (`srv-daa41a9f2nfc7395eg1g`). Deploy
+  `dep-daaidvp42hec73aj9080` is `live` with requested image digest
+  `sha256:c492898b8767119ab9417b55833b473aca65262f21ba713a77e51a972553dcf3`
+  and Render-resolved manifest digest
+  `sha256:15923632b9303225e65fa67b18cf7900c0f81500452424c1dea9f313dde3c270`.
+  `/actuator/health`, `/actuator/health/liveness` and
+  `/actuator/health/readiness` returned HTTP 200/`UP`; unauthenticated short
+  `/readiness` and `/liveness` returned 401. The previous known-good rollback
+  deploy is `dep-daahnhks728c738ds6jg` on the prior immutable image.
+  The hosted synthetic catalog contains 30 specialties, 20 branches, 500
+  doctors, 200 services, 100 packages, 500
   articles, 150 raw FAQs, 1,251 doctor-specialty links, 751 doctor-branch
   links, 7,130 schedules, and 5 CMS slots. Public filters expose 192 services,
   95 packages, 467 articles and 0 FAQs because FAQ visibility requires a valid
