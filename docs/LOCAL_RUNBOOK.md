@@ -34,15 +34,18 @@ For a deliberate restart, pass `-Restart`:
 .\scripts\start-docker-safe.ps1 -Restart
 ```
 
-The launcher first uses Docker's supported stop command, waits for Docker
-processes, the engine pipe, and the `docker-desktop` WSL distribution to
-quiesce, and only then renames the two exact runtime parent directories to
-timestamped `.stale-*` folders before recreating them. A parent that is itself
-a reparse point is rejected rather than traversed. Active Docker containers
-are therefore stopped, but no container/image/volume data is removed. The
-launcher does not touch images/volumes/VHDX data, shut down other WSL
-distributions, or change Hibernate. It verifies the local named-pipe engine
-and holds a short post-start stability gate.
+The launcher first uses Docker's supported stop command when the engine pipe is
+responsive, with a hard timeout. If the backend is already broken, it skips the
+known-hanging CLI path and force-stops only Docker Desktop processes plus the
+`docker-desktop` WSL distribution. It then waits for Docker processes, the
+engine pipe, and that distribution to quiesce before renaming the two exact
+runtime parent directories to timestamped `.stale-*` folders and recreating
+them. A parent that is itself a reparse point is rejected rather than
+traversed. Active Docker containers are therefore stopped, but no
+container/image/volume data is removed. The launcher does not touch
+images/volumes/VHDX data, shut down other WSL distributions, or change
+Hibernate. It verifies the local named-pipe engine and holds a short post-start
+stability gate.
 
 The launcher also holds an OS-backed exclusive file handle for its complete
 mutation window. A second launcher exits instead of racing a stop/start or
