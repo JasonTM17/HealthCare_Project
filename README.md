@@ -13,7 +13,7 @@ readiness or healthcare-compliance claim. The integration target is `main`.
 The previous hosted checkpoint was inspected at
 `10b22040fd113c2addf679f0f10c36aabeaac1fa`. The pushed `main` tip inspected
 for this documentation checkpoint is
-`a113d50579f77074237e5ff51a7d9d37308db941` and contains release documentation;
+`836f8b35a1a17dfad675cb5ae2f54b7ec57d127b` and contains release documentation;
 the application/release source used by the hosted beta is
 `7a083ab06557225077694a0b2b93e31b89d0c32e`. Always bind a release to
 `git rev-parse HEAD` plus the application source SHA and immutable image digest,
