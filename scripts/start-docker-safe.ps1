@@ -121,10 +121,28 @@ function Stop-DockerDesktopSafely {
         return
     }
 
-    & $dockerPath desktop stop --timeout $StopTimeoutSeconds 2>&1 | Out-Null
-    $gracefulExit = $LASTEXITCODE
-    if (($gracefulExit -eq 0) -and (Wait-DockerStopped -Seconds $StopTimeoutSeconds)) {
-        return
+    # `docker desktop stop` can wait forever when the backend is already
+    # broken (for example, while it is stuck removing a Windows AF_UNIX
+    # socket). Only invoke the CLI while the engine is responsive, and put a
+    # hard wall around the child process. If the pipe is unavailable, go
+    # straight to the narrowly-scoped Docker-process/WSL termination below.
+    if (Test-DockerEngine) {
+        $stopCommand = Start-Process -FilePath $dockerPath `
+            -ArgumentList @('desktop', 'stop', '--timeout', [string]$StopTimeoutSeconds) `
+            -WindowStyle Hidden -PassThru
+        $gracefulCompleted = $stopCommand.WaitForExit($StopTimeoutSeconds * 1000)
+        if (-not $gracefulCompleted) {
+            try {
+                $stopCommand.Kill()
+            } catch {
+                # The bounded wait has already prevented an unbounded hang;
+                # the force-stop path below remains the recovery authority.
+            }
+        }
+        if ($gracefulCompleted -and ($stopCommand.ExitCode -eq 0) -and
+            (Wait-DockerStopped -Seconds $StopTimeoutSeconds)) {
+            return
+        }
     }
 
     # The supported stop path did not fully quiesce. Force only Docker Desktop

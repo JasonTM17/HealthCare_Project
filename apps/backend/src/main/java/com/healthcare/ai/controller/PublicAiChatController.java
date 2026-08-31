@@ -55,8 +55,18 @@ public class PublicAiChatController {
         java.util.regex.Pattern.compile("[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F\\u007F]");
     private static final java.util.regex.Pattern PUBLIC_IDENTITY_PATTERN = java.util.regex.Pattern.compile(
         "(?iu)(?:[\\w.+-]+@[\\w.-]+\\.[A-Za-z]{2,}"
-            + "|\\b(?:mã|ma)\\s+(?:bệnh nhân|benh nhan|hồ sơ|ho so|đặt lịch|dat lich)\\b"
-            + "|\\b(?:patient|medical\\s+record|appointment)\\s*(?:id|number)\\b)"
+            // A refusal may name the kind of identifier it must not receive
+            // (for example, "mã hồ sơ") without disclosing an identifier.
+            // Require a value-shaped token after the label so that the
+            // server-owned refusal is accepted while actual IDs still fail
+            // closed.  A digit requirement avoids treating connective words
+            // such as "hoặc" as an identifier.
+            + "|(?:mã|ma)\\s+(?:bệnh nhân|benh nhan|hồ sơ|ho so|đặt lịch|dat lich)"
+                + "(?:(?:\\s*[:#-]\\s*)[A-Za-z0-9][A-Za-z0-9._:-]{2,}"
+                + "|\\s+(?=[A-Za-z0-9._:-]*\\d)[A-Za-z0-9][A-Za-z0-9._:-]{2,})"
+            + "|(?:patient|medical\\s+record|appointment)\\s*(?:id|number)"
+                + "(?:(?:\\s*[:#-]\\s*)[A-Za-z0-9][A-Za-z0-9._:-]{2,}"
+                + "|\\s+(?=[A-Za-z0-9._:-]*\\d)[A-Za-z0-9][A-Za-z0-9._:-]{2,}))"
     );
     private static final java.util.regex.Pattern INTERNAL_OUTPUT_PATTERN = java.util.regex.Pattern.compile(
         "(?iu)(?:ai[_ -]?service[_ -]?token|x-ai-service-token|stack\\s*trace|traceback|api[_ -]?key)"
@@ -243,6 +253,7 @@ public class PublicAiChatController {
         @JsonProperty("message")
         @NotBlank
         @Size(min = 2, max = MAX_PUBLIC_MESSAGE_LENGTH)
+        @Pattern(regexp = "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]*$")
         private final String message;
 
         @JsonProperty("recent_turns")
@@ -294,6 +305,7 @@ public class PublicAiChatController {
         @JsonProperty("content")
         @NotBlank
         @Size(max = 2_000)
+        @Pattern(regexp = "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]*$")
         private final String content;
 
         @com.fasterxml.jackson.annotation.JsonCreator

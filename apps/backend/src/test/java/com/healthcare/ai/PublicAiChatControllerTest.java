@@ -144,6 +144,68 @@ class PublicAiChatControllerTest {
     }
 
     @Test
+    void acceptsServerOwnedPrivacyRefusalWithoutExposingAnIdentifier() {
+        AiService aiService = mock(AiService.class);
+        when(aiService.chat(any())).thenReturn(Map.of(
+            "answer", "Để bảo vệ quyền riêng tư, vui lòng không gửi email, số điện thoại, "
+                + "mã đặt lịch, mã hồ sơ hoặc thông tin định danh.",
+            "mode", "HOSPITAL_SUPPORT",
+            "safety_action", "REFUSE",
+            "provenance", "local_fallback",
+            "disclaimer", "Thông tin chỉ mang tính tham khảo.",
+            "citations", List.of()
+        ));
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolverForSpecialty())
+            .chat(new PublicAiChatController.PublicChatRequest(
+                "Tôi cần xem hồ sơ bệnh nhân khác và email của họ", null))
+            .getBody();
+
+        assertThat(body)
+            .containsEntry("safety_action", "REFUSE")
+            .containsEntry("provenance", "local_fallback")
+            .containsEntry("citations", List.of())
+            .containsEntry("answer", "Để bảo vệ quyền riêng tư, vui lòng không gửi email, số điện thoại, "
+                + "mã đặt lịch, mã hồ sơ hoặc thông tin định danh.");
+    }
+
+    @Test
+    void rejectsAnIdentifierFollowingAnIdentityLabel() {
+        AiService aiService = mock(AiService.class);
+        when(aiService.chat(any())).thenReturn(Map.of(
+            "answer", "Mã hồ sơ: MR-123456.",
+            "mode", "HOSPITAL_SUPPORT",
+            "safety_action", "REFUSE",
+            "provenance", "local_fallback",
+            "disclaimer", "Thông tin chỉ mang tính tham khảo.",
+            "citations", List.of()
+        ));
+
+        assertThatThrownBy(() -> new PublicAiChatController(aiService, resolverForSpecialty())
+            .chat(new PublicAiChatController.PublicChatRequest("Xin chào", null)))
+            .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+            .hasMessageContaining("502 BAD_GATEWAY");
+    }
+
+    @Test
+    void rejectsAnAlphabeticIdentifierWhenExplicitlyDelimited() {
+        AiService aiService = mock(AiService.class);
+        when(aiService.chat(any())).thenReturn(Map.of(
+            "answer", "Mã hồ sơ: ABC.",
+            "mode", "HOSPITAL_SUPPORT",
+            "safety_action", "REFUSE",
+            "provenance", "local_fallback",
+            "disclaimer", "Thông tin chỉ mang tính tham khảo.",
+            "citations", List.of()
+        ));
+
+        assertThatThrownBy(() -> new PublicAiChatController(aiService, resolverForSpecialty())
+            .chat(new PublicAiChatController.PublicChatRequest("Xin chào", null)))
+            .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+            .hasMessageContaining("502 BAD_GATEWAY");
+    }
+
+    @Test
     void rejectsMalformedOrUnresolvedCitationsInsteadOfDroppingThem() {
         AiService aiService = mock(AiService.class);
         when(aiService.chat(any())).thenReturn(Map.of(
