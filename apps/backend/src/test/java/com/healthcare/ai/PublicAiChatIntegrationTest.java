@@ -23,13 +23,20 @@ class PublicAiChatIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void unauthenticatedHospitalSupportChatIsStatelessAndBounded() throws Exception {
+        var specialty = new com.healthcare.hospital.entity.Specialty();
+        specialty.setName("Tim mạch");
+        specialty.setSlug("tim-mach-public-chat-test");
+        specialty.setActive(true);
+        specialty = specialtyRepository.saveAndFlush(specialty);
+
         when(aiService.chat(any())).thenReturn(Map.of(
             "answer", "Bạn có thể xem chuyên khoa Tim mạch.",
             "disclaimer", "Thông tin chỉ mang tính tham khảo.",
             "provenance", "local_provider",
             "safety_action", "ANSWER",
+            "mode", "HOSPITAL_SUPPORT",
             "citations", List.of(Map.of(
-                "source_type", "specialty", "source_id", "tim-mach", "title", "Tim mạch"
+                "source_type", "specialty", "source_id", specialty.getId().toString(), "title", "provider-controlled title"
             ))
         ));
 
@@ -40,7 +47,8 @@ class PublicAiChatIntegrationTest extends AbstractIntegrationTest {
             .andExpect(jsonPath("$.mode").value("HOSPITAL_SUPPORT"))
             .andExpect(jsonPath("$.answer").value("Bạn có thể xem chuyên khoa Tim mạch."))
             .andExpect(jsonPath("$.citations[0].source_type").value("specialty"))
-            .andExpect(jsonPath("$.citations[0].source_id").value("tim-mach"));
+            .andExpect(jsonPath("$.citations[0].source_id").value(specialty.getId().toString()))
+            .andExpect(jsonPath("$.citations[0].title").value("Tim mạch"));
 
         assertThat(aiConversationRepository.count()).isZero();
         assertThat(aiMessageRepository.count()).isZero();

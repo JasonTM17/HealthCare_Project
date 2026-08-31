@@ -185,7 +185,10 @@ test("patient mobile widget creates and sends through the REST conversation API"
   await dialog.getByRole("button", { name: "Gửi câu hỏi" }).click();
 
   await expect(dialog.getByTestId("floating-chat-streaming-reply")).toBeHidden();
-  await expect(dialog.getByText("Bạn nên mang giấy tờ tùy thân, kết quả cũ và danh sách thuốc đang dùng.")).toBeVisible();
+  // The stream can briefly contain the same text as the completed exchange
+  // while React commits the final SSE event. Scope the assertion to the
+  // persisted assistant article so the check is deterministic under CI load.
+  await expect(dialog.locator("article:not([data-testid='floating-chat-streaming-reply'])").getByText("Bạn nên mang giấy tờ tùy thân, kết quả cũ và danh sách thuốc đang dùng.", { exact: true })).toBeVisible();
   await expect(dialog.getByText("Nguồn HealthCare", { exact: true })).toBeVisible();
   await expect(dialog.getByText("Thông tin chỉ dùng để tham khảo.", { exact: true })).toBeVisible();
   // Citations are intentionally text-only; server-owned suggested actions are
@@ -220,7 +223,7 @@ test("provider unavailable state offers a real retry without storing the draft",
   await expect(dialog.getByRole("button", { name: "Thử lại" })).toBeVisible();
   await dialog.getByRole("button", { name: "Thử lại" }).click();
   await expect(dialog.getByTestId("floating-chat-streaming-reply")).toBeHidden();
-  await expect(dialog.getByText("Bạn nên mang giấy tờ tùy thân, kết quả cũ và danh sách thuốc đang dùng.")).toBeVisible();
+  await expect(dialog.locator("article:not([data-testid='floating-chat-streaming-reply'])").getByText("Bạn nên mang giấy tờ tùy thân, kết quả cũ và danh sách thuốc đang dùng.", { exact: true })).toBeVisible();
   await expect(dialog.getByText("Chế độ dự phòng tại chỗ", { exact: true })).toBeVisible();
   expect(observedKeys).toHaveLength(2);
   expect(observedKeys[0]).not.toBe(observedKeys[1]);

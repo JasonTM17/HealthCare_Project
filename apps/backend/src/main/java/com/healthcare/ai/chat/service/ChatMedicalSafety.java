@@ -19,12 +19,17 @@ public final class ChatMedicalSafety {
     }
 
     public static void rejectDiagnoseOrPrescribe(String answer) {
-        if (answer != null && UNSAFE_CLAIM.matcher(answer).find()) {
+        if (containsUnsafeClaim(answer)) {
             throw new BusinessException(
                 422,
                 ErrorCodes.CHAT_CONTENT_BLOCKED,
                 "AI response contained a diagnosis or prescription claim"
             );
         }
+    }
+
+    /** Shared non-throwing predicate for stateless/public response boundaries. */
+    public static boolean containsUnsafeClaim(String answer) {
+        return answer != null && UNSAFE_CLAIM.matcher(answer).find();
     }
 }
