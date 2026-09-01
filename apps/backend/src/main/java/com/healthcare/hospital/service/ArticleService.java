@@ -8,6 +8,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.time.OffsetDateTime;
+
 @Service
 public class ArticleService {
 
@@ -22,7 +24,8 @@ public class ArticleService {
         // are exposed through the explicit content-kind path below so an
         // unapproved/expired clinical source can never leak into the generic
         // feed or receive the doctor-approved trust label.
-        return articleRepository.findByContentKindAndActiveTrueAndPublishedAtIsNotNullOrderByPublishedAtDesc("GENERAL", pageable)
+        return articleRepository.findByContentKindAndActiveTrueAndPublishedAtLessThanEqualOrderByPublishedAtDesc(
+                "GENERAL", OffsetDateTime.now(), pageable)
             .map(this::toResponse);
     }
 
@@ -34,13 +37,15 @@ public class ArticleService {
         }
         Page<Article> page = "DISEASE_GUIDE".equals(normalized)
             ? articleRepository.findClinicallyEligibleDiseaseGuides(pageable)
-            : articleRepository.findByContentKindAndActiveTrueAndPublishedAtIsNotNullOrderByPublishedAtDesc(normalized, pageable);
+            : articleRepository.findByContentKindAndActiveTrueAndPublishedAtLessThanEqualOrderByPublishedAtDesc(
+                normalized, OffsetDateTime.now(), pageable);
         return page
             .map(this::toResponse);
     }
 
     public ArticleResponse getBySlug(String slug) {
-        Article article = articleRepository.findBySlugAndActiveTrueAndPublishedAtIsNotNull(slug)
+        Article article = articleRepository.findBySlugAndActiveTrueAndPublishedAtLessThanEqual(
+                slug, OffsetDateTime.now())
             .orElseThrow(() -> new ResourceNotFoundException("Article not found"));
         if ("DISEASE_GUIDE".equalsIgnoreCase(article.getContentKind())) {
             article = articleRepository.findClinicallyEligibleDiseaseGuideBySlug(slug)

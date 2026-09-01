@@ -9,17 +9,20 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.time.OffsetDateTime;
 
 @Repository
 public interface ArticleRepository extends JpaRepository<Article, UUID> {
     Optional<Article> findBySlug(String slug);
 
-    Optional<Article> findBySlugAndActiveTrueAndPublishedAtIsNotNull(String slug);
+    Optional<Article> findBySlugAndActiveTrueAndPublishedAtLessThanEqual(
+        String slug, OffsetDateTime publicationCutoff);
 
-    Page<Article> findByActiveTrueAndPublishedAtIsNotNullOrderByPublishedAtDesc(Pageable pageable);
+    Page<Article> findByActiveTrueAndPublishedAtLessThanEqualOrderByPublishedAtDesc(
+        OffsetDateTime publicationCutoff, Pageable pageable);
 
-    Page<Article> findByContentKindAndActiveTrueAndPublishedAtIsNotNullOrderByPublishedAtDesc(
-        String contentKind, Pageable pageable);
+    Page<Article> findByContentKindAndActiveTrueAndPublishedAtLessThanEqualOrderByPublishedAtDesc(
+        String contentKind, OffsetDateTime publicationCutoff, Pageable pageable);
 
     /** Disease guides are public only while their current clinical review is eligible. */
     @Query(value = """
@@ -37,7 +40,7 @@ public interface ArticleRepository extends JpaRepository<Article, UUID> {
           JOIN roles reviewer_role ON reviewer_role.id = reviewer_link.role_id
           JOIN doctors reviewer_doctor ON reviewer_doctor.user_id = reviewer_user.id
          WHERE a.content_kind = 'DISEASE_GUIDE'
-           AND a.active = TRUE AND a.published_at IS NOT NULL
+           AND a.active = TRUE AND a.published_at <= CURRENT_TIMESTAMP
            AND h.eligibility_state = 'APPROVED'
            AND r.state = 'APPROVED'
            AND r.expires_at > CURRENT_TIMESTAMP
@@ -61,7 +64,7 @@ public interface ArticleRepository extends JpaRepository<Article, UUID> {
           JOIN roles reviewer_role ON reviewer_role.id = reviewer_link.role_id
           JOIN doctors reviewer_doctor ON reviewer_doctor.user_id = reviewer_user.id
          WHERE a.content_kind = 'DISEASE_GUIDE'
-           AND a.active = TRUE AND a.published_at IS NOT NULL
+           AND a.active = TRUE AND a.published_at <= CURRENT_TIMESTAMP
            AND h.eligibility_state = 'APPROVED' AND r.state = 'APPROVED'
            AND r.expires_at > CURRENT_TIMESTAMP
            AND reviewer_user.status = 'ACTIVE' AND reviewer_doctor.active = TRUE
@@ -83,7 +86,7 @@ public interface ArticleRepository extends JpaRepository<Article, UUID> {
           JOIN roles reviewer_role ON reviewer_role.id = reviewer_link.role_id
           JOIN doctors reviewer_doctor ON reviewer_doctor.user_id = reviewer_user.id
          WHERE a.slug = :slug AND a.content_kind = 'DISEASE_GUIDE'
-           AND a.active = TRUE AND a.published_at IS NOT NULL
+           AND a.active = TRUE AND a.published_at <= CURRENT_TIMESTAMP
            AND h.eligibility_state = 'APPROVED' AND r.state = 'APPROVED'
            AND r.expires_at > CURRENT_TIMESTAMP
            AND reviewer_user.status = 'ACTIVE' AND reviewer_doctor.active = TRUE
