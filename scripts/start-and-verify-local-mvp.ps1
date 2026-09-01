@@ -104,10 +104,19 @@ if ($prepareEnvironment) {
     $environmentText = Set-EnvironmentValue $environmentText "AI_RAG_INGEST_TOKEN" $ragToken
 
     # The disposable full-MVP fixture includes MinIO and the private
-    # attachment-scanner sidecar, so opt consultation storage in explicitly.
-    # `.env.example` keeps this false for ordinary development; never mutate
-    # an operator-provided environment outside this preparation branch.
+    # attachment-scanner sidecar, so opt both generic and consultation storage
+    # in explicitly. The verifier exercises the generic /files/upload path,
+    # while the patient flow uses consultation storage. `.env.example` keeps
+    # both flags false for ordinary development; never mutate an operator-
+    # provided environment outside this preparation branch.
+    $environmentText = Set-EnvironmentValue $environmentText "STORAGE_UPLOAD_ENABLED" "true"
     $environmentText = Set-EnvironmentValue $environmentText "STORAGE_CONSULTATION_ENABLED" "true"
+
+    # The live role-based browser gate exercises the persisted SSE chat
+    # contract. Keep Compose fail-closed by default, but enable chunked delivery
+    # in this disposable full-MVP fixture so the UI and direct live contract
+    # observe the same capability.
+    $environmentText = Set-EnvironmentValue $environmentText "AI_CHAT_CHUNKED_ENABLED" "true"
 } else {
     $ragEnabled = Get-EnvironmentValue $environmentText "RAG_INGEST_ENABLED"
     $ragToken = Get-EnvironmentValue $environmentText "RAG_INGEST_TOKEN"
