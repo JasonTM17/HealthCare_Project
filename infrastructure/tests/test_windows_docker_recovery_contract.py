@@ -191,9 +191,14 @@ def test_operation_order_is_stop_rotate_start_then_verify() -> None:
     assert text.index("Rotate-DockerRuntimeDirectories") < text.rindex("Start-DockerDesktopSafely")
     assert text.rindex("Start-DockerDesktopSafely") < text.rindex("Disable-AndVerifyDockerAi")
     assert "@('desktop', 'stop', '--timeout'" in text
-    assert "@('desktop', 'start', '--detach')" in text
-    assert "Docker Desktop.exe directly" in text
+    assert "Join-Path ${env:SystemRoot} 'explorer.exe'" in text
+    assert "Get-Process explorer" in text
+    assert 'ArgumentList @("`"$desktopPath`"")' in text
+    assert "docker desktop start --detach" in text
+    assert "broker.ExitCode -ne 0" in text
+    assert "Get-Process 'Docker Desktop'" in text
     assert "job object" in text
+    assert "independent process parent" in text
     assert "Wait-DockerStopped" in text
     assert "-replace \"`0\", ''" in text
     assert "finally" in text

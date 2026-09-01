@@ -276,26 +276,36 @@ function Wait-DockerEngineReady {
 }
 
 function Start-DockerDesktopSafely {
-    # Start Docker Desktop through its supported CLI control plane.  Launching
-    # Docker Desktop.exe directly makes the GUI/backend inherit the terminal's
-    # Windows job object; when a bounded runner tears that job down, the
-    # otherwise healthy engine is killed with it.  The CLI asks Desktop's own
-    # service to start and then returns, so the app lifetime is independent of
-    # this recovery process.
-    $startCommand = Start-Process -FilePath $dockerPath `
-        -ArgumentList @('desktop', 'start', '--detach') `
-        -WindowStyle Hidden -PassThru
-    $completed = $startCommand.WaitForExit($TimeoutSeconds * 1000)
-    if (-not $completed) {
-        try {
-            $startCommand.Kill()
-        } catch {
-            # The bounded wait has already prevented an unbounded hang.
-        }
-        throw "Docker Desktop start command did not finish within $TimeoutSeconds seconds."
+    # A direct Docker Desktop.exe launch and `docker desktop start --detach`
+    # both keep Desktop inside the caller's Windows job object. Bounded CI and
+    # agent terminals reap descendants after their command lease expires,
+    # silently killing a healthy engine several minutes later. Delegate the
+    # executable open to the already-running Explorer shell; Explorer becomes
+    # the independent process parent while Docker's own executable remains the
+    # startup authority.
+    $explorerPath = Join-Path ${env:SystemRoot} 'explorer.exe'
+    if (-not (Test-Path -LiteralPath $explorerPath -PathType Leaf)) {
+        throw "Windows Explorer was not found at $explorerPath."
     }
-    if ($startCommand.ExitCode -ne 0) {
-        throw "Docker Desktop start command failed with exit code $($startCommand.ExitCode)."
+    if (@(Get-Process explorer -ErrorAction SilentlyContinue).Count -eq 0) {
+        throw 'An interactive Windows Explorer session is required to start Docker Desktop independently.'
+    }
+
+    $broker = Start-Process -FilePath $explorerPath `
+        -ArgumentList @("`"$desktopPath`"") `
+        -WindowStyle Hidden -PassThru
+    if (-not $broker.WaitForExit(15000)) {
+        try {
+            $broker.Kill()
+        } catch {
+            # The Explorer broker is only a bounded handoff process.
+        }
+        throw 'Windows Explorer did not acknowledge the Docker Desktop launch within 15 seconds.'
+    }
+    if ($broker.ExitCode -ne 0 -and
+        @(Get-Process 'Docker Desktop' -ErrorAction SilentlyContinue).Count -eq 0 -and
+        -not (Test-Path -LiteralPath $enginePipe)) {
+        throw "Windows Explorer could not launch Docker Desktop (exit code $($broker.ExitCode))."
     }
 }
 
