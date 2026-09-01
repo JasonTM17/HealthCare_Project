@@ -191,7 +191,8 @@ _VIETNAMESE_SAFEGUARD_BYPASS_PATTERN = re.compile(
 _VIETNAMESE_PATIENT_DATA_EXFIL_PATTERN = re.compile(
     r"(?:"
     r"\b(?:xuat|in|hien\s+thi|tiet\s+lo|cung\s+cap|liet\s+ke|tra\s+ve|"
-    r"chia\s+se|cho\s+toi\s+xem|cho\s+xem|gui)\b"
+    r"chia\s+se|cho\s+toi\s+xem|cho\s+xem|gui|danh\s+sach|xem|lay|"
+    r"truy\s+cap)\b"
     r".{0,80}\b(?:toan\s+bo|tat\s+ca|danh\s+sach)?\s*"
     r"(?:du\s+lieu|thong\s+tin|ho\s+so|ban\s+ghi)\b"
     r".{0,50}\b(?:cua\s+)?(?:benh\s+nhan|nguoi\s+benh|benh\s+an|"
@@ -201,7 +202,42 @@ _VIETNAMESE_PATIENT_DATA_EXFIL_PATTERN = re.compile(
     r".{0,50}\b(?:cua\s+)?(?:benh\s+nhan|nguoi\s+benh|benh\s+an|"
     r"nguoi\s+dung|ca\s+nhan)\b"
     r".{0,80}\b(?:xuat|in|hien\s+thi|tiet\s+lo|cung\s+cap|liet\s+ke|"
-    r"tra\s+ve|chia\s+se|gui)\b"
+    r"tra\s+ve|chia\s+se|gui|danh\s+sach|xem|lay|truy\s+cap)\b"
+    r")",
+    re.IGNORECASE,
+)
+# A direct "cho tôi ..." request does not always contain an explicit export
+# verb (for example, "cho tôi hồ sơ bệnh nhân"). Keep this narrow: require the
+# sensitive object immediately after the request marker, or a retrieval marker
+# immediately after the object, so educational questions about preparing a
+# patient record remain answerable.
+_VIETNAMESE_DIRECT_PATIENT_DATA_REQUEST_PATTERN = re.compile(
+    r"(?:"
+    r"\bcho\s+toi\s+(?:danh\s+sach\s+)?"
+    r"(?:du\s+lieu|thong\s+tin|ho\s+so|ban\s+ghi)\b"
+    r".{0,50}\b(?:benh\s+nhan|nguoi\s+benh|benh\s+an|nguoi\s+dung|ca\s+nhan)\b"
+    r"|"
+    r"\b(?:du\s+lieu|thong\s+tin|ho\s+so|ban\s+ghi)\b"
+    r".{0,50}\b(?:benh\s+nhan|nguoi\s+benh|benh\s+an|nguoi\s+dung|ca\s+nhan)\b"
+    r".{0,30}\b(?:cho\s+toi|toi\s+muon\s+xem)\b"
+    r")",
+    re.IGNORECASE,
+)
+# Keep the same request/object ordering guard for English prompts. The generic
+# sensitive-data detector handles singular "patient record", but this catches
+# plural and adjacent forms such as "show patient data" and "export user
+# profiles" before retrieval or a provider can see them.
+_ENGLISH_PATIENT_DATA_EXFIL_PATTERN = re.compile(
+    r"(?:"
+    r"\b(?:list|show|display|give|provide|share|send|export|dump|reveal|"
+    r"return|disclose|access|retrieve|get)\b"
+    r".{0,80}\b(?:patient|medical|user|personal)\s+"
+    r"(?:records?|data|information|profiles?|files?|histories?)\b"
+    r"|"
+    r"\b(?:patient|medical|user|personal)\s+"
+    r"(?:records?|data|information|profiles?|files?|histories?)\b"
+    r".{0,80}\b(?:list|show|display|give|provide|share|send|export|dump|"
+    r"reveal|return|disclose|access|retrieve|get)\b"
     r")",
     re.IGNORECASE,
 )
@@ -317,6 +353,8 @@ def contains_prompt_injection(value: str) -> bool:
         or bool(_VIETNAMESE_EXFIL_OBJECT_PATTERN.search(normalized))
         or bool(_VIETNAMESE_SAFEGUARD_BYPASS_PATTERN.search(normalized))
         or bool(_VIETNAMESE_PATIENT_DATA_EXFIL_PATTERN.search(normalized))
+        or bool(_VIETNAMESE_DIRECT_PATIENT_DATA_REQUEST_PATTERN.search(normalized))
+        or bool(_ENGLISH_PATIENT_DATA_EXFIL_PATTERN.search(normalized))
         or bool(_SAFEGUARD_BYPASS_PATTERN.search(normalized))
         or bool(_UNRESTRICTED_ASSISTANT_PATTERN.search(normalized))
     )
@@ -518,8 +556,9 @@ def chat_safety_response(
     if contains_prompt_injection(combined):
         return ChatResponse(
             answer=(
-                "Tôi không thể cung cấp chỉ dẫn hệ thống, thông tin xác thực hoặc cấu hình "
-                "nội bộ. Tôi vẫn có thể hỗ trợ thông tin sức khỏe ở mức tham khảo."
+                "Tôi không thể cung cấp chỉ dẫn hệ thống, thông tin xác thực, cấu hình nội bộ "
+                "hoặc hồ sơ, dữ liệu bệnh nhân. Tôi vẫn có thể hỗ trợ thông tin sức khỏe ở "
+                "mức tham khảo."
             ),
             provenance="local_fallback",
             safety_action=ChatSafetyAction.REFUSE,
