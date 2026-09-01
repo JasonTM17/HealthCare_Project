@@ -302,9 +302,11 @@ see [docs/LOCAL_RUNBOOK.md](docs/LOCAL_RUNBOOK.md).
 
 On Windows, use the repository safe launcher and keep a single Docker host
 owner during recovery. It serializes stop/start operations, bounds the Docker
-CLI stop call when a broken AF_UNIX socket would otherwise hang, fails closed
-when the Docker host drive has less than 2 GiB free, and preserves images,
-volumes, VHDX data, other WSL distributions, and Hibernate.
+CLI stop call when a broken AF_UNIX socket would otherwise hang, drains the
+status probe's output streams concurrently so a noisy broken CLI cannot
+deadlock the launcher, fails closed when the Docker host drive has less than
+2 GiB free, and preserves images, volumes, VHDX data, other WSL distributions,
+and Hibernate.
 
 Keep only one startup/recovery owner. If an older workaround left a scheduled
 task named `Docker Desktop socket recovery`, disable that task before enabling

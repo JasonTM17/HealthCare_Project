@@ -71,12 +71,19 @@ def test_recovery_preserves_docker_data_and_other_wsl_distributions() -> None:
 def test_recovery_waits_for_a_real_local_engine_response_and_stability_gate() -> None:
     text = _script()
     module = _module()
+    combined = text + module
 
     assert "dockerDesktopLinuxEngine" in text
     assert "npipe:////./pipe/dockerDesktopLinuxEngine" in text
-    assert "desktop status --format json" in text
-    assert "WaitForExit(5000)" in text
-    assert "$process.Kill()" in text
+    assert "desktop status --format json" in module
+    assert "WaitForExit($TimeoutMilliseconds)" in module
+    assert "$process.Kill()" in module
+    assert "ReadToEndAsync()" in module
+    assert "$stdoutTask.Wait(1000)" in module
+    assert "$stderrTask.Wait(1000)" in module
+    assert "Drain both redirected pipes" in module
+    assert "Invoke-DockerDesktopStatusProbe -DockerPath $dockerPath" in text
+    assert "Invoke-DockerDesktopStatusProbe" in combined
     assert "Test-DockerDesktopRunning" in text
     assert "status.Status" in text
     assert "cached Docker API response" in text
@@ -137,6 +144,23 @@ Write-Output 'PASS'
         result = _run_powershell(command)
         assert result.returncode == 0, result.stdout + result.stderr
         assert "PASS" in result.stdout
+
+
+@pytest.mark.skipif(POWERSHELL is None, reason="Windows PowerShell 5.1 or pwsh is unavailable")
+def test_status_probe_drains_large_cli_output_without_pipe_deadlock() -> None:
+    """A noisy CLI must not make the bounded status probe appear hung."""
+    powershell = Path(POWERSHELL).resolve()
+    command = f"""
+$ErrorActionPreference = 'Stop'
+Import-Module {_ps_quote(MODULE)} -Force
+$probeArgs = '-NoLogo -NoProfile -NonInteractive -Command ""$x = ''x'' * 262144; [Console]::Out.WriteLine($x); [Console]::Out.WriteLine(''STATUS'')""'
+$output = Invoke-DockerDesktopStatusProbe -DockerPath {_ps_quote(powershell)} -Arguments $probeArgs -TimeoutMilliseconds 5000
+if ([string]::IsNullOrWhiteSpace($output) -or $output -notmatch 'STATUS') {{ throw 'large-output status probe did not complete' }}
+Write-Output 'PASS'
+"""
+    result = _run_powershell(command, timeout=20)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "PASS" in result.stdout
 
 
 @pytest.mark.skipif(POWERSHELL is None, reason="Windows PowerShell 5.1 or pwsh is unavailable")
