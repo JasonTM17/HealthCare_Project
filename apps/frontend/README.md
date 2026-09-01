@@ -9,8 +9,12 @@ The package contract is intentionally bounded: release `0.1.1`, Node.js
 `>=22 <25`, npm `>=10 <12`, and lockfile version 3. The direct runtime/tooling pins are Next.js
 `16.3.3`, React `19.2.8`, `eslint-config-next` `16.3.3`, and TypeScript
 `6.0.3`, and Playwright `1.62.1` (exactly pinned). Keep
-`package.json` and `package-lock.json` in sync;
-use `npm ci` for CI, Vercel, and release builds.
+`package.json` and `package-lock.json` in sync; use `npm ci` for CI, Vercel,
+and release builds. On 2026-09-01, the dry-run install and lockfile audit
+passed with zero vulnerabilities across 453 packages. Next.js and
+`eslint-config-next` `16.3.4` are available, but the hosted, attested beta
+remains on the tested `16.3.3` pair until a separate compatibility-and-republish
+checkpoint; major toolchain upgrades remain deferred as well.
 
 ## Commands
 
@@ -32,13 +36,14 @@ Vercel must use `apps/frontend` as the project root. The checked-in
 `vercel.json` pins the install command to `npm ci` and the build command to
 `npm run build`; `npm run test:chat-contract` is the focused BFF/guest-chat gate;
 do not use `npm install` or a floating package version in a
-release build. The current published beta artifacts are bound to exact commit
-`7a083ab06557225077694a0b2b93e31b89d0c32e`; Vercel deployment
-`dpl_o1ddh17yfggA7HsmxEFJiMCXe8m3` is `READY`/`PROMOTED` for production and
-reports that same source SHA. It was deployed from a clean checkout with the
-CLI; do not assume a Git integration auto-deploy after changing only release
-documentation. Render's backend pin is advanced only after the corresponding
-immutable image and CI provenance checks pass.
+release build. The current published application artifacts are bound to exact
+commit `f4e27cac81a1b8c887307afef070c0a7adb081d4`; Vercel deployment
+`dpl_CAq7vyis5nXqHTwM315e6HV2ryNC` is `READY` for production and was created
+from a clean exact-SHA checkout with the CLI. The manual deployment has no
+provider Git metadata, so do not infer a Git integration deployment or an
+automatic redeploy after release-documentation changes. Render backend deploy
+`dep-dab3crn40ujc739msk80` is live on the corresponding immutable image, and
+native-AI deploy `dep-dab3bvs9v7es73btkufg` reports the same source SHA.
 
 The browser-facing API is the same-origin Next.js BFF. Keep
 `BACKEND_INTERNAL_URL`, `BFF_PUBLIC_ORIGIN`, and `BACKEND_BFF_SERVICE_TOKEN`
@@ -49,11 +54,14 @@ public services/packages/articles are filtered to 192/95/467 and public FAQs
 are 0 until an active doctor approval exists). If either provider secret is
 missing or mismatched, the BFF intentionally fails closed with
 `503 BFF_CONFIGURATION_UNAVAILABLE`.
-The Free beta now connects Spring to an authenticated local-provider FastAPI
-service for hospital-support chat. `/api/v1/health` is healthy only while that
-dependency is ready; a spun-down Render Free service can make the first request
-slow. Remote patient/clinical providers remain disabled, and no AI or ingest
-token is exposed to the browser or bypasses the origin check.
+The Free beta connects Spring to an authenticated local-provider FastAPI
+service for hospital-support chat. `/api/v1/health` and the hosted guest-chat
+contract passed on 2026-09-01, including normal `ANSWER`, Vietnamese
+bypass/exfiltration `REFUSE`, emergency `EMERGENCY`, strict request-shape,
+origin, reserved-header, and tokenless-direct-backend rejection checks. A
+spun-down Render Free service can still make the first request slow. Remote
+patient/clinical providers remain disabled, and no AI or ingest token is
+exposed to the browser or bypasses the origin check.
 
 Before opening a release, run `npm audit --package-lock-only` and verify that
 the manifest fields in `package.json` match the root package entry in
