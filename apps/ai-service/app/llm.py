@@ -223,6 +223,33 @@ _VIETNAMESE_DIRECT_PATIENT_DATA_REQUEST_PATTERN = re.compile(
     r")",
     re.IGNORECASE,
 )
+# A public visitor must not be able to enumerate people even when the request
+# omits the words "record" or "data" (for example, "danh sách bệnh nhân" or
+# "list patients"). Keep collection markers explicit so ordinary patient
+# education such as "bệnh nhân cần chuẩn bị gì" remains answerable.
+_VIETNAMESE_PATIENT_COLLECTION_EXFIL_PATTERN = re.compile(
+    r"(?:"
+    r"\b(?:danh\s+sach|liet\s+ke)\s+(?:tat\s+ca\s+)?(?:cac\s+)?"
+    r"(?:benh\s+nhan|nguoi\s+benh|nguoi\s+dung)\b"
+    r"|"
+    r"\b(?:cho\s+toi|cung\s+cap|xuat|in|hien\s+thi|xem|lay|truy\s+cap)\b"
+    r".{0,50}\b(?:danh\s+sach|ten)\s+(?:cua\s+)?"
+    r"(?:tat\s+ca\s+)?(?:cac\s+)?"
+    r"(?:benh\s+nhan|nguoi\s+benh|nguoi\s+dung)\b"
+    r"|"
+    r"\bdanh\s+sach\s+(?:cua\s+)?(?:tat\s+ca\s+)?(?:cac\s+)?"
+    r"(?:benh\s+nhan|nguoi\s+benh|nguoi\s+dung)\b"
+    r"|"
+    r"\b(?:cho\s+toi|cung\s+cap|xuat|in|hien\s+thi|xem|lay|truy\s+cap)\b"
+    r".{0,40}\b(?:tat\s+ca|toan\s+bo)\s+"
+    r"(?:benh\s+nhan|nguoi\s+benh|nguoi\s+dung)\b"
+    r"|"
+    r"\b(?:co\s+)?(?:nhung|cac)\s+"
+    r"(?:benh\s+nhan|nguoi\s+benh|nguoi\s+dung)\s+(?:nao|la\s+ai)"
+    r"(?:\s*[?.!,;:]|\s*$)"
+    r")",
+    re.IGNORECASE,
+)
 # Keep the same request/object ordering guard for English prompts. The generic
 # sensitive-data detector handles singular "patient record", but this catches
 # plural and adjacent forms such as "show patient data" and "export user
@@ -238,6 +265,37 @@ _ENGLISH_PATIENT_DATA_EXFIL_PATTERN = re.compile(
     r"(?:records?|data|information|profiles?|files?|histories?)\b"
     r".{0,80}\b(?:list|show|display|give|provide|share|send|export|dump|"
     r"reveal|return|disclose|access|retrieve|get)\b"
+    r")",
+    re.IGNORECASE,
+)
+# Collection requests can expose a patient identity without naming a record or
+# data field. Require an explicit list/roster/name marker (or a concise
+# "show patients" command) to avoid quarantining educational sentences such as
+# "show patients how to prepare for a visit".
+_ENGLISH_PATIENT_COLLECTION_EXFIL_PATTERN = re.compile(
+    r"(?:"
+    r"\b(?:list|enumerate)\s+(?:all\s+)?(?:the\s+)?(?:"
+    r"patients(?!\s*(?:['’]s?\s*)?(?:rights|responsibilities|guidance|"
+    r"instructions|documents|preparation|safety)\b)"
+    r"|users|people|persons|patient\s+names?|user\s+names?)\b"
+    r"|"
+    r"\b(?:show|display|see|view|find|give|provide|share|send|download|"
+    r"fetch|search|query|export|dump|reveal|return|disclose|access|"
+    r"retrieve|get)\b"
+    r".{0,60}\b(?:a\s+list\s+of|the\s+list\s+of|"
+    r"(?:patient|user)\s+(?:names?|list|roster|directory)|"
+    r"all\s+(?:the\s+)?(?:patients?|users?|people|persons?))\b"
+    r"|"
+    r"\b(?:patient|user)s?\s+(?:list|roster|directory)\b"
+    r"|"
+    r"\b(?:the\s+)?list\s+of\s+(?:all\s+)?"
+    r"(?:patients?|users?|people|persons?)\b"
+    r"|"
+    r"\b(?:show|display|see|view)\s+(?:all\s+)?(?:patients?|users?)"
+    r"(?:\s*[?.!,;:]|\s*$)"
+    r"|"
+    r"\bwho\s+are\s+(?:all\s+)?(?:the\s+)?(?:patients?|users?)"
+    r"(?:\s*[?.!,;:]|\s*$)"
     r")",
     re.IGNORECASE,
 )
@@ -354,7 +412,9 @@ def contains_prompt_injection(value: str) -> bool:
         or bool(_VIETNAMESE_SAFEGUARD_BYPASS_PATTERN.search(normalized))
         or bool(_VIETNAMESE_PATIENT_DATA_EXFIL_PATTERN.search(normalized))
         or bool(_VIETNAMESE_DIRECT_PATIENT_DATA_REQUEST_PATTERN.search(normalized))
+        or bool(_VIETNAMESE_PATIENT_COLLECTION_EXFIL_PATTERN.search(normalized))
         or bool(_ENGLISH_PATIENT_DATA_EXFIL_PATTERN.search(normalized))
+        or bool(_ENGLISH_PATIENT_COLLECTION_EXFIL_PATTERN.search(normalized))
         or bool(_SAFEGUARD_BYPASS_PATTERN.search(normalized))
         or bool(_UNRESTRICTED_ASSISTANT_PATTERN.search(normalized))
     )
