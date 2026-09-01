@@ -26,6 +26,15 @@ illustrative visual artifact, not a substitute for the browser and API gates.
 
 ### Current exact source overlay (2026-09-01)
 
+The repository tip is now `9f35161d64bfadc9ce816e626880ff7d706f9c68`.
+GitHub CI [run 33497518677](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33497518677)
+passed all six jobs for the Docker readiness hardening and its regression
+coverage. That commit changes only the local Docker recovery launcher,
+operational documentation, and tests; it does not change the hosted application
+payload. The component-level runtime identities and exact-source image
+publication below therefore remain authoritative, and no hosted redeploy was
+needed for this local-only overlay.
+
 The release source of record is now
 `01527af607673450cf19d17bee04b4e0ca53bc62` on `main`. The six required CI
 jobs passed in [run 33495030199](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33495030199).
