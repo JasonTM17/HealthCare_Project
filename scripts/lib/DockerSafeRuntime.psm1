@@ -137,52 +137,84 @@ function Rotate-DockerRuntimeDirectory {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$Path,
-        [Parameter(Mandatory)][string[]]$AllowedPaths
+        [Parameter(Mandatory)][string[]]$AllowedPaths,
+        [ValidateRange(0, 5000)][int]$SettleMilliseconds = 750,
+        [ValidateRange(0, 10)][int]$MaximumRecreations = 3
     )
 
     $exactPath = Assert-ExactAllowedPath -Path $Path -AllowedPaths $AllowedPaths
     $parent = Split-Path -Parent $exactPath
     $leaf = Split-Path -Leaf $exactPath
-    $quarantine = $null
-    $moved = $false
+    $quarantines = @()
+    $hadOriginal = Test-Path -LiteralPath $exactPath
+    $originalQuarantine = $null
 
-    if (Test-Path -LiteralPath $exactPath) {
-        $item = Get-Item -LiteralPath $exactPath -Force
-        if (-not $item.PSIsContainer) {
-            throw "Expected a Docker runtime directory, found a file: $exactPath"
+    # Docker auxiliary processes can recreate engine.sock after the Desktop
+    # process and docker-desktop WSL distribution have both exited. Rotate any
+    # such late recreation into its own recoverable quarantine and require the
+    # replacement parent to remain empty for a bounded settle window. Never
+    # delete or merge either copy.
+    for ($attempt = 0; $attempt -le $MaximumRecreations; $attempt++) {
+        if (Test-Path -LiteralPath $exactPath) {
+            $item = Get-Item -LiteralPath $exactPath -Force
+            if (-not $item.PSIsContainer) {
+                throw "Expected a Docker runtime directory, found a file: $exactPath"
+            }
+
+            if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+                throw "Docker runtime parent is a reparse point; refusing automatic unlink or traversal: $exactPath"
+            }
+
+            $stamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
+            $quarantine = Join-Path $parent "$leaf.stale-$stamp"
+            $suffix = 0
+            while (Test-Path -LiteralPath $quarantine) {
+                $suffix++
+                $quarantine = Join-Path $parent "$leaf.stale-$stamp-$suffix"
+            }
+
+            Move-Item -LiteralPath $exactPath -Destination $quarantine
+            $quarantines += $quarantine
+            if ($null -eq $originalQuarantine -and $hadOriginal) {
+                $originalQuarantine = $quarantine
+            }
         }
 
-        if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
-            throw "Docker runtime parent is a reparse point; refusing automatic unlink or traversal: $exactPath"
+        try {
+            New-Item -ItemType Directory -Path $exactPath -ErrorAction Stop | Out-Null
+        } catch {
+            # A late Docker auxiliary process can win the narrow gap between
+            # the move and New-Item. Accept only a normal exact-path directory;
+            # the settle/empty check below will quarantine its contents.
+            if (-not (Test-Path -LiteralPath $exactPath -PathType Container)) {
+                if ($originalQuarantine -and
+                    (Test-Path -LiteralPath $originalQuarantine) -and
+                    (-not (Test-Path -LiteralPath $exactPath))) {
+                    Move-Item -LiteralPath $originalQuarantine -Destination $exactPath
+                }
+                throw
+            }
+            $recreated = Get-Item -LiteralPath $exactPath -Force
+            if (($recreated.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+                throw "Docker runtime parent was recreated as a reparse point; refusing automatic traversal: $exactPath"
+            }
         }
 
-        $stamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
-        $quarantine = Join-Path $parent "$leaf.stale-$stamp"
-        $suffix = 0
-        while (Test-Path -LiteralPath $quarantine) {
-            $suffix++
-            $quarantine = Join-Path $parent "$leaf.stale-$stamp-$suffix"
+        if ($SettleMilliseconds -gt 0) {
+            Start-Sleep -Milliseconds $SettleMilliseconds
         }
-
-        Move-Item -LiteralPath $exactPath -Destination $quarantine
-        $moved = $true
+        $lateEntries = @(Get-ChildItem -LiteralPath $exactPath -Force -ErrorAction Stop | Select-Object -First 1)
+        if ($lateEntries.Count -eq 0) {
+            return [pscustomobject]@{
+                Path = $exactPath
+                Quarantine = $originalQuarantine
+                Quarantines = @($quarantines)
+                HadOriginal = $hadOriginal
+            }
+        }
     }
 
-    try {
-        New-Item -ItemType Directory -Path $exactPath -ErrorAction Stop | Out-Null
-    } catch {
-        if ($moved -and (-not (Test-Path -LiteralPath $exactPath)) -and
-            (Test-Path -LiteralPath $quarantine)) {
-            Move-Item -LiteralPath $quarantine -Destination $exactPath
-        }
-        throw
-    }
-
-    [pscustomobject]@{
-        Path = $exactPath
-        Quarantine = $quarantine
-        HadOriginal = $moved
-    }
+    throw "Docker runtime directory was recreated more than $MaximumRecreations times during bounded rotation: $exactPath. Quarantines were preserved."
 }
 
 function Rotate-DockerRuntimeDirectories {
