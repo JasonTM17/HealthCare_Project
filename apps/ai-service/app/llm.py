@@ -229,7 +229,7 @@ _VIETNAMESE_DIRECT_PATIENT_DATA_REQUEST_PATTERN = re.compile(
 # education such as "bệnh nhân cần chuẩn bị gì" remains answerable.
 _VIETNAMESE_PATIENT_COLLECTION_EXFIL_PATTERN = re.compile(
     r"(?:"
-    r"\b(?:danh\s+sach|liet\s+ke)\s+(?:tat\s+ca\s+)?(?:cac\s+)?"
+    r"\b(?:danh\s+sach|liet\s+ke)\s+(?:(?:tat\s+ca|toan\s+bo)\s+)?(?:cac\s+)?"
     r"(?:benh\s+nhan|nguoi\s+benh|nguoi\s+dung)\b"
     r"|"
     r"\b(?:cho\s+toi|cung\s+cap|xuat|in|hien\s+thi|xem|lay|truy\s+cap)\b"
