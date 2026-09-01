@@ -57,6 +57,31 @@ Desktop and WSL stop gates, the launcher rotates that exact parent again with a
 bounded retry, keeps every copy in a separate recovery quarantine, and requires
 the new parent to remain empty before starting Docker.
 
+The workstation reported Docker Desktop `4.89.0.238018` on 2026-09-01, but the
+[public Docker Desktop release notes](https://docs.docker.com/desktop/release-notes/)
+did not yet document that build or confirm a fix for this inaccessible AF_UNIX
+runtime-parent failure. Keep the repository recovery path enabled until Docker
+closes the [upstream stale-socket issue](https://github.com/docker/desktop-feedback/issues/554)
+or a later documented release is proven on this host. A pre-existing
+inaccessible runtime parent can still fail after an update; this is not a
+reason to reset Docker or uninstall it. Run the bounded restart path and keep
+the quarantine folders for diagnostics:
+
+```powershell
+.\scripts\start-docker-safe.ps1 -Restart
+```
+
+Check the HKCU `Docker Desktop` Run value after every in-place Desktop update
+and restore the repository launcher when necessary:
+
+```powershell
+.\scripts\install-docker-safe-launcher.ps1 -InstallAutoStart
+```
+
+This does not change Hibernate, the WSL data disk, images, volumes, or other
+WSL distributions. Keep the legacy `Docker Desktop socket recovery` task
+disabled so it cannot race the repository launcher.
+
 The launcher also holds an OS-backed exclusive file handle for its complete
 mutation window. A second launcher exits instead of racing a stop/start or
 runtime-folder rotation; a crashed process releases the handle automatically.
