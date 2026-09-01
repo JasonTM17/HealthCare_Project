@@ -24,6 +24,55 @@ illustrative visual artifact, not a substitute for the browser and API gates.
 
 ## Hosted Beta Release Record
 
+### Active application patch (2026-09-01)
+
+The active synthetic-beta application patch is exact source
+`4db75951fc836377960108002ad0b7c9a20ab83b` on `main`. It closes the hosted
+patient-enumeration safety gap found against the previous release: Vietnamese,
+English, normalized, zero-width, entity-encoded and full-width requests to
+list or enumerate patients now return `REFUSE` before retrieval. GitHub
+[CI run 33471164447](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33471164447)
+passed all six required jobs. The immutable image publication
+[run 33472292784](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33472292784)
+published and attested these exact-SHA artifacts:
+
+| GHCR package | Immutable reference | Live/use boundary |
+| --- | --- | --- |
+| [backend](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-backend) | `ghcr.io/jasontm17/healthcare-project-backend@sha256:cff0bf1ca842e466bdc7f27cd0e62adbb03396bd9c10673ad156265cd2cda4f3` | published; Render backend remains the unchanged f4 digest below |
+| [AI service](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-ai-service) | `ghcr.io/jasontm17/healthcare-project-ai-service@sha256:bee6f962f3a0db269388a6966669182d8ac40dc417b83aa9caa328ff7d2184cc` | published; Render AI is native Python at exact `4db7595` |
+| [attachment scanner](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-attachment-scanner) | `ghcr.io/jasontm17/healthcare-project-attachment-scanner@sha256:195907304254d50fc4cdd9c0eb47fdf07f58cccac02e82dc74b9929b590f89db` | published; consumer disabled in synthetic beta |
+| [frontend](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-frontend) | `ghcr.io/jasontm17/healthcare-project-frontend@sha256:4787975929534634e717d61ee756639a4839bb63830cfb1710ea2341196fd8bc` | published; Vercel is exact `4db7595` |
+
+Vercel stable [beta alias](https://healthcare-two-olive.vercel.app) is
+`READY`/Production at deployment `dpl_8jDabWg8w89Gb9xefsqzwnyBdERS`, with
+deployment metadata `gitCommitSha=4db75951fc836377960108002ad0b7c9a20ab83b`
+and no dirty checkout. Render AI deploy
+`dep-dab5l5favr4c73esg3eg` is `live` at the same commit; `/livez` is HTTP 200.
+The immutable Render backend remains deploy
+`dep-dab3crn40ujc739msk80` with requested image
+`sha256:fff9292b1852139db1a6d9354cf84447ddf9274d6abde7e3d776015057fa6517`
+and resolved platform digest
+`sha256:f839c4e15818eb1c50519f46653aee5247cbfdd7e14867d13656e5991c638d3b`;
+its code path was not changed by the AI-only patch.
+
+After both Render services were warmed, the stable-alias canary observed
+ordinary support `200 ANSWER`, patient enumeration (Vietnamese and English)
+`200 REFUSE`, bypass-plus-export `200 REFUSE`, severe chest symptoms
+`200 EMERGENCY`, and benign patient-rights education `200 ANSWER`. Missing or
+evil `Origin` returned `403 BFF_ORIGIN_REQUIRED`/`BFF_ORIGIN_INVALID`; a
+reserved `Authorization` header returned `400 BFF_RESERVED_HEADER_REJECTED`;
+unknown fields and control characters returned `400`. Catalog BFF totals were
+30 specialties, 20 branches, 475 active doctors, 192 services, 95 packages,
+467 articles and 0 public FAQs. Direct AI and backend endpoints rejected
+missing/invalid BFF credentials with `401`.
+
+The first request after idle can still return the documented bounded
+`502 BFF_UPSTREAM_UNAVAILABLE` while either Render Free service cold-starts;
+direct health then recovered (`/actuator/health` and `/livez` HTTP 200) and the
+same canary passed. This is an availability limitation, not a safety bypass.
+
+### Historical f4 base snapshot
+
 This is an evidence record for the synthetic beta, not a production-readiness,
 clinical-compliance, or real-patient approval. The application release
 candidate is exact source `f4e27cac81a1b8c887307afef070c0a7adb081d4` on
