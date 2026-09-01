@@ -148,9 +148,11 @@ Patient conversation requests are local-only, independently of the provider
 chosen for non-patient AI routes. The two patient remote flags are fail-closed
 configuration errors rather than feature toggles in this release.
 Email addresses, phone numbers, UUID-like identifiers, access tokens and
-sensitive clinical markers are rejected before any remote call. A bounded
-circuit opens after repeated provider failures. Spring remains the only owner
-of conversation history and sends only the six most recent turns.
+sensitive clinical markers are rejected before any remote call. Patient-record,
+patient-data and user-profile access/export requests are also refused before
+retrieval, even when the request does not use explicit "export" wording. A
+bounded circuit opens after repeated provider failures. Spring remains the
+only owner of conversation history and sends only the six most recent turns.
 
 Protected AI routes require the same non-empty `AI_SERVICE_TOKEN` in the
 backend and AI service. The backend forwards it as `X-AI-Service-Token`.
