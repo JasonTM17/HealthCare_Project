@@ -48,7 +48,13 @@ production deployment.
 
 ## Verified synthetic beta
 
-The current release source of record is
+The repository tip is
+`9f35161d64bfadc9ce816e626880ff7d706f9c68`; CI
+[33497518677](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33497518677)
+passed all six jobs for the local Docker readiness hardening. The hosted
+application source identities remain component-specific below because this
+tip changes only the local launcher, operational documentation, and tests.
+The current hosted application source overlay is
 `01527af607673450cf19d17bee04b4e0ca53bc62`; its exact-source images were
 published with SBOM/provenance by the attested workflow recorded in
 [deployment-beta.md](deployment-beta.md). The operator workstation did not

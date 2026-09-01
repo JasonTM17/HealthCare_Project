@@ -56,6 +56,14 @@ configuration:
 
 ### Current exact-source overlay (01527af, 2026-09-01)
 
+The repository tip subsequently advanced to
+`9f35161d64bfadc9ce816e626880ff7d706f9c68` for local Docker readiness
+hardening. CI [33497518677](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33497518677)
+passed all six jobs. This overlay contains only the Windows launcher,
+operational documentation, and regression tests; it does not alter the hosted
+frontend, backend, or AI payload, so the component identities and deployments
+below remain unchanged and no hosted redeploy is implied.
+
 The release source of record is
 `01527af607673450cf19d17bee04b4e0ca53bc62` on `main`. GitHub CI
 [33495030199](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33495030199)
