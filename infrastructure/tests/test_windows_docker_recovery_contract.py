@@ -188,9 +188,12 @@ def test_operation_order_is_stop_rotate_start_then_verify() -> None:
     text = _script()
     assert text.rindex("Assert-DockerHostCapacity -Path") < text.rindex("Open-DockerRecoveryLock -Path")
     assert text.index("Stop-DockerDesktopSafely") < text.index("Rotate-DockerRuntimeDirectories")
-    assert text.index("Rotate-DockerRuntimeDirectories") < text.index("Start-Process -FilePath $desktopPath")
-    assert text.index("Start-Process -FilePath $desktopPath") < text.rindex("Disable-AndVerifyDockerAi")
+    assert text.index("Rotate-DockerRuntimeDirectories") < text.rindex("Start-DockerDesktopSafely")
+    assert text.rindex("Start-DockerDesktopSafely") < text.rindex("Disable-AndVerifyDockerAi")
     assert "@('desktop', 'stop', '--timeout'" in text
+    assert "@('desktop', 'start', '--detach')" in text
+    assert "Docker Desktop.exe directly" in text
+    assert "job object" in text
     assert "Wait-DockerStopped" in text
     assert "-replace \"`0\", ''" in text
     assert "finally" in text
