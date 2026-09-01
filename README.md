@@ -90,6 +90,12 @@ toolchain is deferred to a separate compatibility-and-republish checkpoint.
   normal public chat (`ANSWER`), Vietnamese bypass/exfiltration refusal
   (`REFUSE`), emergency routing (`EMERGENCY`), origin enforcement, strict
   payload rejection, and tokenless direct-backend denial.
+- Render Free web services sleep when idle. The measured Spring backend cold
+  start was about 285 seconds, longer than the Vercel BFF's 55-second public
+  chat deadline and 60-second function limit, so the first request after an
+  idle period can return the bounded `502 BFF_UPSTREAM_UNAVAILABLE`. Wait for
+  the service to wake and use the assistant's retry action; this beta does not
+  add a keep-alive job or bypass the BFF.
 - The hosted synthetic catalog remains 30 specialties, 20 branches, 500
   doctors, 200 services, 100 packages, 500 articles, 150 raw FAQs, 1,247
   doctor-specialty links, 747 doctor-branch links, and 830 chat-projection
