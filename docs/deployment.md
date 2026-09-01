@@ -48,14 +48,18 @@ production deployment.
 
 ## Verified synthetic beta
 
-The current application images were built from
-`f4e27cac81a1b8c887307afef070c0a7adb081d4` and published by the attested
-GitHub workflows recorded in [deployment-beta.md](deployment-beta.md). The
-operator workstation did not build or pull the image.
+The current release source of record is
+`01527af607673450cf19d17bee04b4e0ca53bc62`; its exact-source images were
+published with SBOM/provenance by the attested workflow recorded in
+[deployment-beta.md](deployment-beta.md). The operator workstation did not
+build or pull the release images. Provider runtime bindings can intentionally
+lag this source when a component is unchanged; always use the component-level
+identity below rather than assuming one SHA for every platform.
 
 - Frontend: [healthcare-two-olive.vercel.app](https://healthcare-two-olive.vercel.app),
-  Vercel deployment `dpl_CAq7vyis5nXqHTwM315e6HV2ryNC`, `READY` production,
-  created from a clean exact-source checkout. This manual deployment has no
+  Vercel deployment `dpl_DzX94fFP7QNxWZ5sPbwwsbCD2WaZ`, `READY` production,
+  created from a clean exact-source checkout of frontend commit
+  `17330d568380d2d3c3f0592606dd57d9dd0728b0`. This manual deployment has no
   provider Git metadata, so the clean checkout is the source binding.
   Server-only variables are `BACKEND_INTERNAL_URL`,
   `BFF_PUBLIC_ORIGIN`, and `BACKEND_BFF_SERVICE_TOKEN`; keep their values in
@@ -67,8 +71,9 @@ operator workstation did not build or pull the image.
   `/actuator/health` returned `200 UP` in the post-deploy probe.
 - AI: [healthcare-beta-ai.onrender.com](https://healthcare-beta-ai.onrender.com),
   Render Free service `srv-daal7kgn74is73bafjqg`, exact-source live deploy
-  `dep-dab3bvs9v7es73btkufg`. `/livez` returned HTTP 200; provider and
-  embeddings remain local fallback, and remote clinical/patient AI is off.
+  `dep-daba3ortqb8s73f9kcug` at source `01527af`. `/livez` returned HTTP 200;
+  provider and embeddings remain local fallback, and remote clinical/patient AI
+  is off.
 - Database: Render Free PostgreSQL remains the Spring/Flyway authority. The
   Supabase Free project holds only the additive `healthcare` projection and
   its eight audited migration rows; consumers remain fail-closed.
