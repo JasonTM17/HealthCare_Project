@@ -3501,6 +3501,16 @@ main {
     padding-inline: 1rem;
   }
 
+  .catalog-pagination__status {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .catalog-pagination__button {
+    flex: 0 0 auto;
+    padding-inline: 0.75rem;
+  }
+
   .section {
     padding: var(--sp-16) 0;
   }
@@ -3752,6 +3762,17 @@ main {
 
   .mobile-care-rail a:hover {
     color: var(--color-paper-bright);
+  }
+}
+
+@media (max-width: 360px) {
+  /* The account action remains available in the opened mobile menu. */
+  .site-nav__actions {
+    min-width: 0;
+  }
+
+  .nav-account-link {
+    display: none;
   }
 }
 
