@@ -242,3 +242,15 @@ frontend commands. Do not start Compose, pull Docker images, or delete
 Docker/IDE/Codex data as part of this release gate. Hibernate must remain
 enabled. Local gates prove source integrity only; they do not prove provider
 backup/restore, clinical compliance, or production cutover.
+
+### Windows Docker recovery note
+
+The supported recovery path is `scripts/start-docker-safe.ps1`. Keep one
+launcher owner: disable any legacy scheduled task named `Docker Desktop socket
+recovery` before installing the repository Run entry. Two owners can race while
+rotating the same AF_UNIX runtime parents and produce a false startup dialog
+with `WSL_E_USER_VHD_ALREADY_ATTACHED`. The recovery script does not prune or
+pull images, does not unregister WSL distributions, leaves quarantines for
+rollback, and does not change Hibernate. Active socket entries are expected to
+be reparse points; inspect them only after the engine is stopped and let the
+script rotate their exact parent directories.

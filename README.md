@@ -193,6 +193,25 @@ CLI stop call when a broken AF_UNIX socket would otherwise hang, fails closed
 when the Docker host drive has less than 2 GiB free, and preserves images,
 volumes, VHDX data, other WSL distributions, and Hibernate.
 
+Keep only one startup/recovery owner. If an older workaround left a scheduled
+task named `Docker Desktop socket recovery`, disable that task before enabling
+the repository launcher; running both owners at logon races while they rotate
+the same AF_UNIX sockets and can surface the misleading “unexpected error”
+dialog (including `WSL_E_USER_VHD_ALREADY_ATTACHED`). The change is reversible:
+
+```powershell
+$legacyTask = Get-ScheduledTask -TaskName 'Docker Desktop socket recovery' -ErrorAction SilentlyContinue
+if ($legacyTask) { Disable-ScheduledTask -TaskName $legacyTask.TaskName }
+# To restore the old task deliberately: Enable-ScheduledTask -TaskName 'Docker Desktop socket recovery'
+```
+
+Do not delete the individual `dockerInference`, `sailor-ingest.sock`, or
+`docker-secrets-engine\engine.sock` entries while Docker is running. Windows
+represents active AF_UNIX listeners as reparse points; the safe launcher rotates
+only the exact parent directories after Docker is quiescent and keeps each old
+directory as a rollback quarantine. Verify recovery with
+`docker desktop status`, `docker version`, and `wsl.exe --list --verbose`.
+
 After Docker Desktop is ready, Windows users can build, seed, and run the
 automated role-based smoke verification with the command below. If `.env` is
 missing, the helper creates it with random disposable JWT/AI/RAG secrets.
