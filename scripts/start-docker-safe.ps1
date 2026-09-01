@@ -275,6 +275,30 @@ function Wait-DockerEngineReady {
     return $false
 }
 
+function Start-DockerDesktopSafely {
+    # Start Docker Desktop through its supported CLI control plane.  Launching
+    # Docker Desktop.exe directly makes the GUI/backend inherit the terminal's
+    # Windows job object; when a bounded runner tears that job down, the
+    # otherwise healthy engine is killed with it.  The CLI asks Desktop's own
+    # service to start and then returns, so the app lifetime is independent of
+    # this recovery process.
+    $startCommand = Start-Process -FilePath $dockerPath `
+        -ArgumentList @('desktop', 'start', '--detach') `
+        -WindowStyle Hidden -PassThru
+    $completed = $startCommand.WaitForExit($TimeoutSeconds * 1000)
+    if (-not $completed) {
+        try {
+            $startCommand.Kill()
+        } catch {
+            # The bounded wait has already prevented an unbounded hang.
+        }
+        throw "Docker Desktop start command did not finish within $TimeoutSeconds seconds."
+    }
+    if ($startCommand.ExitCode -ne 0) {
+        throw "Docker Desktop start command failed with exit code $($startCommand.ExitCode)."
+    }
+}
+
 function Disable-AndVerifyDockerAi {
     if ($KeepDockerAI) {
         return
@@ -355,7 +379,7 @@ try {
         throw "Docker was stopped, but exact runtime rotation failed safely: $($_.Exception.Message)"
     }
 
-    Start-Process -FilePath $desktopPath -WorkingDirectory (Split-Path -Parent $desktopPath) -WindowStyle Hidden | Out-Null
+    Start-DockerDesktopSafely
 
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     while ((Get-Date) -lt $deadline) {
