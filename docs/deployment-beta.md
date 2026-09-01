@@ -90,6 +90,8 @@ The Supabase evidence in this section is the last read-only audit (project
 `awaknzhadjglbfkhigck`, eight migrations, 15 RLS-enabled tables and the
 synthetic projection); this AI-only patch performed no Supabase mutation.
 
+### Historical f4 baseline (superseded by the active overlay above)
+
 - Vercel stable alias https://healthcare-two-olive.vercel.app is
   Production/READY at deployment `dpl_CAq7vyis5nXqHTwM315e6HV2ryNC`, created
   from a clean checkout of exact application SHA
