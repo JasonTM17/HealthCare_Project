@@ -54,6 +54,42 @@ or print a database password, BFF token, JWT secret, Supabase DB URL, or API key
 Refresh this section after every release push; deployment IDs are evidence, not
 configuration:
 
+### Active 4db security-patch overlay
+
+The current AI safety patch is exact application source
+`4db75951fc836377960108002ad0b7c9a20ab83b`. It was introduced after a live
+canary found that direct Vietnamese/English patient-enumeration prompts could
+receive `ANSWER`; the normalized guard and regression suite now return
+`REFUSE` before retrieval. CI run
+https://github.com/JasonTM17/HealthCare_Project/actions/runs/33471164447 passed
+all six required jobs. GHCR publication run
+https://github.com/JasonTM17/HealthCare_Project/actions/runs/33472292784 passed
+with SBOM/provenance attestations for the four exact-SHA images.
+
+Vercel stable is deployment `dpl_8jDabWg8w89Gb9xefsqzwnyBdERS`,
+`READY`/Production, with metadata `gitCommitSha=4db75951fc836377960108002ad0b7c9a20ab83b`
+and a clean checkout. Render native AI deploy
+`dep-dab5l5favr4c73esg3eg` is `live` at the same commit and `/livez` returned
+HTTP 200. The image-backed Spring backend remains the previously verified
+immutable f4 deployment `dep-dab3crn40ujc739msk80`; it was not changed by this
+AI-only patch.
+
+Warm stable-alias checks returned ordinary support `200 ANSWER`, Vietnamese and
+English patient enumeration `200 REFUSE`, bypass-plus-export `200 REFUSE`,
+severe chest symptoms `200 EMERGENCY`, and benign rights education
+`200 ANSWER`. Missing/evil origin, reserved authorization, unknown fields and
+control characters returned the expected `403`/`400` fail-closed responses.
+Catalog totals were 30 specialties, 20 branches, 475 active doctors, 192
+services, 95 packages, 467 articles and 0 public FAQs. Direct AI chat/retrieve/
+ready endpoints and direct backend catalog requests rejected missing or invalid
+credentials with HTTP 401. An initial post-idle request produced the known
+`502 BFF_UPSTREAM_UNAVAILABLE`; direct health warm-up recovered both services,
+after which the canary passed.
+
+The Supabase evidence in this section is the last read-only audit (project
+`awaknzhadjglbfkhigck`, eight migrations, 15 RLS-enabled tables and the
+synthetic projection); this AI-only patch performed no Supabase mutation.
+
 - Vercel stable alias https://healthcare-two-olive.vercel.app is
   Production/READY at deployment `dpl_CAq7vyis5nXqHTwM315e6HV2ryNC`, created
   from a clean checkout of exact application SHA
