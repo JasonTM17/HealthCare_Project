@@ -1,5 +1,72 @@
 Set-StrictMode -Version 2.0
 
+function Invoke-DockerDesktopStatusProbe {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$DockerPath,
+        [string]$Arguments = 'desktop status --format json',
+        [ValidateRange(1, 60000)][int]$TimeoutMilliseconds = 5000
+    )
+
+    $process = $null
+    $stdoutTask = $null
+    $stderrTask = $null
+    try {
+        $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+        $startInfo.FileName = $DockerPath
+        $startInfo.Arguments = $Arguments
+        $startInfo.UseShellExecute = $false
+        $startInfo.CreateNoWindow = $true
+        $startInfo.RedirectStandardOutput = $true
+        $startInfo.RedirectStandardError = $true
+
+        $process = [System.Diagnostics.Process]::new()
+        $process.StartInfo = $startInfo
+        if (-not $process.Start()) {
+            return $null
+        }
+
+        # Drain both redirected pipes while the CLI is running. Waiting for
+        # the child before reading either stream can deadlock when a broken
+        # Docker CLI/plugin writes enough diagnostics to fill a Windows pipe.
+        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+        $stderrTask = $process.StandardError.ReadToEndAsync()
+        if (-not $process.WaitForExit($TimeoutMilliseconds)) {
+            try {
+                $process.Kill()
+            } catch {
+                # The bounded wait is the important guard; the caller treats
+                # a timeout as an unavailable status and fails closed.
+            }
+            try {
+                [void]$process.WaitForExit(1000)
+            } catch {
+                # The process may already have exited after Kill().
+            }
+            return $null
+        }
+
+        # The asynchronous readers normally complete with the process. Keep
+        # a short bounded drain so disposal never waits indefinitely on a
+        # misbehaving child, while still collecting the status JSON.
+        if (-not $stdoutTask.Wait(1000)) {
+            return $null
+        }
+        [void]$stderrTask.Wait(1000)
+        $output = $stdoutTask.Result
+        if (($process.ExitCode -ne 0) -or [string]::IsNullOrWhiteSpace($output)) {
+            return $null
+        }
+        return $output
+    } catch {
+        return $null
+    } finally {
+        if ($null -ne $process) {
+            $process.Dispose()
+        }
+    }
+}
+
 function Assert-ExactAllowedPath {
     param(
         [Parameter(Mandatory)][string]$Path,
@@ -285,4 +352,4 @@ function Get-DockerRuntimeQuarantineSummary {
     }
 }
 
-Export-ModuleMember -Function Set-DockerAiStore, Assert-DockerHostCapacity, Open-DockerRecoveryLock, Rotate-DockerRuntimeDirectory, Rotate-DockerRuntimeDirectories, Get-DockerRuntimeQuarantineSummary
+Export-ModuleMember -Function Invoke-DockerDesktopStatusProbe, Set-DockerAiStore, Assert-DockerHostCapacity, Open-DockerRecoveryLock, Rotate-DockerRuntimeDirectory, Rotate-DockerRuntimeDirectories, Get-DockerRuntimeQuarantineSummary
