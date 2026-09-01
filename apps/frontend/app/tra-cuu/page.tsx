@@ -202,10 +202,12 @@ export default function TraCuuPage() {
           <form onSubmit={handleLookup} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
               <div className="sm:col-span-8">
-                <label className="block text-xs font-bold text-ink-muted uppercase mb-1.5">
+                <label className="block text-xs font-bold text-ink-muted uppercase mb-1.5" htmlFor="appointment-booking-code">
                   Mã lịch hẹn khám <span className="text-red-500">*</span>
                 </label>
                 <input
+                  id="appointment-booking-code"
+                  name="bookingCode"
                   type="text"
                   required
                   placeholder="Ví dụ: APT-9F3A..."
@@ -216,10 +218,12 @@ export default function TraCuuPage() {
               </div>
 
               <div className="sm:col-span-4">
-                <label className="block text-xs font-bold text-ink-muted uppercase mb-1.5">
+                <label className="block text-xs font-bold text-ink-muted uppercase mb-1.5" htmlFor="appointment-phone">
                   Số điện thoại đặt lịch <span className="text-red-500">*</span>
                 </label>
                 <input
+                  id="appointment-phone"
+                  name="phone"
                   type="tel"
                   required
                   placeholder="0901234567"
@@ -235,14 +239,14 @@ export default function TraCuuPage() {
                   disabled={loading}
                   className="w-full py-3 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-bold rounded-xl text-sm shadow-md transition-colors flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  {loading ? <><Icon name="clock" size={16} /> Đang tra cứu...</> : <><Icon name="search" size={16} /> Tra Cứu Ngay</>}
+                  {loading ? <><Icon name="clock" size={16} /> Đang tra cứu...</> : <><Icon name="search" size={16} /> Tra cứu ngay</>}
                 </button>
               </div>
             </div>
           </form>
 
           {errorMessage && (
-            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center gap-2">
+            <div aria-live="assertive" className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center gap-2" role="alert">
               <Icon name="alert-triangle" size={16} />
               <span>{errorMessage}</span>
             </div>
