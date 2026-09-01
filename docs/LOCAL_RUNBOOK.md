@@ -49,8 +49,10 @@ stability gate. The health check also requires `docker desktop status --format
 json` to report `running`; Resource Saver can leave the named pipe and a cached
 `docker version` response available while the Linux daemon is already stopped,
 so the pipe or a successful cached version response alone is not treated as
-readiness. The control-plane status probe is bounded to five seconds and fails
-closed. If a late Docker auxiliary process recreates a runtime socket after the
+readiness. The control-plane status probe drains stdout and stderr concurrently,
+is bounded to five seconds, and fails closed; this prevents a noisy broken CLI
+from filling a redirected Windows pipe and making recovery appear hung. If a
+late Docker auxiliary process recreates a runtime socket after the
 Desktop and WSL stop gates, the launcher rotates that exact parent again with a
 bounded retry, keeps every copy in a separate recovery quarantine, and requires
 the new parent to remain empty before starting Docker.

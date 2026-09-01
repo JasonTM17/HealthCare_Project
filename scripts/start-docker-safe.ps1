@@ -48,42 +48,14 @@ $recoveryLockPath = Join-Path $dockerRoot 'safe-launcher.lock'
 $env:DOCKER_HOST = $localDockerHost
 
 function Get-DockerDesktopStatus {
-    $process = $null
     try {
-        $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
-        $startInfo.FileName = $dockerPath
-        $startInfo.Arguments = 'desktop status --format json'
-        $startInfo.UseShellExecute = $false
-        $startInfo.CreateNoWindow = $true
-        $startInfo.RedirectStandardOutput = $true
-        $startInfo.RedirectStandardError = $true
-
-        $process = [System.Diagnostics.Process]::new()
-        $process.StartInfo = $startInfo
-        if (-not $process.Start()) {
-            return $null
-        }
-        if (-not $process.WaitForExit(5000)) {
-            try {
-                $process.Kill()
-            } catch {
-                # The bounded wait is the important guard; status remains
-                # unknown and the engine check fails closed below.
-            }
-            return $null
-        }
-
-        $output = $process.StandardOutput.ReadToEnd()
-        if (($process.ExitCode -ne 0) -or [string]::IsNullOrWhiteSpace($output)) {
+        $output = Invoke-DockerDesktopStatusProbe -DockerPath $dockerPath
+        if ([string]::IsNullOrWhiteSpace($output)) {
             return $null
         }
         return $output | ConvertFrom-Json
     } catch {
         return $null
-    } finally {
-        if ($null -ne $process) {
-            $process.Dispose()
-        }
     }
 }
 
