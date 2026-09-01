@@ -70,9 +70,18 @@ def test_recovery_preserves_docker_data_and_other_wsl_distributions() -> None:
 
 def test_recovery_waits_for_a_real_local_engine_response_and_stability_gate() -> None:
     text = _script()
+    module = _module()
 
     assert "dockerDesktopLinuxEngine" in text
     assert "npipe:////./pipe/dockerDesktopLinuxEngine" in text
+    assert "desktop status --format json" in text
+    assert "WaitForExit(5000)" in text
+    assert "$process.Kill()" in text
+    assert "Test-DockerDesktopRunning" in text
+    assert "status.Status" in text
+    assert "cached Docker API response" in text
+    assert "MaximumRecreations" in module
+    assert "Quarantines were preserved" in module
     assert "version --format 'server={{.Server.Version}}'" in text
     assert "Docker Desktop did not become healthy" in text
     assert "Wait-DockerStable" in text
@@ -191,6 +200,50 @@ if (($settings.EnableDockerAI -ne $false) -or ($settings.EnableInference -ne $fa
         payload = json.loads(result.stdout.strip().splitlines()[-1])
         assert payload["ai"] is False
         assert payload["inference"] is False
+
+
+@pytest.mark.skipif(POWERSHELL is None, reason="Windows PowerShell 5.1 or pwsh is unavailable")
+def test_runtime_rotation_quarantines_a_late_socket_recreation() -> None:
+    """A late auxiliary writer must not strand the launcher on an existing parent."""
+    with tempfile.TemporaryDirectory(prefix="docker-safe late recreation ") as temporary:
+        root = Path(temporary)
+        command = f"""
+$ErrorActionPreference = 'Stop'
+Import-Module {_ps_quote(MODULE)} -Force
+$root = {_ps_quote(root)}
+$run = Join-Path $root 'run'
+New-Item -ItemType Directory -Path $run | Out-Null
+Set-Content -LiteralPath (Join-Path $run 'original.txt') -Value 'preserve-original'
+$writer = Start-Job -ScriptBlock {{
+    param($root, $run)
+    $deadline = [DateTime]::UtcNow.AddSeconds(10)
+    do {{
+        $stale = @(Get-ChildItem -LiteralPath $root -Directory -Filter 'run.stale-*' -ErrorAction SilentlyContinue)
+        if (($stale.Count -gt 0) -and (Test-Path -LiteralPath $run -PathType Container)) {{
+            Set-Content -LiteralPath (Join-Path $run 'late.sock') -Value 'late-writer'
+            return
+        }}
+        Start-Sleep -Milliseconds 10
+    }} while ([DateTime]::UtcNow -lt $deadline)
+    throw 'late writer did not observe rotation'
+}} -ArgumentList $root, $run
+try {{
+    $rotation = Rotate-DockerRuntimeDirectory -Path $run -AllowedPaths @($run) -SettleMilliseconds 500 -MaximumRecreations 3
+    $writer | Wait-Job -Timeout 15 | Out-Null
+    $writerOutput = $writer | Receive-Job -ErrorAction Stop
+}} finally {{
+    $writer | Remove-Job -Force -ErrorAction SilentlyContinue
+}}
+if (@($rotation.Quarantines).Count -lt 2) {{ throw 'late recreation was not quarantined separately' }}
+if (@(Get-ChildItem -LiteralPath $run -Force).Count -ne 0) {{ throw 'replacement runtime parent is not empty' }}
+if ((Get-Content -Raw -LiteralPath (Join-Path $rotation.Quarantine 'original.txt')).Trim() -ne 'preserve-original') {{ throw 'original quarantine changed' }}
+$lateCopy = @($rotation.Quarantines | Where-Object {{ Test-Path -LiteralPath (Join-Path $_ 'late.sock') -PathType Leaf }})
+if ($lateCopy.Count -ne 1) {{ throw 'late socket copy was not preserved exactly once' }}
+Write-Output 'PASS'
+"""
+        result = _run_powershell(command, timeout=45)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "PASS" in result.stdout
 
 
 @pytest.mark.skipif(POWERSHELL is None, reason="Windows PowerShell 5.1 or pwsh is unavailable")

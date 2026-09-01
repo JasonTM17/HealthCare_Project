@@ -45,7 +45,15 @@ traversed. Active Docker containers are therefore stopped, but no
 container/image/volume data is removed. The launcher does not touch
 images/volumes/VHDX data, shut down other WSL distributions, or change
 Hibernate. It verifies the local named-pipe engine and holds a short post-start
-stability gate.
+stability gate. The health check also requires `docker desktop status --format
+json` to report `running`; Resource Saver can leave the named pipe and a cached
+`docker version` response available while the Linux daemon is already stopped,
+so the pipe or a successful cached version response alone is not treated as
+readiness. The control-plane status probe is bounded to five seconds and fails
+closed. If a late Docker auxiliary process recreates a runtime socket after the
+Desktop and WSL stop gates, the launcher rotates that exact parent again with a
+bounded retry, keeps every copy in a separate recovery quarantine, and requires
+the new parent to remain empty before starting Docker.
 
 The launcher also holds an OS-backed exclusive file handle for its complete
 mutation window. A second launcher exits instead of racing a stop/start or
