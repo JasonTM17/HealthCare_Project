@@ -320,6 +320,26 @@ def test_remote_embedding_is_not_called_when_patient_chat_opt_in_is_off() -> Non
     assert response.provenance == "local_provider"
 
 
+@pytest.mark.parametrize("message", ["List patients", "Có những bệnh nhân nào?"])
+def test_patient_enumeration_is_refused_before_two_step_retrieval(
+    message: str,
+) -> None:
+    service = _service()
+    embedder = MagicMock(side_effect=AssertionError("patient enumeration reached embedding"))
+
+    response = retrieve_chat_candidates(
+        ChatRetrieveRequest(message=message, mode=ChatMode.HOSPITAL_SUPPORT),
+        _settings(),
+        service,
+        embedder=embedder,
+    )
+
+    assert response.candidates == []
+    assert response.safety_action is ChatSafetyAction.REFUSE
+    assert response.provenance == "local_fallback"
+    embedder.assert_not_called()
+
+
 def test_retrieve_applies_mode_filter_and_threshold() -> None:
     service = _service()
     response = retrieve_chat_candidates(

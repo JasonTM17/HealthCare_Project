@@ -149,8 +149,9 @@ chosen for non-patient AI routes. The two patient remote flags are fail-closed
 configuration errors rather than feature toggles in this release.
 Email addresses, phone numbers, UUID-like identifiers, access tokens and
 sensitive clinical markers are rejected before any remote call. Patient-record,
-patient-data and user-profile access/export requests are also refused before
-retrieval, even when the request does not use explicit "export" wording. A
+patient-data, user-profile and patient-enumeration access/export requests are
+also refused before retrieval, even when the request does not use explicit
+"export" wording (for example, "list patients" or "danh sách bệnh nhân"). A
 bounded circuit opens after repeated provider failures. Spring remains the
 only owner of conversation history and sends only the six most recent turns.
 
