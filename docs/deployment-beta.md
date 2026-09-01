@@ -149,6 +149,17 @@ The 2026-09-01 exact-f4 public-chat canary used
 These are hosted JSON contract checks, not medical efficacy, authenticated
 patient workflow, backup/restore, or real-patient approval.
 
+### Render Free cold-start boundary
+
+Render Free web services sleep when idle. The Spring backend cold start observed
+on 2026-09-01 was about 285 seconds, while the public-chat BFF deadline is 55
+seconds and the Vercel API function is capped at 60 seconds. Therefore the
+first request after an idle period can return the bounded
+`502 BFF_UPSTREAM_UNAVAILABLE`; wait for the backend to wake and use the
+assistant's `Thử lại` action. This is a documented Free-plan availability
+trade-off, not a Docker or database-corruption signal. No keep-alive cron, paid
+upgrade, or browser/BFF bypass is configured.
+
 ## Render Free procedure
 
 1. Validate both YAML files against the official Render schema. The canonical
