@@ -269,8 +269,8 @@ public class HealthQuestionService {
               FROM health_questions q LEFT JOIN LATERAL (
                     SELECT answer_text, status FROM health_question_answers
                      WHERE question_id = q.id ORDER BY revision DESC LIMIT 1
-              ) a ON TRUE """ + (where.isBlank() ? "WHERE" : where + " AND")
-            + " q.retention_expires_at > CURRENT_TIMESTAMP AND q.deleted_at IS NULL ORDER BY q.created_at DESC LIMIT 200", (rs, n) -> new HealthQuestionContracts.Summary(
+              ) a ON TRUE """ + (where.isBlank() ? " WHERE " : " " + where + " AND ")
+            + "q.retention_expires_at > CURRENT_TIMESTAMP AND q.deleted_at IS NULL ORDER BY q.created_at DESC LIMIT 200", (rs, n) -> new HealthQuestionContracts.Summary(
                 rs.getObject("id", UUID.class), rs.getString("topic_slug"), rs.getString("normalized_question"),
                 rs.getString("public_alias"), rs.getString("status"), rs.getObject("created_at", OffsetDateTime.class),
                 rs.getString("answer_text"), rs.getString("answer_status")), args);
