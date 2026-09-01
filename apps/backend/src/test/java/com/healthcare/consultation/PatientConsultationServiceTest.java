@@ -114,6 +114,18 @@ class PatientConsultationServiceTest {
     }
 
     @Test
+    void doctorListBindsReadStateAndOwnershipParameters() {
+        when(jdbc.query(anyString(), any(org.springframework.jdbc.core.RowMapper.class), any(Object[].class)))
+            .thenReturn(List.of());
+
+        service.listForDoctor(principal);
+
+        var args = org.mockito.ArgumentCaptor.forClass(Object[].class);
+        verify(jdbc).query(anyString(), any(org.springframework.jdbc.core.RowMapper.class), args.capture());
+        assertThat(args.getValue()).containsExactly(userId, userId, userId, userId);
+    }
+
+    @Test
     void adminQueueSerializationContainsOnlyOperationalMetadata() {
         OffsetDateTime now = OffsetDateTime.parse("2026-08-25T10:15:30+07:00");
         var item = new ConsultationContracts.AdminQueueItem(

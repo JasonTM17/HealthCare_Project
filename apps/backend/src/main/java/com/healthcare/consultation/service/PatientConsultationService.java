@@ -644,7 +644,7 @@ public class PatientConsultationService {
              WHERE t.retention_expires_at > CURRENT_TIMESTAMP
                AND (d.user_id = ? OR (p.user_id = ? AND p.participant_role = 'HANDOFF_DOCTOR'))
              ORDER BY t.updated_at DESC, t.id DESC
-            """, (rs, n) -> mapSummary(rs), userId, userId, userId);
+            """, (rs, n) -> mapSummary(rs), userId, userId, userId, userId);
     }
 
     @Transactional(readOnly = true)

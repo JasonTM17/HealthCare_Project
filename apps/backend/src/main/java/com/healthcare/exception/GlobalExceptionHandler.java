@@ -14,6 +14,7 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
@@ -117,6 +118,21 @@ public class GlobalExceptionHandler {
             "Bad Request",
             "Required request parameter is missing: " + ex.getParameterName(),
             extractPath(request)
+        );
+        return ResponseEntity.badRequest().body(error);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiError> handleArgumentTypeMismatch(
+            MethodArgumentTypeMismatchException ex,
+            WebRequest request) {
+        ApiError error = new ApiError(
+            400,
+            "Bad Request",
+            "Tham số yêu cầu không hợp lệ.",
+            extractPath(request),
+            List.of(),
+            ErrorCodes.VALIDATION_ERROR
         );
         return ResponseEntity.badRequest().body(error);
     }
