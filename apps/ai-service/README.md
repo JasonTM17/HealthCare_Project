@@ -151,7 +151,8 @@ Email addresses, phone numbers, UUID-like identifiers, access tokens and
 sensitive clinical markers are rejected before any remote call. Patient-record,
 patient-data, user-profile and patient-enumeration access/export requests are
 also refused before retrieval, even when the request does not use explicit
-"export" wording (for example, "list patients" or "danh sách bệnh nhân"). A
+"export" wording (for example, "list patients", "danh sách bệnh nhân" or
+"liệt kê toàn bộ bệnh nhân"). A
 bounded circuit opens after repeated provider failures. Spring remains the
 only owner of conversation history and sends only the six most recent turns.
 
