@@ -29,6 +29,22 @@ import static org.mockito.Mockito.*;
 
 class HealthQuestionServiceTest {
     @Test
+    void adminQueueKeepsSqlBoundaryBetweenLateralJoinAndWhereClause() {
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        UserRepository users = mock(UserRepository.class);
+        HealthQuestionService service = new HealthQuestionService(jdbc, users);
+
+        service.adminQueue(null);
+
+        var sql = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(jdbc).query(sql.capture(), any(org.springframework.jdbc.core.RowMapper.class), any(Object[].class));
+        assertThat(sql.getValue())
+            .contains("ON TRUE WHERE q.status")
+            .contains("AND q.retention_expires_at")
+            .doesNotContain("TRUEWHERE");
+    }
+
+    @Test
     void vietnamesePhoneAndIdentityLikeNumbersAreRejectedBeforePersistence() {
         JdbcTemplate jdbc = mock(JdbcTemplate.class);
         UserRepository users = mock(UserRepository.class);
