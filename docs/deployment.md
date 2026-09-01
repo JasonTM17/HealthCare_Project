@@ -48,27 +48,33 @@ production deployment.
 
 ## Verified synthetic beta
 
-The current application image was built from
-`7a083ab06557225077694a0b2b93e31b89d0c32e` and published by the attested
+The current application images were built from
+`f4e27cac81a1b8c887307afef070c0a7adb081d4` and published by the attested
 GitHub workflows recorded in [deployment-beta.md](deployment-beta.md). The
 operator workstation did not build or pull the image.
 
 - Frontend: [healthcare-two-olive.vercel.app](https://healthcare-two-olive.vercel.app),
-  Vercel deployment `dpl_o1ddh17yfggA7HsmxEFJiMCXe8m3`,
-  `READY`/`PROMOTED` production, source SHA verified against the application
-  commit. Server-only variables are `BACKEND_INTERNAL_URL`,
+  Vercel deployment `dpl_CAq7vyis5nXqHTwM315e6HV2ryNC`, `READY` production,
+  created from a clean exact-source checkout. This manual deployment has no
+  provider Git metadata, so the clean checkout is the source binding.
+  Server-only variables are `BACKEND_INTERNAL_URL`,
   `BFF_PUBLIC_ORIGIN`, and `BACKEND_BFF_SERVICE_TOKEN`; keep their values in
   Vercel's encrypted environment store.
 - Backend: [healthcare-beta-backend.onrender.com](https://healthcare-beta-backend.onrender.com),
   Render Free service `srv-daa41a9f2nfc7395eg1g`, live deploy
-  `dep-daaidvp42hec73aj9080`. `/actuator/health*` returned `200 UP` in the
-  post-deploy probe; the short unauthenticated aliases remain `401`.
+  `dep-dab3crn40ujc739msk80`, pinned to source manifest
+  `sha256:fff9292b1852139db1a6d9354cf84447ddf9274d6abde7e3d776015057fa6517`.
+  `/actuator/health` returned `200 UP` in the post-deploy probe.
+- AI: [healthcare-beta-ai.onrender.com](https://healthcare-beta-ai.onrender.com),
+  Render Free service `srv-daal7kgn74is73bafjqg`, exact-source live deploy
+  `dep-dab3bvs9v7es73btkufg`. `/livez` returned HTTP 200; provider and
+  embeddings remain local fallback, and remote clinical/patient AI is off.
 - Database: Render Free PostgreSQL remains the Spring/Flyway authority. The
   Supabase Free project holds only the additive `healthcare` projection and
   its eight audited migration rows; consumers remain fail-closed.
 
 Rollback is digest-based: restore Render deploy
-`dep-daahnhks728c738ds6jg` only after verifying its image digest and then
+`dep-daaq5hp5efls73b4o2jg` only after verifying its image digest and then
 re-run the health/catalog probes. Revert Vercel to a prior `READY` deployment
 through the project dashboard/CLI. Supabase rollback is the target-specific
 capsule documented in [deployment-beta.md](deployment-beta.md), never a broad
