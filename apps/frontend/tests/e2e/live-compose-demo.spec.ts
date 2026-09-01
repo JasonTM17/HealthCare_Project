@@ -30,7 +30,10 @@ type BookableDemoSlot = {
 };
 
 const API_BASE_URL = process.env.PLAYWRIGHT_API_BASE_URL ?? "http://127.0.0.1:8080/api/v1";
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000";
+// Keep the default aligned with BFF_PUBLIC_ORIGIN. The BFF's Secure __Host-
+// cookies are intentionally host-bound and are not retained by Chromium when
+// the suite silently mixes 127.0.0.1 with localhost.
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
 const MAILPIT_API_URL = process.env.PLAYWRIGHT_MAILPIT_API_URL ?? "http://127.0.0.1:8025";
 // The disposable Compose profile keeps the Spring API behind the same
 // server-to-server credential used by the Next.js BFF. Direct live-test API
@@ -62,6 +65,7 @@ function applyBffCredential(headers: Headers): void {
   // when a diagnostic run intentionally targets Spring directly.
   if (API_REQUESTS_BYPASS_BFF && BFF_SERVICE_TOKEN) {
     headers.set("X-Healthcare-Bff-Token", BFF_SERVICE_TOKEN);
+    headers.set("X-Healthcare-Original-Origin", new URL(BASE_URL).origin);
   }
 }
 
@@ -164,11 +168,14 @@ async function apiJson<T>(
     headers.set("Content-Type", "application/json");
   }
   const method = (init.method ?? "GET").toUpperCase();
-  if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
+  if (!API_REQUESTS_BYPASS_BFF && !["GET", "HEAD", "OPTIONS"].includes(method)) {
     headers.set("Origin", new URL(API_BASE_URL).origin);
   }
   if (session) {
     headers.set("Cookie", session.cookieHeader);
+    if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
+      headers.set("X-CSRF-Token", session.csrfToken);
+    }
   }
   applyBffCredential(headers);
 
@@ -210,8 +217,11 @@ async function apiSse(
   const headers = new Headers(init.headers);
   headers.set("Accept", "text/event-stream");
   headers.set("Content-Type", "application/json");
-  headers.set("Origin", new URL(API_BASE_URL).origin);
+  if (!API_REQUESTS_BYPASS_BFF) {
+    headers.set("Origin", new URL(API_BASE_URL).origin);
+  }
   headers.set("Cookie", session.cookieHeader);
+  headers.set("X-CSRF-Token", session.csrfToken);
   applyBffCredential(headers);
   const response = await fetch(apiUrl(path), { ...init, headers });
   const text = await response.text();
@@ -241,7 +251,6 @@ async function loginApi(email: string): Promise<BrowserSession> {
   const headers = new Headers({
     Accept: "application/json",
     "Content-Type": "application/json",
-    Origin: new URL(API_BASE_URL).origin,
   });
   applyBffCredential(headers);
   const response = await fetch(apiUrl("/auth/browser-sessions"), {

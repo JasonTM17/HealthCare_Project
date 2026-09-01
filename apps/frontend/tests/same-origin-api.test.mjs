@@ -105,6 +105,26 @@ test("Compose keeps browser traffic same-origin through the server-only BFF", as
   assert.match(envExample, /^CORS_ALLOWED_ORIGINS=$/m);
 });
 
+test("live Compose browser gate preserves the trusted BFF and CSRF contract", async () => {
+  const [config, spec, packageManifest, packageLock] = await Promise.all([
+    read("playwright.compose.config.ts"),
+    read("tests/e2e/live-compose-demo.spec.ts"),
+    read("package.json"),
+    read("package-lock.json"),
+  ]);
+
+  assert.match(config, /import \{ loadEnvConfig \} from "@next\/env"/);
+  assert.match(config, /loadEnvConfig\(path\.resolve\(__dirname, "\.\.", "\.\."\)\)/);
+  assert.match(config, /process\.env\.PLAYWRIGHT_BFF_SERVICE_TOKEN = process\.env\.BACKEND_BFF_SERVICE_TOKEN/);
+  assert.match(config, /PLAYWRIGHT_BASE_URL \?\? "http:\/\/localhost:3000"/);
+  assert.match(spec, /headers\.set\("X-Healthcare-Bff-Token", BFF_SERVICE_TOKEN\)/);
+  assert.match(spec, /headers\.set\("X-Healthcare-Original-Origin", new URL\(BASE_URL\)\.origin\)/);
+  assert.match(spec, /headers\.set\("X-CSRF-Token", session\.csrfToken\)/);
+  assert.doesNotMatch(spec, /const BASE_URL = process\.env\.PLAYWRIGHT_BASE_URL \?\? "http:\/\/127\.0\.0\.1:3000"/);
+  assert.equal(JSON.parse(packageManifest).devDependencies["@next/env"], "16.3.3");
+  assert.equal(JSON.parse(packageLock).packages[""].devDependencies["@next/env"], "16.3.3");
+});
+
 test("local MVP helper binds rebuilt application images to an immutable Git source revision", async () => {
   const [compose, backendDockerfile, frontendDockerfile, aiDockerfile, scannerDockerfile, backendDockerignore, aiDockerignore, helper, verifier, provenance, runtimeWorkflow] = await Promise.all([
     read("../../infrastructure/docker-compose.yml"),

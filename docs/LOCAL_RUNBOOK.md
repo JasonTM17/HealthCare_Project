@@ -190,10 +190,12 @@ npm run test:e2e:compose
 ```
 
 When the Compose stack uses non-default host ports, set both live endpoints
-before running the browser gate:
+before running the browser gate. Keep the frontend hostname as `localhost` so
+the BFF's Secure `__Host-` cookies remain on the same host as
+`BFF_PUBLIC_ORIGIN`; only the port needs to change:
 
 ```powershell
-$env:PLAYWRIGHT_BASE_URL = "http://127.0.0.1:<frontend-port>"
+$env:PLAYWRIGHT_BASE_URL = "http://localhost:<frontend-port>"
 $env:PLAYWRIGHT_API_BASE_URL = "http://127.0.0.1:<backend-port>/api/v1"
 npm run test:e2e:compose
 ```
