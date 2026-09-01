@@ -327,6 +327,28 @@ only the exact parent directories after Docker is quiescent and keeps each old
 directory as a rollback quarantine. Verify recovery with
 `docker desktop status`, `docker version`, and `wsl.exe --list --verbose`.
 
+The Windows workstation reported Docker Desktop `4.89.0.238018` on 2026-09-01.
+The [public Docker Desktop release notes](https://docs.docker.com/desktop/release-notes/)
+did not yet document that build or confirm a fix for the inaccessible AF_UNIX
+runtime-parent failure. Keep this recovery path enabled until Docker closes the
+[upstream stale-socket issue](https://github.com/docker/desktop-feedback/issues/554)
+or a later documented release is proven on this host. This machine still
+encountered a pre-existing inaccessible runtime parent after the update; run
+the safe launcher with `-Restart` if it recurs. The launcher quarantines only
+the two exact runtime parents and lets Docker recreate them without touching
+the data disk.
+
+After an in-place Desktop update, verify the per-user `Docker Desktop` Run entry
+and reassert the single safe startup owner when necessary:
+
+```powershell
+.\scripts\install-docker-safe-launcher.ps1 -InstallAutoStart
+```
+
+Then verify that both the Run entry and Start Menu shortcut target
+`scripts\start-docker-safe.ps1`. Keep the legacy `Docker Desktop socket
+recovery` task disabled; two startup owners can race the same AF_UNIX paths.
+
 After Docker Desktop is ready, Windows users can build, seed, and run the
 automated role-based smoke verification with the command below. If `.env` is
 missing, the helper creates it with random disposable JWT/AI/RAG secrets.
