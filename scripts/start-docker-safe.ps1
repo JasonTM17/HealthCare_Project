@@ -47,6 +47,66 @@ $settingsPath = Join-Path ${env:APPDATA} 'Docker\settings-store.json'
 $recoveryLockPath = Join-Path $dockerRoot 'safe-launcher.lock'
 $env:DOCKER_HOST = $localDockerHost
 
+function Get-DockerDesktopStatus {
+    $process = $null
+    try {
+        $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+        $startInfo.FileName = $dockerPath
+        $startInfo.Arguments = 'desktop status --format json'
+        $startInfo.UseShellExecute = $false
+        $startInfo.CreateNoWindow = $true
+        $startInfo.RedirectStandardOutput = $true
+        $startInfo.RedirectStandardError = $true
+
+        $process = [System.Diagnostics.Process]::new()
+        $process.StartInfo = $startInfo
+        if (-not $process.Start()) {
+            return $null
+        }
+        if (-not $process.WaitForExit(5000)) {
+            try {
+                $process.Kill()
+            } catch {
+                # The bounded wait is the important guard; status remains
+                # unknown and the engine check fails closed below.
+            }
+            return $null
+        }
+
+        $output = $process.StandardOutput.ReadToEnd()
+        if (($process.ExitCode -ne 0) -or [string]::IsNullOrWhiteSpace($output)) {
+            return $null
+        }
+        return $output | ConvertFrom-Json
+    } catch {
+        return $null
+    } finally {
+        if ($null -ne $process) {
+            $process.Dispose()
+        }
+    }
+}
+
+function Test-DockerDesktopRunning {
+    try {
+        # Resource Saver keeps the named pipe and a cached Docker API response
+        # alive after the Linux VM has stopped.  A successful `docker version`
+        # alone is therefore not proof that the daemon is running.  Ask the
+        # Desktop control plane for its authoritative JSON state first.
+        $status = Get-DockerDesktopStatus
+        if ($null -eq $status) {
+            return $false
+        }
+        return [string]::Equals(
+            [string]$status.Status,
+            'running',
+            [System.StringComparison]::OrdinalIgnoreCase
+        )
+    } catch {
+        return $false
+    }
+}
+
 function Test-DockerEngine {
     if ($env:DOCKER_HOST -ne $localDockerHost -or
         -not (Test-Path -LiteralPath $enginePipe)) {
@@ -54,6 +114,9 @@ function Test-DockerEngine {
     }
 
     try {
+        if (-not (Test-DockerDesktopRunning)) {
+            return $false
+        }
         $version = & $dockerPath version --format 'server={{.Server.Version}}' 2>$null
         return $LASTEXITCODE -eq 0 -and ($version -join ' ') -match '^server=\S+'
     } catch {
@@ -310,8 +373,10 @@ try {
     try {
         $rotated = Rotate-DockerRuntimeDirectories -Paths $runtimeDirectories -AllowedPaths $runtimeDirectories
         foreach ($entry in $rotated) {
-            if ($entry.Quarantine) {
-                $quarantined += $entry.Quarantine
+            foreach ($quarantine in @($entry.Quarantines)) {
+                if ($quarantine) {
+                    $quarantined += $quarantine
+                }
             }
         }
     } catch {
