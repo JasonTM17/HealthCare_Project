@@ -48,12 +48,14 @@ production deployment.
 
 ## Verified synthetic beta
 
-The repository tip is
+The release-record baseline for local Docker readiness is
 `2541663f8ff8cd34c76fe99c0d7acb9d4d420c5c`; CI
 [33497889741](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33497889741)
 passed all six jobs for the Docker readiness release binding. Its parent
 `9f35161d64bfadc9ce816e626880ff7d706f9c68` carries the local Docker readiness
-hardening; this tip carries only the documentation binding. The hosted
+hardening; `2541663f` carries only the documentation binding. Later docs-only
+commits may advance the repository tip without changing this baseline. The
+hosted
 application source identities remain component-specific below because this
 tip changes only the local launcher, operational documentation, and tests.
 The current hosted application source overlay is
