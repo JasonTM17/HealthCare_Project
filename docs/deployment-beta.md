@@ -56,14 +56,15 @@ configuration:
 
 ### Current exact-source overlay (01527af, 2026-09-01)
 
-The repository tip is
+The release-record baseline for local Docker readiness is
 `2541663f8ff8cd34c76fe99c0d7acb9d4d420c5c`; CI
 [33497889741](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33497889741)
 passed all six jobs for the Docker readiness release binding. Its parent
 `9f35161d64bfadc9ce816e626880ff7d706f9c68` contains the Windows launcher
-hardening; this tip contains only the release-doc binding. The overlay contains
-only the launcher, operational documentation, and regression tests across those
-two commits; it does not alter the hosted
+hardening; `2541663f` contains only the release-doc binding. Later docs-only
+commits may advance the repository tip without changing this release baseline.
+The overlay contains only the launcher, operational documentation, and
+regression tests across those two commits; it does not alter the hosted
 frontend, backend, or AI payload, so the component identities and deployments
 below remain unchanged and no hosted redeploy is implied.
 

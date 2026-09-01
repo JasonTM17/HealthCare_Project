@@ -26,11 +26,14 @@ illustrative visual artifact, not a substitute for the browser and API gates.
 
 ### Current exact source overlay (2026-09-01)
 
-The repository tip is now `2541663f8ff8cd34c76fe99c0d7acb9d4d420c5c`.
-GitHub CI [run 33497889741](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33497889741)
-passed all six jobs for the Docker readiness release binding. The parent
-commit `9f35161d64bfadc9ce816e626880ff7d706f9c68` introduced the local Docker
-recovery hardening; this tip only binds that evidence in the release docs.
+The release-record baseline for local Docker readiness is
+`2541663f8ff8cd34c76fe99c0d7acb9d4d420c5c`. GitHub CI
+[run 33497889741](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33497889741)
+passed all six jobs for that snapshot. Its parent
+`9f35161d64bfadc9ce816e626880ff7d706f9c68` introduced the local Docker
+recovery hardening; `2541663f` binds that evidence in the release docs.
+Later documentation-only commits may advance the repository tip without
+changing this baseline or any hosted component identity.
 The Docker hardening changes only the local Docker recovery launcher,
 operational documentation, and tests; it does not change the hosted application
 payload. The component-level runtime identities and exact-source image
