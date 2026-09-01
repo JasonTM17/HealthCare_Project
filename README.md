@@ -24,39 +24,27 @@ illustrative visual artifact, not a substitute for the browser and API gates.
 
 ## Hosted Beta Release Record
 
-This is an evidence record for the current synthetic beta, not a production
-readiness or healthcare-compliance claim. The integration target is `main`.
-The previous hosted checkpoint was inspected at
-`10b22040fd113c2addf679f0f10c36aabeaac1fa`, and the hosted-promotion record
-was materially updated at `836f8b35a1a17dfad675cb5ae2f54b7ec57d127b`.
-Later documentation-only corrections do not change the hosted payload: verify
-the current `main` tip with `git rev-parse main` and its exact completed CI run
-instead of hardcoding a self-referential tip here. The application/release
-source used by the hosted beta is
-`7a083ab06557225077694a0b2b93e31b89d0c32e`. Always bind a release to
-`git rev-parse HEAD` plus the application source SHA and immutable image digest,
-not to `latest` or to a deployment label.
+This is an evidence record for the synthetic beta, not a production-readiness,
+clinical-compliance, or real-patient approval. The application release
+candidate is exact source `f4e27cac81a1b8c887307afef070c0a7adb081d4` on
+`main`. GitHub [CI run 33412705957](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33412705957)
+passed all backend, frontend, AI, database, infrastructure, and hygiene jobs;
+[image run 33413160881](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33413160881)
+published the four application images with provenance/SBOM. Bind any release
+to the exact source SHA and immutable digest, never to `latest`.
 
-- GitHub CI run [33365515571](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33365515571) passed all six jobs for `7a083ab06557225077694a0b2b93e31b89d0c32e` (frontend browser gate: 34 tests).
-- The first image publication attempt [33365399607](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33365399607) correctly failed on an invalid Dockerfile `CMD-SHELL` token. Commit `7a083ab` changed it to Dockerfile shell-form `CMD`; the succeeding [image run 33365774241](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33365774241) passed all four image jobs.
-- The verified [database package run 33365776484](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33365776484) passed with SBOM and provenance. All references below use the immutable `sha-7a083ab06557225077694a0b2b93e31b89d0c32e` audit tag.
+The hosted payload is deliberately limited to Render Free + Supabase Free +
+Vercel. `render.yaml` is canonical and `render-free-beta.yaml` is its parity
+copy. Remote patient/clinical AI, ClamAV, attachment scanning, object storage,
+mail and payment consumers remain fail-closed.
 
-The hosted beta deliberately uses only Render Free resources; `render.yaml` is
-the canonical manifest and `render-free-beta.yaml` is a parity copy for review.
-The local-only FastAPI service is provisioned as a native Python Free web
-service for authenticated hospital-support chat and public-catalog RAG. Remote
-patient/clinical AI, ClamAV, attachment scanning, object storage, mail and
-payment consumers remain fail-closed. The backend image is published from the
-exact application source SHA above and is promoted only after the digest pin
-and deploy health gates pass.
-
-| GHCR package | Immutable reference | Audit tag |
+| GHCR package | Immutable reference | Source/audit SHA |
 | --- | --- | --- |
-| [backend](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-backend) | `ghcr.io/jasontm17/healthcare-project-backend@sha256:c492898b8767119ab9417b55833b473aca65262f21ba713a77e51a972553dcf3` | `sha-7a083ab06557225077694a0b2b93e31b89d0c32e` |
-| [AI service](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-ai-service) | `ghcr.io/jasontm17/healthcare-project-ai-service@sha256:157a3f5be8c9693619401df33d3cc2f616b0172f2a8a53a5a8fb20eb380fe691` | `sha-7a083ab06557225077694a0b2b93e31b89d0c32e` |
-| [attachment scanner](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-attachment-scanner) | `ghcr.io/jasontm17/healthcare-project-attachment-scanner@sha256:535c9437ed3b49577d77aaf6f7ebb2841e69bca49f0db7b2d749565b86a20b02` | `sha-7a083ab06557225077694a0b2b93e31b89d0c32e` |
-| [frontend](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-frontend) | `ghcr.io/jasontm17/healthcare-project-frontend@sha256:640d3b5eda3201e43b3493f70f35007c4822a76aa73e811bd8840b8aab532a1e` | `sha-7a083ab06557225077694a0b2b93e31b89d0c32e` |
-| [database fixture](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-database) | `ghcr.io/jasontm17/healthcare-project-database@sha256:d3863eef07879b2fe46ac56636c2908c68d2619be5790f40af7fb522ea7da044` | `sha-7a083ab06557225077694a0b2b93e31b89d0c32e` |
+| [backend](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-backend) | `ghcr.io/jasontm17/healthcare-project-backend@sha256:fff9292b1852139db1a6d9354cf84447ddf9274d6abde7e3d776015057fa6517` | `f4e27ca` |
+| [AI service](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-ai-service) | `ghcr.io/jasontm17/healthcare-project-ai-service@sha256:71b7fff32db7d8b51d7490cddb5f8b3bd126302d0f42887054ab2cba99e2231a` | `f4e27ca` |
+| [attachment scanner](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-attachment-scanner) | `ghcr.io/jasontm17/healthcare-project-attachment-scanner@sha256:ce0566ac368b18770fd16f208bf7860895567d9ab8a8f3f71998727c6a746739` | `f4e27ca` |
+| [frontend](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-frontend) | `ghcr.io/jasontm17/healthcare-project-frontend@sha256:ab53d9be2f2427f3961eaece9b255b43f9b80c3e7b9af7139593efe9e64df24f` | `f4e27ca` |
+| [database fixture](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-database) | `ghcr.io/jasontm17/healthcare-project-database@sha256:d3863eef07879b2fe46ac56636c2908c68d2619be5790f40af7fb522ea7da044` | `7a083ab` (unchanged fixture) |
 
 ### Frontend package contract
 
@@ -71,46 +59,44 @@ Node.js `>=22 <25` with npm `>=10 <12`, installed with `npm ci`; the focused
 - The local/CI gate is `npm run verify` (lint, typecheck, unit tests, and
   production build), followed by `npm run test:e2e` for the browser gate.
 
-On 2026-08-30, `npm ci --dry-run --ignore-scripts --no-audit --no-fund`, the
-manifest/lockfile synchronization check, and `npm audit --package-lock-only`
-all passed; the audit reported zero vulnerabilities. `npm outdated` reports
-only major upgrade lines (ESLint 10, Tailwind CSS 4, and TypeScript 7), which
-remain deliberately deferred until a separate compatibility review.
+On 2026-09-01, `npm ci --dry-run --ignore-scripts --no-audit --no-fund`, the
+manifest/lockfile synchronization check, and
+`npm audit --package-lock-only --audit-level=moderate` all passed; the audit
+reported zero vulnerabilities across 453 packages. `npm outdated` reports the
+available Next.js/`eslint-config-next` patch `16.3.4` plus major upgrade lines
+(ESLint 10, Tailwind CSS 4, and TypeScript 7). The checked-in, attested beta
+artifact remains on the tested `16.3.3` pins; upgrading the patch or a major
+toolchain is deferred to a separate compatibility-and-republish checkpoint.
 
-- Vercel's stable [beta alias](https://healthcare-two-olive.vercel.app) is
-  Production/READY at deployment `dpl_o1ddh17yfggA7HsmxEFJiMCXe8m3`,
-  PROMOTED and manually deployed from a clean checkout of application SHA
-  `7a083ab06557225077694a0b2b93e31b89d0c32e`. The deployment metadata reports
-  the same source SHA and the alias serves the verified BFF. Do not infer an
-  automatic Git integration deploy; repeat the exact-SHA CLI deploy after an
-  application change. The three BFF variables remain server-only
-  (`BACKEND_INTERNAL_URL`, `BFF_PUBLIC_ORIGIN`, and
-  `BACKEND_BFF_SERVICE_TOKEN`). The BFF health route becomes healthy only when
-  both the Spring service and its authenticated AI dependency are ready; Free
-  service cold starts can make the first request slow.
-- Render has a Free Singapore PostgreSQL (`dpg-da7r3uou01pc73boask0-a`), Free
-  Key Value (`red-daa3ub9f2nfc73956660`), Free image-backed Spring web service
-  (`srv-daa41a9f2nfc7395eg1g`), and Free native-Python AI web service
-  (`srv-daal7kgn74is73bafjqg`). The AI deploy
-  `dep-daal7l8n74is73baflo0` is live with authenticated `/health`, local
-  provider/embeddings, and remote-patient flags disabled. Backend deploy
-  `dep-daaidvp42hec73aj9080` is `live` with requested image digest
-  `sha256:c492898b8767119ab9417b55833b473aca65262f21ba713a77e51a972553dcf3`
-  and Render-resolved manifest digest
-  `sha256:15923632b9303225e65fa67b18cf7900c0f81500452424c1dea9f313dde3c270`.
-  `/actuator/health`, `/actuator/health/liveness` and
-  `/actuator/health/readiness` returned HTTP 200/`UP`; unauthenticated short
-  `/readiness` and `/liveness` returned 401. The previous known-good rollback
-  deploy is `dep-daahnhks728c738ds6jg` on the prior immutable image.
-  The hosted synthetic catalog contains 30 specialties, 20 branches, 500
-  doctors, 200 services, 100 packages, 500
-  articles, 150 raw FAQs, 1,251 doctor-specialty links, 751 doctor-branch
-  links, 7,130 schedules, and 5 CMS slots. Public filters expose 192 services,
-  95 packages, 467 articles and 0 FAQs because FAQ visibility requires a valid
-  active-doctor clinical approval; the seed does not fabricate approvals.
-  External PostgreSQL access is closed (`ipAllowList=[]`). The Free database
-  expires after its provider retention window and has no provider backup/PITR
-  guarantee; Key Value is ephemeral.
+- Vercel stable [beta alias](https://healthcare-two-olive.vercel.app) is
+  `READY`/Production at deployment
+  `dpl_CAq7vyis5nXqHTwM315e6HV2ryNC`, created from a clean exact-`f4e27ca`
+  checkout. The manual deployment has no provider git metadata, so the
+  checkout SHA—not an inferred Vercel commit—is the source identity. The three
+  BFF variables remain server-only (`BACKEND_INTERNAL_URL`, `BFF_PUBLIC_ORIGIN`,
+  and `BACKEND_BFF_SERVICE_TOKEN`).
+- Render workspace `tea-d7ev54q8qa3s7382ljcg` has the Free Singapore
+  PostgreSQL, Key Value, image Spring service `srv-daa41a9f2nfc7395eg1g`, and
+  native-Python AI service `srv-daal7kgn74is73bafjqg`. After the Singapore
+  provider incident cleared, exact-f4 backend deploy
+  `dep-dab3crn40ujc739msk80` reached `live`; its requested source manifest is
+  `sha256:fff9292b1852139db1a6d9354cf84447ddf9274d6abde7e3d776015057fa6517`
+  and Render resolved platform manifest is
+  `sha256:f839c4e15818eb1c50519f46653aee5247cbfdd7e14867d13656e5991c638d3b`.
+  Direct `/actuator/health` returned HTTP 200 with `status: UP`.
+- Exact-f4 native-AI deploy `dep-dab3bvs9v7es73btkufg` reached `live` at
+  `/livez` (HTTP 200) and reports commit
+  `f4e27cac81a1b8c887307afef070c0a7adb081d4`. The Vercel canary now proves
+  normal public chat (`ANSWER`), Vietnamese bypass/exfiltration refusal
+  (`REFUSE`), emergency routing (`EMERGENCY`), origin enforcement, strict
+  payload rejection, and tokenless direct-backend denial.
+- The hosted synthetic catalog remains 30 specialties, 20 branches, 500
+  doctors, 200 services, 100 packages, 500 articles, 150 raw FAQs, 1,247
+  doctor-specialty links, 747 doctor-branch links, and 830 chat-projection
+  rows where checked. The Vercel BFF probes returned HTTP 200 totals of 30
+  specialties, 475 active doctors, 20 branches, 192 services, 95 packages,
+  467 articles and 0 public FAQs. External PostgreSQL access is closed; Render
+  Free PostgreSQL is time-limited and Key Value is ephemeral.
 - Supabase project `awaknzhadjglbfkhigck` is on the Free plan with eight audited
   migration rows, 15 RLS-enabled `healthcare` tables, and the verified synthetic
   projection (100,000 customers, 75,000 patient profiles, 10,000 public RAG

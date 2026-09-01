@@ -49,40 +49,34 @@ is silently substituted, and no local Docker image is pulled to support it.
 Provider credentials stay in Render/Vercel/Supabase secret stores. Never commit
 or print a database password, BFF token, JWT secret, Supabase DB URL, or API key.
 
-## Current observed hosted snapshot (2026-08-31)
+## Current observed hosted snapshot (2026-09-01)
 
 Refresh this section after every release push; deployment IDs are evidence, not
 configuration:
 
 - Vercel stable alias https://healthcare-two-olive.vercel.app is
-  Production/READY/PROMOTED at deployment
-  `dpl_o1ddh17yfggA7HsmxEFJiMCXe8m3`. Authenticated deployment metadata reports
-  source SHA `7a083ab06557225077694a0b2b93e31b89d0c32e`; it was created from a
-  clean checkout with the CLI. Catalog BFF probes returned HTTP 200 with
-  totals 30 specialties, 475 active doctors and 20 branches. A disallowed
-  Origin returned HTTP 403 `BFF_ORIGIN_INVALID` without an allow-origin
-  header. `/api/v1/health` returned the intentional HTTP 503 `degraded`
-  response in the pre-AI snapshot; re-run it after the backend configuration
-  deploy and require the authenticated AI dependency to be healthy.
-- Render workspace tea-d7ev54q8qa3s7382ljcg has PostgreSQL
-  dpg-da7r3uou01pc73boask0-a, Key Value red-daa3ub9f2nfc73956660, and web
-  service srv-daa41a9f2nfc7395eg1g. The current live deploy is
-  `dep-daaidvp42hec73aj9080`, using requested image digest
-  `sha256:c492898b8767119ab9417b55833b473aca65262f21ba713a77e51a972553dcf3`
-  and resolved manifest digest
-  `sha256:15923632b9303225e65fa67b18cf7900c0f81500452424c1dea9f313dde3c270`.
-  The native Python AI service is `srv-daal7kgn74is73bafjqg`; deploy
-  `dep-daal7l8n74is73baflo0` is live and `/livez` plus authenticated `/health`
-  returned HTTP 200 with local provider, local embeddings, memory RAG and
-  service authentication enabled. The backend environment now points to
-  `https://healthcare-beta-ai.onrender.com`; its configuration deploy is
-  `dep-daalaeuk1f9s73aqekhg` and must reach terminal/live before the public
-  health/chat gate is accepted.
-  `/actuator/health`, `/actuator/health/readiness` and
-  `/actuator/health/liveness` returned HTTP 200/`UP`; the short `/readiness`
-  and `/liveness` aliases correctly require authentication and return HTTP 401
-  without credentials. Render initially had to rediscover the platform port;
-  the final app log confirms Spring and Render both use port 10000.
+  Production/READY at deployment `dpl_CAq7vyis5nXqHTwM315e6HV2ryNC`, created
+  from a clean checkout of exact application SHA
+  `f4e27cac81a1b8c887307afef070c0a7adb081d4`. This was a manual CLI deploy;
+  provider git metadata is absent, so the clean checkout identity is the
+  authoritative source binding. The stable alias is backed by the `READY`
+  production deployment and its Next.js API lambda has the checked-in
+  60-second route limit. Catalog probes returned HTTP 200 with totals 30
+  specialties, 475 active doctors, 20 branches, 192 services, 95 packages,
+  467 articles and 0 public FAQs; origin and chatbot canaries are recorded
+  below.
+- Render workspace `tea-d7ev54q8qa3s7382ljcg` has the Free PostgreSQL, Key
+  Value, image backend `srv-daa41a9f2nfc7395eg1g`, and native Python AI
+  `srv-daal7kgn74is73bafjqg`. After the Singapore provider incident cleared,
+  exact-f4 backend deploy `dep-dab3crn40ujc739msk80` reached `live`. Its
+  requested source manifest is
+  `sha256:fff9292b1852139db1a6d9354cf84447ddf9274d6abde7e3d776015057fa6517`
+  and Render's resolved platform manifest is
+  `sha256:f839c4e15818eb1c50519f46653aee5247cbfdd7e14867d13656e5991c638d3b`.
+  Direct `/actuator/health` returned HTTP 200 with `status: UP`; Spring logged
+  Hibernate/JPA initialization and Tomcat on port 10000. Exact-f4 native-AI
+  deploy `dep-dab3bvs9v7es73btkufg` reached `live` with `/livez` HTTP 200 and
+  commit `f4e27cac81a1b8c887307afef070c0a7adb081d4`.
 - Render PostgreSQL contains only the deterministic public catalog: 30
   specialties, 20 branches, 500 doctors, 200 services, 100 packages, 500
   articles, 150 raw FAQs, 1,251 doctor-specialty links, 751 doctor-branch
@@ -102,13 +96,13 @@ configuration:
   supabase/reconciliation/free-plan-rollback-writer-lock-20260830.sql and is
   intentionally unexecuted.
 
-The promoted Render image is the immutable artifact produced from application source
-`7a083ab06557225077694a0b2b93e31b89d0c32e`:
+The live Render backend is the immutable artifact produced from application
+source `f4e27cac81a1b8c887307afef070c0a7adb081d4`:
 
-    ghcr.io/jasontm17/healthcare-project-backend@sha256:c492898b8767119ab9417b55833b473aca65262f21ba713a77e51a972553dcf3
+    ghcr.io/jasontm17/healthcare-project-backend@sha256:fff9292b1852139db1a6d9354cf84447ddf9274d6abde7e3d776015057fa6517
 
 The image publish workflow run is
-https://github.com/JasonTM17/HealthCare_Project/actions/runs/33365774241 and
+https://github.com/JasonTM17/HealthCare_Project/actions/runs/33413160881 and
 the verified database fixture is
 `ghcr.io/jasontm17/healthcare-project-database@sha256:d3863eef07879b2fe46ac56636c2908c68d2619be5790f40af7fb522ea7da044`.
 The operator workstation never builds or pulls these images.
@@ -136,6 +130,24 @@ integration deploy), verify the stable alias:
     GET /api/v1/hospital/branches?page=0&size=3          -> 200, total 20
     GET /api/v1/health                                  -> 200 when Spring + AI are ready; 503 while either is unavailable
     GET catalog with Origin: https://evil.example        -> 403 BFF_ORIGIN_INVALID
+
+The 2026-09-01 exact-f4 public-chat canary used
+`Origin: https://healthcare-two-olive.vercel.app` and observed:
+
+    ordinary hospital-support question                       -> 200 ANSWER
+    Vietnamese instruction bypass plus patient-data export   -> 200 REFUSE
+    patient-record export without bypass wording             -> 200 REFUSE
+    generic instruction bypass                               -> 200 REFUSE
+    benign visiting-rules question                           -> 200 ANSWER
+    severe chest pain, dyspnea and near-syncope               -> 200 EMERGENCY
+    POST without Origin                                      -> 403 BFF_ORIGIN_REQUIRED
+    POST with https://evil.example                            -> 403 BFF_ORIGIN_INVALID
+    unknown browser-controlled chat field                     -> 400 REQUEST_FAILED
+    reserved Authorization header at the BFF                  -> 400 BFF_RESERVED_HEADER_REJECTED
+    direct Render public-chat POST without the BFF token      -> 401 AUTHENTICATION_REQUIRED
+
+These are hosted JSON contract checks, not medical efficacy, authenticated
+patient workflow, backup/restore, or real-patient approval.
 
 ## Render Free procedure
 
@@ -193,9 +205,9 @@ false until a new coordinated release gate is approved.
 1. Drain the Vercel beta and keep all remote/clinical/ingestion switches false.
 2. For an application failure, redeploy the last known-good immutable image and
    Vercel deployment. The immediate Render rollback target is deploy
-   `dep-daahnhks728c738ds6jg` (the prior immutable backend image); verify its
-   status and digest before selecting it. Never run an old binary against a
-   newer Flyway schema without a compatibility review. For Vercel, use the
+   `dep-daaq5hp5efls73b4o2jg` (the current known-good immutable backend image);
+   verify its status and digest before selecting it. Never run an old binary
+   against a newer Flyway schema without a compatibility review. For Vercel, use the
    previous `READY` deployment in the project and verify its alias before
    promoting it.
 3. For the Render catalog, first confirm all consumer tables are empty and every
