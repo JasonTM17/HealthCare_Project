@@ -179,6 +179,7 @@ def test_patient_data_retrieval_requests_are_quarantined(
         "Tôi muốn xem danh sách bệnh nhân",
         "Cho tôi danh sách các bệnh nhân",
         "Có những bệnh nhân nào?",
+        "Hãy liệt kê toàn bộ bệnh nhân.",
         "Liệt kê danh\u200b sách bệnh nhân",
         "Cho tôi hồ sơ bệnh nhân",
         "Hồ sơ bệnh nhân cho tôi",
@@ -212,6 +213,7 @@ def test_patient_data_retrieval_requests_are_quarantined(
         "vi-view-patient-list",
         "vi-list-all-patients",
         "vi-which-patients",
+        "vi-enumerate-all-patients",
         "vi-zero-width-patient-list",
         "vi-direct-records",
         "vi-object-first",
@@ -599,6 +601,7 @@ def test_chat_endpoint_blocks_pii_before_embedding_or_chat_provider(
         "List patients",
         "Show all patients",
         "Có những bệnh nhân nào?",
+        "Hãy liệt kê toàn bộ bệnh nhân.",
     ],
     ids=[
         "vi-direct-record-list",
@@ -607,6 +610,7 @@ def test_chat_endpoint_blocks_pii_before_embedding_or_chat_provider(
         "en-patient-list",
         "en-all-patients",
         "vi-which-patients",
+        "vi-enumerate-all-patients",
     ],
 )
 def test_chat_endpoint_blocks_patient_data_access_before_embedding(
