@@ -67,18 +67,21 @@ lag this source when a component is unchanged; always use the component-level
 identity below rather than assuming one SHA for every platform.
 
 - Frontend: [healthcare-two-olive.vercel.app](https://healthcare-two-olive.vercel.app),
-  Vercel deployment `dpl_DzX94fFP7QNxWZ5sPbwwsbCD2WaZ`, `READY` production,
-  created from a clean exact-source checkout of frontend commit
-  `17330d568380d2d3c3f0592606dd57d9dd0728b0`. This manual deployment has no
-  provider Git metadata, so the clean checkout is the source binding.
+  Vercel deployment `dpl_ES1rZGVZ7sQpnoGJnTygTcSn3hQa`, `READY` production,
+  deployed from a clean `git archive` of repository commit
+  `2f0911520d44f8c0a18dee69121dfa711188d432` after the responsive UX fix and
+  rollback-documentation reconciliation. The provider inspect response does
+  not expose a Git SHA; the archive command and exact deployment timestamp are
+  the source binding. The stable alias was rechecked after promotion.
   Server-only variables are `BACKEND_INTERNAL_URL`,
   `BFF_PUBLIC_ORIGIN`, and `BACKEND_BFF_SERVICE_TOKEN`; keep their values in
   Vercel's encrypted environment store.
 - Backend: [healthcare-beta-backend.onrender.com](https://healthcare-beta-backend.onrender.com),
   Render Free service `srv-daa41a9f2nfc7395eg1g`, live deploy
-  `dep-dab3crn40ujc739msk80`, pinned to source manifest
-  `sha256:fff9292b1852139db1a6d9354cf84447ddf9274d6abde7e3d776015057fa6517`.
-  `/actuator/health` returned `200 UP` in the post-deploy probe.
+  `dep-dabgeaqjnfac73al6qgg`, pinned to the immutable backend image reference
+  recorded in `README.md` and `docs/deployment-beta.md` (resolved platform
+  digest `sha256:16d01d2babcb143c0268f15fa3166e8ebefcd571780067f72749e2470c25d847`).
+  `/actuator/health` returned `200 UP` after the Free cold start.
 - AI: [healthcare-beta-ai.onrender.com](https://healthcare-beta-ai.onrender.com),
   Render Free service `srv-daal7kgn74is73bafjqg`, exact-source live deploy
   `dep-daba3ortqb8s73f9kcug` at source `01527af`. `/livez` returned HTTP 200;
@@ -88,9 +91,12 @@ identity below rather than assuming one SHA for every platform.
   Supabase Free project holds only the additive `healthcare` projection and
   its eight audited migration rows; consumers remain fail-closed.
 
-Rollback is digest-based: restore Render deploy
-`dep-daaq5hp5efls73b4o2jg` only after verifying its image digest and then
-re-run the health/catalog probes. Revert Vercel to a prior `READY` deployment
-through the project dashboard/CLI. Supabase rollback is the target-specific
-capsule documented in [deployment-beta.md](deployment-beta.md), never a broad
-reset or `supabase db push`.
+Rollback is digest-based: the historical Render candidates
+`dep-daaq5hp5efls73b4o2jg` and `dep-dabeuclg1s2s73cg6pd0` are deactivated, so
+neither is a standing rollback target. If rollback is needed, redeploy the
+reviewed immutable image reference as a new Render deploy, record its resulting
+deploy ID and resolved digest, and re-run health/catalog probes before restoring
+traffic. Revert Vercel to a prior `READY` deployment through the project
+dashboard/CLI. Supabase rollback is the target-specific capsule documented in
+[deployment-beta.md](deployment-beta.md), never a broad reset or
+`supabase db push`.

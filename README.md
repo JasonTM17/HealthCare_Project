@@ -60,11 +60,13 @@ diagnostic output. Both Free services recovered after their expected restart;
 upstream-error entries observed in the post-rotation log window.
 
 The current Vercel stable alias is the `READY`/`PROMOTED` production deployment
-`dpl_GgVv8NSazanfx6XwiePTqAPRF3kV`, observed with the linked Vercel CLI on
-2026-09-02. It serves `healthcare-two-olive.vercel.app`; the provider response
-identifies the deployment as CLI-sourced but does not expose a Git commit SHA,
-so this checkpoint does not overclaim an exact frontend source binding. Direct
-probes of `/`, `/specialties`, and `/api/v1/health` returned HTTP 200.
+`dpl_ES1rZGVZ7sQpnoGJnTygTcSn3hQa`, observed with the linked Vercel CLI on
+2026-09-02 after the responsive frontend fix. It serves
+`healthcare-two-olive.vercel.app` and was built from a clean `git archive` of
+repository commit `2f0911520d44f8c0a18dee69121dfa711188d432`. The provider
+inspect response does not expose a Git commit SHA for this CLI deployment, so
+the archive command is the source binding. Direct probes of `/`, `/specialties`,
+and `/api/v1/health` returned HTTP 200.
 
 Supabase Free project `awaknzhadjglbfkhigck` is now verified read-only as
 `ACTIVE_HEALTHY` with eight migration rows ending at `20260830143140`. All 15
@@ -82,7 +84,7 @@ The storage cleanup removed 27 exact ignored/generated directories (about
 VHDX, application data, and WIP files. Docker Desktop is running with all nine
 Compose services healthy; Hibernate remains enabled and available.
 
-### Current exact source overlay (2026-09-01)
+### Historical exact-source overlay (superseded by the 2026-09-02 checkpoint)
 
 The release-record baseline for local Docker readiness is
 `2541663f8ff8cd34c76fe99c0d7acb9d4d420c5c`. GitHub CI
