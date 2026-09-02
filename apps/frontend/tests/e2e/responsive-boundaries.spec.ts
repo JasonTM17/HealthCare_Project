@@ -69,7 +69,7 @@ test.describe("public responsive boundaries", () => {
     for (const route of ["/auth/login", "/auth/register"]) {
       await page.setViewportSize({ width: 320, height: 800 });
       await page.goto(route, { waitUntil: "domcontentloaded" });
-      await expect(page.getByRole("heading")).toBeVisible();
+      await expect(page.locator(".auth-page").getByRole("heading").first()).toBeVisible();
       await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
       await expect.poll(() => page.evaluate(() => {
         const viewportRight = document.documentElement.clientWidth;
