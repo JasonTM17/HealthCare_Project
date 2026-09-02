@@ -115,6 +115,8 @@ class ChatRequest(BaseModel):
     # Additive field: legacy callers that only send `message` retain the old
     # /chat behavior while the two-step patient contract can select a mode.
     mode: ChatMode = ChatMode.HOSPITAL_SUPPORT
+    # Spring sets this only for the public hospital-support surface.
+    public_support_chat: bool = False
     # Internal Spring assertion; browser callers cannot enable remote egress.
     synthetic_beta: bool = False
 

@@ -10,6 +10,10 @@ def test_patient_chat_remote_provider_is_disabled_by_default() -> None:
     assert Settings().ai_patient_chat_remote_enabled is False
 
 
+def test_public_hospital_support_remote_provider_is_disabled_by_default() -> None:
+    assert Settings().ai_public_hospital_support_remote_enabled is False
+
+
 def test_production_rejects_remote_patient_chat_configuration(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -33,6 +37,20 @@ def test_remote_patient_chat_is_hold_outside_production_too(
 
     with pytest.raises(ValueError, match="HOLD"):
         Settings()
+
+
+def test_public_hospital_support_remote_configuration_is_allowed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AI_PROVIDER", "deepseek")
+    monkeypatch.setenv("AI_PUBLIC_HOSPITAL_SUPPORT_REMOTE_ENABLED", "true")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "synthetic-test-key")
+    monkeypatch.setenv("AI_SERVICE_RUNTIME", "staging")
+
+    settings = Settings()
+
+    assert settings.ai_public_hospital_support_remote_enabled is True
+    assert settings.ai_provider == "deepseek"
 
 
 def test_remote_patient_chat_flags_cannot_bypass_release_hold(

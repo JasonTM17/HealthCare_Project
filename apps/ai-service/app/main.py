@@ -16,6 +16,7 @@ from app.embeddings import EmbeddingResult, embed
 from app.llm import (
     chat_safety_response,
     contains_sensitive_or_injection,
+    public_hospital_support_remote_enabled,
     patient_chat_remote_enabled,
     resolve_chat,
     resolve_triage,
@@ -76,6 +77,18 @@ app = FastAPI(title="HealthCare AI Service", version="0.1.0")
 # Shared RAG service. Local/test keeps the in-memory implementation by default,
 # while explicit Supabase configuration can switch to the durable store.
 rag_service = build_rag_service(settings)
+
+# Concurrency guard for LLM-backed endpoints.
+# This is an internal service-to-service API; IP-based rate limiting is not
+# effective because all calls arrive from a single Spring backend token holder.
+# A threading.Semaphore caps simultaneous LLM calls to prevent upstream budget
+# exhaustion and cascading timeouts under load spikes.
+# FastAPI runs sync endpoints in a thread pool, so threading.Semaphore is
+# the correct primitive here (asyncio.Semaphore would not work across threads).
+import threading as _threading
+_LLM_MAX_CONCURRENCY = 8  # adjust based on provider tier and expected load
+_llm_semaphore = _threading.Semaphore(_LLM_MAX_CONCURRENCY)
+
 
 
 # RAG metadata is a service-to-service contract, not an arbitrary text bag.
@@ -254,6 +267,19 @@ async def chat_contract_handler(request: Request, exc: ChatContractError) -> JSO
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.code})
 
 
+@app.exception_handler(ValueError)
+async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse:
+    """Catch LLM response parsing errors (empty choices, non-text content, invalid JSON)
+    before they surface as generic 500 Internal Server Error with a stack trace.
+    These are provider-side contract violations, not server bugs."""
+
+    del request, exc
+    return JSONResponse(
+        status_code=422,
+        content={"detail": "AI_RESPONSE_PARSE_ERROR", "status": "PROVIDER_CONTRACT_VIOLATION"},
+    )
+
+
 def _configured_secret(value: object) -> bool:
     return isinstance(value, str) and bool(value.strip())
 
@@ -322,6 +348,26 @@ def require_service_auth(
         raise HTTPException(status_code=401, detail="AI service authentication required")
 
 
+def _require_llm_capacity() -> None:
+    """Concurrency guard for LLM-backed endpoints.
+
+    Rejects requests immediately when the semaphore is exhausted, returning 503
+    rather than queuing requests indefinitely (which would cause cascading timeouts).
+    The semaphore is released via FastAPI's generator dependency protocol (yield +
+    try/finally) to ensure it is always returned even on exceptions.
+    """
+    acquired = _llm_semaphore.acquire(blocking=False)
+    if not acquired:
+        raise HTTPException(
+            status_code=503,
+            detail="LLM_CAPACITY_EXHAUSTED — too many concurrent AI requests, retry after a moment",
+        )
+    try:
+        yield
+    finally:
+        _llm_semaphore.release()
+
+
 def local_auth_escape_hatch_enabled() -> bool:
     return (
         settings.ai_service_runtime.lower() == "local"
@@ -348,6 +394,7 @@ def health(response: Response) -> HealthResponse:
     chat_provider = settings.ai_provider.strip().casefold()
     api_key_configured = _configured_secret(provider_secret(settings, chat_provider))
     auth_configured = _configured_secret(settings.ai_service_token)
+    public_remote_requested = public_hospital_support_remote_enabled(settings)
     provider_ready = (
         chat_provider in LOCAL_CHAT_PROVIDERS | REMOTE_CHAT_PROVIDERS
         and provider_configured(
@@ -360,12 +407,16 @@ def health(response: Response) -> HealthResponse:
             "embedding_provider",
             LOCAL_EMBEDDING_PROVIDERS,
         )
+        and (not public_remote_requested or chat_provider in REMOTE_CHAT_PROVIDERS)
     )
     fallback_allowed = runtime_allows_local_fallback(settings)
-    remote_probe_required = remote_provider_requested(
-        settings,
-        "ai_provider",
-        LOCAL_CHAT_PROVIDERS,
+    remote_probe_required = (
+        remote_provider_requested(
+            settings,
+            "ai_provider",
+            LOCAL_CHAT_PROVIDERS,
+        )
+        and not public_remote_requested
     ) or remote_provider_requested(
         settings,
         "embedding_provider",
@@ -411,7 +462,7 @@ def readyz(
     return health(response)
 
 
-@app.post("/triage", response_model=TriageResponse, dependencies=[Depends(require_service_auth)])
+@app.post("/triage", response_model=TriageResponse, dependencies=[Depends(require_service_auth), Depends(_require_llm_capacity)])
 def symptom_triage(request: TriageRequest) -> TriageResponse:
     symptoms = _enforce_input_limit(
         request.symptoms,
@@ -421,7 +472,7 @@ def symptom_triage(request: TriageRequest) -> TriageResponse:
     return resolve_triage(symptoms, settings, synthetic_beta=request.synthetic_beta)
 
 
-@app.post("/chat", response_model=ChatResponse, dependencies=[Depends(require_service_auth)])
+@app.post("/chat", response_model=ChatResponse, dependencies=[Depends(require_service_auth), Depends(_require_llm_capacity)])
 def chat(request: ChatRequest) -> ChatResponse:
     message = _enforce_input_limit(
         request.message,
@@ -443,6 +494,7 @@ def chat(request: ChatRequest) -> ChatResponse:
             settings,
             recent_turns=turns,
             synthetic_beta=request.synthetic_beta,
+            public_support_chat=request.public_support_chat,
         )
 
     query_embedding, query_model, embedding_provenance = _embedding_parts(
@@ -480,6 +532,7 @@ def chat(request: ChatRequest) -> ChatResponse:
         context=context,
         citations=citations,
         synthetic_beta=request.synthetic_beta,
+        public_support_chat=request.public_support_chat,
     )
     final_provenance = merge_provenance(response.provenance, embedding_provenance)
     if final_provenance == "local_fallback":

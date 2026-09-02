@@ -80,7 +80,7 @@ export default function RegisterPage() {
     <main className="auth-page">
       <section aria-labelledby="register-title" className="auth-card auth-card--wide">
         <Link className="auth-card__back" href="/auth/login">← Đã có tài khoản</Link>
-        <div className="auth-card__brand"><BrandMark /><span><strong>HealthCare</strong><small>Tài khoản bệnh nhân</small></span></div>
+        <div className="auth-card__brand"><BrandMark tagline="Tài khoản bệnh nhân" /></div>
         <p className="section-note">ĐĂNG KÝ AN TOÀN</p>
         <h1 id="register-title">Tạo tài khoản bệnh nhân</h1>
         <p className="auth-card__intro">Số điện thoại giúp liên kết đúng lịch hẹn với hồ sơ của bạn. Không nhập triệu chứng hoặc dữ liệu khám bệnh tại đây.</p>

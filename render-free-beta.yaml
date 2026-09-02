@@ -48,7 +48,11 @@ services:
       - key: PYTHON_VERSION
         value: "3.12.11"
       - key: AI_PROVIDER
-        value: local
+        value: deepseek
+      - key: AI_CHAT_MODEL
+        value: deepseek-v4-flash
+      - key: AI_BASE_URL
+        value: https://api.deepseek.com
       - key: EMBEDDING_PROVIDER
         value: local
       - key: AI_SERVICE_RUNTIME
@@ -59,10 +63,14 @@ services:
         value: "false"
       - key: AI_CHAT_REMOTE_PROVIDER_ENABLED
         value: "false"
+      - key: AI_PUBLIC_HOSPITAL_SUPPORT_REMOTE_ENABLED
+        value: "true"
       - key: REMOTE_AI_SYNTHETIC_ONLY
         value: "true"
       - key: REMOTE_AI_KILL_SWITCH
         value: "true"
+      - key: AI_API_KEY
+        sync: false
       - key: RAG_STORAGE_BACKEND
         value: memory
       - key: RAG_INGEST_ENABLED
@@ -110,8 +118,8 @@ services:
       - key: CMS_DISTRIBUTED_REALTIME_ENABLED
         value: "true"
 
-      # HOSPITAL_SUPPORT uses the local-only FastAPI service. Clinical modes,
-      # remote providers and synthetic approval paths remain fail-closed.
+      # HOSPITAL_SUPPORT uses the remote DeepSeek-backed FastAPI service.
+      # Clinical modes and synthetic approval paths remain fail-closed.
       - key: AI_SERVICE_URL
         value: https://healthcare-beta-ai.onrender.com
       - key: AI_SERVICE_TOKEN
@@ -132,6 +140,8 @@ services:
         value: "false"
       - key: AI_CHAT_REMOTE_PROVIDER_ENABLED
         value: "false"
+      - key: AI_PUBLIC_HOSPITAL_SUPPORT_REMOTE_ENABLED
+        value: "true"
       - key: AI_CHAT_SYMPTOM_TRIAGE_ENABLED
         value: "false"
       - key: AI_CHAT_HEALTH_EDUCATION_ENABLED

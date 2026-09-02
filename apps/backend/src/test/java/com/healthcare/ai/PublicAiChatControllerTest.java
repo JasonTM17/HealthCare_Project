@@ -17,6 +17,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.http.HttpStatus.BAD_GATEWAY;
 
 class PublicAiChatControllerTest {
 
@@ -53,7 +54,7 @@ class PublicAiChatControllerTest {
         when(aiService.chat(any())).thenReturn(Map.of(
             "answer", "Bạn có thể xem danh sách chuyên khoa.",
             "disclaimer", "Chỉ mang tính tham khảo.",
-            "provenance", "local_provider",
+            "provenance", "remote_provider",
             "safety_action", "ANSWER",
             "mode", "HOSPITAL_SUPPORT",
             "recommended_specialty_id", "provider-id",
@@ -79,6 +80,7 @@ class PublicAiChatControllerTest {
                 "source_type", "specialty", "source_id", SPECIALTY_ID, "title", "Tim mạch")));
         verify(aiService).chat(Map.of(
             "message", "Chuyên khoa nào?",
+            "public_support_chat", true,
             "recent_turns", List.of(new PublicAiChatController.PublicChatTurn("user", "Xin chào"))
         ));
     }
@@ -104,14 +106,29 @@ class PublicAiChatControllerTest {
             .containsEntry("provenance", "local_provider")
             .containsEntry("safety_action", "ANSWER")
             .containsEntry("citations", List.of());
-        verify(aiService).chat(Map.of("message", "Xin chào"));
+        verify(aiService).chat(Map.of(
+            "message", "Xin chào",
+            "public_support_chat", true
+        ));
     }
 
     @Test
-    void failsClosedIfRemoteProvenanceLeaksIntoPublicChat() {
+    void propagatesAiServiceUnavailableAsBadGateway() {
+        AiService aiService = mock(AiService.class);
+        when(aiService.chat(any())).thenThrow(new org.springframework.web.server.ResponseStatusException(
+            BAD_GATEWAY, "AI service is unavailable"));
+
+        assertThatThrownBy(() -> new PublicAiChatController(aiService, resolverForSpecialty())
+            .chat(new PublicAiChatController.PublicChatRequest("Xin chào", null)))
+            .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+            .hasMessageContaining("502 BAD_GATEWAY");
+    }
+
+    @Test
+    void acceptsRemoteProviderWhenSanitized() {
         AiService aiService = mock(AiService.class);
         when(aiService.chat(any())).thenReturn(Map.of(
-            "answer", "Không được phép.",
+            "answer", "Bạn có thể xem danh sách chuyên khoa.",
             "provenance", "remote_provider",
             "mode", "HOSPITAL_SUPPORT",
             "disclaimer", "Chỉ mang tính tham khảo.",
@@ -119,10 +136,16 @@ class PublicAiChatControllerTest {
             "citations", List.of()
         ));
 
-        assertThatThrownBy(() -> new PublicAiChatController(aiService, resolverForSpecialty())
-            .chat(new PublicAiChatController.PublicChatRequest("Xin chào", null)))
-            .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
-            .hasMessageContaining("502 BAD_GATEWAY");
+        Map<String, Object> body = new PublicAiChatController(aiService, resolverForSpecialty())
+            .chat(new PublicAiChatController.PublicChatRequest("Xin chào", null))
+            .getBody();
+
+        assertThat(body)
+            .containsEntry("provenance", "remote_provider")
+            .containsEntry("mode", "HOSPITAL_SUPPORT")
+            .containsEntry("safety_action", "ANSWER")
+            .containsEntry("citations", List.of())
+            .containsKey("answer");
     }
 
     @Test

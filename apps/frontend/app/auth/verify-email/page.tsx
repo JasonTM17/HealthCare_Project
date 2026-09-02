@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState, type FormEvent } from "react";
+import BrandMark from "../../../components/BrandMark";
 import { hasRole, resendVerificationEmail, verifyEmail } from "../../../lib/api-client";
 import { useRouter } from "next/navigation";
 import { authErrorMessage, authFieldErrors, type AuthFieldErrors } from "../../../lib/auth-flow";
@@ -70,7 +71,7 @@ function VerifyEmailForm() {
     <main className="auth-page">
       <section aria-labelledby="verify-email-title" className="auth-card">
         <Link className="auth-card__back" href="/auth/login">← Về đăng nhập</Link>
-        <div className="auth-card__brand"><span aria-hidden="true" className="portal-brand__mark">+</span><span><strong>HealthCare</strong><small>Xác minh email</small></span></div>
+        <div className="auth-card__brand"><BrandMark tagline="Xác minh email" /></div>
         <p className="section-note">BẢO VỆ TÀI KHOẢN</p>
         <h1 id="verify-email-title">Xác minh email</h1>
         <p className="auth-card__intro">Nhập mã xác minh đã được gửi tới email đăng ký. Mã chỉ dùng một lần và có thời hạn.</p>
