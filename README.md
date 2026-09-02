@@ -59,13 +59,23 @@ diagnostic output. Both Free services recovered after their expected restart;
 `/livez` and `/actuator/health` returned HTTP 200, with no token-rejection or
 upstream-error entries observed in the post-rotation log window.
 
-The Vercel stable alias remains the already verified `READY` production
-deployment `dpl_DzX94fFP7QNxWZ5sPbwwsbCD2WaZ` at clean frontend source
-`17330d568380d2d3c3f0592606dd57d9dd0728b0`; this backend-only repair did not
-require a frontend redeploy. Supabase Free remains project
-`awaknzhadjglbfkhigck`; a current read-only schema check is pending renewed
-project-scoped MCP authorization, so this checkpoint makes no new remote DDL
-claim.
+The current Vercel stable alias is the `READY`/`PROMOTED` production deployment
+`dpl_GgVv8NSazanfx6XwiePTqAPRF3kV`, observed with the linked Vercel CLI on
+2026-09-02. It serves `healthcare-two-olive.vercel.app`; the provider response
+identifies the deployment as CLI-sourced but does not expose a Git commit SHA,
+so this checkpoint does not overclaim an exact frontend source binding. Direct
+probes of `/`, `/specialties`, and `/api/v1/health` returned HTTP 200.
+
+Supabase Free project `awaknzhadjglbfkhigck` is now verified read-only as
+`ACTIVE_HEALTHY` with eight migration rows ending at `20260830143140`. All 15
+`healthcare` tables have RLS enabled; aggregate checks returned 30 specialties,
+20 branches, 500 doctors, 200 services, 100 packages, 500 articles, 150 FAQs,
+1,247 doctor-specialty links, 747 doctor-branch links, 100,000 synthetic
+customers, 75,000 synthetic profiles, 10,000 public RAG documents, 37 seed
+chunks, and 830 de-identified chat-projection documents. The tombstone
+constraint/trigger/index and service-role-only pagination/match functions were
+present, while browser roles had no execute/read privilege on server-only
+projection tables. No remote DDL or migration was issued in this checkpoint.
 
 The storage cleanup removed 27 exact ignored/generated directories (about
 2.82 GiB) while preserving registered worktrees, backups, `.git`, Docker's
