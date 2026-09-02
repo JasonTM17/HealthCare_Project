@@ -49,10 +49,46 @@ is silently substituted, and no local Docker image is pulled to support it.
 Provider credentials stay in Render/Vercel/Supabase secret stores. Never commit
 or print a database password, BFF token, JWT secret, Supabase DB URL, or API key.
 
-## Current observed hosted snapshot (2026-09-01)
+## Current observed hosted snapshot (2026-09-02)
 
 Refresh this section after every release push; deployment IDs are evidence, not
 configuration:
+
+### Current backend repair overlay (2026-09-02)
+
+The sanitized missing-resource fix is source
+`bbecb296dd2dcd8864ab7a37b9f67d36f8b206dc`. CI
+[33534584349](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33534584349)
+and exact-source image publication
+[33534987723](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33534987723)
+completed successfully, including SBOM/provenance attestation. The backend
+artifact is:
+
+    ghcr.io/jasontm17/healthcare-project-backend@sha256:45b0bb679588ba7a6eb075a4dd867ed4b11c92fc42485ee94759d0f7c4f889d6
+
+Render deploy `dep-dabgeaqjnfac73al6qgg` is `live`, with requested image above
+and resolved platform SHA
+`sha256:16d01d2babcb143c0268f15fa3166e8ebefcd571780067f72749e2470c25d847`.
+The service health probe returned HTTP 200 after its documented Free cold start.
+With the configured BFF token and allowed Vercel origin, the former noisy path
+`/api/v1/hospital/=0&size=1` returned HTTP 404 with
+`code=RESOURCE_NOT_FOUND` and no technical exception details. No
+`NoResourceFoundException` error log appeared after the deploy. The canonical
+`render.yaml` and `render-free-beta.yaml` now pin this same immutable image.
+
+The shared Render RAG-ingest credential was rotated with explicit authorization
+on 2026-09-02. The replacement was generated in memory, applied only to the AI
+and backend service environments, and was not written to the repository or
+diagnostic output. Both Free services recovered after their expected restart;
+`/livez` and `/actuator/health` returned HTTP 200, with no token-rejection or
+upstream-error entries observed in the post-rotation log window.
+
+The Vercel stable alias remains deployment
+`dpl_DzX94fFP7QNxWZ5sPbwwsbCD2WaZ` at clean frontend source
+`17330d568380d2d3c3f0592606dd57d9dd0728b0`; no frontend redeploy was needed.
+The Supabase Free project remains `awaknzhadjglbfkhigck`; current read-only
+schema verification is pending renewed project-scoped MCP authorization, so no
+new remote migration or DDL is claimed here.
 
 ### Current exact-source overlay (01527af, 2026-09-01)
 
