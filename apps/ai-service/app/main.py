@@ -17,6 +17,7 @@ from app.embeddings import EmbeddingResult, embed
 from app.llm import (
     chat_safety_response,
     contains_sensitive_or_injection,
+    public_context_is_relevant,
     public_hospital_support_remote_enabled,
     patient_chat_remote_enabled,
     resolve_chat,
@@ -526,6 +527,13 @@ def chat(request: ChatRequest) -> ChatResponse:
         _citation(doc.source_type, doc.source_id, doc.title)
         for doc, _ in hits
     ]
+    if request.public_support_chat and not public_context_is_relevant(message, context):
+        # The local hash embedder can return unrelated catalog rows for
+        # greetings and broad visitor questions.  Do not present those rows as
+        # grounding context; the remote public-support prompt has a narrower
+        # no-source policy and the response carries no misleading citations.
+        context = []
+        citations = []
     response = resolve_chat(
         message,
         settings,
@@ -533,6 +541,7 @@ def chat(request: ChatRequest) -> ChatResponse:
         context=context,
         citations=citations,
         synthetic_beta=request.synthetic_beta,
+        allow_public_operational=request.public_support_chat,
         public_support_chat=request.public_support_chat,
     )
     final_provenance = merge_provenance(response.provenance, embedding_provenance)
