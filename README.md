@@ -70,11 +70,11 @@ instance stayed below `458510340` bytes. The AI service stayed below
 change was applied; continue observing before changing the Free topology.
 
 The current Vercel stable alias is the `READY`/`PROMOTED` production deployment
-`dpl_J7cVfuHcyQVZoXnyEahTfqd4Q78S`, observed with the linked Vercel CLI on
+`dpl_FeKrEoSmdbX4Z6KscpVBU8QuBXR7`, observed with the linked Vercel CLI on
 2026-09-02 after the responsive frontend fix. It serves
 `healthcare-two-olive.vercel.app`. The deployment upload was prepared from a
 clean detached checkout/archive at repository commit
-`2f0911520d44f8c0a18dee69121dfa711188d432`; however, the current
+`da860fc8b46d723cdcc3f2b55921a33324abb0a1`; however, the current
 `vercel inspect --format=json` response exposes neither `meta` nor `gitSource`,
 so a provider-side Git SHA/dirty flag is not independently verified. Direct
 probes of `/`, `/specialties`, and
