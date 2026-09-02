@@ -294,7 +294,7 @@ export default function AdminAiContentReviewsPage() {
           </div>
         ) : null}
         {!loading && items.length > 0 ? (
-          <div aria-label="Bảng inventory revision, có thể cuộn ngang" className="overflow-x-auto" tabIndex={0}>
+          <div aria-label="Bảng inventory revision, có thể cuộn ngang" className="overflow-x-auto" style={{ contain: "layout paint" }} tabIndex={0}>
             <table className="min-w-[760px] w-full text-left text-sm">
               <caption className="sr-only">Inventory revision nội dung AI</caption>
               <thead className="bg-teal-50 text-xs uppercase tracking-wide text-teal-950">

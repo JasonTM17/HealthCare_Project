@@ -31,6 +31,8 @@ test("patient consultation list and eligible appointments fail and retry indepen
   assert.match(page, /setAppointmentsRetry\(\(value\) => value \+ 1\)/);
   assert.match(page, /Đang tải danh sách tư vấn/);
   assert.match(page, /Đang tải lịch hẹn đủ điều kiện/);
+  assert.match(page, /<div className="grid min-w-0 gap-4 md:grid-cols-2">/);
+  assert.match(page, /className="min-h-11 w-full min-w-0 rounded-lg border border-slate-300 px-3"/);
 });
 
 test("patient consultation detail keeps cursor, read-state and attachment gates explicit", () => {
