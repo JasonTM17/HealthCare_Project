@@ -57,6 +57,27 @@ Desktop and WSL stop gates, the launcher rotates that exact parent again with a
 bounded retry, keeps every copy in a separate recovery quarantine, and requires
 the new parent to remain empty before starting Docker.
 
+The no-`-Restart` path is safe for the per-user startup entry: when Docker
+Desktop or its `docker-desktop` WSL distribution is already present but still
+resuming, the launcher waits for that existing startup and does not issue a
+stop, rotate runtime folders, or rewrite the settings store. When the host is
+cleanly stopped, it starts Desktop through the Explorer broker without
+rotating runtime folders. It only enters recovery after an explicit
+error-dialog signal. If a bounded clean/startup wait expires without that
+signal, it fails closed and leaves the host untouched; use an explicit
+`-Restart` after checking Docker Desktop. This prevents two owners from
+turning a slow cold start into a shutdown race while still allowing the
+per-user startup entry to start a stopped Desktop.
+
+The launcher also bounds every Docker/WSL CLI probe and drains its redirected
+output without waiting indefinitely. A timed-out WSL probe is treated as
+unknown rather than stopped: the quiescence gate keeps waiting and refuses
+runtime rotation if the state cannot be proved safe. No broader WSL shutdown or
+data-volume operation is attempted. The settings store is written only when
+the AI/Inference values actually change, and recovery writes it after the
+runtime parents are quarantined, so a repeated healthy auto-start does not
+trigger an avoidable backend reload.
+
 The workstation reported Docker Desktop `4.89.0.238018` on 2026-09-01, but the
 [public Docker Desktop release notes](https://docs.docker.com/desktop/release-notes/)
 did not yet document that build or confirm a fix for this inaccessible AF_UNIX
