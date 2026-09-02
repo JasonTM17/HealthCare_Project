@@ -52,6 +52,19 @@ $settingsPath = Join-Path ${env:APPDATA} 'Docker\settings-store.json'
 $recoveryLockPath = Join-Path $dockerRoot 'safe-launcher.lock'
 $env:DOCKER_HOST = $localDockerHost
 
+function Get-RemainingTimeoutMilliseconds {
+    param(
+        [Parameter(Mandatory)][DateTime]$Deadline,
+        [ValidateRange(1, 600000)][int]$Maximum = 5000
+    )
+
+    $remaining = [int][Math]::Floor(($Deadline - [DateTime]::UtcNow).TotalMilliseconds)
+    if ($remaining -le 0) {
+        return 0
+    }
+    return [Math]::Min($Maximum, $remaining)
+}
+
 function Get-DockerDesktopStatus {
     param([ValidateRange(1, 60000)][int]$TimeoutMilliseconds = 5000)
     try {
@@ -77,11 +90,15 @@ function Test-DockerDesktopRunning {
         if ($null -eq $status) {
             return $false
         }
-        return [string]::Equals(
-            [string]$status.Status,
-            'running',
-            [System.StringComparison]::OrdinalIgnoreCase
-        )
+        $states = @()
+        foreach ($propertyName in @('Status', 'State')) {
+            if ($null -ne $status.PSObject.Properties[$propertyName]) {
+                $states += ([string]$status.$propertyName).Trim()
+            }
+        }
+        return @($states | Where-Object {
+            [string]::Equals($_, 'running', [System.StringComparison]::OrdinalIgnoreCase)
+        }).Count -gt 0
     } catch {
         return $false
     }
@@ -95,12 +112,22 @@ function Test-DockerEngine {
     }
 
     try {
-        if (-not (Test-DockerDesktopRunning -TimeoutMilliseconds $TimeoutMilliseconds)) {
+        # The status and Engine probes share one wall-clock budget. Otherwise
+        # two individually bounded children could silently double the caller's
+        # advertised deadline during a broken cold start.
+        $deadline = [DateTime]::UtcNow.AddMilliseconds($TimeoutMilliseconds)
+        $remaining = Get-RemainingTimeoutMilliseconds -Deadline $deadline -Maximum $TimeoutMilliseconds
+        if (($remaining -le 0) -or
+            (-not (Test-DockerDesktopRunning -TimeoutMilliseconds $remaining))) {
+            return $false
+        }
+        $remaining = Get-RemainingTimeoutMilliseconds -Deadline $deadline -Maximum $TimeoutMilliseconds
+        if ($remaining -le 0) {
             return $false
         }
         $version = Invoke-BoundedProcess -FilePath $dockerPath `
             -Arguments 'version --format "server={{.Server.Version}}"' `
-            -TimeoutMilliseconds $TimeoutMilliseconds
+            -TimeoutMilliseconds $remaining
         return $version.Completed -and $version.ExitCode -eq 0 -and
             ([string]$version.StandardOutput -join ' ') -match '^server=\S+'
     } catch {
@@ -142,9 +169,10 @@ function Test-DockerWslRunning {
 }
 
 function Get-DockerWslState {
+    param([ValidateRange(1, 60000)][int]$TimeoutMilliseconds = 5000)
     try {
         $result = Invoke-BoundedProcess -FilePath $wslPath `
-            -Arguments '--list --running --quiet' -TimeoutMilliseconds 5000
+            -Arguments '--list --running --quiet' -TimeoutMilliseconds $TimeoutMilliseconds
         if (-not $result.Completed -or $result.ExitCode -ne 0) {
             return [pscustomobject]@{ Known = $false; Running = $false }
         }
@@ -161,13 +189,14 @@ function Get-DockerWslState {
 }
 
 function Test-DockerStartupFailure {
+    param([ValidateRange(1, 5)][int]$TimeoutSeconds = 5)
     try {
         # Docker Desktop exposes a dedicated error-dialog process after the
         # backend has failed.  Treat that as a confirmed failed startup so a
         # non-restart auto-start invocation can enter the bounded recovery
         # path.  A normal Desktop/frontend process alone is not failure
         # evidence: WSL can legitimately take several minutes to resume.
-        $errorDialog = @(Get-CimInstance Win32_Process -OperationTimeoutSec 5 -ErrorAction SilentlyContinue |
+        $errorDialog = @(Get-CimInstance Win32_Process -OperationTimeoutSec $TimeoutSeconds -ErrorAction SilentlyContinue |
             Where-Object {
                 $_.Name -eq 'Docker Desktop.exe' -and
                 $_.CommandLine -match '--name=error-dialog'
@@ -230,33 +259,47 @@ function Confirm-DockerRecoveryAuthority {
 function Wait-DockerStartupReady {
     param([Parameter(Mandatory)][int]$Seconds)
 
-    $deadline = (Get-Date).AddSeconds($Seconds)
-    do {
-        if (Test-DockerEngine) {
+    $deadline = [DateTime]::UtcNow.AddSeconds($Seconds)
+    while ([DateTime]::UtcNow -lt $deadline) {
+        $remaining = Get-RemainingTimeoutMilliseconds -Deadline $deadline -Maximum 5000
+        if (($remaining -gt 0) -and
+            (Test-DockerEngine -TimeoutMilliseconds $remaining)) {
             return $true
         }
-        if (Test-DockerStartupFailure) {
+        $remaining = Get-RemainingTimeoutMilliseconds -Deadline $deadline -Maximum 5000
+        if (($remaining -ge 1000) -and
+            (Test-DockerStartupFailure -TimeoutSeconds ([Math]::Max(1, [Math]::Min(5, [int][Math]::Floor($remaining / 1000)))))) {
             return $false
         }
-        Start-Sleep -Seconds 2
-    } while ((Get-Date) -lt $deadline)
+        $remaining = Get-RemainingTimeoutMilliseconds -Deadline $deadline -Maximum 2000
+        if ($remaining -gt 0) {
+            Start-Sleep -Milliseconds $remaining
+        }
+    }
 
-    return (Test-DockerEngine)
+    return $false
 }
 
 function Wait-DockerStopped {
     param([Parameter(Mandatory)][int]$Seconds)
 
-    $deadline = (Get-Date).AddSeconds($Seconds)
-    do {
+    $deadline = [DateTime]::UtcNow.AddSeconds($Seconds)
+    while ([DateTime]::UtcNow -lt $deadline) {
         $processes = @(Get-DockerProcesses)
-        $wsl = Get-DockerWslState
+        $remaining = Get-RemainingTimeoutMilliseconds -Deadline $deadline -Maximum 5000
+        if ($remaining -le 0) {
+            return $false
+        }
+        $wsl = Get-DockerWslState -TimeoutMilliseconds $remaining
         $pipePresent = Test-Path -LiteralPath $enginePipe
         if (($processes.Count -eq 0) -and $wsl.Known -and (-not $wsl.Running) -and (-not $pipePresent)) {
             return $true
         }
-        Start-Sleep -Milliseconds 500
-    } while ((Get-Date) -lt $deadline)
+        $remaining = Get-RemainingTimeoutMilliseconds -Deadline $deadline -Maximum 500
+        if ($remaining -gt 0) {
+            Start-Sleep -Milliseconds $remaining
+        }
+    }
 
     return $false
 }
@@ -388,13 +431,18 @@ function Get-BackendBoolean {
 function Wait-DockerEngineReady {
     param([Parameter(Mandatory)][int]$Seconds)
 
-    $deadline = (Get-Date).AddSeconds($Seconds)
-    do {
-        if (Test-DockerEngine) {
+    $deadline = [DateTime]::UtcNow.AddSeconds($Seconds)
+    while ([DateTime]::UtcNow -lt $deadline) {
+        $remaining = Get-RemainingTimeoutMilliseconds -Deadline $deadline -Maximum 5000
+        if (($remaining -gt 0) -and
+            (Test-DockerEngine -TimeoutMilliseconds $remaining)) {
             return $true
         }
-        Start-Sleep -Seconds 2
-    } while ((Get-Date) -lt $deadline)
+        $remaining = Get-RemainingTimeoutMilliseconds -Deadline $deadline -Maximum 2000
+        if ($remaining -gt 0) {
+            Start-Sleep -Milliseconds $remaining
+        }
+    }
 
     return $false
 }
@@ -485,12 +533,27 @@ function Wait-DockerStable {
         return
     }
 
-    $deadline = (Get-Date).AddSeconds($StabilitySeconds)
-    while ((Get-Date) -lt $deadline) {
-        if (-not (Test-DockerEngine)) {
+    $deadline = [DateTime]::UtcNow.AddSeconds($StabilitySeconds)
+    while ([DateTime]::UtcNow -lt $deadline) {
+        $remaining = Get-RemainingTimeoutMilliseconds -Deadline $deadline -Maximum 5000
+        # A full status+Engine probe needs a small amount of wall-clock room.
+        # Once only the final sub-second tail remains, preserve the last
+        # successful observation and let the declared stability window expire
+        # instead of converting an already-healthy engine into a false failure
+        # merely because a new probe could not finish before the deadline.
+        if ($remaining -lt 1000) {
+            if ($remaining -gt 0) {
+                Start-Sleep -Milliseconds $remaining
+            }
+            break
+        }
+        if (-not (Test-DockerEngine -TimeoutMilliseconds $remaining)) {
             throw "Docker engine became unavailable during the $StabilitySeconds-second stability gate."
         }
-        Start-Sleep -Seconds 2
+        $remaining = Get-RemainingTimeoutMilliseconds -Deadline $deadline -Maximum 2000
+        if ($remaining -gt 0) {
+            Start-Sleep -Milliseconds $remaining
+        }
     }
 }
 
@@ -569,15 +632,26 @@ try {
 
     Start-DockerDesktopSafely
 
-    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
-    while ((Get-Date) -lt $deadline) {
-        Start-Sleep -Seconds 3
-        if (Test-DockerEngine) {
+    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+    $healthyAfterRecovery = $false
+    while ([DateTime]::UtcNow -lt $deadline) {
+        $remaining = Get-RemainingTimeoutMilliseconds -Deadline $deadline -Maximum 3000
+        if ($remaining -gt 0) {
+            Start-Sleep -Milliseconds $remaining
+        }
+        $remaining = Get-RemainingTimeoutMilliseconds -Deadline $deadline -Maximum 5000
+        if (($remaining -gt 0) -and
+            (Test-DockerEngine -TimeoutMilliseconds $remaining)) {
+            $healthyAfterRecovery = $true
             break
         }
     }
 
-    if (-not (Test-DockerEngine)) {
+    # Do not add an unbudgeted final Engine probe here. The last bounded probe
+    # above is the authoritative result for this recovery deadline; a fresh
+    # probe after expiry could make a caller that asked for N seconds wait
+    # another several seconds merely to print the failure diagnostics.
+    if (-not $healthyAfterRecovery) {
         $errorPath = Join-Path $dockerRoot 'backend.error.json'
         $detail = if (Test-Path -LiteralPath $errorPath -PathType Leaf) {
             [System.IO.File]::ReadAllText($errorPath)
