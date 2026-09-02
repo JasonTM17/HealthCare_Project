@@ -94,7 +94,11 @@ below rather than assuming one SHA for every platform.
   Render Free service `srv-daal7kgn74is73bafjqg`, exact-source live deploy
   `dep-daba3ortqb8s73f9kcug` at source `01527af`. `/livez` returned HTTP 200;
   provider and embeddings remain local fallback, and remote clinical/patient AI
-  is off.
+  is off. A coordinated restart briefly produced backend `502` calls while the
+  Free AI process was still booting; the AI instance then became ready at
+  `02:09:54Z`, with no subsequent token-rejection, OOM or fatal-restart signal
+  in the observed window. Render Free startup ordering remains an availability
+  limitation, not a credential or Docker corruption signal.
 - Database: Render Free PostgreSQL remains the Spring/Flyway authority. The
   Supabase Free project holds only the additive `healthcare` projection and
   its eight audited migration rows; consumers remain fail-closed.

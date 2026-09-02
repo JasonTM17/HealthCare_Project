@@ -56,8 +56,18 @@ The shared Render RAG-ingest credential was rotated with explicit authorization
 on 2026-09-02. The replacement was generated in memory, applied only to the AI
 and backend service environments, and was not written to the repository or
 diagnostic output. Both Free services recovered after their expected restart;
-`/livez` and `/actuator/health` returned HTTP 200, with no token-rejection or
-upstream-error entries observed in the post-rotation log window.
+`/livez` and `/actuator/health` returned HTTP 200. The coordinated restart did
+produce transient backend `502` entries for `/rag/index`, `/rag/sources` and
+`/chat` while the AI Free service was still starting (its new instance began
+listening at `02:09:54Z`); no token-rejection, OOM or fatal-restart entry was
+observed after both services became ready. This is the documented Free-plan
+startup-order limitation, not evidence of a credential mismatch.
+
+A 12-hour Render metrics recheck on 2026-09-02 recorded the backend peak at
+`464334850` bytes against the `536870900`-byte Free limit (~86.5%); the second
+instance stayed below `458510340` bytes. The AI service stayed below
+`76808190` bytes. No OOM signal was present, so no speculative JVM or plan
+change was applied; continue observing before changing the Free topology.
 
 The current Vercel stable alias is the `READY`/`PROMOTED` production deployment
 `dpl_J7cVfuHcyQVZoXnyEahTfqd4Q78S`, observed with the linked Vercel CLI on
