@@ -1,3 +1,4 @@
+import threading as _threading
 import re
 import secrets
 from datetime import datetime
@@ -85,7 +86,6 @@ rag_service = build_rag_service(settings)
 # exhaustion and cascading timeouts under load spikes.
 # FastAPI runs sync endpoints in a thread pool, so threading.Semaphore is
 # the correct primitive here (asyncio.Semaphore would not work across threads).
-import threading as _threading
 _LLM_MAX_CONCURRENCY = 8  # adjust based on provider tier and expected load
 _llm_semaphore = _threading.Semaphore(_LLM_MAX_CONCURRENCY)
 
