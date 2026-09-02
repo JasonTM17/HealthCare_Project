@@ -97,16 +97,18 @@ def test_recovery_waits_for_a_real_local_engine_response_and_stability_gate() ->
     assert "dockerDesktopLinuxEngine" in text
     assert "npipe:////./pipe/dockerDesktopLinuxEngine" in text
     assert "desktop status --format json" in module
-    assert "WaitForExit($TimeoutMilliseconds)" in module
+    assert "WaitForExit($remaining)" in module
     assert "$process.Kill()" in module
     assert "ReadToEndAsync()" in module
-    assert "$stdoutTask.Wait(1000)" in module
-    assert "$stderrTask.Wait(1000)" in module
+    assert "$stdoutTask.Wait($remaining)" in module
+    assert "$stderrTask.Wait($remaining)" in module
     assert "Drain both redirected pipes" in module
     assert "Invoke-DockerDesktopStatusProbe -DockerPath $dockerPath" in text
     assert "Invoke-DockerDesktopStatusProbe" in combined
     assert "Test-DockerDesktopRunning" in text
-    assert "status.Status" in text
+    assert "status.$propertyName" in text
+    assert "foreach ($propertyName in @('Status', 'State'))" in text
+    assert "StringComparison]::OrdinalIgnoreCase" in text
     assert "cached Docker API response" in text
     assert "MaximumRecreations" in module
     assert "Quarantines were preserved" in module
@@ -134,7 +136,7 @@ def test_non_restart_startup_guard_never_stops_a_cold_start() -> None:
 
     assert "function Test-DockerStartupFailure" in text
     assert "--name=error-dialog" in text
-    assert "-OperationTimeoutSec 5" in text
+    assert "-OperationTimeoutSec $TimeoutSeconds" in text
     assert "function Test-DockerStartupInProgress" in text
     assert "function Wait-DockerStartupReady" in text
     assert "Docker Desktop is already starting; waiting up to" in text
@@ -196,11 +198,30 @@ $child = Invoke-BoundedProcess -FilePath {_ps_quote(powershell)} `
 if ($child.Completed) {{ throw 'hung child unexpectedly completed' }}
 [ordered]@{{ completed = $child.Completed; exitCode = $child.ExitCode }} | ConvertTo-Json -Compress
 """
+    started = __import__("time").monotonic()
     result = _run_powershell(command, timeout=15)
+    elapsed = __import__("time").monotonic() - started
     assert result.returncode == 0, result.stdout + result.stderr
     payload = json.loads(result.stdout.strip().splitlines()[-1])
     assert payload["completed"] is False
     assert payload["exitCode"] is None
+    assert elapsed < 3, f"500 ms child timeout took {elapsed:.2f} seconds"
+
+
+def test_wait_loops_share_their_declared_wall_clock_budget() -> None:
+    text = _script()
+    module = _module()
+
+    assert "function Get-RemainingTimeoutMilliseconds" in text
+    assert "two individually bounded children could silently double" in text
+    assert "Get-RemainingTimeoutMilliseconds -Deadline $deadline" in text
+    assert "return (Test-DockerEngine)" not in text
+    assert "$TimeoutMilliseconds - [int]$stopwatch.ElapsedMilliseconds" in module
+    assert "$stdoutTask.Wait($remaining)" in module
+    assert "$stderrTask.Wait($remaining)" in module
+    assert "healthyAfterRecovery" in text
+    assert "Do not add an unbudgeted final Engine probe" in text
+    assert "final sub-second tail" in text
 
 
 def test_ai_settings_are_inserted_and_verified_without_exposing_secrets() -> None:

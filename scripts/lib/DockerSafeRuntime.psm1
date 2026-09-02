@@ -11,6 +11,7 @@ function Invoke-BoundedProcess {
     $process = $null
     $stdoutTask = $null
     $stderrTask = $null
+    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     try {
         $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
         $startInfo.FileName = $FilePath
@@ -36,17 +37,13 @@ function Invoke-BoundedProcess {
         # diagnostics. Every wait below has a hard upper bound.
         $stdoutTask = $process.StandardOutput.ReadToEndAsync()
         $stderrTask = $process.StandardError.ReadToEndAsync()
-        if (-not $process.WaitForExit($TimeoutMilliseconds)) {
+        $remaining = [Math]::Max(1, $TimeoutMilliseconds - [int]$stopwatch.ElapsedMilliseconds)
+        if (-not $process.WaitForExit($remaining)) {
             try {
                 $process.Kill()
             } catch {
                 # A bounded wait is the authority; the caller treats this as
                 # an unavailable process even if it exited during Kill().
-            }
-            try {
-                [void]$process.WaitForExit(1000)
-            } catch {
-                # The process may already have exited after Kill().
             }
             return [pscustomobject]@{
                 Completed = $false
@@ -58,7 +55,8 @@ function Invoke-BoundedProcess {
 
         # A process can exit while a redirected reader is still draining. Do
         # not wait forever for a broken child; incomplete output is a failure.
-        if (-not $stdoutTask.Wait(1000)) {
+        $remaining = $TimeoutMilliseconds - [int]$stopwatch.ElapsedMilliseconds
+        if (($remaining -le 0) -or (-not $stdoutTask.Wait($remaining))) {
             return [pscustomobject]@{
                 Completed = $false
                 ExitCode = $null
@@ -66,7 +64,15 @@ function Invoke-BoundedProcess {
                 StandardError = ''
             }
         }
-        [void]$stderrTask.Wait(1000)
+        $remaining = $TimeoutMilliseconds - [int]$stopwatch.ElapsedMilliseconds
+        if (($remaining -le 0) -or (-not $stderrTask.Wait($remaining))) {
+            return [pscustomobject]@{
+                Completed = $false
+                ExitCode = $null
+                StandardOutput = ''
+                StandardError = ''
+            }
+        }
         return [pscustomobject]@{
             Completed = $true
             ExitCode = $process.ExitCode
@@ -118,6 +124,24 @@ function Test-DockerDesktopStarting {
     }
     return @($states | Where-Object {
         $_ -match '^(starting|launching|resuming|initializing|restarting)$'
+    }).Count -gt 0
+}
+
+function Test-DockerDesktopStopped {
+    [CmdletBinding()]
+    param([AllowNull()]$Status)
+
+    if ($null -eq $Status) {
+        return $false
+    }
+    $states = @()
+    foreach ($propertyName in @('Status', 'State')) {
+        if ($null -ne $Status.PSObject.Properties[$propertyName]) {
+            $states += ([string]$Status.$propertyName).Trim()
+        }
+    }
+    return @($states | Where-Object {
+        $_ -match '^(stopped|exited|closed)$'
     }).Count -gt 0
 }
 
@@ -416,4 +440,4 @@ function Get-DockerRuntimeQuarantineSummary {
     }
 }
 
-Export-ModuleMember -Function Invoke-BoundedProcess, Invoke-DockerDesktopStatusProbe, Test-DockerDesktopStarting, Set-DockerAiStore, Assert-DockerHostCapacity, Open-DockerRecoveryLock, Rotate-DockerRuntimeDirectory, Rotate-DockerRuntimeDirectories, Get-DockerRuntimeQuarantineSummary
+Export-ModuleMember -Function Invoke-BoundedProcess, Invoke-DockerDesktopStatusProbe, Test-DockerDesktopStarting, Test-DockerDesktopStopped, Set-DockerAiStore, Assert-DockerHostCapacity, Open-DockerRecoveryLock, Rotate-DockerRuntimeDirectory, Rotate-DockerRuntimeDirectories, Get-DockerRuntimeQuarantineSummary
