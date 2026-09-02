@@ -125,6 +125,19 @@ _SENSITIVE_TERMS = (
     "medical record", "patient record", "patient id", "ma ho so", "ma benh an",
     "so benh an", "benh an",
 )
+# A public preparation answer may refer to bringing an old medical record as a
+# generic document.  That label is safe only when it is not attached to an
+# owner or an identifier; those value-shaped forms remain covered by the
+# normal sensitive-data patterns below.
+_PUBLIC_GENERIC_RECORD_GUIDANCE_PATTERN = re.compile(
+    r"\b(?:ho\s+so\s+benh\s+an|benh\s+an|medical\s+records?|patient\s+records?)\b",
+    re.IGNORECASE,
+)
+_PUBLIC_RECORD_OWNERSHIP_PATTERN = re.compile(
+    r"\b(?:ho\s+so\s+benh\s+an|benh\s+an|medical\s+records?|patient\s+records?)\b"
+    r"\s+(?:cua|of|for)\b",
+    re.IGNORECASE,
+)
 # A generic booking label is ordinary public guidance (for example, telling a
 # visitor to bring their booking code).  Only treat it as sensitive when a
 # value-shaped token follows it; the backend applies the same value check at
@@ -473,6 +486,11 @@ def public_no_context_query_allowed(query: str) -> bool:
         normalized,
     ):
         return True
+    if re.search(
+        r"\bchuan\s+bi(?:\s+[a-z0-9]+){0,4}\s+truoc\s+khi\s+(?:di\s+)?kham\b",
+        normalized,
+    ):
+        return True
     return any(
         phrase in normalized
         for phrase in (
@@ -527,6 +545,7 @@ def chat_contains_sensitive_data(
     recent_turns: Sequence[tuple[str, str]] = (),
     *,
     allow_public_operational: bool = False,
+    allow_public_generic_guidance: bool = False,
 ) -> bool:
     combined = "\n".join([*(content for _, content in recent_turns), message])
     normalized = _normalize_sensitive_text(combined)
@@ -549,6 +568,15 @@ def chat_contains_sensitive_data(
             "public operational booking label",
             normalized,
         )
+    if allow_public_generic_guidance:
+        # Generic preparation guidance may mention a record as a document to
+        # bring.  Never mask an ownership phrase such as "hồ sơ bệnh án của"
+        # or an attached identifier; those must remain fail-closed.
+        if not _PUBLIC_RECORD_OWNERSHIP_PATTERN.search(normalized):
+            normalized = _PUBLIC_GENERIC_RECORD_GUIDANCE_PATTERN.sub(
+                "public generic record label",
+                normalized,
+            )
     return bool(
         _EMAIL_PATTERN.search(normalized)
         or _PHONE_PATTERN.search(normalized)
@@ -584,13 +612,15 @@ def contains_sensitive_or_injection(
     value: str,
     *,
     allow_public_operational: bool = False,
+    allow_public_generic_guidance: bool = False,
 ) -> bool:
     """Shared fail-closed gate for any text that could leave the service."""
 
-    return (
-        chat_contains_sensitive_data(value, allow_public_operational=allow_public_operational)
-        or contains_prompt_injection(value)
-    )
+    return chat_contains_sensitive_data(
+        value,
+        allow_public_operational=allow_public_operational,
+        allow_public_generic_guidance=allow_public_generic_guidance,
+    ) or contains_prompt_injection(value)
 
 
 def context_contains_sensitive_data(
@@ -628,6 +658,7 @@ def remote_text_output_is_safe(
     value: str,
     *,
     allow_public_operational: bool = False,
+    allow_public_generic_guidance: bool = False,
 ) -> bool:
     """Reject provider-created PII, authority claims, actions, and markup."""
 
@@ -640,6 +671,7 @@ def remote_text_output_is_safe(
         contains_sensitive_or_injection(
             value,
             allow_public_operational=allow_public_operational,
+            allow_public_generic_guidance=allow_public_generic_guidance,
         )
         or _REMOTE_OUTPUT_FORBIDDEN_PATTERN.search(normalized)
     )
@@ -1193,6 +1225,7 @@ def resolve_chat(
         if not remote_text_output_is_safe(
             answer,
             allow_public_operational=allow_public_operational,
+            allow_public_generic_guidance=public_support_chat,
         ) or not remote_answer_is_grounded(
             answer,
             context,
