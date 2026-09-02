@@ -30,6 +30,11 @@ if (-not $dockerCommand) {
 } else {
     $dockerPath = $dockerCommand.Source
 }
+$wslCommand = Get-Command wsl.exe -ErrorAction SilentlyContinue
+if (-not $wslCommand) {
+    throw 'WSL CLI was not found.'
+}
+$wslPath = $wslCommand.Source
 
 $desktopPath = Join-Path ${env:ProgramFiles} 'Docker\Docker\Docker Desktop.exe'
 if (-not (Test-Path -LiteralPath $desktopPath -PathType Leaf)) {
@@ -48,8 +53,10 @@ $recoveryLockPath = Join-Path $dockerRoot 'safe-launcher.lock'
 $env:DOCKER_HOST = $localDockerHost
 
 function Get-DockerDesktopStatus {
+    param([ValidateRange(1, 60000)][int]$TimeoutMilliseconds = 5000)
     try {
-        $output = Invoke-DockerDesktopStatusProbe -DockerPath $dockerPath
+        $output = Invoke-DockerDesktopStatusProbe -DockerPath $dockerPath `
+            -TimeoutMilliseconds $TimeoutMilliseconds
         if ([string]::IsNullOrWhiteSpace($output)) {
             return $null
         }
@@ -60,12 +67,13 @@ function Get-DockerDesktopStatus {
 }
 
 function Test-DockerDesktopRunning {
+    param([ValidateRange(1, 60000)][int]$TimeoutMilliseconds = 5000)
     try {
         # Resource Saver keeps the named pipe and a cached Docker API response
         # alive after the Linux VM has stopped.  A successful `docker version`
         # alone is therefore not proof that the daemon is running.  Ask the
         # Desktop control plane for its authoritative JSON state first.
-        $status = Get-DockerDesktopStatus
+        $status = Get-DockerDesktopStatus -TimeoutMilliseconds $TimeoutMilliseconds
         if ($null -eq $status) {
             return $false
         }
@@ -80,17 +88,21 @@ function Test-DockerDesktopRunning {
 }
 
 function Test-DockerEngine {
+    param([ValidateRange(1, 60000)][int]$TimeoutMilliseconds = 5000)
     if ($env:DOCKER_HOST -ne $localDockerHost -or
         -not (Test-Path -LiteralPath $enginePipe)) {
         return $false
     }
 
     try {
-        if (-not (Test-DockerDesktopRunning)) {
+        if (-not (Test-DockerDesktopRunning -TimeoutMilliseconds $TimeoutMilliseconds)) {
             return $false
         }
-        $version = & $dockerPath version --format 'server={{.Server.Version}}' 2>$null
-        return $LASTEXITCODE -eq 0 -and ($version -join ' ') -match '^server=\S+'
+        $version = Invoke-BoundedProcess -FilePath $dockerPath `
+            -Arguments 'version --format "server={{.Server.Version}}"' `
+            -TimeoutMilliseconds $TimeoutMilliseconds
+        return $version.Completed -and $version.ExitCode -eq 0 -and
+            ([string]$version.StandardOutput -join ' ') -match '^server=\S+'
     } catch {
         return $false
     }
@@ -122,14 +134,114 @@ function Get-DockerProcesses {
 }
 
 function Test-DockerWslRunning {
+    $probe = Get-DockerWslState
+    if (-not $probe.Known) {
+        return $null
+    }
+    return [bool]$probe.Running
+}
+
+function Get-DockerWslState {
     try {
-        $running = @(& wsl.exe --list --running --quiet 2>$null | ForEach-Object {
-            (([string]$_) -replace "`0", '').Trim()
+        $result = Invoke-BoundedProcess -FilePath $wslPath `
+            -Arguments '--list --running --quiet' -TimeoutMilliseconds 5000
+        if (-not $result.Completed -or $result.ExitCode -ne 0) {
+            return [pscustomobject]@{ Known = $false; Running = $false }
+        }
+        $running = @(([string]$result.StandardOutput -split "`r?`n") | ForEach-Object {
+            (($_ -replace "`0", '').Trim())
         } | Where-Object { $_ })
-        return $running -contains 'docker-desktop'
+        return [pscustomobject]@{
+            Known = $true
+            Running = ($running -contains 'docker-desktop')
+        }
+    } catch {
+        return [pscustomobject]@{ Known = $false; Running = $false }
+    }
+}
+
+function Test-DockerStartupFailure {
+    try {
+        # Docker Desktop exposes a dedicated error-dialog process after the
+        # backend has failed.  Treat that as a confirmed failed startup so a
+        # non-restart auto-start invocation can enter the bounded recovery
+        # path.  A normal Desktop/frontend process alone is not failure
+        # evidence: WSL can legitimately take several minutes to resume.
+        $errorDialog = @(Get-CimInstance Win32_Process -OperationTimeoutSec 5 -ErrorAction SilentlyContinue |
+            Where-Object {
+                $_.Name -eq 'Docker Desktop.exe' -and
+                $_.CommandLine -match '--name=error-dialog'
+            })
+        return $errorDialog.Count -gt 0
     } catch {
         return $false
     }
+}
+
+function Test-DockerStartupInProgress {
+    if (Test-DockerEngine) {
+        return $false
+    }
+
+    # Do not interrupt a legitimate cold start.  The process/WSL signals are
+    # deliberately checked instead of the named pipe alone because Resource
+    # Saver and a stale pipe can outlive the Linux daemon.
+    # The control plane can report `starting` before either the named pipe,
+    # WSL distribution, or Desktop child process is visible. Treat that state
+    # as an owned cold start so the no-`-Restart` path never rotates it.
+    $status = Get-DockerDesktopStatus
+    if (Test-DockerDesktopStarting -Status $status) {
+        return $true
+    }
+
+    if (Test-DockerStartupFailure) {
+        return $false
+    }
+
+    $processes = @(Get-DockerProcesses)
+    $wsl = Get-DockerWslState
+    # An unavailable WSL probe is not proof that the distribution is stopped.
+    # Treat it as an owned/ambiguous startup so the automatic path cannot
+    # rotate runtime parents while WSL state is unknown.
+    return ($processes.Count -gt 0) -or (-not $wsl.Known) -or [bool]$wsl.Running
+}
+
+function Confirm-DockerRecoveryAuthority {
+    # A no-`-Restart` repair is allowed only while an explicit Desktop error
+    # dialog is present and the control plane is not beginning a new startup.
+    # This second, immediately-before-stop check closes the race where an
+    # error dialog disappears and Desktop starts again between the preflight
+    # and the destructive stop operation. Explicit `-Restart` remains the
+    # user's authority for a stopped/unknown state.
+    if (Test-DockerEngine) {
+        throw 'Docker engine became healthy; recovery was cancelled without stopping Desktop.'
+    }
+
+    $status = Get-DockerDesktopStatus
+    if (Test-DockerDesktopStarting -Status $status) {
+        throw 'Docker Desktop entered a new startup; recovery was cancelled without stopping Desktop.'
+    }
+
+    if ((-not $Restart) -and (-not (Test-DockerStartupFailure))) {
+        throw 'Docker Desktop is not reporting an explicit startup failure; recovery was not authorized. Retry with -Restart after checking Desktop.'
+    }
+}
+
+function Wait-DockerStartupReady {
+    param([Parameter(Mandatory)][int]$Seconds)
+
+    $deadline = (Get-Date).AddSeconds($Seconds)
+    do {
+        if (Test-DockerEngine) {
+            return $true
+        }
+        if (Test-DockerStartupFailure) {
+            return $false
+        }
+        Start-Sleep -Seconds 2
+    } while ((Get-Date) -lt $deadline)
+
+    return (Test-DockerEngine)
 }
 
 function Wait-DockerStopped {
@@ -138,9 +250,9 @@ function Wait-DockerStopped {
     $deadline = (Get-Date).AddSeconds($Seconds)
     do {
         $processes = @(Get-DockerProcesses)
-        $wslRunning = Test-DockerWslRunning
+        $wsl = Get-DockerWslState
         $pipePresent = Test-Path -LiteralPath $enginePipe
-        if (($processes.Count -eq 0) -and (-not $wslRunning) -and (-not $pipePresent)) {
+        if (($processes.Count -eq 0) -and $wsl.Known -and (-not $wsl.Running) -and (-not $pipePresent)) {
             return $true
         }
         Start-Sleep -Milliseconds 500
@@ -150,8 +262,13 @@ function Wait-DockerStopped {
 }
 
 function Stop-DockerDesktopSafely {
+    if (-not $Restart) {
+        Confirm-DockerRecoveryAuthority
+    }
+
+    $wslAtEntry = Get-DockerWslState
     if ((@(Get-DockerProcesses).Count -eq 0) -and
-        (-not (Test-DockerWslRunning)) -and
+        $wslAtEntry.Known -and (-not $wslAtEntry.Running) -and
         (-not (Test-Path -LiteralPath $enginePipe))) {
         return
     }
@@ -183,7 +300,14 @@ function Stop-DockerDesktopSafely {
     # The supported stop path did not fully quiesce. Force only Docker Desktop
     # processes and only Docker's own WSL distribution.
     @(Get-DockerProcesses) | Stop-Process -Force -ErrorAction SilentlyContinue
-    $null = & wsl.exe --terminate docker-desktop 2>$null
+    $terminate = Invoke-BoundedProcess -FilePath $wslPath `
+        -Arguments '--terminate docker-desktop' `
+        -TimeoutMilliseconds ($StopTimeoutSeconds * 1000)
+    if (-not $terminate.Completed) {
+        # Continue to the bounded stopped-state check; never wait on a hung
+        # WSL process or broaden termination to another distribution.
+        Write-Warning 'WSL docker-desktop termination command timed out; the bounded stopped-state check remains authoritative.'
+    }
     if (-not (Wait-DockerStopped -Seconds $StopTimeoutSeconds)) {
         $remaining = @((Get-DockerProcesses) | ForEach-Object { "$($_.ProcessName):$($_.Id)" }) -join ', '
         throw "Docker Desktop did not quiesce; runtime directories were not changed. Remaining: $remaining"
@@ -291,6 +415,14 @@ function Start-DockerDesktopSafely {
         throw 'An interactive Windows Explorer session is required to start Docker Desktop independently.'
     }
 
+    # A second startup owner may have appeared between the preflight and this
+    # handoff. Re-check the authoritative signals immediately before opening
+    # Desktop so the per-user Run entry cannot create two Docker instances.
+    if ((Test-DockerEngine -TimeoutMilliseconds 5000) -or
+        (Test-DockerStartupInProgress)) {
+        return
+    }
+
     $broker = Start-Process -FilePath $explorerPath `
         -ArgumentList @("`"$desktopPath`"") `
         -WindowStyle Hidden -PassThru
@@ -324,8 +456,10 @@ function Disable-AndVerifyDockerAi {
         return
     }
 
-    & $dockerPath desktop disable model-runner 2>&1 | Out-Null
-    if ($LASTEXITCODE -ne 0) {
+    $disable = Invoke-BoundedProcess -FilePath $dockerPath `
+        -Arguments 'desktop disable model-runner' `
+        -TimeoutMilliseconds ($TimeoutSeconds * 1000)
+    if (-not $disable.Completed -or $disable.ExitCode -ne 0) {
         throw 'Docker engine is healthy, but the supported model-runner disable command failed.'
     }
 
@@ -363,15 +497,52 @@ function Wait-DockerStable {
 Assert-DockerHostCapacity -Path $dockerRoot -MinimumFreeBytes $MinimumHostFreeBytes
 $recoveryLock = Open-DockerRecoveryLock -Path $recoveryLockPath
 try {
-    if (-not $KeepDockerAI) {
-        [void](Set-DockerAiStore -SettingsPath $settingsPath)
-    }
+    if (-not $Restart) {
+        if (Test-DockerEngine) {
+            Disable-AndVerifyDockerAi
+            if (-not $KeepDockerAI) {
+                [void](Set-DockerAiStore -SettingsPath $settingsPath)
+            }
+            Wait-DockerStable
+            Write-Output 'Docker Desktop engine is healthy; AI/Inference settings were verified and no runtime rotation was needed.'
+            return
+        }
 
-    if ((-not $Restart) -and (Test-DockerEngine)) {
-        Disable-AndVerifyDockerAi
-        Wait-DockerStable
-        Write-Output 'Docker Desktop engine is healthy; AI/Inference settings were verified and no runtime rotation was needed.'
-        return
+        if (Test-DockerStartupInProgress) {
+            Write-Output "Docker Desktop is already starting; waiting up to $TimeoutSeconds seconds before taking any recovery action."
+            if (Wait-DockerStartupReady -Seconds $TimeoutSeconds) {
+                Disable-AndVerifyDockerAi
+                if (-not $KeepDockerAI) {
+                    [void](Set-DockerAiStore -SettingsPath $settingsPath)
+                }
+                Wait-DockerStable
+                Write-Output 'Docker Desktop engine became healthy during an existing startup; no stop or runtime rotation was performed.'
+                return
+            }
+
+            Confirm-DockerRecoveryAuthority
+            Write-Warning 'Docker Desktop reported a startup error; continuing with the bounded stale-runtime recovery path.'
+        } else {
+            # A cleanly stopped machine is the normal state at logon for the
+            # per-user Run entry. Start it without stopping or rotating any
+            # runtime parent. If the new startup reports an explicit error,
+            # the recovery path below becomes authorized; an unexplained
+            # timeout fails closed and leaves the host untouched.
+            Write-Output "Docker Desktop is stopped; starting it without runtime rotation and waiting up to $TimeoutSeconds seconds."
+            Start-DockerDesktopSafely
+            if (Wait-DockerStartupReady -Seconds $TimeoutSeconds) {
+                Disable-AndVerifyDockerAi
+                if (-not $KeepDockerAI) {
+                    [void](Set-DockerAiStore -SettingsPath $settingsPath)
+                }
+                Wait-DockerStable
+                Write-Output 'Docker Desktop became healthy after a clean start; no stop or runtime rotation was performed.'
+                return
+            }
+
+            Confirm-DockerRecoveryAuthority
+            Write-Warning 'Docker Desktop reported a startup error after a clean start; continuing with the bounded stale-runtime recovery path.'
+        }
     }
 
     Stop-DockerDesktopSafely
@@ -387,6 +558,13 @@ try {
         }
     } catch {
         throw "Docker was stopped, but exact runtime rotation failed safely: $($_.Exception.Message)"
+    }
+
+    # The settings store is changed only after Desktop is stopped and the
+    # exact runtime parents are quarantined. This prevents a settings write
+    # from triggering a concurrent backend reload during cold-start recovery.
+    if (-not $KeepDockerAI) {
+        [void](Set-DockerAiStore -SettingsPath $settingsPath)
     }
 
     Start-DockerDesktopSafely
@@ -412,7 +590,14 @@ try {
     Disable-AndVerifyDockerAi
     Wait-DockerStable
 
-    $serverVersion = (& $dockerPath version --format '{{.Server.Version}}' 2>$null | Select-Object -Last 1).Trim()
+    $versionResult = Invoke-BoundedProcess -FilePath $dockerPath `
+        -Arguments 'version --format "{{.Server.Version}}"' `
+        -TimeoutMilliseconds 5000
+    $serverVersion = if ($versionResult.Completed -and $versionResult.ExitCode -eq 0) {
+        ([string]$versionResult.StandardOutput -split "`r?`n" | Select-Object -Last 1).Trim()
+    } else {
+        'unknown'
+    }
     Write-Output "Docker Desktop is healthy (local engine $serverVersion)."
     foreach ($directory in $quarantined) {
         Write-Output "Runtime directory quarantined: $directory"

@@ -1,11 +1,11 @@
 Set-StrictMode -Version 2.0
 
-function Invoke-DockerDesktopStatusProbe {
+function Invoke-BoundedProcess {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)][string]$DockerPath,
-        [string]$Arguments = 'desktop status --format json',
-        [ValidateRange(1, 60000)][int]$TimeoutMilliseconds = 5000
+        [Parameter(Mandatory)][string]$FilePath,
+        [string]$Arguments = '',
+        [ValidateRange(1, 600000)][int]$TimeoutMilliseconds = 5000
     )
 
     $process = $null
@@ -13,7 +13,7 @@ function Invoke-DockerDesktopStatusProbe {
     $stderrTask = $null
     try {
         $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
-        $startInfo.FileName = $DockerPath
+        $startInfo.FileName = $FilePath
         $startInfo.Arguments = $Arguments
         $startInfo.UseShellExecute = $false
         $startInfo.CreateNoWindow = $true
@@ -23,48 +23,102 @@ function Invoke-DockerDesktopStatusProbe {
         $process = [System.Diagnostics.Process]::new()
         $process.StartInfo = $startInfo
         if (-not $process.Start()) {
-            return $null
+            return [pscustomobject]@{
+                Completed = $false
+                ExitCode = $null
+                StandardOutput = ''
+                StandardError = ''
+            }
         }
 
-        # Drain both redirected pipes while the CLI is running. Waiting for
-        # the child before reading either stream can deadlock when a broken
-        # Docker CLI/plugin writes enough diagnostics to fill a Windows pipe.
+        # Drain both redirected pipes while the child is running. Waiting for
+        # the child before reading either stream can deadlock on noisy CLI
+        # diagnostics. Every wait below has a hard upper bound.
         $stdoutTask = $process.StandardOutput.ReadToEndAsync()
         $stderrTask = $process.StandardError.ReadToEndAsync()
         if (-not $process.WaitForExit($TimeoutMilliseconds)) {
             try {
                 $process.Kill()
             } catch {
-                # The bounded wait is the important guard; the caller treats
-                # a timeout as an unavailable status and fails closed.
+                # A bounded wait is the authority; the caller treats this as
+                # an unavailable process even if it exited during Kill().
             }
             try {
                 [void]$process.WaitForExit(1000)
             } catch {
                 # The process may already have exited after Kill().
             }
-            return $null
+            return [pscustomobject]@{
+                Completed = $false
+                ExitCode = $null
+                StandardOutput = ''
+                StandardError = ''
+            }
         }
 
-        # The asynchronous readers normally complete with the process. Keep
-        # a short bounded drain so disposal never waits indefinitely on a
-        # misbehaving child, while still collecting the status JSON.
+        # A process can exit while a redirected reader is still draining. Do
+        # not wait forever for a broken child; incomplete output is a failure.
         if (-not $stdoutTask.Wait(1000)) {
-            return $null
+            return [pscustomobject]@{
+                Completed = $false
+                ExitCode = $null
+                StandardOutput = ''
+                StandardError = ''
+            }
         }
         [void]$stderrTask.Wait(1000)
-        $output = $stdoutTask.Result
-        if (($process.ExitCode -ne 0) -or [string]::IsNullOrWhiteSpace($output)) {
-            return $null
+        return [pscustomobject]@{
+            Completed = $true
+            ExitCode = $process.ExitCode
+            StandardOutput = $stdoutTask.Result
+            StandardError = if ($stderrTask.IsCompleted) { $stderrTask.Result } else { '' }
         }
-        return $output
     } catch {
-        return $null
+        return [pscustomobject]@{
+            Completed = $false
+            ExitCode = $null
+            StandardOutput = ''
+            StandardError = $_.Exception.Message
+        }
     } finally {
         if ($null -ne $process) {
             $process.Dispose()
         }
     }
+}
+
+function Invoke-DockerDesktopStatusProbe {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$DockerPath,
+        [string]$Arguments = 'desktop status --format json',
+        [ValidateRange(1, 60000)][int]$TimeoutMilliseconds = 5000
+    )
+
+    $result = Invoke-BoundedProcess -FilePath $DockerPath -Arguments $Arguments -TimeoutMilliseconds $TimeoutMilliseconds
+    if (-not $result.Completed -or ($result.ExitCode -ne 0) -or
+        [string]::IsNullOrWhiteSpace($result.StandardOutput)) {
+        return $null
+    }
+    return $result.StandardOutput
+}
+
+function Test-DockerDesktopStarting {
+    [CmdletBinding()]
+    param([AllowNull()]$Status)
+
+    if ($null -eq $Status) {
+        return $false
+    }
+    $states = @()
+    foreach ($propertyName in @('Status', 'State')) {
+        if ($null -ne $Status.PSObject.Properties[$propertyName]) {
+            $states += ([string]$Status.$propertyName).Trim()
+        }
+    }
+    return @($states | Where-Object {
+        $_ -match '^(starting|launching|resuming|initializing|restarting)$'
+    }).Count -gt 0
 }
 
 function Assert-ExactAllowedPath {
@@ -121,13 +175,23 @@ function Set-DockerAiStore {
         throw "Docker settings store is not valid JSON: $SettingsPath"
     }
 
+    $changed = $false
     foreach ($name in @('EnableDockerAI', 'EnableInference')) {
         $property = $settings.PSObject.Properties[$name]
         if ($null -eq $property) {
             $settings | Add-Member -MemberType NoteProperty -Name $name -Value $false
-        } else {
+            $changed = $true
+        } elseif ($property.Value -ne $false) {
             $property.Value = $false
+            $changed = $true
         }
+    }
+
+    # Docker Desktop watches this file and may reload its backend/WSL services
+    # after a write. An unchanged auto-start invocation must not create a
+    # second socket owner or interrupt an otherwise healthy engine.
+    if (-not $changed) {
+        return $null
     }
 
     $backup = "$SettingsPath.before-safe-start"
@@ -352,4 +416,4 @@ function Get-DockerRuntimeQuarantineSummary {
     }
 }
 
-Export-ModuleMember -Function Invoke-DockerDesktopStatusProbe, Set-DockerAiStore, Assert-DockerHostCapacity, Open-DockerRecoveryLock, Rotate-DockerRuntimeDirectory, Rotate-DockerRuntimeDirectories, Get-DockerRuntimeQuarantineSummary
+Export-ModuleMember -Function Invoke-BoundedProcess, Invoke-DockerDesktopStatusProbe, Test-DockerDesktopStarting, Set-DockerAiStore, Assert-DockerHostCapacity, Open-DockerRecoveryLock, Rotate-DockerRuntimeDirectory, Rotate-DockerRuntimeDirectories, Get-DockerRuntimeQuarantineSummary

@@ -6,6 +6,8 @@ import com.healthcare.exception.ErrorCodes;
 import com.healthcare.hospital.dto.ArticleRequest;
 import com.healthcare.hospital.entity.Article;
 import com.healthcare.hospital.repository.ArticleRepository;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +15,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.SQLException;
 import java.time.OffsetDateTime;
 
 @Service
@@ -56,7 +59,7 @@ public class AdminArticleService {
         applyRichFields(article, request);
         article.setActive(request.active());
         applyPublicationState(article, request, true);
-        Article saved = articleRepository.saveAndFlush(article);
+        Article saved = saveArticle(article);
         if (revisionService != null) revisionService.recordArticle(saved, actor);
         return saved;
     }
@@ -87,7 +90,7 @@ public class AdminArticleService {
         applyRichFields(article, request);
         article.setActive(request.active());
         applyPublicationState(article, request, false);
-        Article saved = articleRepository.saveAndFlush(article);
+        Article saved = saveArticle(article);
         if (revisionService != null) revisionService.recordArticle(saved, actor);
         return saved;
     }
@@ -140,6 +143,65 @@ public class AdminArticleService {
         if (request.clinicalMetadata() != null) article.setClinicalMetadata(HospitalJsonMapper.stringObject(request.clinicalMetadata()));
         if (request.clinicalDisclaimer() != null) article.setClinicalDisclaimer(request.clinicalDisclaimer().strip());
         if (request.featured() != null) article.setFeatured(request.featured());
+    }
+
+    /**
+     * The read-before-write slug check is only an early UX failure.  The
+     * database unique constraint remains the authority when two admins submit
+     * the same slug concurrently.  Translate only that known article-slug
+     * collision; unrelated integrity failures must retain their original
+     * error path instead of being hidden as a duplicate article.
+     */
+    private Article saveArticle(Article article) {
+        try {
+            return articleRepository.saveAndFlush(article);
+        } catch (DataIntegrityViolationException failure) {
+            if (isArticleSlugConflict(failure)) {
+                throw new DuplicateResourceException(
+                    ErrorCodes.CONFLICT,
+                    "Article slug already exists"
+                );
+            }
+            throw failure;
+        }
+    }
+
+    private boolean isArticleSlugConflict(Throwable failure) {
+        Throwable current = failure;
+        while (current != null) {
+            if (current instanceof ConstraintViolationException constraint) {
+                String name = constraint.getConstraintName();
+                if (name != null && name.equalsIgnoreCase("articles_slug_key")) {
+                    return true;
+                }
+            }
+            if (current instanceof SQLException sqlException
+                    && "23505".equals(sqlException.getSQLState())
+                    && mentionsArticleSlug(current.getMessage())) {
+                return true;
+            }
+            if (mentionsArticleSlug(current.getMessage())
+                    && containsUniqueMarker(current.getMessage())) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private boolean mentionsArticleSlug(String message) {
+        if (message == null) return false;
+        String normalized = message.toLowerCase(java.util.Locale.ROOT);
+        return normalized.contains("articles_slug_key")
+            || (normalized.contains("articles") && normalized.contains("slug"));
+    }
+
+    private boolean containsUniqueMarker(String message) {
+        if (message == null) return false;
+        String normalized = message.toLowerCase(java.util.Locale.ROOT);
+        return normalized.contains("duplicate")
+            || normalized.contains("unique")
+            || normalized.contains("violates");
     }
 
     private void applyPublicationState(Article article, ArticleRequest request, boolean creating) {

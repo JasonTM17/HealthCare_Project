@@ -58,7 +58,8 @@ def test_recovery_rotates_only_the_two_runtime_parent_directories() -> None:
 def test_recovery_preserves_docker_data_and_other_wsl_distributions() -> None:
     text = (_script() + _module()).lower()
 
-    assert "wsl.exe --terminate docker-desktop" in text
+    assert "invoke-boundedprocess -filepath $wslpath" in text
+    assert "--terminate docker-desktop" in text
     assert "wsl.exe --shutdown" not in text
     assert "wsl.exe --unregister" not in text
     assert "docker system prune" not in text
@@ -66,6 +67,26 @@ def test_recovery_preserves_docker_data_and_other_wsl_distributions() -> None:
     assert "remove-item" not in text
     assert "powercfg" not in text
     assert "wsl data disk" in text
+
+
+def test_wsl_probe_and_settings_mutation_fail_closed_and_are_idempotent() -> None:
+    text = _script()
+    module = _module()
+
+    assert "function Get-DockerWslState" in text
+    assert "Known = $false; Running = $false" in text
+    assert "-not $wsl.Known" in text
+    assert "$processes.Count -eq 0) -and $wsl.Known" in text
+    assert "if (-not $changed)" in module
+    assert "Docker Desktop watches this file" in module
+
+    # In the destructive recovery path, mutate settings only after the stop
+    # and exact runtime-parent rotation have both completed.
+    main = text[text.index("Assert-DockerHostCapacity -Path $dockerRoot") :]
+    recovery_comment = main.index("# The settings store is changed only after")
+    assert main.index("Stop-DockerDesktopSafely") < recovery_comment
+    assert main.index("Rotate-DockerRuntimeDirectories") < recovery_comment
+    assert recovery_comment < main.rindex("Set-DockerAiStore -SettingsPath $settingsPath")
 
 
 def test_recovery_waits_for_a_real_local_engine_response_and_stability_gate() -> None:
@@ -89,7 +110,7 @@ def test_recovery_waits_for_a_real_local_engine_response_and_stability_gate() ->
     assert "cached Docker API response" in text
     assert "MaximumRecreations" in module
     assert "Quarantines were preserved" in module
-    assert "version --format 'server={{.Server.Version}}'" in text
+    assert "version --format \"server={{.Server.Version}}\"" in text
     assert "Docker Desktop did not become healthy" in text
     assert "Wait-DockerStable" in text
     assert "Quarantine was preserved" in text
@@ -100,6 +121,86 @@ def test_recovery_waits_for_a_real_local_engine_response_and_stability_gate() ->
     assert "docker desktop stop" in text
     assert "WaitForExit($StopTimeoutSeconds * 1000)" in text
     assert "if (Test-DockerEngine)" in text
+    assert "Test-DockerDesktopStarting -Status $status" in text
+    assert "Invoke-BoundedProcess -FilePath $dockerPath" in text
+    assert "Invoke-BoundedProcess -FilePath $wslPath" in text
+    assert "& $dockerPath" not in text
+    assert "& wsl.exe" not in text
+
+
+def test_non_restart_startup_guard_never_stops_a_cold_start() -> None:
+    """The per-user auto-start path must not turn a slow WSL resume into a stop/start race."""
+    text = _script()
+
+    assert "function Test-DockerStartupFailure" in text
+    assert "--name=error-dialog" in text
+    assert "-OperationTimeoutSec 5" in text
+    assert "function Test-DockerStartupInProgress" in text
+    assert "function Wait-DockerStartupReady" in text
+    assert "Docker Desktop is already starting; waiting up to" in text
+    assert "recovery was not authorized" in text
+    assert "without stopping Desktop" in text
+    assert "Docker Desktop is stopped; starting it without runtime rotation" in text
+    assert "became healthy after a clean start; no stop or runtime rotation was performed" in text
+    assert "A second startup owner may have appeared between the preflight" in text
+
+    # The startup preflight must run before the settings-store write used by
+    # the recovery path.  A write during WSL resume can trigger another
+    # backend reload and recreate the stale socket.
+    main = text[text.index("Assert-DockerHostCapacity -Path $dockerRoot") :]
+    assert main.index("if (-not $Restart)") < main.index("Set-DockerAiStore -SettingsPath $settingsPath")
+    assert main.index("Wait-DockerStartupReady -Seconds $TimeoutSeconds") < main.index("Stop-DockerDesktopSafely")
+
+
+@pytest.mark.skipif(POWERSHELL is None, reason="Windows PowerShell 5.1 or pwsh is unavailable")
+def test_control_plane_starting_state_is_treated_as_an_in_progress_startup() -> None:
+    command = f"""
+$ErrorActionPreference = 'Stop'
+Import-Module {_ps_quote(MODULE)} -Force
+$result = [ordered]@{{
+    starting = Test-DockerDesktopStarting ([pscustomobject]@{{ Status = 'starting' }})
+    launching = Test-DockerDesktopStarting ([pscustomobject]@{{ Status = 'launching' }})
+    resuming = Test-DockerDesktopStarting ([pscustomobject]@{{ Status = 'resuming' }})
+    initializing = Test-DockerDesktopStarting ([pscustomobject]@{{ Status = 'initializing' }})
+    restarting = Test-DockerDesktopStarting ([pscustomobject]@{{ Status = 'restarting' }})
+    stateFallback = Test-DockerDesktopStarting ([pscustomobject]@{{ State = 'starting' }})
+    running = Test-DockerDesktopStarting ([pscustomobject]@{{ Status = 'running' }})
+    stopped = Test-DockerDesktopStarting ([pscustomobject]@{{ Status = 'stopped' }})
+}}
+$result | ConvertTo-Json -Compress
+"""
+    result = _run_powershell(command)
+    assert result.returncode == 0, result.stdout + result.stderr
+    payload = json.loads(result.stdout.strip().splitlines()[-1])
+    assert payload == {
+        "starting": True,
+        "launching": True,
+        "resuming": True,
+        "initializing": True,
+        "restarting": True,
+        "stateFallback": True,
+        "running": False,
+        "stopped": False,
+    }
+
+
+@pytest.mark.skipif(POWERSHELL is None, reason="Windows PowerShell 5.1 or pwsh is unavailable")
+def test_bounded_process_returns_after_a_hung_child_timeout() -> None:
+    powershell = Path(POWERSHELL).resolve()
+    command = f"""
+$ErrorActionPreference = 'Stop'
+Import-Module {_ps_quote(MODULE)} -Force
+$child = Invoke-BoundedProcess -FilePath {_ps_quote(powershell)} `
+    -Arguments '-NoLogo -NoProfile -NonInteractive -Command "Start-Sleep -Seconds 10"' `
+    -TimeoutMilliseconds 500
+if ($child.Completed) {{ throw 'hung child unexpectedly completed' }}
+[ordered]@{{ completed = $child.Completed; exitCode = $child.ExitCode }} | ConvertTo-Json -Compress
+"""
+    result = _run_powershell(command, timeout=15)
+    assert result.returncode == 0, result.stdout + result.stderr
+    payload = json.loads(result.stdout.strip().splitlines()[-1])
+    assert payload["completed"] is False
+    assert payload["exitCode"] is None
 
 
 def test_ai_settings_are_inserted_and_verified_without_exposing_secrets() -> None:
