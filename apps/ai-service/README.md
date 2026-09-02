@@ -28,14 +28,14 @@ enable trusted ingestion, configure both `RAG_INGEST_ENABLED=true` and a secret
 `RAG_INGEST_TOKEN`, then send that token in the `X-RAG-Ingest-Token` header.
 Do not expose this endpoint publicly.
 
-The hosted Free beta intentionally uses `AI_PROVIDER=local`,
-`EMBEDDING_PROVIDER=local`, `RAG_STORAGE_BACKEND=memory`, and protected
-ingestion from the Spring public catalog. Render Free web services can spin
-down and their local state is ephemeral, so Spring performs an initial sync and
-then reconciles every five minutes. This is a beta availability trade-off, not
-durable RAG persistence. The service and ingest tokens stay server-side in
-Render; only `/livez` is unauthenticated. Remote patient/clinical AI remains
-disabled.
+The hosted Free beta intentionally uses `AI_PROVIDER=deepseek` for the public
+hospital-support chat surface, `EMBEDDING_PROVIDER=local`,
+`RAG_STORAGE_BACKEND=memory`, and protected ingestion from the Spring public
+catalog. Render Free web services can spin down and their local state is
+ephemeral, so Spring performs an initial sync and then reconciles every five
+minutes. This is a beta availability trade-off, not durable RAG persistence.
+The service and ingest tokens stay server-side in Render; only `/livez` is
+unauthenticated. Patient/clinical remote AI remains disabled.
 
 For the patient chatbot, the durable adapter must use the protected projection
 contract: `SUPABASE_DB_SCHEMA=healthcare`,
@@ -85,6 +85,7 @@ AI_MAX_INPUT_CHARS=10000
 AI_MAX_RETRIEVED_CHUNKS=5
 AI_PATIENT_CHAT_REMOTE_ENABLED=false
 AI_CHAT_REMOTE_PROVIDER_ENABLED=false
+AI_PUBLIC_HOSPITAL_SUPPORT_REMOTE_ENABLED=false
 AI_SERVICE_RUNTIME=local
 REMOTE_AI_SYNTHETIC_ONLY=true
 REMOTE_AI_KILL_SWITCH=true
@@ -121,12 +122,12 @@ model provenance, privacy review, and negative-PII tests have been approved.
 Remote patient-answer egress is **HOLD in this build**. Startup rejects either
 `AI_PATIENT_CHAT_REMOTE_ENABLED=true` or
 `AI_CHAT_REMOTE_PROVIDER_ENABLED=true`, and the runtime patient-chat gate also
-returns false defensively. The OpenAI-compatible adapters remain only for
-isolated provider-contract tests and non-patient experimentation; they are not
-an authorization path for patient text. The synthetic beta therefore uses the
-grounded local provider with the deterministic 384-dimensional embedding
-profile. Enabling a future DeepSeek canary requires a separately reviewed code
-change in addition to provider/privacy evidence and the synthetic-only guard.
+returns false defensively. Public hospital-support remote egress is controlled
+separately by `AI_PUBLIC_HOSPITAL_SUPPORT_REMOTE_ENABLED=true`. The
+OpenAI-compatible adapters remain only for isolated provider-contract tests
+and non-patient experimentation; they are not an authorization path for
+patient text. The synthetic beta therefore keeps patient chat grounded while
+the public support route can use the configured DeepSeek provider.
 
 Embedding vectors are capped at 4,096 dimensions. Indexed documents retain
 their embedding model and provenance, reject mixed model/provenance/dimension
@@ -139,10 +140,11 @@ Provider adapters use no automatic retries and a bounded timeout of at most 60
 seconds. Patient chat and triage always resolve through the local provider in
 this build; local output is never presented as a successful remote result.
 `/health` returns HTTP 503 when authentication or the selected non-patient
-provider readiness is not valid. No remote liveness probe is performed: a
-configured remote provider reports `remote_probe_required: true` and remains
-unready until a bounded probe is added. Patient text and secrets are not
-logged.
+provider readiness is not valid. A configured public remote provider is
+treated as ready when `AI_PUBLIC_HOSPITAL_SUPPORT_REMOTE_ENABLED=true`; the
+health response still reports `remote_probe_required: true` when the selected
+provider is remote but the public-support flag is not enabled. Patient text
+and secrets are not logged.
 
 Patient conversation requests are local-only, independently of the provider
 chosen for non-patient AI routes. The two patient remote flags are fail-closed

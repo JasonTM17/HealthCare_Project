@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     # deployment must opt into the patient-chat egress path twice: once in the
     # AI service and once in Spring's provenance gate.
     ai_chat_remote_provider_enabled: bool = False
+    # Public hospital-support chat may use the remote provider only when this
+    # separate flag is enabled.  Patient/chatbot remote egress remains blocked.
+    ai_public_hospital_support_remote_enabled: bool = False
     # Remote provider adapters remain available for isolated contract tests,
     # but patient-answer egress is HOLD in this build. These fields are kept
     # so an old deployment fails clearly instead of silently changing meaning.

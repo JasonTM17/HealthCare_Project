@@ -107,6 +107,26 @@ def test_configured_remote_provider_is_fail_closed_without_a_liveness_probe(
     remote_client.assert_not_called()
 
 
+def test_public_hospital_support_remote_configuration_is_ready(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "ai_service_token", "service-token")
+    monkeypatch.setattr(settings, "ai_service_runtime", "staging")
+    monkeypatch.setattr(settings, "ai_provider", "deepseek")
+    monkeypatch.setattr(settings, "ai_api_key", "test-key")
+    monkeypatch.setattr(settings, "ai_public_hospital_support_remote_enabled", True)
+
+    response = client.get(
+        "/health",
+        headers={"X-AI-Service-Token": "service-token"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["provider_configured"] is True
+    assert response.json()["remote_probe_required"] is False
+    assert response.json()["ready"] is True
+
+
 def test_unknown_chat_provider_is_unready_even_with_credentials(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

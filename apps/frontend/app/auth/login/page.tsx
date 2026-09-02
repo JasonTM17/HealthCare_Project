@@ -57,11 +57,7 @@ export default function LoginPage() {
       <section aria-labelledby="login-title" className="auth-card">
         <Link className="auth-card__back" href="/">← Về trang chính</Link>
         <div className="auth-card__brand">
-          <BrandMark />
-          <span>
-            <strong>HealthCare</strong>
-            <small>Đăng nhập an toàn</small>
-          </span>
+          <BrandMark tagline="Đăng nhập an toàn" />
         </div>
         <p className="section-note">CỔNG THÔNG TIN CÁ NHÂN</p>
         <h1 id="login-title">Đăng nhập tài khoản</h1>

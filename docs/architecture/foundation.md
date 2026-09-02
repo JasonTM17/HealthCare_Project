@@ -56,9 +56,9 @@
   backend gateway forwards its service token and requires an explicit `ok` plus
   `ready: true` health JSON status. The internal search hop uses POST and the
   Uvicorn container disables access logs; public/proxy GET query logging remains
-  an operational configuration limitation. Configured remote providers are
-  explicitly fail-closed at readiness (`remote_probe_required: true`) because
-  this slice performs no live provider liveness probe.
+  an operational configuration limitation. Configured remote providers remain
+  fail-closed at readiness unless the separate public hospital-support remote
+  flag is enabled and the selected provider has a configured credential/model.
 
 ## Current Non-Goals
 

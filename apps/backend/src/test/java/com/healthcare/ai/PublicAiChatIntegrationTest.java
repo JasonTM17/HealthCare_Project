@@ -32,7 +32,7 @@ class PublicAiChatIntegrationTest extends AbstractIntegrationTest {
         when(aiService.chat(any())).thenReturn(Map.of(
             "answer", "Bạn có thể xem chuyên khoa Tim mạch.",
             "disclaimer", "Thông tin chỉ mang tính tham khảo.",
-            "provenance", "local_provider",
+            "provenance", "remote_provider",
             "safety_action", "ANSWER",
             "mode", "HOSPITAL_SUPPORT",
             "citations", List.of(Map.of(

@@ -398,6 +398,17 @@ def patient_chat_remote_enabled(settings: Any) -> bool:
     return False
 
 
+def public_hospital_support_remote_enabled(settings: Any) -> bool:
+    """Allow the public hospital-support surface to use the remote provider."""
+
+    value = getattr(settings, "ai_public_hospital_support_remote_enabled", False)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().casefold() in {"1", "true", "yes", "on"}
+    return False
+
+
 def contains_prompt_injection(value: str) -> bool:
     """Return whether untrusted text contains a known instruction override."""
 
@@ -1021,6 +1032,7 @@ def resolve_chat(
     client: LLMClient | None = None,
     synthetic_beta: bool = False,
     allow_public_operational: bool = False,
+    public_support_chat: bool = False,
 ) -> ChatResponse:
     """Resolve a bounded chat request without accepting model-created citations."""
 
@@ -1028,22 +1040,31 @@ def resolve_chat(
     if safety_response is not None:
         return safety_response
 
+    public_remote_enabled = public_support_chat and public_hospital_support_remote_enabled(settings)
     fallback_allowed = runtime_allows_local_fallback(settings)
     fallback = _chat_fallback(message, context)
     if context_contains_unsafe_data(
         context,
         allow_public_operational=allow_public_operational,
     ):
+        if public_remote_enabled:
+            raise ProviderUnavailable()
         return ChatResponse(answer=fallback, provenance="local_fallback", used_sources=list(used_sources))
-    if not synthetic_beta or not patient_chat_remote_enabled(settings):
+    if public_support_chat and not public_remote_enabled:
+        return ChatResponse(answer=fallback, provenance="local_fallback", used_sources=list(used_sources))
+    if not public_support_chat and (not synthetic_beta or not patient_chat_remote_enabled(settings)):
         return ChatResponse(answer=fallback, provenance="local_fallback", used_sources=list(used_sources))
     client = client or build_llm_client(settings)
     if client is None:
+        if public_remote_enabled:
+            raise ProviderUnavailable()
         if not fallback_allowed:
             raise ProviderUnavailable()
         return ChatResponse(answer=fallback, provenance="local_fallback", used_sources=list(used_sources))
 
     if not _circuit_allows_request():
+        if public_remote_enabled:
+            raise ProviderUnavailable()
         if fallback_allowed:
             return ChatResponse(answer=fallback, provenance="local_fallback", used_sources=list(used_sources))
         raise ProviderUnavailable()
@@ -1073,6 +1094,8 @@ def resolve_chat(
             context,
             allow_public_operational=allow_public_operational,
         ):
+            if public_remote_enabled:
+                raise ProviderUnavailable()
             return ChatResponse(
                 answer=fallback,
                 provenance="local_fallback",
@@ -1091,6 +1114,8 @@ def resolve_chat(
         raise
     except Exception:
         _record_provider_failure(settings)
+        if public_remote_enabled:
+            raise ProviderUnavailable()
         if fallback_allowed:
             return ChatResponse(answer=fallback, provenance="local_fallback", used_sources=list(used_sources))
         raise ProviderUnavailable()

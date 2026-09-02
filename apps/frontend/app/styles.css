@@ -4688,8 +4688,9 @@ main {
   width: 100%;
   padding: 0 var(--sp-4);
   border: 1px solid var(--color-line);
-  border-radius: var(--radius-sm);
+  border-radius: 0.75rem;
   background: var(--color-paper-bright);
+  transition: border-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
 }
 
 .portal-lookup-form input:focus,
@@ -4796,23 +4797,42 @@ main {
 }
 
 .auth-page {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   min-height: 100dvh;
   min-width: 0;
   display: grid;
   place-items: center;
   padding: var(--sp-6);
-  background: var(--color-paper);
+  background:
+    radial-gradient(circle at 12% 8%, rgb(190 235 238 / 36%), transparent 34%),
+    linear-gradient(145deg, #f4fbfa 0%, var(--color-paper) 48%, #eef5f6 100%);
+}
+
+.auth-page::before {
+  position: absolute;
+  right: -8rem;
+  bottom: -10rem;
+  width: 24rem;
+  height: 24rem;
+  border: 1px solid rgb(0 75 80 / 10%);
+  border-radius: 50%;
+  content: "";
+  pointer-events: none;
 }
 
 .auth-card {
+  position: relative;
+  z-index: 1;
   width: min(100%, 31rem);
   min-width: 0;
   max-width: 100%;
-  padding: clamp(var(--sp-6), 6vw, var(--sp-12));
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-lg);
-  background: oklch(99.2% 0.005 100 / 0.94);
-  box-shadow: var(--shadow-lift);
+  padding: clamp(2rem, 5vw, 3.25rem);
+  border: 1px solid rgb(32 48 47 / 14%);
+  border-radius: 1.5rem;
+  background: rgb(255 255 255 / 96%);
+  box-shadow: 0 24px 70px rgb(0 51 54 / 12%), 0 2px 6px rgb(0 51 54 / 5%);
 }
 
 .auth-card__back {
@@ -4851,9 +4871,9 @@ main {
   margin: 0;
   color: var(--color-teal-950);
   font-family: var(--font-display);
-  font-size: 2.5rem;
+  font-size: clamp(2rem, 5vw, 2.75rem);
   letter-spacing: 0;
-  line-height: 1.1;
+  line-height: 1.08;
 }
 
 .auth-card__intro,
@@ -8402,6 +8422,8 @@ main {
 .site-shell--public-route .resource-hero-card {
   position: relative;
   overflow: hidden;
+  grid-template-columns: minmax(5rem, 7rem) minmax(0, 1fr);
+  box-shadow: 0 24px 52px rgb(0 28 30 / 14%);
 }
 
 .site-shell--public-route .resource-hero-card--teal::after {
@@ -8423,14 +8445,25 @@ main {
 }
 
 .site-shell--public-route .resource-hero-card__body h2 {
-  max-width: 28ch;
-  font-size: clamp(1.75rem, 3vw, 2.5rem);
+  max-width: 24ch;
+  font-size: clamp(1.8rem, 3vw, 2.55rem);
   text-wrap: balance;
 }
 
 .site-shell--public-route .resource-hero-card--teal .resource-lead {
   color: #cce9e6 !important;
   font-weight: 600;
+  max-width: 62ch;
+}
+
+.site-shell--public-route .resource-meta-grid div {
+  min-width: 0;
+  border-color: rgb(255 255 255 / 18%);
+  background: rgb(255 255 255 / 96%);
+}
+
+.site-shell--public-route .resource-meta-grid dd {
+  overflow-wrap: anywhere;
 }
 
 .site-shell--public-route .resource-panel h2 {

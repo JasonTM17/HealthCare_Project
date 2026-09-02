@@ -12,6 +12,7 @@ from app.llm import (
     remote_text_output_is_safe,
     resolve_chat,
 )
+from app.providers import ProviderUnavailable
 from app.rag import RagService
 from app.main import app, rag_service, settings
 from app.schemas import ChatRequest, Citation
@@ -77,6 +78,44 @@ def test_patient_answer_remote_flags_still_use_local_grounded_path() -> None:
     assert result.provenance == "local_fallback"
     assert result.citations == []
     provider.complete_json.assert_not_called()
+
+
+def test_public_hospital_support_chat_uses_remote_provider_when_enabled() -> None:
+    provider = MagicMock()
+    provider.complete_json.return_value = {"answer": "Bạn có thể xem chuyên khoa Tim mạch."}
+    citation = Citation(source_type="specialty", source_id="specialty-1", title="Tim mạch")
+    local_settings = _synthetic_remote_settings()
+    local_settings.ai_public_hospital_support_remote_enabled = True
+
+    result = resolve_chat(
+        "Bệnh viện có chuyên khoa nào?",
+        local_settings,
+        recent_turns=[("user", "Xin chào")],
+        context=["Tim mạch: Bệnh viện có chuyên khoa Tim mạch."],
+        citations=[citation],
+        client=provider,
+        public_support_chat=True,
+    )
+
+    assert result.provenance == "remote_provider"
+    assert result.safety_action == "ANSWER"
+    provider.complete_json.assert_called_once()
+
+
+def test_public_hospital_support_chat_provider_errors_fail_closed() -> None:
+    provider = MagicMock()
+    provider.complete_json.side_effect = RuntimeError("provider unavailable")
+    local_settings = _synthetic_remote_settings()
+    local_settings.ai_public_hospital_support_remote_enabled = True
+
+    with pytest.raises(ProviderUnavailable):
+        resolve_chat(
+            "Bệnh viện có chuyên khoa nào?",
+            local_settings,
+            context=["Tim mạch: Bệnh viện có chuyên khoa Tim mạch."],
+            client=provider,
+            public_support_chat=True,
+        )
 
 
 @pytest.mark.parametrize(

@@ -131,6 +131,11 @@ public class AiService {
             recentTurns = request.get("recent_history");
         }
         if (recentTurns != null) payload.put("recent_turns", recentTurns);
+        Object publicSupportChat = request.get("public_support_chat");
+        if (publicSupportChat == null) {
+            publicSupportChat = request.get("publicSupportChat");
+        }
+        if (publicSupportChat != null) payload.put("public_support_chat", publicSupportChat);
         return postJson("/chat", payload);
     }
 

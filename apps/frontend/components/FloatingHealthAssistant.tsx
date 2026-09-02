@@ -97,6 +97,16 @@ function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === "AbortError";
 }
 
+function assistantIsHiddenOnPath(pathname: string): boolean {
+  // Authentication is a focused, security-sensitive task. Keep the global
+  // assistant out of the login/recovery surfaces so it cannot compete with
+  // the form or imply that medical questions belong in an auth flow.
+  return pathname === "/patient/chat"
+    || pathname.startsWith("/patient/chat/")
+    || pathname === "/auth"
+    || pathname.startsWith("/auth/");
+}
+
 function conversationNeedsCurrentConsent(
   conversation: AiConversation | null | undefined,
   policy: AiChatPolicy | null | undefined,
@@ -154,9 +164,7 @@ function FloatingHealthAssistantPanel({
   );
 
   const isPatient = Boolean(session && hasRole(session.user, "PATIENT"));
-  const hidden = pathname === "/patient/chat"
-    || pathname.startsWith("/patient/chat/")
-    || Boolean(session && !isPatient);
+  const hidden = assistantIsHiddenOnPath(pathname) || Boolean(session && !isPatient);
 
   const syncConversation = useCallback((next: AiConversation | null): void => {
     conversationIdRef.current = next?.id ?? null;
@@ -790,7 +798,7 @@ function FloatingHealthAssistantPanel({
 export default function FloatingHealthAssistant() {
   const pathname = usePathname() ?? "/";
   const session = useAuthSession();
-  const stateKey = `${session?.user.id ?? "guest"}:${pathname === "/patient/chat" || pathname.startsWith("/patient/chat/") ? "hidden" : "visible"}`;
+  const stateKey = `${session?.user.id ?? "guest"}:${assistantIsHiddenOnPath(pathname) ? "hidden" : "visible"}`;
 
   return (
     <AssistantProvider initialMode={DEFAULT_CHAT_MODE}>

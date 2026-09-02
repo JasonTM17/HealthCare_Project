@@ -30,21 +30,22 @@ Free resources:
 | healthcare-beta-postgres | Render Free PostgreSQL 16, Singapore | Spring transactional database |
 | healthcare-beta-redis | Render Free Key Value, Singapore | Rate-limit/realtime cache; ephemeral |
 | healthcare-beta-backend | Render Free image web service, Singapore | Spring API behind the Vercel BFF |
-| healthcare-beta-ai | Render Free native Python web service, Singapore | Authenticated local-provider hospital-support chat and public-catalog RAG |
+| healthcare-beta-ai | Render Free native Python web service, Singapore | Authenticated DeepSeek-backed hospital-support chat and public-catalog RAG |
 
 render-free-beta.yaml is a validation copy of the canonical manifest. Both files
 must stay equivalent after YAML parsing; Render Blueprint discovery uses
 render.yaml.
 
-The AI service is local-provider only (`AI_PROVIDER=local`,
-`EMBEDDING_PROVIDER=local`) and accepts hospital-support/catalog requests only.
-Remote patient/clinical AI, ClamAV, attachment scanning, object storage, mail,
-payment and consultation-upload consumers are explicitly disabled. The AI
-service ingests the Spring public operational catalog into an in-memory index;
-Supabase durable-RAG and patient-chat consumers remain disabled. Render Free
-web services use a public HTTPS hop protected by a server-only token: Free web
-services cannot receive private-network traffic. No paid/private Render service
-is silently substituted, and no local Docker image is pulled to support it.
+The AI service uses `AI_PROVIDER=deepseek` for the public hospital-support
+surface, `EMBEDDING_PROVIDER=local`, and accepts hospital-support/catalog
+requests only. Remote patient/clinical AI, ClamAV, attachment scanning,
+object storage, mail, payment and consultation-upload consumers are
+explicitly disabled. The AI service ingests the Spring public operational
+catalog into an in-memory index; Supabase durable-RAG and patient-chat
+consumers remain disabled. Render Free web services use a public HTTPS hop
+protected by a server-only token: Free web services cannot receive private-
+network traffic. No paid/private Render service is silently substituted, and
+no local Docker image is pulled to support it.
 
 Provider credentials stay in Render/Vercel/Supabase secret stores. Never commit
 or print a database password, BFF token, JWT secret, Supabase DB URL, or API key.
