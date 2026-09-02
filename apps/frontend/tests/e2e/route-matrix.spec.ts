@@ -7,9 +7,11 @@ import {
   installMockBrowserSession,
 } from "./helpers/browser-session";
 
+const FULL_VISUAL_MATRIX = process.env.UI_MATRIX_FULL === "1";
 const SCREENSHOT_ROOT = resolve(
   process.cwd(),
-  "../../plans/260822-2330-healthcare-platform-fe-be-chatbot/assets/ui-matrix",
+  process.env.UI_MATRIX_SCREENSHOT_ROOT
+    ?? "../../plans/260822-2330-healthcare-platform-fe-be-chatbot/assets/ui-matrix",
 );
 
 const PUBLIC_ROUTES = [
@@ -94,11 +96,20 @@ const ADMIN_ROUTES = [
   "/admin/payments",
 ] as const;
 
-const VIEWPORTS = [
-  { name: "mobile", width: 375, height: 812 },
-  { name: "tablet", width: 768, height: 1024 },
-  { name: "desktop", width: 1440, height: 1000 },
-] as const;
+const VIEWPORTS = FULL_VISUAL_MATRIX
+  ? [
+    { name: "320", width: 320, height: 720 },
+    { name: "375", width: 375, height: 812 },
+    { name: "414", width: 414, height: 896 },
+    { name: "768", width: 768, height: 1024 },
+    { name: "1024", width: 1024, height: 900 },
+    { name: "1440", width: 1440, height: 1000 },
+  ]
+  : [
+    { name: "mobile", width: 375, height: 812 },
+    { name: "tablet", width: 768, height: 1024 },
+    { name: "desktop", width: 1440, height: 1000 },
+  ];
 
 function session(role: "PATIENT" | "DOCTOR" | "ADMIN") {
   return browserSessionFixture(role, `route-matrix-${role.toLowerCase()}`, `Route Matrix ${role}`);
@@ -226,7 +237,10 @@ async function auditRoutes(
     for (const route of routes) {
       await test.step(`${viewport.name} ${route}`, async () => {
         await assertRouteSurface(page, route);
-        if (process.env.UI_MATRIX_SCREENSHOTS === "1" && screenshotRoutes.has(route)) {
+        if (
+          process.env.UI_MATRIX_SCREENSHOTS === "1"
+          && (FULL_VISUAL_MATRIX || screenshotRoutes.has(route))
+        ) {
           await page.screenshot({
             fullPage: true,
             path: resolve(SCREENSHOT_ROOT, `${screenshotSlug(route)}-${viewport.name}.png`),
@@ -238,7 +252,10 @@ async function auditRoutes(
 }
 
 test.describe("responsive route-action matrix", () => {
-  test.describe.configure({ mode: "serial", timeout: 240_000 });
+  // The bounded default remains suitable for CI smoke coverage. The explicit
+  // full mode intentionally audits every route at six viewports and therefore
+  // receives a larger per-persona budget without changing the test oracle.
+  test.describe.configure({ mode: "serial", timeout: FULL_VISUAL_MATRIX ? 900_000 : 240_000 });
 
   test("public and auth routes render safe unavailable states", async ({ context, page }) => {
     await installUnavailableApi(context);
