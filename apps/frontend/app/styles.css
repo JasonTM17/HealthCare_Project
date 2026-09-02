@@ -4897,6 +4897,28 @@ main {
   margin-top: var(--sp-2);
 }
 
+/* The combined brand, portal navigation, and account controls are wider than
+   a 1024px tablet when kept in one flex row. Move navigation to its own row
+   before flex items can escape the header's bounded content width. */
+@media (max-width: 1280px) {
+  .portal-header__inner {
+    flex-wrap: wrap;
+    padding-block: var(--sp-3);
+  }
+
+  .portal-nav {
+    order: 3;
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+    margin-left: 0;
+  }
+
+  .portal-user {
+    margin-left: auto;
+  }
+}
+
 @media (max-width: 900px) {
   .portal-header__inner {
     flex-wrap: wrap;
