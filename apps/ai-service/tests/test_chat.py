@@ -212,6 +212,48 @@ def test_no_context_remote_answer_cannot_invent_numeric_operational_fact() -> No
     )
 
 
+def test_public_preparation_question_accepts_natural_wording() -> None:
+    provider = MagicMock()
+    provider.complete_json.return_value = {
+        "answer": (
+            "Trước khi đi khám, bạn nên mang theo giấy tờ tùy thân, thẻ bảo hiểm y tế "
+            "nếu có và hồ sơ bệnh án cũ. Hãy ghi lại triệu chứng cùng các câu hỏi "
+            "muốn trao đổi với bác sĩ."
+        )
+    }
+    local_settings = _synthetic_remote_settings()
+    local_settings.ai_public_hospital_support_remote_enabled = True
+
+    assert public_no_context_query_allowed("Tôi nên chuẩn bị gì trước khi đi khám?")
+    result = resolve_chat(
+        "Tôi nên chuẩn bị gì trước khi đi khám?",
+        local_settings,
+        client=provider,
+        public_support_chat=True,
+        allow_public_operational=True,
+    )
+
+    assert result.provenance == "remote_provider"
+    assert result.safety_action == "ANSWER"
+    provider.complete_json.assert_called_once()
+
+
+def test_public_generic_record_guidance_does_not_allow_owned_record_data() -> None:
+    generic = "Bạn có thể mang theo hồ sơ bệnh án cũ nếu có."
+    owned = "Hồ sơ bệnh án của bệnh nhân Nguyen Van A: chẩn đoán và toa thuốc."
+
+    assert remote_text_output_is_safe(
+        generic,
+        allow_public_operational=True,
+        allow_public_generic_guidance=True,
+    )
+    assert not remote_text_output_is_safe(
+        owned,
+        allow_public_operational=True,
+        allow_public_generic_guidance=True,
+    )
+
+
 def test_public_hospital_support_allows_generic_booking_label_without_identifier() -> None:
     """Operational guidance may mention a booking label, but never its value."""
 
