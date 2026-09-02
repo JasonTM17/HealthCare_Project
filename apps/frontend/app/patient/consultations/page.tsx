@@ -208,12 +208,12 @@ export default function PatientConsultationsPage() {
           ) : null}
           {!appointmentsLoading && !appointmentsError && availableAppointments.length > 0 ? (
             <>
-              <div className="grid gap-4 md:grid-cols-2">
-                <label className="grid gap-1 text-sm font-bold" htmlFor="consultation-appointment">
+              <div className="grid min-w-0 gap-4 md:grid-cols-2">
+                <label className="grid min-w-0 gap-1 text-sm font-bold" htmlFor="consultation-appointment">
                   Lịch hẹn
                   <select
                     id="consultation-appointment"
-                    className="min-h-11 rounded-lg border border-slate-300 px-3"
+                    className="min-h-11 w-full min-w-0 rounded-lg border border-slate-300 px-3"
                     onChange={(event) => setAppointmentId(event.target.value)}
                     value={selectedAppointmentId}
                   >
@@ -225,11 +225,11 @@ export default function PatientConsultationsPage() {
                     ))}
                   </select>
                 </label>
-                <label className="grid gap-1 text-sm font-bold" htmlFor="consultation-subject">
+                <label className="grid min-w-0 gap-1 text-sm font-bold" htmlFor="consultation-subject">
                   Chủ đề
                   <input
                     id="consultation-subject"
-                    className="min-h-11 rounded-lg border border-slate-300 px-3"
+                    className="min-h-11 w-full min-w-0 rounded-lg border border-slate-300 px-3"
                     maxLength={240}
                     onChange={(event) => setSubject(event.target.value)}
                     placeholder="Ví dụ: Hỏi thêm sau buổi khám"

@@ -22,6 +22,7 @@ test("operational review pages expose a readable, safe inventory workflow", asyn
   assert.match(admin, /min-h-11/);
   assert.match(admin, /submitAiContentRevision/);
   assert.match(admin, /không tự approve/);
+  assert.match(admin, /className="overflow-x-auto" style=\{\{ contain: "layout paint" \}\}/);
 
   assert.match(doctor, /fetchDoctorAiContentReviews/);
   assert.match(doctor, /fetchDoctorAiContentRevision/);
