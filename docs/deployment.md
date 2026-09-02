@@ -76,6 +76,11 @@ below rather than assuming one SHA for every platform.
   `gitCommitSha` and `gitCommitRef=main`; its `gitDirty=1` flag reflects only
   the local project-link file, not tracked source changes. The stable alias was
   rechecked after promotion.
+  A stateless public-chat canary returned `200 HOSPITAL_SUPPORT /
+  local_fallback / ANSWER` for a benign support question and `200 / REFUSE`
+  for a request to access another patient's records; an untrusted origin was
+  rejected with `403 BFF_ORIGIN_INVALID`, and blank input with
+  `400 VALIDATION_ERROR`. Persisted authenticated SSE remains a separate gate.
   Server-only variables are `BACKEND_INTERNAL_URL`,
   `BFF_PUBLIC_ORIGIN`, and `BACKEND_BFF_SERVICE_TOKEN`; keep their values in
   Vercel's encrypted environment store.
