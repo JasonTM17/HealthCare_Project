@@ -102,6 +102,39 @@ def test_public_hospital_support_chat_uses_remote_provider_when_enabled() -> Non
     provider.complete_json.assert_called_once()
 
 
+def test_public_hospital_support_allows_generic_booking_label_without_identifier() -> None:
+    """Operational guidance may mention a booking label, but never its value."""
+
+    provider = MagicMock()
+    provider.complete_json.return_value = {
+        "answer": (
+            "Bạn có thể đặt lịch qua website, chọn chuyên khoa và thời gian phù hợp, "
+            "sau đó lưu mã đặt lịch để làm thủ tục."
+        )
+    }
+    local_settings = _synthetic_remote_settings()
+    local_settings.ai_public_hospital_support_remote_enabled = True
+
+    result = resolve_chat(
+        "Quy trình đặt lịch khám là gì?",
+        local_settings,
+        client=provider,
+        public_support_chat=True,
+        allow_public_operational=True,
+    )
+
+    assert result.provenance == "remote_provider"
+    assert result.safety_action == "ANSWER"
+    provider.complete_json.assert_called_once()
+
+
+def test_booking_identifier_value_is_still_sensitive() -> None:
+    assert remote_text_output_is_safe(
+        "Mã đặt lịch ABC123 đã được ghi nhận.",
+        allow_public_operational=True,
+    ) is False
+
+
 def test_public_hospital_support_chat_provider_errors_fail_closed() -> None:
     provider = MagicMock()
     provider.complete_json.side_effect = RuntimeError("provider unavailable")
