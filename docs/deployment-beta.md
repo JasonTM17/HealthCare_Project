@@ -353,13 +353,18 @@ false until a new coordinated release gate is approved.
 ## Rollback
 
 1. Drain the Vercel beta and keep all remote/clinical/ingestion switches false.
-2. For an application failure, redeploy the last known-good immutable image and
-   Vercel deployment. The immediate Render rollback target is deploy
-   `dep-daaq5hp5efls73b4o2jg` (the current known-good immutable backend image);
-   verify its status and digest before selecting it. Never run an old binary
-   against a newer Flyway schema without a compatibility review. For Vercel, use the
-   previous `READY` deployment in the project and verify its alias before
-   promoting it.
+2. For an application failure, select a prior immutable image and Vercel
+   deployment only after checking its current status, requested/resolved digest,
+   and compatibility with the active Flyway schema. At the 2026-09-02
+   checkpoint, Render deploy `dep-dabgeaqjnfac73al6qgg` is the live backend;
+   the previously documented candidates `dep-daaq5hp5efls73b4o2jg` and
+   `dep-dabeuclg1s2s73cg6pd0` are both `deactivated`, so neither is a standing
+   live rollback target. If rollback is required, redeploy the reviewed
+   immutable image reference as a new Render deploy and record its resulting
+   deploy ID and resolved digest before restoring traffic. Never run an old
+   binary against a newer Flyway schema without a compatibility review. For
+   Vercel, use the previous `READY` deployment in the project and verify its
+   alias before promoting it.
 3. For the Render catalog, first confirm all consumer tables are empty and every
    count/fingerprint still matches the exact snapshot. Then run
    infrastructure/database/seed-hosted-catalog-rollback.sql in a maintenance
