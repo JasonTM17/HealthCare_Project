@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
+import BrandMark from "../../../components/BrandMark";
 import { requestPasswordReset } from "../../../lib/api-client";
 import { authErrorMessage, authFieldErrors, type AuthFieldErrors } from "../../../lib/auth-flow";
 
@@ -33,7 +34,7 @@ export default function ForgotPasswordPage() {
     <main className="auth-page">
       <section aria-labelledby="forgot-password-title" className="auth-card">
         <Link className="auth-card__back" href="/auth/login">← Về đăng nhập</Link>
-        <div className="auth-card__brand"><span aria-hidden="true" className="portal-brand__mark">+</span><span><strong>HealthCare</strong><small>Khôi phục tài khoản</small></span></div>
+        <div className="auth-card__brand"><BrandMark tagline="Khôi phục tài khoản" /></div>
         <p className="section-note">KHÔI PHỤC AN TOÀN</p>
         <h1 id="forgot-password-title">Quên mật khẩu?</h1>
         <p className="auth-card__intro">Nhập email đã đăng ký. Nếu tài khoản tồn tại, chúng tôi sẽ gửi hướng dẫn đặt lại mật khẩu.</p>

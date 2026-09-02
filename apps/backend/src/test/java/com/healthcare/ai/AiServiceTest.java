@@ -89,6 +89,22 @@ class AiServiceTest {
     }
 
     @Test
+    void publicChatAssertionIsForwardedToFastApi() {
+        server.expect(requestTo("http://ai.test/chat"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(content().json("{\"message\":\"hello\",\"public_support_chat\":true}"))
+            .andRespond(withSuccess("{\"answer\":\"Hello\"}", MediaType.APPLICATION_JSON));
+
+        Map<String, Object> response = aiService.chat(Map.of(
+            "message", "  hello ",
+            "public_support_chat", true
+        ));
+
+        assertThat(response).containsEntry("answer", "Hello");
+        server.verify();
+    }
+
+    @Test
     void invalidChatMessageIsRejectedBeforeCallingUpstream() {
         assertThatThrownBy(() -> aiService.chat(Map.of("message", "   ")))
             .isInstanceOfSatisfying(ResponseStatusException.class, exception ->

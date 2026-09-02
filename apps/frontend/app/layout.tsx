@@ -5,6 +5,7 @@ import "./typography.css";
 import "./branches/maps.css";
 import "./brand-experience.css";
 import FloatingHealthAssistant from "../components/FloatingHealthAssistant";
+import { JsonLd } from "../components/JsonLd";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -38,16 +39,13 @@ export default function RootLayout({
   return (
     <html lang="vi">
       <body>
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              "@context": "https://schema.org",
-              "@type": "MedicalOrganization",
-              name: "HealthCare",
-              url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://healthcare-beta.example",
-              description: "Cổng thông tin và đặt lịch khám của HealthCare.",
-            }).replace(/</g, "\\u003c"),
+        <JsonLd
+          data={{
+            "@context": "https://schema.org",
+            "@type": "MedicalOrganization",
+            name: "HealthCare",
+            url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://healthcare-beta.example",
+            description: "Cổng thông tin và đặt lịch khám của HealthCare.",
           }}
         />
         {children}

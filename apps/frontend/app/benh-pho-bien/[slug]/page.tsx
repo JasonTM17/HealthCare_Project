@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { use, useEffect, useMemo, useRef, useState } from "react";
 import { PublicAiButton, PublicBookingButton, PublicPageShell } from "../../../components/PublicPageShell";
+import { JsonLd } from "../../../components/JsonLd";
 import { ApiError, fetchArticleBySlug } from "../../../lib/api-client";
 import { formatBusinessDate } from "../../../lib/business-time";
 import { presentApiError } from "../../../lib/present-api-error";
@@ -156,14 +157,6 @@ export default function DiseaseGuidePage({ params }: { params: Promise<{ slug: s
       publisher: { "@type": "Organization", name: "HealthCare" },
     };
   }, [article]);
-  const structuredDataJson = structuredData
-    ? JSON.stringify(structuredData)
-      .replace(/&/g, "\\u0026")
-      .replace(/</g, "\\u003c")
-      .replace(/>/g, "\\u003e")
-      .replace(/\u2028/g, "\\u2028")
-      .replace(/\u2029/g, "\\u2029")
-    : null;
 
   return (
     <PublicPageShell>
@@ -187,7 +180,7 @@ export default function DiseaseGuidePage({ params }: { params: Promise<{ slug: s
         ) : null}
         {article ? (
           <article>
-            {structuredDataJson ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: structuredDataJson }} /> : null}
+            <JsonLd data={structuredData} />
             <header className="resource-page__header">
               <p className="section-note">{categoryLabel(article.category)} · Nguồn bệnh viện được bác sĩ nội bộ duyệt</p>
               <h1>{article.title}</h1>

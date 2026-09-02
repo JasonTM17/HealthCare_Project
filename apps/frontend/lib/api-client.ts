@@ -2249,7 +2249,7 @@ export interface PublicAiChatResult {
   answer: string;
   disclaimer: string;
   citations: AiChatCitation[];
-  provenance: Exclude<AiChatProvenance, "remote_provider">;
+  provenance: AiChatProvenance;
   mode: "HOSPITAL_SUPPORT";
   safetyAction: ChatSafetyAction;
 }
@@ -2273,7 +2273,7 @@ function parsePublicAiChatResponse(value: unknown, path: string): PublicAiChatRe
     value.mode !== "HOSPITAL_SUPPORT"
     || !Array.isArray(citations)
     || citations.some((citation) => !isSafeChatCitation(citation))
-    || (provenance !== "local_provider" && provenance !== "local_fallback")
+    || (provenance !== "local_provider" && provenance !== "local_fallback" && provenance !== "remote_provider")
     || !isChatSafetyAction(safetyAction)
   ) {
     throw invalidAiChatResponse(path);

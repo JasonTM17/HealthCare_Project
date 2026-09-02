@@ -72,7 +72,7 @@ public class PublicAiChatController {
         "(?iu)(?:ai[_ -]?service[_ -]?token|x-ai-service-token|stack\\s*trace|traceback|api[_ -]?key)"
     );
     private static final Set<String> ALLOWED_PROVENANCE = Set.of(
-        "local_provider", "local_fallback"
+        "local_provider", "local_fallback", "remote_provider"
     );
     private static final Set<String> ALLOWED_SAFETY_ACTIONS = Set.of(
         "ANSWER", "REFUSE", "EMERGENCY", "HUMAN_HANDOFF", "INSUFFICIENT_EVIDENCE"
@@ -96,12 +96,12 @@ public class PublicAiChatController {
     public ResponseEntity<Map<String, Object>> chat(@Valid @RequestBody PublicChatRequest request) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("message", request.message().trim());
+        payload.put("public_support_chat", true);
         if (request.recentTurns() != null) {
             payload.put("recent_turns", request.recentTurns());
         }
 
-        Map<String, Object> upstream = aiService.chat(payload);
-        return ResponseEntity.ok(sanitize(upstream));
+        return ResponseEntity.ok(sanitize(aiService.chat(payload)));
     }
 
     private Map<String, Object> sanitize(Map<String, Object> upstream) {

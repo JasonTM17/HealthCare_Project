@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState, type FormEvent } from "react";
+import BrandMark from "../../../components/BrandMark";
 import { resetPassword } from "../../../lib/api-client";
 import { authErrorMessage, authFieldErrors, type AuthFieldErrors } from "../../../lib/auth-flow";
 
@@ -51,7 +52,7 @@ function ResetPasswordForm() {
     <main className="auth-page">
       <section aria-labelledby="reset-password-title" className="auth-card">
         <Link className="auth-card__back" href="/auth/forgot-password">← Yêu cầu mã mới</Link>
-        <div className="auth-card__brand"><span aria-hidden="true" className="portal-brand__mark">+</span><span><strong>HealthCare</strong><small>Đặt lại mật khẩu</small></span></div>
+        <div className="auth-card__brand"><BrandMark tagline="Đặt lại mật khẩu" /></div>
         <p className="section-note">KHÔI PHỤC AN TOÀN</p>
         <h1 id="reset-password-title">Tạo mật khẩu mới</h1>
         <p className="auth-card__intro">Chọn một mật khẩu mới cho tài khoản bệnh nhân. Các phiên đăng nhập cũ sẽ được yêu cầu xác thực lại.</p>

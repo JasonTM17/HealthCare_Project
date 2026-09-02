@@ -18,6 +18,13 @@
   isolation: isolate;
 }
 
+/* Authentication is a focused form flow. Keep the floating assistant out of
+   the narrow login/register surface so recovery links and fields remain
+   visible and keyboard users have one predictable primary task. */
+.root[data-page^="/auth/"] {
+  display: none;
+}
+
 .panel {
   width: min(23rem, calc(100vw - 2rem));
   max-width: 100%;
