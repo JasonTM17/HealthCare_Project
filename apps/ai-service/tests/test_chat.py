@@ -1,5 +1,6 @@
 """Focused contract tests for the bounded chat endpoint."""
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -18,7 +19,7 @@ from app.llm import (
 from app.providers import ProviderUnavailable
 from app.rag import RagService
 from app.main import app, rag_service, settings
-from app.schemas import ChatRequest, Citation
+from app.schemas import ChatRequest, ChatResponse, Citation
 from app.embeddings import EmbeddingResult
 
 
@@ -141,6 +142,44 @@ def test_public_context_relevance_rejects_catalog_rows_for_broad_questions() -> 
         "Làm sao để đặt lịch khám tại HealthCare?",
         ["Nam khoa: Khám và điều trị các bệnh lý nam giới."],
     )
+
+
+def test_public_chat_endpoint_drops_unrelated_rows_before_remote_resolution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "ai_service_runtime", "local")
+    monkeypatch.setattr(settings, "ai_service_allow_unauthenticated_local", True)
+    monkeypatch.setattr(settings, "ai_service_token", "")
+    monkeypatch.setattr(settings, "embedding_provider", "local")
+    monkeypatch.setattr(settings, "ai_public_hospital_support_remote_enabled", True)
+    monkeypatch.setattr(
+        "app.main.embed",
+        lambda *_, **__: EmbeddingResult([1.0] + [0.0] * 383, "local-hash", "local_provider"),
+    )
+
+    unrelated = SimpleNamespace(
+        title="Võ Văn Trung",
+        content="Bác sĩ chuyên khoa với 12 năm kinh nghiệm.",
+        source_type="doctor",
+        source_id="doctor-1",
+    )
+    retriever = MagicMock()
+    retriever.search.return_value = [(unrelated, 0.2)]
+    monkeypatch.setattr("app.main.rag_service", retriever)
+    seen: dict[str, object] = {}
+
+    def fake_resolve(*args: object, **kwargs: object) -> ChatResponse:
+        seen["context"] = kwargs["context"]
+        seen["citations"] = kwargs["citations"]
+        seen["allow_public_operational"] = kwargs["allow_public_operational"]
+        return ChatResponse(answer="Xin chào, tôi có thể hỗ trợ thông tin chung.", provenance="remote_provider")
+
+    monkeypatch.setattr("app.main.resolve_chat", fake_resolve)
+
+    response = client.post("/chat", json={"message": "hello bạn", "public_support_chat": True})
+
+    assert response.status_code == 200
+    assert seen == {"context": [], "citations": [], "allow_public_operational": True}
 
 
 def test_public_specific_question_without_context_fails_closed() -> None:
