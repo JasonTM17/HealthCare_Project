@@ -495,6 +495,7 @@ def chat(request: ChatRequest) -> ChatResponse:
             recent_turns=turns,
             synthetic_beta=request.synthetic_beta,
             public_support_chat=request.public_support_chat,
+            allow_public_operational=request.public_support_chat,
         )
 
     query_embedding, query_model, embedding_provenance = _embedding_parts(

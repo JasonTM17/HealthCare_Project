@@ -125,6 +125,20 @@ _SENSITIVE_TERMS = (
     "medical record", "patient record", "patient id", "ma ho so", "ma benh an",
     "so benh an", "benh an",
 )
+# A generic booking label is ordinary public guidance (for example, telling a
+# visitor to bring their booking code).  Only treat it as sensitive when a
+# value-shaped token follows it; the backend applies the same value check at
+# its response boundary.  Keeping this separate from `_SENSITIVE_TERMS`
+# prevents a benign remote answer from being converted into a provider 503.
+_APPOINTMENT_LABEL_VALUE_PATTERN = re.compile(
+    r"\b(?:ma\s+dat\s+lich|booking\s+code|appointment\s+(?:id|number))\s*"
+    r"(?:[:#-]\s*)?(?=[A-Za-z0-9._:-]*\d)[A-Za-z0-9._:-]{3,}\b",
+    re.IGNORECASE,
+)
+_PUBLIC_GENERIC_APPOINTMENT_LABEL_PATTERN = re.compile(
+    r"\b(?:ma\s+dat\s+lich|booking\s+code|appointment\s+(?:id|number))\b",
+    re.IGNORECASE,
+)
 _INJECTION_TERMS = (
     "ignore previous", "ignore all previous", "system prompt", "developer message",
     "jailbreak", "bo qua huong dan", "bỏ qua hướng dẫn", "in ra prompt", "reveal prompt",
@@ -454,6 +468,11 @@ def chat_contains_sensitive_data(
 ) -> bool:
     combined = "\n".join([*(content for _, content in recent_turns), message])
     normalized = _normalize_sensitive_text(combined)
+    # A booking label without an identifier is safe public guidance. Reject
+    # an attached value before any operational masking so a public-context
+    # exception cannot make a real booking code eligible for egress.
+    if _APPOINTMENT_LABEL_VALUE_PATTERN.search(normalized):
+        return True
     if allow_public_operational:
         # Branch/catalog projections may legitimately contain public phone
         # numbers and street addresses.  Mask only those well-formed public
@@ -462,6 +481,12 @@ def chat_contains_sensitive_data(
         # blocked.  The caller must separately prove the closed operational
         # projection marker before enabling this narrow exception.
         normalized = _mask_public_operational_fields(normalized)
+        # Keep generic booking instructions usable on the public support
+        # surface while the value-shaped check above remains fail-closed.
+        normalized = _PUBLIC_GENERIC_APPOINTMENT_LABEL_PATTERN.sub(
+            "public operational booking label",
+            normalized,
+        )
     return bool(
         _EMAIL_PATTERN.search(normalized)
         or _PHONE_PATTERN.search(normalized)
