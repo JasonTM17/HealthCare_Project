@@ -67,7 +67,12 @@ repository commit `2f0911520d44f8c0a18dee69121dfa711188d432`. The Vercel
 deployment metadata records that exact `gitCommitSha` and `gitCommitRef=main`;
 the local project-link file makes the provider's `gitDirty` flag `1` without
 changing tracked source. Direct probes of `/`, `/specialties`, and
-`/api/v1/health` returned HTTP 200.
+`/api/v1/health` returned HTTP 200. The stateless public-chat canary also
+returned `200 HOSPITAL_SUPPORT / local_fallback / ANSWER` for a benign support
+question and `200 / REFUSE` for a request to access another patient's records;
+an untrusted origin was rejected with `403 BFF_ORIGIN_INVALID`, and blank input
+with `400 VALIDATION_ERROR`. Persisted authenticated SSE remains a separate
+gate.
 
 Supabase Free project `awaknzhadjglbfkhigck` is now verified read-only as
 `ACTIVE_HEALTHY` with eight migration rows ending at `20260830143140`. All 15
