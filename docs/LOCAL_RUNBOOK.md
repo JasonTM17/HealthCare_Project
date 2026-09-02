@@ -69,8 +69,9 @@ signal, it fails closed and leaves the host untouched; use an explicit
 turning a slow cold start into a shutdown race while still allowing the
 per-user startup entry to start a stopped Desktop.
 
-The launcher also bounds every Docker/WSL CLI probe and drains its redirected
-output without waiting indefinitely. A timed-out WSL probe is treated as
+The launcher also bounds every Docker/WSL CLI probe, shares one wall-clock
+budget across multi-probe wait loops, and drains redirected output without
+waiting indefinitely. A timed-out WSL probe is treated as
 unknown rather than stopped: the quiescence gate keeps waiting and refuses
 runtime rotation if the state cannot be proved safe. No broader WSL shutdown or
 data-volume operation is attempted. The settings store is written only when
