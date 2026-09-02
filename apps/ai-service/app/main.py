@@ -2,7 +2,7 @@ import threading as _threading
 import re
 import secrets
 from datetime import datetime
-from typing import cast
+from typing import Generator, cast
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
@@ -348,7 +348,7 @@ def require_service_auth(
         raise HTTPException(status_code=401, detail="AI service authentication required")
 
 
-def _require_llm_capacity() -> None:
+def _require_llm_capacity() -> Generator[None, None, None]:
     """Concurrency guard for LLM-backed endpoints.
 
     Rejects requests immediately when the semaphore is exhausted, returning 503

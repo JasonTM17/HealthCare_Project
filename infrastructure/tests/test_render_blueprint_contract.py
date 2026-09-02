@@ -67,7 +67,7 @@ def test_render_manifest_uses_immutable_backend_image() -> None:
     assert backend["healthCheckPath"] == "/actuator/health"
 
 
-def test_render_manifest_runs_the_local_only_ai_service_on_free() -> None:
+def test_render_manifest_runs_the_deepseek_ai_service_on_free() -> None:
     ai = _services()["healthcare-beta-ai"]
     assert ai["runtime"] == "python"
     assert ai["plan"] == "free"
@@ -77,10 +77,13 @@ def test_render_manifest_runs_the_local_only_ai_service_on_free() -> None:
     assert "pip install --no-cache-dir -r apps/ai-service/requirements.txt" in ai["buildCommand"]
     assert "uvicorn app.main:app" in ai["startCommand"]
     ai_env = _env(ai)
-    assert ai_env["AI_PROVIDER"]["value"] == "local"
+    assert ai_env["AI_PROVIDER"]["value"] == "deepseek"
+    assert ai_env["AI_CHAT_MODEL"]["value"] == "deepseek-v4-flash"
+    assert ai_env["AI_BASE_URL"]["value"] == "https://api.deepseek.com"
     assert ai_env["EMBEDDING_PROVIDER"]["value"] == "local"
     assert ai_env["RAG_STORAGE_BACKEND"]["value"] == "memory"
     assert ai_env["RAG_INGEST_ENABLED"]["value"] == "true"
+    assert ai_env["AI_PUBLIC_HOSPITAL_SUPPORT_REMOTE_ENABLED"]["value"] == "true"
     assert ai_env["AI_SERVICE_TOKEN"]["generateValue"] is True
     assert ai_env["RAG_INGEST_TOKEN"]["generateValue"] is True
     for key in (
