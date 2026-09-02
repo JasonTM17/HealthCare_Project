@@ -423,6 +423,40 @@ def public_hospital_support_remote_enabled(settings: Any) -> bool:
     return False
 
 
+def public_context_is_relevant(query: str, context: Sequence[str]) -> bool:
+    """Return whether retrieved catalog text has a meaningful query overlap.
+
+    The local hash embedder intentionally has no semantic vocabulary.  It can
+    therefore return a full page of unrelated catalog rows for a greeting or a
+    generic booking question.  Passing those rows to the provider makes the
+    grounding gate reject an otherwise safe answer (or, worse, encourages the
+    model to force an unrelated fact into the response).  Keep context only
+    when at least two non-trivial query tokens occur in one source row.
+    """
+
+    if not query.strip() or not context:
+        return False
+
+    stopwords = _GROUNDING_STOPWORDS | {
+        "cho", "cua", "de", "gi", "khi", "la", "lam", "nen", "nhung",
+        "o", "phu", "toi", "truoc", "va", "voi", "xin", "y", "ban",
+        "bai", "co", "duoc", "hay", "mot", "tai", "theo", "thong",
+    }
+
+    def tokens(value: str) -> set[str]:
+        normalized = _normalize_sensitive_text(value)
+        return {
+            token
+            for token in _GROUNDING_TOKEN_PATTERN.findall(normalized)
+            if token not in stopwords
+        }
+
+    query_tokens = tokens(query)
+    if len(query_tokens) < 2:
+        return False
+    return any(len(query_tokens.intersection(tokens(item))) >= 2 for item in context if item.strip())
+
+
 def contains_prompt_injection(value: str) -> bool:
     """Return whether untrusted text contains a known instruction override."""
 
@@ -591,9 +625,13 @@ def remote_answer_is_grounded(
 ) -> bool:
     """Apply a conservative lexical/numeric grounding check to remote text."""
 
-    if not context:
-        return True
     normalized_answer = _normalize_sensitive_text(answer)
+    if not context:
+        # A no-hit public query may still receive a short conversational or
+        # generic guidance response.  It must not be allowed to invent a
+        # phone number, hour, date, price, or other numeric operational fact
+        # when the catalog supplied no supporting source.
+        return not bool(_GROUNDING_NUMBER_PATTERN.search(normalized_answer))
     normalized_context = _normalize_sensitive_text("\n".join(context))
     if allow_public_operational:
         context_phones = {
@@ -1097,13 +1135,21 @@ def resolve_chat(
     conversation = [f"{role}: {content[:2_000]}" for role, content in recent_turns[-6:]]
     prompt = "\n".join([*conversation, f"user: {message}"])
     try:
+        system_prompt = (
+            "Bạn là trợ lý thông tin sức khỏe, không phải bác sĩ. Không chẩn đoán, "
+            "không kê đơn, không khẳng định tình trạng bệnh. Trả JSON chỉ với khóa "
+            "answer, trong đó answer là câu trả lời tiếng Việt ngắn gọn. Không tạo URL, "
+            "mã bác sĩ, source_id hoặc citation; các nguồn tham khảo do hệ thống cung cấp."
+        )
+        if public_support_chat and not context:
+            system_prompt += (
+                " Không có nguồn catalog khớp với câu hỏi này. Chỉ trả lời lời chào hoặc "
+                "hướng dẫn chung, không khẳng định tên, số điện thoại, địa chỉ, giờ mở cửa, "
+                "giá, lịch hay dịch vụ cụ thể của HealthCare; nếu cần thông tin cụ thể, "
+                "hãy mời người dùng nêu rõ nhu cầu hoặc xem trang chính thức."
+            )
         data = client.complete_json(
-            system_prompt=(
-                "Bạn là trợ lý thông tin sức khỏe, không phải bác sĩ. Không chẩn đoán, "
-                "không kê đơn, không khẳng định tình trạng bệnh. Trả JSON chỉ với khóa "
-                "answer, trong đó answer là câu trả lời tiếng Việt ngắn gọn. Không tạo URL, "
-                "mã bác sĩ, source_id hoặc citation; các nguồn tham khảo do hệ thống cung cấp."
-            ),
+            system_prompt=system_prompt,
             user_prompt=prompt,
             context=context,
         )
