@@ -58,21 +58,24 @@ commits may advance the repository tip without changing this baseline. The
 hosted
 application source identities remain component-specific below because this
 tip changes only the local launcher, operational documentation, and tests.
-The current hosted application source overlay is
+The current hosted backend/AI source overlay is
 `01527af607673450cf19d17bee04b4e0ca53bc62`; its exact-source images were
 published with SBOM/provenance by the attested workflow recorded in
-[deployment-beta.md](deployment-beta.md). The operator workstation did not
-build or pull the release images. Provider runtime bindings can intentionally
-lag this source when a component is unchanged; always use the component-level
-identity below rather than assuming one SHA for every platform.
+[deployment-beta.md](deployment-beta.md). The frontend was separately
+redeployed from repository commit `2f0911520d44f8c0a18dee69121dfa711188d432`
+after the responsive repair. The operator workstation did not build or pull
+the release images. Provider runtime bindings can intentionally lag a source
+overlay when a component is unchanged; always use the component-level identity
+below rather than assuming one SHA for every platform.
 
 - Frontend: [healthcare-two-olive.vercel.app](https://healthcare-two-olive.vercel.app),
-  Vercel deployment `dpl_ES1rZGVZ7sQpnoGJnTygTcSn3hQa`, `READY` production,
-  deployed from a clean `git archive` of repository commit
+  Vercel deployment `dpl_J7cVfuHcyQVZoXnyEahTfqd4Q78S`, `READY`/`PROMOTED`
+  production, deployed from a detached worktree at repository commit
   `2f0911520d44f8c0a18dee69121dfa711188d432` after the responsive UX fix and
-  rollback-documentation reconciliation. The provider inspect response does
-  not expose a Git SHA; the archive command and exact deployment timestamp are
-  the source binding. The stable alias was rechecked after promotion.
+  rollback-documentation reconciliation. Vercel metadata records the exact
+  `gitCommitSha` and `gitCommitRef=main`; its `gitDirty=1` flag reflects only
+  the local project-link file, not tracked source changes. The stable alias was
+  rechecked after promotion.
   Server-only variables are `BACKEND_INTERNAL_URL`,
   `BFF_PUBLIC_ORIGIN`, and `BACKEND_BFF_SERVICE_TOKEN`; keep their values in
   Vercel's encrypted environment store.
