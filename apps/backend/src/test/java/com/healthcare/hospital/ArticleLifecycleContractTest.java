@@ -6,11 +6,21 @@ import com.healthcare.hospital.dto.ArticleRequest;
 import com.healthcare.hospital.entity.Article;
 import com.healthcare.hospital.repository.ArticleRepository;
 import com.healthcare.hospital.service.AdminArticleService;
+import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 
+import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -94,7 +104,101 @@ class ArticleLifecycleContractTest {
                 BusinessException conflict = (BusinessException) error;
                 assertThat(conflict.getStatus()).isEqualTo(409);
                 assertThat(conflict.getCode()).isEqualTo("AI_CONTENT_REVISION_STALE");
-            });
+        });
+    }
+
+    @Test
+    void concurrentCreateTranslatesDatabaseSlugCollisionToOneStableConflict() throws Exception {
+        ArticleRepository repository = mock(ArticleRepository.class);
+        AdminArticleService service = new AdminArticleService(repository);
+        Map<String, Article> records = new HashMap<>();
+        String fixtureSlug = "ak-audit-fixture-race-20260901";
+        CountDownLatch start = new CountDownLatch(1);
+        CountDownLatch bothPrechecks = new CountDownLatch(2);
+        AtomicBoolean firstInsertWins = new AtomicBoolean();
+
+        when(repository.findBySlug(fixtureSlug)).thenAnswer(invocation -> {
+            await(start);
+            bothPrechecks.countDown();
+            if (!bothPrechecks.await(5, TimeUnit.SECONDS)) {
+                throw new AssertionError("both concurrent slug prechecks did not rendezvous");
+            }
+            return Optional.empty();
+        });
+        when(repository.saveAndFlush(any(Article.class))).thenAnswer(invocation -> {
+            Article article = invocation.getArgument(0);
+            if (firstInsertWins.compareAndSet(false, true)) {
+                synchronized (records) {
+                    records.put(article.getSlug(), article);
+                }
+                return article;
+            }
+            SQLException sql = new SQLException(
+                "duplicate key value violates unique constraint articles_slug_key", "23505"
+            );
+            throw new DataIntegrityViolationException(
+                "could not execute statement",
+                new ConstraintViolationException("duplicate article slug", sql, "articles_slug_key")
+            );
+        });
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            ArticleRequest request = new ArticleRequest(
+                "Concurrent AK fixture", fixtureSlug, "Synthetic summary", "Synthetic body", false
+            );
+            Future<Article> first = executor.submit(() -> service.create(request));
+            Future<Article> second = executor.submit(() -> service.create(request));
+            start.countDown();
+
+            int successes = 0;
+            int conflicts = 0;
+            for (Future<Article> result : new Future[]{first, second}) {
+                try {
+                    assertThat(result.get(10, TimeUnit.SECONDS).getSlug()).isEqualTo(fixtureSlug);
+                    successes++;
+                } catch (ExecutionException failure) {
+                    assertThat(failure.getCause()).isInstanceOf(DuplicateResourceException.class);
+                    BusinessException conflict = (BusinessException) failure.getCause();
+                    assertThat(conflict.getStatus()).isEqualTo(409);
+                    assertThat(conflict.getCode()).isEqualTo("CONFLICT");
+                    conflicts++;
+                }
+            }
+            assertThat(successes).isEqualTo(1);
+            assertThat(conflicts).isEqualTo(1);
+            synchronized (records) {
+                assertThat(records).containsOnlyKeys(fixtureSlug);
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void unrelatedIntegrityFailureIsNotMisclassifiedAsDuplicateSlug() {
+        ArticleRepository repository = mock(ArticleRepository.class);
+        when(repository.findBySlug("ak-audit-fixture-integrity")).thenReturn(Optional.empty());
+        DataIntegrityViolationException failure = new DataIntegrityViolationException(
+            "null value in column author_name violates not-null constraint"
+        );
+        when(repository.saveAndFlush(any(Article.class))).thenThrow(failure);
+
+        AdminArticleService service = new AdminArticleService(repository);
+        assertThatThrownBy(() -> service.create(new ArticleRequest(
+            "Integrity fixture", "ak-audit-fixture-integrity", "Summary", "Body", false
+        ))).isSameAs(failure);
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            if (!latch.await(5, TimeUnit.SECONDS)) {
+                throw new AssertionError("concurrent article task did not start");
+            }
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("concurrent article task was interrupted", interrupted);
+        }
     }
 
     private static ArticleRequest requestWithVersion(long version) {
