@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { use, useEffect, useMemo, useRef, useState } from "react";
 import { PublicAiButton, PublicBookingButton, PublicPageShell } from "../../../components/PublicPageShell";
-import { JsonLd } from "../../../components/JsonLd";
 import { ApiError, fetchArticleBySlug } from "../../../lib/api-client";
 import { formatBusinessDate } from "../../../lib/business-time";
 import { presentApiError } from "../../../lib/present-api-error";
@@ -72,6 +71,15 @@ function canonicalDiseaseGuideUrl(slug: string): string {
   } catch {
     return `${defaultOrigin}${path}`;
   }
+}
+
+function safeJsonLdStringify(data: unknown): string {
+  return JSON.stringify(data)
+    .replace(/&/g, "\\u0026")
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
 }
 
 export default function DiseaseGuidePage({ params }: { params: Promise<{ slug: string }> }) {
@@ -180,7 +188,10 @@ export default function DiseaseGuidePage({ params }: { params: Promise<{ slug: s
         ) : null}
         {article ? (
           <article>
-            <JsonLd data={structuredData} />
+            <script
+              type="application/ld+json"
+              dangerouslySetInnerHTML={{ __html: safeJsonLdStringify(structuredData) }}
+            />
             <header className="resource-page__header">
               <p className="section-note">{categoryLabel(article.category)} · Nguồn bệnh viện được bác sĩ nội bộ duyệt</p>
               <h1>{article.title}</h1>
