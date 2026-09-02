@@ -9,6 +9,8 @@ from pydantic import ValidationError
 from app.llm import (
     chat_safety_response,
     contains_prompt_injection,
+    public_context_is_relevant,
+    remote_answer_is_grounded,
     remote_text_output_is_safe,
     resolve_chat,
 )
@@ -100,6 +102,53 @@ def test_public_hospital_support_chat_uses_remote_provider_when_enabled() -> Non
     assert result.provenance == "remote_provider"
     assert result.safety_action == "ANSWER"
     provider.complete_json.assert_called_once()
+
+
+def test_public_smalltalk_uses_remote_provider_without_unrelated_context() -> None:
+    provider = MagicMock()
+    provider.complete_json.return_value = {
+        "answer": "Xin chào! Tôi có thể hỗ trợ thông tin về bệnh viện và cách đặt lịch."
+    }
+    local_settings = _synthetic_remote_settings()
+    local_settings.ai_public_hospital_support_remote_enabled = True
+
+    result = resolve_chat(
+        "Xin chào bạn",
+        local_settings,
+        context=[],
+        citations=[],
+        client=provider,
+        public_support_chat=True,
+        allow_public_operational=True,
+    )
+
+    assert result.provenance == "remote_provider"
+    assert result.safety_action == "ANSWER"
+    provider.complete_json.assert_called_once()
+
+
+def test_public_context_relevance_rejects_catalog_rows_for_broad_questions() -> None:
+    assert public_context_is_relevant(
+        "Huyết học điều trị những bệnh gì?",
+        ["Huyết học: Điều trị bệnh lý máu, thiếu máu, rối loạn đông máu."],
+    )
+    assert not public_context_is_relevant(
+        "Xin chào bạn",
+        ["Võ Văn Trung: Bác sĩ chuyên khoa với 12 năm kinh nghiệm."],
+    )
+    assert not public_context_is_relevant(
+        "Làm sao để đặt lịch khám tại HealthCare?",
+        ["Nam khoa: Khám và điều trị các bệnh lý nam giới."],
+    )
+
+
+def test_no_context_remote_answer_cannot_invent_numeric_operational_fact() -> None:
+    assert remote_text_output_is_safe("Bệnh viện mở cửa 24/7", allow_public_operational=True)
+    assert not remote_answer_is_grounded(
+        "Bệnh viện mở cửa 24/7",
+        [],
+        allow_public_operational=True,
+    )
 
 
 def test_public_hospital_support_allows_generic_booking_label_without_identifier() -> None:
