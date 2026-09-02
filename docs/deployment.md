@@ -70,12 +70,12 @@ below rather than assuming one SHA for every platform.
 
 - Frontend: [healthcare-two-olive.vercel.app](https://healthcare-two-olive.vercel.app),
   Vercel deployment `dpl_J7cVfuHcyQVZoXnyEahTfqd4Q78S`, `READY`/`PROMOTED`
-  production, deployed from a detached worktree at repository commit
-  `2f0911520d44f8c0a18dee69121dfa711188d432` after the responsive UX fix and
-  rollback-documentation reconciliation. Vercel metadata records the exact
-  `gitCommitSha` and `gitCommitRef=main`; its `gitDirty=1` flag reflects only
-  the local project-link file, not tracked source changes. The stable alias was
-  rechecked after promotion.
+  production, uploaded from a clean detached checkout/archive prepared at
+  repository commit `2f0911520d44f8c0a18dee69121dfa711188d432` after the
+  responsive UX fix and rollback-documentation reconciliation. The current
+  `vercel inspect --format=json` response exposes neither `meta` nor `gitSource`,
+  so provider-side Git SHA/dirty metadata is not independently verified. The
+  stable alias was rechecked after promotion.
   A stateless public-chat canary returned `200 HOSPITAL_SUPPORT /
   local_fallback / ANSWER` for a benign support question and `200 / REFUSE`
   for a request to access another patient's records; an untrusted origin was

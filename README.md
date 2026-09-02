@@ -72,11 +72,12 @@ change was applied; continue observing before changing the Free topology.
 The current Vercel stable alias is the `READY`/`PROMOTED` production deployment
 `dpl_J7cVfuHcyQVZoXnyEahTfqd4Q78S`, observed with the linked Vercel CLI on
 2026-09-02 after the responsive frontend fix. It serves
-`healthcare-two-olive.vercel.app` and was deployed from a detached worktree at
-repository commit `2f0911520d44f8c0a18dee69121dfa711188d432`. The Vercel
-deployment metadata records that exact `gitCommitSha` and `gitCommitRef=main`;
-the local project-link file makes the provider's `gitDirty` flag `1` without
-changing tracked source. Direct probes of `/`, `/specialties`, and
+`healthcare-two-olive.vercel.app`. The deployment upload was prepared from a
+clean detached checkout/archive at repository commit
+`2f0911520d44f8c0a18dee69121dfa711188d432`; however, the current
+`vercel inspect --format=json` response exposes neither `meta` nor `gitSource`,
+so a provider-side Git SHA/dirty flag is not independently verified. Direct
+probes of `/`, `/specialties`, and
 `/api/v1/health` returned HTTP 200. The stateless public-chat canary also
 returned `200 HOSPITAL_SUPPORT / local_fallback / ANSWER` for a benign support
 question and `200 / REFUSE` for a request to access another patient's records;
