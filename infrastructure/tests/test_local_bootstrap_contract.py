@@ -1,3 +1,5 @@
+import shutil
+import subprocess
 from pathlib import Path
 
 
@@ -58,6 +60,31 @@ def test_local_verifier_reads_current_mailpit_message_detail() -> None:
     assert 'TryAddWithoutValidation("Origin", $apiUri.GetLeftPart([System.UriPartial]::Authority))' in script
     assert 'TryAddWithoutValidation("Cookie", [string]$WebSession.CookieHeader)' in script
     assert 'Wait-ForBookingOtp $hold.bookingCode "patient@healthcare.local" $holdStartedAt' in script
+
+
+def test_local_verifier_is_utf8_bom_safe_for_windows_powershell() -> None:
+    """Windows PowerShell 5.1 must parse the Vietnamese verifier literals."""
+    script_path = ROOT / "scripts" / "verify-local-mvp.ps1"
+    assert script_path.read_bytes().startswith(b"\xef\xbb\xbf")
+
+    powershell = shutil.which("powershell.exe")
+    if powershell is None:
+        return
+
+    result = subprocess.run(
+        [
+            powershell,
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            f"[scriptblock]::Create([IO.File]::ReadAllText('{script_path}')) | Out-Null",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr or result.stdout
 
 
 def test_backup_script_accepts_the_same_compose_environment_file() -> None:

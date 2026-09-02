@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$ApiBaseUrl = "http://localhost:3000/api/v1",
     [string]$BackendHealthUrl = "http://localhost:8080",
