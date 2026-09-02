@@ -201,6 +201,12 @@ is denied by the admin appointment endpoint. To verify an already-running stack:
 .\scripts\verify-local-mvp.ps1
 ```
 
+`verify-local-mvp.ps1` is UTF-8-BOM encoded so both Windows PowerShell 5.1
+(`powershell.exe`) and PowerShell 7 (`pwsh`) parse its Vietnamese test
+fixtures consistently. If another local process owns the configured host port,
+pass explicit loopback endpoints and confirm the backend `BFF_PUBLIC_ORIGIN`
+allow-list before interpreting a failed login as an application defect.
+
 After the same Compose stack is running, run the browser-level role demo from
 the frontend workspace. This gate uses the live frontend/backend/PostgreSQL
 stack, does not intercept `/api/v1/**`, books through the public UI, and then
