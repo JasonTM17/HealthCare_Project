@@ -24,6 +24,54 @@ illustrative visual artifact, not a substitute for the browser and API gates.
 
 ## Hosted Beta Release Record
 
+### Maintenance checkpoint (2026-09-02)
+
+The current backend repair is source `bbecb296dd2dcd8864ab7a37b9f67d36f8b206dc`.
+It adds a dedicated Spring `NoResourceFoundException` 404 boundary so malformed
+API paths no longer fall through to the generic 500 handler. The focused
+`GlobalExceptionHandlerAsyncTest` regression passed locally, and the full CI
+gate passed in [run 33534584349](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33534584349).
+The exact-source image publication passed in
+[run 33534987723](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33534987723)
+with SBOM/provenance attestation:
+
+| GHCR package | `bbecb296` immutable reference |
+| --- | --- |
+| [backend](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-backend) | `ghcr.io/jasontm17/healthcare-project-backend@sha256:45b0bb679588ba7a6eb075a4dd867ed4b11c92fc42485ee94759d0f7c4f889d6` |
+| [AI service](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-ai-service) | `ghcr.io/jasontm17/healthcare-project-ai-service@sha256:3b60b36b6ce9773d2d127431bc8ae9de82430bfac955df100c0ea63797f7eaf1` |
+| [attachment scanner](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-attachment-scanner) | `ghcr.io/jasontm17/healthcare-project-attachment-scanner@sha256:367a080e61505c8bd98086c6499e56fa7e6bf0e44c92a567016bf32fac6e06f5` |
+| [frontend](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-frontend) | `ghcr.io/jasontm17/healthcare-project-frontend@sha256:adff5f320ebde59653531759489d1e21d1b5f25cbd7799c81ceec4a2ae674826` |
+
+Render Free backend deploy `dep-dabgeaqjnfac73al6qgg` is `live`, references
+the backend digest above, and resolves to platform image
+`sha256:16d01d2babcb143c0268f15fa3166e8ebefcd571780067f72749e2470c25d847`.
+The post-deploy health probe returned HTTP 200. An authenticated probe of the
+previously noisy path `/api/v1/hospital/=0&size=1` now returns sanitized
+`404 RESOURCE_NOT_FOUND`; no `NoResourceFoundException` error log was observed
+after the deploy. Render Free cold starts remain expected (about 4–5 minutes).
+The canonical `render.yaml` and parity copy `render-free-beta.yaml` now pin the
+same immutable backend reference.
+
+The shared Render RAG-ingest credential was rotated with explicit authorization
+on 2026-09-02. The replacement was generated in memory, applied only to the AI
+and backend service environments, and was not written to the repository or
+diagnostic output. Both Free services recovered after their expected restart;
+`/livez` and `/actuator/health` returned HTTP 200, with no token-rejection or
+upstream-error entries observed in the post-rotation log window.
+
+The Vercel stable alias remains the already verified `READY` production
+deployment `dpl_DzX94fFP7QNxWZ5sPbwwsbCD2WaZ` at clean frontend source
+`17330d568380d2d3c3f0592606dd57d9dd0728b0`; this backend-only repair did not
+require a frontend redeploy. Supabase Free remains project
+`awaknzhadjglbfkhigck`; a current read-only schema check is pending renewed
+project-scoped MCP authorization, so this checkpoint makes no new remote DDL
+claim.
+
+The storage cleanup removed 27 exact ignored/generated directories (about
+2.82 GiB) while preserving registered worktrees, backups, `.git`, Docker's
+VHDX, application data, and WIP files. Docker Desktop is running with all nine
+Compose services healthy; Hibernate remains enabled and available.
+
 ### Current exact source overlay (2026-09-01)
 
 The release-record baseline for local Docker readiness is
