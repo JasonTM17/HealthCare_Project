@@ -66,6 +66,23 @@ follow a fresh gate; otherwise capture a new snapshot and review a new
 target-specific migration. Never reuse either historical rollback migration
 against a drifted target or present a compensating capsule as PITR.
 
+### Current read-only verification (2026-09-02)
+
+The linked project `awaknzhadjglbfkhigck` responded `ACTIVE_HEALTHY` on Postgres
+17 and exposed the expected eight migration rows ending at `20260830143140`.
+All 15 healthcare tables have RLS enabled. Aggregate counts are 100,000
+synthetic customers, 75,000 synthetic profiles, 10,000 public RAG documents,
+830 de-identified chat-projection documents, 37 seed chunks, and the expected
+catalog/link counts recorded in the deployment release note. The read-only
+contract also confirmed the chat tombstone column, constraint, trigger and
+cursor index; pagination and match functions are invoker-mode and executable
+only by `service_role`, while browser roles cannot read server-only projection
+tables. No DDL, migration, reset or seed command was issued during this check.
+The security advisor returned INFO-only deny-by-default notices for the
+server-only tables with no policies; the performance advisor returned INFO-only
+unused-index notices. These were not auto-remediated because removing or adding
+policies/indexes would be a separate reviewed schema change.
+
 The reconciliation preserves Spring PostgreSQL as the transactional identity
 and clinical authority. Supabase is the `healthcare`-schema catalog and
 de-identified chatbot projection; it is not a drop-in replacement for the
