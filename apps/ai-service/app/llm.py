@@ -457,6 +457,34 @@ def public_context_is_relevant(query: str, context: Sequence[str]) -> bool:
     return any(len(query_tokens.intersection(tokens(item))) >= 2 for item in context if item.strip())
 
 
+def public_no_context_query_allowed(query: str) -> bool:
+    """Return whether a public query is safe to answer without catalog facts.
+
+    Greetings and generic navigation guidance do not require a hospital-owned
+    fact.  Specific catalog questions do: if the RAG index is empty after a
+    restart, fail closed instead of allowing the provider to invent an answer.
+    """
+
+    normalized = _normalize_sensitive_text(query).strip(" .,!?:;-")
+    if not normalized:
+        return False
+    if re.fullmatch(
+        r"(?:xin chao|chao|hello|hi|hey|alo)(?: ban(?: oi)?| toi can ho tro)?",
+        normalized,
+    ):
+        return True
+    return any(
+        phrase in normalized
+        for phrase in (
+            "can ho tro",
+            "chuan bi truoc khi di kham",
+            "dat lich",
+            "quy trinh dat lich",
+            "tim chuyen khoa",
+        )
+    )
+
+
 def contains_prompt_injection(value: str) -> bool:
     """Return whether untrusted text contains a known instruction override."""
 
@@ -1113,6 +1141,11 @@ def resolve_chat(
         if public_remote_enabled:
             raise ProviderUnavailable()
         return ChatResponse(answer=fallback, provenance="local_fallback", used_sources=list(used_sources))
+    if public_support_chat and public_remote_enabled and not context and not public_no_context_query_allowed(message):
+        # A specific public question without an authorized source is not safe
+        # to answer from the model's general knowledge.  This commonly occurs
+        # for a short period after the in-memory RAG service restarts.
+        raise ProviderUnavailable()
     if public_support_chat and not public_remote_enabled:
         return ChatResponse(answer=fallback, provenance="local_fallback", used_sources=list(used_sources))
     if not public_support_chat and (not synthetic_beta or not patient_chat_remote_enabled(settings)):

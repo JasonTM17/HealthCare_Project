@@ -10,6 +10,7 @@ from app.llm import (
     chat_safety_response,
     contains_prompt_injection,
     public_context_is_relevant,
+    public_no_context_query_allowed,
     remote_answer_is_grounded,
     remote_text_output_is_safe,
     resolve_chat,
@@ -140,6 +141,27 @@ def test_public_context_relevance_rejects_catalog_rows_for_broad_questions() -> 
         "Làm sao để đặt lịch khám tại HealthCare?",
         ["Nam khoa: Khám và điều trị các bệnh lý nam giới."],
     )
+
+
+def test_public_specific_question_without_context_fails_closed() -> None:
+    provider = MagicMock()
+    local_settings = _synthetic_remote_settings()
+    local_settings.ai_public_hospital_support_remote_enabled = True
+
+    assert public_no_context_query_allowed("hello bạn")
+    assert public_no_context_query_allowed("Làm sao để đặt lịch khám?")
+    assert not public_no_context_query_allowed("Huyết học điều trị những bệnh gì?")
+
+    with pytest.raises(ProviderUnavailable):
+        resolve_chat(
+            "Huyết học điều trị những bệnh gì?",
+            local_settings,
+            context=[],
+            client=provider,
+            public_support_chat=True,
+            allow_public_operational=True,
+        )
+    provider.complete_json.assert_not_called()
 
 
 def test_no_context_remote_answer_cannot_invent_numeric_operational_fact() -> None:
