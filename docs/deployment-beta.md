@@ -84,13 +84,14 @@ diagnostic output. Both Free services recovered after their expected restart;
 upstream-error entries observed in the post-rotation log window.
 
 The current Vercel stable alias is the `READY`/`PROMOTED` production deployment
-`dpl_ES1rZGVZ7sQpnoGJnTygTcSn3hQa`, observed with the linked Vercel CLI on
+`dpl_J7cVfuHcyQVZoXnyEahTfqd4Q78S`, observed with the linked Vercel CLI on
 2026-09-02 after the responsive frontend fix. It serves
-`healthcare-two-olive.vercel.app` and was built from a clean `git archive` of
-repository commit `2f0911520d44f8c0a18dee69121dfa711188d432`. The provider
-inspect response does not expose a Git commit SHA for this CLI deployment, so
-the archive command is the source binding. Direct probes of `/`,
-`/specialties`, and `/api/v1/health` returned HTTP 200.
+`healthcare-two-olive.vercel.app` and was deployed from a detached worktree at
+repository commit `2f0911520d44f8c0a18dee69121dfa711188d432`. The Vercel
+deployment metadata records that exact `gitCommitSha` and `gitCommitRef=main`;
+the local project-link file makes the provider's `gitDirty` flag `1` without
+changing tracked source. Direct probes of `/`, `/specialties`, and
+`/api/v1/health` returned HTTP 200.
 
 The Supabase Free project `awaknzhadjglbfkhigck` is `ACTIVE_HEALTHY` and passed a
 fresh read-only verification: eight migration rows ending at `20260830143140`,
