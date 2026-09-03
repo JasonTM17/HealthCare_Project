@@ -278,4 +278,19 @@ class AiServiceTest {
             .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
                 assertThat(exception.getStatusCode()).isEqualTo(SERVICE_UNAVAILABLE));
     }
+
+    @Test
+    void ragIngestConfiguredRequiresEnabledTokenAndAuth() {
+        ReflectionTestUtils.setField(aiService, "ragIngestEnabled", true);
+        ReflectionTestUtils.setField(aiService, "ragIngestToken", "valid-token-32-chars-long-secret");
+        ReflectionTestUtils.setField(aiService, "aiServiceToken", "ai-token");
+        assertThat(aiService.isRagIngestConfigured()).isTrue();
+
+        ReflectionTestUtils.setField(aiService, "ragIngestEnabled", false);
+        assertThat(aiService.isRagIngestConfigured()).isFalse();
+
+        ReflectionTestUtils.setField(aiService, "ragIngestEnabled", true);
+        ReflectionTestUtils.setField(aiService, "ragIngestToken", "");
+        assertThat(aiService.isRagIngestConfigured()).isFalse();
+    }
 }

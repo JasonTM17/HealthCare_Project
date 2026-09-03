@@ -499,6 +499,14 @@ def public_no_context_query_allowed(query: str) -> bool:
             "dat lich",
             "quy trinh dat lich",
             "tim chuyen khoa",
+            "chuyen khoa nao",
+            "kham khoa nao",
+            "kham o dau",
+            "o dau",
+            "dia chi",
+            "gio lam viec",
+            "huong dan",
+            "lien he",
         )
     )
 
