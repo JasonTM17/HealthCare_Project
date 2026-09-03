@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
+import { getDoctorPhoto } from "../../../lib/doctor-portrait";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { fetchDoctorBySlug } from "../../../lib/api-client";
@@ -64,7 +66,16 @@ export default function DoctorDetailPage() {
         {doctor ? (
           <>
             <article className="resource-hero-card resource-hero-card--teal">
-              <div className="resource-avatar" aria-hidden="true">{initials(doctor.fullName)}</div>
+              <div className="resource-avatar" aria-hidden="true">
+                <Image
+                  src={getDoctorPhoto(doctor)}
+                  alt={doctor.fullName}
+                  width={112}
+                  height={112}
+                  className="resource-avatar__img"
+                  priority
+                />
+              </div>
               <div className="resource-hero-card__body">
                 <div className="resource-chip-row">
                   {doctor.specialtyName ? <span className="resource-chip">{doctor.specialtyName}</span> : null}
