@@ -1,5 +1,5 @@
-.page { --login-accent: #087f7b; --login-ink: #12343b; --login-muted: #557078; min-height: 100dvh; display: grid; place-items: center; padding: 32px 20px; background: #edf7f5;  }
-.card { width: min(100%, 560px); margin: 0; padding: 40px 48px 32px; border: 1px solid rgba(8,127,123,.13); border-radius: 24px; background: rgba(255,255,255,.96); box-shadow: 0 20px 55px rgba(10,68,71,.12); }
+.page { --login-accent: #0d9488; --login-ink: #0f172a; --login-muted: #475569; min-height: 100dvh; display: grid; place-items: center; padding: 32px 20px; background: radial-gradient(circle at 20% 20%, rgba(13, 148, 136, 0.12), transparent 40%), radial-gradient(circle at 80% 80%, rgba(2, 132, 199, 0.08), transparent 40%), #f8fafc; }
+.card { width: min(100%, 560px); margin: 0; padding: 40px 48px 32px; border: 1px solid rgba(13,148,136,.15); border-radius: 24px; background: rgba(255,255,255,.98); box-shadow: 0 24px 60px -12px rgba(10,68,71,.16); }
 .card :global(.auth-card__brand) { margin-bottom: 28px; }
 .card :global(h1) { color: var(--login-ink); letter-spacing: -.025em; font-size: clamp(2rem, 4vw, 2.45rem); line-height: 1.12; margin-bottom: 12px; }
 .card :global(.auth-card__intro) { max-width: 48ch; color: var(--login-muted); font-size: .95rem; line-height: 1.6; }
@@ -33,8 +33,8 @@
 .rolePassword code { color: #14615f; font-weight: 700; }
 .submit { cursor: pointer; }
 @media (max-width: 600px) { .roleButton { font-size: .74rem; } }
-.layout { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(240px, .72fr) minmax(0, 1fr); width: min(100%, 940px); overflow: hidden; border: 1px solid rgba(8,127,123,.14); border-radius: 28px; background: #fff; box-shadow: 0 24px 70px rgba(10,68,71,.14), 0 2px 8px rgba(10,68,71,.05); }
-.welcome { display: flex; min-height: 680px; flex-direction: column; padding: 48px 36px; color: #e9fbf7; background: #075f5e; }
+.layout { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(240px, .72fr) minmax(0, 1fr); width: min(100%, 960px); overflow: hidden; border: 1px solid rgba(13,148,136,.18); border-radius: 28px; background: #fff; box-shadow: 0 30px 80px -15px rgba(10,68,71,.2), 0 2px 8px rgba(10,68,71,.05); }
+.welcome { display: flex; min-height: 680px; flex-direction: column; padding: 48px 36px; color: #e9fbf7; background: linear-gradient(155deg, #003336 0%, #004b50 100%); }
 .welcomeIcon { display: grid; width: 48px; height: 48px; place-items: center; margin-bottom: 40px; border: 1px solid rgba(233,251,247,.28); border-radius: 14px; color: #f5c96a; background: rgba(255,255,255,.1); }
 .welcomeKicker { margin: 0 0 16px; color: #9edbd1; font-size: .74rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
 .welcome h2 { max-width: 11ch; margin: 0; color: #fff; font-family: var(--font-vietnamese-display, var(--font-display)); font-size: clamp(1.8rem, 3vw, 2.55rem); line-height: 1.1; letter-spacing: -.025em; }
