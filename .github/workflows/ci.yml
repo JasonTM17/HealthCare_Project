@@ -163,6 +163,11 @@ jobs:
       - name: Type check
         working-directory: apps/ai-service
         run: python -m mypy
+      - name: Security audit
+        working-directory: apps/ai-service
+        run: |
+          python -m pip install pip-audit
+          python -m pip_audit -r requirements.txt
       - name: Run tests
         working-directory: apps/ai-service
         run: python -m pytest
