@@ -1,0 +1,35 @@
+.page { --login-accent: #087f7b; --login-ink: #12343b; --login-muted: #557078; min-height: 100dvh; display: grid; place-items: center; padding: 32px 20px; background: #edf7f5;  }
+.card { width: min(100%, 560px); margin: 0; padding: 40px 48px 32px; border: 1px solid rgba(8,127,123,.13); border-radius: 24px; background: rgba(255,255,255,.96); box-shadow: 0 20px 55px rgba(10,68,71,.12); }
+.card :global(.auth-card__brand) { margin-bottom: 28px; }
+.card :global(h1) { color: var(--login-ink); letter-spacing: -.025em; font-size: clamp(2rem, 4vw, 2.45rem); line-height: 1.12; margin-bottom: 12px; }
+.card :global(.auth-card__intro) { max-width: 48ch; color: var(--login-muted); font-size: .95rem; line-height: 1.6; }
+.card :global(.section-note), .kicker { color: var(--login-accent); font-size: .7rem; font-weight: 800; letter-spacing: .11em; }
+.page :global(.auth-card__back) { display: inline-flex; min-height: 44px; align-items: center; color: var(--login-accent); font-weight: 700; }
+.page :global(.auth-form) { gap: 24px; }
+.page :global(.auth-form label) { color: var(--login-ink); font-size: .9rem; font-weight: 750; }
+.page :global(.auth-form input) { min-height: 54px; border: 1px solid #bfd0d1; border-radius: 12px; color: var(--login-ink); background: #fbfdfd; font-size: 16px; box-shadow: none; }
+.page :global(.auth-form input:focus) { border-color: var(--login-accent); box-shadow: 0 0 0 4px rgba(8,127,123,.14); }
+.page :global(.auth-form__label-row a) { color: var(--login-accent); font-weight: 700; }
+.page :global([aria-label="Chọn tài khoản kiểm thử"]) { margin: 24px 0 12px !important; padding: 4px !important; border: 1px solid #d5e7e5; background: #f2f8f7 !important; border-radius: 14px !important; gap: 4px !important; }
+.page :global([aria-label="Chọn tài khoản kiểm thử"] button) { min-height: 44px; border-radius: 10px !important; transition: background-color 180ms ease, color 180ms ease, box-shadow 180ms ease, transform 180ms ease !important; }
+.page :global([aria-label="Chọn tài khoản kiểm thử"] button:hover) { transform: translateY(-1px); }
+.page :global(.auth-form__submit) { min-height: 54px; border-radius: 12px; background: var(--login-accent); box-shadow: 0 10px 20px rgba(8,127,123,.2); font-size: 1rem; }
+.page :global(.auth-form__submit:hover) { background: #066b68; transform: translateY(-1px); }
+.passwordWrap { position: relative; display: flex; align-items: center; }
+.passwordInput { width: 100%; padding-right: 52px !important; }
+.passwordToggle { position: absolute; right: 8px; display: grid; place-items: center; width: 40px; height: 40px; border: 0; border-radius: 8px; color: var(--login-muted); background: transparent; cursor: pointer; }
+.passwordToggle:hover { color: var(--login-accent); background: #e8f4f2; }
+.passwordToggle:focus-visible, .page :global(button:focus-visible), .page :global(a:focus-visible) { outline: 3px solid rgba(222,143,57,.55); outline-offset: 3px; }
+.register { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 28px; padding-top: 24px; border-top: 1px solid #e0eceb; color: var(--login-muted); font-size: .9rem; }
+.registerLink { display: inline-flex; min-height: 44px; align-items: center; padding: 0 14px; border-radius: 10px; color: #086d69; background: #e7f5f2; font-weight: 750; }
+@media (max-width: 600px) { .page { padding: 16px 12px; place-items: start center; } .card { padding: 28px 20px 24px; border-radius: 18px; } .register { align-items: flex-start; flex-direction: column; } .page :global([aria-label="Chọn tài khoản kiểm thử"] button) { font-size: .75rem; } }
+@media (prefers-reduced-motion: reduce) { .page *, .page *::before, .page *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; } }
+.roleGroup { margin: 24px 0 12px; padding: 4px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; border: 1px solid #d5e7e5; border-radius: 14px; background: #f2f8f7; }
+.roleButton { display: flex; min-height: 44px; align-items: center; justify-content: center; gap: 6px; padding: 8px 4px; border: 1px solid transparent; border-radius: 10px; color: #557078; background: transparent; font-size: .8rem; font-weight: 600; cursor: pointer; transition: background-color 180ms ease, color 180ms ease, box-shadow 180ms ease, transform 180ms ease; }
+.roleButton:hover { color: #087f7b; background: #e8f4f2; transform: translateY(-1px); }
+.roleButtonActive { color: #08716d; background: #fff; border-color: rgba(8,127,123,.16); box-shadow: 0 2px 8px rgba(10,68,71,.09); font-weight: 750; }
+.roleBadge { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 20px; padding: 14px 16px; border: 1px solid #cfe5e2; border-radius: 12px; color: #14615f; background: #edf8f6; font-size: .82rem; font-weight: 650; line-height: 1.45; }
+.rolePassword { color: #557078; font-size: .75rem; font-weight: 500; }
+.rolePassword code { color: #14615f; font-weight: 700; }
+.submit { cursor: pointer; }
+@media (max-width: 600px) { .roleButton { font-size: .74rem; } }

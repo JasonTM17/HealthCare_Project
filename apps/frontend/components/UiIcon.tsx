@@ -13,6 +13,8 @@ export type IconName =
   | "chevron-right"
   | "clock"
   | "heart"
+  | "eye"
+  | "eye-off"
   | "layers"
   | "location"
   | "mail"
@@ -76,6 +78,8 @@ const Icon: React.FC<IconProps> = ({
     "chevron-right": <path {...commonProps} d="m9 5 7 7-7 7" />,
     clock: <path {...commonProps} d="M12 7v5l3 2m6-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />,
     heart: <path {...commonProps} d="M20.8 8.6c0 5.2-8.8 10.4-8.8 10.4S3.2 13.8 3.2 8.6A4.6 4.6 0 0 1 12 6.3a4.6 4.6 0 0 1 8.8 2.3Z" />,
+    eye: <><path {...commonProps} d="M2.5 12s3.3-5 9.5-5 9.5 5 9.5 5-3.3 5-9.5 5-9.5-5-9.5-5Z" /><circle {...commonProps} cx="12" cy="12" r="2.2" /></>,
+    "eye-off": <><path {...commonProps} d="m3 3 18 18M10.6 6.9A10.8 10.8 0 0 1 12 7c6.2 0 9.5 5 9.5 5a17 17 0 0 1-3.2 3.4M6.2 6.2C3.8 7.5 2.5 12 2.5 12s3.3 5 9.5 5a9 9 0 0 0 2.4-.3" /></>,
     layers: (
       <path {...commonProps} d="m12 3 8 4-8 4-8-4 8-4Zm-8 9 8 4 8-4M4 17l8 4 8-4" />
     ),
