@@ -63,7 +63,10 @@ test("public route styling keeps dark heroes legible and guidance responsive", a
   const styles = await read("app/styles.css");
 
   assert.match(styles, /\.site-shell--public-route \.resource-hero-card--teal \.resource-lead/);
-  assert.match(styles, /color: #cce9e6 !important/);
+  assert.match(styles, /\.site-shell--public-route \.resource-hero-card--teal \.resource-lead\s*\{[\s\S]*?color: var\(--hospital-teal-dark\) !important/);
+  assert.match(styles, /\.site-shell--public-route \.resource-hero-card \{[\s\S]*?border-radius: var\(--radius-sm\)[\s\S]*?box-shadow: var\(--shadow-soft\)/);
+  assert.match(styles, /\.site-shell--public-route \.resource-hero-card--teal::after \{\s*display: none;/);
+  assert.match(styles, /\.resource-chip \{[\s\S]*?border-radius: 0;/);
   assert.match(styles, /\.site-shell--public-route \.resource-grid--two \.resource-steps--grid/);
   assert.match(styles, /\.public-route-breadcrumb__list/);
   assert.match(styles, /@media \(max-width: 760px\)[\s\S]*\.site-shell--public-route \.resource-page__header h1/);

@@ -93,7 +93,7 @@ export default function PublicMotion({
 
       candidates.add(element);
       element.classList.add(CANDIDATE_CLASS);
-      element.style.setProperty("--public-motion-delay", `${(staggerCursor % 5) * 65}ms`);
+      element.style.setProperty("--public-motion-delay", `${(staggerCursor % 6) * 60}ms`);
       staggerCursor += 1;
 
       const bounds = element.getBoundingClientRect();

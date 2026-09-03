@@ -2,8 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import Icon from "./UiIcon";
 
-const CONSULTATION_IMAGE =
-  "https://images.pexels.com/photos/7108332/pexels-photo-7108332.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1400&h=1800&dpr=1";
+const CONSULTATION_IMAGE = "/media/care-team.webp";
 
 const RECEPTION_IMAGE =
   "https://images.pexels.com/photos/4269274/pexels-photo-4269274.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1000&h=1200&dpr=1";
@@ -33,7 +32,7 @@ export default function CareExperience(): React.ReactElement {
         <div className="care-experience__visual" data-motion="visual">
           <figure className="care-experience__primary-photo">
             <Image
-              alt="Nhân viên y tế trao đổi cùng người bệnh"
+              alt="Đội ngũ y bác sĩ HealthCare đứng cùng nhau trong sảnh bệnh viện"
               className="care-experience__image"
               fill
               sizes="(max-width: 900px) 92vw, 42vw"
@@ -62,9 +61,6 @@ export default function CareExperience(): React.ReactElement {
             <span />
           </div>
 
-          <p className="care-experience__credit">
-            Ảnh minh họa: <a href="https://www.pexels.com/photo/a-couple-sitting-at-a-doctor-s-clinic-7108332/" rel="noreferrer" target="_blank">Pexels</a>
-          </p>
         </div>
 
         <div className="care-experience__copy">

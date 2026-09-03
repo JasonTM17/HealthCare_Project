@@ -16,6 +16,20 @@ public record UpdatePatientProfileRequest(
     @Size(max = 160) String emergencyContactName,
     @Size(max = 20)
     @Pattern(regexp = "^[+0-9() .-]*$", message = "Số điện thoại liên hệ không hợp lệ")
-    String emergencyContactPhone
+    String emergencyContactPhone,
+    @Size(max = 500) String avatarUrl,
+    String medicalHistory,
+    String allergies,
+    @Size(max = 10) String bloodType
 ) {
+    public UpdatePatientProfileRequest(
+        String fullName,
+        LocalDate dateOfBirth,
+        PatientGender gender,
+        String address,
+        String emergencyContactName,
+        String emergencyContactPhone
+    ) {
+        this(fullName, dateOfBirth, gender, address, emergencyContactName, emergencyContactPhone, null, null, null, null);
+    }
 }

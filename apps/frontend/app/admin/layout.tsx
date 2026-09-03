@@ -176,7 +176,7 @@ function AdminShell({ children, displayName }: { children: ReactNode; displayNam
             </p>
           </div>
 
-          <nav aria-label="Điều hướng quản trị" className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:block lg:space-y-1">
+          <nav aria-label="Điều hướng quản trị" className="admin-nav mt-6">
             {NAV.map((item) => {
               const active = item.href === "/admin"
                 ? pathname === item.href
@@ -184,7 +184,7 @@ function AdminShell({ children, displayName }: { children: ReactNode; displayNam
               return (
                 <Link
                   aria-current={active ? "page" : undefined}
-                  className={`flex min-h-11 items-center rounded-lg px-3 py-2 text-sm transition-colors ${
+                  className={`admin-nav__link ${
                     active ? "bg-teal-700 font-bold text-white" : "text-teal-100/80 hover:bg-teal-900 hover:text-white"
                   }`}
                   href={item.href}

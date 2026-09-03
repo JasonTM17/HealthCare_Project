@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { PublicBookingButton, PublicPageShell } from "../../components/PublicPageShell";
@@ -176,6 +177,18 @@ export default function AboutPage() {
             <blockquote>
               “Mỗi điểm chạm đều cần mang lại cảm giác được lắng nghe, được hướng dẫn và được tôn trọng.”
             </blockquote>
+            <figure className={styles.teamShowcase}>
+              <Image
+                src="/media/hospital-team-landscape.jpg"
+                alt="Đội ngũ bác sĩ và nhân viên y tế chuyên khoa Bệnh viện HealthCare"
+                width={1024}
+                height={682}
+                className={styles.teamImage}
+              />
+              <figcaption className={styles.teamCaption}>
+                Đội ngũ chuyên gia y tế, bác sĩ chuyên khoa và điều dưỡng tận tâm tại HealthCare luôn sẵn sàng đồng hành cùng bạn.
+              </figcaption>
+            </figure>
           </div>
         </section>
 

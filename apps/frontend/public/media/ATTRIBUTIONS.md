@@ -1,6 +1,9 @@
 # Media attributions
 
+- `care-team.webp`: Medical team artwork; project asset.
 - `about-introduction.mp4`: [Woman Getting Medical Consultation](https://www.pexels.com/video/woman-getting-medical-consultation-4486776/) by Cedric Fauntleroy, Pexels.
-- `about-care-poster.jpg`: [A Doctor Talking to a Patient While Holding a Tablet](https://www.pexels.com/photo/a-doctor-talking-to-a-patient-while-holding-a-tablet-4266936/) by Cedric Fauntleroy, Pexels.
+- `about-care-poster.jpg`: HealthCare clinical doctor team photography; project asset.
+- `hospital-team-landscape.jpg`: HealthCare clinical doctor team photography; project asset.
+- `hospital-team-portrait.jpg`: HealthCare clinical doctor team photography; project asset.
 
 These assets are used under the [Pexels license](https://www.pexels.com/license/).

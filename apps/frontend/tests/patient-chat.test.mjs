@@ -51,6 +51,7 @@ test("patient chat includes bounded composer, recovery, citations, and destructi
   assert.match(provider, /AI_UNAVAILABLE/);
   assert.match(provider, /CHAT_CONTENT_BLOCKED/);
   assert.match(provider, /REQUEST_TIMEOUT/);
+  assert.match(provider, /Câu hỏi vẫn được giữ lại/);
   assert.match(page, /onRetry=\{\(failedMessage\)[\s\S]*sourceMessageId: failedMessage\.id/);
   assert.match(page, /source_type: citation\.source_type/);
   assert.match(page, /source_id: citation\.source_id/);

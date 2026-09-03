@@ -191,6 +191,33 @@
   line-height: 1.65;
 }
 
+.teamShowcase {
+  margin: 2.25rem 0 0;
+  overflow: hidden;
+  border: 1px solid rgb(10 105 104 / 15%);
+  border-radius: 1.25rem;
+  background: #dce9e9;
+  box-shadow: 0 16px 36px rgb(13 58 72 / 12%);
+}
+
+.teamImage {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+}
+
+.teamCaption {
+  margin: 0;
+  padding: 0.9rem 1.25rem;
+  background: #fff;
+  color: #3e5962;
+  font-size: 0.88rem;
+  font-weight: 500;
+  line-height: 1.5;
+  border-top: 1px solid var(--hospital-border);
+}
+
 .valuesSection {
   padding-block: clamp(4.75rem, 8vw, 7.25rem);
   background: #eef7f5;

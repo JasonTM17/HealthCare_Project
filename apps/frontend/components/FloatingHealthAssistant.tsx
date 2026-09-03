@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   useCallback,
@@ -576,7 +575,11 @@ function FloatingHealthAssistantPanel({
   };
 
   return (
-    <div className={styles.root} data-page={pathname} data-testid="floating-health-assistant">
+    <div
+      className={`${styles.root}${isPatient ? ` ${styles.rootPatient}` : ""}`}
+      data-page={pathname}
+      data-testid="floating-health-assistant"
+    >
       {open && !hidden ? (
         <section
           aria-describedby="floating-health-assistant-help"
@@ -590,14 +593,7 @@ function FloatingHealthAssistantPanel({
           <header className={styles.header}>
             <div className={styles.headerTitle}>
               <span className={styles.headerIcon}>
-                <Image
-                  alt=""
-                  aria-hidden="true"
-                  className={styles.headerAvatar}
-                  height={72}
-                  src="/media/assistant/assistant-mascot-neutral-v1.webp"
-                  width={72}
-                />
+                <AssistantMark className={styles.headerAvatar} size={32} />
               </span>
               <div>
                 <strong>Trợ lý HealthCare</strong>

@@ -98,6 +98,18 @@ public class AuthController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/change-password")
+    @Operation(summary = "Change password for authenticated user")
+    public ResponseEntity<AuthActionResponse> changePassword(
+            @Valid @RequestBody com.healthcare.user.dto.ChangePasswordRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        if (userDetails == null) {
+            throw new org.springframework.security.access.AccessDeniedException("Authentication required");
+        }
+        authService.changePassword(userDetails.getUsername(), request.currentPassword(), request.newPassword());
+        return ResponseEntity.ok(new AuthActionResponse("Mật khẩu đã được thay đổi thành công."));
+    }
+
     @PostMapping("/browser-sessions")
     @Operation(summary = "Create a secure browser session", description = "Uses a password or email-verification grant and returns no bearer token")
     public ResponseEntity<BrowserSessionResponse> createBrowserSession(
