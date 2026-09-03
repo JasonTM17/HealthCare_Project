@@ -14,17 +14,6 @@ const ROLE_LABEL: Record<PortalRole, string> = {
   DOCTOR: "Cổng bác sĩ",
 };
 
-const PATIENT_SECTION_HASHES: Record<string, string> = {
-  "/patient/appointments": "#appointments",
-  "/patient/medical-records": "#records",
-  "/patient/prescriptions": "#prescriptions",
-  "/patient/diagnostic-results": "#diagnostics",
-  "/patient/preferences": "#profile",
-};
-
-const DOCTOR_SECTION_HASHES: Record<string, string> = {
-  "/doctor/appointments": "#daily-appointments",
-};
 
 interface PortalChromeProps {
   role: PortalRole;
@@ -37,77 +26,14 @@ export default function PortalChrome({ role, user, children }: PortalChromeProps
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState<string | null>(null);
-  const [activeHash, setActiveHash] = useState<string>("");
-  const navClickTimeRef = useRef(0);
   const homePath = role === "PATIENT" ? "/patient/dashboard" : "/doctor/dashboard";
 
-  useEffect(() => {
-    const handleHash = () => {
-      setActiveHash(window.location.hash || "");
-    };
-    handleHash();
-    window.addEventListener("hashchange", handleHash);
-    window.addEventListener("popstate", handleHash);
-
-    const isDashboard = pathname === homePath;
-    if (!isDashboard) {
-      return () => {
-        window.removeEventListener("hashchange", handleHash);
-        window.removeEventListener("popstate", handleHash);
-      };
-    }
-
-    const sectionMap = role === "PATIENT" ? PATIENT_SECTION_HASHES : DOCTOR_SECTION_HASHES;
-    const sectionIds = Object.values(sectionMap).map((h) => h.replace("#", ""));
-
-    let ticking = false;
-    const handleScroll = () => {
-      if (performance.now() - navClickTimeRef.current < 1200) {
-        return;
-      }
-      if (ticking) return;
-      ticking = true;
-      requestAnimationFrame(() => {
-        ticking = false;
-        if (performance.now() - navClickTimeRef.current < 1200) {
-          return;
-        }
-        if (window.scrollY < 260) {
-          setActiveHash("");
-          return;
-        }
-
-        const triggerLine = 220;
-        let matched = "";
-        for (let i = sectionIds.length - 1; i >= 0; i--) {
-          const id = sectionIds[i];
-          const el = document.getElementById(id);
-          if (el) {
-            const rect = el.getBoundingClientRect();
-            if (rect.top <= triggerLine && rect.bottom >= 80) {
-              matched = `#${id}`;
-              break;
-            }
-          }
-        }
-        if (matched) {
-          setActiveHash(matched);
-        }
-      });
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => {
-      window.removeEventListener("hashchange", handleHash);
-      window.removeEventListener("popstate", handleHash);
-      window.removeEventListener("scroll", handleScroll);
-    };
-  }, [pathname, homePath, role]);
   const links = role === "PATIENT"
     ? [
         { href: homePath, label: "Tổng quan" },
+        { href: "/patient/profile", label: "Hồ sơ sức khỏe" },
         { href: "/patient/appointments", label: "Lịch hẹn" },
-        { href: "/patient/medical-records", label: "Hồ sơ" },
+        { href: "/patient/medical-records", label: "Lịch sử khám" },
         { href: "/patient/prescriptions", label: "Đơn thuốc" },
         { href: "/patient/diagnostic-results", label: "Kết quả CLS" },
         { href: "/patient/consultations", label: "Tư vấn" },
@@ -115,59 +41,21 @@ export default function PortalChrome({ role, user, children }: PortalChromeProps
         { href: "/patient/health-questions", label: "Hỏi đáp" },
         { href: "/patient/community", label: "Cộng đồng" },
         { href: "/patient/chat", label: "Trợ lý AI" },
-        { href: "/patient/preferences", label: "Tài khoản" },
+        { href: "/patient/preferences", label: "Cài đặt" },
       ]
     : [
         { href: homePath, label: "Tổng quan" },
+        { href: "/doctor/profile", label: "Hồ sơ cá nhân" },
         { href: "/doctor/appointments", label: "Lịch khám" },
         { href: "/doctor/consultations", label: "Tư vấn" },
         { href: "/doctor/care-plans", label: "Kế hoạch" },
         { href: "/doctor/health-questions", label: "Hỏi đáp" },
         { href: "/doctor/ai-content-reviews", label: "Duyệt AI" },
         { href: "/doctor/articles", label: "Bài viết y khoa" },
-        { href: "/doctor/profile", label: "Hồ sơ cá nhân" },
       ];
-
   const isActive = (href: string): boolean => {
-    if (pathname === homePath) {
-      const sectionMap = role === "PATIENT" ? PATIENT_SECTION_HASHES : DOCTOR_SECTION_HASHES;
-      const targetHash = sectionMap[href];
-      if (targetHash) {
-        return activeHash === targetHash;
-      }
-      if (href === homePath) {
-        return !activeHash || activeHash === "#top" || activeHash === "#portal-main-content";
-      }
-      return false;
-    }
     return pathname === href || (href !== homePath && pathname.startsWith(`${href}/`));
   };
-
-  const handleNavClick = useCallback((href: string, e: React.MouseEvent) => {
-    if (pathname === homePath) {
-      const sectionMap = role === "PATIENT" ? PATIENT_SECTION_HASHES : DOCTOR_SECTION_HASHES;
-      const targetHash = sectionMap[href];
-      if (targetHash) {
-        e.preventDefault();
-        navClickTimeRef.current = performance.now();
-        setActiveHash(targetHash);
-        window.history.pushState(null, "", targetHash);
-        const el = document.querySelector(targetHash);
-        if (el) {
-          el.scrollIntoView({ behavior: "smooth", block: "start" });
-        }
-        return;
-      }
-      if (href === homePath) {
-        e.preventDefault();
-        navClickTimeRef.current = performance.now();
-        setActiveHash("");
-        window.history.pushState(null, "", homePath);
-        window.scrollTo({ top: 0, behavior: "smooth" });
-        return;
-      }
-    }
-  }, [pathname, homePath, role]);
 
   const handleLogout = async () => {
     if (loggingOut) return;
@@ -207,7 +95,6 @@ export default function PortalChrome({ role, user, children }: PortalChromeProps
                 className={isActive(link.href) ? "portal-nav__link portal-nav__link--active" : "portal-nav__link"}
                 href={link.href}
                 key={link.href}
-                onClick={(e) => handleNavClick(link.href, e)}
               >
                 {link.label}
               </Link>

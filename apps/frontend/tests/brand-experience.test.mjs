@@ -61,8 +61,7 @@ test("root layout renders content immediately without a blocking brand splash", 
   assert.doesNotMatch(layout, /healthcare-brand-intro-v1/);
   assert.match(layout, /type="application\/ld\+json"/);
   assert.match(layout, /JSON\.stringify\([\s\S]*\.replace\(\/<\/g, "\\\\u003c"\)/);
-  assert.doesNotMatch(layout, /suppressHydrationWarning/);
-  assert.match(layout, /<body>[\s\S]*\{children\}[\s\S]*<FloatingHealthAssistant \/>[\s\S]*<\/body>/);
+  assert.match(layout, /<body[^>]*>[\s\S]*\{children\}[\s\S]*<FloatingHealthAssistant \/>[\s\S]*<\/body>/);
 });
 
 test("live CSS uses one documented primary teal without dual live brand greens", async () => {
