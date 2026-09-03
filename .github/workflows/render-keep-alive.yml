@@ -11,16 +11,39 @@ permissions:
 
 jobs:
   ping:
-    name: Ping Render Services
+    name: Ping Render & Vercel Services
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Ping Backend Health
+      - name: Ping Backend Health Endpoint
         run: |
-          echo "Pinging HealthCare Backend..."
-          curl -sS -f --max-time 45 "https://healthcare-beta-backend.onrender.com/actuator/health" || true
+          echo "=== Pinging HealthCare Backend Actuator ==="
+          for i in 1 2 3; do
+            echo "Attempt $i..."
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 45 "https://healthcare-beta-backend.onrender.com/actuator/health" || true)
+            echo "Backend HTTP Code: $HTTP_CODE"
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "Backend is healthy and awake!"
+              break
+            fi
+            sleep 5
+          done
 
-      - name: Ping AI Service Health
+      - name: Ping Public Hospital Packages via Vercel BFF
         run: |
-          echo "Pinging HealthCare AI Service..."
-          curl -sS -f --max-time 45 "https://healthcare-beta-ai.onrender.com/health" || true
+          echo "=== Pinging Public Packages Endpoint ==="
+          for i in 1 2 3; do
+            echo "Attempt $i..."
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 45 "https://healthcare-two-olive.vercel.app/api/v1/hospital/packages?page=0&size=1" || true)
+            echo "Packages HTTP Code: $HTTP_CODE"
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "Hospital packages data is warm and serving fast!"
+              break
+            fi
+            sleep 5
+          done
+
+      - name: Ping AI Service Endpoint
+        run: |
+          echo "=== Pinging HealthCare AI Service ==="
+          curl -s -o /dev/null -w "AI Service Response: %{http_code}\n" --max-time 45 "https://healthcare-beta-ai.onrender.com/health" || true
