@@ -2883,3 +2883,172 @@ export async function downloadProtectedFile(fileUrl: string, filename = "ket-qua
   anchor.click();
   URL.revokeObjectURL(blobUrl);
 }
+
+// ── Community Articles & Discussion ─────────────────────────────────────────
+
+export interface ArticleComment {
+  id: string;
+  articleSlug: string;
+  authorUserId: string;
+  authorName: string;
+  authorRole: "PATIENT" | "DOCTOR" | "ADMIN";
+  content: string;
+  parentCommentId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function fetchArticleComments(slug: string): Promise<ArticleComment[]> {
+  return getJson<ArticleComment[]>(`/hospital/articles/${encodeURIComponent(slug)}/comments`);
+}
+
+export async function createArticleComment(
+  slug: string,
+  payload: { content: string; parentCommentId?: string | null }
+): Promise<ArticleComment> {
+  return getAuthenticatedJson<ArticleComment>(`/hospital/articles/${encodeURIComponent(slug)}/comments`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteArticleComment(slug: string, commentId: string): Promise<void> {
+  return getAuthenticatedJson<void>(`/hospital/articles/${encodeURIComponent(slug)}/comments/${encodeURIComponent(commentId)}`, {
+    method: "DELETE",
+  });
+}
+
+export async function doctorListArticles(page = 0, size = 20): Promise<Page<Article>> {
+  return getAuthenticatedJson<Page<Article>>(`/doctor/articles${toQuery({ page, size })}`);
+}
+
+export async function doctorCreateArticle(payload: AdminArticlePayload): Promise<Article> {
+  return getAuthenticatedJson<Article>("/doctor/articles", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function doctorUpdateArticle(slug: string, payload: AdminArticlePayload): Promise<Article> {
+  return getAuthenticatedJson<Article>(`/doctor/articles/${encodeURIComponent(slug)}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function doctorDeleteArticle(slug: string): Promise<void> {
+  return getAuthenticatedJson<void>(`/doctor/articles/${encodeURIComponent(slug)}`, {
+    method: "DELETE",
+  });
+}
+
+// ── AI Credits & Tier System ────────────────────────────────────────────────
+
+export interface PatientCreditDto {
+  patientId: string;
+  userId: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  tier: string;
+  credits: number;
+}
+
+export interface DoctorCreditDto {
+  doctorId: string;
+  userId: string;
+  fullName: string;
+  slug: string;
+  credits: number;
+}
+
+export interface AiCreditStatus {
+  tier?: string;
+  credits: number;
+  maxCredits: number;
+  history?: Array<{
+    id: string;
+    targetRole: string;
+    amount: number;
+    balanceAfter: number;
+    transactionType: string;
+    description: string;
+    createdAt: string;
+  }>;
+}
+
+export async function adminListPatientAiCredits(): Promise<PatientCreditDto[]> {
+  return getAuthenticatedJson<PatientCreditDto[]>("/admin/ai-credits/patients");
+}
+
+export async function adminListDoctorAiCredits(): Promise<DoctorCreditDto[]> {
+  return getAuthenticatedJson<DoctorCreditDto[]>("/admin/ai-credits/doctors");
+}
+
+export async function adminGrantAiCredits(payload: {
+  userId: string;
+  targetRole: "PATIENT" | "DOCTOR";
+  amount: number;
+  description?: string;
+}): Promise<{ status: string; message: string }> {
+  return getAuthenticatedJson<{ status: string; message: string }>("/admin/ai-credits/grant", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function adminUpdatePatientTier(payload: {
+  patientProfileId: string;
+  tier: string;
+  credits?: number;
+}): Promise<{ status: string; message: string }> {
+  return getAuthenticatedJson<{ status: string; message: string }>("/admin/ai-credits/tier", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchPatientAiCreditStatus(): Promise<AiCreditStatus> {
+  return getAuthenticatedJson<AiCreditStatus>("/patient/ai-credits/status");
+}
+
+export async function fetchDoctorAiCreditStatus(): Promise<AiCreditStatus> {
+  return getAuthenticatedJson<AiCreditStatus>("/doctor/ai-credits/status");
+}
+
+// ── Realtime Cross-Role Catalog Broadcast ───────────────────────────────────
+
+export function broadcastCatalogChange(detail: {
+  kind: "package" | "faq" | "article";
+  action: "created" | "updated" | "deleted";
+  slug?: string;
+}) {
+  if (typeof window === "undefined") return;
+  try {
+    const channel = new BroadcastChannel("healthcare_catalog_updates");
+    channel.postMessage(detail);
+    channel.close();
+  } catch {}
+  window.dispatchEvent(new CustomEvent("healthcare:catalog-update", { detail }));
+}
+
+export function subscribeToCatalogChange(
+  callback: (detail: { kind: "package" | "faq" | "article"; action: "created" | "updated" | "deleted"; slug?: string }) => void
+): () => void {
+  if (typeof window === "undefined") return () => {};
+  let channel: BroadcastChannel | null = null;
+  try {
+    channel = new BroadcastChannel("healthcare_catalog_updates");
+    channel.onmessage = (e) => callback(e.data);
+  } catch {}
+  const handler = (e: Event) => {
+    callback((e as CustomEvent).detail);
+  };
+  window.addEventListener("healthcare:catalog-update", handler);
+  return () => {
+    window.removeEventListener("healthcare:catalog-update", handler);
+    try {
+      channel?.close();
+    } catch {}
+  };
+}

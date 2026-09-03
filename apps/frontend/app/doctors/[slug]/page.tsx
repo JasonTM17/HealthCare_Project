@@ -101,6 +101,20 @@ export default function DoctorDetailPage() {
               </div>
             </article>
 
+            {doctor.achievements ? (
+              <section className="resource-panel resource-panel--wide mt-6">
+                <div className="section-heading">
+                  <div>
+                    <p className="section-note">Thành tựu & Cột mốc nổi bật</p>
+                    <h2>Dấu ấn chuyên môn & Công trình lâm sàng</h2>
+                  </div>
+                </div>
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 text-slate-800 text-sm leading-relaxed whitespace-pre-line">
+                  {doctor.achievements}
+                </div>
+              </section>
+            ) : null}
+
             <section className="resource-panel resource-panel--wide">
               <div className="section-heading">
                 <div>

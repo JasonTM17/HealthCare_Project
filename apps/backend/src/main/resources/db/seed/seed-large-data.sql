@@ -467,5 +467,4 @@ FROM (VALUES
      E'Có người hướng dẫn trong thời gian thực tập\nĐược tiếp cận quy trình vận hành trong môi trường bệnh viện\nXác nhận thực tập theo quy định khi hoàn thành', false)
 ) AS seed(slug, title, department, location, employment_type, summary, responsibilities, requirements, benefits, featured)
 ON CONFLICT (slug) DO NOTHING;
-
 COMMIT;

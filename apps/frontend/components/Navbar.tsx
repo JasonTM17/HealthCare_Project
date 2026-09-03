@@ -143,7 +143,7 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
           </nav>
 
           <div className="site-nav__actions">
-            <Link aria-label={accountDestination.label} className={`nav-account-link${authSession ? " nav-account-link--authenticated" : ""}`} href={accountDestination.href}>
+            <Link aria-label={accountDestination.label} className="nav-account-link" href={accountDestination.href}>
               {authSession ? (
                 <span className="nav-account-avatar">{authSession.user.displayName?.charAt(0)?.toUpperCase() ?? "U"}</span>
               ) : (

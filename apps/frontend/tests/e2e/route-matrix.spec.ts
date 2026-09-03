@@ -67,6 +67,7 @@ const PATIENT_ROUTES = [
   "/patient/consultations",
   "/patient/consultations/00000000-0000-0000-0000-000000000001",
   "/patient/health-questions",
+  "/patient/community",
 ] as const;
 
 const DOCTOR_ROUTES = [
@@ -78,6 +79,8 @@ const DOCTOR_ROUTES = [
   "/doctor/consultations",
   "/doctor/consultations/00000000-0000-0000-0000-000000000001",
   "/doctor/health-questions",
+  "/doctor/articles",
+  "/doctor/profile",
 ] as const;
 
 const ADMIN_ROUTES = [
@@ -93,6 +96,7 @@ const ADMIN_ROUTES = [
   "/admin/schedules",
   "/admin/content",
   "/admin/health-questions",
+  "/admin/ai-credits",
   "/admin/payments",
 ] as const;
 
