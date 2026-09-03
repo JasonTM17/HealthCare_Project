@@ -8634,3 +8634,44 @@ main {
     border-top-color: var(--color-teal-300);
   }
 }
+
+/* Doctor photo portrait & Hoan My hospital card polish */
+.resource-avatar {
+  overflow: hidden;
+  position: relative;
+}
+
+.resource-avatar__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  border-radius: inherit;
+  display: block;
+}
+
+/* Fix hero card dark teal container contrast for metric blocks */
+.site-shell--public-route .resource-hero-card--teal .resource-meta-grid div,
+.resource-hero-card--teal .resource-meta-grid div {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  color: var(--color-paper-bright) !important;
+}
+
+.site-shell--public-route .resource-hero-card--teal .resource-meta-grid dt,
+.resource-hero-card--teal .resource-meta-grid dt {
+  color: rgba(255, 255, 255, 0.72) !important;
+}
+
+.site-shell--public-route .resource-hero-card--teal .resource-meta-grid dd,
+.resource-hero-card--teal .resource-meta-grid dd {
+  color: #ffffff !important;
+}
+
+.resource-hero-card--teal .resource-actions button:not(.outline-button),
+.site-shell--public-route .resource-hero-card--teal .resource-actions button:not(.outline-button) {
+  background: var(--color-mint);
+  color: var(--color-teal-950);
+  border: none;
+  font-weight: 700;
+}

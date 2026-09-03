@@ -609,32 +609,36 @@ function FloatingHealthAssistantPanel({
             </button>
           </header>
 
-          <div aria-label="Chế độ trợ lý" className={styles.modePicker} role="group">
-            <span className={styles.modeLegend}>Mục đích cuộc trò chuyện</span>
-            <div className={styles.modeOptions}>
-              {ASSISTANT_MODE_OPTIONS
-                .filter((option) => isPatient || option.value === "HOSPITAL_SUPPORT")
-                .map((option) => (
-                <button
-                  aria-pressed={mode === option.value}
-                  className={mode === option.value ? styles.modeOptionActive : styles.modeOption}
-                  disabled={creatingMode || sending || consentBusy}
-                  key={option.value}
-                  onClick={() => void handleModeChange(option.value)}
-                  title={option.description}
-                  type="button"
-                >
-                  {option.label}
-                </button>
+          {isPatient ? (
+            <div aria-label="Chế độ trợ lý" className={styles.modePicker} role="group">
+              <span className={styles.modeLegend}>Mục đích cuộc trò chuyện</span>
+              <div className={styles.modeOptions}>
+                {ASSISTANT_MODE_OPTIONS.map((option) => (
+                  <button
+                    aria-pressed={mode === option.value}
+                    className={mode === option.value ? styles.modeOptionActive : styles.modeOption}
+                    disabled={creatingMode || sending || consentBusy}
+                    key={option.value}
+                    onClick={() => void handleModeChange(option.value)}
+                    title={option.description}
+                    type="button"
+                  >
+                    {option.label}
+                  </button>
                 ))}
+              </div>
+              {modeLocked ? <span className={styles.modeLockedHint}>Mỗi cuộc trò chuyện giữ một chế độ; chọn mục đích khác sẽ mở cuộc trò chuyện mới.</span> : null}
             </div>
-            {modeLocked ? <span className={styles.modeLockedHint}>Mỗi cuộc trò chuyện giữ một chế độ; chọn mục đích khác sẽ mở cuộc trò chuyện mới.</span> : null}
-          </div>
+          ) : (
+            <p className={styles.modeLockedHint}>
+              Bạn đang dùng chế độ khách: câu hỏi không được lưu vào lịch sử.
+              {!session ? (
+                <> Để lưu và xem lại hội thoại, <Link href="/auth/login?next=%2Fpatient%2Fchat">đăng nhập</Link>.</>
+              ) : null}
+            </p>
+          )}
 
           <>
-            {!isPatient ? (
-              <p className={styles.modeLockedHint}>Bạn đang dùng chế độ khách: câu hỏi không được lưu vào lịch sử.{!session ? <> Để lưu và xem lại hội thoại, <Link href="/auth/login?next=%2Fpatient%2Fchat">đăng nhập</Link>.</> : null}</p>
-            ) : null}
               {consentBlocked ? (
                 <section aria-describedby="floating-assistant-consent-copy" className={styles.consentPanel}>
                   <strong>Xác nhận trước khi trò chuyện</strong>
@@ -664,7 +668,9 @@ function FloatingHealthAssistantPanel({
                         <span className={styles.provenance} data-provenance={message.provenance ?? "local_provider"}>
                           {provenanceLabel(message.provenance ?? "local_provider")}
                         </span>
-                        <p className={styles.disclaimer}>{message.disclaimer?.trim() || DEFAULT_DISCLAIMER}</p>
+                        {message.disclaimer && message.disclaimer.trim() && message.disclaimer.trim() !== DEFAULT_DISCLAIMER ? (
+                          <p className={styles.disclaimer}>{message.disclaimer.trim()}</p>
+                        ) : null}
                         {message.safetyAction === "EMERGENCY" ? (
                           <div aria-live="assertive" className={styles.emergencyAction} role="alert">
                             <strong>Đây có thể là tình huống khẩn cấp.</strong>
