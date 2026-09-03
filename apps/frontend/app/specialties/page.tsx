@@ -71,6 +71,18 @@ export default function SpecialtiesPage() {
   const specialties = page?.content ?? [];
   const specialtyCount = page?.totalElements ?? specialties.length;
   const featuredSpecialty = specialties[0];
+  const specialtyCountLabel = loading
+    ? "Đang tải…"
+    : error
+      ? "Chưa tải được"
+      : page?.empty
+        ? "Chưa có dữ liệu"
+        : String(specialtyCount);
+  const featuredSpecialtyLabel = loading
+    ? "Đang tải…"
+    : error
+      ? "Chưa tải được"
+      : featuredSpecialty?.name ?? "Chưa có dữ liệu";
 
   return (
     <PublicPageShell>
@@ -109,11 +121,11 @@ export default function SpecialtiesPage() {
             <dl className="resource-meta-grid">
               <div>
                 <dt>Tổng chuyên khoa</dt>
-                <dd>{specialtyCount || "Đang cập nhật"}</dd>
+                <dd aria-live="polite">{specialtyCountLabel}</dd>
               </div>
               <div>
                 <dt>Chuyên khoa nổi bật</dt>
-                <dd>{featuredSpecialty?.name ?? "Đang cập nhật"}</dd>
+                <dd aria-live="polite">{featuredSpecialtyLabel}</dd>
               </div>
             </dl>
           </div>

@@ -876,16 +876,21 @@
   }
 
   .site-shell .hero-search input {
-    min-height: 40px;
+    min-height: 44px;
     font-size: 0.8rem;
   }
 
   .site-shell .hero-search button {
     width: auto;
-    min-height: 40px;
+    min-height: 44px;
     margin: 0;
     padding-inline: 0.75rem;
     font-size: 0.72rem;
+  }
+
+  .site-shell .button--nav {
+    min-width: 44px;
+    min-height: 44px;
   }
 
   .site-shell .hero-search__help {
