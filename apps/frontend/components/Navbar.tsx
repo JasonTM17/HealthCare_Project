@@ -104,8 +104,9 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
           <div className="utility-bar__left">
             {contactHref ? (
               <a className="utility-hotline" href={contactHref}>
+                <span className="utility-pulse-beacon" aria-hidden="true" />
                 <Icon name="phone" size={15} />
-                <span>{emergencyBranch ? "Cấp cứu" : "Hotline"}</span>
+                <span>{emergencyBranch ? "Cấp cứu 24/7" : "Hotline"}</span>
                 <strong>{contactPhone}</strong>
               </a>
             ) : (
@@ -142,9 +143,13 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
           </nav>
 
           <div className="site-nav__actions">
-            <Link aria-label={accountDestination.label} className="nav-account-link" href={accountDestination.href}>
-              <Icon name="user" size={16} />
-              <span>{accountDestination.label}</span>
+            <Link aria-label={accountDestination.label} className={`nav-account-link${authSession ? " nav-account-link--authenticated" : ""}`} href={accountDestination.href}>
+              {authSession ? (
+                <span className="nav-account-avatar">{authSession.user.displayName?.charAt(0)?.toUpperCase() ?? "U"}</span>
+              ) : (
+                <Icon name="user" size={16} />
+              )}
+              <span>{authSession ? (authSession.user.displayName ?? accountDestination.label) : accountDestination.label}</span>
             </Link>
             <button aria-label="Đặt lịch khám" className="button button--nav" onClick={onOpenBooking} type="button">
               <Icon name="arrow-right" size={17} />

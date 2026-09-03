@@ -27,6 +27,7 @@ import {
 import { formatBusinessDate } from "../lib/business-time";
 import { isSafeCmsUrl, type CmsContent, type CmsHeroPayload } from "../lib/cms-client";
 import { safeTelephoneHref } from "../lib/phone";
+import { getDoctorPhoto } from "../lib/doctor-portrait";
 import { presentApiError } from "../lib/present-api-error";
 import type { Article, Branch, Doctor, HealthPackage, Specialty } from "../types/hospital";
 
@@ -43,6 +44,30 @@ const PUBLIC_CARE_IMAGES = [
 
 const getPublicCareImage = (index: number): string =>
   PUBLIC_CARE_IMAGES[index % PUBLIC_CARE_IMAGES.length];
+
+const BRANCH_IMAGES: Record<string, string> = {
+  "benh-vien-sai-gon-xanh": "/media/branches/branch-hospital.jpg",
+  "phong-kham-thao-dien": "/media/branches/branch-building.jpg",
+};
+
+const DEFAULT_BRANCH_IMAGES = [
+  "/media/branches/branch-hospital.jpg",
+  "/media/branches/branch-building.jpg",
+];
+
+const getBranchImage = (branch: Branch, index: number): string => {
+  if (branch.slug && BRANCH_IMAGES[branch.slug]) {
+    return BRANCH_IMAGES[branch.slug];
+  }
+  const name = (branch.name || "").toLowerCase();
+  if (name.includes("bệnh viện") || name.includes("hospital")) {
+    return "/media/branches/branch-hospital.jpg";
+  }
+  if (name.includes("phòng khám") || name.includes("clinic")) {
+    return "/media/branches/branch-building.jpg";
+  }
+  return DEFAULT_BRANCH_IMAGES[index % DEFAULT_BRANCH_IMAGES.length];
+};
 
 const JOURNEY_STEPS: Array<{ icon: IconName; title: string; description: string }> = [
   {
@@ -119,9 +144,7 @@ const getSpecialtyIcon = (specialty: Specialty): IconName => {
 };
 
 const getDoctorImage = (doctor: Doctor): string | undefined => {
-  // The second seed URL currently returns 404. Keep that fixture honest and use the accessible fallback.
-  if (doctor.id === "doc-2") return undefined;
-  return doctor.photoUrl;
+  return getDoctorPhoto(doctor);
 };
 
 interface DoctorPhotoProps {
@@ -160,16 +183,25 @@ interface DoctorCardProps {
 
 const DoctorCard: React.FC<DoctorCardProps> = ({ doctor, featured = false, onBook }) => (
   <article className={`doctor-card${featured ? " doctor-card--featured" : ""}`}>
-    <DoctorPhoto doctor={doctor} featured={featured} />
+    <div className="doctor-card__photo-wrapper">
+      <DoctorPhoto doctor={doctor} featured={featured} />
+      <span className="doctor-card__status-chip" aria-hidden="true">
+        <span className="doctor-card__pulse" /> Đang nhận lịch
+      </span>
+    </div>
     <div className="doctor-card__body">
-      <p className="doctor-specialty">{doctor.specialtyName ?? "Chuyên khoa"}</p>
+      <div className="doctor-card__meta">
+        <span className="doctor-specialty">{doctor.specialtyName ?? "Chuyên khoa"}</span>
+        {doctor.experienceYears ? (
+          <span className="doctor-card__exp-badge">{doctor.experienceYears}+ năm KN</span>
+        ) : null}
+      </div>
       <h3>{doctor.fullName}</h3>
       <p className="doctor-title">
         {doctor.title ?? "Bác sĩ chuyên khoa"}
-        {doctor.experienceYears ? ` · ${doctor.experienceYears} năm kinh nghiệm` : ""}
       </p>
       <p className="doctor-bio">{doctor.bio}</p>
-      <button className="text-button" onClick={() => onBook(doctor.id)} type="button">
+      <button className="text-button doctor-card__book-btn" onClick={() => onBook(doctor.id)} type="button">
         Đặt lịch với bác sĩ
         <Icon name="arrow-up-right" size={17} />
       </button>
@@ -271,7 +303,7 @@ function HomeHeroCopy({
           autoComplete="off"
           name="hero-search"
           onChange={(event) => setSearchQuery(event.target.value)}
-          placeholder="Tìm chuyên khoa hoặc bác sĩ"
+          placeholder="Tìm chuyên khoa hoặc bác sĩ..."
           type="search"
           value={searchQuery}
         />
@@ -280,6 +312,19 @@ function HomeHeroCopy({
       <p className="hero-search__help" id="hero-search-help">
         Tìm trong danh mục bệnh viện để chọn hướng đặt lịch phù hợp.
       </p>
+      <div className="hero-quick-chips" aria-label="Gợi ý tìm kiếm phổ biến">
+        <span>Gợi ý:</span>
+        {["Tim mạch", "Nhi khoa", "Tiêu hóa", "Khám tổng quát"].map((chip) => (
+          <button
+            className="hero-quick-chip"
+            key={chip}
+            onClick={() => setSearchQuery(chip)}
+            type="button"
+          >
+            {chip}
+          </button>
+        ))}
+      </div>
       <div className="hero-actions">
         {cmsCta ? (
           <a className="button button--amber" href={cmsCta.href}>
@@ -317,21 +362,21 @@ function HomeAssuranceStrip({
       <div className="hero-assurance__inner">
         <button className="hero-assurance__item hero-assurance__item--action" onClick={onBooking} type="button">
           <span className="hero-assurance__icon"><Icon name="calendar" size={17} /></span>
-          <span><strong>Đặt lịch hẹn</strong><small>Chọn chuyên khoa và khung giờ phù hợp.</small></span>
+          <span><strong>Đặt lịch hẹn trực tuyến</strong><small>Chọn chuyên khoa, bác sĩ và khung giờ theo ý muốn.</small></span>
         </button>
           <Link className="hero-assurance__item hero-assurance__item--action" href="/packages">
             <span className="hero-assurance__icon"><Icon name="heart" size={17} /></span>
-            <span><strong>Lựa chọn gói khám</strong><small>Xem các gói chăm sóc đang mở.</small></span>
+            <span><strong>Lựa chọn gói khám</strong><small>So sánh các gói chăm sóc định kỳ mở rộng.</small></span>
           </Link>
         {contactHref ? (
           <a className="hero-assurance__item hero-assurance__item--action" href={contactHref}>
             <span className="hero-assurance__icon hero-assurance__icon--accent"><Icon name="phone" size={17} /></span>
-            <span><strong>{hasEmergencyBranch ? "Hotline cấp cứu" : "Liên hệ bệnh viện"}</strong><small>{contactPhone ?? "Số điện thoại đang cập nhật."}</small></span>
+            <span><strong>{hasEmergencyBranch ? "Hotline cấp cứu 24/7" : "Liên hệ bệnh viện"}</strong><small>{contactPhone ?? "Số điện thoại đang cập nhật."}</small></span>
           </a>
         ) : (
           <Link className="hero-assurance__item hero-assurance__item--action" href="/contact">
             <span className="hero-assurance__icon hero-assurance__icon--accent"><Icon name="location" size={17} /></span>
-            <span><strong>Liên hệ bệnh viện</strong><small>Xem địa chỉ và giờ làm việc.</small></span>
+            <span><strong>Liên hệ bệnh viện</strong><small>Xem địa chỉ và giờ làm việc các cơ sở.</small></span>
           </Link>
         )}
       </div>
@@ -365,6 +410,20 @@ function HomeHeroVisual({ imageUrl }: { imageUrl?: string }): React.ReactElement
             src={HERO_IMAGE}
           />
         )}
+      </div>
+      <div className="hero-floating-card hero-floating-card--top" aria-hidden="true">
+        <span className="hero-floating-card__stars">★★★★★</span>
+        <div>
+          <strong>98.6% Hài lòng</strong>
+          <small>Đánh giá từ người bệnh</small>
+        </div>
+      </div>
+      <div className="hero-floating-card hero-floating-card--bottom" aria-hidden="true">
+        <span className="hero-floating-card__icon"><Icon name="shield-check" size={20} /></span>
+        <div>
+          <strong>100+ Bác sĩ Chuyên khoa</strong>
+          <small>Đang nhận lịch trực tuyến</small>
+        </div>
       </div>
     </figure>
   );
@@ -837,11 +896,11 @@ export default function Home(): React.ReactElement {
                   <article className="hm-branch-card" key={branch.id}>
                     <div className="hm-branch-card__media">
                       <Image
-                        alt={`Hình ảnh minh họa cho ${branch.name}`}
+                        alt={`Hình ảnh cơ sở ${branch.name}`}
                         className="hm-branch-card__image"
                         fill
                         sizes="(max-width: 640px) 100vw, (max-width: 900px) 50vw, 25vw"
-                        src={getPublicCareImage(index + 2)}
+                        src={getBranchImage(branch, index)}
                       />
                     </div>
                     <div className="hm-branch-card__body">

@@ -9,10 +9,12 @@
   --hub-soft: var(--color-mint-light);
   --hub-surface: var(--color-paper-bright);
   margin: 0 0 var(--sp-8);
-  border: 1px solid var(--hub-line);
-  border-radius: var(--radius-lg);
+  border: 1px solid rgba(0, 51, 54, 0.12);
+  border-radius: 20px;
   background: var(--hub-surface);
   color: var(--color-ink);
+  box-shadow: 0 4px 16px rgba(0, 51, 54, 0.04), 0 1px 3px rgba(0, 51, 54, 0.03);
+  overflow: hidden;
 }
 
 .header {
@@ -22,6 +24,7 @@
   gap: var(--sp-6);
   padding: var(--sp-6);
   border-bottom: 1px solid var(--hub-line);
+  background: linear-gradient(180deg, rgba(240, 253, 250, 0.6) 0%, rgba(255, 255, 255, 0) 100%);
 }
 
 .header h2,
@@ -29,12 +32,12 @@
   margin: 0;
   color: var(--hub-accent-strong);
   font-family: var(--font-display);
-  letter-spacing: 0;
+  letter-spacing: -0.02em;
   text-wrap: balance;
 }
 
 .header h2 {
-  font-size: 1.75rem;
+  font-size: clamp(1.4rem, 2.5vw, 1.75rem);
   line-height: 1.15;
 }
 
@@ -43,6 +46,7 @@
   margin: var(--sp-2) 0 0;
   color: var(--hub-muted);
   text-wrap: pretty;
+  font-size: 0.9375rem;
 }
 
 .status {

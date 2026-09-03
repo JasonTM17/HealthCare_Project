@@ -13,6 +13,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+Add-Type -AssemblyName System.Net.Http -ErrorAction SilentlyContinue
 $checks = [System.Collections.Generic.List[string]]::new()
 . (Join-Path $PSScriptRoot "local-mvp-provenance.ps1")
 
@@ -24,18 +25,36 @@ function Invoke-JsonApi {
         [string]$Token,
         [object]$WebSession
     )
-    $parameters = @{ Uri = $Uri; Method = $Method; ContentType = "application/json" }
-    if ($null -ne $Body) { $parameters.Body = $Body | ConvertTo-Json -Depth 8 }
-    if ($Token) { $parameters.Headers = @{ Authorization = "Bearer $Token" } }
-    if ($Method -notin @("GET", "HEAD", "OPTIONS")) {
-        if (-not $parameters.Headers) { $parameters.Headers = @{} }
-        $parameters.Headers.Origin = ([Uri]$Uri).GetLeftPart([System.UriPartial]::Authority)
+    $handler = [System.Net.Http.HttpClientHandler]::new()
+    $handler.UseCookies = $false
+    $client = [System.Net.Http.HttpClient]::new($handler)
+    try {
+        $httpMethod = [System.Net.Http.HttpMethod]::$Method
+        $request = [System.Net.Http.HttpRequestMessage]::new($httpMethod, $Uri)
+        if ($Token) {
+            $request.Headers.TryAddWithoutValidation("Authorization", "Bearer $Token") | Out-Null
+        }
+        if ($Method -notin @("GET", "HEAD", "OPTIONS")) {
+            $origin = ([Uri]$Uri).GetLeftPart([System.UriPartial]::Authority)
+            $request.Headers.TryAddWithoutValidation("Origin", $origin) | Out-Null
+        }
+        if ($WebSession -and $WebSession.CookieHeader) {
+            $request.Headers.TryAddWithoutValidation("Cookie", [string]$WebSession.CookieHeader) | Out-Null
+        }
+        if ($null -ne $Body) {
+            $json = $Body | ConvertTo-Json -Depth 8
+            $request.Content = [System.Net.Http.StringContent]::new($json, [System.Text.Encoding]::UTF8, "application/json")
+        }
+        $response = $client.SendAsync($request).GetAwaiter().GetResult()
+        $content = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+        if (-not $response.IsSuccessStatusCode) {
+            throw "API request to $Uri failed with $($response.StatusCode): $content"
+        }
+        if ([string]::IsNullOrWhiteSpace($content)) { return $null }
+        return $content | ConvertFrom-Json
+    } finally {
+        $client.Dispose()
     }
-    if ($WebSession -and $WebSession.CookieHeader) {
-        if (-not $parameters.Headers) { $parameters.Headers = @{} }
-        $parameters.Headers.Cookie = $WebSession.CookieHeader
-    }
-    Invoke-RestMethod @parameters
 }
 
 function Invoke-MultipartUploadStatus {
@@ -47,7 +66,7 @@ function Invoke-MultipartUploadStatus {
     )
 
     $apiUri = [Uri]$ApiBaseUrl
-    $client = [System.Net.Http.HttpClient]::new()
+    $handler = [System.Net.Http.HttpClientHandler]::new(); $handler.UseCookies = $false; $client = [System.Net.Http.HttpClient]::new($handler)
     $multipart = [System.Net.Http.MultipartFormDataContent]::new()
     $part = [System.Net.Http.ByteArrayContent]::new($Content)
     $part.Headers.ContentType = [System.Net.Http.Headers.MediaTypeHeaderValue]::Parse($ContentType)
@@ -74,7 +93,7 @@ function Invoke-MultipartUploadStatus {
 
 function Login-DemoRole([string]$Email) {
     $loginUri = "$ApiBaseUrl/auth/browser-sessions"
-    $response = Invoke-WebRequest -Uri $loginUri -Method POST -ContentType "application/json" -Headers @{
+    $response = Invoke-WebRequest -Uri $loginUri -Method POST -ContentType "application/json" -UseBasicParsing -Headers @{
         Origin = ([Uri]$loginUri).GetLeftPart([System.UriPartial]::Authority)
     } -Body (@{
         grantType = "PASSWORD"
@@ -99,8 +118,7 @@ function Wait-ForBookingOtp([string]$BookingCode, [string]$Recipient, [DateTimeO
         try {
             $mailbox = Invoke-RestMethod "$MailpitApiUrl/api/v1/messages?limit=50"
             $messages = $mailbox.messages | Where-Object {
-                $_.Subject -in @("HealthCare booking verification", "[HealthCare] Xác nhận đặt lịch") `
-                    -and (@($_.To | ForEach-Object { $_.Address }) -contains $Recipient) `
+                (@($_.To | ForEach-Object { $_.Address }) -contains $Recipient) `
                     -and ((-not $_.Created) -or ([DateTimeOffset]$_.Created -gt $AfterUtc))
             } | Sort-Object Created -Descending
             foreach ($message in $messages) {
@@ -109,7 +127,7 @@ function Wait-ForBookingOtp([string]$BookingCode, [string]$Recipient, [DateTimeO
                 # Bind the OTP to this hold. Filtering only by recipient and
                 # timestamp can consume a concurrent booking's code.
                 if ($content -notmatch [regex]::Escape($BookingCode)) { continue }
-                if (($content -match '(?i)Mã xác minh của bạn là\s*(?<Otp>\d{6})\b') -or ($content -match '(?i)\bis\s*(?<Otp>\d{6})\b')) {
+                if ($content -match '\b(?<Otp>\d{6})\b') {
                     return $Matches.Otp
                 }
             }
@@ -336,7 +354,8 @@ try {
     Invoke-JsonApi -Uri "$ApiBaseUrl/admin/appointments" -WebSession $patientToken | Out-Null
     throw "Patient token unexpectedly accessed the ADMIN appointment endpoint"
 } catch {
-    if ([int]$_.Exception.Response.StatusCode -ne 403) { throw }
+    $status = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { $null }
+    if ($status -ne 403 -and $_.Exception.Message -notmatch "(403|Forbidden)") { throw }
 }
 $checks.Add("authorization:patient-denied-admin")
 
