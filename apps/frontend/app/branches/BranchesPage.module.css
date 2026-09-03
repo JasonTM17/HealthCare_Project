@@ -45,6 +45,12 @@
   margin: var(--sp-5) 0 0;
 }
 
+/* Keeps the shared catalog-summary hook semantic without adding a second
+   visual card or another shadow inside the network overview. */
+.summaryAnchor {
+  display: contents;
+}
+
 .networkSummary div {
   min-width: 0;
   padding: var(--sp-3) var(--sp-4);

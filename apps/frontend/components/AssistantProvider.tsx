@@ -101,12 +101,12 @@ const ASSISTANT_ERROR_COPY: Readonly<Record<string, string>> = {
   CHAT_IDEMPOTENCY_CONFLICT: "Yêu cầu gửi lại không còn khớp với tin nhắn ban đầu. Hãy thử lại từ lịch sử.",
   CHAT_INPUT_INVALID: "Tin nhắn phải có từ 2 đến 10.000 ký tự.",
   PUBLIC_CHAT_INPUT_INVALID: "Tin nhắn ở chế độ khách phải có từ 2 đến 500 ký tự.",
-  BFF_UPSTREAM_UNAVAILABLE: "Kết nối tới trợ lý đang bị gián đoạn. Có thể AI đang khởi động; vui lòng thử lại sau ít phút.",
-  AI_UNAVAILABLE: "Trợ lý tạm thời chưa thể phản hồi. Có thể AI đang khởi động; bạn có thể gửi lại câu hỏi sau ít phút.",
-  AI_RESPONSE_INVALID: "Phản hồi của trợ lý chưa đạt yêu cầu an toàn. Có thể AI đang khởi động; hãy thử lại sau ít phút.",
+  BFF_UPSTREAM_UNAVAILABLE: "Kết nối tới trợ lý đang bị gián đoạn. Câu hỏi vẫn được giữ lại; hãy thử lại sau ít phút.",
+  AI_UNAVAILABLE: "Trợ lý tạm thời chưa thể phản hồi. Câu hỏi vẫn được giữ lại; bạn có thể thử gửi lại sau ít phút.",
+  AI_RESPONSE_INVALID: "Phản hồi của trợ lý chưa đạt yêu cầu an toàn. Câu hỏi vẫn được giữ lại; hãy thử lại sau ít phút.",
   CHAT_CONTENT_BLOCKED: "Hãy bỏ thông tin nhận dạng cá nhân và thử diễn đạt lại câu hỏi.",
   CHAT_RETENTION_EXPIRED: "Cuộc trò chuyện đã hết thời hạn lưu trữ và không còn truy cập được.",
-  REQUEST_TIMEOUT: "Phản hồi mất quá nhiều thời gian. Kết quả có thể đã được lưu; hãy kiểm tra lịch sử trước khi thử lại.",
+  REQUEST_TIMEOUT: "Phản hồi mất quá nhiều thời gian. Câu hỏi vẫn được giữ lại; hãy kiểm tra lịch sử trước khi thử lại.",
 };
 
 export function assistantFailureFromError(error: unknown): AssistantFailure {
@@ -114,7 +114,7 @@ export function assistantFailureFromError(error: unknown): AssistantFailure {
     return {
       code: null,
       kind: "unavailable",
-      message: "Kết nối tới trợ lý đang bị gián đoạn. Có thể AI đang khởi động; vui lòng thử lại sau ít phút.",
+      message: "Kết nối tới trợ lý đang bị gián đoạn. Câu hỏi vẫn được giữ lại; hãy thử lại sau ít phút.",
       retryable: true,
     };
   }
@@ -150,7 +150,7 @@ export function assistantFailureFromError(error: unknown): AssistantFailure {
     message: knownMessage ?? (status === 429
       ? "Bạn đang gửi yêu cầu quá nhanh. Vui lòng chờ một lát rồi thử lại."
       : retryable
-        ? "Kết nối tới trợ lý đang bị gián đoạn. Có thể AI đang khởi động; vui lòng thử lại sau ít phút."
+        ? "Kết nối tới trợ lý đang bị gián đoạn. Câu hỏi vẫn được giữ lại; hãy thử lại sau ít phút."
         : "Yêu cầu chưa thể hoàn tất. Vui lòng kiểm tra và thử lại."),
     retryable,
     status,

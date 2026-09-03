@@ -42,6 +42,8 @@ test("homepage exposes patient-first navigation and appointment intents", async 
   assert.match(page, /<CareExperience \/>/);
   assert.match(page, /<PublicMotion \/>/);
   assert.match(experience, /className="care-experience"/);
+  assert.match(experience, /\/media\/care-team\.webp/);
+  assert.match(experience, /Đội ngũ y bác sĩ HealthCare/);
   assert.match(motion, /IntersectionObserver/);
   assert.match(effects, /\.public-scroll-progress/);
   assert.match(effects, /@media \(prefers-reduced-motion: reduce\)/);

@@ -34,6 +34,7 @@ export interface Doctor {
   branchIds?: string[];
   branchNames?: string[];
   specialtySlugs?: string[];
+  achievements?: string | null;
 }
 
 export interface Branch {
@@ -382,6 +383,10 @@ export interface PatientProfile {
   address?: string | null;
   emergencyContactName?: string | null;
   emergencyContactPhone?: string | null;
+  avatarUrl?: string | null;
+  medicalHistory?: string | null;
+  allergies?: string | null;
+  bloodType?: string | null;
   updatedAt?: string | null;
 }
 

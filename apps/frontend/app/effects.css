@@ -456,23 +456,6 @@
   opacity: 0.35;
 }
 
-.site-shell .care-experience__credit {
-  position: absolute;
-  bottom: 0.35rem;
-  left: 0.5rem;
-  z-index: 3;
-  margin: 0;
-  color: rgb(255 255 255 / 72%);
-  font-size: 0.58rem;
-  text-shadow: 0 1px 5px rgb(3 25 34 / 70%);
-}
-
-.site-shell .care-experience__credit a {
-  color: inherit;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
 .site-shell .care-experience__copy {
   position: relative;
   z-index: 2;
@@ -611,17 +594,18 @@
 
 /* Progressive enhancement: elements remain readable without script. */
 .public-motion-enabled .public-motion-candidate.is-motion-visible:not(.is-motion-immediate) {
-  animation: hc-section-arrive 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: hc-fade-right 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
   animation-delay: var(--public-motion-delay, 0ms);
 }
 
 .public-motion-enabled .section-heading.public-motion-candidate.is-motion-visible:not(.is-motion-immediate)::before {
-  animation: hc-line-draw 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: left center;
+  animation: hc-line-draw 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
   animation-delay: var(--public-motion-delay, 0ms);
 }
 
 .public-motion-enabled .site-shell .hero-copy > * {
-  animation: hc-hero-arrive 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: hc-hero-arrive 560ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .public-motion-enabled .site-shell .hero-copy > :nth-child(2) {
@@ -629,11 +613,15 @@
 }
 
 .public-motion-enabled .site-shell .hero-copy > :nth-child(3) {
-  animation-delay: 130ms;
+  animation-delay: 140ms;
 }
 
 .public-motion-enabled .site-shell .hero-copy > :nth-child(n + 4) {
-  animation-delay: 190ms;
+  animation-delay: 210ms;
+}
+
+.public-motion-enabled .site-shell .hero-visual {
+  animation: hc-fade-right 640ms cubic-bezier(0.16, 1, 0.3, 1) 120ms both;
 }
 
 .public-motion-enabled .site-shell .hero-visual__image {
@@ -661,28 +649,46 @@
   animation-delay: 360ms;
 }
 
-@keyframes hc-section-arrive {
+@keyframes hc-fade-right {
   from {
     opacity: 0;
-    transform: translateY(18px);
+    transform: translate3d(-24px, 4px, 0);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* Backward-compatible alias for existing references */
+@keyframes hc-section-arrive {
+  from {
+    opacity: 0;
+    transform: translate3d(-24px, 4px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
   }
 }
 
 @keyframes hc-line-draw {
-  from { transform: scaleX(0); }
-  to { transform: scaleX(1); }
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
 }
 
 @keyframes hc-hero-arrive {
   from {
-    transform: translateY(12px);
+    opacity: 0;
+    transform: translate3d(-24px, 0, 0);
   }
   to {
-    transform: translateY(0);
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
   }
 }
 

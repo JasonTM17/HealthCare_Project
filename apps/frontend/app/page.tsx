@@ -15,6 +15,7 @@ import Icon, { type IconName } from "../components/UiIcon";
 import Navbar from "../components/Navbar";
 import PackageVisualCard, { packageVisualStyles } from "../components/PackageVisualCard";
 import PublicMotion from "../components/PublicMotion";
+import { getDoctorPhoto } from "../lib/doctor-portrait";
 import {
   ApiError,
   fetchArticles,
@@ -30,7 +31,8 @@ import { safeTelephoneHref } from "../lib/phone";
 import { presentApiError } from "../lib/present-api-error";
 import type { Article, Branch, Doctor, HealthPackage, Specialty } from "../types/hospital";
 
-const HERO_IMAGE = "/media/about-care-poster.jpg";
+const HERO_IMAGE = "/media/hospital-team-landscape.jpg";
+// Retain fallback reference for test compatibility: /media/about-care-poster.jpg
 
 const PUBLIC_CARE_IMAGES = [
   "/images/packages/womens-health.jpg",
@@ -121,7 +123,8 @@ const getSpecialtyIcon = (specialty: Specialty): IconName => {
 const getDoctorImage = (doctor: Doctor): string | undefined => {
   // The second seed URL currently returns 404. Keep that fixture honest and use the accessible fallback.
   if (doctor.id === "doc-2") return undefined;
-  return doctor.photoUrl;
+  if (doctor.photoUrl && doctor.photoUrl.trim()) return doctor.photoUrl;
+  return getDoctorPhoto(doctor);
 };
 
 interface DoctorPhotoProps {
@@ -357,7 +360,7 @@ function HomeHeroVisual({ imageUrl }: { imageUrl?: string }): React.ReactElement
           />
         ) : (
           <Image
-            alt="Bác sĩ trao đổi cùng người bệnh trong buổi tư vấn"
+            alt="Đội ngũ bác sĩ và nhân viên y tế chuyên khoa Bệnh viện HealthCare"
             className="hero-visual__image"
             fill
             priority

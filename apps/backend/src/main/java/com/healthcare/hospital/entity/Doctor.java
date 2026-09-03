@@ -31,6 +31,9 @@ public class Doctor {
     @Column(name = "photo_url", length = 500)
     private String photoUrl;
 
+    @Column(name = "achievements", columnDefinition = "TEXT")
+    private String achievements;
+
     @Column(name = "active", nullable = false)
     private boolean active = true;
 
@@ -83,6 +86,14 @@ public class Doctor {
 
     public void setActive(boolean active) {
         this.active = active;
+    }
+
+    public String getAchievements() {
+        return achievements;
+    }
+
+    public void setAchievements(String achievements) {
+        this.achievements = achievements;
     }
 
     @JsonIgnore

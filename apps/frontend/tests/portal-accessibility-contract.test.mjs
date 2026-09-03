@@ -25,6 +25,8 @@ test("patient, doctor and admin shells keep role gates and keyboard landmarks ex
   assert.match(portalChrome, /href: "\/patient\/prescriptions"/);
   assert.match(portalChrome, /href: "\/patient\/diagnostic-results"/);
   assert.match(adminLayout, /href: "\/admin\/consultations"/);
+  assert.match(adminLayout, /className="admin-nav mt-6"/);
+  assert.match(adminLayout, /className=\{`admin-nav__link/);
 
   assert.match(adminLayout, /<a className="skip-link" href="#main-content">/);
   assert.match(adminLayout, /<nav aria-label="Điều hướng quản trị"/);
@@ -67,6 +69,8 @@ test("portal and admin controls expose 44px targets, visible focus and responsiv
   assert.match(styles, /\.portal-context-link\s*\{[\s\S]*?min-height:\s*44px/);
   assert.match(styles, /\.portal-shell > \.skip-link,[\s\S]*?\.admin-shell > \.skip-link\s*\{[\s\S]*?min-height:\s*44px/);
   assert.match(styles, /\.admin-shell button\s*\{[\s\S]*?min-height:\s*44px/);
+  assert.match(styles, /\.admin-nav\s*\{[\s\S]*?display:\s*flex;[\s\S]*?flex-wrap:\s*wrap/);
+  assert.match(styles, /\.admin-nav__link\s*\{[\s\S]*?min-height:\s*44px[\s\S]*?border-radius:\s*var\(--radius-sm\)/);
   assert.match(styles, /\.admin-shell input:not\(\[type="checkbox"\]\),[\s\S]*?\.admin-shell select\s*\{[\s\S]*?min-height:\s*44px/);
   assert.match(styles, /\.admin-shell label:has\(input\[type="checkbox"\]\)\s*\{[\s\S]*?min-height:\s*44px/);
 

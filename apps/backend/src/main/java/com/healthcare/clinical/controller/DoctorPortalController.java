@@ -57,6 +57,16 @@ public class DoctorPortalController {
         return ResponseEntity.ok(doctorService.getByUserId(principal.getUserId()));
     }
 
+    @org.springframework.web.bind.annotation.PutMapping("/profile")
+    public ResponseEntity<DoctorResponse> updateProfile(
+            @Valid @RequestBody com.healthcare.hospital.dto.UpdateDoctorProfileRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        if (!(userDetails instanceof HealthcareUserPrincipal principal)) {
+            throw new org.springframework.security.access.AccessDeniedException("Authenticated doctor profile is unavailable");
+        }
+        return ResponseEntity.ok(doctorService.updateProfile(principal.getUserId(), request));
+    }
+
     @GetMapping("/appointments")
     public ResponseEntity<Page<DoctorAppointmentResponse>> getAppointments(
             @RequestParam String date,
