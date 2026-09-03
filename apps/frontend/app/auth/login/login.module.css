@@ -33,3 +33,17 @@
 .rolePassword code { color: #14615f; font-weight: 700; }
 .submit { cursor: pointer; }
 @media (max-width: 600px) { .roleButton { font-size: .74rem; } }
+.layout { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(240px, .72fr) minmax(0, 1fr); width: min(100%, 940px); overflow: hidden; border: 1px solid rgba(8,127,123,.14); border-radius: 28px; background: #fff; box-shadow: 0 24px 70px rgba(10,68,71,.14), 0 2px 8px rgba(10,68,71,.05); }
+.welcome { display: flex; min-height: 680px; flex-direction: column; padding: 48px 36px; color: #e9fbf7; background: #075f5e; }
+.welcomeIcon { display: grid; width: 48px; height: 48px; place-items: center; margin-bottom: 40px; border: 1px solid rgba(233,251,247,.28); border-radius: 14px; color: #f5c96a; background: rgba(255,255,255,.1); }
+.welcomeKicker { margin: 0 0 16px; color: #9edbd1; font-size: .74rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.welcome h2 { max-width: 11ch; margin: 0; color: #fff; font-family: var(--font-vietnamese-display, var(--font-display)); font-size: clamp(1.8rem, 3vw, 2.55rem); line-height: 1.1; letter-spacing: -.025em; }
+.welcomeCopy { max-width: 27ch; margin: 24px 0 0; color: #c5e9e2; font-size: .95rem; line-height: 1.65; }
+.welcomeDivider { width: 100%; height: 1px; margin: auto 0 24px; background: rgba(233,251,247,.2); }
+.welcomeList { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
+.welcomeList li { display: flex; align-items: center; gap: 10px; color: #d7f1eb; font-size: .78rem; line-height: 1.35; }
+.welcomeList svg { flex: 0 0 auto; color: #f5c96a; }
+.layout .card { width: auto; max-width: none; border: 0; border-radius: 0; box-shadow: none; }
+.card :global(.auth-card__brand) { align-items: center; }
+.card :global(.auth-card__brand > .brand-identity) { display: inline-flex; flex-direction: row; align-items: center; gap: 12px; }
+@media (max-width: 760px) { .layout { display: block; width: min(100%, 560px); border-radius: 20px; } .welcome { display: none; } .layout .card { border-radius: 20px; } }
