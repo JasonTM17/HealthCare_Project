@@ -13,7 +13,6 @@ const doctorLayoutPath = new URL("../app/doctor/layout.tsx", import.meta.url);
 const stylesPath = new URL("../app/styles.css", import.meta.url);
 const patientAliasRoutes = [
   ["../app/patient/page.tsx", "/patient/dashboard"],
-  ["../app/patient/profile/page.tsx", "/patient/dashboard#profile"],
   ["../app/patient/appointments/page.tsx", "/patient/dashboard#appointments"],
   ["../app/patient/appointments/[id]/page.tsx", "/patient/dashboard?appointmentId="],
   ["../app/patient/medical-records/page.tsx", "/patient/dashboard#records"],

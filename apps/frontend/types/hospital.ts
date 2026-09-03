@@ -387,6 +387,8 @@ export interface PatientProfile {
   medicalHistory?: string | null;
   allergies?: string | null;
   bloodType?: string | null;
+  patientTier?: string | null;
+  aiCredits?: number | null;
   updatedAt?: string | null;
 }
 
