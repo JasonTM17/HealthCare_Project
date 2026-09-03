@@ -32,16 +32,16 @@
 }
 
 .panel {
-  width: min(23rem, calc(100vw - 2rem));
+  width: min(24.5rem, calc(100vw - 2rem));
   max-width: 100%;
-  max-height: min(42rem, calc(100dvh - 2rem));
+  max-height: min(44rem, calc(100dvh - 2rem));
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid var(--assistant-line);
-  border-radius: 0.75rem;
-  background: var(--assistant-paper);
-  box-shadow: 0 18px 50px rgb(11 53 54 / 18%);
+  border: 1px solid #ccfbf1;
+  border-radius: 1.15rem;
+  background: #ffffff;
+  box-shadow: 0 24px 60px -10px rgb(11 53 54 / 22%), 0 4px 16px rgb(11 53 54 / 8%);
   color: var(--assistant-ink);
 }
 
@@ -50,8 +50,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.85rem 0.9rem;
-  background: var(--assistant-deep);
+  padding: 0.95rem 1.1rem;
+  background: #004c4e;
   color: white;
 }
 
@@ -577,15 +577,15 @@
 
 .launcher {
   position: relative;
-  width: 4rem;
-  height: 4rem;
-  min-width: 4rem;
-  min-height: 4rem;
+  width: 4.25rem;
+  height: 4.25rem;
+  min-width: 4.25rem;
+  min-height: 4.25rem;
   padding: 0.18rem;
-  border: 3px solid #d9f2eb;
+  border: 3px solid #ccfbf1;
   border-radius: 50%;
-  background: var(--assistant-deep);
-  box-shadow: 0 10px 24px rgb(11 53 54 / 22%);
+  background: #004c4e;
+  box-shadow: 0 12px 30px rgb(11 53 54 / 28%), 0 0 0 4px rgb(13 148 136 / 20%);
   color: white;
   overflow: visible;
   transition: transform 180ms ease-out, box-shadow 180ms ease-out;

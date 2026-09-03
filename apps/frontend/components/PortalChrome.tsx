@@ -98,6 +98,9 @@ export default function PortalChrome({ role, user, children }: PortalChromeProps
           </nav>
 
           <div className="portal-user">
+            <span className="portal-user__avatar" aria-hidden="true">
+              {user.displayName?.charAt(0)?.toUpperCase() ?? "U"}
+            </span>
             <div className="portal-user__copy">
               <strong>{user.displayName}</strong>
               <span>{user.email}</span>
