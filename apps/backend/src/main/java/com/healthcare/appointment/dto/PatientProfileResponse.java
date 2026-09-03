@@ -17,13 +17,34 @@ public record PatientProfileResponse(
     String address,
     String emergencyContactName,
     String emergencyContactPhone,
+    String avatarUrl,
+    String medicalHistory,
+    String allergies,
+    String bloodType,
     OffsetDateTime updatedAt
 ) {
+    public PatientProfileResponse(
+        UUID id,
+        String fullName,
+        String phone,
+        String email,
+        LocalDate dateOfBirth,
+        PatientGender gender,
+        String address,
+        String emergencyContactName,
+        String emergencyContactPhone,
+        OffsetDateTime updatedAt
+    ) {
+        this(id, fullName, phone, email, dateOfBirth, gender, address, emergencyContactName, emergencyContactPhone, null, null, null, null, updatedAt);
+    }
+
     public static PatientProfileResponse from(PatientProfile patient) {
         return new PatientProfileResponse(
             patient.getId(), patient.getFullName(), patient.getPhone(), patient.getEmail(),
             patient.getDateOfBirth(), patient.getGender(), patient.getAddress(),
-            patient.getEmergencyContactName(), patient.getEmergencyContactPhone(), patient.getUpdatedAt()
+            patient.getEmergencyContactName(), patient.getEmergencyContactPhone(),
+            patient.getAvatarUrl(), patient.getMedicalHistory(), patient.getAllergies(), patient.getBloodType(),
+            patient.getUpdatedAt()
         );
     }
 }

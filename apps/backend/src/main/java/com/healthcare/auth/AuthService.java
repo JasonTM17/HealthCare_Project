@@ -266,6 +266,21 @@ public class AuthService {
         return new AuthActionResponse("Password reset completed.");
     }
 
+    @Transactional
+    public void changePassword(String email, String currentPassword, String newPassword) {
+        User user = userRepository.findByEmail(email)
+            .orElseThrow(() -> new BadCredentialsException("Tài khoản không tồn tại"));
+        if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+            throw new BadCredentialsException("Mật khẩu hiện tại không chính xác");
+        }
+        if (newPassword == null || newPassword.trim().length() < 8) {
+            throw new BusinessException(400, ErrorCodes.VALIDATION_ERROR, "Mật khẩu mới phải có ít nhất 8 ký tự");
+        }
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setUpdatedAt(OffsetDateTime.now());
+        userRepository.save(user);
+    }
+
     @Transactional(noRollbackFor = BadCredentialsException.class)
     public AuthResponse refreshToken(RefreshTokenRequest request) {
         String token = request.refreshToken();

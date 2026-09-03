@@ -16,7 +16,7 @@ for (const role of ["PATIENT", "DOCTOR"] as const) {
 
     // 1024px reproduced the defect; adjacent breakpoints guard the layout
     // transition, and 1440px protects the existing desktop presentation.
-    for (const width of [1024, 900, 901, 1280, 1281, 1440]) {
+    for (const width of [1024, 900, 901, 1280, 1281, 1440, 1920]) {
       await test.step(`${width}px`, async () => {
         await page.setViewportSize({ width, height: 900 });
         await page.goto(`/${role.toLowerCase()}`, { waitUntil: "domcontentloaded" });
@@ -49,3 +49,35 @@ for (const role of ["PATIENT", "DOCTOR"] as const) {
     }
   });
 }
+
+test("admin navigation keeps a compact touch-safe rhythm when the sidebar becomes a mobile band", async ({ context, page }) => {
+  await context.route("**/api/v1/**", (route) => route.fulfill({
+    status: 503,
+    contentType: "application/json",
+    body: JSON.stringify({ code: "SERVICE_UNAVAILABLE" }),
+  }));
+  await installMockBrowserSession(context, browserSessionFixture(
+    "ADMIN",
+    "route-matrix-admin",
+    "Route Matrix ADMIN",
+  ));
+
+  for (const width of [375, 768, 1024, 1920]) {
+    await test.step(`${width}px`, async () => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/admin", { waitUntil: "domcontentloaded" });
+      const navigation = page.getByRole("navigation", { name: "Điều hướng quản trị" });
+      await expect(navigation).toBeVisible();
+      await expect.poll(
+        () => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
+      ).toBeLessThanOrEqual(1);
+
+      for (const link of await navigation.getByRole("link").all()) {
+        await expect(link).toBeInViewport();
+        await expect(link).toHaveCSS("min-height", "44px");
+        await link.focus();
+        await expect(link).toBeFocused();
+      }
+    });
+  }
+});

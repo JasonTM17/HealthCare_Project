@@ -101,7 +101,7 @@ export default function RegisterPage() {
                 <button className="text-button auth-status__edit" onClick={() => setPendingEmail(null)} type="button">Đổi thông tin</button>
               </div>
               <p style={{ margin: "0.75rem 0 0", fontSize: "0.8rem", color: "#0f766e" }}>
-                📧 Hệ thống đã gửi mã OTP 6 chữ số về hòm thư của bạn. Vui lòng kiểm tra email (cả hộp thư Đến và mục Spam) để lấy mã xác minh.
+                Hệ thống đã gửi mã OTP 6 chữ số tới email của bạn. Vui lòng kiểm tra cả hộp thư Đến và mục Spam để lấy mã xác minh.
               </p>
               <p className="auth-card__note">Sau khi xác minh, bạn có thể <Link href="/auth/login?next=/patient/dashboard">đăng nhập vào cổng bệnh nhân</Link>.</p>
             </div>

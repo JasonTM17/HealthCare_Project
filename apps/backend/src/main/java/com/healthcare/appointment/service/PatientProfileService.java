@@ -41,6 +41,18 @@ public class PatientProfileService {
         patient.setAddress(trimToNull(request.address()));
         patient.setEmergencyContactName(trimToNull(request.emergencyContactName()));
         patient.setEmergencyContactPhone(trimToNull(request.emergencyContactPhone()));
+        if (request.avatarUrl() != null) {
+            patient.setAvatarUrl(trimToNull(request.avatarUrl()));
+        }
+        if (request.medicalHistory() != null) {
+            patient.setMedicalHistory(trimToNull(request.medicalHistory()));
+        }
+        if (request.allergies() != null) {
+            patient.setAllergies(trimToNull(request.allergies()));
+        }
+        if (request.bloodType() != null) {
+            patient.setBloodType(trimToNull(request.bloodType()));
+        }
         patient.setUpdatedAt(OffsetDateTime.now());
         return PatientProfileResponse.from(patientProfileRepository.saveAndFlush(patient));
     }

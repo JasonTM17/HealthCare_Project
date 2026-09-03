@@ -106,7 +106,7 @@ SELECT md5(format('large-doctor:%s', gs.idx))::uuid,
        names.ho[1 + (gs.idx % 5)] || ' ' || names.dem[1 + ((gs.idx * 3) % 6)] || ' ' || names.ten[1 + ((gs.idx * 7) % 8)],
        'bs-' || gs.idx,
        'Bác sĩ chuyên khoa với ' || (8 + (gs.idx % 15)) || ' năm kinh nghiệm điều trị và chăm sóc bệnh nhân.',
-       NULL,
+       '/media/doctors/doctor-' || (1 + (gs.idx % 6)) || '.jpg',
        (gs.idx % 20 <> 0)  -- 5% inactive to exercise active filters
 FROM generate_series(1, 500) AS gs(idx),
      LATERAL (SELECT ARRAY['Nguyễn','Trần','Lê','Phạm','Võ','Đỗ','Bùi','Hoàng','Đặng','Ngô'] AS ho,

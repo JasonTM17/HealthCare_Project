@@ -8,7 +8,8 @@
   --chat-danger: var(--color-red);
   --chat-danger-surface: color-mix(in oklch, var(--color-red) 9%, var(--color-paper-bright));
   --chat-warning-surface: color-mix(in oklch, var(--color-amber) 13%, var(--color-paper-bright));
-  --chat-radius: var(--radius-sm);
+  /* A small service-interface radius keeps the chat calm and clinical. */
+  --chat-radius: 0.375rem;
   --chat-touch-size: 2.75rem;
   --chat-rail-width: 19rem;
   --chat-transition: var(--duration-fast) var(--ease-out);
@@ -22,7 +23,7 @@
   border: 1px solid var(--chat-border);
   border-radius: var(--chat-radius);
   background: var(--chat-surface);
-  box-shadow: var(--shadow-soft);
+  box-shadow: none;
 }
 
 .guestIntro h1 {
@@ -196,6 +197,7 @@
   border: 1px solid var(--chat-border);
   border-radius: var(--chat-radius);
   background: var(--chat-surface);
+  box-shadow: none;
 }
 
 .conversationRail {
@@ -344,6 +346,10 @@
   transition:
     background-color var(--chat-transition),
     border-color var(--chat-transition);
+}
+
+.conversationList li:focus-within {
+  border-color: var(--chat-border-strong);
 }
 
 .conversationList li:hover {
@@ -536,16 +542,19 @@
   border-radius: var(--chat-radius);
   padding: var(--sp-4);
   background: var(--chat-surface);
+  box-shadow: none;
 }
 
 .messageAssistant {
   justify-self: start;
+  border-left: 3px solid var(--chat-border-strong);
 }
 
 .messagePatient {
   width: min(86%, 42rem);
   justify-self: end;
   border-color: var(--chat-border-strong);
+  border-right: 3px solid var(--chat-accent);
   background: var(--chat-surface-muted);
 }
 

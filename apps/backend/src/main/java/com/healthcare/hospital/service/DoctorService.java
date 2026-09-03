@@ -12,6 +12,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class DoctorService {
@@ -83,8 +84,25 @@ public class DoctorService {
             branchId,
             branchLinks.stream().map(link -> link.getBranch().getId().toString()).toList(),
             branchLinks.stream().map(link -> link.getBranch().getName()).toList(),
-            specialtyLinks.stream().map(link -> link.getSpecialty().getSlug()).toList()
+            specialtyLinks.stream().map(link -> link.getSpecialty().getSlug()).toList(),
+            doctor.getAchievements()
         );
+    }
+
+    @org.springframework.transaction.annotation.Transactional
+    public DoctorResponse updateProfile(UUID userId, com.healthcare.hospital.dto.UpdateDoctorProfileRequest request) {
+        Doctor doctor = doctorRepository.findByUserId(userId)
+            .orElseThrow(() -> new com.healthcare.exception.ResourceNotFoundException("Doctor profile not found for user"));
+        if (request.bio() != null) {
+            doctor.setBio(request.bio());
+        }
+        if (request.achievements() != null) {
+            doctor.setAchievements(request.achievements());
+        }
+        if (request.photoUrl() != null && !request.photoUrl().isBlank()) {
+            doctor.setPhotoUrl(request.photoUrl());
+        }
+        return toResponse(doctorRepository.saveAndFlush(doctor));
     }
 
     DoctorSummaryResponse toSummary(Doctor doctor) {

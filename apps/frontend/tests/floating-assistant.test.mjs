@@ -14,6 +14,8 @@ test("floating assistant is mounted globally and stays on the REST chat contract
   assert.match(layout, /FloatingHealthAssistant/);
   assert.match(component, /pathname === "\/patient\/chat"/);
   assert.match(component, /hasRole\(session\.user, "PATIENT"\)/);
+  assert.match(component, /styles\.rootPatient/);
+  assert.doesNotMatch(component, /assistant-mascot-neutral-v1/);
   assert.match(component, /key=\{stateKey\}/);
   assert.match(component, /session\?\.user\.id/);
   assert.match(component, /fetchAiConversations\(\)/);
@@ -62,6 +64,11 @@ test("floating assistant exposes real recovery, safety and accessible actions", 
   assert.match(styles, /object-fit: contain/);
   assert.match(styles, /min-height: 2\.75rem/);
   assert.match(styles, /--assistant-bottom-clearance/);
+  assert.match(styles, /\.provenance[\s\S]*border-radius: 0/);
+  assert.match(styles, /\.suggestions button::after/);
+  assert.match(styles, /border-left: 3px solid var\(--assistant-assistant-accent\)/);
+  assert.match(styles, /\.feedback button \{[\s\S]*min-height: 2\.75rem/);
+  assert.match(styles, /\.modeOption,\s*\.modeOptionActive \{[\s\S]*font-size: 0\.74rem/);
   assert.match(styles, /max\(0\.75rem, env\(safe-area-inset-bottom\)\)/);
   assert.match(styles, /z-index: 80/);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/);

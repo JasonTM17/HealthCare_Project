@@ -62,6 +62,20 @@ export default function BranchesPage() {
   const featuredPhoneHref = safeTelephoneHref(featuredPhone);
   const featuredAddress = featuredBranch?.address?.trim();
   const featuredMapHref = featuredAddress ? createGoogleMapsUrls(featuredAddress, featuredBranch?.name).open : undefined;
+  const branchCountLabel = loading
+    ? "Đang tải…"
+    : error
+      ? "Chưa tải được"
+      : page?.empty
+        ? "Chưa có dữ liệu"
+        : branchCount;
+  const featuredBranchLabel = loading
+    ? "Đang tải…"
+    : error
+      ? "Chưa tải được"
+      : page?.empty
+        ? "Chưa có dữ liệu"
+        : featuredBranch?.name ?? "Chưa có dữ liệu";
   return (
     <PublicPageShell branches={page?.content ?? []}>
       <div className={`catalog-page section-inner ${styles.branchesPage}`}>
@@ -95,18 +109,18 @@ export default function BranchesPage() {
                 Liên hệ bệnh viện
               </Link>
             </div>
-            {page && !page.empty && featuredBranch ? (
-              <dl className={styles.networkSummary}>
+            <div className={`${styles.summaryAnchor} resource-hero-card`}>
+              <dl className={`${styles.networkSummary} resource-meta-grid`}>
                 <div>
                   <dt>Tổng cơ sở</dt>
-                  <dd>{branchCount}</dd>
+                  <dd>{branchCountLabel}</dd>
                 </div>
                 <div>
                   <dt>Cơ sở ưu tiên</dt>
-                  <dd>{featuredBranch.name}</dd>
+                  <dd>{featuredBranchLabel}</dd>
                 </div>
               </dl>
-            ) : null}
+            </div>
           </div>
         </section>
 
