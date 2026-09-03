@@ -207,6 +207,24 @@ def test_public_specific_question_without_context_fails_closed() -> None:
     provider.complete_json.assert_not_called()
 
 
+def test_allowed_public_query_without_context_falls_back_when_ungrounded() -> None:
+    provider = MagicMock()
+    provider.complete_json.return_value = {"answer": "Bước 1: Truy cập web. Bước 2: Chọn lịch."}
+    local_settings = _synthetic_remote_settings()
+    local_settings.ai_public_hospital_support_remote_enabled = True
+
+    resp = resolve_chat(
+        "Làm sao để đặt lịch khám?",
+        local_settings,
+        context=[],
+        client=provider,
+        public_support_chat=True,
+        allow_public_operational=True,
+    )
+    assert resp.provenance == "local_fallback"
+    assert "tham khảo" in resp.answer or "triệu chứng" in resp.answer
+
+
 def test_no_context_remote_answer_cannot_invent_numeric_operational_fact() -> None:
     assert remote_text_output_is_safe("Bệnh viện mở cửa 24/7", allow_public_operational=True)
     assert not remote_answer_is_grounded(

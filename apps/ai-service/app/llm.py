@@ -1217,9 +1217,10 @@ def resolve_chat(
         if public_support_chat and not context:
             system_prompt += (
                 " Không có nguồn catalog khớp với câu hỏi này. Chỉ trả lời lời chào hoặc "
-                "hướng dẫn chung, không khẳng định tên, số điện thoại, địa chỉ, giờ mở cửa, "
-                "giá, lịch hay dịch vụ cụ thể của HealthCare; nếu cần thông tin cụ thể, "
-                "hãy mời người dùng nêu rõ nhu cầu hoặc xem trang chính thức."
+                "hướng dẫn chung và tuyệt đối không sử dụng con số (không dùng số thứ tự 1, 2, 3, "
+                "không dùng số điện thoại, giờ, ngày, giá); không khẳng định tên, địa chỉ, số điện thoại, "
+                "giờ mở cửa, giá, lịch hay dịch vụ cụ thể của HealthCare; "
+                "nếu cần thông tin cụ thể, hãy mời người dùng xem các mục tương ứng trên website chính thức."
             )
         data = client.complete_json(
             system_prompt=system_prompt,
@@ -1240,6 +1241,13 @@ def resolve_chat(
             allow_public_operational=allow_public_operational,
         ):
             if public_remote_enabled:
+                if public_support_chat and not context and public_no_context_query_allowed(message):
+                    return ChatResponse(
+                        answer=fallback,
+                        provenance="local_fallback",
+                        safety_action=ChatSafetyAction.INSUFFICIENT_EVIDENCE,
+                        used_sources=list(used_sources),
+                    )
                 raise ProviderUnavailable()
             return ChatResponse(
                 answer=fallback,
