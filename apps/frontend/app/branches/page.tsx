@@ -9,24 +9,7 @@ import Icon from "../../components/UiIcon";
 import { fetchBranches, type Page } from "../../lib/api-client";
 import { safeTelephoneHref } from "../../lib/phone";
 import type { Branch } from "../../types/hospital";
-
-const BRANCH_STEPS = [
-  {
-    number: "01",
-    title: "Xem cơ sở gần nhất",
-    description: "Địa chỉ, bản đồ và giờ làm việc hiển thị trước khi bạn quyết định đi.",
-  },
-  {
-    number: "02",
-    title: "Kiểm tra đầu mối liên hệ",
-    description: "Gọi hotline cơ sở hoặc số cấp cứu nếu cần xác nhận nhanh trước khi đến.",
-  },
-  {
-    number: "03",
-    title: "Chuyển sang đặt lịch",
-    description: "Mở form đặt lịch ngay tại cơ sở phù hợp để giữ khung giờ thuận tiện.",
-  },
-] as const;
+import styles from "./BranchesPage.module.css";
 
 export default function BranchesPage() {
   const [page, setPage] = useState<Page<Branch> | null>(null);
@@ -69,10 +52,9 @@ export default function BranchesPage() {
   const featuredPhoneHref = safeTelephoneHref(featuredPhone);
   const featuredAddress = featuredBranch?.address?.trim();
   const featuredMapHref = featuredAddress ? createGoogleMapsUrls(featuredAddress, featuredBranch?.name).open : undefined;
-
   return (
     <PublicPageShell branches={page?.content ?? []}>
-      <div className="catalog-page section-inner">
+      <div className={`catalog-page section-inner ${styles.branchesPage}`}>
         <header className="resource-page__header">
           <p className="section-note">Mạng lưới cơ sở</p>
           <h1>Chọn cơ sở thuận tiện cho bạn</h1>
@@ -82,16 +64,17 @@ export default function BranchesPage() {
           </p>
         </header>
 
-        <section className="resource-hero-card resource-hero-card--teal">
-          <div className="resource-icon" aria-hidden="true">
+        <section className={styles.networkOverview} aria-labelledby="branch-network-overview-title">
+          <div className={`resource-icon ${styles.networkIcon}`} aria-hidden="true">
             <ClinicalIcon name="branch" />
           </div>
-          <div className="resource-hero-card__body">
-            <p className="resource-chip">Cơ sở công khai</p>
-            <h2>Nhìn một lượt là biết nên đi đâu, gọi ai, và mở lịch thế nào.</h2>
-            <p className="resource-lead">
-              Mỗi cơ sở đi kèm bản đồ, đầu mối liên hệ và lối đi sang đặt lịch để bạn không phải dò
-              từng trang riêng lẻ.
+          <div>
+            <p className="section-note">Cơ sở đang hoạt động</p>
+            <h2 id="branch-network-overview-title">
+              {page && !page.empty ? `${branchCount} cơ sở sẵn sàng đón bạn` : "Tìm cơ sở phù hợp trước khi đi khám"}
+            </h2>
+            <p className={styles.networkLead}>
+              Xem địa chỉ, giờ làm việc, đầu mối liên hệ và mở chỉ đường ngay từ danh sách bên dưới.
             </p>
             <div className="resource-actions">
               <PublicBookingButton selection={featuredBranch ? { branchId: featuredBranch.id } : undefined}>
@@ -102,79 +85,20 @@ export default function BranchesPage() {
                 Liên hệ bệnh viện
               </Link>
             </div>
-            <dl className="resource-meta-grid">
-              <div>
-                <dt>Tổng cơ sở</dt>
-                <dd>{branchCount || "Đang cập nhật"}</dd>
-              </div>
-              <div>
-                <dt>Cơ sở nổi bật</dt>
-                <dd>{featuredBranch?.name ?? "Đang cập nhật"}</dd>
-              </div>
-            </dl>
+            {page && !page.empty && featuredBranch ? (
+              <dl className={styles.networkSummary}>
+                <div>
+                  <dt>Tổng cơ sở</dt>
+                  <dd>{branchCount}</dd>
+                </div>
+                <div>
+                  <dt>Cơ sở ưu tiên</dt>
+                  <dd>{featuredBranch.name}</dd>
+                </div>
+              </dl>
+            ) : null}
           </div>
         </section>
-
-        <div className="resource-grid resource-grid--two">
-          <section className="resource-panel resource-panel--accent">
-            <p className="section-note">Cần kiểm tra trước khi đến</p>
-            <h2>Ba điều nên nhìn nhanh</h2>
-            <div className="resource-steps resource-steps--grid">
-              {BRANCH_STEPS.map((step) => (
-                <div className="resource-step-card" key={step.number}>
-                  <span>{step.number}</span>
-                  <strong>{step.title}</strong>
-                  <p>{step.description}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="resource-panel">
-            <p className="section-note">Điểm nhấn mạng lưới</p>
-            <h2>Cơ sở đang nổi bật</h2>
-            {featuredBranch ? (
-              <ul className="resource-list">
-                <li>
-                  <strong>Địa chỉ</strong>
-                  <span>{featuredBranch.address}</span>
-                </li>
-                {featuredPhone ? (
-                  <li>
-                    <strong>{featuredBranch.emergencyHotline ? "Hotline cấp cứu" : "Hotline cơ sở"}</strong>
-                    <span>{featuredPhone}</span>
-                  </li>
-                ) : null}
-                {featuredBranch.workingHours ? (
-                  <li>
-                    <strong>Giờ làm việc</strong>
-                    <span>{featuredBranch.workingHours}</span>
-                  </li>
-                ) : null}
-                {featuredBranch.amenities?.length ? (
-                  <li>
-                    <strong>Tiện ích</strong>
-                    <span>{featuredBranch.amenities.slice(0, 3).join(" · ")}</span>
-                  </li>
-                ) : null}
-              </ul>
-            ) : (
-              <p className="resource-muted">Thông tin cơ sở đang được cập nhật.</p>
-            )}
-            <div className="resource-actions">
-              {featuredPhoneHref ? (
-                <a className="button button--amber" href={featuredPhoneHref}>
-                  {featuredBranch?.emergencyHotline ? "Gọi cấp cứu" : "Gọi cơ sở"}
-                </a>
-              ) : null}
-              {featuredMapHref ? (
-                <a className="outline-button" href={featuredMapHref}>
-                  Xem bản đồ
-                </a>
-              ) : null}
-            </div>
-          </section>
-        </div>
 
         {loading ? (
           <p className="catalog-status catalog-status--loading" role="status">
@@ -197,6 +121,28 @@ export default function BranchesPage() {
           <p className="catalog-status" role="status">
             Thông tin cơ sở đang được cập nhật.
           </p>
+        ) : null}
+
+        {page && !page.empty && featuredBranch ? (
+          <section className={styles.featuredContact} aria-labelledby="branch-featured-contact-title">
+            <div>
+              <p className="section-note">Cơ sở ưu tiên</p>
+              <h2 id="branch-featured-contact-title">{featuredBranch.name}</h2>
+              <p>{featuredBranch.address}</p>
+            </div>
+            <div className="resource-actions">
+              {featuredPhoneHref ? (
+                <a className="button button--amber" href={featuredPhoneHref}>
+                  {featuredBranch?.emergencyHotline ? "Gọi cấp cứu" : "Gọi cơ sở"}
+                </a>
+              ) : null}
+              {featuredMapHref ? (
+                <a className="outline-button" href={featuredMapHref}>
+                  Xem bản đồ
+                </a>
+              ) : null}
+            </div>
+          </section>
         ) : null}
 
         {page && !page.empty ? (
