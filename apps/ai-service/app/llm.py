@@ -491,9 +491,27 @@ def public_no_context_query_allowed(query: str) -> bool:
         normalized,
     ):
         return True
+    if re.search(
+        r"\b(?:ban|em|may|tro\s+ly|bot)\s+(?:la\s+ai|la\s+gi|ten\s+gi|co\s+the\s+lam\s+gi|giup\s+duoc\s+gi)\b",
+        normalized,
+    ):
+        return True
+    if re.search(
+        r"\b(?:la\s+ai|gioi\s+thieu(?:\s+ban\s+than)?|chuc\s+nang(?:\s+cua\s+ban)?|ai\s+do|tro\s+ly\s+la\s+ai)\b",
+        normalized,
+    ):
+        return True
     return any(
         phrase in normalized
         for phrase in (
+            "ban la ai",
+            "em la ai",
+            "la ai",
+            "gioi thieu",
+            "chuc nang",
+            "giup gi",
+            "lam duoc gi",
+            "co the lam gi",
             "can ho tro",
             "chuan bi truoc khi di kham",
             "dat lich",

@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
+import { getDoctorPhoto } from "../../lib/doctor-portrait";
 import { useEffect, useState } from "react";
 import { fetchDoctors, fetchSpecialties, type Page } from "../../lib/api-client";
 import type { Doctor, Specialty } from "../../types/hospital";
@@ -187,7 +189,15 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
             <div className="catalog-grid catalog-grid--doctors">
               {visibleDoctors.map((doctor) => (
                 <article className="catalog-card" key={doctor.id}>
-                  <div className="resource-avatar" aria-hidden="true">{initials(doctor.fullName)}</div>
+                  <div className="resource-avatar" aria-hidden="true">
+                    <Image
+                      src={getDoctorPhoto(doctor)}
+                      alt={doctor.fullName}
+                      width={112}
+                      height={112}
+                      className="resource-avatar__img"
+                    />
+                  </div>
                   {doctor.specialtyName ? <span className="resource-chip">{doctor.specialtyName}</span> : null}
                   <h2>{doctor.fullName}</h2>
                   <p>{doctor.bio || "Hồ sơ chưa có phần giới thiệu chi tiết."}</p>

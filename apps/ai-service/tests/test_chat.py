@@ -193,6 +193,8 @@ def test_public_specific_question_without_context_fails_closed() -> None:
     assert public_no_context_query_allowed("Tìm chuyên khoa phù hợp với triệu chứng của tôi")
     assert public_no_context_query_allowed("Bệnh viện ở đâu?")
     assert public_no_context_query_allowed("Bệnh viện có chuyên khoa nào?")
+    assert public_no_context_query_allowed("Bạn là ai")
+    assert public_no_context_query_allowed("Bạn có thể giúp gì cho tôi?")
     assert not public_no_context_query_allowed("Huyết học điều trị những bệnh gì?")
 
     with pytest.raises(ProviderUnavailable):
