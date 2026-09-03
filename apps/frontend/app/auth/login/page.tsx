@@ -4,13 +4,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import BrandMark from "../../../components/BrandMark";
+import Icon from "../../../components/UiIcon";
+import styles from "./login.module.css";
 import { ApiError, hasRole, login } from "../../../lib/api-client";
 import { authErrorMessage, authFieldErrors, safeAuthNextPath, type AuthFieldErrors } from "../../../lib/auth-flow";
 
 interface DemoRoleInfo {
   role: string;
   label: string;
-  icon: string;
+  icon: "user" | "stethoscope" | "shield-check";
   email: string;
   badge: string;
   badgeColor: string;
@@ -22,9 +24,9 @@ const DEMO_ROLES: readonly DemoRoleInfo[] = [
   {
     role: "PATIENT",
     label: "Bệnh nhân",
-    icon: "👤",
+    icon: "user",
     email: "patient@healthcare.com",
-    badge: "👤 Quyền Bệnh nhân: Xem hồ sơ, đặt khám & Chatbot AI",
+    badge: "Quyền bệnh nhân: xem hồ sơ, đặt khám và Chatbot AI",
     badgeColor: "#ecfeff",
     badgeBorder: "#a5f3fc",
     badgeText: "#0e7490",
@@ -32,9 +34,9 @@ const DEMO_ROLES: readonly DemoRoleInfo[] = [
   {
     role: "DOCTOR",
     label: "Bác sĩ",
-    icon: "🩺",
+    icon: "stethoscope",
     email: "doctor@healthcare.com",
-    badge: "🩺 Quyền Bác sĩ: BS. Lê Quốc Hà - Quản lý lịch khám & tư vấn",
+    badge: "Quyền bác sĩ: quản lý lịch khám và tư vấn",
     badgeColor: "#f0fdf4",
     badgeBorder: "#bbf7d0",
     badgeText: "#15803d",
@@ -42,9 +44,9 @@ const DEMO_ROLES: readonly DemoRoleInfo[] = [
   {
     role: "ADMIN",
     label: "Quản trị viên",
-    icon: "🛡️",
+    icon: "shield-check",
     email: "admin@healthcare.com",
-    badge: "🛡️ Quyền Quản trị: Quản trị bác sĩ, cơ sở & vận hành hệ thống",
+    badge: "Quyền quản trị: vận hành bác sĩ, cơ sở và hệ thống",
     badgeColor: "#f0fdfa",
     badgeBorder: "#99f6e4",
     badgeText: "#0f766e",
@@ -118,9 +120,9 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="auth-page">
+    <main className={`auth-page ${styles.page}`}>
       <a className="skip-link" href="#login-title">Bỏ qua điều hướng</a>
-      <section aria-labelledby="login-title" className="auth-card">
+      <section aria-labelledby="login-title" className={`auth-card ${styles.card}`}>
         <Link className="auth-card__back" href="/">← Về trang chính</Link>
         <div className="auth-card__brand">
           <BrandMark tagline="Đăng nhập an toàn" />
@@ -132,45 +134,21 @@ export default function LoginPage() {
         </p>
 
         {/* Modern Segmented Role Selector */}
-        <div
+        <div className={styles.roleGroup}
           aria-label="Chọn tài khoản kiểm thử"
           role="group"
-          style={{
-            margin: "1.25rem 0 0.85rem",
-            padding: "0.25rem",
-            background: "#f1f5f9",
-            borderRadius: "12px",
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: "4px",
-          }}
         >
           {DEMO_ROLES.map((item) => {
             const active = selectedRole === item.role;
             return (
               <button
                 aria-pressed={active}
+                className={`${styles.roleButton} ${active ? styles.roleButtonActive : ""}`}
                 key={item.role}
                 onClick={() => handleRoleSelect(item)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "0.35rem",
-                  padding: "0.55rem 0.25rem",
-                  fontSize: "0.8rem",
-                  fontWeight: active ? 700 : 500,
-                  color: active ? "#0f766e" : "#64748b",
-                  background: active ? "#ffffff" : "transparent",
-                  border: active ? "1px solid rgba(15, 118, 110, 0.18)" : "1px solid transparent",
-                  borderRadius: "8px",
-                  boxShadow: active ? "0 2px 6px rgba(0, 0, 0, 0.06)" : "none",
-                  cursor: "pointer",
-                  transition: "all 0.15s ease",
-                }}
                 type="button"
               >
-                <span>{item.icon}</span>
+                <Icon name={item.icon} size={17} />
                 <span>{item.label}</span>
               </button>
             );
@@ -179,26 +157,10 @@ export default function LoginPage() {
 
         {/* Role Info Pill */}
         {selectedRoleInfo ? (
-          <div
-            style={{
-              marginBottom: "1.25rem",
-              padding: "0.55rem 0.85rem",
-              background: selectedRoleInfo.badgeColor,
-              border: `1px solid ${selectedRoleInfo.badgeBorder}`,
-              borderRadius: "8px",
-              display: "flex",
-              flexWrap: "wrap",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: "0.25rem",
-              fontSize: "0.775rem",
-              color: selectedRoleInfo.badgeText,
-              fontWeight: 600,
-            }}
-          >
+          <div className={styles.roleBadge}>
             <span>{selectedRoleInfo.badge}</span>
-            <span style={{ opacity: 0.8, fontSize: "0.725rem", fontWeight: 500 }}>
-              (Pass: <code>HealthCare@2026</code>)
+            <span className={styles.rolePassword}>
+              Mật khẩu mẫu: <code>HealthCare@2026</code>
             </span>
           </div>
         ) : null}
@@ -208,10 +170,7 @@ export default function LoginPage() {
             <div aria-live="assertive" className="auth-form__error" role="alert">
               <p>{errorMessage}</p>
               {verificationEmail ? (
-                <Link
-                  className="auth-form__error-link"
-                  href={`/auth/verify-email?email=${encodeURIComponent(verificationEmail)}`}
-                >
+                <Link className="auth-form__error-link" href={`/auth/verify-email?email=${encodeURIComponent(verificationEmail)}`}>
                   Xác minh email
                 </Link>
               ) : null}
@@ -219,18 +178,7 @@ export default function LoginPage() {
           ) : null}
           <div className="auth-form__field">
             <label htmlFor="login-email">Email</label>
-            <input
-              aria-describedby={fieldErrors.email ? "login-email-error" : undefined}
-              aria-invalid={Boolean(fieldErrors.email)}
-              autoComplete="username"
-              id="login-email"
-              name="email"
-              onChange={(event) => handleCustomInput("email", event.target.value)}
-              placeholder="ten@healthcare.com"
-              required
-              type="email"
-              value={email}
-            />
+            <input aria-describedby={fieldErrors.email ? "login-email-error" : undefined} aria-invalid={Boolean(fieldErrors.email)} autoComplete="username" id="login-email" name="email" onChange={(event) => handleCustomInput("email", event.target.value)} placeholder="ten@healthcare.com" required type="email" value={email} />
             {fieldErrors.email ? <small className="auth-form__field-error" id="login-email-error">{fieldErrors.email}</small> : null}
           </div>
           <div className="auth-form__field">
@@ -238,91 +186,22 @@ export default function LoginPage() {
               <label htmlFor="login-password">Mật khẩu</label>
               <Link href="/auth/forgot-password">Quên mật khẩu?</Link>
             </div>
-            <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-              <input
-                aria-describedby={fieldErrors.password ? "login-password-error" : undefined}
-                aria-invalid={Boolean(fieldErrors.password)}
-                autoComplete="current-password"
-                id="login-password"
-                name="password"
-                onChange={(event) => handleCustomInput("password", event.target.value)}
-                required
-                style={{ width: "100%", paddingRight: "2.75rem" }}
-                type={showPassword ? "text" : "password"}
-                value={password}
-              />
-              <button
-                aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
-                onClick={() => setShowPassword(!showPassword)}
-                style={{
-                  position: "absolute",
-                  right: "0.5rem",
-                  background: "transparent",
-                  border: "none",
-                  padding: "0.35rem",
-                  cursor: "pointer",
-                  color: "#64748b",
-                  fontSize: "1rem",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-                type="button"
-              >
-                {showPassword ? "🙈" : "👁️"}
+            <div className={styles.passwordWrap}>
+              <input aria-describedby={fieldErrors.password ? "login-password-error" : undefined} aria-invalid={Boolean(fieldErrors.password)} autoComplete="current-password" className={styles.passwordInput} id="login-password" name="password" onChange={(event) => handleCustomInput("password", event.target.value)} required type={showPassword ? "text" : "password"} value={password} />
+              <button aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"} className={styles.passwordToggle} onClick={() => setShowPassword(!showPassword)} type="button">
+                <Icon name={showPassword ? "eye-off" : "eye"} size={18} />
               </button>
             </div>
             {fieldErrors.password ? <small className="auth-form__field-error" id="login-password-error">{fieldErrors.password}</small> : null}
           </div>
-          <button
-            className="button button--primary auth-form__submit"
-            disabled={submitting}
-            style={{
-              minHeight: "48px",
-              fontWeight: 700,
-              fontSize: "0.95rem",
-              borderRadius: "10px",
-              cursor: submitting ? "not-allowed" : "pointer",
-              transition: "all 0.15s ease",
-            }}
-            type="submit"
-          >
-            {submitting ? "Đang xác thực bảo mật..." : "Đăng nhập vào hệ thống →"}
+          <button className={`${styles.submit} button button--primary auth-form__submit`} disabled={submitting} type="submit">
+            {submitting ? "Đang xác thực bảo mật..." : "Đăng nhập"}
           </button>
         </form>
 
-        <div
-          style={{
-            marginTop: "1.5rem",
-            paddingTop: "1.25rem",
-            borderTop: "1px solid var(--color-line, #e2e8f0)",
-            display: "flex",
-            flexWrap: "wrap",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: "0.75rem",
-            fontSize: "0.85rem",
-            color: "var(--color-ink-muted, #64748b)",
-          }}
-        >
+        <div className={styles.register}>
           <span>Chưa có tài khoản bệnh nhân?</span>
-          <Link
-            href="/auth/register"
-            style={{
-              fontWeight: 700,
-              color: "#0f766e",
-              background: "#f0fdfa",
-              padding: "0.4rem 0.85rem",
-              borderRadius: "8px",
-              border: "1px solid #ccfbf1",
-              textDecoration: "none",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "0.25rem",
-            }}
-          >
-            Tạo tài khoản mới →
-          </Link>
+          <Link className={styles.registerLink} href="/auth/register">Tạo tài khoản mới →</Link>
         </div>
       </section>
     </main>
