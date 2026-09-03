@@ -188,6 +188,12 @@ ai:
     token: ${AI_SERVICE_TOKEN:}
     runtime: ${AI_SERVICE_RUNTIME:non-local}
     allow-unauthenticated-local: ${AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL:false}
+  rag-ingest:
+    enabled: ${AI_RAG_INGEST_ENABLED:false}
+    token: ${AI_RAG_INGEST_TOKEN:}
+    max-catalog-items: ${AI_RAG_INGEST_MAX_CATALOG_ITEMS:5000}
+    initial-delay-ms: ${AI_RAG_INGEST_INITIAL_DELAY_MS:15000}
+    sync-delay-ms: ${AI_RAG_INGEST_SYNC_DELAY_MS:300000}
 
 server:
   # Render supplies PORT (10000 by default). Keep BACKEND_PORT as the local
