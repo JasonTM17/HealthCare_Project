@@ -53,13 +53,26 @@
   --radius-lg: 0.75rem;
   --radius-xl: 1rem;
   --radius-pill: 999px;
-  --shadow-soft: 0 8px 24px rgb(0 51 54 / 0.06);
-  --shadow-lift: 0 14px 32px rgb(0 51 54 / 0.09);
+  /* Contextual shadows – each has its own tint instead of all using neutral teal */
+  --shadow-soft: 0 4px 12px rgb(0 51 54 / 0.05), 0 12px 32px rgb(0 51 54 / 0.06);
+  --shadow-lift: 0 8px 20px rgb(0 51 54 / 0.07), 0 20px 44px rgb(0 51 54 / 0.1);
+  --shadow-teal-sm: 0 4px 14px rgb(13 148 136 / 0.18);
+  --shadow-teal-md: 0 8px 24px rgb(13 148 136 / 0.22), 0 2px 6px rgb(13 148 136 / 0.1);
+  --shadow-amber-sm: 0 6px 18px rgb(254 183 0 / 0.28), 0 2px 6px rgb(254 183 0 / 0.15);
+  --shadow-ink-sm: 0 4px 16px rgb(0 28 30 / 0.14);
+  /* Easing */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-snappy: cubic-bezier(0.4, 0, 0.2, 1);
   --duration-fast: 150ms;
   --duration-base: 240ms;
   --duration-slow: 420ms;
+  /* Typography extras */
+  --tracking-tight: -0.025em;
+  --tracking-normal: 0em;
+  --tracking-wide: 0.04em;
+  --tracking-wider: 0.1em;
+  --tracking-widest: 0.18em;
 }
 
 *,
@@ -245,19 +258,33 @@ main {
   margin: 0;
   color: var(--color-teal-950);
   font-family: var(--font-display);
-  font-size: 3.25rem;
+  font-size: clamp(2.25rem, 4.5vw, 3.5rem);
   font-weight: 700;
-  letter-spacing: 0;
-  line-height: 1.12;
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.1;
   text-wrap: balance;
 }
 
 .section-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   margin: 0 0 var(--sp-3);
   color: var(--color-teal-700);
-  font-size: 0.8125rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: var(--tracking-widest);
+  text-transform: uppercase;
+}
+
+.section-note::before {
+  content: "";
+  display: inline-block;
+  width: 20px;
+  height: 2px;
+  background: currentColor;
+  flex-shrink: 0;
+  border-radius: 999px;
 }
 
 .section-description {
@@ -325,33 +352,39 @@ main {
 
 .button--primary {
   padding: 0 var(--sp-6);
+  border-radius: var(--radius-pill);
   background: var(--color-teal-700);
   color: var(--color-paper-bright);
-  box-shadow: 0 8px 18px oklch(40% 0.095 189 / 0.22);
+  letter-spacing: -0.01em;
+  box-shadow: var(--shadow-teal-sm);
 }
 
 .button--primary:hover {
   background: var(--color-teal-800);
-  box-shadow: 0 12px 22px oklch(40% 0.095 189 / 0.28);
+  box-shadow: var(--shadow-teal-md);
 }
 
 .button--amber {
   padding: 0 var(--sp-6);
+  border-radius: var(--radius-pill);
   background: var(--color-amber);
   color: var(--color-teal-950);
-  box-shadow: 0 8px 18px oklch(78% 0.145 78 / 0.2);
+  letter-spacing: -0.01em;
+  box-shadow: var(--shadow-amber-sm);
 }
 
 .button--amber:hover {
   background: oklch(82% 0.14 78);
-  box-shadow: 0 12px 24px oklch(78% 0.145 78 / 0.3);
+  box-shadow: 0 10px 28px rgb(254 183 0 / 0.36), 0 2px 8px rgb(254 183 0 / 0.2);
 }
 
 .button--light {
   width: fit-content;
   padding: 0 var(--sp-6);
+  border-radius: var(--radius-pill);
   background: var(--color-paper-bright);
   color: var(--color-teal-950);
+  box-shadow: var(--shadow-ink-sm);
 }
 
 .button--light:hover {
@@ -360,14 +393,16 @@ main {
 
 .button--hero-secondary {
   padding: 0 var(--sp-6);
-  border: 1px solid oklch(87% 0.03 185 / 0.55);
-  background: oklch(100% 0 0 / 0.06);
+  border-radius: var(--radius-pill);
+  border: 1.5px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.08);
   color: var(--color-paper-bright);
+  backdrop-filter: blur(8px);
 }
 
 .button--hero-secondary:hover {
-  border-color: var(--color-teal-300);
-  background: oklch(100% 0 0 / 0.12);
+  border-color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .outline-button {
@@ -406,12 +441,14 @@ main {
   justify-content: center;
   flex: 0 0 auto;
   border-radius: 50%;
-  background: var(--color-mint-light);
+  border: 1px solid var(--color-line);
+  background: var(--color-paper-bright);
   color: var(--color-teal-700);
-  transition: background-color var(--duration-base) ease, color var(--duration-base) ease, transform var(--duration-fast) var(--ease-out);
+  transition: background-color var(--duration-base) ease, color var(--duration-base) ease, border-color var(--duration-base) ease, transform var(--duration-fast) var(--ease-out);
 }
 
 .icon-button:hover {
+  border-color: var(--color-teal-700);
   background: var(--color-teal-700);
   color: var(--color-paper-bright);
   transform: translate(2px, -2px);
@@ -435,9 +472,14 @@ main {
 }
 
 .empty-state {
-  padding: var(--sp-8);
-  border: 1px dashed var(--color-line);
-  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-10) var(--sp-8);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, var(--color-paper-bright) 0%, var(--color-paper) 100%);
   color: var(--color-ink-muted);
 }
 
@@ -1801,34 +1843,33 @@ main {
   align-items: center;
   position: relative;
   color: var(--color-ink-muted);
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
   font-weight: 600;
+  letter-spacing: 0.01em;
   transition: color var(--duration-fast) ease;
 }
 
 .nav-link::after {
   content: "";
   position: absolute;
-  right: 0;
-  bottom: 4px;
-  left: 0;
-  height: 2px;
-  border-radius: var(--radius-pill);
-  background: var(--color-amber-dark);
-  transform: scaleX(0);
-  transform-origin: right;
-  transition: transform var(--duration-base) var(--ease-out);
+  bottom: 6px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--color-teal-700);
+  transform: translateX(-50%) scale(0);
+  transition: transform var(--duration-base) var(--ease-spring);
 }
 
 .nav-link:hover,
 .nav-link--active {
-  color: var(--color-teal-700);
+  color: var(--color-teal-900);
 }
 
 .nav-link:hover::after,
 .nav-link--active::after {
-  transform: scaleX(1);
-  transform-origin: left;
+  transform: translateX(-50%) scale(1);
 }
 
 .site-nav__actions {
@@ -1883,15 +1924,18 @@ main {
 }
 
 .button--nav {
-  min-height: 46px;
-  padding: 0 var(--sp-4);
-  background: var(--color-teal-700);
+  min-height: 44px;
+  padding: 0 var(--sp-5);
+  background: linear-gradient(135deg, var(--color-teal-700) 0%, #0d9488 100%);
   color: var(--color-paper-bright);
   border-radius: 999px;
+  letter-spacing: -0.01em;
+  box-shadow: var(--shadow-teal-sm);
 }
 
 .button--nav:hover {
-  background: var(--color-teal-800);
+  background: linear-gradient(135deg, var(--color-teal-800) 0%, var(--color-teal-700) 100%);
+  box-shadow: var(--shadow-teal-md);
 }
 
 .nav-menu-button {
@@ -2586,7 +2630,8 @@ main {
 
 .doctor-photo__image {
   object-fit: cover;
-  filter: saturate(0.8) contrast(1.02);
+  object-position: center 10%;
+  filter: contrast(1.02);
   transition: transform var(--duration-slow) var(--ease-out);
 }
 
@@ -4155,6 +4200,28 @@ main {
   padding-left: var(--sp-3);
   border-left: 1px solid var(--color-line);
   flex-shrink: 0;
+}
+
+.portal-user__link {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  text-decoration: none;
+  color: inherit;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.5rem;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+  cursor: pointer;
+}
+
+.portal-user__link:hover {
+  background-color: rgba(13, 148, 136, 0.08);
+  transform: translateY(-1px);
+}
+
+.portal-user__link:focus-visible {
+  outline: 2px solid var(--color-teal-600);
+  outline-offset: 2px;
 }
 
 .portal-user__copy {
@@ -7670,11 +7737,15 @@ main {
 }
 
 .site-shell .hm-branch-card__media {
-  aspect-ratio: 16 / 8;
+  aspect-ratio: 16 / 9.5;
+}
+
+.site-shell .hm-branch-card__image {
+  object-fit: cover;
+  object-position: center 30%;
 }
 
 .site-shell .hm-specialty-card__image,
-.site-shell .hm-branch-card__image,
 .site-shell .video-card__image,
 .site-shell .booking-page__summary-image {
   object-fit: cover;
@@ -8921,4 +8992,524 @@ main {
 .catalog-card.specialty-card:hover .specialty-card__symptom-pill {
   background: #ffffff;
   border-color: #cbd5e1;
+}
+/* ==========================================================================
+   AGENCY-GRADE HEALTHCARE DESIGN SYSTEM OVERHAUL
+   Elevating the UI from AI-prototype look to world-class hospital portal
+   ========================================================================== */
+
+/* 1. Pulse Beacon for Hotline & Emergency */
+.utility-pulse-beacon {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+  box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  animation: beaconPulse 2s infinite;
+  margin-right: 2px;
+}
+
+@keyframes beaconPulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 7px rgba(239, 68, 68, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+/* 2. Navbar Authenticated Avatar & Frosted Account Pill */
+.nav-account-link--authenticated {
+  padding-left: 0.5rem !important;
+  background: rgba(240, 253, 250, 0.9) !important;
+  border: 1px solid rgba(13, 148, 136, 0.25) !important;
+}
+
+.nav-account-avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0d9488 0%, #004b50 100%);
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 2px 6px rgba(13, 148, 136, 0.3);
+}
+
+/* 3. Hero Quick Search Chips */
+.hero-quick-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--color-ink-muted);
+}
+
+.hero-quick-chips > span:first-child {
+  font-weight: 600;
+  color: #0d9488;
+}
+
+.hero-quick-chip {
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(13, 148, 136, 0.2);
+  color: #004b50;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 180ms ease;
+  backdrop-filter: blur(8px);
+}
+
+.hero-quick-chip:hover {
+  background: #0d9488;
+  color: #ffffff;
+  border-color: #0d9488;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(13, 148, 136, 0.25);
+}
+
+/* 4. Floating Trust Cards over Hero Image */
+.hero-floating-card {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1.15rem;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 16px 36px -8px rgba(0, 51, 54, 0.18), 0 2px 6px rgba(0, 51, 54, 0.04);
+  animation: floatCard 6s ease-in-out infinite alternate;
+}
+
+.hero-floating-card--top {
+  top: 1.5rem;
+  right: -1rem;
+  animation-delay: 0s;
+}
+
+.hero-floating-card--bottom {
+  bottom: 2rem;
+  left: -1.5rem;
+  animation-delay: 2s;
+}
+
+@keyframes floatCard {
+  0% { transform: translateY(0px); }
+  100% { transform: translateY(-8px); }
+}
+
+.hero-floating-card strong {
+  display: block;
+  font-size: 0.875rem;
+  color: #003336;
+  line-height: 1.2;
+}
+
+.hero-floating-card small {
+  display: block;
+  font-size: 0.7rem;
+  color: #64748b;
+  margin-top: 0.15rem;
+}
+
+.hero-floating-card__stars {
+  color: #f59e0b;
+  font-size: 0.875rem;
+  letter-spacing: 1px;
+}
+
+.hero-floating-card__icon {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: #f0fdfa;
+  color: #0d9488;
+  border: 1px solid #ccfbf1;
+}
+
+/* 5. Elevated Doctor Cards */
+.doctor-card__photo-wrapper {
+  position: relative;
+  overflow: hidden;
+  border-radius: 18px 18px 0 0;
+}
+
+.doctor-card__status-chip {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  color: #059669;
+  font-size: 0.7rem;
+  font-weight: 700;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+}
+
+.doctor-card__pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  animation: beaconPulse 2s infinite;
+}
+
+.doctor-card__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.doctor-card__exp-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: #f0fdfa;
+  color: #0d9488;
+  border: 1px solid #ccfbf1;
+}
+
+.doctor-card__book-btn {
+  width: 100%;
+  justify-content: space-between;
+  padding: 0.6rem 0.85rem;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid rgba(13, 148, 136, 0.15);
+  color: #004b50;
+  font-size: 0.875rem;
+  font-weight: 700;
+  margin-top: 0.75rem;
+  transition: all 180ms ease;
+}
+
+.doctor-card:hover .doctor-card__book-btn {
+  background: #0d9488;
+  color: #ffffff;
+  border-color: #0d9488;
+}
+
+/* 6. Portal User Avatar */
+.portal-user__avatar {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0d9488 0%, #004b50 100%);
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 0.875rem;
+  box-shadow: 0 4px 10px rgba(13, 148, 136, 0.25);
+  flex-shrink: 0;
+}
+
+/* 7. Global Card & Container Modern Elevation */
+.site-shell .hm-specialty-card {
+  border-radius: 20px !important;
+  border: 1px solid rgba(13, 148, 136, 0.14) !important;
+  background: #ffffff !important;
+  box-shadow: 0 8px 24px -6px rgba(0, 51, 54, 0.06), 0 1px 3px rgba(0, 51, 54, 0.03) !important;
+  transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease !important;
+}
+
+.site-shell .hm-specialty-card:hover {
+  transform: translateY(-5px) !important;
+  border-color: rgba(13, 148, 136, 0.35) !important;
+  box-shadow: 0 20px 40px -12px rgba(13, 148, 136, 0.18), 0 0 0 1px rgba(13, 148, 136, 0.35) !important;
+}
+
+.site-shell .doctor-card {
+  border-radius: 20px !important;
+  border: 1px solid rgba(13, 148, 136, 0.14) !important;
+  background: #ffffff !important;
+  box-shadow: 0 8px 24px -6px rgba(0, 51, 54, 0.06), 0 1px 3px rgba(0, 51, 54, 0.03) !important;
+  overflow: hidden !important;
+  transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease !important;
+}
+
+.site-shell .doctor-card:hover {
+  transform: translateY(-5px) !important;
+  border-color: rgba(13, 148, 136, 0.35) !important;
+  box-shadow: 0 20px 40px -12px rgba(13, 148, 136, 0.18), 0 0 0 1px rgba(13, 148, 136, 0.35) !important;
+}
+
+.site-shell .care-link.hm-quick-card {
+  border-radius: 16px !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  border: 1px solid rgba(13, 148, 136, 0.15) !important;
+  box-shadow: 0 6px 20px -4px rgba(0, 51, 54, 0.06) !important;
+  transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease !important;
+}
+
+.site-shell .care-link.hm-quick-card:hover {
+  transform: translateY(-3px) !important;
+  border-color: #0d9488 !important;
+  box-shadow: 0 16px 30px -8px rgba(13, 148, 136, 0.2) !important;
+}
+
+/* ==========================================================================
+   HUMAN-GRADE DESIGN DETAILS
+   Each rule is deliberate and opinionated – not AI fill.
+   ========================================================================== */
+
+/* ── Hero H1 em accent ── */
+.site-shell .hero-copy h1 em {
+  font-style: normal;
+  background: linear-gradient(135deg, #0d9488, var(--color-teal-800));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Hero description refined ── */
+.site-shell .hero-description {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: clamp(1rem, 1.5vw, 1.1rem);
+  line-height: 1.7;
+}
+
+/* ── Journey Steps: dashed connector between steps ── */
+.journey-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  position: relative;
+}
+
+.journey-steps::before {
+  content: "";
+  position: absolute;
+  top: 2.25rem;
+  left: 1.5rem;
+  bottom: 2.25rem;
+  width: 2px;
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--color-teal-300) 0px,
+    var(--color-teal-300) 6px,
+    transparent 6px,
+    transparent 14px
+  );
+}
+
+.journey-step__number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  background: var(--color-teal-950);
+  color: var(--color-paper-bright);
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 800;
+  font-feature-settings: "tnum";
+  letter-spacing: var(--tracking-tight);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Specialty card icon container gradient ── */
+.site-shell .hm-specialty-card__icon {
+  background: linear-gradient(135deg, #f0fdfa 0%, #e0f2f1 100%) !important;
+  border: 1px solid rgba(13, 148, 136, 0.18) !important;
+  box-shadow: 0 2px 8px rgba(13, 148, 136, 0.1) !important;
+}
+
+/* ── Specialty card section-note override – eyebrow style ── */
+.hm-specialty-grid .section-note,
+.section--specialties .section-note {
+  color: var(--color-teal-700);
+}
+
+/* ── Footer link hover slide ── */
+.site-footer .footer-column a {
+  position: relative;
+  padding-left: 0;
+  transition: padding-left 180ms var(--ease-out), color 180ms ease;
+}
+
+.site-footer .footer-column a:hover {
+  padding-left: 10px;
+  color: var(--color-mint);
+}
+
+.site-footer .footer-column a::before {
+  content: "→";
+  position: absolute;
+  left: -4px;
+  opacity: 0;
+  font-size: 0.75rem;
+  transition: opacity 180ms ease, left 180ms var(--ease-out);
+}
+
+.site-footer .footer-column a:hover::before {
+  left: 0;
+  opacity: 1;
+}
+
+/* ── Footer bottom separator ── */
+.site-footer__bottom {
+  border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+/* ── Footer column separators ── */
+.footer-column + .footer-column {
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
+  padding-left: 2rem;
+}
+
+/* ── Portal nav active: gradient highlight + left border ── */
+.portal-nav__link--active {
+  background: linear-gradient(135deg, #f0fdfa 0%, #e0f2f1 100%) !important;
+  color: var(--color-teal-800) !important;
+  border-left: 3px solid var(--color-teal-700);
+  padding-left: calc(var(--sp-3) - 3px);
+  font-weight: 700;
+}
+
+.portal-nav__link:hover:not(.portal-nav__link--active) {
+  background: rgba(224, 242, 241, 0.5) !important;
+}
+
+/* ── Portal brand mark gradient ── */
+.portal-brand__mark {
+  background: linear-gradient(135deg, var(--color-teal-700) 0%, #0d9488 100%) !important;
+  box-shadow: var(--shadow-teal-sm) !important;
+}
+
+/* ── Booking stage cards: accent border top ── */
+.booking-stage-card {
+  border-top: 3px solid var(--color-teal-300) !important;
+  transition: border-color 200ms ease, box-shadow 200ms ease !important;
+}
+
+.booking-stage-card:hover {
+  border-top-color: var(--color-teal-700) !important;
+  box-shadow: var(--shadow-teal-sm) !important;
+}
+
+.booking-stage-card__icon {
+  background: linear-gradient(135deg, #f0fdfa 0%, #e0f2f1 100%) !important;
+  border: 1px solid rgba(13, 148, 136, 0.15) !important;
+  box-shadow: 0 2px 6px rgba(13, 148, 136, 0.1) !important;
+}
+
+/* ── Hero assurance inner glass ── */
+.site-shell .hero-assurance__inner {
+  border-radius: 20px !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(13, 148, 136, 0.12) !important;
+  box-shadow: 0 20px 40px -8px rgba(0, 51, 54, 0.1) !important;
+}
+
+/* ── Hero assurance icons gradient ── */
+.site-shell .hero-assurance__icon {
+  background: linear-gradient(135deg, #f0fdfa 0%, #e0f2f1 100%) !important;
+  border: 1px solid rgba(13, 148, 136, 0.2) !important;
+  border-radius: 14px !important;
+}
+
+/* ── Utility bar refined border ── */
+.utility-bar {
+  border-bottom: 1px solid rgba(0, 51, 54, 0.08) !important;
+}
+
+/* ── Brand mark shadow upgrade ── */
+.brand-mark {
+  box-shadow: 0 4px 14px rgba(13, 148, 136, 0.2) !important;
+  border-radius: 10px !important;
+}
+
+/* ── Doctor card aspect ratio consistency ── */
+.hm-doctor-grid .doctor-photo {
+  aspect-ratio: 3 / 4;
+  min-height: unset !important;
+}
+
+/* ── Mobile care rail active ── */
+.mobile-care-rail .mobile-care-rail__primary {
+  background: linear-gradient(135deg, var(--color-teal-700) 0%, #0d9488 100%);
+  box-shadow: var(--shadow-teal-sm);
+}
+
+/* ── Text selection color stays branded ── */
+::selection {
+  background: rgba(13, 148, 136, 0.2);
+  color: var(--color-teal-950);
+}
+
+/* ── Outline button refined ── */
+.outline-button {
+  border-radius: 10px;
+  border-color: rgba(0, 51, 54, 0.18);
+}
+
+.outline-button:hover {
+  border-color: var(--color-teal-700);
+  background: rgba(240, 253, 250, 0.6);
+}
+
+/* ── CareExperience moments icon ── */
+.site-shell .care-experience__moments article > svg {
+  color: #0d9488;
+  background: rgba(13, 148, 136, 0.08);
+  border-radius: 8px;
+  padding: 3px;
+  flex-shrink: 0;
+}
+
+/* ── Section separator subtle ── */
+.section + .section {
+  border-top: 1px solid rgba(0, 51, 54, 0.04);
+}
+
+/* ── High-contrast safety for outline buttons on light surfaces ── */
+.site-shell:not(:has(.resource-hero-card--teal)) .outline-button,
+.site-shell .resource-page:not(:has(.resource-hero-card--teal)) .outline-button--light {
+  color: var(--color-teal-800) !important;
+  border-color: rgba(0, 51, 54, 0.22) !important;
+}
+
+.site-shell:not(:has(.resource-hero-card--teal)) .outline-button:hover,
+.site-shell .resource-page:not(:has(.resource-hero-card--teal)) .outline-button--light:hover {
+  color: var(--color-teal-950) !important;
+  border-color: var(--color-teal-700) !important;
+  background: var(--color-mint-light) !important;
 }

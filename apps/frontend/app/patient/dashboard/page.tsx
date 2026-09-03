@@ -25,6 +25,7 @@ import {
   rescheduleAppointment,
   submitBankTransfer,
   updatePatientProfile,
+  changePassword,
   type Page,
 } from "../../../lib/api-client";
 import { useAuthSession } from "../../../components/useAuthSession";
@@ -88,9 +89,24 @@ interface ProfileForm {
   address: string;
   emergencyContactName: string;
   emergencyContactPhone: string;
+  avatarUrl: string;
+  medicalHistory: string;
+  allergies: string;
+  bloodType: string;
 }
 
-const EMPTY_PROFILE_FORM: ProfileForm = { fullName: "", dateOfBirth: "", gender: "", address: "", emergencyContactName: "", emergencyContactPhone: "" };
+const EMPTY_PROFILE_FORM: ProfileForm = {
+  fullName: "",
+  dateOfBirth: "",
+  gender: "",
+  address: "",
+  emergencyContactName: "",
+  emergencyContactPhone: "",
+  avatarUrl: "",
+  medicalHistory: "",
+  allergies: "",
+  bloodType: "",
+};
 
 function getErrorStatus(error: unknown): number | undefined {
   return error instanceof ApiError ? error.status : undefined;
@@ -683,6 +699,9 @@ export default function PatientDashboardPage() {
   const [profileForm, setProfileForm] = useState<ProfileForm>(EMPTY_PROFILE_FORM);
   const [profileOperation, setProfileOperation] = useState<"idle" | "saving">("idle");
   const [profileNotice, setProfileNotice] = useState<string | null>(null);
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  const [passwordOperation, setPasswordOperation] = useState<"idle" | "saving">("idle");
+  const [passwordNotice, setPasswordNotice] = useState<string | null>(null);
   const [selectedAppointment, setSelectedAppointment] = useState<PatientPortalAppointment | null>(null);
   const [selectedPaymentAppointmentId, setSelectedPaymentAppointmentId] = useState<string | null>(null);
   const [payment, setPayment] = useState<Loadable<BankTransferPayment> | null>(null);
@@ -744,6 +763,10 @@ export default function PatientDashboardPage() {
           address: value.address ?? "",
           emergencyContactName: value.emergencyContactName ?? "",
           emergencyContactPhone: value.emergencyContactPhone ?? "",
+          avatarUrl: value.avatarUrl ?? "",
+          medicalHistory: value.medicalHistory ?? "",
+          allergies: value.allergies ?? "",
+          bloodType: value.bloodType ?? "",
         });
       }
       setRecords(toLoadable(recordsResult));
@@ -1074,13 +1097,43 @@ export default function PatientDashboardPage() {
         address: profileForm.address.trim() || undefined,
         emergencyContactName: profileForm.emergencyContactName.trim() || undefined,
         emergencyContactPhone: profileForm.emergencyContactPhone.trim() || undefined,
+        avatarUrl: profileForm.avatarUrl.trim() || undefined,
+        medicalHistory: profileForm.medicalHistory.trim() || undefined,
+        allergies: profileForm.allergies.trim() || undefined,
+        bloodType: profileForm.bloodType.trim() || undefined,
       });
       setProfile({ status: "success", data: saved });
-      setProfileNotice("Đã cập nhật hồ sơ cá nhân.");
+      setProfileNotice("Đã cập nhật hồ sơ cá nhân và tiền sử bệnh thành công.");
     } catch (error) {
       setProfileNotice(getErrorMessage(error));
     } finally {
       setProfileOperation("idle");
+    }
+  };
+
+  const handleChangePassword = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordNotice("Mật khẩu mới và xác nhận mật khẩu không khớp.");
+      return;
+    }
+    if (passwordForm.newPassword.length < 8) {
+      setPasswordNotice("Mật khẩu mới phải có ít nhất 8 ký tự.");
+      return;
+    }
+    setPasswordOperation("saving");
+    setPasswordNotice(null);
+    try {
+      await changePassword({
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+      });
+      setPasswordNotice("Đã đổi mật khẩu thành công.");
+      setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+    } catch (error) {
+      setPasswordNotice(getErrorMessage(error));
+    } finally {
+      setPasswordOperation("idle");
     }
   };
 
