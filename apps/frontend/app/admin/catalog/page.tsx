@@ -19,7 +19,20 @@ import {
   type AdminArticle,
   type Faq,
   type HealthPackage,
+  broadcastCatalogChange,
+  subscribeToCatalogChange,
 } from "../../../lib/api-client";
+
+function toSlug(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[đĐ]/g, "d")
+    .replace(/[^a-z0-9\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-");
+}
 import AdminState from "../_components/AdminState";
 import { describeAdminError } from "../_lib/errors";
 
@@ -322,7 +335,13 @@ export default function AdminCatalogPage() {
 
   useEffect(() => {
     const task = Promise.resolve().then(load);
-    return () => void task;
+    const unsubscribe = subscribeToCatalogChange(() => {
+      void load();
+    });
+    return () => {
+      void task;
+      unsubscribe();
+    };
   }, [load]);
 
   const run = async (action: () => Promise<unknown>, success: string) => {
@@ -355,9 +374,14 @@ export default function AdminCatalogPage() {
 
   const savePackage = async (event: FormEvent) => {
     event.preventDefault();
+    if (!packageForm.name.trim()) {
+      setFeedback({ tone: "error", title: "Thiếu tên gói khám", description: "Vui lòng nhập tên gói khám." });
+      return;
+    }
+    const finalSlug = packageForm.slug.trim() || toSlug(packageForm.name);
     const payload = {
       name: packageForm.name.trim(),
-      slug: packageForm.slug.trim(),
+      slug: finalSlug,
       description: packageForm.description.trim() || null,
       price: Number(packageForm.price),
       active: packageForm.active,
@@ -367,6 +391,7 @@ export default function AdminCatalogPage() {
       "Đã lưu gói khám.",
     );
     if (saved) {
+      broadcastCatalogChange({ kind: "package", action: editingPackage ? "updated" : "created", slug: finalSlug });
       setPackageForm(emptyPackageForm);
       setEditingPackage(null);
     }
@@ -384,12 +409,26 @@ export default function AdminCatalogPage() {
       "Đã lưu FAQ.",
     );
     if (saved) {
+      broadcastCatalogChange({ kind: "faq", action: faqForm.id ? "updated" : "created" });
       setFaqForm(emptyFaqForm);
     }
   };
 
   const saveArticle = async (event: FormEvent) => {
     event.preventDefault();
+    if (!articleForm.title.trim()) {
+      setFeedback({ tone: "error", title: "Thiếu tiêu đề bài viết", description: "Vui lòng nhập tiêu đề bài viết." });
+      return;
+    }
+    if (articleForm.active && (!articleForm.summary.trim() || !articleForm.body.trim())) {
+      setFeedback({
+        tone: "error",
+        title: "Thiếu nội dung bài viết công khai",
+        description: "Bài viết ở trạng thái hiển thị công khai (Active) yêu cầu phải có cả Tóm tắt và Nội dung. Vui lòng điền đủ tóm tắt và nội dung hoặc bỏ chọn 'Đang hiển thị công khai' nếu lưu bản nháp.",
+      });
+      return;
+    }
+    const finalSlug = articleForm.slug.trim() || toSlug(articleForm.title);
     const readingMinutes = articleForm.readingMinutes.trim() ? Number(articleForm.readingMinutes) : null;
     if (readingMinutes !== null && (!Number.isInteger(readingMinutes) || readingMinutes < 1 || readingMinutes > 180)) {
       setFeedback({ tone: "error", title: "Thời lượng đọc chưa hợp lệ", description: "Nhập số phút từ 1 đến 180." });
@@ -414,7 +453,7 @@ export default function AdminCatalogPage() {
       .filter((section) => section.heading && section.body);
     const payload: AdminArticlePayload = {
       title: articleForm.title.trim(),
-      slug: articleForm.slug.trim(),
+      slug: finalSlug,
       summary: articleForm.summary.trim() || null,
       body: articleForm.body.trim() || null,
       category: articleForm.category.trim() || null,
@@ -447,6 +486,7 @@ export default function AdminCatalogPage() {
       "Đã lưu bài viết.",
     );
     if (saved) {
+      broadcastCatalogChange({ kind: "article", action: editingArticle ? "updated" : "created", slug: finalSlug });
       setArticleForm(emptyArticleForm);
       setEditingArticle(null);
     }

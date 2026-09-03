@@ -62,6 +62,12 @@ public class PatientProfile {
     @Column(name = "blood_type", length = 10)
     private String bloodType;
 
+    @Column(name = "patient_tier", length = 24)
+    private String patientTier = "STANDARD";
+
+    @Column(name = "ai_credits")
+    private Integer aiCredits = 20;
+
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt = OffsetDateTime.now();
 
@@ -126,4 +132,8 @@ public class PatientProfile {
     public void setBloodType(String bloodType) { this.bloodType = bloodType; }
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(OffsetDateTime updatedAt) { this.updatedAt = updatedAt; }
+    public String getPatientTier() { return patientTier != null ? patientTier : "STANDARD"; }
+    public void setPatientTier(String patientTier) { this.patientTier = patientTier; }
+    public Integer getAiCredits() { return aiCredits != null ? aiCredits : 20; }
+    public void setAiCredits(Integer aiCredits) { this.aiCredits = aiCredits; }
 }

@@ -51,5 +51,5 @@ test("browser route matrix covers every App Router page exactly once", async () 
 
   assert.equal(new Set(declared).size, declared.length, "route matrix must not contain duplicate routes");
   assert.deepEqual(declared, actual);
-  assert.equal(actual.length, 70, "route additions must update this explicit site inventory checkpoint");
+  assert.equal(actual.length, 74, "route additions must update this explicit site inventory checkpoint");
 });

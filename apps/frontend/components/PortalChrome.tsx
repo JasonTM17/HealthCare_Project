@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { AuthUser } from "../types/hospital";
 import { logoutCurrentUser, SAFE_LOGOUT_ERROR_MESSAGE } from "../lib/api-client";
 import UiIcon from "./UiIcon";
@@ -62,17 +62,16 @@ export default function PortalChrome({ role, user, children }: PortalChromeProps
 
     let ticking = false;
     const handleScroll = () => {
-      if (Date.now() - navClickTimeRef.current < 1200) {
+      if (performance.now() - navClickTimeRef.current < 1200) {
         return;
       }
       if (ticking) return;
       ticking = true;
       requestAnimationFrame(() => {
         ticking = false;
-        if (Date.now() - navClickTimeRef.current < 1200) {
+        if (performance.now() - navClickTimeRef.current < 1200) {
           return;
         }
-
         if (window.scrollY < 260) {
           setActiveHash("");
           return;
@@ -114,6 +113,7 @@ export default function PortalChrome({ role, user, children }: PortalChromeProps
         { href: "/patient/consultations", label: "Tư vấn" },
         { href: "/patient/care-plan", label: "Kế hoạch" },
         { href: "/patient/health-questions", label: "Hỏi đáp" },
+        { href: "/patient/community", label: "Cộng đồng" },
         { href: "/patient/chat", label: "Trợ lý AI" },
         { href: "/patient/preferences", label: "Tài khoản" },
       ]
@@ -124,6 +124,7 @@ export default function PortalChrome({ role, user, children }: PortalChromeProps
         { href: "/doctor/care-plans", label: "Kế hoạch" },
         { href: "/doctor/health-questions", label: "Hỏi đáp" },
         { href: "/doctor/ai-content-reviews", label: "Duyệt AI" },
+        { href: "/doctor/articles", label: "Bài viết y khoa" },
         { href: "/doctor/profile", label: "Hồ sơ cá nhân" },
       ];
 
@@ -142,13 +143,13 @@ export default function PortalChrome({ role, user, children }: PortalChromeProps
     return pathname === href || (href !== homePath && pathname.startsWith(`${href}/`));
   };
 
-  const handleNavClick = (href: string, e: React.MouseEvent) => {
+  const handleNavClick = useCallback((href: string, e: React.MouseEvent) => {
     if (pathname === homePath) {
       const sectionMap = role === "PATIENT" ? PATIENT_SECTION_HASHES : DOCTOR_SECTION_HASHES;
       const targetHash = sectionMap[href];
       if (targetHash) {
         e.preventDefault();
-        navClickTimeRef.current = Date.now();
+        navClickTimeRef.current = performance.now();
         setActiveHash(targetHash);
         window.history.pushState(null, "", targetHash);
         const el = document.querySelector(targetHash);
@@ -159,14 +160,14 @@ export default function PortalChrome({ role, user, children }: PortalChromeProps
       }
       if (href === homePath) {
         e.preventDefault();
-        navClickTimeRef.current = Date.now();
+        navClickTimeRef.current = performance.now();
         setActiveHash("");
         window.history.pushState(null, "", homePath);
         window.scrollTo({ top: 0, behavior: "smooth" });
         return;
       }
     }
-  };
+  }, [pathname, homePath, role]);
 
   const handleLogout = async () => {
     if (loggingOut) return;

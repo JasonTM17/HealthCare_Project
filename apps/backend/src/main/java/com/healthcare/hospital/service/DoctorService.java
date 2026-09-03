@@ -85,7 +85,8 @@ public class DoctorService {
             branchLinks.stream().map(link -> link.getBranch().getId().toString()).toList(),
             branchLinks.stream().map(link -> link.getBranch().getName()).toList(),
             specialtyLinks.stream().map(link -> link.getSpecialty().getSlug()).toList(),
-            doctor.getAchievements()
+            doctor.getAchievements(),
+            doctor.getAiCredits()
         );
     }
 
