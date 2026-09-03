@@ -85,6 +85,16 @@ export default function PortalAppointments({
             {appointment.branchName ? <div><dt>Cơ sở</dt><dd>{appointment.branchName}</dd></div> : null}
             {appointment.packageName ? <div><dt>Gói khám</dt><dd>{appointment.packageName}</dd></div> : null}
             <div><dt>Mã lịch hẹn</dt><dd>{appointment.bookingCode}</dd></div>
+            {viewer === "doctor" && "patientId" in appointment ? (
+              <div>
+                <dt>Mã hồ sơ BN</dt>
+                <dd>
+                  <code style={{ fontSize: "0.8rem", background: "oklch(96% 0.015 180)", color: "var(--color-teal-900)", padding: "2px 6px", borderRadius: "4px", border: "1px solid var(--color-teal-200)" }}>
+                    {appointment.patientId}
+                  </code>
+                </dd>
+              </div>
+            ) : null}
             {viewer === "patient" && "paymentStatus" in appointment ? <div><dt>Thanh toán</dt><dd><span aria-label={`Trạng thái thanh toán: ${statusLabel(appointment.paymentStatus)}`}>{statusLabel(appointment.paymentStatus)}</span></dd></div> : null}
           </dl>
           {viewer === "doctor" && "patientId" in appointment ? (
