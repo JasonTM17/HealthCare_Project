@@ -9,6 +9,7 @@ import com.healthcare.security.HealthcareUserPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -40,7 +42,7 @@ public class UserController {
     @Operation(summary = "Get current user profile", description = "Returns the authenticated user's profile information")
     public ResponseEntity<UserProfileResponse> getCurrentUser(@AuthenticationPrincipal UserDetails userDetails) {
         User user = userRepository.findWithRolesByEmail(userDetails.getUsername())
-            .orElseThrow(() -> new RuntimeException("User not found"));
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Tài khoản không còn tồn tại hoặc đã bị vô hiệu hóa"));
 
         List<String> roles = user.getRoles().stream()
             .map(role -> role.getCode())
@@ -89,9 +91,9 @@ public class UserController {
     private User currentUser(UserDetails userDetails) {
         if (userDetails instanceof HealthcareUserPrincipal principal) {
             return userRepository.findById(principal.getUserId())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Tài khoản không còn tồn tại hoặc đã bị vô hiệu hóa"));
         }
         return userRepository.findByEmail(userDetails.getUsername())
-            .orElseThrow(() -> new RuntimeException("User not found"));
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Tài khoản không còn tồn tại hoặc đã bị vô hiệu hóa"));
     }
 }
