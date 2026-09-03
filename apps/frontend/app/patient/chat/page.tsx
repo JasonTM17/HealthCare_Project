@@ -24,6 +24,8 @@ import {
   fetchAiConversations,
   hasRole,
   updateAiMessageFeedback,
+  fetchPatientAiCreditStatus,
+  type AiCreditStatus,
 } from "../../../lib/api-client";
 import type {
   AiChatCitation,
@@ -250,7 +252,18 @@ function PatientChatPageContent() {
   const [consentFailure, setConsentFailure] = useState<string | null>(null);
   const [feedbackBusy, setFeedbackBusy] = useState<string | null>(null);
   const [modeCreating, setModeCreating] = useState(false);
+  const [creditStatus, setCreditStatus] = useState<AiCreditStatus | null>(null);
 
+  const refreshCredit = useCallback(async () => {
+    try {
+      const data = await fetchPatientAiCreditStatus();
+      setCreditStatus(data);
+    } catch {}
+  }, []);
+  useEffect(() => {
+    const task = Promise.resolve().then(refreshCredit);
+    return () => void task;
+  }, [refreshCredit]);
   const activeIdRef = useRef<string | null>(null);
   const listRequestRef = useRef(0);
   const threadRequestRef = useRef(0);
@@ -832,6 +845,14 @@ function PatientChatPageContent() {
             <p className="section-note">TRỢ LÝ SỨC KHỎE</p>
             <h1>Trao đổi có lưu lịch sử</h1>
             <p>Đặt câu hỏi về thông tin chăm sóc và xem lại phản hồi gắn với nguồn HealthCare.</p>
+            {creditStatus && (
+              <div className="mt-3 inline-flex items-center gap-2.5 rounded-full bg-emerald-50 border border-emerald-200 px-3.5 py-1.5 text-xs font-semibold text-emerald-900 shadow-sm">
+                <span>{creditStatus.tier === 'VIP' ? '👑' : creditStatus.tier === 'GOLD' ? '⭐' : creditStatus.tier === 'SILVER' ? '🥈' : '🌱'}</span>
+                <span>Hạng <strong>{creditStatus.tier || 'STANDARD'}</strong></span>
+                <span className="text-emerald-300">|</span>
+                <span>Lượt AI còn lại: <strong className="text-emerald-700 text-sm">{creditStatus.credits}</strong>/{creditStatus.maxCredits}</span>
+              </div>
+            )}
           </div>
           <Link className={styles.catalogLink} href="/search">
             Tra cứu nội dung bệnh viện

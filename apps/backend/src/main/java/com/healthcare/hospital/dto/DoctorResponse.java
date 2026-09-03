@@ -13,8 +13,24 @@ public record DoctorResponse(
     List<String> branchIds,
     List<String> branchNames,
     List<String> specialtySlugs,
-    String achievements
+    String achievements,
+    Integer aiCredits
 ) {
+    public DoctorResponse(
+        String id,
+        String fullName,
+        String slug,
+        String bio,
+        String photoUrl,
+        String specialtyName,
+        String branchId,
+        List<String> branchIds,
+        List<String> branchNames,
+        List<String> specialtySlugs,
+        String achievements
+    ) {
+        this(id, fullName, slug, bio, photoUrl, specialtyName, branchId, branchIds, branchNames, specialtySlugs, achievements, 150);
+    }
     public DoctorResponse(
         String id,
         String fullName,

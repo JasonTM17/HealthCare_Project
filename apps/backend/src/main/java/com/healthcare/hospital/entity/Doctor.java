@@ -39,6 +39,9 @@ public class Doctor {
 
     @Column(name = "user_id")
     private UUID userId;
+    @Column(name = "ai_credits")
+    private Integer aiCredits = 150;
+
 
     public UUID getId() {
         return id;
@@ -104,4 +107,6 @@ public class Doctor {
     public void setUserId(UUID userId) {
         this.userId = userId;
     }
+    public Integer getAiCredits() { return aiCredits != null ? aiCredits : 150; }
+    public void setAiCredits(Integer aiCredits) { this.aiCredits = aiCredits; }
 }

@@ -18,6 +18,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @Transactional
+@org.springframework.test.context.TestPropertySource(properties = "storage.upload-enabled=false")
 class FileStorageUploadDisabledIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired private RoleRepository roleRepository;

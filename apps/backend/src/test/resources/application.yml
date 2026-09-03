@@ -48,3 +48,5 @@ ai:
   service:
     runtime: local
     allow-unauthenticated-local: true
+storage:
+  allow-unscanned-upload: true

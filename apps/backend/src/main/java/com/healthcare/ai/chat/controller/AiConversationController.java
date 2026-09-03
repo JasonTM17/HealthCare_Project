@@ -38,10 +38,22 @@ public class AiConversationController {
 
     private final AiConversationService conversationService;
     private final ObjectMapper objectMapper;
+    private com.healthcare.ai.service.AiCreditService aiCreditService;
+    private com.healthcare.user.repository.UserRepository userRepository;
 
     public AiConversationController(AiConversationService conversationService, ObjectMapper objectMapper) {
         this.conversationService = conversationService;
         this.objectMapper = objectMapper;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setAiCreditService(com.healthcare.ai.service.AiCreditService aiCreditService) {
+        this.aiCreditService = aiCreditService;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setUserRepository(com.healthcare.user.repository.UserRepository userRepository) {
+        this.userRepository = userRepository;
     }
 
     @PostMapping
@@ -79,6 +91,12 @@ public class AiConversationController {
             @PathVariable UUID conversationId,
             @RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody SendMessageRequest request) {
+        if (userRepository != null && aiCreditService != null) {
+            com.healthcare.user.entity.User user = userRepository.findByEmail(principal.getUsername()).orElse(null);
+            if (user != null) {
+                aiCreditService.deductPatientCredit(user.getId(), "Hỏi Trợ lý AI Y khoa: " + request.content());
+            }
+        }
         return ResponseEntity.ok(
             conversationService.send(principal, conversationId, idempotencyKey, request.content())
         );
@@ -90,6 +108,12 @@ public class AiConversationController {
             @PathVariable UUID conversationId,
             @RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody SendMessageRequest request) throws Exception {
+        if (userRepository != null && aiCreditService != null) {
+            com.healthcare.user.entity.User user = userRepository.findByEmail(principal.getUsername()).orElse(null);
+            if (user != null) {
+                aiCreditService.deductPatientCredit(user.getId(), "Hỏi Trợ lý AI Y khoa (Stream): " + request.content());
+            }
+        }
         if (!conversationService.isChunkedDeliveryEnabled()) {
             // Return an empty response directly. The route only produces SSE,
             // so routing this state through the JSON exception handler causes

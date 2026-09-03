@@ -479,7 +479,7 @@ main {
   padding: var(--sp-10) var(--sp-8);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-lg);
-  background: linear-gradient(180deg, var(--color-paper-bright) 0%, var(--color-paper) 100%);
+  background: var(--color-paper-bright);
   color: var(--color-ink-muted);
 }
 
@@ -1924,9 +1924,9 @@ main {
 }
 
 .button--nav {
-  min-height: 44px;
+  min-height: 46px;
   padding: 0 var(--sp-5);
-  background: linear-gradient(135deg, var(--color-teal-700) 0%, #0d9488 100%);
+  background: var(--color-teal-700);
   color: var(--color-paper-bright);
   border-radius: 999px;
   letter-spacing: -0.01em;
@@ -1934,7 +1934,7 @@ main {
 }
 
 .button--nav:hover {
-  background: linear-gradient(135deg, var(--color-teal-800) 0%, var(--color-teal-700) 100%);
+  background: var(--color-teal-800);
   box-shadow: var(--shadow-teal-md);
 }
 
@@ -9038,7 +9038,7 @@ main {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #0d9488 0%, #004b50 100%);
+  background: #004b50;
   color: #ffffff;
   font-size: 0.75rem;
   font-weight: 800;
@@ -9227,7 +9227,7 @@ main {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #0d9488 0%, #004b50 100%);
+  background: #004b50;
   color: #ffffff;
   font-weight: 800;
   font-size: 0.875rem;
@@ -9287,10 +9287,7 @@ main {
 /* ── Hero H1 em accent ── */
 .site-shell .hero-copy h1 em {
   font-style: normal;
-  background: linear-gradient(135deg, #0d9488, var(--color-teal-800));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #0d9488;
 }
 
 /* ── Hero description refined ── */
@@ -9315,13 +9312,8 @@ main {
   left: 1.5rem;
   bottom: 2.25rem;
   width: 2px;
-  background: repeating-linear-gradient(
-    to bottom,
-    var(--color-teal-300) 0px,
-    var(--color-teal-300) 6px,
-    transparent 6px,
-    transparent 14px
-  );
+  border-left: 2px dashed var(--color-teal-300);
+  background: transparent;
 }
 
 .journey-step__number {
@@ -9343,9 +9335,9 @@ main {
   z-index: 1;
 }
 
-/* ── Specialty card icon container gradient ── */
+/* ── Specialty card icon container ── */
 .site-shell .hm-specialty-card__icon {
-  background: linear-gradient(135deg, #f0fdfa 0%, #e0f2f1 100%) !important;
+  background: #f0fdfa !important;
   border: 1px solid rgba(13, 148, 136, 0.18) !important;
   box-shadow: 0 2px 8px rgba(13, 148, 136, 0.1) !important;
 }
@@ -9394,9 +9386,9 @@ main {
   padding-left: 2rem;
 }
 
-/* ── Portal nav active: gradient highlight + left border ── */
+/* ── Portal nav active: highlight + left border ── */
 .portal-nav__link--active {
-  background: linear-gradient(135deg, #f0fdfa 0%, #e0f2f1 100%) !important;
+  background: #f0fdfa !important;
   color: var(--color-teal-800) !important;
   border-left: 3px solid var(--color-teal-700);
   padding-left: calc(var(--sp-3) - 3px);
@@ -9407,9 +9399,9 @@ main {
   background: rgba(224, 242, 241, 0.5) !important;
 }
 
-/* ── Portal brand mark gradient ── */
+/* ── Portal brand mark ── */
 .portal-brand__mark {
-  background: linear-gradient(135deg, var(--color-teal-700) 0%, #0d9488 100%) !important;
+  background: var(--color-teal-700) !important;
   box-shadow: var(--shadow-teal-sm) !important;
 }
 
@@ -9425,7 +9417,7 @@ main {
 }
 
 .booking-stage-card__icon {
-  background: linear-gradient(135deg, #f0fdfa 0%, #e0f2f1 100%) !important;
+  background: #f0fdfa !important;
   border: 1px solid rgba(13, 148, 136, 0.15) !important;
   box-shadow: 0 2px 6px rgba(13, 148, 136, 0.1) !important;
 }
@@ -9439,9 +9431,9 @@ main {
   box-shadow: 0 20px 40px -8px rgba(0, 51, 54, 0.1) !important;
 }
 
-/* ── Hero assurance icons gradient ── */
+/* ── Hero assurance icons ── */
 .site-shell .hero-assurance__icon {
-  background: linear-gradient(135deg, #f0fdfa 0%, #e0f2f1 100%) !important;
+  background: #f0fdfa !important;
   border: 1px solid rgba(13, 148, 136, 0.2) !important;
   border-radius: 14px !important;
 }
@@ -9465,7 +9457,7 @@ main {
 
 /* ── Mobile care rail active ── */
 .mobile-care-rail .mobile-care-rail__primary {
-  background: linear-gradient(135deg, var(--color-teal-700) 0%, #0d9488 100%);
+  background: var(--color-teal-700);
   box-shadow: var(--shadow-teal-sm);
 }
 

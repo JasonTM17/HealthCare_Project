@@ -21,6 +21,8 @@ public record PatientProfileResponse(
     String medicalHistory,
     String allergies,
     String bloodType,
+    String patientTier,
+    Integer aiCredits,
     OffsetDateTime updatedAt
 ) {
     public PatientProfileResponse(
@@ -35,7 +37,7 @@ public record PatientProfileResponse(
         String emergencyContactPhone,
         OffsetDateTime updatedAt
     ) {
-        this(id, fullName, phone, email, dateOfBirth, gender, address, emergencyContactName, emergencyContactPhone, null, null, null, null, updatedAt);
+        this(id, fullName, phone, email, dateOfBirth, gender, address, emergencyContactName, emergencyContactPhone, null, null, null, null, "STANDARD", 20, updatedAt);
     }
 
     public static PatientProfileResponse from(PatientProfile patient) {
@@ -44,6 +46,7 @@ public record PatientProfileResponse(
             patient.getDateOfBirth(), patient.getGender(), patient.getAddress(),
             patient.getEmergencyContactName(), patient.getEmergencyContactPhone(),
             patient.getAvatarUrl(), patient.getMedicalHistory(), patient.getAllergies(), patient.getBloodType(),
+            patient.getPatientTier(), patient.getAiCredits(),
             patient.getUpdatedAt()
         );
     }
