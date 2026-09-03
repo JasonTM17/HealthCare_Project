@@ -7,6 +7,12 @@ import BrandMark from "../../../components/BrandMark";
 import { ApiError, hasRole, login } from "../../../lib/api-client";
 import { authErrorMessage, authFieldErrors, safeAuthNextPath, type AuthFieldErrors } from "../../../lib/auth-flow";
 
+const DEMO_ACCOUNTS = [
+  { role: "ADMIN", label: "Quản trị viên (Admin)", email: "admin@healthcare.com" },
+  { role: "DOCTOR", label: "Bác sĩ (Doctor)", email: "doctor@healthcare.com" },
+  { role: "PATIENT", label: "Bệnh nhân (Patient)", email: "patient@healthcare.com" },
+] as const;
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -64,6 +70,43 @@ export default function LoginPage() {
         <p className="auth-card__intro">
           Tài khoản được xác thực bởi máy chủ HealthCare. Không nhập thông tin y tế vào biểu mẫu này.
         </p>
+
+        <div style={{
+          margin: "1.25rem 0",
+          padding: "0.85rem 1rem",
+          background: "var(--color-paper-muted, #f0fdfa)",
+          border: "1px solid var(--color-mint-light, #ccfbf1)",
+          borderRadius: "10px"
+        }}>
+          <p style={{ margin: "0 0 0.5rem 0", fontSize: "0.8rem", fontWeight: 700, color: "var(--color-teal-800, #0f766e)" }}>
+            💡 Tài khoản kiểm thử nhanh (Dự án học tập):
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
+            {DEMO_ACCOUNTS.map((acc) => (
+              <button
+                key={acc.role}
+                type="button"
+                onClick={() => {
+                  setEmail(acc.email);
+                  setPassword("HealthCare@2026");
+                  setErrorMessage(null);
+                }}
+                style={{
+                  padding: "0.35rem 0.65rem",
+                  fontSize: "0.775rem",
+                  fontWeight: 600,
+                  background: "#ffffff",
+                  border: "1px solid var(--color-teal-600, #0d9488)",
+                  borderRadius: "6px",
+                  color: "var(--color-teal-900, #0f766e)",
+                  cursor: "pointer"
+                }}
+              >
+                {acc.label}
+              </button>
+            ))}
+          </div>
+        </div>
 
         <form className="auth-form" onSubmit={handleSubmit}>
           {errorMessage ? (

@@ -2,6 +2,23 @@
 
 HealthCare_Project is a healthcare MVP for a Vietnamese hospital-style experience. It is an educational/local-development project; passing local checks does not establish production healthcare, compliance, or deployment readiness.
 
+## 👥 Tài khoản Demo & Kiểm thử theo Phân quyền (Demo Accounts & Roles)
+
+Dự án phục vụ mục đích học tập và nghiên cứu (Educational Project). Hệ thống đã được cấu hình và kiểm thử tự động toàn diện các vai trò người dùng (RBAC) trên môi trường trực tiếp. Dưới đây là danh sách tài khoản được tạo sẵn trong cơ sở dữ liệu để mọi người thuận tiện đăng nhập và trải nghiệm các luồng nghiệp vụ:
+
+| Vai trò (Role) | Email đăng nhập | Mật khẩu | Phạm vi truy cập & Tính năng chính |
+| :--- | :--- | :--- | :--- |
+| **Quản trị viên (ADMIN)** | `admin@healthcare.com` | `HealthCare@2026` | Quản trị toàn diện bệnh viện: Quản lý danh sách bác sĩ, chuyên khoa, dịch vụ y tế, chi nhánh cơ sở, lịch trực, duyệt nội dung AI ([/admin](https://healthcare-two-olive.vercel.app/admin)) |
+| **Bác sĩ (DOCTOR)** | `doctor@healthcare.com` | `HealthCare@2026` | Cổng thông tin lâm sàng (BS. Lê Quốc Hà - Chuyên khoa Chấn thương chỉnh hình): Xem lịch khám bệnh nhân trong ngày, quản lý phiên tư vấn trực tuyến, lập kế hoạch chăm sóc ([/doctor](https://healthcare-two-olive.vercel.app/doctor)) |
+| **Bệnh nhân (PATIENT)** | `patient@healthcare.com` | `HealthCare@2026` | Cổng bệnh nhân (Nguyễn Văn An): Xem lịch sử hẹn khám, kết quả chẩn đoán, hồ sơ cá nhân và Chatbot AI y tế có lưu lại lịch sử hội thoại ([/patient](https://healthcare-two-olive.vercel.app/patient)) |
+
+> [!TIP]
+> **Hướng dẫn đăng nhập nhanh**:
+> 1. Truy cập trang [Đăng nhập tài khoản](https://healthcare-two-olive.vercel.app/auth/login).
+> 2. Nhập một trong các email và mật khẩu ở bảng trên (`HealthCare@2026`).
+> 3. Hệ thống sẽ tự động phân loại quyền và chuyển hướng bạn trực tiếp tới Portal tương ứng (`/admin`, `/doctor`, hoặc `/patient`).
+
+
 ## Status
 
 The repository currently has auth/RBAC, branch-aware booking and rescheduling, bounded OTP confirmation, appointment lifecycle/reminders, patient and doctor portals, bank-transfer payment reconciliation, authorized clinical records and diagnostic files, complete hospital catalog administration, recurring schedule administration, AI/RAG/search guardrails, MinIO metadata, and CI definitions. Backend, AI, frontend static/typecheck/lint/build, Compose-configuration, database-fixture, and a Playwright CMS realtime browser gate are wired in CI. The browser gate proves the admin-to-public homepage CMS flow against a mocked backend contract; full live Compose browser E2E, backup/restore drills, external AI provider validation, compliance, and production deployment remain separate gates.
