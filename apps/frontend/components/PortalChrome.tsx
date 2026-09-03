@@ -124,6 +124,7 @@ export default function PortalChrome({ role, user, children }: PortalChromeProps
         { href: "/doctor/care-plans", label: "Kế hoạch" },
         { href: "/doctor/health-questions", label: "Hỏi đáp" },
         { href: "/doctor/ai-content-reviews", label: "Duyệt AI" },
+        { href: "/doctor/profile", label: "Hồ sơ cá nhân" },
       ];
 
   const isActive = (href: string): boolean => {
@@ -214,10 +215,19 @@ export default function PortalChrome({ role, user, children }: PortalChromeProps
           </nav>
 
           <div className="portal-user">
-            <div className="portal-user__copy">
-              <strong>{user.displayName}</strong>
-              <span>{user.email}</span>
-            </div>
+            <Link
+              className="portal-user__link"
+              href={role === "PATIENT" ? "/patient/profile" : "/doctor/profile"}
+              title="Xem và cập nhật thông tin tài khoản"
+            >
+              <span className="portal-user__avatar" aria-hidden="true">
+                {user.displayName?.charAt(0)?.toUpperCase() ?? "U"}
+              </span>
+              <div className="portal-user__copy">
+                <strong>{user.displayName}</strong>
+                <span>{user.email}</span>
+              </div>
+            </Link>
             <div className="grid max-w-xs justify-items-end gap-1">
               <button className="outline-button outline-button--small" disabled={loggingOut} onClick={handleLogout} type="button">
                 {loggingOut ? "Đang thoát..." : "Đăng xuất"}

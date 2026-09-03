@@ -104,8 +104,8 @@ export default function BranchesPage() {
               <PublicBookingButton selection={featuredBranch ? { branchId: featuredBranch.id } : undefined}>
                 Đặt lịch tại cơ sở
               </PublicBookingButton>
-              <PublicAiButton className="outline-button outline-button--light">Hỏi trợ lý triệu chứng</PublicAiButton>
-              <Link className="outline-button outline-button--light" href="/contact">
+              <PublicAiButton className="outline-button">Hỏi trợ lý triệu chứng</PublicAiButton>
+              <Link className="outline-button" href="/contact">
                 Liên hệ bệnh viện
               </Link>
             </div>

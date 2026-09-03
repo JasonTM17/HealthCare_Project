@@ -41,7 +41,10 @@ function Get-EnvironmentValue {
 }
 
 function New-DisposableSecret([int]$ByteCount) {
-    return [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes($ByteCount))
+    $bytes = New-Object byte[] $ByteCount
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    $rng.GetBytes($bytes)
+    return [Convert]::ToBase64String($bytes)
 }
 
 function Test-IsWindowsHost {

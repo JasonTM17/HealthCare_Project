@@ -6,11 +6,12 @@
   inset: 0 0 auto;
   z-index: 120;
   width: 100%;
-  height: 3px;
+  height: 2px;
   pointer-events: none;
-  background: #c6a86b;
+  background: linear-gradient(90deg, var(--color-teal-700) 0%, #0d9488 50%, #10b981 100%);
   transform: scaleX(var(--public-scroll-progress));
   transform-origin: left center;
+  opacity: 0.85;
 }
 
 .site-shell .site-nav,
@@ -46,7 +47,8 @@
 .site-shell .hero-section {
   position: relative;
   isolation: isolate;
-  background: #edf6f3;
+  background: radial-gradient(120% 100% at 50% -10%, rgba(13, 148, 136, 0.12) 0%, rgba(240, 253, 250, 0.7) 45%, #f8fafc 100%);
+  overflow: hidden;
 }
 
 .site-shell .hero-section::before {
@@ -79,25 +81,35 @@
 
 .site-shell .hero-kicker {
   gap: 0.75rem;
-  color: #6d5a30;
+  color: var(--color-teal-700);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .site-shell .hero-kicker__line {
   display: block;
-  width: 2.4rem;
-  height: 1px;
+  width: 2.8rem;
+  height: 2px;
   flex: 0 0 auto;
-  background: #b89a5f;
+  background: linear-gradient(90deg, #0d9488 0%, #a3ced2 100%);
+  border-radius: 999px;
 }
 
 .site-shell .hero-copy h1 {
-  max-width: 10.5ch;
-  font-size: 4.85rem;
-  line-height: 1.01;
+  max-width: 11ch;
+  font-size: clamp(3.25rem, 6vw, 5.2rem);
+  line-height: 1.0;
+  letter-spacing: -0.03em;
 }
 
 .site-shell .hero-copy h1 span {
-  color: var(--hospital-teal-dark);
+  display: block;
+  background: linear-gradient(135deg, var(--color-teal-800) 0%, #0d9488 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .site-shell .hero-description {
@@ -131,8 +143,19 @@
 }
 
 .site-shell .hero-search {
-  margin-top: 1.35rem;
-  box-shadow: 0 12px 30px rgb(22 77 82 / 9%);
+  margin-top: 1.5rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(16px);
+  border: 1.5px solid rgba(13, 148, 136, 0.22);
+  box-shadow: 0 16px 40px -10px rgba(0, 51, 54, 0.12), 0 0 0 1px rgba(255, 255, 255, 0.8) inset;
+  transition: border-color 220ms ease, box-shadow 220ms ease, transform 220ms ease;
+}
+
+.site-shell .hero-search:focus-within {
+  border-color: #0d9488;
+  box-shadow: 0 20px 45px -8px rgba(13, 148, 136, 0.24), 0 0 0 4px rgba(13, 148, 136, 0.14);
+  transform: translateY(-1px);
 }
 
 .site-shell .hero-visual {
@@ -143,8 +166,9 @@
 .site-shell .hero-visual__image-wrap {
   min-height: 555px;
   overflow: hidden;
-  border-radius: 3px 8rem 3px 3px;
-  box-shadow: 0 28px 60px rgb(18 63 82 / 18%);
+  border-radius: 28px;
+  border: 4px solid #ffffff;
+  box-shadow: 0 28px 70px -15px rgba(0, 51, 54, 0.2), 0 0 0 1px rgba(13, 148, 136, 0.12);
 }
 
 .site-shell .hero-visual__image {
@@ -189,18 +213,21 @@
 
 .site-shell .hero-visual__floating-label {
   position: absolute;
-  bottom: 2rem;
-  left: -2.4rem;
+  bottom: 2.2rem;
+  left: -2rem;
   z-index: 3;
   min-width: 17rem;
   display: flex;
   align-items: center;
-  gap: 0.85rem;
-  padding: 1rem 1.15rem;
-  border-left: 3px solid #c6a86b;
-  background: #fff;
+  gap: 0.95rem;
+  padding: 1.1rem 1.35rem;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-left: 4px solid #0d9488;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(16px);
   color: var(--hospital-navy);
-  box-shadow: 0 18px 40px rgb(18 63 82 / 21%);
+  box-shadow: 0 20px 45px -10px rgba(0, 51, 54, 0.18), 0 2px 8px rgba(0, 51, 54, 0.05);
 }
 
 .site-shell .hero-visual__floating-label > span {
@@ -397,28 +424,32 @@
 .site-shell .care-experience__badge {
   position: absolute;
   top: 4rem;
-  right: 0;
+  right: -0.5rem;
   z-index: 3;
-  width: min(16rem, 47%);
+  width: min(17rem, 50%);
   display: flex;
   align-items: center;
-  gap: 0.8rem;
-  padding: 1rem;
-  border-left: 3px solid #c6a86b;
-  background: #fff;
+  gap: 0.9rem;
+  padding: 1.1rem 1.2rem;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-left: 4px solid #0d9488;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(16px);
   color: var(--hospital-navy);
-  box-shadow: 0 16px 34px rgb(3 25 34 / 26%);
+  box-shadow: 0 20px 40px rgb(3 25 34 / 22%), 0 2px 8px rgb(3 25 34 / 06%);
 }
 
 .site-shell .care-experience__badge > span {
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
   display: grid;
   place-items: center;
   flex: 0 0 auto;
-  border-radius: 50%;
-  background: var(--hospital-mint);
-  color: var(--hospital-teal);
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f0fdfa 0%, #e0f2f1 100%);
+  color: #0d9488;
+  border: 1px solid rgba(13, 148, 136, 0.2);
 }
 
 .site-shell .care-experience__badge p {
@@ -430,6 +461,7 @@
 .site-shell .care-experience__badge strong {
   font-family: var(--font-display);
   font-size: 0.95rem;
+  letter-spacing: -0.01em;
 }
 
 .site-shell .care-experience__badge small {
@@ -449,11 +481,25 @@
 }
 
 .site-shell .care-experience__signal span {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: #d9bd7d;
-  opacity: 0.35;
+  background: #10b981;
+  opacity: 1;
+  animation: signalPulse 2.4s ease-in-out infinite;
+}
+
+.site-shell .care-experience__signal span:nth-child(2) {
+  animation-delay: 0.4s;
+}
+
+.site-shell .care-experience__signal span:nth-child(3) {
+  animation-delay: 0.8s;
+}
+
+@keyframes signalPulse {
+  0%, 100% { opacity: 0.25; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.15); }
 }
 
 .site-shell .care-experience__copy {

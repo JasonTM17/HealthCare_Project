@@ -1949,11 +1949,27 @@ export interface UpdatePatientProfilePayload {
   address?: string;
   emergencyContactName?: string;
   emergencyContactPhone?: string;
+  avatarUrl?: string;
+  medicalHistory?: string;
+  allergies?: string;
+  bloodType?: string;
 }
 
 export async function updatePatientProfile(payload: UpdatePatientProfilePayload): Promise<PatientProfile> {
   return getAuthenticatedJson<PatientProfile>("/patient/profile", {
     method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export interface ChangePasswordPayload {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export async function changePassword(payload: ChangePasswordPayload): Promise<{ message: string }> {
+  return getAuthenticatedJson<{ message: string }>("/auth/change-password", {
+    method: "POST",
     body: JSON.stringify(payload),
   });
 }
@@ -2643,6 +2659,19 @@ export async function fetchDoctorAppointments(
 
 export async function fetchDoctorProfile(): Promise<Doctor> {
   return getAuthenticatedJson<Doctor>("/doctor/profile");
+}
+
+export interface UpdateDoctorProfilePayload {
+  bio?: string;
+  achievements?: string;
+  photoUrl?: string;
+}
+
+export async function updateDoctorProfile(payload: UpdateDoctorProfilePayload): Promise<Doctor> {
+  return getAuthenticatedJson<Doctor>("/doctor/profile", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function updateDoctorAppointmentStatus(
