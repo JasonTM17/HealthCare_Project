@@ -122,7 +122,19 @@ export default function LoginPage() {
   return (
     <main className={`auth-page ${styles.page}`}>
       <a className="skip-link" href="#login-title">Bỏ qua điều hướng</a>
-      <section aria-labelledby="login-title" className={`auth-card ${styles.card}`}>
+      <div className={styles.layout}>
+        <aside className={styles.welcome} aria-label="Giới thiệu HealthCare">
+          <div className={styles.welcomeIcon}><Icon name="heart" size={24} /></div>
+          <p className={styles.welcomeKicker}>HealthCare</p>
+          <h2>Chăm sóc sức khỏe bắt đầu từ một lần đăng nhập.</h2>
+          <p className={styles.welcomeCopy}>Theo dõi lịch khám, hồ sơ và những cuộc hẹn quan trọng của bạn trong một không gian riêng tư.</p>
+          <div className={styles.welcomeDivider} />
+          <ul className={styles.welcomeList}>
+            <li><Icon name="shield-check" size={18} /><span>Bảo mật theo phiên đăng nhập</span></li>
+            <li><Icon name="calendar" size={18} /><span>Quản lý lịch khám tập trung</span></li>
+          </ul>
+        </aside>
+        <section aria-labelledby="login-title" className={`auth-card ${styles.card}`}>
         <Link className="auth-card__back" href="/">← Về trang chính</Link>
         <div className="auth-card__brand">
           <BrandMark tagline="Đăng nhập an toàn" />
@@ -203,7 +215,8 @@ export default function LoginPage() {
           <span>Chưa có tài khoản bệnh nhân?</span>
           <Link className={styles.registerLink} href="/auth/register">Tạo tài khoản mới →</Link>
         </div>
-      </section>
+        </section>
+      </div>
     </main>
   );
 }
