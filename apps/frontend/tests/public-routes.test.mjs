@@ -246,11 +246,12 @@ test("search page now behaves like a guided discovery hub with bounded AI result
 test("branches page now behaves like a network hub", async () => {
   const branches = await read("app/branches/page.tsx");
 
-  assert.match(branches, /resource-hero-card--teal/);
+  assert.match(branches, /BranchesPage\.module\.css/);
+  assert.match(branches, /networkOverview/);
+  assert.match(branches, /networkSummary/);
+  assert.match(branches, /featuredContact/);
   assert.match(branches, /PublicBookingButton/);
   assert.match(branches, /PublicAiButton/);
-  assert.match(branches, /resource-meta-grid/);
-  assert.match(branches, /resource-step-card/);
   assert.match(branches, /catalog-grid--branches/);
   assert.match(branches, /safeTelephoneHref/);
   assert.match(branches, /BranchMap/);
