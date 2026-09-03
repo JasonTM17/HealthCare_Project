@@ -30,22 +30,22 @@ export default function PortalChrome({ role, user, children }: PortalChromeProps
     ? [
         { href: homePath, label: "Tổng quan" },
         { href: "/patient/appointments", label: "Lịch hẹn" },
-        { href: "/patient/medical-records", label: "Hồ sơ bệnh án" },
+        { href: "/patient/medical-records", label: "Hồ sơ" },
         { href: "/patient/prescriptions", label: "Đơn thuốc" },
         { href: "/patient/diagnostic-results", label: "Kết quả CLS" },
-        { href: "/patient/consultations", label: "Tư vấn riêng" },
-        { href: "/patient/care-plan", label: "Kế hoạch chăm sóc" },
-        { href: "/patient/health-questions", label: "Hỏi đáp sức khỏe" },
-        { href: "/patient/chat", label: "Trợ lý sức khỏe" },
+        { href: "/patient/consultations", label: "Tư vấn" },
+        { href: "/patient/care-plan", label: "Kế hoạch" },
+        { href: "/patient/health-questions", label: "Hỏi đáp" },
+        { href: "/patient/chat", label: "Trợ lý AI" },
         { href: "/patient/preferences", label: "Tài khoản" },
       ]
     : [
-      { href: homePath, label: "Tổng quan" },
-      { href: "/doctor/appointments", label: "Lịch hôm nay" },
-      { href: "/doctor/consultations", label: "Tư vấn bệnh nhân" },
-        { href: "/doctor/care-plans", label: "Kế hoạch chăm sóc" },
-        { href: "/doctor/health-questions", label: "Hỏi đáp bệnh" },
-        { href: "/doctor/ai-content-reviews", label: "Duyệt nội dung AI" },
+        { href: homePath, label: "Tổng quan" },
+        { href: "/doctor/appointments", label: "Lịch khám" },
+        { href: "/doctor/consultations", label: "Tư vấn" },
+        { href: "/doctor/care-plans", label: "Kế hoạch" },
+        { href: "/doctor/health-questions", label: "Hỏi đáp" },
+        { href: "/doctor/ai-content-reviews", label: "Duyệt AI" },
       ];
 
   const isActive = (href: string): boolean => (

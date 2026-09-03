@@ -5,7 +5,8 @@ interface AssistantMarkProps {
   size?: number;
   title?: string;
 }
-/** Code-native launcher mark: a calm chat bubble whose tail becomes a pulse. */
+
+/** Code-native launcher mark: Professional healthcare AI assistant with pulse and speech mark. */
 export default function AssistantMark({ className, size = 44, title }: AssistantMarkProps) {
   return (
     <svg
@@ -16,13 +17,34 @@ export default function AssistantMark({ className, size = 44, title }: Assistant
       height={size}
       role={title ? "img" : undefined}
       style={{ "--assistant-mark-size": `${size}px` } as CSSProperties}
-      viewBox="0 0 64 64"
+      viewBox="0 0 48 48"
       width={size}
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
     >
-      <path d="M10 13.5A9.5 9.5 0 0 1 19.5 4h25A9.5 9.5 0 0 1 54 13.5v20a9.5 9.5 0 0 1-9.5 9.5H31l-12.5 9v-9h-1A9.5 9.5 0 0 1 8 33.5v-20Z" fill="currentColor" opacity=".18" />
-      <path d="M13 13.5A6.5 6.5 0 0 1 19.5 7h25a6.5 6.5 0 0 1 6.5 6.5v18a6.5 6.5 0 0 1-6.5 6.5H29.8L21.5 44v-6h-2A6.5 6.5 0 0 1 13 31.5v-18Z" fill="none" stroke="currentColor" strokeWidth="3" />
-      <path d="M18 27h8l2.5-6 5 13 3-7H46" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" />
-      <circle cx="46" cy="27" fill="currentColor" r="2" />
+      {/* Speech bubble silhouette with smooth rounded geometry */}
+      <path
+        d="M10 8h28a6 6 0 0 1 6 6v16a6 6 0 0 1-6 6H20l-7 6v-6h-3a6 6 0 0 1-6-6V14a6 6 0 0 1 6-6z"
+        fill="currentColor"
+        fillOpacity="0.16"
+      />
+      <path
+        d="M10 8h28a6 6 0 0 1 6 6v16a6 6 0 0 1-6 6H20l-7 6v-6h-3a6 6 0 0 1-6-6V14a6 6 0 0 1 6-6z"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Precision ECG Heartbeat pulse waveform */}
+      <path
+        d="M12 22h5l2.5-6 4 12 3.5-8 2 2h7"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* AI Intelligence Sparkle accent */}
+      <circle cx="37" cy="14" r="2" fill="currentColor" />
     </svg>
   );
 }

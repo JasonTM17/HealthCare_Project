@@ -489,19 +489,21 @@ export default function DoctorDashboardPage() {
           </div>
           <p className="portal-panel__intro">Nhập mã hồ sơ được cung cấp trong quy trình phân công để xem thông tin phù hợp với quyền của bạn.</p>
           <form className="portal-lookup-form" onSubmit={handleLookup}>
-            <div>
+            <div className="portal-lookup-form__group">
               <label htmlFor="patient-id">Mã hồ sơ bệnh nhân</label>
-              <input
-                aria-describedby="patient-id-help"
-                id="patient-id"
-                onChange={(event) => setPatientId(event.target.value)}
-                placeholder="Nhập mã hồ sơ được phân công"
-                spellCheck={false}
-                value={patientId}
-              />
+              <div className="portal-lookup-form__row">
+                <input
+                  aria-describedby="patient-id-help"
+                  id="patient-id"
+                  onChange={(event) => setPatientId(event.target.value)}
+                  placeholder="Nhập mã hồ sơ được phân công (hoặc chọn từ lịch khám ở trên)"
+                  spellCheck={false}
+                  value={patientId}
+                />
+                <button className="button button--primary" type="submit">Mở hồ sơ</button>
+              </div>
               <small id="patient-id-help">Dữ liệu chỉ được yêu cầu khi đã có cơ sở truy cập hợp lệ.</small>
             </div>
-            <button className="button button--primary" type="submit">Mở hồ sơ</button>
           </form>
           {lookupError ? <p aria-live="assertive" className="portal-inline-error" role="alert">{lookupError}</p> : null}
         </section>
