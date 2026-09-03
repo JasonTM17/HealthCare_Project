@@ -1,0 +1,15 @@
+.git
+.agentkit
+.agents
+.codex
+engineer
+plans
+apps/backend
+apps/ai-service
+**/node_modules
+**/.next
+**/target
+**/__pycache__
+**/.pytest_cache
+**/playwright-report
+**/test-results
