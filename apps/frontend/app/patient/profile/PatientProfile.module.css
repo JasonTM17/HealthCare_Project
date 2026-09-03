@@ -1,0 +1,623 @@
+/* apps/frontend/app/patient/profile/PatientProfile.module.css */
+
+.profileContainer {
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 0 var(--sp-8);
+}
+
+/* ── Digital Hospital Health Passport (Thẻ Bệnh Nhân & Hội Viên Y Tế Số) ── */
+.passportCard {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-xl, 24px);
+  padding: var(--sp-6) var(--sp-8);
+  color: #ffffff;
+  margin-bottom: var(--sp-8);
+  box-shadow: 0 16px 36px -8px rgba(0, 51, 54, 0.22), 0 4px 12px rgba(0, 51, 54, 0.08);
+  transition: transform var(--duration-base, 200ms) var(--ease-out, ease-out);
+}
+
+.passportCard[data-tier="VIP"] {
+  background: linear-gradient(135deg, #022022 0%, #003336 45%, #051b1d 100%);
+  border: 1px solid rgba(163, 206, 210, 0.45);
+}
+
+.passportCard[data-tier="GOLD"] {
+  background: linear-gradient(135deg, #181d1a 0%, #202b26 50%, #151e1a 100%);
+  border: 1px solid rgba(254, 183, 0, 0.5);
+  box-shadow: 0 16px 36px -8px rgba(124, 88, 0, 0.25);
+}
+
+.passportCard[data-tier="SILVER"] {
+  background: linear-gradient(135deg, #1e2627 0%, #2b3637 50%, #192122 100%);
+  border: 1px solid rgba(192, 200, 200, 0.45);
+}
+
+.passportCard[data-tier="STANDARD"] {
+  background: linear-gradient(135deg, #003336 0%, #004b50 55%, #00282b 100%);
+  border: 1px solid rgba(163, 206, 210, 0.35);
+}
+
+.passportWatermark {
+  position: absolute;
+  right: -2rem;
+  bottom: -2.5rem;
+  opacity: 0.06;
+  pointer-events: none;
+  transform: rotate(-12deg);
+}
+
+.passportTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding-bottom: var(--sp-4);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.passportBrand {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-family: var(--font-display);
+  font-size: 0.8125rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.securityChip {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.chipSvg {
+  width: 34px;
+  height: 25px;
+  border-radius: 4px;
+  background: linear-gradient(135deg, #e2e8f0 0%, #94a3b8 100%);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  position: relative;
+  overflow: hidden;
+}
+
+.chipSvg::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.tierPill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1-5, 6px);
+  padding: 0.3rem 0.85rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(8px);
+}
+
+.tierPill[data-tier="VIP"] {
+  background: rgba(163, 206, 210, 0.2);
+  border-color: rgba(163, 206, 210, 0.55);
+  color: #e6fffa;
+}
+
+.tierPill[data-tier="GOLD"] {
+  background: rgba(254, 183, 0, 0.22);
+  border-color: rgba(254, 183, 0, 0.65);
+  color: #fffbeb;
+}
+
+.tierPill[data-tier="SILVER"] {
+  background: rgba(226, 232, 240, 0.2);
+  border-color: rgba(226, 232, 240, 0.55);
+  color: #ffffff;
+}
+
+.tierPill[data-tier="STANDARD"] {
+  background: rgba(13, 148, 136, 0.25);
+  border-color: rgba(163, 206, 210, 0.45);
+  color: #f0fdfa;
+}
+
+.passportBody {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--sp-6);
+  padding: var(--sp-5) 0 var(--sp-2);
+}
+
+.patientAvatarWrapper {
+  position: relative;
+}
+
+.patientAvatar {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2.5px solid rgba(255, 255, 255, 0.85);
+  background: var(--color-teal-800, #004b50);
+  display: grid;
+  place-items: center;
+  font-size: 1.6rem;
+  font-weight: 900;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.patientMeta h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.35rem, 2.2vw, 1.75rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+}
+
+.patientIdTag {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-1-5, 6px);
+  font-size: 0.8125rem;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.patientCodeBadge {
+  font-family: monospace;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  background: rgba(255, 255, 255, 0.15);
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-xs, 4px);
+}
+
+.creditMeter {
+  min-width: 260px;
+  padding: var(--sp-4);
+  border-radius: var(--radius-md, 12px);
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(10px);
+}
+
+.creditMeterLabel {
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.85);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.creditNumbers {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: #feb700;
+}
+
+.creditTotal {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  margin-left: 2px;
+}
+
+.progressBar {
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  margin: var(--sp-2) 0 var(--sp-2);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #a3ced2 0%, #feb700 100%);
+  transition: width 500ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.passportPerks {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.75);
+  line-height: 1.4;
+  margin: 0;
+}
+
+/* ── Clinical Panels & Forms ── */
+.clinicalCard {
+  background: var(--color-paper-bright, #ffffff);
+  border: 1px solid var(--color-line, #c0c8c8);
+  border-radius: var(--radius-lg, 16px);
+  padding: var(--sp-6);
+  box-shadow: 0 4px 16px rgba(0, 51, 54, 0.04);
+  margin-bottom: var(--sp-6);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding-bottom: var(--sp-3);
+  border-bottom: 1px solid var(--color-mint-light, #f0fdfa);
+  margin-bottom: var(--sp-5);
+}
+
+.sectionHeaderIcon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm, 8px);
+  background: var(--color-mint-light, #f0fdfa);
+  color: var(--color-teal-800, #004b50);
+  display: grid;
+  place-items: center;
+}
+
+.sectionHeader h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 800;
+  color: var(--color-teal-950, #001c1e);
+  letter-spacing: -0.01em;
+}
+
+.sectionHeaderSub {
+  margin: 2px 0 0;
+  font-size: 0.8125rem;
+  color: var(--color-ink-muted, #5f7476);
+}
+
+.fieldGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-4);
+}
+
+.fieldGridFull {
+  grid-column: 1 / -1;
+}
+
+.inputGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1-5, 6px);
+}
+
+.inputLabel {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--color-teal-950, #001c1e);
+  letter-spacing: 0.01em;
+}
+
+.inputField {
+  min-height: 44px;
+  width: 100%;
+  border: 1px solid var(--color-line, #c0c8c8);
+  border-radius: var(--radius-sm, 8px);
+  padding: 0 var(--sp-3);
+  font-size: 0.9375rem;
+  background: var(--color-paper-bright, #ffffff);
+  color: var(--color-ink, #1a2e30);
+  transition: border-color var(--duration-fast, 150ms), box-shadow var(--duration-fast, 150ms);
+  font-family: inherit;
+}
+
+.inputField:focus-visible {
+  outline: 3px solid oklch(82% 0.08 174 / 0.65);
+  outline-offset: 1px;
+  border-color: var(--color-teal-700, #2a676c);
+}
+
+.inputFieldReadOnly {
+  background: var(--color-mint-light, #f0fdfa);
+  color: var(--color-ink-muted, #5f7476);
+  cursor: not-allowed;
+  border-color: rgba(163, 206, 210, 0.4);
+}
+
+.textareaField {
+  width: 100%;
+  min-height: 5.5rem;
+  border: 1px solid var(--color-line, #c0c8c8);
+  border-radius: var(--radius-sm, 8px);
+  padding: var(--sp-3);
+  font-size: 0.9375rem;
+  background: var(--color-paper-bright, #ffffff);
+  color: var(--color-ink, #1a2e30);
+  font-family: inherit;
+  resize: vertical;
+}
+
+.textareaField:focus-visible {
+  outline: 3px solid oklch(82% 0.08 174 / 0.65);
+  outline-offset: 1px;
+  border-color: var(--color-teal-700, #2a676c);
+}
+
+/* Allergy clinical alert box */
+.allergyAlertBox {
+  border: 1px solid rgba(254, 183, 0, 0.45);
+  background: color-mix(in oklch, var(--color-amber, #feb700) 8%, var(--color-paper-bright, #ffffff));
+  border-radius: var(--radius-sm, 8px);
+  padding: var(--sp-4);
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.allergyAlertHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--color-amber-dark, #7c5800);
+  font-size: 0.8125rem;
+  font-weight: 800;
+}
+
+.submitButton {
+  min-height: 44px;
+  padding: 0 var(--sp-6);
+  border-radius: var(--radius-sm, 8px);
+  background: var(--color-teal-950, #001c1e);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.9375rem;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  box-shadow: 0 2px 8px rgba(0, 28, 30, 0.18);
+  transition: background-color var(--duration-fast, 150ms), transform var(--duration-fast, 150ms);
+}
+
+.submitButton:hover:not(:disabled) {
+  background: var(--color-teal-800, #004b50);
+  transform: translateY(-1px);
+}
+
+.submitButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.secondaryButton {
+  min-height: 44px;
+  width: 100%;
+  padding: 0 var(--sp-4);
+  border-radius: var(--radius-sm, 8px);
+  background: var(--color-mint-light, #f0fdfa);
+  color: var(--color-teal-950, #001c1e);
+  font-weight: 700;
+  font-size: 0.875rem;
+  border: 1px solid var(--color-teal-300, #a3ced2);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  transition: background-color var(--duration-fast, 150ms);
+}
+
+.secondaryButton:hover:not(:disabled) {
+  background: var(--color-teal-100, #ccfbf1);
+}
+
+/* Tier Privilege Comparison Matrix */
+.tierTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.tierRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-3) 0;
+  border-bottom: 1px solid var(--color-line, #c0c8c8);
+}
+
+.tierRow:last-child {
+  border-bottom: none;
+}
+
+.tierName {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-weight: 700;
+  color: var(--color-teal-950, #001c1e);
+}
+
+.tierQuotaBadge {
+  font-weight: 800;
+  padding: 0.15rem 0.55rem;
+  border-radius: var(--radius-xs, 4px);
+  font-size: 0.75rem;
+}
+
+.tierQuotaBadge[data-tier="VIP"] {
+  background: rgba(2, 32, 34, 0.08);
+  color: var(--color-teal-950, #001c1e);
+}
+
+.tierQuotaBadge[data-tier="GOLD"] {
+  background: rgba(254, 183, 0, 0.15);
+  color: var(--color-amber-dark, #7c5800);
+}
+
+.tierQuotaBadge[data-tier="SILVER"] {
+  background: rgba(148, 163, 184, 0.18);
+  color: #334155;
+}
+
+.tierQuotaBadge[data-tier="STANDARD"] {
+  background: rgba(13, 148, 136, 0.12);
+  color: var(--color-teal-800, #004b50);
+}
+
+/* Responsive adjustments */
+@media (max-width: 960px) {
+  .passportBody {
+    grid-template-columns: 1fr;
+    gap: var(--sp-4);
+  }
+  .creditMeter {
+    min-width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .fieldGrid {
+    grid-template-columns: 1fr;
+  }
+  .passportCard {
+    padding: var(--sp-4) var(--sp-5);
+  }
+}
+
+/* ── Fixed Green Corner Toast Notification ── */
+@keyframes toastSlideIn {
+  from {
+    transform: translateX(100%) scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes toastProgressShrink {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+
+.toast {
+  position: fixed;
+  top: calc(76px + 1.25rem);
+  right: max(1.25rem, env(safe-area-inset-right));
+  z-index: 100;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3, 12px);
+  max-width: min(420px, calc(100vw - 2rem));
+  padding: var(--sp-4, 16px) var(--sp-4, 16px) var(--sp-4, 16px) var(--sp-4, 16px);
+  border-radius: var(--radius-md, 12px);
+  box-shadow: 0 16px 36px -4px rgba(0, 51, 54, 0.32), 0 4px 12px rgba(0, 51, 54, 0.15);
+  animation: toastSlideIn 240ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  backdrop-filter: blur(12px);
+  overflow: hidden;
+}
+
+.toastSuccess {
+  background: linear-gradient(135deg, #003336 0%, #004b50 60%, #022c2e 100%);
+  border: 1px solid rgba(52, 211, 153, 0.5);
+  color: #ffffff;
+}
+
+.toastError {
+  background: linear-gradient(135deg, #450a0a 0%, #7f1d1d 100%);
+  border: 1px solid rgba(248, 113, 113, 0.5);
+  color: #ffffff;
+}
+
+.toastIcon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(52, 211, 153, 0.2);
+  border: 1px solid rgba(52, 211, 153, 0.5);
+  color: #34d399;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.toastIconError {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #f87171;
+}
+
+.toastContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.toastTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.875rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #ffffff;
+}
+
+.toastMessage {
+  margin: 2px 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.toastClose {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  transition: color var(--duration-fast), background-color var(--duration-fast);
+  flex-shrink: 0;
+}
+
+.toastClose:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.toastProgress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: #34d399;
+  animation: toastProgressShrink 4000ms linear forwards;
+}
+
+.toastProgressError {
+  background: #f87171;
+}
