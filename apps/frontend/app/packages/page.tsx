@@ -67,6 +67,18 @@ export default function PackagesPage() {
   const packages = page?.content ?? [];
   const packageCount = page?.totalElements ?? packages.length;
   const featuredPackage = packages[0];
+  const packageCountLabel = loading
+    ? "Đang tải…"
+    : error
+      ? "Chưa tải được"
+      : page?.empty
+        ? "Chưa có dữ liệu"
+        : String(packageCount);
+  const featuredPackageLabel = loading
+    ? "Đang tải…"
+    : error
+      ? "Chưa tải được"
+      : featuredPackage?.name ?? "Chưa có dữ liệu";
 
   return (
     <PublicPageShell packages={page?.content ?? []}>
@@ -106,11 +118,11 @@ export default function PackagesPage() {
             <dl className="resource-meta-grid">
               <div>
                 <dt>Tổng gói</dt>
-                <dd>{packageCount || "Đang cập nhật"}</dd>
+                <dd aria-live="polite">{packageCountLabel}</dd>
               </div>
               <div>
                 <dt>Gói nổi bật</dt>
-                <dd>{featuredPackage?.name ?? "Đang cập nhật"}</dd>
+                <dd aria-live="polite">{featuredPackageLabel}</dd>
               </div>
             </dl>
           </div>

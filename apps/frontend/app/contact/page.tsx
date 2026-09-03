@@ -57,6 +57,18 @@ export default function ContactPage() {
   const featuredAddress = featuredBranch?.address?.trim();
   const featuredMapHref = featuredAddress ? createGoogleMapsUrls(featuredAddress, featuredBranch?.name).open : undefined;
   const branchCount = page?.totalElements ?? branches.length;
+  const branchCountLabel = loading
+    ? "Đang tải…"
+    : error
+      ? "Chưa tải được"
+      : page?.empty
+        ? "Chưa có dữ liệu"
+        : String(branchCount);
+  const featuredBranchLabel = loading
+    ? "Đang tải…"
+    : error
+      ? "Chưa tải được"
+      : featuredBranch?.name ?? "Chưa có dữ liệu";
 
   return (
     <PublicPageShell branches={branches}>
@@ -95,11 +107,11 @@ export default function ContactPage() {
             <dl className="resource-meta-grid">
               <div>
                 <dt>Tổng cơ sở</dt>
-                <dd>{branchCount || "Đang cập nhật"}</dd>
+                <dd aria-live="polite">{branchCountLabel}</dd>
               </div>
               <div>
                 <dt>Cơ sở nổi bật</dt>
-                <dd>{featuredBranch?.name ?? "Đang cập nhật"}</dd>
+                <dd aria-live="polite">{featuredBranchLabel}</dd>
               </div>
             </dl>
           </div>

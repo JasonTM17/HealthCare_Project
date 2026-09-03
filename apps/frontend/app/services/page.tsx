@@ -66,6 +66,18 @@ export default function ServicesPage() {
   const services = page?.content ?? [];
   const serviceCount = page?.totalElements ?? services.length;
   const featuredService = services[0];
+  const serviceCountLabel = loading
+    ? "Đang tải…"
+    : error
+      ? "Chưa tải được"
+      : page?.empty
+        ? "Chưa có dữ liệu"
+        : String(serviceCount);
+  const featuredServiceLabel = loading
+    ? "Đang tải…"
+    : error
+      ? "Chưa tải được"
+      : featuredService?.name ?? "Chưa có dữ liệu";
 
   return (
     <PublicPageShell>
@@ -99,11 +111,11 @@ export default function ServicesPage() {
             <dl className="resource-meta-grid">
               <div>
                 <dt>Tổng dịch vụ</dt>
-                <dd>{serviceCount || "Đang cập nhật"}</dd>
+                <dd aria-live="polite">{serviceCountLabel}</dd>
               </div>
               <div>
                 <dt>Dịch vụ nổi bật</dt>
-                <dd>{featuredService?.name ?? "Đang cập nhật"}</dd>
+                <dd aria-live="polite">{featuredServiceLabel}</dd>
               </div>
             </dl>
           </div>

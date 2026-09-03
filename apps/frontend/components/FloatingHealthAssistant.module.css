@@ -18,6 +18,12 @@
   isolation: isolate;
 }
 
+/* Marker for the persisted patient chat surface; guest-only mobile route
+   rules below must never hide this variant. */
+.rootPatient {
+  --assistant-patient-mode: 1;
+}
+
 /* Authentication is a focused form flow. Keep the floating assistant out of
    the narrow login/register surface so recovery links and fields remain
    visible and keyboard users have one predictable primary task. */
@@ -673,6 +679,32 @@
     --assistant-bottom-clearance: 6.5rem;
     right: max(0.75rem, env(safe-area-inset-right));
     bottom: calc(var(--assistant-bottom-clearance) + max(0.75rem, env(safe-area-inset-bottom)));
+  }
+
+  /* Resource and portal pages already provide an in-context assistant action
+     and the mobile care rail. Keep one clear action surface on narrow screens
+     while preserving the launcher on informational pages without a local
+     assistant action (for example About and Careers). */
+  .root:not(.rootPatient)[data-page="/articles"],
+  .root:not(.rootPatient)[data-page^="/articles/"],
+  .root:not(.rootPatient)[data-page="/benh-pho-bien"],
+  .root:not(.rootPatient)[data-page^="/benh-pho-bien/"],
+  .root:not(.rootPatient)[data-page="/branches"],
+  .root:not(.rootPatient)[data-page="/contact"],
+  .root:not(.rootPatient)[data-page="/dat-lich"],
+  .root:not(.rootPatient)[data-page="/doctors"],
+  .root:not(.rootPatient)[data-page^="/doctors/"],
+  .root:not(.rootPatient)[data-page="/faq"],
+  .root:not(.rootPatient)[data-page="/huong-dan"],
+  .root:not(.rootPatient)[data-page="/packages"],
+  .root:not(.rootPatient)[data-page^="/packages/"],
+  .root:not(.rootPatient)[data-page="/search"],
+  .root:not(.rootPatient)[data-page="/services"],
+  .root:not(.rootPatient)[data-page^="/services/"],
+  .root:not(.rootPatient)[data-page="/specialties"],
+  .root:not(.rootPatient)[data-page^="/specialties/"],
+  .root:not(.rootPatient)[data-page="/tra-cuu"] {
+    display: none;
   }
 
   /* The booking page already exposes a dedicated “Hỗ trợ chọn chuyên khoa”
