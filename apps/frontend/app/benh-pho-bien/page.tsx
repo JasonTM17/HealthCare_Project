@@ -243,9 +243,10 @@ export default function CommonDiseasesPage() {
         <section aria-labelledby="disease-filters-title" className="resource-panel resource-panel--accent">
           <p className="section-note" id="disease-filters-title">Tìm theo bệnh hoặc chủ đề</p>
           <div className="resource-grid resource-grid--two">
-            <label htmlFor="disease-search">
+            <label className="disease-filter" htmlFor="disease-search">
               <span className="sr-only">Từ khóa tìm kiếm</span>
               <input
+                className="disease-filter__control"
                 id="disease-search"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
@@ -253,9 +254,9 @@ export default function CommonDiseasesPage() {
                 type="search"
               />
             </label>
-            <label htmlFor="disease-category">
+            <label className="disease-filter" htmlFor="disease-category">
               <span className="sr-only">Lọc theo chuyên đề</span>
-              <select id="disease-category" value={category} onChange={(event) => setCategory(event.target.value)}>
+              <select className="disease-filter__control" id="disease-category" value={category} onChange={(event) => setCategory(event.target.value)}>
                 <option value="ALL">Tất cả chuyên đề</option>
                 {categories.map((value) => (
                   <option key={value} value={value.toUpperCase()}>{labelForToken(value, CATEGORY_LABELS, "Chuyên đề sức khỏe")}</option>

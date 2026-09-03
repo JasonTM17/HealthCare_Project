@@ -1,6 +1,138 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("public responsive boundaries", () => {
+  test("resource heroes collapse to one readable column and defer the floating assistant on phones", async ({ page }) => {
+    for (const width of [320, 375, 414]) {
+      for (const route of ["/articles", "/tra-cuu"]) {
+        await page.setViewportSize({ width, height: 812 });
+        await page.goto(route, { waitUntil: "domcontentloaded" });
+        const hero = page.locator(".resource-hero-card");
+        await expect(hero).toBeVisible();
+
+        const layout = await hero.evaluate((element) => {
+          const body = element.querySelector<HTMLElement>(".resource-hero-card__body");
+          if (!body) throw new Error("resource hero body is missing");
+          const cardRect = element.getBoundingClientRect();
+          const bodyRect = body.getBoundingClientRect();
+          return {
+            columns: window.getComputedStyle(element).gridTemplateColumns.trim().split(/\s+/),
+            cardWidth: cardRect.width,
+            bodyWidth: bodyRect.width,
+            bodyLeft: bodyRect.left,
+            bodyRight: bodyRect.right,
+            cardLeft: cardRect.left,
+            cardRight: cardRect.right,
+          };
+        });
+
+        expect(layout.columns, `${route} at ${width}px should use one mobile hero column`).toHaveLength(1);
+        expect(layout.bodyWidth, `${route} at ${width}px should keep a readable content width`).toBeGreaterThan(layout.cardWidth * 0.8);
+        expect(layout.bodyLeft, `${route} hero body should stay inside the card`).toBeGreaterThanOrEqual(layout.cardLeft - 1);
+        expect(layout.bodyRight, `${route} hero body should stay inside the card`).toBeLessThanOrEqual(layout.cardRight + 1);
+        await expect(page.getByRole("button", { name: "Hỏi trợ lý triệu chứng" })).toBeVisible();
+        await expect(page.locator('[data-testid="floating-health-assistant"]')).toBeHidden();
+      }
+    }
+  });
+
+  test("phone controls keep the 44px interaction target", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 800 });
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#hero-search-input")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Tìm kiếm", exact: true })).toBeVisible();
+
+    const homeControls = await page.evaluate(() => {
+      const rectOf = (selector: string): { width: number; height: number } => {
+        const element = document.querySelector<HTMLElement>(selector);
+        if (!element) throw new Error(`Missing ${selector}`);
+        const rect = element.getBoundingClientRect();
+        return { width: rect.width, height: rect.height };
+      };
+      return {
+        navBooking: rectOf(".site-nav .button--nav"),
+        searchInput: rectOf("#hero-search-input"),
+        searchButton: rectOf(".hero-search button"),
+      };
+    });
+
+    expect(homeControls.navBooking.width).toBeGreaterThanOrEqual(44);
+    expect(homeControls.navBooking.height).toBeGreaterThanOrEqual(44);
+    expect(homeControls.searchInput.height).toBeGreaterThanOrEqual(44);
+    expect(homeControls.searchButton.height).toBeGreaterThanOrEqual(44);
+
+    await page.goto("/benh-pho-bien", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#disease-search")).toBeVisible();
+    await expect(page.locator("#disease-category")).toBeVisible();
+    const filterControls = await page.evaluate(() => ["#disease-search", "#disease-category"].map((selector) => {
+      const element = document.querySelector<HTMLElement>(selector);
+      if (!element) throw new Error(`Missing ${selector}`);
+      const rect = element.getBoundingClientRect();
+      return { selector, width: rect.width, height: rect.height };
+    }));
+    for (const control of filterControls) {
+      expect(control.width, `${control.selector} should fill its filter column`).toBeGreaterThan(200);
+      expect(control.height, `${control.selector} should be a full-size mobile control`).toBeGreaterThanOrEqual(44);
+    }
+  });
+
+  test("catalog hero summaries distinguish backend failure from real branch data", async ({ context, page }) => {
+    let backendHealthy = false;
+    await context.route("**/api/v1/hospital/branches*", async (route) => {
+      if (!backendHealthy) {
+        await route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({ code: "SERVICE_UNAVAILABLE" }),
+        });
+        return;
+      }
+
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          content: [{
+            id: "branch-central",
+            slug: "co-so-trung-tam",
+            name: "Cơ sở Trung tâm",
+            address: "123 Đường Sức Khỏe, Hà Nội",
+            phone: "024 1234 5678",
+            emergencyHotline: null,
+            workingHours: "07:00–17:00",
+            amenities: ["Nhà thuốc"],
+          }],
+          totalElements: 1,
+          totalPages: 1,
+          size: 50,
+          number: 0,
+          first: true,
+          last: true,
+          empty: false,
+        }),
+      });
+    });
+
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto("/branches", { waitUntil: "domcontentloaded" });
+    const summary = page.locator(".resource-hero-card .resource-meta-grid dd");
+    await expect(summary).toHaveText(["Chưa tải được", "Chưa tải được"]);
+    await expect(page.locator(".catalog-status--error")).toContainText("Tạm thời chưa thể tải thông tin cơ sở");
+
+    backendHealthy = true;
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(summary).toHaveText(["1", "Cơ sở Trung tâm"]);
+    await expect(page.getByRole("heading", { name: "Cơ sở Trung tâm" }).last()).toBeVisible();
+  });
+
+  test("informational pages retain the floating assistant when no local action exists", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 800 });
+
+    for (const route of ["/about", "/careers"]) {
+      await page.goto(route, { waitUntil: "domcontentloaded" });
+      await expect(page.getByRole("button", { name: "Mở trợ lý sức khỏe" })).toBeVisible();
+    }
+  });
+
   test("articles stays within a 320px viewport, including navigation and pagination", async ({ context, page }) => {
     await context.route("**/api/v1/hospital/articles*", async (route) => {
       await route.fulfill({

@@ -8,6 +8,15 @@ test("auth recovery link stays clear of the floating assistant at 320px", async 
   await expect(page.getByRole("link", { name: "Quên mật khẩu?" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Mở trợ lý sức khỏe" })).toBeHidden();
 
+  const skipLink = page.locator(".auth-page > .skip-link");
+  await expect(skipLink).toHaveCount(1);
+  await expect.poll(() => skipLink.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return { top: rect.top, bottom: rect.bottom, transform: getComputedStyle(element).transform };
+  })).toMatchObject({ transform: /matrix/ });
+  await skipLink.focus();
+  await expect.poll(() => skipLink.evaluate((element) => element.getBoundingClientRect().top)).toBeGreaterThanOrEqual(0);
+
   const layout = await page.evaluate(() => {
     const forgot = document.querySelector<HTMLElement>('a[href="/auth/forgot-password"]');
     const assistant = document.querySelector<HTMLElement>('[data-testid="floating-health-assistant"]');
