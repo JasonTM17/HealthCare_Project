@@ -67,7 +67,7 @@ public class BankTransferWebhookService {
             String existingHash = jdbcTemplate.queryForObject(
                 "select payload_hash from payment_webhook_events where event_id = ?", String.class, eventId
             );
-            if (!MessageDigest.isEqual(payloadHash.getBytes(StandardCharsets.UTF_8), existingHash.getBytes(StandardCharsets.UTF_8))) {
+            if (existingHash == null || !MessageDigest.isEqual(payloadHash.getBytes(StandardCharsets.UTF_8), existingHash.getBytes(StandardCharsets.UTF_8))) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "Webhook ID đã được dùng với nội dung khác");
             }
             return paymentService.getByTransferContent(request.transferContent());

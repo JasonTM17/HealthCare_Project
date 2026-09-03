@@ -42,7 +42,7 @@ public class EmailTemplateRenderer {
         String subject = sanitizeSubject(templateKey.defaultSubject());
         String preheader = templateKey.defaultPreheader();
         String textBody = buildTextBody(templateKey, safeVariables, subject, preheader);
-        String htmlBody = buildHtml(subject, preheader, textBody, safePortalUrl(safeVariables.get("portalUrl")));
+        String htmlBody = buildHtml(templateKey, safeVariables, subject, preheader, textBody, safePortalUrl(safeVariables.get("portalUrl")));
         return new RenderedEmail(subject, preheader, textBody, htmlBody, templateKey.templateVersion());
     }
 
@@ -121,36 +121,107 @@ public class EmailTemplateRenderer {
         return String.join("\n", lines);
     }
 
-    private String buildHtml(String subject, String preheader, String textBody, String portalUrl) {
+    private String buildHtml(
+        EmailTemplateKey templateKey,
+        Map<String, String> variables,
+        String subject,
+        String preheader,
+        String textBody,
+        String portalUrl
+    ) {
         StringBuilder builder = new StringBuilder();
+        builder.append("<!DOCTYPE html>");
         builder.append("<html lang=\"vi\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>");
         builder.append(escapeHtml(subject));
-        builder.append("</title></head><body style=\"margin:0;padding:0;background:#f7faf8;color:#15323a;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.5;\">");
-        builder.append("<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background:#f7faf8;padding:24px 0;\"><tr><td align=\"center\">");
-        builder.append("<table role=\"presentation\" width=\"600\" cellspacing=\"0\" cellpadding=\"0\" style=\"width:600px;max-width:600px;background:#ffffff;border:1px solid #dff7ef;border-radius:12px;overflow:hidden;\"><tr><td style=\"padding:32px;\">");
+        builder.append("</title></head><body style=\"margin:0;padding:0;background:#f1f5f9;color:#0f172a;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;\">");
+        builder.append("<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background:#f1f5f9;padding:32px 12px;\"><tr><td align=\"center\">");
+        builder.append("<table role=\"presentation\" width=\"600\" cellspacing=\"0\" cellpadding=\"0\" style=\"width:600px;max-width:600px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);\">");
+
+        // Header brand banner
+        builder.append("<tr><td style=\"background:linear-gradient(135deg,#0f766e 0%,#0d9488 50%,#14b8a6 100%);padding:28px 32px;text-align:left;\">");
+        builder.append("<div style=\"color:#ffffff;font-size:16px;font-weight:800;letter-spacing:0.04em;text-transform:uppercase;\">🏥 BỆNH VIỆN ĐA KHOA QUỐC TẾ HEALTHCARE</div>");
+        builder.append("<div style=\"color:#ccfbf1;font-size:12px;margin-top:4px;font-weight:500;\">Hệ Thống Y Tế &amp; Chăm Sóc Sức Khỏe Tiêu Chuẩn Quốc Tế</div>");
+        builder.append("</td></tr>");
+
+        // Content body
+        builder.append("<tr><td style=\"padding:32px 32px 28px;\">");
         builder.append("<div style=\"display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;font-size:1px;line-height:1px;\">");
         builder.append(escapeHtml(preheader));
-        builder.append("</div><div style=\"margin:0 0 16px;color:#0f766e;font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;\">");
-        builder.append(BRAND);
-        builder.append("</div><h1 style=\"margin:0 0 20px;font-size:24px;line-height:1.3;color:#15323a;font-weight:700;\">");
+        builder.append("</div>");
+
+        // Category badge
+        builder.append("<div style=\"display:inline-block;background:#f0fdfa;color:#0f766e;border:1px solid #99f6e4;font-size:12px;font-weight:700;padding:4px 12px;border-radius:20px;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:16px;\">");
+        builder.append(isOtp(templateKey) ? "Xác thực bảo mật" : "Thông báo y tế");
+        builder.append("</div>");
+
+        // Subject
+        builder.append("<h1 style=\"margin:0 0 16px;font-size:22px;line-height:1.35;color:#0f172a;font-weight:700;\">");
         builder.append(escapeHtml(subject));
         builder.append("</h1>");
 
-        for (String paragraph : splitParagraphs(textBody)) {
-            builder.append("<p style=\"margin:0 0 16px;color:#15323a;\">")
-                .append(escapeHtml(paragraph).replace("\n", "<br>"))
-                .append("</p>");
+        if (isOtp(templateKey)) {
+            String code = firstNonBlank(variables.get("code"), "******");
+            String minutes = firstNonBlank(variables.get("minutes"), "10");
+
+            builder.append("<p style=\"margin:0 0 16px;color:#334155;font-size:15px;line-height:1.6;\">");
+            builder.append("Xin chào quý khách,<br>Hệ thống nhận được yêu cầu xác thực tài khoản từ bạn. Dưới đây là mã bảo mật dùng một lần (OTP) của bạn:");
+            builder.append("</p>");
+
+            // Highlighted OTP Box
+            builder.append("<div style=\"background:#f0fdfa;border:2px dashed #0d9488;border-radius:12px;padding:24px;text-align:center;margin:24px 0;\">");
+            builder.append("<div style=\"font-size:11px;font-weight:700;color:#0f766e;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:8px;\">MÃ XÁC THỰC CỦA BẠN</div>");
+            builder.append("<div style=\"font-family:'Courier New',Courier,monospace;font-size:36px;font-weight:800;letter-spacing:8px;color:#0f766e;margin:10px 0;\">");
+            builder.append(escapeHtml(code));
+            builder.append("</div>");
+            builder.append("<div style=\"display:inline-block;background:#ccfbf1;color:#0f766e;font-size:12px;font-weight:600;padding:4px 12px;border-radius:20px;margin-top:6px;\">");
+            builder.append("⏱️ Có hiệu lực trong ").append(escapeHtml(minutes)).append(" phút");
+            builder.append("</div>");
+            if (isBookingOtp(templateKey) && variables.containsKey("bookingCode")) {
+                builder.append("<div style=\"margin-top:12px;font-size:14px;color:#0f766e;font-weight:600;\">");
+                builder.append("Mã đặt lịch: ").append(escapeHtml(variables.get("bookingCode")));
+                builder.append("</div>");
+            }
+            builder.append("</div>");
+
+            // Security callout
+            builder.append("<div style=\"background:#fffbeb;border-left:4px solid #f59e0b;padding:12px 16px;border-radius:4px;margin:20px 0;font-size:13px;color:#92400e;line-height:1.5;\">");
+            builder.append("<strong>🔒 Lưu ý an toàn:</strong> Tuyệt đối không cung cấp mã này cho người khác (kể cả nhân viên y tế). HealthCare không bao giờ liên hệ yêu cầu đọc mã OTP.");
+            builder.append("</div>");
+        } else {
+            builder.append("<div style=\"background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:20px;margin:20px 0;color:#1e293b;font-size:15px;line-height:1.6;\">");
+            for (String paragraph : splitParagraphs(textBody)) {
+                builder.append("<p style=\"margin:0 0 12px;color:#1e293b;\">")
+                    .append(escapeHtml(paragraph).replace("\n", "<br>"))
+                    .append("</p>");
+            }
+            builder.append("</div>");
         }
 
         if (portalUrl != null) {
-            builder.append("<p style=\"margin:24px 0 0;\"><a href=\"");
+            builder.append("<div style=\"text-align:center;margin:28px 0 16px;\">");
+            builder.append("<a href=\"");
             builder.append(escapeHtmlAttribute(portalUrl));
-            builder.append("\" style=\"display:inline-block;min-height:44px;line-height:44px;padding:0 20px;background:#0f766e;color:#ffffff;text-decoration:none;border-radius:10px;font-weight:700;\">Đăng nhập cổng bệnh nhân</a></p>");
+            builder.append("\" style=\"display:inline-block;min-height:44px;line-height:44px;padding:0 28px;background:#0f766e;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px;box-shadow:0 2px 4px rgba(15,118,110,0.2);\">Đăng nhập cổng bệnh nhân</a>");
+            builder.append("</div>");
         }
 
-        builder.append("<p style=\"margin:24px 0 0;color:#4b5563;font-size:14px;\">");
+        // Divider
+        builder.append("<div style=\"border-top:1px solid #e2e8f0;margin:32px 0 20px;\"></div>");
+
+        // Professional Medical Footer
+        builder.append("<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"font-size:12px;color:#64748b;line-height:1.6;\"><tr><td>");
+        builder.append("<div style=\"font-weight:700;color:#334155;font-size:13px;margin-bottom:6px;\">HỆ THỐNG Y TẾ QUỐC TẾ HEALTHCARE</div>");
+        builder.append("<div>📍 123 Đường Sức Khỏe, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh</div>");
+        builder.append("<div>📞 Hotline Cấp cứu &amp; Đặt khám: <strong style=\"color:#0f766e;\">1900 1234</strong> (24/7)</div>");
+        builder.append("<div>🌐 Cổng dịch vụ trực tuyến: <a href=\"https://healthcare-two-olive.vercel.app\" style=\"color:#0f766e;text-decoration:none;\">healthcare-two-olive.vercel.app</a></div>");
+        builder.append("<div style=\"margin-top:12px;color:#94a3b8;font-size:11px;border-top:1px dashed #e2e8f0;padding-top:10px;\">");
         builder.append(escapeHtml(FOOTER));
-        builder.append("</p></td></tr></table></td></tr></table></body></html>");
+        builder.append("<br>© 2026 HealthCare Hospital System. Tất cả các quyền được bảo lưu.</div>");
+        builder.append("</td></tr></table>");
+
+        builder.append("</td></tr></table>");
+        builder.append("</td></tr></table>");
+        builder.append("</body></html>");
         return builder.toString();
     }
 
