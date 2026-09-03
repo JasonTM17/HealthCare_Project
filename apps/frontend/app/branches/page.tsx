@@ -27,15 +27,25 @@ export default function BranchesPage() {
       setError(null);
       setPage(null);
 
-      try {
-        const data = await fetchBranches(0, 50);
-        if (!cancelled && requestSequence.current === requestId) setPage(data);
-      } catch {
-        if (!cancelled && requestSequence.current === requestId) {
-          setError("Tạm thời chưa thể tải thông tin cơ sở. Vui lòng thử lại sau.");
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        if (cancelled || requestSequence.current !== requestId) return;
+        try {
+          const data = await fetchBranches(0, 50);
+          if (!cancelled && requestSequence.current === requestId) {
+            setPage(data);
+            setLoading(false);
+          }
+          return;
+        } catch {
+          if (attempt < 2) {
+            await new Promise((resolve) => setTimeout(resolve, 650 * (attempt + 1)));
+          }
         }
-      } finally {
-        if (!cancelled && requestSequence.current === requestId) setLoading(false);
+      }
+
+      if (!cancelled && requestSequence.current === requestId) {
+        setError("Tạm thời chưa thể tải thông tin cơ sở. Vui lòng thử lại sau.");
+        setLoading(false);
       }
     }
 
