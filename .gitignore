@@ -21,6 +21,7 @@ target/
 # Next.js / frontend builds
 .next/
 .next-*/
+.vercel/
 out/
 dist/
 build/
