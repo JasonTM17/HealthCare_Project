@@ -37,6 +37,28 @@
   line-height: 1.65;
 }
 
+.networkOverview :global(.resource-actions) :global(.button) {
+  border-radius: var(--radius-pill);
+}
+
+.networkOverview :global(.resource-actions) :global(.outline-button) {
+  border-radius: var(--radius-pill);
+  border-color: rgba(0, 51, 54, 0.22);
+  background: var(--color-paper-bright, #ffffff);
+  color: var(--color-teal-800, #004b50);
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(0, 51, 54, 0.05);
+  transition: all 180ms ease;
+}
+
+.networkOverview :global(.resource-actions) :global(.outline-button):hover {
+  border-color: var(--color-teal-700, #2a676c);
+  background: var(--color-mint-light, #f3f3f6);
+  color: var(--color-teal-950, #001c1e);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 51, 54, 0.1);
+}
+
 .networkSummary {
   display: grid;
   grid-template-columns: minmax(6rem, 0.3fr) minmax(0, 1fr);
