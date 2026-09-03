@@ -1,0 +1,26 @@
+name: Render Services Keep-Alive 24/7
+
+on:
+  schedule:
+    # Runs every 10 minutes (UTC) to prevent Render Free tier from spinning down (15-min idle limit)
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    name: Ping Render Services
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping Backend Health
+        run: |
+          echo "Pinging HealthCare Backend..."
+          curl -sS -f --max-time 45 "https://healthcare-beta-backend.onrender.com/actuator/health" || true
+
+      - name: Ping AI Service Health
+        run: |
+          echo "Pinging HealthCare AI Service..."
+          curl -sS -f --max-time 45 "https://healthcare-beta-ai.onrender.com/health" || true
