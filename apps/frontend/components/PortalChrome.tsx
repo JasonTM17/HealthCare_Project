@@ -51,7 +51,7 @@ export default function PortalChrome({ role, user, children }: PortalChromeProps
         { href: "/doctor/care-plans", label: "Kế hoạch" },
         { href: "/doctor/health-questions", label: "Hỏi đáp" },
         { href: "/doctor/ai-content-reviews", label: "Duyệt AI" },
-        { href: "/doctor/articles", label: "Bài viết y khoa" },
+        { href: "/doctor/articles", label: "Cộng đồng" },
       ];
   const isActive = (href: string): boolean => {
     return pathname === href || (href !== homePath && pathname.startsWith(`${href}/`));
