@@ -5435,8 +5435,20 @@ main {
   color: var(--hospital-muted);
 }
 
+.site-shell .utility-hotline {
+  color: var(--hospital-navy, #003336);
+  gap: 0.35rem;
+}
+
+.site-shell .utility-hotline span:not(.utility-pulse-beacon) {
+  color: var(--hospital-navy, #003336);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
 .site-shell .utility-hotline strong {
-  color: var(--hospital-teal-dark);
+  color: var(--hospital-teal-dark, #004b50);
+  font-weight: 800;
 }
 
 .site-shell .utility-hotline svg {
@@ -9001,26 +9013,24 @@ main {
 /* 1. Pulse Beacon for Hotline & Emergency */
 .utility-pulse-beacon {
   display: inline-block;
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: #ef4444;
-  box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
-  animation: beaconPulse 2s infinite;
+  flex-shrink: 0;
   margin-right: 2px;
+  box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6);
+  animation: beaconPulse 2s ease-out infinite;
 }
 
 @keyframes beaconPulse {
   0% {
-    transform: scale(0.95);
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6);
   }
-  70% {
-    transform: scale(1);
-    box-shadow: 0 0 0 7px rgba(239, 68, 68, 0);
+  60% {
+    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0);
   }
   100% {
-    transform: scale(0.95);
     box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
   }
 }
