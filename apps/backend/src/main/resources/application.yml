@@ -20,7 +20,7 @@ spring:
     redis:
       # Render Key Value exposes a private redis:// connectionString. Local
       # development may continue using host/port when REDIS_URL is absent.
-      url: ${REDIS_URL:}
+      url: ${REDIS_URL:redis://localhost:6379}
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
   mail:
