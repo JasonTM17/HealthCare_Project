@@ -32,28 +32,29 @@ DECLARE
     v_admin_id UUID;
     v_doctor_user_id UUID;
 BEGIN
-    SELECT id, user_id INTO v_patient_id, v_patient_user_id
-    FROM patient_profiles
-    WHERE user_id = '90000000-0000-0000-0000-000000000021'
-       OR id = '90000000-0000-0000-0000-000000000022'
-       OR email = 'patient@healthcare.com'
-    LIMIT 1;
+    IF current_schema() = 'public' THEN
+        SELECT id, user_id INTO v_patient_id, v_patient_user_id
+        FROM patient_profiles
+        WHERE user_id = '90000000-0000-0000-0000-000000000021'
+           OR id = '90000000-0000-0000-0000-000000000022'
+           OR email = 'patient@healthcare.com'
+        LIMIT 1;
 
-    SELECT ur.user_id INTO v_admin_id
-    FROM user_roles ur
-    JOIN roles r ON r.id = ur.role_id
-    JOIN users u ON u.id = ur.user_id
-    WHERE r.code = 'ADMIN' AND u.status = 'ACTIVE'
-    LIMIT 1;
+        SELECT ur.user_id INTO v_admin_id
+        FROM user_roles ur
+        JOIN roles r ON r.id = ur.role_id
+        JOIN users u ON u.id = ur.user_id
+        WHERE r.code = 'ADMIN' AND u.status = 'ACTIVE'
+        LIMIT 1;
 
-    SELECT ur.user_id INTO v_doctor_user_id
-    FROM user_roles ur
-    JOIN roles r ON r.id = ur.role_id
-    JOIN users u ON u.id = ur.user_id
-    WHERE r.code = 'DOCTOR' AND u.status = 'ACTIVE'
-    LIMIT 1;
+        SELECT ur.user_id INTO v_doctor_user_id
+        FROM user_roles ur
+        JOIN roles r ON r.id = ur.role_id
+        JOIN users u ON u.id = ur.user_id
+        WHERE r.code = 'DOCTOR' AND u.status = 'ACTIVE'
+        LIMIT 1;
 
-    -- Only seed Care Plans if appointment, patient, and doctor exist
+        -- Only seed Care Plans if appointment, patient, and doctor exist
     IF v_patient_id IS NOT NULL
        AND EXISTS (SELECT 1 FROM appointments WHERE id = v_appt_id)
        AND EXISTS (SELECT 1 FROM doctors WHERE id = v_doctor_id) THEN
@@ -161,6 +162,7 @@ BEGIN
             ON CONFLICT (id) DO NOTHING;
         END IF;
 
+        END IF;
     END IF;
 END $$;
 -- ── 3. Seed AI Content Reviews (/doctor/ai-content-reviews) ───────────────────
@@ -280,21 +282,22 @@ DECLARE
     v_doctor_user_id UUID;
     v_appt_id UUID := '40000000-0000-0000-0000-000000000011';
 BEGIN
-    SELECT id, user_id INTO v_patient_id, v_patient_user_id
-    FROM patient_profiles
-    WHERE user_id = '90000000-0000-0000-0000-000000000021'
-       OR id = '90000000-0000-0000-0000-000000000022'
-       OR email = 'patient@healthcare.com'
-    LIMIT 1;
+    IF current_schema() = 'public' THEN
+        SELECT id, user_id INTO v_patient_id, v_patient_user_id
+        FROM patient_profiles
+        WHERE user_id = '90000000-0000-0000-0000-000000000021'
+           OR id = '90000000-0000-0000-0000-000000000022'
+           OR email = 'patient@healthcare.com'
+        LIMIT 1;
 
-    SELECT ur.user_id INTO v_doctor_user_id
-    FROM user_roles ur
-    JOIN roles r ON r.id = ur.role_id
-    JOIN users u ON u.id = ur.user_id
-    WHERE r.code = 'DOCTOR' AND u.status = 'ACTIVE'
-    LIMIT 1;
+        SELECT ur.user_id INTO v_doctor_user_id
+        FROM user_roles ur
+        JOIN roles r ON r.id = ur.role_id
+        JOIN users u ON u.id = ur.user_id
+        WHERE r.code = 'DOCTOR' AND u.status = 'ACTIVE'
+        LIMIT 1;
 
-    IF v_patient_id IS NOT NULL
+        IF v_patient_id IS NOT NULL
        AND v_patient_user_id IS NOT NULL
        AND v_doctor_user_id IS NOT NULL
        AND EXISTS (SELECT 1 FROM appointments WHERE id = v_appt_id)
@@ -326,5 +329,6 @@ BEGIN
         ('e1000000-0000-0000-0000-000000000003', 'e0000000-0000-0000-0000-000000000001', v_patient_user_id, 'PATIENT', 3, 'Dạ cảm ơn Bác sĩ rất nhiều. Tôi sẽ tiếp tục theo dõi và đến tái khám đúng hẹn ạ.', 'msg-patient-003', CURRENT_TIMESTAMP - INTERVAL '1 day', CURRENT_TIMESTAMP + INTERVAL '80 days')
         ON CONFLICT (id) DO NOTHING;
 
+        END IF;
     END IF;
 END $$;
