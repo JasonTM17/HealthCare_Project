@@ -149,7 +149,16 @@ public class CarePlanService {
     private CarePlanContracts.Plan mapPlan(Map<String, Object> row, List<CarePlanContracts.Item> items) {
         return new CarePlanContracts.Plan((UUID) row.get("id"), (UUID) row.get("appointment_id"),
             (UUID) row.get("doctor_id"), String.valueOf(row.get("doctor_name")), String.valueOf(row.get("title")),
-            String.valueOf(row.get("status")), (OffsetDateTime) row.get("starts_at"), (OffsetDateTime) row.get("ends_at"), items);
+            String.valueOf(row.get("status")), toOffsetDateTime(row.get("starts_at")), toOffsetDateTime(row.get("ends_at")), items);
+    }
+
+    private static OffsetDateTime toOffsetDateTime(Object value) {
+        if (value == null) return null;
+        if (value instanceof OffsetDateTime offset) return offset;
+        if (value instanceof java.sql.Timestamp timestamp) return timestamp.toInstant().atOffset(java.time.ZoneOffset.UTC);
+        if (value instanceof java.util.Date date) return date.toInstant().atOffset(java.time.ZoneOffset.UTC);
+        if (value instanceof java.time.Instant instant) return instant.atOffset(java.time.ZoneOffset.UTC);
+        return null;
     }
 
     private UUID profileForUser(UUID userId) {
