@@ -81,6 +81,7 @@ Thumbs.db
 .gemini/sessions/
 .grok/
 project_structure_summary.txt
+plans/
 
 # Private AgentKit/runtime source kept on the local workspace only
 .agentkit/
