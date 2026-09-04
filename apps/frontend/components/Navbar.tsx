@@ -8,6 +8,8 @@ import BrandMark from "./BrandMark";
 import Icon from "./UiIcon";
 import { safeTelephoneHref } from "../lib/phone";
 import {
+  fetchDoctorProfile,
+  fetchPatientProfile,
   hasRole,
   type AuthSession,
 } from "../lib/api-client";
@@ -41,6 +43,35 @@ function getAccountDestination(session: AuthSession | null, pathname: string | n
 const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const authSession = useAuthSession();
+  const [navbarAvatar, setNavbarAvatar] = useState<string | null>(null);
+  const [avatarError, setAvatarError] = useState(false);
+  const [copiedHotline, setCopiedHotline] = useState(false);
+
+  useEffect(() => {
+    if (!authSession?.user) {
+      setNavbarAvatar(null);
+      setAvatarError(false);
+      return;
+    }
+    let cancelled = false;
+    const resolvePhoto = async () => {
+      try {
+        if (hasRole(authSession.user, "DOCTOR")) {
+          const doc = await fetchDoctorProfile();
+          if (!cancelled && doc.photoUrl) setNavbarAvatar(doc.photoUrl);
+        } else if (hasRole(authSession.user, "PATIENT")) {
+          const pat = await fetchPatientProfile();
+          if (!cancelled && pat.avatarUrl) setNavbarAvatar(pat.avatarUrl);
+        }
+      } catch {
+        // Fallback to initials
+      }
+    };
+    void resolvePhoto();
+    return () => {
+      cancelled = true;
+    };
+  }, [authSession?.user?.id]);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
   const pathname = usePathname();
@@ -51,6 +82,15 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
   const accountDestination = getAccountDestination(authSession, pathname);
 
   const closeMobileMenu = (): void => setMobileMenuOpen(false);
+
+  const handleHotlineClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (typeof window !== "undefined" && window.innerWidth >= 1024 && contactPhone) {
+      e.preventDefault();
+      void navigator.clipboard?.writeText(contactPhone.replace(/\s+/g, ""));
+      setCopiedHotline(true);
+      setTimeout(() => setCopiedHotline(false), 3000);
+    }
+  };
 
   useEffect(() => {
     if (!mobileMenuOpen) return;
@@ -103,10 +143,15 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
         <div className="utility-bar__inner">
           <div className="utility-bar__left">
             {contactHref ? (
-              <a className="utility-hotline" href={contactHref}>
+              <a
+                className="utility-hotline"
+                href={contactHref}
+                onClick={handleHotlineClick}
+                title={copiedHotline ? "Đã sao chép số hotline vào bộ nhớ tạm!" : "Nhấp để sao chép số hoặc gọi ngay"}
+              >
                 <span className="utility-pulse-beacon" aria-hidden="true" />
-                <Icon name="phone" size={15} />
-                <span>{emergencyBranch ? "Cấp cứu 24/7" : "Hotline"}</span>
+                <Icon name={copiedHotline ? "check" : "phone"} size={15} />
+                <span>{copiedHotline ? "Đã sao chép số:" : (emergencyBranch ? "Cấp cứu 24/7" : "Hotline")}</span>
                 <strong>{contactPhone}</strong>
               </a>
             ) : (
@@ -145,7 +190,19 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
           <div className="site-nav__actions">
             <Link aria-label={accountDestination.label} className="nav-account-link" href={accountDestination.href}>
               {authSession ? (
-                <span className="nav-account-avatar">{authSession.user.displayName?.charAt(0)?.toUpperCase() ?? "U"}</span>
+                <span className="nav-account-avatar">
+                  {navbarAvatar && !avatarError ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      alt={authSession.user.displayName}
+                      className="nav-account-avatar-img"
+                      onError={() => setAvatarError(true)}
+                      src={navbarAvatar}
+                    />
+                  ) : (
+                    authSession.user.displayName?.charAt(0)?.toUpperCase() ?? "U"
+                  )}
+                </span>
               ) : (
                 <Icon name="user" size={16} />
               )}
