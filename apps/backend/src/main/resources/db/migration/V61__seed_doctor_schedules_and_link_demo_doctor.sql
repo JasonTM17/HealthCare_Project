@@ -3,14 +3,14 @@
 -- who owns the seeded patient appointments, medical records, and consultations.
 UPDATE users
 SET display_name = 'TS.BS Nguyễn Minh Khôi'
-WHERE id = '90000000-0000-0000-0000-000000000023';
+WHERE email = 'doctor@healthcare.com';
 
 UPDATE doctors
 SET user_id = NULL
-WHERE id = '30000000-0000-0000-0000-000000000005';
+WHERE user_id IN (SELECT id FROM users WHERE email = 'doctor@healthcare.com');
 
 UPDATE doctors
-SET user_id = '90000000-0000-0000-0000-000000000023'
+SET user_id = (SELECT id FROM users WHERE email = 'doctor@healthcare.com' LIMIT 1)
 WHERE id = '30000000-0000-0000-0000-000000000001';
 
 -- 2. Seed recurring doctor schedules for all hospital branches
