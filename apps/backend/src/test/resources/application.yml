@@ -3,6 +3,10 @@
 # external-database escape hatch for dedicated test databases only. External
 # URLs also require TEST_DB_ALLOW_CLEANUP=true because the base cleans rows.
 spring:
+  datasource:
+    hikari:
+      maximum-pool-size: 3
+      minimum-idle: 1
   jpa:
     hibernate:
       ddl-auto: validate  # Flyway manages schema; Hibernate validates every mapping

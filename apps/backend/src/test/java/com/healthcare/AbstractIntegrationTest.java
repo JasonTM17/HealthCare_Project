@@ -108,6 +108,8 @@ public abstract class AbstractIntegrationTest {
         registry.add("spring.datasource.url", () -> dbUrl);
         registry.add("spring.datasource.username", () -> dbUsername);
         registry.add("spring.datasource.password", () -> dbPassword);
+        registry.add("spring.datasource.hikari.maximum-pool-size", () -> "3");
+        registry.add("spring.datasource.hikari.minimum-idle", () -> "1");
         registry.add("spring.flyway.url", () -> dbUrl);
         registry.add("spring.flyway.user", () -> dbUsername);
         registry.add("spring.flyway.password", () -> dbPassword);
