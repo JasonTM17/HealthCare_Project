@@ -9,18 +9,18 @@ DECLARE
     v_branch_id UUID := '20000000-0000-0000-0000-000000000001';
     v_specialty_id UUID := '10000000-0000-0000-0000-000000000001';
 BEGIN
-    -- Only seed dependent clinical records if parent doctor, branch, specialty and patient profile exist
-    SELECT id INTO v_patient_id
-    FROM patient_profiles
-    WHERE id = '90000000-0000-0000-0000-000000000022'
-       OR email = 'patient@healthcare.com'
-    LIMIT 1;
+    -- Only seed dependent clinical records in public schema if parent doctor, branch, specialty and patient profile exist
+    IF current_schema() = 'public' THEN
+        SELECT id INTO v_patient_id
+        FROM patient_profiles
+        WHERE id = '90000000-0000-0000-0000-000000000022'
+           OR email = 'patient@healthcare.com'
+        LIMIT 1;
 
-    IF v_patient_id IS NOT NULL
-       AND EXISTS (SELECT 1 FROM doctors WHERE id = v_doctor_id)
-       AND EXISTS (SELECT 1 FROM branches WHERE id = v_branch_id)
-       AND EXISTS (SELECT 1 FROM specialties WHERE id = v_specialty_id) THEN
-
+        IF v_patient_id IS NOT NULL
+           AND EXISTS (SELECT 1 FROM doctors WHERE id = v_doctor_id)
+           AND EXISTS (SELECT 1 FROM branches WHERE id = v_branch_id)
+           AND EXISTS (SELECT 1 FROM specialties WHERE id = v_specialty_id) THEN
         -- 2. Seed Appointments for patient@healthcare.com
         INSERT INTO appointments (
             id, booking_code, patient_id, doctor_id, branch_id, specialty_id,
@@ -105,8 +105,6 @@ BEGIN
         ('71000000-0000-0000-0000-000000000003', '70000000-0000-0000-0000-000000000011', 'Atorvastatin 10mg', 'Atorvastatin calcium', '1 viên', 'Viên nén', '1 lần/ngày (Tối)', 14, 14, 'Uống 1 viên trước khi đi ngủ lúc 21:00'),
         ('71000000-0000-0000-0000-000000000004', '70000000-0000-0000-0000-000000000011', 'Magne-B6 Corbière', 'Magnesi lactat + Pyridoxin', '1 viên', 'Viên bao', '2 lần/ngày (Sáng - Chiều)', 14, 28, 'Uống sau ăn no, hỗ trợ giảm căng thẳng thần kinh')
         ON CONFLICT (id) DO NOTHING;
-
-        -- 5. Seed Diagnostic Results
         INSERT INTO diagnostic_results (
             id, patient_id, doctor_id, test_name, result, file_url, test_date
         ) VALUES
@@ -115,6 +113,7 @@ BEGIN
         ('80000000-0000-0000-0000-000000000003', v_patient_id, v_doctor_id, 'Xét nghiệm Sinh hóa máu toàn bộ (Bộ Mỡ & Đường Máu)', 'Glucose máu lúc đói: 5.2 mmol/L (Bình thường 3.9 - 6.4). HbA1c: 5.4%. Cholesterol toàn phần: 5.6 mmol/L (Tăng nhẹ). Triglyceride: 1.9 mmol/L (Mục tiêu < 1.7). HDL-Cholesterol: 1.3 mmol/L. LDL-Cholesterol: 3.4 mmol/L. Chức năng thận: Creatinine 78 umol/L, eGFR 98 mL/min/1.73m2 (Bình thường). Men gan: AST 24 U/L, ALT 28 U/L.', '/media/articles/tam-soat-tieu-duong.jpg', CURRENT_DATE - INTERVAL '14 days')
         ON CONFLICT (id) DO NOTHING;
 
+    END IF;
     END IF;
 END $$;
 -- 6. Seed System Notifications
@@ -344,73 +343,78 @@ ON CONFLICT (slug) DO UPDATE SET
     author_name = EXCLUDED.author_name;
 
 -- 8. Seed Discussion Comments from Patients and Verified Doctors
-INSERT INTO article_comments (
-    id, article_slug, author_user_id, author_name, author_role, content, created_at
-)
-SELECT
-    c.id::uuid,
-    c.article_slug,
-    u.id,
-    c.author_name,
-    c.author_role,
-    c.content,
-    c.created_at
-FROM (VALUES
-    (
-        'c1000000-0000-0000-0000-000000000001',
-        'phong-ngua-dot-quy-o-nguoi-tre-va-trung-nien',
-        '90000000-0000-0000-0000-000000000021',
-        'Lê Thị Bích Ngọc',
-        'PATIENT',
-        'Chào Bác sĩ, tôi năm nay 34 tuổi, dạo gần đây hay bị đau nhức nửa đầu bên phải kèm hoa mắt khi thức dậy. Đây có phải là dấu hiệu báo trước của đột quỵ không ạ?',
-        CURRENT_TIMESTAMP - INTERVAL '18 hours'
-    ),
-    (
-        'c1000000-0000-0000-0000-000000000002',
-        'phong-ngua-dot-quy-o-nguoi-tre-va-trung-nien',
-        '90000000-0000-0000-0000-000000000023',
-        'ThS.BS Trần Thu Hà',
-        'DOCTOR',
-        'Chào bạn Bích Ngọc. Triệu chứng đau nửa đầu kèm hoa mắt có thể do chứng đau nửa đầu Migraine, rối loạn tiền đình hoặc co thắt mạch máu não do căng thẳng. Tuy nhiên nếu triệu chứng xuất hiện đột ngột và dữ dội, bạn nên đến chuyên khoa Thần kinh để đo huyết áp, đo lưu huyết não và chụp cộng hưởng từ MRI sọ não nhằm loại trừ các dị dạng mạch máu não tiềm ẩn nhé.',
-        CURRENT_TIMESTAMP - INTERVAL '15 hours'
-    ),
-    (
-        'c1000000-0000-0000-0000-000000000003',
-        'viem-loet-da-day-hp-va-nhung-dieu-can-biet',
-        '90000000-0000-0000-0000-000000000021',
-        'Trần Văn Nam',
-        'PATIENT',
-        'Thưa Bác sĩ, tôi vừa điều trị xong phác đồ 14 ngày tiệt trừ HP. Bao lâu sau tôi có thể làm test hơi thở để kiểm tra vi khuẩn đã hết chưa ạ?',
-        CURRENT_TIMESTAMP - INTERVAL '1 day'
-    ),
-    (
-        'c1000000-0000-0000-0000-000000000004',
-        'viem-loet-da-day-hp-va-nhung-dieu-can-biet',
-        '90000000-0000-0000-0000-000000000023',
-        'BS.CKI Lê Văn Đức',
-        'DOCTOR',
-        'Chào bạn Nam. Bạn cần đợi ít nhất 4 tuần sau khi kết thúc viên kháng sinh cuối cùng, và ngừng thuốc giảm tiết acid (PPI) ít nhất 2 tuần trước khi làm test hơi thở C13 để đảm bảo kết quả chính xác nhất, tránh âm tính giả bạn nhé.',
-        CURRENT_TIMESTAMP - INTERVAL '22 hours'
-    ),
-    (
-        'c1000000-0000-0000-0000-000000000005',
-        'tam-soat-va-phong-ngua-tieu-duong-type-2',
-        '90000000-0000-0000-0000-000000000021',
-        'Nguyễn Văn An',
-        'PATIENT',
-        'Bài viết rất hữu ích cho người bệnh. Tôi có bố bị tiểu đường, xét nghiệm HbA1c gần nhất của tôi là 5.4% thì đã an tâm chưa Bác sĩ?',
-        CURRENT_TIMESTAMP - INTERVAL '2 days'
-    ),
-    (
-        'c1000000-0000-0000-0000-000000000006',
-        'tam-soat-va-phong-ngua-tieu-duong-type-2',
-        '90000000-0000-0000-0000-000000000023',
-        'BS.CKII Võ Thị Mai',
-        'DOCTOR',
-        'Chào bạn An. Chỉ số HbA1c 5.4% là hoàn toàn bình thường (ngưỡng an toàn là dưới 5.7%). Do có yếu tố gia đình, bạn nên duy trì chế độ ăn lành mạnh ít tinh bột nhanh và tái xét nghiệm định kỳ mỗi 6 tháng đến 1 năm nhé.',
-        CURRENT_TIMESTAMP - INTERVAL '1 day'
-    )
-) AS c(id, article_slug, author_user_id, author_name, author_role, content, created_at)
-JOIN users u ON u.id = c.author_user_id::uuid
-JOIN articles a ON a.slug = c.article_slug
-ON CONFLICT (id) DO NOTHING;
+DO $$
+BEGIN
+    IF current_schema() = 'public' THEN
+        INSERT INTO article_comments (
+            id, article_slug, author_user_id, author_name, author_role, content, created_at
+        )
+        SELECT
+            c.id::uuid,
+            c.article_slug,
+            u.id,
+            c.author_name,
+            c.author_role,
+            c.content,
+            c.created_at
+        FROM (VALUES
+            (
+                'c1000000-0000-0000-0000-000000000001',
+                'phong-ngua-dot-quy-o-nguoi-tre-va-trung-nien',
+                '90000000-0000-0000-0000-000000000021',
+                'Lê Thị Bích Ngọc',
+                'PATIENT',
+                'Chào Bác sĩ, tôi năm nay 34 tuổi, dạo gần đây hay bị đau nhức nửa đầu bên phải kèm hoa mắt khi thức dậy. Đây có phải là dấu hiệu báo trước của đột quỵ không ạ?',
+                CURRENT_TIMESTAMP - INTERVAL '18 hours'
+            ),
+            (
+                'c1000000-0000-0000-0000-000000000002',
+                'phong-ngua-dot-quy-o-nguoi-tre-va-trung-nien',
+                '90000000-0000-0000-0000-000000000023',
+                'ThS.BS Trần Thu Hà',
+                'DOCTOR',
+                'Chào bạn Bích Ngọc. Triệu chứng đau nửa đầu kèm hoa mắt có thể do chứng đau nửa đầu Migraine, rối loạn tiền đình hoặc co thắt mạch máu não do căng thẳng. Tuy nhiên nếu triệu chứng xuất hiện đột ngột và dữ dội, bạn nên đến chuyên khoa Thần kinh để đo huyết áp, đo lưu huyết não và chụp cộng hưởng từ MRI sọ não nhằm loại trừ các dị dạng mạch máu não tiềm ẩn nhé.',
+                CURRENT_TIMESTAMP - INTERVAL '15 hours'
+            ),
+            (
+                'c1000000-0000-0000-0000-000000000003',
+                'viem-loet-da-day-hp-va-nhung-dieu-can-biet',
+                '90000000-0000-0000-0000-000000000021',
+                'Trần Văn Nam',
+                'PATIENT',
+                'Thưa Bác sĩ, tôi vừa điều trị xong phác đồ 14 ngày tiệt trừ HP. Bao lâu sau tôi có thể làm test hơi thở để kiểm tra vi khuẩn đã hết chưa ạ?',
+                CURRENT_TIMESTAMP - INTERVAL '1 day'
+            ),
+            (
+                'c1000000-0000-0000-0000-000000000004',
+                'viem-loet-da-day-hp-va-nhung-dieu-can-biet',
+                '90000000-0000-0000-0000-000000000023',
+                'BS.CKI Lê Văn Đức',
+                'DOCTOR',
+                'Chào bạn Nam. Bạn cần đợi ít nhất 4 tuần sau khi kết thúc viên kháng sinh cuối cùng, và ngừng thuốc giảm tiết acid (PPI) ít nhất 2 tuần trước khi làm test hơi thở C13 để đảm bảo kết quả chính xác nhất, tránh âm tính giả bạn nhé.',
+                CURRENT_TIMESTAMP - INTERVAL '22 hours'
+            ),
+            (
+                'c1000000-0000-0000-0000-000000000005',
+                'tam-soat-va-phong-ngua-tieu-duong-type-2',
+                '90000000-0000-0000-0000-000000000021',
+                'Nguyễn Văn An',
+                'PATIENT',
+                'Bài viết rất hữu ích cho người bệnh. Tôi có bố bị tiểu đường, xét nghiệm HbA1c gần nhất của tôi là 5.4% thì đã an tâm chưa Bác sĩ?',
+                CURRENT_TIMESTAMP - INTERVAL '2 days'
+            ),
+            (
+                'c1000000-0000-0000-0000-000000000006',
+                'tam-soat-va-phong-ngua-tieu-duong-type-2',
+                '90000000-0000-0000-0000-000000000023',
+                'BS.CKII Võ Thị Mai',
+                'DOCTOR',
+                'Chào bạn An. Chỉ số HbA1c 5.4% là hoàn toàn bình thường (ngưỡng an toàn là dưới 5.7%). Do có yếu tố gia đình, bạn nên duy trì chế độ ăn lành mạnh ít tinh bột nhanh và tái xét nghiệm định kỳ mỗi 6 tháng đến 1 năm nhé.',
+                CURRENT_TIMESTAMP - INTERVAL '1 day'
+            )
+        ) AS c(id, article_slug, author_user_id, author_name, author_role, content, created_at)
+        JOIN users u ON u.id = c.author_user_id::uuid
+        JOIN articles a ON a.slug = c.article_slug
+        ON CONFLICT (id) DO NOTHING;
+    END IF;
+END $$;
