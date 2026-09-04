@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { AuthUser } from "../types/hospital";
-import { logoutCurrentUser, SAFE_LOGOUT_ERROR_MESSAGE } from "../lib/api-client";
+import { fetchDoctorProfile, fetchPatientProfile, logoutCurrentUser, SAFE_LOGOUT_ERROR_MESSAGE } from "../lib/api-client";
 import UiIcon from "./UiIcon";
 
 export type PortalRole = "PATIENT" | "DOCTOR";
@@ -18,6 +18,7 @@ const ROLE_LABEL: Record<PortalRole, string> = {
 interface PortalChromeProps {
   role: PortalRole;
   user: AuthUser;
+  avatarUrl?: string | null;
   children: ReactNode;
 }
 
@@ -37,11 +38,39 @@ const HREF_FOR_SECTION_HASH: Record<string, string> = {
   "#diagnostics": "/patient/diagnostic-results",
 };
 
-export default function PortalChrome({ role, user, children }: PortalChromeProps) {
+export default function PortalChrome({ role, user, avatarUrl, children }: PortalChromeProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState<string | null>(null);
+  const [resolvedAvatar, setResolvedAvatar] = useState<string | null>(avatarUrl ?? null);
+  const [avatarError, setAvatarError] = useState(false);
+
+  useEffect(() => {
+    if (avatarUrl) {
+      setResolvedAvatar(avatarUrl);
+      setAvatarError(false);
+      return;
+    }
+    let cancelled = false;
+    const loadAvatar = async () => {
+      try {
+        if (role === "DOCTOR") {
+          const doc = await fetchDoctorProfile();
+          if (!cancelled && doc.photoUrl) setResolvedAvatar(doc.photoUrl);
+        } else {
+          const pat = await fetchPatientProfile();
+          if (!cancelled && pat.avatarUrl) setResolvedAvatar(pat.avatarUrl);
+        }
+      } catch {
+        // Fallback to initials
+      }
+    };
+    void loadAvatar();
+    return () => {
+      cancelled = true;
+    };
+  }, [avatarUrl, role, user.id]);
   const homePath = role === "PATIENT" ? "/patient/dashboard" : "/doctor/dashboard";
 
   const links = role === "PATIENT"
@@ -172,7 +201,17 @@ export default function PortalChrome({ role, user, children }: PortalChromeProps
               title="Xem và cập nhật thông tin tài khoản"
             >
               <span className="portal-user__avatar" aria-hidden="true">
-                {user.displayName?.charAt(0)?.toUpperCase() ?? "U"}
+                {resolvedAvatar && !avatarError ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    alt={user.displayName}
+                    className="portal-user__avatar-img"
+                    onError={() => setAvatarError(true)}
+                    src={resolvedAvatar}
+                  />
+                ) : (
+                  user.displayName?.charAt(0)?.toUpperCase() ?? "U"
+                )}
               </span>
               <div className="portal-user__copy">
                 <strong>{user.displayName}</strong>
