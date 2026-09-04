@@ -141,7 +141,11 @@ export function readHealthcareBffRuntimeConfig(): HealthcareBffRuntimeConfig {
     process.env.BACKEND_INTERNAL_URL?.trim() || DEFAULT_BACKEND_ORIGIN,
   );
   const configuredPublicOrigin = process.env.BFF_PUBLIC_ORIGIN?.trim();
-  const publicOrigins = parseConfiguredPublicOrigins(configuredPublicOrigin);
+  const defaultOrigins = "https://healthcare.id.vn,https://www.healthcare.id.vn,https://healthcare-two-olive.vercel.app";
+  const mergedPublicOrigins = configuredPublicOrigin
+    ? `${configuredPublicOrigin},${defaultOrigins}`
+    : defaultOrigins;
+  const publicOrigins = parseConfiguredPublicOrigins(mergedPublicOrigins);
   const publicOrigin = publicOrigins.length > 0 ? publicOrigins.join(",") : undefined;
   const serviceToken = process.env.BACKEND_BFF_SERVICE_TOKEN ?? "";
   if (!isValidServiceToken(serviceToken)) {
@@ -252,23 +256,40 @@ function normalizedBrowserOrigin(request: Request, configuredPublicOrigin?: stri
   const allowedOrigins = parseConfiguredPublicOrigins(configuredPublicOrigin);
   const requestOrigin = normalizeHttpOrigin(requestUrl.origin);
 
+  const forwardedHost = request.headers.get("x-forwarded-host") || request.headers.get("host");
+  const forwardedProto = request.headers.get("x-forwarded-proto") || requestUrl.protocol.replace(":", "");
+  let hostOrigin: string | null = null;
+  if (forwardedHost) {
+    try {
+      hostOrigin = normalizeHttpOrigin(`${forwardedProto}://${forwardedHost}`);
+    } catch {
+      hostOrigin = null;
+    }
+  }
+
   const suppliedOrigin = request.headers.get("origin");
   if (!suppliedOrigin) {
     if (!SAFE_METHODS.has(request.method.toUpperCase())) {
       throw new BffRequestError(403, "BFF_ORIGIN_REQUIRED");
     }
-    return allowedOrigins.length > 0 ? allowedOrigins[0] : requestOrigin;
+    return allowedOrigins.length > 0 ? allowedOrigins[0] : (hostOrigin ?? requestOrigin);
   }
   const normalized = normalizeHttpOrigin(suppliedOrigin);
 
   if (allowedOrigins.length > 0) {
-    if (allowedOrigins.includes(normalized) || normalized === requestOrigin) {
+    if (
+      allowedOrigins.includes(normalized)
+      || normalized === requestOrigin
+      || (hostOrigin !== null && normalized === hostOrigin)
+    ) {
       return normalized;
     }
     throw new BffRequestError(403, "BFF_ORIGIN_INVALID");
   }
 
-  if (normalized !== requestOrigin) throw new BffRequestError(403, "BFF_ORIGIN_INVALID");
+  if (normalized !== requestOrigin && (hostOrigin === null || normalized !== hostOrigin)) {
+    throw new BffRequestError(403, "BFF_ORIGIN_INVALID");
+  }
   return normalized;
 }
 
