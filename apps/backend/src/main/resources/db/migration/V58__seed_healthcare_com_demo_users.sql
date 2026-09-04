@@ -1,5 +1,5 @@
 -- V58__seed_healthcare_com_demo_users.sql
--- Seed demo accounts matching frontend login page presets:
+-- Seed & align demo accounts matching frontend login presets:
 -- patient@healthcare.com / HealthCare@2026
 -- doctor@healthcare.com / HealthCare@2026
 -- admin@healthcare.com / HealthCare@2026
@@ -12,7 +12,6 @@ INSERT INTO users (id, email, password_hash, display_name, status) VALUES
     ('90000000-0000-0000-0000-000000000025', 'admin@healthcare.com', '$2b$10$LAxE79LzSUkiEFBWG2jgs.CUR71eRR.GEk9yJshuJy5OccgmyQB2y', 'Quản trị viên Hệ thống', 'ACTIVE')
 ON CONFLICT (email) DO UPDATE SET
     password_hash = EXCLUDED.password_hash,
-    display_name = EXCLUDED.display_name,
     status = EXCLUDED.status;
 
 -- Also update existing .local demo users to accept HealthCare@2026
@@ -25,40 +24,53 @@ SELECT u.id, r.id
 FROM (VALUES
     ('patient@healthcare.com', 'PATIENT'),
     ('doctor@healthcare.com', 'DOCTOR'),
-    ('admin@healthcare.com', 'ADMIN')
+    ('admin@healthcare.com', 'ADMIN'),
+    ('patient@healthcare.local', 'PATIENT'),
+    ('doctor@healthcare.local', 'DOCTOR'),
+    ('admin@healthcare.local', 'ADMIN')
 ) AS accounts(email, role_code)
 JOIN users u ON u.email = accounts.email
 JOIN roles r ON r.code = accounts.role_code
 ON CONFLICT DO NOTHING;
 
--- 3. Ensure patient_profile exists for patient@healthcare.com
+-- 3. Update or insert patient_profile for patient@healthcare.com
+UPDATE patient_profiles
+SET blood_type = COALESCE(blood_type, 'A+'),
+    medical_history = COALESCE(medical_history, 'Tiền sử viêm xoang mạn tính nhẹ, không có bệnh tim mạch hay tiểu đường.'),
+    allergies = COALESCE(allergies, 'Dị ứng Aspirin nhẹ (nổi mẩn ngứa), không dị ứng thực phẩm.'),
+    patient_tier = COALESCE(patient_tier, 'GOLD'),
+    ai_credits = GREATEST(COALESCE(ai_credits, 0), 85)
+WHERE email = 'patient@healthcare.com'
+   OR user_id IN (SELECT id FROM users WHERE email = 'patient@healthcare.com');
+
+-- If no profile existed at all, insert one
 INSERT INTO patient_profiles (
     id, full_name, phone, email, user_id, date_of_birth, gender, address, emergency_contact_name, emergency_contact_phone, blood_type, medical_history, allergies, patient_tier, ai_credits
-) VALUES (
+)
+SELECT
     '90000000-0000-0000-0000-000000000022',
     'Nguyễn Văn An',
     '0909123456',
     'patient@healthcare.com',
-    '90000000-0000-0000-0000-000000000021',
+    u.id,
     '1991-05-14',
     'MALE',
     '123 Nguyễn Thị Minh Khai, Phường Bến Thành, Quận 1, TP. Hồ Chí Minh',
     'Nguyễn Thị Hoa (Vợ)',
     '0909999888',
-    'A-',
+    'A+',
     'Tiền sử viêm xoang mạn tính nhẹ, không có bệnh tim mạch hay tiểu đường.',
     'Dị ứng Aspirin nhẹ (nổi mẩn ngứa), không dị ứng thực phẩm.',
     'GOLD',
     85
-)
-ON CONFLICT (id) DO UPDATE SET
-    full_name = EXCLUDED.full_name,
-    phone = EXCLUDED.phone,
-    patient_tier = EXCLUDED.patient_tier,
-    ai_credits = EXCLUDED.ai_credits;
+FROM users u
+WHERE u.email = 'patient@healthcare.com'
+  AND NOT EXISTS (
+      SELECT 1 FROM patient_profiles p WHERE p.user_id = u.id OR p.email = 'patient@healthcare.com'
+  );
 
--- 4. Link doctor@healthcare.com to Doctor ThS.BS Trần Thu Hà
+-- 4. Update doctor credits and link user account if not yet linked
 UPDATE doctors
-SET user_id = '90000000-0000-0000-0000-000000000023'
-WHERE id = '30000000-0000-0000-0000-000000000005'
-  AND (user_id IS NULL OR user_id = '90000000-0000-0000-0000-000000000023');
+SET ai_credits = GREATEST(COALESCE(ai_credits, 0), 150)
+WHERE user_id IN (SELECT id FROM users WHERE email IN ('doctor@healthcare.com', 'doctor@healthcare.local'))
+   OR id = '30000000-0000-0000-0000-000000000005';
