@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { businessDate } from "../../../lib/business-time";
 import PortalChrome from "../../../components/PortalChrome";
 import { EmptyState, ErrorState, ForbiddenState, LoadingState, LoginRequiredState } from "../../../components/PortalStates";
 import { ApiError, createDoctorCarePlan, fetchDoctorAppointments, fetchDoctorCarePlans, hasRole } from "../../../lib/api-client";
@@ -23,7 +24,7 @@ export default function DoctorCarePlansPage() {
   useEffect(() => {
     if (!session || !hasRole(session.user, "DOCTOR")) return;
     let cancelled = false;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = businessDate();
     void Promise.resolve().then(() => { if (cancelled) return undefined; setLoading(true); setError(null); return Promise.all([fetchDoctorCarePlans(), fetchDoctorAppointments(today, undefined, 0, 100)]); })
       .then((value) => { if (!cancelled && value) { setPlans(value[0]); setAppointments(value[1].content.filter((item) => ["CONFIRMED", "CHECKED_IN", "IN_PROGRESS", "COMPLETED"].includes(item.status))); } })
       .catch((reason) => { if (!cancelled) setError(reason); })

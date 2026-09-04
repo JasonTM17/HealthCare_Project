@@ -75,6 +75,18 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(409).body(error);
     }
 
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<ApiError> handleDataIntegrityViolation(org.springframework.dao.DataIntegrityViolationException ex, WebRequest request) {
+        log.warn("Data integrity constraint violated on {}: {}", extractPath(request), ex.getMessage());
+        ApiError error = new ApiError(
+            409,
+            "Conflict",
+            "Dữ liệu đang được liên kết hoặc vi phạm ràng buộc toàn vẹn của hệ thống. Vui lòng kiểm tra lại.",
+            extractPath(request)
+        );
+        return ResponseEntity.status(409).body(error);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiError> handleValidation(MethodArgumentNotValidException ex, WebRequest request) {
         List<ApiError.FieldError> fieldErrors = ex.getBindingResult().getFieldErrors().stream()

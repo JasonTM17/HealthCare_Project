@@ -131,6 +131,12 @@ export default function ImageUpload({
         <div
           className={`${styles.dropzone} ${isDragging ? styles.dropzoneDragging : ""}`}
           onClick={() => fileInputRef.current?.click()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              fileInputRef.current?.click();
+            }
+          }}
           onDragLeave={handleDragLeave}
           onDragOver={handleDragOver}
           onDrop={handleDrop}
