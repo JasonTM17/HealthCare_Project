@@ -180,7 +180,7 @@ export default function AdminConsultationsPage() {
   };
 
   if (!session) return <main className="portal-entry"><LoginRequiredState nextPath="/admin/consultations" /></main>;
-  if (!hasRole(session.user, "ADMIN")) return <main className="portal-entry"><ForbiddenState title="Không có quyền điều phối" description="Hàng đợi tư vấn chỉ dành cho ADMIN và chỉ hiển thị metadata vận hành." />;</main>;
+  if (!hasRole(session.user, "ADMIN")) return <main className="portal-entry"><ForbiddenState title="Không có quyền điều phối" description="Hàng đợi tư vấn chỉ dành cho ADMIN và chỉ hiển thị metadata vận hành." /></main>;
 
   return (
     <div className="section-inner portal-page admin-page grid gap-6">

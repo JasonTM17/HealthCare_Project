@@ -21,6 +21,22 @@ interface PortalChromeProps {
   children: ReactNode;
 }
 
+const SECTION_HASH_FOR_HREF: Record<string, string> = {
+  "/doctor/appointments": "#daily-appointments",
+  "/patient/appointments": "#appointments",
+  "/patient/medical-records": "#records",
+  "/patient/prescriptions": "#prescriptions",
+  "/patient/diagnostic-results": "#diagnostics",
+};
+
+const HREF_FOR_SECTION_HASH: Record<string, string> = {
+  "#daily-appointments": "/doctor/appointments",
+  "#appointments": "/patient/appointments",
+  "#records": "/patient/medical-records",
+  "#prescriptions": "/patient/prescriptions",
+  "#diagnostics": "/patient/diagnostic-results",
+};
+
 export default function PortalChrome({ role, user, children }: PortalChromeProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -53,9 +69,44 @@ export default function PortalChrome({ role, user, children }: PortalChromeProps
         { href: "/doctor/ai-content-reviews", label: "Duyệt AI" },
         { href: "/doctor/articles", label: "Cộng đồng" },
       ];
+  const [activeHash, setActiveHash] = useState<string>("");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleCheck = () => {
+      const hash = window.location.hash;
+      if (!hash || window.scrollY < 150) {
+        setActiveHash("");
+      } else {
+        setActiveHash(hash);
+      }
+    };
+
+    handleCheck();
+    window.addEventListener("hashchange", handleCheck);
+    window.addEventListener("scroll", handleCheck, { passive: true });
+
+    return () => {
+      window.removeEventListener("hashchange", handleCheck);
+      window.removeEventListener("scroll", handleCheck);
+    };
+  }, [pathname]);
+
   const isActive = (href: string): boolean => {
+    if (pathname === homePath) {
+      if (activeHash) {
+        const mappedHref = HREF_FOR_SECTION_HASH[activeHash];
+        if (mappedHref) {
+          return href === mappedHref;
+        }
+      }
+      return href === homePath && !activeHash;
+    }
     return pathname === href || (href !== homePath && pathname.startsWith(`${href}/`));
   };
+
+
 
   const handleLogout = async () => {
     if (loggingOut) return;
@@ -93,8 +144,20 @@ export default function PortalChrome({ role, user, children }: PortalChromeProps
               <Link
                 aria-current={isActive(link.href) ? "page" : undefined}
                 className={isActive(link.href) ? "portal-nav__link portal-nav__link--active" : "portal-nav__link"}
-                href={link.href}
+                href={pathname === homePath && SECTION_HASH_FOR_HREF[link.href] ? `${homePath}${SECTION_HASH_FOR_HREF[link.href]}` : (pathname === homePath && link.href === homePath ? `${homePath}#` : link.href)}
                 key={link.href}
+                onClick={() => {
+                  const hash = SECTION_HASH_FOR_HREF[link.href];
+                  if (hash) {
+                    setActiveHash(hash);
+                  } else if (link.href === homePath) {
+                    setActiveHash("");
+                    if (typeof window !== "undefined") {
+                      window.location.hash = "";
+                      window.scrollTo(0, 0);
+                    }
+                  }
+                }}
               >
                 {link.label}
               </Link>
