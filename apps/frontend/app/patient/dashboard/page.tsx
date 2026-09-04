@@ -1182,8 +1182,28 @@ export default function PatientDashboardPage() {
         <header className="portal-hero">
           <div>
             <p className="section-note">CỔNG BỆNH NHÂN</p>
-            <h1>Xin chào, {user.displayName}</h1>
-            <p>Theo dõi lịch hẹn, hồ sơ khám, đơn thuốc và kết quả của riêng bạn tại một nơi.</p>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="mb-0">Xin chào, {user.displayName}</h1>
+              {profile.status === "success" && (
+                <div className="flex items-center gap-2">
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                    profile.data.patientTier === "VIP" ? "bg-purple-100 text-purple-800" :
+                    profile.data.patientTier === "GOLD" ? "bg-amber-100 text-amber-800" :
+                    profile.data.patientTier === "SILVER" ? "bg-slate-200 text-slate-800" :
+                    "bg-emerald-100 text-emerald-800"
+                  }`}>
+                    {profile.data.patientTier === "VIP" ? "👑 Hạng VIP" :
+                     profile.data.patientTier === "GOLD" ? "⭐ Hạng Vàng" :
+                     profile.data.patientTier === "SILVER" ? "🥈 Hạng Bạc" :
+                     "🌱 Tiêu Chuẩn"}
+                  </span>
+                  <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-teal-50 text-teal-900 border border-teal-200">
+                    ⚡ {profile.data.aiCredits ?? 20} AI Credits
+                  </span>
+                </div>
+              )}
+            </div>
+            <p className="mt-1">Theo dõi lịch hẹn, hồ sơ khám, đơn thuốc và kết quả của riêng bạn tại một nơi.</p>
           </div>
           <div className="portal-hero__actions">
             <Link className="button button--amber" href="/tra-cuu">Tra cứu lịch hẹn</Link>
@@ -1199,6 +1219,8 @@ export default function PatientDashboardPage() {
           <a className="portal-summary-card" href="#records"><span>Hồ sơ khám</span><strong>{countOf(records)}</strong><small>Thông tin lâm sàng</small></a>
           <a className="portal-summary-card" href="#prescriptions"><span>Đơn thuốc</span><strong>{countOf(prescriptions)}</strong><small>Đơn đã được kê</small></a>
           <a className="portal-summary-card" href="#diagnostics"><span>Kết quả</span><strong>{countOf(diagnostics)}</strong><small>Cận lâm sàng</small></a>
+          <Link className="portal-summary-card" href="/patient/community"><span>Cộng đồng</span><strong>Cẩm nang</strong><small>Đọc & Bình luận bài viết</small></Link>
+          <Link className="portal-summary-card" href="/patient/health-questions"><span>Hỏi đáp</span><strong>Tư vấn</strong><small>Bác sĩ giải đáp</small></Link>
         </section>
 
         <PatientCareHub appointments={appointments} carePlans={carePlans} overview={overview} retry={retry} />
