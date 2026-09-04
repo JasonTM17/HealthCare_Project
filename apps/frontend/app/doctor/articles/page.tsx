@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import PortalChrome from "../../../components/PortalChrome";
 import {
   broadcastCatalogChange,
@@ -10,6 +10,7 @@ import {
   doctorDeleteArticle,
   doctorListArticles,
   doctorUpdateArticle,
+  fetchArticleBySlug,
   fetchArticleComments,
   fetchArticles,
   fetchSpecialties,
@@ -55,10 +56,16 @@ export default function DoctorArticlesPage() {
 
   // Editorial Reading View ("Đọc như 1 bài báo")
   const [readingArticle, setReadingArticle] = useState<Article | null>(null);
+  const readingArticleRef = useRef<Article | null>(null);
   const [readingComments, setReadingComments] = useState<ArticleComment[]>([]);
   const [loadingReadingComments, setLoadingReadingComments] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [replyingToCommentId, setReplyingToCommentId] = useState<string | null>(null);
+  const [realtimeSyncNotice, setRealtimeSyncNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    readingArticleRef.current = readingArticle;
+  }, [readingArticle]);
 
   // Editor Modal state
   const [showEditor, setShowEditor] = useState(false);
@@ -84,8 +91,10 @@ export default function DoctorArticlesPage() {
       setMyArticles(myArticleList.content);
       setCommunityArticles(communityPage.content);
       setSpecialties(specList.content);
+      return communityPage.content;
     } catch {
       setError("Không thể tải dữ liệu diễn đàn bài viết y khoa.");
+      return [];
     } finally {
       setLoading(false);
     }
@@ -109,8 +118,28 @@ export default function DoctorArticlesPage() {
   useEffect(() => {
     if (!session?.user || !hasRole(session.user, "DOCTOR")) return;
     const task = Promise.resolve().then(loadData);
-    const unsubscribe = subscribeToCatalogChange(() => {
-      void loadData();
+    const unsubscribe = subscribeToCatalogChange(async () => {
+      const freshList = await loadData();
+      if (readingArticleRef.current) {
+        const currentSlug = readingArticleRef.current.slug;
+        const matched = freshList.find((a) => a.slug === currentSlug);
+        if (matched) {
+          setReadingArticle(matched);
+          setRealtimeSyncNotice("Nội dung bài viết vừa được cập nhật realtime!");
+          setTimeout(() => setRealtimeSyncNotice(null), 4000);
+        } else {
+          try {
+            const fresh = await fetchArticleBySlug(currentSlug);
+            if (fresh) {
+              setReadingArticle(fresh);
+              setRealtimeSyncNotice("Nội dung bài viết vừa được cập nhật realtime!");
+              setTimeout(() => setRealtimeSyncNotice(null), 4000);
+            }
+          } catch {
+            // ignore
+          }
+        }
+      }
     });
     return () => {
       void task;
@@ -536,15 +565,15 @@ export default function DoctorArticlesPage() {
         {/* ── EDITORIAL ARTICLE READER MODAL ("ĐỌC NHƯ 1 BÀI BÁO Y KHOA") ── */}
         {readingArticle && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto backdrop-blur-sm">
-            <div className="my-8 w-full max-w-3xl rounded-3xl bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
+            <div className="my-8 w-full max-w-3xl rounded-[10px] bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
               {/* Header Bar */}
-              <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 bg-slate-50/80">
-                <span className="rounded-full bg-teal-100 px-3 py-1 text-xs font-bold text-teal-900">
+              <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 bg-slate-50/90">
+                <span className="rounded-[4px] bg-teal-50 border border-teal-200 px-3 py-1 text-xs font-bold text-teal-900 tracking-wider uppercase font-mono">
                   {readingArticle.category || "Chuyên đề Sức khỏe Bệnh viện"}
                 </span>
                 <button
                   aria-label="Đóng bài báo"
-                  className="rounded-full p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition cursor-pointer"
+                  className="rounded-[4px] p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition cursor-pointer"
                   onClick={() => setReadingArticle(null)}
                   type="button"
                 >
@@ -554,9 +583,17 @@ export default function DoctorArticlesPage() {
 
               {/* Scrollable Article Body */}
               <div className="flex-1 overflow-y-auto px-6 sm:px-10 py-6 space-y-6">
+                {/* Realtime sync banner */}
+                {realtimeSyncNotice && (
+                  <div className="rounded-[6px] bg-emerald-50 border border-emerald-300 px-4 py-2.5 text-xs font-semibold text-emerald-900 flex items-center gap-2 shadow-xs">
+                    <UiIcon name="shield-check" size={16} />
+                    <span>{realtimeSyncNotice}</span>
+                  </div>
+                )}
+
                 {/* Hero Cover Image */}
                 {readingArticle.coverImageUrl && (
-                  <div className="w-full h-64 sm:h-80 rounded-2xl overflow-hidden shadow-md">
+                  <div className="w-full h-64 sm:h-80 rounded-[8px] overflow-hidden border border-slate-200 shadow-xs">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       alt={readingArticle.title}
@@ -575,13 +612,13 @@ export default function DoctorArticlesPage() {
                   {/* Doctor Author Bar */}
                   <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-y border-slate-100 py-3 text-xs text-slate-600">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-teal-800 text-white font-bold flex items-center justify-center shadow-sm">
+                      <div className="w-10 h-10 rounded-full bg-teal-800 text-white font-bold flex items-center justify-center shadow-xs">
                         <UiIcon name="stethoscope" size={18} />
                       </div>
                       <div>
                         <div className="flex items-center gap-1.5 font-bold text-slate-900 text-sm">
                           <span>{readingArticle.authorName || "Bác sĩ Chuyên khoa"}</span>
-                          <span className="rounded bg-teal-800 px-1.5 py-0.2 text-[10px] font-bold text-white inline-flex items-center gap-1">
+                          <span className="rounded-[4px] bg-teal-800 px-1.5 py-0.2 text-[10px] font-bold text-white inline-flex items-center gap-1">
                             <UiIcon name="shield-check" size={10} />
                             <span>Đã xác thực</span>
                           </span>
@@ -599,12 +636,15 @@ export default function DoctorArticlesPage() {
                   </div>
                 </div>
 
-                {/* Lead Summary Callout */}
-                <div className="rounded-2xl border border-teal-200 bg-teal-50/70 p-5 text-sm text-teal-950 leading-relaxed font-medium">
-                  <p className="font-bold text-xs uppercase tracking-wider text-teal-900 mb-1">
-                    Tóm tắt nội dung bài báo:
-                  </p>
-                  <p className="m-0">{readingArticle.summary}</p>
+                {/* Lead Summary Callout - Professional Medical Key Takeaways */}
+                <div className="rounded-[6px] border-l-4 border-l-teal-700 bg-slate-50/90 border border-slate-200 p-4 sm:p-5 text-sm text-slate-800 leading-relaxed shadow-2xs">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="inline-block w-2 h-2 rounded-full bg-teal-700"></span>
+                    <span className="font-bold text-xs uppercase tracking-wider text-teal-950 font-mono">
+                      Điểm tin cốt lõi & Tóm tắt y khoa
+                    </span>
+                  </div>
+                  <p className="m-0 font-medium text-slate-800 leading-relaxed">{readingArticle.summary}</p>
                 </div>
 
                 {/* Deep Formatted Body */}
@@ -613,8 +653,10 @@ export default function DoctorArticlesPage() {
                 </div>
 
                 {/* Clinical Disclaimer */}
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-500 leading-relaxed">
-                  * Thông tin y khoa trên diễn đàn mang tính chất phổ biến kiến thức chăm sóc sức khỏe. Người bệnh cần tham khảo ý kiến trực tiếp của Bác sĩ điều trị trước khi áp dụng bất kỳ phác đồ dùng thuốc nào.
+                <div className="rounded-[6px] border-l-2 border-l-amber-600 bg-amber-50/40 border border-slate-200 px-4 py-3 text-xs text-slate-600 leading-relaxed">
+                  <p className="m-0 italic">
+                    <strong className="font-semibold text-amber-900 not-italic">Lưu ý chuyên môn:</strong> Thông tin y khoa trên diễn đàn mang tính chất phổ biến kiến thức chăm sóc sức khỏe. Người bệnh cần tham khảo ý kiến trực tiếp của Bác sĩ điều trị trước khi áp dụng bất kỳ phác đồ dùng thuốc nào.
+                  </p>
                 </div>
 
                 {/* Attached Comments Thread */}
@@ -629,7 +671,7 @@ export default function DoctorArticlesPage() {
                   {loadingReadingComments ? (
                     <p className="text-xs text-slate-400">Đang tải thảo luận...</p>
                   ) : readingComments.length === 0 ? (
-                    <div className="rounded-xl bg-slate-50 p-6 text-center text-xs text-slate-500">
+                    <div className="rounded-[6px] bg-slate-50 p-6 text-center text-xs text-slate-500 border border-dashed border-slate-300">
                       Chưa có phản hồi nào. Hãy là Bác sĩ đầu tiên bình luận chuyên môn cho bài viết này!
                     </div>
                   ) : (
@@ -639,12 +681,12 @@ export default function DoctorArticlesPage() {
                         const isAdmin = c.authorRole === "ADMIN";
                         return (
                           <div
-                            className={`rounded-xl p-4 text-xs ${
+                            className={`rounded-[6px] p-4 text-xs ${
                               isDoctor
-                                ? "border border-teal-300 bg-teal-50/80"
+                                ? "border-l-4 border-l-teal-700 border border-teal-200 bg-teal-50/40"
                                 : isAdmin
-                                ? "border border-purple-200 bg-purple-50/70"
-                                : "border border-slate-200 bg-white"
+                                ? "border-l-4 border-l-purple-700 border border-purple-200 bg-purple-50/40"
+                                : "border border-slate-200 bg-white shadow-2xs"
                             }`}
                             key={c.id}
                           >
@@ -652,13 +694,13 @@ export default function DoctorArticlesPage() {
                               <div className="flex items-center gap-2">
                                 <span className="font-bold text-slate-900">{c.authorName}</span>
                                 {isDoctor && (
-                                  <span className="rounded bg-teal-800 px-1.5 py-0.5 text-[10px] font-bold text-white inline-flex items-center gap-1">
+                                  <span className="rounded-[4px] bg-teal-800 px-1.5 py-0.5 text-[10px] font-bold text-white inline-flex items-center gap-1">
                                     <UiIcon name="shield-check" size={11} />
                                     <span>Bác sĩ</span>
                                   </span>
                                 )}
                                 {isAdmin && (
-                                  <span className="rounded bg-purple-700 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                                  <span className="rounded-[4px] bg-purple-700 px-1.5 py-0.5 text-[10px] font-bold text-white">
                                     Quản trị
                                   </span>
                                 )}
@@ -696,7 +738,7 @@ export default function DoctorArticlesPage() {
                   {/* Reply Composer Form */}
                   <form className="border-t border-slate-200 pt-4" onSubmit={handleSendReply}>
                     {replyingToCommentId && (
-                      <div className="mb-2 flex items-center justify-between rounded-lg bg-teal-50 px-3 py-1.5 text-xs text-teal-800">
+                      <div className="mb-2 flex items-center justify-between rounded-[6px] bg-teal-50 border border-teal-200 px-3 py-1.5 text-xs text-teal-800">
                         <span>Đang trả lời bình luận</span>
                         <button
                           className="font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
@@ -711,16 +753,16 @@ export default function DoctorArticlesPage() {
                       </div>
                     )}
                     <textarea
-                      className="w-full rounded-xl border border-slate-300 p-3 text-sm focus:border-teal-600 focus:outline-none"
+                      className="w-full rounded-[6px] border border-slate-300 p-3.5 text-sm focus:border-teal-700 focus:ring-1 focus:ring-teal-700 focus:outline-none transition leading-relaxed text-slate-800 placeholder:text-slate-400 bg-white shadow-2xs"
                       disabled={busy}
                       onChange={(e) => setReplyText(e.target.value)}
                       placeholder="Gửi phản hồi y khoa chính thức từ Bác sĩ..."
                       rows={3}
                       value={replyText}
                     />
-                    <div className="mt-2 flex justify-end">
+                    <div className="mt-2.5 flex justify-end">
                       <button
-                        className="min-h-11 rounded-xl bg-teal-900 px-6 py-2 text-xs font-bold text-white hover:bg-teal-800 disabled:opacity-50 transition cursor-pointer"
+                        className="min-h-10 rounded-[6px] bg-teal-800 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white hover:bg-teal-900 disabled:opacity-50 transition-colors cursor-pointer shadow-xs"
                         disabled={busy || !replyText.trim()}
                         type="submit"
                       >
@@ -737,14 +779,14 @@ export default function DoctorArticlesPage() {
         {/* ── ARTICLE CREATION & EDIT MODAL WITH IMAGE UPLOAD ── */}
         {showEditor && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto backdrop-blur-sm">
-            <div className="my-8 w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
+            <div className="my-8 w-full max-w-2xl rounded-[10px] bg-white p-6 shadow-2xl border border-slate-200">
               <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                 <h2 className="text-xl font-bold text-teal-950">
                   {editingSlug ? "Chỉnh sửa bài viết y khoa" : "Đăng bài viết y khoa mới"}
                 </h2>
                 <button
                   aria-label="Đóng biểu mẫu"
-                  className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+                  className="rounded-[4px] p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
                   onClick={() => setShowEditor(false)}
                   type="button"
                 >
@@ -756,7 +798,7 @@ export default function DoctorArticlesPage() {
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Tiêu đề bài viết *</label>
                   <input
-                    className="mt-1 w-full min-h-11 rounded-xl border border-slate-300 px-3.5 py-2 text-sm focus:border-teal-600 focus:outline-none"
+                    className="mt-1 w-full min-h-10 rounded-[6px] border border-slate-300 px-3.5 py-2 text-sm focus:border-teal-700 focus:ring-1 focus:ring-teal-700 focus:outline-none"
                     onChange={(e) => setTitle(e.target.value)}
                     placeholder="Ví dụ: Hướng dẫn chăm sóc và phòng ngừa tăng huyết áp tại nhà"
                     required
@@ -769,7 +811,7 @@ export default function DoctorArticlesPage() {
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Chuyên mục</label>
                     <input
-                      className="mt-1 w-full min-h-11 rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-teal-600 focus:outline-none"
+                      className="mt-1 w-full min-h-10 rounded-[6px] border border-slate-300 px-3 py-2 text-sm focus:border-teal-700 focus:ring-1 focus:ring-teal-700 focus:outline-none"
                       onChange={(e) => setCategory(e.target.value)}
                       placeholder="Tim mạch, Tiêu hóa..."
                       type="text"
@@ -779,7 +821,7 @@ export default function DoctorArticlesPage() {
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Chuyên khoa</label>
                     <select
-                      className="mt-1 w-full min-h-11 rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white focus:border-teal-600 focus:outline-none"
+                      className="mt-1 w-full min-h-10 rounded-[6px] border border-slate-300 px-3 py-2 text-sm bg-white focus:border-teal-700 focus:ring-1 focus:ring-teal-700 focus:outline-none"
                       onChange={(e) => setSpecialtySlug(e.target.value)}
                       value={specialtySlug}
                     >
@@ -793,7 +835,7 @@ export default function DoctorArticlesPage() {
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Thời gian đọc (phút)</label>
                     <input
-                      className="mt-1 w-full min-h-11 rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-teal-600 focus:outline-none"
+                      className="mt-1 w-full min-h-10 rounded-[6px] border border-slate-300 px-3 py-2 text-sm focus:border-teal-700 focus:ring-1 focus:ring-teal-700 focus:outline-none"
                       min={1}
                       onChange={(e) => setReadingMinutes(e.target.value)}
                       type="number"
@@ -805,7 +847,7 @@ export default function DoctorArticlesPage() {
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Tóm tắt ngắn (Summary) *</label>
                   <textarea
-                    className="mt-1 w-full rounded-xl border border-slate-300 p-3 text-sm focus:border-teal-600 focus:outline-none"
+                    className="mt-1 w-full rounded-[6px] border border-slate-300 p-3 text-sm focus:border-teal-700 focus:ring-1 focus:ring-teal-700 focus:outline-none"
                     onChange={(e) => setSummary(e.target.value)}
                     placeholder="Tóm tắt ngắn gọn các luận điểm chính để người bệnh nắm nhanh..."
                     required
@@ -817,7 +859,7 @@ export default function DoctorArticlesPage() {
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Nội dung chi tiết (Body) *</label>
                   <textarea
-                    className="mt-1 w-full rounded-xl border border-slate-300 p-3 text-sm focus:border-teal-600 focus:outline-none leading-relaxed"
+                    className="mt-1 w-full rounded-[6px] border border-slate-300 p-3 text-sm focus:border-teal-700 focus:ring-1 focus:ring-teal-700 focus:outline-none leading-relaxed"
                     onChange={(e) => setBody(e.target.value)}
                     placeholder="Kiến thức y khoa, chỉ định chuyên môn, phác đồ theo dõi và lời khuyên của bác sĩ..."
                     required
@@ -853,14 +895,14 @@ export default function DoctorArticlesPage() {
 
                 <div className="mt-6 flex justify-end gap-3 border-t border-slate-100 pt-4">
                   <button
-                    className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 min-h-11 cursor-pointer"
+                    className="rounded-[6px] border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 min-h-10 cursor-pointer"
                     onClick={() => setShowEditor(false)}
                     type="button"
                   >
                     Hủy bỏ
                   </button>
                   <button
-                    className="min-h-11 rounded-xl bg-teal-900 px-6 py-2 text-sm font-bold text-white hover:bg-teal-800 disabled:opacity-50 transition cursor-pointer"
+                    className="min-h-10 rounded-[6px] bg-teal-800 px-6 py-2 text-sm font-bold uppercase tracking-wider text-white hover:bg-teal-900 disabled:opacity-50 transition cursor-pointer shadow-xs"
                     disabled={busy}
                     type="submit"
                   >

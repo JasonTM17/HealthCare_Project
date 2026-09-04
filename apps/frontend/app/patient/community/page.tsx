@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import PortalChrome from "../../../components/PortalChrome";
 import {
   createArticleComment,
+  fetchArticleBySlug,
   fetchArticleComments,
   fetchArticles,
   fetchSpecialties,
@@ -30,11 +31,17 @@ export default function PatientCommunityPage() {
 
   // Full Editorial Article Reading View ("Đọc như 1 bài báo")
   const [readingArticle, setReadingArticle] = useState<Article | null>(null);
+  const readingArticleRef = useRef<Article | null>(null);
   const [comments, setComments] = useState<ArticleComment[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [replyTo, setReplyTo] = useState<ArticleComment | null>(null);
   const [commentSuccess, setCommentSuccess] = useState(false);
+  const [realtimeSyncNotice, setRealtimeSyncNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    readingArticleRef.current = readingArticle;
+  }, [readingArticle]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -46,8 +53,10 @@ export default function PatientCommunityPage() {
       ]);
       setArticles(articlePage.content);
       setSpecialties(specList.content);
+      return articlePage.content;
     } catch {
       setError("Không thể tải danh sách bài viết cộng đồng.");
+      return [];
     } finally {
       setLoading(false);
     }
@@ -55,8 +64,29 @@ export default function PatientCommunityPage() {
 
   useEffect(() => {
     const task = Promise.resolve().then(loadData);
-    const unsubscribe = subscribeToCatalogChange(() => {
-      void loadData();
+    const unsubscribe = subscribeToCatalogChange(async (event) => {
+      const freshList = await loadData();
+      // If currently reading an article, refresh its content in realtime!
+      if (readingArticleRef.current) {
+        const currentSlug = readingArticleRef.current.slug;
+        const matched = freshList.find((a) => a.slug === currentSlug);
+        if (matched) {
+          setReadingArticle(matched);
+          setRealtimeSyncNotice("Bài viết vừa được cập nhật nội dung mới nhất theo thời gian thực!");
+          setTimeout(() => setRealtimeSyncNotice(null), 4000);
+        } else {
+          try {
+            const fresh = await fetchArticleBySlug(currentSlug);
+            if (fresh) {
+              setReadingArticle(fresh);
+              setRealtimeSyncNotice("Bài viết vừa được cập nhật nội dung mới nhất theo thời gian thực!");
+              setTimeout(() => setRealtimeSyncNotice(null), 4000);
+            }
+          } catch {
+            // ignore
+          }
+        }
+      }
     });
     return () => {
       void task;
@@ -259,15 +289,15 @@ export default function PatientCommunityPage() {
         {/* ── FULL EDITORIAL ARTICLE READER MODAL ("ĐỌC NHƯ 1 BÀI BÁO Y KHOA") ── */}
         {readingArticle && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto backdrop-blur-sm">
-            <div className="my-8 w-full max-w-3xl rounded-3xl bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
+            <div className="my-8 w-full max-w-3xl rounded-[10px] bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
               {/* Header Bar */}
-              <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 bg-slate-50/80">
-                <span className="rounded-full bg-teal-100 px-3 py-1 text-xs font-bold text-teal-900">
+              <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 bg-slate-50/90">
+                <span className="rounded-[4px] bg-teal-50 border border-teal-200 px-3 py-1 text-xs font-bold text-teal-900 tracking-wider uppercase font-mono">
                   {readingArticle.category || "Chuyên đề Y khoa"}
                 </span>
                 <button
                   aria-label="Đóng bài báo"
-                  className="rounded-full p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition cursor-pointer"
+                  className="rounded-[4px] p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition cursor-pointer"
                   onClick={() => setReadingArticle(null)}
                   type="button"
                 >
@@ -277,9 +307,17 @@ export default function PatientCommunityPage() {
 
               {/* Scrollable Editorial Content */}
               <div className="flex-1 overflow-y-auto px-6 sm:px-10 py-6 space-y-6">
+                {/* Realtime sync banner */}
+                {realtimeSyncNotice && (
+                  <div className="rounded-[6px] bg-emerald-50 border border-emerald-300 px-4 py-2.5 text-xs font-semibold text-emerald-900 flex items-center gap-2 shadow-xs">
+                    <UiIcon name="shield-check" size={16} />
+                    <span>{realtimeSyncNotice}</span>
+                  </div>
+                )}
+
                 {/* Hero Cover Image */}
                 {readingArticle.coverImageUrl && (
-                  <div className="w-full h-64 sm:h-80 rounded-2xl overflow-hidden shadow-md">
+                  <div className="w-full h-64 sm:h-80 rounded-[8px] overflow-hidden border border-slate-200 shadow-xs">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       alt={readingArticle.title}
@@ -298,13 +336,13 @@ export default function PatientCommunityPage() {
                   {/* Doctor Author Bar */}
                   <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-y border-slate-100 py-3 text-xs text-slate-600">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-teal-800 text-white font-bold flex items-center justify-center shadow-sm">
+                      <div className="w-10 h-10 rounded-full bg-teal-800 text-white font-bold flex items-center justify-center shadow-xs">
                         <UiIcon name="stethoscope" size={18} />
                       </div>
                       <div>
                         <div className="flex items-center gap-1.5 font-bold text-slate-900 text-sm">
                           <span>{readingArticle.authorName || "Bác sĩ Chuyên khoa"}</span>
-                          <span className="rounded bg-teal-800 px-1.5 py-0.2 text-[10px] font-bold text-white inline-flex items-center gap-1">
+                          <span className="rounded-[4px] bg-teal-800 px-1.5 py-0.2 text-[10px] font-bold text-white inline-flex items-center gap-1">
                             <UiIcon name="shield-check" size={10} />
                             <span>Bác sĩ xác thực</span>
                           </span>
@@ -322,12 +360,15 @@ export default function PatientCommunityPage() {
                   </div>
                 </div>
 
-                {/* Lead Summary Callout */}
-                <div className="rounded-2xl border border-teal-200 bg-teal-50/70 p-5 text-sm text-teal-950 leading-relaxed font-medium">
-                  <p className="font-bold text-xs uppercase tracking-wider text-teal-900 mb-1">
-                    Tóm tắt bài báo:
-                  </p>
-                  <p className="m-0">{readingArticle.summary}</p>
+                {/* Lead Summary Callout - Professional Medical Key Takeaways */}
+                <div className="rounded-[6px] border-l-4 border-l-teal-700 bg-slate-50/90 border border-slate-200 p-4 sm:p-5 text-sm text-slate-800 leading-relaxed shadow-2xs">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="inline-block w-2 h-2 rounded-full bg-teal-700"></span>
+                    <span className="font-bold text-xs uppercase tracking-wider text-teal-950 font-mono">
+                      Điểm tin cốt lõi & Tóm tắt y khoa
+                    </span>
+                  </div>
+                  <p className="m-0 font-medium text-slate-800 leading-relaxed">{readingArticle.summary}</p>
                 </div>
 
                 {/* Deep Formatted Body */}
@@ -336,8 +377,10 @@ export default function PatientCommunityPage() {
                 </div>
 
                 {/* Clinical Disclaimer */}
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-500 leading-relaxed">
-                  * Thông tin trên bài viết mang tính chất phổ biến kiến thức y khoa, không thay thế chẩn đoán và chỉ định điều trị trực tiếp từ Bác sĩ.
+                <div className="rounded-[6px] border-l-2 border-l-amber-600 bg-amber-50/40 border border-slate-200 px-4 py-3 text-xs text-slate-600 leading-relaxed">
+                  <p className="m-0 italic">
+                    <strong className="font-semibold text-amber-900 not-italic">Khuyến cáo y khoa:</strong> Thông tin trên bài viết mang tính chất phổ biến kiến thức chăm sóc sức khỏe, không thay thế cho quy trình thăm khám, chẩn đoán và chỉ định phác đồ điều trị trực tiếp từ Bác sĩ chuyên khoa.
+                  </p>
                 </div>
 
                 {/* Attached Comments Thread */}
@@ -350,7 +393,7 @@ export default function PatientCommunityPage() {
                   </div>
 
                   {commentSuccess && (
-                    <div className="rounded-lg bg-emerald-50 p-3 text-xs font-semibold text-emerald-800 border border-emerald-200 flex items-center gap-2">
+                    <div className="rounded-[6px] bg-emerald-50 p-3 text-xs font-semibold text-emerald-800 border border-emerald-200 flex items-center gap-2">
                       <UiIcon name="shield-check" size={16} />
                       <span>Bình luận của bạn đã được đăng công khai trên diễn đàn!</span>
                     </div>
@@ -359,8 +402,8 @@ export default function PatientCommunityPage() {
                   {loadingComments ? (
                     <p className="text-xs text-slate-400">Đang tải thảo luận...</p>
                   ) : comments.length === 0 ? (
-                    <div className="rounded-xl bg-teal-50/50 p-6 text-center text-xs text-teal-800 border border-teal-100">
-                      Chưa có bình luận nào. Hãy là người đầu tiên đặt câu hỏi cho Bác sĩ!
+                    <div className="rounded-[6px] bg-slate-50 p-6 text-center text-xs text-slate-500 border border-dashed border-slate-300">
+                      Chưa có bình luận nào. Hãy là người đầu tiên đặt câu hỏi hoặc gửi chia sẻ chuyên môn cho Bác sĩ!
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -369,12 +412,12 @@ export default function PatientCommunityPage() {
                         const isAdmin = c.authorRole === "ADMIN";
                         return (
                           <div
-                            className={`rounded-xl p-4 text-xs ${
+                            className={`rounded-[6px] p-4 text-xs ${
                               isDoctor
-                                ? "border border-teal-300 bg-teal-50/80"
+                                ? "border-l-4 border-l-teal-700 border border-teal-200 bg-teal-50/40"
                                 : isAdmin
-                                ? "border border-purple-200 bg-purple-50/70"
-                                : "border border-slate-200 bg-white"
+                                ? "border-l-4 border-l-purple-700 border border-purple-200 bg-purple-50/40"
+                                : "border border-slate-200 bg-white shadow-2xs"
                             }`}
                             key={c.id}
                           >
@@ -382,13 +425,13 @@ export default function PatientCommunityPage() {
                               <div className="flex items-center gap-2">
                                 <span className="font-bold text-slate-900">{c.authorName}</span>
                                 {isDoctor && (
-                                  <span className="rounded bg-teal-800 px-1.5 py-0.5 text-[10px] font-bold text-white inline-flex items-center gap-1">
+                                  <span className="rounded-[4px] bg-teal-800 px-1.5 py-0.5 text-[10px] font-bold text-white inline-flex items-center gap-1">
                                     <UiIcon name="shield-check" size={11} />
                                     <span>Bác sĩ xác thực</span>
                                   </span>
                                 )}
                                 {isAdmin && (
-                                  <span className="rounded bg-purple-700 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                                  <span className="rounded-[4px] bg-purple-700 px-1.5 py-0.5 text-[10px] font-bold text-white">
                                     Quản trị
                                   </span>
                                 )}
@@ -419,7 +462,7 @@ export default function PatientCommunityPage() {
                   {/* Comment Input Composer */}
                   <form className="border-t border-slate-200 pt-4" onSubmit={handlePostComment}>
                     {replyTo && (
-                      <div className="mb-2 flex items-center justify-between rounded-lg bg-teal-50 px-3 py-1.5 text-xs text-teal-800">
+                      <div className="mb-2 flex items-center justify-between rounded-[6px] bg-teal-50 border border-teal-200 px-3 py-1.5 text-xs text-teal-800">
                         <span>Đang trả lời <strong>{replyTo.authorName}</strong></span>
                         <button
                           className="font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
@@ -434,16 +477,16 @@ export default function PatientCommunityPage() {
                       </div>
                     )}
                     <textarea
-                      className="w-full rounded-xl border border-slate-300 p-3 text-sm focus:border-teal-600 focus:outline-none"
+                      className="w-full rounded-[6px] border border-slate-300 p-3.5 text-sm focus:border-teal-700 focus:ring-1 focus:ring-teal-700 focus:outline-none transition leading-relaxed text-slate-800 placeholder:text-slate-400 bg-white shadow-2xs"
                       disabled={busy}
                       onChange={(e) => setNewComment(e.target.value)}
                       placeholder="Đặt câu hỏi y khoa hoặc chia sẻ cảm nhận với Bác sĩ..."
                       rows={3}
                       value={newComment}
                     />
-                    <div className="mt-2 flex justify-end">
+                    <div className="mt-2.5 flex justify-end">
                       <button
-                        className="min-h-11 rounded-xl bg-teal-900 px-6 py-2 text-xs font-bold text-white hover:bg-teal-800 disabled:opacity-50 transition cursor-pointer"
+                        className="min-h-10 rounded-[6px] bg-teal-800 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white hover:bg-teal-900 disabled:opacity-50 transition-colors cursor-pointer shadow-xs"
                         disabled={busy || !newComment.trim()}
                         type="submit"
                       >
