@@ -32,6 +32,7 @@ import {
 } from "../../lib/cms-client";
 import { CmsContentRenderer } from "./CmsRenderer";
 import { formatBusinessDateTime } from "../../lib/business-time";
+import { broadcastCatalogChange } from "../../lib/api-client";
 
 interface CmsDraftValues {
   componentType: CmsComponentType;
@@ -468,6 +469,7 @@ export function CmsEditor({
         ...current.filter((item) => item.slotKey !== savedContent.slotKey),
         savedContent,
       ].sort((left, right) => left.slotKey.localeCompare(right.slotKey)));
+      broadcastCatalogChange({ kind: "article", action: "updated", slug: savedContent.slotKey });
       try {
         const savedHistory = await client.listHistory(savedContent.slotKey);
         if (!isCurrentOperation()) return;
@@ -512,6 +514,7 @@ export function CmsEditor({
         ...current.filter((item) => item.slotKey !== savedContent.slotKey),
         savedContent,
       ].sort((left, right) => left.slotKey.localeCompare(right.slotKey)));
+      broadcastCatalogChange({ kind: "article", action: "updated", slug: savedContent.slotKey });
       setHistoryLoading(true);
       setHistoryError(null);
       try {

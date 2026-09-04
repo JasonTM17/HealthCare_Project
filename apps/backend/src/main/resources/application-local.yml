@@ -41,3 +41,7 @@ ai:
   service:
     runtime: ${AI_SERVICE_RUNTIME:local}
     allow-unauthenticated-local: ${AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL:false}
+
+storage:
+  allow-unscanned-upload: true
+  require-private-endpoint: false
