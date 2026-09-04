@@ -409,10 +409,27 @@ export default function DoctorDashboardPage() {
         <header className="portal-hero">
           <div>
             <p className="section-note">CỔNG BÁC SĨ</p>
-            <h1>Không gian làm việc lâm sàng</h1>
-            <p>Quản lý lịch làm việc và hồ sơ của những người bệnh được phân công cho tài khoản này.</p>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="mb-0">Không gian làm việc lâm sàng</h1>
+              {doctorProfile.status === "success" && (
+                <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-teal-50 text-teal-900 border border-teal-200">
+                  ⚡ {doctorProfile.data.aiCredits ?? 150} Doctor AI Credits
+                </span>
+              )}
+            </div>
+            <p className="mt-1">Quản lý lịch làm việc và hồ sơ của những người bệnh được phân công cho tài khoản này.</p>
           </div>
-          <span className="portal-demo-label">Truy cập theo phân công chuyên môn</span>
+          <div className="portal-hero__actions flex flex-wrap gap-2">
+            <Link className="button button--primary text-sm" href="/doctor/articles">
+              ✍️ Đăng bài viết y khoa
+            </Link>
+            <Link className="outline-button text-sm" href="/doctor/consultations">
+              💬 Tư vấn bệnh nhân
+            </Link>
+            <Link className="outline-button text-sm" href="/doctor/health-questions">
+              ❓ Hỏi đáp sức khỏe
+            </Link>
+          </div>
         </header>
 
         <section aria-busy={Boolean(appointmentAction)} aria-labelledby="daily-title" className="portal-panel" id="daily-appointments">
