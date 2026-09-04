@@ -376,30 +376,16 @@
   min-height: 590px;
 }
 
-.site-shell .care-experience__primary-photo,
-.site-shell .care-experience__secondary-photo {
+.site-shell .care-experience__primary-photo {
   position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
   margin: 0;
   background: #dce9e7;
-}
-
-.site-shell .care-experience__primary-photo {
-  inset: 0 auto auto 0;
-  width: 80%;
-  height: 88%;
-  border-radius: 2px 5rem 2px 2px;
-}
-
-.site-shell .care-experience__secondary-photo {
-  right: 0;
-  bottom: 0;
-  z-index: 2;
-  width: 46%;
-  height: 44%;
-  border: 7px solid #103747;
-  border-radius: 2px;
-  box-shadow: 0 22px 42px rgb(3 25 34 / 34%);
+  border-radius: 24px;
+  box-shadow: 0 24px 60px -12px rgba(3, 25, 34, 0.45);
 }
 
 .site-shell .care-experience__image {
@@ -408,17 +394,12 @@
 }
 
 .site-shell .care-experience__primary-photo .care-experience__image {
-  object-position: 46% center;
+  object-position: 50% 20%;
 }
 
-.site-shell .care-experience__secondary-photo .care-experience__image {
-  object-position: center;
-}
-
-.site-shell .care-experience__primary-photo:hover .care-experience__image,
-.site-shell .care-experience__secondary-photo:hover .care-experience__image {
-  filter: saturate(0.94) contrast(1.02);
-  transform: scale(1.025);
+.site-shell .care-experience__primary-photo:hover .care-experience__image {
+  filter: saturate(0.96) contrast(1.02);
+  transform: scale(1.02);
 }
 
 .site-shell .care-experience__badge {
@@ -635,43 +616,31 @@
 .site-shell .package-row:hover,
 .site-shell .branch-row:hover,
 .site-shell .article-row:hover {
-  transform: translateX(4px);
+  /* Keep stable without horizontal shifting */
+  box-shadow: 0 4px 12px rgba(20, 61, 75, 0.08);
 }
 
-/* Progressive enhancement: elements remain readable without script. */
+/* Progressive enhancement: elements remain readable and immediate without entrance distraction. */
 .public-motion-enabled .public-motion-candidate.is-motion-visible:not(.is-motion-immediate) {
-  animation: hc-fade-right 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
-  animation-delay: var(--public-motion-delay, 0ms);
+  animation: none !important;
 }
 
 .public-motion-enabled .section-heading.public-motion-candidate.is-motion-visible:not(.is-motion-immediate)::before {
   transform-origin: left center;
-  animation: hc-line-draw 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: hc-line-draw 500ms ease-out both;
   animation-delay: var(--public-motion-delay, 0ms);
 }
 
 .public-motion-enabled .site-shell .hero-copy > * {
-  animation: hc-hero-arrive 560ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.public-motion-enabled .site-shell .hero-copy > :nth-child(2) {
-  animation-delay: 70ms;
-}
-
-.public-motion-enabled .site-shell .hero-copy > :nth-child(3) {
-  animation-delay: 140ms;
-}
-
-.public-motion-enabled .site-shell .hero-copy > :nth-child(n + 4) {
-  animation-delay: 210ms;
+  animation: none;
 }
 
 .public-motion-enabled .site-shell .hero-visual {
-  animation: hc-fade-right 640ms cubic-bezier(0.16, 1, 0.3, 1) 120ms both;
+  animation: none;
 }
 
 .public-motion-enabled .site-shell .hero-visual__image {
-  animation: hc-photo-breathe 12s ease-in-out 700ms infinite alternate;
+  animation: none;
 }
 
 .public-motion-enabled .site-shell .hero-visual__floating-label,
@@ -680,7 +649,7 @@
 }
 
 .public-motion-enabled .site-shell .care-links::after {
-  animation: hc-care-pulse 7s ease-in-out 1.2s infinite;
+  animation: none;
 }
 
 .public-motion-enabled .site-shell .care-experience__signal span {
@@ -698,11 +667,9 @@
 @keyframes hc-fade-right {
   from {
     opacity: 0;
-    transform: translate3d(-24px, 4px, 0);
   }
   to {
     opacity: 1;
-    transform: translate3d(0, 0, 0);
   }
 }
 
@@ -710,11 +677,9 @@
 @keyframes hc-section-arrive {
   from {
     opacity: 0;
-    transform: translate3d(-24px, 4px, 0);
   }
   to {
     opacity: 1;
-    transform: translate3d(0, 0, 0);
   }
 }
 
@@ -730,11 +695,9 @@
 @keyframes hc-hero-arrive {
   from {
     opacity: 0;
-    transform: translate3d(-24px, 0, 0);
   }
   to {
     opacity: 1;
-    transform: translate3d(0, 0, 0);
   }
 }
 

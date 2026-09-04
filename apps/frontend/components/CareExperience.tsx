@@ -4,9 +4,6 @@ import Icon from "./UiIcon";
 
 const CONSULTATION_IMAGE = "/media/care-team.webp";
 
-const RECEPTION_IMAGE =
-  "https://images.pexels.com/photos/4269274/pexels-photo-4269274.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1000&h=1200&dpr=1";
-
 const CARE_MOMENTS = [
   {
     number: "01",
@@ -40,16 +37,6 @@ export default function CareExperience(): React.ReactElement {
             />
           </figure>
 
-          <figure className="care-experience__secondary-photo">
-            <Image
-              alt="Nhân viên y tế tại khu vực tiếp đón"
-              className="care-experience__image"
-              fill
-              sizes="(max-width: 640px) 44vw, 18vw"
-              src={RECEPTION_IMAGE}
-            />
-          </figure>
-
           <div className="care-experience__badge">
             <span><Icon name="heart" size={20} /></span>
             <p><strong>Lắng nghe trước</strong><small>để mỗi lựa chọn rõ ràng hơn</small></p>
@@ -60,7 +47,6 @@ export default function CareExperience(): React.ReactElement {
             <span />
             <span />
           </div>
-
         </div>
 
         <div className="care-experience__copy">

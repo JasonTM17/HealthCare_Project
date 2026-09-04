@@ -38,11 +38,11 @@
 }
 
 .networkOverview :global(.resource-actions) :global(.button) {
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-sm);
 }
 
 .networkOverview :global(.resource-actions) :global(.outline-button) {
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-sm);
   border-color: rgba(0, 51, 54, 0.22);
   background: var(--color-paper-bright, #ffffff);
   color: var(--color-teal-800, #004b50);

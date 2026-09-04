@@ -278,7 +278,7 @@ export default function DoctorProfilePage() {
               <div className={styles.fieldGroup}>
                 <ImageUpload
                   aspectRatio="square"
-                  helperText="Tải lên tệp ảnh chân dung bác sĩ (PNG, JPG, WEBP tối đa 10 MB) - Lưu trữ an toàn trong CSDL bệnh viện"
+                  helperText="Tải lên tệp ảnh chân dung bác sĩ (PNG, JPG, WEBP tối đa 10 MB)"
                   label="Ảnh chân dung bác sĩ (Tải lên từ thiết bị)"
                   onChange={(url) => setPhotoUrl(url)}
                   purpose="DOCTOR_PORTRAIT"

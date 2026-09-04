@@ -76,6 +76,7 @@ export default function PatientProfilePage() {
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [gender, setGender] = useState<PatientGender>("UNSPECIFIED");
   const [avatarUrl, setAvatarUrl] = useState("");
+  const [avatarImgLoaded, setAvatarImgLoaded] = useState(false);
   const [address, setAddress] = useState("");
   const [emergencyContactName, setEmergencyContactName] = useState("");
   const [emergencyContactPhone, setEmergencyContactPhone] = useState("");
@@ -189,11 +190,11 @@ export default function PatientProfilePage() {
         allergies: allergies.trim() || undefined,
       });
       setProfile(updated);
-      setProfileNotice({ tone: "success", text: "Hồ sơ sức khỏe cá nhân đã được lưu thành công vào cơ sở dữ liệu y tế." });
+      setProfileNotice({ tone: "success", text: "Hồ sơ sức khỏe cá nhân đã được lưu thành công." });
       showToast({
         tone: "success",
         title: "Đã lưu hồ sơ thành công",
-        message: "Hồ sơ sức khỏe cá nhân đã được lưu thành công vào cơ sở dữ liệu y tế.",
+        message: "Hồ sơ sức khỏe cá nhân đã được cập nhật thành công.",
       });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Không thể lưu thông tin hồ sơ.";
@@ -299,8 +300,9 @@ export default function PatientProfilePage() {
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   alt={fullName || session.user.displayName}
-                  className={styles.patientAvatar}
+                  className={`${styles.patientAvatar} ${avatarImgLoaded ? styles.patientAvatarLoaded : styles.patientAvatarLoading}`}
                   src={avatarUrl}
+                  onLoad={() => setAvatarImgLoaded(true)}
                   onError={(e) => {
                     (e.target as HTMLElement).style.display = "none";
                   }}
@@ -426,7 +428,7 @@ export default function PatientProfilePage() {
                 <div className={`${styles.inputGroup} ${styles.fieldGridFull}`}>
                   <ImageUpload
                     aspectRatio="square"
-                    helperText="Tải lên tệp ảnh chân dung bệnh nhân (PNG, JPG, WEBP tối đa 10 MB) - Lưu trữ an toàn trong CSDL bệnh viện"
+                    helperText="Tải lên tệp ảnh chân dung bệnh nhân (PNG, JPG, WEBP tối đa 10 MB)"
                     label="Ảnh chân dung đại diện"
                     onChange={(url) => setAvatarUrl(url)}
                     purpose="PATIENT_AVATAR"
