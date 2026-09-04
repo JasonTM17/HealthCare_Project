@@ -4,3 +4,4 @@ import os
 
 os.environ["AI_SERVICE_RUNTIME"] = "local"
 os.environ["AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL"] = "true"
+os.environ["AI_SERVICE_TOKEN"] = ""
