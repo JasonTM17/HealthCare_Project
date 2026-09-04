@@ -367,9 +367,17 @@ export default function AdminCatalogPage() {
     }
   };
 
-  const remove = async (label: string, action: () => Promise<unknown>, success: string) => {
+  const remove = async (
+    label: string,
+    action: () => Promise<unknown>,
+    success: string,
+    broadcast?: { kind: "package" | "faq" | "article"; slug?: string }
+  ) => {
     if (!window.confirm(`Xóa ${label}? Hành động này không thể hoàn tác.`)) return;
-    await run(action, success);
+    const ok = await run(action, success);
+    if (ok && broadcast) {
+      broadcastCatalogChange({ kind: broadcast.kind, action: "deleted", slug: broadcast.slug });
+    }
   };
 
   const savePackage = async (event: FormEvent) => {
@@ -616,7 +624,7 @@ export default function AdminCatalogPage() {
                     aria-label={`Xóa ${item.name}`}
                     className="text-red-700 underline"
                     disabled={busy}
-                    onClick={() => void remove(`gói khám "${item.name}"`, () => adminDeletePackage(item.slug), "Đã xóa gói khám")}
+                    onClick={() => void remove(`gói khám "${item.name}"`, () => adminDeletePackage(item.slug), "Đã xóa gói khám", { kind: "package", slug: item.slug })}
                     type="button"
                   >
                     Xóa

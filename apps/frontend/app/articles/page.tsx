@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import CatalogPagination from "../../components/CatalogPagination";
 import ClinicalIcon from "../../components/ClinicalIcon";
 import { PublicAiButton, PublicBookingButton, PublicPageShell } from "../../components/PublicPageShell";
-import { ApiError, fetchArticles, type Page } from "../../lib/api-client";
+import { ApiError, fetchArticles, subscribeToCatalogChange, type Page } from "../../lib/api-client";
 import { formatBusinessDate } from "../../lib/business-time";
 import { presentApiError } from "../../lib/present-api-error";
 import type { Article } from "../../types/hospital";
@@ -30,6 +30,15 @@ export default function ArticlesPage() {
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const loadedPageRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToCatalogChange((detail) => {
+      if (detail.kind === "article") {
+        setRetryCount((c) => c + 1);
+      }
+    });
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

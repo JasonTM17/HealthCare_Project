@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import ClinicalIcon from "../../components/ClinicalIcon";
 import { PublicAiButton, PublicBookingButton, PublicPageShell } from "../../components/PublicPageShell";
-import { ApiError, fetchPackages, type Page } from "../../lib/api-client";
+import { ApiError, fetchPackages, subscribeToCatalogChange, type Page } from "../../lib/api-client";
 import { presentApiError } from "../../lib/present-api-error";
 import type { HealthPackage } from "../../types/hospital";
 import CatalogPagination from "../../components/CatalogPagination";
@@ -30,9 +30,19 @@ const PACKAGE_STEPS = [
 
 export default function PackagesPage() {
   const [currentPage, setCurrentPage] = useState(0);
+  const [reloadKey, setReloadKey] = useState(0);
   const [page, setPage] = useState<Page<HealthPackage> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToCatalogChange((detail) => {
+      if (detail.kind === "package") {
+        setReloadKey((k) => k + 1);
+      }
+    });
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,7 +72,7 @@ export default function PackagesPage() {
     return () => {
       cancelled = true;
     };
-  }, [currentPage]);
+  }, [currentPage, reloadKey]);
 
   const packages = page?.content ?? [];
   const packageCount = page?.totalElements ?? packages.length;
