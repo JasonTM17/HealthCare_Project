@@ -28,8 +28,8 @@ export default function PatientCommunityPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Expanded article / discussion state
-  const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
+  // Full Editorial Article Reading View ("Đọc như 1 bài báo")
+  const [readingArticle, setReadingArticle] = useState<Article | null>(null);
   const [comments, setComments] = useState<ArticleComment[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
   const [newComment, setNewComment] = useState("");
@@ -91,10 +91,12 @@ export default function PatientCommunityPage() {
     );
   }
 
-  const handleSelectArticle = async (article: Article) => {
-    setSelectedArticle(article);
+  const handleOpenArticle = async (article: Article) => {
+    setReadingArticle(article);
     setLoadingComments(true);
     setCommentSuccess(false);
+    setReplyTo(null);
+    setNewComment("");
     try {
       const data = await fetchArticleComments(article.slug);
       setComments(data);
@@ -107,17 +109,17 @@ export default function PatientCommunityPage() {
 
   const handlePostComment = async (e: FormEvent) => {
     e.preventDefault();
-    if (!selectedArticle || !newComment.trim()) return;
+    if (!readingArticle || !newComment.trim()) return;
     setBusy(true);
     try {
-      await createArticleComment(selectedArticle.slug, {
+      await createArticleComment(readingArticle.slug, {
         content: newComment.trim(),
         parentCommentId: replyTo?.id || null,
       });
       setNewComment("");
       setReplyTo(null);
       setCommentSuccess(true);
-      const updated = await fetchArticleComments(selectedArticle.slug);
+      const updated = await fetchArticleComments(readingArticle.slug);
       setComments(updated);
       setTimeout(() => setCommentSuccess(false), 3000);
     } catch {
@@ -133,7 +135,7 @@ export default function PatientCommunityPage() {
 
   return (
     <PortalChrome role="PATIENT" user={session.user}>
-      <div className="w-full max-w-[1240px] mx-auto pb-8 space-y-6">
+      <div className="w-full max-w-[1240px] mx-auto pb-12 space-y-6">
         <header className="portal-hero mb-6">
           <div>
             <p className="section-note">CỘNG ĐỒNG Y KHOA & CẨM NANG BỆNH VIỆN</p>
@@ -141,13 +143,13 @@ export default function PatientCommunityPage() {
               Cộng đồng Y khoa & Cẩm nang Sức khỏe
             </h1>
             <p className="text-sm text-slate-600 mt-1">
-              Người bệnh có thể theo dõi bài viết chuyên môn từ các Bác sĩ, đặt câu hỏi trao đổi trực tiếp và tham gia bình luận y tế an toàn.
+              Người bệnh có thể theo dõi bài viết chuyên môn từ các Bác sĩ, đọc như báo y tế chính thống, đặt câu hỏi trao đổi trực tiếp và tham gia bình luận y tế an toàn.
             </p>
 
             {/* Specialty Filter Chips */}
             <div className="mt-4 flex flex-wrap gap-2">
               <button
-                className={`rounded-full px-4 py-1.5 text-xs font-bold transition-all ${
+                className={`rounded-full px-4 py-1.5 text-xs font-bold transition-all cursor-pointer ${
                   selectedSpecialty === "all"
                     ? "bg-teal-900 text-white shadow-sm"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -161,7 +163,7 @@ export default function PatientCommunityPage() {
                 const count = articles.filter((a) => a.relatedSpecialtySlug === s.slug).length;
                 return (
                   <button
-                    className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                    className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
                       selectedSpecialty === s.slug
                         ? "bg-teal-900 text-white shadow-sm"
                         : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -193,113 +195,171 @@ export default function PatientCommunityPage() {
             Không có bài viết nào trong chuyên mục này.
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-start">
-            {/* Articles Feed */}
-            <div className={selectedArticle ? "lg:col-span-7 space-y-4" : "lg:col-span-12 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3"}>
-              {filteredArticles.map((article) => {
-                const isSelected = selectedArticle?.id === article.id;
-                return (
-                  <article
-                    className={`flex flex-col justify-between rounded-2xl border bg-white p-5 shadow-sm transition-all hover:border-teal-500 hover:shadow-md cursor-pointer ${
-                      isSelected ? "border-teal-600 ring-2 ring-teal-600/20" : "border-slate-200"
-                    }`}
-                    key={article.id}
-                    onClick={() => void handleSelectArticle(article)}
-                  >
-                    <div>
-                      <div className="flex items-center justify-between text-xs text-slate-500">
-                        <span className="rounded-full bg-teal-50 px-2.5 py-0.5 font-bold text-teal-800">
-                          {article.category || "Cẩm nang y tế"}
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          <UiIcon name="clock" size={13} />
-                          <span>{article.readingMinutes || 5} phút đọc</span>
-                        </span>
-                      </div>
-
-                      <h3 className="mt-3 text-lg font-bold text-teal-950 line-clamp-2 hover:text-teal-800">
-                        {article.title}
-                      </h3>
-                      <p className="mt-2 text-sm text-slate-600 line-clamp-3 leading-relaxed">
-                        {article.summary}
-                      </p>
-                    </div>
-
-                    <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs">
-                      <span className="font-semibold text-slate-700 inline-flex items-center gap-1.5">
-                        <UiIcon name="stethoscope" size={14} />
-                        <span>{article.authorName || "Bác sĩ Bệnh viện"}</span>
-                      </span>
-                      <button
-                        className="font-bold text-teal-700 hover:text-teal-900 inline-flex items-center gap-1"
-                        type="button"
-                      >
-                        <UiIcon name="message-square" size={13} />
-                        <span>Bình luận & hỏi đáp →</span>
-                      </button>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-
-            {/* Right Panel: Selected Article Details & Comments Thread */}
-            {selectedArticle && (
-              <div className="lg:col-span-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-md sticky top-24 h-fit max-h-[85vh] flex flex-col">
-                <div className="flex items-start justify-between border-b border-slate-100 pb-3">
-                  <div>
-                    <span className="rounded-full bg-teal-50 px-2.5 py-0.5 text-xs font-bold text-teal-800">
-                      {selectedArticle.category || "Cẩm nang"}
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {filteredArticles.map((article) => (
+              <article
+                className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden transition-all hover:border-teal-500 hover:shadow-md cursor-pointer group"
+                key={article.id}
+                onClick={() => void handleOpenArticle(article)}
+              >
+                {article.coverImageUrl ? (
+                  <div className="relative h-44 w-full overflow-hidden bg-slate-100">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      alt={article.title}
+                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      src={article.coverImageUrl}
+                    />
+                    <span className="absolute top-3 left-3 rounded-full bg-teal-950/80 backdrop-blur-md px-2.5 py-0.5 text-xs font-bold text-teal-100">
+                      {article.category || "Cẩm nang y tế"}
                     </span>
-                    <h2 className="mt-1 text-lg font-bold text-teal-950 line-clamp-2">
-                      {selectedArticle.title}
-                    </h2>
-                    <p className="text-xs text-slate-500 mt-0.5 inline-flex items-center gap-1">
-                      <UiIcon name="stethoscope" size={13} />
-                      <span>Tác giả: <strong>{selectedArticle.authorName || "Bác sĩ chuyên khoa"}</strong></span>
+                  </div>
+                ) : (
+                  <div className="h-28 w-full bg-gradient-to-r from-teal-900 to-teal-700 p-4 flex items-end">
+                    <span className="rounded-full bg-white/20 backdrop-blur-md px-2.5 py-0.5 text-xs font-bold text-white">
+                      {article.category || "Cẩm nang y tế"}
+                    </span>
+                  </div>
+                )}
+
+                <div className="p-5 flex-1 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
+                      <span className="inline-flex items-center gap-1">
+                        <UiIcon name="clock" size={13} />
+                        <span>{article.readingMinutes || 5} phút đọc</span>
+                      </span>
+                      <span className="text-[11px] text-teal-800 font-semibold">Nhấp đọc bài báo →</span>
+                    </div>
+
+                    <h3 className="text-base font-bold text-teal-950 line-clamp-2 group-hover:text-teal-700 transition-colors">
+                      {article.title}
+                    </h3>
+                    <p className="mt-2 text-xs text-slate-600 line-clamp-3 leading-relaxed">
+                      {article.summary}
                     </p>
                   </div>
-                  <button
-                    aria-label="Đóng bảng thảo luận"
-                    className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-                    onClick={() => setSelectedArticle(null)}
-                    type="button"
-                  >
-                    <UiIcon name="x" size={16} />
-                  </button>
+
+                  <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs">
+                    <span className="font-semibold text-slate-700 inline-flex items-center gap-1.5">
+                      <UiIcon name="stethoscope" size={14} />
+                      <span>{article.authorName || "Bác sĩ Bệnh viện"}</span>
+                    </span>
+                    <span className="font-bold text-teal-700 hover:text-teal-900 inline-flex items-center gap-1">
+                      <UiIcon name="message-square" size={13} />
+                      <span>Hỏi đáp Bác sĩ</span>
+                    </span>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+
+        {/* ── FULL EDITORIAL ARTICLE READER MODAL ("ĐỌC NHƯ 1 BÀI BÁO Y KHOA") ── */}
+        {readingArticle && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto backdrop-blur-sm">
+            <div className="my-8 w-full max-w-3xl rounded-3xl bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
+              {/* Header Bar */}
+              <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 bg-slate-50/80">
+                <span className="rounded-full bg-teal-100 px-3 py-1 text-xs font-bold text-teal-900">
+                  {readingArticle.category || "Chuyên đề Y khoa"}
+                </span>
+                <button
+                  aria-label="Đóng bài báo"
+                  className="rounded-full p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition cursor-pointer"
+                  onClick={() => setReadingArticle(null)}
+                  type="button"
+                >
+                  <UiIcon name="x" size={20} />
+                </button>
+              </div>
+
+              {/* Scrollable Editorial Content */}
+              <div className="flex-1 overflow-y-auto px-6 sm:px-10 py-6 space-y-6">
+                {/* Hero Cover Image */}
+                {readingArticle.coverImageUrl && (
+                  <div className="w-full h-64 sm:h-80 rounded-2xl overflow-hidden shadow-md">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      alt={readingArticle.title}
+                      className="w-full h-full object-cover"
+                      src={readingArticle.coverImageUrl}
+                    />
+                  </div>
+                )}
+
+                {/* Article Headline */}
+                <div>
+                  <h1 className="text-2xl sm:text-3xl font-black text-teal-950 tracking-tight leading-snug">
+                    {readingArticle.title}
+                  </h1>
+
+                  {/* Doctor Author Bar */}
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-y border-slate-100 py-3 text-xs text-slate-600">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-teal-800 text-white font-bold flex items-center justify-center shadow-sm">
+                        <UiIcon name="stethoscope" size={18} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5 font-bold text-slate-900 text-sm">
+                          <span>{readingArticle.authorName || "Bác sĩ Chuyên khoa"}</span>
+                          <span className="rounded bg-teal-800 px-1.5 py-0.2 text-[10px] font-bold text-white inline-flex items-center gap-1">
+                            <UiIcon name="shield-check" size={10} />
+                            <span>Bác sĩ xác thực</span>
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-teal-800 m-0">Bệnh viện Đa khoa HealthCare</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <span className="inline-flex items-center gap-1 text-slate-500">
+                        <UiIcon name="clock" size={14} />
+                        <span>{readingArticle.readingMinutes || 5} phút đọc</span>
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Scrollable Article Summary + Comments */}
-                <div className="flex-1 overflow-y-auto py-3 space-y-4 pr-1">
-                  <div className="rounded-xl bg-slate-50 p-3.5 text-xs leading-relaxed">
-                    <p className="font-semibold text-slate-800 mb-1">Tóm tắt nội dung bài viết:</p>
-                    <p className="text-slate-600">{selectedArticle.summary}</p>
-                    {selectedArticle.body && (
-                      <div className="mt-2 pt-2 border-t border-slate-200 text-slate-600">
-                        <p className="font-semibold text-slate-900 mb-1">Chi tiết chuyên môn:</p>
-                        <p className="whitespace-pre-wrap">{selectedArticle.body}</p>
-                      </div>
-                    )}
-                  </div>
+                {/* Lead Summary Callout */}
+                <div className="rounded-2xl border border-teal-200 bg-teal-50/70 p-5 text-sm text-teal-950 leading-relaxed font-medium">
+                  <p className="font-bold text-xs uppercase tracking-wider text-teal-900 mb-1">
+                    Tóm tắt bài báo:
+                  </p>
+                  <p className="m-0">{readingArticle.summary}</p>
+                </div>
 
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                    <h3 className="font-bold text-teal-950 text-xs uppercase tracking-wider flex items-center gap-1.5">
-                      <UiIcon name="message-square" size={14} />
-                      <span>Thảo luận cùng Bác sĩ ({comments.length})</span>
+                {/* Deep Formatted Body */}
+                <div className="prose max-w-none text-slate-800 text-base leading-relaxed whitespace-pre-wrap">
+                  {readingArticle.body || "Nội dung bài viết đang được cập nhật."}
+                </div>
+
+                {/* Clinical Disclaimer */}
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-500 leading-relaxed">
+                  * Thông tin trên bài viết mang tính chất phổ biến kiến thức y khoa, không thay thế chẩn đoán và chỉ định điều trị trực tiếp từ Bác sĩ.
+                </div>
+
+                {/* Attached Comments Thread */}
+                <div className="mt-8 pt-6 border-t border-slate-200 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-bold text-teal-950 flex items-center gap-2">
+                      <UiIcon name="message-square" size={18} />
+                      <span>Hỏi đáp & Thảo luận cùng Bác sĩ ({comments.length})</span>
                     </h3>
                   </div>
 
                   {commentSuccess && (
-                    <div className="rounded-lg bg-emerald-50 p-2.5 text-xs font-semibold text-emerald-800 border border-emerald-200 flex items-center gap-1.5">
-                      <UiIcon name="shield-check" size={15} />
-                      <span>Bình luận của bạn đã được đăng thành công!</span>
+                    <div className="rounded-lg bg-emerald-50 p-3 text-xs font-semibold text-emerald-800 border border-emerald-200 flex items-center gap-2">
+                      <UiIcon name="shield-check" size={16} />
+                      <span>Bình luận của bạn đã được đăng công khai trên diễn đàn!</span>
                     </div>
                   )}
 
                   {loadingComments ? (
-                    <p className="text-xs text-slate-400">Đang tải bình luận...</p>
+                    <p className="text-xs text-slate-400">Đang tải thảo luận...</p>
                   ) : comments.length === 0 ? (
-                    <div className="rounded-xl bg-teal-50/50 p-5 text-center text-xs text-teal-800 border border-teal-100">
+                    <div className="rounded-xl bg-teal-50/50 p-6 text-center text-xs text-teal-800 border border-teal-100">
                       Chưa có bình luận nào. Hãy là người đầu tiên đặt câu hỏi cho Bác sĩ!
                     </div>
                   ) : (
@@ -309,7 +369,7 @@ export default function PatientCommunityPage() {
                         const isAdmin = c.authorRole === "ADMIN";
                         return (
                           <div
-                            className={`rounded-xl p-3 text-xs ${
+                            className={`rounded-xl p-4 text-xs ${
                               isDoctor
                                 ? "border border-teal-300 bg-teal-50/80"
                                 : isAdmin
@@ -319,7 +379,7 @@ export default function PatientCommunityPage() {
                             key={c.id}
                           >
                             <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-center gap-2">
                                 <span className="font-bold text-slate-900">{c.authorName}</span>
                                 {isDoctor && (
                                   <span className="rounded bg-teal-800 px-1.5 py-0.5 text-[10px] font-bold text-white inline-flex items-center gap-1">
@@ -337,10 +397,10 @@ export default function PatientCommunityPage() {
                                 {new Date(c.createdAt).toLocaleDateString("vi-VN")}
                               </span>
                             </div>
-                            <p className="mt-1.5 text-slate-700 leading-relaxed whitespace-pre-wrap">{c.content}</p>
-                            <div className="mt-2 flex justify-end">
+                            <p className="mt-2 text-slate-700 leading-relaxed whitespace-pre-wrap text-sm">{c.content}</p>
+                            <div className="mt-2.5 flex justify-end">
                               <button
-                                className="text-[11px] font-semibold text-teal-800 hover:underline"
+                                className="text-xs font-semibold text-teal-800 hover:underline cursor-pointer"
                                 onClick={() => {
                                   setReplyTo(c);
                                   setNewComment(`@${c.authorName}: `);
@@ -355,45 +415,45 @@ export default function PatientCommunityPage() {
                       })}
                     </div>
                   )}
-                </div>
 
-                {/* Comment Input Box */}
-                <form className="border-t border-slate-100 pt-3" onSubmit={handlePostComment}>
-                  {replyTo && (
-                    <div className="mb-2 flex items-center justify-between rounded-lg bg-teal-50 px-2 py-1 text-[11px] text-teal-800">
-                      <span>Đang trả lời <strong>{replyTo.authorName}</strong></span>
+                  {/* Comment Input Composer */}
+                  <form className="border-t border-slate-200 pt-4" onSubmit={handlePostComment}>
+                    {replyTo && (
+                      <div className="mb-2 flex items-center justify-between rounded-lg bg-teal-50 px-3 py-1.5 text-xs text-teal-800">
+                        <span>Đang trả lời <strong>{replyTo.authorName}</strong></span>
+                        <button
+                          className="font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
+                          onClick={() => {
+                            setReplyTo(null);
+                            setNewComment("");
+                          }}
+                          type="button"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
+                    <textarea
+                      className="w-full rounded-xl border border-slate-300 p-3 text-sm focus:border-teal-600 focus:outline-none"
+                      disabled={busy}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      placeholder="Đặt câu hỏi y khoa hoặc chia sẻ cảm nhận với Bác sĩ..."
+                      rows={3}
+                      value={newComment}
+                    />
+                    <div className="mt-2 flex justify-end">
                       <button
-                        className="font-bold text-slate-500 hover:text-slate-800"
-                        onClick={() => {
-                          setReplyTo(null);
-                          setNewComment("");
-                        }}
-                        type="button"
+                        className="min-h-11 rounded-xl bg-teal-900 px-6 py-2 text-xs font-bold text-white hover:bg-teal-800 disabled:opacity-50 transition cursor-pointer"
+                        disabled={busy || !newComment.trim()}
+                        type="submit"
                       >
-                        ✕
+                        {busy ? "Đang gửi..." : "Gửi bình luận y tế"}
                       </button>
                     </div>
-                  )}
-                  <textarea
-                    className="w-full rounded-xl border border-slate-300 p-2.5 text-xs focus:border-teal-600 focus:outline-none focus:ring-1 focus:ring-teal-600"
-                    disabled={busy}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    placeholder="Đặt câu hỏi y khoa hoặc chia sẻ cảm nhận với Bác sĩ..."
-                    rows={3}
-                    value={newComment}
-                  />
-                  <div className="mt-2 flex justify-end">
-                    <button
-                      className="min-h-11 rounded-xl bg-teal-900 px-5 py-2 text-xs font-bold text-white hover:bg-teal-800 disabled:opacity-50 transition"
-                      disabled={busy || !newComment.trim()}
-                      type="submit"
-                    >
-                      {busy ? "Đang gửi..." : "Gửi bình luận y tế"}
-                    </button>
-                  </div>
-                </form>
+                  </form>
+                </div>
               </div>
-            )}
+            </div>
           </div>
         )}
       </div>
