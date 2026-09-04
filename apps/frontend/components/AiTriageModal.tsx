@@ -217,7 +217,7 @@ export default function AiTriageModal({
             <div className="flex flex-wrap gap-2" aria-label="Gợi ý mô tả triệu chứng">
               {SYMPTOM_PROMPTS.map((prompt) => (
                 <button
-                  className="inline-flex min-h-11 items-center rounded-full border border-brand-100 bg-brand-50 px-3 py-2 text-left text-xs font-bold text-brand-900 transition-colors hover:border-brand-300 hover:bg-brand-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-500"
+                  className="inline-flex min-h-11 items-center rounded-lg border border-brand-100 bg-brand-50 px-3 py-2 text-left text-xs font-bold text-brand-900 transition-colors hover:border-brand-300 hover:bg-brand-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-500"
                   key={prompt}
                   onClick={() => appendSymptomPrompt(prompt)}
                   type="button"
@@ -273,7 +273,7 @@ export default function AiTriageModal({
                   type="button"
                   onClick={handleRetry}
                   disabled={loading || !lastSubmittedSymptoms}
-                  className="inline-flex min-h-11 items-center gap-2 rounded-full border border-red-300 bg-white px-4 py-2 text-xs font-bold text-red-800 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400 focus-visible:ring-2 focus-visible:ring-red-500"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-2 text-xs font-bold text-red-800 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400 focus-visible:ring-2 focus-visible:ring-red-500"
                 >
                   <Icon name="activity" size={15} /> Thử lại với mô tả vừa gửi
                 </button>
@@ -293,7 +293,7 @@ export default function AiTriageModal({
                   Chuyên khoa khuyến nghị
                 </span>
                 <span
-                  className={`rounded-full border px-2 py-0.5 text-[10px] font-extrabold ${
+                  className={`rounded-md border px-2 py-0.5 text-[10px] font-extrabold ${
                     result.urgencyLevel === "EMERGENCY"
                       ? "border-red-300 bg-red-100 text-red-700"
                       : result.urgencyLevel === "HIGH"

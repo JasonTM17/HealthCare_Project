@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import React from "react";
 import type { Branch } from "../types/hospital";
 import BrandMark from "./BrandMark";
@@ -14,16 +17,26 @@ interface FooterProps {
 }
 
 const Footer: React.FC<FooterProps> = ({ branches = [], cmsSlug }) => {
+  const pathname = usePathname();
   const emergencyBranch = branches.find((branch) => Boolean(branch.emergencyHotline));
   const contactBranch = branches.find((branch) => Boolean(branch.phone));
   const contactPhone = emergencyBranch?.emergencyHotline ?? contactBranch?.phone;
   const contactHref = safeTelephoneHref(contactPhone);
 
+  const handleLogoClick = (e: React.MouseEvent<HTMLAnchorElement>): void => {
+    if (typeof window !== "undefined") {
+      if (pathname === "/") {
+        e.preventDefault();
+      }
+      window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+    }
+  };
+
   return (
   <footer className="site-footer">
     <div className="site-footer__inner">
       <div className="footer-brand">
-        <Link aria-label="HealthCare, về trang chủ" className="brand-link brand-link--footer" href="/">
+        <Link aria-label="HealthCare, về trang chủ" className="brand-link brand-link--footer" href="/" onClick={handleLogoClick}>
           <BrandMark tone="inverse" />
         </Link>
         <p>Đồng hành cùng bạn từ bước chọn chuyên khoa, đặt lịch đến theo dõi hướng dẫn sau thăm khám.</p>

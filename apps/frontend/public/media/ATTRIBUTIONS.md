@@ -5,5 +5,6 @@
 - `about-care-poster.jpg`: HealthCare clinical doctor team photography; project asset.
 - `hospital-team-landscape.jpg`: HealthCare clinical doctor team photography; project asset.
 - `hospital-team-portrait.jpg`: HealthCare clinical doctor team photography; project asset.
+- `patient-male-avatar.jpg`: HealthCare patient male portrait photography; project asset.
 
 These assets are used under the [Pexels license](https://www.pexels.com/license/).

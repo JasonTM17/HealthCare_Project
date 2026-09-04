@@ -872,7 +872,7 @@ export default function DoctorArticlesPage() {
                 <div>
                   <ImageUpload
                     aspectRatio="banner"
-                    helperText="Tải lên tệp ảnh bìa bài viết (PNG, JPG, WEBP tối đa 10 MB) - Lưu trữ an toàn trong CSDL bệnh viện"
+                    helperText="Tải lên tệp ảnh bìa bài viết (PNG, JPG, WEBP tối đa 10 MB)"
                     label="Ảnh bìa bài viết y khoa (Tải lên từ thiết bị)"
                     onChange={(url) => setCoverImageUrl(url)}
                     purpose="ARTICLE_COVER"

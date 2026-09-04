@@ -55,6 +55,8 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
   const authSession = useAuthSession();
   const [navbarAvatar, setNavbarAvatar] = useState<string | null>(null);
   const [avatarError, setAvatarError] = useState(false);
+  const [avatarLoaded, setAvatarLoaded] = useState(false);
+  const [avatarLoading, setAvatarLoading] = useState(false);
   const [copiedHotline, setCopiedHotline] = useState(false);
   const effectiveNavbarAvatar = navbarAvatar ?? getCachedNavbarAvatar(authSession?.user?.id);
 
@@ -63,7 +65,8 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
     if (!user) return;
     if (getCachedNavbarAvatar(user.id)) return;
     let cancelled = false;
-    const resolvePhoto = async () => {
+    const task = Promise.resolve().then(async () => {
+      setAvatarLoading(true);
       try {
         if (hasRole(user, "DOCTOR")) {
           const doc = await fetchDoctorProfile();
@@ -80,11 +83,15 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
         }
       } catch {
         // Fallback to initials
+      } finally {
+        if (!cancelled) {
+          setAvatarLoading(false);
+        }
       }
-    };
-    void resolvePhoto();
+    });
     return () => {
       cancelled = true;
+      void task;
     };
   }, [authSession?.user]);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
@@ -97,6 +104,16 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
   const accountDestination = getAccountDestination(authSession, pathname);
 
   const closeMobileMenu = (): void => setMobileMenuOpen(false);
+
+  const handleLogoClick = (e: React.MouseEvent<HTMLAnchorElement>): void => {
+    closeMobileMenu();
+    if (typeof window !== "undefined") {
+      if (pathname === "/") {
+        e.preventDefault();
+      }
+      window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+    }
+  };
 
   const handleHotlineClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     if (typeof window !== "undefined" && window.innerWidth >= 1024 && contactPhone) {
@@ -187,7 +204,7 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
 
       <header className="site-nav">
         <div className="site-nav__inner">
-          <Link aria-label="HealthCare, về trang chủ" className="brand-link" href="/" onClick={closeMobileMenu}>
+          <Link aria-label="HealthCare, về trang chủ" className="brand-link" href="/" onClick={handleLogoClick}>
             <BrandMark />
           </Link>
 
@@ -205,15 +222,23 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
           <div className="site-nav__actions">
             <Link aria-label={accountDestination.label} className="nav-account-link" href={accountDestination.href}>
               {authSession ? (
-                <span className="nav-account-avatar">
+                <span className={`nav-account-avatar${avatarLoading && !effectiveNavbarAvatar ? " nav-account-avatar--loading" : !avatarLoaded && effectiveNavbarAvatar && !avatarError ? " nav-account-avatar--shimmer" : ""}`}>
                   {effectiveNavbarAvatar && !avatarError ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      alt={authSession.user.displayName}
-                      className="nav-account-avatar-img"
-                      onError={() => setAvatarError(true)}
-                      src={effectiveNavbarAvatar}
-                    />
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        alt={authSession.user.displayName}
+                        className={`nav-account-avatar-img${avatarLoaded ? " nav-account-avatar-img--loaded" : ""}`}
+                        onError={() => setAvatarError(true)}
+                        onLoad={() => setAvatarLoaded(true)}
+                        src={effectiveNavbarAvatar}
+                      />
+                      {!avatarLoaded ? (
+                        <span className="nav-account-avatar-placeholder">
+                          {authSession.user.displayName?.charAt(0)?.toUpperCase() ?? "U"}
+                        </span>
+                      ) : null}
+                    </>
                   ) : (
                     authSession.user.displayName?.charAt(0)?.toUpperCase() ?? "U"
                   )}
