@@ -23,21 +23,41 @@ Dự án phục vụ mục đích học tập và nghiên cứu (Educational Pro
 
 The repository currently has auth/RBAC, branch-aware booking and rescheduling, bounded OTP confirmation, appointment lifecycle/reminders, patient and doctor portals, bank-transfer payment reconciliation, authorized clinical records and diagnostic files, complete hospital catalog administration, recurring schedule administration, AI/RAG/search guardrails, MinIO metadata, and CI definitions. Backend, AI, frontend static/typecheck/lint/build, Compose-configuration, database-fixture, and a Playwright CMS realtime browser gate are wired in CI. The browser gate proves the admin-to-public homepage CMS flow against a mocked backend contract; full live Compose browser E2E, backup/restore drills, external AI provider validation, compliance, and production deployment remain separate gates.
 
-## Web preview
+## Web preview (live capture — 2026-09-04)
 
-These checked-in visuals were captured from the public synthetic beta alias on
-2026-08-31. They are a product preview of public pages only; they do not prove
-authenticated booking, clinical workflows, chatbot JSON/SSE, backup/restore,
-or production readiness. See the [beta deployment runbook](docs/deployment-beta.md)
-for the executable checks and current hosted evidence.
+These checked-in visuals were captured from the current public synthetic beta
+alias [`healthcare-two-olive.vercel.app`](https://healthcare-two-olive.vercel.app/)
+with the AgentKit browser workflow on 2026-09-04. The five public route probes
+(`/`, `/specialties`, `/doctors`, `/services`, `/about`) each returned HTTP 200;
+the captures are 1262×624. They are product-preview evidence only: they do not
+prove authenticated booking, clinical workflows, chatbot JSON/SSE,
+backup/restore, or production readiness. See the
+[beta deployment runbook](docs/deployment-beta.md) for executable gates.
 
-[![HealthCare synthetic beta homepage](assets/images/healthcare-beta-home.png)](https://healthcare-two-olive.vercel.app/)
+[![HealthCare public homepage — captured 2026-09-04](assets/images/healthcare-public-home-2026-09-04.png)](https://healthcare-two-olive.vercel.app/)
 
-![HealthCare synthetic beta public-route tour](assets/videos/healthcare-beta-tour.gif)
+![HealthCare public route tour — captured 2026-09-04](assets/videos/healthcare-public-tour-2026-09-04.gif)
 
-The tour covers `/`, `/specialties`, `/doctors`, `/services`, and `/about` at a
-960×600 viewport. Each capture returned HTTP 200 when recorded; the GIF is an
-illustrative visual artifact, not a substitute for the browser and API gates.
+Route stills: [specialties](assets/images/healthcare-public-specialties-2026-09-04.png) ·
+[doctors](assets/images/healthcare-public-doctors-2026-09-04.png) ·
+[services](assets/images/healthcare-public-services-2026-09-04.png) ·
+[about](assets/images/healthcare-public-about-2026-09-04.png).
+
+## System architecture
+
+The project separates the hosted synthetic beta from the local Docker Compose
+stack. The browser-facing Vercel UI/BFF calls the Spring API with a server-side
+token; Spring owns transactional healthcare workflows and delegates bounded
+triage/retrieval to FastAPI. Local PostgreSQL, Redis, MinIO, Mailpit and ClamAV
+are development dependencies, while Supabase remains an audited RLS boundary
+whose durable RAG and patient-chat consumers are disabled in the current beta.
+
+![HealthCare system architecture — hosted beta and local Compose](assets/images/healthcare-system-architecture.png)
+
+For the canonical editable Mermaid source, boundary notes, and an accessible
+text explanation, see
+[`docs/architecture/system-overview.md`](docs/architecture/system-overview.md)
+and [`docs/architecture/system-overview.mmd`](docs/architecture/system-overview.mmd).
 
 ## Hosted Beta Release Record
 
