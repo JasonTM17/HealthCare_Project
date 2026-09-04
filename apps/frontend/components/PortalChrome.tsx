@@ -211,6 +211,7 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
             <Link
               className="portal-user__link"
               href={role === "PATIENT" ? "/patient/profile" : "/doctor/profile"}
+              tabIndex={-1}
               title="Xem và cập nhật thông tin tài khoản"
             >
               <span className="portal-user__avatar" aria-hidden="true">

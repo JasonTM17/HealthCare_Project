@@ -375,59 +375,71 @@ ON CONFLICT (slug) DO UPDATE SET
 -- 8. Seed Discussion Comments from Patients and Verified Doctors
 INSERT INTO article_comments (
     id, article_slug, author_user_id, author_name, author_role, content, created_at
-) VALUES
-(
-    'c1000000-0000-0000-0000-000000000001',
-    'phong-ngua-dot-quy-o-nguoi-tre-va-trung-nien',
-    '90000000-0000-0000-0000-000000000012',
-    'Lê Thị Bích Ngọc',
-    'PATIENT',
-    'Chào Bác sĩ, tôi năm nay 34 tuổi, dạo gần đây hay bị đau nhức nửa đầu bên phải kèm hoa mắt khi thức dậy. Đây có phải là dấu hiệu báo trước của đột quỵ không ạ?',
-    CURRENT_TIMESTAMP - INTERVAL '18 hours'
-),
-(
-    'c1000000-0000-0000-0000-000000000002',
-    'phong-ngua-dot-quy-o-nguoi-tre-va-trung-nien',
-    '90000000-0000-0000-0000-000000000023',
-    'ThS.BS Trần Thu Hà',
-    'DOCTOR',
-    'Chào bạn Bích Ngọc. Triệu chứng đau nửa đầu kèm hoa mắt có thể do chứng đau nửa đầu Migraine, rối loạn tiền đình hoặc co thắt mạch máu não do căng thẳng. Tuy nhiên nếu triệu chứng xuất hiện đột ngột và dữ dội, bạn nên đến chuyên khoa Thần kinh để đo huyết áp, đo lưu huyết não và chụp cộng hưởng từ MRI sọ não nhằm loại trừ các dị dạng mạch máu não tiềm ẩn nhé.',
-    CURRENT_TIMESTAMP - INTERVAL '15 hours'
-),
-(
-    'c1000000-0000-0000-0000-000000000003',
-    'viem-loet-da-day-hp-va-nhung-dieu-can-biet',
-    '90000000-0000-0000-0000-000000000011',
-    'Trần Văn Nam',
-    'PATIENT',
-    'Thưa Bác sĩ, tôi vừa điều trị xong phác đồ 14 ngày tiệt trừ HP. Bao lâu sau tôi có thể làm test hơi thở để kiểm tra vi khuẩn đã hết chưa ạ?',
-    CURRENT_TIMESTAMP - INTERVAL '1 day'
-),
-(
-    'c1000000-0000-0000-0000-000000000004',
-    'viem-loet-da-day-hp-va-nhung-dieu-can-biet',
-    '90000000-0000-0000-0000-000000000002',
-    'BS.CKI Lê Văn Đức',
-    'DOCTOR',
-    'Chào bạn Nam. Bạn cần đợi ít nhất 4 tuần sau khi kết thúc viên kháng sinh cuối cùng, và ngừng thuốc giảm tiết acid (PPI) ít nhất 2 tuần trước khi làm test hơi thở C13 để đảm bảo kết quả chính xác nhất, tránh âm tính giả bạn nhé.',
-    CURRENT_TIMESTAMP - INTERVAL '22 hours'
-),
-(
-    'c1000000-0000-0000-0000-000000000005',
-    'tam-soat-va-phong-ngua-tieu-duong-type-2',
-    '90000000-0000-0000-0000-000000000021',
-    'Nguyễn Văn An',
-    'PATIENT',
-    'Bài viết rất hữu ích cho người bệnh. Tôi có bố bị tiểu đường, xét nghiệm HbA1c gần nhất của tôi là 5.4% thì đã an tâm chưa Bác sĩ?',
-    CURRENT_TIMESTAMP - INTERVAL '2 days'
-),
-(
-    'c1000000-0000-0000-0000-000000000006',
-    'tam-soat-va-phong-ngua-tieu-duong-type-2',
-    '90000000-0000-0000-0000-000000000002',
-    'BS.CKII Võ Thị Mai',
-    'DOCTOR',
-    'Chào bạn An. Chỉ số HbA1c 5.4% là hoàn toàn bình thường (ngưỡng an toàn là dưới 5.7%). Do có yếu tố gia đình, bạn nên duy trì chế độ ăn lành mạnh ít tinh bột nhanh và tái xét nghiệm định kỳ mỗi 6 tháng đến 1 năm nhé.',
-    CURRENT_TIMESTAMP - INTERVAL '1 day'
 )
+SELECT
+    c.id::uuid,
+    c.article_slug,
+    u.id,
+    c.author_name,
+    c.author_role,
+    c.content,
+    c.created_at
+FROM (VALUES
+    (
+        'c1000000-0000-0000-0000-000000000001',
+        'phong-ngua-dot-quy-o-nguoi-tre-va-trung-nien',
+        '90000000-0000-0000-0000-000000000021',
+        'Lê Thị Bích Ngọc',
+        'PATIENT',
+        'Chào Bác sĩ, tôi năm nay 34 tuổi, dạo gần đây hay bị đau nhức nửa đầu bên phải kèm hoa mắt khi thức dậy. Đây có phải là dấu hiệu báo trước của đột quỵ không ạ?',
+        CURRENT_TIMESTAMP - INTERVAL '18 hours'
+    ),
+    (
+        'c1000000-0000-0000-0000-000000000002',
+        'phong-ngua-dot-quy-o-nguoi-tre-va-trung-nien',
+        '90000000-0000-0000-0000-000000000023',
+        'ThS.BS Trần Thu Hà',
+        'DOCTOR',
+        'Chào bạn Bích Ngọc. Triệu chứng đau nửa đầu kèm hoa mắt có thể do chứng đau nửa đầu Migraine, rối loạn tiền đình hoặc co thắt mạch máu não do căng thẳng. Tuy nhiên nếu triệu chứng xuất hiện đột ngột và dữ dội, bạn nên đến chuyên khoa Thần kinh để đo huyết áp, đo lưu huyết não và chụp cộng hưởng từ MRI sọ não nhằm loại trừ các dị dạng mạch máu não tiềm ẩn nhé.',
+        CURRENT_TIMESTAMP - INTERVAL '15 hours'
+    ),
+    (
+        'c1000000-0000-0000-0000-000000000003',
+        'viem-loet-da-day-hp-va-nhung-dieu-can-biet',
+        '90000000-0000-0000-0000-000000000021',
+        'Trần Văn Nam',
+        'PATIENT',
+        'Thưa Bác sĩ, tôi vừa điều trị xong phác đồ 14 ngày tiệt trừ HP. Bao lâu sau tôi có thể làm test hơi thở để kiểm tra vi khuẩn đã hết chưa ạ?',
+        CURRENT_TIMESTAMP - INTERVAL '1 day'
+    ),
+    (
+        'c1000000-0000-0000-0000-000000000004',
+        'viem-loet-da-day-hp-va-nhung-dieu-can-biet',
+        '90000000-0000-0000-0000-000000000023',
+        'BS.CKI Lê Văn Đức',
+        'DOCTOR',
+        'Chào bạn Nam. Bạn cần đợi ít nhất 4 tuần sau khi kết thúc viên kháng sinh cuối cùng, và ngừng thuốc giảm tiết acid (PPI) ít nhất 2 tuần trước khi làm test hơi thở C13 để đảm bảo kết quả chính xác nhất, tránh âm tính giả bạn nhé.',
+        CURRENT_TIMESTAMP - INTERVAL '22 hours'
+    ),
+    (
+        'c1000000-0000-0000-0000-000000000005',
+        'tam-soat-va-phong-ngua-tieu-duong-type-2',
+        '90000000-0000-0000-0000-000000000021',
+        'Nguyễn Văn An',
+        'PATIENT',
+        'Bài viết rất hữu ích cho người bệnh. Tôi có bố bị tiểu đường, xét nghiệm HbA1c gần nhất của tôi là 5.4% thì đã an tâm chưa Bác sĩ?',
+        CURRENT_TIMESTAMP - INTERVAL '2 days'
+    ),
+    (
+        'c1000000-0000-0000-0000-000000000006',
+        'tam-soat-va-phong-ngua-tieu-duong-type-2',
+        '90000000-0000-0000-0000-000000000023',
+        'BS.CKII Võ Thị Mai',
+        'DOCTOR',
+        'Chào bạn An. Chỉ số HbA1c 5.4% là hoàn toàn bình thường (ngưỡng an toàn là dưới 5.7%). Do có yếu tố gia đình, bạn nên duy trì chế độ ăn lành mạnh ít tinh bột nhanh và tái xét nghiệm định kỳ mỗi 6 tháng đến 1 năm nhé.',
+        CURRENT_TIMESTAMP - INTERVAL '1 day'
+    )
+) AS c(id, article_slug, author_user_id, author_name, author_role, content, created_at)
+JOIN users u ON u.id = c.author_user_id::uuid
+JOIN articles a ON a.slug = c.article_slug
 ON CONFLICT (id) DO NOTHING;
