@@ -273,6 +273,13 @@ async function installSearchMocks(context: BrowserContext): Promise<void> {
           body: feedReadyEvent(),
         });
         return;
+      case "/api/v1/patient/profile":
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ avatarUrl: null }),
+        });
+        return;
       default:
         if (url.pathname.startsWith("/api/v1/cms/content/")) {
           await route.fulfill({
@@ -645,7 +652,7 @@ test("lost logout acknowledgement reconciles a committed revocation before redir
 
   await page.getByRole("button", { name: "Đăng xuất" }).click();
   await expect(page).toHaveURL(/\/auth\/login$/);
-  await expect(page.getByRole("heading", { name: /đăng nhập/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Đăng nhập tài khoản" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Xin chào, E2E Patient" })).toHaveCount(0);
   expect(currentSessionRequests).toBe(2);
   expect(browserIssues).toEqual([]);
