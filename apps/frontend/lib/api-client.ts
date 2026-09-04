@@ -3052,3 +3052,25 @@ export function subscribeToCatalogChange(
     } catch {}
   };
 }
+
+// ── Media Assets & Image Upload ──────────────────────────────────────────
+
+export interface MediaAssetResponse {
+  id: string;
+  url: string;
+  filename: string;
+  contentType: string;
+  sizeBytes: number;
+  purpose: string;
+}
+
+export async function uploadMediaAsset(file: File, purpose = "GENERAL"): Promise<MediaAssetResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("purpose", purpose);
+
+  return getAuthenticatedJson<MediaAssetResponse>("/media/upload", {
+    method: "POST",
+    body: formData,
+  });
+}

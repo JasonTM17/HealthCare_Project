@@ -102,6 +102,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/v1/payments/webhooks/bank-transfer").permitAll()
                 .requestMatchers("/api/v1/hospital/**").permitAll()
                 .requestMatchers("/api/v1/cms/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/media/**").permitAll()
                 .requestMatchers("/api/v1/admin/cms/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/v1/careers/jobs/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/careers/jobs/*/applications").permitAll()
