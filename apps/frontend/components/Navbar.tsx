@@ -111,7 +111,8 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
       if (pathname === "/") {
         e.preventDefault();
       }
-      window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+      const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      window.scrollTo({ top: 0, left: 0, behavior: prefersReducedMotion ? "auto" : "smooth" });
     }
   };
 

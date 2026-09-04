@@ -179,7 +179,7 @@ export default function PatientCommunityPage() {
             {/* Specialty Filter Chips */}
             <div className="mt-4 flex flex-wrap gap-2">
               <button
-                className={`rounded-full px-4 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer ${
                   selectedSpecialty === "all"
                     ? "bg-teal-900 text-white shadow-sm"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -193,7 +193,7 @@ export default function PatientCommunityPage() {
                 const count = articles.filter((a) => a.relatedSpecialtySlug === s.slug).length;
                 return (
                   <button
-                    className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
                       selectedSpecialty === s.slug
                         ? "bg-teal-900 text-white shadow-sm"
                         : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -240,13 +240,13 @@ export default function PatientCommunityPage() {
                       className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                       src={article.coverImageUrl}
                     />
-                    <span className="absolute top-3 left-3 rounded-full bg-teal-950/80 backdrop-blur-md px-2.5 py-0.5 text-xs font-bold text-teal-100">
+                    <span className="absolute top-3 left-3 rounded-md bg-teal-950/80 backdrop-blur-md px-2.5 py-0.5 text-xs font-bold text-teal-100">
                       {article.category || "Cẩm nang y tế"}
                     </span>
                   </div>
                 ) : (
                   <div className="h-28 w-full bg-gradient-to-r from-teal-900 to-teal-700 p-4 flex items-end">
-                    <span className="rounded-full bg-white/20 backdrop-blur-md px-2.5 py-0.5 text-xs font-bold text-white">
+                    <span className="rounded-md bg-white/20 backdrop-blur-md px-2.5 py-0.5 text-xs font-bold text-white">
                       {article.category || "Cẩm nang y tế"}
                     </span>
                   </div>

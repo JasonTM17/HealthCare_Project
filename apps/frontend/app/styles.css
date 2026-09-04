@@ -48,6 +48,7 @@
   --sp-20: 5rem;
   --sp-24: 6rem;
   --sp-32: 8rem;
+  --radius-xs: 0.375rem;
   --radius-sm: 0.5rem;
   --radius-md: 0.75rem;
   --radius-lg: 0.75rem;
@@ -279,23 +280,53 @@ main {
 .section-note {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.375rem;
   margin: 0 0 var(--sp-3);
-  color: var(--color-teal-700);
+  padding: 0.2rem 0.625rem;
+  background: #f0fdfa;
+  border: 1px solid rgba(13, 148, 136, 0.2);
+  border-radius: 6px;
+  color: var(--color-teal-800, #115e59);
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: var(--tracking-widest);
   text-transform: uppercase;
+  width: fit-content;
 }
 
 .section-note::before {
   content: "";
   display: inline-block;
-  width: 20px;
-  height: 2px;
-  background: currentColor;
+  width: 6px;
+  height: 6px;
+  background: var(--color-teal-600, #0d9488);
   flex-shrink: 0;
-  border-radius: 999px;
+  border-radius: 50%;
+}
+
+.portal-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.2rem 0.625rem;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: var(--tracking-widest);
+  text-transform: uppercase;
+  width: fit-content;
+}
+
+.portal-badge--teal {
+  background: #f0fdfa;
+  border: 1px solid rgba(13, 148, 136, 0.25);
+  color: #115e59;
+}
+
+.portal-badge--amber {
+  background: #fffbeb;
+  border: 1px solid rgba(217, 119, 6, 0.25);
+  color: #92400e;
 }
 
 .section-description {
@@ -375,6 +406,20 @@ main {
   box-shadow: var(--shadow-teal-md);
 }
 
+.button--accent {
+  padding: 0 var(--sp-6);
+  border-radius: var(--radius-sm);
+  background: var(--color-teal-700);
+  color: var(--color-paper-bright);
+  letter-spacing: -0.01em;
+  box-shadow: var(--shadow-teal-sm);
+}
+
+.button--accent:hover {
+  background: var(--color-teal-800);
+  box-shadow: var(--shadow-teal-md);
+}
+
 .button--amber {
   padding: 0 var(--sp-6);
   border-radius: var(--radius-sm);
@@ -428,10 +473,12 @@ main {
   background: var(--color-mint-light);
 }
 
+.button--small,
 .outline-button--small {
-  min-height: 44px;
+  min-height: 40px;
   padding-inline: var(--sp-3);
   font-size: 0.8125rem;
+  border-radius: var(--radius-sm);
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -1073,7 +1120,7 @@ main {
   width: fit-content;
   margin-top: var(--sp-4);
   padding: 0.45rem 0.75rem;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-xs);
   background: oklch(93% 0.03 30);
   color: var(--color-ink);
   font-size: 0.8125rem;
@@ -1093,7 +1140,7 @@ main {
 
 .route-state__skeletons span {
   height: 0.875rem;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-xs);
   background: oklch(90% 0.045 180);
   animation: shimmer 1.35s ease-in-out infinite;
 }
@@ -1433,7 +1480,7 @@ main {
 
 .article-detail-card__meta span {
   padding: 0.35rem 0.65rem;
-  border-radius: var(--radius-pill);
+  border-radius: 6px;
   background: var(--color-mint-light);
   color: var(--color-teal-700);
   font-size: 0.8125rem;
@@ -2315,7 +2362,7 @@ main {
   gap: var(--sp-3);
   padding: var(--sp-2) var(--sp-3) var(--sp-2) var(--sp-2);
   border: 1px solid var(--color-line);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
   background: var(--color-paper-bright);
   color: var(--color-teal-950);
   box-shadow: 0 16px 38px oklch(15% 0.05 195 / 0.22);
@@ -2806,7 +2853,7 @@ main {
   min-height: 28px;
   align-items: center;
   padding: 0 var(--sp-3);
-  border-radius: var(--radius-pill);
+  border-radius: 6px;
   background: oklch(78% 0.145 78 / 0.16);
   color: var(--color-amber);
   font-size: 0.6875rem;
@@ -4143,6 +4190,7 @@ main {
   align-items: center;
   flex: 0 0 auto;
   gap: var(--sp-3);
+  cursor: pointer;
 }
 
 .portal-brand__mark {
@@ -4528,7 +4576,9 @@ main {
 }
 
 .portal-clinical-form label {
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
   gap: var(--sp-2);
   color: var(--color-teal-950);
   font-size: 0.875rem;
@@ -4549,7 +4599,8 @@ main {
 
 .portal-clinical-form input,
 .portal-clinical-form select {
-  min-height: 3rem;
+  height: 2.875rem;
+  min-height: 2.875rem;
   padding: 0 var(--sp-3);
 }
 
@@ -4577,6 +4628,7 @@ main {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--sp-4);
+  align-items: start;
 }
 
 .portal-clinical-form__fieldset {
@@ -4631,7 +4683,7 @@ main {
 .portal-appointment__status {
   padding: 0.15rem 0.5rem;
   border: 1px solid var(--color-line);
-  border-radius: var(--radius-pill);
+  border-radius: 6px;
   background: var(--color-mint-light);
   color: var(--color-teal-800);
 }
@@ -5580,12 +5632,14 @@ main {
 }
 
 .site-shell .button--nav,
-.site-shell .button--primary {
+.site-shell .button--primary,
+.site-shell .button--accent {
   background: var(--hospital-teal);
 }
 
 .site-shell .button--nav:hover,
-.site-shell .button--primary:hover {
+.site-shell .button--primary:hover,
+.site-shell .button--accent:hover {
   background: var(--hospital-teal-dark);
 }
 
@@ -5634,12 +5688,12 @@ main {
 }
 
 .site-shell .hero-copy h1 {
-  max-width: 12ch;
+  max-width: 18ch;
   color: var(--hospital-navy);
-  font-size: 4.55rem;
+  font-size: 4.25rem;
   font-weight: 750;
-  letter-spacing: 0;
-  line-height: 1.06;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
 }
 
 /* Published CMS titles are editable and can be substantially longer than the
@@ -5653,13 +5707,14 @@ main {
 }
 
 .site-shell .hero-copy h1 span {
-  color: var(--hospital-teal);
+  color: var(--hospital-navy);
+  display: inline;
 }
 
 .site-shell .hero-description {
   max-width: 33rem;
   margin-top: 1.2rem;
-  color: var(--hospital-muted);
+  color: #334155 !important;
   font-size: 1.05rem;
   line-height: 1.7;
 }
@@ -6363,17 +6418,90 @@ main {
 }
 
 .site-shell .support-panel {
-  border-radius: 10px;
-  background: var(--hospital-teal-dark);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  border-radius: 16px;
+  background: #00767c;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 16px 36px -8px rgba(0, 118, 124, 0.28), 0 4px 12px rgba(0, 0, 0, 0.05);
+  position: relative;
+  overflow: hidden;
+  color: #ffffff;
+  padding: 2.25rem;
 }
 
 .site-shell .support-panel__icon {
-  background: #fff;
-  color: var(--hospital-teal);
+  width: 48px;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  color: #00767c;
+  border-radius: 12px;
+  box-shadow: 0 4px 14px rgba(0, 50, 55, 0.15);
+  margin-bottom: 1.25rem;
 }
 
 .site-shell .support-panel .section-note {
-  color: #b9e3db;
+  display: block;
+  background: none !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 0 0.65rem 0 !important;
+  color: #c4f1ec !important;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+.site-shell .support-panel .section-note::before {
+  display: none !important;
+}
+
+.site-shell .support-panel h3 {
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 1.625rem;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.site-shell .support-panel > p:not(.section-note) {
+  color: #e0f7f6;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  margin: 0.85rem 0 1.75rem;
+}
+
+.site-shell .support-panel .button--light {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 2.75rem;
+  padding: 0 1.25rem;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #006066;
+  font-weight: 700;
+  font-size: 0.9375rem;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 4px 14px rgba(0, 50, 55, 0.16);
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+.site-shell .support-panel .button--light:hover {
+  background: #f0fdfa;
+  color: #00454a;
+  box-shadow: 0 6px 20px rgba(0, 50, 55, 0.24);
+  transform: translateY(-1px);
 }
 
 .site-shell .branch-intro {
@@ -6412,25 +6540,97 @@ main {
 }
 
 .site-shell .appointment-cta {
+  position: relative;
+  overflow: hidden;
   padding: 4.5rem 0;
-  background: var(--hospital-teal-dark);
+  background: #00767c;
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
 .site-shell .appointment-cta h2 {
-  color: #fff;
+  color: #ffffff;
+  font-size: 2.25rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
 }
 
 .site-shell .appointment-cta .section-note {
-  color: #b9e3db;
+  display: block;
+  background: none !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 0 0.65rem 0 !important;
+  color: #c4f1ec !important;
+  font-weight: 700;
+  font-size: 0.8125rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+.site-shell .appointment-cta .section-note::before {
+  display: none !important;
+}
+
+.site-shell .appointment-cta__inner > div:first-child > p:last-child {
+  color: #e0f7f6;
+  font-size: 1.0625rem;
+  line-height: 1.55;
+  max-width: 38rem;
+  margin: 0.75rem 0 0;
 }
 
 .site-shell .appointment-cta .button--amber {
-  background: #fff;
-  color: var(--hospital-teal-dark);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 3rem;
+  padding: 0 1.5rem;
+  border-radius: 8px;
+  background: #ffffff !important;
+  color: #005f66 !important;
+  font-weight: 700;
+  font-size: 0.95rem;
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 4px 16px rgba(0, 50, 55, 0.18), 0 1px 3px rgba(0, 0, 0, 0.06) !important;
+  transition: all 0.2s ease;
 }
 
 .site-shell .appointment-cta .button--amber:hover {
-  background: #edf6f4;
+  background: #f0fdfa !important;
+  color: #00454a !important;
+  box-shadow: 0 8px 24px rgba(0, 50, 55, 0.26) !important;
+  transform: translateY(-1px);
+}
+
+.site-shell .appointment-cta .button--cta-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 3rem;
+  padding: 0 1.35rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.16) !important;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.42) !important;
+  color: #ffffff !important;
+  font-weight: 600;
+  font-size: 0.95rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+.site-shell .appointment-cta .button--cta-secondary:hover {
+  background: rgba(255, 255, 255, 0.28) !important;
+  border-color: rgba(255, 255, 255, 0.75) !important;
+  color: #ffffff !important;
+  transform: translateY(-1px);
 }
 
 .site-shell .ai-navigator-fab {
@@ -6492,7 +6692,7 @@ main {
   }
 
   .site-shell .hero-copy h1 {
-    max-width: 13ch;
+    max-width: 18ch;
     font-size: 3.8rem;
   }
 
@@ -9617,7 +9817,7 @@ main {
 
 /* ── Outline button refined ── */
 .outline-button {
-  border-radius: 10px;
+  border-radius: var(--radius-sm, 8px);
   border-color: rgba(0, 51, 54, 0.18);
 }
 

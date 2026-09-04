@@ -6,7 +6,7 @@ export interface PackageVisual {
   category: string;
   sourceHref: string;
   sourceLabel: string;
-  tone: "general" | "cardio" | "metabolic" | "women" | "children";
+  tone: "general" | "cardio" | "metabolic" | "women" | "children" | "digestive";
 }
 
 const VISUALS: Record<PackageVisual["tone"], Omit<PackageVisual, "tone">> = {
@@ -45,6 +45,13 @@ const VISUALS: Record<PackageVisual["tone"], Omit<PackageVisual, "tone">> = {
     sourceHref: "https://www.pexels.com/photo/a-doctor-examining-a-child-patient-5998455/",
     sourceLabel: "Pavel Danilyuk / Pexels",
   },
+  digestive: {
+    imageSrc: "/images/packages/digestive-health.jpg",
+    imageAlt: "Bác sĩ chuyên khoa thăm khám và tư vấn hệ tiêu hóa",
+    category: "Tiêu hóa & Gan mật",
+    sourceHref: "https://www.pexels.com/license/",
+    sourceLabel: "HealthCare Clinical Asset",
+  },
 };
 
 function resolveTone(packageItem: Pick<HealthPackage, "slug" | "name">): PackageVisual["tone"] {
@@ -54,6 +61,7 @@ function resolveTone(packageItem: Pick<HealthPackage, "slug" | "name">): Package
   if (/tiểu đường|tieu-duong|đường huyết|duong-huyet|chuyển hóa|chuyen-hoa/.test(identity)) return "metabolic";
   if (/phụ nữ|phu-nu|sản|san-khoa/.test(identity)) return "women";
   if (/trẻ em|tre-em|nhi khoa|nhi-khoa/.test(identity)) return "children";
+  if (/tiêu hóa|tieu-hoa|dạ dày|da-day|gan mật|gan-mat|đại tràng|dai-trang/.test(identity)) return "digestive";
   return "general";
 }
 

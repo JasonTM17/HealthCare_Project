@@ -170,7 +170,7 @@ function DiffField({ name, value }: { name: string; value: unknown }) {
 }
 
 function ReviewStateBadge({ state }: { state: AiContentReviewState }) {
-  return <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold ${stateTone(state)}`} aria-label={`Trạng thái: ${stateLabel(state)}`}>{stateLabel(state)}</span>;
+  return <span className={`inline-flex items-center rounded-md px-2.5 py-1 text-xs font-bold ${stateTone(state)}`} aria-label={`Trạng thái: ${stateLabel(state)}`}>{stateLabel(state)}</span>;
 }
 
 export default function DoctorAiContentReviewsPage() {

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import CatalogPagination from "../../components/CatalogPagination";
 import { PublicAiButton, PublicBookingButton, PublicPageShell } from "../../components/PublicPageShell";
+import UiIcon from "../../components/UiIcon";
 import { useAuthSession } from "../../components/useAuthSession";
 import {
   ApiError,
@@ -284,11 +285,28 @@ export default function CommonDiseasesPage() {
             </div>
           ) : null}
           {!articlesLoading && !articlesError && articlePage.empty ? (
-            <div className="catalog-status" role="status">
-              <p>{hasActiveFilters ? "Chưa có bài viết phù hợp với bộ lọc hiện tại." : "Kho hướng dẫn đang được bệnh viện bổ sung."} Hãy thử nội dung khác hoặc xem cẩm nang sức khỏe.</p>
-              <div className="resource-actions">
-                {hasActiveFilters ? <button className="outline-button outline-button--small" onClick={() => { setQuery(""); setCategory("ALL"); }} type="button">Xóa bộ lọc</button> : null}
-                <Link className="text-button" href="/articles">Mở cẩm nang sức khỏe →</Link>
+            <div className="rounded-2xl border border-slate-200 bg-white p-8 mb-12 shadow-xs text-center max-w-2xl mx-auto" role="status">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-50 text-teal-800 border border-teal-100">
+                <UiIcon name="book-open" size={26} />
+              </div>
+              <h3 className="text-lg font-bold text-teal-950 mb-2">
+                Kho hướng dẫn bệnh phổ biến đang được cập nhật
+              </h3>
+              <p className="text-sm text-slate-600 mb-6 leading-relaxed">
+                {hasActiveFilters ? "Chưa có bài viết phù hợp với bộ lọc hiện tại." : "Kho hướng dẫn đang được bệnh viện bổ sung."} Hãy thử nội dung khác hoặc xem cẩm nang sức khỏe.
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                {hasActiveFilters ? (
+                  <button className="outline-button outline-button--small min-h-10" onClick={() => { setQuery(""); setCategory("ALL"); }} type="button">
+                    Xóa bộ lọc
+                  </button>
+                ) : null}
+                <Link className="button button--primary button--small" href="/articles">
+                  Mở cẩm nang sức khỏe →
+                </Link>
+                <Link className="outline-button outline-button--small" href="/patient/community">
+                  Hỏi bác sĩ chuyên khoa
+                </Link>
               </div>
             </div>
           ) : null}
@@ -310,10 +328,20 @@ export default function CommonDiseasesPage() {
           ) : null}
         </section>
 
-        <section aria-busy={questionsLoading} aria-labelledby="published-questions-title" className="resource-panel">
-          <p className="section-note">Hỏi đáp đã xuất bản</p>
-          <h2 id="published-questions-title">Câu hỏi được bác sĩ duyệt</h2>
-          <p className="portal-panel__intro">Danh tính thật không hiển thị. Bạn có thể báo cáo nội dung không phù hợp để bệnh viện kiểm tra.</p>
+        <section aria-busy={questionsLoading} aria-labelledby="published-questions-title" className="resource-panel mt-12">
+          <div className="section-heading mb-4">
+            <div>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-teal-50 text-teal-800 border border-teal-200/60">
+                Hỏi đáp đã xuất bản
+              </span>
+              <h2 className="text-2xl font-black text-teal-950 tracking-tight mt-2" id="published-questions-title">
+                Câu hỏi được bác sĩ duyệt
+              </h2>
+              <p className="portal-panel__intro mt-1">
+                Danh tính thật không hiển thị. Bạn có thể báo cáo nội dung không phù hợp để bệnh viện kiểm tra.
+              </p>
+            </div>
+          </div>
           {questionsLoading ? <p className="catalog-status catalog-status--loading" role="status">{questions.length ? "Đang cập nhật hỏi đáp…" : "Đang tải hỏi đáp…"}</p> : null}
           {questionsError ? (
             <div aria-live="assertive" className="catalog-status catalog-status--error" role="alert">
@@ -322,9 +350,12 @@ export default function CommonDiseasesPage() {
             </div>
           ) : null}
           {!questionsLoading && !questionsError && questionPage.empty ? (
-            <div className="catalog-status" role="status">
-              <p>{hasActiveFilters ? "Chưa có câu hỏi phù hợp với từ khóa hiện tại." : "Chưa có câu hỏi đã xuất bản."} Bạn có thể xem thêm các giải đáp thường gặp.</p>
-              <Link className="text-button" href="/faq">Mở câu hỏi thường gặp →</Link>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-600" role="status">
+              <p className="font-semibold text-slate-800 mb-1">
+                {hasActiveFilters ? "Chưa có câu hỏi phù hợp với từ khóa hiện tại." : "Chưa có câu hỏi đã xuất bản."}
+              </p>
+              <p className="text-xs text-slate-500 mb-3">Bạn có thể xem thêm các giải đáp thường gặp hoặc gửi câu hỏi mới.</p>
+              <Link className="button button--primary button--small" href="/faq">Mở câu hỏi thường gặp →</Link>
             </div>
           ) : null}
           {!questionsLoading && !questionPage.empty ? (

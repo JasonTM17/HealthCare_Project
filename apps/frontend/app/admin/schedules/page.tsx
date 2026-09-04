@@ -241,7 +241,7 @@ export default function AdminSchedulesPage() {
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
                             <strong>{item.doctorName}</strong>
-                            <span className={item.active ? "rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700" : "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600"}>
+                            <span className={item.active ? "rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700" : "rounded-md bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600"}>
                               {item.active ? "Đang mở" : "Tạm ngưng"}
                             </span>
                           </div>

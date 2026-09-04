@@ -52,7 +52,7 @@ app:
   cors:
     # Browser traffic uses the same-origin Next.js BFF. Direct Spring CORS is
     # disabled unless an operator explicitly enables a separate API origin.
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,https://healthcare.id.vn,https://www.healthcare.id.vn,https://healthcare-two-olive.vercel.app}
   booking:
     # The fixed demo OTP is additionally gated by the Spring test profile in
     # code; normal runtimes generate a random code and keep this false.
@@ -89,7 +89,7 @@ app:
       # Packaged/beta runtimes must set BACKEND_BFF_REQUIRED=true. Tests and a
       # bare local process keep the escape hatch off so MockMvc bearer clients work.
       required: ${BACKEND_BFF_REQUIRED:false}
-      allowed-origins: ${BFF_ALLOWED_ORIGINS:http://localhost:3000}
+      allowed-origins: ${BFF_ALLOWED_ORIGINS:http://localhost:3000,https://healthcare.id.vn,https://www.healthcare.id.vn,https://healthcare-two-olive.vercel.app}
     rate-limit:
       enabled: ${APP_SECURITY_RATE_LIMIT_ENABLED:true}
       # Hosted replicas must share the counter through Redis and fail closed

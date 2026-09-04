@@ -98,23 +98,23 @@
 }
 
 .site-shell .hero-copy h1 {
-  max-width: 11ch;
-  font-size: clamp(3.25rem, 6vw, 5.2rem);
-  line-height: 1.0;
-  letter-spacing: -0.03em;
+  max-width: 18ch;
+  font-size: clamp(3rem, 5vw, 4.4rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
 }
 
 .site-shell .hero-copy h1 span {
-  display: block;
-  background: linear-gradient(135deg, var(--color-teal-800) 0%, #0d9488 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  display: inline;
+  background: none;
+  -webkit-text-fill-color: var(--hospital-navy);
+  color: var(--hospital-navy);
 }
 
 .site-shell .hero-description {
-  max-width: 29rem;
+  max-width: 33rem;
   margin-top: 1.25rem;
+  color: #334155 !important;
 }
 
 .site-shell .hero-actions {
@@ -144,7 +144,7 @@
 
 .site-shell .hero-search {
   margin-top: 1.5rem;
-  border-radius: 999px;
+  border-radius: 14px;
   background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(16px);
   border: 1.5px solid rgba(13, 148, 136, 0.22);
@@ -775,7 +775,7 @@
   }
 
   .site-shell .hero-copy h1 {
-    max-width: 11ch;
+    max-width: 18ch;
     font-size: 3.75rem;
   }
 
@@ -826,7 +826,7 @@
   }
 
   .site-shell .hero-copy h1 {
-    max-width: 10ch;
+    max-width: 18ch;
     font-size: 3.25rem;
   }
 

@@ -164,7 +164,7 @@ function Panel({
 function StatusBadge({ active }: { active: boolean }) {
   return (
     <span
-      className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+      className={`rounded-md px-2.5 py-1 text-xs font-bold ${
         active ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
       }`}
     >
@@ -1092,7 +1092,7 @@ export default function AdminCatalogPage() {
                     <p className="mt-2 text-sm text-slate-700 line-clamp-2">{item.summary?.trim() || "Chưa có tóm tắt."}</p>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {metaChips.map((chip, index) => (
-                        <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700" key={`${chip}-${index}`}>
+                        <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700" key={`${chip}-${index}`}>
                           {chip}
                         </span>
                       ))}
