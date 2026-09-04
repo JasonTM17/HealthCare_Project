@@ -447,7 +447,7 @@ export default function DoctorArticlesPage() {
                             <UiIcon name="clock" size={13} />
                             <span>{article.readingMinutes || 5} phút đọc</span>
                           </span>
-                          <span className="text-[11px]">Nhấp để đọc bài báo →</span>
+                          <span className="text-[11px]">Nhấp để xem →</span>
                         </div>
 
                         <h3 className="text-base font-bold text-teal-950 line-clamp-2 group-hover:text-teal-700 transition-colors">
@@ -533,7 +533,7 @@ export default function DoctorArticlesPage() {
                         type="button"
                       >
                         <UiIcon name="book-open" size={14} />
-                        <span>Xem như bài báo</span>
+                        <span>Xem</span>
                       </button>
 
                       <div className="flex items-center gap-2">
