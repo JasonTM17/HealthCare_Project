@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import PortalChrome from "../../../components/PortalChrome";
 import { ForbiddenState, LoginRequiredState } from "../../../components/PortalStates";
 import { useAuthSession } from "../../../components/useAuthSession";
+import UiIcon from "../../../components/UiIcon";
 import {
   ApiError,
   decideDoctorAiContentRevision,
@@ -335,12 +336,36 @@ export default function DoctorAiContentReviewsPage() {
             </div>
             <span className="text-sm text-slate-600" aria-live="polite">{loading ? "Đang đồng bộ…" : `${reviews.length} nội dung · ${stateLabel(queueState)}`}</span>
           </div>
-          <label className="grid max-w-sm gap-1 text-sm font-bold" htmlFor="review-queue-state">
-            Trạng thái hiển thị
-            <select className="min-h-11 rounded-lg border border-slate-300 px-3" id="review-queue-state" onChange={(event) => { setQueueState(event.target.value as AiContentReviewState); setSelected(null); setRevision(null); setRevisionLoading(false); }} value={queueState}>
-              {QUEUE_STATES.map((state) => <option key={state} value={state}>{stateLabel(state)}</option>)}
-            </select>
-          </label>
+          <div className="grid gap-2">
+            <span className="block text-xs font-bold uppercase tracking-wider text-teal-950">
+              Trạng thái hàng đợi xét duyệt
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {QUEUE_STATES.map((state) => {
+                const isSelected = queueState === state;
+                return (
+                  <button
+                    key={state}
+                    type="button"
+                    onClick={() => {
+                      setQueueState(state);
+                      setSelected(null);
+                      setRevision(null);
+                      setRevisionLoading(false);
+                    }}
+                    className={`min-h-11 px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                      isSelected
+                        ? "bg-teal-900 text-white shadow-sm ring-2 ring-teal-700/30"
+                        : "bg-white text-slate-700 border border-slate-200 hover:border-teal-500 hover:bg-slate-50"
+                    }`}
+                  >
+                    <UiIcon name={state === "APPROVED" ? "shield-check" : "clock"} size={14} />
+                    <span>{stateLabel(state)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           {reviews.length === 0 && !loading ? <div className="portal-empty-state grid gap-2" role="status"><p>Không có nội dung ở trạng thái {stateLabel(queueState).toLowerCase()}.</p><button className="outline-button outline-button--small min-h-11 w-fit" onClick={() => void loadReviews()} type="button">Tải lại hàng đợi</button></div> : null}
           {loading && reviews.length === 0 ? <p className="portal-empty-state" role="status" aria-live="polite">Đang tải hàng đợi…</p> : null}
           {reviews.map((item) => {

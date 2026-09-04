@@ -12,6 +12,7 @@ import {
 import type { PatientProfile } from "../../../types/hospital";
 import { ForbiddenState, LoadingState, LoginRequiredState } from "../../../components/PortalStates";
 import { useAuthSession, useAuthSessionStatus } from "../../../components/useAuthSession";
+import ImageUpload from "../../../components/ImageUpload";
 import UiIcon, { type IconName } from "../../../components/UiIcon";
 import styles from "./PatientProfile.module.css";
 
@@ -422,16 +423,13 @@ export default function PatientProfilePage() {
                   </select>
                 </div>
 
-                <div className={styles.inputGroup}>
-                  <label className={styles.inputLabel} htmlFor="avatarUrl">
-                    Ảnh chân dung (Đường dẫn URL)
-                  </label>
-                  <input
-                    className={styles.inputField}
-                    id="avatarUrl"
-                    onChange={(e) => setAvatarUrl(e.target.value)}
-                    placeholder="https://example.com/avatar.jpg"
-                    type="url"
+                <div className={`${styles.inputGroup} ${styles.fieldGridFull}`}>
+                  <ImageUpload
+                    aspectRatio="square"
+                    helperText="Tải lên tệp ảnh chân dung bệnh nhân (PNG, JPG, WEBP tối đa 10 MB) - Lưu trữ an toàn trong CSDL bệnh viện"
+                    label="Ảnh chân dung đại diện"
+                    onChange={(url) => setAvatarUrl(url)}
+                    purpose="PATIENT_AVATAR"
                     value={avatarUrl}
                   />
                 </div>

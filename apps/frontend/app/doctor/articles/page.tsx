@@ -11,6 +11,7 @@ import {
   doctorListArticles,
   doctorUpdateArticle,
   fetchArticleComments,
+  fetchArticles,
   fetchSpecialties,
   hasRole,
   subscribeToCatalogChange,
@@ -21,6 +22,7 @@ import {
 } from "../../../lib/api-client";
 import { ForbiddenState, LoadingState, LoginRequiredState } from "../../../components/PortalStates";
 import { useAuthSession, useAuthSessionStatus } from "../../../components/useAuthSession";
+import ImageUpload from "../../../components/ImageUpload";
 import UiIcon from "../../../components/UiIcon";
 
 function toSlug(text: string): string {
@@ -38,18 +40,31 @@ export default function DoctorArticlesPage() {
   const session = useAuthSession();
   const status = useAuthSessionStatus();
 
-  const [articles, setArticles] = useState<Article[]>([]);
+  // Tab state: Hospital Medical Feed vs My Articles Studio
+  const [activeTab, setActiveTab] = useState<"community_feed" | "my_articles">("community_feed");
+
+  // Data states
+  const [myArticles, setMyArticles] = useState<Article[]>([]);
+  const [communityArticles, setCommunityArticles] = useState<Article[]>([]);
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
+  const [selectedSpecialty, setSelectedSpecialty] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // Modal / Form state
+  // Editorial Reading View ("Đọc như 1 bài báo")
+  const [readingArticle, setReadingArticle] = useState<Article | null>(null);
+  const [readingComments, setReadingComments] = useState<ArticleComment[]>([]);
+  const [loadingReadingComments, setLoadingReadingComments] = useState(false);
+  const [replyText, setReplyText] = useState("");
+  const [replyingToCommentId, setReplyingToCommentId] = useState<string | null>(null);
+
+  // Editor Modal state
   const [showEditor, setShowEditor] = useState(false);
   const [editingSlug, setEditingSlug] = useState<string | null>(null);
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState("Kiến thức tim mạch");
+  const [category, setCategory] = useState("Kiến thức chuyên khoa");
   const [specialtySlug, setSpecialtySlug] = useState("tim-mach");
   const [readingMinutes, setReadingMinutes] = useState("5");
   const [summary, setSummary] = useState("");
@@ -57,53 +72,51 @@ export default function DoctorArticlesPage() {
   const [coverImageUrl, setCoverImageUrl] = useState("");
   const [active, setActive] = useState(true);
 
-  // Discussion / Comments state
-  const [activeDiscussionSlug, setActiveDiscussionSlug] = useState<string | null>(null);
-  const [comments, setComments] = useState<ArticleComment[]>([]);
-  const [loadingComments, setLoadingComments] = useState(false);
-  const [replyText, setReplyText] = useState("");
-  const [replyingToCommentId, setReplyingToCommentId] = useState<string | null>(null);
-
-  const loadArticles = useCallback(async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [articleList, specList] = await Promise.all([
+      const [myArticleList, communityPage, specList] = await Promise.all([
         doctorListArticles(),
+        fetchArticles(0, 50),
         fetchSpecialties(),
       ]);
-      setArticles(articleList.content);
+      setMyArticles(myArticleList.content);
+      setCommunityArticles(communityPage.content);
       setSpecialties(specList.content);
     } catch {
-      setError("Không thể tải danh sách bài viết.");
+      setError("Không thể tải dữ liệu diễn đàn bài viết y khoa.");
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const loadComments = useCallback(async (slug: string) => {
-    setLoadingComments(true);
+  const openReadingArticle = async (article: Article) => {
+    setReadingArticle(article);
+    setLoadingReadingComments(true);
+    setReplyingToCommentId(null);
+    setReplyText("");
     try {
-      const data = await fetchArticleComments(slug);
-      setComments(data);
+      const commentsData = await fetchArticleComments(article.slug);
+      setReadingComments(commentsData);
     } catch {
-      setComments([]);
+      setReadingComments([]);
     } finally {
-      setLoadingComments(false);
+      setLoadingReadingComments(false);
     }
-  }, []);
+  };
 
   useEffect(() => {
     if (!session?.user || !hasRole(session.user, "DOCTOR")) return;
-    const task = Promise.resolve().then(loadArticles);
+    const task = Promise.resolve().then(loadData);
     const unsubscribe = subscribeToCatalogChange(() => {
-      void loadArticles();
+      void loadData();
     });
     return () => {
       void task;
       unsubscribe();
     };
-  }, [loadArticles, session]);
+  }, [loadData, session]);
 
   if (status !== "settled" && loading) {
     return (
@@ -151,7 +164,7 @@ export default function DoctorArticlesPage() {
       setReadingMinutes("5");
       setSummary("");
       setBody("");
-      setCoverImageUrl("/media/articles/article-sample.jpg");
+      setCoverImageUrl("");
       setActive(true);
     }
     setShowEditor(true);
@@ -193,14 +206,14 @@ export default function DoctorArticlesPage() {
     try {
       if (editingSlug) {
         await doctorUpdateArticle(editingSlug, payload);
-        setSuccess("Đã cập nhật bài viết thành công!");
+        setSuccess("Đã cập nhật bài viết y khoa thành công!");
       } else {
         await doctorCreateArticle(payload);
-        setSuccess("Đã đăng bài viết y khoa mới thành công!");
+        setSuccess("Đã đăng bài viết y khoa mới thành công lên mạng xã hội bệnh viện!");
       }
       broadcastCatalogChange({ kind: "article", action: editingSlug ? "updated" : "created", slug: finalSlug });
       setShowEditor(false);
-      await loadArticles();
+      await loadData();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Lỗi khi lưu bài viết.";
       setError(message);
@@ -215,8 +228,9 @@ export default function DoctorArticlesPage() {
     try {
       await doctorDeleteArticle(slug);
       broadcastCatalogChange({ kind: "article", action: "deleted", slug });
-      setSuccess("Đã xóa bài viết.");
-      await loadArticles();
+      setSuccess("Đã xóa bài viết khỏi diễn đàn.");
+      if (readingArticle?.slug === slug) setReadingArticle(null);
+      await loadData();
     } catch {
       setError("Không thể xóa bài viết.");
     } finally {
@@ -226,16 +240,17 @@ export default function DoctorArticlesPage() {
 
   const handleSendReply = async (e: FormEvent) => {
     e.preventDefault();
-    if (!activeDiscussionSlug || !replyText.trim()) return;
+    if (!readingArticle || !replyText.trim()) return;
     setBusy(true);
     try {
-      await createArticleComment(activeDiscussionSlug, {
+      await createArticleComment(readingArticle.slug, {
         content: replyText.trim(),
         parentCommentId: replyingToCommentId,
       });
       setReplyText("");
       setReplyingToCommentId(null);
-      await loadComments(activeDiscussionSlug);
+      const commentsData = await fetchArticleComments(readingArticle.slug);
+      setReadingComments(commentsData);
     } catch {
       setError("Không thể gửi phản hồi thảo luận.");
     } finally {
@@ -244,36 +259,71 @@ export default function DoctorArticlesPage() {
   };
 
   const handleDeleteComment = async (commentId: string) => {
-    if (!activeDiscussionSlug || !window.confirm("Xóa bình luận này?")) return;
+    if (!readingArticle || !window.confirm("Xóa bình luận này?")) return;
     try {
-      await deleteArticleComment(activeDiscussionSlug, commentId);
-      await loadComments(activeDiscussionSlug);
+      await deleteArticleComment(readingArticle.slug, commentId);
+      const commentsData = await fetchArticleComments(readingArticle.slug);
+      setReadingComments(commentsData);
     } catch {
       setError("Không thể xóa bình luận.");
     }
   };
 
+  const filteredCommunityArticles = selectedSpecialty === "all"
+    ? communityArticles
+    : communityArticles.filter((a) => a.relatedSpecialtySlug === selectedSpecialty);
+
   return (
     <PortalChrome role="DOCTOR" user={session.user}>
-      <div className="w-full max-w-[1240px] mx-auto pb-8 space-y-6">
+      <div className="w-full max-w-[1240px] mx-auto pb-12 space-y-6">
+        {/* Header Title with Action Button */}
         <header className="portal-hero mb-6">
           <div className="flex flex-wrap items-center justify-between gap-4 w-full">
             <div>
-              <p className="section-note">CỘNG ĐỒNG Y KHOA & BÀI VIẾT BỆNH VIỆN</p>
+              <p className="section-note">MẠNG XÃ HỘI Y KHOA & DIỄN ĐÀN BỆNH VIỆN</p>
               <h1 className="text-2xl font-black text-teal-950 tracking-tight">
                 Cộng đồng & Bài viết Y khoa
               </h1>
               <p className="text-sm text-slate-600 mt-1">
-                Bác sĩ có quyền đăng bài chia sẻ kiến thức sức khỏe, phòng ngừa bệnh lý và trao đổi, giải đáp bình luận trực tiếp cùng người bệnh.
+                Đọc và thảo luận chuyên môn cùng các Bác sĩ đồng nghiệp, chia sẻ kiến thức phòng bệnh và giải đáp thắc mắc của người bệnh.
               </p>
             </div>
             <button
-              className="inline-flex items-center gap-2 rounded-xl bg-teal-900 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-teal-800 transition-all min-h-11"
+              className="inline-flex items-center gap-2 rounded-xl bg-teal-900 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-teal-800 transition-all min-h-11 cursor-pointer"
               onClick={() => handleOpenEditor()}
               type="button"
             >
               <UiIcon name="plus" size={16} />
               <span>Đăng bài viết mới</span>
+            </button>
+          </div>
+
+          {/* Symmetrical Mode Tabs */}
+          <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-slate-200 pt-4">
+            <button
+              className={`min-h-11 px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === "community_feed"
+                  ? "bg-teal-900 text-white shadow-sm"
+                  : "bg-white text-slate-700 border border-slate-200 hover:border-teal-500 hover:bg-slate-50"
+              }`}
+              onClick={() => setActiveTab("community_feed")}
+              type="button"
+            >
+              <UiIcon name="book-open" size={16} />
+              <span>Bảng tin Y khoa Bệnh viện ({communityArticles.length})</span>
+            </button>
+
+            <button
+              className={`min-h-11 px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === "my_articles"
+                  ? "bg-teal-900 text-white shadow-sm"
+                  : "bg-white text-slate-700 border border-slate-200 hover:border-teal-500 hover:bg-slate-50"
+              }`}
+              onClick={() => setActiveTab("my_articles")}
+              type="button"
+            >
+              <UiIcon name="stethoscope" size={16} />
+              <span>Bài viết của tôi ({myArticles.length})</span>
             </button>
           </div>
         </header>
@@ -290,7 +340,401 @@ export default function DoctorArticlesPage() {
           </div>
         )}
 
-        {/* Editor Modal */}
+        {/* ── TAB 1: Bảng tin Y khoa Bệnh viện (Social Medical Feed) ── */}
+        {activeTab === "community_feed" && (
+          <div className="space-y-6">
+            {/* Specialty Filter Chips */}
+            <div className="flex flex-wrap gap-2">
+              <button
+                className={`rounded-full px-4 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                  selectedSpecialty === "all"
+                    ? "bg-teal-900 text-white shadow-sm"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+                onClick={() => setSelectedSpecialty("all")}
+                type="button"
+              >
+                Tất cả chuyên khoa ({communityArticles.length})
+              </button>
+              {specialties.map((s) => {
+                const count = communityArticles.filter((a) => a.relatedSpecialtySlug === s.slug).length;
+                return (
+                  <button
+                    className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                      selectedSpecialty === s.slug
+                        ? "bg-teal-900 text-white shadow-sm"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                    key={s.id}
+                    onClick={() => setSelectedSpecialty(s.slug)}
+                    type="button"
+                  >
+                    {s.name} ({count})
+                  </button>
+                );
+              })}
+            </div>
+
+            {loading ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-slate-500">
+                Đang tải bảng tin y khoa từ các Bác sĩ...
+              </div>
+            ) : filteredCommunityArticles.length === 0 ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-slate-500">
+                Không có bài viết nào trong chuyên mục này.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {filteredCommunityArticles.map((article) => (
+                  <article
+                    className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden transition-all hover:border-teal-500 hover:shadow-md cursor-pointer group"
+                    key={article.id}
+                    onClick={() => void openReadingArticle(article)}
+                  >
+                    {article.coverImageUrl ? (
+                      <div className="relative h-44 w-full overflow-hidden bg-slate-100">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          alt={article.title}
+                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          src={article.coverImageUrl}
+                        />
+                        <span className="absolute top-3 left-3 rounded-full bg-teal-950/80 backdrop-blur-md px-2.5 py-0.5 text-xs font-bold text-teal-100">
+                          {article.category || "Cẩm nang y tế"}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="h-28 w-full bg-gradient-to-r from-teal-900 to-teal-700 p-4 flex items-end">
+                        <span className="rounded-full bg-white/20 backdrop-blur-md px-2.5 py-0.5 text-xs font-bold text-white">
+                          {article.category || "Cẩm nang y tế"}
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="p-5 flex-1 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
+                          <span className="inline-flex items-center gap-1">
+                            <UiIcon name="clock" size={13} />
+                            <span>{article.readingMinutes || 5} phút đọc</span>
+                          </span>
+                          <span className="text-[11px]">Nhấp để đọc bài báo →</span>
+                        </div>
+
+                        <h3 className="text-base font-bold text-teal-950 line-clamp-2 group-hover:text-teal-700 transition-colors">
+                          {article.title}
+                        </h3>
+                        <p className="mt-2 text-xs text-slate-600 line-clamp-3 leading-relaxed">
+                          {article.summary}
+                        </p>
+                      </div>
+
+                      <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs">
+                        <span className="font-semibold text-slate-800 inline-flex items-center gap-1.5">
+                          <UiIcon name="stethoscope" size={14} />
+                          <span>{article.authorName || "Bác sĩ Bệnh viện"}</span>
+                        </span>
+                        <span className="font-bold text-teal-800 inline-flex items-center gap-1">
+                          <UiIcon name="message-square" size={13} />
+                          <span>Thảo luận y khoa</span>
+                        </span>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── TAB 2: Bài viết của tôi (Doctor's Own Articles) ── */}
+        {activeTab === "my_articles" && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-teal-950">
+                Bài viết y khoa của tôi ({myArticles.length})
+              </h2>
+            </div>
+
+            {loading ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-slate-500">
+                Đang tải danh sách bài viết...
+              </div>
+            ) : myArticles.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center">
+                <p className="text-slate-500">Bạn chưa đăng bài viết nào.</p>
+                <button
+                  className="mt-3 inline-flex items-center gap-2 rounded-xl bg-teal-900 px-4 py-2 text-xs font-bold text-white hover:bg-teal-800 min-h-11 cursor-pointer"
+                  onClick={() => handleOpenEditor()}
+                  type="button"
+                >
+                  <UiIcon name="plus" size={14} />
+                  <span>Đăng bài viết đầu tiên</span>
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {myArticles.map((a) => (
+                  <div
+                    className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-teal-500"
+                    key={a.id}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between text-xs text-slate-500">
+                        <span className="rounded-full bg-teal-50 px-2.5 py-0.5 font-bold text-teal-800">
+                          {a.category || "Cẩm nang y tế"}
+                        </span>
+                        <span className={`font-semibold ${a.active ? "text-emerald-700" : "text-amber-700"}`}>
+                          {a.active ? "● Đang hiển thị công khai" : "○ Bản nháp"}
+                        </span>
+                      </div>
+
+                      <h3 className="mt-3 text-base font-bold text-teal-950 line-clamp-2">
+                        {a.title}
+                      </h3>
+                      <p className="mt-2 text-xs text-slate-600 line-clamp-3 leading-relaxed">
+                        {a.summary}
+                      </p>
+                    </div>
+
+                    <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
+                      <button
+                        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold bg-teal-50 text-teal-900 hover:bg-teal-100 cursor-pointer"
+                        onClick={() => void openReadingArticle(a)}
+                        type="button"
+                      >
+                        <UiIcon name="book-open" size={14} />
+                        <span>Xem như bài báo</span>
+                      </button>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 hover:text-teal-800 cursor-pointer"
+                          onClick={() => handleOpenEditor(a)}
+                          title="Sửa bài viết"
+                          type="button"
+                        >
+                          <UiIcon name="sparkles" size={15} />
+                        </button>
+                        <button
+                          className="rounded-lg p-2 text-slate-600 hover:bg-red-50 hover:text-red-700 cursor-pointer"
+                          onClick={() => void handleDeleteArticle(a.slug, a.title)}
+                          title="Xóa bài viết"
+                          type="button"
+                        >
+                          <UiIcon name="trash" size={15} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── EDITORIAL ARTICLE READER MODAL ("ĐỌC NHƯ 1 BÀI BÁO Y KHOA") ── */}
+        {readingArticle && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto backdrop-blur-sm">
+            <div className="my-8 w-full max-w-3xl rounded-3xl bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
+              {/* Header Bar */}
+              <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 bg-slate-50/80">
+                <span className="rounded-full bg-teal-100 px-3 py-1 text-xs font-bold text-teal-900">
+                  {readingArticle.category || "Chuyên đề Sức khỏe Bệnh viện"}
+                </span>
+                <button
+                  aria-label="Đóng bài báo"
+                  className="rounded-full p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition cursor-pointer"
+                  onClick={() => setReadingArticle(null)}
+                  type="button"
+                >
+                  <UiIcon name="x" size={20} />
+                </button>
+              </div>
+
+              {/* Scrollable Article Body */}
+              <div className="flex-1 overflow-y-auto px-6 sm:px-10 py-6 space-y-6">
+                {/* Hero Cover Image */}
+                {readingArticle.coverImageUrl && (
+                  <div className="w-full h-64 sm:h-80 rounded-2xl overflow-hidden shadow-md">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      alt={readingArticle.title}
+                      className="w-full h-full object-cover"
+                      src={readingArticle.coverImageUrl}
+                    />
+                  </div>
+                )}
+
+                {/* Article Headline */}
+                <div>
+                  <h1 className="text-2xl sm:text-3xl font-black text-teal-950 tracking-tight leading-snug">
+                    {readingArticle.title}
+                  </h1>
+
+                  {/* Doctor Author Bar */}
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-y border-slate-100 py-3 text-xs text-slate-600">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-teal-800 text-white font-bold flex items-center justify-center shadow-sm">
+                        <UiIcon name="stethoscope" size={18} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5 font-bold text-slate-900 text-sm">
+                          <span>{readingArticle.authorName || "Bác sĩ Chuyên khoa"}</span>
+                          <span className="rounded bg-teal-800 px-1.5 py-0.2 text-[10px] font-bold text-white inline-flex items-center gap-1">
+                            <UiIcon name="shield-check" size={10} />
+                            <span>Đã xác thực</span>
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-teal-800 m-0">Bệnh viện Đa khoa HealthCare</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <span className="inline-flex items-center gap-1 text-slate-500">
+                        <UiIcon name="clock" size={14} />
+                        <span>{readingArticle.readingMinutes || 5} phút đọc</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Lead Summary Callout */}
+                <div className="rounded-2xl border border-teal-200 bg-teal-50/70 p-5 text-sm text-teal-950 leading-relaxed font-medium">
+                  <p className="font-bold text-xs uppercase tracking-wider text-teal-900 mb-1">
+                    Tóm tắt nội dung bài báo:
+                  </p>
+                  <p className="m-0">{readingArticle.summary}</p>
+                </div>
+
+                {/* Deep Formatted Body */}
+                <div className="prose max-w-none text-slate-800 text-base leading-relaxed whitespace-pre-wrap">
+                  {readingArticle.body || "Nội dung bài viết đang được cập nhật."}
+                </div>
+
+                {/* Clinical Disclaimer */}
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-500 leading-relaxed">
+                  * Thông tin y khoa trên diễn đàn mang tính chất phổ biến kiến thức chăm sóc sức khỏe. Người bệnh cần tham khảo ý kiến trực tiếp của Bác sĩ điều trị trước khi áp dụng bất kỳ phác đồ dùng thuốc nào.
+                </div>
+
+                {/* Attached Comments Thread */}
+                <div className="mt-8 pt-6 border-t border-slate-200 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-bold text-teal-950 flex items-center gap-2">
+                      <UiIcon name="message-square" size={18} />
+                      <span>Thảo luận chuyên môn & Hỏi đáp ({readingComments.length})</span>
+                    </h3>
+                  </div>
+
+                  {loadingReadingComments ? (
+                    <p className="text-xs text-slate-400">Đang tải thảo luận...</p>
+                  ) : readingComments.length === 0 ? (
+                    <div className="rounded-xl bg-slate-50 p-6 text-center text-xs text-slate-500">
+                      Chưa có phản hồi nào. Hãy là Bác sĩ đầu tiên bình luận chuyên môn cho bài viết này!
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {readingComments.map((c) => {
+                        const isDoctor = c.authorRole === "DOCTOR";
+                        const isAdmin = c.authorRole === "ADMIN";
+                        return (
+                          <div
+                            className={`rounded-xl p-4 text-xs ${
+                              isDoctor
+                                ? "border border-teal-300 bg-teal-50/80"
+                                : isAdmin
+                                ? "border border-purple-200 bg-purple-50/70"
+                                : "border border-slate-200 bg-white"
+                            }`}
+                            key={c.id}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-slate-900">{c.authorName}</span>
+                                {isDoctor && (
+                                  <span className="rounded bg-teal-800 px-1.5 py-0.5 text-[10px] font-bold text-white inline-flex items-center gap-1">
+                                    <UiIcon name="shield-check" size={11} />
+                                    <span>Bác sĩ</span>
+                                  </span>
+                                )}
+                                {isAdmin && (
+                                  <span className="rounded bg-purple-700 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                                    Quản trị
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[10px] text-slate-400">
+                                {new Date(c.createdAt).toLocaleDateString("vi-VN")}
+                              </span>
+                            </div>
+                            <p className="mt-2 text-slate-700 leading-relaxed whitespace-pre-wrap text-sm">{c.content}</p>
+                            <div className="mt-2.5 flex items-center justify-between border-t border-slate-100/70 pt-2">
+                              <button
+                                className="text-xs font-bold text-teal-800 hover:underline cursor-pointer"
+                                onClick={() => {
+                                  setReplyingToCommentId(c.id);
+                                  setReplyText(`@${c.authorName}: `);
+                                }}
+                                type="button"
+                              >
+                                Trả lời
+                              </button>
+                              <button
+                                className="text-xs font-semibold text-red-600 hover:underline cursor-pointer"
+                                onClick={() => void handleDeleteComment(c.id)}
+                                type="button"
+                              >
+                                Xóa
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Reply Composer Form */}
+                  <form className="border-t border-slate-200 pt-4" onSubmit={handleSendReply}>
+                    {replyingToCommentId && (
+                      <div className="mb-2 flex items-center justify-between rounded-lg bg-teal-50 px-3 py-1.5 text-xs text-teal-800">
+                        <span>Đang trả lời bình luận</span>
+                        <button
+                          className="font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
+                          onClick={() => {
+                            setReplyingToCommentId(null);
+                            setReplyText("");
+                          }}
+                          type="button"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
+                    <textarea
+                      className="w-full rounded-xl border border-slate-300 p-3 text-sm focus:border-teal-600 focus:outline-none"
+                      disabled={busy}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      placeholder="Gửi phản hồi y khoa chính thức từ Bác sĩ..."
+                      rows={3}
+                      value={replyText}
+                    />
+                    <div className="mt-2 flex justify-end">
+                      <button
+                        className="min-h-11 rounded-xl bg-teal-900 px-6 py-2 text-xs font-bold text-white hover:bg-teal-800 disabled:opacity-50 transition cursor-pointer"
+                        disabled={busy || !replyText.trim()}
+                        type="submit"
+                      >
+                        {busy ? "Đang gửi..." : "Gửi giải đáp chuyên môn"}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── ARTICLE CREATION & EDIT MODAL WITH IMAGE UPLOAD ── */}
         {showEditor && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto backdrop-blur-sm">
             <div className="my-8 w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
@@ -300,7 +744,7 @@ export default function DoctorArticlesPage() {
                 </h2>
                 <button
                   aria-label="Đóng biểu mẫu"
-                  className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                  className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
                   onClick={() => setShowEditor(false)}
                   type="button"
                 >
@@ -382,41 +826,41 @@ export default function DoctorArticlesPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Ảnh bìa (Cover Image URL)</label>
-                    <input
-                      className="mt-1 w-full min-h-11 rounded-xl border border-slate-300 px-3.5 py-2 text-sm focus:border-teal-600 focus:outline-none"
-                      onChange={(e) => setCoverImageUrl(e.target.value)}
-                      placeholder="/media/articles/article-sample.jpg"
-                      type="text"
-                      value={coverImageUrl}
-                    />
-                  </div>
-                  <div className="flex items-center gap-3 pt-6">
-                    <input
-                      checked={active}
-                      className="h-5 w-5 rounded border-slate-300 text-teal-800 focus:ring-teal-600"
-                      id="active"
-                      onChange={(e) => setActive(e.target.checked)}
-                      type="checkbox"
-                    />
-                    <label className="text-sm font-semibold text-slate-800" htmlFor="active">
-                      Xuất bản công khai trên diễn đàn
-                    </label>
-                  </div>
+                {/* Direct Image Upload Component (No raw URL path exposed) */}
+                <div>
+                  <ImageUpload
+                    aspectRatio="banner"
+                    helperText="Tải lên tệp ảnh bìa bài viết (PNG, JPG, WEBP tối đa 10 MB) - Lưu trữ an toàn trong CSDL bệnh viện"
+                    label="Ảnh bìa bài viết y khoa (Tải lên từ thiết bị)"
+                    onChange={(url) => setCoverImageUrl(url)}
+                    purpose="ARTICLE_COVER"
+                    value={coverImageUrl}
+                  />
+                </div>
+
+                <div className="flex items-center gap-3 pt-2">
+                  <input
+                    checked={active}
+                    className="h-5 w-5 rounded border-slate-300 text-teal-800 focus:ring-teal-600 cursor-pointer"
+                    id="active"
+                    onChange={(e) => setActive(e.target.checked)}
+                    type="checkbox"
+                  />
+                  <label className="text-sm font-semibold text-slate-800 cursor-pointer" htmlFor="active">
+                    Xuất bản công khai trên mạng xã hội bệnh viện
+                  </label>
                 </div>
 
                 <div className="mt-6 flex justify-end gap-3 border-t border-slate-100 pt-4">
                   <button
-                    className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 min-h-11"
+                    className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 min-h-11 cursor-pointer"
                     onClick={() => setShowEditor(false)}
                     type="button"
                   >
                     Hủy bỏ
                   </button>
                   <button
-                    className="min-h-11 rounded-xl bg-teal-900 px-6 py-2 text-sm font-bold text-white hover:bg-teal-800 disabled:opacity-50 transition"
+                    className="min-h-11 rounded-xl bg-teal-900 px-6 py-2 text-sm font-bold text-white hover:bg-teal-800 disabled:opacity-50 transition cursor-pointer"
                     disabled={busy}
                     type="submit"
                   >
@@ -427,233 +871,6 @@ export default function DoctorArticlesPage() {
             </div>
           </div>
         )}
-
-        {/* Main Content: 2-column or list */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-start">
-          {/* Article List */}
-          <div className={activeDiscussionSlug ? "lg:col-span-7 space-y-4" : "lg:col-span-12 space-y-4"}>
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-teal-950">
-                Danh sách bài viết của Bác sĩ ({articles.length})
-              </h2>
-            </div>
-
-            {loading ? (
-              <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-slate-500">
-                Đang tải dữ liệu bài viết...
-              </div>
-            ) : articles.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center">
-                <p className="text-slate-500">Bạn chưa đăng bài viết nào.</p>
-                <button
-                  className="mt-3 inline-flex items-center gap-2 rounded-xl bg-teal-900 px-4 py-2 text-xs font-bold text-white hover:bg-teal-800 min-h-11"
-                  onClick={() => handleOpenEditor()}
-                  type="button"
-                >
-                  <UiIcon name="plus" size={14} />
-                  <span>Đăng bài viết đầu tiên</span>
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                {articles.map((a) => {
-                  const isSelected = activeDiscussionSlug === a.slug;
-                  return (
-                    <div
-                      className={`flex flex-col justify-between rounded-2xl border bg-white p-5 shadow-sm transition-all ${
-                        isSelected ? "border-teal-600 ring-2 ring-teal-600/20" : "border-slate-200"
-                      }`}
-                      key={a.id}
-                    >
-                      <div>
-                        <div className="flex items-center justify-between text-xs text-slate-500">
-                          <span className="rounded-full bg-teal-50 px-2.5 py-0.5 font-bold text-teal-800">
-                            {a.category || "Cẩm nang y tế"}
-                          </span>
-                          <span className={`font-semibold ${a.active ? "text-emerald-700" : "text-amber-700"}`}>
-                            {a.active ? "● Đang hiển thị" : "○ Bản nháp"}
-                          </span>
-                        </div>
-
-                        <h3 className="mt-3 text-base font-bold text-teal-950 line-clamp-2">
-                          {a.title}
-                        </h3>
-                        <p className="mt-2 text-xs text-slate-600 line-clamp-3 leading-relaxed">
-                          {a.summary}
-                        </p>
-                      </div>
-
-                      <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
-                        <button
-                          className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
-                            isSelected
-                              ? "bg-teal-900 text-white"
-                              : "bg-teal-50 text-teal-900 hover:bg-teal-100"
-                          }`}
-                          onClick={() => {
-                            setActiveDiscussionSlug(a.slug);
-                            void loadComments(a.slug);
-                          }}
-                          type="button"
-                        >
-                          <UiIcon name="message-square" size={14} />
-                          <span>Xem thảo luận</span>
-                        </button>
-
-                        <div className="flex items-center gap-2">
-                          <button
-                            className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-teal-800"
-                            onClick={() => handleOpenEditor(a)}
-                            title="Sửa bài viết"
-                            type="button"
-                          >
-                            <UiIcon name="sparkles" size={14} />
-                          </button>
-                          <button
-                            className="rounded-lg p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-700"
-                            onClick={() => void handleDeleteArticle(a.slug, a.title)}
-                            title="Xóa bài viết"
-                            type="button"
-                          >
-                            <UiIcon name="trash" size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Right Column: Discussion / Comment Thread Manager */}
-          {activeDiscussionSlug && (
-            <div className="lg:col-span-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-md sticky top-24 h-fit max-h-[85vh] flex flex-col">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div>
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-teal-800">
-                    Kênh thảo luận cùng Bệnh nhân
-                  </span>
-                  <h3 className="text-base font-bold text-teal-950 line-clamp-1">
-                    {articles.find((a) => a.slug === activeDiscussionSlug)?.title || activeDiscussionSlug}
-                  </h3>
-                </div>
-                <button
-                  aria-label="Đóng kênh thảo luận"
-                  className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-                  onClick={() => setActiveDiscussionSlug(null)}
-                  type="button"
-                >
-                  <UiIcon name="x" size={16} />
-                </button>
-              </div>
-
-              {/* Comments List */}
-              <div className="flex-1 overflow-y-auto py-3 space-y-3 pr-1">
-                {loadingComments ? (
-                  <p className="text-xs text-slate-400">Đang tải danh sách bình luận...</p>
-                ) : comments.length === 0 ? (
-                  <div className="rounded-xl bg-slate-50 p-6 text-center text-xs text-slate-500">
-                    Chưa có bình luận nào từ người bệnh cho bài viết này.
-                  </div>
-                ) : (
-                  comments.map((c) => {
-                    const isDoctor = c.authorRole === "DOCTOR";
-                    const isAdmin = c.authorRole === "ADMIN";
-                    return (
-                      <div
-                        className={`rounded-xl p-3.5 text-xs ${
-                          isDoctor
-                            ? "border border-teal-300 bg-teal-50/80"
-                            : isAdmin
-                            ? "border border-purple-200 bg-purple-50/70"
-                            : "border border-slate-200 bg-white"
-                        }`}
-                        key={c.id}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-slate-900">{c.authorName}</span>
-                            {isDoctor && (
-                              <span className="rounded bg-teal-800 px-1.5 py-0.5 text-[10px] font-bold text-white inline-flex items-center gap-1">
-                                <UiIcon name="shield-check" size={11} />
-                                <span>Bác sĩ</span>
-                              </span>
-                            )}
-                            {isAdmin && (
-                              <span className="rounded bg-purple-700 px-1.5 py-0.5 text-[10px] font-bold text-white">
-                                Quản trị
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-[10px] text-slate-400">
-                            {new Date(c.createdAt).toLocaleDateString("vi-VN")}
-                          </span>
-                        </div>
-                        <p className="mt-1.5 text-slate-700 leading-relaxed whitespace-pre-wrap">{c.content}</p>
-                        <div className="mt-2.5 flex items-center justify-between border-t border-slate-100/60 pt-2">
-                          <button
-                            className="text-[11px] font-bold text-teal-800 hover:underline inline-flex items-center gap-1"
-                            onClick={() => {
-                              setReplyingToCommentId(c.id);
-                              setReplyText(`@${c.authorName}: `);
-                            }}
-                            type="button"
-                          >
-                            <span>Trả lời bệnh nhân</span>
-                          </button>
-                          <button
-                            className="text-[11px] font-semibold text-red-600 hover:underline"
-                            onClick={() => void handleDeleteComment(c.id)}
-                            type="button"
-                          >
-                            Xóa
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-
-              {/* Reply Form */}
-              <form className="border-t border-slate-100 pt-3" onSubmit={handleSendReply}>
-                {replyingToCommentId && (
-                  <div className="mb-2 flex items-center justify-between rounded-lg bg-teal-50 px-2 py-1 text-[11px] text-teal-800">
-                    <span>Đang trả lời phản hồi</span>
-                    <button
-                      className="font-bold text-slate-500 hover:text-slate-800"
-                      onClick={() => {
-                        setReplyingToCommentId(null);
-                        setReplyText("");
-                      }}
-                      type="button"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                )}
-                <textarea
-                  className="w-full rounded-xl border border-slate-300 p-2.5 text-xs focus:border-teal-600 focus:outline-none focus:ring-1 focus:ring-teal-600"
-                  disabled={busy}
-                  onChange={(e) => setReplyText(e.target.value)}
-                  placeholder="Gửi phản hồi chuyên môn y khoa chính thức cho người bệnh..."
-                  rows={3}
-                  value={replyText}
-                />
-                <div className="mt-2 flex justify-end">
-                  <button
-                    className="min-h-11 rounded-xl bg-teal-900 px-5 py-2 text-xs font-bold text-white hover:bg-teal-800 disabled:opacity-50 transition"
-                    disabled={busy || !replyText.trim()}
-                    type="submit"
-                  >
-                    {busy ? "Đang gửi..." : "Gửi giải đáp bác sĩ"}
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-        </div>
       </div>
     </PortalChrome>
   );

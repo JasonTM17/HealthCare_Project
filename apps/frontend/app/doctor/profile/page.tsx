@@ -11,6 +11,7 @@ import {
 import type { Doctor } from "../../../types/hospital";
 import { ForbiddenState, LoadingState, LoginRequiredState } from "../../../components/PortalStates";
 import { useAuthSession, useAuthSessionStatus } from "../../../components/useAuthSession";
+import ImageUpload from "../../../components/ImageUpload";
 import UiIcon from "../../../components/UiIcon";
 import styles from "./DoctorProfile.module.css";
 
@@ -275,17 +276,13 @@ export default function DoctorProfilePage() {
               </div>
 
               <div className={styles.fieldGroup}>
-                <label className={styles.fieldLabel} htmlFor="photoUrl">
-                  Đường dẫn ảnh đại diện (Portrait URL)
-                </label>
-                <input
-                  id="photoUrl"
-                  type="text"
-                  maxLength={500}
+                <ImageUpload
+                  aspectRatio="square"
+                  helperText="Tải lên tệp ảnh chân dung bác sĩ (PNG, JPG, WEBP tối đa 10 MB) - Lưu trữ an toàn trong CSDL bệnh viện"
+                  label="Ảnh chân dung bác sĩ (Tải lên từ thiết bị)"
+                  onChange={(url) => setPhotoUrl(url)}
+                  purpose="DOCTOR_PORTRAIT"
                   value={photoUrl}
-                  onChange={(e) => setPhotoUrl(e.target.value)}
-                  placeholder="Ví dụ: /media/doctors/doctor-5.jpg hoặc link ảnh bên ngoài"
-                  className={styles.inputField}
                 />
               </div>
 
