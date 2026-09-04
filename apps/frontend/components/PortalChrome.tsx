@@ -21,6 +21,18 @@ interface PortalChromeProps {
   avatarUrl?: string | null;
   children: ReactNode;
 }
+const AVATAR_MEMORY_CACHE: Record<string, string> = {};
+
+function getCachedAvatar(role: PortalRole, userId: string, propAvatar?: string | null): string | null {
+  if (propAvatar) return propAvatar;
+  const key = `${role}:${userId}`;
+  return AVATAR_MEMORY_CACHE[key] ?? null;
+}
+
+function setCachedAvatar(role: PortalRole, userId: string, url: string): void {
+  const key = `${role}:${userId}`;
+  AVATAR_MEMORY_CACHE[key] = url;
+}
 
 const SECTION_HASH_FOR_HREF: Record<string, string> = {
   "/doctor/appointments": "#daily-appointments",
@@ -43,13 +55,16 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState<string | null>(null);
-  const [resolvedAvatar, setResolvedAvatar] = useState<string | null>(avatarUrl ?? null);
+  const [resolvedAvatar, setResolvedAvatar] = useState<string | null>(() => getCachedAvatar(role, user.id, avatarUrl));
   const [avatarError, setAvatarError] = useState(false);
+  const effectiveAvatar = avatarUrl ?? resolvedAvatar ?? getCachedAvatar(role, user.id);
 
   useEffect(() => {
     if (avatarUrl) {
-      setResolvedAvatar(avatarUrl);
-      setAvatarError(false);
+      setCachedAvatar(role, user.id, avatarUrl);
+      return;
+    }
+    if (getCachedAvatar(role, user.id)) {
       return;
     }
     let cancelled = false;
@@ -57,10 +72,16 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
       try {
         if (role === "DOCTOR") {
           const doc = await fetchDoctorProfile();
-          if (!cancelled && doc.photoUrl) setResolvedAvatar(doc.photoUrl);
+          if (!cancelled && doc.photoUrl) {
+            setCachedAvatar(role, user.id, doc.photoUrl);
+            setResolvedAvatar(doc.photoUrl);
+          }
         } else {
           const pat = await fetchPatientProfile();
-          if (!cancelled && pat.avatarUrl) setResolvedAvatar(pat.avatarUrl);
+          if (!cancelled && pat.avatarUrl) {
+            setCachedAvatar(role, user.id, pat.avatarUrl);
+            setResolvedAvatar(pat.avatarUrl);
+          }
         }
       } catch {
         // Fallback to initials
@@ -177,15 +198,7 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
                 key={link.href}
                 onClick={() => {
                   const hash = SECTION_HASH_FOR_HREF[link.href];
-                  if (hash) {
-                    setActiveHash(hash);
-                  } else if (link.href === homePath) {
-                    setActiveHash("");
-                    if (typeof window !== "undefined") {
-                      window.location.hash = "";
-                      window.scrollTo(0, 0);
-                    }
-                  }
+                  setActiveHash(hash || "");
                 }}
               >
                 {link.label}
@@ -201,13 +214,13 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
               title="Xem và cập nhật thông tin tài khoản"
             >
               <span className="portal-user__avatar" aria-hidden="true">
-                {resolvedAvatar && !avatarError ? (
+                {effectiveAvatar && !avatarError ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     alt={user.displayName}
                     className="portal-user__avatar-img"
                     onError={() => setAvatarError(true)}
-                    src={resolvedAvatar}
+                    src={effectiveAvatar}
                   />
                 ) : (
                   user.displayName?.charAt(0)?.toUpperCase() ?? "U"

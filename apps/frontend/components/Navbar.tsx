@@ -39,6 +39,16 @@ function getAccountDestination(session: AuthSession | null, pathname: string | n
   if (hasRole(session.user, "PATIENT")) return { href: "/patient/dashboard", label: "Cổng bệnh nhân" };
   return { href: "/", label: "Tài khoản" };
 }
+const NAVBAR_AVATAR_CACHE: Record<string, string> = {};
+
+function getCachedNavbarAvatar(userId?: string): string | null {
+  if (!userId) return null;
+  return NAVBAR_AVATAR_CACHE[userId] ?? null;
+}
+
+function setCachedNavbarAvatar(userId: string, url: string): void {
+  NAVBAR_AVATAR_CACHE[userId] = url;
+}
 
 const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
@@ -46,22 +56,27 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
   const [navbarAvatar, setNavbarAvatar] = useState<string | null>(null);
   const [avatarError, setAvatarError] = useState(false);
   const [copiedHotline, setCopiedHotline] = useState(false);
+  const effectiveNavbarAvatar = navbarAvatar ?? getCachedNavbarAvatar(authSession?.user?.id);
 
   useEffect(() => {
-    if (!authSession?.user) {
-      setNavbarAvatar(null);
-      setAvatarError(false);
-      return;
-    }
+    const user = authSession?.user;
+    if (!user) return;
+    if (getCachedNavbarAvatar(user.id)) return;
     let cancelled = false;
     const resolvePhoto = async () => {
       try {
-        if (hasRole(authSession.user, "DOCTOR")) {
+        if (hasRole(user, "DOCTOR")) {
           const doc = await fetchDoctorProfile();
-          if (!cancelled && doc.photoUrl) setNavbarAvatar(doc.photoUrl);
-        } else if (hasRole(authSession.user, "PATIENT")) {
+          if (!cancelled && doc.photoUrl) {
+            setCachedNavbarAvatar(user.id, doc.photoUrl);
+            setNavbarAvatar(doc.photoUrl);
+          }
+        } else if (hasRole(user, "PATIENT")) {
           const pat = await fetchPatientProfile();
-          if (!cancelled && pat.avatarUrl) setNavbarAvatar(pat.avatarUrl);
+          if (!cancelled && pat.avatarUrl) {
+            setCachedNavbarAvatar(user.id, pat.avatarUrl);
+            setNavbarAvatar(pat.avatarUrl);
+          }
         }
       } catch {
         // Fallback to initials
@@ -71,7 +86,7 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
     return () => {
       cancelled = true;
     };
-  }, [authSession?.user?.id]);
+  }, [authSession?.user]);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
   const pathname = usePathname();
@@ -191,13 +206,13 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
             <Link aria-label={accountDestination.label} className="nav-account-link" href={accountDestination.href}>
               {authSession ? (
                 <span className="nav-account-avatar">
-                  {navbarAvatar && !avatarError ? (
+                  {effectiveNavbarAvatar && !avatarError ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       alt={authSession.user.displayName}
                       className="nav-account-avatar-img"
                       onError={() => setAvatarError(true)}
-                      src={navbarAvatar}
+                      src={effectiveNavbarAvatar}
                     />
                   ) : (
                     authSession.user.displayName?.charAt(0)?.toUpperCase() ?? "U"
