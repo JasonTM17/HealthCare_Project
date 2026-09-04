@@ -1,0 +1,57 @@
+%% HealthCare_Project logical and deployment architecture
+flowchart LR
+    Users[Patients / doctors / admins]
+
+    subgraph Hosted["Hosted synthetic beta"]
+        Vercel["Vercel\nNext.js UI + BFF"]
+        RenderAPI["Render Free\nSpring Boot API"]
+        RenderAI["Render Free\nFastAPI AI/RAG"]
+        RenderPG[("Render PostgreSQL\ntransactional catalog")]
+        RenderRedis[("Render Key Value\nrate-limit / realtime cache")]
+    end
+
+    subgraph Local["Local Docker Compose"]
+        Frontend["apps/frontend\nNext.js"]
+        Backend["apps/backend\nSpring Boot modular monolith"]
+        AI["apps/ai-service\nFastAPI triage + RAG"]
+        Postgres[("PostgreSQL\nFlyway migrations")]
+        Redis[("Redis")]
+        MinIO[("MinIO\nobject storage")]
+        Mailpit["Mailpit\nSMTP test sink"]
+        ClamAV["ClamAV + attachment scanner"]
+    end
+
+    Supabase[("Supabase\nhealthcare schema + RLS\nde-identified projections")]
+    Provider["Optional external AI provider\nfail-closed unless enabled"]
+    CI["GitHub Actions\nchecks + image/SBOM publication"]
+
+    Users --> Vercel
+    Vercel -->|server-side BFF token| RenderAPI
+    RenderAPI --> RenderAI
+    RenderAPI --> RenderPG
+    RenderAPI --> RenderRedis
+    RenderAI -.->|optional provider| Provider
+    Supabase -.->|audited storage; durable RAG/patient-chat disabled in beta| RenderAI
+
+    Users --> Frontend
+    Frontend --> Backend
+    Backend --> AI
+    Backend --> Postgres
+    Backend --> Redis
+    Backend --> MinIO
+    Backend --> Mailpit
+    Backend --> ClamAV
+    AI -.->|optional provider| Provider
+
+    CI -.-> Frontend
+    CI -.-> Backend
+    CI -.-> AI
+
+    classDef edge fill:#e5f7f5,stroke:#006b6b,color:#003b3b;
+    classDef service fill:#eef4ff,stroke:#3559a8,color:#172554;
+    classDef data fill:#fff4dc,stroke:#b7791f,color:#5a3700;
+    classDef ops fill:#f2f4f7,stroke:#667085,color:#1d2939;
+    class Vercel,Frontend edge;
+    class RenderAPI,RenderAI,Backend,AI service;
+    class RenderPG,RenderRedis,Postgres,Redis,MinIO,Supabase data;
+    class Users,Provider,Mailpit,ClamAV,CI ops;
