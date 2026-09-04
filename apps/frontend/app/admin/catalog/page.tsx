@@ -703,7 +703,7 @@ export default function AdminCatalogPage() {
                     aria-label={`Xóa câu hỏi: ${item.question}`}
                     className="text-red-700 underline"
                     disabled={busy}
-                    onClick={() => void remove(`câu hỏi "${item.question}"`, () => adminDeleteFaq(item.id), "Đã xóa câu hỏi")}
+                    onClick={() => void remove(`câu hỏi "${item.question}"`, () => adminDeleteFaq(item.id), "Đã xóa câu hỏi", { kind: "faq" })}
                     type="button"
                   >
                     Xóa
@@ -1123,7 +1123,7 @@ export default function AdminCatalogPage() {
                       aria-label={`Xóa ${item.title}`}
                       className="text-red-700 underline"
                       disabled={busy}
-                      onClick={() => void remove(`bài viết "${item.title}"`, () => adminDeleteArticle(item.slug), "Đã xóa bài viết")}
+                      onClick={() => void remove(`bài viết "${item.title}"`, () => adminDeleteArticle(item.slug), "Đã xóa bài viết", { kind: "article", slug: item.slug })}
                       type="button"
                     >
                       Xóa

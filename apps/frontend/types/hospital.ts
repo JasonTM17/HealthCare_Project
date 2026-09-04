@@ -35,6 +35,7 @@ export interface Doctor {
   branchNames?: string[];
   specialtySlugs?: string[];
   achievements?: string | null;
+  aiCredits?: number | null;
 }
 
 export interface Branch {
