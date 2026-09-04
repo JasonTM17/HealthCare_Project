@@ -5,22 +5,37 @@
 DO $$
 DECLARE
     v_patient_id UUID;
-    v_doctor_id UUID := '30000000-0000-0000-0000-000000000001';
-    v_branch_id UUID := '20000000-0000-0000-0000-000000000001';
-    v_specialty_id UUID := '10000000-0000-0000-0000-000000000001';
+    v_doctor_id UUID;
+    v_branch_id UUID;
+    v_specialty_id UUID;
 BEGIN
-    -- Only seed dependent clinical records in public schema if parent doctor, branch, specialty and patient profile exist
     IF current_schema() = 'public' THEN
         SELECT id INTO v_patient_id
         FROM patient_profiles
-        WHERE id = '90000000-0000-0000-0000-000000000022'
-           OR email = 'patient@healthcare.com'
+        WHERE email = 'patient@healthcare.com'
+           OR id = '90000000-0000-0000-0000-000000000022'
+        LIMIT 1;
+
+        SELECT id INTO v_doctor_id
+        FROM doctors
+        WHERE id = '30000000-0000-0000-0000-000000000001'
+        LIMIT 1;
+
+        SELECT id INTO v_branch_id
+        FROM branches
+        WHERE slug = 'cs-1' OR id = '20000000-0000-0000-0000-000000000001'
+        LIMIT 1;
+
+        SELECT id INTO v_specialty_id
+        FROM specialties
+        WHERE slug = 'tim-mach' OR id = '10000000-0000-0000-0000-000000000001'
         LIMIT 1;
 
         IF v_patient_id IS NOT NULL
-           AND EXISTS (SELECT 1 FROM doctors WHERE id = v_doctor_id)
-           AND EXISTS (SELECT 1 FROM branches WHERE id = v_branch_id)
-           AND EXISTS (SELECT 1 FROM specialties WHERE id = v_specialty_id) THEN
+           AND v_doctor_id IS NOT NULL
+           AND v_branch_id IS NOT NULL
+           AND v_specialty_id IS NOT NULL THEN
+
         -- 2. Seed Appointments for patient@healthcare.com
         INSERT INTO appointments (
             id, booking_code, patient_id, doctor_id, branch_id, specialty_id,
