@@ -437,9 +437,9 @@ export default function AdminAiContentReviewsPage() {
                   <StateBadge state={selected.state} />
                   <span className="text-xs text-slate-500 font-medium">Revision {selected.revision}</span>
                 </div>
-                <h2 className="mt-1.5 text-lg font-black text-teal-950" id="preview-modal-title">
-                  {selected.title || "Nguồn chưa đặt tên"}
-                </h2>
+                <h3 className="mt-1.5 text-lg font-black text-teal-950" id="preview-modal-title">
+                  Xem trước: {selected.title || "Nguồn chưa đặt tên"}
+                </h3>
               </div>
               <button
                 aria-label="Đóng xem trước"

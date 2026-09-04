@@ -258,7 +258,7 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
               </div>
             </Link>
             <div className="grid max-w-xs justify-items-end gap-1">
-              <button className="outline-button outline-button--small" disabled={loggingOut} onClick={handleLogout} type="button">
+              <button className="outline-button outline-button--small min-h-11" disabled={loggingOut} onClick={handleLogout} type="button">
                 {loggingOut ? "Đang thoát..." : "Đăng xuất"}
               </button>
               {logoutError ? <p aria-live="polite" className="text-right text-xs font-semibold leading-5 text-amber-800" role="status">{logoutError}</p> : null}
