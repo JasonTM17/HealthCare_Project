@@ -57,6 +57,8 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
   const [logoutError, setLogoutError] = useState<string | null>(null);
   const [resolvedAvatar, setResolvedAvatar] = useState<string | null>(() => getCachedAvatar(role, user.id, avatarUrl));
   const [avatarError, setAvatarError] = useState(false);
+  const [avatarLoaded, setAvatarLoaded] = useState(false);
+  const [avatarLoading, setAvatarLoading] = useState(false);
   const effectiveAvatar = avatarUrl ?? resolvedAvatar ?? getCachedAvatar(role, user.id);
 
   useEffect(() => {
@@ -68,7 +70,8 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
       return;
     }
     let cancelled = false;
-    const loadAvatar = async () => {
+    const task = Promise.resolve().then(async () => {
+      setAvatarLoading(true);
       try {
         if (role === "DOCTOR") {
           const doc = await fetchDoctorProfile();
@@ -85,11 +88,15 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
         }
       } catch {
         // Fallback to initials
+      } finally {
+        if (!cancelled) {
+          setAvatarLoading(false);
+        }
       }
-    };
-    void loadAvatar();
+    });
     return () => {
       cancelled = true;
+      void task;
     };
   }, [avatarUrl, role, user.id]);
   const homePath = role === "PATIENT" ? "/patient/dashboard" : "/doctor/dashboard";
@@ -176,12 +183,21 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
     }
   };
 
+  const handleBrandClick = (e: React.MouseEvent<HTMLAnchorElement>): void => {
+    if (typeof window !== "undefined") {
+      if (pathname === homePath) {
+        e.preventDefault();
+      }
+      window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+    }
+  };
+
   return (
     <div className="portal-shell">
       <a className="skip-link" href="#portal-main-content">Bỏ qua điều hướng</a>
       <header className="portal-header">
         <div className="portal-header__inner">
-          <Link className="portal-brand" href={homePath}>
+          <Link className="portal-brand" href={homePath} onClick={handleBrandClick}>
             <span aria-hidden="true" className="portal-brand__mark"><UiIcon name="shield-check" size={22} /></span>
             <span>
               <strong>HealthCare</strong>
@@ -214,15 +230,23 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
               tabIndex={-1}
               title="Xem và cập nhật thông tin tài khoản"
             >
-              <span className="portal-user__avatar" aria-hidden="true">
+              <span className={`portal-user__avatar${avatarLoading && !effectiveAvatar ? " portal-user__avatar--loading" : !avatarLoaded && effectiveAvatar && !avatarError ? " portal-user__avatar--shimmer" : ""}`} aria-hidden="true">
                 {effectiveAvatar && !avatarError ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    alt={user.displayName}
-                    className="portal-user__avatar-img"
-                    onError={() => setAvatarError(true)}
-                    src={effectiveAvatar}
-                  />
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      alt={user.displayName}
+                      className={`portal-user__avatar-img${avatarLoaded ? " portal-user__avatar-img--loaded" : ""}`}
+                      onError={() => setAvatarError(true)}
+                      onLoad={() => setAvatarLoaded(true)}
+                      src={effectiveAvatar}
+                    />
+                    {!avatarLoaded ? (
+                      <span className="portal-user__avatar-placeholder">
+                        {user.displayName?.charAt(0)?.toUpperCase() ?? "U"}
+                      </span>
+                    ) : null}
+                  </>
                 ) : (
                   user.displayName?.charAt(0)?.toUpperCase() ?? "U"
                 )}

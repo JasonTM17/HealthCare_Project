@@ -127,14 +127,22 @@ function normalizeBackendOrigin(rawValue: string): string {
   return parsed.origin;
 }
 
+function parseConfiguredPublicOrigins(value: string | undefined): string[] {
+  if (!value) return [];
+  return value
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean)
+    .map((v) => normalizeBackendOrigin(v));
+}
+
 export function readHealthcareBffRuntimeConfig(): HealthcareBffRuntimeConfig {
   const backendOrigin = normalizeBackendOrigin(
     process.env.BACKEND_INTERNAL_URL?.trim() || DEFAULT_BACKEND_ORIGIN,
   );
   const configuredPublicOrigin = process.env.BFF_PUBLIC_ORIGIN?.trim();
-  const publicOrigin = configuredPublicOrigin
-    ? normalizeBackendOrigin(configuredPublicOrigin)
-    : undefined;
+  const publicOrigins = parseConfiguredPublicOrigins(configuredPublicOrigin);
+  const publicOrigin = publicOrigins.length > 0 ? publicOrigins.join(",") : undefined;
   const serviceToken = process.env.BACKEND_BFF_SERVICE_TOKEN ?? "";
   if (!isValidServiceToken(serviceToken)) {
     throw new BffRequestError(503, "BFF_CONFIGURATION_UNAVAILABLE");
@@ -241,20 +249,25 @@ function normalizeHttpOrigin(rawOrigin: string): string {
 
 function normalizedBrowserOrigin(request: Request, configuredPublicOrigin?: string): string {
   const requestUrl = new URL(request.url);
-  // A reverse proxy may expose its internal URL to the Route Handler. Bind the
-  // CSRF comparison to a server-owned public origin instead of trusting
-  // Forwarded/Host values that a non-browser client can forge.
-  const requestOrigin = configuredPublicOrigin
-    ? normalizeHttpOrigin(configuredPublicOrigin)
-    : normalizeHttpOrigin(requestUrl.origin);
+  const allowedOrigins = parseConfiguredPublicOrigins(configuredPublicOrigin);
+  const requestOrigin = normalizeHttpOrigin(requestUrl.origin);
+
   const suppliedOrigin = request.headers.get("origin");
   if (!suppliedOrigin) {
     if (!SAFE_METHODS.has(request.method.toUpperCase())) {
       throw new BffRequestError(403, "BFF_ORIGIN_REQUIRED");
     }
-    return requestOrigin;
+    return allowedOrigins.length > 0 ? allowedOrigins[0] : requestOrigin;
   }
   const normalized = normalizeHttpOrigin(suppliedOrigin);
+
+  if (allowedOrigins.length > 0) {
+    if (allowedOrigins.includes(normalized) || normalized === requestOrigin) {
+      return normalized;
+    }
+    throw new BffRequestError(403, "BFF_ORIGIN_INVALID");
+  }
+
   if (normalized !== requestOrigin) throw new BffRequestError(403, "BFF_ORIGIN_INVALID");
   return normalized;
 }
@@ -574,8 +587,9 @@ export async function proxyHealthcareRequest(
 
     const securityCookies = parseHealthcareSecurityCookies(request.headers.get("cookie"));
     const headers = copyRequestHeaders(request);
+    const upstreamOrigin = process.env.BACKEND_ORIGIN_OVERRIDE?.trim() || browserOrigin;
     headers.set("X-Healthcare-Bff-Token", runtime.serviceToken);
-    headers.set("X-Healthcare-Original-Origin", browserOrigin);
+    headers.set("X-Healthcare-Original-Origin", upstreamOrigin);
     const securityCookieHeader = serializeHealthcareSecurityCookies(securityCookies);
     if (securityCookieHeader) headers.set("Cookie", securityCookieHeader);
     const clientIp = trustedVercelClientIp(request);

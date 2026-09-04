@@ -124,6 +124,7 @@
 
 .site-shell .site-nav .brand-link {
   border-radius: 14px;
+  cursor: pointer;
 }
 
 .site-shell .site-nav .brand-link:hover .brand-emblem,
@@ -312,7 +313,7 @@ html[data-brand-intro="playing"] body {
   gap: 0.45rem;
   padding: 0.45rem 0.7rem;
   border: 1px solid rgb(192 231 223 / 22%);
-  border-radius: 999px;
+  border-radius: 6px;
   background: rgb(255 255 255 / 5%);
   color: #e7f4f1;
   font-size: 0.72rem;

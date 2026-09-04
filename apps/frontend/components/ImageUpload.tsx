@@ -103,10 +103,6 @@ export default function ImageUpload({
             src={value}
           />
           <div className={styles.previewActions}>
-            <div className={styles.previewStatus}>
-              <UiIcon name="shield-check" size={16} />
-              <span>Đã lưu ảnh trong CSDL</span>
-            </div>
             <div className={styles.actionButtons}>
               <button
                 className={styles.changeBtn}

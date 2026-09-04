@@ -700,3 +700,51 @@ test("BFF gives public hospital-support chat a bounded cold-start deadline", asy
   assert.equal(response.status, 200);
   assert.equal(capturedSignal.aborted, false);
 });
+
+test("BFF accepts multiple comma-separated public origins and custom domains", async () => {
+  const bff = await loadBff();
+  const multiOriginRuntime = {
+    ...runtimeConfig,
+    publicOrigin: "https://healthcare-two-olive.vercel.app,https://healthcare.id.vn,https://www.healthcare.id.vn",
+  };
+
+  for (const origin of [
+    "https://healthcare-two-olive.vercel.app",
+    "https://healthcare.id.vn",
+    "https://www.healthcare.id.vn",
+  ]) {
+    const res = await bff.proxyHealthcareRequest(
+      new Request("https://www.healthcare.id.vn/api/v1/auth/browser-sessions", {
+        method: "POST",
+        headers: {
+          Origin: origin,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email: "patient@example.test", password: "pwd" }),
+      }),
+      ["auth", "browser-sessions"],
+      {
+        runtimeConfig: multiOriginRuntime,
+        fetchImpl: async () => Response.json({ ok: true }, { status: 200 }),
+      },
+    );
+    assert.equal(res.status, 200, `Expected 200 for allowed origin ${origin}`);
+  }
+
+  const rejected = await bff.proxyHealthcareRequest(
+    new Request("https://www.healthcare.id.vn/api/v1/auth/browser-sessions", {
+      method: "POST",
+      headers: {
+        Origin: "https://evil.com",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email: "patient@example.test", password: "pwd" }),
+    }),
+    ["auth", "browser-sessions"],
+    {
+      runtimeConfig: multiOriginRuntime,
+      fetchImpl: async () => Response.json({ ok: true }),
+    },
+  );
+  assert.equal(rejected.status, 403);
+});

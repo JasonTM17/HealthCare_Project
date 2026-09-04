@@ -277,7 +277,7 @@
 .jobTags span,
 .typeTag {
   padding: 0.3rem 0.65rem;
-  border-radius: 999px;
+  border-radius: 6px;
   background: #eef4f2;
   color: #426067;
   font-size: 0.73rem;

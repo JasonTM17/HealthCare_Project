@@ -1097,7 +1097,7 @@ function BookingExperience({
                 type="button"
                 disabled={catalogLoading}
                 onClick={() => setCatalogRequest((request) => request + 1)}
-                className="mt-3 inline-flex items-center gap-2 rounded-full border border-red-300 bg-white px-4 py-2 font-semibold text-red-800 transition-colors hover:bg-red-100 disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300"
+                className="mt-3 inline-flex items-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-2 font-semibold text-red-800 transition-colors hover:bg-red-100 disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300"
               >
                 <Icon name="activity" size={15} /> Thử tải lại
               </button>
@@ -1136,7 +1136,7 @@ function BookingExperience({
                 <p className="mt-1 text-xs leading-5 text-brand-700">{currentSpecialty?.description ?? "Chọn một chuyên khoa để tiếp tục."}</p>
               </div>
               <div className="booking-step-actions flex justify-end border-t border-gray-100 pt-4">
-                <button type="button" disabled={isSubmitting || catalogLoading || !currentSpecialty} onClick={() => navigateToStep(2)} className="flex items-center gap-2 rounded-full bg-brand-700 px-6 py-2.5 font-semibold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600">
+                <button type="button" disabled={isSubmitting || catalogLoading || !currentSpecialty} onClick={() => navigateToStep(2)} className="flex items-center gap-2 rounded-lg bg-brand-700 px-6 py-2.5 font-semibold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600">
                   Tiếp tục: Chọn cơ sở <span>→</span>
                 </button>
               </div>
@@ -1163,8 +1163,8 @@ function BookingExperience({
                 <p className="mt-1 text-xs text-brand-700">{currentBranch?.workingHours ?? "Giờ làm việc đang được cập nhật."}</p>
               </div>
               <div className="booking-step-actions flex items-center justify-between border-t border-gray-100 pt-4">
-                <button type="button" disabled={isSubmitting} onClick={() => navigateToStep(1)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 disabled:opacity-50">← Quay lại</button>
-                <button type="button" disabled={isSubmitting || catalogLoading || !currentBranch} onClick={() => navigateToStep(3)} className="flex items-center gap-2 rounded-full bg-brand-700 px-6 py-2.5 font-semibold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600">
+                <button type="button" disabled={isSubmitting} onClick={() => navigateToStep(1)} className="inline-flex min-h-[44px] items-center px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 disabled:opacity-50 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 transition-colors">← Quay lại</button>
+                <button type="button" disabled={isSubmitting || catalogLoading || !currentBranch} onClick={() => navigateToStep(3)} className="flex items-center gap-2 rounded-lg bg-brand-700 px-6 py-2.5 font-semibold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600">
                   Tiếp tục: Chọn bác sĩ <span>→</span>
                 </button>
               </div>
@@ -1196,8 +1196,8 @@ function BookingExperience({
                 </div>
               </div>
               <div className="booking-step-actions flex items-center justify-between border-t border-gray-100 pt-4">
-                <button type="button" disabled={isSubmitting} onClick={() => navigateToStep(2)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 disabled:opacity-50">← Quay lại</button>
-                <button type="button" disabled={isSubmitting || catalogLoading || !currentDoctor} onClick={() => navigateToStep(4)} className="flex items-center gap-2 rounded-full bg-brand-700 px-6 py-2.5 font-semibold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600">
+                <button type="button" disabled={isSubmitting} onClick={() => navigateToStep(2)} className="inline-flex min-h-[44px] items-center px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 disabled:opacity-50 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 transition-colors">← Quay lại</button>
+                <button type="button" disabled={isSubmitting || catalogLoading || !currentDoctor} onClick={() => navigateToStep(4)} className="flex items-center gap-2 rounded-lg bg-brand-700 px-6 py-2.5 font-semibold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600">
                   Tiếp tục: Chọn ngày <span>→</span>
                 </button>
               </div>
@@ -1221,8 +1221,8 @@ function BookingExperience({
                 <p className="mt-1"><strong>Cơ sở:</strong> {currentBranch?.name ?? "Chưa chọn"}</p>
               </div>
               <div className="booking-step-actions flex items-center justify-between border-t border-gray-100 pt-4">
-                <button type="button" disabled={isSubmitting} onClick={() => navigateToStep(3)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 disabled:opacity-50">← Quay lại</button>
-                <button type="button" disabled={isSubmitting || !selectedDate || !currentDoctor || !currentBranch} onClick={() => navigateToStep(5)} className="flex items-center gap-2 rounded-full bg-brand-700 px-6 py-2.5 font-semibold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600">
+                <button type="button" disabled={isSubmitting} onClick={() => navigateToStep(3)} className="inline-flex min-h-[44px] items-center px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 disabled:opacity-50 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 transition-colors">← Quay lại</button>
+                <button type="button" disabled={isSubmitting || !selectedDate || !currentDoctor || !currentBranch} onClick={() => navigateToStep(5)} className="flex items-center gap-2 rounded-lg bg-brand-700 px-6 py-2.5 font-semibold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600">
                   Xem khung giờ <span>→</span>
                 </button>
               </div>
@@ -1257,8 +1257,8 @@ function BookingExperience({
                   : <div aria-labelledby="booking-slot-label" className="grid max-h-56 grid-cols-3 gap-2.5 overflow-y-auto p-1 sm:grid-cols-4">{slots.map((slot) => { const isSelected = selectedSlot === slot.startTime; return <button key={`${slot.branchId}-${slot.startTime}`} type="button" disabled={isSubmitting || !slot.available || slot.branchId !== selectedBranch} onClick={() => handleSlotChange(slot.startTime)} className={`flex flex-col items-center justify-center gap-0.5 rounded-lg border p-2.5 text-xs font-semibold transition-colors ${isSelected ? "border-brand-700 bg-brand-700 text-white shadow-md ring-2 ring-brand-500" : slot.available ? "border-brand-200 bg-white text-gray-800 hover:border-brand-500 hover:bg-brand-50" : "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 opacity-60"}`}><span className="text-sm font-bold">{slot.startTime.slice(0, 5)}</span><span className="text-[10px] opacity-80">{slot.available ? "Còn trống" : "Đã kín"}</span></button>; })}</div>}
               </div>
               <div className="booking-step-actions flex items-center justify-between border-t border-gray-100 pt-4">
-                <button type="button" disabled={isSubmitting} onClick={() => navigateToStep(4)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 disabled:opacity-50">← Quay lại</button>
-                <button type="button" disabled={isSubmitting || !selectedSlot || !slots.some((slot) => slot.available && slot.startTime === selectedSlot && slot.branchId === selectedBranch)} onClick={() => navigateToStep(6)} className="flex items-center gap-2 rounded-full bg-brand-700 px-6 py-2.5 font-semibold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600">
+                <button type="button" disabled={isSubmitting} onClick={() => navigateToStep(4)} className="inline-flex min-h-[44px] items-center px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 disabled:opacity-50 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 transition-colors">← Quay lại</button>
+                <button type="button" disabled={isSubmitting || !selectedSlot || !slots.some((slot) => slot.available && slot.startTime === selectedSlot && slot.branchId === selectedBranch)} onClick={() => navigateToStep(6)} className="flex items-center gap-2 rounded-lg bg-brand-700 px-6 py-2.5 font-semibold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600">
                   Tiếp tục: Điền thông tin <span>→</span>
                 </button>
               </div>
@@ -1406,14 +1406,14 @@ function BookingExperience({
                   type="button"
                   onClick={() => navigateToStep(5)}
                   disabled={isSubmitting}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium text-sm disabled:opacity-50"
+                  className="inline-flex min-h-[44px] items-center px-4 py-2 text-gray-600 hover:text-gray-900 font-medium text-sm disabled:opacity-50 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 transition-colors"
                 >
                   ← Quay lại
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-6 py-2.5 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-semibold rounded-full shadow-md transition-colors flex items-center gap-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
+                  className="px-6 py-2.5 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-semibold rounded-lg shadow-sm transition-colors flex items-center gap-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
                 >
                   {isSubmitting ? (
                     <span className="inline-flex items-center gap-2"><Icon name="clock" size={15} /> Đang giữ chỗ...</span>
@@ -1437,11 +1437,11 @@ function BookingExperience({
                     <h3 className="text-xl font-bold text-gray-900">Xác nhận lịch hẹn bằng OTP</h3>
                   </div>
                   <div className="flex flex-wrap justify-center gap-2 text-xs font-semibold">
-                    <span className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-amber-900">
+                    <span className="inline-flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-amber-900">
                       <Icon name="clock" size={15} />
                       {holdExpired ? "Thời gian giữ chỗ đã hết" : <>Giữ chỗ còn lại:{" "}<span className="font-mono font-bold text-amber-700">{formatTimer(secondsRemaining)}</span></>}
                     </span>
-                    <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 ${otpExpired ? "border-red-200 bg-red-50 text-red-900" : "border-brand-200 bg-brand-50 text-brand-900"}`}>
+                    <span className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 ${otpExpired ? "border-red-200 bg-red-50 text-red-900" : "border-brand-200 bg-brand-50 text-brand-900"}`}>
                       OTP còn hiệu lực:{" "}<span className="font-mono font-bold">{otpExpired ? "00:00" : formatTimer(otpSecondsRemaining)}</span>
                     </span>
                   </div>
@@ -1450,7 +1450,7 @@ function BookingExperience({
                     <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-left text-sm text-red-900" role="alert" aria-live="assertive">
                       <p className="font-bold">Khung giờ này không còn được giữ.</p>
                       <p className="mt-1 text-xs leading-5">Vui lòng tải lại danh sách và chọn khung giờ khác để tiếp tục.</p>
-                      <button type="button" disabled={isSubmitting} onClick={restartSlotSelection} className="mt-3 rounded-full border border-red-300 bg-white px-4 py-2 text-xs font-bold text-red-800 transition-colors hover:bg-red-100 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400 focus-visible:ring-2 focus-visible:ring-red-500">
+                      <button type="button" disabled={isSubmitting} onClick={restartSlotSelection} className="mt-3 rounded-lg border border-red-300 bg-white px-4 py-2 text-xs font-bold text-red-800 transition-colors hover:bg-red-100 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400 focus-visible:ring-2 focus-visible:ring-red-500">
                         Tải lại khung giờ
                       </button>
                     </div>
@@ -1460,7 +1460,7 @@ function BookingExperience({
                     <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-left text-sm text-red-900" role="alert" aria-live="assertive">
                       <p className="font-bold">Mã OTP đã hết hiệu lực.</p>
                       <p className="mt-1 text-xs leading-5">Bạn có thể yêu cầu gửi lại mã trong thời gian giữ chỗ vẫn còn hiệu lực.</p>
-                      <button type="button" disabled={isSubmitting || isResendingOtp || resendCooldownSeconds > 0} onClick={() => void handleResendOtp()} className="mt-3 min-h-11 rounded-full border border-red-300 bg-white px-4 py-2 text-xs font-bold text-red-800 transition-colors hover:bg-red-100 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400 focus-visible:ring-2 focus-visible:ring-red-500">
+                      <button type="button" disabled={isSubmitting || isResendingOtp || resendCooldownSeconds > 0} onClick={() => void handleResendOtp()} className="mt-3 min-h-11 rounded-lg border border-red-300 bg-white px-4 py-2 text-xs font-bold text-red-800 transition-colors hover:bg-red-100 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400 focus-visible:ring-2 focus-visible:ring-red-500">
                         {isResendingOtp ? "Đang gửi lại mã..." : resendCooldownSeconds > 0 ? `Thử lại sau ${formatTimer(resendCooldownSeconds)}` : "Gửi lại mã OTP"}
                       </button>
                     </div>
@@ -1490,7 +1490,7 @@ function BookingExperience({
                           type="button"
                           onClick={() => void handleResendOtp()}
                           disabled={isSubmitting || isResendingOtp || resendCooldownSeconds > 0}
-                          className="inline-flex min-h-11 items-center justify-center rounded-full border border-brand-300 bg-white px-4 py-2 text-sm font-bold text-brand-800 transition-colors hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-55 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
+                          className="inline-flex min-h-11 items-center justify-center rounded-lg border border-brand-300 bg-white px-4 py-2 text-sm font-bold text-brand-800 transition-colors hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-55 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
                         >
                           {isResendingOtp
                             ? "Đang gửi lại mã..."
@@ -1528,14 +1528,14 @@ function BookingExperience({
                       type="button"
                       onClick={holdExpired ? restartSlotSelection : () => navigateToStep(6)}
                       disabled={isSubmitting || isResendingOtp}
-                      className="px-4 py-2 text-gray-600 hover:text-gray-900 font-medium text-sm disabled:opacity-50"
+                      className="inline-flex min-h-[44px] items-center px-4 py-2 text-gray-600 hover:text-gray-900 font-medium text-sm disabled:opacity-50 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 transition-colors"
                     >
                       {holdExpired ? "← Chọn lại khung giờ" : "← Sửa thông tin"}
                     </button>
                     <button
                       type="submit"
                       disabled={isSubmitting || isResendingOtp || holdExpired || otpExpired}
-                      className="px-8 py-2.5 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-bold rounded-full shadow-lg hover:shadow-xl transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
+                      className="px-8 py-2.5 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-bold rounded-lg shadow-sm hover:shadow-xl transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
                     >
                       {isSubmitting ? "Đang xác nhận..." : "Hoàn tất đặt lịch khám"}
                     </button>
@@ -1617,13 +1617,13 @@ function BookingExperience({
                   </div>
 
                   <div className="pt-3">
-                    <Link className="mr-3 inline-flex rounded-full border border-brand-700 px-6 py-2.5 text-sm font-bold text-brand-800" href={`/patient/dashboard?paymentAppointmentId=${encodeURIComponent(confirmedAppointment.id)}#appointments`}>
+                    <Link className="mr-3 inline-flex rounded-lg border border-brand-700 px-6 py-2.5 text-sm font-bold text-brand-800" href={`/patient/dashboard?paymentAppointmentId=${encodeURIComponent(confirmedAppointment.id)}#appointments`}>
                       Thanh toán chuyển khoản
                     </Link>
                     <button
                       type="button"
                       onClick={closeBooking}
-                      className="px-8 py-2.5 bg-brand-700 hover:bg-brand-800 text-white font-bold rounded-full shadow-md transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
+                      className="px-8 py-2.5 bg-brand-700 hover:bg-brand-800 text-white font-bold rounded-lg shadow-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
                     >
                       {completionActionLabel}
                     </button>

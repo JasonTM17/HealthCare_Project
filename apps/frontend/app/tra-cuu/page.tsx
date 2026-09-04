@@ -275,7 +275,7 @@ export default function TraCuuPage() {
               </div>
 
               <span
-                className={`px-3 py-1 rounded-full text-xs font-extrabold ${
+                className={`px-3 py-1 rounded-md text-xs font-extrabold ${
                   appointment.status === "CONFIRMED"
                     ? "bg-emerald-400 text-brand-950"
                     : appointment.status === "CANCELLED"
