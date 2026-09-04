@@ -412,22 +412,22 @@ export default function DoctorDashboardPage() {
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="mb-0">Không gian làm việc lâm sàng</h1>
               {doctorProfile.status === "success" && (
-                <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-teal-50 text-teal-900 border border-teal-200">
-                  ⚡ {doctorProfile.data.aiCredits ?? 150} Doctor AI Credits
+                <span className="px-3 py-1.5 rounded-md text-xs font-bold bg-teal-50 text-teal-950 border border-teal-200">
+                  {doctorProfile.data.aiCredits ?? 150} lượt AI khả dụng
                 </span>
               )}
             </div>
-            <p className="mt-1">Quản lý lịch làm việc và hồ sơ của những người bệnh được phân công cho tài khoản này.</p>
+            <p className="mt-1 text-sm text-slate-600">Quản lý lịch làm việc và hồ sơ của những người bệnh được phân công cho tài khoản này.</p>
           </div>
-          <div className="portal-hero__actions flex flex-wrap gap-2">
-            <Link className="button button--primary text-sm" href="/doctor/articles">
-              ✍️ Đăng bài viết y khoa
+          <div className="portal-hero__actions flex flex-wrap items-center gap-2.5">
+            <Link className="min-h-11 px-5 rounded-md bg-teal-950 text-white text-xs font-bold hover:bg-teal-900 transition flex items-center justify-center shadow-xs" href="/doctor/articles">
+              Đăng bài viết y khoa
             </Link>
-            <Link className="outline-button text-sm" href="/doctor/consultations">
-              💬 Tư vấn bệnh nhân
+            <Link className="min-h-11 px-5 rounded-md bg-white text-teal-950 border border-slate-300 hover:border-teal-700 hover:bg-slate-50 text-xs font-bold transition flex items-center justify-center" href="/doctor/consultations">
+              Tư vấn bệnh nhân
             </Link>
-            <Link className="outline-button text-sm" href="/doctor/health-questions">
-              ❓ Hỏi đáp sức khỏe
+            <Link className="min-h-11 px-5 rounded-md bg-white text-teal-950 border border-slate-300 hover:border-teal-700 hover:bg-slate-50 text-xs font-bold transition flex items-center justify-center" href="/doctor/health-questions">
+              Hỏi đáp sức khỏe
             </Link>
           </div>
         </header>
