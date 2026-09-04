@@ -53,6 +53,7 @@ import {
 import PortalAppointments from "../../../components/PortalAppointments";
 import { BUSINESS_TIME_ZONE, businessDate, formatBusinessDate, formatBusinessDateTime } from "../../../lib/business-time";
 import UiIcon, { type IconName } from "../../../components/UiIcon";
+import ImageUpload from "../../../components/ImageUpload";
 import careHubStyles from "./CareHub.module.css";
 import paymentStyles from "./PaymentPanel.module.css";
 
@@ -740,7 +741,18 @@ export default function PatientDashboardPage() {
       loadOrReuse(retrySnapshot?.records, () => fetchPatientMedicalRecords()),
       loadOrReuse(retrySnapshot?.prescriptions, () => fetchPatientPrescriptions()),
       loadOrReuse(retrySnapshot?.diagnostics, () => fetchPatientDiagnosticResults()),
-      loadOrReuse(retrySnapshot?.notifications, () => fetchNotifications()),
+      loadOrReuse(retrySnapshot?.notifications, () =>
+        fetchNotifications().catch(() => ({
+          content: [],
+          totalElements: 0,
+          totalPages: 0,
+          number: 0,
+          size: 10,
+          first: true,
+          last: true,
+          empty: true,
+        }))
+      ),
       loadOrReuse(retrySnapshot?.overview, () => fetchPatientOverview()),
       loadOrReuse(retrySnapshot?.carePlans, () => fetchPatientCarePlans()),
     ]).then(([profileResult, appointmentsResult, recordsResult, prescriptionsResult, diagnosticsResult, notificationsResult, overviewResult, carePlansResult]) => {
@@ -1186,19 +1198,28 @@ export default function PatientDashboardPage() {
               <h1 className="mb-0">Xin chào, {user.displayName}</h1>
               {profile.status === "success" && (
                 <div className="flex items-center gap-2">
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-                    profile.data.patientTier === "VIP" ? "bg-purple-100 text-purple-800" :
-                    profile.data.patientTier === "GOLD" ? "bg-amber-100 text-amber-800" :
-                    profile.data.patientTier === "SILVER" ? "bg-slate-200 text-slate-800" :
-                    "bg-emerald-100 text-emerald-800"
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border ${
+                    profile.data.patientTier === "VIP" ? "bg-purple-50 text-purple-900 border-purple-200" :
+                    profile.data.patientTier === "GOLD" ? "bg-amber-50 text-amber-900 border-amber-200" :
+                    profile.data.patientTier === "SILVER" ? "bg-slate-100 text-slate-800 border-slate-200" :
+                    "bg-emerald-50 text-emerald-900 border-emerald-200"
                   }`}>
-                    {profile.data.patientTier === "VIP" ? "👑 Hạng VIP" :
-                     profile.data.patientTier === "GOLD" ? "⭐ Hạng Vàng" :
-                     profile.data.patientTier === "SILVER" ? "🥈 Hạng Bạc" :
-                     "🌱 Tiêu Chuẩn"}
+                    <UiIcon name={
+                      profile.data.patientTier === "VIP" ? "sparkles" :
+                      profile.data.patientTier === "GOLD" ? "star" :
+                      profile.data.patientTier === "SILVER" ? "award" :
+                      "shield-check"
+                    } size={14} />
+                    <span>
+                      {profile.data.patientTier === "VIP" ? "Hạng VIP" :
+                       profile.data.patientTier === "GOLD" ? "Hạng Vàng" :
+                       profile.data.patientTier === "SILVER" ? "Hạng Bạc" :
+                       "Tiêu Chuẩn"}
+                    </span>
                   </span>
-                  <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-teal-50 text-teal-900 border border-teal-200">
-                    ⚡ {profile.data.aiCredits ?? 20} AI Credits
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-teal-50 text-teal-900 border border-teal-200">
+                    <UiIcon name="sparkles" size={13} className="text-teal-700" />
+                    <span>{profile.data.aiCredits ?? 20} AI Credits</span>
                   </span>
                 </div>
               )}
@@ -1513,30 +1534,15 @@ export default function PatientDashboardPage() {
                     <span>Thông tin cá nhân & Ảnh đại diện</span>
                   </h3>
 
-                  <div className="portal-avatar-row mb-4 p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center gap-4">
-                    {profileForm.avatarUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        alt="Ảnh đại diện"
-                        className="w-16 h-16 rounded-full object-cover border-2 border-teal-600 shadow-sm"
-                        src={profileForm.avatarUrl}
-                        onError={(e) => { (e.target as HTMLElement).style.display = "none"; }}
-                      />
-                    ) : (
-                      <div className="w-16 h-16 rounded-full bg-teal-800 text-white flex items-center justify-center font-bold text-xl shadow-sm">
-                        {profileForm.fullName ? profileForm.fullName.charAt(0).toUpperCase() : "BN"}
-                      </div>
-                    )}
-                    <div className="flex-1">
-                      <label className="text-xs font-semibold text-slate-700 block mb-1">Đường dẫn ảnh đại diện (Avatar URL)</label>
-                      <input
-                        placeholder="https://... hoặc /media/doctors/doctor-1.jpg"
-                        value={profileForm.avatarUrl}
-                        onChange={(e) => setProfileForm((v) => ({ ...v, avatarUrl: e.target.value }))}
-                        className="w-full text-sm"
-                      />
-                      <span className="text-xs text-slate-500 mt-1 block">Nhập URL ảnh hoặc để trống để dùng biểu tượng mặc định.</span>
-                    </div>
+                  <div className="mb-4">
+                    <ImageUpload
+                      aspectRatio="square"
+                      helperText="Tải lên tệp ảnh chân dung bệnh nhân (PNG, JPG, WEBP tối đa 10 MB)"
+                      label="Ảnh chân dung đại diện"
+                      onChange={(url) => setProfileForm((v) => ({ ...v, avatarUrl: url }))}
+                      purpose="PATIENT_AVATAR"
+                      value={profileForm.avatarUrl}
+                    />
                   </div>
 
                   <div className="portal-clinical-form__grid">
@@ -1554,10 +1560,11 @@ export default function PatientDashboardPage() {
                     <UiIcon name="activity" size={18} />
                     <span>Lưu ý về tiền sử bệnh nhân riêng biệt</span>
                   </h3>
-                  <div className="portal-clinical-form__grid">
-                    <label>
-                      Nhóm máu
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                    <label className="flex flex-col gap-2 text-sm font-bold text-teal-950">
+                      <span>Nhóm máu</span>
                       <select
+                        className="w-full h-[46px] min-h-[46px] px-3 rounded-lg border border-slate-300 bg-white text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-teal-600 focus:border-teal-600"
                         value={profileForm.bloodType}
                         onChange={(e) => setProfileForm((v) => ({ ...v, bloodType: e.target.value }))}
                       >
@@ -1572,18 +1579,20 @@ export default function PatientDashboardPage() {
                         <option value="O-">O-</option>
                       </select>
                     </label>
-                    <label className="md:col-span-2">
-                      Dị ứng (thuốc, thực phẩm, thời tiết...)
+                    <label className="md:col-span-2 flex flex-col gap-2 text-sm font-bold text-teal-950">
+                      <span>Dị ứng (thuốc, thực phẩm, thời tiết...)</span>
                       <textarea
+                        className="w-full min-h-[46px] p-3 rounded-lg border border-slate-300 bg-white text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-teal-600 focus:border-teal-600 resize-y"
                         rows={2}
                         placeholder="Ví dụ: Dị ứng kháng sinh Penicillin, dị ứng hải sản, tôm cua..."
                         value={profileForm.allergies}
                         onChange={(e) => setProfileForm((v) => ({ ...v, allergies: e.target.value }))}
                       />
                     </label>
-                    <label className="md:col-span-3">
-                      Tiền sử bệnh lý bản thân & gia đình
+                    <label className="md:col-span-3 flex flex-col gap-2 text-sm font-bold text-teal-950">
+                      <span>Tiền sử bệnh lý bản thân & gia đình</span>
                       <textarea
+                        className="w-full min-h-[72px] p-3 rounded-lg border border-slate-300 bg-white text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-teal-600 focus:border-teal-600 resize-y"
                         rows={3}
                         placeholder="Ví dụ: Tăng huyết áp 5 năm, tiền sử đau dạ dày HP, gia đình có người mắc tiểu đường..."
                         value={profileForm.medicalHistory}

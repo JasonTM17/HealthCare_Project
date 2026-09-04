@@ -82,7 +82,7 @@ function slaLabel(item: ConsultationAdminQueueItem): string {
 
 function StateBadge({ status }: { status: string }) {
   return (
-    <span aria-label={`Trạng thái: ${statusLabel(status)}`} className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${statusTone(status)}`}>
+    <span aria-label={`Trạng thái: ${statusLabel(status)}`} className={`inline-flex rounded-md px-2.5 py-1 text-xs font-bold ${statusTone(status)}`}>
       {statusLabel(status)}
     </span>
   );
@@ -190,9 +190,9 @@ export default function AdminConsultationsPage() {
           <h1>Hàng đợi tư vấn riêng</h1>
           <p>Điều phối SLA và phân công bác sĩ mà không đọc chủ đề, nội dung tin nhắn, tệp hoặc danh tính bệnh nhân.</p>
           <div aria-label="Tóm tắt hàng đợi" className="mt-4 flex flex-wrap gap-2 text-xs font-bold text-teal-900">
-            <span className="rounded-full bg-teal-50 px-3 py-1.5">{openCount} kênh đang mở</span>
-            <span className="rounded-full bg-amber-50 px-3 py-1.5">{dueCount} kênh quá SLA</span>
-            <span className="rounded-full bg-slate-100 px-3 py-1.5">{items.length} kênh metadata</span>
+            <span className="rounded-md bg-teal-50 px-3 py-1.5">{openCount} kênh đang mở</span>
+            <span className="rounded-md bg-amber-50 px-3 py-1.5">{dueCount} kênh quá SLA</span>
+            <span className="rounded-md bg-slate-100 px-3 py-1.5">{items.length} kênh metadata</span>
           </div>
         </div>
         <button aria-label="Tải lại hàng đợi tư vấn" className="outline-button min-h-11" disabled={queueLoading || doctorsLoading} onClick={() => setRetry((value) => value + 1)} type="button">
@@ -255,7 +255,7 @@ export default function AdminConsultationsPage() {
                     <p className="section-note">Kênh #{index + 1}</p>
                     <h2>{specialtyLabel(item.specialtySlug)}</h2>
                   </div>
-                  <div className="flex flex-wrap items-center justify-end gap-2"><StateBadge status={item.status} /><span className={due ? "inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-900" : "inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-900"}>{due ? "Quá SLA" : "Theo dõi SLA"}</span></div>
+                  <div className="flex flex-wrap items-center justify-end gap-2"><StateBadge status={item.status} /><span className={due ? "inline-flex rounded-md bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-900" : "inline-flex rounded-md bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-900"}>{due ? "Quá SLA" : "Theo dõi SLA"}</span></div>
                 </div>
                 <dl className="grid gap-3 text-sm sm:grid-cols-3">
                   <div><dt className="font-bold text-slate-600">Phản hồi đầu tiên</dt><dd>{slaLabel(item)}</dd></div>

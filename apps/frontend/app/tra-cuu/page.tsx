@@ -213,7 +213,7 @@ export default function TraCuuPage() {
                   placeholder="Ví dụ: APT-9F3A..."
                   value={bookingCodeInput}
                   onChange={(e) => setBookingCodeInput(e.target.value)}
-                  className="w-full p-3 bg-sand-100 border border-mint-200 rounded-xl font-mono text-sm font-bold text-ink focus:ring-2 focus:ring-brand-600 focus:outline-none uppercase"
+                  className="w-full p-3 bg-sand-100 border border-mint-200 rounded-lg font-mono text-sm font-bold text-ink focus:ring-2 focus:ring-brand-600 focus:outline-none uppercase"
                 />
               </div>
 
@@ -229,7 +229,7 @@ export default function TraCuuPage() {
                   placeholder="0901234567"
                   value={phoneInput}
                   onChange={(e) => setPhoneInput(e.target.value)}
-                  className="w-full p-3 bg-sand-100 border border-mint-200 rounded-xl text-sm text-ink focus:ring-2 focus:ring-brand-600 focus:outline-none"
+                  className="w-full p-3 bg-sand-100 border border-mint-200 rounded-lg text-sm text-ink focus:ring-2 focus:ring-brand-600 focus:outline-none"
                 />
               </div>
 
@@ -237,7 +237,7 @@ export default function TraCuuPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-bold rounded-xl text-sm shadow-md transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full py-3 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-bold rounded-lg text-sm shadow-md transition-colors flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {loading ? <><Icon name="clock" size={16} /> Đang tra cứu...</> : <><Icon name="search" size={16} /> Tra cứu ngay</>}
                 </button>
@@ -246,14 +246,14 @@ export default function TraCuuPage() {
           </form>
 
           {errorMessage && (
-            <div aria-live="assertive" className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center gap-2" role="alert">
+            <div aria-live="assertive" className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 flex items-center gap-2" role="alert">
               <Icon name="alert-triangle" size={16} />
               <span>{errorMessage}</span>
             </div>
           )}
 
           {cancelSuccess && (
-            <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-semibold flex items-center gap-2">
+            <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800 font-semibold flex items-center gap-2">
               <Icon name="check" size={16} />
               <span>Lịch hẹn đã được hủy thành công theo yêu cầu của bạn.</span>
             </div>
@@ -356,7 +356,7 @@ export default function TraCuuPage() {
                 <button
                   type="button"
                   onClick={() => window.print()}
-                  className="px-5 py-2.5 bg-mint-100 hover:bg-mint-200 text-ink-muted text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5"
+                  className="px-5 py-2.5 bg-mint-100 hover:bg-mint-200 text-ink-muted text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5"
                 >
                   <Icon name="printer" size={15} /> In Phiếu Khám
                 </button>
@@ -365,7 +365,7 @@ export default function TraCuuPage() {
                   <button
                     type="button"
                     onClick={() => setShowCancelDialog(true)}
-                    className="px-5 py-2.5 text-xs font-bold text-red-600 hover:text-red-800 hover:bg-red-50 rounded-xl transition-colors"
+                    className="px-5 py-2.5 text-xs font-bold text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
                   >
                     Hủy Lịch Hẹn Này
                   </button>

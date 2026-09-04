@@ -600,7 +600,7 @@ export function CmsEditor({
             {CMS_SLOT_KEYS.map((slotKey) => <option key={slotKey} value={slotKey}>{SLOT_LABELS[slotKey]} · {slotKey}</option>)}
           </select>
         </label>
-        <button className="min-h-11 rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-60" disabled={isBusy} type="submit">
+        <button className="min-h-11 rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-60" disabled={isBusy} type="submit">
           {operation === "loading" ? "Đang tải…" : "Tải slot"}
         </button>
       </form>
@@ -615,7 +615,7 @@ export function CmsEditor({
           {CMS_ROUTE_PRESETS.map(([routeSlug, label]) => (
             <button
               aria-pressed={slug === routeSlug}
-              className={`min-h-11 rounded-xl border px-3 py-2 text-left text-sm font-semibold transition-colors ${slug === routeSlug ? "border-teal-700 bg-teal-50 text-teal-950" : "border-slate-300 text-slate-700 hover:bg-slate-50"}`}
+              className={`min-h-11 rounded-lg border px-3 py-2 text-left text-sm font-semibold transition-colors ${slug === routeSlug ? "border-teal-700 bg-teal-50 text-teal-950" : "border-slate-300 text-slate-700 hover:bg-slate-50"}`}
               key={routeSlug}
               onClick={() => setSlug(routeSlug)}
               disabled={isBusy}
@@ -634,7 +634,7 @@ export function CmsEditor({
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Slot directory</p>
             <h2 className="mt-1 text-xl font-bold text-slate-950" id="cms-slot-directory-title">Các component CMS đã có trong backend</h2>
           </div>
-          <button className="min-h-11 rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60" disabled={inventoryLoading || isBusy} onClick={() => void loadAvailableContent()} type="button">
+          <button className="min-h-11 rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60" disabled={inventoryLoading || isBusy} onClick={() => void loadAvailableContent()} type="button">
             {inventoryLoading ? "Đang đọc…" : "Làm mới danh mục"}
           </button>
         </div>
@@ -645,7 +645,7 @@ export function CmsEditor({
             {availableContent.map((item) => {
               const selection = slotSelection(item.slotKey);
               return selection ? (
-                <button className="min-h-11 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 text-left text-sm font-semibold text-teal-950 hover:bg-teal-100 disabled:opacity-60" disabled={isBusy} key={item.slotKey} onClick={() => void loadContent(selection.slug, selection.slot)} type="button">
+                <button className="min-h-11 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-left text-sm font-semibold text-teal-950 hover:bg-teal-100 disabled:opacity-60" disabled={isBusy} key={item.slotKey} onClick={() => void loadContent(selection.slug, selection.slot)} type="button">
                   <span className="block font-mono text-xs">{item.slotKey}</span>
                   <span className="block text-xs font-normal text-teal-800">{item.componentType} · v{item.version} · {item.status}</span>
                 </button>
@@ -659,7 +659,7 @@ export function CmsEditor({
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-950" role="alert">
           <p>{apiErrorMessage(apiError)}</p>
           {apiError.kind === "conflict" ? (
-            <button className="mt-3 min-h-11 rounded-xl bg-red-800 px-4 py-2 text-sm font-bold text-white hover:bg-red-900 disabled:opacity-60" disabled={isBusy} onClick={() => void loadContent(loadedSelection?.slug ?? loadedSlug, loadedSelection?.slot ?? selectedSlot)} type="button">
+            <button className="mt-3 min-h-11 rounded-lg bg-red-800 px-4 py-2 text-sm font-bold text-white hover:bg-red-900 disabled:opacity-60" disabled={isBusy} onClick={() => void loadContent(loadedSelection?.slug ?? loadedSlug, loadedSelection?.slot ?? selectedSlot)} type="button">
               Tải version mới nhất
             </button>
           ) : null}
@@ -709,13 +709,13 @@ export function CmsEditor({
           </section>
 
           <div className="flex flex-wrap gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <button className="min-h-11 rounded-xl bg-teal-700 px-4 py-2 text-sm font-bold text-white hover:bg-teal-800 disabled:opacity-60" disabled={!canMutate} onClick={() => void handleUpsert("DRAFT")} type="button">
+            <button className="min-h-11 rounded-lg bg-teal-700 px-4 py-2 text-sm font-bold text-white hover:bg-teal-800 disabled:opacity-60" disabled={!canMutate} onClick={() => void handleUpsert("DRAFT")} type="button">
               {operation === "saving" ? "Đang lưu…" : "Lưu bản nháp (ẩn công khai)"}
             </button>
-            <button className="min-h-11 rounded-xl border border-teal-700 px-4 py-2 text-sm font-bold text-teal-800 hover:bg-teal-50 disabled:opacity-60" disabled={!canMutate} onClick={() => void handleUpsert("PUBLISHED")} type="button">
+            <button className="min-h-11 rounded-lg border border-teal-700 px-4 py-2 text-sm font-bold text-teal-800 hover:bg-teal-50 disabled:opacity-60" disabled={!canMutate} onClick={() => void handleUpsert("PUBLISHED")} type="button">
               {operation === "publishing" ? "Đang xuất bản…" : "Xuất bản"}
             </button>
-            <button className="min-h-11 rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60" disabled={isBusy} onClick={resetToLoaded} type="button">
+            <button className="min-h-11 rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60" disabled={isBusy} onClick={resetToLoaded} type="button">
               Khôi phục bản đã tải
             </button>
           </div>

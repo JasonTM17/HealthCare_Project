@@ -49,25 +49,29 @@ const getPublicCareImage = (index: number): string =>
 const BRANCH_IMAGES: Record<string, string> = {
   "benh-vien-sai-gon-xanh": "/media/branches/branch-hospital.jpg",
   "phong-kham-thao-dien": "/media/branches/branch-building.jpg",
+  "co-so-1": "/media/branches/branch-hospital.jpg",
+  "co-so-2": "/media/branches/branch-hospital-exterior.jpg",
+  "co-so-3": "/media/branches/branch-building.jpg",
+  "co-so-4": "/media/branches/branch-clinic.jpg",
+  "co-so-5": "/media/branches/branch-clinic-2.jpg",
+  "co-so-6": "/media/branches/branch-clinic-hall.jpg",
 };
 
-const DEFAULT_BRANCH_IMAGES = [
+const DISTINCT_BRANCH_IMAGES = [
   "/media/branches/branch-hospital.jpg",
+  "/media/branches/branch-hospital-exterior.jpg",
   "/media/branches/branch-building.jpg",
+  "/media/branches/branch-clinic.jpg",
+  "/media/branches/branch-clinic-2.jpg",
+  "/media/branches/branch-clinic-hall.jpg",
+  "/media/branches/branch-reception.jpg",
 ];
 
 const getBranchImage = (branch: Branch, index: number): string => {
   if (branch.slug && BRANCH_IMAGES[branch.slug]) {
     return BRANCH_IMAGES[branch.slug];
   }
-  const name = (branch.name || "").toLowerCase();
-  if (name.includes("bệnh viện") || name.includes("hospital")) {
-    return "/media/branches/branch-hospital.jpg";
-  }
-  if (name.includes("phòng khám") || name.includes("clinic")) {
-    return "/media/branches/branch-building.jpg";
-  }
-  return DEFAULT_BRANCH_IMAGES[index % DEFAULT_BRANCH_IMAGES.length];
+  return DISTINCT_BRANCH_IMAGES[index % DISTINCT_BRANCH_IMAGES.length];
 };
 
 const JOURNEY_STEPS: Array<{ icon: IconName; title: string; description: string }> = [
@@ -504,7 +508,13 @@ function HomeHeroCopy({
         {activeCmsHero?.eyebrow ?? "Bệnh viện đa khoa HealthCare"}
       </p>
       <h1 id="hero-title">
-        {activeCmsHero?.title ?? <>Đồng hành cùng <span>sức khỏe gia đình</span></>}
+        {activeCmsHero?.title ?? (
+          <>
+            Đồng hành<br />
+            cùng sức<br />
+            <span>khỏe gia đình</span>
+          </>
+        )}
       </h1>
       <p className="hero-description">
         {activeCmsHero?.body ?? "Chọn chuyên khoa, bác sĩ, gói khám hoặc cơ sở và giữ khung giờ phù hợp ngay trên hệ thống."}

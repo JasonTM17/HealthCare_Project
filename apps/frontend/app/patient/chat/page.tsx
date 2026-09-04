@@ -846,8 +846,8 @@ function PatientChatPageContent() {
             <h1>Trao đổi có lưu lịch sử</h1>
             <p>Đặt câu hỏi về thông tin chăm sóc và xem lại phản hồi gắn với nguồn HealthCare.</p>
             {creditStatus && (
-              <div className="mt-3 inline-flex items-center gap-2.5 rounded-full bg-emerald-50 border border-emerald-200 px-3.5 py-1.5 text-xs font-semibold text-emerald-900 shadow-sm">
-                <span>{creditStatus.tier === 'VIP' ? '👑' : creditStatus.tier === 'GOLD' ? '⭐' : creditStatus.tier === 'SILVER' ? '🥈' : '🌱'}</span>
+              <div className="mt-3 inline-flex items-center gap-2.5 rounded-lg bg-emerald-50 border border-emerald-200 px-3.5 py-1.5 text-xs font-semibold text-emerald-900 shadow-xs">
+                <UiIcon name={creditStatus.tier === 'VIP' ? 'sparkles' : creditStatus.tier === 'GOLD' ? 'star' : creditStatus.tier === 'SILVER' ? 'award' : 'shield-check'} size={15} className="text-emerald-700 shrink-0" />
                 <span>Hạng <strong>{creditStatus.tier || 'STANDARD'}</strong></span>
                 <span className="text-emerald-300">|</span>
                 <span>Lượt AI còn lại: <strong className="text-emerald-700 text-sm">{creditStatus.credits}</strong>/{creditStatus.maxCredits}</span>

@@ -305,20 +305,22 @@ export default function DoctorArticlesPage() {
   return (
     <PortalChrome role="DOCTOR" user={session.user}>
       <div className="w-full max-w-[1240px] mx-auto pb-12 space-y-6">
-        {/* Header Title with Action Button */}
-        <header className="portal-hero mb-6">
-          <div className="flex flex-wrap items-center justify-between gap-4 w-full">
+        {/* Header Title with Action Button and Symmetrical Tabs */}
+        <header className="mb-6 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs">
+          <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-slate-100">
             <div>
-              <p className="section-note">MẠNG XÃ HỘI Y KHOA & DIỄN ĐÀN BỆNH VIỆN</p>
-              <h1 className="text-2xl font-black text-teal-950 tracking-tight">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-teal-50 text-teal-800 border border-teal-200/60">
+                Mạng xã hội y khoa & Diễn đàn bệnh viện
+              </span>
+              <h1 className="text-2xl font-black text-teal-950 tracking-tight mt-2">
                 Cộng đồng & Bài viết Y khoa
               </h1>
-              <p className="text-sm text-slate-600 mt-1">
+              <p className="text-sm text-slate-600 mt-1 max-w-2xl">
                 Đọc và thảo luận chuyên môn cùng các Bác sĩ đồng nghiệp, chia sẻ kiến thức phòng bệnh và giải đáp thắc mắc của người bệnh.
               </p>
             </div>
             <button
-              className="inline-flex items-center gap-2 rounded-xl bg-teal-900 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-teal-800 transition-all min-h-11 cursor-pointer"
+              className="inline-flex items-center gap-2 rounded-lg bg-teal-900 px-5 py-2.5 text-sm font-bold text-white shadow-xs hover:bg-teal-800 transition-all min-h-11 cursor-pointer"
               onClick={() => handleOpenEditor()}
               type="button"
             >
@@ -327,33 +329,41 @@ export default function DoctorArticlesPage() {
             </button>
           </div>
 
-          {/* Symmetrical Mode Tabs */}
-          <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-slate-200 pt-4">
-            <button
-              className={`min-h-11 px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-                activeTab === "community_feed"
-                  ? "bg-teal-900 text-white shadow-sm"
-                  : "bg-white text-slate-700 border border-slate-200 hover:border-teal-500 hover:bg-slate-50"
-              }`}
-              onClick={() => setActiveTab("community_feed")}
-              type="button"
-            >
-              <UiIcon name="book-open" size={16} />
-              <span>Bảng tin Y khoa Bệnh viện ({communityArticles.length})</span>
-            </button>
+          {/* Symmetrical Segmented Tabs */}
+          <div className="pt-4 flex flex-wrap items-center gap-3">
+            <div className="inline-flex p-1 bg-slate-100/90 rounded-xl border border-slate-200/80 gap-1.5">
+              <button
+                className={`min-h-10 px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                  activeTab === "community_feed"
+                    ? "bg-white text-teal-950 shadow-xs border border-slate-200/60"
+                    : "text-slate-600 hover:text-teal-900 hover:bg-slate-200/60"
+                }`}
+                onClick={() => setActiveTab("community_feed")}
+                type="button"
+              >
+                <UiIcon name="book-open" size={15} />
+                <span>Bảng tin Y khoa Bệnh viện</span>
+                <span className="ml-1 rounded-full bg-teal-50 px-2 py-0.5 text-[11px] font-bold text-teal-800 border border-teal-200/50">
+                  {communityArticles.length}
+                </span>
+              </button>
 
-            <button
-              className={`min-h-11 px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-                activeTab === "my_articles"
-                  ? "bg-teal-900 text-white shadow-sm"
-                  : "bg-white text-slate-700 border border-slate-200 hover:border-teal-500 hover:bg-slate-50"
-              }`}
-              onClick={() => setActiveTab("my_articles")}
-              type="button"
-            >
-              <UiIcon name="stethoscope" size={16} />
-              <span>Bài viết của tôi ({myArticles.length})</span>
-            </button>
+              <button
+                className={`min-h-10 px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                  activeTab === "my_articles"
+                    ? "bg-white text-teal-950 shadow-xs border border-slate-200/60"
+                    : "text-slate-600 hover:text-teal-900 hover:bg-slate-200/60"
+                }`}
+                onClick={() => setActiveTab("my_articles")}
+                type="button"
+              >
+                <UiIcon name="stethoscope" size={15} />
+                <span>Bài viết của tôi</span>
+                <span className="ml-1 rounded-full bg-teal-50 px-2 py-0.5 text-[11px] font-bold text-teal-800 border border-teal-200/50">
+                  {myArticles.length}
+                </span>
+              </button>
+            </div>
           </div>
         </header>
 
@@ -375,7 +385,7 @@ export default function DoctorArticlesPage() {
             {/* Specialty Filter Chips */}
             <div className="flex flex-wrap gap-2">
               <button
-                className={`rounded-full px-4 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer ${
                   selectedSpecialty === "all"
                     ? "bg-teal-900 text-white shadow-sm"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -389,7 +399,7 @@ export default function DoctorArticlesPage() {
                 const count = communityArticles.filter((a) => a.relatedSpecialtySlug === s.slug).length;
                 return (
                   <button
-                    className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
                       selectedSpecialty === s.slug
                         ? "bg-teal-900 text-white shadow-sm"
                         : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -428,13 +438,13 @@ export default function DoctorArticlesPage() {
                           className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                           src={article.coverImageUrl}
                         />
-                        <span className="absolute top-3 left-3 rounded-full bg-teal-950/80 backdrop-blur-md px-2.5 py-0.5 text-xs font-bold text-teal-100">
+                        <span className="absolute top-3 left-3 rounded-md bg-teal-950/80 backdrop-blur-md px-2.5 py-0.5 text-xs font-bold text-teal-100">
                           {article.category || "Cẩm nang y tế"}
                         </span>
                       </div>
                     ) : (
                       <div className="h-28 w-full bg-gradient-to-r from-teal-900 to-teal-700 p-4 flex items-end">
-                        <span className="rounded-full bg-white/20 backdrop-blur-md px-2.5 py-0.5 text-xs font-bold text-white">
+                        <span className="rounded-md bg-white/20 backdrop-blur-md px-2.5 py-0.5 text-xs font-bold text-white">
                           {article.category || "Cẩm nang y tế"}
                         </span>
                       </div>
@@ -510,7 +520,7 @@ export default function DoctorArticlesPage() {
                   >
                     <div>
                       <div className="flex items-center justify-between text-xs text-slate-500">
-                        <span className="rounded-full bg-teal-50 px-2.5 py-0.5 font-bold text-teal-800">
+                        <span className="rounded-md bg-teal-50 px-2.5 py-0.5 font-bold text-teal-800">
                           {a.category || "Cẩm nang y tế"}
                         </span>
                         <span className={`font-semibold ${a.active ? "text-emerald-700" : "text-amber-700"}`}>

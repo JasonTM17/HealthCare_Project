@@ -4,13 +4,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ApiError,
   fetchAdminAiContentReviews,
+  fetchArticles,
   submitAiContentRevision,
 } from "../../../lib/api-client";
 import { presentApiError } from "../../../lib/present-api-error";
+import UiIcon from "../../../components/UiIcon";
 import type {
   AiContentReviewState,
   AiContentReviewSummary,
   AiContentType,
+  Article,
 } from "../../../types/hospital";
 
 const TYPES: Array<AiContentType | ""> = ["", "SPECIALTY", "ARTICLE", "FAQ"];
@@ -76,7 +79,7 @@ function StateBadge({ state }: { state: AiContentReviewState }) {
   return (
     <span
       aria-label={`Trạng thái: ${stateLabel(state)}`}
-      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold ${stateTone(state)}`}
+      className={`inline-flex items-center rounded-md px-2.5 py-1 text-xs font-bold ${stateTone(state)}`}
     >
       {stateLabel(state)}
     </span>
@@ -92,6 +95,9 @@ export default function AdminAiContentReviewsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [previewArticle, setPreviewArticle] = useState<Article | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const requestEpoch = useRef(0);
 
   const load = useCallback(async (): Promise<void> => {
@@ -134,6 +140,15 @@ export default function AdminAiContentReviewsPage() {
     };
   }, [load]);
 
+  useEffect(() => {
+    if (!previewModalOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPreviewModalOpen(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [previewModalOpen]);
+
   const summary = useMemo(() => ({
     total: items.length,
     needsSubmit: items.filter((item) => isSubmittable(item.state)).length,
@@ -149,12 +164,28 @@ export default function AdminAiContentReviewsPage() {
     setState("");
     setSelected(null);
     setNotice(null);
+    setPreviewModalOpen(false);
   };
 
   const selectItem = (item: AiContentReviewSummary): void => {
     setSelected(item);
     setNotice(null);
     setError(null);
+    setPreviewModalOpen(true);
+    if (item.sourceType === "ARTICLE") {
+      setPreviewLoading(true);
+      fetchArticles(0, 100)
+        .then((page) => {
+          const matched = page.content.find(
+            (a) => a.id === item.sourceId || a.title?.trim().toLowerCase() === item.title?.trim().toLowerCase(),
+          );
+          setPreviewArticle(matched ?? null);
+        })
+        .catch(() => setPreviewArticle(null))
+        .finally(() => setPreviewLoading(false));
+    } else {
+      setPreviewArticle(null);
+    }
   };
 
   const submitSelected = async (): Promise<void> => {
@@ -201,9 +232,9 @@ export default function AdminAiContentReviewsPage() {
             không tự approve và không đưa dữ liệu vào RAG trước khi có quyết định độc lập.
           </p>
           <div aria-label="Tóm tắt inventory" className="mt-4 flex flex-wrap gap-2 text-xs font-bold text-teal-900">
-            <span className="rounded-full bg-teal-50 px-3 py-1.5">{summary.total} revision hiển thị</span>
-            <span className="rounded-full bg-amber-50 px-3 py-1.5">{summary.needsSubmit} cần gửi</span>
-            <span className="rounded-full bg-slate-100 px-3 py-1.5">{summary.submitted} chờ duyệt · {summary.approved} đã duyệt</span>
+            <span className="rounded-md bg-teal-50 px-3 py-1.5">{summary.total} revision hiển thị</span>
+            <span className="rounded-md bg-amber-50 px-3 py-1.5">{summary.needsSubmit} cần gửi</span>
+            <span className="rounded-md bg-slate-100 px-3 py-1.5">{summary.submitted} chờ duyệt · {summary.approved} đã duyệt</span>
           </div>
         </div>
         <button
@@ -329,11 +360,12 @@ export default function AdminAiContentReviewsPage() {
                         <button
                           aria-label={`${active ? "Đang xem" : "Xem"} ${item.title || "nguồn nội dung"}, revision ${item.revision}`}
                           aria-pressed={active}
-                          className="min-h-11 rounded-lg border border-teal-700 px-3 font-bold text-teal-900 hover:bg-teal-50"
+                          className="min-h-11 rounded-lg border border-teal-700 px-3 font-bold text-teal-900 hover:bg-teal-50 inline-flex items-center gap-1.5 transition-colors cursor-pointer"
                           onClick={() => selectItem(item)}
                           type="button"
                         >
-                          {active ? "Đang xem" : "Xem revision"}
+                          <UiIcon name="eye" size={16} />
+                          <span>{active ? "Đang xem trước" : "Xem trước bài viết"}</span>
                         </button>
                       </td>
                     </tr>
@@ -381,6 +413,159 @@ export default function AdminAiContentReviewsPage() {
           </div>
         </section>
       ) : null}
+
+      {/* Article / Content Preview Popup Modal */}
+      {previewModalOpen && selected && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs"
+          onClick={() => setPreviewModalOpen(false)}
+        >
+          <div
+            aria-labelledby="preview-modal-title"
+            aria-modal="true"
+            className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl border border-slate-200"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+          >
+            {/* Modal Header */}
+            <div className="flex items-start justify-between border-b border-slate-100 bg-slate-50/90 px-6 py-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="rounded-md bg-teal-100 px-2.5 py-0.5 text-xs font-bold text-teal-900">
+                    {typeLabel(selected.sourceType)}
+                  </span>
+                  <StateBadge state={selected.state} />
+                  <span className="text-xs text-slate-500 font-medium">Revision {selected.revision}</span>
+                </div>
+                <h2 className="mt-1.5 text-lg font-black text-teal-950" id="preview-modal-title">
+                  {selected.title || "Nguồn chưa đặt tên"}
+                </h2>
+              </div>
+              <button
+                aria-label="Đóng xem trước"
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition-colors cursor-pointer"
+                onClick={() => setPreviewModalOpen(false)}
+                type="button"
+              >
+                <UiIcon name="x" size={20} />
+              </button>
+            </div>
+
+            {/* Modal Body: Article Content Preview */}
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+              {previewLoading ? (
+                <div className="py-12 text-center text-slate-500">
+                  <p className="text-sm">Đang tải nội dung xem trước…</p>
+                </div>
+              ) : previewArticle ? (
+                <div className="space-y-4">
+                  {previewArticle.coverImageUrl && (
+                    <div className="overflow-hidden rounded-xl border border-slate-200 aspect-video relative max-h-64 w-full">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        alt={previewArticle.title}
+                        className="h-full w-full object-cover"
+                        src={previewArticle.coverImageUrl}
+                      />
+                    </div>
+                  )}
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                    {previewArticle.authorName && (
+                      <span className="font-semibold text-slate-700">Tác giả: Bác sĩ {previewArticle.authorName}</span>
+                    )}
+                    {previewArticle.category && (
+                      <span>• Chuyên mục: {previewArticle.category}</span>
+                    )}
+                    {previewArticle.readingMinutes && (
+                      <span>• {previewArticle.readingMinutes} phút đọc</span>
+                    )}
+                  </div>
+                  {previewArticle.summary && (
+                    <div className="rounded-xl border border-teal-100 bg-teal-50/60 p-4 text-sm font-medium text-teal-950 leading-relaxed">
+                      {previewArticle.summary}
+                    </div>
+                  )}
+                  {previewArticle.sections && previewArticle.sections.length > 0 ? (
+                    <div className="space-y-3">
+                      {previewArticle.sections.map((sec, idx) => (
+                        <div key={idx} className="space-y-1">
+                          {sec.heading && <h4 className="text-sm font-bold text-slate-900">{sec.heading}</h4>}
+                          <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">{sec.body}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">
+                      {previewArticle.body || "Nội dung chi tiết đang được cập nhật."}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                    <p className="font-bold text-slate-900 text-base">{selected.title}</p>
+                    <p className="mt-1 text-xs text-slate-500">Mã định danh nội dung: {selected.sourceId}</p>
+                    <p className="mt-2 text-xs font-semibold text-teal-800">Loại nội dung: {typeLabel(selected.sourceType)}</p>
+                  </div>
+                  <p className="text-sm text-slate-600 leading-relaxed">
+                    Đây là bản xem trước nội dung chuẩn bị gửi sang hàng đợi xét duyệt lâm sàng của Bác sĩ. Sau khi Bác sĩ thẩm định chuyên môn và phê duyệt, nội dung sẽ được xuất bản chính thức cho bệnh nhân tham khảo.
+                  </p>
+                </div>
+              )}
+
+              {/* Technical Audit Box */}
+              <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-slate-700 space-y-1.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-bold text-teal-950">Thông tin kiểm duyệt (Clinical Audit):</span>
+                  <span>Vòng duyệt: {selected.approvalRound ?? "Chưa có"}</span>
+                </div>
+                <p className="font-mono text-[11px] text-slate-500 break-all">
+                  SHA-256: {selected.contentHash || "Chưa có"}
+                </p>
+                <p className="text-slate-500">
+                  Gửi: {dateLabel(selected.submittedAt)} • Duyệt: {dateLabel(selected.approvedAt)} • Hết hạn: {dateLabel(selected.expiresAt)}
+                </p>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/90 px-6 py-4">
+              <button
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                onClick={() => setPreviewModalOpen(false)}
+                type="button"
+              >
+                Đóng xem trước
+              </button>
+              <div className="flex items-center gap-2">
+                {isSubmittable(selected.state) ? (
+                  <button
+                    className="rounded-lg bg-teal-900 px-5 py-2 text-sm font-bold text-white shadow-sm hover:bg-teal-800 disabled:opacity-50 transition-colors cursor-pointer"
+                    disabled={submitting}
+                    onClick={async () => {
+                      await submitSelected();
+                      setPreviewModalOpen(false);
+                    }}
+                    type="button"
+                  >
+                    {submitting ? "Đang gửi…" : "Gửi revision cho bác sĩ duyệt"}
+                  </button>
+                ) : selected.state === "APPROVED" ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-100 px-3 py-1.5 text-xs font-bold text-emerald-900">
+                    <UiIcon name="shield-check" size={15} />
+                    Đã duyệt xuất bản cho bệnh nhân xem
+                  </span>
+                ) : selected.state === "SUBMITTED" ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-900">
+                    <UiIcon name="clock" size={15} />
+                    Đang chờ Bác sĩ thẩm định chuyên môn
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
