@@ -56,7 +56,7 @@ function SlaBadge({ item }: { item: ConsultationSummary }) {
   const due = isSlaDue(item);
   const closed = isClosed(item.status);
   return (
-    <span className={due ? "inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-900" : closed ? "inline-flex rounded-full bg-slate-200 px-2.5 py-1 text-xs font-bold text-slate-700" : "inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-900"}>
+    <span className={due ? "inline-flex rounded-md bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-900" : closed ? "inline-flex rounded-md bg-slate-200 px-2.5 py-1 text-xs font-bold text-slate-700" : "inline-flex rounded-md bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-900"}>
       {due ? "Cần xử lý SLA" : closed ? "Đã kết thúc" : "Trong thời hạn"}
     </span>
   );
@@ -109,9 +109,9 @@ export default function DoctorConsultationsPage() {
             <h1>Tư vấn bệnh nhân</h1>
             <p>Chỉ các lịch hẹn được phân công hoặc handoff mới xuất hiện. Nội dung trao đổi chỉ dành cho bác sĩ có quyền.</p>
             <div aria-label="Tóm tắt kênh tư vấn" className="mt-4 flex flex-wrap gap-2 text-xs font-bold text-teal-900">
-              <span className="rounded-full bg-teal-50 px-3 py-1.5">{activeCount} kênh đang mở</span>
-              <span className="rounded-full bg-amber-50 px-3 py-1.5">{unreadCount} tin chưa đọc</span>
-              <span className="rounded-full bg-slate-100 px-3 py-1.5">{items.length} kênh được phân quyền</span>
+              <span className="rounded-md bg-teal-50 px-3 py-1.5">{activeCount} kênh đang mở</span>
+              <span className="rounded-md bg-amber-50 px-3 py-1.5">{unreadCount} tin chưa đọc</span>
+              <span className="rounded-md bg-slate-100 px-3 py-1.5">{items.length} kênh được phân quyền</span>
             </div>
           </div>
           <button
@@ -148,7 +148,7 @@ export default function DoctorConsultationsPage() {
                 </div>
                 <p>Bệnh nhân hiển thị theo quyền · Bác sĩ {item.doctorName ?? "được phân công"}</p>
                 <div className="flex flex-wrap items-center gap-2 text-sm">
-                  <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${statusTone(item.status)}`}>{statusLabel(item.status)}</span>
+                  <span className={`inline-flex rounded-md px-2.5 py-1 text-xs font-bold ${statusTone(item.status)}`}>{statusLabel(item.status)}</span>
                   <SlaBadge item={item} />
                   {item.unreadCount > 0 ? <span className="text-xs font-bold text-teal-800">{item.unreadCount} tin chưa đọc</span> : <span className="text-xs text-slate-500">Đã đọc hết</span>}
                 </div>

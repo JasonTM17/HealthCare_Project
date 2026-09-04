@@ -174,29 +174,29 @@ export default function AdminBranchesPage() {
           </div>
           <form className="mt-5 space-y-4" onSubmit={submit}>
             {formError ? (
-              <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">{formError}</p>
+              <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">{formError}</p>
             ) : null}
             <label className="block text-sm font-semibold">
               Tên cơ sở
-              <input className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" maxLength={160} onChange={(event) => setForm({ ...form, name: event.target.value })} required value={form.name} />
+              <input className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm" maxLength={160} onChange={(event) => setForm({ ...form, name: event.target.value })} required value={form.name} />
             </label>
             <label className="block text-sm font-semibold">
               Slug
-              <input className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 font-mono text-sm" maxLength={180} onChange={(event) => setForm({ ...form, slug: event.target.value })} required value={form.slug} />
+              <input className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-mono text-sm" maxLength={180} onChange={(event) => setForm({ ...form, slug: event.target.value })} required value={form.slug} />
             </label>
             <label className="block text-sm font-semibold">
               Địa chỉ
-              <textarea className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" maxLength={500} onChange={(event) => setForm({ ...form, address: event.target.value })} required rows={3} value={form.address} />
+              <textarea className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm" maxLength={500} onChange={(event) => setForm({ ...form, address: event.target.value })} required rows={3} value={form.address} />
             </label>
             <label className="block text-sm font-semibold">
               Điện thoại
-              <input className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm" maxLength={50} onChange={(event) => setForm({ ...form, phone: event.target.value })} value={form.phone} />
+              <input className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm" maxLength={50} onChange={(event) => setForm({ ...form, phone: event.target.value })} value={form.phone} />
             </label>
             <label className="flex items-center gap-2 text-sm">
               <input checked={form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} type="checkbox" />
               Đang hiển thị trong catalog công khai
             </label>
-            <button className="w-full rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50" disabled={mutating} type="submit">
+            <button className="w-full rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50" disabled={mutating} type="submit">
               {mutating ? "Đang gửi…" : editingSlug ? "Lưu thay đổi" : "Tạo cơ sở"}
             </button>
           </form>
@@ -238,7 +238,7 @@ export default function AdminBranchesPage() {
                         <td className="max-w-md px-4 py-4">{branch.address}</td>
                         <td className="px-4 py-4">{branch.phone || "Chưa cung cấp"}</td>
                         <td className="px-4 py-4">
-                          <span className={branch.active ?? true ? "rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700" : "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600"}>
+                          <span className={branch.active ?? true ? "rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700" : "rounded-md bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600"}>
                             {branch.active ?? true ? "Đang hiển thị" : "Tạm ẩn"}
                           </span>
                         </td>

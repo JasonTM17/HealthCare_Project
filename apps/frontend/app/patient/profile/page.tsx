@@ -77,6 +77,7 @@ export default function PatientProfilePage() {
   const [gender, setGender] = useState<PatientGender>("UNSPECIFIED");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [avatarImgLoaded, setAvatarImgLoaded] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
   const [address, setAddress] = useState("");
   const [emergencyContactName, setEmergencyContactName] = useState("");
   const [emergencyContactPhone, setEmergencyContactPhone] = useState("");
@@ -295,22 +296,27 @@ export default function PatientProfilePage() {
           </div>
 
           <div className={styles.passportBody}>
-            <div className={styles.patientAvatarWrapper}>
-              {avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  alt={fullName || session.user.displayName}
-                  className={`${styles.patientAvatar} ${avatarImgLoaded ? styles.patientAvatarLoaded : styles.patientAvatarLoading}`}
-                  src={avatarUrl}
-                  onLoad={() => setAvatarImgLoaded(true)}
-                  onError={(e) => {
-                    (e.target as HTMLElement).style.display = "none";
-                  }}
-                />
+            <div className={`${styles.patientAvatarWrapper} ${!avatarImgLoaded && avatarUrl && !avatarError ? styles.patientAvatarWrapperLoading : ""}`}>
+              {avatarUrl && !avatarError ? (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    alt={fullName || session.user.displayName}
+                    className={`${styles.patientAvatar} ${avatarImgLoaded ? styles.patientAvatarLoaded : ""}`}
+                    onError={() => setAvatarError(true)}
+                    onLoad={() => setAvatarImgLoaded(true)}
+                    src={avatarUrl}
+                  />
+                  {!avatarImgLoaded && (
+                    <span className={styles.patientAvatarFallback}>
+                      {(fullName || session.user.displayName || "BN").charAt(0).toUpperCase()}
+                    </span>
+                  )}
+                </>
               ) : (
-                <div className={styles.patientAvatar}>
-                  <span>{fullName ? fullName.charAt(0).toUpperCase() : "BN"}</span>
-                </div>
+                <span className={styles.patientAvatarFallback}>
+                  {(fullName || session.user.displayName || "BN").charAt(0).toUpperCase()}
+                </span>
               )}
             </div>
 
@@ -430,7 +436,11 @@ export default function PatientProfilePage() {
                     aspectRatio="square"
                     helperText="Tải lên tệp ảnh chân dung bệnh nhân (PNG, JPG, WEBP tối đa 10 MB)"
                     label="Ảnh chân dung đại diện"
-                    onChange={(url) => setAvatarUrl(url)}
+                    onChange={(url) => {
+                      setAvatarUrl(url);
+                      setAvatarImgLoaded(false);
+                      setAvatarError(false);
+                    }}
                     purpose="PATIENT_AVATAR"
                     value={avatarUrl}
                   />

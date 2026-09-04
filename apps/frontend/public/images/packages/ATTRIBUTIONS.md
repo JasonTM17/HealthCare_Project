@@ -11,3 +11,4 @@ All five photos are available under the [Pexels license](https://www.pexels.com/
 | `diabetes-screening.jpg` | Pavel Danilyuk | https://www.pexels.com/photo/glucose-meter-in-doctor-hands-7653129/ |
 | `womens-health.jpg` | AI25.Studio | https://www.pexels.com/photo/woman-consulting-a-doctor-5215008/ |
 | `child-checkup.jpg` | Pavel Danilyuk | https://www.pexels.com/photo/a-doctor-examining-a-child-patient-5998455/ |
+| `digestive-health.jpg` | HealthCare Team | https://www.pexels.com/license/ |

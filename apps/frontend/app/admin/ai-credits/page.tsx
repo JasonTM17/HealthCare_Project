@@ -9,6 +9,7 @@ import {
   type DoctorCreditDto,
   type PatientCreditDto,
 } from "../../../lib/api-client";
+import UiIcon, { type IconName } from "../../../components/UiIcon";
 import AdminState from "../_components/AdminState";
 import { describeAdminError } from "../_lib/errors";
 
@@ -18,11 +19,11 @@ type Feedback = {
   description: string;
 };
 
-const TIER_BADGES: Record<string, { label: string; bg: string; text: string; icon: string }> = {
-  VIP: { label: "Hạng VIP", bg: "bg-purple-100", text: "text-purple-800", icon: "👑" },
-  GOLD: { label: "Hạng Vàng", bg: "bg-amber-100", text: "text-amber-800", icon: "⭐" },
-  SILVER: { label: "Hạng Bạc", bg: "bg-slate-200", text: "text-slate-800", icon: "🥈" },
-  STANDARD: { label: "Tiêu Chuẩn", bg: "bg-emerald-100", text: "text-emerald-800", icon: "🌱" },
+const TIER_BADGES: Record<string, { label: string; bg: string; text: string; iconName: IconName }> = {
+  VIP: { label: "Hạng VIP", bg: "bg-purple-50 border border-purple-200/80", text: "text-purple-900", iconName: "sparkles" },
+  GOLD: { label: "Hạng Vàng", bg: "bg-amber-50 border border-amber-200/80", text: "text-amber-900", iconName: "star" },
+  SILVER: { label: "Hạng Bạc", bg: "bg-slate-100 border border-slate-200/80", text: "text-slate-800", iconName: "award" },
+  STANDARD: { label: "Tiêu Chuẩn", bg: "bg-emerald-50 border border-emerald-200/80", text: "text-emerald-900", iconName: "shield-check" },
 };
 
 export default function AdminAiCreditsPage() {
@@ -220,8 +221,8 @@ export default function AdminAiCreditsPage() {
                         <div className="text-xs text-slate-400">{p.email || ""}</div>
                       </td>
                       <td className="px-5 py-4">
-                        <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${tierInfo.bg} ${tierInfo.text}`}>
-                          <span>{tierInfo.icon}</span>
+                        <span className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold shadow-xs ${tierInfo.bg} ${tierInfo.text}`}>
+                          <UiIcon name={tierInfo.iconName} size={14} className="shrink-0" />
                           <span>{tierInfo.label}</span>
                         </span>
                       </td>

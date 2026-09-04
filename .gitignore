@@ -47,6 +47,10 @@ logs/
 tmp/
 temp/
 .cache/
+audit_results/
+verification_screenshots/
+apps/frontend/scripts/
+scripts/capture-*.mjs
 
 # Local service data and uploads
 .data/

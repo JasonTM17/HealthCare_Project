@@ -17,6 +17,7 @@ test("package catalog uses local licensed photography instead of competitor asse
     "diabetes-screening.jpg",
     "womens-health.jpg",
     "child-checkup.jpg",
+    "digestive-health.jpg",
   ];
 
   for (const asset of assets) {

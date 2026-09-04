@@ -211,9 +211,9 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
 
             {page.totalPages > 1 ? (
               <div className="flex items-center justify-center gap-3 mt-8">
-                <button type="button" onClick={() => handlePageChange(Math.max(0, currentPage - 1))} disabled={page.first} className="px-4 py-2 rounded-full border border-slate-300 text-sm disabled:opacity-40 hover:bg-slate-50">← Trước</button>
+                <button type="button" onClick={() => handlePageChange(Math.max(0, currentPage - 1))} disabled={page.first} className="px-4 py-2 rounded-lg border border-slate-300 text-sm font-semibold disabled:opacity-40 hover:bg-slate-50 transition-colors">← Trước</button>
                 <span className="text-sm text-slate-600">Trang {page.number + 1} / {page.totalPages}</span>
-                <button type="button" onClick={() => handlePageChange(Math.min(page.totalPages - 1, currentPage + 1))} disabled={page.last} className="px-4 py-2 rounded-full border border-slate-300 text-sm disabled:opacity-40 hover:bg-slate-50">Sau →</button>
+                <button type="button" onClick={() => handlePageChange(Math.min(page.totalPages - 1, currentPage + 1))} disabled={page.last} className="px-4 py-2 rounded-lg border border-slate-300 text-sm font-semibold disabled:opacity-40 hover:bg-slate-50 transition-colors">Sau →</button>
               </div>
             ) : null}
           </>

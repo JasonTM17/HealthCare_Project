@@ -5,6 +5,7 @@ export type IconName =
   | "alert-triangle"
   | "arrow-right"
   | "arrow-up-right"
+  | "award"
   | "book-open"
   | "brain"
   | "building"
@@ -25,9 +26,11 @@ export type IconName =
   | "plus"
   | "printer"
   | "search"
+  | "shield"
   | "shield-check"
   | "send"
   | "sparkles"
+  | "star"
   | "stethoscope"
   | "trash"
   | "user"
@@ -59,6 +62,12 @@ const Icon: React.FC<IconProps> = ({
     "alert-triangle": <path {...commonProps} d="m12 4 9 16H3L12 4Zm0 5v4m0 3h.01" />,
     "arrow-right": <path {...commonProps} d="M4 12h15m-6-6 6 6-6 6" />,
     "arrow-up-right": <path {...commonProps} d="M5 19 19 5m0 0H9m10 0v10" />,
+    award: (
+      <>
+        <circle {...commonProps} cx="12" cy="8" r="6" />
+        <path {...commonProps} d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.738.536L12 19.47l-4.254 2.482a.5.5 0 0 1-.738-.536l1.515-8.526" />
+      </>
+    ),
     "book-open": (
       <path {...commonProps} d="M4 5.5A2.5 2.5 0 0 1 6.5 3H12v17H6.5A2.5 2.5 0 0 0 4 22V5.5Zm16 0A2.5 2.5 0 0 0 17.5 3H12v17h5.5A2.5 2.5 0 0 1 20 22V5.5Z" />
     ),
@@ -92,9 +101,11 @@ const Icon: React.FC<IconProps> = ({
     plus: <path {...commonProps} d="M12 5v14M5 12h14" />,
     printer: <path {...commonProps} d="M7 9V4h10v5M7 17H5a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-2M7 14h10v6H7v-6Zm10-4h.01" />,
     search: <path {...commonProps} d="m20 20-4.5-4.5m2-5.5a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z" />,
+    shield: <path {...commonProps} d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />,
     "shield-check": <path {...commonProps} d="M12 3 19 6v5c0 4.5-2.8 8-7 10-4.2-2-7-5.5-7-10V6l7-3Zm-3 9 2 2 4-4" />,
     send: <path {...commonProps} d="m22 2-7 20-4-9-9-4 20-7ZM11 13 22 2" />,
     sparkles: <path {...commonProps} d="m12 3 1.1 4.3L17 9l-3.9 1.7L12 15l-1.1-4.3L7 9l3.9-1.7L12 3Zm6 10 .6 2.4L21 16l-2.4.6L18 19l-.6-2.4L15 16l2.4-.6L18 13ZM5 14l.7 2.3L8 17l-2.3.7L5 20l-.7-2.3L2 17l2.3-.7L5 14Z" />,
+    star: <polygon {...commonProps} points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />,
     stethoscope: <path {...commonProps} d="M6 3v5a4 4 0 0 0 8 0V3M4 3h4m4 0h4m-4 5v4a5 5 0 0 0 10 0v-1m-1-3h.01" />,
     trash: <path {...commonProps} d="M4 7h16m-10 4v6m4-6v6M9 7l1-3h4l1 3m3 0-1 14H7L6 7" />,
     user: <path {...commonProps} d="M19 21a7 7 0 0 0-14 0m7-10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />,

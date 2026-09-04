@@ -26,6 +26,7 @@ export default function ImageUpload({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
   const handleProcessFile = async (file: File) => {
     if (!file.type.startsWith("image/")) {
@@ -39,6 +40,7 @@ export default function ImageUpload({
     }
 
     setError(null);
+    setImageError(false);
     setUploading(true);
 
     try {
@@ -82,6 +84,12 @@ export default function ImageUpload({
   const handleRemove = () => {
     onChange("");
     setError(null);
+    setImageError(false);
+  };
+
+  const handleImageError = () => {
+    setImageError(true);
+    setError("Không thể tải bản xem trước hình ảnh.");
   };
 
   return (
@@ -95,13 +103,23 @@ export default function ImageUpload({
         </div>
       ) : value ? (
         <div className={styles.previewWrapper}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            alt="Xem trước hình ảnh"
-            className={aspectRatio === "square" ? styles.previewSquare : styles.previewBanner}
-            onError={() => setError("Không thể tải bản xem trước hình ảnh.")}
-            src={value}
-          />
+          {!imageError ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              alt="Xem trước hình ảnh"
+              className={aspectRatio === "square" ? styles.previewSquare : styles.previewBanner}
+              onError={handleImageError}
+              src={value}
+            />
+          ) : aspectRatio === "square" ? (
+            <div className={styles.previewSquareFallback}>
+              <UiIcon name="user" size={48} />
+            </div>
+          ) : (
+            <div className={styles.previewBannerFallback}>
+              <UiIcon name="layers" size={40} />
+            </div>
+          )}
           <div className={styles.previewActions}>
             <div className={styles.actionButtons}>
               <button

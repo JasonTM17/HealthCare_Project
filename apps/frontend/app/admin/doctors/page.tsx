@@ -146,29 +146,29 @@ export default function AdminDoctorsPage() {
           </div>
 
           <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
-            {formError ? <p aria-live="assertive" className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">{formError}</p> : null}
+            {formError ? <p aria-live="assertive" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">{formError}</p> : null}
             <div>
               <label className="text-sm font-semibold text-slate-700" htmlFor="doctor-full-name">Họ tên</label>
-              <input className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" id="doctor-full-name" maxLength={160} onChange={(event) => setForm({ ...form, fullName: event.target.value })} required value={form.fullName} />
+              <input className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" id="doctor-full-name" maxLength={160} onChange={(event) => setForm({ ...form, fullName: event.target.value })} required value={form.fullName} />
             </div>
             <div>
               <label className="text-sm font-semibold text-slate-700" htmlFor="doctor-slug">Slug</label>
-              <input className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 font-mono text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" id="doctor-slug" maxLength={180} onChange={(event) => setForm({ ...form, slug: event.target.value })} required value={form.slug} />
+              <input className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-mono text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" id="doctor-slug" maxLength={180} onChange={(event) => setForm({ ...form, slug: event.target.value })} required value={form.slug} />
               <p className="mt-1 text-xs text-slate-500">Slug phải duy nhất trong danh sách bác sĩ.</p>
             </div>
             <div>
               <label className="text-sm font-semibold text-slate-700" htmlFor="doctor-bio">Tiểu sử</label>
-              <textarea className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" id="doctor-bio" maxLength={4000} onChange={(event) => setForm({ ...form, bio: event.target.value })} rows={4} value={form.bio} />
+              <textarea className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" id="doctor-bio" maxLength={4000} onChange={(event) => setForm({ ...form, bio: event.target.value })} rows={4} value={form.bio} />
             </div>
             <div>
               <label className="text-sm font-semibold text-slate-700" htmlFor="doctor-photo-url">Ảnh đại diện URL (tùy chọn)</label>
-              <input className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" id="doctor-photo-url" maxLength={500} onChange={(event) => setForm({ ...form, photoUrl: event.target.value })} type="url" value={form.photoUrl} />
+              <input className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" id="doctor-photo-url" maxLength={500} onChange={(event) => setForm({ ...form, photoUrl: event.target.value })} type="url" value={form.photoUrl} />
             </div>
             <label className="flex items-center gap-2 text-sm text-slate-700" htmlFor="doctor-active">
               <input checked={form.active} className="h-4 w-4 accent-teal-700" id="doctor-active" onChange={(event) => setForm({ ...form, active: event.target.checked })} type="checkbox" />
               Đang hiển thị trong catalog công khai
             </label>
-            <button className="w-full rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50" disabled={mutating} type="submit">
+            <button className="w-full rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50" disabled={mutating} type="submit">
               {mutating ? "Đang gửi…" : editingSlug ? "Lưu thay đổi" : "Tạo bác sĩ"}
             </button>
           </form>
@@ -200,7 +200,7 @@ export default function AdminDoctorsPage() {
                         <td className="px-4 py-4 font-semibold text-slate-900">{doctor.fullName}</td>
                         <td className="px-4 py-4 font-mono text-xs text-slate-500">{doctor.slug}</td>
                         <td className="px-4 py-4">
-                          <span className={doctor.active ?? true ? "rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700" : "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600"}>
+                          <span className={doctor.active ?? true ? "rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700" : "rounded-md bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600"}>
                             {doctor.active ?? true ? "Đang hiển thị" : "Tạm ẩn"}
                           </span>
                         </td>

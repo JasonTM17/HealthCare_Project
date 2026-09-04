@@ -101,10 +101,11 @@ const config: Config = {
       },
       borderRadius: {
         DEFAULT: "0.25rem",
-        sm: "0.5rem",
-        md: "0.875rem",
-        lg: "1.25rem",
-        xl: "2rem",
+        sm: "0.25rem",
+        md: "0.375rem",
+        lg: "0.5rem",
+        xl: "0.75rem",
+        "2xl": "1rem",
         pill: "9999px",
       },
       boxShadow: {
