@@ -134,43 +134,23 @@ END $$;
 -- 6. Seed System Notifications
 INSERT INTO notifications (
     id, user_id, event_type, title, message, is_read, created_at
-) VALUES
-(
-    '85000000-0000-0000-0000-000000000001',
-    '90000000-0000-0000-0000-000000000021',
-    'APPOINTMENT_CONFIRMED',
-    'Lịch hẹn khám đã được xác nhận thành công',
-    'Lịch tái khám chuyên khoa Tim mạch cùng TS.BS Nguyễn Minh Khôi lúc 09:00 tại Bệnh viện Đa khoa Sài Gòn Xanh đã được hệ thống xác nhận.',
-    false,
-    CURRENT_TIMESTAMP - INTERVAL '2 hours'
-),
-(
-    '85000000-0000-0000-0000-000000000002',
-    '90000000-0000-0000-0000-000000000021',
-    'DIAGNOSTIC_READY',
-    'Đã có kết quả cận lâm sàng mới',
-    'Kết quả Điện tâm đồ 12 chuyển đạo và Siêu âm tim Doppler màu của bạn đã được Bác sĩ ký số hoàn tất và đồng bộ vào hồ sơ bệnh án.',
-    false,
-    CURRENT_TIMESTAMP - INTERVAL '1 day'
-),
-(
-    '85000000-0000-0000-0000-000000000003',
-    '90000000-0000-0000-0000-000000000021',
-    'PRESCRIPTION_ISSUED',
-    'Đơn thuốc điện tử mới được phát hành',
-    'Bác sĩ Nguyễn Minh Khôi đã phát hành toa thuốc điện tử mã RX-2026-08892. Vui lòng kiểm tra hướng dẫn liều dùng và thời gian uống.',
-    true,
-    CURRENT_TIMESTAMP - INTERVAL '3 days'
-),
-(
-    '85000000-0000-0000-0000-000000000004',
-    '90000000-0000-0000-0000-000000000021',
-    'TIER_UPGRADE',
-    'Chúc mừng bạn đã đạt Hạng Hội Viên Vàng',
-    'Hồ sơ sức khỏe của bạn đã được nâng hạng lên Hạng Vàng (Gold Privilege) với 85 lượt Trợ lý Y khoa AI và dịch vụ ưu tiên điều phối khám.',
-    true,
-    CURRENT_TIMESTAMP - INTERVAL '7 days'
 )
+SELECT
+    n.id::uuid,
+    u.id,
+    n.event_type,
+    n.title,
+    n.message,
+    n.is_read,
+    n.created_at
+FROM users u
+CROSS JOIN (VALUES
+    ('85000000-0000-0000-0000-000000000001', 'APPOINTMENT_CONFIRMED', 'Lịch hẹn khám đã được xác nhận thành công', 'Lịch tái khám chuyên khoa Tim mạch cùng TS.BS Nguyễn Minh Khôi lúc 09:00 tại Bệnh viện Đa khoa Sài Gòn Xanh đã được hệ thống xác nhận.', false, CURRENT_TIMESTAMP - INTERVAL '2 hours'),
+    ('85000000-0000-0000-0000-000000000002', 'DIAGNOSTIC_READY', 'Đã có kết quả cận lâm sàng mới', 'Kết quả Điện tâm đồ 12 chuyển đạo và Siêu âm tim Doppler màu của bạn đã được Bác sĩ ký số hoàn tất và đồng bộ vào hồ sơ bệnh án.', false, CURRENT_TIMESTAMP - INTERVAL '1 day'),
+    ('85000000-0000-0000-0000-000000000003', 'PRESCRIPTION_ISSUED', 'Đơn thuốc điện tử mới đã sẵn sàng', 'Đơn thuốc điều trị tăng huyết áp RX-2026-08892 đã được cấp bởi TS.BS Nguyễn Minh Khôi với hướng dẫn sử dụng chi tiết.', false, CURRENT_TIMESTAMP - INTERVAL '3 days'),
+    ('85000000-0000-0000-0000-000000000004', 'TIER_UPGRADE', 'Chúc mừng bạn đã đạt Hạng Hội Viên Vàng', 'Hồ sơ sức khỏe của bạn đã được nâng hạng lên Hạng Vàng (Gold Privilege) với 85 lượt Trợ lý Y khoa AI và dịch vụ ưu tiên điều phối khám.', true, CURRENT_TIMESTAMP - INTERVAL '7 days')
+) AS n(id, event_type, title, message, is_read, created_at)
+WHERE u.email = 'patient@healthcare.com'
 ON CONFLICT (id) DO NOTHING;
 
 -- 7. Update Existing Articles & Insert Rich Medical Journal Articles with Real Photography
