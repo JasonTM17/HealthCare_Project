@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import {
   adminCreateSchedule, adminDeleteSchedule, adminListDoctors, adminListSchedules, adminUpdateSchedule,
   adminCreateScheduleException, adminDeleteScheduleException, adminListScheduleExceptions, adminUpdateScheduleException,
+  fetchAllContent,
   adminListBranches, type Branch, type Doctor, type DoctorSchedule, type DoctorScheduleException,
 } from "../../../lib/api-client";
 import AdminState from "../_components/AdminState";
@@ -13,13 +14,14 @@ import { businessDate, formatBusinessDate } from "../../../lib/business-time";
 const today = () => businessDate();
 const EMPTY = { doctorId: "", branchId: "", dayOfWeek: "1", startTime: "08:00", endTime: "12:00", slotDurationMinutes: "30", effectiveFrom: today(), effectiveTo: "", active: true };
 const EMPTY_EXCEPTION = { doctorId: "", branchId: "", exceptionDate: today(), type: "LEAVE" as "LEAVE" | "BLOCKED" | "CUSTOM_HOURS", customStartTime: "", customEndTime: "", reason: "" };
-const inputClass = "mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm";
+const inputClass = "mt-1 w-full rounded-sm border border-slate-300 px-3 py-2.5 text-sm";
 const dayNames = ["", "Thứ hai", "Thứ ba", "Thứ tư", "Thứ năm", "Thứ sáu", "Thứ bảy", "Chủ nhật"];
 const exceptionTypeLabels = {
   LEAVE: "Nghỉ phép",
   BLOCKED: "Khóa lịch",
   CUSTOM_HOURS: "Giờ đặc biệt",
 };
+const ADMIN_PAGE_SIZE = 100;
 
 type Feedback = {
   tone: "success" | "error";
@@ -46,15 +48,15 @@ export default function AdminSchedulesPage() {
     setLoadError(null);
     try {
       const [schedulePage, exceptionPage, doctorPage, branchPage] = await Promise.all([
-        adminListSchedules(),
-        adminListScheduleExceptions(),
-        adminListDoctors(0, 100),
-        adminListBranches(0, 100),
+        fetchAllContent(adminListSchedules, ADMIN_PAGE_SIZE),
+        fetchAllContent(adminListScheduleExceptions, ADMIN_PAGE_SIZE),
+        fetchAllContent(adminListDoctors, ADMIN_PAGE_SIZE),
+        fetchAllContent(adminListBranches, ADMIN_PAGE_SIZE),
       ]);
-      setSchedules(schedulePage.content);
-      setExceptions(exceptionPage.content);
-      setDoctors(doctorPage.content);
-      setBranches(branchPage.content);
+      setSchedules(schedulePage);
+      setExceptions(exceptionPage);
+      setDoctors(doctorPage);
+      setBranches(branchPage);
       return true;
     } catch (error) {
       setLoadError(describeAdminError(error).description);

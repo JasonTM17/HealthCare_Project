@@ -4,6 +4,7 @@ import "./effects.css";
 import "./typography.css";
 import "./branches/maps.css";
 import "./brand-experience.css";
+import "./catalog-directory.css";
 import FloatingHealthAssistant from "../components/FloatingHealthAssistant";
 
 function safeJsonLdStringify(data: unknown): string {

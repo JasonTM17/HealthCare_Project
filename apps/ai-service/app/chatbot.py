@@ -677,8 +677,17 @@ def generate_chat_response(
         )
         if response.safety_action is ChatSafetyAction.INSUFFICIENT_EVIDENCE:
             return _insufficient_response(request.mode)
-        if response.provenance == "remote_provider" and _unsafe_claim(response.answer):
-            return _insufficient_response(request.mode)
+    if response.provenance == "remote_provider" and _unsafe_claim(response.answer):
+        return _insufficient_response(request.mode)
+
+    if response.safety_action is not ChatSafetyAction.ANSWER and not response.used_sources:
+        return response.model_copy(
+            update={
+                "mode": request.mode,
+                "used_sources": [],
+                "citations": [],
+            }
+        )
 
     # The provider context is exactly `metas`; therefore the output must be
     # exhaustive.  Keep this explicit validation in the path so a future

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import CatalogPagination from "../../components/CatalogPagination";
 import { getDoctorPhoto } from "../../lib/doctor-portrait";
 import { useEffect, useState } from "react";
 import { fetchDoctors, fetchSpecialties, type Page } from "../../lib/api-client";
@@ -81,7 +82,7 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
 
   return (
     <PublicPageShell doctors={visibleDoctors} specialties={specialties}>
-      <div className="catalog-page section-inner">
+      <div className="catalog-page catalog-page--directory section-inner">
         <PublicBackLink href="/">← Về trang chính</PublicBackLink>
         <header className="resource-page__header">
           <p className="section-note">Đội ngũ bác sĩ</p>
@@ -97,10 +98,9 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
           </div>
           <div className="resource-hero-card__body">
             <p className="resource-chip">Đội ngũ chuyên gia</p>
-            <h2>Chọn bác sĩ theo chuyên khoa, cơ sở và nhu cầu thật của bạn.</h2>
+            <h2>Tìm bác sĩ phù hợp với bạn</h2>
             <p className="resource-lead">
-              Dùng trợ lý triệu chứng để định hướng trước, rồi mở đúng hồ sơ bác sĩ phù hợp thay vì
-              chọn ngẫu nhiên.
+              Xem chuyên môn, chọn cơ sở và đặt lịch khám phù hợp.
             </p>
             <div className="resource-actions">
               <PublicAiButton className="outline-button outline-button--light">Hỏi trợ lý chọn chuyên khoa</PublicAiButton>
@@ -114,7 +114,7 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
             <dl className="resource-meta-grid">
               <div>
                 <dt>Tổng bác sĩ</dt>
-                <dd>{loading && !page ? "Đang tải…" : doctorCount || "Chưa có dữ liệu"}</dd>
+                <dd>{loading && !page ? "Đang tải…" : error && !page ? "Chưa tải được" : doctorCount || "Chưa có dữ liệu"}</dd>
               </div>
               <div>
                 <dt>Bộ lọc hiện tại</dt>
@@ -124,6 +124,8 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
           </div>
         </section>
 
+        <details className="catalog-guidance">
+          <summary>Cách chọn phù hợp</summary>
         <div className="resource-grid resource-grid--two">
           <section className="resource-panel resource-panel--accent">
             <p className="section-note">Cách chọn bác sĩ</p>
@@ -152,7 +154,7 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
               <p className="resource-muted" role="status">Chưa thể tải hồ sơ lúc này. Vui lòng thử lại sau.</p>
             ) : featuredDoctor ? (
               <>
-                <p>{featuredDoctor.bio || "Hồ sơ chưa có phần giới thiệu chi tiết."}</p>
+                <p className="catalog-card__summary">{featuredDoctor.bio || "Hồ sơ chưa có phần giới thiệu chi tiết."}</p>
                 <div className="resource-actions">
                   <Link className="text-button" href={`/doctors/${featuredDoctor.slug}`}>
                     Xem hồ sơ →
@@ -171,6 +173,7 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
           </section>
 
         </div>
+        </details>
 
         {filterLabel ? (
           <div className="resource-chip-row" aria-label="Bộ lọc hiện tại">
@@ -200,7 +203,7 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
                   </div>
                   {doctor.specialtyName ? <span className="resource-chip">{doctor.specialtyName}</span> : null}
                   <h2>{doctor.fullName}</h2>
-                  <p>{doctor.bio || "Hồ sơ chưa có phần giới thiệu chi tiết."}</p>
+                  <p className="catalog-card__summary">{doctor.bio || "Hồ sơ chưa có phần giới thiệu chi tiết."}</p>
                   <div className="catalog-card__actions">
                     <Link className="text-button" href={`/doctors/${doctor.slug}`}>Xem hồ sơ →</Link>
                     <PublicBookingButton className="outline-button outline-button--small" selection={{ doctorId: doctor.id }}>Đặt lịch</PublicBookingButton>
@@ -209,13 +212,7 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
               ))}
             </div>
 
-            {page.totalPages > 1 ? (
-              <div className="flex items-center justify-center gap-3 mt-8">
-                <button type="button" onClick={() => handlePageChange(Math.max(0, currentPage - 1))} disabled={page.first} className="px-4 py-2 rounded-lg border border-slate-300 text-sm font-semibold disabled:opacity-40 hover:bg-slate-50 transition-colors">← Trước</button>
-                <span className="text-sm text-slate-600">Trang {page.number + 1} / {page.totalPages}</span>
-                <button type="button" onClick={() => handlePageChange(Math.min(page.totalPages - 1, currentPage + 1))} disabled={page.last} className="px-4 py-2 rounded-lg border border-slate-300 text-sm font-semibold disabled:opacity-40 hover:bg-slate-50 transition-colors">Sau →</button>
-              </div>
-            ) : null}
+            <CatalogPagination label="Phân trang bác sĩ" onPageChange={handlePageChange} page={page} />
           </>
         ) : null}
       </div>

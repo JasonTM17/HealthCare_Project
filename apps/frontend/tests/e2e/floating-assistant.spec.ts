@@ -4,9 +4,18 @@ import {
   assertNoSensitiveBrowserStorage,
   browserSessionFixture,
   installMockBrowserSession,
+  installMockPatientPortalSession,
 } from "./helpers/browser-session";
 
 const PATIENT_SESSION = browserSessionFixture("PATIENT", "floating-assistant-patient", "Nguyễn An");
+
+type LauncherVisualMetrics = {
+  width: number;
+  height: number;
+  background: number[];
+  radius: number;
+  shadow: string;
+};
 
 const CONVERSATION: AiConversation = {
   id: "floating-conversation-1",
@@ -129,8 +138,61 @@ async function installChatMocks(
     }
     throw new Error(`Unexpected floating assistant request: ${request.method()} ${url.pathname}`);
   });
-  await installMockBrowserSession(context, PATIENT_SESSION);
+  await installMockPatientPortalSession(context, PATIENT_SESSION);
 }
+
+async function unavailableApi(context: BrowserContext) {
+  await context.route("**/api/v1/**", async (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    if (
+      pathname === "/api/v1/auth/browser-sessions/current"
+      || pathname === "/api/v1/patient/profile"
+      || pathname === "/api/v1/patient/ai-credits/status"
+    ) {
+      await route.fallback();
+      return;
+    }
+    await route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({ code: "SERVICE_UNAVAILABLE" }),
+    });
+  });
+}
+
+test("patient portal launcher stays compact and low-emphasis on dense dashboards", async ({ context, page }) => {
+  await unavailableApi(context);
+  await installMockPatientPortalSession(context, PATIENT_SESSION);
+  await page.setViewportSize({ width: 789, height: 900 });
+  await page.goto("/patient/dashboard", { waitUntil: "domcontentloaded" });
+
+  const launcher = page.getByRole("button", { name: "Mở trợ lý sức khỏe" });
+  await expect(launcher).toBeVisible();
+  const metrics = await page.waitForFunction(() => {
+    const element = document.querySelector<HTMLButtonElement>("button[aria-controls='floating-health-assistant-panel']");
+    if (!element) return null;
+    const rect = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    if (style.visibility === "hidden" || style.display === "none" || rect.width < 44 || rect.height < 44) return null;
+    return {
+      width: rect.width,
+      height: rect.height,
+      background: style.backgroundColor.match(/[\d.]+/g)?.map(Number) ?? [],
+      radius: Number.parseFloat(style.borderTopLeftRadius) || 0,
+      shadow: style.boxShadow,
+    };
+  });
+  const visual = await metrics.jsonValue() as LauncherVisualMetrics | null;
+  expect(visual).not.toBeNull();
+  const launcherVisual = visual!;
+  expect(launcherVisual.width).toBeLessThanOrEqual(54);
+  expect(launcherVisual.height).toBeLessThanOrEqual(54);
+  expect(launcherVisual.background[0]).toBeGreaterThan(245);
+  expect(launcherVisual.background[1]).toBeGreaterThan(245);
+  expect(launcherVisual.background[2]).toBeGreaterThan(245);
+  expect(launcherVisual.radius).toBeLessThanOrEqual(4.1);
+  expect(launcherVisual.shadow).toBe("none");
+});
 
 test("guest launcher sends stateless hospital-support chat and offers login for history", async ({ context, page }) => {
   await installMockBrowserSession(context, null);
@@ -140,6 +202,7 @@ test("guest launcher sends stateless hospital-support chat and offers login for 
     const payload = request.postDataJSON() as { message: string; recent_turns: unknown[] };
     expect(payload.message).toBe("Bệnh viện có những chuyên khoa nào?");
     expect(payload.recent_turns).toEqual([]);
+    await new Promise((resolve) => setTimeout(resolve, 150));
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -162,7 +225,10 @@ test("guest launcher sends stateless hospital-support chat and offers login for 
   await expect(dialog.getByText("Bạn đang dùng chế độ khách", { exact: false })).toBeVisible();
   await dialog.getByLabel("Câu hỏi cho trợ lý sức khỏe").fill("Bệnh viện có những chuyên khoa nào?");
   await dialog.getByRole("button", { name: "Gửi câu hỏi" }).click();
+  await expect(dialog.getByTestId("floating-chat-pending-user").getByText("Bệnh viện có những chuyên khoa nào?", { exact: true })).toBeVisible();
+  await expect(dialog.getByTestId("floating-chat-thinking")).toContainText("Đang suy nghĩ");
   await expect(dialog.getByText("Bạn có thể xem danh sách chuyên khoa và chọn cơ sở phù hợp.", { exact: true })).toBeVisible();
+  await expect(dialog.getByTestId("floating-chat-thinking")).toBeHidden();
   await expect(dialog.getByText("Tim mạch", { exact: true })).toBeVisible();
   await expect(dialog.getByText("Thông tin chỉ mang tính tham khảo.", { exact: true })).toBeVisible();
   await expect(dialog.getByRole("link", { name: "đăng nhập" })).toHaveAttribute("href", "/auth/login?next=%2Fpatient%2Fchat");
@@ -224,7 +290,7 @@ test("provider unavailable state offers a real retry without storing the draft",
   await dialog.getByRole("button", { name: "Thử lại" }).click();
   await expect(dialog.getByTestId("floating-chat-streaming-reply")).toBeHidden();
   await expect(dialog.locator("article:not([data-testid='floating-chat-streaming-reply'])").getByText("Bạn nên mang giấy tờ tùy thân, kết quả cũ và danh sách thuốc đang dùng.", { exact: true })).toBeVisible();
-  await expect(dialog.getByText("Chế độ dự phòng tại chỗ", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Hỗ trợ tạm thời", { exact: true })).toBeVisible();
   expect(observedKeys).toHaveLength(2);
   expect(observedKeys[0]).not.toBe(observedKeys[1]);
   await assertNoSensitiveBrowserStorage(page, [question]);

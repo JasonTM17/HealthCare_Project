@@ -100,8 +100,10 @@ export function CmsLiveSlot({
 
   useEffect(() => {
     let cancelled = false;
-    let pollTimer: ReturnType<typeof setInterval> | undefined;
-    let safetyPollTimer: ReturnType<typeof setInterval> | undefined;
+    let pollTimer: ReturnType<typeof setTimeout> | undefined;
+    let safetyPollTimer: ReturnType<typeof setTimeout> | undefined;
+    let pollingActive = false;
+    let safetyPollingActive = false;
     let sseConnected = false;
     let initialSnapshotReady = false;
     const reconciliation = new CmsReconciliationLedger();
@@ -196,77 +198,110 @@ export function CmsLiveSlot({
       }
     };
 
-    const startPolling = (): void => {
-      if (cancelled || pollTimer) return;
-      setTransport("polling");
-      pollTimer = setInterval(() => {
+    function scheduleNextPoll(): void {
+      if (cancelled || !pollingActive || pollTimer) return;
+      pollTimer = setTimeout(() => {
+        pollTimer = undefined;
+        void runPoll();
+      }, Math.max(5_000, pollIntervalMs));
+    }
+
+    async function runPoll(): Promise<void> {
+      if (cancelled || !pollingActive) return;
+      try {
         const minimumVersion = pendingVersionFloor();
         const afterEventId = pendingEventCursor();
         const hasPendingReconciliation = reconciliation.hasPendingWork;
-        void refresh(minimumVersion, afterEventId).then((result) => {
-          if (
-            result === "failed"
-            || cancelled
-          ) return;
-          if (!hasPendingReconciliation) {
-            if (initialSnapshotReady
-              && sseConnected
-              && reconciliation.pendingEventIds.size === 0
-              && reconciliation.reconciliationCursor === 0) {
-              stopPolling();
-              setTransport("sse");
-            }
-            return;
-          }
-          if (!finishReconciliation(afterEventId)) {
-            // A newer heartbeat/event won the race. Keep the polling loop
-            // alive and retry with the newer authoritative cursor.
-            startPolling();
-            return;
-          }
-          setLiveNotice(`Đã đồng bộ ${backendSlotKey}, version ${latestVersion.current}.`);
-          if (sseConnected
+        const result = await refresh(minimumVersion, afterEventId);
+        if (
+          result === "failed"
+          || cancelled
+        ) return;
+        if (!hasPendingReconciliation) {
+          if (initialSnapshotReady
+            && sseConnected
             && reconciliation.pendingEventIds.size === 0
             && reconciliation.reconciliationCursor === 0) {
             stopPolling();
             setTransport("sse");
           }
-        });
-      }, Math.max(5_000, pollIntervalMs));
+          return;
+        }
+        if (!finishReconciliation(afterEventId)) {
+          // A newer heartbeat/event won the race. Keep the polling loop
+          // alive and retry with the newer authoritative cursor.
+          return;
+        }
+        setLiveNotice(`Đã đồng bộ ${backendSlotKey}, version ${latestVersion.current}.`);
+        if (sseConnected
+          && reconciliation.pendingEventIds.size === 0
+          && reconciliation.reconciliationCursor === 0) {
+          stopPolling();
+          setTransport("sse");
+        }
+      } finally {
+        scheduleNextPoll();
+      }
+    }
+
+    const startPolling = (): void => {
+      if (cancelled || pollingActive) return;
+      pollingActive = true;
+      setTransport("polling");
+      scheduleNextPoll();
     };
 
     stopPolling = (): void => {
-      if (!pollTimer) return;
-      clearInterval(pollTimer);
-      pollTimer = undefined;
+      pollingActive = false;
+      if (pollTimer) {
+        clearTimeout(pollTimer);
+        pollTimer = undefined;
+      }
     };
 
-    const startSafetyPolling = (): void => {
-      if (cancelled || safetyPollTimer) return;
-      safetyPollTimer = setInterval(() => {
+    function scheduleNextSafetyPoll(): void {
+      if (cancelled || !safetyPollingActive || safetyPollTimer) return;
+      safetyPollTimer = setTimeout(() => {
+        safetyPollTimer = undefined;
+        void runSafetyPoll();
+      }, Math.max(5_000, pollIntervalMs));
+    }
+
+    async function runSafetyPoll(): Promise<void> {
+      if (cancelled || !safetyPollingActive) return;
+      try {
         if (
           cancelled
-          || pollTimer
+          || pollingActive
           || !initialSnapshotReady
           || reconciliation.hasPendingWork
         ) return;
         const observedVersion = latestVersion.current;
-        void refresh(0).then((result) => {
-          if (
-            result === "updated"
-            && !cancelled
-            && latestVersion.current > observedVersion
-          ) {
-            setLiveNotice(`Đã đồng bộ ${backendSlotKey}, version ${latestVersion.current}.`);
-          }
-        });
-      }, Math.max(5_000, pollIntervalMs));
+        const result = await refresh(0);
+        if (
+          result === "updated"
+          && !cancelled
+          && latestVersion.current > observedVersion
+        ) {
+          setLiveNotice(`Đã đồng bộ ${backendSlotKey}, version ${latestVersion.current}.`);
+        }
+      } finally {
+        scheduleNextSafetyPoll();
+      }
+    }
+
+    const startSafetyPolling = (): void => {
+      if (cancelled || safetyPollingActive) return;
+      safetyPollingActive = true;
+      scheduleNextSafetyPoll();
     };
 
     stopSafetyPolling = (): void => {
-      if (!safetyPollTimer) return;
-      clearInterval(safetyPollTimer);
-      safetyPollTimer = undefined;
+      safetyPollingActive = false;
+      if (safetyPollTimer) {
+        clearTimeout(safetyPollTimer);
+        safetyPollTimer = undefined;
+      }
     };
 
     // CmsClient multiplexes every live slot onto one EventSource and owns its
@@ -513,11 +548,11 @@ export function CmsLiveSlot({
           </div>
         ) : null}
         {!publicQuiet && error && content ? (
-          <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950" role="status">
+          <p className="mb-4 rounded-sm border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950" role="status">
             Đang hiển thị version {content.version} gần nhất; lần đồng bộ live tiếp theo sẽ thử lại.
           </p>
         ) : null}
-        {!publicQuiet && liveNotice ? <p className="mb-4 rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm text-teal-950" role="status">{liveNotice}</p> : null}
+        {!publicQuiet && liveNotice ? <p className="mb-4 rounded-sm border border-teal-200 bg-teal-50 p-3 text-sm text-teal-950" role="status">{liveNotice}</p> : null}
         {renderContent(content)}
       </div>
     );
@@ -527,7 +562,7 @@ export function CmsLiveSlot({
     <section
       aria-busy={loading}
       aria-label={slotAriaLabel}
-      className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6 ${className}`}
+      className={`rounded-sm border border-slate-200 bg-white p-4 shadow-sm sm:p-6 ${className}`}
       data-cms-live-source="live-backend"
       data-cms-live-slot={slotKey}
       data-cms-backend-slot={backendSlotKey}
@@ -540,18 +575,18 @@ export function CmsLiveSlot({
       ) : null}
 
       {error && !content ? (
-        <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950" role="alert">
+        <p className="rounded-sm border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950" role="alert">
           {publicQuiet ? "Thông tin đang được cập nhật. Vui lòng thử lại sau." : `${errorMessage(error)} Không có nội dung thay thế.`}
         </p>
       ) : null}
 
       {!publicQuiet && error && content ? (
-        <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950" role="status">
+        <p className="mb-4 rounded-sm border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950" role="status">
           Đang hiển thị version {content.version} gần nhất; lần đồng bộ live tiếp theo sẽ thử lại.
         </p>
       ) : null}
 
-      {!publicQuiet && liveNotice ? <p className="mb-4 rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm text-teal-950" role="status">{liveNotice}</p> : null}
+      {!publicQuiet && liveNotice ? <p className="mb-4 rounded-sm border border-teal-200 bg-teal-50 p-3 text-sm text-teal-950" role="status">{liveNotice}</p> : null}
 
       {loading && !content ? <p className="text-sm text-slate-500" role="status">Đang tải nội dung live…</p> : null}
       {content ? <CmsSlotRenderer content={content} slotKey={slotKey} /> : null}

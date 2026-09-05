@@ -11,12 +11,11 @@
 .passportCard {
   position: relative;
   overflow: hidden;
-  border-radius: var(--radius-xl, 24px);
+  border-radius: var(--radius-lg, 8px);
   padding: var(--sp-6) var(--sp-8);
   color: #ffffff;
   margin-bottom: var(--sp-8);
-  box-shadow: 0 16px 36px -8px rgba(0, 51, 54, 0.22), 0 4px 12px rgba(0, 51, 54, 0.08);
-  transition: transform var(--duration-base, 200ms) var(--ease-out, ease-out);
+  box-shadow: none;
 }
 
 .passportCard[data-tier="VIP"] {
@@ -27,7 +26,7 @@
 .passportCard[data-tier="GOLD"] {
   background: linear-gradient(135deg, #181d1a 0%, #202b26 50%, #151e1a 100%);
   border: 1px solid rgba(254, 183, 0, 0.5);
-  box-shadow: 0 16px 36px -8px rgba(124, 88, 0, 0.25);
+  box-shadow: none;
 }
 
 .passportCard[data-tier="SILVER"] {
@@ -65,7 +64,7 @@
   font-family: var(--font-display);
   font-size: 0.8125rem;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.92);
 }
@@ -104,11 +103,11 @@
   border-radius: var(--radius-xs, 6px);
   font-size: 0.75rem;
   font-weight: 800;
-  letter-spacing: 0.06em;
+  letter-spacing: 0;
   text-transform: uppercase;
   border: 1px solid rgba(255, 255, 255, 0.28);
   background: rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(8px);
+  backdrop-filter: none;
 }
 
 .tierPill[data-tier="VIP"] {
@@ -149,7 +148,7 @@
   height: 68px;
   border-radius: 50%;
   overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  box-shadow: none;
   border: 2.5px solid rgba(255, 255, 255, 0.85);
   background: var(--color-teal-800, #004b50);
   display: grid;
@@ -207,7 +206,7 @@
   font-family: var(--font-display);
   font-size: clamp(1.35rem, 2.2vw, 1.75rem);
   font-weight: 800;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   color: #ffffff;
 }
 
@@ -233,17 +232,17 @@
 .creditMeter {
   min-width: 260px;
   padding: var(--sp-4);
-  border-radius: var(--radius-md, 12px);
+  border-radius: var(--radius-md, 8px);
   background: rgba(0, 0, 0, 0.28);
   border: 1px solid rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(10px);
+  backdrop-filter: none;
 }
 
 .creditMeterLabel {
   font-size: 0.75rem;
   font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0;
   color: rgba(255, 255, 255, 0.85);
   display: flex;
   justify-content: space-between;
@@ -290,9 +289,9 @@
 .clinicalCard {
   background: var(--color-paper-bright, #ffffff);
   border: 1px solid var(--color-line, #c0c8c8);
-  border-radius: var(--radius-lg, 16px);
+  border-radius: var(--radius-lg, 8px);
   padding: var(--sp-6);
-  box-shadow: 0 4px 16px rgba(0, 51, 54, 0.04);
+  box-shadow: none;
   margin-bottom: var(--sp-6);
 }
 
@@ -321,7 +320,7 @@
   font-size: 1.125rem;
   font-weight: 800;
   color: var(--color-teal-950, #001c1e);
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 
 .sectionHeaderSub {
@@ -362,7 +361,7 @@
   font-size: 0.9375rem;
   background: var(--color-paper-bright, #ffffff);
   color: var(--color-ink, #1a2e30);
-  transition: border-color var(--duration-fast, 150ms), box-shadow var(--duration-fast, 150ms);
+  transition: border-color var(--duration-fast, 150ms);
   font-family: inherit;
 }
 
@@ -430,14 +429,14 @@
   display: inline-flex;
   align-items: center;
   gap: var(--sp-2);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
-  transition: all var(--duration-fast, 150ms) ease;
+  box-shadow: none;
+  transition: background-color var(--duration-fast, 150ms), border-color var(--duration-fast, 150ms);
 }
 
 .submitButton:hover:not(:disabled) {
   background: var(--color-teal-800, #004b50);
-  box-shadow: 0 4px 12px rgba(0, 75, 80, 0.22);
-  transform: translateY(-1px);
+  box-shadow: none;
+  transform: none;
 }
 
 .submitButton:focus-visible {
@@ -465,8 +464,8 @@
   align-items: center;
   justify-content: center;
   gap: var(--sp-2);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-  transition: all var(--duration-fast, 150ms) ease;
+  box-shadow: none;
+  transition: background-color var(--duration-fast, 150ms), border-color var(--duration-fast, 150ms);
 }
 
 .secondaryButton:hover:not(:disabled) {
@@ -584,10 +583,10 @@
   gap: var(--sp-3, 12px);
   max-width: min(420px, calc(100vw - 2rem));
   padding: var(--sp-4, 16px) var(--sp-4, 16px) var(--sp-4, 16px) var(--sp-4, 16px);
-  border-radius: var(--radius-md, 12px);
-  box-shadow: 0 16px 36px -4px rgba(0, 51, 54, 0.32), 0 4px 12px rgba(0, 51, 54, 0.15);
+  border-radius: var(--radius-md, 8px);
+  box-shadow: none;
   animation: toastSlideIn 240ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  backdrop-filter: blur(12px);
+  backdrop-filter: none;
   overflow: hidden;
 }
 
@@ -632,7 +631,7 @@
   font-family: var(--font-display);
   font-size: 0.875rem;
   font-weight: 800;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
   color: #ffffff;
 }
 

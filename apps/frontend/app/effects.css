@@ -28,7 +28,7 @@
 
 .site-shell .site-nav.site-nav--scrolled {
   border-bottom-color: #c7d7d7;
-  box-shadow: 0 10px 28px rgb(18 63 82 / 11%);
+  box-shadow: none;
 }
 
 .site-shell .site-nav.site-nav--scrolled .site-nav__inner {
@@ -47,22 +47,12 @@
 .site-shell .hero-section {
   position: relative;
   isolation: isolate;
-  background: radial-gradient(120% 100% at 50% -10%, rgba(13, 148, 136, 0.12) 0%, rgba(240, 253, 250, 0.7) 45%, #f8fafc 100%);
+  background: #f7fbfa;
   overflow: hidden;
 }
 
 .site-shell .hero-section::before {
-  content: "";
-  position: absolute;
-  inset: 0 auto 0 50%;
-  z-index: -1;
-  display: block;
-  width: 1px;
-  height: auto;
-  border: 0;
-  border-radius: 0;
-  background: rgb(18 63 82 / 8%);
-  pointer-events: none;
+  display: none;
 }
 
 .site-shell .hero-inner {
@@ -84,7 +74,7 @@
   color: var(--color-teal-700);
   font-size: 0.72rem;
   font-weight: 800;
-  letter-spacing: 0.12em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 
@@ -94,21 +84,22 @@
   height: 2px;
   flex: 0 0 auto;
   background: linear-gradient(90deg, #0d9488 0%, #a3ced2 100%);
-  border-radius: 999px;
+  border-radius: 2px;
 }
 
 .site-shell .hero-copy h1 {
   max-width: 18ch;
   font-size: clamp(3rem, 5vw, 4.4rem);
   line-height: 1.1;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 
-.site-shell .hero-copy h1 span {
+.site-shell .hero-copy h1 span,
+.site-shell .hero-copy h1 .hero-teal-accent {
   display: inline;
   background: none;
-  -webkit-text-fill-color: var(--hospital-navy);
-  color: var(--hospital-navy);
+  -webkit-text-fill-color: #00767c !important;
+  color: #00767c !important;
 }
 
 .site-shell .hero-description {
@@ -144,18 +135,19 @@
 
 .site-shell .hero-search {
   margin-top: 1.5rem;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.96);
-  backdrop-filter: blur(16px);
-  border: 1.5px solid rgba(13, 148, 136, 0.22);
-  box-shadow: 0 16px 40px -10px rgba(0, 51, 54, 0.12), 0 0 0 1px rgba(255, 255, 255, 0.8) inset;
-  transition: border-color 220ms ease, box-shadow 220ms ease, transform 220ms ease;
+  border-radius: var(--radius-md);
+  background: var(--color-paper-bright);
+  border: 1px solid #d9e6e4;
+  box-shadow: none;
+  transition: border-color 220ms ease;
 }
 
 .site-shell .hero-search:focus-within {
-  border-color: #0d9488;
-  box-shadow: 0 20px 45px -8px rgba(13, 148, 136, 0.24), 0 0 0 4px rgba(13, 148, 136, 0.14);
-  transform: translateY(-1px);
+  border-color: var(--color-mint-mid);
+  outline: 3px solid oklch(64% 0.09 184 / 0.42);
+  outline-offset: 2px;
+  box-shadow: none;
+  transform: none;
 }
 
 .site-shell .hero-visual {
@@ -166,99 +158,14 @@
 .site-shell .hero-visual__image-wrap {
   min-height: 555px;
   overflow: hidden;
-  border-radius: 28px;
-  border: 4px solid #ffffff;
-  box-shadow: 0 28px 70px -15px rgba(0, 51, 54, 0.2), 0 0 0 1px rgba(13, 148, 136, 0.12);
+  border-radius: var(--radius-lg);
+  border: 1px solid #d6e4e2;
+  box-shadow: none;
 }
 
 .site-shell .hero-visual__image {
   object-position: 51% center;
   transform-origin: center center;
-}
-
-.site-shell .hero-visual__index {
-  position: absolute;
-  top: 1.2rem;
-  right: 2rem;
-  z-index: 2;
-  color: #fff;
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-  text-shadow: 0 1px 8px rgb(18 63 82 / 45%);
-}
-
-.site-shell .hero-visual__care-line {
-  position: absolute;
-  top: 31%;
-  left: 0;
-  z-index: 2;
-  width: clamp(4rem, 12vw, 8.5rem);
-  height: 1px;
-  background: #e1c98e;
-}
-
-.site-shell .hero-visual__care-line span {
-  position: absolute;
-  top: 50%;
-  right: 0;
-  width: 9px;
-  height: 9px;
-  border: 2px solid #fff;
-  border-radius: 50%;
-  background: #c6a86b;
-  box-shadow: 0 0 0 4px rgb(198 168 107 / 24%);
-  transform: translate(50%, -50%);
-}
-
-.site-shell .hero-visual__floating-label {
-  position: absolute;
-  bottom: 2.2rem;
-  left: -2rem;
-  z-index: 3;
-  min-width: 17rem;
-  display: flex;
-  align-items: center;
-  gap: 0.95rem;
-  padding: 1.1rem 1.35rem;
-  border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  border-left: 4px solid #0d9488;
-  background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(16px);
-  color: var(--hospital-navy);
-  box-shadow: 0 20px 45px -10px rgba(0, 51, 54, 0.18), 0 2px 8px rgba(0, 51, 54, 0.05);
-}
-
-.site-shell .hero-visual__floating-label > span {
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  border-radius: 50%;
-  background: var(--hospital-mint);
-  color: var(--hospital-teal);
-}
-
-.site-shell .hero-visual__floating-label p {
-  display: grid;
-  gap: 0.1rem;
-  margin: 0;
-}
-
-.site-shell .hero-visual__floating-label small {
-  color: var(--hospital-muted);
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.site-shell .hero-visual__floating-label strong {
-  max-width: 15rem;
-  font-size: 0.84rem;
-  line-height: 1.35;
 }
 
 .site-shell .hero-visual figcaption {
@@ -276,34 +183,11 @@
   color: inherit;
 }
 
-/* The quick actions become a connected care rail instead of four isolated cards. */
+/* The quick actions stay a plain rail: no decorative gold progress line. */
 .site-shell .care-links {
   position: relative;
   overflow: hidden;
   border-radius: 4px;
-}
-
-.site-shell .care-links::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto;
-  z-index: 3;
-  height: 2px;
-  background: #c6a86b;
-}
-
-.site-shell .care-links::after {
-  content: "";
-  position: absolute;
-  top: -2px;
-  left: 0;
-  z-index: 4;
-  width: 18%;
-  height: 6px;
-  border-radius: 999px;
-  background: #fff1c8;
-  opacity: 0.72;
-  transform: translateX(-110%);
 }
 
 .site-shell .care-link,
@@ -337,7 +221,7 @@
 
 .site-shell .care-link:hover .care-link__icon,
 .site-shell .care-link:focus-visible .care-link__icon {
-  transform: translateY(-3px);
+  color: var(--color-teal-900);
 }
 
 /* Evergreen experience section: visible even while catalog data is unavailable. */
@@ -346,8 +230,8 @@
   isolation: isolate;
   overflow: hidden;
   margin-top: 5rem;
-  border-top: 1px solid #c6a86b;
-  background: #103747;
+  border-top: 1px solid var(--color-teal-800);
+  background: var(--color-teal-900);
   color: #fff;
 }
 
@@ -384,24 +268,19 @@
   overflow: hidden;
   margin: 0;
   background: #dce9e7;
-  border-radius: 24px;
-  box-shadow: 0 24px 60px -12px rgba(3, 25, 34, 0.45);
+  border-radius: var(--radius-lg);
+  box-shadow: none;
 }
 
 .site-shell .care-experience__image {
   object-fit: cover;
-  transition: transform 700ms ease, filter 700ms ease;
 }
 
 .site-shell .care-experience__primary-photo .care-experience__image {
   object-position: 50% 20%;
 }
 
-.site-shell .care-experience__primary-photo:hover .care-experience__image {
-  filter: saturate(0.96) contrast(1.02);
-  transform: scale(1.02);
-}
-
+/* Anchored context card on the photo: solid, squared, no glass or float. */
 .site-shell .care-experience__badge {
   position: absolute;
   top: 4rem;
@@ -412,13 +291,12 @@
   align-items: center;
   gap: 0.9rem;
   padding: 1.1rem 1.2rem;
-  border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  border-left: 4px solid #0d9488;
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(16px);
-  color: var(--hospital-navy);
-  box-shadow: 0 20px 40px rgb(3 25 34 / 22%), 0 2px 8px rgb(3 25 34 / 06%);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-line);
+  border-left: 3px solid var(--color-teal-700);
+  background: var(--color-paper-bright);
+  color: var(--color-ink);
+  box-shadow: none;
 }
 
 .site-shell .care-experience__badge > span {
@@ -427,10 +305,10 @@
   display: grid;
   place-items: center;
   flex: 0 0 auto;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #f0fdfa 0%, #e0f2f1 100%);
-  color: #0d9488;
-  border: 1px solid rgba(13, 148, 136, 0.2);
+  border-radius: var(--radius-xs);
+  background: var(--color-mint);
+  color: var(--color-teal-900);
+  border: 1px solid var(--color-mint-mid);
 }
 
 .site-shell .care-experience__badge p {
@@ -442,45 +320,13 @@
 .site-shell .care-experience__badge strong {
   font-family: var(--font-display);
   font-size: 0.95rem;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 
 .site-shell .care-experience__badge small {
-  color: var(--hospital-muted);
+  color: var(--color-ink-soft);
   font-size: 0.68rem;
   line-height: 1.35;
-}
-
-.site-shell .care-experience__signal {
-  position: absolute;
-  top: 1.5rem;
-  left: calc(80% - 0.2rem);
-  z-index: 4;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.site-shell .care-experience__signal span {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #10b981;
-  opacity: 1;
-  animation: signalPulse 2.4s ease-in-out infinite;
-}
-
-.site-shell .care-experience__signal span:nth-child(2) {
-  animation-delay: 0.4s;
-}
-
-.site-shell .care-experience__signal span:nth-child(3) {
-  animation-delay: 0.8s;
-}
-
-@keyframes signalPulse {
-  0%, 100% { opacity: 0.25; transform: scale(0.9); }
-  50% { opacity: 1; transform: scale(1.15); }
 }
 
 .site-shell .care-experience__copy {
@@ -489,7 +335,7 @@
 }
 
 .site-shell .care-experience__copy .section-note {
-  color: #d9bd7d;
+  color: var(--color-amber);
 }
 
 .site-shell .care-experience__copy h2 {
@@ -528,7 +374,7 @@
 
 .site-shell .care-experience__moments article > span {
   padding-top: 0.2rem;
-  color: #d9bd7d;
+  color: var(--color-amber);
   font-size: 0.7rem;
   font-weight: 800;
   letter-spacing: 0.12em;
@@ -586,14 +432,7 @@
 }
 
 .site-shell .section-heading::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 2.5rem;
-  height: 1px;
-  background: #c6a86b;
-  transform-origin: left center;
+  display: none;
 }
 
 .site-shell .doctor-card,
@@ -602,22 +441,21 @@
 .site-shell .article-row,
 .site-shell .catalog-card,
 .site-shell .resource-panel {
-  transition: border-color 240ms ease, box-shadow 240ms ease, transform 240ms ease;
+  transition: border-color 240ms ease, background-color 240ms ease;
 }
 
 .site-shell .doctor-card:hover,
 .site-shell .catalog-card:hover,
 .site-shell .resource-panel:hover {
   border-color: #b6cdcc;
-  box-shadow: 0 16px 34px rgb(20 61 75 / 10%);
-  transform: translateY(-3px);
+  box-shadow: none;
+  transform: none;
 }
 
 .site-shell .package-row:hover,
 .site-shell .branch-row:hover,
 .site-shell .article-row:hover {
-  /* Keep stable without horizontal shifting */
-  box-shadow: 0 4px 12px rgba(20, 61, 75, 0.08);
+  box-shadow: none;
 }
 
 /* Progressive enhancement: elements remain readable and immediate without entrance distraction. */
@@ -643,25 +481,8 @@
   animation: none;
 }
 
-.public-motion-enabled .site-shell .hero-visual__floating-label,
-.public-motion-enabled .site-shell .care-experience__badge {
-  animation: hc-quiet-float 5.2s ease-in-out 1s infinite alternate;
-}
-
 .public-motion-enabled .site-shell .care-links::after {
   animation: none;
-}
-
-.public-motion-enabled .site-shell .care-experience__signal span {
-  animation: hc-signal 1.8s ease-in-out infinite;
-}
-
-.public-motion-enabled .site-shell .care-experience__signal span:nth-child(2) {
-  animation-delay: 180ms;
-}
-
-.public-motion-enabled .site-shell .care-experience__signal span:nth-child(3) {
-  animation-delay: 360ms;
 }
 
 @keyframes hc-fade-right {
@@ -701,39 +522,6 @@
   }
 }
 
-@keyframes hc-photo-breathe {
-  from { transform: scale(1); }
-  to { transform: scale(1.025); }
-}
-
-@keyframes hc-quiet-float {
-  from { transform: translateY(0); }
-  to { transform: translateY(-5px); }
-}
-
-@keyframes hc-care-pulse {
-  0%, 10% {
-    opacity: 0;
-    transform: translateX(-110%);
-  }
-  22%, 68% { opacity: 0.72; }
-  82%, 100% {
-    opacity: 0;
-    transform: translateX(570%);
-  }
-}
-
-@keyframes hc-signal {
-  0%, 100% {
-    opacity: 0.32;
-    transform: scale(0.8);
-  }
-  48% {
-    opacity: 1;
-    transform: scale(1.25);
-  }
-}
-
 @media (max-width: 1120px) {
   .site-shell .hero-copy h1 {
     font-size: 4.25rem;
@@ -748,10 +536,6 @@
     gap: 3rem;
   }
 
-  .site-shell .hero-visual__floating-label {
-    left: -1.25rem;
-  }
-
   .site-shell .care-experience__inner {
     grid-template-columns: minmax(23rem, 0.95fr) minmax(0, 1.05fr);
     gap: 3.5rem;
@@ -759,10 +543,6 @@
 }
 
 @media (max-width: 900px) {
-  .site-shell .hero-section::before {
-    display: none;
-  }
-
   .site-shell .hero-inner {
     grid-template-columns: 1fr;
     gap: 2.5rem;
@@ -827,7 +607,7 @@
 
   .site-shell .hero-copy h1 {
     max-width: 18ch;
-    font-size: 3.25rem;
+    font-size: clamp(2.25rem, 10vw, 2.75rem);
   }
 
   .site-shell .hero-description {
@@ -914,7 +694,7 @@
 
   .site-shell .hero-visual__image-wrap {
     min-height: 19rem;
-    border-radius: 2px 4rem 2px 2px;
+    border-radius: var(--radius-lg);
   }
 
   .site-shell .hero-visual__floating-label {
@@ -993,7 +773,7 @@
     border: 1px solid var(--hospital-border);
     border-radius: 4px;
     background: #fff;
-    box-shadow: 0 10px 24px rgb(20 61 75 / 9%);
+    box-shadow: none;
     scroll-snap-align: start;
   }
 
@@ -1034,7 +814,7 @@
   .site-shell .care-experience__primary-photo {
     width: 84%;
     height: 86%;
-    border-radius: 2px 3.5rem 2px 2px;
+    border-radius: var(--radius-lg);
   }
 
   .site-shell .care-experience__secondary-photo {
@@ -1061,10 +841,6 @@
 
   .site-shell .care-experience__badge small {
     font-size: 0.58rem;
-  }
-
-  .site-shell .care-experience__signal {
-    top: 1rem;
   }
 
   .site-shell .care-experience__copy h2 {
@@ -1121,10 +897,8 @@
   .public-motion-enabled .public-motion-candidate,
   .public-motion-enabled .site-shell .hero-copy > *,
   .public-motion-enabled .site-shell .hero-visual__image,
-  .public-motion-enabled .site-shell .hero-visual__floating-label,
   .public-motion-enabled .site-shell .care-experience__badge,
-  .public-motion-enabled .site-shell .care-links::after,
-  .public-motion-enabled .site-shell .care-experience__signal span {
+  .public-motion-enabled .site-shell .care-links::after {
     animation: none !important;
   }
 

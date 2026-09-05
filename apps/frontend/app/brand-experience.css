@@ -14,10 +14,10 @@
   padding: 0;
   overflow: hidden;
   border: 0;
-  border-radius: 13px;
+  border-radius: 8px;
   background: #003336;
   color: #ffffff;
-  box-shadow: 0 8px 20px rgb(7 95 94 / 18%);
+  box-shadow: none;
 }
 
 .brand-emblem svg {
@@ -72,7 +72,7 @@
   color: #075f5e;
   font-size: 0.625rem;
   font-weight: 700;
-  letter-spacing: 0.095em;
+  letter-spacing: 0;
   line-height: 1.2;
   text-transform: uppercase;
   white-space: nowrap;
@@ -82,12 +82,12 @@
   width: 36px;
   height: 36px;
   flex-basis: 36px;
-  border-radius: 10px;
+  border-radius: 8px;
 }
 
 .brand-identity--inverse .brand-mark {
   background: #eefaf7;
-  box-shadow: 0 0 0 1px rgb(255 255 255 / 12%);
+  box-shadow: none;
 }
 
 .brand-identity--inverse .brand-copy strong,
@@ -107,8 +107,8 @@
   width: clamp(72px, 10vw, 96px);
   height: clamp(72px, 10vw, 96px);
   flex-basis: clamp(72px, 10vw, 96px);
-  border-radius: 26px;
-  box-shadow: 0 22px 55px rgb(0 20 29 / 24%);
+  border-radius: 8px;
+  box-shadow: none;
 }
 
 .brand-identity--hero .brand-copy strong {
@@ -119,18 +119,18 @@
 .brand-identity--hero .brand-copy small {
   margin-top: 0.65rem;
   font-size: 0.82rem;
-  letter-spacing: 0.16em;
+  letter-spacing: 0;
 }
 
 .site-shell .site-nav .brand-link {
-  border-radius: 14px;
+  border-radius: 8px;
   cursor: pointer;
 }
 
 .site-shell .site-nav .brand-link:hover .brand-emblem,
 .site-shell .site-nav .brand-link:focus-visible .brand-emblem {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 24px rgb(7 95 94 / 24%);
+  transform: none;
+  box-shadow: none;
 }
 
 /* The bootstrap script sets this attribute in <head>, before first paint. */
@@ -167,8 +167,9 @@ html[data-brand-intro="playing"] body {
   width: min(42vw, 34rem);
   aspect-ratio: 1;
   border: 1px solid rgb(166 225 213 / 16%);
-  border-radius: 50%;
+  border-radius: 8px;
   content: "";
+  display: none;
 }
 
 .brand-splash::before {
@@ -186,10 +187,8 @@ html[data-brand-intro="playing"] body {
   width: min(76vw, 38rem);
   aspect-ratio: 1;
   border: 1px solid rgb(166 225 213 / 12%);
-  border-radius: 50%;
-  box-shadow:
-    0 0 0 4rem rgb(255 255 255 / 1.8%),
-    0 0 0 8rem rgb(255 255 255 / 1.2%);
+  border-radius: 8px;
+  box-shadow: none;
   animation: brand-halo-arrive 800ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
@@ -233,7 +232,7 @@ html[data-brand-intro="playing"] body {
 }
 
 .brand-splash--leaving .brand-splash__content {
-  transform: translateY(-8px);
+  transform: none;
   transition: transform 320ms ease;
 }
 
@@ -269,14 +268,14 @@ html[data-brand-intro="playing"] body {
 
 .site-shell .brand-link--footer {
   min-height: 54px;
-  border-radius: 14px;
+  border-radius: 8px;
 }
 
 .site-shell .brand-link--footer .brand-identity .brand-mark {
   width: 52px;
   height: 52px;
   flex-basis: 52px;
-  border-radius: 15px;
+  border-radius: 8px;
   background: #eefaf7;
 }
 
@@ -360,9 +359,9 @@ html[data-brand-intro="playing"] body {
 .site-shell .footer-contact {
   padding: 1.35rem;
   border: 1px solid rgb(191 231 223 / 20%);
-  border-radius: 18px;
+  border-radius: 8px;
   background: #0d3d4b;
-  box-shadow: 0 18px 42px rgb(0 20 28 / 18%);
+  box-shadow: none;
 }
 
 .site-shell .footer-contact__eyebrow {
@@ -370,7 +369,7 @@ html[data-brand-intro="playing"] body {
   color: #a9d9d1;
   font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 
@@ -429,7 +428,7 @@ html[data-brand-intro="playing"] body {
     width: 38px;
     height: 38px;
     flex-basis: 38px;
-    border-radius: 11px;
+    border-radius: 8px;
   }
 
   .brand-identity .brand-copy strong {
@@ -438,7 +437,7 @@ html[data-brand-intro="playing"] body {
 
   .brand-identity .brand-copy small {
     font-size: 0.54rem;
-    letter-spacing: 0.075em;
+    letter-spacing: 0;
   }
 
   .brand-identity--hero {
@@ -450,7 +449,7 @@ html[data-brand-intro="playing"] body {
     width: 82px;
     height: 82px;
     flex-basis: 82px;
-    border-radius: 23px;
+    border-radius: 8px;
   }
 
   .brand-identity--hero .brand-copy strong {

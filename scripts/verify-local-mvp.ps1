@@ -9,6 +9,7 @@ param(
     [string]$DockerPath,
     [string]$ComposeFile,
     [string]$EnvFile,
+    [switch]$ReadinessOnly,
     [string]$MailpitApiUrl = "http://localhost:8025"
 )
 
@@ -204,6 +205,15 @@ if ($backendHealth.status -ne "UP") { throw "Backend health is not UP" }
 $frontend = Invoke-WebRequest $FrontendUrl -UseBasicParsing
 if ($frontend.StatusCode -ne 200) { throw "Frontend did not return HTTP 200" }
 $checks.Add("health:backend+frontend")
+
+if ($ReadinessOnly) {
+    [pscustomobject]@{
+        Status = "PASS"
+        Checks = $checks -join ", "
+        ReadinessOnly = $true
+    } | Format-List
+    return
+}
 
 $adminToken = Login-DemoRole "admin@healthcare.local"
 $doctorToken = Login-DemoRole "doctor@healthcare.local"

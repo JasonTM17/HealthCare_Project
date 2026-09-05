@@ -306,7 +306,7 @@ export default function DoctorArticlesPage() {
     <PortalChrome role="DOCTOR" user={session.user}>
       <div className="w-full max-w-[1240px] mx-auto pb-12 space-y-6">
         {/* Header Title with Action Button and Symmetrical Tabs */}
-        <header className="mb-6 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs">
+        <header className="mb-6 rounded-sm border border-slate-200/80 bg-white p-6 shadow-xs">
           <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-slate-100">
             <div>
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-teal-50 text-teal-800 border border-teal-200/60">
@@ -331,7 +331,7 @@ export default function DoctorArticlesPage() {
 
           {/* Symmetrical Segmented Tabs */}
           <div className="pt-4 flex flex-wrap items-center gap-3">
-            <div className="inline-flex p-1 bg-slate-100/90 rounded-xl border border-slate-200/80 gap-1.5">
+            <div className="inline-flex p-1 bg-slate-100/90 rounded-sm border border-slate-200/80 gap-1.5">
               <button
                 className={`min-h-10 px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
                   activeTab === "community_feed"
@@ -368,7 +368,7 @@ export default function DoctorArticlesPage() {
         </header>
 
         {success && (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900 flex items-center gap-2">
+          <div className="rounded-sm border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900 flex items-center gap-2">
             <UiIcon name="shield-check" size={18} />
             <span>{success}</span>
           </div>
@@ -415,18 +415,18 @@ export default function DoctorArticlesPage() {
             </div>
 
             {loading ? (
-              <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-slate-500">
+              <div className="rounded-sm border border-slate-200 bg-white p-12 text-center text-slate-500">
                 Đang tải bảng tin y khoa từ các Bác sĩ...
               </div>
             ) : filteredCommunityArticles.length === 0 ? (
-              <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-slate-500">
+              <div className="rounded-sm border border-slate-200 bg-white p-12 text-center text-slate-500">
                 Không có bài viết nào trong chuyên mục này.
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {filteredCommunityArticles.map((article) => (
                   <article
-                    className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden transition-all hover:border-teal-500 hover:shadow-md cursor-pointer group"
+                    className="flex flex-col justify-between rounded-sm border border-slate-200 bg-white shadow-sm overflow-hidden transition-all hover:border-teal-500 hover:shadow-md cursor-pointer group"
                     key={article.id}
                     onClick={() => void openReadingArticle(article)}
                   >
@@ -496,14 +496,14 @@ export default function DoctorArticlesPage() {
             </div>
 
             {loading ? (
-              <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-slate-500">
+              <div className="rounded-sm border border-slate-200 bg-white p-12 text-center text-slate-500">
                 Đang tải danh sách bài viết...
               </div>
             ) : myArticles.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center">
+              <div className="rounded-sm border border-dashed border-slate-300 bg-white p-12 text-center">
                 <p className="text-slate-500">Bạn chưa đăng bài viết nào.</p>
                 <button
-                  className="mt-3 inline-flex items-center gap-2 rounded-xl bg-teal-900 px-4 py-2 text-xs font-bold text-white hover:bg-teal-800 min-h-11 cursor-pointer"
+                  className="mt-3 inline-flex items-center gap-2 rounded-sm bg-teal-900 px-4 py-2 text-xs font-bold text-white hover:bg-teal-800 min-h-11 cursor-pointer"
                   onClick={() => handleOpenEditor()}
                   type="button"
                 >
@@ -515,7 +515,7 @@ export default function DoctorArticlesPage() {
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {myArticles.map((a) => (
                   <div
-                    className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-teal-500"
+                    className="flex flex-col justify-between rounded-sm border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-teal-500"
                     key={a.id}
                   >
                     <div>
@@ -575,7 +575,7 @@ export default function DoctorArticlesPage() {
         {/* ── EDITORIAL ARTICLE READER MODAL ("ĐỌC NHƯ 1 BÀI BÁO Y KHOA") ── */}
         {readingArticle && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto backdrop-blur-sm">
-            <div className="my-8 w-full max-w-3xl rounded-[10px] bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
+            <div className="my-8 w-full max-w-3xl rounded-lg bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
               {/* Header Bar */}
               <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 bg-slate-50/90">
                 <span className="rounded-[4px] bg-teal-50 border border-teal-200 px-3 py-1 text-xs font-bold text-teal-900 tracking-wider uppercase font-mono">
@@ -789,7 +789,7 @@ export default function DoctorArticlesPage() {
         {/* ── ARTICLE CREATION & EDIT MODAL WITH IMAGE UPLOAD ── */}
         {showEditor && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto backdrop-blur-sm">
-            <div className="my-8 w-full max-w-2xl rounded-[10px] bg-white p-6 shadow-2xl border border-slate-200">
+            <div className="my-8 w-full max-w-2xl rounded-lg bg-white p-6 shadow-2xl border border-slate-200">
               <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                 <h2 className="text-xl font-bold text-teal-950">
                   {editingSlug ? "Chỉnh sửa bài viết y khoa" : "Đăng bài viết y khoa mới"}

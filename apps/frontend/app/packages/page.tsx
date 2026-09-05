@@ -92,7 +92,7 @@ export default function PackagesPage() {
 
   return (
     <PublicPageShell packages={page?.content ?? []}>
-      <div className="catalog-page section-inner">
+      <div className="catalog-page catalog-page--directory section-inner">
         <header className={packageVisualStyles.catalogIntro}>
           <div>
             <p className="section-note">Gói khám sức khỏe</p>
@@ -138,6 +138,8 @@ export default function PackagesPage() {
           </div>
         </section>
 
+        <details className="catalog-guidance">
+          <summary>Cách chọn phù hợp</summary>
         <div className="resource-grid resource-grid--two">
           <section className="resource-panel resource-panel--accent">
             <p className="section-note">Cách chọn gói</p>
@@ -172,6 +174,7 @@ export default function PackagesPage() {
             </ul>
           </section>
         </div>
+        </details>
 
         {loading ? (
           <p className="catalog-status catalog-status--loading" role="status">

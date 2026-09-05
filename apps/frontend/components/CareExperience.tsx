@@ -41,12 +41,6 @@ export default function CareExperience(): React.ReactElement {
             <span><Icon name="heart" size={20} /></span>
             <p><strong>Lắng nghe trước</strong><small>để mỗi lựa chọn rõ ràng hơn</small></p>
           </div>
-
-          <div className="care-experience__signal" aria-hidden="true">
-            <span />
-            <span />
-            <span />
-          </div>
         </div>
 
         <div className="care-experience__copy">

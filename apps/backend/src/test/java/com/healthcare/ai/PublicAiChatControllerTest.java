@@ -113,6 +113,29 @@ class PublicAiChatControllerTest {
     }
 
     @Test
+    void acceptsInsufficientEvidenceResponseWithNoCitations() {
+        AiService aiService = mock(AiService.class);
+        when(aiService.chat(any())).thenReturn(Map.of(
+            "answer", "Tôi chưa tìm thấy nguồn thông tin phù hợp và đã dừng trả lời để tránh suy đoán.",
+            "disclaimer", "Chỉ mang tính tham khảo.",
+            "provenance", "local_provider",
+            "safety_action", "INSUFFICIENT_EVIDENCE",
+            "mode", "HOSPITAL_SUPPORT",
+            "citations", List.of()
+        ));
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolverForSpecialty())
+            .chat(new PublicAiChatController.PublicChatRequest("Xin chào", null))
+            .getBody();
+
+        assertThat(body)
+            .containsEntry("mode", "HOSPITAL_SUPPORT")
+            .containsEntry("provenance", "local_provider")
+            .containsEntry("safety_action", "INSUFFICIENT_EVIDENCE")
+            .containsEntry("citations", List.of());
+    }
+
+    @Test
     void propagatesAiServiceUnavailableAsBadGateway() {
         AiService aiService = mock(AiService.class);
         when(aiService.chat(any())).thenThrow(new org.springframework.web.server.ResponseStatusException(

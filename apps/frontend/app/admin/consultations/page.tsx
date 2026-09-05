@@ -7,6 +7,7 @@ import {
   ApiError,
   adminListDoctors,
   assignAdminConsultation,
+  fetchAllContent,
   fetchAdminConsultationQueue,
   hasRole,
 } from "../../../lib/api-client";
@@ -39,6 +40,7 @@ const SPECIALTY_LABELS: Record<string, string> = {
   pediatrics: "Nhi khoa",
   respiratory: "Hô hấp",
 };
+const ADMIN_PAGE_SIZE = 100;
 
 function statusLabel(status: string): string {
   return STATUS_LABELS[status] ?? "Đang cập nhật";
@@ -128,10 +130,10 @@ export default function AdminConsultationsPage() {
         if (cancelled) return undefined;
         setDoctorsLoading(true);
         setDoctorsError(null);
-        return adminListDoctors(0, 100);
+        return fetchAllContent(adminListDoctors, ADMIN_PAGE_SIZE);
       })
       .then((value) => {
-        if (!cancelled && value) setDoctors(value.content.filter((doctor) => doctor.active !== false));
+        if (!cancelled && value) setDoctors(value.filter((doctor) => doctor.active !== false));
       })
       .catch((reason) => {
         if (!cancelled) setDoctorsError(presentApiError(reason instanceof ApiError ? reason.code : undefined, reason instanceof ApiError ? reason.status : undefined));
@@ -206,7 +208,7 @@ export default function AdminConsultationsPage() {
         <p className="text-sm font-bold text-teal-900">Mã kênh nội bộ được giữ kín trên giao diện; chỉ số thứ tự dùng để điều phối.</p>
       </section>
 
-      <section aria-labelledby="consultation-filter-title" className="grid gap-4 rounded-2xl border border-teal-100 bg-white p-5 shadow-sm">
+      <section aria-labelledby="consultation-filter-title" className="grid gap-4 rounded-sm border border-teal-100 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="section-note">QUEUE FILTERS</p>

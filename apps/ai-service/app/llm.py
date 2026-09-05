@@ -412,6 +412,18 @@ _UNSUPPORTED_CLINICAL_TERMS = (
     "kê đơn", "ke don", "liều thuốc", "lieu thuoc", "chẩn đoán tôi",
     "chan doan toi", "thay đổi thuốc", "thay doi thuoc",
 )
+_PUBLIC_BOOKING_SUPPORT_TERMS = (
+    "dat lich",
+    "lich hen",
+    "hen kham",
+    "kham online",
+    "book lich",
+    "booking",
+    "appointment",
+    "chon bac si",
+    "chon chuyen khoa",
+    "khung gio",
+)
 _CIRCUIT_LOCK = threading.Lock()
 _CIRCUIT_FAILURES = 0
 _CIRCUIT_OPEN_UNTIL = 0.0
@@ -771,9 +783,9 @@ def chat_safety_response(
 ) -> ChatResponse | None:
     """Short-circuit unsafe input before embeddings, retrieval, or remote providers."""
 
-    combined = "\n".join([*(content for _, content in recent_turns), message])
-    normalized = _normalize_sensitive_text(combined)
-    if contains_prompt_injection(combined):
+    del recent_turns
+    normalized = _normalize_sensitive_text(message)
+    if contains_prompt_injection(message):
         return ChatResponse(
             answer=(
                 "Tôi không thể cung cấp chỉ dẫn hệ thống, thông tin xác thực, cấu hình nội bộ "
@@ -801,7 +813,7 @@ def chat_safety_response(
             provenance="local_fallback",
             safety_action=ChatSafetyAction.REFUSE,
         )
-    if chat_contains_sensitive_data(message, recent_turns):
+    if chat_contains_sensitive_data(message):
         return ChatResponse(
             answer=(
                 "Để bảo vệ quyền riêng tư, vui lòng không gửi email, số điện thoại, mã đặt lịch, "
@@ -1156,6 +1168,19 @@ def resolve_triage(
 
 
 def _chat_fallback(message: str, context: Sequence[str]) -> str:
+    normalized = _normalize_sensitive_text(message)
+    if any(term in normalized for term in _PUBLIC_BOOKING_SUPPORT_TERMS):
+        if context:
+            return (
+                "Bạn có thể dùng thông tin đã được lưu để chọn chuyên khoa, bác sĩ hoặc cơ sở phù hợp, "
+                "rồi đặt lịch trực tuyến theo khung giờ còn trống. Nếu chưa chắc nên chọn chuyên khoa nào, "
+                "hãy mô tả ngắn nhu cầu khám để nhân viên y tế hỗ trợ điều hướng."
+            )
+        return (
+            "Bạn có thể đặt lịch trực tuyến trên website HealthCare bằng cách chọn chuyên khoa, "
+            "bác sĩ hoặc cơ sở, rồi chọn khung giờ còn trống. Nếu chưa rõ nên bắt đầu từ chuyên khoa nào, "
+            "hãy mô tả ngắn nhu cầu khám để nhân viên y tế hỗ trợ điều hướng."
+        )
     if context:
         return (
             "Dựa trên thông tin tham khảo đã được lưu, "

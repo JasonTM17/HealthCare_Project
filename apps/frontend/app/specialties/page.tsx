@@ -117,7 +117,7 @@ export default function SpecialtiesPage() {
 
   return (
     <PublicPageShell>
-      <div className="catalog-page section-inner">
+      <div className="catalog-page catalog-page--directory section-inner">
         <PublicBackLink href="/">← Về trang chính</PublicBackLink>
 
         <header className="resource-page__header">
@@ -162,6 +162,8 @@ export default function SpecialtiesPage() {
           </div>
         </section>
 
+        <details className="catalog-guidance">
+          <summary>Cách chọn phù hợp</summary>
         <div className="resource-grid resource-grid--two">
           <section className="resource-panel resource-panel--accent">
             <p className="section-note">Cách đọc danh mục</p>
@@ -200,6 +202,7 @@ export default function SpecialtiesPage() {
             )}
           </section>
         </div>
+        </details>
 
         {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải chuyên khoa…</p> : null}
         {error ? <p className="catalog-status catalog-status--error" role="alert">{error}</p> : null}
@@ -225,9 +228,6 @@ export default function SpecialtiesPage() {
                       >
                         <Icon name={meta.icon} size={24} />
                       </div>
-                      <span className="specialty-card__badge">
-                        {meta.badge}
-                      </span>
                     </div>
 
                     <h2 className="specialty-card__title">{specialty.name}</h2>

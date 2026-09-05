@@ -1016,8 +1016,8 @@ function BookingExperience({
 
   const panelTitleId = isModal ? "booking-modal-title" : "booking-inline-title";
   const panelClassName = isModal
-    ? "booking-panel booking-panel--modal relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-brand-100 flex flex-col max-h-[92vh]"
-    : "booking-panel booking-panel--inline relative w-full bg-white rounded-2xl shadow-xl overflow-hidden border border-brand-100 flex flex-col";
+    ? "booking-panel booking-panel--modal relative w-full max-w-2xl bg-white rounded-sm shadow-2xl overflow-hidden border border-brand-100 flex flex-col max-h-[92vh]"
+    : "booking-panel booking-panel--inline relative w-full bg-white rounded-sm shadow-xl overflow-hidden border border-brand-100 flex flex-col";
   const bodyClassName = isModal ? "booking-panel__body p-6 overflow-y-auto flex-1" : "booking-panel__body p-6 flex-1";
   const completionActionLabel = isModal ? "Đóng và về trang chủ" : "Đặt lịch mới";
 
@@ -1085,12 +1085,12 @@ function BookingExperience({
         {/* Booking body */}
         <div className={bodyClassName}>
           {catalogLoading ? (
-            <p className="mb-4 rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm text-teal-950" role="status">
+            <p className="mb-4 rounded-sm border border-teal-200 bg-teal-50 p-3 text-sm text-teal-950" role="status">
               Đang tải thông tin bác sĩ, chuyên khoa và cơ sở…
             </p>
           ) : null}
           {catalogError ? (
-            <div aria-live="assertive" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-900" role="alert">
+            <div aria-live="assertive" className="mb-4 rounded-sm border border-red-200 bg-red-50 p-3 text-sm text-red-900" role="alert">
               <p className="font-semibold">Danh mục đặt lịch chưa tải đầy đủ</p>
               <p className="mt-1">Không thể tải đủ thông tin đặt lịch. Vui lòng thử lại sau.</p>
               <button
@@ -1104,7 +1104,7 @@ function BookingExperience({
             </div>
           ) : null}
           {selectionError ? (
-            <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950" role="alert">
+            <p className="mb-4 rounded-sm border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950" role="alert">
               {selectionError}
             </p>
           ) : null}
@@ -1131,7 +1131,7 @@ function BookingExperience({
                   {specialties.map((sp) => <option key={sp.id} value={sp.id}>{sp.name}</option>)}
                 </select>
               </div>
-              <div className="rounded-xl border border-brand-100 bg-brand-50/60 p-4 text-sm text-brand-950">
+              <div className="rounded-sm border border-brand-100 bg-brand-50/60 p-4 text-sm text-brand-950">
                 <strong>{currentSpecialty?.name ?? "Chưa chọn chuyên khoa"}</strong>
                 <p className="mt-1 text-xs leading-5 text-brand-700">{currentSpecialty?.description ?? "Chọn một chuyên khoa để tiếp tục."}</p>
               </div>
@@ -1157,7 +1157,7 @@ function BookingExperience({
                   {branches.map((br) => <option key={br.id} value={br.id}>{br.name}</option>)}
                 </select>
               </div>
-              <div className="rounded-xl border border-brand-100 bg-brand-50/60 p-4 text-sm text-brand-950">
+              <div className="rounded-sm border border-brand-100 bg-brand-50/60 p-4 text-sm text-brand-950">
                 <strong>{currentBranch?.name ?? "Chưa chọn cơ sở"}</strong>
                 <p className="mt-1 text-xs text-brand-700">{currentBranch?.address ?? "Địa chỉ đang được cập nhật."}</p>
                 <p className="mt-1 text-xs text-brand-700">{currentBranch?.workingHours ?? "Giờ làm việc đang được cập nhật."}</p>
@@ -1187,7 +1187,7 @@ function BookingExperience({
                 </select>
                 {!catalogLoading && selectedBranch && selectedSpecialty && availableDoctors.length === 0 ? <p className="mt-1.5 text-xs text-amber-800" role="status">Chưa có bác sĩ nhận lịch cho chuyên khoa này tại cơ sở đã chọn.</p> : null}
               </div>
-              <div className="flex items-center gap-4 rounded-xl border border-brand-100 bg-brand-50/60 p-4">
+              <div className="flex items-center gap-4 rounded-sm border border-brand-100 bg-brand-50/60 p-4">
                 <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-brand-700 text-xl font-bold text-white"><Icon name="stethoscope" size={26} /></div>
                 <div>
                   <h4 className="text-base font-bold text-brand-900">{currentDoctor?.fullName ?? "Chưa chọn bác sĩ"}</h4>
@@ -1216,7 +1216,7 @@ function BookingExperience({
                 <label className="mb-1 block text-sm font-semibold text-gray-700" htmlFor="booking-date">Ngày khám mong muốn</label>
                 <input id="booking-date" name="appointment-date" type="date" required min={minimumAppointmentDate} value={selectedDate} onChange={(e) => handleDateChange(e.target.value)} disabled={isSubmitting} className="w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-600" />
               </div>
-              <div className="rounded-xl border border-brand-100 bg-brand-50/60 p-4 text-xs text-brand-900">
+              <div className="rounded-sm border border-brand-100 bg-brand-50/60 p-4 text-xs text-brand-900">
                 <p><strong>Bác sĩ:</strong> {currentDoctor?.fullName ?? "Chưa chọn"}</p>
                 <p className="mt-1"><strong>Cơ sở:</strong> {currentBranch?.name ?? "Chưa chọn"}</p>
               </div>
@@ -1237,7 +1237,7 @@ function BookingExperience({
                 <h3 className="text-xl font-bold text-gray-900">Chọn một khung giờ còn trống</h3>
                 <p className="mt-1 text-sm leading-6 text-gray-600">Khung giờ được tính từ lịch làm việc thật và sẽ được kiểm tra lại khi giữ chỗ.</p>
               </div>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-brand-100 bg-brand-50/60 p-3 text-xs text-brand-900">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-sm border border-brand-100 bg-brand-50/60 p-3 text-xs text-brand-900">
                 <span><strong>Ngày:</strong> {selectedDate}</span>
                 <span><strong>Cơ sở:</strong> {currentBranch?.name ?? "Chưa chọn"}</span>
                 <span><strong>Bác sĩ:</strong> {currentDoctor?.fullName ?? "Chưa chọn"}</span>
@@ -1273,7 +1273,7 @@ function BookingExperience({
                 <h3 className="text-xl font-bold text-gray-900">Cho chúng tôi biết cách liên hệ với bạn</h3>
                 <p className="mt-1 text-sm leading-6 text-gray-600">Thông tin chỉ được gửi khi bạn bấm giữ chỗ và không được đưa vào URL.</p>
               </div>
-              <div className="p-3.5 bg-brand-50/60 border border-brand-100 rounded-xl text-xs text-brand-900 space-y-1">
+              <div className="p-3.5 bg-brand-50/60 border border-brand-100 rounded-sm text-xs text-brand-900 space-y-1">
                 <div className="flex justify-between font-semibold">
                   <span>Bác sĩ: {currentDoctor?.fullName ?? "Chưa chọn"}</span>
                   <span>Ngày: {selectedDate} ({selectedSlot.slice(0, 5)})</span>
@@ -1359,7 +1359,7 @@ function BookingExperience({
                 />
               </div>
 
-              <div className="space-y-3 rounded-xl border border-brand-100 bg-white p-3.5 text-sm text-gray-700">
+              <div className="space-y-3 rounded-sm border border-brand-100 bg-white p-3.5 text-sm text-gray-700">
                 <label className="flex items-start gap-3" htmlFor="booking-has-insurance">
                   <input
                     id="booking-has-insurance"
@@ -1447,7 +1447,7 @@ function BookingExperience({
                   </div>
 
                   {holdExpired ? (
-                    <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-left text-sm text-red-900" role="alert" aria-live="assertive">
+                    <div className="rounded-sm border border-red-200 bg-red-50 p-4 text-left text-sm text-red-900" role="alert" aria-live="assertive">
                       <p className="font-bold">Khung giờ này không còn được giữ.</p>
                       <p className="mt-1 text-xs leading-5">Vui lòng tải lại danh sách và chọn khung giờ khác để tiếp tục.</p>
                       <button type="button" disabled={isSubmitting} onClick={restartSlotSelection} className="mt-3 rounded-lg border border-red-300 bg-white px-4 py-2 text-xs font-bold text-red-800 transition-colors hover:bg-red-100 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400 focus-visible:ring-2 focus-visible:ring-red-500">
@@ -1457,7 +1457,7 @@ function BookingExperience({
                   ) : null}
 
                   {otpExpired && !holdExpired ? (
-                    <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-left text-sm text-red-900" role="alert" aria-live="assertive">
+                    <div className="rounded-sm border border-red-200 bg-red-50 p-4 text-left text-sm text-red-900" role="alert" aria-live="assertive">
                       <p className="font-bold">Mã OTP đã hết hiệu lực.</p>
                       <p className="mt-1 text-xs leading-5">Bạn có thể yêu cầu gửi lại mã trong thời gian giữ chỗ vẫn còn hiệu lực.</p>
                       <button type="button" disabled={isSubmitting || isResendingOtp || resendCooldownSeconds > 0} onClick={() => void handleResendOtp()} className="mt-3 min-h-11 rounded-lg border border-red-300 bg-white px-4 py-2 text-xs font-bold text-red-800 transition-colors hover:bg-red-100 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400 focus-visible:ring-2 focus-visible:ring-red-500">
@@ -1466,7 +1466,7 @@ function BookingExperience({
                     </div>
                   ) : null}
 
-                  <div className="p-4 bg-brand-50/60 border border-brand-100 rounded-xl text-left text-xs space-y-1.5">
+                  <div className="p-4 bg-brand-50/60 border border-brand-100 rounded-sm text-left text-xs space-y-1.5">
                     <p className="font-bold text-brand-950 text-sm">Mã giữ chỗ: {bookingCode}</p>
                     <p className="text-gray-600">Bệnh nhân: <span className="font-semibold text-gray-900">{fullName}</span> ({phone})</p>
                     <p className="text-gray-600">Bác sĩ: <span className="font-semibold text-gray-900">{currentDoctor?.fullName ?? "Chưa chọn"}</span></p>
@@ -1519,7 +1519,7 @@ function BookingExperience({
                       value={otpCode}
                       onChange={(e) => setOtpCode(e.target.value)}
                       disabled={holdExpired || isSubmitting || isResendingOtp}
-                      className="w-48 text-center p-3 text-2xl font-mono tracking-widest bg-gray-50 border-2 border-brand-600 rounded-xl focus:ring-4 focus:ring-brand-100 focus:outline-none"
+                      className="w-48 text-center p-3 text-2xl font-mono tracking-widest bg-gray-50 border-2 border-brand-600 rounded-sm focus:ring-4 focus:ring-brand-100 focus:outline-none"
                     />
                   </div>
 
@@ -1555,7 +1555,7 @@ function BookingExperience({
                   </p>
 
                   {/* E-Card Ticket */}
-                  <div className="p-5 bg-brand-900 text-white rounded-2xl text-left shadow-xl relative overflow-hidden">
+                  <div className="p-5 bg-brand-900 text-white rounded-sm text-left shadow-xl relative overflow-hidden">
                     <div className="flex justify-between items-start border-b border-brand-700/60 pb-3 mb-3">
                       <div>
                         <span className="text-[10px] uppercase tracking-wider text-brand-300 font-bold">PHIẾU KHÁM BỆNH ĐIỆN TỬ</span>
@@ -1598,7 +1598,7 @@ function BookingExperience({
                       </div>
                     </div>
 
-                    <div className="mt-3 rounded-xl border border-brand-700/70 bg-brand-800/70 p-3 text-[11px] leading-5 text-brand-100">
+                    <div className="mt-3 rounded-sm border border-brand-700/70 bg-brand-800/70 p-3 text-[11px] leading-5 text-brand-100">
                       <p className="font-bold text-white">Lưu ý khi đến khám</p>
                       <p>Vui lòng đến trước giờ hẹn khoảng 30 phút và mang CCCD/hộ chiếu cùng mã lịch hẹn.</p>
                       {confirmedAppointment.hasInsurance ? (

@@ -8,7 +8,7 @@ import type {
 import {
   assertNoSensitiveBrowserStorage,
   browserSessionFixture,
-  installMockBrowserSession,
+  installMockPatientPortalSession,
 } from "./helpers/browser-session";
 
 const PATIENT_SESSION = browserSessionFixture("PATIENT", "patient-chat-e2e", "Nguyễn An");
@@ -242,7 +242,7 @@ async function installPatientChatMocks(
 
     throw new Error(`Unexpected chat request: ${method} ${url.pathname}${url.search}`);
   });
-  await installMockBrowserSession(context, PATIENT_SESSION);
+  await installMockPatientPortalSession(context, PATIENT_SESSION);
 
   return {
     get history() {

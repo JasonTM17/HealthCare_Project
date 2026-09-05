@@ -162,6 +162,9 @@ test("contact and guidance pages do not invent branch, insurance, or FAQ data", 
   assert.match(about, /Mạng lưới HealthCare/);
   assert.match(about, /about-introduction\.mp4/);
   assert.match(about, /Thước phim giới thiệu/);
+  assert.match(about, /autoPlay/);
+  assert.match(about, /disablePictureInPicture/);
+  assert.doesNotMatch(about, /\scontrols(?:\s|>|=)/);
 });
 
 test("faq page now behaves like a support hub instead of a bare list", async () => {

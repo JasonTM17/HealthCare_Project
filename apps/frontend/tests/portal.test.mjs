@@ -137,7 +137,7 @@ test("portal chrome exposes complete role navigation and keyboard landmarks", as
   assert.match(source, /setLoggingOut\(false\)/);
   assert.doesNotMatch(source, /logoutCurrentUser clears the browser session even when remote sign-out is unavailable/);
   assert.doesNotMatch(source, /finally\s*\{[^}]*router\.replace\("\/auth\/login/);
-  assert.match(source, /UiIcon/);
+  assert.match(source, /<BrandMark size="compact" tagline=\{ROLE_LABEL\[role\]\} \/>/);
 });
 
 test("portal styling stays dense, fixed-scale, touch-safe, and responsive", async () => {

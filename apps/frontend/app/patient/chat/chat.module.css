@@ -78,8 +78,7 @@
     background-color var(--chat-transition),
     border-color var(--chat-transition),
     color var(--chat-transition),
-    opacity var(--chat-transition),
-    transform var(--chat-transition);
+    opacity var(--chat-transition);
 }
 
 .catalogLink:hover,
@@ -88,7 +87,7 @@
 .confirmDeleteButton:hover:not(:disabled),
 .secondaryButton:hover:not(:disabled),
 .retryButton:hover:not(:disabled) {
-  transform: translateY(-1px);
+  transform: none;
 }
 
 .catalogLink:active,
@@ -100,7 +99,7 @@
 .textButton:active:not(:disabled),
 .refreshButton:active:not(:disabled),
 .deleteButton:active:not(:disabled) {
-  transform: translateY(1px);
+  transform: none;
 }
 
 .newConversationButton:disabled,

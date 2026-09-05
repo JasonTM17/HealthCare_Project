@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { browserSessionFixture, installMockBrowserSession } from "./helpers/browser-session";
 
+test.describe.configure({ timeout: 60_000 });
+
 for (const role of ["PATIENT", "DOCTOR"] as const) {
   test(`${role.toLowerCase()} navigation fits across the tablet-to-desktop boundary`, async ({ context, page }) => {
     await context.route("**/api/v1/**", (route) => route.fulfill({
@@ -43,6 +45,27 @@ for (const role of ["PATIENT", "DOCTOR"] as const) {
           await expect(link).toBeFocused();
         }
         await navigation.getByRole("link", { name: "Trang chính", exact: true }).focus();
+        await page.keyboard.press("Tab");
+        const profile = page.getByRole("link", { name: "Xem thông tin tài khoản", exact: true });
+        await expect(profile).toBeFocused();
+        expect(await profile.evaluate((node) => parseFloat(getComputedStyle(node).outlineWidth))).toBeGreaterThanOrEqual(2);
+        expect(await profile.evaluate((node) => {
+          const luminance = (rgb: number[]) => rgb.slice(0, 3).reduce((sum, value, index) => {
+            const channel = value / 255;
+            return sum + (channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4) * [0.2126, 0.7152, 0.0722][index];
+          }, 0);
+          const color = (value: string) => value.match(/[\d.]+/g)!.map(Number);
+          const nodes: Element[] = [];
+          for (let ancestor: Element | null = node.parentElement; ancestor; ancestor = ancestor.parentElement) nodes.unshift(ancestor);
+          let background = [255, 255, 255];
+          for (const ancestor of nodes) {
+            const rgb = color(getComputedStyle(ancestor).backgroundColor);
+            const alpha = rgb[3] ?? 1;
+            background = background.map((value, index) => rgb[index] * alpha + value * (1 - alpha));
+          }
+          const values = [luminance(color(getComputedStyle(node).outlineColor)), luminance(background)].sort((a, b) => b - a);
+          return (values[0] + 0.05) / (values[1] + 0.05);
+        })).toBeGreaterThanOrEqual(3);
         await page.keyboard.press("Tab");
         await expect(page.getByRole("button", { name: "Đăng xuất", exact: true })).toBeFocused();
       });

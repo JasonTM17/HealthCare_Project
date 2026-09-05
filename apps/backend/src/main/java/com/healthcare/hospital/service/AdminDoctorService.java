@@ -40,7 +40,9 @@ public class AdminDoctorService {
         doctor.setBio(request.bio());
         doctor.setPhotoUrl(request.photoUrl());
         doctor.setActive(request.active());
-        applyUserLink(doctor, request.userId());
+        if (request.userId() != null) {
+            applyUserLink(doctor, request.userId());
+        }
         return doctorRepository.save(doctor);
     }
 
@@ -56,7 +58,9 @@ public class AdminDoctorService {
         doctor.setBio(request.bio());
         doctor.setPhotoUrl(request.photoUrl());
         doctor.setActive(request.active());
-        applyUserLink(doctor, request.userId());
+        if (request.userId() != null) {
+            applyUserLink(doctor, request.userId());
+        }
         return doctorRepository.save(doctor);
     }
 
@@ -69,7 +73,6 @@ public class AdminDoctorService {
 
     private void applyUserLink(Doctor doctor, java.util.UUID userId) {
         if (userId == null) {
-            doctor.setUserId(null);
             return;
         }
 

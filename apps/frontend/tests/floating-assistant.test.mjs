@@ -5,10 +5,11 @@ import test from "node:test";
 const read = (relativePath) => readFile(new URL(`../${relativePath}`, import.meta.url), "utf8");
 
 test("floating assistant is mounted globally and stays on the REST chat contract", async () => {
-  const [layout, component, provider] = await Promise.all([
+  const [layout, component, provider, styles] = await Promise.all([
     read("app/layout.tsx"),
     read("components/FloatingHealthAssistant.tsx"),
     read("components/AssistantProvider.tsx"),
+    read("components/FloatingHealthAssistant.module.css"),
   ]);
 
   assert.match(layout, /FloatingHealthAssistant/);
@@ -26,6 +27,13 @@ test("floating assistant is mounted globally and stays on the REST chat contract
   assert.match(component, /Bạn đang dùng chế độ khách/);
   assert.match(component, /isPatient && message\.status === "COMPLETED"/);
   assert.match(component, /onDelta: \(delta\) => \{[\s\S]*isCurrentLocalRequest\(epoch, currentConversation\?\.id\)[\s\S]*setStreamingReply/);
+  assert.match(component, /pendingUserMessage/);
+  assert.match(component, /data-testid="floating-chat-pending-user"/);
+  assert.match(component, /data-testid="floating-chat-thinking"/);
+  assert.match(component, /Đang suy nghĩ/);
+  assert.match(component, /Hỗ trợ tạm thời/);
+  assert.doesNotMatch(component, /Đang kết nối backend và AI/);
+  assert.match(styles, /\.typingDots span \{[\s\S]*animation: assistantTyping/);
   assert.match(component, /data-testid="floating-chat-streaming-reply"/);
   assert.match(provider, /Idempotency-Key|idempotencyKey/);
   assert.match(component, /\/patient\/chat/);
@@ -43,10 +51,11 @@ test("floating assistant is mounted globally and stays on the REST chat contract
 });
 
 test("floating assistant exposes real recovery, safety and accessible actions", async () => {
-  const [component, provider, styles] = await Promise.all([
+  const [component, provider, styles, mark] = await Promise.all([
     read("components/FloatingHealthAssistant.tsx"),
     read("components/AssistantProvider.tsx"),
     read("components/FloatingHealthAssistant.module.css"),
+    read("components/AssistantMark.tsx"),
   ]);
 
   assert.match(provider, /CHAT_CONTENT_BLOCKED/);
@@ -58,7 +67,13 @@ test("floating assistant exposes real recovery, safety and accessible actions", 
   assert.match(component, /aria-modal="true"/);
   assert.match(component, /maxLength=\{isPatient \? MAX_MESSAGE_LENGTH : MAX_PUBLIC_MESSAGE_LENGTH\}/);
   assert.match(styles, /launcherAvatar/);
-  assert.match(styles, /border-radius: 50%/);
+  assert.match(styles, /\.launcher \{[\s\S]*border-radius: var\(--radius-sm\)/);
+  assert.match(styles, /\.launcher \{[\s\S]*width: 3\.25rem;[\s\S]*min-height: 3\.25rem/);
+  assert.match(styles, /\.launcher \{[\s\S]*background: #ffffff;/);
+  assert.match(styles, /\.launcher\[aria-expanded="true"\] \{[\s\S]*background: #004c4e;/);
+  assert.match(styles, /@media \(max-width: 640px\) \{[\s\S]*\.launcher \{[\s\S]*width: 3rem;[\s\S]*min-height: 3rem/);
+  assert.match(styles, /\.panel \{[\s\S]*border-radius: var\(--radius-lg\)/);
+  assert.doesNotMatch(styles, /box-shadow:(?!\s*none\b)/);
   assert.match(styles, /launcherMascot/);
   assert.match(styles, /launcher::after/);
   assert.match(styles, /object-fit: contain/);
@@ -73,6 +88,8 @@ test("floating assistant exposes real recovery, safety and accessible actions", 
   assert.match(styles, /z-index: 80/);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/);
   assert.doesNotMatch(styles, /linear-gradient|radial-gradient/);
+  assert.match(mark, /friendly healthcare chat/);
+  assert.doesNotMatch(mark, /AI Intelligence Sparkle|cx="37" cy="14"/);
 });
 
 test("floating assistant fails closed across mode changes and policy refreshes", async () => {

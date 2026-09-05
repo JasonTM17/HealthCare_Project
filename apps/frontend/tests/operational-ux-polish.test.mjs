@@ -71,6 +71,32 @@ test("consultation queues keep status and SLA cues safe across responsive states
   assert.match(doctor, /min-h-11/);
 });
 
+test("admin doctor content edits do not clear account links from the browser payload", async () => {
+  const adminDoctors = await read("app/admin/doctors/page.tsx");
+
+  assert.match(adminDoctors, /function toPayload\(form: DoctorForm\): AdminDoctorPayload/);
+  assert.match(adminDoctors, /adminUpdateDoctor\(editingSlug, payload\)/);
+  assert.doesNotMatch(adminDoctors, /userId:\s*null/);
+});
+
+test("admin catalog and selector surfaces walk backend pages beyond the first 100 records", async () => {
+  const sources = await Promise.all([
+    read("app/admin/doctors/page.tsx"),
+    read("app/admin/specialties/page.tsx"),
+    read("app/admin/services/page.tsx"),
+    read("app/admin/branches/page.tsx"),
+    read("app/admin/schedules/page.tsx"),
+    read("app/admin/consultations/page.tsx"),
+    read("app/admin/catalog/page.tsx"),
+  ]);
+
+  for (const source of sources) {
+    assert.match(source, /fetchAllContent/);
+    assert.match(source, /ADMIN_PAGE_SIZE/);
+    assert.doesNotMatch(source, /adminList(?:Doctors|Specialties|Services|Branches|Packages|Faqs|Articles|Schedules|ScheduleExceptions)\(0,\s*100\)/);
+  }
+});
+
 test("reviewed resilience keeps clinical inventory safe during stale navigation and outages", async () => {
   const diseaseDetail = await read("app/benh-pho-bien/[slug]/page.tsx");
   const diseaseHub = await read("app/benh-pho-bien/page.tsx");
