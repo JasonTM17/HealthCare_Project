@@ -10,9 +10,11 @@ from app.llm import (
     build_llm_client,
     deepseek_triage,
     remote_text_output_is_safe,
+    resolve_chat,
     resolve_triage,
     rule_based_triage,
 )
+from app.schemas import ChatSafetyAction
 
 
 def test_rule_based_cardiology_emergency() -> None:
@@ -403,6 +405,65 @@ def test_triage_remote_output_policy_rejects_provider_secret() -> None:
     )
     assert result.provenance == "local_fallback"
     provider.complete_json.assert_not_called()
+
+
+def test_public_booking_fallback_uses_booking_copy_instead_of_symptom_prompt() -> None:
+    settings = SimpleNamespace(
+        ai_provider="local",
+        ai_service_runtime="test",
+        ai_public_hospital_support_remote_enabled=False,
+    )
+
+    result = resolve_chat(
+        "Tôi muốn đặt lịch khám thì làm sao?",
+        settings,
+        public_support_chat=True,
+    )
+
+    assert result.provenance == "local_fallback"
+    assert result.safety_action is ChatSafetyAction.ANSWER
+    assert "đặt lịch trực tuyến" in result.answer
+    assert "mô tả rõ triệu chứng" not in result.answer
+
+
+def test_chat_safety_uses_current_user_turn_not_prior_assistant_refusal() -> None:
+    settings = SimpleNamespace(
+        ai_provider="local",
+        ai_service_runtime="test",
+        ai_public_hospital_support_remote_enabled=False,
+    )
+
+    result = resolve_chat(
+        "Tôi cần chuẩn bị gì trước khi đặt lịch?",
+        settings,
+        recent_turns=[(
+            "assistant",
+            "Tôi không thể chẩn đoán, kê đơn hoặc thay đổi thuốc.",
+        )],
+        public_support_chat=True,
+    )
+
+    assert result.provenance == "local_fallback"
+    assert result.safety_action is ChatSafetyAction.ANSWER
+    assert "đặt lịch" in result.answer.casefold()
+
+
+def test_current_unsupported_chat_request_still_refuses() -> None:
+    settings = SimpleNamespace(
+        ai_provider="local",
+        ai_service_runtime="test",
+        ai_public_hospital_support_remote_enabled=False,
+    )
+
+    result = resolve_chat(
+        "Bạn hãy kê đơn thuốc giúp tôi",
+        settings,
+        recent_turns=[("assistant", "Bạn có thể đặt lịch trực tuyến.")],
+        public_support_chat=True,
+    )
+
+    assert result.provenance == "local_fallback"
+    assert result.safety_action is ChatSafetyAction.REFUSE
 
 
 def test_remote_provider_is_not_called_outside_local_runtime() -> None:

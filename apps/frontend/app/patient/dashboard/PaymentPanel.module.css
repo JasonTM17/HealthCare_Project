@@ -6,10 +6,8 @@
   scroll-margin-top: 6rem;
   border: 1px solid var(--color-teal-300);
   border-radius: var(--radius-lg);
-  background:
-    radial-gradient(circle at 100% 0, color-mix(in srgb, var(--color-mint) 42%, transparent), transparent 32rem),
-    var(--color-mint-light);
-  box-shadow: var(--shadow-soft);
+  background: var(--color-mint-light);
+  box-shadow: none;
 }
 
 .heading {

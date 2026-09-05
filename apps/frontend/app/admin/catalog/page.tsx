@@ -19,6 +19,7 @@ import {
   type AdminArticle,
   type Faq,
   type HealthPackage,
+  fetchAllContent,
   broadcastCatalogChange,
   subscribeToCatalogChange,
 } from "../../../lib/api-client";
@@ -36,9 +37,10 @@ function toSlug(text: string): string {
 import AdminState from "../_components/AdminState";
 import { describeAdminError } from "../_lib/errors";
 
-const inputClass = "mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm";
-const buttonClass = "rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50";
-const secondaryButtonClass = "rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700 disabled:opacity-50";
+const inputClass = "mt-1 w-full rounded-sm border border-slate-300 px-3 py-2.5 text-sm";
+const buttonClass = "rounded-sm bg-teal-700 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50";
+const secondaryButtonClass = "rounded-sm border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700 disabled:opacity-50";
+const ADMIN_PAGE_SIZE = 100;
 
 type Feedback = {
   tone: "success" | "error";
@@ -317,13 +319,13 @@ export default function AdminCatalogPage() {
     setLoadError(null);
     try {
       const [packagePage, faqPage, articlePage] = await Promise.all([
-        adminListPackages(0, 100),
-        adminListFaqs(0, 100),
-        adminListArticles(0, 100),
+        fetchAllContent(adminListPackages, ADMIN_PAGE_SIZE),
+        fetchAllContent(adminListFaqs, ADMIN_PAGE_SIZE),
+        fetchAllContent(adminListArticles, ADMIN_PAGE_SIZE),
       ]);
-      setPackages(packagePage.content);
-      setFaqs(faqPage.content);
-      setArticles(articlePage.content);
+      setPackages(packagePage);
+      setFaqs(faqPage);
+      setArticles(articlePage);
       return true;
     } catch (error) {
       setLoadError(describeAdminError(error).description);

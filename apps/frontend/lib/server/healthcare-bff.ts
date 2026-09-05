@@ -17,6 +17,8 @@ const MAX_PATH_LENGTH = 2_048;
 const MAX_HEADER_VALUE_LENGTH = 16_384;
 const MIN_SERVICE_TOKEN_BYTES = 32;
 const MAX_SERVICE_TOKEN_BYTES = 512;
+const PUBLIC_AI_CHAT_PATH = `${API_PREFIX}public/ai/chat`;
+const PUBLIC_AI_FALLBACK_STATUSES = new Set([502, 503, 504]);
 
 const ALLOWED_METHODS = new Set(["GET", "HEAD", "OPTIONS", "POST", "PUT", "PATCH", "DELETE"]);
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
@@ -104,6 +106,40 @@ function jsonError(status: number, code: string): Response {
       },
     },
   );
+}
+
+function publicAiChatFallbackResponse(): Response {
+  return Response.json(
+    {
+      answer: (
+        "Kết nối AI đang tạm thời gián đoạn. Bạn vẫn có thể tra cứu chuyên khoa, bác sĩ, "
+        + "gói khám và đặt lịch trực tiếp trên website HealthCare. Nếu có dấu hiệu nặng "
+        + "hoặc diễn tiến nhanh, hãy gọi cấp cứu 115 hoặc đến cơ sở y tế gần nhất."
+      ),
+      disclaimer: "Thông tin từ trợ lý AI chỉ mang tính tham khảo và không thay thế tư vấn, chẩn đoán hoặc điều trị của bác sĩ.",
+      citations: [],
+      provenance: "local_fallback",
+      mode: "HOSPITAL_SUPPORT",
+      safety_action: "INSUFFICIENT_EVIDENCE",
+    },
+    {
+      status: 200,
+      headers: {
+        "Cache-Control": "no-store",
+        "Content-Type": "application/json; charset=utf-8",
+      },
+    },
+  );
+}
+
+async function cancelUpstreamBody(upstream: Response, reason: string): Promise<void> {
+  if (!upstream.body) return;
+  try {
+    await upstream.body.cancel(reason);
+  } catch {
+    // The local fallback/error response is authoritative even when the
+    // upstream stream has already closed or races with cancellation.
+  }
 }
 
 function normalizeBackendOrigin(rawValue: string): string {
@@ -623,7 +659,7 @@ export async function proxyHealthcareRequest(
     abortFromBrowser = () => requestController.abort(request.signal.reason);
     if (request.signal.aborted) abortFromBrowser();
     else request.signal.addEventListener("abort", abortFromBrowser, { once: true });
-    const requestTimeoutMs = apiPath === `${API_PREFIX}public/ai/chat`
+    const requestTimeoutMs = apiPath === PUBLIC_AI_CHAT_PATH
       ? runtime.publicAiRequestTimeoutMs ?? runtime.requestTimeoutMs
       : apiPath.endsWith("/messages/stream")
       ? runtime.streamRequestTimeoutMs ?? runtime.requestTimeoutMs
@@ -640,7 +676,12 @@ export async function proxyHealthcareRequest(
        signal: requestController.signal,
     });
     if (upstream.status >= 300 && upstream.status < 400) {
+      await cancelUpstreamBody(upstream, "BFF_UPSTREAM_REDIRECT_REJECTED");
       return jsonError(502, "BFF_UPSTREAM_REDIRECT_REJECTED");
+    }
+    if (method === "POST" && apiPath === PUBLIC_AI_CHAT_PATH && PUBLIC_AI_FALLBACK_STATUSES.has(upstream.status)) {
+      await cancelUpstreamBody(upstream, "BFF_PUBLIC_AI_FALLBACK");
+      return publicAiChatFallbackResponse();
     }
     const response = createBrowserResponse(upstream, method, cleanup);
     responseBodyOwnsCleanup = true;

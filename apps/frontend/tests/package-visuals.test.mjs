@@ -47,7 +47,7 @@ test("package cards share the same visual system across home and catalog routes"
   assert.match(card, /packageItem\.checklist/);
   assert.match(card, /Chi phí gói/);
   assert.doesNotMatch(card, /giảm|ưu đãi|25%/i);
-  assert.match(styles, /scroll-snap-type: x mandatory/);
+  assert.match(styles, /\.homeRail\s*\{\s*grid-template-columns: minmax\(0, 1fr\)/);
   assert.match(styles, /prefers-reduced-motion: reduce/);
 });
 

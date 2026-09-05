@@ -170,7 +170,7 @@ export default function AdminHealthQuestionsPage() {
           const reports = reportsByQuestion[item.id] ?? [];
           const isReportsOpen = openReports[item.id] === true;
           return (
-            <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" key={item.id}>
+            <article className="rounded-sm border border-slate-200 bg-white p-5 shadow-sm" key={item.id}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-wide text-teal-700">{item.topicSlug} · {item.status}</p>
@@ -206,7 +206,7 @@ export default function AdminHealthQuestionsPage() {
                   {reports.length === 0 ? <p className="mt-3 text-sm text-slate-500">Chưa có báo cáo mở.</p> : (
                     <ul className="mt-3 grid gap-3">
                       {reports.map((report) => (
-                        <li className="rounded-xl border border-amber-100 bg-amber-50/60 p-3" key={report.id}>
+                        <li className="rounded-sm border border-amber-100 bg-amber-50/60 p-3" key={report.id}>
                           <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="text-sm text-slate-700">
                               <p className="font-semibold">{reportReasonLabels[report.reasonCode] ?? "Lý do khác"} · {reportStatusLabels[report.status] ?? report.status}</p>

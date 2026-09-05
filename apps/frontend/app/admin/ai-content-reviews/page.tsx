@@ -248,7 +248,7 @@ export default function AdminAiContentReviewsPage() {
         </button>
       </header>
 
-      <section aria-labelledby="ai-review-filters-title" className="grid gap-4 rounded-2xl border border-teal-100 bg-white p-5 shadow-sm">
+      <section aria-labelledby="ai-review-filters-title" className="grid gap-4 rounded-sm border border-teal-100 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="section-note">INVENTORY FILTERS</p>
@@ -309,7 +309,7 @@ export default function AdminAiContentReviewsPage() {
         aria-busy={loading}
         aria-describedby="ai-review-inventory-help"
         aria-label="Danh sách revision"
-        className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+        className="overflow-hidden rounded-sm border border-slate-200 bg-white shadow-sm"
       >
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 sm:px-5">
           <p className="text-sm font-bold text-teal-950" id="ai-review-inventory-help" role="status" aria-live="polite">
@@ -378,7 +378,7 @@ export default function AdminAiContentReviewsPage() {
       </section>
 
       {selected ? (
-        <section aria-labelledby="selected-revision-title" className="grid gap-4 rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
+        <section aria-labelledby="selected-revision-title" className="grid gap-4 rounded-sm border border-amber-200 bg-amber-50 p-5 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="section-note">SUBMIT EXACT REVISION</p>
@@ -423,7 +423,7 @@ export default function AdminAiContentReviewsPage() {
           <div
             aria-labelledby="preview-modal-title"
             aria-modal="true"
-            className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl border border-slate-200"
+            className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-sm bg-white shadow-2xl border border-slate-200"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
           >
@@ -460,7 +460,7 @@ export default function AdminAiContentReviewsPage() {
               ) : previewArticle ? (
                 <div className="space-y-4">
                   {previewArticle.coverImageUrl && (
-                    <div className="overflow-hidden rounded-xl border border-slate-200 aspect-video relative max-h-64 w-full">
+                    <div className="overflow-hidden rounded-sm border border-slate-200 aspect-video relative max-h-64 w-full">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         alt={previewArticle.title}
@@ -481,7 +481,7 @@ export default function AdminAiContentReviewsPage() {
                     )}
                   </div>
                   {previewArticle.summary && (
-                    <div className="rounded-xl border border-teal-100 bg-teal-50/60 p-4 text-sm font-medium text-teal-950 leading-relaxed">
+                    <div className="rounded-sm border border-teal-100 bg-teal-50/60 p-4 text-sm font-medium text-teal-950 leading-relaxed">
                       {previewArticle.summary}
                     </div>
                   )}
@@ -502,7 +502,7 @@ export default function AdminAiContentReviewsPage() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                  <div className="rounded-sm border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
                     <p className="font-bold text-slate-900 text-base">{selected.title}</p>
                     <p className="mt-1 text-xs text-slate-500">Mã định danh nội dung: {selected.sourceId}</p>
                     <p className="mt-2 text-xs font-semibold text-teal-800">Loại nội dung: {typeLabel(selected.sourceType)}</p>
@@ -514,7 +514,7 @@ export default function AdminAiContentReviewsPage() {
               )}
 
               {/* Technical Audit Box */}
-              <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-slate-700 space-y-1.5">
+              <div className="rounded-sm border border-amber-200 bg-amber-50/70 p-4 text-xs text-slate-700 space-y-1.5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="font-bold text-teal-950">Thông tin kiểm duyệt (Clinical Audit):</span>
                   <span>Vòng duyệt: {selected.approvalRound ?? "Chưa có"}</span>

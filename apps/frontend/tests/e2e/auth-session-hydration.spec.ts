@@ -415,7 +415,7 @@ test("patient dashboard survives hard reload with a preloaded session", async ({
 });
 
 test("failed logout keeps the HttpOnly browser session authoritative and retryable across reload", async ({ context }, testInfo) => {
-  const configuredBaseUrl = String(testInfo.project.use.baseURL ?? "http://127.0.0.1:3100");
+  const configuredBaseUrl = String(testInfo.project.use.baseURL ?? "http://localhost:3100");
   const appUrl = new URL(configuredBaseUrl);
   const secureCookieUrl = `https://${appUrl.host}/`;
   const sessionCookieValue = "opaque-e2e-session-secret";

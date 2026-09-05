@@ -353,7 +353,7 @@ export default function DoctorAiContentReviewsPage() {
                       setRevision(null);
                       setRevisionLoading(false);
                     }}
-                    className={`min-h-11 px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    className={`min-h-11 px-4 py-2 rounded-sm text-xs font-bold transition-all flex items-center gap-1.5 ${
                       isSelected
                         ? "bg-teal-900 text-white shadow-sm ring-2 ring-teal-700/30"
                         : "bg-white text-slate-700 border border-slate-200 hover:border-teal-500 hover:bg-slate-50"

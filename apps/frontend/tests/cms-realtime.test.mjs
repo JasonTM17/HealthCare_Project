@@ -127,7 +127,7 @@ test("public live slot listens to named SSE changes and has polling fallback", a
   assert.match(client, /register\("unavailable"/);
   assert.match(client, /this\.changeSubscribers\.size === 0/);
   assert.match(liveSlot, /resolveCmsSlotKey/);
-  assert.match(liveSlot, /setInterval/);
+  assert.match(liveSlot, /setTimeout/);
   assert.match(liveSlot, /client\.subscribeToChanges/);
   assert.match(liveSlot, /sseConnected/);
   assert.match(liveSlot, /pendingVersionFloor/);
@@ -135,11 +135,13 @@ test("public live slot listens to named SSE changes and has polling fallback", a
   assert.match(liveSlot, /refresh\(pendingVersionFloor\(\), event\.latestEventId\)/);
   assert.match(liveSlot, /safetyPollTimer/);
   assert.match(liveSlot, /startSafetyPolling/);
-  assert.match(liveSlot, /refresh\(0\)\.then/);
+  assert.match(liveSlot, /runSafetyPoll/);
+  assert.match(liveSlot, /await refresh\(0\)/);
   assert.match(liveSlot, /reconciliation\.hasPendingWork/);
   assert.match(liveSlot, /reconciliation\.pendingEventIds\.size === 0/);
   assert.match(liveSlot, /startPolling\(\)/);
-  assert.match(liveSlot, /if \(result === "failed" && !cancelled\) startPolling\(\)/);
+  assert.match(liveSlot, /scheduleNextPoll/);
+  assert.match(liveSlot, /pollingActive/);
   assert.match(liveSlot, /onResync/);
   assert.match(liveSlot, /onHeartbeat/);
   assert.match(liveSlot, /heartbeat\.latestEventId/);
@@ -168,6 +170,9 @@ test("public live slot listens to named SSE changes and has polling fallback", a
   assert.match(liveSlot, /refresh\(minimumVersion, afterEventId\)/);
   assert.match(liveSlot, /reconciliation\.pendingEventIds\.size === 0\s+&& reconciliation\.reconciliationCursor === 0/);
   assert.match(liveSlot, /result !== "failed"/);
+  assert.match(liveSlot, /finally \{\s+scheduleNextPoll\(\);/);
+  assert.match(liveSlot, /finally \{\s+scheduleNextSafetyPoll\(\);/);
+  assert.doesNotMatch(liveSlot, /setInterval/);
   assert.match(liveSlot, /data-cms-live-source="live-backend"/);
   assert.match(liveSlot, /PUBLIC_TECHNICAL_COPY_PATTERN/);
   assert.match(liveSlot, /const publicQuiet = quiet \|\| !showSourceLabel/);

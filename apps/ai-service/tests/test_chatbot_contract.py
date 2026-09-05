@@ -26,6 +26,7 @@ from app.schemas import (
     ChatMode,
     ChatRetrieveRequest,
     ChatSafetyAction,
+    ChatTurn,
     UsedSource,
 )
 
@@ -715,6 +716,29 @@ def test_safety_and_remote_off_policy() -> None:
     )
     assert response.safety_action is ChatSafetyAction.REFUSE
     provider.complete_json.assert_not_called()
+
+
+def test_generate_ignores_prior_assistant_refusal_when_current_request_is_safe() -> None:
+    service = _service()
+    response = generate_chat_response(
+        ChatGenerateRequest(
+            message="Giờ mở cửa?",
+            mode=ChatMode.HOSPITAL_SUPPORT,
+            recent_turns=[
+                ChatTurn(
+                    role="assistant",
+                    content="Tôi không thể chẩn đoán, kê đơn hoặc thay đổi thuốc.",
+                )
+            ],
+            authorized_sources=[AuthorizedSource(source_type="service", source_id="hours")],
+        ),
+        _settings(),
+        service,
+    )
+
+    assert response.safety_action is ChatSafetyAction.ANSWER
+    assert response.used_sources[0].source_id == "hours"
+    assert "7 giờ" in response.answer
 
 
 def test_vietnamese_patient_data_exfiltration_is_refused_before_provider() -> None:

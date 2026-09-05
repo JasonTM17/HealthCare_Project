@@ -58,6 +58,7 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
   const [avatarLoaded, setAvatarLoaded] = useState(false);
   const [avatarLoading, setAvatarLoading] = useState(false);
   const [copiedHotline, setCopiedHotline] = useState(false);
+  const [hotlineCopyError, setHotlineCopyError] = useState(false);
   const effectiveNavbarAvatar = navbarAvatar ?? getCachedNavbarAvatar(authSession?.user?.id);
 
   useEffect(() => {
@@ -116,12 +117,18 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
     }
   };
 
-  const handleHotlineClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    if (typeof window !== "undefined" && window.innerWidth >= 1024 && contactPhone) {
+  const handleHotlineClick = async (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (typeof window !== "undefined" && window.innerWidth >= 1024 && contactPhone && navigator.clipboard) {
       e.preventDefault();
-      void navigator.clipboard?.writeText(contactPhone.replace(/\s+/g, ""));
-      setCopiedHotline(true);
-      setTimeout(() => setCopiedHotline(false), 3000);
+      setCopiedHotline(false);
+      setHotlineCopyError(false);
+      try {
+        await navigator.clipboard.writeText(contactPhone.replace(/\s+/g, ""));
+        setCopiedHotline(true);
+        setTimeout(() => setCopiedHotline(false), 3000);
+      } catch {
+        setHotlineCopyError(true);
+      }
     }
   };
 
@@ -184,7 +191,7 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
               >
                 <span className="utility-pulse-beacon" aria-hidden="true" />
                 <Icon name={copiedHotline ? "check" : "phone"} size={15} />
-                <span>{copiedHotline ? "Đã sao chép số:" : (emergencyBranch ? "Cấp cứu 24/7" : "Hotline")}</span>
+                <span aria-live="polite">{hotlineCopyError ? "Chưa sao chép được số:" : copiedHotline ? "Đã sao chép số:" : (emergencyBranch ? "Cấp cứu 24/7" : "Hotline")}</span>
                 <strong>{contactPhone}</strong>
               </a>
             ) : (

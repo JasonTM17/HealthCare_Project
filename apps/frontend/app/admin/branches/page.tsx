@@ -6,6 +6,7 @@ import {
   adminDeleteBranch,
   adminListBranches,
   adminUpdateBranch,
+  fetchAllContent,
   type AdminBranchPayload,
   type Branch,
 } from "../../../lib/api-client";
@@ -27,6 +28,7 @@ const EMPTY_FORM: BranchForm = {
   phone: "",
   active: true,
 };
+const ADMIN_PAGE_SIZE = 100;
 
 function formFromBranch(branch: Branch): BranchForm {
   return {
@@ -66,8 +68,8 @@ export default function AdminBranchesPage() {
     setLoading(true);
     setLoadError(null);
     try {
-      const page = await adminListBranches(0, 100);
-      setBranches(page.content);
+      const content = await fetchAllContent(adminListBranches, ADMIN_PAGE_SIZE);
+      setBranches(content);
     } catch (reason: unknown) {
       setLoadError(describeAdminError(reason).description);
     } finally {
@@ -120,9 +122,9 @@ export default function AdminBranchesPage() {
     setFeedback(null);
     try {
       await adminDeleteBranch(slug);
-      const refreshed = await adminListBranches(0, 100);
-      setBranches(refreshed.content);
-      const stillPresent = refreshed.content.some((branch) => branch.slug === slug);
+      const refreshed = await fetchAllContent(adminListBranches, ADMIN_PAGE_SIZE);
+      setBranches(refreshed);
+      const stillPresent = refreshed.some((branch) => branch.slug === slug);
       setFeedback(stillPresent
         ? {
           tone: "error",

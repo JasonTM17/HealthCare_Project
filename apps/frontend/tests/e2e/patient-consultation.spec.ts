@@ -9,6 +9,7 @@ import {
   assertNoSensitiveBrowserStorage,
   browserSessionFixture,
   installMockBrowserSession,
+  installMockPatientPortalSession,
 } from "./helpers/browser-session";
 
 const THREAD_ID = "11111111-1111-4111-8111-111111111111";
@@ -119,7 +120,7 @@ async function installHealthyConsultationMocks(
 
     throw new Error(`Unexpected consultation request: ${request.method()} ${url.pathname}${url.search}`);
   });
-  await installMockBrowserSession(context, PATIENT_SESSION);
+  await installMockPatientPortalSession(context, PATIENT_SESSION);
 }
 
 test("patient consultation keeps transcript, read watermark, idempotency, and CLEAN-only attachment access", async ({ context, page }) => {
@@ -161,7 +162,7 @@ test("cross-owner consultation failure is fail-closed and never renders raw PHI 
       }),
     });
   });
-  await installMockBrowserSession(context, PATIENT_SESSION);
+  await installMockPatientPortalSession(context, PATIENT_SESSION);
 
   await page.goto(`/patient/consultations/${THREAD_ID}`);
   await expect(page.getByRole("heading", { name: "Không thể tải dữ liệu" })).toBeVisible();

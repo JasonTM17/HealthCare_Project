@@ -260,7 +260,7 @@ switch ($RemainingArgs[0]) {
       "utf8",
     );
     await writeFile(launcherPath, launcherSource, "utf8");
-    await writeFile(verifierPath, "param([string]$DockerPath, [string]$ExpectedRevision)\nexit 0\n", "utf8");
+    await writeFile(verifierPath, "param([string]$DockerPath, [string]$ExpectedRevision, [switch]$ReadinessOnly)\nexit 0\n", "utf8");
 
     await writeFile(
       runner,

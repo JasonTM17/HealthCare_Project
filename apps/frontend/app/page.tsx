@@ -191,15 +191,12 @@ const DoctorCard: React.FC<DoctorCardProps> = ({ doctor, featured = false, onBoo
   <article className={`doctor-card${featured ? " doctor-card--featured" : ""}`}>
     <div className="doctor-card__photo-wrapper">
       <DoctorPhoto doctor={doctor} featured={featured} />
-      <span className="doctor-card__status-chip" aria-hidden="true">
-        <span className="doctor-card__pulse" /> Đang nhận lịch
-      </span>
     </div>
     <div className="doctor-card__body">
       <div className="doctor-card__meta">
         <span className="doctor-specialty">{doctor.specialtyName ?? "Chuyên khoa"}</span>
         {doctor.experienceYears ? (
-          <span className="doctor-card__exp-badge">{doctor.experienceYears}+ năm KN</span>
+          <span className="doctor-card__exp-badge">{doctor.experienceYears}+ năm kinh nghiệm</span>
         ) : null}
       </div>
       <h3>{doctor.fullName}</h3>
@@ -221,6 +218,9 @@ interface HomeCatalog {
   packages: HealthPackage[];
   branches: Branch[];
   articles: Article[];
+  specialtyTotal: number;
+  doctorTotal: number;
+  branchTotal: number;
 }
 
 const FALLBACK_PACKAGES: HealthPackage[] = [
@@ -468,6 +468,12 @@ function CatalogStatus({
   return null;
 }
 
+interface HeroStat {
+  icon: IconName;
+  value: string;
+  label: string;
+}
+
 interface HomeHeroCopyProps {
   searchQuery: string;
   setSearchQuery: (value: string) => void;
@@ -475,6 +481,7 @@ interface HomeHeroCopyProps {
   onBooking: () => void;
   onTriage: () => void;
   cmsHero?: CmsHeroPayload;
+  stats?: HeroStat[];
 }
 
 const PLACEHOLDER_HERO_COPY_PATTERN = /(?:Live Compose|Live CMS|demo|test)/i;
@@ -495,6 +502,7 @@ function HomeHeroCopy({
   onBooking,
   onTriage,
   cmsHero,
+  stats = [],
 }: HomeHeroCopyProps): React.ReactElement {
   const activeCmsHero = cmsHero && !isPlaceholderCmsHeroPayload(cmsHero) ? cmsHero : null;
   const cmsCta = activeCmsHero?.ctaLabel && activeCmsHero.ctaHref && isSafeCmsUrl(activeCmsHero.ctaHref)
@@ -505,18 +513,20 @@ function HomeHeroCopy({
     <div className="hero-copy" data-cms-managed={activeCmsHero ? "hero-copy" : undefined}>
       <p className="hero-kicker">
         <span className="hero-kicker__line" aria-hidden="true" />
-        {activeCmsHero?.eyebrow ?? "Bệnh viện đa khoa HealthCare"}
+        {activeCmsHero?.eyebrow || "Bệnh viện đa khoa HealthCare"}
       </p>
       <h1 id="hero-title">
-        {activeCmsHero?.title ?? (
+        {activeCmsHero?.title && activeCmsHero.title !== "Đồng hành cùng sức khỏe gia đình" ? (
+          activeCmsHero.title
+        ) : (
           <>
             Đồng hành<br />
-            cùng sức<br />
-            <span>khỏe gia đình</span>
+            cùng <span className="hero-teal-accent">sức khỏe</span><br />
+            <span className="hero-teal-accent">gia đình</span>
           </>
         )}
       </h1>
-      <p className="hero-description">
+      <p className="hero-description !text-slate-700 !opacity-100" style={{ color: "#334155" }}>
         {activeCmsHero?.body ?? "Chọn chuyên khoa, bác sĩ, gói khám hoặc cơ sở và giữ khung giờ phù hợp ngay trên hệ thống."}
       </p>
       <form className="hero-search" onSubmit={(event) => { event.preventDefault(); onSearchSubmit(); }}>
@@ -569,6 +579,19 @@ function HomeHeroCopy({
           <Icon name="stethoscope" size={18} />
         </button>
       </div>
+      {stats.length > 0 ? (
+        <div className="hero-trust" aria-label="Quy mô mạng lưới bệnh viện">
+          {stats.map((stat) => (
+            <div className="hero-trust__item" key={stat.label}>
+              <span className="hero-trust__icon"><Icon name={stat.icon} size={16} /></span>
+              <span>
+                <strong>{stat.value}</strong>
+                <small>{stat.label}</small>
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -637,20 +660,6 @@ function HomeHeroVisual({ imageUrl }: { imageUrl?: string }): React.ReactElement
             src={HERO_IMAGE}
           />
         )}
-      </div>
-      <div className="hero-floating-card hero-floating-card--top" aria-hidden="true">
-        <span className="hero-floating-card__stars">★★★★★</span>
-        <div>
-          <strong>98.6% Hài lòng</strong>
-          <small>Đánh giá từ người bệnh</small>
-        </div>
-      </div>
-      <div className="hero-floating-card hero-floating-card--bottom" aria-hidden="true">
-        <span className="hero-floating-card__icon"><Icon name="shield-check" size={20} /></span>
-        <div>
-          <strong>100+ Bác sĩ Chuyên khoa</strong>
-          <small>Đang nhận lịch trực tuyến</small>
-        </div>
       </div>
     </figure>
   );
@@ -741,6 +750,9 @@ export default function Home(): React.ReactElement {
           packages: packages.content,
           branches: branches.content,
           articles: articles.content,
+          specialtyTotal: specialties.totalElements,
+          doctorTotal: doctors.totalElements,
+          branchTotal: branches.totalElements,
         });
       } catch (error: unknown) {
         if (!cancelled) {
@@ -811,12 +823,18 @@ export default function Home(): React.ReactElement {
   const contactPhone = emergencyBranch?.emergencyHotline ?? contactBranch?.phone ?? undefined;
   const contactHref = safeTelephoneHref(contactPhone);
   const homeDoctors = filteredDoctors.slice(0, 4);
+  const heroStats: HeroStat[] = catalog ? [
+    { icon: "stethoscope", value: String(catalog.specialtyTotal), label: "Chuyên khoa" },
+    { icon: "user", value: String(catalog.doctorTotal), label: "Bác sĩ" },
+    { icon: "building", value: String(catalog.branchTotal), label: "Cơ sở y tế" },
+  ] : [];
   const homeHeroProps: HomeHeroCopyProps = {
     searchQuery,
     setSearchQuery,
     onSearchSubmit: handleHeroSearchSubmit,
     onBooking: () => handleOpenBooking(),
     onTriage: () => setIsAiTriageOpen(true),
+    stats: heroStats,
   };
 
   const handleAiSpecialtySelect = (specialtyName: string, specialtyId?: string): void => {
@@ -962,10 +980,10 @@ export default function Home(): React.ReactElement {
           <div className="section-inner">
             <SectionHeading
               action={<Link className="section-link" href="/packages">Xem danh mục gói khám <Icon name="arrow-right" size={17} /></Link>}
-              description="Các gói khám đang cung cấp; giá và mô tả hiển thị theo thông tin công khai."
+              description="Xem chi phí và các hạng mục khám để chọn gói phù hợp."
               headingId="packages-title"
-              note="Gói khám sức khỏe"
-              title="Chủ động chăm sóc sức khỏe"
+
+              title="Gói khám sức khỏe"
             />
             <CatalogStatus error={catalogError} hasData={Boolean(catalog)} loading={catalogLoading} onRetry={retryCatalog} unavailable={catalogUnavailable} />
             {!catalogLoading && (packages.length > 0 || catalogUnavailable || catalogError) ? (
@@ -1006,7 +1024,7 @@ export default function Home(): React.ReactElement {
               action={<Link className="section-link" href="/specialties">Xem tất cả chuyên khoa <Icon name="arrow-right" size={17} /></Link>}
               description="Tìm hiểu phạm vi thăm khám và chọn chuyên khoa phù hợp với nhu cầu của bạn."
               headingId="specialties-title"
-              note="Chuyên môn sâu"
+
               title="Chuyên khoa nổi bật"
             />
             <CatalogStatus error={catalogError} hasData={Boolean(catalog)} loading={catalogLoading} onRetry={retryCatalog} unavailable={catalogUnavailable} />
@@ -1056,10 +1074,10 @@ export default function Home(): React.ReactElement {
           <div className="section-inner">
             <SectionHeading
               action={<button className="section-link section-link--button" onClick={() => handleOpenBooking()} type="button">Đặt lịch với bác sĩ <Icon name="arrow-right" size={17} /></button>}
-              description="Hồ sơ công khai giúp bạn chọn đúng chuyên môn và mở luồng đặt lịch."
+              description="Tìm hiểu chuyên môn, kinh nghiệm và đặt lịch với bác sĩ."
               headingId="doctors-title"
-              note="Đội ngũ chuyên gia"
-              title="Bác sĩ đồng hành cùng bạn"
+
+              title="Đội ngũ bác sĩ"
             />
             <CatalogStatus error={catalogError} hasData={Boolean(catalog)} loading={catalogLoading} onRetry={retryCatalog} unavailable={catalogUnavailable} />
             {!catalogLoading && (homeDoctors.length > 0 || ((catalogUnavailable || catalogError) && !searchQuery)) ? (
@@ -1090,10 +1108,10 @@ export default function Home(): React.ReactElement {
             <div className="journey-layout">
               <div>
                 <SectionHeading
-                  description="Một trình tự ngắn để người bệnh biết mình cần chuẩn bị gì trước và sau cuộc hẹn."
+                  description="Chọn bác sĩ và thời gian khám, sau đó kiểm tra thông tin lịch hẹn."
                   headingId="journey-title"
-                  note="Hướng dẫn thăm khám"
-                  title="Bốn bước cho một cuộc hẹn thuận tiện"
+
+                  title="Hướng dẫn đặt lịch khám"
                 />
                 <ol className="journey-steps">
                   {JOURNEY_STEPS.map((step, index) => (
@@ -1125,8 +1143,8 @@ export default function Home(): React.ReactElement {
               action={<Link className="section-link" href="/branches">Xem tất cả cơ sở <Icon name="arrow-right" size={17} /></Link>}
               description="Chọn cơ sở theo vị trí, giờ làm việc và nhu cầu đặt hẹn của bạn."
               headingId="branches-title"
-              note="Mạng lưới HealthCare"
-              title="Tìm cơ sở thuận tiện"
+
+              title="Cơ sở khám bệnh"
             />
             <div className="branch-layout">
               <div className="branch-intro">
@@ -1174,8 +1192,8 @@ export default function Home(): React.ReactElement {
               action={<Link className="section-link" href="/articles">Xem cẩm nang <Icon name="arrow-right" size={17} /></Link>}
               description="Nội dung ngắn, dễ đọc để bạn chuẩn bị câu hỏi và theo dõi hướng dẫn sau buổi khám."
               headingId="content-title"
-              note="Tin tức và blog sức khỏe"
-              title="Thông tin sức khỏe hữu ích"
+
+              title="Cẩm nang sức khỏe"
             />
             <div className="content-layout">
               <article className="video-card">
@@ -1189,7 +1207,6 @@ export default function Home(): React.ReactElement {
                   />
                   <span className="video-card__wash" aria-hidden="true" />
                   <span className="video-card__label">Gợi ý đọc</span>
-                  <span className="video-card__circle"><Icon name="play" size={22} /></span>
                 </div>
                 <div className="video-card__body">
                   <p className="content-meta">Từ cẩm nang sức khỏe</p>

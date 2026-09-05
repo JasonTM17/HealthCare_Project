@@ -84,7 +84,9 @@ test("Compose keeps browser traffic same-origin through the server-only BFF", as
   assert.match(bff, /X-Healthcare-Original-Origin/);
   assert.match(bff, /redirect: "manual"/);
   assert.match(bff, /DEFAULT_PUBLIC_AI_REQUEST_TIMEOUT_MS = 55_000/);
-  assert.match(bff, /apiPath === `\$\{API_PREFIX\}public\/ai\/chat`/);
+  assert.match(bff, /PUBLIC_AI_CHAT_PATH = `\$\{API_PREFIX\}public\/ai\/chat`/);
+  assert.match(bff, /apiPath === PUBLIC_AI_CHAT_PATH/);
+  assert.match(bff, /PUBLIC_AI_FALLBACK_STATUSES = new Set\(\[502, 503, 504\]\)/);
   assert.doesNotMatch(routeHandler, /NEXT_PUBLIC_|BACKEND_INTERNAL_URL|BACKEND_BFF_SERVICE_TOKEN/);
   assert.doesNotMatch(nextConfig, /NEXT_PUBLIC_(?:CMS_)?API_BASE_URL/);
   assert.match(render, /- key: BACKEND_BFF_SERVICE_TOKEN\s+sync: false/);

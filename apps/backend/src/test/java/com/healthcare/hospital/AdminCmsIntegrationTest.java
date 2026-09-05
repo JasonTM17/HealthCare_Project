@@ -6,8 +6,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.healthcare.AbstractIntegrationTest;
 import com.healthcare.hospital.dto.ArticleRequest;
 import com.healthcare.hospital.dto.BranchRequest;
@@ -329,5 +331,44 @@ class AdminCmsIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(delete("/api/v1/admin/doctors/update-slug-test")
                 .header("Authorization", bearer("ADMIN")))
             .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void adminDoctorContentUpdatePreservesExistingUserLink() throws Exception {
+        String slug = "linked-doctor-" + UUID.randomUUID();
+        String adminBearer = bearer("ADMIN");
+        User doctorUser = createUserWithRole("DOCTOR");
+        ObjectNode createBody = objectMapper.createObjectNode()
+            .put("fullName", "Linked Doctor")
+            .put("slug", slug)
+            .putNull("bio")
+            .putNull("photoUrl")
+            .put("active", true)
+            .put("userId", doctorUser.getId().toString());
+
+        mockMvc.perform(post("/api/v1/admin/doctors")
+                .header("Authorization", adminBearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(createBody)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.fullName").value("Linked Doctor"));
+
+        ObjectNode updateBody = objectMapper.createObjectNode()
+            .put("fullName", "Linked Doctor Updated")
+            .put("slug", slug)
+            .put("bio", "Updated biography")
+            .putNull("photoUrl")
+            .put("active", true)
+            .putNull("userId");
+
+        mockMvc.perform(put("/api/v1/admin/doctors/" + slug)
+                .header("Authorization", adminBearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(updateBody)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.fullName").value("Linked Doctor Updated"));
+
+        assertThat(doctorRepository.findBySlug(slug).orElseThrow().getUserId())
+            .isEqualTo(doctorUser.getId());
     }
 }

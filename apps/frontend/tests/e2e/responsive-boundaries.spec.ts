@@ -133,6 +133,36 @@ test.describe("public responsive boundaries", () => {
     }
   });
 
+  test("about page keeps the doctor team image in the hero and moves the intro video below", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto("/about", { waitUntil: "domcontentloaded" });
+
+    const hero = page.locator('section[aria-labelledby="about-title"]');
+    const story = page.locator('section[aria-labelledby="about-story-title"]');
+
+    await expect(hero.getByRole("img", { name: "Đội ngũ bác sĩ và nhân viên y tế chuyên khoa Bệnh viện HealthCare" })).toBeVisible();
+    await expect(hero.locator("video")).toHaveCount(0);
+    const video = story.locator("video[aria-label='Thước phim minh họa hành trình tư vấn và chăm sóc người bệnh']");
+    await expect(video).toBeVisible();
+    await expect(video).not.toHaveAttribute("controls", /.*/);
+    await expect(video).toHaveAttribute("autoplay", "");
+    await expect(video).toHaveAttribute("disablepictureinpicture", "");
+
+    const placement = await page.evaluate(() => {
+      const heroElement = document.querySelector<HTMLElement>('section[aria-labelledby="about-title"]');
+      const videoElement = document.querySelector<HTMLElement>('section[aria-labelledby="about-story-title"] video');
+      if (!heroElement || !videoElement) throw new Error("Missing about hero or story video");
+      return {
+        heroBottom: heroElement.getBoundingClientRect().bottom,
+        videoTop: videoElement.getBoundingClientRect().top,
+        overflow: document.documentElement.scrollWidth - window.innerWidth,
+      };
+    });
+
+    expect(placement.videoTop).toBeGreaterThan(placement.heroBottom);
+    expect(placement.overflow).toBeLessThanOrEqual(1);
+  });
+
   test("articles stays within a 320px viewport, including navigation and pagination", async ({ context, page }) => {
     await context.route("**/api/v1/hospital/articles*", async (route) => {
       await route.fulfill({
