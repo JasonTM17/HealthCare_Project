@@ -112,9 +112,10 @@ function publicAiChatFallbackResponse(): Response {
   return Response.json(
     {
       answer: (
-        "Kết nối AI đang tạm thời gián đoạn. Bạn vẫn có thể tra cứu chuyên khoa, bác sĩ, "
-        + "gói khám và đặt lịch trực tiếp trên website HealthCare. Nếu có dấu hiệu nặng "
-        + "hoặc diễn tiến nhanh, hãy gọi cấp cứu 115 hoặc đến cơ sở y tế gần nhất."
+        "Mình chưa có đủ thông tin đã xác thực để trả lời chắc chắn. Bạn có thể tra cứu "
+        + "chuyên khoa, bác sĩ, gói khám và đặt lịch trực tiếp trên website HealthCare. "
+        + "Nếu có dấu hiệu nặng hoặc diễn tiến nhanh, hãy gọi cấp cứu 115 hoặc đến cơ sở "
+        + "y tế gần nhất."
       ),
       disclaimer: "Thông tin từ trợ lý AI chỉ mang tính tham khảo và không thay thế tư vấn, chẩn đoán hoặc điều trị của bác sĩ.",
       citations: [],
