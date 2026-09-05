@@ -783,7 +783,6 @@ def chat_safety_response(
 ) -> ChatResponse | None:
     """Short-circuit unsafe input before embeddings, retrieval, or remote providers."""
 
-    del recent_turns
     normalized = _normalize_sensitive_text(message)
     if contains_prompt_injection(message):
         return ChatResponse(
@@ -813,7 +812,7 @@ def chat_safety_response(
             provenance="local_fallback",
             safety_action=ChatSafetyAction.REFUSE,
         )
-    if chat_contains_sensitive_data(message):
+    if chat_contains_sensitive_data(message, recent_turns):
         return ChatResponse(
             answer=(
                 "Để bảo vệ quyền riêng tư, vui lòng không gửi email, số điện thoại, mã đặt lịch, "
@@ -1167,7 +1166,12 @@ def resolve_triage(
     return rule_based_triage(symptoms)
 
 
-def _chat_fallback(message: str, context: Sequence[str]) -> str:
+def _chat_fallback(
+    message: str,
+    context: Sequence[str],
+    *,
+    public_remote_enabled: bool = False,
+) -> str:
     normalized = _normalize_sensitive_text(message)
     if any(term in normalized for term in _PUBLIC_BOOKING_SUPPORT_TERMS):
         if context:
@@ -1176,11 +1180,12 @@ def _chat_fallback(message: str, context: Sequence[str]) -> str:
                 "rồi đặt lịch trực tuyến theo khung giờ còn trống. Nếu chưa chắc nên chọn chuyên khoa nào, "
                 "hãy mô tả ngắn nhu cầu khám để nhân viên y tế hỗ trợ điều hướng."
             )
-        return (
-            "Bạn có thể đặt lịch trực tuyến trên website HealthCare bằng cách chọn chuyên khoa, "
-            "bác sĩ hoặc cơ sở, rồi chọn khung giờ còn trống. Nếu chưa rõ nên bắt đầu từ chuyên khoa nào, "
-            "hãy mô tả ngắn nhu cầu khám để nhân viên y tế hỗ trợ điều hướng."
-        )
+        if not public_remote_enabled:
+            return (
+                "Bạn có thể đặt lịch trực tuyến trên website HealthCare bằng cách chọn chuyên khoa, "
+                "bác sĩ hoặc cơ sở, rồi chọn khung giờ còn trống. Nếu chưa rõ nên bắt đầu từ chuyên khoa nào, "
+                "hãy mô tả ngắn nhu cầu khám để nhân viên y tế hỗ trợ điều hướng."
+            )
     if context:
         return (
             "Dựa trên thông tin tham khảo đã được lưu, "
@@ -1216,7 +1221,7 @@ def resolve_chat(
 
     public_remote_enabled = public_support_chat and public_hospital_support_remote_enabled(settings)
     fallback_allowed = runtime_allows_local_fallback(settings)
-    fallback = _chat_fallback(message, context)
+    fallback = _chat_fallback(message, context, public_remote_enabled=public_remote_enabled)
     if context_contains_unsafe_data(
         context,
         allow_public_operational=allow_public_operational,
