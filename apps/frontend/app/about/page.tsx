@@ -291,7 +291,7 @@ export default function AboutPage() {
         </section>
 
         <p className={`${styles.referenceNote} section-inner`}>
-          Tham khảo từ một trang web bệnh viện công khai.
+          Tham khảo từ trang web Bệnh viện Hoàn Mỹ.
         </p>
       </div>
     </PublicPageShell>
