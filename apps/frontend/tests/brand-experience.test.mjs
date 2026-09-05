@@ -106,7 +106,7 @@ test("footer uses readable inverse identity, landmark navigation and responsive 
   assert.match(styles, /@media \(max-width: 640px\)/);
 });
 
-test("public frontend source does not render the reference hospital brand", async () => {
+test("public frontend source only renders the reference hospital brand in the about attribution note", async () => {
   const [appFiles, componentFiles] = await Promise.all([
     collectSourceFiles(
       fileURLToPath(new URL("app", root)),
@@ -118,7 +118,12 @@ test("public frontend source does not render the reference hospital brand", asyn
   const offenders = [];
   for (const file of [...appFiles, ...componentFiles]) {
     const source = await readFile(file, "utf8");
-    if (/Hoan My|Hoàn Mỹ|hoanmy/i.test(source)) {
+    const normalized = relative(rootPath, file).replaceAll("\\", "/");
+    const allowedAboutAttribution =
+      normalized === "app/about/page.tsx"
+      && source.includes("Tham khảo từ trang web Bệnh viện Hoàn Mỹ.")
+      && (source.match(/Hoan My|Hoàn Mỹ|hoanmy/gi) ?? []).length === 1;
+    if (/Hoan My|Hoàn Mỹ|hoanmy/i.test(source) && !allowedAboutAttribution) {
       offenders.push(relative(rootPath, file).replaceAll("\\", "/"));
     }
   }
