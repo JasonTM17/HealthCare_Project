@@ -6,6 +6,7 @@ import {
   adminCreateSpecialty,
   adminDeleteSpecialty,
   adminUpdateSpecialty,
+  fetchAllContent,
   type AdminSpecialtyPayload,
   type Specialty,
 } from "../../../lib/api-client";
@@ -14,6 +15,7 @@ import { describeAdminError } from "../_lib/errors";
 
 type SpecialtyForm = { name: string; slug: string; description: string; active: boolean };
 const EMPTY_FORM: SpecialtyForm = { name: "", slug: "", description: "", active: true };
+const ADMIN_PAGE_SIZE = 100;
 
 function formFromSpecialty(specialty: Specialty): SpecialtyForm {
   return { name: specialty.name, slug: specialty.slug, description: specialty.description ?? "", active: specialty.active ?? true };
@@ -37,8 +39,8 @@ export default function AdminSpecialtiesPage() {
     setLoading(true);
     setLoadError(null);
     try {
-      const page = await adminListSpecialties(0, 100);
-      setSpecialties(page.content);
+      const content = await fetchAllContent(adminListSpecialties, ADMIN_PAGE_SIZE);
+      setSpecialties(content);
     } catch (error) {
       setLoadError(describeAdminError(error).description);
     } finally {
@@ -83,9 +85,9 @@ export default function AdminSpecialtiesPage() {
     setFeedback(null);
     try {
       await adminDeleteSpecialty(slug);
-      const refreshed = await adminListSpecialties(0, 100);
-      setSpecialties(refreshed.content);
-      const stillVisible = refreshed.content.some((specialty) => specialty.slug === slug);
+      const refreshed = await fetchAllContent(adminListSpecialties, ADMIN_PAGE_SIZE);
+      setSpecialties(refreshed);
+      const stillVisible = refreshed.some((specialty) => specialty.slug === slug);
       setFeedback(stillVisible
         ? { tone: "error", title: "Chưa xác nhận được việc xóa", description: "Chuyên khoa vẫn còn trong danh sách quản trị. Vui lòng kiểm tra quyền truy cập rồi thử lại." }
         : { tone: "success", title: "Đã xóa chuyên khoa", description: "Chuyên khoa không còn trong danh sách quản trị." });

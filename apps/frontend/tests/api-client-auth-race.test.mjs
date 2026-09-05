@@ -269,6 +269,36 @@ test("late current-session hydration cannot overwrite a newer password login", a
   assert.equal(new Headers(loginRequest.init.headers).get("authorization"), null);
 });
 
+test("ambiguous password login failure cannot restore a previous session without fresh authority", async () => {
+  const previousSession = browserSession("account-a");
+  let currentSessionRequests = 0;
+  const { api } = await loadApiClient(async (input, init = {}) => {
+    const url = String(input);
+    if (url.endsWith("/auth/browser-sessions") && init.method === "POST") {
+      return jsonResponse({ message: "temporary upstream detail" }, 502);
+    }
+    if (url.endsWith("/auth/browser-sessions/current") && init.method === "GET") {
+      currentSessionRequests += 1;
+      return jsonResponse(previousSession);
+    }
+    throw new Error(`Unexpected request: ${url}`);
+  });
+  api.storeAuthSession(previousSession);
+
+  await assert.rejects(api.login({ email: "b@example.test", password: "not-real" }), (error) => {
+    assert.equal(error.code, "BROWSER_SESSION_AUTHORITY_INDETERMINATE");
+    assert.doesNotMatch(error.message, /temporary upstream detail/i);
+    return true;
+  });
+  assert.equal(api.readAuthSession(), null);
+  assert.equal(api.getAuthHydrationSnapshot(), "indeterminate");
+
+  const recovered = await api.hydrateAuthSession(true);
+  assert.equal(recovered?.user.id, "account-a");
+  assert.equal(api.getAuthHydrationSnapshot(), "settled");
+  assert.equal(currentSessionRequests, 1);
+});
+
 test("logout invalidates an in-flight hydration and cannot be undone by its late result", async () => {
   const oldHydration = deferred();
   const requests = [];

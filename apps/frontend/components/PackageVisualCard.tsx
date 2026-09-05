@@ -48,7 +48,6 @@ export default function PackageVisualCard({
 
       <div className={styles.body}>
         <div className={styles.topline}>
-          <span className={styles.kicker}>Gói khám sức khỏe</span>
           {packageItem.durationDays ? (
             <span className={styles.duration}><Icon name="clock" size={15} />{packageItem.durationDays} ngày</span>
           ) : null}

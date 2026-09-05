@@ -58,6 +58,11 @@ const SUGGESTED_QUESTIONS = [
 ];
 const PUBLIC_ASSISTANT_OPEN_EVENT = "healthcare:open-assistant";
 
+type PendingUserMessage = {
+  content: string;
+  createdAt: string;
+};
+
 function formatTime(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Vừa xong";
@@ -76,7 +81,7 @@ function inputFailure(isPublic: boolean): AssistantFailure {
 function provenanceLabel(provenance: AiChatProvenance): string {
   switch (provenance) {
     case "local_fallback":
-      return "Chế độ dự phòng tại chỗ";
+      return "Hỗ trợ tạm thời";
     case "remote_provider":
       return "Phản hồi AI có kiểm soát";
     default:
@@ -141,6 +146,7 @@ function FloatingHealthAssistantPanel({
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [streamingReply, setStreamingReply] = useState("");
+  const [pendingUserMessage, setPendingUserMessage] = useState<PendingUserMessage | null>(null);
   const [failure, setFailure] = useState<AssistantFailure | null>(null);
   const [lastFailedContent, setLastFailedContent] = useState<string | null>(null);
   const [blockedByModal, setBlockedByModal] = useState(false);
@@ -186,6 +192,7 @@ function FloatingHealthAssistantPanel({
     requestControllerRef.current?.abort();
     requestControllerRef.current = null;
     setStreamingReply("");
+    setPendingUserMessage(null);
     policyControllerRef.current?.abort();
     policyControllerRef.current = null;
     invalidateRequests();
@@ -481,8 +488,10 @@ function FloatingHealthAssistantPanel({
     }
 
     const { controller, epoch } = beginLocalRequest();
+    const pendingCreatedAt = new Date().toISOString();
     setSending(true);
     setStreamingReply("");
+    setPendingUserMessage({ content: normalized, createdAt: pendingCreatedAt });
     setFailure(null);
     setLastFailedContent(null);
     let currentConversation: AiConversation | null = null;
@@ -494,7 +503,7 @@ function FloatingHealthAssistantPanel({
         }));
         const reply = await sendPublicAiChat(normalized, recentTurns, { signal: controller.signal });
         if (!isCurrentLocalRequest(epoch)) return;
-        const createdAt = new Date().toISOString();
+        const createdAt = pendingCreatedAt;
         const sequence = messages.reduce((maximum, message) => Math.max(maximum, message.sequence), 0) + 1;
         const userMessage: AiChatMessage = {
           id: crypto.randomUUID(),
@@ -520,6 +529,7 @@ function FloatingHealthAssistantPanel({
           completedAt: createdAt,
         };
         setDraft("");
+        setPendingUserMessage(null);
         setMessages((current) => [...current, userMessage, assistantMessage].slice(-8));
         return;
       }
@@ -544,6 +554,7 @@ function FloatingHealthAssistantPanel({
       });
       if (!isCurrentLocalRequest(epoch, currentConversation.id)) return;
       setDraft("");
+      setPendingUserMessage(null);
       setMessages((current) => [...current, exchange.userMessage, exchange.assistantMessage].slice(-8));
       const page = await fetchAiConversationMessages(currentConversation.id, null, 12, { signal: controller.signal });
       if (!isCurrentLocalRequest(epoch, currentConversation.id)) return;
@@ -557,6 +568,7 @@ function FloatingHealthAssistantPanel({
     } finally {
       if (isCurrentLocalRequest(epoch, currentConversation?.id)) {
         setStreamingReply("");
+        setPendingUserMessage(null);
         if (requestControllerRef.current === controller) requestControllerRef.current = null;
         setSending(false);
       }
@@ -647,7 +659,7 @@ function FloatingHealthAssistantPanel({
               ) : null}
               <div aria-busy={loading || sending} aria-live="polite" className={styles.thread} ref={messageViewportRef} role="log">
                 {loading ? <p className={styles.status} role="status"><UiIcon name="clock" size={15} /> Đang tải lịch sử từ máy chủ...</p> : null}
-                {!loading && messages.length === 0 ? (
+                {!loading && messages.length === 0 && !pendingUserMessage && !sending ? (
                   <div className={styles.emptyState}>
                     <UiIcon name="message-square" size={26} />
                     <strong>Bạn cần hỗ trợ điều gì?</strong>
@@ -715,6 +727,13 @@ function FloatingHealthAssistantPanel({
                     ) : null}
                   </article>
                 ))}
+                {pendingUserMessage ? (
+                  <article className={`${styles.message} ${styles.patient} ${styles.pendingMessage}`} data-testid="floating-chat-pending-user">
+                    <span className={styles.messageRole}>Bạn</span>
+                    <p>{pendingUserMessage.content}</p>
+                    <time dateTime={pendingUserMessage.createdAt}>{formatTime(pendingUserMessage.createdAt)}</time>
+                  </article>
+                ) : null}
                 {streamingReply ? (
                   <article className={`${styles.message} ${styles.assistant}`} data-testid="floating-chat-streaming-reply">
                     <span className={styles.messageRole}>HealthCare</span>
@@ -722,7 +741,24 @@ function FloatingHealthAssistantPanel({
                     <span className={styles.provenance}>Đang nhận phản hồi theo từng phần…</span>
                   </article>
                 ) : null}
-                {sending ? <p className={styles.status} role="status"><UiIcon name="clock" size={15} /> Trợ lý đang xử lý câu hỏi...</p> : null}
+                {sending && !streamingReply ? (
+                  <article
+                    aria-label="Trợ lý đang suy nghĩ"
+                    className={`${styles.message} ${styles.assistant} ${styles.thinkingMessage}`}
+                    data-testid="floating-chat-thinking"
+                    role="status"
+                  >
+                    <span className={styles.messageRole}>HealthCare</span>
+                    <p className={styles.thinkingLine}>
+                      <span>Đang suy nghĩ</span>
+                      <span aria-hidden="true" className={styles.typingDots}>
+                        <span />
+                        <span />
+                        <span />
+                      </span>
+                    </p>
+                  </article>
+                ) : null}
               </div>
 
               {failure ? (

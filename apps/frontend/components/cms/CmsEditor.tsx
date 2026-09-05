@@ -206,7 +206,7 @@ function TextField({
       {multiline ? (
         <textarea
           aria-describedby={help ? `${id}-help` : undefined}
-          className="mt-1 min-h-28 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm leading-6"
+          className="mt-1 min-h-28 w-full rounded-sm border border-slate-300 px-3 py-2 text-sm leading-6"
           id={id}
           onChange={(event) => onChange(field, event.target.value)}
           required={required}
@@ -216,7 +216,7 @@ function TextField({
       ) : (
         <input
           aria-describedby={help ? `${id}-help` : undefined}
-          className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+          className="mt-1 min-h-11 w-full rounded-sm border border-slate-300 px-3 py-2 text-sm"
           id={id}
           onChange={(event) => onChange(field, event.target.value)}
           required={required}
@@ -571,16 +571,16 @@ export function CmsEditor({
         </p>
       </header>
 
-      <div className="rounded-2xl border border-teal-200 bg-teal-50 p-4 text-sm leading-6 text-teal-950" role="status">
+      <div className="rounded-sm border border-teal-200 bg-teal-50 p-4 text-sm leading-6 text-teal-950" role="status">
         <strong>Nguồn dữ liệu: live backend.</strong> Payload chỉ dùng field allowlist của component; text được render như text node, không diễn giải HTML/JS.
       </div>
 
-      <form className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-[minmax(0,1fr)_minmax(10rem,0.5fr)_auto] sm:items-end" onSubmit={handleLoad}>
+      <form className="grid gap-3 rounded-sm border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-[minmax(0,1fr)_minmax(10rem,0.5fr)_auto] sm:items-end" onSubmit={handleLoad}>
         <label className="text-sm font-semibold text-slate-700">
           Slug trang
           <input
             aria-describedby="cms-slug-help"
-            className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 px-3 py-2 font-mono text-sm"
+            className="mt-1 min-h-11 w-full rounded-sm border border-slate-300 px-3 py-2 font-mono text-sm"
             onChange={(event) => setSlug(event.target.value)}
             pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
             required
@@ -592,7 +592,7 @@ export function CmsEditor({
         <label className="text-sm font-semibold text-slate-700">
           Slot
           <select
-            className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+            className="mt-1 min-h-11 w-full rounded-sm border border-slate-300 px-3 py-2 text-sm"
             onChange={(event) => setSelectedSlot(event.target.value as CmsSlotKey)}
             disabled={isBusy}
             value={selectedSlot}
@@ -605,7 +605,7 @@ export function CmsEditor({
         </button>
       </form>
 
-      <section aria-labelledby="cms-route-directory-title" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <section aria-labelledby="cms-route-directory-title" className="rounded-sm border border-slate-200 bg-white p-4 shadow-sm">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Public route directory</p>
           <h2 className="mt-1 text-lg font-bold text-slate-950" id="cms-route-directory-title">Chọn nhanh vùng trang cần quản trị</h2>
@@ -628,7 +628,7 @@ export function CmsEditor({
         </div>
       </section>
 
-      <section aria-labelledby="cms-slot-directory-title" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <section aria-labelledby="cms-slot-directory-title" className="rounded-sm border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Slot directory</p>
@@ -638,7 +638,7 @@ export function CmsEditor({
             {inventoryLoading ? "Đang đọc…" : "Làm mới danh mục"}
           </button>
         </div>
-        {inventoryError ? <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-950" role="status">{inventoryError} Có thể nhập slug thủ công nếu phiên ADMIN đã sẵn sàng.</p> : null}
+        {inventoryError ? <p className="mt-3 rounded-sm border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-950" role="status">{inventoryError} Có thể nhập slug thủ công nếu phiên ADMIN đã sẵn sàng.</p> : null}
         {!inventoryLoading && !inventoryError && availableContent.length === 0 ? <p className="mt-3 text-sm text-slate-600">Chưa có slot CMS nào được trả về. Hãy nhập slug route và tải slot để tạo component đầu tiên.</p> : null}
         {availableContent.length > 0 ? (
           <div className="mt-4 flex flex-wrap gap-2">
@@ -656,7 +656,7 @@ export function CmsEditor({
       </section>
 
       {apiError ? (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-950" role="alert">
+        <div className="rounded-sm border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-950" role="alert">
           <p>{apiErrorMessage(apiError)}</p>
           {apiError.kind === "conflict" ? (
             <button className="mt-3 min-h-11 rounded-lg bg-red-800 px-4 py-2 text-sm font-bold text-white hover:bg-red-900 disabled:opacity-60" disabled={isBusy} onClick={() => void loadContent(loadedSelection?.slug ?? loadedSlug, loadedSelection?.slot ?? selectedSlot)} type="button">
@@ -666,7 +666,7 @@ export function CmsEditor({
         </div>
       ) : null}
 
-      {notice ? <p aria-live="polite" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">{notice}</p> : null}
+      {notice ? <p aria-live="polite" className="rounded-sm border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">{notice}</p> : null}
 
       <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.85fr)]">
         <section aria-labelledby="cms-editor-title" className="min-w-0 space-y-4">
@@ -682,7 +682,7 @@ export function CmsEditor({
             </dl>
           </div>
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" aria-labelledby="component-type-title">
+          <section className="rounded-sm border border-slate-200 bg-white p-4 shadow-sm" aria-labelledby="component-type-title">
             <h3 className="font-bold text-slate-950" id="component-type-title">Component type</h3>
             <p className="mt-1 text-sm leading-6 text-slate-600">
               Slot <span className="font-mono">{editableSlot}</span> chỉ cho phép: {allowedComponentTypes.join(", ")}.
@@ -690,7 +690,7 @@ export function CmsEditor({
             <label className="mt-3 block text-sm font-semibold text-slate-700">
               Chọn schema
               <select
-                className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                className="mt-1 min-h-11 w-full rounded-sm border border-slate-300 px-3 py-2 text-sm"
                 onChange={(event) => handleComponentTypeChange(event.target.value as CmsComponentType)}
                 disabled={isBusy}
                 value={draft.componentType}
@@ -701,14 +701,14 @@ export function CmsEditor({
             </label>
           </section>
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" aria-labelledby="payload-title">
+          <section className="rounded-sm border border-slate-200 bg-white p-4 shadow-sm" aria-labelledby="payload-title">
             <h3 className="font-bold text-slate-950" id="payload-title">Payload allowlist</h3>
             <p className="mt-1 text-sm leading-6 text-slate-600">Các field hiển thị phụ thuộc component type. Field rỗng tùy chọn sẽ được bỏ khỏi request.</p>
             <div className="mt-4"><PayloadFields disabled={isBusy} draft={draft} onChange={handlePayloadChange} /></div>
             <FieldError message={fieldErrors.payload} />
           </section>
 
-          <div className="flex flex-wrap gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-wrap gap-3 rounded-sm border border-slate-200 bg-white p-4 shadow-sm">
             <button className="min-h-11 rounded-lg bg-teal-700 px-4 py-2 text-sm font-bold text-white hover:bg-teal-800 disabled:opacity-60" disabled={!canMutate} onClick={() => void handleUpsert("DRAFT")} type="button">
               {operation === "saving" ? "Đang lưu…" : "Lưu bản nháp (ẩn công khai)"}
             </button>
@@ -720,7 +720,7 @@ export function CmsEditor({
             </button>
           </div>
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" aria-labelledby="rollback-title">
+          <section className="rounded-sm border border-slate-200 bg-white p-4 shadow-sm" aria-labelledby="rollback-title">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h3 className="font-bold text-slate-950" id="rollback-title">Lịch sử & rollback server</h3>
@@ -730,18 +730,18 @@ export function CmsEditor({
               </div>
               {historyLoading ? <span className="text-xs font-semibold text-slate-500">Đang tải lịch sử…</span> : null}
             </div>
-            {historyError ? <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950" role="status">{historyError}</p> : null}
+            {historyError ? <p className="mt-3 rounded-sm border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950" role="status">{historyError}</p> : null}
             {!historyLoading && !historyError && history.length === 0 ? <p className="mt-3 text-sm text-slate-600">Chưa có history snapshot cho slot này.</p> : null}
             {history.length > 0 ? (
               <ol className="mt-4 space-y-3">
                 {history.map((entry) => (
-                  <li className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-3" key={entry.eventId}>
+                  <li className="flex flex-wrap items-center justify-between gap-3 rounded-sm border border-slate-200 p-3" key={entry.eventId}>
                     <div className="min-w-0 text-sm">
                       <p className="font-semibold text-slate-900">Event #{entry.eventId} · v{entry.version} · {entry.status ?? "legacy"}</p>
                       <p className="mt-1 text-xs text-slate-500">{entry.actorEmail ?? "actor không xác định"} · {prettyUpdatedAt(entry.changedAt)}</p>
                     </div>
                     <button
-                      className="min-h-11 rounded-xl border border-amber-300 px-3 py-2 text-sm font-bold text-amber-900 hover:bg-amber-50 disabled:opacity-60"
+                      className="min-h-11 rounded-sm border border-amber-300 px-3 py-2 text-sm font-bold text-amber-900 hover:bg-amber-50 disabled:opacity-60"
                       disabled={!canMutate || entry.version === content?.version || !entry.rollbackAvailable}
                       onClick={() => void handleRollback(entry)}
                       type="button"
@@ -756,12 +756,12 @@ export function CmsEditor({
         </section>
 
         <aside aria-labelledby="cms-preview-title" className="min-w-0 space-y-4 lg:sticky lg:top-6 lg:self-start">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="rounded-sm border border-slate-200 bg-slate-50 p-4">
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Safe renderer</p>
             <h2 className="mt-1 text-xl font-bold text-slate-950" id="cms-preview-title">Xem trước</h2>
             <p className="mt-1 text-sm leading-6 text-slate-600">Preview dùng đúng component schema và không diễn giải raw HTML/JS.</p>
           </div>
-          <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+          <article className="rounded-sm border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
             <CmsContentRenderer content={previewContent} />
           </article>
         </aside>

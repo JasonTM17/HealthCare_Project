@@ -130,31 +130,17 @@ export default function AboutPage() {
             </ul>
           </div>
 
-          <figure className={styles.videoFigure}>
-            <div className={styles.videoFrame}>
-              <video
-                ref={videoRef}
-                aria-label="Thước phim minh họa hành trình tư vấn và chăm sóc người bệnh"
-                controls
-                loop
-                muted
-                playsInline
-                poster="/media/about-care-poster.jpg"
-                preload="metadata"
-              >
-                <source src="/media/about-introduction.mp4" type="video/mp4" />
-                Trình duyệt của bạn chưa hỗ trợ phát video. Bạn vẫn có thể tìm hiểu về HealthCare qua nội dung bên dưới.
-              </video>
-              <div className={styles.videoLabel}>
-                <span className={styles.videoPulse} aria-hidden="true" />
-                Thước phim giới thiệu
-              </div>
-            </div>
-            <figcaption>
-              Thước phim minh họa hành trình tư vấn. Nguồn:{" "}
-              <a href="https://www.pexels.com/video/woman-getting-medical-consultation-4486776/" rel="noreferrer" target="_blank">
-                Cedric Fauntleroy / Pexels
-              </a>
+          <figure className={styles.teamShowcase}>
+            <Image
+              src="/media/hospital-team-landscape.jpg"
+              alt="Đội ngũ bác sĩ và nhân viên y tế chuyên khoa Bệnh viện HealthCare"
+              width={1024}
+              height={682}
+              priority
+              className={styles.teamImage}
+            />
+            <figcaption className={styles.teamCaption}>
+              Đội ngũ chuyên gia y tế, bác sĩ chuyên khoa và điều dưỡng tận tâm tại HealthCare luôn sẵn sàng đồng hành cùng bạn.
             </figcaption>
           </figure>
         </section>
@@ -177,16 +163,33 @@ export default function AboutPage() {
             <blockquote>
               “Mỗi điểm chạm đều cần mang lại cảm giác được lắng nghe, được hướng dẫn và được tôn trọng.”
             </blockquote>
-            <figure className={styles.teamShowcase}>
-              <Image
-                src="/media/hospital-team-landscape.jpg"
-                alt="Đội ngũ bác sĩ và nhân viên y tế chuyên khoa Bệnh viện HealthCare"
-                width={1024}
-                height={682}
-                className={styles.teamImage}
-              />
-              <figcaption className={styles.teamCaption}>
-                Đội ngũ chuyên gia y tế, bác sĩ chuyên khoa và điều dưỡng tận tâm tại HealthCare luôn sẵn sàng đồng hành cùng bạn.
+            <figure className={styles.videoFigure}>
+              <div className={styles.videoFrame}>
+                <video
+                  ref={videoRef}
+                  aria-label="Thước phim minh họa hành trình tư vấn và chăm sóc người bệnh"
+                  autoPlay
+                  disablePictureInPicture
+                  loop
+                  muted
+                  onContextMenu={(event) => event.preventDefault()}
+                  playsInline
+                  poster="/media/about-care-poster.jpg"
+                  preload="metadata"
+                >
+                  <source src="/media/about-introduction.mp4" type="video/mp4" />
+                  Trình duyệt của bạn chưa hỗ trợ phát video. Bạn vẫn có thể tìm hiểu về HealthCare qua nội dung bên dưới.
+                </video>
+                <div className={styles.videoLabel}>
+                  <span className={styles.videoPulse} aria-hidden="true" />
+                  Thước phim giới thiệu
+                </div>
+              </div>
+              <figcaption>
+                Thước phim minh họa hành trình tư vấn. Nguồn:{" "}
+                <a href="https://www.pexels.com/video/woman-getting-medical-consultation-4486776/" rel="noreferrer" target="_blank">
+                  Cedric Fauntleroy / Pexels
+                </a>
               </figcaption>
             </figure>
           </div>
@@ -286,6 +289,10 @@ export default function AboutPage() {
             <Link className="outline-button" href="/contact">Liên hệ bệnh viện</Link>
           </div>
         </section>
+
+        <p className={`${styles.referenceNote} section-inner`}>
+          Tham khảo từ một trang web bệnh viện công khai.
+        </p>
       </div>
     </PublicPageShell>
   );

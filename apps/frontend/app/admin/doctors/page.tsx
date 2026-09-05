@@ -6,6 +6,7 @@ import {
   adminCreateDoctor,
   adminDeleteDoctor,
   adminUpdateDoctor,
+  fetchAllContent,
   type AdminDoctorPayload,
   type Doctor,
 } from "../../../lib/api-client";
@@ -21,6 +22,7 @@ type DoctorForm = {
 };
 
 const EMPTY_FORM: DoctorForm = { fullName: "", slug: "", bio: "", photoUrl: "", active: true };
+const ADMIN_PAGE_SIZE = 100;
 
 function formFromDoctor(doctor: Doctor): DoctorForm {
   return {
@@ -39,7 +41,6 @@ function toPayload(form: DoctorForm): AdminDoctorPayload {
     bio: form.bio.trim() || null,
     photoUrl: form.photoUrl.trim() || null,
     active: form.active,
-    userId: null,
   };
 }
 
@@ -57,8 +58,8 @@ export default function AdminDoctorsPage() {
     setLoading(true);
     setLoadError(null);
     try {
-      const page = await adminListDoctors(0, 100);
-      setDoctors(page.content);
+      const content = await fetchAllContent(adminListDoctors, ADMIN_PAGE_SIZE);
+      setDoctors(content);
     } catch (error) {
       setLoadError(describeAdminError(error).description);
     } finally {
@@ -111,9 +112,9 @@ export default function AdminDoctorsPage() {
     setFeedback(null);
     try {
       await adminDeleteDoctor(slug);
-      const refreshed = await adminListDoctors(0, 100);
-      setDoctors(refreshed.content);
-      const stillPresent = refreshed.content.some((doctor) => doctor.slug === slug);
+      const refreshed = await fetchAllContent(adminListDoctors, ADMIN_PAGE_SIZE);
+      setDoctors(refreshed);
+      const stillPresent = refreshed.some((doctor) => doctor.slug === slug);
       setFeedback(stillPresent
         ? { tone: "error", title: "Chưa xác nhận được việc xóa", description: "Bác sĩ vẫn còn trong danh sách quản trị. Vui lòng kiểm tra quyền truy cập rồi thử lại." }
         : { tone: "success", title: "Đã xóa bác sĩ", description: "Bác sĩ không còn trong danh sách quản trị." });

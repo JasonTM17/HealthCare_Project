@@ -757,7 +757,7 @@ export default function PatientProfilePage() {
             </div>
 
             {/* Clinical Trust & Emergency Banner */}
-            <div className="p-4 rounded-xl border border-teal-200 bg-teal-50/70 text-xs text-teal-900 space-y-2">
+            <div className="p-4 rounded-sm border border-teal-200 bg-teal-50/70 text-xs text-teal-900 space-y-2">
               <div className="flex items-center gap-2 font-bold text-teal-950">
                 <UiIcon name="shield-check" size={16} />
                 <span>Bảo mật Dữ liệu Y tế Quốc gia</span>

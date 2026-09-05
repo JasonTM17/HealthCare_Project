@@ -10,10 +10,10 @@
   --hub-surface: var(--color-paper-bright);
   margin: 0 0 var(--sp-8);
   border: 1px solid rgba(0, 51, 54, 0.12);
-  border-radius: 20px;
+  border-radius: var(--radius-lg);
   background: var(--hub-surface);
   color: var(--color-ink);
-  box-shadow: 0 4px 16px rgba(0, 51, 54, 0.04), 0 1px 3px rgba(0, 51, 54, 0.03);
+  box-shadow: none;
   overflow: hidden;
 }
 
@@ -32,7 +32,7 @@
   margin: 0;
   color: var(--hub-accent-strong);
   font-family: var(--font-display);
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   text-wrap: balance;
 }
 
@@ -189,8 +189,7 @@
   font-weight: 800;
   transition:
     background-color var(--duration-fast) var(--ease-out),
-    color var(--duration-fast) var(--ease-out),
-    transform var(--duration-fast) var(--ease-out);
+    color var(--duration-fast) var(--ease-out);
 }
 
 .inlineAction {
@@ -200,13 +199,13 @@
 .inlineAction:hover,
 .inlineAction:focus-visible {
   background: var(--hub-soft);
-  transform: translateY(-2px);
+  transform: none;
 }
 
 .inlineAction:active,
 .retryButton:active,
 .taskLink:active {
-  transform: translateY(2px);
+  transform: none;
 }
 
 .taskList {
@@ -231,14 +230,13 @@
   padding: var(--sp-3) var(--sp-2);
   border-radius: var(--radius-sm);
   transition:
-    background-color var(--duration-fast) var(--ease-out),
-    transform var(--duration-fast) var(--ease-out);
+    background-color var(--duration-fast) var(--ease-out);
 }
 
 .taskLink:hover,
 .taskLink:focus-visible {
   background: var(--hub-soft);
-  transform: translateY(-2px);
+  transform: none;
 }
 
 .taskLink[data-tone="attention"] .taskIcon {
@@ -351,7 +349,7 @@
 .retryButton:hover,
 .retryButton:focus-visible {
   background: var(--hub-attention-surface);
-  transform: translateY(-2px);
+  transform: none;
 }
 
 .inlineUnavailable {

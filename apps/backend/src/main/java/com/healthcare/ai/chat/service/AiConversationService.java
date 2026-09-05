@@ -22,6 +22,7 @@ import com.healthcare.ai.chat.entity.FeedbackRating;
 import com.healthcare.ai.chat.repository.AiConversationRepository;
 import com.healthcare.ai.chat.repository.AiMessageFeedbackRepository;
 import com.healthcare.ai.chat.repository.AiMessageRepository;
+import com.healthcare.ai.service.AiCreditService;
 import com.healthcare.ai.service.AiService;
 import com.healthcare.exception.BusinessException;
 import com.healthcare.exception.ErrorCodes;
@@ -82,12 +83,14 @@ public class AiConversationService {
     private static final String CONSENT_TEXT =
         "Chat được lưu tối đa 90 ngày; AI chỉ cung cấp thông tin tham khảo, "
         + "không chẩn đoán/kê đơn và có thể chuyển bạn tới nhân viên y tế.";
+    private static final String PATIENT_CHAT_CREDIT_DESCRIPTION = "Lượt sử dụng Trợ lý AI Y khoa";
 
     private final AiConversationRepository conversationRepository;
     private final AiMessageRepository messageRepository;
     private final AiMessageFeedbackRepository feedbackRepository;
     private final UserRepository userRepository;
     private final AiService aiService;
+    private final AiCreditService aiCreditService;
     private final AiChatSourceResolver sourceResolver;
     private final TransactionTemplate transactions;
     private final int retentionDays;
@@ -111,6 +114,7 @@ public class AiConversationService {
             AiMessageFeedbackRepository feedbackRepository,
             UserRepository userRepository,
             AiService aiService,
+            AiCreditService aiCreditService,
             AiChatSourceResolver sourceResolver,
             PlatformTransactionManager transactionManager,
             @Value("${ai.chat.retention-days:90}") int retentionDays,
@@ -128,6 +132,7 @@ public class AiConversationService {
         this.feedbackRepository = feedbackRepository;
         this.userRepository = userRepository;
         this.aiService = aiService;
+        this.aiCreditService = aiCreditService;
         this.sourceResolver = sourceResolver;
         this.transactions = new TransactionTemplate(transactionManager);
         this.retentionDays = Math.max(1, Math.min(retentionDays, 365));
@@ -163,6 +168,7 @@ public class AiConversationService {
             feedbackRepository,
             userRepository,
             aiService,
+            null,
             sourceResolver,
             transactionManager,
             retentionDays,
@@ -201,6 +207,7 @@ public class AiConversationService {
             feedbackRepository,
             userRepository,
             aiService,
+            null,
             sourceResolver,
             transactionManager,
             retentionDays,
@@ -213,6 +220,47 @@ public class AiConversationService {
             healthEducationEnabled,
             false,
             SyntheticBetaGuardService.disabled()
+        );
+    }
+
+    /** Compatibility constructor retaining the synthetic-beta guard shape. */
+    public AiConversationService(
+            AiConversationRepository conversationRepository,
+            AiMessageRepository messageRepository,
+            AiMessageFeedbackRepository feedbackRepository,
+            UserRepository userRepository,
+            AiService aiService,
+            AiChatSourceResolver sourceResolver,
+            PlatformTransactionManager transactionManager,
+            int retentionDays,
+            boolean cleanupEnabled,
+            int cleanupBatchSize,
+            int cleanupMaxBatches,
+            int processingLeaseSeconds,
+            boolean remoteProviderEnabled,
+            boolean symptomTriageEnabled,
+            boolean healthEducationEnabled,
+            boolean syntheticBetaAsserted,
+            SyntheticBetaGuardService syntheticBetaGuard) {
+        this(
+            conversationRepository,
+            messageRepository,
+            feedbackRepository,
+            userRepository,
+            aiService,
+            null,
+            sourceResolver,
+            transactionManager,
+            retentionDays,
+            cleanupEnabled,
+            cleanupBatchSize,
+            cleanupMaxBatches,
+            processingLeaseSeconds,
+            remoteProviderEnabled,
+            symptomTriageEnabled,
+            healthEducationEnabled,
+            syntheticBetaAsserted,
+            syntheticBetaGuard
         );
     }
 
@@ -516,7 +564,14 @@ public class AiConversationService {
         request.setIdempotencyKey(idempotencyKey);
         request.setCreatedAt(now);
         messageRepository.save(request);
+        chargeAcceptedPatientExchange(userId);
         return new PreparedMessage(request.getId(), processingToken, null);
+    }
+
+    private void chargeAcceptedPatientExchange(UUID userId) {
+        if (aiCreditService != null) {
+            aiCreditService.deductPatientCredit(userId, PATIENT_CHAT_CREDIT_DESCRIPTION);
+        }
     }
 
     private ChatExchangeResponse complete(

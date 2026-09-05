@@ -6,6 +6,7 @@ import type {
 import {
   browserSessionFixture,
   installMockBrowserSession,
+  installMockDoctorPortalSession,
 } from "./helpers/browser-session";
 
 interface PageEnvelope<T> {
@@ -94,8 +95,10 @@ test("ADMIN submits the exact inventory revision and hash without gaining approv
   await page.goto("/admin/ai-content-reviews");
   await expect(page.getByRole("heading", { name: "Kho revision nội dung AI" })).toBeVisible();
   await page.getByRole("button", { name: /Xem Hướng dẫn sức khỏe đã chuẩn hóa, revision 7/ }).click();
-  await expect(page.getByRole("heading", { name: "Hướng dẫn sức khỏe đã chuẩn hóa" })).toBeVisible();
-  await page.getByRole("button", { name: "Gửi revision cho bác sĩ" }).click();
+  await expect(page.getByRole("heading", { name: "Hướng dẫn sức khỏe đã chuẩn hóa", exact: true })).toBeVisible();
+  await page.getByRole("dialog", { name: /Xem trước: Hướng dẫn sức khỏe đã chuẩn hóa/ })
+    .getByRole("button", { name: "Gửi revision cho bác sĩ duyệt", exact: true })
+    .click();
 
   await expect(page.getByRole("status").filter({ hasText: "Đã gửi bài viết revision 7" })).toBeVisible();
   expect(observed.submission).toEqual({ revision: 7, contentHash: HASH });
@@ -179,7 +182,7 @@ async function installDoctorReviewMocks(
 
     throw new Error(`Unexpected doctor review request: ${request.method()} ${url.pathname}${url.search}`);
   });
-  await installMockBrowserSession(context, DOCTOR_SESSION);
+  await installMockDoctorPortalSession(context, DOCTOR_SESSION);
   return { decisions };
 }
 

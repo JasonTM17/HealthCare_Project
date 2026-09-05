@@ -183,7 +183,7 @@ export default function AiTriageModal({
       aria-labelledby="ai-triage-title"
       onMouseDown={(event) => { if (event.target === event.currentTarget) closeDialog(); }}
     >
-      <div className="ai-triage-panel relative flex max-h-[92vh] w-full max-w-lg flex-col overflow-y-auto rounded-2xl border border-brand-100 bg-white shadow-2xl" ref={dialogRef}>
+      <div className="ai-triage-panel relative flex max-h-[92vh] w-full max-w-lg flex-col overflow-y-auto rounded-sm border border-brand-100 bg-white shadow-2xl" ref={dialogRef}>
         <div className="ai-triage-panel__header flex items-center justify-between bg-brand-900 px-6 py-4 text-white">
           <div className="flex items-center gap-2.5">
             <Icon name="stethoscope" size={24} />
@@ -234,7 +234,7 @@ export default function AiTriageModal({
               placeholder="Ví dụ: Tôi bị đau thắt ngực trái kèm khó thở khi leo cầu thang 2 ngày nay..."
               value={symptoms}
               onChange={(event) => setSymptoms(event.target.value)}
-              className="min-h-32 w-full rounded-xl border border-gray-300 bg-gray-50 p-4 text-base leading-relaxed text-gray-900 focus:ring-2 focus:ring-brand-600 focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-300"
+              className="min-h-32 w-full rounded-sm border border-gray-300 bg-gray-50 p-4 text-base leading-relaxed text-gray-900 focus:ring-2 focus:ring-brand-600 focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-300"
               aria-describedby="triage-input-help triage-privacy-note triage-character-count"
             />
             <div className="flex flex-wrap items-start justify-between gap-2 text-xs leading-relaxed text-gray-500">
@@ -249,7 +249,7 @@ export default function AiTriageModal({
               <button
                 type="submit"
                 disabled={loading || !symptoms.trim()}
-                className="flex min-h-11 items-center gap-2 rounded-xl bg-brand-700 px-6 py-2.5 text-sm font-bold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
+                className="flex min-h-11 items-center gap-2 rounded-sm bg-brand-700 px-6 py-2.5 text-sm font-bold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
               >
                 {loading ? <><Icon name="clock" size={15} /> Đang xem xét thông tin...</> : <><Icon name="stethoscope" size={15} /> Xem gợi ý chuyên khoa</>}
               </button>
@@ -257,7 +257,7 @@ export default function AiTriageModal({
           </form>
 
           {errorCopy ? (
-            <div className="space-y-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900" role="alert" aria-live="assertive">
+            <div className="space-y-2 rounded-sm border border-red-200 bg-red-50 p-4 text-sm text-red-900" role="alert" aria-live="assertive">
               <p className="font-bold">{errorCopy.title}</p>
               <p>{errorCopy.description}</p>
               {errorKind === "login" ? (
@@ -285,7 +285,7 @@ export default function AiTriageModal({
             <div
               aria-atomic="true"
               aria-live={result.urgencyLevel === "EMERGENCY" ? "assertive" : "polite"}
-              className="space-y-3 rounded-xl border border-brand-200 bg-brand-50 p-4 animate-fadeIn"
+              className="space-y-3 rounded-sm border border-brand-200 bg-brand-50 p-4 animate-fadeIn"
               role={result.urgencyLevel === "EMERGENCY" ? "alert" : "status"}
             >
               <div className="flex items-center justify-between gap-3">

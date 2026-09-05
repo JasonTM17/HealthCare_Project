@@ -191,19 +191,28 @@ try {
         throw "Local seed container exited with code $seedExit"
     }
 
+    $verifierParameters = @{ DockerPath = $DockerPath; ExpectedRevision = $buildRevision; ComposeFile = $composeFile; EnvFile = $EnvFile }
+    $readinessParameters = @{ DockerPath = $DockerPath; ExpectedRevision = $buildRevision; ComposeFile = $composeFile; EnvFile = $EnvFile; ReadinessOnly = $true }
     $lastError = $null
+    $readinessPassed = $false
     for ($attempt = 1; $attempt -le 45; $attempt++) {
         try {
-            $verifierParameters = @{ DockerPath = $DockerPath; ExpectedRevision = $buildRevision; ComposeFile = $composeFile; EnvFile = $EnvFile }
-            & $verifier @verifierParameters
+            & $verifier @readinessParameters
             if ($LASTEXITCODE -ne 0) { throw "Verifier returned exit code $LASTEXITCODE" }
-            return
+            $readinessPassed = $true
+            break
         } catch {
             $lastError = $_
             Start-Sleep -Seconds 2
         }
     }
-    throw "Stack did not pass verification within 90 seconds: $($lastError.Exception.Message)"
+    if (-not $readinessPassed) {
+        throw "Stack did not become ready within 90 seconds: $($lastError.Exception.Message)"
+    }
+
+    & $verifier @verifierParameters
+    if ($LASTEXITCODE -ne 0) { throw "Verifier returned exit code $LASTEXITCODE" }
+    return
 } finally {
     try {
         if ($locationPushed) {

@@ -8,6 +8,7 @@ import com.healthcare.ai.chat.entity.AiMessageRole;
 import com.healthcare.ai.chat.entity.AiMessageStatus;
 import com.healthcare.ai.chat.service.AiConversationService;
 import com.healthcare.ai.service.AiService;
+import com.healthcare.appointment.entity.PatientProfile;
 import com.healthcare.exception.BusinessException;
 import com.healthcare.user.entity.User;
 import org.junit.jupiter.api.Test;
@@ -163,6 +164,72 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
             .andExpect(jsonPath("$.replayed").value(true));
 
         assertThat(aiMessageRepository.findAll()).hasSize(2);
+    }
+
+    @Test
+    @WithMockUser(username = "patient.credit-replay@example.com", roles = "PATIENT")
+    void idempotentReplayDoesNotDebitAgainEvenAfterBalanceReachesZero() throws Exception {
+        User patient = createUser("patient.credit-replay@example.com");
+        createPatientProfile(patient, "0901002001", 1);
+        when(aiService.retrieveChat(any())).thenReturn(Map.of("safety_action", "REFUSE"));
+
+        String conversationId = mockMvc.perform(post("/api/v1/ai/conversations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"consentAccepted\":true}"))
+            .andExpect(status().isCreated())
+            .andReturn()
+            .getResponse()
+            .getContentAsString()
+            .replaceAll(".*\\\"id\\\":\\\"([^\\\"]+)\\\".*", "$1");
+
+        String endpoint = "/api/v1/ai/conversations/" + conversationId + "/messages";
+        mockMvc.perform(post(endpoint)
+                .header("Idempotency-Key", "credit-replay-0001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"Toi can tu van suc khoe\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.replayed").value(false));
+
+        assertThat(patientProfileRepository.findByUserId(patient.getId()).orElseThrow().getAiCredits())
+            .isZero();
+        assertThat(creditTransactionCount(patient.getId())).isEqualTo(1);
+
+        mockMvc.perform(post(endpoint)
+                .header("Idempotency-Key", "credit-replay-0001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"Toi can tu van suc khoe\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.replayed").value(true));
+
+        assertThat(patientProfileRepository.findByUserId(patient.getId()).orElseThrow().getAiCredits())
+            .isZero();
+        assertThat(creditTransactionCount(patient.getId())).isEqualTo(1);
+    }
+
+    @Test
+    @WithMockUser(username = "patient.no-consent-credit@example.com", roles = "PATIENT")
+    void missingConsentDoesNotDebitPatientCredit() throws Exception {
+        User patient = createUser("patient.no-consent-credit@example.com");
+        createPatientProfile(patient, "0901002002", 3);
+        AiConversation conversation = createConversation(
+            patient,
+            false,
+            OffsetDateTime.now(ZoneOffset.UTC).plusDays(90)
+        );
+        conversation.setConsentVersion(null);
+        conversation.setConsentedAt(null);
+        aiConversationRepository.saveAndFlush(conversation);
+
+        mockMvc.perform(post("/api/v1/ai/conversations/{id}/messages", conversation.getId())
+                .header("Idempotency-Key", "missing-consent-0001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"Xin tu van\"}"))
+            .andExpect(status().isPreconditionRequired())
+            .andExpect(jsonPath("$.code").value("CHAT_CONSENT_REQUIRED"));
+
+        assertThat(patientProfileRepository.findByUserId(patient.getId()).orElseThrow().getAiCredits())
+            .isEqualTo(3);
+        assertThat(creditTransactionCount(patient.getId())).isZero();
     }
 
     @Test
@@ -517,6 +584,26 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
         user.setCreatedAt(now);
         user.setUpdatedAt(now);
         return userRepository.save(user);
+    }
+
+    private PatientProfile createPatientProfile(User user, String phone, int credits) {
+        PatientProfile profile = new PatientProfile();
+        profile.setUserId(user.getId());
+        profile.setFullName("Test Patient");
+        profile.setEmail(user.getEmail());
+        profile.setPhone(phone);
+        profile.setAiCredits(credits);
+        profile.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
+        return patientProfileRepository.save(profile);
+    }
+
+    private long creditTransactionCount(UUID userId) {
+        Long count = jdbcTemplate.queryForObject(
+            "select count(*) from ai_credit_transactions where user_id = ?",
+            Long.class,
+            userId
+        );
+        return count == null ? 0 : count;
     }
 
     private AiConversation createConversation(

@@ -187,16 +187,18 @@ export interface Page<T> {
   empty: boolean;
 }
 
-/** Load every backend page for bounded catalog/search surfaces. */
+/** Load backend pages for bounded catalog/search surfaces. */
 export async function fetchAllContent<T>(
   fetchPage: (page: number, size: number) => Promise<Page<T>>,
   size = 100,
+  maxPages = Number.POSITIVE_INFINITY,
 ): Promise<T[]> {
   const firstPage = await fetchPage(0, size);
-  if (firstPage.totalPages <= 1) return firstPage.content;
+  const remainingPageCount = Math.min(firstPage.totalPages - 1, maxPages - 1);
+  if (remainingPageCount <= 0) return firstPage.content;
 
   const remainingPages = await Promise.all(
-    Array.from({ length: firstPage.totalPages - 1 }, (_, index) => fetchPage(index + 1, size)),
+    Array.from({ length: remainingPageCount }, (_, index) => fetchPage(index + 1, size)),
   );
   return [firstPage, ...remainingPages].flatMap((page) => page.content);
 }
@@ -459,13 +461,24 @@ function beginAuthMutation(preserveCurrentSession = false): AuthMutationAttempt 
   return { version: authSessionVersion, controller, previousSession };
 }
 
-function settleFailedAuthMutation(attempt: AuthMutationAttempt): void {
-  if (!isCurrentAuthMutation(attempt)) return;
+function isAmbiguousAuthMutationFailure(error: unknown): boolean {
+  if (isAbortErrorLike(error)) return true;
+  if (!(error instanceof ApiError)) return false;
+  return error.status === 0 || error.status === 408 || error.status >= 500;
+}
+
+function settleFailedAuthMutation(attempt: AuthMutationAttempt, path: string, error: unknown): never {
+  if (!isCurrentAuthMutation(attempt)) throw authMutationSupersededError(path);
+  if (isAmbiguousAuthMutationFailure(error)) {
+    commitIndeterminateAuthState();
+    throw indeterminateAuthError(path);
+  }
   authSessionSnapshot = attempt.previousSession;
   authHydrationStatus = "settled";
   authMutationVersion = null;
   authMutationController = null;
   notifyAuthSessionChange();
+  throw error;
 }
 
 function commitIssuedAuthSession(value: unknown, attempt: AuthMutationAttempt, path: string): AuthSession {
@@ -1694,8 +1707,7 @@ export async function login(payload: LoginPayload): Promise<AuthSession> {
     });
     return commitIssuedAuthSession(response, attempt, path);
   } catch (error) {
-    settleFailedAuthMutation(attempt);
-    throw error;
+    settleFailedAuthMutation(attempt, path, error);
   }
 }
 
@@ -1737,8 +1749,7 @@ export async function verifyEmail(payload: VerifyEmailPayload): Promise<AuthSess
     });
     return commitIssuedAuthSession(response, attempt, path);
   } catch (error) {
-    settleFailedAuthMutation(attempt);
-    throw error;
+    settleFailedAuthMutation(attempt, path, error);
   }
 }
 

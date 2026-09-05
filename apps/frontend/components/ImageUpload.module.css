@@ -16,7 +16,7 @@
 
 .dropzone {
   border: 2px dashed var(--color-line, #c0c8c8);
-  border-radius: var(--radius-md, 12px);
+  border-radius: var(--radius-md, 8px);
   background: var(--color-paper-bright, #ffffff);
   padding: var(--sp-6) var(--sp-4);
   display: flex;
@@ -43,7 +43,7 @@
 .dropzoneIcon {
   width: 44px;
   height: 44px;
-  border-radius: 50%;
+  border-radius: var(--radius-sm, 8px);
   background: var(--color-mint-light, #f0fdfa);
   color: var(--color-teal-800, #004b50);
   display: grid;
@@ -71,7 +71,7 @@
 /* ── Preview Mode ── */
 .previewWrapper {
   position: relative;
-  border-radius: var(--radius-md, 12px);
+  border-radius: var(--radius-md, 8px);
   overflow: hidden;
   border: 1px solid var(--color-line, #c0c8c8);
   background: #f8fafc;
@@ -92,7 +92,7 @@
   display: block;
   margin: var(--sp-4, 16px) auto;
   border: 3px solid var(--color-teal-600, #0d9488);
-  box-shadow: 0 4px 12px rgba(0, 51, 54, 0.12);
+  box-shadow: none;
 }
 
 .previewSquareFallback {
@@ -106,7 +106,7 @@
   border: 3px solid var(--color-teal-600, #0d9488);
   background: var(--color-mint-light, #f0fdfa);
   color: var(--color-teal-800, #004b50);
-  box-shadow: 0 4px 12px rgba(0, 51, 54, 0.12);
+  box-shadow: none;
 }
 
 .previewBannerFallback {
@@ -182,7 +182,7 @@
   min-height: 140px;
   background: var(--color-mint-light, #f0fdfa);
   border: 2px solid var(--color-teal-300, #a3ced2);
-  border-radius: var(--radius-md, 12px);
+  border-radius: var(--radius-md, 8px);
   text-align: center;
 }
 

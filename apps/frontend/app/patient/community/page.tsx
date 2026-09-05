@@ -217,18 +217,18 @@ export default function PatientCommunityPage() {
         )}
 
         {loading ? (
-          <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-slate-500">
+          <div className="rounded-sm border border-slate-200 bg-white p-12 text-center text-slate-500">
             Đang tải danh sách bài viết y khoa...
           </div>
         ) : filteredArticles.length === 0 ? (
-          <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-slate-500">
+          <div className="rounded-sm border border-slate-200 bg-white p-12 text-center text-slate-500">
             Không có bài viết nào trong chuyên mục này.
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
             {filteredArticles.map((article) => (
               <article
-                className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden transition-all hover:border-teal-500 hover:shadow-md cursor-pointer group"
+                className="flex flex-col justify-between rounded-sm border border-slate-200 bg-white shadow-sm overflow-hidden transition-all hover:border-teal-500 hover:shadow-md cursor-pointer group"
                 key={article.id}
                 onClick={() => void handleOpenArticle(article)}
               >
@@ -289,7 +289,7 @@ export default function PatientCommunityPage() {
         {/* ── FULL EDITORIAL ARTICLE READER MODAL ("ĐỌC NHƯ 1 BÀI BÁO Y KHOA") ── */}
         {readingArticle && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto backdrop-blur-sm">
-            <div className="my-8 w-full max-w-3xl rounded-[10px] bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
+            <div className="my-8 w-full max-w-3xl rounded-lg bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
               {/* Header Bar */}
               <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 bg-slate-50/90">
                 <span className="rounded-[4px] bg-teal-50 border border-teal-200 px-3 py-1 text-xs font-bold text-teal-900 tracking-wider uppercase font-mono">

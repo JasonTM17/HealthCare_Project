@@ -128,22 +128,22 @@ export default function AdminAiCreditsPage() {
 
       {/* Overview Stat Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-sm border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Tổng Bệnh nhân</p>
           <p className="mt-2 text-3xl font-bold text-teal-800">{patients.length}</p>
           <p className="mt-1 text-xs text-slate-500">Đã kích hoạt hồ sơ điện tử</p>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-sm border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Credits Bệnh nhân còn lại</p>
           <p className="mt-2 text-3xl font-bold text-emerald-700">{totalPatientCredits}</p>
           <p className="mt-1 text-xs text-slate-500">Hạn mức hỏi AI người bệnh</p>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-sm border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Tổng Bác sĩ</p>
           <p className="mt-2 text-3xl font-bold text-teal-800">{doctors.length}</p>
           <p className="mt-1 text-xs text-slate-500">Bác sĩ chuyên khoa hệ thống</p>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-sm border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Credits Bác sĩ lâm sàng</p>
           <p className="mt-2 text-3xl font-bold text-purple-700">{totalDoctorCredits}</p>
           <p className="mt-1 text-xs text-slate-500">Hạn mức AI hỗ trợ chẩn đoán</p>
@@ -152,7 +152,7 @@ export default function AdminAiCreditsPage() {
 
       {feedback && (
         <div
-          className={`rounded-xl border p-4 ${
+          className={`rounded-sm border p-4 ${
             feedback.tone === "success"
               ? "border-emerald-200 bg-emerald-50 text-emerald-900"
               : "border-red-200 bg-red-50 text-red-900"
@@ -190,13 +190,13 @@ export default function AdminAiCreditsPage() {
       </div>
 
       {loading ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-slate-500">
+        <div className="rounded-sm border border-slate-200 bg-white p-12 text-center text-slate-500">
           Đang tải dữ liệu AI Credits...
         </div>
       ) : loadError ? (
         <AdminState tone="error" title="Không thể tải dữ liệu" description={loadError} />
       ) : activeTab === "patients" ? (
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-sm border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-slate-200 bg-slate-50 text-xs font-bold uppercase text-slate-600">
@@ -271,7 +271,7 @@ export default function AdminAiCreditsPage() {
           </div>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-sm border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-slate-200 bg-slate-50 text-xs font-bold uppercase text-slate-600">
@@ -328,7 +328,7 @@ export default function AdminAiCreditsPage() {
       {/* Grant Credits Modal */}
       {grantModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+          <div className="w-full max-w-md rounded-sm bg-white p-6 shadow-xl">
             <h3 className="text-lg font-bold text-slate-900">Cấp phát Credit AI</h3>
             <p className="mt-1 text-sm text-slate-600">
               Đối tượng: <strong>{grantModal.name}</strong> ({grantModal.targetRole === "PATIENT" ? "Bệnh nhân" : "Bác sĩ"}).
@@ -357,7 +357,7 @@ export default function AdminAiCreditsPage() {
                   ))}
                 </div>
                 <input
-                  className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                  className="mt-2 w-full rounded-sm border border-slate-300 px-3 py-2 text-sm"
                   min="1"
                   onChange={(e) => setCustomAmount(Math.max(1, Number(e.target.value) || 1))}
                   type="number"
@@ -370,7 +370,7 @@ export default function AdminAiCreditsPage() {
                   Lý do / Ghi chú
                 </label>
                 <input
-                  className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded-sm border border-slate-300 px-3 py-2 text-sm"
                   onChange={(e) => setGrantReason(e.target.value)}
                   placeholder="Ví dụ: Tri ân khách hàng thân thiết, hỗ trợ nghiên cứu..."
                   type="text"
@@ -381,7 +381,7 @@ export default function AdminAiCreditsPage() {
 
             <div className="mt-6 flex justify-end gap-3">
               <button
-                className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                className="rounded-sm border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
                 disabled={busy}
                 onClick={() => setGrantModal(null)}
                 type="button"
@@ -389,7 +389,7 @@ export default function AdminAiCreditsPage() {
                 Hủy
               </button>
               <button
-                className="rounded-xl bg-teal-700 px-5 py-2 text-sm font-bold text-white hover:bg-teal-800 disabled:opacity-50"
+                className="rounded-sm bg-teal-700 px-5 py-2 text-sm font-bold text-white hover:bg-teal-800 disabled:opacity-50"
                 disabled={busy}
                 onClick={() => void handleGrantCredits()}
                 type="button"

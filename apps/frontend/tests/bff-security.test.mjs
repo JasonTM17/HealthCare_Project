@@ -474,6 +474,76 @@ test("BFF binds CSRF origin to a server-owned public origin behind a reverse pro
   assert.equal(fetchCalls, 1);
 });
 
+test("BFF can forward a canonical backend origin for allowed custom domains", async () => {
+  const bff = await loadBff({
+    BACKEND_ORIGIN_OVERRIDE: "https://healthcare-two-olive.vercel.app",
+  });
+  const runtime = {
+    ...runtimeConfig,
+    publicOrigin: "https://healthcare-two-olive.vercel.app,https://healthcare.id.vn,https://www.healthcare.id.vn",
+  };
+  let observedOrigin = "";
+
+  const response = await bff.proxyHealthcareRequest(
+    new Request("https://www.healthcare.id.vn/api/v1/public/ai/chat", {
+      method: "POST",
+      headers: {
+        Origin: "https://www.healthcare.id.vn",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ message: "Xin chào" }),
+    }),
+    ["public", "ai", "chat"],
+    {
+      runtimeConfig: runtime,
+      fetchImpl: async (_target, init) => {
+        observedOrigin = new Headers(init?.headers).get("X-Healthcare-Original-Origin") ?? "";
+        return Response.json({ answer: "ok" }, { status: 200 });
+      },
+    },
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(observedOrigin, "https://healthcare-two-olive.vercel.app");
+});
+
+test("BFF returns a safe public chat fallback when the AI upstream is unavailable", async () => {
+  const bff = await loadBff();
+  let upstreamCancelled = false;
+  let upstreamCancelReason = "";
+
+  const response = await bff.proxyHealthcareRequest(
+    browserRequest("/api/v1/public/ai/chat", {
+      method: "POST",
+      headers: { Origin: "https://beta.healthcare.test", "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "Xin chào" }),
+    }),
+    ["public", "ai", "chat"],
+    {
+      runtimeConfig,
+      fetchImpl: async () => new Response(new ReadableStream({
+        cancel(reason) {
+          upstreamCancelled = true;
+          upstreamCancelReason = String(reason);
+        },
+      }), {
+        status: 502,
+        headers: { "Content-Type": "application/json" },
+      }),
+    },
+  );
+
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.mode, "HOSPITAL_SUPPORT");
+  assert.equal(body.provenance, "local_fallback");
+  assert.equal(body.safety_action, "INSUFFICIENT_EVIDENCE");
+  assert.equal(Array.isArray(body.citations), true);
+  assert.match(body.answer, /Kết nối AI đang tạm thời gián đoạn/);
+  assert.equal(upstreamCancelled, true);
+  assert.equal(upstreamCancelReason, "BFF_PUBLIC_AI_FALLBACK");
+});
+
 test("BFF bounds a slow chunked request body before contacting the backend", async () => {
   const bff = await loadBff();
   let fetchCalls = 0;

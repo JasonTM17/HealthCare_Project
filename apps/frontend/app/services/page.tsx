@@ -81,7 +81,7 @@ export default function ServicesPage() {
 
   return (
     <PublicPageShell>
-      <div className="catalog-page section-inner">
+      <div className="catalog-page catalog-page--directory section-inner">
         <header className="resource-page__header">
           <p className="section-note">Dịch vụ y tế</p>
           <h1>Dịch vụ cho từng nhu cầu chăm sóc</h1>
@@ -121,6 +121,8 @@ export default function ServicesPage() {
           </div>
         </section>
 
+        <details className="catalog-guidance">
+          <summary>Cách chọn phù hợp</summary>
         <div className="resource-grid resource-grid--two">
           <section className="resource-panel resource-panel--accent">
             <p className="section-note">Cách đọc danh mục</p>
@@ -156,6 +158,7 @@ export default function ServicesPage() {
             )}
           </section>
         </div>
+        </details>
 
         {loading ? (
           <p className="catalog-status catalog-status--loading" role="status">

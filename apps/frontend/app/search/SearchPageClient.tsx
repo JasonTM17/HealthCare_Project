@@ -107,12 +107,15 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
 
   useEffect(() => {
     let cancelled = false;
+    // Client-side keyword search only needs a bounded slice of each catalog; the
+    // full-catalog fetch (41 doctor pages alone) kept the page in a loading
+    // state for tens of seconds on slow backends.
     Promise.allSettled([
-      fetchAllContent((page, size) => fetchSpecialties(page, size)),
-      fetchAllContent((page, size) => fetchDoctors({ page, size })),
-      fetchAllContent((page, size) => fetchServices(page, size)),
-      fetchAllContent((page, size) => fetchPackages(page, size)),
-      fetchAllContent((page, size) => fetchArticles(page, size)),
+      fetchAllContent((page, size) => fetchSpecialties(page, size), 100, 3),
+      fetchAllContent((page, size) => fetchDoctors({ page, size }), 100, 3),
+      fetchAllContent((page, size) => fetchServices(page, size), 100, 3),
+      fetchAllContent((page, size) => fetchPackages(page, size), 100, 3),
+      fetchAllContent((page, size) => fetchArticles(page, size), 100, 3),
     ] as const)
       .then((responses) => {
         if (cancelled) return;
@@ -217,7 +220,7 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
           </div>
           <div className="resource-hero-card__body">
             <p className="resource-chip">Cổng tìm kiếm thống nhất</p>
-            <h2>Một ô tìm kiếm, hai lớp kiểm chứng.</h2>
+            <h2>Một ô tìm kiếm cho toàn bệnh viện.</h2>
             <p className="resource-lead">
               Danh mục bệnh viện đưa bạn tới đúng trang có thể đặt lịch; gợi ý thông minh chỉ mở rộng
               hướng tìm hiểu khi bạn đã đăng nhập và luôn nêu rõ nguồn tham khảo.
@@ -231,7 +234,7 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
             </div>
             <dl className="resource-meta-grid">
               <div>
-                <dt>Nhóm dữ liệu</dt>
+                <dt>Danh mục tìm kiếm</dt>
                 <dd>{catalogGroupCount || "Đang tải"}/5</dd>
               </div>
               <div>
@@ -311,7 +314,7 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
             </p>
           </section>
         ) : null}
-        {!loading && !normalize(query) ? <section className="resource-panel resource-panel--accent"><h2>Nhập một từ khóa để bắt đầu</h2><p>Hệ thống sẽ lọc theo dữ liệu active đã xuất bản, sau đó đưa bạn về đúng trang chuyên khoa, bác sĩ hoặc nội dung.</p></section> : null}
+        {!loading && !normalize(query) ? <section className="resource-panel resource-panel--accent"><h2>Nhập một từ khóa để bắt đầu</h2><p>Ví dụ: tên chuyên khoa, bác sĩ, dịch vụ hoặc bài viết bạn quan tâm — kết quả sẽ dẫn thẳng đến trang phù hợp.</p></section> : null}
         {!loading && result && resultCount === 0 ? <p className="catalog-status" role="status">{error ? "Chưa có nhóm thông tin nào sẵn sàng để tìm kiếm." : `Không tìm thấy kết quả khớp với “${query.trim()}”.`}</p> : null}
 
         {!loading && result && resultCount > 0 ? (

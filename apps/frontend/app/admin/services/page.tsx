@@ -6,6 +6,7 @@ import {
   adminDeleteService,
   adminListServices,
   adminUpdateService,
+  fetchAllContent,
   type AdminServicePayload,
   type MedicalService,
 } from "../../../lib/api-client";
@@ -15,6 +16,7 @@ import { describeAdminError } from "../_lib/errors";
 type ServiceForm = { name: string; slug: string; description: string; active: boolean };
 
 const EMPTY_FORM: ServiceForm = { name: "", slug: "", description: "", active: true };
+const ADMIN_PAGE_SIZE = 100;
 
 function formFromService(service: MedicalService): ServiceForm {
   return {
@@ -48,8 +50,8 @@ export default function AdminServicesPage() {
     setLoading(true);
     setLoadError(null);
     try {
-      const page = await adminListServices(0, 100);
-      setServices(page.content);
+      const content = await fetchAllContent(adminListServices, ADMIN_PAGE_SIZE);
+      setServices(content);
     } catch (reason: unknown) {
       setLoadError(describeAdminError(reason).description);
     } finally {
@@ -98,9 +100,9 @@ export default function AdminServicesPage() {
     setFeedback(null);
     try {
       await adminDeleteService(slug);
-      const refreshed = await adminListServices(0, 100);
-      const stillPresent = refreshed.content.some((service) => service.slug === slug);
-      setServices(refreshed.content);
+      const refreshed = await fetchAllContent(adminListServices, ADMIN_PAGE_SIZE);
+      const stillPresent = refreshed.some((service) => service.slug === slug);
+      setServices(refreshed);
       setFeedback(stillPresent
         ? { tone: "error", message: "Chưa xác nhận được việc xóa. Dịch vụ vẫn còn trong danh sách quản trị." }
         : { tone: "success", message: "Đã xóa dịch vụ khỏi danh mục quản trị." });

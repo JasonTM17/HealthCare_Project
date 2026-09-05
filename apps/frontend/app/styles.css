@@ -10,10 +10,12 @@
   --color-surface-strong: #beebee;
   --color-ink: #1a1c1e;
   --color-ink-muted: #404849;
-  --color-ink-soft: #717979;
+  --color-ink-soft: #536466;
   --color-teal-950: #001c1e;
   --color-teal-900: #003336;
   --color-teal-800: #004b50;
+  --color-teal-600: #2a676c;
+  --color-focus: #2a676c;
   --color-teal-700: #2a676c;
   --color-teal-500: #3b6568;
   --color-teal-300: #a3ced2;
@@ -48,19 +50,19 @@
   --sp-20: 5rem;
   --sp-24: 6rem;
   --sp-32: 8rem;
-  --radius-xs: 0.375rem;
-  --radius-sm: 0.5rem;
-  --radius-md: 0.75rem;
-  --radius-lg: 0.75rem;
-  --radius-xl: 1rem;
+  --radius-xs: 0.125rem;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.25rem;
+  --radius-lg: 0.125rem;
+  --radius-xl: 0.125rem;
   --radius-pill: 999px;
-  /* Contextual shadows – each has its own tint instead of all using neutral teal */
-  --shadow-soft: 0 4px 12px rgb(0 51 54 / 0.05), 0 12px 32px rgb(0 51 54 / 0.06);
-  --shadow-lift: 0 8px 20px rgb(0 51 54 / 0.07), 0 20px 44px rgb(0 51 54 / 0.1);
-  --shadow-teal-sm: 0 4px 14px rgb(13 148 136 / 0.18);
-  --shadow-teal-md: 0 8px 24px rgb(13 148 136 / 0.22), 0 2px 6px rgb(13 148 136 / 0.1);
-  --shadow-amber-sm: 0 6px 18px rgb(254 183 0 / 0.28), 0 2px 6px rgb(254 183 0 / 0.15);
-  --shadow-ink-sm: 0 4px 16px rgb(0 28 30 / 0.14);
+  /* Flat clinical surfaces: hierarchy comes from spacing, borders and type. */
+  --shadow-soft: none;
+  --shadow-lift: none;
+  --shadow-teal-sm: none;
+  --shadow-teal-md: none;
+  --shadow-amber-sm: none;
+  --shadow-ink-sm: none;
   /* Easing */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
@@ -69,7 +71,7 @@
   --duration-base: 240ms;
   --duration-slow: 420ms;
   /* Typography extras */
-  --tracking-tight: -0.025em;
+  --tracking-tight: 0em;
   --tracking-normal: 0em;
   --tracking-wide: 0.04em;
   --tracking-wider: 0.1em;
@@ -129,8 +131,9 @@ a:focus-visible,
 button:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
-select:focus-visible {
-  outline: 3px solid var(--color-amber);
+select:focus-visible,
+summary:focus-visible {
+  outline: 3px solid var(--color-focus);
   outline-offset: 3px;
 }
 
@@ -280,28 +283,13 @@ main {
 .section-note {
   display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
   margin: 0 0 var(--sp-3);
-  padding: 0.2rem 0.625rem;
-  background: #f0fdfa;
-  border: 1px solid rgba(13, 148, 136, 0.2);
-  border-radius: 6px;
   color: var(--color-teal-800, #115e59);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 800;
   letter-spacing: var(--tracking-widest);
   text-transform: uppercase;
   width: fit-content;
-}
-
-.section-note::before {
-  content: "";
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  background: var(--color-teal-600, #0d9488);
-  flex-shrink: 0;
-  border-radius: 50%;
 }
 
 .portal-badge {
@@ -309,7 +297,7 @@ main {
   align-items: center;
   gap: 0.375rem;
   padding: 0.2rem 0.625rem;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: var(--tracking-widest);
@@ -378,18 +366,18 @@ main {
   line-height: 1;
   white-space: nowrap;
   flex-shrink: 0;
-  transition: background-color var(--duration-base) ease, border-color var(--duration-base) ease, color var(--duration-base) ease, box-shadow var(--duration-base) ease, transform var(--duration-fast) var(--ease-out);
+  transition: background-color var(--duration-base) ease, border-color var(--duration-base) ease, color var(--duration-base) ease;
 }
 
 .button:hover,
 .outline-button:hover {
-  transform: translateY(-2px);
+  /* Keep buttons grounded; elevation shifts on hover read as template motion. */
 }
 
 .button:active,
 .outline-button:active,
 .text-button:active {
-  transform: translateY(1px);
+  transform: none;
 }
 
 .button--primary {
@@ -397,13 +385,13 @@ main {
   border-radius: var(--radius-sm);
   background: var(--color-teal-700);
   color: var(--color-paper-bright);
-  letter-spacing: -0.01em;
-  box-shadow: var(--shadow-teal-sm);
+  letter-spacing: 0;
+  box-shadow: none;
 }
 
 .button--primary:hover {
   background: var(--color-teal-800);
-  box-shadow: var(--shadow-teal-md);
+  box-shadow: none;
 }
 
 .button--accent {
@@ -411,13 +399,13 @@ main {
   border-radius: var(--radius-sm);
   background: var(--color-teal-700);
   color: var(--color-paper-bright);
-  letter-spacing: -0.01em;
-  box-shadow: var(--shadow-teal-sm);
+  letter-spacing: 0;
+  box-shadow: none;
 }
 
 .button--accent:hover {
   background: var(--color-teal-800);
-  box-shadow: var(--shadow-teal-md);
+  box-shadow: none;
 }
 
 .button--amber {
@@ -425,13 +413,12 @@ main {
   border-radius: var(--radius-sm);
   background: var(--color-amber);
   color: var(--color-teal-950);
-  letter-spacing: -0.01em;
-  box-shadow: var(--shadow-amber-sm);
+  letter-spacing: 0;
+  box-shadow: none;
 }
 
 .button--amber:hover {
   background: oklch(82% 0.14 78);
-  box-shadow: 0 10px 28px rgb(254 183 0 / 0.36), 0 2px 8px rgb(254 183 0 / 0.2);
 }
 
 .button--light {
@@ -440,7 +427,7 @@ main {
   border-radius: var(--radius-sm);
   background: var(--color-paper-bright);
   color: var(--color-teal-950);
-  box-shadow: var(--shadow-ink-sm);
+  box-shadow: none;
 }
 
 .button--light:hover {
@@ -453,7 +440,7 @@ main {
   border: 1.5px solid rgba(255, 255, 255, 0.4);
   background: rgba(255, 255, 255, 0.08);
   color: var(--color-paper-bright);
-  backdrop-filter: blur(8px);
+  backdrop-filter: none;
 }
 
 .button--hero-secondary:hover {
@@ -475,7 +462,7 @@ main {
 
 .button--small,
 .outline-button--small {
-  min-height: 40px;
+  min-height: 44px;
   padding-inline: var(--sp-3);
   font-size: 0.8125rem;
   border-radius: var(--radius-sm);
@@ -585,7 +572,7 @@ main {
   background: #f0fdfa;
   color: #0f766e;
   border-radius: var(--radius-md);
-  box-shadow: 0 2px 10px rgb(15 118 110 / 6%);
+  box-shadow: none;
 }
 
 .catalog-status--unavailable .text-button {
@@ -601,12 +588,11 @@ main {
   font-size: 0.875rem;
   border: none;
   cursor: pointer;
-  transition: background 180ms ease, transform 180ms ease;
+  transition: background 180ms ease;
 }
 
 .catalog-status--unavailable .text-button:hover {
   background: #115e59;
-  transform: translateY(-1px);
 }
 
 .catalog-status__message {
@@ -714,7 +700,7 @@ main {
   border: 1px solid var(--color-line);
   border-radius: var(--radius-md);
   background: var(--color-paper-bright);
-  box-shadow: var(--shadow-soft);
+  box-shadow: none;
 }
 
 /* Filter controls must occupy the full grid track on narrow catalog pages;
@@ -930,7 +916,7 @@ main {
   border-radius: var(--radius-sm);
   background: var(--color-teal-950);
   color: var(--color-paper-bright);
-  box-shadow: var(--shadow-soft);
+  box-shadow: none;
 }
 
 .booking-page__summary .section-note,
@@ -959,7 +945,7 @@ main {
   border: 1px solid var(--color-line);
   border-radius: var(--radius-sm);
   background: var(--color-paper-bright);
-  box-shadow: 0 18px 34px oklch(30% 0.03 190 / 0.08);
+  box-shadow: none;
 }
 
 .booking-stage-card__icon {
@@ -1035,7 +1021,9 @@ main {
 
 .booking-page__inline:focus-visible {
   border-radius: var(--radius-lg);
-  box-shadow: 0 0 0 4px oklch(78% 0.145 78 / 0.24);
+  outline: 3px solid oklch(78% 0.145 78 / 0.5);
+  outline-offset: 3px;
+  box-shadow: none;
 }
 
 .booking-page__inline-heading {
@@ -1480,7 +1468,7 @@ main {
 
 .article-detail-card__meta span {
   padding: 0.35rem 0.65rem;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--color-mint-light);
   color: var(--color-teal-700);
   font-size: 0.8125rem;
@@ -1559,7 +1547,7 @@ main {
   border: 1px solid var(--color-line);
   border-radius: var(--radius-md);
   background: var(--color-paper-bright);
-  box-shadow: var(--shadow-soft);
+  box-shadow: none;
 }
 
 .search-page__control > svg {
@@ -1643,13 +1631,13 @@ main {
   border: 1px solid var(--color-line);
   border-radius: var(--radius-lg);
   background: var(--color-paper-bright);
-  transition: transform var(--duration-base) var(--ease-out), box-shadow var(--duration-base) var(--ease-out), border-color var(--duration-base) var(--ease-out);
+  transition: border-color var(--duration-base) var(--ease-out), background-color var(--duration-base) var(--ease-out);
 }
 
 .search-result:hover {
   border-color: var(--color-teal-300);
-  box-shadow: var(--shadow-lift);
-  transform: translateY(-0.125rem);
+  box-shadow: none;
+  transform: none;
 }
 
 .search-result--semantic {
@@ -1870,8 +1858,8 @@ main {
   z-index: 50;
   border-bottom: 1px solid oklch(82% 0.03 182 / 0.7);
   background: oklch(98% 0.009 100 / 0.94);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .site-nav__inner {
@@ -1900,7 +1888,7 @@ main {
   border-radius: var(--radius-sm);
   background: var(--color-teal-700);
   color: var(--color-paper-bright);
-  box-shadow: 0 5px 12px oklch(40% 0.095 189 / 0.2);
+  box-shadow: none;
 }
 
 .brand-copy {
@@ -1985,13 +1973,13 @@ main {
   color: var(--color-teal-700);
   font-size: 0.8125rem;
   font-weight: 700;
-  transition: background-color var(--duration-base) ease, color var(--duration-base) ease, transform var(--duration-fast) var(--ease-out);
+  transition: background-color var(--duration-base) ease, color var(--duration-base) ease;
 }
 
 .nav-ai-button:hover,
 .nav-menu-button:hover {
   background: var(--color-mint-light);
-  transform: translateY(-1px);
+  transform: none;
 }
 
 .nav-account-link {
@@ -2000,20 +1988,18 @@ main {
   border: 1.5px solid var(--color-teal-600);
   background: var(--color-mint-light);
   color: var(--color-teal-950);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   font-size: 0.875rem;
   font-weight: 700;
   text-decoration: none;
-  box-shadow: 0 1px 3px rgba(13, 148, 136, 0.1);
-  transition: background-color var(--duration-base) ease, border-color var(--duration-base) ease, color var(--duration-base) ease, box-shadow var(--duration-base) ease, transform var(--duration-fast) var(--ease-out);
+  box-shadow: none;
+  transition: background-color var(--duration-base) ease, border-color var(--duration-base) ease, color var(--duration-base) ease;
 }
 
 .nav-account-link:hover {
   background: #ccfbf1;
   border-color: var(--color-teal-700);
   color: var(--color-teal-950);
-  box-shadow: 0 4px 12px rgba(13, 148, 136, 0.16);
-  transform: translateY(-1px);
 }
 
 .button--nav {
@@ -2022,13 +2008,13 @@ main {
   background: var(--color-teal-700);
   color: var(--color-paper-bright);
   border-radius: var(--radius-sm);
-  letter-spacing: -0.01em;
-  box-shadow: var(--shadow-teal-sm);
+  letter-spacing: 0;
+  box-shadow: none;
 }
 
 .button--nav:hover {
   background: var(--color-teal-800);
-  box-shadow: var(--shadow-teal-md);
+  box-shadow: none;
 }
 
 .nav-menu-button {
@@ -2045,29 +2031,6 @@ main {
   overflow: hidden;
   background: var(--color-teal-950);
   color: var(--color-paper-bright);
-}
-
-.hero-section::before,
-.hero-section::after {
-  content: "";
-  position: absolute;
-  pointer-events: none;
-  border: 1px solid oklch(74% 0.075 181 / 0.18);
-  border-radius: 50%;
-}
-
-.hero-section::before {
-  width: 34rem;
-  height: 34rem;
-  top: -17rem;
-  right: -8rem;
-}
-
-.hero-section::after {
-  width: 20rem;
-  height: 20rem;
-  bottom: -12rem;
-  left: 22%;
 }
 
 .hero-inner {
@@ -2121,7 +2084,7 @@ main {
 .hero-description {
   max-width: 36rem;
   margin: var(--sp-8) 0 0;
-  color: oklch(88% 0.025 184);
+  color: #334155 !important;
   font-size: 1.125rem;
   line-height: 1.65;
 }
@@ -2143,16 +2106,17 @@ main {
   padding-left: var(--sp-4);
   border: 1px solid oklch(88% 0.03 182 / 0.48);
   border-radius: var(--radius-md);
-  background: oklch(100% 0 0 / 0.1);
-  color: var(--color-mint);
-  box-shadow: 0 14px 30px oklch(15% 0.05 195 / 0.16);
-  transition: border-color var(--duration-base) ease, background-color var(--duration-base) ease, box-shadow var(--duration-base) ease;
+  background: var(--color-paper-bright);
+  color: var(--color-ink);
+  box-shadow: none;
+  transition: border-color var(--duration-base) ease;
 }
 
 .hero-search:focus-within {
-  border-color: var(--color-amber);
-  background: oklch(100% 0 0 / 0.14);
-  box-shadow: 0 0 0 4px oklch(78% 0.145 78 / 0.2), 0 14px 30px oklch(15% 0.05 195 / 0.16);
+  border-color: var(--color-mint-mid);
+  outline: 3px solid oklch(64% 0.09 184 / 0.42);
+  outline-offset: 2px;
+  box-shadow: none;
 }
 
 .hero-search input {
@@ -2161,12 +2125,12 @@ main {
   border: 0;
   outline: 0;
   background: transparent;
-  color: var(--color-paper-bright);
+  color: var(--color-ink);
   font-size: 0.9375rem;
 }
 
 .hero-search input::placeholder {
-  color: oklch(84% 0.035 184);
+  color: var(--color-ink-soft);
 }
 
 .hero-search button {
@@ -2174,17 +2138,16 @@ main {
   margin-right: 5px;
   padding: 0 var(--sp-5);
   border-radius: var(--radius-sm);
-  background: var(--color-amber);
-  color: var(--color-teal-950);
+  background: var(--color-teal-800);
+  color: var(--color-paper-bright);
   font-size: 0.8125rem;
   font-weight: 800;
   white-space: nowrap;
-  transition: background-color var(--duration-base) ease, transform var(--duration-fast) var(--ease-out);
+  transition: background-color var(--duration-base) ease;
 }
 
 .hero-search button:hover {
-  background: oklch(84% 0.14 78);
-  transform: translateY(-1px);
+  background: var(--color-teal-900);
 }
 
 .hero-search__help {
@@ -2216,7 +2179,7 @@ main {
   border: 1px solid oklch(88% 0.03 182 / 0.32);
   border-radius: var(--radius-lg);
   background: var(--color-teal-800);
-  box-shadow: 0 24px 46px oklch(15% 0.05 195 / 0.32);
+  box-shadow: none;
 }
 
 .hero-visual__image {
@@ -2278,7 +2241,7 @@ main {
   justify-content: center;
   flex: 0 0 auto;
   border: 1px solid oklch(88% 0.03 182 / 0.35);
-  border-radius: 50%;
+  border-radius: var(--radius-sm);
   background: oklch(100% 0 0 / 0.08);
   color: var(--color-mint);
 }
@@ -2304,7 +2267,7 @@ main {
   border: 1px solid var(--color-line);
   border-radius: var(--radius-lg);
   background: var(--color-paper-bright);
-  box-shadow: var(--shadow-soft);
+  box-shadow: none;
 }
 
 .hero-assurance__item {
@@ -2365,14 +2328,14 @@ main {
   border-radius: var(--radius-md);
   background: var(--color-paper-bright);
   color: var(--color-teal-950);
-  box-shadow: 0 16px 38px oklch(15% 0.05 195 / 0.22);
-  transition: transform var(--duration-fast) var(--ease-out), box-shadow var(--duration-base) ease, border-color var(--duration-base) ease;
+  box-shadow: none;
+  transition: border-color var(--duration-base) ease, background-color var(--duration-base) ease;
 }
 
 .ai-navigator-fab:hover {
   border-color: var(--color-teal-300);
-  box-shadow: 0 20px 44px oklch(15% 0.05 195 / 0.28);
-  transform: translateY(-3px);
+  box-shadow: none;
+  transform: none;
 }
 
 .ai-navigator-fab__icon {
@@ -2381,7 +2344,7 @@ main {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
+  border-radius: var(--radius-sm);
   background: var(--color-amber);
   color: var(--color-teal-950);
 }
@@ -2446,12 +2409,14 @@ main {
   border-radius: var(--radius-sm);
   background: var(--color-paper);
   color: var(--color-teal-700);
-  transition: border-color var(--duration-base) ease, box-shadow var(--duration-base) ease;
+  transition: border-color var(--duration-base) ease;
 }
 
 .care-search__control:focus-within {
   border-color: var(--color-teal-500);
-  box-shadow: 0 0 0 4px oklch(74% 0.075 181 / 0.24);
+  outline: 3px solid oklch(74% 0.075 181 / 0.45);
+  outline-offset: 2px;
+  box-shadow: none;
 }
 
 .care-search input {
@@ -2527,7 +2492,7 @@ main {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
+  border-radius: var(--radius-sm);
   background: var(--color-mint);
   color: var(--color-teal-700);
 }
@@ -2614,11 +2579,11 @@ main {
   align-items: start;
   padding: var(--sp-6) 0;
   border-top: 1px solid var(--color-line);
-  transition: background-color var(--duration-base) ease, transform var(--duration-base) var(--ease-out);
+  transition: background-color var(--duration-base) ease;
 }
 
 .specialty-row:hover {
-  transform: translateY(-2px);
+  transform: none;
 }
 
 .specialty-row__index,
@@ -2628,7 +2593,7 @@ main {
   font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
-  letter-spacing: 0.05em;
+  letter-spacing: 0;
 }
 
 .specialty-row__content {
@@ -2644,7 +2609,7 @@ main {
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  border-radius: 50%;
+  border-radius: var(--radius-sm);
   background: var(--color-mint-light);
   color: var(--color-teal-700);
 }
@@ -2695,14 +2660,14 @@ main {
   flex-direction: column;
   border-radius: var(--radius-lg);
   background: var(--color-paper-bright);
-  box-shadow: var(--shadow-soft);
+  box-shadow: none;
   overflow: hidden;
-  transition: transform var(--duration-base) var(--ease-out), box-shadow var(--duration-base) ease;
+  transition: border-color var(--duration-base) ease;
 }
 
 .doctor-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-lift);
+  border-color: var(--color-teal-300);
+  box-shadow: none;
 }
 
 .doctor-card--featured {
@@ -2726,10 +2691,6 @@ main {
   object-position: center 10%;
   filter: contrast(1.02);
   transition: transform var(--duration-slow) var(--ease-out);
-}
-
-.doctor-card:hover .doctor-photo__image {
-  transform: scale(1.03);
 }
 
 .doctor-photo__fallback {
@@ -2853,7 +2814,7 @@ main {
   min-height: 28px;
   align-items: center;
   padding: 0 var(--sp-3);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: oklch(78% 0.145 78 / 0.16);
   color: var(--color-amber);
   font-size: 0.6875rem;
@@ -3027,10 +2988,10 @@ main {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
+  border-radius: var(--radius-sm);
   background: var(--color-paper-bright);
   color: var(--color-teal-700);
-  box-shadow: var(--shadow-soft);
+  box-shadow: none;
 }
 
 .journey-step strong,
@@ -3211,7 +3172,7 @@ main {
   border-radius: var(--radius-lg);
   background: var(--color-teal-950);
   color: var(--color-paper-bright);
-  box-shadow: var(--shadow-soft);
+  box-shadow: none;
 }
 
 .video-card__visual {
@@ -3228,17 +3189,6 @@ main {
   color: var(--color-amber);
   font-size: 0.75rem;
   font-weight: 700;
-}
-
-.video-card__circle {
-  width: 64px;
-  height: 64px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid oklch(88% 0.03 182 / 0.5);
-  border-radius: 50%;
-  color: var(--color-amber);
 }
 
 .video-card__body {
@@ -3364,6 +3314,7 @@ main {
 
 /* Footer */
 .site-footer {
+  --color-focus: #a3ced2;
   position: relative;
   padding: var(--sp-20) 0 var(--sp-8);
   background: var(--color-teal-950);
@@ -4063,11 +4014,11 @@ main {
   padding: 0.65rem 1rem;
   font-size: 0.875rem;
   font-weight: 800;
-  transition: background-color var(--duration-fast) ease, color var(--duration-fast) ease, transform var(--duration-fast) var(--ease-out);
+  transition: background-color var(--duration-fast) ease, color var(--duration-fast) ease;
 }
 
 .cms-renderer__link:hover {
-  transform: translateY(-1px);
+  transform: none;
 }
 
 .cms-renderer__link--primary {
@@ -4092,7 +4043,7 @@ main {
   border: 1px solid var(--color-line);
   border-radius: var(--radius-lg);
   background: var(--color-paper-bright);
-  box-shadow: var(--shadow-soft);
+  box-shadow: none;
 }
 
 .cms-renderer--hero {
@@ -4111,7 +4062,7 @@ main {
   background: var(--color-teal-900);
   padding: var(--sp-6);
   color: var(--color-paper-bright);
-  box-shadow: var(--shadow-soft);
+  box-shadow: none;
 }
 
 .cms-renderer--cta .cms-renderer__title {
@@ -4165,7 +4116,7 @@ main {
   z-index: 40;
   border-bottom: 1px solid var(--color-line);
   background: var(--color-paper-bright);
-  box-shadow: 0 1px 0 rgb(0 51 54 / 0.05);
+  box-shadow: none;
 }
 
 .portal-header__inner,
@@ -4208,7 +4159,7 @@ main {
   line-height: 1;
 }
 
-.portal-brand > span:last-child,
+.portal-brand > span:not(.brand-identity),
 .portal-user__copy {
   display: flex;
   flex-direction: column;
@@ -4264,26 +4215,30 @@ main {
   white-space: nowrap;
   flex-shrink: 0;
   line-height: 1;
-  transition: background-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
+  border-bottom: 2px solid transparent;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
 }
 
 .portal-nav__link:hover {
   background: var(--color-mint-light);
   color: var(--color-teal-900);
-  box-shadow: inset 0 -2px 0 var(--color-teal-400);
+  border-bottom-color: var(--color-teal-400);
+  box-shadow: none;
 }
 
 .portal-nav__link:focus-visible {
   outline: 2px solid var(--color-teal-600);
   outline-offset: -2px;
-  box-shadow: inset 0 -2px 0 var(--color-teal-600);
+  border-bottom-color: var(--color-teal-600);
+  box-shadow: none;
 }
 
 .portal-nav__link--active {
   background: transparent;
   color: var(--color-teal-950);
   font-weight: 700;
-  box-shadow: inset 0 -2px 0 var(--color-teal-700);
+  border-bottom-color: var(--color-teal-700);
+  box-shadow: none;
 }
 
 .portal-user {
@@ -4303,14 +4258,14 @@ main {
   text-decoration: none;
   color: inherit;
   padding: 0.25rem 0.5rem;
-  border-radius: 0.5rem;
-  transition: background-color 0.15s ease, transform 0.15s ease;
+  border-radius: var(--radius-lg);
+  transition: background-color 0.15s ease;
   cursor: pointer;
 }
 
 .portal-user__link:hover {
   background-color: rgba(13, 148, 136, 0.08);
-  transform: translateY(-1px);
+  transform: none;
 }
 
 .portal-user__link:focus-visible {
@@ -4683,7 +4638,7 @@ main {
 .portal-appointment__status {
   padding: 0.15rem 0.5rem;
   border: 1px solid var(--color-line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--color-mint-light);
   color: var(--color-teal-800);
 }
@@ -4967,7 +4922,7 @@ main {
   width: 100%;
   padding: 0 var(--sp-4);
   border: 1px solid var(--color-line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius-sm);
   background: var(--color-paper-bright);
   transition: border-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
 }
@@ -5101,7 +5056,7 @@ main {
   border: 1px solid #d5e2df;
   border-radius: var(--radius-sm);
   background: var(--color-paper-bright);
-  box-shadow: 0 10px 26px rgb(0 51 54 / 7%);
+  box-shadow: none;
 }
 
 .auth-card__back {
@@ -5329,7 +5284,7 @@ main {
   background: var(--color-paper-bright);
   color: var(--color-teal-900);
   font-weight: 700;
-  box-shadow: var(--shadow-soft);
+  box-shadow: none;
   transform: translateY(-200%);
   text-decoration: none;
   transition: transform 0.15s ease-in-out;
@@ -5417,9 +5372,8 @@ main {
   min-height: 44px;
 }
 
-.admin-shell .rounded-xl,
-.admin-shell .rounded-2xl {
-  border-radius: 8px;
+.admin-shell :is(.rounded-lg, .rounded-xl, .rounded-2xl, .rounded-3xl) {
+  border-radius: var(--radius-lg);
 }
 
 .admin-shell .shadow-sm,
@@ -5495,11 +5449,11 @@ main {
   left: 0.75rem;
   z-index: 100;
   padding: 0.65rem 0.9rem;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: #fff;
   color: var(--hospital-navy);
   font-weight: 700;
-  box-shadow: 0 6px 18px rgb(20 61 75 / 18%);
+  box-shadow: none;
   transform: translateY(-150%);
 }
 
@@ -5556,7 +5510,7 @@ main {
 .site-shell .site-nav {
   border-bottom: 1px solid var(--hospital-border);
   background: rgb(255 255 255 / 97%);
-  box-shadow: 0 3px 14px rgb(20 61 75 / 5%);
+  box-shadow: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
@@ -5572,7 +5526,7 @@ main {
 .site-shell .brand-mark {
   width: 40px;
   height: 40px;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--hospital-teal);
   box-shadow: none;
 }
@@ -5617,7 +5571,7 @@ main {
   min-height: 42px;
   padding-inline: 0.75rem;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   color: var(--hospital-teal-dark);
 }
 
@@ -5628,7 +5582,7 @@ main {
 
 .site-shell .button,
 .site-shell .outline-button {
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
 }
 
 .site-shell .button--nav,
@@ -5680,11 +5634,11 @@ main {
 }
 
 .site-shell .hero-kicker {
-  display: none;
+  display: flex;
 }
 
 .site-shell .hero-kicker__line {
-  display: none;
+  display: block;
 }
 
 .site-shell .hero-copy h1 {
@@ -5692,7 +5646,7 @@ main {
   color: var(--hospital-navy);
   font-size: 4.25rem;
   font-weight: 750;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   line-height: 1.1;
 }
 
@@ -5706,8 +5660,10 @@ main {
   text-wrap: balance;
 }
 
-.site-shell .hero-copy h1 span {
-  color: var(--hospital-navy);
+.site-shell .hero-copy h1 span,
+.site-shell .hero-copy h1 .hero-teal-accent {
+  color: #00767c !important;
+  -webkit-text-fill-color: #00767c !important;
   display: inline;
 }
 
@@ -5724,16 +5680,18 @@ main {
   min-height: 54px;
   margin-top: 1.35rem;
   border: 1px solid #cddede;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: #fff;
   color: var(--hospital-teal);
-  box-shadow: 0 8px 18px rgb(22 77 82 / 6%);
+  box-shadow: none;
 }
 
 .site-shell .hero-search:focus-within {
   border-color: var(--hospital-teal);
   background: #fff;
-  box-shadow: 0 0 0 3px rgb(8 123 120 / 12%);
+  outline: 3px solid rgb(8 123 120 / 22%);
+  outline-offset: 2px;
+  box-shadow: none;
 }
 
 .site-shell .hero-search input {
@@ -5746,7 +5704,7 @@ main {
 
 .site-shell .hero-search button {
   min-height: 44px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   background: var(--hospital-teal);
   color: #fff;
 }
@@ -5816,39 +5774,45 @@ main {
 }
 
 .site-shell .hero-assurance {
-  margin-top: -2.6rem;
+  margin-top: 1rem;
   margin-bottom: 1.25rem;
 }
 
 .site-shell .hero-assurance__inner {
-  gap: 0;
-  overflow: hidden;
-  border-color: var(--hospital-border);
-  border-radius: 18px;
-  background: #fff;
-  box-shadow: 0 18px 36px rgb(22 77 82 / 9%);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-3);
+  overflow: visible;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .site-shell .hero-assurance__item {
   align-items: center;
-  min-height: 96px;
-  padding: 1rem 1.15rem;
-  border-right: 1px solid var(--hospital-border);
+  min-height: 0;
+  padding: 1rem 1rem;
+  border: 1px solid #d6e4e2;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: none;
 }
 
 .site-shell .hero-assurance__item:last-child {
-  border-right: 0;
+  border-right: 1px solid #d6e4e2;
 }
 
 .site-shell .hero-assurance__item--action {
   width: 100%;
-  background: transparent;
+  background: #fff;
   text-align: left;
-  transition: background-color var(--duration-base) ease, transform var(--duration-fast) var(--ease-out);
+  transition: background-color var(--duration-base) ease, border-color var(--duration-base) ease;
 }
 
 .site-shell .hero-assurance__item--action:hover {
-  background: var(--hospital-surface);
+  background: #f8fbfb;
+  border-color: #b7cecc;
   transform: none;
 }
 
@@ -5869,8 +5833,8 @@ main {
 .site-shell .hero-assurance__icon {
   width: 42px;
   height: 42px;
-  border-color: #bdd3d2;
-  border-radius: 14px;
+  border-color: #d4e3e1;
+  border-radius: var(--radius-sm);
   background: #edf6f4;
   color: var(--hospital-teal);
 }
@@ -5882,14 +5846,14 @@ main {
 
 .site-shell .hero-visual__image-wrap {
   min-height: 560px;
-  border: 0;
-  border-radius: 18px;
-  background: #dce9e7;
-  box-shadow: 0 18px 40px rgb(18 63 82 / 14%);
+  border: 1px solid #d6e4e2;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: none;
 }
 
 .site-shell .hero-visual__image {
-  filter: saturate(0.88) contrast(1.04);
+  filter: saturate(0.92) contrast(1.02);
   object-position: center;
 }
 
@@ -5939,9 +5903,9 @@ main {
   grid-column: auto;
   overflow: hidden;
   border: 1px solid var(--hospital-border);
-  border-radius: 18px;
+  border-radius: var(--radius-lg);
   background: #fff;
-  box-shadow: 0 13px 32px rgb(20 61 75 / 11%);
+  box-shadow: none;
 }
 
 .site-shell .care-link,
@@ -5965,7 +5929,7 @@ main {
 .site-shell .care-link__icon {
   width: 42px;
   height: 42px;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--hospital-mint);
   color: var(--hospital-teal);
 }
@@ -5994,8 +5958,8 @@ main {
 .site-shell .ai-companion__copy,
 .site-shell .ai-companion__panel {
   border: 1px solid var(--hospital-border);
-  border-radius: 12px;
-  box-shadow: 0 16px 36px rgb(20 61 75 / 10%);
+  border-radius: var(--radius-lg);
+  box-shadow: none;
 }
 
 .site-shell .ai-companion__copy {
@@ -6065,7 +6029,7 @@ main {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   background: var(--hospital-amber);
   color: var(--hospital-navy);
 }
@@ -6099,7 +6063,7 @@ main {
   gap: 0.85rem;
   padding: 1rem;
   border: 1px solid rgb(255 255 255 / 12%);
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   background: rgb(255 255 255 / 8%);
 }
 
@@ -6109,7 +6073,7 @@ main {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   background: rgb(255 255 255 / 12%);
   color: var(--hospital-amber);
 }
@@ -6138,7 +6102,7 @@ main {
   align-content: center;
   gap: 0.15rem;
   padding: 0.85rem;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   background: #fff;
   color: var(--hospital-navy);
 }
@@ -6196,6 +6160,7 @@ main {
 .site-shell .section-heading {
   align-items: end;
   margin-bottom: 2.5rem;
+  padding-top: 0;
 }
 
 .site-shell .section-heading > div:first-child {
@@ -6211,10 +6176,19 @@ main {
 
 .site-shell .section-note {
   margin-bottom: 0.7rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
   color: var(--hospital-teal-dark);
   font-size: 0.72rem;
+  font-weight: 700;
   letter-spacing: 0.11em;
   text-transform: uppercase;
+}
+
+.site-shell .section-note::before {
+  display: none;
 }
 
 .site-shell .section-description {
@@ -6269,13 +6243,13 @@ main {
 .site-shell .specialty-aside {
   top: 7.5rem;
   padding: 2rem;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--hospital-navy);
   color: #fff;
 }
 
 .site-shell .specialty-aside__mark {
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: #fff;
   color: var(--hospital-teal);
 }
@@ -6305,7 +6279,7 @@ main {
 }
 
 .site-shell .specialty-row__icon {
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--hospital-mint);
 }
 
@@ -6330,15 +6304,15 @@ main {
 .site-shell .doctor-card,
 .site-shell .doctor-card--featured {
   border: 1px solid var(--hospital-border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: #fff;
   color: var(--hospital-text);
-  box-shadow: 0 7px 18px rgb(20 61 75 / 6%);
+  box-shadow: none;
 }
 
 .site-shell .doctor-card:hover {
-  box-shadow: 0 12px 25px rgb(20 61 75 / 11%);
-  transform: translateY(-3px);
+  box-shadow: none;
+  transform: none;
 }
 
 .site-shell .doctor-photo,
@@ -6386,7 +6360,7 @@ main {
 }
 
 .site-shell .package-feature {
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--hospital-navy);
   box-shadow: none;
 }
@@ -6413,7 +6387,7 @@ main {
 
 .site-shell .journey-step__icon,
 .site-shell .support-panel__icon {
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   box-shadow: none;
 }
 
@@ -6421,10 +6395,10 @@ main {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: #00767c;
   border: 1px solid rgba(255, 255, 255, 0.25);
-  box-shadow: 0 16px 36px -8px rgba(0, 118, 124, 0.28), 0 4px 12px rgba(0, 0, 0, 0.05);
+  box-shadow: none;
   position: relative;
   overflow: hidden;
   color: #ffffff;
@@ -6439,8 +6413,8 @@ main {
   justify-content: center;
   background: #ffffff;
   color: #00767c;
-  border-radius: 12px;
-  box-shadow: 0 4px 14px rgba(0, 50, 55, 0.15);
+  border-radius: var(--radius-sm);
+  box-shadow: none;
   margin-bottom: 1.25rem;
 }
 
@@ -6469,7 +6443,7 @@ main {
   font-weight: 700;
   font-size: 1.625rem;
   line-height: 1.25;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
   margin: 0;
 }
 
@@ -6486,27 +6460,27 @@ main {
   gap: 0.5rem;
   height: 2.75rem;
   padding: 0 1.25rem;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: #ffffff;
   color: #006066;
   font-weight: 700;
   font-size: 0.9375rem;
   border: 1px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 4px 14px rgba(0, 50, 55, 0.16);
-  transition: all 0.2s ease;
+  box-shadow: none;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
   text-decoration: none;
 }
 
 .site-shell .support-panel .button--light:hover {
   background: #f0fdfa;
   color: #00454a;
-  box-shadow: 0 6px 20px rgba(0, 50, 55, 0.24);
-  transform: translateY(-1px);
+  box-shadow: none;
+  transform: none;
 }
 
 .site-shell .branch-intro {
   border-color: var(--hospital-border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: #fff;
 }
 
@@ -6524,7 +6498,7 @@ main {
 }
 
 .site-shell .video-card {
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--hospital-navy);
   box-shadow: none;
 }
@@ -6546,7 +6520,7 @@ main {
   background: #00767c;
   border-top: 1px solid rgba(255, 255, 255, 0.18);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  box-shadow: none;
 }
 
 .site-shell .appointment-cta h2 {
@@ -6554,7 +6528,7 @@ main {
   font-size: 2.25rem;
   font-weight: 700;
   line-height: 1.2;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 
 .site-shell .appointment-cta .section-note {
@@ -6591,21 +6565,21 @@ main {
   gap: 0.5rem;
   height: 3rem;
   padding: 0 1.5rem;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: #ffffff !important;
   color: #005f66 !important;
   font-weight: 700;
   font-size: 0.95rem;
   border: 1px solid rgba(255, 255, 255, 0.95);
-  box-shadow: 0 4px 16px rgba(0, 50, 55, 0.18), 0 1px 3px rgba(0, 0, 0, 0.06) !important;
-  transition: all 0.2s ease;
+  box-shadow: none !important;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
 
 .site-shell .appointment-cta .button--amber:hover {
   background: #f0fdfa !important;
   color: #00454a !important;
-  box-shadow: 0 8px 24px rgba(0, 50, 55, 0.26) !important;
-  transform: translateY(-1px);
+  box-shadow: none !important;
+  transform: none;
 }
 
 .site-shell .appointment-cta .button--cta-secondary {
@@ -6614,15 +6588,15 @@ main {
   gap: 0.5rem;
   height: 3rem;
   padding: 0 1.35rem;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: rgba(255, 255, 255, 0.16) !important;
-  backdrop-filter: blur(8px);
+  backdrop-filter: none;
   border: 1px solid rgba(255, 255, 255, 0.42) !important;
   color: #ffffff !important;
   font-weight: 600;
   font-size: 0.95rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  transition: all 0.2s ease;
+  box-shadow: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
   text-decoration: none;
 }
 
@@ -6630,7 +6604,7 @@ main {
   background: rgba(255, 255, 255, 0.28) !important;
   border-color: rgba(255, 255, 255, 0.75) !important;
   color: #ffffff !important;
-  transform: translateY(-1px);
+  transform: none;
 }
 
 .site-shell .ai-navigator-fab {
@@ -6802,7 +6776,7 @@ main {
 
   .site-shell .hero-visual__image-wrap {
     min-height: 18rem;
-    border-radius: 8px;
+    border-radius: var(--radius-lg);
   }
 
   .site-shell .hero-trust {
@@ -6820,7 +6794,7 @@ main {
 
   .site-shell .ai-companion__copy,
   .site-shell .ai-companion__panel {
-    border-radius: 10px;
+    border-radius: var(--radius-lg);
   }
 
   .site-shell .ai-companion__copy h2 {
@@ -6926,7 +6900,7 @@ main {
   .site-shell .mobile-care-rail {
     border-top-color: var(--hospital-border);
     background: #fff;
-    box-shadow: 0 -8px 22px rgb(20 61 75 / 10%);
+    box-shadow: none;
   }
 
   .site-shell .mobile-care-rail a,
@@ -6936,7 +6910,7 @@ main {
 
   .site-shell .mobile-care-rail .mobile-care-rail__primary {
     margin-block: -0.85rem 0;
-    border-radius: 8px 8px 0 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     background: var(--hospital-teal);
     color: #fff;
   }
@@ -6982,9 +6956,9 @@ main {
   position: relative;
   min-height: 29rem;
   overflow: hidden;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--hospital-mint);
-  box-shadow: 0 18px 38px rgb(18 63 82 / 12%);
+  box-shadow: none;
 }
 
 .site-shell .about-hero__image {
@@ -7058,7 +7032,7 @@ main {
   align-items: center;
   gap: 3rem;
   padding: 3.25rem;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--hospital-navy);
   color: #fff;
 }
@@ -7206,7 +7180,7 @@ main {
 .dialog-layer {
   z-index: 90;
   background: rgb(0 28 30 / 0.76);
-  backdrop-filter: blur(5px);
+  backdrop-filter: none;
 }
 
 .booking-panel,
@@ -7214,7 +7188,7 @@ main {
   border-color: var(--color-line);
   border-radius: var(--radius-lg);
   background: var(--color-paper-bright);
-  box-shadow: var(--shadow-lift);
+  box-shadow: none;
 }
 
 .ai-triage-panel__header {
@@ -7292,22 +7266,20 @@ main {
   align-items: flex-start;
   gap: var(--sp-3);
   padding: var(--sp-5);
-  border: 1px solid var(--color-line);
-  border-right: 1px solid var(--color-line);
-  border-bottom: 1px solid var(--color-line);
-  border-radius: var(--radius-md);
+  border: 1px solid #d6e4e2;
+  border-radius: var(--radius-lg);
   background: var(--color-paper-bright);
-  box-shadow: var(--shadow-soft);
-  transition: transform var(--duration-base) var(--ease-out), box-shadow var(--duration-base) ease, border-color var(--duration-base) ease;
+  box-shadow: none;
+  transition: background-color var(--duration-base) ease, border-color var(--duration-base) ease;
 }
 
 .site-shell .care-section .care-link.hm-quick-card:hover {
   padding-left: var(--sp-5);
-  background: var(--color-paper-bright);
+  background: #f8fbfb;
   color: var(--color-teal-700);
-  border-color: var(--color-teal-300);
-  box-shadow: var(--shadow-lift);
-  transform: translateY(-3px);
+  border-color: #b7cecc;
+  box-shadow: none;
+  transform: none;
 }
 
 .site-shell .care-section .care-link.hm-quick-card.care-link--emergency,
@@ -7352,14 +7324,14 @@ main {
   border: 1px solid var(--color-line);
   border-radius: var(--radius-md);
   background: var(--color-paper-bright);
-  box-shadow: var(--shadow-soft);
-  transition: transform var(--duration-base) var(--ease-out), box-shadow var(--duration-base) ease, border-color var(--duration-base) ease;
+  box-shadow: none;
+  transition: border-color var(--duration-base) ease, background-color var(--duration-base) ease;
 }
 
 .hm-specialty-card:hover {
   border-color: var(--color-teal-300);
-  box-shadow: var(--shadow-lift);
-  transform: translateY(-3px);
+  box-shadow: none;
+  transform: none;
 }
 
 .hm-specialty-card__icon {
@@ -7369,7 +7341,7 @@ main {
   align-items: center;
   justify-content: center;
   margin-bottom: var(--sp-3);
-  border-radius: 14px;
+  border-radius: var(--radius-sm);
   background: var(--color-mint);
   color: var(--color-teal-700);
 }
@@ -7379,7 +7351,7 @@ main {
   font-size: 1.15rem;
   font-weight: 800;
   color: var(--color-teal-950, #001c1e);
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   line-height: 1.3;
 }
 
@@ -7453,14 +7425,14 @@ main {
   border: 1px solid var(--color-line);
   border-radius: var(--radius-md);
   background: var(--color-paper-bright);
-  box-shadow: var(--shadow-soft);
-  transition: transform var(--duration-base) var(--ease-out), box-shadow var(--duration-base) ease, border-color var(--duration-base) ease;
+  box-shadow: none;
+  transition: border-color var(--duration-base) ease, background-color var(--duration-base) ease;
 }
 
 .hm-branch-card:hover {
   border-color: var(--color-teal-300);
-  box-shadow: var(--shadow-lift);
-  transform: translateY(-3px);
+  box-shadow: none;
+  transform: none;
 }
 
 .hm-branch-card__head {
@@ -7481,7 +7453,7 @@ main {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   background: var(--color-mint);
   color: var(--color-teal-700);
 }
@@ -7614,7 +7586,7 @@ main {
   padding: clamp(1.5rem, 3vw, 2rem);
   border: 1px solid var(--hospital-border);
   border-top: 4px solid var(--hospital-teal);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--hospital-surface);
   color: var(--hospital-text);
   box-shadow: none;
@@ -7641,7 +7613,7 @@ main {
   margin-top: var(--sp-10);
   padding: clamp(1.5rem, 4vw, 2.75rem);
   border: 1px solid var(--hospital-border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--hospital-surface);
   color: var(--hospital-text);
   box-shadow: none;
@@ -7650,7 +7622,7 @@ main {
 .site-shell .booking-page__resource-hero.resource-hero-card--teal .resource-icon {
   width: 64px;
   height: 64px;
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
   background: var(--color-paper-bright);
   color: var(--hospital-teal);
 }
@@ -7743,13 +7715,13 @@ main {
 
 .site-shell .booking-panel {
   border: 1px solid var(--hospital-border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--color-paper-bright);
-  box-shadow: 0 14px 32px rgb(20 61 75 / 8%);
+  box-shadow: none;
 }
 
 .site-shell .booking-panel--inline {
-  box-shadow: 0 10px 26px rgb(20 61 75 / 7%);
+  box-shadow: none;
 }
 
 .site-shell .booking-panel__header {
@@ -7791,16 +7763,16 @@ main {
   align-items: center;
   justify-content: center;
   border: 1px solid var(--hospital-border);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--color-paper-bright);
   color: var(--hospital-teal-dark);
-  transition: background-color var(--duration-base) ease, color var(--duration-base) ease, transform var(--duration-fast) var(--ease-out);
+  transition: background-color var(--duration-base) ease, color var(--duration-base) ease;
 }
 
 .site-shell .booking-panel__close:hover {
   background: var(--hospital-surface);
   color: var(--hospital-navy);
-  transform: translateY(-1px);
+  transform: none;
 }
 
 .site-shell .booking-panel__context {
@@ -7851,7 +7823,7 @@ main {
 .site-shell .booking-panel textarea {
   min-height: 48px;
   border-color: #cbdcdc;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: #f8fbfb;
   font-size: 1rem;
 }
@@ -7864,12 +7836,13 @@ main {
 .site-shell .booking-panel input:focus,
 .site-shell .booking-panel textarea:focus {
   border-color: var(--hospital-teal);
-  box-shadow: 0 0 0 3px rgb(8 123 120 / 13%);
-  outline: none;
+  box-shadow: none;
+  outline: 3px solid rgb(8 123 120 / 22%);
+  outline-offset: 2px;
 }
 
 .site-shell .booking-panel button.bg-brand-700 {
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--hospital-teal);
   box-shadow: none;
 }
@@ -8071,7 +8044,7 @@ main {
 .site-shell .hm-branch-card:hover .hm-branch-card__image,
 .site-shell .video-card:hover .video-card__image {
   filter: saturate(0.96) contrast(1.02);
-  transform: scale(1.035);
+  transform: none;
 }
 
 .site-shell .video-card__visual {
@@ -8192,7 +8165,9 @@ main {
 
 .auth-form__field input[aria-invalid="true"] {
   border-color: var(--color-red);
-  box-shadow: 0 0 0 1px var(--color-red);
+  box-shadow: none;
+  outline: 2px solid color-mix(in srgb, var(--color-red) 38%, transparent);
+  outline-offset: 2px;
 }
 
 .auth-form__field-error {
@@ -8325,7 +8300,7 @@ main {
   border: 1px solid var(--color-line);
   border-radius: var(--radius-md);
   background: var(--color-paper-bright);
-  box-shadow: var(--shadow-soft);
+  box-shadow: none;
 }
 
 .preferences-account h2,
@@ -8521,7 +8496,7 @@ main {
   border: 1px solid var(--color-line);
   border-radius: var(--radius-md);
   background: var(--color-paper-bright);
-  box-shadow: var(--shadow-soft);
+  box-shadow: none;
 }
 
 .notification-preference-card--locked {
@@ -8547,7 +8522,7 @@ main {
 .notification-preference-card__badge {
   min-height: 2rem;
   padding: 0.35rem 0.7rem;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--color-mint-light);
   color: var(--color-teal-800);
   font-size: 0.75rem;
@@ -8901,7 +8876,7 @@ main {
   overflow: hidden;
   grid-template-columns: minmax(5rem, 7rem) minmax(0, 1fr);
   border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-soft);
+  box-shadow: none;
 }
 
 .site-shell--public-route .resource-hero-card--teal::after {
@@ -8948,20 +8923,18 @@ main {
 }
 
 .site-shell--public-route .catalog-card {
-  box-shadow: 0 1px 0 rgb(0 51 54 / 4%);
+  box-shadow: none;
   transition:
     border-color var(--duration-base) var(--ease-out),
-    background var(--duration-base) var(--ease-out),
-    box-shadow var(--duration-base) var(--ease-out),
-    transform var(--duration-base) var(--ease-out);
+    background var(--duration-base) var(--ease-out);
 }
 
 .site-shell--public-route .catalog-card:hover,
 .site-shell--public-route .catalog-card:focus-within {
   border-color: var(--color-teal-300);
   background: var(--color-paper-bright);
-  box-shadow: var(--shadow-soft);
-  transform: translateY(-2px);
+  box-shadow: none;
+  transform: none;
 }
 
 .site-shell--public-route .catalog-card p,
@@ -9002,7 +8975,7 @@ main {
 .site-shell--public-route .catalog-status {
   align-items: flex-start;
   gap: var(--sp-3);
-  box-shadow: 0 1px 0 rgb(0 51 54 / 4%);
+  box-shadow: none;
 }
 
 .site-shell--public-route .catalog-status--loading {
@@ -9101,7 +9074,7 @@ main {
   }
 }
 
-/* Doctor photo portrait & Hoan My hospital card polish */
+/* Doctor photo portrait and external reference card polish */
 .resource-avatar {
   overflow: hidden;
   position: relative;
@@ -9151,16 +9124,16 @@ main {
   padding: 1.5rem;
   background: var(--color-paper-bright);
   border: 1.5px solid var(--color-line);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   overflow: hidden;
-  transition: transform var(--duration-base) var(--ease-out), border-color var(--duration-base) var(--ease-out), box-shadow var(--duration-base) var(--ease-out);
+  transition: border-color var(--duration-base) var(--ease-out), background-color var(--duration-base) var(--ease-out);
 }
 
 .site-shell--public-route .catalog-card.specialty-card:hover,
 .catalog-card.specialty-card:hover {
-  transform: translateY(-3px);
+  transform: none;
   border-color: var(--color-teal-600);
-  box-shadow: 0 10px 24px rgba(0, 51, 54, 0.08);
+  box-shadow: none;
 }
 
 .specialty-card__top {
@@ -9177,28 +9150,15 @@ main {
   justify-content: center;
   width: 44px;
   height: 44px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   background: var(--color-surface, #f8fafc);
   color: var(--color-teal-900, #003336);
   border: 1px solid var(--color-line, #e2e8f0);
-  transition: transform var(--duration-fast) var(--ease-out);
+  transition: background-color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
 }
 
 .catalog-card.specialty-card:hover .specialty-card__icon-wrap {
-  transform: scale(1.05);
-}
-
-.specialty-card__badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 0 0 2px;
-  font-size: 0.6875rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-teal-950);
-  border-bottom: 2px solid var(--color-teal-900);
-  background: transparent;
+  transform: none;
 }
 
 .specialty-card__title {
@@ -9207,7 +9167,7 @@ main {
   color: #001e20;
   margin: 0.25rem 0 0.5rem;
   line-height: 1.25;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 
 .specialty-card__desc {
@@ -9246,11 +9206,11 @@ main {
   padding: 3px 9px;
   background: var(--color-surface, #f8fafc);
   border: 1px solid var(--color-line, #e2e8f0);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: 0.8125rem;
   color: var(--color-ink);
   line-height: 1.3;
-  transition: all var(--duration-fast) var(--ease-out);
+  transition: background-color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
 }
 
 .catalog-card.specialty-card:hover .specialty-card__symptom-pill {
@@ -9262,7 +9222,7 @@ main {
    Elevating the UI from AI-prototype look to world-class hospital portal
    ========================================================================== */
 
-/* 1. Pulse Beacon for Hotline & Emergency */
+/* 1. Static availability dot for the hotline (no pulsing glow). */
 .utility-pulse-beacon {
   display: inline-block;
   width: 6px;
@@ -9271,20 +9231,6 @@ main {
   background: #ef4444;
   flex-shrink: 0;
   margin-right: 2px;
-  box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6);
-  animation: beaconPulse 2s ease-out infinite;
-}
-
-@keyframes beaconPulse {
-  0% {
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6);
-  }
-  60% {
-    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
-  }
 }
 
 /* 2. Navbar Authenticated Avatar & Frosted Account Pill */
@@ -9306,7 +9252,7 @@ main {
   font-size: 0.75rem;
   font-weight: 800;
   line-height: 1;
-  box-shadow: 0 2px 6px rgba(13, 148, 136, 0.3);
+  box-shadow: none;
   overflow: hidden;
   border: 1.5px solid rgba(13, 148, 136, 0.35);
   flex-shrink: 0;
@@ -9355,126 +9301,37 @@ main {
 
 .hero-quick-chips > span:first-child {
   font-weight: 600;
-  color: #0d9488;
+  color: var(--color-teal-800);
 }
 
 .hero-quick-chip {
+  min-height: 44px;
   padding: 0.3rem 0.75rem;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(13, 148, 136, 0.2);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(13, 148, 136, 0.16);
   color: #004b50;
   font-size: 0.78rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 180ms ease;
-  backdrop-filter: blur(8px);
+  transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease, transform 180ms ease;
 }
 
 .hero-quick-chip:hover {
-  background: #0d9488;
-  color: #ffffff;
-  border-color: #0d9488;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 10px rgba(13, 148, 136, 0.25);
+  background: #f1f8f7;
+  color: var(--color-teal-800);
+  border-color: rgba(13, 148, 136, 0.32);
+  transform: none;
+  box-shadow: none;
 }
 
-/* 4. Floating Trust Cards over Hero Image */
-.hero-floating-card {
-  position: absolute;
-  z-index: 5;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.85rem 1.15rem;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  box-shadow: 0 16px 36px -8px rgba(0, 51, 54, 0.18), 0 2px 6px rgba(0, 51, 54, 0.04);
-  animation: floatCard 6s ease-in-out infinite alternate;
-}
+/* 4. Hero image stays clean: no floating glass cards over photography. */
 
-.hero-floating-card--top {
-  top: 1.5rem;
-  right: -1rem;
-  animation-delay: 0s;
-}
-
-.hero-floating-card--bottom {
-  bottom: 2rem;
-  left: -1.5rem;
-  animation-delay: 2s;
-}
-
-@keyframes floatCard {
-  0% { transform: translateY(0px); }
-  100% { transform: translateY(-8px); }
-}
-
-.hero-floating-card strong {
-  display: block;
-  font-size: 0.875rem;
-  color: #003336;
-  line-height: 1.2;
-}
-
-.hero-floating-card small {
-  display: block;
-  font-size: 0.7rem;
-  color: #64748b;
-  margin-top: 0.15rem;
-}
-
-.hero-floating-card__stars {
-  color: #f59e0b;
-  font-size: 0.875rem;
-  letter-spacing: 1px;
-}
-
-.hero-floating-card__icon {
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  border-radius: 10px;
-  background: #f0fdfa;
-  color: #0d9488;
-  border: 1px solid #ccfbf1;
-}
-
-/* 5. Elevated Doctor Cards */
+/* 5. Doctor cards: calm clinical profile treatment */
 .doctor-card__photo-wrapper {
   position: relative;
   overflow: hidden;
-  border-radius: 18px 18px 0 0;
-}
-
-.doctor-card__status-chip {
-  position: absolute;
-  top: 0.75rem;
-  left: 0.75rem;
-  z-index: 2;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.25rem 0.65rem;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(8px);
-  color: #059669;
-  font-size: 0.7rem;
-  font-weight: 700;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
-}
-
-.doctor-card__pulse {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #10b981;
-  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
-  animation: beaconPulse 2s infinite;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
 }
 
 .doctor-card__meta {
@@ -9486,27 +9343,23 @@ main {
 }
 
 .doctor-card__exp-badge {
-  font-size: 0.7rem;
-  font-weight: 700;
-  padding: 0.15rem 0.5rem;
-  border-radius: 6px;
-  background: #f0fdfa;
-  color: #0d9488;
-  border: 1px solid #ccfbf1;
+  color: var(--color-ink-soft);
+  font-size: 0.75rem;
+  font-weight: 600;
 }
 
 .doctor-card__book-btn {
   width: 100%;
   justify-content: space-between;
   padding: 0.6rem 0.85rem;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   background: #f8fafc;
   border: 1px solid rgba(13, 148, 136, 0.15);
   color: #004b50;
   font-size: 0.875rem;
   font-weight: 700;
   margin-top: 0.75rem;
-  transition: all 180ms ease;
+  transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease;
 }
 
 .doctor-card:hover .doctor-card__book-btn {
@@ -9527,7 +9380,7 @@ main {
   color: #ffffff;
   font-weight: 800;
   font-size: 0.875rem;
-  box-shadow: 0 4px 10px rgba(13, 148, 136, 0.25);
+  box-shadow: none;
   flex-shrink: 0;
   overflow: hidden;
   border: 2px solid rgba(13, 148, 136, 0.4);
@@ -9579,17 +9432,17 @@ main {
 
 /* 7. Global Card & Container Modern Elevation */
 .site-shell .hm-specialty-card {
-  border-radius: 20px !important;
+  border-radius: var(--radius-lg) !important;
   border: 1px solid rgba(13, 148, 136, 0.14) !important;
   background: #ffffff !important;
-  box-shadow: 0 8px 24px -6px rgba(0, 51, 54, 0.06), 0 1px 3px rgba(0, 51, 54, 0.03) !important;
-  transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease !important;
+  box-shadow: none !important;
+  transition: border-color 220ms ease, background-color 220ms ease, transform 220ms ease !important;
 }
 
 .site-shell .hm-specialty-card:hover {
-  transform: translateY(-5px) !important;
-  border-color: rgba(13, 148, 136, 0.35) !important;
-  box-shadow: 0 20px 40px -12px rgba(13, 148, 136, 0.18), 0 0 0 1px rgba(13, 148, 136, 0.35) !important;
+  transform: none !important;
+  border-color: rgba(13, 148, 136, 0.28) !important;
+  box-shadow: none !important;
 }
 
 .site-shell .hm-specialty-card h3,
@@ -9599,32 +9452,33 @@ main {
 }
 
 .site-shell .doctor-card {
-  border-radius: 20px !important;
+  border-radius: var(--radius-lg) !important;
   border: 1px solid rgba(13, 148, 136, 0.14) !important;
   background: #ffffff !important;
-  box-shadow: 0 8px 24px -6px rgba(0, 51, 54, 0.06), 0 1px 3px rgba(0, 51, 54, 0.03) !important;
+  box-shadow: none !important;
   overflow: hidden !important;
-  transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease !important;
+  transition: border-color 220ms ease, background-color 220ms ease, transform 220ms ease !important;
 }
 
 .site-shell .doctor-card:hover {
-  transform: translateY(-5px) !important;
-  border-color: rgba(13, 148, 136, 0.35) !important;
-  box-shadow: 0 20px 40px -12px rgba(13, 148, 136, 0.18), 0 0 0 1px rgba(13, 148, 136, 0.35) !important;
+  transform: none !important;
+  border-color: rgba(13, 148, 136, 0.28) !important;
+  box-shadow: none !important;
 }
 
 .site-shell .care-link.hm-quick-card {
-  border-radius: 16px !important;
-  background: rgba(255, 255, 255, 0.95) !important;
+  border-radius: var(--radius-lg) !important;
+  background: #ffffff !important;
   border: 1px solid rgba(13, 148, 136, 0.15) !important;
-  box-shadow: 0 6px 20px -4px rgba(0, 51, 54, 0.06) !important;
-  transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease !important;
+  box-shadow: none !important;
+  transition: border-color 200ms ease, background-color 200ms ease, color 200ms ease, transform 200ms ease !important;
 }
 
 .site-shell .care-link.hm-quick-card:hover {
-  transform: translateY(-3px) !important;
+  transform: none !important;
   border-color: #0d9488 !important;
-  box-shadow: 0 16px 30px -8px rgba(13, 148, 136, 0.2) !important;
+  background: #f7fbfa !important;
+  box-shadow: none !important;
 }
 
 /* ==========================================================================
@@ -9640,9 +9494,10 @@ main {
 
 /* ── Hero description refined ── */
 .site-shell .hero-description {
-  color: rgba(255, 255, 255, 0.82);
+  color: #334155 !important;
   font-size: clamp(1rem, 1.5vw, 1.1rem);
   line-height: 1.7;
+  font-weight: 500;
 }
 
 /* ── Journey Steps: dashed connector between steps ── */
@@ -9670,7 +9525,7 @@ main {
   justify-content: center;
   width: 3rem;
   height: 3rem;
-  border-radius: 50%;
+  border-radius: var(--radius-sm);
   background: var(--color-teal-950);
   color: var(--color-paper-bright);
   font-family: var(--font-display);
@@ -9687,7 +9542,7 @@ main {
 .site-shell .hm-specialty-card__icon {
   background: #f0fdfa !important;
   border: 1px solid rgba(13, 148, 136, 0.18) !important;
-  box-shadow: 0 2px 8px rgba(13, 148, 136, 0.1) !important;
+  box-shadow: none !important;
 }
 
 /* ── Specialty card section-note override – eyebrow style ── */
@@ -9750,40 +9605,40 @@ main {
 /* ── Portal brand mark ── */
 .portal-brand__mark {
   background: var(--color-teal-700) !important;
-  box-shadow: var(--shadow-teal-sm) !important;
+  box-shadow: none !important;
 }
 
 /* ── Booking stage cards: accent border top ── */
 .booking-stage-card {
   border-top: 3px solid var(--color-teal-300) !important;
-  transition: border-color 200ms ease, box-shadow 200ms ease !important;
+  transition: border-color 200ms ease !important;
 }
 
 .booking-stage-card:hover {
   border-top-color: var(--color-teal-700) !important;
-  box-shadow: var(--shadow-teal-sm) !important;
+  box-shadow: none !important;
 }
 
 .booking-stage-card__icon {
   background: #f0fdfa !important;
   border: 1px solid rgba(13, 148, 136, 0.15) !important;
-  box-shadow: 0 2px 6px rgba(13, 148, 136, 0.1) !important;
+  box-shadow: none !important;
 }
 
 /* ── Hero assurance inner glass ── */
 .site-shell .hero-assurance__inner {
-  border-radius: 20px !important;
-  background: rgba(255, 255, 255, 0.95) !important;
-  backdrop-filter: blur(12px) !important;
-  border: 1px solid rgba(13, 148, 136, 0.12) !important;
-  box-shadow: 0 20px 40px -8px rgba(0, 51, 54, 0.1) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  backdrop-filter: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
 }
 
 /* ── Hero assurance icons ── */
 .site-shell .hero-assurance__icon {
   background: #f0fdfa !important;
   border: 1px solid rgba(13, 148, 136, 0.2) !important;
-  border-radius: 14px !important;
+  border-radius: var(--radius-sm) !important;
 }
 
 /* ── Utility bar refined border ── */
@@ -9793,8 +9648,8 @@ main {
 
 /* ── Brand mark shadow upgrade ── */
 .brand-mark {
-  box-shadow: 0 4px 14px rgba(13, 148, 136, 0.2) !important;
-  border-radius: 10px !important;
+  box-shadow: none !important;
+  border-radius: var(--radius-sm) !important;
 }
 
 /* ── Doctor card aspect ratio consistency ── */
@@ -9806,7 +9661,7 @@ main {
 /* ── Mobile care rail active ── */
 .mobile-care-rail .mobile-care-rail__primary {
   background: var(--color-teal-700);
-  box-shadow: var(--shadow-teal-sm);
+  box-shadow: none;
 }
 
 /* ── Text selection color stays branded ── */
@@ -9817,7 +9672,7 @@ main {
 
 /* ── Outline button refined ── */
 .outline-button {
-  border-radius: var(--radius-sm, 8px);
+  border-radius: var(--radius-sm);
   border-color: rgba(0, 51, 54, 0.18);
 }
 
@@ -9830,7 +9685,7 @@ main {
 .site-shell .care-experience__moments article > svg {
   color: #0d9488;
   background: rgba(13, 148, 136, 0.08);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   padding: 3px;
   flex-shrink: 0;
 }
@@ -9838,6 +9693,19 @@ main {
 /* ── Section separator subtle ── */
 .section + .section {
   border-top: 1px solid rgba(0, 51, 54, 0.04);
+}
+
+/* Flat UI contract: leftover utility classes must not reintroduce bulky cards. */
+.site-shell :is(.rounded-lg, .rounded-xl, .rounded-2xl, .rounded-3xl),
+.admin-shell :is(.rounded-lg, .rounded-xl, .rounded-2xl, .rounded-3xl),
+.portal-shell :is(.rounded-lg, .rounded-xl, .rounded-2xl, .rounded-3xl) {
+  border-radius: var(--radius-lg) !important;
+}
+
+.site-shell :is(.shadow-xs, .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl),
+.admin-shell :is(.shadow-xs, .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl),
+.portal-shell :is(.shadow-xs, .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl) {
+  box-shadow: none !important;
 }
 
 /* ── High-contrast safety for outline buttons on light surfaces ── */

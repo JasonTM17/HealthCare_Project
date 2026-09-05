@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { AuthUser } from "../types/hospital";
 import { fetchDoctorProfile, fetchPatientProfile, logoutCurrentUser, SAFE_LOGOUT_ERROR_MESSAGE } from "../lib/api-client";
-import UiIcon from "./UiIcon";
+import BrandMark from "./BrandMark";
 
 export type PortalRole = "PATIENT" | "DOCTOR";
 
@@ -199,11 +199,7 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
       <header className="portal-header">
         <div className="portal-header__inner">
           <Link className="portal-brand" href={homePath} onClick={handleBrandClick}>
-            <span aria-hidden="true" className="portal-brand__mark"><UiIcon name="shield-check" size={22} /></span>
-            <span>
-              <strong>HealthCare</strong>
-              <small>{ROLE_LABEL[role]}</small>
-            </span>
+            <BrandMark size="compact" tagline={ROLE_LABEL[role]} />
           </Link>
 
           <nav aria-label="Điều hướng cổng thông tin" className="portal-nav">
@@ -228,7 +224,7 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
             <Link
               className="portal-user__link"
               href={role === "PATIENT" ? "/patient/profile" : "/doctor/profile"}
-              tabIndex={-1}
+              aria-label="Xem thông tin tài khoản"
               title="Xem và cập nhật thông tin tài khoản"
             >
               <span className={`portal-user__avatar${avatarLoading && !effectiveAvatar ? " portal-user__avatar--loading" : !avatarLoaded && effectiveAvatar && !avatarError ? " portal-user__avatar--shimmer" : ""}`} aria-hidden="true">
