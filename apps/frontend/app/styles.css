@@ -9721,3 +9721,14 @@ main {
   border-color: var(--color-teal-700) !important;
   background: var(--color-mint-light) !important;
 }
+
+.site-shell .site-footer a:focus-visible {
+  outline: 3px solid var(--color-amber, #f5c96a) !important;
+  outline-offset: 3px !important;
+}
+
+@media (forced-colors: active) {
+  .site-shell .site-footer a:focus-visible {
+    outline-color: Highlight !important;
+  }
+}
