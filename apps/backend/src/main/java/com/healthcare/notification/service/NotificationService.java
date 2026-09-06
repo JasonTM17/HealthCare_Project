@@ -1,5 +1,6 @@
 package com.healthcare.notification.service;
 
+import com.healthcare.common.SafePageRequests;
 import com.healthcare.exception.ResourceNotFoundException;
 import com.healthcare.notification.dto.NotificationResponse;
 import com.healthcare.notification.entity.Notification;
@@ -9,15 +10,20 @@ import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.UserRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
 public class NotificationService {
+
+    private static final Set<String> ALLOWED_SORT_PROPERTIES =
+        Set.of("id", "title", "createdAt", "readAt", "read");
 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
@@ -47,7 +53,9 @@ public class NotificationService {
 
     @Transactional(readOnly = true)
     public Page<NotificationResponse> listForUser(UserDetails principal, Pageable pageable) {
-        return notificationRepository.findByUserIdOrderByCreatedAtDesc(resolveUser(principal).getId(), pageable)
+        return notificationRepository.findByUserIdOrderByCreatedAtDesc(
+                resolveUser(principal).getId(),
+                SafePageRequests.normalize(pageable, Sort.by(Sort.Direction.DESC, "createdAt"), ALLOWED_SORT_PROPERTIES))
             .map(NotificationResponse::from);
     }
 

@@ -28,7 +28,11 @@ public class JwtTokenProvider {
 
     private static final Set<String> UNSAFE_DEFAULT_SECRETS = Set.of(
         "local-development-secret-must-be-replaced-before-production",
-        "change-me-use-a-256-bit-secret-key-for-production-environment-please"
+        "change-me-use-a-256-bit-secret-key-for-production-environment-please",
+        // Repository-shipped compose/standalone defaults: they satisfy the
+        // entropy heuristic below, so they must be denied explicitly.
+        "local-jwt-secret-not-for-production",
+        "standalone-only-local-jwt-secret-change-before-sharing-2026"
     );
 
     private final JwtProperties properties;

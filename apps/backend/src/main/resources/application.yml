@@ -43,6 +43,11 @@ spring:
       charset: UTF-8
       enabled: true
       force: true
+    multipart:
+      # Media assets advertise a 10 MB per-file limit; without these bounds
+      # Spring Boot's 1 MB default turns oversized uploads into opaque 500s.
+      max-file-size: ${SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE:10MB}
+      max-request-size: ${SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE:11MB}
 
 app:
   jwt:

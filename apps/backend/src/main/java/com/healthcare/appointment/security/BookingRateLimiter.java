@@ -32,19 +32,29 @@ public class BookingRateLimiter {
 
     private final StringRedisTemplate redisTemplate;
     private final boolean enabled;
+    private final boolean redisRequired;
 
     @Autowired
     public BookingRateLimiter(StringRedisTemplate redisTemplate, Environment environment) {
-        this(redisTemplate, environment.getProperty("app.security.rate-limit.enabled", Boolean.class, true));
+        this(
+            redisTemplate,
+            environment.getProperty("app.security.rate-limit.enabled", Boolean.class, true),
+            environment.getProperty("app.security.rate-limit.redis-required", Boolean.class, false)
+        );
     }
 
     public BookingRateLimiter(StringRedisTemplate redisTemplate) {
-        this(redisTemplate, true);
+        this(redisTemplate, true, false);
     }
 
     BookingRateLimiter(StringRedisTemplate redisTemplate, boolean enabled) {
+        this(redisTemplate, enabled, false);
+    }
+
+    BookingRateLimiter(StringRedisTemplate redisTemplate, boolean enabled, boolean redisRequired) {
         this.redisTemplate = redisTemplate;
         this.enabled = enabled;
+        this.redisRequired = redisRequired;
     }
 
     public void check(String operation, HttpServletRequest request, String subject) {
@@ -76,8 +86,15 @@ public class BookingRateLimiter {
                 }
             }
         } catch (RuntimeException ignored) {
-            // A Redis outage must not make the public booking endpoint fail
-            // open. The local fallback is deliberately smaller and bounded.
+            // Mirroring RequestRateLimitFilter: deployments that set
+            // app.security.rate-limit.redis-required=true fail closed — a Redis
+            // outage must not silently multiply per-replica booking limits.
+            if (redisRequired) {
+                throw new ResponseStatusException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "Dịch vụ xác thực yêu cầu đang tạm gián đoạn. Vui lòng thử lại sau ít phút."
+                );
+            }
             try {
                 // Do not leave a counter without a TTL: a later Redis recovery
                 // must not turn one transient expiry failure into a permanent

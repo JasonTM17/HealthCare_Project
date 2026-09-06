@@ -1,17 +1,24 @@
 package com.healthcare.hospital.service;
 
+import com.healthcare.common.SafePageRequests;
 import com.healthcare.hospital.dto.ArticleResponse;
 import com.healthcare.hospital.entity.Article;
 import com.healthcare.hospital.repository.ArticleRepository;
 import com.healthcare.exception.ResourceNotFoundException;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
+import java.util.Set;
 
 @Service
 public class ArticleService {
+
+    private static final Set<String> ALLOWED_SORT_PROPERTIES =
+        Set.of("id", "title", "slug", "category", "readingMinutes", "contentKind", "publishedAt", "updatedAt");
 
     private final ArticleRepository articleRepository;
 
@@ -25,7 +32,7 @@ public class ArticleService {
         // unapproved/expired clinical source can never leak into the generic
         // feed or receive the doctor-approved trust label.
         return articleRepository.findByContentKindAndActiveTrueAndPublishedAtLessThanEqualOrderByPublishedAtDesc(
-                "GENERAL", OffsetDateTime.now(), pageable)
+                "GENERAL", OffsetDateTime.now(), safePageable(pageable))
             .map(this::toResponse);
     }
 
@@ -36,11 +43,24 @@ public class ArticleService {
             throw new com.healthcare.exception.BusinessException(400, "ARTICLE_CONTENT_KIND_INVALID", "Loại bài viết không hợp lệ");
         }
         Page<Article> page = "DISEASE_GUIDE".equals(normalized)
-            ? articleRepository.findClinicallyEligibleDiseaseGuides(pageable)
+            // Native queries cannot apply a dynamic Sort, so this branch only
+            // normalizes the page bounds and rejects any explicit sort.
+            ? articleRepository.findClinicallyEligibleDiseaseGuides(boundedPageable(pageable))
             : articleRepository.findByContentKindAndActiveTrueAndPublishedAtLessThanEqualOrderByPublishedAtDesc(
-                normalized, OffsetDateTime.now(), pageable);
+                normalized, OffsetDateTime.now(), safePageable(pageable));
         return page
             .map(this::toResponse);
+    }
+
+    private Pageable safePageable(Pageable pageable) {
+        return SafePageRequests.normalize(pageable, Sort.by(Sort.Direction.DESC, "publishedAt"), ALLOWED_SORT_PROPERTIES);
+    }
+
+    private Pageable boundedPageable(Pageable pageable) {
+        // An empty whitelist rejects every explicit sort with a 400 instead of
+        // silently dropping it — native queries keep their own ORDER BY.
+        Pageable safe = SafePageRequests.normalize(pageable, Sort.unsorted(), java.util.Set.of());
+        return PageRequest.of(safe.getPageNumber(), safe.getPageSize(), Sort.unsorted());
     }
 
     public ArticleResponse getBySlug(String slug) {
