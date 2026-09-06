@@ -22,6 +22,7 @@ import {
   sendAiConversationMessageStream,
   updateAiConversationConsent,
 } from "../lib/api-client";
+import { randomId } from "../lib/secure-random";
 
 export const ASSISTANT_MODE_OPTIONS: ReadonlyArray<{
   value: ChatMode;
@@ -284,7 +285,7 @@ export function AssistantProvider({
     const retained = sendAttemptsRef.current.get(attemptKey);
     const idempotencyKey = retained?.content === normalizedContent
       ? retained.idempotencyKey
-      : `chat-${crypto.randomUUID()}`;
+      : `chat-${randomId()}`;
     sendAttemptsRef.current.set(attemptKey, { content: normalizedContent, idempotencyKey });
 
     try {

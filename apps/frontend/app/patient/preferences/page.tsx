@@ -217,7 +217,7 @@ function AccountSummary({ user }: { user: AuthUser }) {
         </div>
         <div>
           <dt>Trạng thái email</dt>
-          <dd>{user.emailVerified === false ? "Chưa xác minh" : "Đã xác minh"}</dd>
+          <dd>{user.emailVerified === true ? "Đã xác minh" : user.emailVerified === false ? "Chưa xác minh" : "Chưa rõ trạng thái"}</dd>
         </div>
       </dl>
     </section>

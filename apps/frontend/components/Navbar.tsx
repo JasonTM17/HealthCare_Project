@@ -228,7 +228,9 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
           </nav>
 
           <div className="site-nav__actions">
-            <Link aria-label={accountDestination.label} className="nav-account-link" href={accountDestination.href}>
+            {/* No aria-label: the visible text is the accessible name, so
+                speech-input users saying the displayed label still match. */}
+            <Link className="nav-account-link" href={accountDestination.href}>
               {authSession ? (
                 <span className={`nav-account-avatar${avatarLoading && !effectiveNavbarAvatar ? " nav-account-avatar--loading" : !avatarLoaded && effectiveNavbarAvatar && !avatarError ? " nav-account-avatar--shimmer" : ""}`}>
                   {effectiveNavbarAvatar && !avatarError ? (

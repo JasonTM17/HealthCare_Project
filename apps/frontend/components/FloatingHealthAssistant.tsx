@@ -25,6 +25,7 @@ import {
   updateAiMessageFeedback,
   type AuthSession,
 } from "../lib/api-client";
+import { randomId } from "../lib/secure-random";
 import type {
   AiChatMessage,
   AiChatPolicy,
@@ -217,6 +218,7 @@ function FloatingHealthAssistantPanel({
     setLoading(false);
     setCreatingMode(false);
     setConsentBusy(false);
+    setFeedbackBusy(null);
     setOpen(false);
   }, [invalidateLocalRequests]);
 
@@ -462,20 +464,28 @@ function FloatingHealthAssistantPanel({
 
   const handleFeedback = async (message: AiChatMessage, rating: FeedbackRating): Promise<void> => {
     if (feedbackBusy || message.role !== "ASSISTANT" || message.status !== "COMPLETED" || !conversation) return;
+    const { controller, epoch } = beginLocalRequest();
+    const conversationId = conversation.id;
     setFeedbackBusy(message.id);
     try {
       const current = feedbackRating(message);
       if (current === rating) {
-        await deleteAiMessageFeedback(conversation.id, message.id);
+        await deleteAiMessageFeedback(conversationId, message.id, { signal: controller.signal });
+        if (!isCurrentLocalRequest(epoch, conversationId)) return;
         setMessages((items) => items.map((item) => item.id === message.id ? { ...item, feedback: null } : item));
       } else {
-        const feedback = await updateAiMessageFeedback(conversation.id, message.id, rating);
+        const feedback = await updateAiMessageFeedback(conversationId, message.id, rating, { signal: controller.signal });
+        if (!isCurrentLocalRequest(epoch, conversationId)) return;
         setMessages((items) => items.map((item) => item.id === message.id ? { ...item, feedback } : item));
       }
     } catch (error) {
-      if (!isAbortError(error)) setFailure(failureFromError(error));
+      if (!isAbortError(error) && isCurrentLocalRequest(epoch, conversationId)) {
+        setFailure(failureFromError(error));
+      }
     } finally {
-      setFeedbackBusy(null);
+      if (isCurrentLocalRequest(epoch, conversationId)) {
+        setFeedbackBusy(null);
+      }
     }
   };
 
@@ -506,7 +516,7 @@ function FloatingHealthAssistantPanel({
         const createdAt = pendingCreatedAt;
         const sequence = messages.reduce((maximum, message) => Math.max(maximum, message.sequence), 0) + 1;
         const userMessage: AiChatMessage = {
-          id: crypto.randomUUID(),
+          id: randomId(),
           role: "USER",
           status: "COMPLETED",
           content: normalized,
@@ -516,7 +526,7 @@ function FloatingHealthAssistantPanel({
           completedAt: createdAt,
         };
         const assistantMessage: AiChatMessage = {
-          id: crypto.randomUUID(),
+          id: randomId(),
           role: "ASSISTANT",
           status: "COMPLETED",
           content: reply.answer,
@@ -596,7 +606,6 @@ function FloatingHealthAssistantPanel({
         <section
           aria-describedby="floating-health-assistant-help"
           aria-label="Trợ lý sức khỏe HealthCare"
-          aria-modal="true"
           className={styles.panel}
           id="floating-health-assistant-panel"
           ref={panelRef}

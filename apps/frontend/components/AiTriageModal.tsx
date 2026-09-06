@@ -18,7 +18,7 @@ interface AiTriageModalProps {
   emergencyContact?: string;
 }
 
-type TriageErrorKind = "login" | "forbidden" | "unavailable" | "error";
+type TriageErrorKind = "forbidden" | "unavailable" | "error";
 
 const MAX_SYMPTOM_LENGTH = 500;
 
@@ -32,13 +32,9 @@ const TRIAGE_ERROR_COPY: Record<
   TriageErrorKind,
   { title: string; description: string }
 > = {
-  login: {
-    title: "Vui lòng đăng nhập",
-    description: "Đăng nhập để sử dụng công cụ hỗ trợ chọn chuyên khoa.",
-  },
   forbidden: {
     title: "Chưa thể sử dụng tính năng này",
-    description: "Tài khoản hiện tại chưa được cấp quyền sử dụng công cụ hỗ trợ.",
+    description: "Tính năng tạm thời không khả dụng trên kết nối hiện tại. Vui lòng thử lại sau.",
   },
   unavailable: {
     title: "Tạm thời chưa thể xử lý",
@@ -52,8 +48,9 @@ const TRIAGE_ERROR_COPY: Record<
 
 function classifyTriageError(error: unknown): TriageErrorKind {
   if (error instanceof ApiError) {
-    if (error.status === 401) return "login";
-    if (error.status === 403) return "forbidden";
+    // The public recommendation endpoint never requires auth: a 401/403 here
+    // means a proxy or deployment problem, not "please log in".
+    if (error.status === 401 || error.status === 403) return "forbidden";
     if (error.status >= 500 || error.status === 408 || error.status === 429) {
       return "unavailable";
     }
@@ -87,9 +84,12 @@ export default function AiTriageModal({
   const [lastSubmittedSymptoms, setLastSubmittedSymptoms] = useState<string>("");
   const dialogRef = useRef<HTMLDivElement>(null);
   const analysisRequestRef = useRef(0);
+  const analysisAbortRef = useRef<AbortController | null>(null);
 
   const invalidatePendingAnalysis = () => {
     analysisRequestRef.current += 1;
+    analysisAbortRef.current?.abort();
+    analysisAbortRef.current = null;
   };
 
   const clearAnalysisState = () => {
@@ -118,19 +118,22 @@ export default function AiTriageModal({
 
   const analyzeSymptoms = async (normalizedSymptoms: string) => {
     const requestId = ++analysisRequestRef.current;
+    const controller = new AbortController();
+    analysisAbortRef.current?.abort();
+    analysisAbortRef.current = controller;
     setLoading(true);
     setResult(null);
     setErrorKind(null);
     try {
-      const triage = await recommendPublicSpecialty(normalizedSymptoms);
+      const triage = await recommendPublicSpecialty(normalizedSymptoms, { signal: controller.signal });
       if (requestId !== analysisRequestRef.current) return;
       setResult(triage);
     } catch (error) {
-      if (requestId !== analysisRequestRef.current) return;
+      if (requestId !== analysisRequestRef.current || controller.signal.aborted) return;
       setResult(null);
       setErrorKind(classifyTriageError(error));
     } finally {
-      if (requestId === analysisRequestRef.current) setLoading(false);
+      if (requestId === analysisRequestRef.current && !controller.signal.aborted) setLoading(false);
     }
   };
 
@@ -214,7 +217,7 @@ export default function AiTriageModal({
             <p id="triage-input-help" className="text-sm leading-relaxed text-gray-600">
               Viết như đang kể cho điều dưỡng: vị trí khó chịu, thời điểm bắt đầu, mức độ đau và dấu hiệu đi kèm.
             </p>
-            <div className="flex flex-wrap gap-2" aria-label="Gợi ý mô tả triệu chứng">
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Gợi ý mô tả triệu chứng">
               {SYMPTOM_PROMPTS.map((prompt) => (
                 <button
                   className="inline-flex min-h-11 items-center rounded-lg border border-brand-100 bg-brand-50 px-3 py-2 text-left text-xs font-bold text-brand-900 transition-colors hover:border-brand-300 hover:bg-brand-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-500"
@@ -260,14 +263,6 @@ export default function AiTriageModal({
             <div className="space-y-2 rounded-sm border border-red-200 bg-red-50 p-4 text-sm text-red-900" role="alert" aria-live="assertive">
               <p className="font-bold">{errorCopy.title}</p>
               <p>{errorCopy.description}</p>
-              {errorKind === "login" ? (
-                <Link
-                  className="inline-flex min-h-11 items-center font-bold underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300"
-                  href="/auth/login?next=%2F"
-                >
-                  Đăng nhập để tiếp tục
-                </Link>
-              ) : null}
               {errorKind === "unavailable" || errorKind === "error" ? (
                 <button
                   type="button"

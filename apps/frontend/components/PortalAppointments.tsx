@@ -89,9 +89,7 @@ export default function PortalAppointments({
               <div>
                 <dt>Mã hồ sơ BN</dt>
                 <dd>
-                  <code style={{ fontSize: "0.8rem", background: "oklch(96% 0.015 180)", color: "var(--color-teal-900)", padding: "2px 6px", borderRadius: "4px", border: "1px solid var(--color-teal-200)" }}>
-                    {appointment.patientId}
-                  </code>
+                  <code className="portal-appointment__patient-code">{appointment.patientId}</code>
                 </dd>
               </div>
             ) : null}

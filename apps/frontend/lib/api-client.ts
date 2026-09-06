@@ -75,6 +75,7 @@ import {
   presentPublicPage,
   presentPublicService,
 } from "./public-catalog";
+import { randomId } from "./secure-random";
 
 export type {
   AuthUser,
@@ -153,7 +154,9 @@ export type {
 // keeping this path literal prevents either value from entering client code.
 const API_BASE_URL = "/api/v1";
 const API_REQUEST_TIMEOUT_MS = 12_000;
-const AI_STREAM_REQUEST_TIMEOUT_MS = 35_000;
+// The BFF aborts upstream streams at 30s. Firing below that keeps the
+// client-side REQUEST_TIMEOUT copy reachable instead of racing a BFF 502.
+const AI_STREAM_REQUEST_TIMEOUT_MS = 28_000;
 const PUBLIC_AI_REQUEST_TIMEOUT_MS = 55_000;
 
 /**
@@ -296,7 +299,11 @@ async function getJson<T>(path: string, init?: RequestInit, timeoutMs = API_REQU
   else callerSignal?.addEventListener("abort", abortFromCaller, { once: true });
 
   const headers = new Headers(init?.headers);
-  if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  // FormData bodies must keep the browser-generated multipart boundary; setting
+  // a JSON Content-Type here makes the backend reject uploads with 415.
+  if (!headers.has("Content-Type") && !(init?.body instanceof FormData)) {
+    headers.set("Content-Type", "application/json");
+  }
 
   let timedOut = false;
   const timeoutId = setTimeout(() => {
@@ -372,7 +379,9 @@ function isAuthUser(value: unknown): value is AuthUser {
 }
 
 function normalizeAuthUser(user: AuthUser): AuthUser {
-  return { ...user, emailVerified: user.emailVerified !== false };
+  // An absent flag stays absent: coercing it to "verified" would fail open
+  // whenever an older session payload omits the field.
+  return { ...user, emailVerified: user.emailVerified === true ? true : user.emailVerified === false ? false : undefined };
 }
 
 export function readAuthSession(): AuthSession | null {
@@ -920,8 +929,11 @@ function parseAiChatExchange(value: unknown, path: string): AiChatExchange {
  * Calls the authenticated backend AI contract. This deliberately has no
  * client-side fallback: a result is only shown when the backend returns one.
  */
-export async function recommendPublicSpecialty(symptoms: string): Promise<AiTriageResult> {
-  return recommendSpecialtyFromPath(symptoms, PUBLIC_SPECIALTY_RECOMMENDATION_PATH, 500, false);
+export async function recommendPublicSpecialty(
+  symptoms: string,
+  options?: { signal?: AbortSignal },
+): Promise<AiTriageResult> {
+  return recommendSpecialtyFromPath(symptoms, PUBLIC_SPECIALTY_RECOMMENDATION_PATH, 500, false, options);
 }
 
 export async function recommendSpecialty(symptoms: string): Promise<AiTriageResult> {
@@ -933,6 +945,7 @@ async function recommendSpecialtyFromPath(
   path: string,
   maxLength: number,
   authenticated: boolean,
+  options?: { signal?: AbortSignal },
 ): Promise<AiTriageResult> {
   const normalized = symptoms.trim();
   if (normalized.length < 2 || normalized.length > maxLength) {
@@ -946,6 +959,7 @@ async function recommendSpecialtyFromPath(
   const request = {
     method: "POST",
     body: JSON.stringify({ symptoms: normalized }),
+    signal: options?.signal,
   } as const;
   const response = authenticated
     ? await getAuthenticatedJson<SpecialtyRecommendationResponse>(path, request)
@@ -1904,7 +1918,7 @@ export async function submitBankTransfer(
     `/patient/appointments/${encodeURIComponent(appointmentId)}/payment/submit`,
     {
       method: "POST",
-      headers: { "Idempotency-Key": crypto.randomUUID() },
+      headers: { "Idempotency-Key": randomId() },
       body: JSON.stringify({ transactionReference }),
     },
   );
@@ -2243,7 +2257,14 @@ export async function sendAiConversationMessageStream(
         signal: requestController.signal,
       });
       if (res.status === 404) {
-        return sendAiConversationMessage(conversationId, content, idempotencyKey, options);
+        // Spring returns an EMPTY 404 when the stream route exists but chunked
+        // delivery is disabled — fall back to plain JSON. A 404 with a body is
+        // the real AI_CONVERSATION_NOT_FOUND contract error and must surface.
+        const notFoundBody = await res.text();
+        if (!notFoundBody.trim()) {
+          return sendAiConversationMessage(conversationId, content, idempotencyKey, options);
+        }
+        throw await apiErrorFromResponse(new Response(notFoundBody, { status: 404 }), path);
       }
       if (!res.ok) {
         throw await apiErrorFromResponse(res, path);
@@ -2445,12 +2466,14 @@ export async function updateAiMessageFeedback(
   conversationId: string,
   messageId: string,
   rating: FeedbackRating,
+  options?: { signal?: AbortSignal },
 ): Promise<AiChatFeedback> {
   const path = `/ai/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}/feedback`;
   if (!isFeedbackRating(rating)) throw new ApiError("Đánh giá không hợp lệ.", 400, path, { code: "CHAT_FEEDBACK_INVALID" });
   const response = await getAuthenticatedJson<unknown>(path, {
     method: "PUT",
     body: JSON.stringify({ rating }),
+    signal: options?.signal,
   });
   // The Spring contract returns the new feedback state. Accept a wrapped
   // `{feedback: ...}` shape as a compatibility bridge for older adapters.
@@ -2463,9 +2486,10 @@ export const setAiMessageFeedback = updateAiMessageFeedback;
 export async function deleteAiMessageFeedback(
   conversationId: string,
   messageId: string,
+  options?: { signal?: AbortSignal },
 ): Promise<void> {
   const path = `/ai/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}/feedback`;
-  await getAuthenticatedJson<void>(path, { method: "DELETE" });
+  await getAuthenticatedJson<void>(path, { method: "DELETE", signal: options?.signal });
 }
 
 export const removeAiMessageFeedback = deleteAiMessageFeedback;

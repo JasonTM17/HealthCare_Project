@@ -156,7 +156,12 @@ export async function confirmAppointment(
   if (!res.ok) {
     throw new Error(await bookingErrorMessage(
       res,
-      "Mã OTP không chính xác, đã hết hạn hoặc chưa thể xác nhận.",
+      // A 5xx (Render Free cold starts included) is not a wrong-OTP answer;
+      // telling the user their code failed makes them re-request OTP while
+      // the real problem is a transient outage.
+      res.status >= 500
+        ? "Hệ thống xác nhận đang bận hoặc khởi động lại. Vui lòng thử lại sau ít phút; mã OTP vẫn còn hiệu lực theo thời gian giữ chỗ."
+        : "Mã OTP không chính xác, đã hết hạn hoặc chưa thể xác nhận.",
     ));
   }
 

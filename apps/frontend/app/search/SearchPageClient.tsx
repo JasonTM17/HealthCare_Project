@@ -74,6 +74,17 @@ function citationLabel(citation: AiTriageCitation): string {
   return title || `${semanticSourceLabel(citation.source_type)} · ${citation.source_id}`;
 }
 
+// aria-labelledby idrefs cannot contain whitespace; Vietnamese headings such
+// as "Chuyên khoa" would otherwise produce ids the browser never resolves.
+function slugifyHeading(title: string): string {
+  return title
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase() || "section";
+}
+
 function ResultSection({
   eyebrow,
   title,
@@ -84,9 +95,9 @@ function ResultSection({
   children: ReactElement;
 }): ReactElement {
   return (
-    <section className="search-results__section" aria-labelledby={`search-${title}`}>
+    <section className="search-results__section" aria-labelledby={`search-${slugifyHeading(title)}`}>
       <div className="section-heading search-results__heading">
-        <div><p className="section-note">{eyebrow}</p><h2 id={`search-${title}`}>{title}</h2></div>
+        <div><p className="section-note">{eyebrow}</p><h2 id={`search-${slugifyHeading(title)}`}>{title}</h2></div>
       </div>
       {children}
     </section>

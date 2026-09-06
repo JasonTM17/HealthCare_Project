@@ -15,7 +15,10 @@ test("public Navbar mobile navigation has a labelled dialog and complete keyboar
   assert.match(source, /aria-label=\{mobileMenuOpen \? "Đóng menu" : "Mở menu"\}/);
   assert.match(source, /<div aria-label="Menu điều hướng" aria-modal="true"[^>]*id="mobile-navigation"[^>]*role="dialog"/);
   assert.match(source, /aria-current=\{isActive \? "page" : undefined\}/);
-  assert.match(source, /<Link aria-label=\{accountDestination\.label\} className="nav-account-link"/);
+  // Label-in-Name: the account link's accessible name must stay identical to
+  // its visible text, so no aria-label may override it.
+  assert.doesNotMatch(source, /<Link aria-label=\{accountDestination\.label\} className="nav-account-link"/);
+  assert.match(source, /<Link className="nav-account-link"/);
   assert.match(source, /<button aria-label="Đặt lịch khám" className="button button--nav"/);
 
   assert.match(source, /const previouslyFocused = document\.activeElement instanceof HTMLElement/);
