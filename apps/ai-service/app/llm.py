@@ -412,13 +412,18 @@ _EMERGENCY_TERMS = (
 # words ("đau ngực quá dữ dội"), drop diacritics, or paraphrase self-harm
 # ("không muốn sống", "uống cả lọ thuốc"). Match the normalized form with
 # bounded token gaps so common Vietnamese crisis phrasing still escalates.
+# "tự vẫn" and "nhảy lầu" need an intent verb in front because their bare
+# normalized forms collide with benign words ("tư vấn", high-jump sport).
 _EMERGENCY_PHRASE_PATTERN = re.compile(
     r"\b(?:"
-    r"dau\W+nguc(?:\W+\w{1,20}){0,3}\W{1,3}du\W+doi"
-    r"|chay\W+mau(?:\W+\w{1,20}){0,3}\W{1,3}khong\W+cam"
-    r"|kho\W+tho|meo\W+mieng|yeu\W+liet|co\W+giat|tu\W+tu"
+    r"dau\W+nguc(?:\W+\w{1,20}){0,6}\W{1,3}du\W+doi"
+    r"|chay\W+mau(?:\W+\w{1,20}){0,6}\W{1,3}khong\W+cam"
+    r"|kho\W+tho|meo\W+mieng|yeu\W+liet|co\W+giat|tu\W*tu"
     r"|khong\W+muon\W+song|muon\W+chet|ket\W+thuc\W+cuoc\W+doi"
     r"|khong\W+con\W+ly\W+do\W+song"
+    r"|(?:dinh|muon)\W+tu\W+van\b"
+    r"|tu\W+sat\b"
+    r"|(?:dinh|muon)\W+nhay\W+(?:lau|cau)\b"
     r"|cat\W+(?:co\W+)?tay|tu\W+lam\W+dau"
     r"|uong\W+(?:ca\W+)?lo\W+(?:thuoc|paracetamol|thuoc\W+ngu|giam\W+dau)"
     r"|(?:uong|dung|bo)\W+thuoc\W+qua\W+lieu|qua\W+lieu\W+thuoc"

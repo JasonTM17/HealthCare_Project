@@ -352,6 +352,56 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void scheduledLeaseRepairRefundsAChargedButNeverAnsweredExchange() {
+        // Crash-window aftermath: prepare() committed the charge, the process
+        // died before the exchange completed, and no retry ever arrived. The
+        // sweep must retire the PENDING message and compensate exactly once.
+        User patient = createUser("patient.lease-repair@example.com");
+        createPatientProfile(patient, "0901002003", 2);
+        AiConversation conversation = createConversation(
+            patient,
+            true,
+            OffsetDateTime.now(ZoneOffset.UTC).plusDays(90)
+        );
+        conversation.setInFlightStartedAt(OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(3));
+        aiConversationRepository.saveAndFlush(conversation);
+
+        AiMessage stale = new AiMessage();
+        stale.setConversation(conversation);
+        stale.setRole(AiMessageRole.USER);
+        stale.setStatus(AiMessageStatus.PENDING);
+        stale.setContent("Old charged question after a crash");
+        stale.setSequenceNumber(1);
+        stale.setIdempotencyKey("lease-repair-0001");
+        stale.setCreatedAt(OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(3));
+        aiMessageRepository.saveAndFlush(stale);
+
+        conversationService.repairStaleInFlight();
+
+        assertThat(aiMessageRepository.findById(stale.getId()).orElseThrow().getStatus())
+            .isEqualTo(AiMessageStatus.FAILED);
+        AiConversation recovered = aiConversationRepository.findById(conversation.getId()).orElseThrow();
+        assertThat(recovered.isInFlight()).isFalse();
+        assertThat(patientProfileRepository.findByUserId(patient.getId()).orElseThrow().getAiCredits())
+            .isEqualTo(3);
+        assertThat(jdbcTemplate.queryForObject(
+            "select count(*) from ai_credit_transactions where user_id = ? and transaction_type = 'AI_CHAT_REFUND'",
+            Long.class,
+            patient.getId()
+        )).isEqualTo(1);
+
+        // A second sweep finds no stale conversation and must not refund again.
+        conversationService.repairStaleInFlight();
+        assertThat(patientProfileRepository.findByUserId(patient.getId()).orElseThrow().getAiCredits())
+            .isEqualTo(3);
+        assertThat(jdbcTemplate.queryForObject(
+            "select count(*) from ai_credit_transactions where user_id = ? and transaction_type = 'AI_CHAT_REFUND'",
+            Long.class,
+            patient.getId()
+        )).isEqualTo(1);
+    }
+
+    @Test
     void rejectsAnExpiredResponseBeforeAReplacementCompletes() throws Exception {
         User patient = createUser("patient.expired-lease@example.com");
         AiConversation conversation = createConversation(
