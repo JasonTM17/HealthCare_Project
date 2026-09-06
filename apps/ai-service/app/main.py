@@ -483,7 +483,9 @@ def chat(request: ChatRequest) -> ChatResponse:
     turns = [(turn.role, turn.content) for turn in request.recent_turns]
     safety_response = chat_safety_response(message, turns)
     if safety_response is not None:
-        return safety_response
+        # A refusal keeps the caller's requested mode instead of silently
+        # reporting the HOSPITAL_SUPPORT default (mirrors /chat/generate).
+        return safety_response.model_copy(update={"mode": request.mode})
 
     embedding_provider = settings.embedding_provider.strip().casefold()
     if (
