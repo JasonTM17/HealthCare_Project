@@ -63,6 +63,23 @@ class GlobalExceptionHandlerAsyncTest {
     }
 
     @Test
+    void oversizedUploadIs413WithoutTechnicalDetails() {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler();
+        MockHttpServletRequest request = new MockHttpServletRequest(
+            "POST", "/api/v1/media/upload");
+
+        var response = handler.handleMaxUploadSize(
+            new org.springframework.web.multipart.MaxUploadSizeExceededException(10485760),
+            new ServletWebRequest(request)
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.PAYLOAD_TOO_LARGE);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().code()).isEqualTo(ErrorCodes.VALIDATION_ERROR);
+        assertThat(response.getBody().message()).doesNotContain("MaxUploadSize", "java.");
+    }
+
+    @Test
     void unknownStaticResourceIsA404WithoutTechnicalDetails() {
         GlobalExceptionHandler handler = new GlobalExceptionHandler();
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/hospital/=0&size=1");

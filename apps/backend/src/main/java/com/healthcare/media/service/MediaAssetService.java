@@ -30,6 +30,16 @@ public class MediaAssetService {
         "image/gif"
     );
 
+    // The frontend contract (ImageUpload) sends exactly these values; anything
+    // else is either a drifted caller or an attempt to smuggle purpose text
+    // that later access-control scoping would have to trust.
+    private static final Set<String> ALLOWED_PURPOSES = Set.of(
+        "GENERAL",
+        "ARTICLE_COVER",
+        "DOCTOR_PORTRAIT",
+        "PATIENT_AVATAR"
+    );
+
     private final MediaAssetRepository mediaAssetRepository;
     private final UserRepository userRepository;
 
@@ -46,6 +56,13 @@ public class MediaAssetService {
 
         if (file.getSize() > MAX_IMAGE_SIZE_BYTES) {
             throw new BusinessException(400, "Kích thước hình ảnh vượt quá giới hạn tối đa cho phép (10 MB).");
+        }
+
+        String normalizedPurpose = purpose != null && !purpose.isBlank()
+            ? purpose.toUpperCase(Locale.ROOT).trim()
+            : "GENERAL";
+        if (!ALLOWED_PURPOSES.contains(normalizedPurpose) || normalizedPurpose.length() > 32) {
+            throw new BusinessException(400, "Mục đích sử dụng tệp không hợp lệ.");
         }
 
         String rawContentType = file.getContentType();
@@ -87,7 +104,7 @@ public class MediaAssetService {
             bytes,
             uploaderId,
             uploaderRole,
-            purpose != null && !purpose.isBlank() ? purpose.toUpperCase(Locale.ROOT).trim() : "GENERAL"
+            normalizedPurpose
         );
 
         MediaAsset saved = mediaAssetRepository.save(asset);

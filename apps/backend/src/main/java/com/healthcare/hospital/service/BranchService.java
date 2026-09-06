@@ -1,5 +1,6 @@
 package com.healthcare.hospital.service;
 
+import com.healthcare.common.SafePageRequests;
 import com.healthcare.hospital.dto.BranchResponse;
 import com.healthcare.hospital.dto.DoctorSummaryResponse;
 import com.healthcare.hospital.entity.Branch;
@@ -8,12 +9,16 @@ import com.healthcare.hospital.repository.DoctorBranchRepository;
 import com.healthcare.exception.ResourceNotFoundException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class BranchService {
+
+    private static final Set<String> ALLOWED_SORT_PROPERTIES = Set.of("id", "name", "slug");
 
     private final BranchRepository branchRepository;
     private final DoctorBranchRepository doctorBranchRepository;
@@ -24,7 +29,8 @@ public class BranchService {
     }
 
     public Page<BranchResponse> listActive(Pageable pageable) {
-        return branchRepository.findByActiveTrue(pageable).map(branch -> toResponse(branch, false));
+        return branchRepository.findByActiveTrue(SafePageRequests.normalize(pageable, Sort.unsorted(), ALLOWED_SORT_PROPERTIES))
+            .map(branch -> toResponse(branch, false));
     }
 
     public BranchResponse getBySlug(String slug) {
