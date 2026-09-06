@@ -40,6 +40,17 @@
   background: var(--color-mint-light, #f0fdfa);
 }
 
+/* The dropzone stays mounted while an upload runs so keyboard focus is not
+   destroyed; this state only dims interaction affordance. */
+.dropzoneBusy {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.uploadHost {
+  position: relative;
+}
+
 .dropzoneIcon {
   width: 44px;
   height: 44px;
@@ -173,14 +184,18 @@
 }
 
 /* ── Uploading / Spinner state ── */
+/* Rendered inside .uploadHost while the dropzone/preview stays mounted. */
 .uploadingOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: var(--sp-6);
   min-height: 140px;
-  background: var(--color-mint-light, #f0fdfa);
+  background: rgba(240, 253, 250, 0.92);
   border: 2px solid var(--color-teal-300, #a3ced2);
   border-radius: var(--radius-md, 8px);
   text-align: center;

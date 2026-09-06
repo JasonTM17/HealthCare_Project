@@ -5,11 +5,11 @@ import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import PortalChrome from "../../../components/PortalChrome";
+import { fetchDoctorSlots } from "../../../lib/api";
 import {
   ApiError,
   clearAuthSession,
   downloadProtectedFile,
-  fetchDoctorSlots,
   fetchBankTransferPayment,
   fetchPatientProfile,
   fetchPatientAppointments,
@@ -717,6 +717,7 @@ export default function PatientDashboardPage() {
   const [slots, setSlots] = useState<Loadable<TimeSlot[]> | null>(null);
   const [selectedStartTime, setSelectedStartTime] = useState("");
   const [rescheduleNotice, setRescheduleNotice] = useState<string | null>(null);
+  const [rescheduleBusy, setRescheduleBusy] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [notificationAction, setNotificationAction] = useState<string | null>(null);
   const [notificationError, setNotificationError] = useState<string | null>(null);
@@ -1150,10 +1151,10 @@ export default function PatientDashboardPage() {
   };
 
   const handleLoadSlots = async () => {
-    if (!selectedAppointment || !rescheduleDate) return;
+    if (!selectedAppointment || !selectedAppointment.branchId || !rescheduleDate) return;
     setSlots({ status: "loading" });
     try {
-      setSlots({ status: "success", data: await fetchDoctorSlots(selectedAppointment.doctorId, rescheduleDate, selectedAppointment.branchId) });
+      setSlots({ status: "success", data: await fetchDoctorSlots(selectedAppointment.doctorId, selectedAppointment.branchId, rescheduleDate) });
     } catch (error) {
       setSlots({ status: "error", message: getErrorMessage(error), statusCode: getErrorStatus(error) });
     }
@@ -1161,8 +1162,9 @@ export default function PatientDashboardPage() {
 
   const handleReschedule = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!selectedAppointment || !selectedStartTime) return;
+    if (!selectedAppointment || !selectedStartTime || rescheduleBusy) return;
     setRescheduleNotice(null);
+    setRescheduleBusy(true);
     try {
       await rescheduleAppointment(selectedAppointment.bookingCode, {
         appointmentDate: rescheduleDate,
@@ -1174,6 +1176,8 @@ export default function PatientDashboardPage() {
       setReloadKey((value) => value + 1);
     } catch (error) {
       setRescheduleNotice(getErrorMessage(error));
+    } finally {
+      setRescheduleBusy(false);
     }
   };
 
@@ -1389,7 +1393,7 @@ export default function PatientDashboardPage() {
               {slots?.status === "loading" ? <LoadingState label="Đang tải giờ trống…" /> : null}
               {slots?.status === "error" ? <ErrorState message={slots.message} status={slots.statusCode} /> : null}
               {slots?.status === "success" ? <div><label htmlFor="reschedule-time">Giờ mới</label><select id="reschedule-time" onChange={(event) => setSelectedStartTime(event.target.value)} required value={selectedStartTime}><option value="">Chọn giờ</option>{slots.data.filter((slot) => slot.available).map((slot) => <option key={`${slot.branchId}-${slot.startTime}`} value={slot.startTime}>{slot.startTime.slice(0, 5)} – {slot.endTime.slice(0, 5)}</option>)}</select></div> : null}
-              <button className="button button--primary" disabled={!selectedStartTime} type="submit">Xác nhận đổi lịch</button>
+              <button className="button button--primary" disabled={!selectedStartTime || rescheduleBusy} type="submit">{rescheduleBusy ? "Đang lưu…" : "Xác nhận đổi lịch"}</button>
               <button className="text-button" onClick={() => setSelectedAppointment(null)} type="button">Đóng</button>
             </form>
           ) : null}

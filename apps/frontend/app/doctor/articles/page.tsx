@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import PortalChrome from "../../../components/PortalChrome";
 import {
+  ApiError,
   broadcastCatalogChange,
   createArticleComment,
   deleteArticleComment,
@@ -21,6 +22,7 @@ import {
   type ArticleComment,
   type Specialty,
 } from "../../../lib/api-client";
+import { presentApiError } from "../../../lib/present-api-error";
 import { ForbiddenState, LoadingState, LoginRequiredState } from "../../../components/PortalStates";
 import { useAuthSession, useAuthSessionStatus } from "../../../components/useAuthSession";
 import ImageUpload from "../../../components/ImageUpload";
@@ -244,7 +246,9 @@ export default function DoctorArticlesPage() {
       setShowEditor(false);
       await loadData();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Lỗi khi lưu bài viết.";
+      const message = err instanceof ApiError
+        ? presentApiError(err.code, err.status)
+        : "Lỗi khi lưu bài viết.";
       setError(message);
     } finally {
       setBusy(false);
