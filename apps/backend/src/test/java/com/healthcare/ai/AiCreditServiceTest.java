@@ -79,6 +79,35 @@ class AiCreditServiceTest {
     }
 
     @Test
+    @DisplayName("Refund patient credit increments balance and records AI_CHAT_REFUND transaction")
+    void refundPatientCreditSuccess() {
+        UUID userId = UUID.randomUUID();
+        PatientProfile profile = new PatientProfile();
+        profile.setUserId(userId);
+        profile.setAiCredits(3);
+        when(patientProfileRepository.findByUserId(userId)).thenReturn(Optional.of(profile));
+
+        boolean refunded = creditService.refundPatientCredit(userId, "Hoàn credit cho lượt hỏi AI không thành công");
+
+        assertTrue(refunded);
+        assertEquals(4, profile.getAiCredits());
+        verify(patientProfileRepository).save(profile);
+        verify(transactionRepository).save(any(AiCreditTransaction.class));
+    }
+
+    @Test
+    @DisplayName("Refund without a patient profile is a no-op, not an error")
+    void refundPatientCreditWithoutProfileReturnsFalse() {
+        UUID userId = UUID.randomUUID();
+        when(patientProfileRepository.findByUserId(userId)).thenReturn(Optional.empty());
+
+        boolean refunded = creditService.refundPatientCredit(userId, "no profile");
+
+        assertFalse(refunded);
+        verify(transactionRepository, Mockito.never()).save(any(AiCreditTransaction.class));
+    }
+
+    @Test
     @DisplayName("Admin grant credits increments balance and logs ADMIN_GRANT transaction")
     void adminGrantCreditsSuccess() {
         UUID userId = UUID.randomUUID();

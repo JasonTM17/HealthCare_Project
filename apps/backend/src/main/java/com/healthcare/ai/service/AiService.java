@@ -130,13 +130,44 @@ public class AiService {
         if (recentTurns == null) {
             recentTurns = request.get("recent_history");
         }
-        if (recentTurns != null) payload.put("recent_turns", recentTurns);
+        payload.put("recent_turns", normalizeRecentTurns(recentTurns));
         Object publicSupportChat = request.get("public_support_chat");
         if (publicSupportChat == null) {
             publicSupportChat = request.get("publicSupportChat");
         }
         if (publicSupportChat != null) payload.put("public_support_chat", publicSupportChat);
         return postJson("/chat", payload);
+    }
+
+    /**
+     * The AI service enforces these bounds at its schema edge; enforcing them
+     * here too turns an oversized/ill-typed relay payload into a 400 at the
+     * Spring boundary instead of an opaque 502 after the cross-service hop.
+     */
+    private static List<Map<String, String>> normalizeRecentTurns(Object rawTurns) {
+        if (rawTurns == null) {
+            return List.of();
+        }
+        if (!(rawTurns instanceof List<?> turns) || turns.size() > 6) {
+            throw new ResponseStatusException(BAD_REQUEST, "recent_turns must contain at most 6 turns");
+        }
+        List<Map<String, String>> normalized = new java.util.ArrayList<>();
+        for (Object rawTurn : turns) {
+            if (!(rawTurn instanceof Map<?, ?> turn)
+                    || !(turn.get("role") instanceof String role)
+                    || !(role.equals("user") || role.equals("assistant"))
+                    || !(turn.get("content") instanceof String content)) {
+                throw new ResponseStatusException(BAD_REQUEST,
+                    "recent_turns entries must be {role: user|assistant, content: string}");
+            }
+            String trimmedContent = content.trim();
+            if (trimmedContent.isEmpty() || trimmedContent.length() > 2_000) {
+                throw new ResponseStatusException(BAD_REQUEST,
+                    "recent_turns content must be between 1 and 2000 characters");
+            }
+            normalized.add(Map.of("role", role, "content", trimmedContent));
+        }
+        return normalized;
     }
 
     /**
