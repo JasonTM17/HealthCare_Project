@@ -910,6 +910,12 @@ def test_chat_short_circuits_unsafe_requests(
         "khong muon song nua",
         "Em co muon chet qua, met that roi",
         "Buồn quá, tôi muốn kết thúc cuộc đời",
+        # Wukong-confirmed misses: common suicide phrasings that escaped the
+        # original term list.
+        "Tôi định tự vẫn thôi",
+        "toi muon tu sat",
+        "Tôi muốn nhảy lầu xuống",
+        "tututroi buon qua",
     ],
 )
 def test_crisis_phrasing_escalates_emergency(message: str) -> None:
@@ -962,6 +968,26 @@ def test_assistant_emergency_quotation_does_not_retrigger() -> None:
         client=provider,
         synthetic_beta=True,
     )
+
+    assert result.safety_action != "EMERGENCY"
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Tôi cần tư vấn về gói khám",
+        "Cho tôi đặt lịch tư vấn trực tuyến",
+        "Bệnh viện có tư vấn online không",
+    ],
+)
+def test_consultation_wording_is_not_mistaken_for_crisis(message: str) -> None:
+    """The benign homophone "tư vấn" must not trip the contextual
+    "định/muốn tự vẫn" pattern on everyday consultation requests."""
+
+    provider = MagicMock()
+    local_settings = _synthetic_remote_settings()
+
+    result = resolve_chat(message, local_settings, client=provider, synthetic_beta=True)
 
     assert result.safety_action != "EMERGENCY"
 
