@@ -408,6 +408,24 @@ _EMERGENCY_TERMS = (
     "meo mieng", "yếu liệt", "yeu liet", "ngất", "ngat", "chảy máu không cầm",
     "chay mau khong cam", "tự tử", "tu tu", "co giật", "co giat",
 )
+# Crisis phrasings rarely arrive as one exact substring: callers insert filler
+# words ("đau ngực quá dữ dội"), drop diacritics, or paraphrase self-harm
+# ("không muốn sống", "uống cả lọ thuốc"). Match the normalized form with
+# bounded token gaps so common Vietnamese crisis phrasing still escalates.
+_EMERGENCY_PHRASE_PATTERN = re.compile(
+    r"\b(?:"
+    r"dau\W+nguc(?:\W+\w{1,20}){0,3}\W{1,3}du\W+doi"
+    r"|chay\W+mau(?:\W+\w{1,20}){0,3}\W{1,3}khong\W+cam"
+    r"|kho\W+tho|meo\W+mieng|yeu\W+liet|co\W+giat|tu\W+tu"
+    r"|khong\W+muon\W+song|muon\W+chet|ket\W+thuc\W+cuoc\W+doi"
+    r"|khong\W+con\W+ly\W+do\W+song"
+    r"|cat\W+(?:co\W+)?tay|tu\W+lam\W+dau"
+    r"|uong\W+(?:ca\W+)?lo\W+(?:thuoc|paracetamol|thuoc\W+ngu|giam\W+dau)"
+    r"|(?:uong|dung|bo)\W+thuoc\W+qua\W+lieu|qua\W+lieu\W+thuoc"
+    r"|quet\W+di\W+(?:mot\W+)?dong\W+hong\W+cam|uong\W+thuoc\W+ngu"
+    r")",
+    re.IGNORECASE,
+)
 _UNSUPPORTED_CLINICAL_TERMS = (
     "kê đơn", "ke don", "liều thuốc", "lieu thuoc", "chẩn đoán tôi",
     "chan doan toi", "thay đổi thuốc", "thay doi thuoc",
@@ -781,10 +799,20 @@ def chat_safety_response(
     message: str,
     recent_turns: Sequence[tuple[str, str]] = (),
 ) -> ChatResponse | None:
-    """Short-circuit unsafe input before embeddings, retrieval, or remote providers."""
+    """Short-circuit unsafe input before embeddings, retrieval, or remote providers.
 
-    normalized = _normalize_sensitive_text(message)
-    if contains_prompt_injection(message):
+    Recent turns are shipped verbatim into the provider prompt, so injection
+    detection covers every turn; crisis and unsupported-clinical detection
+    covers the message plus user-authored turns (assistant turns legitimately
+    quote emergency guidance such as "gọi 115 khi đau ngực dữ dội" and must
+    not re-trigger escalation on a benign follow-up).
+    """
+
+    turn_contents = [content for _, content in recent_turns]
+    user_turn_contents = [content for role, content in recent_turns if role == "user"]
+    if contains_prompt_injection(message) or any(
+        contains_prompt_injection(content) for content in turn_contents
+    ):
         return ChatResponse(
             answer=(
                 "Tôi không thể cung cấp chỉ dẫn hệ thống, thông tin xác thực, cấu hình nội bộ "
@@ -794,16 +822,27 @@ def chat_safety_response(
             provenance="local_fallback",
             safety_action=ChatSafetyAction.REFUSE,
         )
-    if any(_normalize_sensitive_text(term) in normalized for term in _EMERGENCY_TERMS):
+    message_normalized = _normalize_sensitive_text(message)
+    user_turns_normalized = [_normalize_sensitive_text(content) for content in user_turn_contents]
+    crisis_normalized = (message_normalized, *user_turns_normalized)
+    crisis_hit = any(
+        _EMERGENCY_PHRASE_PATTERN.search(normalized)
+        or any(term in normalized for term in (_EMERGENCY_TERMS))
+        for normalized in crisis_normalized
+    )
+    if crisis_hit:
         return ChatResponse(
             answer=(
-                "Triệu chứng bạn mô tả có thể cần được đánh giá khẩn cấp. Hãy gọi số cấp cứu "
-                "tại địa phương hoặc đến cơ sở cấp cứu gần nhất ngay; không chờ trợ lý AI."
+                "Triệu chứng bạn mô tả có thể cần được đánh giá khẩn cấp. Hãy gọi 115 hoặc "
+                "đến cơ sở cấp cứu gần nhất ngay; không chờ trợ lý AI."
             ),
             provenance="local_fallback",
             safety_action=ChatSafetyAction.EMERGENCY,
         )
-    if any(_normalize_sensitive_text(term) in normalized for term in _UNSUPPORTED_CLINICAL_TERMS):
+    if any(
+        any(_normalize_sensitive_text(term) in normalized for term in _UNSUPPORTED_CLINICAL_TERMS)
+        for normalized in crisis_normalized
+    ):
         return ChatResponse(
             answer=(
                 "Tôi không thể chẩn đoán, kê đơn hoặc thay đổi thuốc. Hãy trao đổi trực tiếp "
@@ -829,8 +868,11 @@ def _triage_requires_local(symptoms: str) -> bool:
 
     normalized = _normalize_sensitive_text(symptoms)
     protected_terms = (*_INJECTION_TERMS, *_EMERGENCY_TERMS, *_UNSUPPORTED_CLINICAL_TERMS)
-    return chat_contains_sensitive_data(symptoms) or contains_prompt_injection(symptoms) or any(
-        _normalize_sensitive_text(term) in normalized for term in protected_terms
+    return (
+        chat_contains_sensitive_data(symptoms)
+        or contains_prompt_injection(symptoms)
+        or bool(_EMERGENCY_PHRASE_PATTERN.search(normalized))
+        or any(_normalize_sensitive_text(term) in normalized for term in protected_terms)
     )
 
 
