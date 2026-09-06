@@ -114,6 +114,9 @@ async function loadApiClient(fetchImplementation, runtime = {}) {
   }, publicCatalogModule);
   loadModule(compiledModule.exports, (specifier) => {
     if (specifier === "./public-catalog") return publicCatalogModule.exports;
+    if (specifier === "./secure-random") {
+      return { randomId: () => "test-random-id" };
+    }
     throw new Error(`Unexpected runtime import: ${specifier}`);
   }, compiledModule);
   return { api: compiledModule.exports, window: context.window };

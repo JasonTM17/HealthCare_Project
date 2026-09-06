@@ -45,7 +45,10 @@ test("AI triage uses the authenticated backend contract without a local answer",
   assert.match(apiClient, /clinical_advice/);
   assert.match(apiClient, /suggested_questions/);
   assert.match(aiModal, /recommendPublicSpecialty/);
-  assert.match(aiModal, /Vui lòng đăng nhập/);
+  // The public recommendation endpoint never requires auth, so the modal must
+  // not show login copy for a 401; a proxy failure surfaces as a 403-style
+  // "unavailable" message instead.
+  assert.doesNotMatch(aiModal, /Vui lòng đăng nhập/);
   assert.match(aiModal, /Chưa thể sử dụng tính năng này/);
   assert.match(aiModal, /Tạm thời chưa thể xử lý/);
   assert.match(aiModal, /citations/);

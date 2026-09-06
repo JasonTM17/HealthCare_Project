@@ -9,6 +9,7 @@ import {
 } from "../../../lib/api-client";
 import { presentApiError } from "../../../lib/present-api-error";
 import UiIcon from "../../../components/UiIcon";
+import useDialogFocus from "../../../components/useDialogFocus";
 import type {
   AiContentReviewState,
   AiContentReviewSummary,
@@ -99,6 +100,9 @@ export default function AdminAiContentReviewsPage() {
   const [previewArticle, setPreviewArticle] = useState<Article | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const requestEpoch = useRef(0);
+  const previewPanelRef = useRef<HTMLDivElement>(null);
+
+  useDialogFocus(previewPanelRef, previewModalOpen, () => setPreviewModalOpen(false));
 
   const load = useCallback(async (): Promise<void> => {
     const epoch = ++requestEpoch.current;
@@ -139,15 +143,6 @@ export default function AdminAiContentReviewsPage() {
       void task.catch(() => undefined);
     };
   }, [load]);
-
-  useEffect(() => {
-    if (!previewModalOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setPreviewModalOpen(false);
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [previewModalOpen]);
 
   const summary = useMemo(() => ({
     total: items.length,
@@ -425,6 +420,7 @@ export default function AdminAiContentReviewsPage() {
             aria-modal="true"
             className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-sm bg-white shadow-2xl border border-slate-200"
             onClick={(e) => e.stopPropagation()}
+            ref={previewPanelRef}
             role="dialog"
           >
             {/* Modal Header */}

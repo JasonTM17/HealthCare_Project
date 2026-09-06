@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef, useState, type ChangeEvent, type DragEvent } from "react";
-import { uploadMediaAsset } from "../lib/api-client";
+import { ApiError, uploadMediaAsset } from "../lib/api-client";
+import { presentApiError } from "../lib/present-api-error";
 import UiIcon from "./UiIcon";
 import styles from "./ImageUpload.module.css";
 
@@ -47,8 +48,13 @@ export default function ImageUpload({
       const response = await uploadMediaAsset(file, purpose);
       onChange(response.url);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Tải ảnh lên máy chủ thất bại.";
-      setError(msg);
+      // Present only stable code/status copy; raw backend messages must not
+      // leak into the portal UI.
+      setError(
+        err instanceof ApiError
+          ? presentApiError(err.code, err.status)
+          : "Tải ảnh lên máy chủ thất bại.",
+      );
     } finally {
       setUploading(false);
     }
@@ -96,76 +102,85 @@ export default function ImageUpload({
     <div className={styles.container}>
       {label && <span className={styles.label}>{label}</span>}
 
-      {uploading ? (
-        <div className={styles.uploadingOverlay}>
-          <div className={styles.spinner} />
-          <p className={styles.uploadingText}>Đang tải ảnh an toàn lên máy chủ...</p>
-        </div>
-      ) : value ? (
-        <div className={styles.previewWrapper}>
-          {!imageError ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              alt="Xem trước hình ảnh"
-              className={aspectRatio === "square" ? styles.previewSquare : styles.previewBanner}
-              onError={handleImageError}
-              src={value}
-            />
-          ) : aspectRatio === "square" ? (
-            <div className={styles.previewSquareFallback}>
-              <UiIcon name="user" size={48} />
-            </div>
-          ) : (
-            <div className={styles.previewBannerFallback}>
-              <UiIcon name="layers" size={40} />
-            </div>
-          )}
-          <div className={styles.previewActions}>
-            <div className={styles.actionButtons}>
-              <button
-                className={styles.changeBtn}
-                onClick={() => fileInputRef.current?.click()}
-                type="button"
-              >
-                <UiIcon name="sparkles" size={13} />
-                <span>Đổi ảnh khác</span>
-              </button>
-              <button
-                className={styles.removeBtn}
-                onClick={handleRemove}
-                type="button"
-              >
-                <UiIcon name="trash" size={13} />
-                <span>Gỡ ảnh</span>
-              </button>
+      <div className={styles.uploadHost}>
+        {value ? (
+          <div className={styles.previewWrapper}>
+            {!imageError ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                alt="Xem trước hình ảnh"
+                className={aspectRatio === "square" ? styles.previewSquare : styles.previewBanner}
+                onError={handleImageError}
+                src={value}
+              />
+            ) : aspectRatio === "square" ? (
+              <div className={styles.previewSquareFallback}>
+                <UiIcon name="user" size={48} />
+              </div>
+            ) : (
+              <div className={styles.previewBannerFallback}>
+                <UiIcon name="layers" size={40} />
+              </div>
+            )}
+            <div className={styles.previewActions}>
+              <div className={styles.actionButtons}>
+                <button
+                  className={styles.changeBtn}
+                  disabled={uploading}
+                  onClick={() => fileInputRef.current?.click()}
+                  type="button"
+                >
+                  <UiIcon name="sparkles" size={13} />
+                  <span>Đổi ảnh khác</span>
+                </button>
+                <button
+                  className={styles.removeBtn}
+                  disabled={uploading}
+                  onClick={handleRemove}
+                  type="button"
+                >
+                  <UiIcon name="trash" size={13} />
+                  <span>Gỡ ảnh</span>
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      ) : (
-        <div
-          className={`${styles.dropzone} ${isDragging ? styles.dropzoneDragging : ""}`}
-          onClick={() => fileInputRef.current?.click()}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              fileInputRef.current?.click();
-            }
-          }}
-          onDragLeave={handleDragLeave}
-          onDragOver={handleDragOver}
-          onDrop={handleDrop}
-          role="button"
-          tabIndex={0}
-        >
-          <div className={styles.dropzoneIcon}>
-            <UiIcon name="plus" size={20} />
+        ) : (
+          <div
+            aria-busy={uploading}
+            className={`${styles.dropzone} ${isDragging ? styles.dropzoneDragging : ""} ${uploading ? styles.dropzoneBusy : ""}`}
+            onClick={() => {
+              if (!uploading) fileInputRef.current?.click();
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                if (!uploading) fileInputRef.current?.click();
+              }
+            }}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+            role="button"
+            tabIndex={0}
+          >
+            <div className={styles.dropzoneIcon}>
+              <UiIcon name="plus" size={20} />
+            </div>
+            <p className={styles.dropzoneText}>Kéo thả ảnh vào đây hoặc bấm để chọn tệp</p>
+            <p className={styles.dropzoneHint}>{helperText}</p>
           </div>
-          <p className={styles.dropzoneText}>Kéo thả ảnh vào đây hoặc bấm để chọn tệp</p>
-          <p className={styles.dropzoneHint}>{helperText}</p>
-        </div>
-      )}
+        )}
 
-      {error && <p className={styles.errorText}>{error}</p>}
+        {uploading ? (
+          <div aria-live="polite" className={styles.uploadingOverlay} role="status">
+            <div className={styles.spinner} />
+            <p className={styles.uploadingText}>Đang tải ảnh an toàn lên máy chủ...</p>
+          </div>
+        ) : null}
+      </div>
+
+      {error && <p className={styles.errorText} role="alert">{error}</p>}
 
       <input
         accept="image/png,image/jpeg,image/webp,image/gif"

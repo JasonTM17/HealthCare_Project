@@ -23,7 +23,7 @@ import {
   ApiError,
   resendAppointmentOtp,
 } from "../lib/api-client";
-import { businessDate } from "../lib/business-time";
+import { businessDate, formatBusinessDate } from "../lib/business-time";
 import { presentApiError } from "../lib/present-api-error";
 import Icon from "./UiIcon";
 import useDialogFocus from "./useDialogFocus";
@@ -681,11 +681,13 @@ function BookingExperience({
           branchId: slotQueryIdentity?.branchId ?? "",
         }));
       },
-      onError: (_error, attempt) => {
+      onError: (error, attempt) => {
         setSlotQueryState((previous) => reduceBookingSlotQueryState(previous, {
           type: "ERROR",
           attempt,
-          message: presentApiError(),
+          message: error instanceof Error && error.message
+            ? error.message
+            : presentApiError(),
         }));
         setSelectedSlotState((previous) => reduceBookingSlotSelectionState(previous, {
           type: "ERROR",
@@ -899,7 +901,11 @@ function BookingExperience({
       setStep(7);
     } catch (error: unknown) {
       if (bookingSession === bookingSessionRef.current) {
-        setErrorMessage("Không thể giữ chỗ khung giờ này. Vui lòng tải lại lịch và thử lại.");
+        setErrorMessage(
+          error instanceof Error && error.message
+            ? error.message
+            : "Không thể giữ chỗ khung giờ này. Vui lòng tải lại lịch và thử lại.",
+        );
       }
     } finally {
       if (bookingSession === bookingSessionRef.current) setIsSubmitting(false);
@@ -1059,7 +1065,7 @@ function BookingExperience({
                 <React.Fragment key={stage.title}>
                   {index > 0 ? <span aria-hidden="true" className="text-brand-300">→</span> : null}
                   <div
-                    className={`flex min-w-max items-center gap-1.5 ${current ? "font-bold text-brand-700" : complete ? "text-brand-500" : "text-gray-400"}`}
+                    className={`flex min-w-max items-center gap-1.5 ${current ? "font-bold text-brand-700" : complete ? "text-brand-500" : "text-gray-600"}`}
                     aria-current={current ? "step" : undefined}
                   >
                     <span className={`flex h-5 w-5 items-center justify-center rounded-full ${current || complete ? "bg-brand-700 text-white" : "bg-gray-200 text-gray-500"}`}>
@@ -1238,7 +1244,7 @@ function BookingExperience({
                 <p className="mt-1 text-sm leading-6 text-gray-600">Khung giờ được tính từ lịch làm việc thật và sẽ được kiểm tra lại khi giữ chỗ.</p>
               </div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-sm border border-brand-100 bg-brand-50/60 p-3 text-xs text-brand-900">
-                <span><strong>Ngày:</strong> {selectedDate}</span>
+                <span><strong>Ngày:</strong> {formatBusinessDate(selectedDate)}</span>
                 <span><strong>Cơ sở:</strong> {currentBranch?.name ?? "Chưa chọn"}</span>
                 <span><strong>Bác sĩ:</strong> {currentDoctor?.fullName ?? "Chưa chọn"}</span>
               </div>
@@ -1254,7 +1260,7 @@ function BookingExperience({
                 {loadingSlots ? <div aria-live="polite" className="py-8 text-center text-sm text-gray-500" role="status"><Icon name="clock" size={15} /> Đang tải lịch khám khả dụng...</div>
                   : slotError ? <div aria-live="assertive" className="rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700" role="alert"><p>{slotError}</p><button className="mt-2 font-semibold underline underline-offset-2" onClick={() => setSlotRefreshNonce((value) => value + 1)} type="button">Thử tải lại khung giờ</button></div>
                   : slots.length === 0 ? <div aria-live="polite" className="rounded-lg border border-dashed border-gray-300 px-3 py-6 text-center text-sm text-gray-500" role="status">Chưa có khung giờ cho bác sĩ, cơ sở và ngày đã chọn.</div>
-                  : <div aria-labelledby="booking-slot-label" className="grid max-h-56 grid-cols-3 gap-2.5 overflow-y-auto p-1 sm:grid-cols-4">{slots.map((slot) => { const isSelected = selectedSlot === slot.startTime; return <button key={`${slot.branchId}-${slot.startTime}`} type="button" disabled={isSubmitting || !slot.available || slot.branchId !== selectedBranch} onClick={() => handleSlotChange(slot.startTime)} className={`flex flex-col items-center justify-center gap-0.5 rounded-lg border p-2.5 text-xs font-semibold transition-colors ${isSelected ? "border-brand-700 bg-brand-700 text-white shadow-md ring-2 ring-brand-500" : slot.available ? "border-brand-200 bg-white text-gray-800 hover:border-brand-500 hover:bg-brand-50" : "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 opacity-60"}`}><span className="text-sm font-bold">{slot.startTime.slice(0, 5)}</span><span className="text-[10px] opacity-80">{slot.available ? "Còn trống" : "Đã kín"}</span></button>; })}</div>}
+                  : <div aria-labelledby="booking-slot-label" className="grid max-h-56 grid-cols-3 gap-2.5 overflow-y-auto p-1 sm:grid-cols-4">{slots.map((slot) => { const isSelected = selectedSlot === slot.startTime; return <button key={`${slot.branchId}-${slot.startTime}`} type="button" disabled={isSubmitting || !slot.available || slot.branchId !== selectedBranch} onClick={() => handleSlotChange(slot.startTime)} className={`flex flex-col items-center justify-center gap-0.5 rounded-lg border p-2.5 text-xs font-semibold transition-colors ${isSelected ? "border-brand-700 bg-brand-700 text-white shadow-md ring-2 ring-brand-500" : slot.available ? "border-brand-200 bg-white text-gray-800 hover:border-brand-500 hover:bg-brand-50" : "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-500"}`}><span className="text-sm font-bold">{slot.startTime.slice(0, 5)}</span><span className="text-[10px] opacity-80">{slot.available ? "Còn trống" : "Đã kín"}</span></button>; })}</div>}
               </div>
               <div className="booking-step-actions flex items-center justify-between border-t border-gray-100 pt-4">
                 <button type="button" disabled={isSubmitting} onClick={() => navigateToStep(4)} className="inline-flex min-h-[44px] items-center px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 disabled:opacity-50 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 transition-colors">← Quay lại</button>
@@ -1276,7 +1282,7 @@ function BookingExperience({
               <div className="p-3.5 bg-brand-50/60 border border-brand-100 rounded-sm text-xs text-brand-900 space-y-1">
                 <div className="flex justify-between font-semibold">
                   <span>Bác sĩ: {currentDoctor?.fullName ?? "Chưa chọn"}</span>
-                  <span>Ngày: {selectedDate} ({selectedSlot.slice(0, 5)})</span>
+                  <span>Ngày: {formatBusinessDate(selectedDate)} ({selectedSlot.slice(0, 5)})</span>
                 </div>
                 <div className="text-brand-700">{currentBranch?.name ?? "Chưa chọn cơ sở"}</div>
               </div>
@@ -1470,7 +1476,7 @@ function BookingExperience({
                     <p className="font-bold text-brand-950 text-sm">Mã giữ chỗ: {bookingCode}</p>
                     <p className="text-gray-600">Bệnh nhân: <span className="font-semibold text-gray-900">{fullName}</span> ({phone})</p>
                     <p className="text-gray-600">Bác sĩ: <span className="font-semibold text-gray-900">{currentDoctor?.fullName ?? "Chưa chọn"}</span></p>
-                    <p className="text-gray-600">Thời gian: <span className="font-semibold text-gray-900">{selectedDate} vào lúc {selectedSlot.slice(0, 5)}</span></p>
+                    <p className="text-gray-600">Thời gian: <span className="font-semibold text-gray-900">{formatBusinessDate(selectedDate)} vào lúc {selectedSlot.slice(0, 5)}</span></p>
                   </div>
 
                   <div className="py-2">
@@ -1586,7 +1592,7 @@ function BookingExperience({
                       </div>
                       <div>
                         <span className="text-brand-300 text-[11px]">Ngày khám:</span>
-                        <p className="font-bold text-amber-300 text-sm">{confirmedAppointment.appointmentDate}</p>
+                        <p className="font-bold text-amber-300 text-sm">{formatBusinessDate(confirmedAppointment.appointmentDate)}</p>
                       </div>
                       <div>
                         <span className="text-brand-300 text-[11px]">Giờ khám:</span>

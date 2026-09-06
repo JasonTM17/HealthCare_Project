@@ -358,7 +358,7 @@ export default function TraCuuPage() {
                   onClick={() => window.print()}
                   className="px-5 py-2.5 bg-mint-100 hover:bg-mint-200 text-ink-muted text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5"
                 >
-                  <Icon name="printer" size={15} /> In Phiếu Khám
+                  <Icon name="printer" size={15} /> In phiếu khám
                 </button>
 
                 {appointment.status === "CONFIRMED" && (
@@ -367,7 +367,7 @@ export default function TraCuuPage() {
                     onClick={() => setShowCancelDialog(true)}
                     className="px-5 py-2.5 text-xs font-bold text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
                   >
-                    Hủy Lịch Hẹn Này
+                    Hủy lịch hẹn này
                   </button>
                 )}
               </div>
@@ -387,7 +387,7 @@ export default function TraCuuPage() {
               role="dialog"
             >
               <h3 className="text-lg font-bold text-red-700 flex items-center gap-2" id="cancel-dialog-title">
-                <Icon name="alert-triangle" size={16} /> Xác Nhận Hủy Lịch Khám
+                <Icon name="alert-triangle" size={16} /> Xác nhận hủy lịch khám
               </h3>
               <p className="text-xs text-ink-muted leading-relaxed" id="cancel-dialog-description">
                 Bạn có chắc chắn muốn hủy lịch hẹn mã <span className="font-mono font-bold text-ink">{appointment?.bookingCode}</span> với {appointment?.doctorName} vào ngày {appointment?.appointmentDate}?
@@ -420,7 +420,7 @@ export default function TraCuuPage() {
                   onClick={handleCancelAppointment}
                   className="px-5 py-2 text-xs font-bold bg-red-600 hover:bg-red-700 text-white rounded-lg shadow"
                 >
-                  Đồng ý Hủy Lịch
+                  Đồng ý hủy lịch
                 </button>
               </div>
             </div>

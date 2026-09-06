@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import PortalChrome from "../../../components/PortalChrome";
 import {
+  ApiError,
   changePassword,
   fetchPatientProfile,
   hasRole,
@@ -14,6 +15,7 @@ import { ForbiddenState, LoadingState, LoginRequiredState } from "../../../compo
 import { useAuthSession, useAuthSessionStatus } from "../../../components/useAuthSession";
 import ImageUpload from "../../../components/ImageUpload";
 import UiIcon, { type IconName } from "../../../components/UiIcon";
+import { presentApiError } from "../../../lib/present-api-error";
 import styles from "./PatientProfile.module.css";
 
 interface TierDefinition {
@@ -131,8 +133,11 @@ export default function PatientProfilePage() {
         setMedicalHistory(data.medicalHistory || "");
         setAllergies(data.allergies || "");
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Không thể tải hồ sơ bệnh nhân.";
-        setLoadError(msg);
+        setLoadError(
+          err instanceof ApiError
+            ? presentApiError(err.code, err.status)
+            : "Không thể tải hồ sơ bệnh nhân.",
+        );
       } finally {
         setLoading(false);
       }
@@ -198,7 +203,9 @@ export default function PatientProfilePage() {
         message: "Hồ sơ sức khỏe cá nhân đã được cập nhật thành công.",
       });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Không thể lưu thông tin hồ sơ.";
+      const msg = err instanceof ApiError
+        ? presentApiError(err.code, err.status)
+        : "Không thể lưu thông tin hồ sơ.";
       setProfileNotice({ tone: "error", text: msg });
       showToast({
         tone: "error",
@@ -235,7 +242,9 @@ export default function PatientProfilePage() {
         message: res.message || "Mật khẩu mới của bạn đã được cập nhật thành công!",
       });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Không thể đổi mật khẩu.";
+      const msg = err instanceof ApiError
+        ? presentApiError(err.code, err.status)
+        : "Không thể đổi mật khẩu.";
       setPasswordNotice({ tone: "error", text: msg });
       showToast({
         tone: "error",

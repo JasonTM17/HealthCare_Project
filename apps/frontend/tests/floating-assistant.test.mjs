@@ -64,7 +64,9 @@ test("floating assistant exposes real recovery, safety and accessible actions", 
   assert.match(component, /Thử lại/);
   assert.match(component, /aria-expanded=\{open\}/);
   assert.match(component, /role="dialog"/);
-  assert.match(component, /aria-modal="true"/);
+  // The floating panel is a non-modal companion widget: the page behind stays
+  // interactive, so aria-modal="true" would misrepresent the background.
+  assert.doesNotMatch(component, /aria-modal="true"/);
   assert.match(component, /maxLength=\{isPatient \? MAX_MESSAGE_LENGTH : MAX_PUBLIC_MESSAGE_LENGTH\}/);
   assert.match(styles, /launcherAvatar/);
   assert.match(styles, /\.launcher \{[\s\S]*border-radius: var\(--radius-sm\)/);

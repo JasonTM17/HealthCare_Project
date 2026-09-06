@@ -46,7 +46,7 @@ test("patient chat includes bounded composer, recovery, citations, and destructi
   assert.match(page, /MAX_MESSAGE_LENGTH = 10_000/);
   assert.match(page, /maxLength=\{MAX_MESSAGE_LENGTH\}/);
   const provider = await read("components/AssistantProvider.tsx");
-  assert.match(provider, /crypto\.randomUUID\(\)/);
+  assert.match(provider, /randomId\(\)/);
   assert.match(provider, /CHAT_MESSAGE_IN_PROGRESS/);
   assert.match(provider, /AI_UNAVAILABLE/);
   assert.match(provider, /CHAT_CONTENT_BLOCKED/);
@@ -69,7 +69,7 @@ test("patient chat reuses one idempotency key for an ambiguous logical attempt",
   const provider = await read("components/AssistantProvider.tsx");
 
   assert.match(provider, /sendAttemptsRef = useRef\(new Map/);
-  assert.match(provider, /retained\?\.content === normalizedContent[\s\S]*retained\.idempotencyKey[\s\S]*crypto\.randomUUID\(\)/);
+  assert.match(provider, /retained\?\.content === normalizedContent[\s\S]*retained\.idempotencyKey[\s\S]*randomId\(\)/);
   assert.match(provider, /sendAiConversationMessageStream\([\s\S]*idempotencyKey/);
   assert.match(provider, /TERMINAL_IDEMPOTENCY_CODES[\s\S]*sendAttemptsRef\.current\.delete/);
   assert.match(page, /sendMessage\(conversationId, normalizedContent[\s\S]*attemptId:/);
