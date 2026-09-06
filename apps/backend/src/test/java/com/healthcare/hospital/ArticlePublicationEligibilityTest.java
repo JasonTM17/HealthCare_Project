@@ -27,8 +27,10 @@ class ArticlePublicationEligibilityTest {
     void publicListUsesCurrentTimeAsPublicationCutoff() {
         ArticleRepository repository = mock(ArticleRepository.class);
         Pageable pageable = PageRequest.of(0, 10);
+        // The service normalizes the incoming pageable (clamped page window and
+        // whitelisted default sort), so the stub matches any Pageable instance.
         when(repository.findByContentKindAndActiveTrueAndPublishedAtLessThanEqualOrderByPublishedAtDesc(
-            eq("GENERAL"), any(OffsetDateTime.class), eq(pageable)))
+            eq("GENERAL"), any(OffsetDateTime.class), any(Pageable.class)))
             .thenReturn(Page.empty(pageable));
         OffsetDateTime before = OffsetDateTime.now();
 
@@ -37,7 +39,7 @@ class ArticlePublicationEligibilityTest {
         OffsetDateTime after = OffsetDateTime.now();
         ArgumentCaptor<OffsetDateTime> cutoff = ArgumentCaptor.forClass(OffsetDateTime.class);
         verify(repository).findByContentKindAndActiveTrueAndPublishedAtLessThanEqualOrderByPublishedAtDesc(
-            eq("GENERAL"), cutoff.capture(), eq(pageable));
+            eq("GENERAL"), cutoff.capture(), any(Pageable.class));
         assertThat(cutoff.getValue()).isBetween(before, after);
     }
 

@@ -1,5 +1,6 @@
 package com.healthcare.hospital.service;
 
+import com.healthcare.common.SafePageRequests;
 import com.healthcare.hospital.dto.DoctorResponse;
 import com.healthcare.hospital.dto.DoctorSummaryResponse;
 import com.healthcare.hospital.entity.Doctor;
@@ -9,13 +10,17 @@ import com.healthcare.hospital.repository.DoctorSpecialtyRepository;
 import com.healthcare.exception.ResourceNotFoundException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
 public class DoctorService {
+
+    private static final Set<String> ALLOWED_SORT_PROPERTIES = Set.of("id", "fullName", "slug");
 
     private final DoctorRepository doctorRepository;
     private final DoctorBranchRepository doctorBranchRepository;
@@ -32,7 +37,7 @@ public class DoctorService {
     }
 
     public Page<DoctorResponse> listActive(Pageable pageable) {
-        return doctorRepository.findByActiveTrue(pageable).map(this::toResponse);
+        return doctorRepository.findByActiveTrue(safePageable(pageable)).map(this::toResponse);
     }
 
     public Page<DoctorResponse> listActive(Pageable pageable, String specialtySlug, String branchSlug, String query) {
@@ -40,8 +45,12 @@ public class DoctorService {
             normalizeFilter(specialtySlug),
             normalizeFilter(branchSlug),
             normalizeFilter(query),
-            pageable
+            safePageable(pageable)
         ).map(this::toResponse);
+    }
+
+    private Pageable safePageable(Pageable pageable) {
+        return SafePageRequests.normalize(pageable, Sort.unsorted(), ALLOWED_SORT_PROPERTIES);
     }
 
     public DoctorResponse getBySlug(String slug) {

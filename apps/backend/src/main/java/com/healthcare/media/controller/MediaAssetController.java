@@ -4,6 +4,7 @@ import com.healthcare.media.dto.MediaAssetResponse;
 import com.healthcare.media.entity.MediaAsset;
 import com.healthcare.media.service.MediaAssetService;
 import org.springframework.http.CacheControl;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -52,11 +54,16 @@ public class MediaAssetController {
             mediaType = MediaType.APPLICATION_OCTET_STREAM;
         }
 
+        // Public catalog portraits legitimately render these URLs, so the GET
+        // stays public; a bounded TTL keeps a removed asset from lingering in
+        // shared caches for up to a year.
+        String safeFilename = asset.getFilename() == null ? "asset" : asset.getFilename();
         return ResponseEntity.ok()
             .contentType(mediaType)
             .contentLength(asset.getSizeBytes())
-            .cacheControl(CacheControl.maxAge(365, TimeUnit.DAYS).cachePublic().immutable())
-            .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + asset.getFilename() + "\"")
+            .cacheControl(CacheControl.maxAge(1, TimeUnit.HOURS).cachePublic())
+            .header(HttpHeaders.CONTENT_DISPOSITION,
+                ContentDisposition.inline().filename(safeFilename, StandardCharsets.UTF_8).build().toString())
             .body(asset.getData());
     }
 }

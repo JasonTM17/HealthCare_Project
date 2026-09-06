@@ -15,6 +15,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
@@ -143,6 +144,63 @@ public class GlobalExceptionHandler {
             400,
             "Bad Request",
             "Tham số yêu cầu không hợp lệ.",
+            extractPath(request),
+            List.of(),
+            ErrorCodes.VALIDATION_ERROR
+        );
+        return ResponseEntity.badRequest().body(error);
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiError> handleMaxUploadSize(MaxUploadSizeExceededException ex, WebRequest request) {
+        // Without this the multipart limit surfaces as a generic 500; clients
+        // need 413 so the UI can ask for a smaller file.
+        log.info("Rejected oversized upload for {}: {}", extractPath(request), ex.getMessage());
+        ApiError error = new ApiError(
+            413,
+            "Payload Too Large",
+            "Tệp tải lên vượt quá giới hạn cho phép.",
+            extractPath(request),
+            List.of(),
+            ErrorCodes.VALIDATION_ERROR
+        );
+        return ResponseEntity.status(413).body(error);
+    }
+
+    @ExceptionHandler(org.springframework.web.HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiError> handleMethodNotSupported(
+            org.springframework.web.HttpRequestMethodNotSupportedException ex,
+            WebRequest request) {
+        ApiError error = new ApiError(
+            405,
+            "Method Not Allowed",
+            "HTTP method not allowed for this endpoint",
+            extractPath(request)
+        );
+        return ResponseEntity.status(405).body(error);
+    }
+
+    @ExceptionHandler(org.springframework.web.HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ApiError> handleMediaTypeNotSupported(
+            org.springframework.web.HttpMediaTypeNotSupportedException ex,
+            WebRequest request) {
+        ApiError error = new ApiError(
+            415,
+            "Unsupported Media Type",
+            "Unsupported request content type",
+            extractPath(request)
+        );
+        return ResponseEntity.status(415).body(error);
+    }
+
+    @ExceptionHandler(org.springframework.web.multipart.support.MissingServletRequestPartException.class)
+    public ResponseEntity<ApiError> handleMissingRequestPart(
+            org.springframework.web.multipart.support.MissingServletRequestPartException ex,
+            WebRequest request) {
+        ApiError error = new ApiError(
+            400,
+            "Bad Request",
+            "Required request part is missing: " + ex.getRequestPartName(),
             extractPath(request),
             List.of(),
             ErrorCodes.VALIDATION_ERROR
