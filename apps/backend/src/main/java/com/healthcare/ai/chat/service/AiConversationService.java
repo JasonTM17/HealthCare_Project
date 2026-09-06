@@ -505,6 +505,33 @@ public class AiConversationService {
         }
     }
 
+    /**
+     * A crash between the committed credit charge and the persisted exchange
+     * leaves a PENDING message that no caller ever retries; without this sweep
+     * the patient keeps the charge with no ledger compensation. Reuses the
+     * exact recovery path (flip to FAILED + refund) that prepare() applies to
+     * stale leases, so live traffic and the sweep cannot double-refund: the
+     * PENDING guard inside the recovery is the idempotency point.
+     */
+    @Scheduled(cron = "${ai.chat.lease-repair-cron:0 */10 * * * *}")
+    @Transactional
+    public void repairStaleInFlight() {
+        if (!cleanupEnabled) {
+            return;
+        }
+        OffsetDateTime cutoff = now().minusSeconds(processingLeaseSeconds);
+        List<AiConversation> stale = conversationRepository.findStaleInFlightForUpdate(
+            cutoff,
+            PageRequest.of(0, cleanupBatchSize)
+        );
+        for (AiConversation conversation : stale) {
+            if (!processingLeaseExpired(conversation, now())) {
+                continue;
+            }
+            recoverStaleInFlight(conversation);
+        }
+    }
+
     private PreparedMessage prepare(
             UUID userId,
             UUID conversationId,

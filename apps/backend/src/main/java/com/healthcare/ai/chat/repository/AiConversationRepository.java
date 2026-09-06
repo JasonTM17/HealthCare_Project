@@ -27,4 +27,19 @@ public interface AiConversationRepository extends JpaRepository<AiConversation, 
     );
 
     List<AiConversation> findByExpiresAtBeforeOrderByExpiresAtAsc(OffsetDateTime now, Pageable pageable);
+
+    /**
+     * Conversations whose in-flight lease has expired while still marked
+     * in-flight — the crash window between the committed credit charge and
+     * the persisted exchange. Locked so the repair sweep serializes against
+     * the live prepare/markFailed paths.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+        select c from AiConversation c
+        where c.inFlight = true
+          and c.inFlightStartedAt is not null
+          and c.inFlightStartedAt < :cutoff
+        """)
+    List<AiConversation> findStaleInFlightForUpdate(@Param("cutoff") OffsetDateTime cutoff, Pageable pageable);
 }
