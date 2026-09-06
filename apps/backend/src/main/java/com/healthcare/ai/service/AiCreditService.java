@@ -97,6 +97,24 @@ public class AiCreditService {
     }
 
     @Transactional
+    public boolean refundPatientCredit(UUID userId, String description) {
+        PatientProfile profile = patientProfileRepository.findByUserId(userId).orElse(null);
+        if (profile == null) {
+            return false;
+        }
+        int current = profile.getAiCredits() != null ? profile.getAiCredits() : 0;
+        int after = current + 1;
+        profile.setAiCredits(after);
+        patientProfileRepository.save(profile);
+
+        AiCreditTransaction tx = new AiCreditTransaction(
+                userId, "PATIENT", 1, after, "AI_CHAT_REFUND", description
+        );
+        transactionRepository.save(tx);
+        return true;
+    }
+
+    @Transactional
     public boolean deductDoctorCredit(UUID userId, String description) {
         Doctor doctor = doctorRepository.findByUserId(userId).orElse(null);
         if (doctor == null) {

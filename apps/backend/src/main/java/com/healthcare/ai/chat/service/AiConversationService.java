@@ -84,6 +84,8 @@ public class AiConversationService {
         "Chat được lưu tối đa 90 ngày; AI chỉ cung cấp thông tin tham khảo, "
         + "không chẩn đoán/kê đơn và có thể chuyển bạn tới nhân viên y tế.";
     private static final String PATIENT_CHAT_CREDIT_DESCRIPTION = "Lượt sử dụng Trợ lý AI Y khoa";
+    private static final String PATIENT_CHAT_REFUND_DESCRIPTION =
+        "Hoàn credit cho lượt hỏi AI không thành công";
 
     private final AiConversationRepository conversationRepository;
     private final AiMessageRepository messageRepository;
@@ -710,6 +712,11 @@ public class AiConversationService {
                         message.setStatus(AiMessageStatus.FAILED);
                         message.setCompletedAt(now());
                         messageRepository.save(message);
+                        // The exchange was charged in prepare() and never
+                        // produced an answer; refund on the same PENDING ->
+                        // FAILED transition so a retried request (new
+                        // Idempotency-Key) does not double-charge the patient.
+                        refundFailedPatientExchange(userId);
                     }
                 });
                 conversation.setInFlight(false);
@@ -732,10 +739,17 @@ public class AiConversationService {
             return;
         }
 
+        boolean refunded = false;
         for (AiMessage pending : messageRepository.findByConversationIdAndStatus(
                 conversation.getId(), AiMessageStatus.PENDING)) {
             pending.setStatus(AiMessageStatus.FAILED);
             pending.setCompletedAt(recoveredAt);
+            refunded = true;
+        }
+        if (refunded && conversation.getUser() != null) {
+            // Stale-lease recovery retires charged-but-never-answered exchanges;
+            // compensate so the caller's retry is not a second full charge.
+            refundFailedPatientExchange(conversation.getUser().getId());
         }
         conversation.setInFlight(false);
         conversation.setInFlightStartedAt(null);
@@ -743,6 +757,12 @@ public class AiConversationService {
         conversation.setUpdatedAt(recoveredAt);
         messageRepository.flush();
         conversationRepository.save(conversation);
+    }
+
+    private void refundFailedPatientExchange(UUID userId) {
+        if (aiCreditService != null) {
+            aiCreditService.refundPatientCredit(userId, PATIENT_CHAT_REFUND_DESCRIPTION);
+        }
     }
 
     private boolean processingLeaseExpired(AiConversation conversation, OffsetDateTime referenceTime) {
