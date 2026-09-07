@@ -38,13 +38,13 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 public class ClinicalService {
@@ -223,14 +223,21 @@ public class ClinicalService {
     public PrescriptionResponse getPrescriptionByCode(String code, UserDetails principal) {
         Prescription prescription = prescriptionRepository.findByPrescriptionCodeWithItems(code.trim())
                 .orElseThrow(() -> new ResourceNotFoundException("Prescription not found with code: " + code));
-        authorizeAudited(
-            principal,
-            prescription.getPatient().getId(),
-            ClinicalAccessAuditService.TARGET_PRESCRIPTION,
-            prescription.getId().toString(),
-            ClinicalAccessAuditService.ACTION_READ,
-            () -> authorizePrescription(prescription, principal)
-        );
+        try {
+            authorizeAudited(
+                principal,
+                prescription.getPatient().getId(),
+                ClinicalAccessAuditService.TARGET_PRESCRIPTION,
+                prescription.getId().toString(),
+                ClinicalAccessAuditService.ACTION_READ,
+                () -> authorizePrescription(prescription, principal)
+            );
+        } catch (AccessDeniedException exception) {
+            // The audit trail keeps the DENY decision, but the caller sees the
+            // same response as a missing code — otherwise this lookup becomes
+            // a per-day existence oracle for other patients' prescriptions.
+            throw new ResourceNotFoundException("Prescription not found with code: " + code);
+        }
         return mapToPrescriptionResponse(prescription);
     }
 
@@ -498,9 +505,18 @@ public class ClinicalService {
                 .anyMatch(authority -> ("ROLE_" + role).equals(authority.getAuthority()));
     }
 
+    // The prescription code doubles as a lookup key, so it needs a space that
+    // resists per-day enumeration; ambiguous glyphs (0/O, 1/I/L) are excluded.
+    private static final SecureRandom PRESCRIPTION_CODE_RANDOM = new SecureRandom();
+    private static final String PRESCRIPTION_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
     private String generatePrescriptionCode() {
         String datePart = LocalDate.now().format(DateTimeFormatter.ofPattern("yyMMdd"));
-        int randomPart = ThreadLocalRandom.current().nextInt(1000, 10000);
+        StringBuilder randomPart = new StringBuilder(8);
+        for (int index = 0; index < 8; index++) {
+            randomPart.append(PRESCRIPTION_CODE_ALPHABET.charAt(
+                PRESCRIPTION_CODE_RANDOM.nextInt(PRESCRIPTION_CODE_ALPHABET.length())));
+        }
         return "RX-" + datePart + "-" + randomPart;
     }
 
