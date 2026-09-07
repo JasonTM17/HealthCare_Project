@@ -1950,6 +1950,43 @@ export async function adminReviewPayment(
   });
 }
 
+export interface JobApplicationAdminSummary {
+  id: string;
+  applicationCode: string;
+  jobId: string;
+  jobTitle: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  yearsExperience: number;
+  coverLetter: string;
+  resumeUrl: string | null;
+  status: string;
+  submittedAt: string;
+  updatedAt: string;
+}
+
+export async function adminListJobApplications(
+  filters: { status?: string; page?: number; size?: number } = {},
+): Promise<Page<JobApplicationAdminSummary>> {
+  return getAuthenticatedJson<Page<JobApplicationAdminSummary>>(
+    `/admin/careers/applications${toQuery({ status: filters.status, page: filters.page ?? 0, size: filters.size ?? 20 })}`,
+  );
+}
+
+export async function adminUpdateJobApplicationStatus(
+  applicationId: string,
+  status: "SUBMITTED" | "UNDER_REVIEW" | "INTERVIEW" | "OFFERED" | "REJECTED" | "WITHDRAWN",
+): Promise<JobApplicationAdminSummary> {
+  return getAuthenticatedJson<JobApplicationAdminSummary>(
+    `/admin/careers/applications/${encodeURIComponent(applicationId)}/status`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    },
+  );
+}
+
 export async function adminListAppointments(
   filters: { date?: string; status?: string; page?: number; size?: number } = {},
 ): Promise<Page<AppointmentDetails>> {

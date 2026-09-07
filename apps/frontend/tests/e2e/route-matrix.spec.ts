@@ -88,6 +88,7 @@ const ADMIN_ROUTES = [
   "/admin/ai-content-reviews",
   "/admin/appointments",
   "/admin/branches",
+  "/admin/careers",
   "/admin/doctors",
   "/admin/specialties",
   "/admin/services",
