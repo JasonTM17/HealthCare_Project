@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 
 const PUBLIC_PATHS = [
   "/",
+  "/about",
   "/benh-pho-bien",
   "/articles",
   "/doctors",
@@ -21,6 +22,7 @@ const PUBLIC_PATHS = [
   "/branches",
   "/faq",
   "/contact",
+  "/chinh-sach-bao-mat",
 ];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {

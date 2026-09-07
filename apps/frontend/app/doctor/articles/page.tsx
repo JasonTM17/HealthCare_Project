@@ -240,7 +240,7 @@ export default function DoctorArticlesPage() {
         setSuccess("Đã cập nhật bài viết y khoa thành công!");
       } else {
         await doctorCreateArticle(payload);
-        setSuccess("Đã đăng bài viết y khoa mới thành công lên mạng xã hội bệnh viện!");
+        setSuccess("Đã đăng bài viết mới lên chuyên mục bài viết y khoa.");
       }
       broadcastCatalogChange({ kind: "article", action: editingSlug ? "updated" : "created", slug: finalSlug });
       setShowEditor(false);
@@ -903,7 +903,7 @@ export default function DoctorArticlesPage() {
                     type="checkbox"
                   />
                   <label className="text-sm font-semibold text-slate-800 cursor-pointer" htmlFor="active">
-                    Xuất bản công khai trên mạng xã hội bệnh viện
+                    Xuất bản công khai trên chuyên mục bài viết y khoa
                   </label>
                 </div>
 
