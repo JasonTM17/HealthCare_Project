@@ -110,6 +110,79 @@ class AiChatContractsTest {
     }
 
     @Test
+    void generateStreamCarriesAllowlistAndReturnsDoneAfterDeltas() {
+        server.expect(requestTo("http://ai.test/chat/generate/stream"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-AI-Service-Token", "shared-service-token"))
+            .andExpect(header("Accept", MediaType.TEXT_EVENT_STREAM_VALUE))
+            .andExpect(content().json("""
+                {"message":"thông tin cơ sở","mode":"HOSPITAL_SUPPORT",
+                 "authorized_sources":[{"source_type":"branch","source_id":"00000000-0000-0000-0000-000000000001",
+                 "projection_kind":"OPERATIONAL"}]}
+                """))
+            .andRespond(withSuccess("""
+                event: delta
+                data: Xin chào
+
+                event: delta
+                data:  bạn
+
+                event: done
+                data: {"answer":"Xin chào bạn","used_sources":[],"provenance":"local_provider"}
+
+                """, MediaType.TEXT_EVENT_STREAM));
+
+        List<String> deltas = new java.util.ArrayList<>();
+        Map<String, Object> response = aiService.generateChatStream(Map.of(
+            "message", "thông tin cơ sở",
+            "mode", "HOSPITAL_SUPPORT",
+            "authorized_sources", List.of(Map.of(
+                "source_type", "branch",
+                "source_id", "00000000-0000-0000-0000-000000000001",
+                "projection_kind", "OPERATIONAL"
+            ))
+        ), deltas::add);
+
+        assertThat(deltas).containsExactly("Xin chào", " bạn");
+        assertThat(response).containsEntry("answer", "Xin chào bạn");
+        server.verify();
+    }
+
+    @Test
+    void generateStreamRejectsIncompleteMalformedAndFailedStreams() {
+        for (String payload : List.of(
+                "event: delta\ndata: partial\n\n",
+                "event: done\ndata: {invalid}\n\n",
+                "event: error\ndata: private upstream detail\n\nevent: done\ndata: {\"answer\":\"ok\"}\n\n",
+                "event: done\ndata: {\"answer\":\"ok\"}\n\nevent: done\ndata: {\"answer\":\"replacement\"}\n\n",
+                "event: done\ndata: {\"answer\":\"ok\"}\n\nevent: delta\ndata: late\n\n")) {
+            server.reset();
+            server.expect(requestTo("http://ai.test/chat/generate/stream"))
+                .andRespond(withSuccess(payload, MediaType.TEXT_EVENT_STREAM));
+
+            assertThatThrownBy(() -> aiService.generateChatStream(Map.of("message", "hello"), delta -> { }))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+                .satisfies(error -> assertThat(
+                    ((org.springframework.web.server.ResponseStatusException) error).getStatusCode().value())
+                    .isEqualTo(502))
+                .hasMessageNotContaining("private upstream detail");
+            server.verify();
+        }
+    }
+
+    @Test
+    void generateStreamEnforcesResponseByteLimit() {
+        ReflectionTestUtils.setField(aiService, "maxResponseBytes", 32);
+        server.expect(requestTo("http://ai.test/chat/generate/stream"))
+            .andRespond(withSuccess("event: delta\ndata: " + "x".repeat(64), MediaType.TEXT_EVENT_STREAM));
+
+        assertThatThrownBy(() -> aiService.generateChatStream(Map.of("message", "hello"), delta -> { }))
+            .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+            .hasMessageContaining("exceeded the configured limit");
+        server.verify();
+    }
+
+    @Test
     void messageStoresAndReloadsBoundedTriageWithoutActionsOrUrls() {
         AiMessage message = new AiMessage();
         message.setId(UUID.randomUUID());

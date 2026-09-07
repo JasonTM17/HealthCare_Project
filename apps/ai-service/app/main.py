@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Generator, cast
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.config import Settings
 from app.chatbot import (
@@ -594,6 +594,47 @@ def chat_generate(request: ChatGenerateRequest) -> ChatResponse:
     )
     bounded_request = request.model_copy(update={"message": message})
     return generate_chat_response(bounded_request, settings, rag_service)
+
+
+@app.post(
+    "/chat/generate/stream",
+    dependencies=[Depends(require_service_auth)],
+)
+def chat_generate_stream(request: ChatGenerateRequest) -> StreamingResponse:
+    """Stream a fully validated generation response as persisted SSE events."""
+
+    message = _enforce_input_limit(
+        request.message,
+        label="Chat message",
+        setting_name="ai_max_input_chars",
+    )
+    bounded_request = request.model_copy(update={"message": message})
+    response = generate_chat_response(bounded_request, settings, rag_service)
+    return StreamingResponse(
+        _chat_response_sse(response),
+        media_type="text/event-stream",
+        headers={"X-Accel-Buffering": "no"},
+    )
+
+
+def _chat_response_sse(response: ChatResponse) -> Generator[str, None, None]:
+    for chunk in _chat_answer_chunks(response.answer):
+        yield from _sse_event("delta", chunk)
+    yield from _sse_event("done", response.model_dump_json())
+
+
+def _chat_answer_chunks(answer: str, chunk_size: int = 120) -> Generator[str, None, None]:
+    text = answer or ""
+    for index in range(0, len(text), chunk_size):
+        yield text[index : index + chunk_size]
+
+
+def _sse_event(event_name: str, data: str) -> Generator[str, None, None]:
+    yield f"event: {event_name}\n"
+    normalized = (data or "").replace("\r\n", "\n").replace("\r", "\n")
+    for line in normalized.split("\n"):
+        yield f"data: {line}\n"
+    yield "\n"
 
 
 @app.post("/embeddings", response_model=EmbeddingResponse, dependencies=[Depends(require_service_auth)])

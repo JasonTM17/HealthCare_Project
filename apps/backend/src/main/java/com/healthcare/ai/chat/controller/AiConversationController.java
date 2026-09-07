@@ -96,7 +96,7 @@ public class AiConversationController {
             // content negotiation to replace the intended 404 with a 500.
             return ResponseEntity.notFound().build();
         }
-        ChatExchangeResponse exchange = conversationService.send(
+        ChatExchangeResponse exchange = conversationService.sendForStream(
             principal, conversationId, idempotencyKey, request.content());
         String answer = exchange.assistantMessage().content() == null ? "" : exchange.assistantMessage().content();
         StringBuilder events = new StringBuilder();
