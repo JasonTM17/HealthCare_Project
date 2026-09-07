@@ -4,11 +4,13 @@ import com.healthcare.clinical.dto.CreateMedicalRecordRequest;
 import com.healthcare.clinical.dto.MedicalRecordResponse;
 import com.healthcare.clinical.dto.PrescriptionResponse;
 import com.healthcare.clinical.service.ClinicalService;
+import com.healthcare.common.SafePageRequests;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -22,12 +24,15 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Set;
 import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/clinical")
 @Tag(name = "Clinical Records & Prescriptions", description = "Authenticated clinical records and prescription APIs")
 public class ClinicalController {
+
+    private static final Set<String> RECORD_SORT_PROPERTIES = Set.of("id", "createdAt");
 
     private final ClinicalService clinicalService;
 
@@ -61,7 +66,11 @@ public class ClinicalController {
             @PathVariable UUID patientId,
             @PageableDefault(size = 10) Pageable pageable,
             @AuthenticationPrincipal UserDetails userDetails) {
-        return ResponseEntity.ok(clinicalService.getPatientRecords(patientId, pageable, userDetails));
+        // Medical-record rows are wide; a raw Pageable here would let any
+        // authenticated caller pull unbounded pages of them.
+        return ResponseEntity.ok(clinicalService.getPatientRecords(patientId,
+            SafePageRequests.normalize(pageable, Sort.by(Sort.Direction.DESC, "createdAt"), RECORD_SORT_PROPERTIES),
+            userDetails));
     }
 
     @GetMapping("/prescriptions/{code}")
