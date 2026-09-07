@@ -82,38 +82,55 @@ public class BankTransferWebhookService {
         String ambientHash = ambientPayloadHash(eventId);
         if (ambientHash != null) {
             requireSamePayload(payloadHash, ambientHash);
-            return paymentService.getByTransferContent(request.transferContent());
+            return confirmIfUnprocessedOrRead(request, eventId);
         }
         Integer inserted = eventTemplate.execute(status ->
             jdbcTemplate.update(
-                "insert into payment_webhook_events (event_id, payload_hash) values (?, ?) on conflict (event_id) do nothing",
-                eventId, payloadHash
+                """
+                insert into payment_webhook_events
+                    (event_id, payload_hash, transfer_content, amount, transaction_reference)
+                values (?, ?, ?, ?, ?) on conflict (event_id) do nothing
+                """,
+                eventId, payloadHash, request.transferContent(), request.amount(), request.transactionReference()
             ));
         if (inserted == null || inserted == 0) {
             // Another transaction (or an earlier delivery of this event)
-            // committed this event id. A row left unprocessed by a previous
-            // 404 — the payment row appeared only after the bank's first
-            // delivery — must be re-matched now, not just re-read.
+            // committed this event id.
             String committedHash = jdbcTemplate.queryForObject(
                 "select payload_hash from payment_webhook_events where event_id = ?", String.class, eventId
             );
             requireSamePayload(payloadHash, committedHash);
-            boolean processed = jdbcTemplate.queryForObject(
-                "select processed_at is not null from payment_webhook_events where event_id = ?", Boolean.class, eventId
-            );
-            if (!processed) {
-                return requiredTemplate.execute(status -> {
-                    BankTransferPaymentResponse result = paymentService.confirmFromWebhook(request, eventId);
-                    jdbcTemplate.update(
-                        "update payment_webhook_events set payment_id = ?, processed_at = current_timestamp where event_id = ?",
-                        result.id(), eventId
-                    );
-                    return result;
-                });
-            }
+            return confirmIfUnprocessedOrRead(request, eventId);
+        }
+        return confirmAndMarkProcessed(request, eventId);
+    }
+
+    /**
+     * A duplicate delivery whose evidence row is still unprocessed — the bank
+     * delivered before the payment row existed and the patient has now opened
+     * the payment panel — must re-run the confirm, not just re-read the
+     * payment. Fully processed events keep the read-only replay semantics.
+     */
+    private BankTransferPaymentResponse confirmIfUnprocessedOrRead(
+            BankTransferWebhookRequest request, String eventId) {
+        boolean processed = jdbcTemplate.queryForObject(
+            "select processed_at is not null from payment_webhook_events where event_id = ?", Boolean.class, eventId
+        );
+        if (processed) {
             return paymentService.getByTransferContent(request.transferContent());
         }
+        return confirmAndMarkProcessed(request, eventId);
+    }
+
+    private BankTransferPaymentResponse confirmAndMarkProcessed(
+            BankTransferWebhookRequest request, String eventId) {
         return requiredTemplate.execute(status -> {
+            Boolean processed = jdbcTemplate.queryForObject(
+                "select processed_at is not null from payment_webhook_events where event_id = ? for update",
+                Boolean.class, eventId);
+            if (Boolean.TRUE.equals(processed)) {
+                return paymentService.getByTransferContent(request.transferContent());
+            }
             BankTransferPaymentResponse result = paymentService.confirmFromWebhook(request, eventId);
             jdbcTemplate.update(
                 "update payment_webhook_events set payment_id = ?, processed_at = current_timestamp where event_id = ?",
@@ -122,6 +139,42 @@ public class BankTransferWebhookService {
             return result;
         });
     }
+
+    public int retryPendingEvents() {
+        requireConfigured();
+        int completed = 0;
+        for (int index = 0; index < 25; index++) {
+            // Commit the lease before matching; a crashed attempt becomes due again.
+            java.util.List<RecoveryEvent> claimed = eventTemplate.execute(status -> jdbcTemplate.query("""
+                with candidate as (
+                    select event_id from payment_webhook_events
+                    where processed_at is null and transfer_content is not null
+                        and retry_attempts < 20 and next_retry_at <= current_timestamp
+                    order by next_retry_at, received_at, event_id
+                    limit 1 for update skip locked
+                )
+                update payment_webhook_events e
+                set retry_attempts = e.retry_attempts + 1,
+                    next_retry_at = current_timestamp + interval '5 minutes'
+                from candidate c where e.event_id = c.event_id
+                returning e.event_id, e.transfer_content, e.amount, e.transaction_reference
+                """, (rs, row) -> new RecoveryEvent(rs.getString("event_id"),
+                    new BankTransferWebhookRequest(rs.getString("transfer_content"),
+                        rs.getBigDecimal("amount"), rs.getString("transaction_reference")))));
+            if (claimed == null || claimed.isEmpty()) break;
+            RecoveryEvent event = claimed.getFirst();
+            try {
+                confirmAndMarkProcessed(event.request(), event.eventId());
+                completed++;
+            } catch (RuntimeException exception) {
+                org.slf4j.LoggerFactory.getLogger(BankTransferWebhookService.class)
+                    .warn("Payment webhook retry deferred: {}", exception.getClass().getSimpleName());
+            }
+        }
+        return completed;
+    }
+
+    private record RecoveryEvent(String eventId, BankTransferWebhookRequest request) { }
 
     /** Null when the event id is unknown to the caller's current transaction. */
     private String ambientPayloadHash(String eventId) {

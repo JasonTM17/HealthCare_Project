@@ -31,6 +31,9 @@ public interface BankTransferPaymentRepository extends JpaRepository<BankTransfe
     Optional<BankTransferPayment> findByTransferContentForUpdate(@Param("transferContent") String transferContent);
 
     @EntityGraph(attributePaths = {"appointment", "appointment.patient", "appointment.doctor", "appointment.medicalPackage"})
+    Optional<BankTransferPayment> findByTransferContent(String transferContent);
+
+    @EntityGraph(attributePaths = {"appointment", "appointment.patient", "appointment.doctor", "appointment.medicalPackage"})
     @Query("select p from BankTransferPayment p")
     Page<BankTransferPayment> findAllWithAppointment(Pageable pageable);
 
