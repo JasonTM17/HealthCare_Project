@@ -8,6 +8,8 @@ import com.healthcare.notification.entity.Notification.EventType;
 import com.healthcare.notification.repository.NotificationRepository;
 import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -21,6 +23,8 @@ import java.util.UUID;
 
 @Service
 public class NotificationService {
+
+    private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
 
     private static final Set<String> ALLOWED_SORT_PROPERTIES =
         Set.of("id", "title", "createdAt", "readAt", "read");
@@ -36,7 +40,15 @@ public class NotificationService {
     @Transactional
     public Notification create(UUID userId, EventType eventType, String title, String message, UUID referenceId) {
         User user = userRepository.findById(userId)
-            .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+            // A recipient vanishing concurrently must not roll back the
+            // enclosing business transaction (payment review, clinical
+            // result, ...): the notification is a non-essential side effect.
+            // Everything else still propagates.
+            .orElse(null);
+        if (user == null) {
+            log.warn("Skipping notification {} for missing user {}", eventType, userId);
+            return null;
+        }
         Notification notification = new Notification();
         notification.setUser(user);
         notification.setEventType(eventType);
