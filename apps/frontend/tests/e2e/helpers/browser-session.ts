@@ -110,18 +110,6 @@ export function doctorProfileFixture(
   };
 }
 
-export function doctorAiCreditStatusFixture(
-  overrides: Partial<AiCreditStatus> = {},
-): AiCreditStatus {
-  return {
-    tier: "STANDARD",
-    credits: 12,
-    maxCredits: 20,
-    history: [],
-    ...overrides,
-  };
-}
-
 export async function installMockPatientPortalSession(
   target: BrowserContext | Page,
   session: BrowserSessionFixture,
@@ -164,7 +152,6 @@ export async function installMockDoctorPortalSession(
   session: BrowserSessionFixture,
   options: {
     profile?: Partial<Doctor>;
-    credits?: Partial<AiCreditStatus>;
   } = {},
 ): Promise<void> {
   await installMockBrowserSession(target, session);
@@ -179,19 +166,6 @@ export async function installMockDoctorPortalSession(
       contentType: "application/json",
       headers: { "Cache-Control": "no-store" },
       body: JSON.stringify(doctorProfileFixture(session, options.profile)),
-    });
-  });
-
-  await target.route("**/api/v1/doctor/ai-credits/status", async (route) => {
-    const request = route.request();
-    expect(request.method()).toBe("GET");
-    expect(new URL(request.url()).origin).toBe(expectedBrowserOrigin());
-    expect(request.headers()["authorization"]).toBeUndefined();
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      headers: { "Cache-Control": "no-store" },
-      body: JSON.stringify(doctorAiCreditStatusFixture(options.credits)),
     });
   });
 }
