@@ -115,6 +115,10 @@ jobs:
         run: npm run test
       - name: Build
         working-directory: apps/frontend
+        env:
+          # The production-build guard in next.config.ts refuses placeholder
+          # site URLs; CI builds the real production bundle.
+          NEXT_PUBLIC_SITE_URL: https://healthcare.id.vn
         run: npm run build
       - name: Install Playwright Chromium
         working-directory: apps/frontend

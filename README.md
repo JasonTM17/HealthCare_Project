@@ -61,6 +61,14 @@ and [`docs/architecture/system-overview.mmd`](docs/architecture/system-overview.
 
 ## Hosted Beta Release Record
 
+> **⚠ URGENT (2026-09-07): the hosted beta still runs a vulnerable build.** The pinned
+> backend image predates the auth-OTP master-code fix (`695b541`): with the shipped
+> `APP_MAIL_ENABLED=false`, the live beta accepts `"123456"` as any authentication OTP —
+> including password reset of any account. Push `main`, publish a new image, and re-pin
+> `render.yaml` / `render-free-beta.yaml` following
+> [docs/deployment-beta.md — "PENDING security re-pin"](docs/deployment-beta.md).
+> After the fix, auth-OTP password reset stays disabled until real SMTP is configured.
+
 ### Maintenance checkpoint (2026-09-02)
 
 The current backend repair is source `bbecb296dd2dcd8864ab7a37b9f67d36f8b206dc`.
@@ -278,7 +286,9 @@ Node.js `>=22 <25` with npm `>=10 <12`, installed with `npm ci`; the focused
 - Tooling pins: `eslint-config-next` `16.3.3`, TypeScript `6.0.3`, and
   `@playwright/test` `1.62.1` (exactly pinned in both manifests).
 - The local/CI gate is `npm run verify` (lint, typecheck, unit tests, and
-  production build), followed by `npm run test:e2e` for the browser gate.
+  production build), with `NEXT_PUBLIC_SITE_URL` set to the real public origin
+  because canonical metadata and sitemap URLs derive from it. Follow with
+  `npm run test:e2e` for the browser gate.
 
 On 2026-09-01, `npm ci --dry-run --ignore-scripts --no-audit --no-fund`, the
 manifest/lockfile synchronization check, and
@@ -382,10 +392,13 @@ Frontend:
 ```bash
 cd apps/frontend
 npm ci
-npm run verify
+NEXT_PUBLIC_SITE_URL=https://healthcare.id.vn npm run verify
 npm run test:e2e
 npm run dev
 ```
+
+On PowerShell, set `$env:NEXT_PUBLIC_SITE_URL="https://healthcare.id.vn"` before
+running `npm run verify`.
 
 AI service:
 

@@ -2,6 +2,20 @@ import type { NextConfig } from "next";
 
 const distDir = process.env.NEXT_DIST_DIR || ".next";
 const development = process.env.NODE_ENV !== "production";
+const productionBuild = !development && process.argv.some((argument) => argument === "build");
+
+// A production build without a real site URL silently ships placeholder
+// canonical/OG domains (`healthcare-beta.example`) and a disabled sitemap.
+// Fail the build instead of discovering the SEO outage in production.
+if (productionBuild) {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (!siteUrl || siteUrl.includes("healthcare-beta.example")) {
+    throw new Error(
+      "NEXT_PUBLIC_SITE_URL must be set to the production origin for production builds "
+      + "(canonical URLs, sitemap and Open Graph metadata derive from it).",
+    );
+  }
+}
 
 // Static pages retain CDN caching, so this release uses the documented
 // non-nonce Next.js CSP profile. `unsafe-inline` is limited to scripts/styles
