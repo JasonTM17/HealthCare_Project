@@ -684,6 +684,20 @@ public class PatientConsultationService {
         if (targetUser.equals(actor)) {
             throw new BusinessException(409, "CONSULTATION_HANDOFF_INVALID", "Không thể chuyển lại cho chính bác sĩ hiện tại");
         }
+        expireIfDue(id);
+        int changed = jdbc.update("""
+            UPDATE patient_consultation_threads
+               SET status = 'WAITING_FOR_DOCTOR', version = version + 1
+             WHERE id = ?
+               AND status IN ('OPEN', 'WAITING_FOR_DOCTOR', 'WAITING_FOR_PATIENT')
+               AND consultation_open_until > CURRENT_TIMESTAMP
+               AND retention_expires_at > CURRENT_TIMESTAMP
+            """, id);
+        if (changed == 0) {
+            // Handoff must not resurrect a closed/resolved/expired thread the
+            // way reopen() deliberately can — it only reroutes live threads.
+            throw new BusinessException(409, "CONSULTATION_HANDOFF_INVALID", "Kênh tư vấn không còn mở nên không thể chuyển bác sĩ");
+        }
         jdbc.update("""
             INSERT INTO patient_consultation_participants(thread_id, user_id, participant_role, assigned_by_user_id)
             VALUES (?, ?, 'HANDOFF_DOCTOR', ?)
@@ -691,7 +705,6 @@ public class PatientConsultationService {
                 SET left_at = NULL,
                     assigned_by_user_id = EXCLUDED.assigned_by_user_id
             """, id, targetUser, actor);
-        jdbc.update("UPDATE patient_consultation_threads SET status = 'WAITING_FOR_DOCTOR', version = version + 1 WHERE id = ? AND retention_expires_at > CURRENT_TIMESTAMP", id);
         appendEvent(id, actor, "DOCTOR", "HANDOFF", "{\"doctorId\":\"" + request.doctorId() + "\"}");
     }
 
@@ -730,7 +743,16 @@ public class PatientConsultationService {
         UUID admin = currentUserId(principal);
         requireAdmin(admin);
         UUID targetUser = resolveHandoffDoctor(id, request.doctorId(), admin);
-        requireExists("SELECT id FROM patient_consultation_threads WHERE id = ? AND retention_expires_at > CURRENT_TIMESTAMP", id);
+        // Same live-thread rule as handoff: never attach a doctor to a
+        // closed/resolved/expired conversation surface.
+        expireIfDue(id);
+        requireExists("""
+            SELECT id FROM patient_consultation_threads
+             WHERE id = ?
+               AND status IN ('OPEN', 'WAITING_FOR_DOCTOR', 'WAITING_FOR_PATIENT')
+               AND consultation_open_until > CURRENT_TIMESTAMP
+               AND retention_expires_at > CURRENT_TIMESTAMP
+            """, id);
         jdbc.update("""
             INSERT INTO patient_consultation_participants(thread_id, user_id, participant_role, assigned_by_user_id)
             VALUES (?, ?, 'HANDOFF_DOCTOR', ?)
