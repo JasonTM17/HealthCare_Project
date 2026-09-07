@@ -10,6 +10,7 @@ import com.healthcare.ai.chat.service.AiConversationService;
 import com.healthcare.ai.service.AiService;
 import com.healthcare.appointment.entity.PatientProfile;
 import com.healthcare.exception.BusinessException;
+import com.healthcare.hospital.entity.MedicalService;
 import com.healthcare.user.entity.User;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +31,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -58,11 +61,11 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     @WithMockUser(username = "patient.legacy-chat@example.com", roles = "PATIENT")
-    void patientCannotBypassPersistentHistoryThroughLegacyChat() throws Exception {
+    void patientCannotBypassPersistentHistoryThroughRemovedLegacyChat() throws Exception {
         mockMvc.perform(post("/api/v1/ai/chat")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"message\":\"Toi can thong tin tham khao\",\"recent_history\":[]}"))
-            .andExpect(status().isForbidden());
+            .andExpect(status().isNotFound());
     }
 
     @Test
@@ -118,17 +121,12 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     @WithMockUser(username = "doctor.legacy-chat@example.com", roles = "DOCTOR")
-    void doctorRetainsControlledLegacySingleTurnChat() throws Exception {
-        when(aiService.chat(any())).thenReturn(Map.of(
-            "answer", "Thong tin tham khao",
-            "provenance", "local_fallback",
-            "citations", List.of()
-        ));
-
+    void doctorCannotUseRemovedLegacySingleTurnChat() throws Exception {
         mockMvc.perform(post("/api/v1/ai/chat")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"message\":\"Toi can thong tin tham khao\",\"recent_history\":[]}"))
-            .andExpect(status().isOk());
+            .andExpect(status().isNotFound());
+        verify(aiService, never()).chat(any());
     }
 
     @Test
@@ -254,6 +252,64 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
                 org.hamcrest.Matchers.containsString("event: done\n"),
                 org.hamcrest.Matchers.containsString("\"safetyAction\":\"REFUSE\"")
             )));
+    }
+
+    @Test
+    @WithMockUser(username = "patient.stream-generate@example.com", roles = "PATIENT")
+    void streamRouteUsesAiServiceStreamGenerationForAuthorizedSources() throws Exception {
+        User patient = createUser("patient.stream-generate@example.com");
+        createPatientProfile(patient, "0901002099", 3);
+        AiConversation conversation = createConversation(
+            patient,
+            false,
+            OffsetDateTime.now(ZoneOffset.UTC).plusDays(90)
+        );
+        MedicalService service = new MedicalService();
+        service.setName("Tư vấn tổng quát");
+        service.setSlug("tu-van-tong-quat-" + UUID.randomUUID());
+        service.setDescription("Thông tin hỗ trợ đặt lịch tư vấn tổng quát.");
+        service.setActive(true);
+        service = serviceRepository.saveAndFlush(service);
+        String sourceId = service.getId().toString();
+
+        when(aiService.retrieveChat(any())).thenReturn(Map.of(
+            "safety_action", "ANSWER",
+            "candidates", List.of(Map.of(
+                "source_type", "service",
+                "source_id", sourceId,
+                "projection_kind", "OPERATIONAL",
+                "score", 1.0
+            ))
+        ));
+        when(aiService.generateChatStream(any(), any())).thenAnswer(invocation -> {
+            AiService.ChatDeltaConsumer consumer = invocation.getArgument(1);
+            consumer.accept("Bạn có thể đặt lịch tư vấn tổng quát.");
+            return Map.of(
+                "answer", "Bạn có thể đặt lịch tư vấn tổng quát.",
+                "provenance", "local_provider",
+                "used_sources", List.of(Map.of(
+                    "source_type", "service",
+                    "source_id", sourceId,
+                    "projection_kind", "OPERATIONAL"
+                ))
+            );
+        });
+
+        mockMvc.perform(post("/api/v1/ai/conversations/{id}/messages/stream", conversation.getId())
+                .header("Idempotency-Key", "stream-generate-0001")
+                .accept(MediaType.TEXT_EVENT_STREAM)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"Tôi muốn đặt lịch tư vấn\"}"))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_EVENT_STREAM))
+            .andExpect(content().string(org.hamcrest.Matchers.allOf(
+                org.hamcrest.Matchers.containsString("event: delta\n"),
+                org.hamcrest.Matchers.containsString("event: done\n"),
+                org.hamcrest.Matchers.containsString("\"source_id\":\"" + sourceId + "\"")
+            )));
+
+        verify(aiService).generateChatStream(any(), any());
+        verify(aiService, never()).generateChat(any());
     }
 
     @Test

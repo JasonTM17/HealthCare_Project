@@ -2,6 +2,7 @@
 
 from datetime import datetime, timedelta, timezone
 import hashlib
+import json
 from unittest.mock import MagicMock
 
 import pytest
@@ -56,6 +57,22 @@ def _service() -> RagService:
         embedding_model="local-hash",
     )
     return service
+
+
+def _parse_sse(payload: str) -> list[tuple[str, str]]:
+    events: list[tuple[str, str]] = []
+    for block in payload.split("\n\n"):
+        if not block.strip():
+            continue
+        event_name = "message"
+        data: list[str] = []
+        for line in block.splitlines():
+            if line.startswith("event:"):
+                event_name = line.removeprefix("event:").strip()
+            elif line.startswith("data:"):
+                data.append(line.removeprefix("data:").removeprefix(" "))
+        events.append((event_name, "\n".join(data)))
+    return events
 
 
 def test_local_generate_is_grounded_and_exhaustive() -> None:
@@ -457,6 +474,45 @@ def test_protected_endpoints_return_mode_filtered_candidates_and_grounded_answer
     assert generated.status_code == 200
     assert generated.json()["used_sources"][0]["source_id"] == "hours"
     assert generated.json()["provenance"] == "local_provider"
+
+
+def test_protected_generate_stream_returns_safe_deltas_and_done(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = _service()
+    monkeypatch.setattr(main, "rag_service", service)
+    monkeypatch.setattr(settings, "ai_service_token", "")
+    monkeypatch.setattr(settings, "ai_service_runtime", "local")
+    monkeypatch.setattr(settings, "ai_service_allow_unauthenticated_local", True)
+    monkeypatch.setattr(settings, "ai_provider", "local")
+    monkeypatch.setattr(settings, "embedding_provider", "local")
+
+    client = TestClient(app)
+    with client.stream(
+        "POST",
+        "/chat/generate/stream",
+        json={
+            "message": "Giờ mở cửa?",
+            "mode": "HOSPITAL_SUPPORT",
+            "authorized_sources": [
+                {"source_type": "service", "source_id": "hours", "projection_kind": "OPERATIONAL"}
+            ],
+        },
+    ) as response:
+        assert response.status_code == 200
+        assert "text/event-stream" in response.headers["content-type"]
+        payload = "".join(response.iter_text())
+
+    events = _parse_sse(payload)
+    deltas = [body for event_name, body in events if event_name == "delta"]
+    done_payloads = [body for event_name, body in events if event_name == "done"]
+
+    assert deltas
+    assert len(done_payloads) == 1
+    done = json.loads(done_payloads[0])
+    assert "".join(deltas) == done["answer"]
+    assert done["used_sources"][0]["source_id"] == "hours"
+    assert done["provenance"] == "local_provider"
 
 
 def test_retrieve_relevance_threshold_can_fail_closed(monkeypatch: pytest.MonkeyPatch) -> None:
