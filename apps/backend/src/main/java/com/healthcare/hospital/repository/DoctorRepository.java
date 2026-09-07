@@ -29,6 +29,10 @@ public interface DoctorRepository extends JpaRepository<Doctor, UUID> {
     @Query("select d from Doctor d where d.id = :id and d.active = true")
     Optional<Doctor> findActiveByIdForUpdate(@Param("id") UUID id);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select d from Doctor d where d.id = :id")
+    Optional<Doctor> findByIdForUpdate(@Param("id") UUID id);
+
     @Query("""
         select d from Doctor d
         where d.active = true

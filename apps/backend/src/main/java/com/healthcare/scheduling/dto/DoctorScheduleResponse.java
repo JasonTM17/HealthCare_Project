@@ -1,6 +1,6 @@
 package com.healthcare.scheduling.dto;
 
-import com.healthcare.scheduling.entity.DoctorSchedule;
+import com.healthcare.appointment.entity.DoctorSchedule;
 
 import java.time.LocalDate;
 import java.time.LocalTime;

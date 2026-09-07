@@ -7,7 +7,7 @@ import com.healthcare.hospital.repository.BranchRepository;
 import com.healthcare.hospital.repository.DoctorBranchRepository;
 import com.healthcare.hospital.repository.DoctorRepository;
 import com.healthcare.scheduling.dto.DoctorScheduleRequest;
-import com.healthcare.scheduling.entity.DoctorSchedule;
+import com.healthcare.appointment.entity.DoctorSchedule;
 import com.healthcare.scheduling.repository.DoctorScheduleRepository;
 import com.healthcare.scheduling.service.DoctorScheduleService;
 import org.junit.jupiter.api.Test;
@@ -25,6 +25,44 @@ import static org.mockito.Mockito.when;
 class DoctorScheduleServiceTest {
 
     @Test
+    void inactiveDoctorCanBeScheduledAndMutationsLockBeforeLoadingSchedule() {
+        DoctorScheduleRepository schedules = mock(DoctorScheduleRepository.class);
+        DoctorRepository doctors = mock(DoctorRepository.class);
+        DoctorBranchRepository assignments = mock(DoctorBranchRepository.class);
+        BranchRepository branches = mock(BranchRepository.class);
+        UUID doctorId = UUID.randomUUID();
+        UUID branchId = UUID.randomUUID();
+        UUID scheduleId = UUID.randomUUID();
+        Doctor doctor = new Doctor(); doctor.setId(doctorId); doctor.setActive(false);
+        Branch branch = new Branch(); branch.setId(branchId);
+        when(doctors.findByIdForUpdate(doctorId)).thenReturn(Optional.of(doctor));
+        when(branches.findById(branchId)).thenReturn(Optional.of(branch));
+        when(assignments.existsByDoctorIdAndBranchId(doctorId, branchId)).thenReturn(true);
+        when(schedules.save(org.mockito.ArgumentMatchers.any())).thenAnswer(call -> call.getArgument(0));
+        var service = new DoctorScheduleService(schedules, doctors, assignments, branches);
+        var request = new DoctorScheduleRequest(1, LocalTime.of(8, 0), LocalTime.of(12, 0), 30,
+            LocalDate.of(2030, 1, 1), null, true);
+        DoctorSchedule schedule = service.createSchedule(doctorId, branchId, request);
+        org.assertj.core.api.Assertions.assertThat(schedule.getDoctor().isActive()).isFalse();
+        schedule.setId(scheduleId);
+        when(schedules.findDoctorIdByScheduleId(scheduleId)).thenReturn(Optional.of(doctorId));
+        when(schedules.findById(scheduleId)).thenReturn(Optional.of(schedule));
+        org.mockito.Mockito.clearInvocations(schedules, doctors);
+        service.updateSchedule(scheduleId, request);
+        var updateOrder = org.mockito.Mockito.inOrder(schedules, doctors);
+        updateOrder.verify(schedules).findDoctorIdByScheduleId(scheduleId);
+        updateOrder.verify(doctors).findByIdForUpdate(doctorId);
+        updateOrder.verify(schedules).findById(scheduleId);
+        org.mockito.Mockito.clearInvocations(schedules, doctors);
+        service.deleteSchedule(scheduleId);
+        var deleteOrder = org.mockito.Mockito.inOrder(schedules, doctors);
+        deleteOrder.verify(schedules).findDoctorIdByScheduleId(scheduleId);
+        deleteOrder.verify(doctors).findByIdForUpdate(doctorId);
+        deleteOrder.verify(schedules).findById(scheduleId);
+        deleteOrder.verify(schedules).delete(schedule);
+    }
+
+    @Test
     void rejectsOverlappingActiveScheduleForSameDoctorBranchAndEffectiveRange() {
         DoctorScheduleRepository schedules = mock(DoctorScheduleRepository.class);
         DoctorRepository doctors = mock(DoctorRepository.class);
@@ -34,7 +72,7 @@ class DoctorScheduleServiceTest {
         UUID branchId = UUID.randomUUID();
         Doctor doctor = new Doctor(); doctor.setId(doctorId);
         Branch branch = new Branch(); branch.setId(branchId);
-        when(doctors.findById(doctorId)).thenReturn(Optional.of(doctor));
+        when(doctors.findByIdForUpdate(doctorId)).thenReturn(Optional.of(doctor));
         when(branches.findById(branchId)).thenReturn(Optional.of(branch));
         when(assignments.existsByDoctorIdAndBranchId(doctorId, branchId)).thenReturn(true);
 
