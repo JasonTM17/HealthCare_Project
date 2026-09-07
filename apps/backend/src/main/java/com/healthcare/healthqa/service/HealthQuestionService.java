@@ -63,13 +63,18 @@ public class HealthQuestionService {
         if (!topic.matches("[a-z0-9]+(?:-[a-z0-9]+)*")) throw new BusinessException(400, "HEALTH_QUESTION_TOPIC_INVALID", "Chủ đề không hợp lệ");
         String question = request.question().trim();
         if (PII.matcher(question).find()) throw new BusinessException(400, "HEALTH_QUESTION_PII", "Không đưa thông tin liên hệ hoặc định danh vào câu hỏi");
+        // The alias is rendered on the public listing, so it must pass the same
+        // PII gate as the question body (the DB CHECK blocks "@" but phone
+        // numbers are pure digits and slip through it).
+        String publicAlias = request.publicAlias().trim();
+        if (PII.matcher(publicAlias).find()) throw new BusinessException(400, "HEALTH_QUESTION_PII", "Không đưa thông tin liên hệ hoặc định danh vào tên hiển thị");
         UUID profile = scalar("SELECT id FROM patient_profiles WHERE user_id = ?", userId);
         UUID id = UUID.randomUUID();
         jdbc.update("""
             INSERT INTO health_questions(id, patient_profile_id, author_user_id, topic_slug,
                 normalized_question, public_alias, pii_scan_status, pii_scanned_at, status)
             VALUES (?, ?, ?, ?, ?, ?, 'CLEAR', CURRENT_TIMESTAMP, 'PENDING_MODERATION')
-            """, id, profile, userId, topic, question, request.publicAlias().trim());
+            """, id, profile, userId, topic, question, publicAlias);
         return get(id, userId, true);
     }
 
