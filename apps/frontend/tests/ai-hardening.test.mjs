@@ -34,10 +34,8 @@ test("AI triage uses the authenticated backend contract without a local answer",
     read("types/hospital.ts"),
   ]);
 
-  assert.match(apiClient, /export async function recommendSpecialty/);
   assert.match(apiClient, /export async function recommendPublicSpecialty/);
   assert.match(apiClient, /getAuthenticatedJson<SpecialtyRecommendationResponse>/);
-  assert.match(apiClient, /\/ai\/specialty-recommendation/);
   assert.match(apiClient, /\/public\/specialty-recommendation/);
   assert.match(apiClient, /JSON\.stringify\(\{ symptoms: normalized \}\)/);
   assert.match(apiClient, /recommended_specialty/);

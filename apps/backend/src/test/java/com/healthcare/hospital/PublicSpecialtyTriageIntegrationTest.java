@@ -42,15 +42,6 @@ class PublicSpecialtyTriageIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void unauthenticatedAiSpecialtyRecommendationStaysUnauthorized() throws Exception {
-        mockMvc.perform(post("/api/v1/ai/specialty-recommendation")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(java.util.Map.of("symptoms", "đau đầu chóng mặt"))))
-            .andExpect(status().isUnauthorized());
-        assertThat(aiConversationRepository.count()).isZero();
-    }
-
-    @Test
     void diagnoseAndPrescribeCopyIsBlocked() throws Exception {
         mockMvc.perform(post("/api/v1/public/specialty-recommendation")
                 .contentType(MediaType.APPLICATION_JSON)

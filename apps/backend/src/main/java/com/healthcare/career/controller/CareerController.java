@@ -44,11 +44,6 @@ public class CareerController {
             SafePageRequests.normalize(pageable, Sort.by(Sort.Direction.ASC, "deadline"), JOB_SORT_PROPERTIES));
     }
 
-    @GetMapping("/{slug}")
-    public JobPositionResponse detail(@PathVariable String slug) {
-        return careerService.getOpenPosition(slug);
-    }
-
     @PostMapping("/{slug}/applications")
     @ResponseStatus(HttpStatus.CREATED)
     public JobApplicationReceipt apply(

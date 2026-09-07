@@ -4,7 +4,7 @@ import test from "node:test";
 
 const read = (relativePath) => readFile(new URL(`../${relativePath}`, import.meta.url), "utf8");
 
-test("notification preferences matrix keeps the new contract and legacy API side-by-side", async () => {
+test("notification preferences matrix keeps the current contract and guarded states", async () => {
   const [api, page, styles, types] = await Promise.all([
     read("lib/api-client.ts"),
     read("app/patient/preferences/page.tsx"),
@@ -15,7 +15,6 @@ test("notification preferences matrix keeps the new contract and legacy API side
   assert.match(api, /\/users\/me\/notification-preferences/);
   assert.match(api, /fetchNotificationPreferences/);
   assert.match(api, /updateNotificationPreference/);
-  assert.match(api, /\/users\/me\/preferences/);
 
   assert.match(page, /BẮT BUỘC/);
   assert.match(page, /Khóa/);

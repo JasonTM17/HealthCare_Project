@@ -334,15 +334,6 @@ export interface UserProfile extends AuthUser {
   status: string;
 }
 
-export interface UserPreferences {
-  emailNotifications: boolean;
-  appointmentReminders: boolean;
-  marketingEmails: boolean;
-  locale: string;
-  timezone: string;
-  updatedAt?: string | null;
-}
-
 export type NotificationCategory =
   | "SECURITY"
   | "APPOINTMENT"
