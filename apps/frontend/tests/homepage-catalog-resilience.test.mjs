@@ -86,10 +86,11 @@ test("homepage catalog handles cold starts and backend outages gracefully", asyn
   assert.match(home, /SpecialtySkeletonCard/);
   assert.match(home, /DoctorSkeletonCard/);
 
-  // Fallback data present for graceful degradation
-  assert.match(home, /FALLBACK_PACKAGES/);
-  assert.match(home, /FALLBACK_SPECIALTIES/);
-  assert.match(home, /FALLBACK_DOCTORS/);
+  // Outage states are honest: no fictional fallback catalog may be shipped —
+  // fixture doctors/packages were interactive and steered users into dead ends.
+  assert.doesNotMatch(home, /FALLBACK_PACKAGES/);
+  assert.doesNotMatch(home, /FALLBACK_SPECIALTIES/);
+  assert.doesNotMatch(home, /FALLBACK_DOCTORS/);
 
   // Verbatim contract checks preserved
   assert.match(home, /packages\.slice\(0, 4\)/);

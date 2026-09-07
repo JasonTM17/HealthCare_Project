@@ -25,6 +25,9 @@ function SafeLink({ label, href }: { label: string; href: string }): ReactElemen
     <a
       className="cms-renderer__link cms-renderer__link--primary"
       href={href}
+      // Admin-entered external links must not hand the opener context to the
+      // destination page (reverse tabnabbing).
+      rel="noopener noreferrer"
     >
       {label}
     </a>
