@@ -3,6 +3,7 @@ package com.healthcare.media.controller;
 import com.healthcare.media.dto.MediaAssetResponse;
 import com.healthcare.media.entity.MediaAsset;
 import com.healthcare.media.service.MediaAssetService;
+import com.healthcare.media.service.MediaAssetService.MediaAssetContent;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -46,7 +47,8 @@ public class MediaAssetController {
 
     @GetMapping("/{id}")
     public ResponseEntity<byte[]> getMedia(@PathVariable UUID id) {
-        MediaAsset asset = mediaAssetService.getMedia(id);
+        MediaAssetContent content = mediaAssetService.getMediaContent(id);
+        MediaAsset asset = content.asset();
         MediaType mediaType;
         try {
             mediaType = MediaType.parseMediaType(asset.getContentType());
@@ -60,10 +62,10 @@ public class MediaAssetController {
         String safeFilename = asset.getFilename() == null ? "asset" : asset.getFilename();
         return ResponseEntity.ok()
             .contentType(mediaType)
-            .contentLength(asset.getSizeBytes())
+            .contentLength(content.bytes().length)
             .cacheControl(CacheControl.maxAge(1, TimeUnit.HOURS).cachePublic())
             .header(HttpHeaders.CONTENT_DISPOSITION,
                 ContentDisposition.inline().filename(safeFilename, StandardCharsets.UTF_8).build().toString())
-            .body(asset.getData());
+            .body(content.bytes());
     }
 }

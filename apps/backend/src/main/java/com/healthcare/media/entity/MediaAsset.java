@@ -27,8 +27,11 @@ public class MediaAsset {
     @Column(name = "size_bytes", nullable = false)
     private long sizeBytes;
 
-    @Column(name = "data", nullable = false)
+    @Column(name = "data")
     private byte[] data;
+
+    @Column(name = "object_key", length = 512)
+    private String objectKey;
 
     @Column(name = "uploader_id")
     private UUID uploaderId;
@@ -93,6 +96,14 @@ public class MediaAsset {
 
     public void setData(byte[] data) {
         this.data = data;
+    }
+
+    public String getObjectKey() {
+        return objectKey;
+    }
+
+    public void setObjectKey(String objectKey) {
+        this.objectKey = objectKey;
     }
 
     public UUID getUploaderId() {

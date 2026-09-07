@@ -67,6 +67,12 @@ public class FileStorageService {
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
         ".pdf", ".jpg", ".jpeg", ".png", ".txt", ".doc", ".docx", ".xlsx"
     );
+    private static final Set<String> PUBLIC_MEDIA_CONTENT_TYPES = Set.of(
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/gif"
+    );
     private static final Map<String, String> CONTENT_TYPE_BY_EXTENSION = Map.ofEntries(
         Map.entry(".pdf", "application/pdf"),
         Map.entry(".jpg", "image/jpeg"),
@@ -231,6 +237,57 @@ public class FileStorageService {
         }
     }
 
+    public boolean isUploadEnabled() {
+        return uploadEnabled;
+    }
+
+    public String uploadPublicMedia(String originalFilename, String contentType, byte[] content) throws Exception {
+        ensureUploadPathIsConfigured();
+        String normalizedContentType = normalizePublicMediaContentType(contentType);
+        validatePublicMediaContent(content);
+        ensureMimeMatches(normalizedContentType, content);
+        String objectName = "public/media/" + UUID.randomUUID() + "-" + safeFilename(originalFilename);
+        ensureCleanScan(objectName, normalizedContentType, content);
+        init();
+        try (InputStream inputStream = new ByteArrayInputStream(content)) {
+            minioClient.putObject(
+                PutObjectArgs.builder()
+                    .bucket(bucket)
+                    .object(objectName)
+                    .stream(inputStream, content.length, -1)
+                    .contentType(normalizedContentType)
+                    .build()
+            );
+        }
+        return objectName;
+    }
+
+    public byte[] downloadPublicMedia(String objectName) throws Exception {
+        validatePublicMediaObjectName(objectName);
+        ensureStoragePathIsEnabled();
+        init();
+        try (InputStream stream = minioClient.getObject(
+            GetObjectArgs.builder()
+                .bucket(bucket)
+                .object(objectName)
+                .build()
+        )) {
+            return readLimited(stream);
+        }
+    }
+
+    public void deletePublicMedia(String objectName) throws Exception {
+        validatePublicMediaObjectName(objectName);
+        ensureStoragePathIsEnabled();
+        init();
+        minioClient.removeObject(
+            RemoveObjectArgs.builder()
+                .bucket(bucket)
+                .object(objectName)
+                .build()
+        );
+    }
+
     @Transactional(readOnly = true)
     public byte[] download(String objectName, UserDetails principal) throws Exception {
         validateObjectName(objectName);
@@ -392,6 +449,17 @@ public class FileStorageService {
         if (hasPrefix(bytes, new int[] {0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a})) {
             return "image/png";
         }
+        if (hasPrefix(bytes, new int[] {0x47, 0x49, 0x46, 0x38})) {
+            return "image/gif";
+        }
+        if (hasPrefix(bytes, new int[] {0x52, 0x49, 0x46, 0x46})
+                && bytes.length >= 12
+                && bytes[8] == 'W'
+                && bytes[9] == 'E'
+                && bytes[10] == 'B'
+                && bytes[11] == 'P') {
+            return "image/webp";
+        }
         if (hasPrefix(bytes, new int[] {0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1})) {
             return "application/msword";
         }
@@ -482,6 +550,39 @@ public class FileStorageService {
             throw new ResponseStatusException(
                 HttpStatus.SERVICE_UNAVAILABLE,
                 "Kho tệp riêng tư chưa được bật cho môi trường này");
+        }
+    }
+
+    private String normalizePublicMediaContentType(String contentType) {
+        String normalized = contentType == null ? "" : contentType.toLowerCase(Locale.ROOT).trim();
+        if (!PUBLIC_MEDIA_CONTENT_TYPES.contains(normalized)) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Định dạng media không được hỗ trợ");
+        }
+        return normalized;
+    }
+
+    private void validatePublicMediaContent(byte[] content) {
+        if (content == null || content.length == 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Media tải lên không được để trống");
+        }
+        if (content.length > maxFileSizeBytes) {
+            throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, "Media vượt quá kích thước cho phép");
+        }
+    }
+
+    private void validatePublicMediaObjectName(String objectName) {
+        if (objectName == null
+                || !objectName.startsWith("public/media/")
+                || objectName.length() > 512
+                || objectName.length() == "public/media/".length()
+                || objectName.contains("..")
+                || objectName.contains("\\")
+                || objectName.startsWith("/")
+                || objectName.endsWith("/")
+                || objectName.chars().anyMatch(Character::isISOControl)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Tên media object không hợp lệ");
         }
     }
 

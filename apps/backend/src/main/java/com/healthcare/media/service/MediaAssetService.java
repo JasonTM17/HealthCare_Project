@@ -5,13 +5,17 @@ import com.healthcare.exception.ResourceNotFoundException;
 import com.healthcare.media.dto.MediaAssetResponse;
 import com.healthcare.media.entity.MediaAsset;
 import com.healthcare.media.repository.MediaAssetRepository;
+import com.healthcare.storage.service.FileStorageService;
 import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -42,10 +46,20 @@ public class MediaAssetService {
 
     private final MediaAssetRepository mediaAssetRepository;
     private final UserRepository userRepository;
+    private final FileStorageService fileStorageService;
 
     public MediaAssetService(MediaAssetRepository mediaAssetRepository, UserRepository userRepository) {
+        this(mediaAssetRepository, userRepository, null);
+    }
+
+    @Autowired
+    public MediaAssetService(
+            MediaAssetRepository mediaAssetRepository,
+            UserRepository userRepository,
+            FileStorageService fileStorageService) {
         this.mediaAssetRepository = mediaAssetRepository;
         this.userRepository = userRepository;
+        this.fileStorageService = fileStorageService;
     }
 
     @Transactional
@@ -97,17 +111,31 @@ public class MediaAssetService {
             ? originalFilename.replaceAll("[^a-zA-Z0-9._-]", "_")
             : "upload_" + System.currentTimeMillis() + ".jpg";
 
+        String objectKey = null;
+        byte[] inlineData = bytes;
+        if (fileStorageService != null && fileStorageService.isUploadEnabled()) {
+            objectKey = storePublicMedia(safeFilename, contentType, bytes);
+            inlineData = null;
+        }
+
         MediaAsset asset = new MediaAsset(
             safeFilename,
             contentType,
             file.getSize(),
-            bytes,
+            inlineData,
             uploaderId,
             uploaderRole,
             normalizedPurpose
         );
+        asset.setObjectKey(objectKey);
 
-        MediaAsset saved = mediaAssetRepository.save(asset);
+        MediaAsset saved;
+        try {
+            saved = mediaAssetRepository.saveAndFlush(asset);
+        } catch (RuntimeException exception) {
+            removePublicMediaAfterMetadataFailure(objectKey, exception);
+            throw exception;
+        }
         return MediaAssetResponse.from(saved);
     }
 
@@ -115,6 +143,29 @@ public class MediaAssetService {
     public MediaAsset getMedia(UUID id) {
         return mediaAssetRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Tệp hình ảnh không tồn tại hoặc đã bị xóa khỏi hệ thống."));
+    }
+
+    @Transactional(readOnly = true)
+    public MediaAssetContent getMediaContent(UUID id) {
+        MediaAsset asset = getMedia(id);
+        byte[] inlineData = asset.getData();
+        if (inlineData != null) {
+            return new MediaAssetContent(asset, inlineData);
+        }
+        String objectKey = asset.getObjectKey();
+        if (objectKey == null || objectKey.isBlank()) {
+            throw new ResourceNotFoundException("Tệp hình ảnh không tồn tại hoặc đã bị xóa khỏi hệ thống.");
+        }
+        if (fileStorageService == null || !fileStorageService.isUploadEnabled()) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Kho media chưa được bật cho môi trường này.");
+        }
+        try {
+            return new MediaAssetContent(asset, fileStorageService.downloadPublicMedia(objectKey));
+        } catch (ResponseStatusException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Kho media chưa sẵn sàng.");
+        }
     }
 
     private boolean isValidImageMagicBytes(byte[] data, String mimeType) {
@@ -134,4 +185,27 @@ public class MediaAssetService {
             default -> false;
         };
     }
+
+    private String storePublicMedia(String safeFilename, String contentType, byte[] bytes) {
+        try {
+            return fileStorageService.uploadPublicMedia(safeFilename, contentType, bytes);
+        } catch (ResponseStatusException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Kho media chưa sẵn sàng.");
+        }
+    }
+
+    private void removePublicMediaAfterMetadataFailure(String objectKey, RuntimeException exception) {
+        if (objectKey == null || objectKey.isBlank() || fileStorageService == null) {
+            return;
+        }
+        try {
+            fileStorageService.deletePublicMedia(objectKey);
+        } catch (Exception cleanupFailure) {
+            exception.addSuppressed(cleanupFailure);
+        }
+    }
+
+    public record MediaAssetContent(MediaAsset asset, byte[] bytes) {}
 }
