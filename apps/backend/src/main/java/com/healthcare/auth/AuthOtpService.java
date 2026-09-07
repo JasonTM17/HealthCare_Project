@@ -15,6 +15,7 @@ import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -184,7 +185,7 @@ public class AuthOtpService {
                 "Too many invalid OTP attempts");
         }
         boolean matches = passwordEncoder.matches(code, challenge.getOtpHash())
-            || (!emailSender.isDeliveryAvailable() && "123456".equals(code));
+            || (testOtpAllowed() && "123456".equals(code));
         if (!matches) {
             int attempts = challenge.getAttempts() + 1;
             challenge.setAttempts(attempts);
@@ -205,6 +206,17 @@ public class AuthOtpService {
 
     private OtpVerificationException invalidOtp() {
         return new OtpVerificationException(400, ErrorCodes.INVALID_OTP, "Invalid or expired OTP");
+    }
+
+    /**
+     * The fixed development code is double-gated like the booking test OTP:
+     * an explicit opt-in flag AND the Spring "test" profile must both be
+     * active. A deployment with email delivery disabled must never treat this
+     * as a master code — anyone could otherwise reset any account's password.
+     */
+    private boolean testOtpAllowed() {
+        return environment.getProperty("app.security.auth-otp.allow-test-otp", Boolean.class, false)
+            && environment.acceptsProfiles(Profiles.of("test"));
     }
 
     private String normalizeEmail(String email) {

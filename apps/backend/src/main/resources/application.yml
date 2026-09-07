@@ -115,6 +115,10 @@ app:
       window-seconds: ${APP_AUTH_OTP_WINDOW_SECONDS:900}
       ip-limit: ${APP_AUTH_OTP_IP_LIMIT:20}
       email-limit: ${APP_AUTH_OTP_EMAIL_LIMIT:50}
+      # The fixed development code ("123456") requires this flag AND the Spring
+      # "test" profile together; mail-disabled deployments must never turn it
+      # into a universal password-reset code.
+      allow-test-otp: ${APP_AUTH_ALLOW_TEST_OTP:false}
 
 cms:
   realtime:
