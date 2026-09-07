@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
@@ -26,6 +27,10 @@ import java.util.UUID;
 @Service
 public class CareerService {
 
+    // Deadlines are calendar dates shown to Vietnamese applicants; comparing
+    // them with server-default "today" (UTC in containers) closes postings at
+    // 07:00 local time on the deadline day itself.
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final int DUPLICATE_WINDOW_DAYS = 7;
     private final JobPositionRepository jobPositionRepository;
     private final JobApplicationRepository jobApplicationRepository;
@@ -43,7 +48,7 @@ public class CareerService {
             String location,
             Pageable pageable) {
         return jobPositionRepository.findOpenPositions(
-            LocalDate.now(),
+            LocalDate.now(BUSINESS_ZONE),
             normalizeFilter(department),
             normalizeFilter(location),
             pageable
@@ -89,7 +94,7 @@ public class CareerService {
     JobPosition requireOpenPosition(String slug) {
         JobPosition job = jobPositionRepository.findBySlug(slug)
             .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy vị trí tuyển dụng này."));
-        if (!job.isActive() || (job.getDeadline() != null && job.getDeadline().isBefore(LocalDate.now()))) {
+        if (!job.isActive() || (job.getDeadline() != null && job.getDeadline().isBefore(LocalDate.now(BUSINESS_ZONE)))) {
             throw new ResourceNotFoundException("Vị trí tuyển dụng này đã ngừng nhận hồ sơ.");
         }
         return job;
