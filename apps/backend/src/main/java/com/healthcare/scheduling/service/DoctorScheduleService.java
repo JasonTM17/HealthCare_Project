@@ -5,7 +5,7 @@ import com.healthcare.hospital.entity.Doctor;
 import com.healthcare.hospital.repository.BranchRepository;
 import com.healthcare.hospital.repository.DoctorBranchRepository;
 import com.healthcare.hospital.repository.DoctorRepository;
-import com.healthcare.scheduling.entity.DoctorSchedule;
+import com.healthcare.appointment.entity.DoctorSchedule;
 import com.healthcare.scheduling.dto.DoctorScheduleRequest;
 import com.healthcare.scheduling.dto.DoctorScheduleResponse;
 import com.healthcare.scheduling.repository.DoctorScheduleRepository;
@@ -39,7 +39,7 @@ public class DoctorScheduleService {
 
     @Transactional
     public DoctorSchedule createSchedule(UUID doctorId, UUID branchId, DoctorScheduleRequest request) {
-        Doctor doctor = doctorRepository.findById(doctorId)
+        Doctor doctor = doctorRepository.findByIdForUpdate(doctorId)
             .orElseThrow(() -> new com.healthcare.exception.ResourceNotFoundException("Doctor not found: " + doctorId));
         Branch branch = branchRepository.findById(branchId)
             .orElseThrow(() -> new com.healthcare.exception.ResourceNotFoundException("Branch not found: " + branchId));
@@ -63,6 +63,7 @@ public class DoctorScheduleService {
     @Transactional
     public DoctorSchedule updateSchedule(UUID scheduleId, DoctorScheduleRequest request) {
         validate(request);
+        lockScheduleDoctor(scheduleId);
         DoctorSchedule schedule = scheduleRepository.findById(scheduleId)
             .orElseThrow(() -> new com.healthcare.exception.ResourceNotFoundException("Schedule not found: " + scheduleId));
         rejectOverlap(scheduleId, schedule.getDoctor().getId(), schedule.getBranch().getId(), request);
@@ -72,9 +73,18 @@ public class DoctorScheduleService {
 
     @Transactional
     public void deleteSchedule(UUID scheduleId) {
+        lockScheduleDoctor(scheduleId);
         DoctorSchedule schedule = scheduleRepository.findById(scheduleId)
             .orElseThrow(() -> new com.healthcare.exception.ResourceNotFoundException("Schedule not found: " + scheduleId));
         scheduleRepository.delete(schedule);
+    }
+
+    private void lockScheduleDoctor(UUID scheduleId) {
+        // Resolve only the stable owner before waiting; load mutable schedule state after the lock.
+        UUID doctorId = scheduleRepository.findDoctorIdByScheduleId(scheduleId)
+            .orElseThrow(() -> new com.healthcare.exception.ResourceNotFoundException("Schedule not found: " + scheduleId));
+        doctorRepository.findByIdForUpdate(doctorId)
+            .orElseThrow(() -> new com.healthcare.exception.ResourceNotFoundException("Doctor not found: " + doctorId));
     }
 
     private void validate(DoctorScheduleRequest request) {

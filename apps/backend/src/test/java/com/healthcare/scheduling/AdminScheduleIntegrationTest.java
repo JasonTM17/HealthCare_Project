@@ -32,6 +32,84 @@ class AdminScheduleIntegrationTest extends AbstractIntegrationTest {
     @Autowired private RoleRepository roleRepository;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private JwtTokenProvider tokenProvider;
+    @Autowired private com.healthcare.scheduling.service.DoctorScheduleService scheduleService;
+    @Autowired private org.springframework.transaction.PlatformTransactionManager transactionManager;
+    @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"create", "update", "delete"})
+    void concurrentOverlappingCreatesSerializeUntilCommit(String firstOperation) throws Exception {
+        Doctor doctor = assignedDoctor();
+        Branch branch = assignedBranch(doctor);
+        UUID doctorId = doctor.getId();
+        UUID branchId = branch.getId();
+        UUID existingId = firstOperation.equals("create") ? null : scheduleService.createSchedule(doctorId, branchId,
+            new DoctorScheduleRequest(2, LocalTime.of(13, 0), LocalTime.of(17, 0), 30,
+                LocalDate.of(2030, 1, 1), null, true)).getId();
+        org.springframework.test.context.transaction.TestTransaction.flagForCommit();
+        org.springframework.test.context.transaction.TestTransaction.end();
+        var request = new DoctorScheduleRequest(2, LocalTime.of(8, 0), LocalTime.of(12, 0), 30,
+            LocalDate.of(2030, 1, 1), null, true);
+        var firstWritten = new java.util.concurrent.CountDownLatch(1);
+        var releaseFirst = new java.util.concurrent.CountDownLatch(1);
+        var secondStarted = new java.util.concurrent.CountDownLatch(1);
+        var executor = java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            var first = executor.submit(() -> new org.springframework.transaction.support.TransactionTemplate(transactionManager)
+                .executeWithoutResult(tx -> {
+                    switch (firstOperation) {
+                        case "update" -> scheduleService.updateSchedule(existingId, request);
+                        case "delete" -> scheduleService.deleteSchedule(existingId);
+                        default -> scheduleService.createSchedule(doctorId, branchId, request);
+                    }
+                    firstWritten.countDown();
+                    try {
+                        if (!releaseFirst.await(15, java.util.concurrent.TimeUnit.SECONDS))
+                            throw new AssertionError("First schedule transaction was not released");
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new AssertionError(e);
+                    }
+                }));
+            org.assertj.core.api.Assertions.assertThat(firstWritten.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            String applicationName = "schedule-race-" + UUID.randomUUID();
+            var second = executor.submit(() -> {
+                try {
+                    new org.springframework.transaction.support.TransactionTemplate(transactionManager).executeWithoutResult(tx -> {
+                        jdbcTemplate.queryForObject("select set_config('application_name', ?, true)", String.class, applicationName);
+                        secondStarted.countDown();
+                        if (firstOperation.equals("delete")) scheduleService.updateSchedule(existingId, request);
+                        else scheduleService.createSchedule(doctorId, branchId, request);
+                    });
+                    return 200;
+                } catch (com.healthcare.exception.BusinessException e) {
+                    return e.getStatus();
+                }
+            });
+            org.assertj.core.api.Assertions.assertThat(secondStarted.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(10);
+            boolean blocked = false;
+            while (System.nanoTime() < deadline && !second.isDone()) {
+                blocked = Boolean.TRUE.equals(jdbcTemplate.queryForObject(
+                    "select exists(select 1 from pg_stat_activity where application_name = ? and wait_event_type = 'Lock')",
+                    Boolean.class, applicationName));
+                if (blocked) break;
+                Thread.sleep(20);
+            }
+            org.assertj.core.api.Assertions.assertThat(blocked).as("Second create waits for first transaction's doctor lock").isTrue();
+            releaseFirst.countDown();
+            first.get(10, java.util.concurrent.TimeUnit.SECONDS);
+            org.assertj.core.api.Assertions.assertThat(second.get(10, java.util.concurrent.TimeUnit.SECONDS))
+                .isEqualTo(firstOperation.equals("delete") ? 404 : 409);
+            org.assertj.core.api.Assertions.assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from doctor_schedules where doctor_id = ? and branch_id = ?",
+                Integer.class, doctorId, branchId)).isEqualTo(firstOperation.equals("delete") ? 0 : 1);
+        } finally {
+            releaseFirst.countDown();
+            executor.shutdownNow();
+            org.assertj.core.api.Assertions.assertThat(executor.awaitTermination(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+        }
+    }
 
     @Test
     void adminCanListSchedulesAndAnonymousCannot() throws Exception {
