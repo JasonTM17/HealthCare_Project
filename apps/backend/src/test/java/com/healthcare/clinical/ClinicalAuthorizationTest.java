@@ -175,13 +175,27 @@ class ClinicalAuthorizationTest extends AbstractIntegrationTest {
         MedicalRecord record = createRecord(fixture, true);
         String code = record.getPrescriptions().get(0).getPrescriptionCode();
 
+        // Foreign codes answer the same 404 as unknown codes so the lookup
+        // cannot be used as a per-day existence oracle; the DENY decision is
+        // still written to the clinical access audit.
         mockMvc.perform(get("/api/v1/clinical/prescriptions/{code}", code)
                 .header("Authorization", bearer(fixture.otherPatientUser())))
-            .andExpect(status().isForbidden());
+            .andExpect(status().isNotFound());
 
         mockMvc.perform(get("/api/v1/clinical/prescriptions/{code}", code)
                 .header("Authorization", bearer(fixture.otherDoctorUser())))
-            .andExpect(status().isForbidden());
+            .andExpect(status().isNotFound());
+
+        Integer prescriptionDeny = jdbcTemplate.queryForObject(
+            """
+            select count(*) from clinical_access_audit
+            where target_type = 'PRESCRIPTION' and decision = 'DENY'
+              and actor_email = ?
+            """,
+            Integer.class,
+            fixture.otherPatientUser().getEmail()
+        );
+        assertThat(prescriptionDeny).isGreaterThanOrEqualTo(1);
 
         mockMvc.perform(get("/api/v1/clinical/prescriptions/{code}", code)
                 .header("Authorization", bearer(fixture.patientUser())))
