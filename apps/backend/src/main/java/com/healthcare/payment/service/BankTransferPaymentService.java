@@ -316,7 +316,7 @@ public class BankTransferPaymentService {
 
     @Transactional(readOnly = true)
     public BankTransferPaymentResponse getByTransferContent(String transferContent) {
-        return paymentRepository.findByTransferContentForUpdate(transferContent.trim())
+        return paymentRepository.findByTransferContent(transferContent.trim())
             .map(this::toResponse)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy nội dung chuyển khoản"));
     }
