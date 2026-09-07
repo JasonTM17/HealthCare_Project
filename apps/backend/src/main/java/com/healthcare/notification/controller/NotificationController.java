@@ -37,12 +37,6 @@ public class NotificationController {
         return ResponseEntity.ok(notificationService.listForUser(userDetails, pageable));
     }
 
-    @GetMapping("/unread-count")
-    public ResponseEntity<Map<String, Long>> unreadCount(
-            @AuthenticationPrincipal UserDetails userDetails) {
-        return ResponseEntity.ok(Map.of("unread", notificationService.unreadCount(userDetails)));
-    }
-
     @PutMapping("/{id}/read")
     public ResponseEntity<Void> markAsRead(
             @PathVariable UUID id,

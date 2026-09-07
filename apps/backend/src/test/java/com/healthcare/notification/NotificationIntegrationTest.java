@@ -1,5 +1,6 @@
 package com.healthcare.notification;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -15,9 +16,12 @@ import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.RoleRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Transactional
@@ -85,7 +89,7 @@ class NotificationIntegrationTest extends AbstractIntegrationTest {
             .andExpect(status().isOk());
 
         Notification updated = notificationRepository.findById(n.getId()).orElseThrow();
-        org.assertj.core.api.Assertions.assertThat(updated.isRead()).isTrue();
+        assertThat(updated.isRead()).isTrue();
     }
 
     @Test
@@ -108,5 +112,44 @@ class NotificationIntegrationTest extends AbstractIntegrationTest {
                 .header("Authorization", token))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.updated").value(3));
+    }
+
+    @Test
+    void emailPendingQueryReturnsOnlyDueUnqueuedNotifications() {
+        tokenFor("PATIENT");
+        User user = userRepository.findAll().stream()
+            .filter(u -> u.getEmail().startsWith("notif.test."))
+            .findFirst().orElseThrow();
+        OffsetDateTime now = OffsetDateTime.parse("2026-09-07T02:00:00Z");
+
+        Notification due = notification(user, "Due");
+        due.setCreatedAt(now.minusMinutes(4));
+        due.setEmailAvailableAt(now.minusMinutes(1));
+        Notification future = notification(user, "Future");
+        future.setCreatedAt(now.minusMinutes(3));
+        future.setEmailAvailableAt(now.plusMinutes(10));
+        Notification queued = notification(user, "Queued");
+        queued.setCreatedAt(now.minusMinutes(2));
+        queued.setEmailAvailableAt(now.minusMinutes(1));
+        queued.setEmailQueuedAt(now.minusSeconds(30));
+        Notification suppressed = notification(user, "Suppressed");
+        suppressed.setCreatedAt(now.minusMinutes(1));
+        suppressed.setEmailAvailableAt(now.minusMinutes(1));
+        suppressed.setEmailSuppressedAt(now.minusSeconds(20));
+        notificationRepository.saveAllAndFlush(List.of(due, future, queued, suppressed));
+
+        List<Notification> pending = notificationRepository.findEmailPendingForUpdate(
+            now, PageRequest.of(0, 10));
+
+        assertThat(pending).extracting(Notification::getId).containsExactly(due.getId());
+    }
+
+    private Notification notification(User user, String title) {
+        Notification n = new Notification();
+        n.setUser(user);
+        n.setEventType(EventType.DIAGNOSTIC_RESULT_AVAILABLE);
+        n.setTitle(title);
+        n.setMessage(title + " notification");
+        return n;
     }
 }
