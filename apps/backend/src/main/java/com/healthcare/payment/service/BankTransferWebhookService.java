@@ -90,11 +90,27 @@ public class BankTransferWebhookService {
                 eventId, payloadHash
             ));
         if (inserted == null || inserted == 0) {
-            // Another transaction committed this event id between steps 1 and 2.
+            // Another transaction (or an earlier delivery of this event)
+            // committed this event id. A row left unprocessed by a previous
+            // 404 — the payment row appeared only after the bank's first
+            // delivery — must be re-matched now, not just re-read.
             String committedHash = jdbcTemplate.queryForObject(
                 "select payload_hash from payment_webhook_events where event_id = ?", String.class, eventId
             );
             requireSamePayload(payloadHash, committedHash);
+            boolean processed = jdbcTemplate.queryForObject(
+                "select processed_at is not null from payment_webhook_events where event_id = ?", Boolean.class, eventId
+            );
+            if (!processed) {
+                return requiredTemplate.execute(status -> {
+                    BankTransferPaymentResponse result = paymentService.confirmFromWebhook(request, eventId);
+                    jdbcTemplate.update(
+                        "update payment_webhook_events set payment_id = ?, processed_at = current_timestamp where event_id = ?",
+                        result.id(), eventId
+                    );
+                    return result;
+                });
+            }
             return paymentService.getByTransferContent(request.transferContent());
         }
         return requiredTemplate.execute(status -> {
