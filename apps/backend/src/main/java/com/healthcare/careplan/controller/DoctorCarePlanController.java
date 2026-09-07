@@ -11,6 +11,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/doctor/care-plans")
@@ -26,5 +27,31 @@ public class DoctorCarePlanController {
     public ResponseEntity<CarePlanContracts.Plan> create(@Valid @RequestBody CarePlanContracts.CreateRequest request,
                                                           @AuthenticationPrincipal UserDetails principal) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.create(request, principal));
+    }
+
+    @PutMapping("/{planId}")
+    public CarePlanContracts.Plan update(@PathVariable UUID planId,
+                                         @Valid @RequestBody CarePlanContracts.UpdateRequest request,
+                                         @AuthenticationPrincipal UserDetails principal) {
+        return service.update(planId, request, principal);
+    }
+
+    @DeleteMapping("/{planId}")
+    public ResponseEntity<Void> delete(@PathVariable UUID planId,
+                                       @AuthenticationPrincipal UserDetails principal) {
+        service.delete(planId, principal);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/items/{itemId}/complete")
+    public CarePlanContracts.Item completeItem(@PathVariable UUID itemId,
+                                               @AuthenticationPrincipal UserDetails principal) {
+        return service.doctorComplete(itemId, principal);
+    }
+
+    @PostMapping("/items/{itemId}/cancel")
+    public CarePlanContracts.Item cancelItem(@PathVariable UUID itemId,
+                                             @AuthenticationPrincipal UserDetails principal) {
+        return service.doctorCancel(itemId, principal);
     }
 }
