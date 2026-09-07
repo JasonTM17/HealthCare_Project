@@ -6,6 +6,7 @@ import com.healthcare.media.dto.MediaAssetResponse;
 import com.healthcare.media.entity.MediaAsset;
 import com.healthcare.media.repository.MediaAssetRepository;
 import com.healthcare.media.service.MediaAssetService;
+import com.healthcare.storage.service.FileStorageService;
 import com.healthcare.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,6 +38,9 @@ class MediaAssetServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private FileStorageService fileStorageService;
+
     private MediaAssetService mediaAssetService;
 
     @BeforeEach
@@ -51,7 +55,7 @@ class MediaAssetServiceTest {
         UserDetails user = new User("doctor@healthcare.local", "secret", Collections.singletonList(new SimpleGrantedAuthority("ROLE_DOCTOR")));
 
         UUID assetId = UUID.randomUUID();
-        when(mediaAssetRepository.save(any(MediaAsset.class))).thenAnswer(invocation -> {
+        when(mediaAssetRepository.saveAndFlush(any(MediaAsset.class))).thenAnswer(invocation -> {
             MediaAsset asset = invocation.getArgument(0);
             asset.setId(assetId);
             return asset;
@@ -65,10 +69,11 @@ class MediaAssetServiceTest {
         assertThat(response.purpose()).isEqualTo("DOCTOR_PORTRAIT");
 
         ArgumentCaptor<MediaAsset> captor = ArgumentCaptor.forClass(MediaAsset.class);
-        verify(mediaAssetRepository).save(captor.capture());
+        verify(mediaAssetRepository).saveAndFlush(captor.capture());
         MediaAsset saved = captor.getValue();
         assertThat(saved.getUploaderRole()).isEqualTo("DOCTOR");
         assertThat(saved.getData()).isEqualTo(pngBytes);
+        assertThat(saved.getObjectKey()).isNull();
     }
 
     @Test
@@ -78,7 +83,7 @@ class MediaAssetServiceTest {
         UserDetails user = new User("patient@healthcare.local", "secret", Collections.singletonList(new SimpleGrantedAuthority("ROLE_PATIENT")));
 
         UUID assetId = UUID.randomUUID();
-        when(mediaAssetRepository.save(any(MediaAsset.class))).thenAnswer(invocation -> {
+        when(mediaAssetRepository.saveAndFlush(any(MediaAsset.class))).thenAnswer(invocation -> {
             MediaAsset asset = invocation.getArgument(0);
             asset.setId(assetId);
             return asset;
@@ -88,6 +93,36 @@ class MediaAssetServiceTest {
 
         assertThat(response.id()).isEqualTo(assetId);
         assertThat(response.contentType()).isEqualTo("image/jpeg");
+    }
+
+    @Test
+    void uploadImage_storesObjectKeyWhenStorageIsEnabled() throws Exception {
+        byte[] webpBytes = new byte[] {
+            'R', 'I', 'F', 'F', 0, 0, 0, 0, 'W', 'E', 'B', 'P', 'V', 'P', '8', ' '
+        };
+        MockMultipartFile file = new MockMultipartFile("file", "doctor portrait.webp", "image/webp", webpBytes);
+        UserDetails user = new User("doctor@healthcare.local", "secret", Collections.singletonList(new SimpleGrantedAuthority("ROLE_DOCTOR")));
+        mediaAssetService = new MediaAssetService(mediaAssetRepository, userRepository, fileStorageService);
+
+        UUID assetId = UUID.randomUUID();
+        when(fileStorageService.isUploadEnabled()).thenReturn(true);
+        when(fileStorageService.uploadPublicMedia("doctor_portrait.webp", "image/webp", webpBytes))
+            .thenReturn("public/media/test-object.webp");
+        when(mediaAssetRepository.saveAndFlush(any(MediaAsset.class))).thenAnswer(invocation -> {
+            MediaAsset asset = invocation.getArgument(0);
+            asset.setId(assetId);
+            return asset;
+        });
+
+        MediaAssetResponse response = mediaAssetService.uploadImage(file, "DOCTOR_PORTRAIT", user);
+
+        assertThat(response.id()).isEqualTo(assetId);
+        ArgumentCaptor<MediaAsset> captor = ArgumentCaptor.forClass(MediaAsset.class);
+        verify(mediaAssetRepository).saveAndFlush(captor.capture());
+        MediaAsset saved = captor.getValue();
+        assertThat(saved.getData()).isNull();
+        assertThat(saved.getObjectKey()).isEqualTo("public/media/test-object.webp");
+        assertThat(saved.getSizeBytes()).isEqualTo(webpBytes.length);
     }
 
     @Test
@@ -125,6 +160,25 @@ class MediaAssetServiceTest {
         MediaAsset result = mediaAssetService.getMedia(id);
         assertThat(result.getId()).isEqualTo(id);
         assertThat(result.getFilename()).isEqualTo("test.jpg");
+    }
+
+    @Test
+    void getMediaContent_loadsObjectStorageWhenInlineDataIsBackfilledAway() throws Exception {
+        UUID id = UUID.randomUUID();
+        byte[] objectBytes = new byte[] { (byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0, 1, 2, 3, 4 };
+        MediaAsset asset = new MediaAsset("stored.jpg", "image/jpeg", objectBytes.length, null, UUID.randomUUID(), "ADMIN", "ARTICLE_COVER");
+        asset.setId(id);
+        asset.setObjectKey("public/media/stored.jpg");
+        mediaAssetService = new MediaAssetService(mediaAssetRepository, userRepository, fileStorageService);
+
+        when(mediaAssetRepository.findById(id)).thenReturn(Optional.of(asset));
+        when(fileStorageService.isUploadEnabled()).thenReturn(true);
+        when(fileStorageService.downloadPublicMedia("public/media/stored.jpg")).thenReturn(objectBytes);
+
+        MediaAssetService.MediaAssetContent content = mediaAssetService.getMediaContent(id);
+
+        assertThat(content.asset().getId()).isEqualTo(id);
+        assertThat(content.bytes()).isEqualTo(objectBytes);
     }
 
     @Test
