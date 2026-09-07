@@ -45,18 +45,6 @@ public class ContentController {
             .orElseThrow(() -> new ResourceNotFoundException("Service not found"));
     }
 
-    @GetMapping("/hospital/services")
-    public Page<ServiceResponse> listHospitalServices(@PageableDefault(size = 20) Pageable pageable) {
-        return serviceRepository.findByActiveTrue(safePageable(pageable)).map(this::toServiceResponse);
-    }
-
-    @GetMapping("/hospital/services/{slug}")
-    public ServiceResponse getHospitalServiceBySlug(@PathVariable String slug) {
-        return serviceRepository.findBySlugAndActiveTrue(slug)
-            .map(this::toServiceResponse)
-            .orElseThrow(() -> new ResourceNotFoundException("Service not found"));
-    }
-
     @GetMapping("/packages")
     public Page<PackageResponse> listPackages(@PageableDefault(size = 20) Pageable pageable) {
         return packageRepository.findByActiveTrue(safePageable(pageable)).map(this::toPackageResponse);

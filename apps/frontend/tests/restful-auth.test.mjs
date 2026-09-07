@@ -19,12 +19,10 @@ test("REST auth routes and client actions are present", async () => {
     "/auth/email-verifications/resend",
     "/auth/password-reset-requests",
     "/auth/password-reset-requests/confirm",
-    "/users/me/preferences",
     "/users/me/notification-preferences",
   ]) {
     assert.match(api, new RegExp(path.replaceAll("/", "\\/")));
   }
-  assert.match(api, /UserPreferences/);
   assert.match(api, /NotificationPreference/);
   assert.match(api, /emailVerified/);
   assert.match(api, /readonly code: string \| null/);

@@ -55,11 +55,6 @@ public class CareerService {
         ).map(this::toResponse);
     }
 
-    @Transactional(readOnly = true)
-    public JobPositionResponse getOpenPosition(String slug) {
-        return toResponse(requireOpenPosition(slug));
-    }
-
     @Transactional
     public JobApplicationReceipt apply(String slug, JobApplicationRequest request) {
         JobPosition job = requireOpenPosition(slug);

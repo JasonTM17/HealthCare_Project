@@ -22,10 +22,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.net.URI;
 import java.net.URLEncoder;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -43,6 +47,11 @@ public class AiService {
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
+
+    @FunctionalInterface
+    public interface ChatDeltaConsumer {
+        void accept(String delta) throws IOException;
+    }
 
     @Value("${ai.service.url:http://localhost:8000}")
     private String aiServiceUrl;
@@ -104,14 +113,6 @@ public class AiService {
             )
             .build();
         this.objectMapper = objectMapper;
-    }
-
-    public Map<String, Object> symptomCheck(Map<String, Object> request) {
-        return post("/triage", request);
-    }
-
-    public Map<String, Object> recommendSpecialty(Map<String, Object> request) {
-        return post("/recommendations/specialty", request);
     }
 
     public Map<String, Object> chat(Map<String, Object> request) {
@@ -195,6 +196,38 @@ public class AiService {
     /** Alias retained for explicit two-step call sites and test doubles. */
     public Map<String, Object> generateGroundedChat(Map<String, Object> request) {
         return generateChat(request);
+    }
+
+    public Map<String, Object> generateChatStream(
+            Map<String, Object> request,
+            ChatDeltaConsumer onDelta) {
+        Map<String, Object> payload = normalizePatientChatPayload(request, true);
+        ensureServiceAuthConfiguration();
+        try {
+            byte[] body = objectMapper.writeValueAsBytes(payload);
+            Map<String, Object> response = restTemplate.execute(
+                URI.create(endpoint("/chat/generate/stream")),
+                HttpMethod.POST,
+                clientRequest -> {
+                    clientRequest.getHeaders().putAll(headers());
+                    clientRequest.getHeaders().setAccept(List.of(MediaType.TEXT_EVENT_STREAM));
+                    clientRequest.getBody().write(body);
+                },
+                clientResponse -> readChatSse(clientResponse.getBody(), onDelta)
+            );
+            if (response == null || response.isEmpty()) {
+                throw new ResponseStatusException(BAD_GATEWAY, "AI service stream returned an empty response");
+            }
+            return response;
+        } catch (RestClientResponseException e) {
+            log.warn("AI upstream returned HTTP {} for {}", e.getStatusCode().value(), "/chat/generate/stream");
+            throw new ResponseStatusException(BAD_GATEWAY, "AI service is unavailable", e);
+        } catch (RestClientException e) {
+            log.warn("AI upstream stream request failed for {}: {}", "/chat/generate/stream", e.getClass().getSimpleName());
+            throw new ResponseStatusException(BAD_GATEWAY, "AI service is unavailable", e);
+        } catch (JsonProcessingException e) {
+            throw new ResponseStatusException(BAD_GATEWAY, "AI request could not be encoded", e);
+        }
     }
 
     private Map<String, Object> normalizePatientChatPayload(Map<String, Object> request, boolean generation) {
@@ -370,20 +403,6 @@ public class AiService {
         }
     }
 
-    private Map<String, Object> post(String path, Map<String, Object> request) {
-        String symptoms = extractSymptoms(request);
-        ensureServiceAuthConfiguration();
-
-        try {
-            HttpHeaders headers = headers();
-            Map<String, Object> normalizedRequest = Map.of("symptoms", symptoms);
-            String payload = objectMapper.writeValueAsString(normalizedRequest);
-            return exchange(HttpMethod.POST, URI.create(endpoint(path)), new HttpEntity<>(payload, headers));
-        } catch (JsonProcessingException e) {
-            throw new ResponseStatusException(BAD_GATEWAY, "AI request could not be encoded", e);
-        }
-    }
-
     private Map<String, Object> postJson(String path, Map<String, Object> request) {
         ensureServiceAuthConfiguration();
         try {
@@ -423,17 +442,95 @@ public class AiService {
         }
     }
 
-    private String extractSymptoms(Map<String, Object> request) {
-        Object symptoms = request == null ? null : request.get("symptoms");
-        if (!(symptoms instanceof String text)) {
-            throw new ResponseStatusException(BAD_REQUEST, "Symptoms must be between 2 and 10000 characters");
+    private Map<String, Object> readChatSse(InputStream stream, ChatDeltaConsumer onDelta) throws IOException {
+        if (stream == null) {
+            throw new ResponseStatusException(BAD_GATEWAY, "AI service stream returned an empty response");
         }
-        String normalized = text.trim();
-        int inputLimit = maxInputChars > 0 ? Math.min(maxInputChars, DEFAULT_MAX_INPUT_CHARS) : DEFAULT_MAX_INPUT_CHARS;
-        if (normalized.length() < 2 || normalized.length() > inputLimit) {
-            throw new ResponseStatusException(BAD_REQUEST, "Symptoms must be between 2 and 10000 characters");
+        int responseLimit = maxResponseBytes > 0 ? maxResponseBytes : DEFAULT_MAX_RESPONSE_BYTES;
+        SseBlock block = new SseBlock();
+        Map<String, Object> done = null;
+        ByteArrayOutputStream line = new ByteArrayOutputStream();
+        int total = 0;
+        int next;
+        while ((next = stream.read()) != -1) {
+            total++;
+            if (total > responseLimit) {
+                throw new ResponseStatusException(BAD_GATEWAY, "AI service response exceeded the configured limit");
+            }
+            if (next == '\n') {
+                done = processSseLine(new String(line.toByteArray(), StandardCharsets.UTF_8), block, onDelta, done);
+                line.reset();
+            } else {
+                line.write(next);
+            }
         }
-        return normalized;
+        if (line.size() > 0) {
+            done = processSseLine(new String(line.toByteArray(), StandardCharsets.UTF_8), block, onDelta, done);
+        }
+        if (block.hasData()) {
+            done = finishSseBlock(block, onDelta, done);
+        }
+        if (done == null) {
+            throw new ResponseStatusException(BAD_GATEWAY, "AI service stream did not complete");
+        }
+        return done;
+    }
+
+    private Map<String, Object> processSseLine(
+            String rawLine,
+            SseBlock block,
+            ChatDeltaConsumer onDelta,
+            Map<String, Object> done) throws IOException {
+        String line = rawLine.endsWith("\r") ? rawLine.substring(0, rawLine.length() - 1) : rawLine;
+        if (line.isEmpty()) {
+            return finishSseBlock(block, onDelta, done);
+        }
+        if (line.startsWith(":")) {
+            return done;
+        }
+        if (line.startsWith("event:")) {
+            block.eventName = line.substring("event:".length()).strip();
+            return done;
+        }
+        if (line.startsWith("data:")) {
+            String data = line.substring("data:".length());
+            block.dataLines.add(data.startsWith(" ") ? data.substring(1) : data);
+        }
+        return done;
+    }
+
+    private Map<String, Object> finishSseBlock(
+            SseBlock block,
+            ChatDeltaConsumer onDelta,
+            Map<String, Object> done) throws IOException {
+        if (!block.hasData()) {
+            block.reset();
+            return done;
+        }
+        String data = String.join("\n", block.dataLines);
+        String eventName = block.eventName == null || block.eventName.isBlank()
+            ? "message" : block.eventName;
+        block.reset();
+        if ("error".equals(eventName)) {
+            throw new ResponseStatusException(BAD_GATEWAY, "AI service stream failed");
+        }
+        if (done != null && ("delta".equals(eventName) || "done".equals(eventName))) {
+            throw new ResponseStatusException(BAD_GATEWAY, "AI service stream continued after completion");
+        }
+        if ("delta".equals(eventName)) {
+            if (!data.isEmpty() && onDelta != null) {
+                onDelta.accept(data);
+            }
+            return done;
+        }
+        if ("done".equals(eventName)) {
+            try {
+                return objectMapper.readValue(data, new TypeReference<Map<String, Object>>() { });
+            } catch (JsonProcessingException e) {
+                throw new ResponseStatusException(BAD_GATEWAY, "AI service stream returned invalid JSON", e);
+            }
+        }
+        return done;
     }
 
     private String validateQuery(String query) {
@@ -492,5 +589,19 @@ public class AiService {
 
     private static Duration boundedDuration(long millis, Duration fallback) {
         return millis > 0 ? Duration.ofMillis(millis) : fallback;
+    }
+
+    private static final class SseBlock {
+        private String eventName = "message";
+        private final List<String> dataLines = new ArrayList<>();
+
+        private boolean hasData() {
+            return !dataLines.isEmpty();
+        }
+
+        private void reset() {
+            eventName = "message";
+            dataLines.clear();
+        }
     }
 }

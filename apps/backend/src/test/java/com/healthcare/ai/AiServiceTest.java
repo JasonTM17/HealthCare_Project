@@ -48,27 +48,13 @@ class AiServiceTest {
     }
 
     @Test
-    void symptomCheckUsesFastApiTriageContract() {
-        server.expect(requestTo("http://ai.test/triage"))
-            .andExpect(method(HttpMethod.POST))
-            .andExpect(content().json("{\"symptoms\":\"đau đầu\"}"))
-            .andRespond(withSuccess("{\"recommended_specialty\":\"Nội thần kinh\"}", MediaType.APPLICATION_JSON));
-
-        Map<String, Object> response = aiService.symptomCheck(Map.of("symptoms", "đau đầu"));
-
-        assertThat(response).containsEntry("recommended_specialty", "Nội thần kinh");
-        server.verify();
-    }
-
-    @Test
     void renderPrivateServiceHostPortIsNormalizedToAnHttpEndpoint() {
         ReflectionTestUtils.setField(aiService, "aiServiceUrl", "ai.internal:8000/");
-        server.expect(requestTo("http://ai.internal:8000/triage"))
+        server.expect(requestTo("http://ai.internal:8000/search"))
             .andExpect(method(HttpMethod.POST))
-            .andRespond(withSuccess("{\"recommended_specialty\":\"Nội thần kinh\"}", MediaType.APPLICATION_JSON));
+            .andRespond(withSuccess("{\"results\":[],\"query\":\"headache\"}", MediaType.APPLICATION_JSON));
 
-        assertThat(aiService.symptomCheck(Map.of("symptoms", "đau đầu")))
-            .containsEntry("recommended_specialty", "Nội thần kinh");
+        assertThat(aiService.search("headache", 1)).containsEntry("query", "headache");
         server.verify();
     }
 
@@ -119,9 +105,9 @@ class AiServiceTest {
     void liveGatewayUsesHttp11InsteadOfH2cUpgrade() throws Exception {
         AtomicReference<String> upgradeHeader = new AtomicReference<>();
         HttpServer httpServer = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
-        httpServer.createContext("/triage", exchange -> {
+        httpServer.createContext("/search", exchange -> {
             upgradeHeader.set(exchange.getRequestHeaders().getFirst("Upgrade"));
-            byte[] response = "{\"recommended_specialty\":\"Nội thần kinh\"}"
+            byte[] response = "{\"results\":[],\"query\":\"headache\"}"
                 .getBytes(java.nio.charset.StandardCharsets.UTF_8);
             exchange.getResponseHeaders().set("Content-Type", "application/json");
             exchange.sendResponseHeaders(200, response.length);
@@ -140,8 +126,7 @@ class AiServiceTest {
             );
             ReflectionTestUtils.setField(liveService, "aiServiceToken", "shared-service-token");
 
-            assertThat(liveService.symptomCheck(Map.of("symptoms", "đau đầu")))
-                .containsEntry("recommended_specialty", "Nội thần kinh");
+            assertThat(liveService.search("headache", 1)).containsEntry("query", "headache");
             assertThat(upgradeHeader.get()).isNull();
         } finally {
             httpServer.stop(0);
@@ -149,19 +134,12 @@ class AiServiceTest {
     }
 
     @Test
-    void invalidSymptomsAreRejectedBeforeCallingUpstream() {
-        assertThatThrownBy(() -> aiService.symptomCheck(Map.of("symptoms", "x")))
-            .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
-                assertThat(exception.getStatusCode()).isEqualTo(BAD_REQUEST));
-    }
-
-    @Test
     void upstreamFailureBecomesBadGateway() {
-        server.expect(requestTo("http://ai.test/recommendations/specialty"))
+        server.expect(requestTo("http://ai.test/search"))
             .andExpect(method(HttpMethod.POST))
             .andRespond(withServerError());
 
-        assertThatThrownBy(() -> aiService.recommendSpecialty(Map.of("symptoms", "đau đầu")))
+        assertThatThrownBy(() -> aiService.search("headache", 2))
             .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
                 assertThat(exception.getStatusCode()).isEqualTo(BAD_GATEWAY));
         server.verify();
@@ -181,10 +159,10 @@ class AiServiceTest {
     }
 
     @Test
-    void configuredInputLimitIsEnforcedBeforeUpstreamCall() {
+    void configuredInputLimitIsEnforcedForChatBeforeUpstreamCall() {
         ReflectionTestUtils.setField(aiService, "maxInputChars", 4);
 
-        assertThatThrownBy(() -> aiService.symptomCheck(Map.of("symptoms", "đau đầu")))
+        assertThatThrownBy(() -> aiService.chat(Map.of("message", "đau đầu")))
             .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
                 assertThat(exception.getStatusCode()).isEqualTo(BAD_REQUEST));
     }
@@ -201,11 +179,11 @@ class AiServiceTest {
     @Test
     void oversizedUpstreamResponseBecomesBadGateway() {
         ReflectionTestUtils.setField(aiService, "maxResponseBytes", 10);
-        server.expect(requestTo("http://ai.test/triage"))
+        server.expect(requestTo("http://ai.test/search"))
             .andExpect(method(HttpMethod.POST))
-            .andRespond(withSuccess("{\"recommended_specialty\":\"Nội thần kinh\"}", MediaType.APPLICATION_JSON));
+            .andRespond(withSuccess("{\"results\":[],\"query\":\"headache\"}", MediaType.APPLICATION_JSON));
 
-        assertThatThrownBy(() -> aiService.symptomCheck(Map.of("symptoms", "đau đầu")))
+        assertThatThrownBy(() -> aiService.search("headache", 2))
             .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
                 assertThat(exception.getStatusCode()).isEqualTo(BAD_GATEWAY));
         server.verify();
@@ -274,7 +252,7 @@ class AiServiceTest {
         ReflectionTestUtils.setField(aiService, "aiServiceRuntime", "staging");
         ReflectionTestUtils.setField(aiService, "allowUnauthenticatedLocal", false);
 
-        assertThatThrownBy(() -> aiService.symptomCheck(Map.of("symptoms", "đau đầu")))
+        assertThatThrownBy(() -> aiService.search("headache", 2))
             .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
                 assertThat(exception.getStatusCode()).isEqualTo(SERVICE_UNAVAILABLE));
     }
