@@ -23,6 +23,20 @@ public final class CarePlanContracts {
             @NotBlank @Size(max = 240) String title,
             @NotEmpty @Size(max = 20) List<@Valid ItemRequest> items) {}
 
+    public record ItemUpdateRequest(
+            UUID id,
+            @NotBlank @Size(max = 1000) String goal,
+            @Size(max = 500) String reminder,
+            OffsetDateTime dueAt) {}
+
+    public record UpdateRequest(
+            @NotBlank @Size(max = 240) String title,
+            @Size(max = 20) List<@Valid ItemUpdateRequest> items) {
+        public UpdateRequest {
+            items = items == null ? List.of() : List.copyOf(items);
+        }
+    }
+
     public record Item(
             UUID id,
             int sequenceNumber,

@@ -4,10 +4,12 @@ import com.healthcare.careplan.dto.CarePlanContracts;
 import com.healthcare.careplan.service.CarePlanService;
 import com.healthcare.exception.BusinessException;
 import com.healthcare.exception.ResourceNotFoundException;
+import com.healthcare.notification.service.NotificationService;
 import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.userdetails.UserDetails;
 
@@ -35,7 +37,7 @@ class CarePlanServiceTest {
         user.setId(userId);
         when(principal.getUsername()).thenReturn("patient@example.test");
         when(users.findByEmail("patient@example.test")).thenReturn(Optional.of(user));
-        service = new CarePlanService(jdbc, users);
+        service = new CarePlanService(jdbc, users, mock(NotificationService.class));
     }
 
     @Test
@@ -43,7 +45,8 @@ class CarePlanServiceTest {
         UUID profileId = UUID.randomUUID();
         when(jdbc.queryForObject(contains("SELECT id FROM patient_profiles"), eq(UUID.class), any(Object[].class)))
             .thenReturn(profileId);
-        when(jdbc.update(anyString(), any(Object[].class))).thenReturn(0);
+        when(jdbc.queryForMap(anyString(), any(Object[].class)))
+            .thenThrow(new EmptyResultDataAccessException(1));
 
         assertThatThrownBy(() -> service.complete(UUID.randomUUID(), principal))
             .isInstanceOf(ResourceNotFoundException.class)

@@ -18,7 +18,6 @@ import type {
   Prescription,
   PrescriptionItem,
   UserProfile,
-  UserPreferences,
   PatientProfile,
   PatientGender,
   StoredFile,
@@ -97,7 +96,6 @@ export type {
   Prescription,
   PrescriptionItem,
   UserProfile,
-  UserPreferences,
   PatientProfile,
   PatientGender,
   StoredFile,
@@ -619,7 +617,6 @@ interface SpecialtyRecommendationResponse {
   provenance?: unknown;
 }
 
-const AI_SPECIALTY_RECOMMENDATION_PATH = "/ai/specialty-recommendation";
 const PUBLIC_SPECIALTY_RECOMMENDATION_PATH = "/public/specialty-recommendation";
 const AI_URGENCY_LEVELS = ["EMERGENCY", "HIGH", "NORMAL"] as const;
 const AI_CITATION_SOURCE_TYPES = ["branch", "specialty", "doctor", "service", "package", "article", "faq"] as const;
@@ -934,10 +931,6 @@ export async function recommendPublicSpecialty(
   options?: { signal?: AbortSignal },
 ): Promise<AiTriageResult> {
   return recommendSpecialtyFromPath(symptoms, PUBLIC_SPECIALTY_RECOMMENDATION_PATH, 500, false, options);
-}
-
-export async function recommendSpecialty(symptoms: string): Promise<AiTriageResult> {
-  return recommendSpecialtyFromPath(symptoms, AI_SPECIALTY_RECOMMENDATION_PATH, 10000, true);
 }
 
 async function recommendSpecialtyFromPath(
@@ -1413,6 +1406,25 @@ export async function createDoctorCarePlan(payload: {
   return getAuthenticatedJson<CarePlan>("/doctor/care-plans", { method: "POST", body: JSON.stringify(payload) });
 }
 
+export async function updateDoctorCarePlan(id: string, payload: {
+  title: string;
+  items: Array<{ id?: string | null; goal: string; reminder?: string | null; dueAt?: string | null }>;
+}): Promise<CarePlan> {
+  return getAuthenticatedJson<CarePlan>(`/doctor/care-plans/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(payload) });
+}
+
+export async function completeDoctorCarePlanItem(id: string): Promise<CarePlanItem> {
+  return getAuthenticatedJson<CarePlanItem>(`/doctor/care-plans/items/${encodeURIComponent(id)}/complete`, { method: "POST" });
+}
+
+export async function cancelDoctorCarePlanItem(id: string): Promise<CarePlanItem> {
+  return getAuthenticatedJson<CarePlanItem>(`/doctor/care-plans/items/${encodeURIComponent(id)}/cancel`, { method: "POST" });
+}
+
+export async function deleteDoctorCarePlan(id: string): Promise<void> {
+  await getAuthenticatedJson<void>(`/doctor/care-plans/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
 export async function fetchDoctorConsultations(): Promise<ConsultationSummary[]> {
   return getAuthenticatedJson<ConsultationSummary[]>("/doctor/consultations");
 }
@@ -1791,17 +1803,6 @@ export async function resetPassword(payload: ResetPasswordPayload): Promise<void
     body: JSON.stringify({ email: payload.email, otp: payload.code, newPassword: payload.password }),
   });
   clearAuthSession();
-}
-
-export async function fetchUserPreferences(): Promise<UserPreferences> {
-  return getAuthenticatedJson<UserPreferences>("/users/me/preferences");
-}
-
-export async function updateUserPreferences(payload: UserPreferences): Promise<UserPreferences> {
-  return getAuthenticatedJson<UserPreferences>("/users/me/preferences", {
-    method: "PATCH",
-    body: JSON.stringify(payload),
-  });
 }
 
 const NOTIFICATION_CATEGORIES = [
@@ -3082,10 +3083,6 @@ export async function adminUpdatePatientTier(payload: {
 
 export async function fetchPatientAiCreditStatus(): Promise<AiCreditStatus> {
   return getAuthenticatedJson<AiCreditStatus>("/patient/ai-credits/status");
-}
-
-export async function fetchDoctorAiCreditStatus(): Promise<AiCreditStatus> {
-  return getAuthenticatedJson<AiCreditStatus>("/doctor/ai-credits/status");
 }
 
 // ── Realtime Cross-Role Catalog Broadcast ───────────────────────────────────
