@@ -5,6 +5,11 @@ import com.healthcare.exception.ResourceNotFoundException;
 import com.healthcare.notification.dto.NotificationResponse;
 import com.healthcare.notification.entity.Notification;
 import com.healthcare.notification.entity.Notification.EventType;
+import com.healthcare.notification.entity.NotificationCategory;
+import com.healthcare.notification.entity.NotificationChannel;
+import com.healthcare.notification.entity.NotificationPreference;
+import com.healthcare.notification.entity.NotificationPreferenceId;
+import com.healthcare.notification.repository.NotificationPreferenceRepository;
 import com.healthcare.notification.repository.NotificationRepository;
 import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.UserRepository;
@@ -30,10 +35,15 @@ public class NotificationService {
         Set.of("id", "title", "createdAt", "readAt", "read");
 
     private final NotificationRepository notificationRepository;
+    private final NotificationPreferenceRepository preferenceRepository;
     private final UserRepository userRepository;
 
-    public NotificationService(NotificationRepository notificationRepository, UserRepository userRepository) {
+    public NotificationService(
+            NotificationRepository notificationRepository,
+            NotificationPreferenceRepository preferenceRepository,
+            UserRepository userRepository) {
         this.notificationRepository = notificationRepository;
+        this.preferenceRepository = preferenceRepository;
         this.userRepository = userRepository;
     }
 
@@ -49,13 +59,49 @@ public class NotificationService {
             log.warn("Skipping notification {} for missing user {}", eventType, userId);
             return null;
         }
+        if (!channelEnabled(userId, eventType, NotificationChannel.IN_APP)) {
+            return null;
+        }
         Notification notification = new Notification();
         notification.setUser(user);
         notification.setEventType(eventType);
         notification.setTitle(title);
         notification.setMessage(message);
         notification.setReferenceId(referenceId);
+        notification.setEmailAvailableAt(OffsetDateTime.now());
         return notificationRepository.save(notification);
+    }
+
+    private boolean channelEnabled(UUID userId, EventType eventType, NotificationChannel channel) {
+        NotificationCategory category = categoryFor(eventType);
+        if (category == null) {
+            return true;
+        }
+        try {
+            preferenceRepository.ensureDefaults(userId);
+            return preferenceRepository.findById(new NotificationPreferenceId(userId, category, channel))
+                .map(NotificationPreference::isEnabled)
+                .orElse(true);
+        } catch (RuntimeException exception) {
+            log.warn("Skipping notification {} because preference lookup failed ({})",
+                eventType, exception.getClass().getSimpleName());
+            return false;
+        }
+    }
+
+    static NotificationCategory categoryFor(EventType eventType) {
+        if (eventType == null) {
+            return null;
+        }
+        return switch (eventType) {
+            case APPOINTMENT_CREATED, APPOINTMENT_CONFIRMED, APPOINTMENT_RESCHEDULED,
+                 APPOINTMENT_CANCELLED, APPOINTMENT_REMINDER -> NotificationCategory.APPOINTMENT;
+            case DIAGNOSTIC_RESULT_AVAILABLE -> NotificationCategory.CLINICAL_UPDATE;
+            case PAYMENT_SUBMITTED, PAYMENT_CONFIRMED, PAYMENT_REJECTED,
+                 PAYMENT_REFUNDED -> NotificationCategory.PAYMENT;
+            case CARE_PLAN_CREATED, CARE_PLAN_ITEM_COMPLETED,
+                 CARE_PLAN_ITEM_CANCELLED -> NotificationCategory.CARE_PLAN;
+        };
     }
 
     private User resolveUser(UserDetails principal) {
@@ -69,11 +115,6 @@ public class NotificationService {
                 resolveUser(principal).getId(),
                 SafePageRequests.normalize(pageable, Sort.by(Sort.Direction.DESC, "createdAt"), ALLOWED_SORT_PROPERTIES))
             .map(NotificationResponse::from);
-    }
-
-    @Transactional(readOnly = true)
-    public long unreadCount(UserDetails principal) {
-        return notificationRepository.countByUserIdAndReadFalse(resolveUser(principal).getId());
     }
 
     @Transactional

@@ -31,6 +31,9 @@ public class Notification {
         PAYMENT_CONFIRMED,
         PAYMENT_REJECTED,
         PAYMENT_REFUNDED,
+        CARE_PLAN_CREATED,
+        CARE_PLAN_ITEM_COMPLETED,
+        CARE_PLAN_ITEM_CANCELLED,
     }
 
     @Id
@@ -63,6 +66,15 @@ public class Notification {
 
     @Column(name = "read_at")
     private OffsetDateTime readAt;
+
+    @Column(name = "email_available_at", nullable = false)
+    private OffsetDateTime emailAvailableAt = OffsetDateTime.now();
+
+    @Column(name = "email_queued_at")
+    private OffsetDateTime emailQueuedAt;
+
+    @Column(name = "email_suppressed_at")
+    private OffsetDateTime emailSuppressedAt;
 
     public UUID getId() {
         return id;
@@ -134,5 +146,29 @@ public class Notification {
 
     public void setReadAt(OffsetDateTime readAt) {
         this.readAt = readAt;
+    }
+
+    public OffsetDateTime getEmailAvailableAt() {
+        return emailAvailableAt;
+    }
+
+    public void setEmailAvailableAt(OffsetDateTime emailAvailableAt) {
+        this.emailAvailableAt = emailAvailableAt;
+    }
+
+    public OffsetDateTime getEmailQueuedAt() {
+        return emailQueuedAt;
+    }
+
+    public void setEmailQueuedAt(OffsetDateTime emailQueuedAt) {
+        this.emailQueuedAt = emailQueuedAt;
+    }
+
+    public OffsetDateTime getEmailSuppressedAt() {
+        return emailSuppressedAt;
+    }
+
+    public void setEmailSuppressedAt(OffsetDateTime emailSuppressedAt) {
+        this.emailSuppressedAt = emailSuppressedAt;
     }
 }
