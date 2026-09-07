@@ -50,10 +50,68 @@ no local Docker image is pulled to support it.
 Provider credentials stay in Render/Vercel/Supabase secret stores. Never commit
 or print a database password, BFF token, JWT secret, Supabase DB URL, or API key.
 
+## Dormant feature flags (beta contract)
+
+Every optional switch ships `false` unless a row below says otherwise. Flip a flag only
+with the approval note named in its row; flipping one changes the public behavior
+contract, so record it in the dated snapshot section afterwards.
+
+| Flag (env) | Definition | Render beta | Enabled means | Enable requires |
+| --- | --- | --- | --- | --- |
+| `APP_PUBLIC_SPECIALTY_TRIAGE_ENABLED` | application.yml:183 | **true** | public AI triage modal answers | already enabled on Render |
+| `AI_CHAT_SYMPTOM_TRIAGE_ENABLED` | application.yml:201 | false | SYMPTOM_TRIAGE chat mode | clinical approval of the mode |
+| `AI_CHAT_HEALTH_EDUCATION_ENABLED` | application.yml:202 | false | HEALTH_EDUCATION chat mode | clinical approval of the mode |
+| `AI_CHAT_CHUNKED_ENABLED` | application.yml:203 | false | SSE `/messages/stream` answers (cosmetic chunking) | none; rollback switch |
+| `AI_CHAT_REMOTE_PROVIDER_ENABLED` | application.yml:196 | false | remote LLM for patient chat | provider review + rollback plan |
+| `AI_CHAT_SYNTHETIC_BETA_ASSERTED` | application.yml:200 | false | synthetic fixture graph eligible | DB guard rows + flag conjunction |
+| `AI_RAG_INGEST_ENABLED` (backend) / `RAG_INGEST_ENABLED` (AI svc) | application.yml:210 / config.py:80 | true / true | clinical catalog pushes into the AI RAG index | both sides true, token configured |
+| `APP_PAYMENT_BANK_TRANSFER_ENABLED` | application.yml:67 | false | bank-transfer payment + webhook + admin reconciliation | bank account env vars; never the demo account |
+| `APP_PAYMENT_BANK_TRANSFER_RETRY_ENABLED` | payment retry worker | false | retry persisted unmatched webhooks | requires V66, bank-transfer enabled, and configured webhook secret |
+| `STORAGE_UPLOAD_ENABLED` | application.yml:161 | false | direct-to-object-store uploads | private bucket + ClamAV worker provisioned |
+| `STORAGE_CONSULTATION_ENABLED` | application.yml:167 | false | consultation attachments (defaults to upload flag) | same as above |
+| `STORAGE_AV_REQUIRED` | application.yml:175 | false | fail-closed AV scan enforcement | scanner service reachable |
+| `NEXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY` (Vercel) | components/BranchMap.tsx:55 | unset | branch pages render embedded maps | Maps Embed API key; CSP `frame-src` already allows google.com |
+| `NEXT_PUBLIC_ALLOW_INDEXING` (Vercel) | app/sitemap.ts:29, app/robots.ts:4 | unset | sitemap/robots allow indexing | content approval for crawling |
+| `NEXT_PUBLIC_SITE_URL` (Vercel) | app/layout.tsx:27 | unset → placeholder domain | canonical/OG URLs + sitemap base | production builds fail without it (build guard) |
+| `APP_NOTIFICATION_EMAIL_ENABLED` | application.yml:95 | false | committed in-app notifications are queued as SYSTEM_NOTIFICATION email outbox entries, honoring EMAIL preference + quiet hours | SMTP + outbox encryption secrets configured; preference policy reviewed |
+| `APP_AUTH_ALLOW_TEST_OTP` | application.yml:130 | unset (false) | fixed "123456" auth code | flag AND Spring `test` profile — never combine in any deployed environment |
+
 ## Current observed hosted snapshot (2026-09-02)
+
+Payment webhook recovery retains validated transfer fields from V66 onward. The retry
+worker claims up to 25 due events per poll (default 60 seconds), reserves each attempt
+for five minutes, and stops automatic attempts after 20 failures/claims. Operators must
+reconcile exhausted or legacy hash-only rows; a hash cannot reconstruct a transfer.
+Retries use the existing payment confirmation rules and still require admin verification
+before PAID. Enable the worker only after recovery and concurrent-delivery checks pass.
 
 Refresh this section after every release push; deployment IDs are evidence, not
 configuration:
+
+### PENDING security re-pin (opened 2026-09-07) — OTP master-code fix not yet deployed
+
+The hosted backend still runs the 2026-09-05 pinned image
+`sha256:02719d118783c51fcb46eb097a55e6b9ab60b24bdf150c8144a1a6b445b833d1`, which predates
+commit `695b541` and therefore still contains the auth-OTP master-code fallback: with
+`APP_MAIL_ENABLED=false` (the shipped Render configuration), `"123456"` verifies every
+authentication OTP challenge, including password reset of any account. Re-deploy is the
+operator's immediate action:
+
+1. Push `main` (at least `dca48e3`, the OTP fix) and wait for a green CI run on that SHA.
+2. Dispatch `publish-images.yml` manually with `source_ref` = that SHA (workflow is
+   `workflow_dispatch`-only and rejects re-used `sha-<sha>` tags).
+3. Copy the four `IMAGE_REF@sha256:…` lines from the run summary.
+4. Update the backend digest at `render.yaml` (backend image url) and the identical pin in
+   `render-free-beta.yaml` in one reviewed commit; keep `autoDeployTrigger: "off"`.
+5. Trigger one Render deploy for the backend service; wait for `/livez`,
+   `/actuator/health` and `/actuator/health/*` probes to return HTTP 200.
+6. Refresh the dated overlay below with CI run, publish run, digest, Render deploy id and
+   resolved platform SHA; update the backend row in `README.md` "Hosted beta release
+   record".
+
+Until step 5 completes, assume the live beta accepts `"123456"` for email verification and
+password reset. Auth-OTP password reset also stays non-functional after the fix until real
+SMTP is configured (`APP_MAIL_ENABLED=true` + provider credentials), by fail-closed design.
 
 ### Current backend repair overlay (2026-09-02)
 
