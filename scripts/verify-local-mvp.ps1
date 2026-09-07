@@ -238,13 +238,13 @@ $checks.Add("storage:mime+av")
 
 $sync = Invoke-JsonApi -Uri "$ApiBaseUrl/admin/ai/catalog/sync" -Method POST -WebSession $adminToken
 if ($sync.status -ne "COMPLETED" -or $sync.processedDocuments -lt 1) { throw "AI catalog synchronization failed" }
-$recommendation = Invoke-JsonApi -Uri "$ApiBaseUrl/ai/specialty-recommendation" -Method POST -WebSession $patientToken -Body @{
+$recommendation = Invoke-JsonApi -Uri "$ApiBaseUrl/public/specialty-recommendation" -Method POST -Body @{
     symptoms = "Tôi bị đau đầu và chóng mặt"
 }
-if ($recommendation.specialty_resolution -ne "RESOLVED") { throw "AI specialty recommendation was not resolved against SQL catalog" }
+if ($recommendation.specialty_resolution -ne "RESOLVED") { throw "Public specialty triage was not resolved against SQL catalog" }
 $semantic = Invoke-JsonApi -Uri "$ApiBaseUrl/ai/search?q=$([uri]::EscapeDataString('đau đầu chóng mặt'))&top_k=5" -WebSession $patientToken
 if (-not $semantic.results -or $semantic.results.Count -lt 1) { throw "Semantic search returned no grounded result" }
-$checks.Add("ai:sync+recommendation+search")
+$checks.Add("ai:sync+public-triage+search")
 
 $doctorProfile = Invoke-JsonApi -Uri "$ApiBaseUrl/doctor/profile" -WebSession $doctorToken
 $demoDoctor = $doctors.content | Where-Object { $_.id -eq $doctorProfile.id } | Select-Object -First 1

@@ -72,6 +72,8 @@ app:
       default-amount: ${PAYMENT_DEFAULT_AMOUNT:200000}
       webhook-secret: ${PAYMENT_WEBHOOK_SECRET:}
       webhook-tolerance-seconds: ${PAYMENT_WEBHOOK_TOLERANCE_SECONDS:300}
+      retry-enabled: ${APP_PAYMENT_BANK_TRANSFER_RETRY_ENABLED:false}
+      retry-poll-ms: ${APP_PAYMENT_BANK_TRANSFER_RETRY_POLL_MS:60000}
       status-email-enabled: ${PAYMENT_STATUS_EMAIL_ENABLED:true}
   mail:
     enabled: ${APP_MAIL_ENABLED:false}
@@ -86,6 +88,13 @@ app:
       # Base64-encoded 16/24/32-byte AES key. Required when the outbox is on;
       # never commit the value or expose it to the browser.
       encryption-key: ${APP_MAIL_OUTBOX_ENCRYPTION_KEY:}
+  notification:
+    email:
+      # Queues SYSTEM_NOTIFICATION emails from committed in-app notification rows.
+      # Keep off unless SMTP/outbox secrets and user preference policy are approved.
+      enabled: ${APP_NOTIFICATION_EMAIL_ENABLED:false}
+      poll-ms: ${APP_NOTIFICATION_EMAIL_POLL_MS:60000}
+      batch-size: ${APP_NOTIFICATION_EMAIL_BATCH_SIZE:100}
   security:
     bff:
       # Shared only between the Next.js server and Spring. Leave blank for
