@@ -29,6 +29,7 @@ const NAV = [
   { href: "/admin/ai-credits", label: "AI credits" },
   { href: "/admin/health-questions", label: "Hỏi đáp sức khỏe" },
   { href: "/admin/consultations", label: "Tư vấn bệnh nhân" },
+  { href: "/admin/careers", label: "Hồ sơ ứng tuyển" },
 ];
 
 type GateState =
