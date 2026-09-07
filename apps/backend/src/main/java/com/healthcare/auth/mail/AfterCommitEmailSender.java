@@ -100,6 +100,30 @@ public class AfterCommitEmailSender {
         });
     }
 
+    public void sendSystemNotification(String recipient,
+                                       String message,
+                                       String idempotencyKey,
+                                       UUID userId,
+                                       UUID eventReferenceId,
+                                       String eventType,
+                                       long ttlSeconds) {
+        Map<String, String> variables = Map.of("message", message == null ? "" : message);
+        if (delegate instanceof TransactionalEmailSender transactional) {
+            transactional.enqueue(
+                EmailTemplateKey.SYSTEM_NOTIFICATION,
+                recipient,
+                variables,
+                idempotencyKey,
+                userId,
+                eventReferenceId,
+                eventType,
+                ttlSeconds
+            );
+            return;
+        }
+        sendTemplate(EmailTemplateKey.SYSTEM_NOTIFICATION, recipient, variables);
+    }
+
     public void send(String recipient, String subject, String body) {
         if (delegate instanceof TransactionalEmailSender transactional) {
             transactional.enqueue(
