@@ -136,6 +136,10 @@ jobs:
           tags: ghcr.io/${{ needs.resolve.outputs.image_owner }}/${{ matrix.image }}:sha-${{ needs.resolve.outputs.source_sha }}
           build-args: |
             VCS_REF=${{ needs.resolve.outputs.source_sha }}
+            # Keep the SEO guard honest in published images: bake a real
+            # absolute https origin (the synthetic beta alias), never the
+            # Dockerfile's http://localhost:3000 local default.
+            NEXT_PUBLIC_SITE_URL=https://healthcare-two-olive.vercel.app
           labels: |
             org.opencontainers.image.created=${{ needs.resolve.outputs.source_created }}
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
