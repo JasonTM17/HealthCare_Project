@@ -455,6 +455,32 @@ false until a new coordinated release gate is approved.
 5. Re-run Render health, Vercel origin rejection, Supabase RLS/ACL and all
    catalog count checks after recovery. Keep real-patient traffic disabled.
 
+### V62 migration checksum alignment (one-time, existing databases only)
+
+V62 was corrected in place (2026-09-08): its AI review-head upserts are now
+seed-only inserts (`ON CONFLICT DO NOTHING`). The previous `DO UPDATE` violated
+the V34 `trg_ai_content_review_heads_monotonic` trigger on any database whose
+runtime catalog sync had already recorded a review head, crash-looping the
+backend at startup. Fresh databases were and are unaffected.
+
+Consequence: `validate-on-migrate` stays enabled (Spring default), so any
+database that already recorded the old V62 checksum (`1025159201`) fails
+validation against the corrected migration (checksum `-1148397605`). Before
+deploying a backend built from the corrected source, align history once with
+the `flyway repair` equivalent:
+
+    UPDATE flyway_schema_history SET checksum = -1148397605
+    WHERE version = '62' AND success = true;
+
+A database stuck on a failed V62 attempt instead drops only the failed history
+row and restarts; the corrected V62 then retries cleanly:
+
+    DELETE FROM flyway_schema_history WHERE version = '62' AND success = false;
+
+These are one-time versioned-migration history alignments recorded here for
+auditability. They do not modify the hosted catalog rollback path, which
+continues to prohibit Flyway-history edits.
+
 ## Local release gates
 
 With a temporary directory that has enough space:
