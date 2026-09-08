@@ -103,7 +103,8 @@ export default function PatientHealthQuestionsPage() {
             <input id="health-question-topic" className="min-h-11 rounded-lg border border-slate-300 px-3" maxLength={180} onChange={(event) => setTopicSlug(event.target.value)} placeholder="ví dụ: noi-tiet" value={topicSlug} />
           </label>
           <label className="grid gap-1 text-sm font-bold" htmlFor="health-question-alias">Tên hiển thị
-            <input id="health-question-alias" className="min-h-11 rounded-lg border border-slate-300 px-3" maxLength={80} onChange={(event) => setPublicAlias(event.target.value)} placeholder="ví dụ: Người bệnh 01" value={publicAlias} />
+            <input id="health-question-alias" className="min-h-11 rounded-lg border border-slate-300 px-3" maxLength={80} onChange={(event) => setPublicAlias(event.target.value)} pattern="[A-Za-z0-9][A-Za-z0-9 _-]{2,79}" placeholder="ví dụ: Benh nhan 01" value={publicAlias} />
+            <span className="text-xs font-normal text-slate-500">Chỉ chữ không dấu, số, khoảng trắng và gạch nối (3-80 ký tự) — để bảo vệ thông tin cá nhân.</span>
           </label>
           <label className="grid gap-1 text-sm font-bold" htmlFor="health-question-body">Câu hỏi
             <textarea id="health-question-body" className="min-h-32 rounded-lg border border-slate-300 p-3" maxLength={4000} onChange={(event) => setQuestion(event.target.value)} placeholder="Mô tả ngắn gọn điều bạn muốn bệnh viện giải thích…" value={question} />
