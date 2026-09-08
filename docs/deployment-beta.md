@@ -152,14 +152,13 @@ peaked at `458510340` bytes and AI stayed below `76808190` bytes. No OOM signal
 was observed, so JVM limits were left unchanged pending a real failure signal.
 
 The current Vercel stable alias is the `READY`/`PROMOTED` production deployment
-`dpl_FeKrEoSmdbX4Z6KscpVBU8QuBXR7`, observed with the linked Vercel CLI on
-2026-09-02 after the responsive frontend fix. It serves
-`healthcare-two-olive.vercel.app`. The deployment upload was prepared from a
-clean detached checkout/archive at repository commit
-`da860fc8b46d723cdcc3f2b55921a33324abb0a1`; however, the current
-`vercel inspect --format=json` response exposes neither `meta` nor `gitSource`,
-so a provider-side Git SHA/dirty flag is not independently verified. Direct
-probes of `/`, `/specialties`, and
+`dpl_7LBTguGVawqJdR6v6AFyXzMH6uwU`, observed with the linked Vercel CLI on
+2026-09-08 after the hero image fallback, sticky nav bleed, brand asset, and
+mobile collision fixes. It serves `healthcare-two-olive.vercel.app` and
+`www.healthcare.id.vn`. The deployment upload was prepared from repository
+commit `5d104d974221cddd4cdd19a54ddfbf11b596cae2`. Direct probes of `/`,
+`/specialties`, and
+
 `/api/v1/health` returned HTTP 200. The stateless public-chat canary returned
 `200 HOSPITAL_SUPPORT / local_fallback / ANSWER` for a benign support question
 and `200 / REFUSE` for a request to access another patient's records; an
