@@ -348,6 +348,115 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
     }
 
     @Test
+    void v62SeedDoesNotMutatePreExistingRuntimeGovernanceHeads() {
+        String schema = createMigrationSchema();
+        try {
+            migrate(schema, "61");
+
+            // Simulate a database that ran a pre-V62 backend: the runtime
+            // catalog sync already recorded a rich rev-1 revision and a DRAFT
+            // review head for the demo cardiology specialty before the V62
+            // seed ever ran. The seed must leave this head untouched instead
+            // of violating trg_ai_content_review_heads_monotonic or anchoring
+            // the head to a hash that has no revision row.
+            String revisions = table(schema, "ai_content_revisions");
+            String heads = table(schema, "ai_content_review_heads");
+            String runtimeSnapshot = "{\"name\": \"Tim mach runtime\", \"slug\": \"tim-mach\"}";
+            jdbcTemplate.update(
+                "insert into " + revisions
+                    + " (source_type, source_id, content_revision, content_hash, content_snapshot, created_by) "
+                    + "values ('SPECIALTY', '10000000-0000-0000-0000-000000000001', 1, "
+                    + "encode(digest(convert_to(?::jsonb::text, 'UTF8'), 'sha256'), 'hex'), ?::jsonb, "
+                    + "(select id from users where email = 'admin@healthcare.com'))",
+                runtimeSnapshot, runtimeSnapshot
+            );
+            jdbcTemplate.update(
+                "insert into " + heads
+                    + " (source_type, source_id, content_revision, content_hash, "
+                    + "eligibility_revision, eligibility_state, edited_by) "
+                    + "select 'SPECIALTY', '10000000-0000-0000-0000-000000000001', 1, "
+                    + "content_hash, 1, 'DRAFT', created_by from " + revisions
+                    + " where source_type = 'SPECIALTY' "
+                    + "and source_id = '10000000-0000-0000-0000-000000000001' "
+                    + "and content_revision = 1"
+            );
+            String runtimeHash = jdbcTemplate.queryForObject(
+                "select content_hash from " + revisions
+                    + " where source_type = 'SPECIALTY' "
+                    + "and source_id = '10000000-0000-0000-0000-000000000001' "
+                    + "and content_revision = 1",
+                String.class
+            );
+
+            migrateLatest(schema);
+
+            // The seed must not have touched the runtime-owned head.
+            assertThat(jdbcTemplate.queryForObject(
+                "select eligibility_state || '|' || eligibility_revision || '|' || content_revision "
+                    + "from " + heads
+                    + " where source_type = 'SPECIALTY' "
+                    + "and source_id = '10000000-0000-0000-0000-000000000001'",
+                String.class
+            )).isEqualTo("DRAFT|1|1");
+            assertThat(jdbcTemplate.queryForObject(
+                "select content_hash from " + heads
+                    + " where source_type = 'SPECIALTY' "
+                    + "and source_id = '10000000-0000-0000-0000-000000000001'",
+                String.class
+            )).isEqualTo(runtimeHash);
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + revisions
+                    + " where source_type = 'SPECIALTY' "
+                    + "and source_id = '10000000-0000-0000-0000-000000000001'",
+                Integer.class
+            )).isEqualTo(1);
+
+            // The seed-only insert path still seeds demo heads that are absent.
+            assertThat(jdbcTemplate.queryForList(
+                "select eligibility_state from " + heads
+                    + " where source_type = 'ARTICLE' "
+                    + "and source_id in ('a1000000-0000-0000-0000-000000000001', "
+                    + "'a1000000-0000-0000-0000-000000000002') order by source_id",
+                String.class
+            )).containsExactly("SUBMITTED", "SUBMITTED");
+        } finally {
+            dropMigrationSchema(schema);
+        }
+    }
+
+    @Test
+    void v62SeedsApprovedSpecialtyHeadOnFreshLineage() {
+        String schema = createMigrationSchema();
+        try {
+            migrateLatest(schema);
+
+            // Fresh deployments have no runtime-owned head, so the demo
+            // APPROVED cardiology head is seeded and FK-anchored to the
+            // matching revision row.
+            assertThat(jdbcTemplate.queryForObject(
+                "select eligibility_state || '|' || eligibility_revision || '|' || current_approval_round "
+                    + "from " + table(schema, "ai_content_review_heads")
+                    + " where source_type = 'SPECIALTY' "
+                    + "and source_id = '10000000-0000-0000-0000-000000000001'",
+                String.class
+            )).isEqualTo("APPROVED|1|1");
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + table(schema, "ai_content_revisions") + " revision "
+                    + "join " + table(schema, "ai_content_review_heads") + " head "
+                    + "on head.source_type = revision.source_type "
+                    + "and head.source_id = revision.source_id "
+                    + "and head.content_revision = revision.content_revision "
+                    + "and head.content_hash = revision.content_hash "
+                    + "where revision.source_type = 'SPECIALTY' "
+                    + "and revision.source_id = '10000000-0000-0000-0000-000000000001'",
+                Integer.class
+            )).isEqualTo(1);
+        } finally {
+            dropMigrationSchema(schema);
+        }
+    }
+
+    @Test
     void cmsSlotKeysAreBoundToPublicRouteInventoryAtDatabaseBoundary() {
         UUID contentId = UUID.randomUUID();
         jdbcTemplate.update("delete from cms_content_changes where slot_key in (?, ?)", "contact.footer", "patient.dashboard.hero");
