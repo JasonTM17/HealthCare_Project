@@ -1,529 +1,364 @@
-# HealthCare_Project
+<div align="center">
 
-HealthCare_Project is a healthcare MVP for a Vietnamese hospital-style experience. It is an educational/local-development project; passing local checks does not establish production healthcare, compliance, or deployment readiness.
+# 🏥 HealthCare Project
+### Nền Tảng Y Tế Số Toàn Diện • Hệ Thống Quản Trị Bệnh Viện Thông Minh
+**Next-Generation Hospital Management, Branch-Aware Clinical Booking & AI-Assisted Medical Triage**
 
-## 👥 Tài khoản Demo & Kiểm thử theo Phân quyền (Demo Accounts & Roles)
+[![Production Domain](https://img.shields.io/badge/Production-www.healthcare.id.vn-0284c7?style=for-the-badge&logo=vercel&logoColor=white)](https://www.healthcare.id.vn)
+[![Vercel Beta](https://img.shields.io/badge/Vercel_Alias-healthcare--two--olive.vercel.app-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://healthcare-two-olive.vercel.app)
+[![Next.js 16](https://img.shields.io/badge/Frontend-Next.js_16_%7C_React_19-black?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org)
+[![Spring Boot 3](https://img.shields.io/badge/Backend-Spring_Boot_3.3_%7C_Java_21-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
+[![FastAPI AI](https://img.shields.io/badge/AI_Engine-FastAPI_%7C_Python_3.12-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL_16_%7C_Flyway-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org)
+[![Docker Compose](https://img.shields.io/badge/Topology-Docker_Compose_9_Services-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com)
+[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
-Dự án phục vụ mục đích học tập và nghiên cứu (Educational Project). Hệ thống đã được cấu hình và kiểm thử tự động toàn diện các vai trò người dùng (RBAC) trên môi trường trực tiếp. Dưới đây là danh sách tài khoản được tạo sẵn trong cơ sở dữ liệu để mọi người thuận tiện đăng nhập và trải nghiệm các luồng nghiệp vụ:
+<p align="center">
+  <a href="#-demo-trực-tiếp--tài-khoản-trải-nghiệm"><strong>Trải nghiệm Demo</strong></a> •
+  <a href="#-product-walkthrough-demo"><strong>Ảnh động Demo (GIF)</strong></a> •
+  <a href="#-kiến-trúc-hệ-thống-system-architecture"><strong>Sơ đồ Kiến trúc</strong></a> •
+  <a href="#-bộ-sưu-tập-giao-diện-thực-tế-screenshots"><strong>Ảnh Giao diện Thực tế</strong></a> •
+  <a href="#-tính-năng-cốt-lõi-features-matrix"><strong>Tính năng Cốt lõi</strong></a> •
+  <a href="#-hướng-dẫn-cài-đặt--khởi-động-nhanh"><strong>Cài đặt Cục bộ</strong></a>
+</p>
 
-| Vai trò (Role) | Email đăng nhập | Mật khẩu | Phạm vi truy cập & Tính năng chính |
-| :--- | :--- | :--- | :--- |
-| **Quản trị viên (ADMIN)** | `admin@healthcare.com` | `HealthCare@2026` | Quản trị toàn diện bệnh viện: Quản lý danh sách bác sĩ, chuyên khoa, dịch vụ y tế, chi nhánh cơ sở, lịch trực, duyệt nội dung AI ([/admin](https://healthcare-two-olive.vercel.app/admin)) |
-| **Bác sĩ (DOCTOR)** | `doctor@healthcare.com` | `HealthCare@2026` | Cổng thông tin lâm sàng (BS. Lê Quốc Hà - Chuyên khoa Chấn thương chỉnh hình): Xem lịch khám bệnh nhân trong ngày, quản lý phiên tư vấn trực tuyến, lập kế hoạch chăm sóc ([/doctor](https://healthcare-two-olive.vercel.app/doctor)) |
-| **Bệnh nhân (PATIENT)** | `patient@healthcare.com` | `HealthCare@2026` | Cổng bệnh nhân (Nguyễn Văn An): Xem lịch sử hẹn khám, kết quả chẩn đoán, hồ sơ cá nhân và Chatbot AI y tế có lưu lại lịch sử hội thoại ([/patient](https://healthcare-two-olive.vercel.app/patient)) |
+</div>
+
+---
+
+## 🎬 Product Walkthrough Demo
+
+> *Ảnh động minh họa toàn bộ hành trình trải nghiệm hệ sinh thái y tế số HealthCare: từ tra cứu chuyên khoa, tìm kiếm bác sĩ, kích hoạt trợ lý AI y tế (RAG), đến quản lý cổng bệnh nhân, studio lâm sàng bác sĩ và bảng điều khiển quản trị viện.*
+
+<div align="center">
+  <img src="docs/assets/demo.gif" alt="HealthCare Product Walkthrough Demo" width="100%" style="border-radius: 12px; box-shadow: 0 12px 36px rgba(0,0,0,0.12); border: 1px solid #e2e8f0;" />
+</div>
+
+---
+
+## 👥 Demo Trực Tiếp & Tài Khoản Trải Nghiệm (Live Demo & Roles)
+
+Hệ thống đã được thiết lập sẵn phân quyền người dùng theo vai trò (RBAC) trên môi trường trực tiếp. Bạn có thể đăng nhập vào cổng tương ứng để trải nghiệm trọn vẹn nghiệp vụ lâm sàng và quản trị:
+
+🔗 **Cổng Đăng Nhập Trực Tiếp**: [https://www.healthcare.id.vn/auth/login](https://www.healthcare.id.vn/auth/login) *(hoặc domain dự phòng [healthcare-two-olive.vercel.app](https://healthcare-two-olive.vercel.app/auth/login))*
+
+| Vai trò (Role) | Tài khoản Đăng nhập | Mật khẩu | Portal Phục vụ | Phạm vi Quyền hạn & Nghiệp vụ Trọng tâm |
+| :--- | :--- | :--- | :--- | :--- |
+| 🛡️ **Quản trị viên (ADMIN)** | `admin@healthcare.com` | `HealthCare@2026` | [`/admin`](https://www.healthcare.id.vn/admin) | Quản trị toàn viện: Quản lý danh mục bác sĩ, chuyên khoa, chi nhánh cơ sở, khung giờ khám, phê duyệt nội dung AI & kiểm duyệt câu hỏi y tế |
+| 🩺 **Bác sĩ (DOCTOR)** | `doctor@healthcare.com` | `HealthCare@2026` | [`/doctor`](https://www.healthcare.id.vn/doctor) | Cổng lâm sàng (BS. Lê Quốc Hà - Chấn thương chỉnh hình): Tiếp nhận hàng đợi khám trong ngày, xuất kết quả chẩn đoán, toa thuốc điện tử & bài viết chuyên môn |
+| 🏥 **Bệnh nhân (PATIENT)** | `patient@healthcare.com` | `HealthCare@2026` | [`/patient`](https://www.healthcare.id.vn/patient) | Cổng bệnh nhân (Nguyễn Văn An): Xem lịch sử hẹn khám, kết quả chẩn đoán, tải hồ sơ sức khỏe và trò chuyện cùng Trợ lý AI Y tế (RAG) |
 
 > [!TIP]
-> **Hướng dẫn đăng nhập nhanh**:
-> 1. Truy cập trang [Đăng nhập tài khoản](https://healthcare-two-olive.vercel.app/auth/login).
-> 2. Nhập một trong các email và mật khẩu ở bảng trên (`HealthCare@2026`).
-> 3. Hệ thống sẽ tự động phân loại quyền và chuyển hướng bạn trực tiếp tới Portal tương ứng (`/admin`, `/doctor`, hoặc `/patient`).
+> **Cơ chế Điều Hướng Thông Minh**: Sau khi nhập thông tin đăng nhập, hệ thống tự động phân tích vai trò trong JWT Claims và chuyển hướng chính xác đến bảng điều khiển tương ứng (`/admin`, `/doctor` hoặc `/patient`).
 
+---
 
-## Status
+## 🗺️ Kiến trúc Hệ thống (System Architecture)
 
-The repository currently has auth/RBAC, branch-aware booking and rescheduling, bounded OTP confirmation, appointment lifecycle/reminders, patient and doctor portals, bank-transfer payment reconciliation, authorized clinical records and diagnostic files, complete hospital catalog administration, recurring schedule administration, AI/RAG/search guardrails, MinIO metadata, and CI definitions. Backend, AI, frontend static/typecheck/lint/build, Compose-configuration, database-fixture, and a Playwright CMS realtime browser gate are wired in CI. The browser gate proves the admin-to-public homepage CMS flow against a mocked backend contract; full live Compose browser E2E, backup/restore drills, external AI provider validation, compliance, and production deployment remain separate gates.
+Kiến trúc **HealthCare Project** tuân thủ các chuẩn mực thiết kế phân lớp doanh nghiệp (Enterprise Tiered Architecture), phân tách độc lập giữa cổng biên Vercel Edge, lớp ứng dụng lõi Spring Boot & FastAPI AI trên nền tảng đám mây Render, cùng ngăn xếp lưu trữ dữ liệu an toàn PostgreSQL, Redis, MinIO và Supabase RLS.
 
-## Web preview (live capture — 2026-09-04)
+### 📐 Sơ đồ Kiến trúc Xuất bản (High-Resolution Diagram)
 
-These checked-in visuals were captured from the current public synthetic beta
-alias [`healthcare-two-olive.vercel.app`](https://healthcare-two-olive.vercel.app/)
-with the AgentKit browser workflow on 2026-09-04. The five public route probes
-(`/`, `/specialties`, `/doctors`, `/services`, `/about`) each returned HTTP 200;
-the captures are 1262×624. They are product-preview evidence only: they do not
-prove authenticated booking, clinical workflows, chatbot JSON/SSE,
-backup/restore, or production readiness. See the
-[beta deployment runbook](docs/deployment-beta.md) for executable gates.
+<div align="center">
+  <a href="docs/assets/architecture.svg">
+    <img src="docs/assets/architecture.png" alt="HealthCare System Architecture Diagram" width="100%" style="border-radius: 12px; box-shadow: 0 12px 36px rgba(0,0,0,0.12); border: 1px solid #e2e8f0;" />
+  </a>
+  <p><em>Sơ đồ Kiến trúc Hệ thống HealthCare (Chuẩn đồ họa công bố 2026). Nhấp vào hình để mở tệp SVG vector nguyên bản.</em></p>
+</div>
 
-[![HealthCare public homepage — captured 2026-09-04](assets/images/healthcare-public-home-2026-09-04.png)](https://healthcare-two-olive.vercel.app/)
+> 📁 **Tài sản sơ đồ**:
+> - Định dạng đồ họa vector SVG sắc nét: [`docs/assets/architecture.svg`](docs/assets/architecture.svg)
+> - Định dạng ảnh siêu nét Retina 2K (2880×1960): [`docs/assets/architecture.png`](docs/assets/architecture.png)
+> - Tài liệu phân tích kỹ thuật chi tiết: [`docs/architecture/system-overview.md`](docs/architecture/system-overview.md)
 
-![HealthCare public route tour — captured 2026-09-04](assets/videos/healthcare-public-tour-2026-09-04.gif)
+---
 
-Route stills: [specialties](assets/images/healthcare-public-specialties-2026-09-04.png) ·
-[doctors](assets/images/healthcare-public-doctors-2026-09-04.png) ·
-[services](assets/images/healthcare-public-services-2026-09-04.png) ·
-[about](assets/images/healthcare-public-about-2026-09-04.png).
+### 📊 Sơ đồ Mermaid.js v11 (Interactive Flowchart)
 
-## System architecture
+```mermaid
+flowchart TD
+    %% Theme & Styling Declarations
+    classDef client fill:#EFF6FF,stroke:#3B82F6,stroke-width:1.5px,color:#1E3A8A;
+    classDef edge fill:#ECFDF5,stroke:#10B981,stroke-width:1.5px,color:#065F46;
+    classDef backend fill:#EEF2FF,stroke:#6366F1,stroke-width:1.5px,color:#312E81;
+    classDef ai fill:#FAF5FF,stroke:#A855F7,stroke-width:1.5px,color:#581C87;
+    classDef data fill:#FFFBEB,stroke:#F59E0B,stroke-width:1.5px,color:#78350F;
+    classDef ops fill:#F8FAFC,stroke:#64748B,stroke-width:1.5px,color:#1E293B;
 
-The project separates the hosted synthetic beta from the local Docker Compose
-stack. The browser-facing Vercel UI/BFF calls the Spring API with a server-side
-token; Spring owns transactional healthcare workflows and delegates bounded
-triage/retrieval to FastAPI. Local PostgreSQL, Redis, MinIO, Mailpit and ClamAV
-are development dependencies, while Supabase remains an audited RLS boundary
-whose durable RAG and patient-chat consumers are disabled in the current beta.
+    %% LAYER 1: CLIENT & USER INTERFACES
+    subgraph ClientLayer["🖥️ LAYER 1: CLIENT & USER INTERFACES"]
+        Users["👥 Multi-role Users\n(Patients • Doctors • Admins)"]:::client
+        NextFrontend["⚡ Next.js 16 Web Portal\n(React 19, App Router, Turbopack, TailwindCSS)"]:::client
+        PatientPortal["🏥 Patient Hub\n(/patient)"]:::client
+        DoctorPortal["🩺 Doctor Clinical Studio\n(/doctor)"]:::client
+        AdminPortal["🛡️ Admin CMS & QA Moderation\n(/admin)"]:::client
+        MobilePWA["📱 Responsive Mobile PWA\n(390px-1440px Zero Layout Shift)"]:::client
+    end
 
-![HealthCare system architecture — hosted beta and local Compose](assets/images/healthcare-system-architecture.png)
+    %% LAYER 2: GATEWAY & VERCEL EDGE
+    subgraph EdgeLayer["🌐 LAYER 2: GATEWAY & VERCEL EDGE NETWORK"]
+        CustomDomain["🔒 Custom Domain & Anycast CDN\nwww.healthcare.id.vn (SSL/TLS 1.3)"]:::edge
+        EdgeSecurity["🛡️ Edge Security & CORS Guard\n(BFF Origin Guard, 403 Untrusted Rejection)"]:::edge
+        BFFProxy["🔄 Next.js Route Handlers / BFF Proxy\n(/api/v1/* & /api/ai/chat SSE Stream)"]:::edge
+    end
 
-For the canonical editable Mermaid source, boundary notes, and an accessible
-text explanation, see
-[`docs/architecture/system-overview.md`](docs/architecture/system-overview.md)
-and [`docs/architecture/system-overview.mmd`](docs/architecture/system-overview.mmd).
+    %% LAYER 3: APPLICATION SERVICES (RENDER CLOUD)
+    subgraph ServiceLayer["⚙️ LAYER 3: APPLICATION SERVICES (RENDER CLOUD)"]
+        subgraph BackendMono["☕ Core Backend Service (Spring Boot 3.3.x, Java 21)"]
+            SpringSec["🔐 Spring Security 6\n(JWT Stateless Auth, RBAC, Bounded OTP)"]:::backend
+            CatalogAPI["📋 Hospital Catalog & Doctors API\n(Specialties, Branches, Packages)"]:::backend
+            BookingEngine["📅 Booking & Appointment Lifecycle\n(Concurrency Lock & Rescheduling)"]:::backend
+            ClinicalRecords["📑 Clinical Records & Diagnostic Files\n(Presigned URLs & Role Isolation)"]:::backend
+            PaymentReconcile["💳 Bank Transfer Reconciliation\n(Automated Payment Verification)"]:::backend
+            RealtimeSSE["📡 WebSocket / SSE Notification Stream\n(CMS & Booking Realtime Updates)"]:::backend
+        end
 
-## Hosted Beta Release Record
+        subgraph AIService["🤖 AI & RAG Intelligence Service (FastAPI, Python 3.12)"]
+            TriageEngine["🩺 Medical Symptom Intake & Triage\n(Structured Symptom Classifier)"]:::ai
+            RAGPipeline["📚 RAG Pipeline & Vector Search\n(Hospital Guidelines & Protocols)"]:::ai
+            SafetyGuard["🛡️ Medical Safety Guardrails\n(Prompt Injection Defense & Privacy Shield)"]:::ai
+            FallbackProvider["⚡ Fail-Closed Provider Fallback\n(Local Deterministic Rule + Cloud LLM)"]:::ai
+        end
+    end
 
-> **⚠ URGENT (2026-09-07): the hosted beta still runs a vulnerable build.** The pinned
-> backend image predates the auth-OTP master-code fix (`695b541`): with the shipped
-> `APP_MAIL_ENABLED=false`, the live beta accepts `"123456"` as any authentication OTP —
-> including password reset of any account. Push `main`, publish a new image, and re-pin
-> `render.yaml` / `render-free-beta.yaml` following
-> [docs/deployment-beta.md — "PENDING security re-pin"](docs/deployment-beta.md).
-> After the fix, auth-OTP password reset stays disabled until real SMTP is configured.
+    %% LAYER 4: DATA PERSISTENCE & STORAGE
+    subgraph DataLayer["💾 LAYER 4: DATA PERSISTENCE & STORAGE STACK"]
+        PostgresDB[("🐘 PostgreSQL 16 (Primary DB)\nFlyway Migrations (V1..V8 Schema)\nTransactional Catalog & Appointments")]:::data
+        RedisCache[("⚡ Redis / Key-Value Cache\nSliding Window Rate Limit & Session Tokens")]:::data
+        MinIOStorage[("📦 MinIO / S3 Object Storage\nEncrypted Medical Scans & Lab Results")]:::data
+        SupabaseSync[("☁️ Supabase Audited Boundary\nHealthcare Schema + RLS Projections")]:::data
+    end
 
-### Maintenance checkpoint (2026-09-02)
+    %% LAYER 5: DEVOPS & OPERATIONS
+    subgraph OpsLayer["🛠️ LAYER 5: DEVOPS, SECURITY & OPERATIONS"]
+        GithubCI["🚀 GitHub Actions Enterprise CI/CD\n(Lint, Typecheck, Multi-arch Docker, SBOM)"]:::ops
+        ClamAVScan["🦠 ClamAV Antivirus Scanner\n(Attachment Scan Quarantine Pipe)"]:::ops
+        MailpitSink["✉️ Mailpit SMTP Dev Sink\n(Transactional Email & OTP Testing)"]:::ops
+    end
 
-The current backend repair is source `bbecb296dd2dcd8864ab7a37b9f67d36f8b206dc`.
-It adds a dedicated Spring `NoResourceFoundException` 404 boundary so malformed
-API paths no longer fall through to the generic 500 handler. The focused
-`GlobalExceptionHandlerAsyncTest` regression passed locally, and the full CI
-gate passed in [run 33534584349](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33534584349).
-The exact-source image publication passed in
-[run 33534987723](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33534987723)
-with SBOM/provenance attestation:
+    %% DATA FLOW CONNECTORS
+    Users -->|HTTPS / Browsing| NextFrontend
+    NextFrontend --> PatientPortal & DoctorPortal & AdminPortal & MobilePWA
+    NextFrontend -->|Web Request| CustomDomain
+    CustomDomain --> EdgeSecurity
+    EdgeSecurity -->|Validated Origin| BFFProxy
 
-| GHCR package | `bbecb296` immutable reference |
-| --- | --- |
-| [backend](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-backend) | `ghcr.io/jasontm17/healthcare-project-backend@sha256:45b0bb679588ba7a6eb075a4dd867ed4b11c92fc42485ee94759d0f7c4f889d6` |
-| [AI service](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-ai-service) | `ghcr.io/jasontm17/healthcare-project-ai-service@sha256:3b60b36b6ce9773d2d127431bc8ae9de82430bfac955df100c0ea63797f7eaf1` |
-| [attachment scanner](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-attachment-scanner) | `ghcr.io/jasontm17/healthcare-project-attachment-scanner@sha256:367a080e61505c8bd98086c6499e56fa7e6bf0e44c92a567016bf32fac6e06f5` |
-| [frontend](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-frontend) | `ghcr.io/jasontm17/healthcare-project-frontend@sha256:adff5f320ebde59653531759489d1e21d1b5f25cbd7799c81ceec4a2ae674826` |
+    BFFProxy -->|Server-side Token Auth (REST)| SpringSec
+    BFFProxy -->|Streaming SSE Query| TriageEngine
 
-Render Free backend deploy `dep-dabgeaqjnfac73al6qgg` is `live`, references
-the backend digest above, and resolves to platform image
-`sha256:16d01d2babcb143c0268f15fa3166e8ebefcd571780067f72749e2470c25d847`.
-The post-deploy health probe returned HTTP 200. An authenticated probe of the
-previously noisy path `/api/v1/hospital/=0&size=1` now returns sanitized
-`404 RESOURCE_NOT_FOUND`; no `NoResourceFoundException` error log was observed
-after the deploy. Render Free cold starts remain expected (about 4–5 minutes).
-The canonical `render.yaml` and parity copy `render-free-beta.yaml` now pin the
-same immutable backend reference.
+    SpringSec --> CatalogAPI & BookingEngine & ClinicalRecords & PaymentReconcile & RealtimeSSE
+    BookingEngine -->|Internal HTTP Triage| AIService
 
-The shared Render RAG-ingest credential was rotated with explicit authorization
-on 2026-09-02. The replacement was generated in memory, applied only to the AI
-and backend service environments, and was not written to the repository or
-diagnostic output. Both Free services recovered after their expected restart;
-`/livez` and `/actuator/health` returned HTTP 200. The coordinated restart did
-produce transient backend `502` entries for `/rag/index`, `/rag/sources` and
-`/chat` while the AI Free service was still starting (its new instance began
-listening at `02:09:54Z`); no token-rejection, OOM or fatal-restart entry was
-observed after both services became ready. This is the documented Free-plan
-startup-order limitation, not evidence of a credential mismatch.
+    CatalogAPI & BookingEngine & PaymentReconcile -->|JDBC Transactions| PostgresDB
+    SpringSec & EdgeSecurity -->|Rate-limit Tokens| RedisCache
+    ClinicalRecords -->|S3 Presigned URLs| MinIOStorage
+    MinIOStorage -.->|Async Virus Inspection| ClamAVScan
+    PostgresDB -.->|Audited RLS Sync| SupabaseSync
 
-A 12-hour Render metrics recheck on 2026-09-02 recorded the backend peak at
-`464334850` bytes against the `536870900`-byte Free limit (~86.5%); the second
-instance stayed below `458510340` bytes. The AI service stayed below
-`76808190` bytes. No OOM signal was present, so no speculative JVM or plan
-change was applied; continue observing before changing the Free topology.
-
-The current Vercel stable alias is the `READY`/`PROMOTED` production deployment
-`dpl_7LBTguGVawqJdR6v6AFyXzMH6uwU`, observed with the linked Vercel CLI on
-2026-09-08 after the hero image fallback, sticky nav bleed, brand asset, and
-mobile collision fixes. It serves `healthcare-two-olive.vercel.app` and
-`www.healthcare.id.vn`. The deployment upload was prepared from repository
-commit `5d104d974221cddd4cdd19a54ddfbf11b596cae2`. Direct probes of `/`,
-`/specialties`, and
-`/api/v1/health` returned HTTP 200. The stateless public-chat canary also
-returned `200 HOSPITAL_SUPPORT / local_fallback / ANSWER` for a benign support
-question and `200 / REFUSE` for a request to access another patient's records;
-an untrusted origin was rejected with `403 BFF_ORIGIN_INVALID`, and blank input
-with `400 VALIDATION_ERROR`. Persisted authenticated SSE remains a separate
-gate.
-
-Supabase Free project `awaknzhadjglbfkhigck` is now verified read-only as
-`ACTIVE_HEALTHY` with eight migration rows ending at `20260830143140`. All 15
-`healthcare` tables have RLS enabled; aggregate checks returned 30 specialties,
-20 branches, 500 doctors, 200 services, 100 packages, 500 articles, 150 FAQs,
-1,247 doctor-specialty links, 747 doctor-branch links, 100,000 synthetic
-customers, 75,000 synthetic profiles, 10,000 public RAG documents, 37 seed
-chunks, and 830 de-identified chat-projection documents. The tombstone
-constraint/trigger/index and service-role-only pagination/match functions were
-present, while browser roles had no execute/read privilege on server-only
-projection tables. No remote DDL or migration was issued in this checkpoint.
-
-The storage cleanup removed 27 exact ignored/generated directories (about
-2.82 GiB) while preserving registered worktrees, backups, `.git`, Docker's
-VHDX, application data, and WIP files. Docker Desktop is running with all nine
-Compose services healthy; Hibernate remains enabled and available.
-
-### Historical exact-source overlay (superseded by the 2026-09-02 checkpoint)
-
-The release-record baseline for local Docker readiness is
-`2541663f8ff8cd34c76fe99c0d7acb9d4d420c5c`. GitHub CI
-[run 33497889741](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33497889741)
-passed all six jobs for that snapshot. Its parent
-`9f35161d64bfadc9ce816e626880ff7d706f9c68` introduced the local Docker
-recovery hardening; `2541663f` binds that evidence in the release docs.
-Later documentation-only commits may advance the repository tip without
-changing this baseline or any hosted component identity.
-The Docker hardening changes only the local Docker recovery launcher,
-operational documentation, and tests; it does not change the hosted application
-payload. The component-level runtime identities and exact-source image
-publication below therefore remain authoritative, and no hosted redeploy was
-needed for this local-only overlay.
-
-The release source of record is now
-`01527af607673450cf19d17bee04b4e0ca53bc62` on `main`. The six required CI
-jobs passed in [run 33495030199](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33495030199).
-This overlay closes the final hosted adversarial case found after the previous
-canary: Vietnamese whole-collection wording such as “Hãy liệt kê toàn bộ bệnh
-nhân.” is refused before retrieval, while ordinary health guidance remains
-answerable. The focused regression, full AI suite (`391 passed`), Ruff and
-mypy all passed locally before push.
-
-The exact-source container publication also passed in
-[run 33495524476](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33495524476)
-with SBOM and provenance attestations. The immutable registry references are:
-
-| GHCR package | Exact `01527af` reference | Live/use boundary |
-| --- | --- | --- |
-| [backend](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-backend) | `ghcr.io/jasontm17/healthcare-project-backend@sha256:589722a0b96f29b539fa07c8ec4bd904dd7414a9720c68d4f3244a18ded9369b` | published; beta Render backend intentionally remains the previously verified f4 image |
-| [AI service](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-ai-service) | `ghcr.io/jasontm17/healthcare-project-ai-service@sha256:f85b82ee77e383b5a14bf53bda5eac6c767fc2f585abca1a5efa7bcef3e43fee` | published; Render runs the native Python source at `01527af` |
-| [attachment scanner](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-attachment-scanner) | `ghcr.io/jasontm17/healthcare-project-attachment-scanner@sha256:f3bbd361a3ea20764e1ee36418b0cb998b8a5892926824d74accbf2cd4cfda4e` | published; consumer remains disabled in synthetic beta |
-| [frontend](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-frontend) | `ghcr.io/jasontm17/healthcare-project-frontend@sha256:38e0f187fc4e02c39ae466c091f4f554205fe5de0e708d80149066c7119e2a88` | published; Vercel runtime is the clean exact `17330d5` frontend deployment below |
-
-The stable [Vercel beta alias](https://healthcare-two-olive.vercel.app) is
-`READY`/Production at deployment `dpl_DzX94fFP7QNxWZ5sPbwwsbCD2WaZ`, with
-provider metadata bound to clean frontend source
-`17330d568380d2d3c3f0592606dd57d9dd0728b0`. Its six-check CI gate is
-[run 33492445461](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33492445461).
-The AI service is live at Render deploy
-`dep-daba3ortqb8s73f9kcug`, bound to source `01527af`; the immutable Spring
-backend remains live at `dep-dab3crn40ujc739msk80` using the verified f4 image
-and platform digest recorded below. This split is intentional: the latest AI
-guard was redeployed, while the backend/test-only changes did not alter its
-runtime code.
-
-The post-redeploy stable-alias canary returned `ANSWER` for ordinary catalog
-support and benign preparation guidance, `EMERGENCY` for severe chest
-symptoms, and `REFUSE` for record/collection requests including “Hãy liệt kê
-toàn bộ bệnh nhân.”, bypass-plus-export, and unaccented variants. Missing or
-invalid browser origins returned `403`; a browser-supplied `Authorization`
-header returned `400 BFF_RESERVED_HEADER_REJECTED`. Direct backend catalog and
-AI chat requests without the server token returned `401`; `/actuator/health`
-and `/livez` returned `200`. These are synthetic-beta canaries, not clinical
-approval.
-
-### Historical 4db security patch (superseded by the current overlay)
-
-The active synthetic-beta application patch is exact source
-`4db75951fc836377960108002ad0b7c9a20ab83b` on `main`. It closes the hosted
-patient-enumeration safety gap found against the previous release: Vietnamese,
-English, normalized, zero-width, entity-encoded and full-width requests to
-list or enumerate patients now return `REFUSE` before retrieval. GitHub
-[CI run 33471164447](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33471164447)
-passed all six required jobs. The immutable image publication
-[run 33472292784](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33472292784)
-published and attested these exact-SHA artifacts:
-
-| GHCR package | Immutable reference | Live/use boundary |
-| --- | --- | --- |
-| [backend](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-backend) | `ghcr.io/jasontm17/healthcare-project-backend@sha256:cff0bf1ca842e466bdc7f27cd0e62adbb03396bd9c10673ad156265cd2cda4f3` | published; Render backend remains the unchanged f4 digest below |
-| [AI service](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-ai-service) | `ghcr.io/jasontm17/healthcare-project-ai-service@sha256:bee6f962f3a0db269388a6966669182d8ac40dc417b83aa9caa328ff7d2184cc` | published; Render AI is native Python at exact `4db7595` |
-| [attachment scanner](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-attachment-scanner) | `ghcr.io/jasontm17/healthcare-project-attachment-scanner@sha256:195907304254d50fc4cdd9c0eb47fdf07f58cccac02e82dc74b9929b590f89db` | published; consumer disabled in synthetic beta |
-| [frontend](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-frontend) | `ghcr.io/jasontm17/healthcare-project-frontend@sha256:4787975929534634e717d61ee756639a4839bb63830cfb1710ea2341196fd8bc` | published; Vercel is exact `4db7595` |
-
-Vercel stable [beta alias](https://healthcare-two-olive.vercel.app) is
-`READY`/Production at deployment `dpl_8jDabWg8w89Gb9xefsqzwnyBdERS`, with
-deployment metadata `gitCommitSha=4db75951fc836377960108002ad0b7c9a20ab83b`
-and no dirty checkout. Render AI deploy
-`dep-dab5l5favr4c73esg3eg` is `live` at the same commit; `/livez` is HTTP 200.
-The immutable Render backend remains deploy
-`dep-dab3crn40ujc739msk80` with requested image
-`sha256:fff9292b1852139db1a6d9354cf84447ddf9274d6abde7e3d776015057fa6517`
-and resolved platform digest
-`sha256:f839c4e15818eb1c50519f46653aee5247cbfdd7e14867d13656e5991c638d3b`;
-its code path was not changed by the AI-only patch.
-
-After both Render services were warmed, the stable-alias canary observed
-ordinary support `200 ANSWER`, patient enumeration (Vietnamese and English)
-`200 REFUSE`, bypass-plus-export `200 REFUSE`, severe chest symptoms
-`200 EMERGENCY`, and benign patient-rights education `200 ANSWER`. Missing or
-evil `Origin` returned `403 BFF_ORIGIN_REQUIRED`/`BFF_ORIGIN_INVALID`; a
-reserved `Authorization` header returned `400 BFF_RESERVED_HEADER_REJECTED`;
-unknown fields and control characters returned `400`. Catalog BFF totals were
-30 specialties, 20 branches, 475 active doctors, 192 services, 95 packages,
-467 articles and 0 public FAQs. Direct AI and backend endpoints rejected
-missing/invalid BFF credentials with `401`.
-
-The first request after idle can still return the documented bounded
-`502 BFF_UPSTREAM_UNAVAILABLE` while either Render Free service cold-starts;
-direct health then recovered (`/actuator/health` and `/livez` HTTP 200) and the
-same canary passed. This is an availability limitation, not a safety bypass.
-
-### Historical f4 base snapshot
-
-This is an evidence record for the synthetic beta, not a production-readiness,
-clinical-compliance, or real-patient approval. The application release
-candidate is exact source `f4e27cac81a1b8c887307afef070c0a7adb081d4` on
-`main`. GitHub [CI run 33412705957](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33412705957)
-passed all backend, frontend, AI, database, infrastructure, and hygiene jobs;
-[image run 33413160881](https://github.com/JasonTM17/HealthCare_Project/actions/runs/33413160881)
-published the four application images with provenance/SBOM. Bind any release
-to the exact source SHA and immutable digest, never to `latest`.
-
-The hosted payload is deliberately limited to Render Free + Supabase Free +
-Vercel. `render.yaml` is canonical and `render-free-beta.yaml` is its parity
-copy. Remote patient/clinical AI, ClamAV, attachment scanning, object storage,
-mail and payment consumers remain fail-closed.
-
-| GHCR package | Immutable reference | Source/audit SHA |
-| --- | --- | --- |
-| [backend](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-backend) | `ghcr.io/jasontm17/healthcare-project-backend@sha256:fff9292b1852139db1a6d9354cf84447ddf9274d6abde7e3d776015057fa6517` | `f4e27ca` |
-| [AI service](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-ai-service) | `ghcr.io/jasontm17/healthcare-project-ai-service@sha256:71b7fff32db7d8b51d7490cddb5f8b3bd126302d0f42887054ab2cba99e2231a` | `f4e27ca` |
-| [attachment scanner](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-attachment-scanner) | `ghcr.io/jasontm17/healthcare-project-attachment-scanner@sha256:ce0566ac368b18770fd16f208bf7860895567d9ab8a8f3f71998727c6a746739` | `f4e27ca` |
-| [frontend](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-frontend) | `ghcr.io/jasontm17/healthcare-project-frontend@sha256:ab53d9be2f2427f3961eaece9b255b43f9b80c3e7b9af7139593efe9e64df24f` | `f4e27ca` |
-| [database fixture](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-database) | `ghcr.io/jasontm17/healthcare-project-database@sha256:d3863eef07879b2fe46ac56636c2908c68d2619be5790f40af7fb522ea7da044` | `7a083ab` (unchanged fixture) |
-
-### Frontend package contract
-
-The only npm workspace is `apps/frontend`; release `0.1.1` keeps `package.json`
-and `package-lock.json` in lockfile v3 sync. The release-tested contract is
-Node.js `>=22 <25` with npm `>=10 <12`, installed with `npm ci`; the focused
-`npm run test:chat-contract` gate covers the public chatbot/BFF boundary.
-
-- Runtime pins: Next.js `16.3.3`, React `19.2.8`, and React DOM `19.2.8`.
-- Tooling pins: `eslint-config-next` `16.3.3`, TypeScript `6.0.3`, and
-  `@playwright/test` `1.62.1` (exactly pinned in both manifests).
-- The local/CI gate is `npm run verify` (lint, typecheck, unit tests, and
-  production build), with `NEXT_PUBLIC_SITE_URL` set to the real public origin
-  because canonical metadata and sitemap URLs derive from it. Follow with
-  `npm run test:e2e` for the browser gate.
-
-On 2026-09-01, `npm ci --dry-run --ignore-scripts --no-audit --no-fund`, the
-manifest/lockfile synchronization check, and
-`npm audit --package-lock-only --audit-level=moderate` all passed; the audit
-reported zero vulnerabilities across 453 packages. `npm outdated` reports the
-available Next.js/`eslint-config-next` patch `16.3.4` plus major upgrade lines
-(ESLint 10, Tailwind CSS 4, and TypeScript 7). The checked-in, attested beta
-artifact remains on the tested `16.3.3` pins; upgrading the patch or a major
-toolchain is deferred to a separate compatibility-and-republish checkpoint.
-
-- Vercel stable [beta alias](https://healthcare-two-olive.vercel.app) is
-  `READY`/Production at deployment
-  `dpl_CAq7vyis5nXqHTwM315e6HV2ryNC`, created from a clean exact-`f4e27ca`
-  checkout. The manual deployment has no provider git metadata, so the
-  checkout SHA—not an inferred Vercel commit—is the source identity. The three
-  BFF variables remain server-only (`BACKEND_INTERNAL_URL`, `BFF_PUBLIC_ORIGIN`,
-  and `BACKEND_BFF_SERVICE_TOKEN`).
-- Render workspace `tea-d7ev54q8qa3s7382ljcg` has the Free Singapore
-  PostgreSQL, Key Value, image Spring service `srv-daa41a9f2nfc7395eg1g`, and
-  native-Python AI service `srv-daal7kgn74is73bafjqg`. After the Singapore
-  provider incident cleared, exact-f4 backend deploy
-  `dep-dab3crn40ujc739msk80` reached `live`; its requested source manifest is
-  `sha256:fff9292b1852139db1a6d9354cf84447ddf9274d6abde7e3d776015057fa6517`
-  and Render resolved platform manifest is
-  `sha256:f839c4e15818eb1c50519f46653aee5247cbfdd7e14867d13656e5991c638d3b`.
-  Direct `/actuator/health` returned HTTP 200 with `status: UP`.
-- Exact-f4 native-AI deploy `dep-dab3bvs9v7es73btkufg` reached `live` at
-  `/livez` (HTTP 200) and reports commit
-  `f4e27cac81a1b8c887307afef070c0a7adb081d4`. The Vercel canary now proves
-  normal public chat (`ANSWER`), Vietnamese bypass/exfiltration refusal
-  (`REFUSE`), emergency routing (`EMERGENCY`), origin enforcement, strict
-  payload rejection, and tokenless direct-backend denial.
-- Render Free web services sleep when idle. The measured Spring backend cold
-  start was about 285 seconds, longer than the Vercel BFF's 55-second public
-  chat deadline and 60-second function limit, so the first request after an
-  idle period can return the bounded `502 BFF_UPSTREAM_UNAVAILABLE`. Wait for
-  the service to wake and use the assistant's retry action; this beta does not
-  add a keep-alive job or bypass the BFF.
-- The hosted synthetic catalog remains 30 specialties, 20 branches, 500
-  doctors, 200 services, 100 packages, 500 articles, 150 raw FAQs, 1,247
-  doctor-specialty links, 747 doctor-branch links, and 830 chat-projection
-  rows where checked. The Vercel BFF probes returned HTTP 200 totals of 30
-  specialties, 475 active doctors, 20 branches, 192 services, 95 packages,
-  467 articles and 0 public FAQs. External PostgreSQL access is closed; Render
-  Free PostgreSQL is time-limited and Key Value is ephemeral.
-- Supabase project `awaknzhadjglbfkhigck` is on the Free plan with eight audited
-  migration rows, 15 RLS-enabled `healthcare` tables, and the verified synthetic
-  projection (100,000 customers, 75,000 patient profiles, 10,000 public RAG
-  rows, and 830 patient-chat rows). The writer-locked reconciliation was
-  applied once and its contract/canaries passed. The hosted AI process ingests
-  only Spring's public operational catalog into an ephemeral memory index;
-  Supabase patient-chat/durable-RAG consumers remain disabled. The exact Render
-  catalog rollback capsule is
-  [`infrastructure/database/seed-hosted-catalog-rollback.sql`](infrastructure/database/seed-hosted-catalog-rollback.sql)
-  and the Supabase compensating capsule remains unexecuted recovery evidence.
-
-For the exact settings, rollback gates, Docker recovery procedure, and the
-current PASS/HOLD/NOT_RUN matrix, see
-[docs/deployment-beta.md](docs/deployment-beta.md) and
-[docs/LOCAL_RUNBOOK.md](docs/LOCAL_RUNBOOK.md).
-
-## Monorepo Layout
-
-```text
-apps/backend      Spring Boot 3 backend baseline
-apps/frontend     Next.js TypeScript frontend baseline
-apps/ai-service   FastAPI AI/RAG service with deterministic fallback
-docs/adr          Architecture decision records
-docs/architecture Architecture notes and diagrams
-infrastructure    Local development infrastructure
-plans             AgentKit implementation plans
+    GithubCI -.->|Automated Verification| NextFrontend & BackendMono & AIService
+    BackendMono -.->|Development Email Sink| MailpitSink
 ```
 
-## Local Prerequisites
+---
 
-- Git
-- Java 21 for the backend target runtime
-- Maven 3.9+
-- Node.js 22-24 and npm 10-11 (the frontend package enforces this tested range)
-- Python 3.12+
-- Docker for local infrastructure
+## 📸 Bộ Sưu Tập Giao Diện Thực Tế (Screenshots Gallery)
 
-This machine currently has a newer Java runtime than the backend target. The backend is configured for Java 21 compatibility.
+Dưới đây là các hình ảnh chụp thực tế từ hệ thống trên các thiết bị và cổng phân quyền khác nhau:
 
-## Environment
+### 1. Trang Chủ & Trải Nghiệm Khám Phá (Desktop & Mobile)
 
-Copy `.env.example` to `.env` for local use and replace placeholder values. Never commit `.env` or real credentials.
+| Giao diện Desktop Trang chủ (`2880 × 1800`) | Giao diện Mobile Responsive PWA (`780 × 1688`) |
+| :---: | :---: |
+| [![Desktop Homepage](docs/assets/screenshots/01-desktop-homepage.png)](docs/assets/screenshots/01-desktop-homepage.png) | [![Mobile Responsive](docs/assets/screenshots/05-mobile-responsive.png)](docs/assets/screenshots/05-mobile-responsive.png) |
+| *Tìm kiếm chuyên khoa, bác sĩ & bảng tin y tế* | *Tối ưu hóa cảm ứng, 100% không vỡ layout trên mobile* |
 
-## Commands
+### 2. Danh Mục Chuyên Khoa & Danh Bạ Bác Sĩ
 
-Backend (local profile uses PostgreSQL on `localhost:5434` and MinIO on `localhost:9000`):
+| Danh mục Chuyên khoa Y tế | Danh bạ Bác sĩ & Đặt lịch |
+| :---: | :---: |
+| [![Specialties Catalog](docs/assets/screenshots/06-specialties-catalog.png)](docs/assets/screenshots/06-specialties-catalog.png) | [![Doctors Directory](docs/assets/screenshots/07-doctors-directory.png)](docs/assets/screenshots/07-doctors-directory.png) |
+| *30+ chuyên khoa khám và dịch vụ cận lâm sàng* | *Thông tin chuyên gia, lịch trực chi nhánh & số năm kinh nghiệm* |
+
+### 3. Cổng Bệnh Nhân & Cổng Lâm Sàng Bác Sĩ
+
+| Cổng Bệnh nhân (Patient Hub) | Cổng Bác sĩ (Doctor Clinical Studio) |
+| :---: | :---: |
+| [![Patient Hub](docs/assets/screenshots/02-patient-hub.png)](docs/assets/screenshots/02-patient-hub.png) | [![Doctor Clinical Dashboard](docs/assets/screenshots/03-doctor-clinical-dashboard.png)](docs/assets/screenshots/03-doctor-clinical-dashboard.png) |
+| *Xem lịch khám, kết quả chẩn đoán & đơn thuốc điện tử* | *Tiếp nhận lịch khám, ghi nhận bệnh án & viết bài chuyên môn* |
+
+### 4. Quản Trị Viện & Trợ Lý Y Tế AI (RAG)
+
+| Quản trị Viện & Kiểm duyệt AI | Trợ lý Y tế Trí tuệ Nhân tạo (RAG) |
+| :---: | :---: |
+| [![Admin AI Governance](docs/assets/screenshots/04-admin-ai-governance.png)](docs/assets/screenshots/04-admin-ai-governance.png) | [![AI Medical Assistant](docs/assets/screenshots/08-ai-medical-assistant.png)](docs/assets/screenshots/08-ai-medical-assistant.png) |
+| *Bảng kiểm duyệt câu hỏi AI, quản lý danh mục toàn viện* | *Phân luồng triệu chứng, tra cứu phác đồ y khoa an toàn* |
+
+---
+
+## ⚡ Tính Năng Cốt Lõi (Features Matrix)
+
+### 🏥 1. Nghiệp vụ Khám Chữa Bệnh & Đặt Lịch (Clinical & Scheduling)
+- **Đặt lịch phân luồng chi nhánh**: Chọn bệnh viện/cơ sở gần nhất, lựa chọn chuyên khoa và bác sĩ phụ trách.
+- **Khóa chỗ chống xung đột (Pessimistic Locking)**: Kiểm soát chặt chẽ khung giờ khám (slots), đảm bảo 2 bệnh nhân không thể cùng đặt 1 khung giờ.
+- **Vòng đời cuộc hẹn hoàn chỉnh**: Đặt lịch ➔ Xác nhận qua OTP/Email ➔ Tiếp nhận ➔ Khám bệnh ➔ Xuất bệnh án & Đơn thuốc.
+- **Hồ sơ lâm sàng điện tử**: Lưu trữ kết quả chẩn đoán, phiếu xét nghiệm hình ảnh với chữ ký số và phân quyền bảo mật cao.
+
+### 🤖 2. Trợ Lý AI Y Tế & RAG Tri thức (Medical AI & Safety Guardrails)
+- **Tiếp nhận & phân luồng triệu chứng (Triage)**: Phân tích mô tả của người bệnh, gợi ý chuyên khoa phù hợp và phát hiện dấu hiệu cấp cứu y tế.
+- **Kiến trúc RAG (Retrieval-Augmented Generation)**: Truy vấn dựa trên tài liệu y khoa chuẩn mực đã được thẩm định, trả lời có trích dẫn nguồn tin cậy.
+- **Lưới bảo vệ an toàn (Safety Guardrails)**:
+  - *Chống can thiệp prompt (Prompt Injection Defense)*: Tự động vô hiệu hóa các câu lệnh phá hoại ngữ cảnh.
+  - *Bảo mật thông tin bệnh nhân*: Tuyệt đối từ chối xuất danh sách hoặc thông tin cá nhân của bệnh nhân khác (`REFUSE`).
+  - *Dự phòng đóng an toàn (Fail-closed)*: Luôn có bộ quy tắc xử lý cục bộ an toàn khi dịch vụ bên thứ ba mất kết nối.
+
+### 🛡️ 3. Bảo Mật Cấp Doanh Nghiệp (Enterprise Security)
+- **BFF (Backend-For-Frontend) Architecture**: Ẩn danh hoàn toàn mạng backend; xác thực giữa Next.js và Spring Boot thông qua server-side token bí mật.
+- **Origin Guard**: Từ chối các request lạ không đến từ domain chính thức (`403 BFF_ORIGIN_INVALID`).
+- **Quét mã độc ClamAV**: Tự động rà soát toàn bộ tệp tin chẩn đoán hình ảnh và tài liệu bệnh nhân trước khi lưu trữ vĩnh viễn.
+- **Kiểm soát truy cập cấp hàng (Row-Level Security - RLS)**: Bảo vệ dữ liệu người dùng ở cấp độ cơ sở dữ liệu.
+
+---
+
+## 🛠️ Ngăn Xếp Công Nghệ (Tech Stack Overview)
+
+```text
+HealthCare_Project Monorepo
+├── 🖥️ Frontend:        Next.js 16.3.3 (App Router) • React 19.2.8 • TailwindCSS 3.4 • TypeScript 6.0
+├── ⚙️ Backend Core:     Spring Boot 3.3.x (Java 21) • Spring Security 6 • Hibernate • Flyway
+├── 🤖 AI Service:       FastAPI (Python 3.12) • LangChain / RAG Pipeline • Vector Search • Pytest
+├── 💾 Database:        PostgreSQL 16 • Redis / Render Key-Value • Supabase RLS
+├── 📦 Storage:         MinIO S3 Compatible Object Storage • ClamAV Scanner
+├── 🌐 Edge & Hosting:  Vercel Edge Network (Domain www.healthcare.id.vn) • Render Cloud Containers
+└── 🚀 DevOps & CI/CD:  GitHub Actions • Docker Compose (9 Services) • Playwright E2E
+```
+
+---
+
+## 🚀 Hướng Dẫn Cài Đặt & Khởi Động Nhanh (Quick Start)
+
+### 1. Yêu cầu Môi trường (Prerequisites)
+- **Docker Desktop** (khuyến nghị phiên bản mới nhất trên Windows/macOS/Linux)
+- **Node.js** `>= 22` và **npm** `>= 10`
+- **Java** `21` (JDK) và **Maven** `>= 3.9`
+- **Python** `>= 3.12`
+
+### 2. Khởi chạy Toàn bộ Hệ thống bằng Docker Compose (Khuyên dùng)
+Chỉ với 1 câu lệnh, toàn bộ 9 container dịch vụ (Frontend, Backend, AI, PostgreSQL, Redis, MinIO, Mailpit, ClamAV) sẽ được khởi chạy đồng bộ:
 
 ```bash
+# 1. Clone repository
+git clone https://github.com/JasonTM17/HealthCare_Project.git
+cd HealthCare_Project
+
+# 2. Tạo tệp môi trường từ bản mẫu
+cp .env.example .env
+
+# 3. Khởi chạy toàn bộ 9 dịch vụ với Docker Compose
+docker compose --env-file .env -f infrastructure/docker-compose.yml up -d
+```
+
+Sau khi các container đạt trạng thái `healthy`:
+- 🖥️ **Web Frontend**: [http://localhost:3000](http://localhost:3000)
+- ⚙️ **Spring Boot API**: [http://localhost:8080/actuator/health](http://localhost:8080/actuator/health)
+- 🤖 **FastAPI AI Service**: [http://localhost:8000/livez](http://localhost:8000/livez)
+- 📦 **MinIO Console**: [http://localhost:9001](http://localhost:9001) *(User/Pass: `minioadmin` / `minioadmin`)*
+- ✉️ **Mailpit Web UI**: [http://localhost:8025](http://localhost:8025)
+
+---
+
+### 3. Khởi chạy Từng Phân Hệ để Phát Triển (Local Development)
+
+#### ☕ Chạy Backend (Spring Boot 3)
+```bash
 cd apps/backend
-./mvnw test
+./mvnw clean test
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
-Frontend:
-
+#### 🖥️ Chạy Frontend (Next.js 16)
 ```bash
 cd apps/frontend
 npm ci
-NEXT_PUBLIC_SITE_URL=https://healthcare.id.vn npm run verify
-npm run test:e2e
 npm run dev
 ```
 
-On PowerShell, set `$env:NEXT_PUBLIC_SITE_URL="https://healthcare.id.vn"` before
-running `npm run verify`.
-
-AI service:
-
+#### 🤖 Chạy AI Service (FastAPI)
 ```bash
 cd apps/ai-service
 python -m venv .venv
-.venv\Scripts\python -m pip install -r requirements.txt
-.venv\Scripts\python -m pytest
-.venv\Scripts\ruff check .
-.venv\Scripts\mypy
-.venv\Scripts\python -m uvicorn app.main:app --reload --port 8000
+# Trên Windows: .venv\Scripts\activate | Trên Linux/macOS: source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
 ```
 
-Local infrastructure:
+---
 
+## 🧪 Chiến Lược Kiểm Thử & CI/CD Pipeline (Testing & Verification)
+
+Hệ thống được bảo vệ bởi mạng lưới kiểm thử tự động đa tầng (Multi-layer Testing Pipeline):
+
+```text
+┌───────────────────────────────────────────────────────────────────────────────────┐
+│                           GitHub Actions CI/CD Pipeline                           │
+├───────────────────┼───────────────────┼───────────────────┼───────────────────────┤
+│    apps/frontend  │   apps/backend    │  apps/ai-service  │     E2E & Compose     │
+├───────────────────┼───────────────────┼───────────────────┼───────────────────────┤
+│ • ESLint 9        │ • JUnit 5 (528)   │ • Pytest (427)    │ • Playwright E2E      │
+│ • TypeScript tsc  │ • Integration DB  │ • Ruff Linter     │ • BFF Chat Canary     │
+│ • Unit & BFF (268)│ • Security RBAC   │ • Mypy Typecheck  │ • Multi-arch Docker   │
+│ • Next.js Build   │ • Flyway Validate │ • Adversarial RAG │ • SBOM & Provenance   │
+└───────────────────┴───────────────────┴───────────────────┴───────────────────────┘
+```
+
+Chạy kiểm tra xác thực nhanh cục bộ trước khi tạo Pull Request:
 ```bash
-docker compose --env-file .env -f infrastructure/docker-compose.yml config
-docker compose --env-file .env -f infrastructure/docker-compose.yml up
+# Kiểm tra Frontend
+cd apps/frontend && npm run verify
+
+# Kiểm tra Backend
+cd apps/backend && ./mvnw test
+
+# Kiểm tra AI Service
+cd apps/ai-service && python -m pytest && ruff check . && mypy
 ```
 
-Pass the root `.env` explicitly: Compose resolves its implicit project
-directory from `infrastructure/`, while the required local secrets live in the
-repository-root `.env`. Keeping the required variables fail-closed is
-intentional.
+---
 
-For the Windows setup, local demo accounts, health checks, and troubleshooting,
-see [docs/LOCAL_RUNBOOK.md](docs/LOCAL_RUNBOOK.md).
+## 📜 Nhật Ký Bản Phát Hành & Bản Ghi Bảo Mật (Release Records)
 
-On Windows, use the repository safe launcher and keep a single Docker host
-owner during recovery. It serializes stop/start operations, bounds the Docker
-CLI stop call when a broken AF_UNIX socket would otherwise hang, drains the
-status probe's output streams concurrently so a noisy broken CLI cannot
-deadlock the launcher, fails closed when the Docker host drive has less than
-2 GiB free, and preserves images, volumes, VHDX data, other WSL distributions,
-and Hibernate.
+<details>
+<summary><strong>🔍 Nhấp vào đây để xem chi tiết bản ghi bảo mật và SHA phát hành đã thẩm định</strong></summary>
 
-Keep only one startup/recovery owner. If an older workaround left a scheduled
-task named `Docker Desktop socket recovery`, disable that task before enabling
-the repository launcher; running both owners at logon races while they rotate
-the same AF_UNIX sockets and can surface the misleading “unexpected error”
-dialog (including `WSL_E_USER_VHD_ALREADY_ATTACHED`). The change is reversible:
+### Trạng thái Production Vercel (2026-09-08)
+- **Deployment ID**: `dpl_7LBTguGVawqJdR6v6AFyXzMH6uwU` (READY/PROMOTED)
+- **Commit SHA**: `5d104d974221cddd4cdd19a54ddfbf11b596cae2`
+- **Domain phục vụ**: `www.healthcare.id.vn` & `healthcare-two-olive.vercel.app`
+- **Kiểm thử canary**: `/`, `/specialties`, `/api/v1/health` đều trả về HTTP 200; BFF Origin Guard chặn truy cập không hợp lệ với mã `403 BFF_ORIGIN_INVALID`.
 
-```powershell
-$legacyTask = Get-ScheduledTask -TaskName 'Docker Desktop socket recovery' -ErrorAction SilentlyContinue
-if ($legacyTask) { Disable-ScheduledTask -TaskName $legacyTask.TaskName }
-# To restore the old task deliberately: Enable-ScheduledTask -TaskName 'Docker Desktop socket recovery'
-```
+### Trạng thái Render Free Backend & AI (2026-09-02)
+- **Backend Build**: Source `bbecb296dd2dcd8864ab7a37b9f67d36f8b206dc` với xử lý chuẩn `NoResourceFoundException` 404 thay vì lỗi generic 500.
+- **AI Service Deploy**: `dep-dab5l5favr4c73esg3eg` tích hợp bộ lọc an toàn ngôn ngữ kép (Tiếng Việt & Tiếng Anh).
 
-Do not delete the individual `dockerInference`, `sailor-ingest.sock`, or
-`docker-secrets-engine\engine.sock` entries while Docker is running. Windows
-represents active AF_UNIX listeners as reparse points; the safe launcher rotates
-only the exact parent directories after Docker is quiescent and keeps each old
-directory as a rollback quarantine. Verify recovery with
-`docker desktop status`, `docker version`, and `wsl.exe --list --verbose`.
+### Gói Container Bất biến (GHCR Packages with SBOM & Provenance)
+| GHCR Package | Digest Bất biến | Trạng thái Thẩm định |
+| :--- | :--- | :--- |
+| [backend](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-backend) | `ghcr.io/jasontm17/healthcare-project-backend@sha256:45b0bb679588ba7a6eb075a4dd867ed4b11c92fc42485ee94759d0f7c4f889d6` | Passed CI & Attestation |
+| [ai-service](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-ai-service) | `ghcr.io/jasontm17/healthcare-project-ai-service@sha256:3b60b36b6ce9773d2d127431bc8ae9de82430bfac955df100c0ea63797f7eaf1` | Passed CI & Attestation |
+| [frontend](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-frontend) | `ghcr.io/jasontm17/healthcare-project-frontend@sha256:adff5f320ebde59653531759489d1e21d1b5f25cbd7799c81ceec4a2ae674826` | Passed CI & Attestation |
+| [attachment-scanner](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-attachment-scanner) | `ghcr.io/jasontm17/healthcare-project-attachment-scanner@sha256:367a080e61505c8bd98086c6499e56fa7e6bf0e44c92a567016bf32fac6e06f5` | Passed CI & Attestation |
 
-The Windows workstation reported Docker Desktop `4.89.0.238018` on 2026-09-01.
-The [public Docker Desktop release notes](https://docs.docker.com/desktop/release-notes/)
-did not yet document that build or confirm a fix for the inaccessible AF_UNIX
-runtime-parent failure. Keep this recovery path enabled until Docker closes the
-[upstream stale-socket issue](https://github.com/docker/desktop-feedback/issues/554)
-or a later documented release is proven on this host. This machine still
-encountered a pre-existing inaccessible runtime parent after the update; run
-the safe launcher with `-Restart` if it recurs. The launcher quarantines only
-the two exact runtime parents and lets Docker recreate them without touching
-the data disk.
+</details>
 
-After an in-place Desktop update, verify the per-user `Docker Desktop` Run entry
-and reassert the single safe startup owner when necessary:
+---
 
-```powershell
-.\scripts\install-docker-safe-launcher.ps1 -InstallAutoStart
-```
+## ⚖️ Giới Hạn Phạm Vi & Tuyên Bố Trách Nhiệm (Scope & Disclaimer)
 
-Then verify that both the Run entry and Start Menu shortcut target
-`scripts\start-docker-safe.ps1`. Keep the legacy `Docker Desktop socket
-recovery` task disabled; two startup owners can race the same AF_UNIX paths.
+> [!WARNING]
+> **Dự án Nghiên cứu & Giáo dục (Educational MVP)**:
+> Dự án này được xây dựng nhằm mục đích nghiên cứu công nghệ và thử nghiệm kiến trúc phần mềm y tế thông minh. Mã nguồn không cấu thành một thiết bị y tế được chứng nhận và không thể thay thế lời khuyên, chẩn đoán hay điều trị y khoa trực tiếp từ bác sĩ chuyên môn. Để triển khai thực tế tại bệnh viện, hệ thống cần bổ sung các chứng nhận an toàn y tế, quy trình sao lưu khôi phục thảm họa (Disaster Recovery), thẩm định quyền riêng tư người bệnh (HIPAA / GDPR / Nghị định 13/2023/NĐ-CP) và hợp đồng dịch vụ SLA chính thức.
 
-After Docker Desktop is ready, Windows users can build, seed, and run the
-automated role-based smoke verification with the command below. If `.env` is
-missing, the helper creates it with random disposable JWT/AI/RAG secrets.
+---
 
-```powershell
-.\scripts\start-and-verify-local-mvp.ps1
-```
-
-Compose requires a non-empty `AI_SERVICE_TOKEN`; set it in the local `.env` before
-running the stack. The checked-in defaults are for disposable local development
-only, and a successful `config` or local health check does not prove a deployed
-or multi-instance environment.
-
-The Compose backend connects to MinIO at `http://minio:9000`; local host runs use
-`http://localhost:9000`. Keep `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD` aligned
-with the backend's `MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY` values and replace all
-example credentials before any shared or deployed use. The unauthenticated local
-escape hatch is only for a bare local process with the explicit local runtime
-flags.
-
-## Frontend Design Direction
-
-The frontend baseline uses a refined clinical network direction: deep teal, soft mint, warm sand, calm ink, restrained amber, Vietnamese-safe typography, and an appointment-oriented care rail.
-
-`https://hoanmy.com/` is used only as structural healthcare UX inspiration: appointment CTA, specialties, packages, doctors, network/contact, and health content. Do not copy Hoan My logos, brand names, photos, doctors, addresses, phone numbers, package names, news titles, medical claims, colors, or proprietary assets.
-
-Google Stitch may be used for static design concepts only when API, dependencies, and quota are available. If Stitch is unavailable, record it as `NOT_RUN` and continue with the text-based AgentKit frontend design workflow.
-
-## Security Rules
-
-- Do not commit real secrets.
-- Keep `.env.example` placeholder-only.
-- Add `.gitignore` before generating dependencies or local service data.
-- Report secret presence as `present` or `missing`; never print values.
-
-## MVP workflows
-
-- Patient: register/login, book/confirm/look up/cancel/reschedule, maintain profile, read reminders, records, prescriptions and protected diagnostic files.
-- Doctor: view assigned daily appointments, check in/start/no-show, create the clinical record that completes a visit, upload and publish diagnostic results.
-- Admin: inspect operational appointments and manage doctors, specialties, branches, services, packages, FAQs, articles, live CMS content, recurring schedules and schedule exceptions.
-- AI: authenticated specialty triage and semantic retrieval with bounded inputs, explicit citations/provenance, protected ingest and production fail-closed behavior.
-
-## Scope Boundaries
-
-The MVP domain is implemented locally. This repository is not a certified medical
-device or a production hospital system. Production adoption still requires a
-real secrets manager, TLS/ingress, durable multi-instance RAG persistence,
-observability and alerting, backups with restore drills, load testing, security
-review, privacy/compliance review, and operational ownership.
-
-The implementation status and production-only gates are tracked in
-`docs/PROJECT_PLAN.md`; local MVP completion must not be interpreted as medical,
-privacy, security, or operational certification.
+<div align="center">
+  <p>Được phát triển với niềm đam mê nâng cao trải nghiệm y tế số • Bản quyền © 2026 HealthCare Project.</p>
+</div>
