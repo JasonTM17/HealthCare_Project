@@ -1328,7 +1328,7 @@ async function phaseMediaAndCms(admin) {
       body: "Đội ngũ hơn 40 bác sĩ chuyên khoa giàu kinh nghiệm, trang thiết bị hiện đại và quy trình đặt khám trực tuyến chỉ trong 2 phút. Đồng hành cùng sức khỏe của bạn từ tầm soát đến điều trị.",
       ctaLabel: "Đặt lịch khám ngay",
       ctaHref: "/dat-lich",
-      imageUrl: mediaUrl ?? "/media/hospital-team-landscape.jpg",
+      imageUrl: "/media/hospital-team-landscape.jpg",
     } },
     { key: "about.hero", payload: {
       eyebrow: "Câu chuyện HealthCare",
@@ -1352,7 +1352,7 @@ async function phaseMediaAndCms(admin) {
       body: "Mỗi bác sĩ tại HealthCare đều được tuyển chọn khắt khe về chuyên môn và thái độ phục vụ. Xem hồ sơ, kinh nghiệm và đặt lịch trực tiếp với bác sĩ bạn tin tưởng.",
       ctaLabel: "Xem đội ngũ bác sĩ",
       ctaHref: "/doctors",
-      imageUrl: "/media/doctors/doctor-1.jpg",
+      imageUrl: "/media/doctor-family-consult.jpg",
     } },
     { key: "services.hero", payload: {
       eyebrow: "Dịch vụ y tế",

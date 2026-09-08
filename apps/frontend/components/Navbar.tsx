@@ -106,6 +106,18 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
 
   const closeMobileMenu = (): void => setMobileMenuOpen(false);
 
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (mobileMenuOpen) {
+      document.body.classList.add("mobile-menu-open");
+    } else {
+      document.body.classList.remove("mobile-menu-open");
+    }
+    return () => {
+      document.body.classList.remove("mobile-menu-open");
+    };
+  }, [mobileMenuOpen]);
+
   const handleLogoClick = (e: React.MouseEvent<HTMLAnchorElement>): void => {
     closeMobileMenu();
     if (typeof window !== "undefined") {
