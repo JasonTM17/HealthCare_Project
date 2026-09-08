@@ -47,10 +47,10 @@ Tuy nhiên, cạm bẫy lớn nhất của hệ thống y tế là **xung đột
 
 ## 3. What you shouldn't do (Những việc KHÔNG NÊN làm)
 
-- ❌ **Không bắt buộc tạo tài khoản và mật khẩu phức tạp trước khi cho xem giờ khám:** Khiến tỷ lệ bỏ cuộc (drop-off rate) lên tới 60-70%.
-- ❌ **Không dùng kiểm tra lịch dạng "Optimistic Check" ở màn hình xác nhận mà không có lock:** Nếu 2 bệnh nhân cùng chọn slot 09:00 lúc 08:59, cả 2 sẽ cùng điền form và 1 người bị báo lỗi tức thì khi submit.
-- ❌ **Không tích hợp cổng thanh toán trực tuyến phức tạp làm rào cản bắt buộc:** Đa số người Việt Nam đi khám bệnh tại phòng khám/bệnh viện vẫn quen thanh toán sau khi khám hoặc thanh toán bằng thẻ/tiền mặt tại quầy lễ tân.
-- ❌ **Không gom toàn bộ thông tin bệnh nhân vào bảng `users`:** Bảng `users` chỉ phục vụ Security/JWT. Hồ sơ bệnh án, BHYT, tiền sử cần nằm trong domain `patient_profiles`.
+- **Không bắt buộc tạo tài khoản và mật khẩu phức tạp trước khi cho xem giờ khám:** Khiến tỷ lệ bỏ cuộc (drop-off rate) lên tới 60-70%.
+- **Không dùng kiểm tra lịch dạng "Optimistic Check" ở màn hình xác nhận mà không có lock:** Nếu 2 bệnh nhân cùng chọn slot 09:00 lúc 08:59, cả 2 sẽ cùng điền form và 1 người bị báo lỗi tức thì khi submit.
+- **Không tích hợp cổng thanh toán trực tuyến phức tạp làm rào cản bắt buộc:** Đa số người Việt Nam đi khám bệnh tại phòng khám/bệnh viện vẫn quen thanh toán sau khi khám hoặc thanh toán bằng thẻ/tiền mặt tại quầy lễ tân.
+- **Không gom toàn bộ thông tin bệnh nhân vào bảng `users`:** Bảng `users` chỉ phục vụ Security/JWT. Hồ sơ bệnh án, BHYT, tiền sử cần nằm trong domain `patient_profiles`.
 
 ---
 
@@ -88,10 +88,10 @@ flowchart LR
 
 ## 6. Benefits (Lợi ích thu được)
 
-- 🔒 **Chống xung đột 100%:** Loại trừ hoàn toàn nguy cơ bác sĩ bị trùng bệnh nhân trong cùng khung giờ.
-- ⚡ **Tỷ lệ chuyển đổi tối đa:** Bệnh nhân chỉ mất dưới 60 giây để chọn bác sĩ và đặt lịch.
-- 🛡️ **Bảo mật & Chuẩn hóa:** Tách biệt rõ ràng danh tính truy cập (Auth) và hồ sơ y tế (Patient Profile).
-- 🧩 **Sẵn sàng mở rộng:** Dễ dàng gắn thêm cổng thanh toán VietQR / VNPay sau này mà không phải sửa kiến trúc cốt lõi.
+- **Chống xung đột 100%:** Loại trừ hoàn toàn nguy cơ bác sĩ bị trùng bệnh nhân trong cùng khung giờ.
+- **Tỷ lệ chuyển đổi tối đa:** Bệnh nhân chỉ mất dưới 60 giây để chọn bác sĩ và đặt lịch.
+- **Bảo mật & Chuẩn hóa:** Tách biệt rõ ràng danh tính truy cập (Auth) và hồ sơ y tế (Patient Profile).
+- **Sẵn sàng mở rộng:** Dễ dàng gắn thêm cổng thanh toán VietQR / VNPay sau này mà không phải sửa kiến trúc cốt lõi.
 
 ---
 
