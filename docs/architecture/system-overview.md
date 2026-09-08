@@ -4,20 +4,20 @@ Tài liệu này mô tả toàn diện kiến trúc kỹ thuật hệ sinh thái
 
 ---
 
-## 🗺️ Sơ đồ Kiến trúc Hệ thống Tổng thể (System Architecture)
+## Sơ đồ Kiến trúc Hệ thống Tổng thể (System Architecture)
 
 Sơ đồ dưới đây minh họa sự kết nối giữa các tầng: từ giao diện người dùng (Client / Next.js 16), cổng biên (Vercel Edge & BFF Gateway), các cụm dịch vụ ứng dụng (Spring Boot 3 & FastAPI AI Service) cho tới tầng lưu trữ dữ liệu (PostgreSQL, Redis, MinIO, Supabase) và quy trình vận hành CI/CD.
 
 ![HealthCare System Architecture](../assets/architecture.png)
 
-> 💡 **Tệp nguồn đồ họa xuất bản**:
+> **Tệp nguồn đồ họa xuất bản**:
 > - Định dạng đồ họa vector chất lượng cao: [`docs/assets/architecture.svg`](../assets/architecture.svg)
 > - Định dạng ảnh siêu nét Retina 2K (2880x1960): [`docs/assets/architecture.png`](../assets/architecture.png)
 > - Định dạng Mermaid v11 nguyên bản: [`system-overview.mmd`](system-overview.mmd)
 
 ---
 
-## 📊 Sơ đồ Mermaid.js v11 (Interactive Specification)
+## Sơ đồ Mermaid.js v11 (Interactive Specification)
 
 ```mermaid
 flowchart TD
@@ -32,62 +32,62 @@ flowchart TD
     %% -------------------------------------------------------------
     %% LAYER 1: CLIENT & USER CHANNELS
     %% -------------------------------------------------------------
-    subgraph ClientLayer["🖥️ LAYER 1: CLIENT & USER INTERFACES"]
-        Users["👥 Multi-role Users\n(Patients • Doctors • Admins)"]:::client
-        NextFrontend["⚡ Next.js 16 Web Portal\n(React 19, App Router, Turbopack, TailwindCSS)"]:::client
-        PatientPortal["🏥 Patient Hub\n(/patient)"]:::client
-        DoctorPortal["🩺 Doctor Clinical Studio\n(/doctor)"]:::client
-        AdminPortal["🛡️ Admin CMS & QA Moderation\n(/admin)"]:::client
-        MobilePWA["📱 Responsive Mobile PWA\n(390px-1440px Zero Layout Shift)"]:::client
+    subgraph ClientLayer["LAYER 1: CLIENT & USER INTERFACES"]
+        Users["Multi-role Users\n(Patients • Doctors • Admins)"]:::client
+        NextFrontend["Next.js 16 Web Portal\n(React 19, App Router, Turbopack, TailwindCSS)"]:::client
+        PatientPortal["Patient Hub\n(/patient)"]:::client
+        DoctorPortal["Doctor Clinical Studio\n(/doctor)"]:::client
+        AdminPortal["Admin CMS & QA Moderation\n(/admin)"]:::client
+        MobilePWA["Responsive Mobile PWA\n(390px-1440px Zero Layout Shift)"]:::client
     end
 
     %% -------------------------------------------------------------
     %% LAYER 2: GATEWAY & VERCEL EDGE
     %% -------------------------------------------------------------
-    subgraph EdgeLayer["🌐 LAYER 2: GATEWAY & VERCEL EDGE NETWORK"]
-        CustomDomain["🔒 Custom Domain & Anycast CDN\nwww.healthcare.id.vn (SSL/TLS 1.3)"]:::edge
-        EdgeSecurity["🛡️ Edge Security & CORS Guard\n(BFF Origin Guard, 403 Untrusted Rejection)"]:::edge
-        BFFProxy["🔄 Next.js Route Handlers / BFF Proxy\n(/api/v1/* & /api/ai/chat SSE Stream)"]:::edge
+    subgraph EdgeLayer["LAYER 2: GATEWAY & VERCEL EDGE NETWORK"]
+        CustomDomain["Custom Domain & Anycast CDN\nwww.healthcare.id.vn (SSL/TLS 1.3)"]:::edge
+        EdgeSecurity["Edge Security & CORS Guard\n(BFF Origin Guard, 403 Untrusted Rejection)"]:::edge
+        BFFProxy["Next.js Route Handlers / BFF Proxy\n(/api/v1/* & /api/ai/chat SSE Stream)"]:::edge
     end
 
     %% -------------------------------------------------------------
     %% LAYER 3: APPLICATION SERVICES (RENDER CLOUD CONTAINERS)
     %% -------------------------------------------------------------
-    subgraph ServiceLayer["⚙️ LAYER 3: APPLICATION SERVICES (RENDER CLOUD)"]
-        subgraph BackendMono["☕ Core Backend Service (Spring Boot 3.3.x, Java 21)"]
-            SpringSec["🔐 Spring Security 6\n(JWT Stateless Auth, RBAC, Bounded OTP)"]:::backend
-            CatalogAPI["📋 Hospital Catalog & Doctors API\n(Specialties, Branches, Packages)"]:::backend
-            BookingEngine["📅 Booking & Appointment Lifecycle\n(Concurrency Lock & Rescheduling)"]:::backend
-            ClinicalRecords["📑 Clinical Records & Diagnostic Files\n(Presigned URLs & Role Isolation)"]:::backend
-            PaymentReconcile["💳 Bank Transfer Reconciliation\n(Automated Payment Verification)"]:::backend
-            RealtimeSSE["📡 WebSocket / SSE Notification Stream\n(CMS & Booking Realtime Updates)"]:::backend
+    subgraph ServiceLayer["LAYER 3: APPLICATION SERVICES (RENDER CLOUD)"]
+        subgraph BackendMono["Core Backend Service (Spring Boot 3.3.x, Java 21)"]
+            SpringSec["Spring Security 6\n(JWT Stateless Auth, RBAC, Bounded OTP)"]:::backend
+            CatalogAPI["Hospital Catalog & Doctors API\n(Specialties, Branches, Packages)"]:::backend
+            BookingEngine["Booking & Appointment Lifecycle\n(Concurrency Lock & Rescheduling)"]:::backend
+            ClinicalRecords["Clinical Records & Diagnostic Files\n(Presigned URLs & Role Isolation)"]:::backend
+            PaymentReconcile["Bank Transfer Reconciliation\n(Automated Payment Verification)"]:::backend
+            RealtimeSSE["WebSocket / SSE Notification Stream\n(CMS & Booking Realtime Updates)"]:::backend
         end
 
-        subgraph AIService["🤖 AI & RAG Intelligence Service (FastAPI, Python 3.12)"]
-            TriageEngine["🩺 Medical Symptom Intake & Triage\n(Structured Symptom Classifier)"]:::ai
-            RAGPipeline["📚 RAG Pipeline & Vector Search\n(Hospital Guidelines & Protocols)"]:::ai
-            SafetyGuard["🛡️ Medical Safety Guardrails\n(Prompt Injection Defense & Privacy Shield)"]:::ai
-            FallbackProvider["⚡ Fail-Closed Provider Fallback\n(Local Deterministic Rule + Cloud LLM)"]:::ai
+        subgraph AIService["AI & RAG Intelligence Service (FastAPI, Python 3.12)"]
+            TriageEngine["Medical Symptom Intake & Triage\n(Structured Symptom Classifier)"]:::ai
+            RAGPipeline["RAG Pipeline & Vector Search\n(Hospital Guidelines & Protocols)"]:::ai
+            SafetyGuard["Medical Safety Guardrails\n(Prompt Injection Defense & Privacy Shield)"]:::ai
+            FallbackProvider["Fail-Closed Provider Fallback\n(Local Deterministic Rule + Cloud LLM)"]:::ai
         end
     end
 
     %% -------------------------------------------------------------
     %% LAYER 4: DATA PERSISTENCE & STORAGE
     %% -------------------------------------------------------------
-    subgraph DataLayer["💾 LAYER 4: DATA PERSISTENCE & STORAGE STACK"]
-        PostgresDB[("🐘 PostgreSQL 16 (Primary DB)\nFlyway Migrations (V1..V8 Schema)\nTransactional Catalog & Appointments")]:::data
-        RedisCache[("⚡ Redis / Key-Value Cache\nSliding Window Rate Limit & Session Tokens")]:::data
-        MinIOStorage[("📦 MinIO / S3 Object Storage\nEncrypted Medical Scans & Lab Results")]:::data
-        SupabaseSync[("☁️ Supabase Audited Boundary\nHealthcare Schema + RLS Projections")]:::data
+    subgraph DataLayer["LAYER 4: DATA PERSISTENCE & STORAGE STACK"]
+        PostgresDB[("PostgreSQL 16 (Primary DB)\nFlyway Migrations (V1..V8 Schema)\nTransactional Catalog & Appointments")]:::data
+        RedisCache[("Redis / Key-Value Cache\nSliding Window Rate Limit & Session Tokens")]:::data
+        MinIOStorage[("MinIO / S3 Object Storage\nEncrypted Medical Scans & Lab Results")]:::data
+        SupabaseSync[("Supabase Audited Boundary\nHealthcare Schema + RLS Projections")]:::data
     end
 
     %% -------------------------------------------------------------
     %% LAYER 5: DEVOPS, SECURITY & CI/CD
     %% -------------------------------------------------------------
-    subgraph OpsLayer["🛠️ LAYER 5: DEVOPS, SECURITY & OPERATIONS"]
-        GithubCI["🚀 GitHub Actions Enterprise CI/CD\n(Lint, Typecheck, Multi-arch Docker, SBOM)"]:::ops
-        ClamAVScan["🦠 ClamAV Antivirus Scanner\n(Attachment Scan Quarantine Pipe)"]:::ops
-        MailpitSink["✉️ Mailpit SMTP Dev Sink\n(Transactional Email & OTP Testing)"]:::ops
+    subgraph OpsLayer["LAYER 5: DEVOPS, SECURITY & OPERATIONS"]
+        GithubCI["GitHub Actions Enterprise CI/CD\n(Lint, Typecheck, Multi-arch Docker, SBOM)"]:::ops
+        ClamAVScan["ClamAV Antivirus Scanner\n(Attachment Scan Quarantine Pipe)"]:::ops
+        MailpitSink["Mailpit SMTP Dev Sink\n(Transactional Email & OTP Testing)"]:::ops
     end
 
     %% -------------------------------------------------------------
@@ -117,7 +117,7 @@ flowchart TD
 
 ---
 
-## 🏛️ Chi tiết Kỹ thuật Các Tầng Kiến trúc (Layer-by-Layer Breakdown)
+## Chi tiết Kỹ thuật Các Tầng Kiến trúc (Layer-by-Layer Breakdown)
 
 ### 1. Tầng Client & Frontend (Next.js 16 + React 19)
 - **Kiến trúc App Router & Server Components**: Tối ưu hóa tải trang lần đầu (FCP < 0.8s) bằng Server Components rendering; Client Components chỉ dùng cho tương tác người dùng (đặt lịch, chat AI, upload ảnh).

@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🏥 HealthCare Project
+# HealthCare Project
 ### Nền Tảng Y Tế Số Toàn Diện • Hệ Thống Quản Trị Bệnh Viện Thông Minh
 **Next-Generation Hospital Management, Branch-Aware Clinical Booking & AI-Assisted Medical Triage**
 
@@ -14,19 +14,19 @@
 [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
 <p align="center">
-  <a href="#-demo-trực-tiếp--tài-khoản-trải-nghiệm"><strong>Trải nghiệm Demo</strong></a> •
-  <a href="#-product-walkthrough-demo"><strong>Ảnh động Demo (GIF)</strong></a> •
-  <a href="#-kiến-trúc-hệ-thống-system-architecture"><strong>Sơ đồ Kiến trúc</strong></a> •
-  <a href="#-bộ-sưu-tập-giao-diện-thực-tế-screenshots"><strong>Ảnh Giao diện Thực tế</strong></a> •
-  <a href="#-tính-năng-cốt-lõi-features-matrix"><strong>Tính năng Cốt lõi</strong></a> •
-  <a href="#-hướng-dẫn-cài-đặt--khởi-động-nhanh"><strong>Cài đặt Cục bộ</strong></a>
+  <a href="#demo-trực-tiếp--tài-khoản-trải-nghiệm-live-demo--roles"><strong>Trải nghiệm Demo</strong></a> •
+  <a href="#product-walkthrough-demo"><strong>Ảnh động Demo (GIF)</strong></a> •
+  <a href="#kiến-trúc-hệ-thống-system-architecture"><strong>Sơ đồ Kiến trúc</strong></a> •
+  <a href="#bộ-sưu-tập-giao-diện-thực-tế-screenshots-gallery"><strong>Ảnh Giao diện Thực tế</strong></a> •
+  <a href="#tính-năng-cốt-lõi-features-matrix"><strong>Tính năng Cốt lõi</strong></a> •
+  <a href="#hướng-dẫn-cài-đặt--khởi-động-nhanh-quick-start"><strong>Cài đặt Cục bộ</strong></a>
 </p>
 
 </div>
 
 ---
 
-## 🎬 Product Walkthrough Demo
+## Product Walkthrough Demo
 
 > *Ảnh động minh họa toàn bộ hành trình trải nghiệm hệ sinh thái y tế số HealthCare: từ tra cứu chuyên khoa, tìm kiếm bác sĩ, kích hoạt trợ lý AI y tế (RAG), đến quản lý cổng bệnh nhân, studio lâm sàng bác sĩ và bảng điều khiển quản trị viện.*
 
@@ -36,28 +36,28 @@
 
 ---
 
-## 👥 Demo Trực Tiếp & Tài Khoản Trải Nghiệm (Live Demo & Roles)
+## Demo Trực Tiếp & Tài Khoản Trải Nghiệm (Live Demo & Roles)
 
 Hệ thống đã được thiết lập sẵn phân quyền người dùng theo vai trò (RBAC) trên môi trường trực tiếp. Bạn có thể đăng nhập vào cổng tương ứng để trải nghiệm trọn vẹn nghiệp vụ lâm sàng và quản trị:
 
-🔗 **Cổng Đăng Nhập Trực Tiếp**: [https://www.healthcare.id.vn/auth/login](https://www.healthcare.id.vn/auth/login) *(hoặc domain dự phòng [healthcare-two-olive.vercel.app](https://healthcare-two-olive.vercel.app/auth/login))*
+**Cổng Đăng Nhập Trực Tiếp**: [https://www.healthcare.id.vn/auth/login](https://www.healthcare.id.vn/auth/login) *(hoặc domain dự phòng [healthcare-two-olive.vercel.app](https://healthcare-two-olive.vercel.app/auth/login))*
 
 | Vai trò (Role) | Tài khoản Đăng nhập | Mật khẩu | Portal Phục vụ | Phạm vi Quyền hạn & Nghiệp vụ Trọng tâm |
 | :--- | :--- | :--- | :--- | :--- |
-| 🛡️ **Quản trị viên (ADMIN)** | `admin@healthcare.com` | `HealthCare@2026` | [`/admin`](https://www.healthcare.id.vn/admin) | Quản trị toàn viện: Quản lý danh mục bác sĩ, chuyên khoa, chi nhánh cơ sở, khung giờ khám, phê duyệt nội dung AI & kiểm duyệt câu hỏi y tế |
-| 🩺 **Bác sĩ (DOCTOR)** | `doctor@healthcare.com` | `HealthCare@2026` | [`/doctor`](https://www.healthcare.id.vn/doctor) | Cổng lâm sàng (BS. Lê Quốc Hà - Chấn thương chỉnh hình): Tiếp nhận hàng đợi khám trong ngày, xuất kết quả chẩn đoán, toa thuốc điện tử & bài viết chuyên môn |
-| 🏥 **Bệnh nhân (PATIENT)** | `patient@healthcare.com` | `HealthCare@2026` | [`/patient`](https://www.healthcare.id.vn/patient) | Cổng bệnh nhân (Nguyễn Văn An): Xem lịch sử hẹn khám, kết quả chẩn đoán, tải hồ sơ sức khỏe và trò chuyện cùng Trợ lý AI Y tế (RAG) |
+| **Quản trị viên (ADMIN)** | `admin@healthcare.com` | `HealthCare@2026` | [`/admin`](https://www.healthcare.id.vn/admin) | Quản trị toàn viện: Quản lý danh mục bác sĩ, chuyên khoa, chi nhánh cơ sở, khung giờ khám, phê duyệt nội dung AI & kiểm duyệt câu hỏi y tế |
+| **Bác sĩ (DOCTOR)** | `doctor@healthcare.com` | `HealthCare@2026` | [`/doctor`](https://www.healthcare.id.vn/doctor) | Cổng lâm sàng (BS. Lê Quốc Hà - Chấn thương chỉnh hình): Tiếp nhận hàng đợi khám trong ngày, xuất kết quả chẩn đoán, toa thuốc điện tử & bài viết chuyên môn |
+| **Bệnh nhân (PATIENT)** | `patient@healthcare.com` | `HealthCare@2026` | [`/patient`](https://www.healthcare.id.vn/patient) | Cổng bệnh nhân (Nguyễn Văn An): Xem lịch sử hẹn khám, kết quả chẩn đoán, tải hồ sơ sức khỏe và trò chuyện cùng Trợ lý AI Y tế (RAG) |
 
 > [!TIP]
 > **Cơ chế Điều Hướng Thông Minh**: Sau khi nhập thông tin đăng nhập, hệ thống tự động phân tích vai trò trong JWT Claims và chuyển hướng chính xác đến bảng điều khiển tương ứng (`/admin`, `/doctor` hoặc `/patient`).
 
 ---
 
-## 🗺️ Kiến trúc Hệ thống (System Architecture)
+## Kiến trúc Hệ thống (System Architecture)
 
 Kiến trúc **HealthCare Project** tuân thủ các chuẩn mực thiết kế phân lớp doanh nghiệp (Enterprise Tiered Architecture), phân tách độc lập giữa cổng biên Vercel Edge, lớp ứng dụng lõi Spring Boot & FastAPI AI trên nền tảng đám mây Render, cùng ngăn xếp lưu trữ dữ liệu an toàn PostgreSQL, Redis, MinIO và Supabase RLS.
 
-### 📐 Sơ đồ Kiến trúc Xuất bản (High-Resolution Diagram)
+### Sơ đồ Kiến trúc Xuất bản (High-Resolution Diagram)
 
 <div align="center">
   <a href="docs/assets/architecture.svg">
@@ -66,14 +66,14 @@ Kiến trúc **HealthCare Project** tuân thủ các chuẩn mực thiết kế 
   <p><em>Sơ đồ Kiến trúc Hệ thống HealthCare (Chuẩn đồ họa công bố 2026). Nhấp vào hình để mở tệp SVG vector nguyên bản.</em></p>
 </div>
 
-> 📁 **Tài sản sơ đồ**:
+> **Tài sản sơ đồ**:
 > - Định dạng đồ họa vector SVG sắc nét: [`docs/assets/architecture.svg`](docs/assets/architecture.svg)
 > - Định dạng ảnh siêu nét Retina 2K (2880×1960): [`docs/assets/architecture.png`](docs/assets/architecture.png)
 > - Tài liệu phân tích kỹ thuật chi tiết: [`docs/architecture/system-overview.md`](docs/architecture/system-overview.md)
 
 ---
 
-### 📊 Sơ đồ Mermaid.js v11 (Interactive Flowchart)
+### Sơ đồ Mermaid.js v11 (Interactive Flowchart)
 
 ```mermaid
 flowchart TD
@@ -86,54 +86,54 @@ flowchart TD
     classDef ops fill:#F8FAFC,stroke:#64748B,stroke-width:1.5px,color:#1E293B;
 
     %% LAYER 1: CLIENT & USER INTERFACES
-    subgraph ClientLayer["🖥️ LAYER 1: CLIENT & USER INTERFACES"]
-        Users["👥 Multi-role Users\n(Patients • Doctors • Admins)"]:::client
-        NextFrontend["⚡ Next.js 16 Web Portal\n(React 19, App Router, Turbopack, TailwindCSS)"]:::client
-        PatientPortal["🏥 Patient Hub\n(/patient)"]:::client
-        DoctorPortal["🩺 Doctor Clinical Studio\n(/doctor)"]:::client
-        AdminPortal["🛡️ Admin CMS & QA Moderation\n(/admin)"]:::client
-        MobilePWA["📱 Responsive Mobile PWA\n(390px-1440px Zero Layout Shift)"]:::client
+    subgraph ClientLayer["LAYER 1: CLIENT & USER INTERFACES"]
+        Users["Multi-role Users\n(Patients • Doctors • Admins)"]:::client
+        NextFrontend["Next.js 16 Web Portal\n(React 19, App Router, Turbopack, TailwindCSS)"]:::client
+        PatientPortal["Patient Hub\n(/patient)"]:::client
+        DoctorPortal["Doctor Clinical Studio\n(/doctor)"]:::client
+        AdminPortal["Admin CMS & QA Moderation\n(/admin)"]:::client
+        MobilePWA["Responsive Mobile PWA\n(390px-1440px Zero Layout Shift)"]:::client
     end
 
     %% LAYER 2: GATEWAY & VERCEL EDGE
-    subgraph EdgeLayer["🌐 LAYER 2: GATEWAY & VERCEL EDGE NETWORK"]
-        CustomDomain["🔒 Custom Domain & Anycast CDN\nwww.healthcare.id.vn (SSL/TLS 1.3)"]:::edge
-        EdgeSecurity["🛡️ Edge Security & CORS Guard\n(BFF Origin Guard, 403 Untrusted Rejection)"]:::edge
-        BFFProxy["🔄 Next.js Route Handlers / BFF Proxy\n(/api/v1/* & /api/ai/chat SSE Stream)"]:::edge
+    subgraph EdgeLayer["LAYER 2: GATEWAY & VERCEL EDGE NETWORK"]
+        CustomDomain["Custom Domain & Anycast CDN\nwww.healthcare.id.vn (SSL/TLS 1.3)"]:::edge
+        EdgeSecurity["Edge Security & CORS Guard\n(BFF Origin Guard, 403 Untrusted Rejection)"]:::edge
+        BFFProxy["Next.js Route Handlers / BFF Proxy\n(/api/v1/* & /api/ai/chat SSE Stream)"]:::edge
     end
 
     %% LAYER 3: APPLICATION SERVICES (RENDER CLOUD)
-    subgraph ServiceLayer["⚙️ LAYER 3: APPLICATION SERVICES (RENDER CLOUD)"]
-        subgraph BackendMono["☕ Core Backend Service (Spring Boot 3.3.x, Java 21)"]
-            SpringSec["🔐 Spring Security 6\n(JWT Stateless Auth, RBAC, Bounded OTP)"]:::backend
-            CatalogAPI["📋 Hospital Catalog & Doctors API\n(Specialties, Branches, Packages)"]:::backend
-            BookingEngine["📅 Booking & Appointment Lifecycle\n(Concurrency Lock & Rescheduling)"]:::backend
-            ClinicalRecords["📑 Clinical Records & Diagnostic Files\n(Presigned URLs & Role Isolation)"]:::backend
-            PaymentReconcile["💳 Bank Transfer Reconciliation\n(Automated Payment Verification)"]:::backend
-            RealtimeSSE["📡 WebSocket / SSE Notification Stream\n(CMS & Booking Realtime Updates)"]:::backend
+    subgraph ServiceLayer["LAYER 3: APPLICATION SERVICES (RENDER CLOUD)"]
+        subgraph BackendMono["Core Backend Service (Spring Boot 3.3.x, Java 21)"]
+            SpringSec["Spring Security 6\n(JWT Stateless Auth, RBAC, Bounded OTP)"]:::backend
+            CatalogAPI["Hospital Catalog & Doctors API\n(Specialties, Branches, Packages)"]:::backend
+            BookingEngine["Booking & Appointment Lifecycle\n(Concurrency Lock & Rescheduling)"]:::backend
+            ClinicalRecords["Clinical Records & Diagnostic Files\n(Presigned URLs & Role Isolation)"]:::backend
+            PaymentReconcile["Bank Transfer Reconciliation\n(Automated Payment Verification)"]:::backend
+            RealtimeSSE["WebSocket / SSE Notification Stream\n(CMS & Booking Realtime Updates)"]:::backend
         end
 
-        subgraph AIService["🤖 AI & RAG Intelligence Service (FastAPI, Python 3.12)"]
-            TriageEngine["🩺 Medical Symptom Intake & Triage\n(Structured Symptom Classifier)"]:::ai
-            RAGPipeline["📚 RAG Pipeline & Vector Search\n(Hospital Guidelines & Protocols)"]:::ai
-            SafetyGuard["🛡️ Medical Safety Guardrails\n(Prompt Injection Defense & Privacy Shield)"]:::ai
-            FallbackProvider["⚡ Fail-Closed Provider Fallback\n(Local Deterministic Rule + Cloud LLM)"]:::ai
+        subgraph AIService["AI & RAG Intelligence Service (FastAPI, Python 3.12)"]
+            TriageEngine["Medical Symptom Intake & Triage\n(Structured Symptom Classifier)"]:::ai
+            RAGPipeline["RAG Pipeline & Vector Search\n(Hospital Guidelines & Protocols)"]:::ai
+            SafetyGuard["Medical Safety Guardrails\n(Prompt Injection Defense & Privacy Shield)"]:::ai
+            FallbackProvider["Fail-Closed Provider Fallback\n(Local Deterministic Rule + Cloud LLM)"]:::ai
         end
     end
 
     %% LAYER 4: DATA PERSISTENCE & STORAGE
-    subgraph DataLayer["💾 LAYER 4: DATA PERSISTENCE & STORAGE STACK"]
-        PostgresDB[("🐘 PostgreSQL 16 (Primary DB)\nFlyway Migrations (V1..V8 Schema)\nTransactional Catalog & Appointments")]:::data
-        RedisCache[("⚡ Redis / Key-Value Cache\nSliding Window Rate Limit & Session Tokens")]:::data
-        MinIOStorage[("📦 MinIO / S3 Object Storage\nEncrypted Medical Scans & Lab Results")]:::data
-        SupabaseSync[("☁️ Supabase Audited Boundary\nHealthcare Schema + RLS Projections")]:::data
+    subgraph DataLayer["LAYER 4: DATA PERSISTENCE & STORAGE STACK"]
+        PostgresDB[("PostgreSQL 16 (Primary DB)\nFlyway Migrations (V1..V8 Schema)\nTransactional Catalog & Appointments")]:::data
+        RedisCache[("Redis / Key-Value Cache\nSliding Window Rate Limit & Session Tokens")]:::data
+        MinIOStorage[("MinIO / S3 Object Storage\nEncrypted Medical Scans & Lab Results")]:::data
+        SupabaseSync[("Supabase Audited Boundary\nHealthcare Schema + RLS Projections")]:::data
     end
 
     %% LAYER 5: DEVOPS & OPERATIONS
-    subgraph OpsLayer["🛠️ LAYER 5: DEVOPS, SECURITY & OPERATIONS"]
-        GithubCI["🚀 GitHub Actions Enterprise CI/CD\n(Lint, Typecheck, Multi-arch Docker, SBOM)"]:::ops
-        ClamAVScan["🦠 ClamAV Antivirus Scanner\n(Attachment Scan Quarantine Pipe)"]:::ops
-        MailpitSink["✉️ Mailpit SMTP Dev Sink\n(Transactional Email & OTP Testing)"]:::ops
+    subgraph OpsLayer["LAYER 5: DEVOPS, SECURITY & OPERATIONS"]
+        GithubCI["GitHub Actions Enterprise CI/CD\n(Lint, Typecheck, Multi-arch Docker, SBOM)"]:::ops
+        ClamAVScan["ClamAV Antivirus Scanner\n(Attachment Scan Quarantine Pipe)"]:::ops
+        MailpitSink["Mailpit SMTP Dev Sink\n(Transactional Email & OTP Testing)"]:::ops
     end
 
     %% DATA FLOW CONNECTORS
@@ -161,7 +161,7 @@ flowchart TD
 
 ---
 
-## 📸 Bộ Sưu Tập Giao Diện Thực Tế (Screenshots Gallery)
+## Bộ Sưu Tập Giao Diện Thực Tế (Screenshots Gallery)
 
 Dưới đây là các hình ảnh chụp thực tế từ hệ thống trên các thiết bị và cổng phân quyền khác nhau:
 
@@ -195,15 +195,15 @@ Dưới đây là các hình ảnh chụp thực tế từ hệ thống trên c�
 
 ---
 
-## ⚡ Tính Năng Cốt Lõi (Features Matrix)
+## Tính Năng Cốt Lõi (Features Matrix)
 
-### 🏥 1. Nghiệp vụ Khám Chữa Bệnh & Đặt Lịch (Clinical & Scheduling)
+### 1. Nghiệp vụ Khám Chữa Bệnh & Đặt Lịch (Clinical & Scheduling)
 - **Đặt lịch phân luồng chi nhánh**: Chọn bệnh viện/cơ sở gần nhất, lựa chọn chuyên khoa và bác sĩ phụ trách.
 - **Khóa chỗ chống xung đột (Pessimistic Locking)**: Kiểm soát chặt chẽ khung giờ khám (slots), đảm bảo 2 bệnh nhân không thể cùng đặt 1 khung giờ.
-- **Vòng đời cuộc hẹn hoàn chỉnh**: Đặt lịch ➔ Xác nhận qua OTP/Email ➔ Tiếp nhận ➔ Khám bệnh ➔ Xuất bệnh án & Đơn thuốc.
+- **Vòng đời cuộc hẹn hoàn chỉnh**: Đặt lịch -> Xác nhận qua OTP/Email -> Tiếp nhận -> Khám bệnh -> Xuất bệnh án & Đơn thuốc.
 - **Hồ sơ lâm sàng điện tử**: Lưu trữ kết quả chẩn đoán, phiếu xét nghiệm hình ảnh với chữ ký số và phân quyền bảo mật cao.
 
-### 🤖 2. Trợ Lý AI Y Tế & RAG Tri thức (Medical AI & Safety Guardrails)
+### 2. Trợ Lý AI Y Tế & RAG Tri thức (Medical AI & Safety Guardrails)
 - **Tiếp nhận & phân luồng triệu chứng (Triage)**: Phân tích mô tả của người bệnh, gợi ý chuyên khoa phù hợp và phát hiện dấu hiệu cấp cứu y tế.
 - **Kiến trúc RAG (Retrieval-Augmented Generation)**: Truy vấn dựa trên tài liệu y khoa chuẩn mực đã được thẩm định, trả lời có trích dẫn nguồn tin cậy.
 - **Lưới bảo vệ an toàn (Safety Guardrails)**:
@@ -211,7 +211,7 @@ Dưới đây là các hình ảnh chụp thực tế từ hệ thống trên c�
   - *Bảo mật thông tin bệnh nhân*: Tuyệt đối từ chối xuất danh sách hoặc thông tin cá nhân của bệnh nhân khác (`REFUSE`).
   - *Dự phòng đóng an toàn (Fail-closed)*: Luôn có bộ quy tắc xử lý cục bộ an toàn khi dịch vụ bên thứ ba mất kết nối.
 
-### 🛡️ 3. Bảo Mật Cấp Doanh Nghiệp (Enterprise Security)
+### 3. Bảo Mật Cấp Doanh Nghiệp (Enterprise Security)
 - **BFF (Backend-For-Frontend) Architecture**: Ẩn danh hoàn toàn mạng backend; xác thực giữa Next.js và Spring Boot thông qua server-side token bí mật.
 - **Origin Guard**: Từ chối các request lạ không đến từ domain chính thức (`403 BFF_ORIGIN_INVALID`).
 - **Quét mã độc ClamAV**: Tự động rà soát toàn bộ tệp tin chẩn đoán hình ảnh và tài liệu bệnh nhân trước khi lưu trữ vĩnh viễn.
@@ -219,22 +219,22 @@ Dưới đây là các hình ảnh chụp thực tế từ hệ thống trên c�
 
 ---
 
-## 🛠️ Ngăn Xếp Công Nghệ (Tech Stack Overview)
+## Ngăn Xếp Công Nghệ (Tech Stack Overview)
 
 ```text
 HealthCare_Project Monorepo
-├── 🖥️ Frontend:        Next.js 16.3.3 (App Router) • React 19.2.8 • TailwindCSS 3.4 • TypeScript 6.0
-├── ⚙️ Backend Core:     Spring Boot 3.3.x (Java 21) • Spring Security 6 • Hibernate • Flyway
-├── 🤖 AI Service:       FastAPI (Python 3.12) • LangChain / RAG Pipeline • Vector Search • Pytest
-├── 💾 Database:        PostgreSQL 16 • Redis / Render Key-Value • Supabase RLS
-├── 📦 Storage:         MinIO S3 Compatible Object Storage • ClamAV Scanner
-├── 🌐 Edge & Hosting:  Vercel Edge Network (Domain www.healthcare.id.vn) • Render Cloud Containers
-└── 🚀 DevOps & CI/CD:  GitHub Actions • Docker Compose (9 Services) • Playwright E2E
+├── Frontend:        Next.js 16.3.3 (App Router) • React 19.2.8 • TailwindCSS 3.4 • TypeScript 6.0
+├── Backend Core:     Spring Boot 3.3.x (Java 21) • Spring Security 6 • Hibernate • Flyway
+├── AI Service:       FastAPI (Python 3.12) • LangChain / RAG Pipeline • Vector Search • Pytest
+├── Database:        PostgreSQL 16 • Redis / Render Key-Value • Supabase RLS
+├── Storage:         MinIO S3 Compatible Object Storage • ClamAV Scanner
+├── Edge & Hosting:  Vercel Edge Network (Domain www.healthcare.id.vn) • Render Cloud Containers
+└── DevOps & CI/CD:  GitHub Actions • Docker Compose (9 Services) • Playwright E2E
 ```
 
 ---
 
-## 🚀 Hướng Dẫn Cài Đặt & Khởi Động Nhanh (Quick Start)
+## Hướng Dẫn Cài Đặt & Khởi Động Nhanh (Quick Start)
 
 ### 1. Yêu cầu Môi trường (Prerequisites)
 - **Docker Desktop** (khuyến nghị phiên bản mới nhất trên Windows/macOS/Linux)
@@ -258,31 +258,31 @@ docker compose --env-file .env -f infrastructure/docker-compose.yml up -d
 ```
 
 Sau khi các container đạt trạng thái `healthy`:
-- 🖥️ **Web Frontend**: [http://localhost:3000](http://localhost:3000)
-- ⚙️ **Spring Boot API**: [http://localhost:8080/actuator/health](http://localhost:8080/actuator/health)
-- 🤖 **FastAPI AI Service**: [http://localhost:8000/livez](http://localhost:8000/livez)
-- 📦 **MinIO Console**: [http://localhost:9001](http://localhost:9001) *(User/Pass: `minioadmin` / `minioadmin`)*
-- ✉️ **Mailpit Web UI**: [http://localhost:8025](http://localhost:8025)
+- **Web Frontend**: [http://localhost:3000](http://localhost:3000)
+- **Spring Boot API**: [http://localhost:8080/actuator/health](http://localhost:8080/actuator/health)
+- **FastAPI AI Service**: [http://localhost:8000/livez](http://localhost:8000/livez)
+- **MinIO Console**: [http://localhost:9001](http://localhost:9001) *(User/Pass: `minioadmin` / `minioadmin`)*
+- **Mailpit Web UI**: [http://localhost:8025](http://localhost:8025)
 
 ---
 
 ### 3. Khởi chạy Từng Phân Hệ để Phát Triển (Local Development)
 
-#### ☕ Chạy Backend (Spring Boot 3)
+#### Chạy Backend (Spring Boot 3)
 ```bash
 cd apps/backend
 ./mvnw clean test
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
-#### 🖥️ Chạy Frontend (Next.js 16)
+#### Chạy Frontend (Next.js 16)
 ```bash
 cd apps/frontend
 npm ci
 npm run dev
 ```
 
-#### 🤖 Chạy AI Service (FastAPI)
+#### Chạy AI Service (FastAPI)
 ```bash
 cd apps/ai-service
 python -m venv .venv
@@ -293,7 +293,7 @@ uvicorn app.main:app --reload --port 8000
 
 ---
 
-## 🧪 Chiến Lược Kiểm Thử & CI/CD Pipeline (Testing & Verification)
+## Chiến Lược Kiểm Thử & CI/CD Pipeline (Testing & Verification)
 
 Hệ thống được bảo vệ bởi mạng lưới kiểm thử tự động đa tầng (Multi-layer Testing Pipeline):
 
@@ -324,10 +324,10 @@ cd apps/ai-service && python -m pytest && ruff check . && mypy
 
 ---
 
-## 📜 Nhật Ký Bản Phát Hành & Bản Ghi Bảo Mật (Release Records)
+## Nhật Ký Bản Phát Hành & Bản Ghi Bảo Mật (Release Records)
 
 <details>
-<summary><strong>🔍 Nhấp vào đây để xem chi tiết bản ghi bảo mật và SHA phát hành đã thẩm định</strong></summary>
+<summary><strong>Nhấp vào đây để xem chi tiết bản ghi bảo mật và SHA phát hành đã thẩm định</strong></summary>
 
 ### Trạng thái Production Vercel (2026-09-08)
 - **Deployment ID**: `dpl_7LBTguGVawqJdR6v6AFyXzMH6uwU` (READY/PROMOTED)
@@ -351,7 +351,7 @@ cd apps/ai-service && python -m pytest && ruff check . && mypy
 
 ---
 
-## ⚖️ Giới Hạn Phạm Vi & Tuyên Bố Trách Nhiệm (Scope & Disclaimer)
+## Giới Hạn Phạm Vi & Tuyên Bố Trách Nhiệm (Scope & Disclaimer)
 
 > [!WARNING]
 > **Dự án Nghiên cứu & Giáo dục (Educational MVP)**:
