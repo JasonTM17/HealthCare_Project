@@ -97,3 +97,8 @@ plans/
 OPENCODE.md
 engineer/
 plans/
+.mimosa/
+**/.mimosa/
+.video_agent/
+apps/frontend/local_*.png
+scripts/tmp-*.py
