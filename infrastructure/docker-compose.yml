@@ -295,6 +295,9 @@ services:
       dockerfile: Dockerfile
       args:
         VCS_REF: ${BUILD_VCS_REF:-unknown}
+        # Local Compose builds the same-origin beta; hosted pipelines override
+        # NEXT_PUBLIC_SITE_URL with their approved public origin.
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
     restart: unless-stopped
     environment:
       # Browser traffic stays same-origin through the runtime Route Handler.
