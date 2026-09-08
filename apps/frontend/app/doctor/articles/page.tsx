@@ -240,7 +240,7 @@ export default function DoctorArticlesPage() {
         setSuccess("Đã cập nhật bài viết y khoa thành công!");
       } else {
         await doctorCreateArticle(payload);
-        setSuccess("Đã đăng bài viết mới lên chuyên mục bài viết y khoa.");
+        setSuccess("Đã đăng bài viết y khoa mới thành công! Bài viết sẽ hiển thị trong Cẩm nang sức khỏe của bệnh viện khi được xuất bản công khai.");
       }
       broadcastCatalogChange({ kind: "article", action: editingSlug ? "updated" : "created", slug: finalSlug });
       setShowEditor(false);
@@ -314,7 +314,7 @@ export default function DoctorArticlesPage() {
           <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-slate-100">
             <div>
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-teal-50 text-teal-800 border border-teal-200/60">
-                Mạng xã hội y khoa & Diễn đàn bệnh viện
+                Cẩm nang y khoa & Diễn đàn chuyên môn
               </span>
               <h1 className="text-2xl font-black text-teal-950 tracking-tight mt-2">
                 Cộng đồng & Bài viết Y khoa
@@ -383,7 +383,7 @@ export default function DoctorArticlesPage() {
           </div>
         )}
 
-        {/* ── TAB 1: Bảng tin Y khoa Bệnh viện (Social Medical Feed) ── */}
+        {/* ── TAB 1: Bảng tin Y khoa Bệnh viện (Cẩm nang sức khỏe catalog) ── */}
         {activeTab === "community_feed" && (
           <div className="space-y-6">
             {/* Specialty Filter Chips */}
