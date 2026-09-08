@@ -1,8 +1,62 @@
 import { test, expect } from '@playwright/test';
 import { installMockBrowserSession } from './helpers/browser-session';
+const MOCK_PACKAGES = [
+  {
+    id: "pkg-1",
+    name: "Gói khám tổng quát tiêu chuẩn",
+    slug: "goi-kham-tong-quat-tieu-chuan",
+    price: 2000000,
+    description: "Khám sức khỏe tổng quát định kỳ cho người trưởng thành.",
+    active: true,
+  },
+  {
+    id: "pkg-2",
+    name: "Gói tầm soát tim mạch chuyên sâu",
+    slug: "goi-tam-soat-tim-mach-chuyen-sau",
+    price: 3500000,
+    description: "Đánh giá chức năng tim mạch, điện tâm đồ và siêu âm tim.",
+    active: true,
+  },
+  {
+    id: "pkg-3",
+    name: "Gói chăm sóc sức khỏe phụ nữ",
+    slug: "goi-cham-soc-suc-khoe-phu-nu",
+    price: 2500000,
+    description: "Khám phụ khoa toàn diện, tầm soát ung thư phụ khoa sớm.",
+    active: true,
+  },
+  {
+    id: "pkg-4",
+    name: "Gói khám sức khỏe nhi khoa",
+    slug: "goi-kham-suc-khoe-nhi-khoa",
+    price: 1500000,
+    description: "Đánh giá phát triển thể chất và dinh dưỡng cho trẻ nhỏ.",
+    active: true,
+  },
+];
+
+function pageEnvelope<T>(content: T[]) {
+  return {
+    content,
+    totalElements: content.length,
+    totalPages: content.length > 0 ? 1 : 0,
+    pageNumber: 0,
+    pageSize: 50,
+  };
+}
+
 for (const width of [375, 760, 794, 1080, 1440]) {
   test(`homepage package cards and actions stay fully within their container at ${width}px`, async ({ context, page }, testInfo) => {
-    await context.route('**/api/v1/**', route => route.fulfill({status:503,contentType:'application/json',body:'{}'}));
+    await context.route('**/api/v1/**', async (route) => {
+      const url = route.request().url();
+      if (url.includes('/hospital/packages')) {
+        await route.fulfill({ json: pageEnvelope(MOCK_PACKAGES) });
+      } else if (url.includes('/hospital/')) {
+        await route.fulfill({ json: pageEnvelope([]) });
+      } else {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+      }
+    });
     await installMockBrowserSession(context, null);
     await page.setViewportSize({width,height:900});
     await page.goto('/');
