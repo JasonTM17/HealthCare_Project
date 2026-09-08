@@ -5,6 +5,11 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 FROM dependencies AS build
+# The SEO guard requires a concrete origin at build time.  Local Compose
+# builds default to the same-origin local address; production pipelines pass
+# their approved public origin explicitly (see docs/deployment-beta.md).
+ARG NEXT_PUBLIC_SITE_URL=http://localhost:3000
+ENV NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}
 COPY . .
 RUN npm run build
 
