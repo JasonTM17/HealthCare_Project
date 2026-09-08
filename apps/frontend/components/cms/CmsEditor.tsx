@@ -31,6 +31,7 @@ import {
   type CmsFieldErrors,
 } from "../../lib/cms-client";
 import { CmsContentRenderer } from "./CmsRenderer";
+import CmsImageField from "./CmsImageField";
 import { formatBusinessDateTime } from "../../lib/business-time";
 import { broadcastCatalogChange } from "../../lib/api-client";
 
@@ -250,7 +251,7 @@ function PayloadFields({
             <TextField {...common} field="ctaLabel" label="Nhãn CTA" />
             <TextField {...common} field="ctaHref" label="URL CTA" help="Chỉ đường dẫn /... hoặc HTTPS URL." />
           </div>
-          <TextField {...common} field="imageUrl" label="URL hình ảnh" help="Chỉ đường dẫn /... hoặc HTTPS URL." />
+          <CmsImageField disabled={disabled} id="cms-hero-image" onChange={(v) => onChange("imageUrl", v)} value={payloadValue(draft.payload, "imageUrl")} />
         </div>
       );
     case "RICH_TEXT":
@@ -281,7 +282,7 @@ function PayloadFields({
         <div className="grid gap-3">
           <TextField {...common} field="title" label="Tiêu đề" required />
           <TextField {...common} field="body" label="Mô tả" multiline />
-          <TextField {...common} field="imageUrl" label="URL hình ảnh" help="Chỉ đường dẫn /... hoặc HTTPS URL." required />
+          <CmsImageField disabled={disabled} id="cms-image-card-image" onChange={(v) => onChange("imageUrl", v)} required value={payloadValue(draft.payload, "imageUrl")} />
           <TextField {...common} field="href" label="URL đích" help="Chỉ đường dẫn /... hoặc HTTPS URL." />
         </div>
       );
