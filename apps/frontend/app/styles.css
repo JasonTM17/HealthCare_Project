@@ -1857,9 +1857,10 @@ main {
   top: 0;
   z-index: 50;
   border-bottom: 1px solid oklch(82% 0.03 182 / 0.7);
-  background: oklch(98% 0.009 100 / 0.94);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
+  background: rgb(255 255 255 / 98%);
+  box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.06);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .site-nav__inner {
@@ -2682,6 +2683,11 @@ main {
   background: var(--color-mint);
 }
 
+.doctor-photo--loading {
+  background-color: var(--color-mint);
+  animation: shimmer 1.5s infinite ease-in-out;
+}
+
 .doctor-photo--featured {
   min-height: 20rem;
 }
@@ -2690,7 +2696,12 @@ main {
   object-fit: cover;
   object-position: center 10%;
   filter: contrast(1.02);
-  transition: transform var(--duration-slow) var(--ease-out);
+  opacity: 0;
+  transition: opacity 0.3s ease, transform var(--duration-slow) var(--ease-out);
+}
+
+.doctor-photo__image--loaded {
+  opacity: 1;
 }
 
 .doctor-photo__fallback {
@@ -5518,10 +5529,10 @@ main {
 
 .site-shell .site-nav {
   border-bottom: 1px solid var(--hospital-border);
-  background: rgb(255 255 255 / 97%);
-  box-shadow: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
+  background: rgb(255 255 255 / 98%);
+  box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.06);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .site-shell .site-nav__inner {
@@ -6776,11 +6787,27 @@ main {
   }
 
   .site-shell .hero-search {
-    padding: 0.45rem;
+    flex-wrap: wrap;
+    align-items: stretch;
+    padding: 0.5rem;
+    gap: 0.5rem;
   }
 
   .site-shell .hero-search > svg {
-    margin-top: 0.85rem;
+    margin-top: 0.75rem;
+    margin-left: 0.5rem;
+  }
+
+  .site-shell .hero-search input {
+    min-height: 44px;
+    font-size: 0.9375rem;
+  }
+
+  .site-shell .hero-search button {
+    width: 100%;
+    min-height: 44px;
+    margin: 0;
+    justify-content: center;
   }
 
   .site-shell .hero-visual__image-wrap {
@@ -9740,4 +9767,15 @@ main {
   .site-shell .site-footer a:focus-visible {
     outline-color: Highlight !important;
   }
+}
+
+/* Mobile navigation active: hide care rail and floating assistant launcher so menu actions remain unobstructed */
+body.mobile-menu-open .mobile-care-rail,
+body:has(.mobile-menu) .mobile-care-rail {
+  display: none !important;
+}
+
+body.mobile-menu-open [class*="FloatingHealthAssistant_root"],
+body:has(.mobile-menu) [class*="FloatingHealthAssistant_root"] {
+  display: none !important;
 }

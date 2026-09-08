@@ -478,7 +478,7 @@ export default function DoctorDashboardPage() {
                 <label>Kế hoạch điều trị<textarea maxLength={4000} onChange={(event) => updateClinicalForm("treatmentPlan", event.target.value)} value={clinicalForm.treatmentPlan} /></label>
                 <label>Ghi chú bác sĩ<textarea maxLength={4000} onChange={(event) => updateClinicalForm("doctorNotes", event.target.value)} value={clinicalForm.doctorNotes} /></label>
               </div>
-              <label>Ngày tái khám<input onChange={(event) => updateClinicalForm("followUpDate", event.target.value)} type="date" value={clinicalForm.followUpDate} /></label>
+              <label>Ngày tái khám<input onChange={(event) => updateClinicalForm("followUpDate", event.target.value)} placeholder="dd/mm/yyyy" type="date" value={clinicalForm.followUpDate} /></label>
               <fieldset className="portal-clinical-form__fieldset">
                 <legend>Kê một thuốc (tuỳ chọn)</legend>
                 <div className="portal-clinical-form__grid">
