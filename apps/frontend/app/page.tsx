@@ -160,13 +160,15 @@ interface DoctorPhotoProps {
 
 const DoctorPhoto: React.FC<DoctorPhotoProps> = ({ doctor, featured = false }) => {
   const photoUrl = getDoctorImage(doctor);
+  const [photoLoaded, setPhotoLoaded] = useState(false);
   return (
-    <div className={`doctor-photo${featured ? " doctor-photo--featured" : ""}`}>
+    <div className={`doctor-photo${featured ? " doctor-photo--featured" : ""}${!photoLoaded && photoUrl ? " doctor-photo--loading" : ""}`}>
       {photoUrl ? (
         <Image
           alt={`Ảnh minh họa bác sĩ ${doctor.fullName}`}
-          className="doctor-photo__image"
+          className={`doctor-photo__image${photoLoaded ? " doctor-photo__image--loaded" : ""}`}
           fill
+          onLoad={() => setPhotoLoaded(true)}
           sizes={featured ? "(max-width: 800px) 100vw, 42vw" : "(max-width: 800px) 100vw, 22vw"}
           src={photoUrl}
         />
@@ -467,7 +469,8 @@ function HomeAssuranceStrip({
 }
 
 function HomeHeroVisual({ imageUrl }: { imageUrl?: string }): React.ReactElement {
-  const safeCmsImage = imageUrl && isSafeCmsUrl(imageUrl) ? imageUrl : null;
+  const [imageError, setImageError] = useState(false);
+  const safeCmsImage = !imageError && imageUrl && isSafeCmsUrl(imageUrl) ? imageUrl : null;
 
   return (
     <figure className="hero-visual">
@@ -480,6 +483,13 @@ function HomeHeroVisual({ imageUrl }: { imageUrl?: string }): React.ReactElement
             className="hero-visual__image"
             decoding="async"
             loading="eager"
+            onError={() => setImageError(true)}
+            onLoad={(event) => {
+              // Reject tiny 2x2 placeholder assets and fall back to high-res HERO_IMAGE
+              if (event.currentTarget.naturalWidth < 32 || event.currentTarget.naturalHeight < 32) {
+                setImageError(true);
+              }
+            }}
             src={safeCmsImage}
           />
         ) : (
