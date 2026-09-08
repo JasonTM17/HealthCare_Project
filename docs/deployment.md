@@ -69,13 +69,13 @@ overlay when a component is unchanged; always use the component-level identity
 below rather than assuming one SHA for every platform.
 
 - Frontend: [healthcare-two-olive.vercel.app](https://healthcare-two-olive.vercel.app),
-  Vercel deployment `dpl_FeKrEoSmdbX4Z6KscpVBU8QuBXR7`, `READY`/`PROMOTED`
-  production, uploaded from a clean detached checkout/archive prepared at
-  repository commit `da860fc8b46d723cdcc3f2b55921a33324abb0a1` after the
-  responsive UX fix and rollback-documentation reconciliation. The current
-  `vercel inspect --format=json` response exposes neither `meta` nor `gitSource`,
-  so provider-side Git SHA/dirty metadata is not independently verified. The
-  stable alias was rechecked after promotion.
+  Vercel deployment `dpl_7LBTguGVawqJdR6v6AFyXzMH6uwU`, `READY`/`PROMOTED`
+  production, uploaded from repository commit
+  `5d104d974221cddd4cdd19a54ddfbf11b596cae2` after the hero image fallback,
+  sticky nav bleed, brand asset, and mobile collision fixes. The stable
+  aliases `https://www.healthcare.id.vn` and
+  `https://healthcare-two-olive.vercel.app` were verified live (HTTP 200).
+
   A stateless public-chat canary returned `200 HOSPITAL_SUPPORT /
   local_fallback / ANSWER` for a benign support question and `200 / REFUSE`
   for a request to access another patient's records; an untrusted origin was

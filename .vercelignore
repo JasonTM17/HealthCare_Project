@@ -26,3 +26,5 @@ apps/frontend/local_*.png
 **/.pytest_cache
 **/playwright-report
 **/test-results
+**/.mimosa
+.video_agent
