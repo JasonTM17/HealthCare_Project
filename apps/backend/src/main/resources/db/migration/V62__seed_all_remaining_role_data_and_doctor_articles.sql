@@ -216,11 +216,16 @@ SELECT
     NULL
 FROM users u
 WHERE u.email = 'admin@healthcare.com'
-ON CONFLICT (source_type, source_id) DO UPDATE SET
-    eligibility_state = EXCLUDED.eligibility_state,
-    submitted_at = EXCLUDED.submitted_at,
-    approved_at = NULL,
-    approval_expires_at = NULL;
+-- Seed-only insert: never UPDATE an existing review head. V34's
+-- trg_ai_content_review_heads_monotonic requires eligibility_revision to
+-- advance whenever eligibility state or approval metadata changes, and
+-- heads FK-anchor to the revision row that actually exists. On databases
+-- that ran a pre-V62 backend, the runtime catalog sync already recorded a
+-- rev-1 revision (rich runtime snapshot hash) and a DRAFT head for these
+-- sources, so an upsert here either violates the monotonic trigger or
+-- anchors the head to a revision row that was silently skipped. Leave the
+-- runtime-owned head untouched and only seed when it is absent.
+ON CONFLICT (source_type, source_id) DO NOTHING;
 
 INSERT INTO ai_content_revisions (
     source_type, source_id, content_revision, content_hash, content_snapshot, created_by, created_at
@@ -255,11 +260,7 @@ SELECT
     NULL
 FROM users u
 WHERE u.email = 'admin@healthcare.com'
-ON CONFLICT (source_type, source_id) DO UPDATE SET
-    eligibility_state = EXCLUDED.eligibility_state,
-    submitted_at = EXCLUDED.submitted_at,
-    approved_at = NULL,
-    approval_expires_at = NULL;
+ON CONFLICT (source_type, source_id) DO NOTHING;
 
 INSERT INTO ai_content_revisions (
     source_type, source_id, content_revision, content_hash, content_snapshot, created_by, created_at
@@ -294,7 +295,11 @@ SELECT
     CURRENT_TIMESTAMP + INTERVAL '89 days'
 FROM users u
 WHERE u.email = 'admin@healthcare.com'
-ON CONFLICT (source_type, source_id) DO UPDATE SET
-    eligibility_state = EXCLUDED.eligibility_state,
-    approved_at = EXCLUDED.approved_at,
-    approval_expires_at = EXCLUDED.approval_expires_at;
+-- Same seed-only rule as the article heads above: the runtime catalog sync
+-- owns the cardiology specialty head on any database that ran a pre-V62
+-- backend (rich runtime rev-1 revision, DRAFT state). Updating it here
+-- without advancing eligibility_revision violates
+-- trg_ai_content_review_heads_monotonic, and the hardcoded rev-1 hash
+-- cannot satisfy fk_ai_content_review_heads_revision once the runtime
+-- rev-1 row exists. Seed the APPROVED demo head only when absent.
+ON CONFLICT (source_type, source_id) DO NOTHING;
