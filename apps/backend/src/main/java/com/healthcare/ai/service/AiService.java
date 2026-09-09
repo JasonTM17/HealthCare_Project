@@ -104,9 +104,12 @@ public class AiService {
         Duration readTimeout
     ) {
         this.restTemplate = restTemplateBuilder
-            .requestFactory(SimpleClientHttpRequestFactory::new)
-            .setConnectTimeout(connectTimeout)
-            .setReadTimeout(readTimeout)
+            .requestFactory(() -> {
+                SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+                factory.setConnectTimeout(connectTimeout);
+                factory.setReadTimeout(readTimeout);
+                return factory;
+            })
             .messageConverters(
                 new ByteArrayHttpMessageConverter(),
                 new StringHttpMessageConverter(StandardCharsets.UTF_8)
