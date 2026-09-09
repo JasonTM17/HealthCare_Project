@@ -96,14 +96,14 @@ export default function PackagesPage() {
         <header className={packageVisualStyles.catalogIntro}>
           <div>
             <p className="section-note">Gói khám sức khỏe</p>
-            <h1>Chủ động kiểm tra, bắt đầu từ điều phù hợp</h1>
+            <h1>Gói Khám & Tầm Soát Sức Khỏe Định Kỳ</h1>
             <p>
-              Đối chiếu đối tượng phù hợp, hạng mục chính và chi phí của từng gói trước khi đặt lịch.
+              Minh bạch chi phí, danh mục xét nghiệm và các bước chuẩn bị trước khi thăm khám.
             </p>
           </div>
           <aside className={packageVisualStyles.catalogGuide} aria-label="Hướng dẫn chọn gói khám">
-            <strong>Một lựa chọn rõ ràng hơn</strong>
-            <p>Mở từng gói để xem đầy đủ nội dung và hướng dẫn chuẩn bị trước khi đến bệnh viện.</p>
+            <strong>Lựa chọn phù hợp cho bạn</strong>
+            <p>Xem chi tiết từng gói khám để chuẩn bị tốt nhất trước khi đến bệnh viện.</p>
           </aside>
         </header>
 
@@ -113,10 +113,9 @@ export default function PackagesPage() {
           </div>
           <div className="resource-hero-card__body">
             <p className="resource-chip">Danh mục gói khám</p>
-            <h2>Một nơi để so sánh gói khám trước khi bạn quyết định.</h2>
+            <h2>Tra cứu và so sánh các gói khám toàn diện</h2>
             <p className="resource-lead">
-              Duyệt theo nhu cầu, đọc mục tiêu và mở lịch ngay cho gói phù hợp thay vì phải dò qua
-              nhiều trang riêng lẻ.
+              Duyệt theo nhu cầu tầm soát cá nhân hoặc gia đình và đặt lịch nhanh chóng tại cơ sở thuận tiện.
             </p>
             <div className="resource-actions">
               <PublicBookingButton>Đặt lịch khám</PublicBookingButton>

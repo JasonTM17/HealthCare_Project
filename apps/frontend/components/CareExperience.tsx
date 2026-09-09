@@ -7,18 +7,18 @@ const CONSULTATION_IMAGE = "/media/care-team.webp";
 const CARE_MOMENTS = [
   {
     number: "01",
-    title: "Trước cuộc hẹn",
-    description: "Tìm đúng chuyên khoa, xem hồ sơ bác sĩ và chọn khung giờ thuận tiện.",
+    title: "Tiếp đón & Hướng dẫn",
+    description: "Được hướng dẫn chu đáo giấy tờ cần thiết, thủ tục BHYT và đón tiếp tận tình ngay khi đến viện.",
   },
   {
     number: "02",
-    title: "Khi đến thăm khám",
-    description: "Kiểm tra cơ sở, thông tin liên hệ và những điều cần chuẩn bị trước khi đến.",
+    title: "Thăm khám chuyên sâu",
+    description: "Bác sĩ lắng nghe kỹ lưỡng, giải thích tường tận kết quả xét nghiệm và thống nhất phác đồ điều trị.",
   },
   {
     number: "03",
-    title: "Sau buổi khám",
-    description: "Tra cứu lại lịch hẹn và theo dõi những hướng dẫn cần thiết cho lần chăm sóc tiếp theo.",
+    title: "Đồng hành sau khám",
+    description: "Dễ dàng tra cứu hồ sơ điện tử, theo dõi đơn thuốc và nhận nhắc nhở chăm sóc sức khỏe định kỳ.",
   },
 ];
 
