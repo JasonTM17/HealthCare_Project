@@ -46,7 +46,7 @@ const JOURNEY = [
   {
     label: "Trong ngày thăm khám",
     title: "Chủ động thời gian",
-    description: "Đặt trước lịch khám và lưu lại đầy đủ thông tin cần thiết cho cuộc hẹn.",
+    description: "Ưu tiên tiếp đón tại quầy, giảm thiểu thời gian chờ và thăm khám cùng bác sĩ.",
   },
   {
     label: "Sau khi thăm khám",
