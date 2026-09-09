@@ -80,7 +80,10 @@ Kiến trúc **HealthCare Project** tuân thủ chuẩn mực thiết kế phân
 
 ### Sơ đồ Mermaid (Interactive Diagram)
 
-> Nội dung đồng bộ với nguồn chuẩn [`system-overview.mmd`](docs/architecture/system-overview.mmd).
+> Toàn bộ sơ đồ kiến trúc được xuất bản dưới dạng vector chất lượng cao tại [`docs/assets/architecture.svg`](docs/assets/architecture.svg) và tài liệu phân tích chuyên sâu tại [`docs/architecture/system-overview.md`](docs/architecture/system-overview.md).
+
+<details>
+<summary><b>Nhấp để mở Sơ đồ Mermaid tương tác (Interactive Architecture Flowchart)</b></summary>
 
 ```mermaid
 flowchart TD
@@ -92,60 +95,75 @@ flowchart TD
     classDef data fill:#FFFBEB,stroke:#F59E0B,stroke-width:1.5px,color:#78350F;
     classDef ops fill:#F8FAFC,stroke:#64748B,stroke-width:1.5px,color:#1E293B;
 
+    %% -------------------------------------------------------------
     %% LAYER 1: CLIENT & USER INTERFACES
+    %% -------------------------------------------------------------
     subgraph ClientLayer["LAYER 1: CLIENT & USER INTERFACES"]
-        Users["Multi-role Users\n(Patients • Doctors • Admins)"]:::client
-        NextFrontend["Next.js 16 Web Portal\n(React 19, App Router, Turbopack, TailwindCSS)"]:::client
-        PatientPortal["Patient Hub\n(/patient)"]:::client
-        DoctorPortal["Doctor Clinical Studio\n(/doctor)"]:::client
-        AdminPortal["Admin CMS & QA Moderation\n(/admin)"]:::client
-        MobilePWA["Responsive Mobile PWA\n(390px-1440px Zero Layout Shift)"]:::client
+        Users["Multi-role Users<br/>(Patients • Doctors • Admins)"]:::client
+        NextFrontend["Next.js 16 Web Portal<br/>(React 19, App Router, Turbopack, TailwindCSS)"]:::client
+        PatientPortal["Patient Hub<br/>(/patient)"]:::client
+        DoctorPortal["Doctor Clinical Studio<br/>(/doctor)"]:::client
+        AdminPortal["Admin CMS & QA Moderation<br/>(/admin)"]:::client
+        MobilePWA["Responsive Mobile PWA<br/>(390px-1440px Zero Layout Shift)"]:::client
     end
 
-    %% LAYER 2: GATEWAY & VERCEL EDGE
+    %% -------------------------------------------------------------
+    %% LAYER 2: GATEWAY & VERCEL EDGE NETWORK
+    %% -------------------------------------------------------------
     subgraph EdgeLayer["LAYER 2: GATEWAY & VERCEL EDGE NETWORK"]
-        CustomDomain["Custom Domain & Anycast CDN\nwww.healthcare.id.vn (SSL/TLS 1.3)"]:::edge
-        EdgeSecurity["Edge Security & CORS Guard\n(BFF Origin Guard, 403 Untrusted Rejection)"]:::edge
-        BFFProxy["Next.js Route Handlers / BFF Proxy\n(/api/v1/* & /api/ai/chat SSE Stream)"]:::edge
+        CustomDomain["Custom Domain & Anycast CDN<br/>www.healthcare.id.vn (SSL/TLS 1.3)"]:::edge
+        EdgeSecurity["Edge Security & CORS Guard<br/>(BFF Origin Guard, 403 Untrusted Rejection)"]:::edge
+        BFFProxy["Next.js Route Handlers / BFF Proxy<br/>(/api/v1/* & /api/ai/chat SSE Stream)"]:::edge
     end
 
+    %% -------------------------------------------------------------
     %% LAYER 3: APPLICATION SERVICES (RENDER CLOUD)
+    %% -------------------------------------------------------------
     subgraph ServiceLayer["LAYER 3: APPLICATION SERVICES (RENDER CLOUD)"]
         subgraph BackendMono["Core Backend Service (Spring Boot 3.5.x, Java 21)"]
-            SpringSec["Spring Security 6\n(JWT Stateless Auth, RBAC, Bounded OTP)"]:::backend
-            CatalogAPI["Hospital Catalog & Doctors API\n(Specialties, Branches, Packages)"]:::backend
-            BookingEngine["Booking & Appointment Lifecycle\n(Concurrency Lock & Rescheduling)"]:::backend
-            ClinicalRecords["Clinical Records & Diagnostic Files\n(Presigned URLs & Role Isolation)"]:::backend
-            PaymentReconcile["Bank Transfer Reconciliation\n(Automated Payment Verification)"]:::backend
-            RealtimeSSE["WebSocket / SSE Notification Stream\n(CMS & Booking Realtime Updates)"]:::backend
+            SpringSec["Spring Security 6<br/>(JWT Stateless Auth, RBAC, Bounded OTP)"]:::backend
+            CatalogAPI["Hospital Catalog & Doctors API<br/>(Specialties, Branches, Packages)"]:::backend
+            BookingEngine["Booking & Appointment Lifecycle<br/>(Concurrency Lock & Rescheduling)"]:::backend
+            ClinicalRecords["Clinical Records & Diagnostic Files<br/>(Presigned URLs & Role Isolation)"]:::backend
+            PaymentReconcile["Bank Transfer Reconciliation<br/>(Automated Payment Verification)"]:::backend
+            RealtimeSSE["WebSocket / SSE Notification Stream<br/>(CMS & Booking Realtime Updates)"]:::backend
         end
 
         subgraph AIService["AI & RAG Intelligence Service (FastAPI, Python 3.12)"]
-            TriageEngine["Medical Symptom Intake & Triage\n(Structured Symptom Classifier)"]:::ai
-            RAGPipeline["RAG Pipeline & Vector Search\n(Hospital Guidelines & Protocols)"]:::ai
-            SafetyGuard["Medical Safety Guardrails\n(Prompt Injection Defense & Privacy Shield)"]:::ai
-            FallbackProvider["Fail-Closed Provider Fallback\n(Local Deterministic Rule + Cloud LLM)"]:::ai
+            TriageEngine["Medical Symptom Intake & Triage<br/>(Structured Symptom Classifier)"]:::ai
+            RAGPipeline["RAG Pipeline & Vector Search<br/>(Hospital Guidelines & Protocols)"]:::ai
+            SafetyGuard["Medical Safety Guardrails<br/>(Prompt Injection Defense & Privacy Shield)"]:::ai
+            FallbackProvider["Fail-Closed Provider Fallback<br/>(Local Deterministic Rule + Cloud LLM)"]:::ai
         end
     end
 
-    %% LAYER 4: DATA PERSISTENCE & STORAGE
+    %% -------------------------------------------------------------
+    %% LAYER 4: DATA PERSISTENCE & STORAGE STACK
+    %% -------------------------------------------------------------
     subgraph DataLayer["LAYER 4: DATA PERSISTENCE & STORAGE STACK"]
-        PostgresDB[("PostgreSQL 16 (Primary DB)\nFlyway Versioned Migrations\nTransactional Catalog & Appointments")]:::data
-        RedisCache[("Redis / Key-Value Cache\nSliding Window Rate Limit & Session Tokens")]:::data
-        MinIOStorage[("MinIO / S3 Object Storage\nEncrypted Medical Scans & Lab Results")]:::data
-        SupabaseSync[("Supabase Audited Boundary\nHealthcare Schema + RLS Projections")]:::data
+        PostgresDB[("PostgreSQL 16 (Primary DB)<br/>Flyway Versioned Migrations<br/>Transactional Catalog & Appointments")]:::data
+        RedisCache[("Redis / Key-Value Cache<br/>Sliding Window Rate Limit & Session Tokens")]:::data
+        MinIOStorage[("MinIO / S3 Object Storage<br/>Encrypted Medical Scans & Lab Results")]:::data
+        SupabaseSync[("Supabase Audited Boundary<br/>Healthcare Schema + RLS Projections")]:::data
     end
 
-    %% LAYER 5: DEVOPS & OPERATIONS
+    %% -------------------------------------------------------------
+    %% LAYER 5: DEVOPS, SECURITY & OPERATIONS
+    %% -------------------------------------------------------------
     subgraph OpsLayer["LAYER 5: DEVOPS, SECURITY & OPERATIONS"]
-        GithubCI["GitHub Actions Enterprise CI/CD\n(Lint, Typecheck, Multi-arch Docker, SBOM)"]:::ops
-        ClamAVScan["ClamAV Antivirus Scanner\n(Attachment Scan Quarantine Pipe)"]:::ops
-        MailpitSink["Mailpit SMTP Dev Sink\n(Transactional Email & OTP Testing)"]:::ops
+        GithubCI["GitHub Actions Enterprise CI/CD<br/>(Lint, Typecheck, Multi-arch Docker, SBOM)"]:::ops
+        ClamAVScan["ClamAV Antivirus Scanner<br/>(Attachment Scan Quarantine Pipe)"]:::ops
+        MailpitSink["Mailpit SMTP Dev Sink<br/>(Transactional Email & OTP Testing)"]:::ops
     end
 
-    %% DATA FLOW CONNECTORS
+    %% -------------------------------------------------------------
+    %% FLOW ARROWS & DATA PATHS
+    %% -------------------------------------------------------------
     Users -->|HTTPS / Browsing| NextFrontend
-    NextFrontend --> PatientPortal & DoctorPortal & AdminPortal & MobilePWA
+    NextFrontend --> PatientPortal
+    NextFrontend --> DoctorPortal
+    NextFrontend --> AdminPortal
+    NextFrontend --> MobilePWA
     NextFrontend -->|Web Request| CustomDomain
     CustomDomain --> EdgeSecurity
     EdgeSecurity -->|Validated Origin| BFFProxy
@@ -153,18 +171,32 @@ flowchart TD
     BFFProxy -->|Server-side REST Token Auth| SpringSec
     BFFProxy -->|Streaming SSE Query| TriageEngine
 
-    SpringSec --> CatalogAPI & BookingEngine & ClinicalRecords & PaymentReconcile & RealtimeSSE
-    BookingEngine -->|Internal HTTP Triage| AIService
+    SpringSec --> CatalogAPI
+    SpringSec --> BookingEngine
+    SpringSec --> ClinicalRecords
+    SpringSec --> PaymentReconcile
+    SpringSec --> RealtimeSSE
 
-    CatalogAPI & BookingEngine & PaymentReconcile -->|JDBC Transactions| PostgresDB
-    SpringSec & EdgeSecurity -->|Rate-limit Tokens| RedisCache
+    BookingEngine -->|Internal HTTP Triage| TriageEngine
+
+    CatalogAPI -->|JDBC Transactions| PostgresDB
+    BookingEngine -->|JDBC Transactions| PostgresDB
+    PaymentReconcile -->|JDBC Transactions| PostgresDB
+
+    SpringSec -->|Rate-limit Tokens| RedisCache
+    EdgeSecurity -->|Rate-limit Tokens| RedisCache
+
     ClinicalRecords -->|S3 Presigned URLs| MinIOStorage
     MinIOStorage -.->|Async Virus Inspection| ClamAVScan
     PostgresDB -.->|Audited RLS Sync| SupabaseSync
 
-    GithubCI -.->|Automated Verification| NextFrontend & BackendMono & AIService
-    BackendMono -.->|Development Email Sink| MailpitSink
+    GithubCI -.->|Automated Verification| NextFrontend
+    GithubCI -.->|Automated Verification| SpringSec
+    GithubCI -.->|Automated Verification| TriageEngine
+    SpringSec -.->|Development Email Sink| MailpitSink
 ```
+
+</details>
 
 ---
 
