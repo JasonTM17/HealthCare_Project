@@ -128,11 +128,17 @@ button:disabled {
 }
 
 a:focus-visible,
+a:focus,
 button:focus-visible,
+button:focus,
 input:focus-visible,
+input:focus,
 textarea:focus-visible,
+textarea:focus,
 select:focus-visible,
-summary:focus-visible {
+select:focus,
+summary:focus-visible,
+summary:focus {
   outline: 3px solid var(--color-focus);
   outline-offset: 3px;
 }
@@ -9758,12 +9764,18 @@ main {
   background: var(--color-mint-light) !important;
 }
 
+.site-footer a:focus,
+.site-footer a:focus-visible,
+.site-shell .site-footer a:focus,
 .site-shell .site-footer a:focus-visible {
   outline: 3px solid var(--color-amber, #f5c96a) !important;
   outline-offset: 3px !important;
 }
 
 @media (forced-colors: active) {
+  .site-footer a:focus,
+  .site-footer a:focus-visible,
+  .site-shell .site-footer a:focus,
   .site-shell .site-footer a:focus-visible {
     outline-color: Highlight !important;
   }
