@@ -33,7 +33,7 @@ flowchart TD
     %% LAYER 3: APPLICATION SERVICES (RENDER CLOUD CONTAINERS)
     %% -------------------------------------------------------------
     subgraph ServiceLayer["LAYER 3: APPLICATION SERVICES (RENDER CLOUD)"]
-        subgraph BackendMono["Core Backend Service (Spring Boot 3.3.x, Java 21)"]
+        subgraph BackendMono["Core Backend Service (Spring Boot 3.5.x, Java 21)"]
             SpringSec["Spring Security 6\n(JWT Stateless Auth, RBAC, Bounded OTP)"]:::backend
             CatalogAPI["Hospital Catalog & Doctors API\n(Specialties, Branches, Packages)"]:::backend
             BookingEngine["Booking & Appointment Lifecycle\n(Concurrency Lock & Rescheduling)"]:::backend
@@ -54,7 +54,7 @@ flowchart TD
     %% LAYER 4: DATA PERSISTENCE & STORAGE
     %% -------------------------------------------------------------
     subgraph DataLayer["LAYER 4: DATA PERSISTENCE & STORAGE STACK"]
-        PostgresDB[("PostgreSQL 16 (Primary DB)\nFlyway Migrations (V1..V8 Schema)\nTransactional Catalog & Appointments")]:::data
+        PostgresDB[("PostgreSQL 16 (Primary DB)\nFlyway Versioned Migrations\nTransactional Catalog & Appointments")]:::data
         RedisCache[("Redis / Key-Value Cache\nSliding Window Rate Limit & Session Tokens")]:::data
         MinIOStorage[("MinIO / S3 Object Storage\nEncrypted Medical Scans & Lab Results")]:::data
         SupabaseSync[("Supabase Audited Boundary\nHealthcare Schema + RLS Projections")]:::data
@@ -78,7 +78,7 @@ flowchart TD
     CustomDomain --> EdgeSecurity
     EdgeSecurity -->|Validated Origin| BFFProxy
 
-    BFFProxy -->|Server-side Token Auth (REST)| SpringSec
+    BFFProxy -->|Server-side REST Token Auth| SpringSec
     BFFProxy -->|Streaming SSE Query| TriageEngine
 
     SpringSec --> CatalogAPI & BookingEngine & ClinicalRecords & PaymentReconcile & RealtimeSSE
