@@ -9,6 +9,7 @@ import { formatBusinessDate } from "../../../lib/business-time";
 import { presentApiError } from "../../../lib/present-api-error";
 import type { Article } from "../../../types/hospital";
 import { PublicAiButton, PublicBackLink, PublicBookingButton, PublicPageShell } from "../../../components/PublicPageShell";
+import { RichContentRenderer } from "../../../components/editor";
 
 const ARTICLE_STEPS = [
   ["01", "Đọc phần tóm tắt", "Xác nhận bài viết có đúng chủ đề bạn đang tìm không."],
@@ -163,15 +164,21 @@ export default function ArticleDetailPage() {
                     {structuredSections.map((section, index) => (
                       <section key={`${section.heading}-${index}`}>
                         <h3>{section.heading}</h3>
-                        <p>{section.body}</p>
+                        <RichContentRenderer
+                          content={section.body}
+                          fallback={<p>{section.body}</p>}
+                        />
                       </section>
                     ))}
                   </div>
-                ) : bodyParagraphs.length ? (
+                ) : article?.body ? (
                   <div className="article-detail-card__body">
-                    {bodyParagraphs.map((paragraph, index) => (
-                      <p key={`${paragraph.slice(0, 24)}-${index}`}>{paragraph}</p>
-                    ))}
+                    <RichContentRenderer
+                      content={article.body}
+                      fallback={bodyParagraphs.map((paragraph, index) => (
+                        <p key={`${paragraph.slice(0, 24)}-${index}`}>{paragraph}</p>
+                      ))}
+                    />
                   </div>
                 ) : (
                   <div className="article-detail-card__notice">
