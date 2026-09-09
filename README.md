@@ -4,22 +4,27 @@
 ### Nền Tảng Y Tế Số Toàn Diện • Hệ Thống Quản Trị Bệnh Viện Thông Minh
 **Next-Generation Hospital Management, Branch-Aware Clinical Booking & AI-Assisted Medical Triage**
 
-[![Production Domain](https://img.shields.io/badge/Production-www.healthcare.id.vn-0284c7?style=for-the-badge&logo=vercel&logoColor=white)](https://www.healthcare.id.vn)
-[![Vercel Beta](https://img.shields.io/badge/Vercel_Alias-healthcare--two--olive.vercel.app-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://healthcare-two-olive.vercel.app)
-[![Next.js 16](https://img.shields.io/badge/Frontend-Next.js_16_%7C_React_19-black?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org)
-[![Spring Boot 3](https://img.shields.io/badge/Backend-Spring_Boot_3.3_%7C_Java_21-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
-[![FastAPI AI](https://img.shields.io/badge/AI_Engine-FastAPI_%7C_Python_3.12-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
-[![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL_16_%7C_Flyway-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org)
-[![Docker Compose](https://img.shields.io/badge/Topology-Docker_Compose_9_Services-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com)
-[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
+[![CI](https://github.com/JasonTM17/HealthCare_Project/actions/workflows/ci.yml/badge.svg?branch=main&style=for-the-badge&label=CI)](https://github.com/JasonTM17/HealthCare_Project/actions/workflows/ci.yml)
+[![Production](https://img.shields.io/badge/Production-www.healthcare.id.vn-0284c7?style=for-the-badge&logo=vercel&logoColor=white)](https://www.healthcare.id.vn)
+[![License](https://img.shields.io/github/license/JasonTM17/HealthCare_Project?style=for-the-badge&logo=open-source-initiative&logoColor=white)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/JasonTM17/HealthCare_Project?style=for-the-badge&logo=github&label=Stars)](https://github.com/JasonTM17/HealthCare_Project/stargazers)
+[![Last Commit](https://img.shields.io/github/last-commit/JasonTM17/HealthCare_Project/main?style=for-the-badge&logo=git&label=Last%20Commit)](https://github.com/JasonTM17/HealthCare_Project/commits/main)
+[![PRs Welcome](https://img.shields.io/badge/PRs-Welcome-2ea44f?style=for-the-badge)](https://github.com/JasonTM17/HealthCare_Project/compare)
+
+[![Frontend](https://img.shields.io/badge/Frontend-Next.js_16_%7C_React_19-black?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org)
+[![Backend](https://img.shields.io/badge/Backend-Spring_Boot_3.5_%7C_Java_21-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
+[![AI Engine](https://img.shields.io/badge/AI_Engine-FastAPI_%7C_Python_3.12-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![Database](https://img.shields.io/badge/Database-PostgreSQL_16_%7C_Redis_7-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org)
+[![Deployment](https://img.shields.io/badge/Deploy-Docker_Compose_%7C_Vercel_%7C_Render-2496ED?style=for-the-badge&logo=docker&logoColor=white)](infrastructure/docker-compose.yml)
 
 <p align="center">
-  <a href="#demo-trực-tiếp--tài-khoản-trải-nghiệm-live-demo--roles"><strong>Trải nghiệm Demo</strong></a> •
-  <a href="#product-walkthrough-demo"><strong>Ảnh động Demo (GIF)</strong></a> •
+  <a href="#product-walkthrough-demo"><strong>Demo (GIF)</strong></a> •
+  <a href="#demo-trực-tiếp--tài-khoản-trải-nghiệm-live-demo--roles"><strong>Demo Trực Tiếp</strong></a> •
   <a href="#kiến-trúc-hệ-thống-system-architecture"><strong>Sơ đồ Kiến trúc</strong></a> •
-  <a href="#bộ-sưu-tập-giao-diện-thực-tế-screenshots-gallery"><strong>Ảnh Giao diện Thực tế</strong></a> •
-  <a href="#tính-năng-cốt-lõi-features-matrix"><strong>Tính năng Cốt lõi</strong></a> •
-  <a href="#hướng-dẫn-cài-đặt--khởi-động-nhanh-quick-start"><strong>Cài đặt Cục bộ</strong></a>
+  <a href="#bộ-sưu-tập-giao-diện-thực-tế-screenshots-gallery"><strong>Ảnh Giao diện</strong></a> •
+  <a href="#tính-năng-cốt-lõi-features-matrix"><strong>Tính năng</strong></a> •
+  <a href="#hướng-dẫn-cài-đặt--khởi-động-nhanh-quick-start"><strong>Cài đặt</strong></a> •
+  <a href="#giấy-phép--nguồn-bên-thứ-ba-license--third-party"><strong>Giấy phép</strong></a>
 </p>
 
 </div>
@@ -31,7 +36,7 @@
 > *Ảnh động minh họa toàn bộ hành trình trải nghiệm hệ sinh thái y tế số HealthCare: từ tra cứu chuyên khoa, tìm kiếm bác sĩ, kích hoạt trợ lý AI y tế (RAG), đến quản lý cổng bệnh nhân, studio lâm sàng bác sĩ và bảng điều khiển quản trị viện.*
 
 <div align="center">
-  <img src="docs/assets/demo.gif" alt="HealthCare Product Walkthrough Demo" width="100%" style="border-radius: 12px; box-shadow: 0 12px 36px rgba(0,0,0,0.12); border: 1px solid #e2e8f0;" />
+  <img src="docs/assets/demo.gif" alt="HealthCare Product Walkthrough Demo" width="100%" />
 </div>
 
 ---
@@ -55,25 +60,27 @@ Hệ thống đã được thiết lập sẵn phân quyền người dùng theo
 
 ## Kiến trúc Hệ thống (System Architecture)
 
-Kiến trúc **HealthCare Project** tuân thủ các chuẩn mực thiết kế phân lớp doanh nghiệp (Enterprise Tiered Architecture), phân tách độc lập giữa cổng biên Vercel Edge, lớp ứng dụng lõi Spring Boot & FastAPI AI trên nền tảng đám mây Render, cùng ngăn xếp lưu trữ dữ liệu an toàn PostgreSQL, Redis, MinIO và Supabase RLS.
+Kiến trúc **HealthCare Project** tuân thủ chuẩn mực thiết kế phân lớp doanh nghiệp (Enterprise Tiered Architecture): cổng biên Vercel Edge, lớp ứng dụng lõi Spring Boot & FastAPI AI trên nền tảng Render, cùng ngăn xếp lưu trữ PostgreSQL, Redis, MinIO và Supabase RLS.
 
-### Sơ đồ Kiến trúc Xuất bản (High-Resolution Diagram)
+### Sơ đồ Kiến trúc Xuất bản (Published Diagram)
 
 <div align="center">
   <a href="docs/assets/architecture.svg">
-    <img src="docs/assets/architecture.png" alt="HealthCare System Architecture Diagram" width="100%" style="border-radius: 12px; box-shadow: 0 12px 36px rgba(0,0,0,0.12); border: 1px solid #e2e8f0;" />
+    <img src="docs/assets/architecture.png" alt="HealthCare System Architecture Diagram" width="100%" />
   </a>
-  <p><em>Sơ đồ Kiến trúc Hệ thống HealthCare (Chuẩn đồ họa công bố 2026). Nhấp vào hình để mở tệp SVG vector nguyên bản.</em></p>
+  <p><em>Sơ đồ Kiến trúc Hệ thống HealthCare. Nhấp vào hình để mở tệp SVG vector nguyên bản.</em></p>
 </div>
 
-> **Tài sản sơ đồ**:
-> - Định dạng đồ họa vector SVG sắc nét: [`docs/assets/architecture.svg`](docs/assets/architecture.svg)
-> - Định dạng ảnh siêu nét Retina 2K (2880×1960): [`docs/assets/architecture.png`](docs/assets/architecture.png)
-> - Tài liệu phân tích kỹ thuật chi tiết: [`docs/architecture/system-overview.md`](docs/architecture/system-overview.md)
+| Tài sản | Vị trí |
+| :--- | :--- |
+| Đồ họa vector SVG | [`docs/assets/architecture.svg`](docs/assets/architecture.svg) |
+| Ảnh siêu nét Retina 2K | [`docs/assets/architecture.png`](docs/assets/architecture.png) |
+| Nguồn Mermaid (bản chỉnh sửa chuẩn) | [`docs/architecture/system-overview.mmd`](docs/architecture/system-overview.mmd) |
+| Phân tích kỹ thuật chi tiết từng tầng | [`docs/architecture/system-overview.md`](docs/architecture/system-overview.md) |
 
----
+### Sơ đồ Mermaid (Interactive Diagram)
 
-### Sơ đồ Mermaid.js v11 (Interactive Flowchart)
+> Nội dung đồng bộ với nguồn chuẩn [`system-overview.mmd`](docs/architecture/system-overview.mmd).
 
 ```mermaid
 flowchart TD
@@ -104,7 +111,7 @@ flowchart TD
 
     %% LAYER 3: APPLICATION SERVICES (RENDER CLOUD)
     subgraph ServiceLayer["LAYER 3: APPLICATION SERVICES (RENDER CLOUD)"]
-        subgraph BackendMono["Core Backend Service (Spring Boot 3.3.x, Java 21)"]
+        subgraph BackendMono["Core Backend Service (Spring Boot 3.5.x, Java 21)"]
             SpringSec["Spring Security 6\n(JWT Stateless Auth, RBAC, Bounded OTP)"]:::backend
             CatalogAPI["Hospital Catalog & Doctors API\n(Specialties, Branches, Packages)"]:::backend
             BookingEngine["Booking & Appointment Lifecycle\n(Concurrency Lock & Rescheduling)"]:::backend
@@ -123,7 +130,7 @@ flowchart TD
 
     %% LAYER 4: DATA PERSISTENCE & STORAGE
     subgraph DataLayer["LAYER 4: DATA PERSISTENCE & STORAGE STACK"]
-        PostgresDB[("PostgreSQL 16 (Primary DB)\nFlyway Migrations (V1..V8 Schema)\nTransactional Catalog & Appointments")]:::data
+        PostgresDB[("PostgreSQL 16 (Primary DB)\nFlyway Versioned Migrations\nTransactional Catalog & Appointments")]:::data
         RedisCache[("Redis / Key-Value Cache\nSliding Window Rate Limit & Session Tokens")]:::data
         MinIOStorage[("MinIO / S3 Object Storage\nEncrypted Medical Scans & Lab Results")]:::data
         SupabaseSync[("Supabase Audited Boundary\nHealthcare Schema + RLS Projections")]:::data
@@ -143,7 +150,7 @@ flowchart TD
     CustomDomain --> EdgeSecurity
     EdgeSecurity -->|Validated Origin| BFFProxy
 
-    BFFProxy -->|Server-side Token Auth (REST)| SpringSec
+    BFFProxy -->|Server-side REST Token Auth| SpringSec
     BFFProxy -->|Streaming SSE Query| TriageEngine
 
     SpringSec --> CatalogAPI & BookingEngine & ClinicalRecords & PaymentReconcile & RealtimeSSE
@@ -163,14 +170,14 @@ flowchart TD
 
 ## Bộ Sưu Tập Giao Diện Thực Tế (Screenshots Gallery)
 
-Dưới đây là các hình ảnh chụp thực tế từ hệ thống trên các thiết bị và cổng phân quyền khác nhau:
+Ảnh chụp thực tế từ hệ thống trên các thiết bị và cổng phân quyền khác nhau:
 
 ### 1. Trang Chủ & Trải Nghiệm Khám Phá (Desktop & Mobile)
 
 | Giao diện Desktop Trang chủ (`2880 × 1800`) | Giao diện Mobile Responsive PWA (`780 × 1688`) |
 | :---: | :---: |
 | [![Desktop Homepage](docs/assets/screenshots/01-desktop-homepage.png)](docs/assets/screenshots/01-desktop-homepage.png) | [![Mobile Responsive](docs/assets/screenshots/05-mobile-responsive.png)](docs/assets/screenshots/05-mobile-responsive.png) |
-| *Tìm kiếm chuyên khoa, bác sĩ & bảng tin y tế* | *Tối ưu hóa cảm ứng, 100% không vỡ layout trên mobile* |
+| *Tìm kiếm chuyên khoa, bác sĩ & bảng tin y tế* | *Tối ưu hóa cảm ứng, không vỡ layout trên mobile* |
 
 ### 2. Danh Mục Chuyên Khoa & Danh Bạ Bác Sĩ
 
@@ -193,6 +200,16 @@ Dưới đây là các hình ảnh chụp thực tế từ hệ thống trên c�
 | [![Admin AI Governance](docs/assets/screenshots/04-admin-ai-governance.png)](docs/assets/screenshots/04-admin-ai-governance.png) | [![AI Medical Assistant](docs/assets/screenshots/08-ai-medical-assistant.png)](docs/assets/screenshots/08-ai-medical-assistant.png) |
 | *Bảng kiểm duyệt câu hỏi AI, quản lý danh mục toàn viện* | *Phân luồng triệu chứng, tra cứu phác đồ y khoa an toàn* |
 
+### 5. Quy Trình Đặt Lịch Khám (Booking Wizard)
+
+<div align="center">
+
+[![Booking Wizard](docs/assets/screenshots/09-booking-wizard.png)](docs/assets/screenshots/09-booking-wizard.png)
+
+*Đặt lịch phân luồng theo chi nhánh, chuyên khoa và khung giờ trống của bác sĩ*
+
+</div>
+
 ---
 
 ## Tính Năng Cốt Lõi (Features Matrix)
@@ -200,8 +217,8 @@ Dưới đây là các hình ảnh chụp thực tế từ hệ thống trên c�
 ### 1. Nghiệp vụ Khám Chữa Bệnh & Đặt Lịch (Clinical & Scheduling)
 - **Đặt lịch phân luồng chi nhánh**: Chọn bệnh viện/cơ sở gần nhất, lựa chọn chuyên khoa và bác sĩ phụ trách.
 - **Khóa chỗ chống xung đột (Pessimistic Locking)**: Kiểm soát chặt chẽ khung giờ khám (slots), đảm bảo 2 bệnh nhân không thể cùng đặt 1 khung giờ.
-- **Vòng đời cuộc hẹn hoàn chỉnh**: Đặt lịch -> Xác nhận qua OTP/Email -> Tiếp nhận -> Khám bệnh -> Xuất bệnh án & Đơn thuốc.
-- **Hồ sơ lâm sàng điện tử**: Lưu trữ kết quả chẩn đoán, phiếu xét nghiệm hình ảnh với chữ ký số và phân quyền bảo mật cao.
+- **Vòng đời cuộc hẹn hoàn chỉnh**: Đặt lịch → Xác nhận qua OTP/Email → Tiếp nhận → Khám bệnh → Xuất bệnh án & Đơn thuốc.
+- **Hồ sơ lâm sàng điện tử**: Lưu trữ kết quả chẩn đoán, phiếu xét nghiệm hình ảnh với phân quyền bảo mật cao.
 
 ### 2. Trợ Lý AI Y Tế & RAG Tri thức (Medical AI & Safety Guardrails)
 - **Tiếp nhận & phân luồng triệu chứng (Triage)**: Phân tích mô tả của người bệnh, gợi ý chuyên khoa phù hợp và phát hiện dấu hiệu cấp cứu y tế.
@@ -224,13 +241,31 @@ Dưới đây là các hình ảnh chụp thực tế từ hệ thống trên c�
 ```text
 HealthCare_Project Monorepo
 ├── Frontend:        Next.js 16.3.3 (App Router) • React 19.2.8 • TailwindCSS 3.4 • TypeScript 6.0
-├── Backend Core:     Spring Boot 3.3.x (Java 21) • Spring Security 6 • Hibernate • Flyway
-├── AI Service:       FastAPI (Python 3.12) • LangChain / RAG Pipeline • Vector Search • Pytest
-├── Database:        PostgreSQL 16 • Redis / Render Key-Value • Supabase RLS
-├── Storage:         MinIO S3 Compatible Object Storage • ClamAV Scanner
-├── Edge & Hosting:  Vercel Edge Network (Domain www.healthcare.id.vn) • Render Cloud Containers
-└── DevOps & CI/CD:  GitHub Actions • Docker Compose (9 Services) • Playwright E2E
+├── Backend Core:    Spring Boot 3.5 (Java 21) • Spring Security 6 • Hibernate • Flyway
+├── AI Service:      FastAPI (Python 3.12) • RAG Pipeline • Vector Search • Pytest
+├── Database:        PostgreSQL 16 • Redis 7 • Supabase (RLS boundary)
+├── Storage:         MinIO (S3-compatible) • ClamAV Scanner
+├── Edge & Hosting:  Vercel Edge Network (www.healthcare.id.vn) • Render Cloud Containers
+└── DevOps & CI/CD:  GitHub Actions • Docker Compose • Playwright E2E
 ```
+
+### Cấu Trúc Repository (Repository Layout)
+
+```text
+HealthCare_Project/
+├── apps/
+│   ├── frontend/       Next.js 16 portal — cổng bệnh nhân, bác sĩ, quản trị viên
+│   ├── backend/        Spring Boot 3.5 modular monolith — API, RBAC, Flyway migrations
+│   └── ai-service/     FastAPI — triage engine, RAG pipeline, safety guardrails
+├── infrastructure/
+│   ├── av-scanner/     Dịch vụ quét tệp đính kèm ClamAV
+│   ├── database/       Tiện ích khởi tạo & kiểm tra cơ sở dữ liệu
+│   └── tests/          Kiểm thử hạ tầng compose
+├── docs/               Kiến trúc, ADR, runbook, sơ đồ xuất bản (architecture.svg/png)
+└── .github/workflows/  CI/CD: lint, test, build & publish container images
+```
+
+> Bản đồ mô-đun chi tiết và ghi chú kiến trúc: [`docs/architecture/README.md`](docs/architecture/README.md). Sơ đồ lược đồ dữ liệu: [`docs/database/schema-overview.md`](docs/database/schema-overview.md).
 
 ---
 
@@ -243,7 +278,8 @@ HealthCare_Project Monorepo
 - **Python** `>= 3.12`
 
 ### 2. Khởi chạy Toàn bộ Hệ thống bằng Docker Compose (Khuyên dùng)
-Chỉ với 1 câu lệnh, toàn bộ 9 container dịch vụ (Frontend, Backend, AI, PostgreSQL, Redis, MinIO, Mailpit, ClamAV) sẽ được khởi chạy đồng bộ:
+
+Một câu lệnh khởi chạy toàn bộ stack cục bộ: Frontend, Spring Boot API, AI Service, PostgreSQL, Redis, MinIO, ClamAV Scanner, Mailpit cùng các dịch vụ khởi tạo dữ liệu mẫu. Danh mục dịch vụ đầy đủ xem tại [`infrastructure/docker-compose.yml`](infrastructure/docker-compose.yml).
 
 ```bash
 # 1. Clone repository
@@ -253,7 +289,7 @@ cd HealthCare_Project
 # 2. Tạo tệp môi trường từ bản mẫu
 cp .env.example .env
 
-# 3. Khởi chạy toàn bộ 9 dịch vụ với Docker Compose
+# 3. Khởi chạy toàn bộ stack với Docker Compose
 docker compose --env-file .env -f infrastructure/docker-compose.yml up -d
 ```
 
@@ -261,14 +297,14 @@ Sau khi các container đạt trạng thái `healthy`:
 - **Web Frontend**: [http://localhost:3000](http://localhost:3000)
 - **Spring Boot API**: [http://localhost:8080/actuator/health](http://localhost:8080/actuator/health)
 - **FastAPI AI Service**: [http://localhost:8000/livez](http://localhost:8000/livez)
-- **MinIO Console**: [http://localhost:9001](http://localhost:9001) *(User/Pass: `minioadmin` / `minioadmin`)*
-- **Mailpit Web UI**: [http://localhost:8025](http://localhost:8025)
+- **MinIO Console**: [http://localhost:9001](http://localhost:9001) *(mặc định từ `.env.example`: `healthcare` / `change-me` — đổi ngay nếu mở ra mạng ngoài)*
+- **Mailpit Web UI**: [http://localhost:8025](http://localhost:8025) *(email & OTP trong môi trường dev)*
 
 ---
 
 ### 3. Khởi chạy Từng Phân Hệ để Phát Triển (Local Development)
 
-#### Chạy Backend (Spring Boot 3)
+#### Chạy Backend (Spring Boot 3.5)
 ```bash
 cd apps/backend
 ./mvnw clean test
@@ -295,32 +331,37 @@ uvicorn app.main:app --reload --port 8000
 
 ## Chiến Lược Kiểm Thử & CI/CD Pipeline (Testing & Verification)
 
-Hệ thống được bảo vệ bởi mạng lưới kiểm thử tự động đa tầng (Multi-layer Testing Pipeline):
+Hệ thống được bảo vệ bởi mạng lưới kiểm thử tự động đa tầng, vận hành trên GitHub Actions (xem cấu hình pipeline tại [`.github/workflows/`](.github/workflows/)):
 
 ```text
-┌───────────────────────────────────────────────────────────────────────────────────┐
-│                           GitHub Actions CI/CD Pipeline                           │
-├───────────────────┼───────────────────┼───────────────────┼───────────────────────┤
-│    apps/frontend  │   apps/backend    │  apps/ai-service  │     E2E & Compose     │
-├───────────────────┼───────────────────┼───────────────────┼───────────────────────┤
-│ • ESLint 9        │ • JUnit 5 (528)   │ • Pytest (427)    │ • Playwright E2E      │
-│ • TypeScript tsc  │ • Integration DB  │ • Ruff Linter     │ • BFF Chat Canary     │
-│ • Unit & BFF (268)│ • Security RBAC   │ • Mypy Typecheck  │ • Multi-arch Docker   │
-│ • Next.js Build   │ • Flyway Validate │ • Adversarial RAG │ • SBOM & Provenance   │
-└───────────────────┴───────────────────┴───────────────────┴───────────────────────┘
+┌───────────────────────────────────────────────────────────────────────────┐
+│                          GitHub Actions CI/CD Pipeline                     │
+├───────────────────┬───────────────────┬─────────────────┬─────────────────┤
+│   apps/frontend   │   apps/backend    │  apps/ai-service│  E2E & Images   │
+├───────────────────┼───────────────────┼─────────────────┼─────────────────┤
+│ • ESLint 9        │ • JUnit 5         │ • Pytest        │ • Playwright E2E│
+│ • TypeScript tsc  │ • Testcontainers  │ • Ruff Linter   │ • BFF Chat      │
+│ • Unit & BFF      │ • Security (RBAC) │ • Mypy Typecheck│   Canary        │
+│ • Next.js Build   │ • Flyway Validate │ • RAG Guardrails│ • Multi-arch    │
+│                   │                   │                 │   Docker        │
+│                   │                   │                 │ • SBOM &        │
+│                   │                   │                 │   Provenance    │
+└───────────────────┴───────────────────┴─────────────────┴─────────────────┘
 ```
 
-Chạy kiểm tra xác thực nhanh cục bộ trước khi tạo Pull Request:
+Chạy kiểm tra xác thực cục bộ trước khi tạo Pull Request:
 ```bash
-# Kiểm tra Frontend
+# Kiểm tra Frontend (lint + typecheck + unit/BFF + build)
 cd apps/frontend && npm run verify
 
 # Kiểm tra Backend
 cd apps/backend && ./mvnw test
 
-# Kiểm tra AI Service
+# Kiểm tra AI Service (test + lint + typecheck)
 cd apps/ai-service && python -m pytest && ruff check . && mypy
 ```
+
+> Số lượng test cập nhật theo thời gian — trạng thái mới nhất luôn phản ánh qua badge **CI** ở đầu trang và log pipeline của GitHub Actions.
 
 ---
 
@@ -359,6 +400,17 @@ cd apps/ai-service && python -m pytest && ruff check . && mypy
 
 ---
 
+## Giấy Phép & Nguồn Bên Thứ Ba (License & Third-Party)
+
+> [!IMPORTANT]
+> **Giấy phép dự án**: Mã nguồn của HealthCare Project phát hành theo giấy phép [MIT](LICENSE).
+
+> [!IMPORTANT]
+> **TinyMCE 8.9.0 (GPL)**: Trình soạn thảo văn bản phong phú TinyMCE được self-host tại `apps/frontend/public/tinymce/` và khởi tạo với `licenseKey="gpl"` (GPLv2+). Việc phân phối bundle front-end kèm theo bundle TinyMCE phát sinh nghĩa vụ tuân thủ GNU GPL v2+ cho phần bundle trình soạn thảo này. Nếu dự án không muốn gánh nghĩa vụ GPL khi thương mại hóa, cần mua commercial license từ Tiny (hoặc thay thế trình soạn thảo) — đây là **quyết định còn mở** thuộc về product owner, chưa được chốt tại thời điểm hiện tại.
+
+---
+
 <div align="center">
-  <p>Được phát triển với niềm đam mê nâng cao trải nghiệm y tế số • Bản quyền © 2026 HealthCare Project.</p>
+  <p><strong>HealthCare Project</strong> — Nghiên cứu & Giáo dục về kiến trúc y tế số thông minh</p>
+  <p>Bản quyền © 2026 HealthCare Project contributors • Phát hành theo giấy phép <a href="LICENSE">MIT</a></p>
 </div>

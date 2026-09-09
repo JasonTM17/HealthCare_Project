@@ -54,7 +54,7 @@ flowchart TD
     %% LAYER 3: APPLICATION SERVICES (RENDER CLOUD CONTAINERS)
     %% -------------------------------------------------------------
     subgraph ServiceLayer["LAYER 3: APPLICATION SERVICES (RENDER CLOUD)"]
-        subgraph BackendMono["Core Backend Service (Spring Boot 3.3.x, Java 21)"]
+        subgraph BackendMono["Core Backend Service (Spring Boot 3.5.x, Java 21)"]
             SpringSec["Spring Security 6\n(JWT Stateless Auth, RBAC, Bounded OTP)"]:::backend
             CatalogAPI["Hospital Catalog & Doctors API\n(Specialties, Branches, Packages)"]:::backend
             BookingEngine["Booking & Appointment Lifecycle\n(Concurrency Lock & Rescheduling)"]:::backend
@@ -75,7 +75,7 @@ flowchart TD
     %% LAYER 4: DATA PERSISTENCE & STORAGE
     %% -------------------------------------------------------------
     subgraph DataLayer["LAYER 4: DATA PERSISTENCE & STORAGE STACK"]
-        PostgresDB[("PostgreSQL 16 (Primary DB)\nFlyway Migrations (V1..V8 Schema)\nTransactional Catalog & Appointments")]:::data
+        PostgresDB[("PostgreSQL 16 (Primary DB)\nFlyway Versioned Migrations\nTransactional Catalog & Appointments")]:::data
         RedisCache[("Redis / Key-Value Cache\nSliding Window Rate Limit & Session Tokens")]:::data
         MinIOStorage[("MinIO / S3 Object Storage\nEncrypted Medical Scans & Lab Results")]:::data
         SupabaseSync[("Supabase Audited Boundary\nHealthcare Schema + RLS Projections")]:::data
@@ -99,7 +99,7 @@ flowchart TD
     CustomDomain --> EdgeSecurity
     EdgeSecurity -->|Validated Origin| BFFProxy
 
-    BFFProxy -->|Server-side Token Auth (REST)| SpringSec
+    BFFProxy -->|Server-side REST Token Auth| SpringSec
     BFFProxy -->|Streaming SSE Query| TriageEngine
 
     SpringSec --> CatalogAPI & BookingEngine & ClinicalRecords & PaymentReconcile & RealtimeSSE
@@ -132,7 +132,7 @@ flowchart TD
 - **BFF (Backend-For-Frontend) Proxy**: Các yêu cầu từ trình duyệt được gửi qua Route Handlers `/api/v1/*` của Next.js. BFF chịu trách nhiệm chèn token bảo mật server-side, ẩn hoàn toàn địa chỉ IP và cổng dịch vụ nội bộ của backend.
 - **Origin Guard & Chống DDoS**: Kiểm tra header `Origin` nghiêm ngặt; từ chối mọi yêu cầu từ các domain lạ (`403 BFF_ORIGIN_INVALID`), đồng thời áp dụng rate-limiting chống quét tự động.
 
-### 3. Tầng Dịch vụ Backend (Spring Boot 3.3.x, Java 21)
+### 3. Tầng Dịch vụ Backend (Spring Boot 3.5.x, Java 21)
 - **Mô hình Modular Monolith**: Đóng gói các module nghiệp vụ tách biệt (Auth, Booking, Catalog, Notification, Billing) trên một codebase duy nhất nhằm đảm bảo hiệu năng và đơn giản hóa việc triển khai.
 - **Spring Security 6 & RBAC**: Cơ chế xác thực phi trạng thái (Stateless JWT), bảo vệ nghiêm ngặt theo các vai trò `ADMIN`, `DOCTOR`, `PATIENT`. Mã hóa mật khẩu chuẩn BCrypt và mã xác thực OTP có thời hạn chặt chẽ.
 - **Xử lý Đặt lịch & Khóa chỗ (Concurrency Control)**: Đảm bảo không xảy ra xung đột khi nhiều bệnh nhân cùng đặt một ca khám của bác sĩ tại cùng một khung giờ.
@@ -147,7 +147,7 @@ flowchart TD
 - **Cơ chế Dự phòng Đóng an toàn (Fail-closed Fallback)**: Nếu nhà cung cấp mô hình ngôn ngữ bên ngoài gặp sự cố, hệ thống tự động kích hoạt luật dự phòng an toàn nội bộ (deterministic fallback), đảm bảo không trả lời sai lệch thông tin y khoa.
 
 ### 5. Tầng Dữ liệu & Lưu trữ (Data Persistence & Storage)
-- **PostgreSQL 16**: Cơ sở dữ liệu quan hệ chính lưu trữ toàn bộ dữ liệu giao dịch, lịch hẹn, hồ sơ bệnh nhân. Được quản lý phiên bản cấu trúc bảng thông qua Flyway Migrations (từ V1 đến V8).
+- **PostgreSQL 16**: Cơ sở dữ liệu quan hệ chính lưu trữ toàn bộ dữ liệu giao dịch, lịch hẹn, hồ sơ bệnh nhân. Cấu trúc bảng được quản lý phiên bản qua Flyway Migrations — danh mục bản di trú đầy đủ nằm tại `apps/backend/src/main/resources/db/migration/`.
 - **Redis / Key-Value**: Bộ nhớ đệm tốc độ cao phục vụ thuật toán Sliding Window Rate Limiting, lưu trữ tạm OTP và phiên đăng nhập.
 - **MinIO / AWS S3 Object Storage**: Lưu trữ an toàn các tệp đính kèm kết quả xét nghiệm, ảnh chụp X-quang/MRI và avatar bác sĩ. Tích hợp presigned URLs hạn chế thời gian truy cập.
 - **Supabase (Audited Data Boundary)**: Đồng bộ dữ liệu phục vụ báo cáo và phân tích chỉ số y tế với chính sách Row-Level Security (RLS) bảo vệ quyền riêng tư người bệnh.
