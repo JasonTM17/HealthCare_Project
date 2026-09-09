@@ -1153,7 +1153,7 @@ export function RichTextEditor({
               <span>TinyMCE</span>
             </button>
             <button
-              aria-label="Chế độ chỉ soạn thảo"
+              aria-label="Mã nguồn"
               aria-pressed={viewMode === "edit"}
               className={`rounded-[2px] px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer ${
                 viewMode === "edit"
