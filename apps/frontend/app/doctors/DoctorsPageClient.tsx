@@ -98,9 +98,9 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
           </div>
           <div className="resource-hero-card__body">
             <p className="resource-chip">Đội ngũ chuyên gia</p>
-            <h2>Tìm bác sĩ phù hợp với bạn</h2>
+            <h2>Tìm bác sĩ theo nhu cầu thăm khám</h2>
             <p className="resource-lead">
-              Xem chuyên môn, chọn cơ sở và đặt lịch khám phù hợp.
+              Xem chuyên môn, chọn cơ sở và chủ động đặt lịch hẹn trực tuyến.
             </p>
             <div className="resource-actions">
               <PublicAiButton className="outline-button outline-button--light">Hỏi trợ lý chọn chuyên khoa</PublicAiButton>

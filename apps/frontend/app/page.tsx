@@ -77,23 +77,23 @@ const getBranchImage = (branch: Branch, index: number): string => {
 const JOURNEY_STEPS: Array<{ icon: IconName; title: string; description: string }> = [
   {
     icon: "calendar",
-    title: "Chọn nhu cầu khám",
-    description: "Tìm theo chuyên khoa, bác sĩ, gói khám hoặc cơ sở phù hợp.",
+    title: "Chọn chuyên khoa & bác sĩ",
+    description: "Tra cứu thông tin minh bạch theo chuyên khoa, bác sĩ hoặc gói khám.",
   },
   {
     icon: "building",
-    title: "Giữ một khung giờ",
-    description: "Chọn ngày, giờ và cơ sở ngay trong luồng đặt lịch hiện có.",
+    title: "Chọn giờ & cơ sở",
+    description: "Chủ động lựa chọn thời gian thuận tiện tại cơ sở bệnh viện gần nhất.",
   },
   {
     icon: "stethoscope",
-    title: "Đến cơ sở đã chọn",
-    description: "Mang theo mã lịch hẹn và thông tin cần thiết cho buổi khám.",
+    title: "Xác nhận lịch hẹn",
+    description: "Nhận thông báo xác nhận kèm mã đặt hẹn để ưu tiên tiếp đón khi đến khám.",
   },
   {
     icon: "book-open",
-    title: "Theo dõi hướng dẫn",
-    description: "Tra cứu lại lịch hẹn và các dặn dò sau buổi thăm khám.",
+    title: "Thăm khám đúng giờ",
+    description: "Xuất trình mã hẹn tại quầy tiếp đón để vào khám mà không phải chờ đợi lâu.",
   },
 ];
 
@@ -950,10 +950,9 @@ export default function Home(): React.ReactElement {
             <div className="journey-layout">
               <div>
                 <SectionHeading
-                  description="Chọn bác sĩ và thời gian khám, sau đó kiểm tra thông tin lịch hẹn."
+                  description="Quy trình 4 bước tinh gọn giúp bạn chủ động thời gian và giảm thiểu thời gian chờ đợi tại viện."
                   headingId="journey-title"
-
-                  title="Hướng dẫn đặt lịch khám"
+                  title="4 bước đặt lịch thăm khám"
                 />
                 <ol className="journey-steps">
                   {JOURNEY_STEPS.map((step, index) => (
