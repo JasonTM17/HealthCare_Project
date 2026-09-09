@@ -78,6 +78,29 @@ that Vercel or Render has deployed the same SHA.
 
 Use original healthcare content and visual identity. Hoan My is reference-only for information architecture patterns and must not be copied.
 
+## Rich text editor (TinyMCE)
+
+Authoring surfaces (doctor articles, admin catalog articles) use
+`components/editor/RichTextEditor.tsx`; public reads render the same content
+through `components/editor/RichContentRenderer.tsx`. The editor offers four
+modes (TinyMCE visual, Markdown textarea, split, preview). The stored `value`
+keeps whichever text model the active mode emits: TinyMCE produces HTML,
+Markdown modes produce Markdown. Entering a Markdown mode converts an HTML draft
+to Markdown exactly once; counters and the public renderer always work on
+markup-free text, so HTML tags are never counted or shown as content.
+
+TinyMCE 8.9.0 is fully self-hosted under `public/tinymce/` (no CDN calls). The
+plugins array in the init config must only reference plugins that exist in
+`public/tinymce/plugins/`; `tests/rich-editor.test.mjs` enforces this mapping
+so lazy plugin loads cannot 404 in production.
+
+Licensing constraint: the editor initializes TinyMCE with
+`licenseKey="gpl"`, which binds usage to TinyMCE's GPL v2+ terms. That is
+acceptable for this hosted SaaS deployment, but any on-premise or distributed
+(offered under a non-GPL license) deployment requires either full GPL
+compliance or a commercial Tiny license. Do not switch to a TinyMCE cloud/API
+key without revisiting this constraint.
+
 ## Portal contract handoff
 
 The first portal UI delivery consumes the existing authenticated contracts for patient medical records, prescriptions, diagnostic results, notifications, and doctor-to-patient clinical reads.
