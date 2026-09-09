@@ -23,6 +23,7 @@ import {
   broadcastCatalogChange,
   subscribeToCatalogChange,
 } from "../../../lib/api-client";
+import { RichTextEditor } from "../../../components/editor";
 
 function toSlug(text: string): string {
   return text
@@ -166,7 +167,7 @@ function Panel({
 function StatusBadge({ active }: { active: boolean }) {
   return (
     <span
-      className={`rounded-md px-2.5 py-1 text-xs font-bold ${
+      className={`rounded-[4px] px-2.5 py-1 text-xs font-bold ${
         active ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
       }`}
     >
@@ -604,7 +605,7 @@ export default function AdminCatalogPage() {
             <div className="mt-5 space-y-2">
               {packages.length === 0 ? <AdminState description="Tạo gói khám đầu tiên để bắt đầu danh mục." title="Chưa có gói khám" tone="empty" /> : null}
               {packages.map((item) => (
-                <div className="rounded-lg border p-3 text-sm" key={item.id}>
+                <div className="rounded-[4px] border p-3 text-sm" key={item.id}>
                   <div className="flex items-start justify-between gap-3">
                     <strong>{item.name}</strong>
                     <StatusBadge active={item.active ?? true} />
@@ -640,7 +641,7 @@ export default function AdminCatalogPage() {
             description="Duy trì câu hỏi thường gặp và kiểm soát nội dung đang hiển thị."
             title={faqForm.id ? "Sửa FAQ" : "FAQ"}
           >
-            <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-950">
+            <p className="mt-3 rounded-[4px] border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-950">
               FAQ đang hiển thị công khai chưa đồng nghĩa với nguồn đã đủ điều kiện cho chatbot. Sau khi cập nhật, hãy gửi đúng revision/hash để bác sĩ độc lập review.
               <Link className="mt-2 inline-flex min-h-11 items-center font-bold text-teal-800 underline" href="/admin/ai-content-reviews">Mở luồng AI review →</Link>
             </p>
@@ -686,7 +687,7 @@ export default function AdminCatalogPage() {
             <div className="mt-5 space-y-2">
               {faqs.length === 0 ? <AdminState description="Tạo câu hỏi đầu tiên để hỗ trợ người bệnh." title="Chưa có câu hỏi thường gặp" tone="empty" /> : null}
               {faqs.map((item) => (
-                <div className="rounded-lg border p-3 text-sm" key={item.id}>
+                <div className="rounded-[4px] border p-3 text-sm" key={item.id}>
                   <div className="flex items-start justify-between gap-3">
                     <strong>{item.question}</strong>
                     <StatusBadge active={item.active ?? true} />
@@ -859,15 +860,17 @@ export default function AdminCatalogPage() {
                     onChange={(event) => setArticleForm({ ...articleForm, summary: event.target.value })}
                   />
                 </label>
-                <label className="block text-sm font-semibold">
-                  Nội dung
-                  <textarea
-                    className={inputClass}
-                    rows={8}
+                <div className="space-y-1">
+                  <RichTextEditor
+                    id="admin-article-body-editor"
+                    label="Nội dung bài viết y khoa (Body)"
+                    minHeight="280px"
+                    onChange={(newBody) => setArticleForm((current) => ({ ...current, body: newBody }))}
+                    placeholder="Nội dung chi tiết bài viết, hỗ trợ định dạng Markdown và hộp thông tin lâm sàng..."
+                    purpose="ARTICLE_COVER"
                     value={articleForm.body}
-                    onChange={(event) => setArticleForm({ ...articleForm, body: event.target.value })}
                   />
-                </label>
+                </div>
                 <label className="block text-sm font-semibold">
                   Tags
                   <textarea
@@ -1083,7 +1086,7 @@ export default function AdminCatalogPage() {
                 const metadataCount = objectKeyCount(item.clinicalMetadata);
 
                 return (
-                  <div className="rounded-lg border p-3 text-sm" key={item.id}>
+                  <div className="rounded-[4px] border p-3 text-sm" key={item.id}>
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
                         <strong className="block break-words">{item.title}</strong>
@@ -1094,7 +1097,7 @@ export default function AdminCatalogPage() {
                     <p className="mt-2 text-sm text-slate-700 line-clamp-2">{item.summary?.trim() || "Chưa có tóm tắt."}</p>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {metaChips.map((chip, index) => (
-                        <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700" key={`${chip}-${index}`}>
+                        <span className="rounded-[4px] bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700" key={`${chip}-${index}`}>
                           {chip}
                         </span>
                       ))}
