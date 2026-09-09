@@ -285,8 +285,8 @@ export default function CommonDiseasesPage() {
             </div>
           ) : null}
           {!articlesLoading && !articlesError && articlePage.empty ? (
-            <div className="rounded-2xl border border-slate-200 bg-white p-8 mb-12 shadow-xs text-center max-w-2xl mx-auto" role="status">
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-50 text-teal-800 border border-teal-100">
+            <div className="rounded-[4px] border border-slate-200 bg-white p-8 mb-12 shadow-xs text-center max-w-2xl mx-auto" role="status">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-[4px] bg-teal-50 text-teal-800 border border-teal-100">
                 <UiIcon name="book-open" size={26} />
               </div>
               <h3 className="text-lg font-bold text-teal-950 mb-2">
@@ -331,7 +331,7 @@ export default function CommonDiseasesPage() {
         <section aria-busy={questionsLoading} aria-labelledby="published-questions-title" className="resource-panel mt-12">
           <div className="section-heading mb-4">
             <div>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-teal-50 text-teal-800 border border-teal-200/60">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-xs font-bold uppercase tracking-wider bg-teal-50 text-teal-800 border border-teal-200/60">
                 Hỏi đáp đã xuất bản
               </span>
               <h2 className="text-2xl font-black text-teal-950 tracking-tight mt-2" id="published-questions-title">
@@ -350,7 +350,7 @@ export default function CommonDiseasesPage() {
             </div>
           ) : null}
           {!questionsLoading && !questionsError && questionPage.empty ? (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-600" role="status">
+            <div className="rounded-[4px] border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-600" role="status">
               <p className="font-semibold text-slate-800 mb-1">
                 {hasActiveFilters ? "Chưa có câu hỏi phù hợp với từ khóa hiện tại." : "Chưa có câu hỏi đã xuất bản."}
               </p>
@@ -369,7 +369,7 @@ export default function CommonDiseasesPage() {
                     <p className="catalog-meta">Đã xuất bản {formatBusinessDate(item.createdAt)}</p>
                     <div className="mt-4 flex flex-wrap items-center gap-2">
                       <label className="sr-only" htmlFor={`report-reason-${item.id}`}>Lý do báo cáo</label>
-                      <select id={`report-reason-${item.id}`} className="min-h-11 rounded-lg border border-slate-300 px-2 text-sm" value={reportReason[item.id] ?? "SAFETY_CONCERN"} onChange={(event) => setReportReason((current) => ({ ...current, [item.id]: event.target.value }))}>
+                      <select id={`report-reason-${item.id}`} className="min-h-11 rounded-[4px] border border-slate-300 px-2 text-sm" value={reportReason[item.id] ?? "SAFETY_CONCERN"} onChange={(event) => setReportReason((current) => ({ ...current, [item.id]: event.target.value }))}>
                         <option value="SAFETY_CONCERN">Lo ngại an toàn</option>
                         <option value="PII_DETECTED">Có thông tin cá nhân</option>
                         <option value="SPAM">Spam hoặc lạm dụng</option>

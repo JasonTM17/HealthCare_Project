@@ -46,8 +46,8 @@ export default function PrivacyPolicyPage() {
 
         <section className="mt-10 grid gap-4 md:grid-cols-2" aria-label="Các nội dung chính">
           {PRIVACY_POINTS.map((item) => (
-            <article className="rounded-xl border border-slate-200 bg-white p-5" key={item.title}>
-              <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full bg-brand-50 text-brand-700">
+            <article className="rounded-[4px] border border-slate-200 bg-white p-5 shadow-xs" key={item.title}>
+              <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-[4px] bg-teal-50 text-teal-800 border border-teal-100">
                 <Icon name="shield-check" size={20} />
               </div>
               <h2 className="text-lg font-bold text-ink">{item.title}</h2>
@@ -56,7 +56,7 @@ export default function PrivacyPolicyPage() {
           ))}
         </section>
 
-        <section className="mt-10 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm leading-7 text-amber-950" aria-labelledby="privacy-version-title">
+        <section className="mt-10 rounded-[4px] border border-amber-200 bg-amber-50/80 p-5 text-sm leading-7 text-amber-950" aria-labelledby="privacy-version-title">
           <h2 id="privacy-version-title" className="text-base font-bold text-amber-950">
             Phiên bản áp dụng cho đặt lịch
           </h2>

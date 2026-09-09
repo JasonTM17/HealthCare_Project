@@ -109,7 +109,7 @@ export default function DoctorDetailPage() {
                     <h2>Dấu ấn chuyên môn & Công trình lâm sàng</h2>
                   </div>
                 </div>
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 text-slate-800 text-sm leading-relaxed whitespace-pre-line">
+                <div className="bg-slate-50 border border-slate-200 rounded-[4px] p-6 text-slate-800 text-sm leading-relaxed whitespace-pre-line shadow-xs">
                   {doctor.achievements}
                 </div>
               </section>

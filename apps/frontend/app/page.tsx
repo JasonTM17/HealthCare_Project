@@ -237,7 +237,7 @@ function PackageSkeletonCard(): React.ReactElement {
         <div style={{ height: "14px", width: "65%", borderRadius: "4px", background: "#f1f5f9" }} />
         <div style={{ marginTop: "auto", display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: "0.5rem" }}>
           <div style={{ height: "20px", width: "35%", borderRadius: "4px", background: "#e2e8f0" }} />
-          <div style={{ height: "36px", width: "30%", borderRadius: "6px", background: "#e2e8f0" }} />
+          <div style={{ height: "36px", width: "30%", borderRadius: "4px", background: "#e2e8f0" }} />
         </div>
       </div>
     </article>
@@ -266,7 +266,7 @@ function DoctorSkeletonCard(): React.ReactElement {
         <div style={{ height: "14px", width: "40%", borderRadius: "4px", background: "#e2e8f0" }} />
         <div style={{ height: "20px", width: "70%", borderRadius: "4px", background: "#cbd5e1" }} />
         <div style={{ height: "14px", width: "100%", borderRadius: "4px", background: "#f1f5f9" }} />
-        <div style={{ marginTop: "auto", height: "36px", width: "100%", borderRadius: "6px", background: "#e2e8f0" }} />
+        <div style={{ marginTop: "auto", height: "36px", width: "100%", borderRadius: "4px", background: "#e2e8f0" }} />
       </div>
     </article>
   );
