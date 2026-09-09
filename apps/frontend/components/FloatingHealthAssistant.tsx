@@ -659,7 +659,7 @@ function FloatingHealthAssistantPanel({
               {consentBlocked ? (
                 <section aria-describedby="floating-assistant-consent-copy" className={styles.consentPanel}>
                   <strong>Xác nhận trước khi trò chuyện</strong>
-                  <p id="floating-assistant-consent-copy">Bạn đồng ý lưu cuộc trò chuyện trong 90 ngày để HealthCare hiển thị lịch sử. Trợ lý không chẩn đoán, kê đơn hoặc thay thế bác sĩ; remote AI hiện không được bật ở môi trường này.</p>
+                  <p id="floating-assistant-consent-copy">Bạn đồng ý lưu cuộc trò chuyện trong 90 ngày để HealthCare đồng bộ lịch sử tư vấn. Trợ lý hỗ trợ giải đáp thông tin và chuẩn bị thăm khám; không thay thế chẩn đoán hoặc phác đồ từ bác sĩ chuyên khoa.</p>
                   <button className={styles.primaryButton} disabled={consentBusy} onClick={() => void handleConsent()} type="button">
                     {consentBusy ? "Đang xác nhận..." : "Tôi đồng ý và tiếp tục"}
                   </button>

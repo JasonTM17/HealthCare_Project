@@ -21,14 +21,14 @@ interface SpecialtyMeta {
 }
 
 const SPECIALTY_CONFIGS: Record<string, SpecialtyMeta> = {
-  "tim-mach": { icon: "heart", badge: "Chăm sóc chuyên sâu" },
-  "than-kinh": { icon: "brain", badge: "Chăm sóc chuyên sâu" },
-  "tieu-hoa": { icon: "activity", badge: "Chăm sóc chuyên sâu" },
-  "noi-tong-hop": { icon: "stethoscope", badge: "Chăm sóc chuyên sâu" },
-  "nhi-khoa": { icon: "sparkles", badge: "Chăm sóc chuyên sâu" },
-  "san-phu-khoa": { icon: "user", badge: "Chăm sóc chuyên sâu" },
-  "co-xuong-khop": { icon: "layers", badge: "Chăm sóc chuyên sâu" },
-  "tai-mui-hong": { icon: "shield-check", badge: "Chăm sóc chuyên sâu" },
+  "tim-mach": { icon: "heart", badge: "Chuyên khoa mũi nhọn" },
+  "than-kinh": { icon: "brain", badge: "Nội thần kinh & Đột quỵ" },
+  "tieu-hoa": { icon: "activity", badge: "Nội soi & Tiêu hóa" },
+  "noi-tong-hop": { icon: "stethoscope", badge: "Khám & Điều trị ban đầu" },
+  "nhi-khoa": { icon: "sparkles", badge: "Nhi & Sơ sinh toàn diện" },
+  "san-phu-khoa": { icon: "user", badge: "Phụ sản & Thai kỳ" },
+  "co-xuong-khop": { icon: "layers", badge: "Cơ xương khớp & PHCN" },
+  "tai-mui-hong": { icon: "shield-check", badge: "Tai Mũi Họng chuyên sâu" },
 };
 
 function getSpecialtyMeta(slug: string, name: string): SpecialtyMeta {
@@ -122,10 +122,10 @@ export default function SpecialtiesPage() {
 
         <header className="resource-page__header">
           <p className="section-note">Danh mục chuyên khoa</p>
-          <h1>Chuyên khoa bắt đầu từ điều bạn đang quan tâm</h1>
+          <h1>Danh mục Chuyên khoa & Dịch vụ Mũi nhọn</h1>
           <p>
-            Tìm hiểu phạm vi chăm sóc của từng chuyên khoa, xem bác sĩ phù hợp và chủ động đặt lịch
-            theo nhu cầu.
+            Tìm hiểu phạm vi chăm sóc y khoa, đội ngũ bác sĩ chuyên khoa và chủ động đặt lịch
+            theo nhu cầu của bạn.
           </p>
         </header>
 
