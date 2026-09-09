@@ -445,6 +445,10 @@ test.describe("Multi-User Roles & Realtime Interactions", () => {
         await doctor1Page.getByRole("button", { name: "Đăng bài viết mới" }).click();
         await doctor1Page.locator("input[placeholder*='Ví dụ: Hướng dẫn chăm sóc']").fill(art.title);
         await doctor1Page.locator("textarea[placeholder*='Tóm tắt ngắn gọn']").fill(art.summary);
+        const sourceBtn = doctor1Page.getByRole("button", { name: "Mã nguồn" });
+        if (await sourceBtn.isVisible()) {
+          await sourceBtn.click();
+        }
         await doctor1Page.locator("textarea[placeholder*='Kiến thức y khoa']").fill(art.body);
         await doctor1Page.locator("input[placeholder*='Tim mạch, Tiêu hóa']").fill(art.category);
         await doctor1Page.getByRole("button", { name: "Đăng bài viết ngay" }).click();
