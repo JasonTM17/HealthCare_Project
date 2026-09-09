@@ -92,7 +92,7 @@
   gap: 0.55rem;
   padding: 0.65rem 1.15rem;
   border: 1px solid transparent;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-sm);
   font-weight: 700;
   line-height: 1.3;
   text-decoration: none;
@@ -130,7 +130,7 @@
   gap: 0;
   padding: 3.5rem 2rem 2rem;
   border: 1px solid #c5dcd8;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-sm);
   background: #fff;
   box-shadow: none;
   backdrop-filter: none;
@@ -146,7 +146,7 @@
   align-items: center;
   gap: 0.65rem;
   padding: 0.8rem 1rem;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-sm);
   background: var(--career-navy);
   box-shadow: none;
   color: #fff;
@@ -161,7 +161,7 @@
   gap: 0.9rem;
   align-items: center;
   padding: 0.85rem;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-sm);
   background: #f7fbfa;
 }
 
@@ -176,7 +176,7 @@
   width: 2.75rem;
   height: 2.75rem;
   place-items: center;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-sm);
   background: var(--career-mint);
   color: var(--career-teal);
 }
@@ -199,7 +199,7 @@
   min-height: 14rem;
   padding: 1.7rem;
   border: 1px solid #d7e4e2;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-sm);
   background: #fff;
   box-shadow: none;
   color: var(--career-teal);
@@ -243,7 +243,7 @@
 .applicationForm textarea {
   min-height: 3rem;
   border: 1px solid #bfd1cf;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-sm);
   background: #fff;
 }
 
@@ -260,7 +260,7 @@
 .jobCard {
   padding: clamp(1.3rem, 3vw, 2rem);
   border: 1px solid #d0dfdc;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-sm);
   background: #fff;
   transition: border-color 200ms ease, background-color 200ms ease;
 }
@@ -278,7 +278,7 @@
 .jobTags span,
 .typeTag {
   padding: 0.3rem 0.65rem;
-  border-radius: 6px;
+  border-radius: var(--radius-xs);
   background: #eef4f2;
   color: #426067;
   font-size: 0.73rem;
@@ -310,7 +310,7 @@
   gap: 1.5rem;
   margin-top: 1.25rem;
   padding: 1.25rem;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-sm);
   background: #f7faf9;
 }
 
@@ -327,7 +327,7 @@
   margin-top: 2.75rem;
   padding: 1.4rem;
   border: 1px solid #d0dfdc;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-sm);
   background: #fff;
   color: var(--career-teal);
 }
@@ -341,7 +341,7 @@
   margin-block: 2rem;
   padding: 1.35rem 1.5rem;
   border: 1px solid #d7e4e2;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-sm);
   background: var(--career-cream);
 }
 
@@ -367,7 +367,7 @@
   overflow-y: auto;
   padding: clamp(1.5rem, 4vw, 2.5rem);
   border: 1px solid #d0dfdc;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-sm);
   background: #fff;
   box-shadow: none;
   animation: none;
@@ -381,7 +381,7 @@
   width: 2.7rem;
   height: 2.7rem;
   place-items: center;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-sm);
   background: #edf4f2;
   color: var(--career-navy);
 }
@@ -400,14 +400,14 @@
 .consentField input { width: 1.1rem; min-height: auto; height: 1.1rem; margin-top: 0.2rem; accent-color: var(--career-teal); }
 .consentField span { color: #506970 !important; font-weight: 500 !important; line-height: 1.55; }
 
-.formError { display: flex; gap: 0.5rem; align-items: start; margin: 1rem 0 0; padding: 0.8rem; border: 1px solid #efb8b2; border-radius: 0.5rem; background: #fff3f2; color: #8f3027; font-size: 0.88rem; }
+.formError { display: flex; gap: 0.5rem; align-items: start; margin: 1rem 0 0; padding: 0.8rem; border: 1px solid #efb8b2; border-radius: var(--radius-sm); background: #fff3f2; color: #8f3027; font-size: 0.88rem; }
 .formFooter { justify-content: space-between; border-top: 1px solid #e0e8e6; padding-top: 1.2rem; }
 .formFooter p { display: inline-flex; gap: 0.4rem; align-items: center; margin: 0; color: #667b81; font-size: 0.75rem; }
 
 .successState { display: grid; justify-items: center; padding: 1rem; text-align: center; }
-.successIcon { display: grid; width: 4.5rem; height: 4.5rem; place-items: center; margin-bottom: 1.3rem; border-radius: 0.5rem; background: #dff2ee; color: var(--career-teal); }
+.successIcon { display: grid; width: 4.5rem; height: 4.5rem; place-items: center; margin-bottom: 1.3rem; border-radius: var(--radius-sm); background: #dff2ee; color: var(--career-teal); }
 .successState > p { max-width: 34rem; margin: 1rem 0 0; color: #596f76; }
-.receiptCode { display: grid; gap: 0.3rem; width: min(100%, 20rem); margin-top: 1.5rem; padding: 1rem; border: 1px dashed #8cb8b2; border-radius: 0.5rem; background: #f4faf8; }
+.receiptCode { display: grid; gap: 0.3rem; width: min(100%, 20rem); margin-top: 1.5rem; padding: 1rem; border: 1px dashed #8cb8b2; border-radius: var(--radius-sm); background: #f4faf8; }
 .receiptCode span { color: #647b81; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; }
 .receiptCode strong { color: var(--career-navy); font-size: 1.45rem; letter-spacing: 0.08em; }
 .successState .privacyText { margin-top: 0.65rem; font-size: 0.78rem; }
@@ -452,7 +452,7 @@
   .stateCard { align-items: start; flex-direction: column; }
   .recruitmentNote { align-items: start; flex-direction: column; }
   .dialogBackdrop { align-items: end; padding: 0; }
-  .dialog { width: 100%; max-height: 94dvh; border-radius: 0.5rem 0.5rem 0 0; padding: 1.35rem; }
+  .dialog { width: 100%; max-height: 94dvh; border-radius: var(--radius-sm) var(--radius-sm) 0 0; padding: 1.35rem; }
   .formGrid { grid-template-columns: 1fr; }
   .fullField { grid-column: auto; }
   .formFooter { align-items: stretch; flex-direction: column; }

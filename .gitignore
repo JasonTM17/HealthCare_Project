@@ -102,3 +102,4 @@ plans/
 .video_agent/
 apps/frontend/local_*.png
 scripts/tmp-*.py
+scratch/

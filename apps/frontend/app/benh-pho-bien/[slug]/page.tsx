@@ -7,6 +7,7 @@ import { ApiError, fetchArticleBySlug } from "../../../lib/api-client";
 import { formatBusinessDate } from "../../../lib/business-time";
 import { presentApiError } from "../../../lib/present-api-error";
 import type { Article, ArticleSection } from "../../../types/hospital";
+import { RichContentRenderer } from "../../../components/editor";
 
 const CATEGORY_LABELS: Record<string, string> = {
   CARDIOLOGY: "Tim mạch",
@@ -219,7 +220,12 @@ export default function DiseaseGuidePage({ params }: { params: Promise<{ slug: s
             ) : null}
 
             <div className="article-body article-detail-card__body">
-              {sections.length ? null : bodyParagraphs.map((paragraph, index) => <p key={`${paragraph.slice(0, 32)}-${index}`}>{paragraph}</p>)}
+              {sections.length ? null : article?.body ? (
+                <RichContentRenderer
+                  content={article.body}
+                  fallback={bodyParagraphs.map((paragraph, index) => <p key={`${paragraph.slice(0, 32)}-${index}`}>{paragraph}</p>)}
+                />
+              ) : null}
               {!bodyParagraphs.length && !sections.length ? <p className="resource-muted">Nội dung chi tiết đang được cập nhật.</p> : null}
               {takeaways.length ? <section className="resource-panel"><h2>Điểm cần nhớ</h2><ul>{takeaways.map((item) => <li key={item}>{item}</li>)}</ul></section> : null}
               {warningSigns.length ? (
@@ -232,7 +238,19 @@ export default function DiseaseGuidePage({ params }: { params: Promise<{ slug: s
               ) : null}
               {article.whenToSeekCare ? <section className="resource-panel"><h2>Khi nào nên đi khám?</h2><p>{article.whenToSeekCare}</p></section> : null}
               {preventionTips.length ? <section className="resource-panel"><h2>Chủ động chăm sóc</h2><ul>{preventionTips.map((item) => <li key={item}>{item}</li>)}</ul></section> : null}
-              {tocSections.map((section) => <section id={section.id} key={section.id}><h2>{section.heading || "Nội dung"}</h2><p>{section.body || "Nội dung đang được cập nhật."}</p></section>)}
+              {tocSections.map((section) => (
+                <section id={section.id} key={section.id}>
+                  <h2>{section.heading || "Nội dung"}</h2>
+                  {section.body ? (
+                    <RichContentRenderer
+                      content={section.body}
+                      fallback={<p>{section.body}</p>}
+                    />
+                  ) : (
+                    <p className="resource-muted">Nội dung đang được cập nhật.</p>
+                  )}
+                </section>
+              ))}
               {sources.length ? <section className="resource-panel"><h2>Nguồn tham khảo</h2><ul>{sources.map((source) => <li key={source}>{source}</li>)}</ul></section> : null}
             </div>
 
