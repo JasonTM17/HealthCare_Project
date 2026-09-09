@@ -4,6 +4,8 @@
 ### Nền Tảng Y Tế Số Toàn Diện • Hệ Thống Quản Trị Bệnh Viện Thông Minh
 **Next-Generation Hospital Management, Branch-Aware Clinical Booking & AI-Assisted Medical Triage**
 
+> *Dự án được xây dựng nhằm mục đích nghiên cứu & học tập, được tham khảo ý tưởng từ trang web của bệnh viện Hoàn Mỹ.*
+
 [![CI](https://github.com/JasonTM17/HealthCare_Project/actions/workflows/ci.yml/badge.svg?branch=main&style=for-the-badge&label=CI)](https://github.com/JasonTM17/HealthCare_Project/actions/workflows/ci.yml)
 [![Production](https://img.shields.io/badge/Production-www.healthcare.id.vn-0284c7?style=for-the-badge&logo=vercel&logoColor=white)](https://www.healthcare.id.vn)
 [![License](https://img.shields.io/github/license/JasonTM17/HealthCare_Project?style=for-the-badge&logo=open-source-initiative&logoColor=white)](LICENSE)
@@ -429,6 +431,9 @@ cd apps/ai-service && python -m pytest && ruff check . && mypy
 > [!WARNING]
 > **Dự án Nghiên cứu & Giáo dục (Educational MVP)**:
 > Dự án này được xây dựng nhằm mục đích nghiên cứu công nghệ và thử nghiệm kiến trúc phần mềm y tế thông minh. Mã nguồn không cấu thành một thiết bị y tế được chứng nhận và không thể thay thế lời khuyên, chẩn đoán hay điều trị y khoa trực tiếp từ bác sĩ chuyên môn. Để triển khai thực tế tại bệnh viện, hệ thống cần bổ sung các chứng nhận an toàn y tế, quy trình sao lưu khôi phục thảm họa (Disaster Recovery), thẩm định quyền riêng tư người bệnh (HIPAA / GDPR / Nghị định 13/2023/NĐ-CP) và hợp đồng dịch vụ SLA chính thức.
+
+> [!NOTE]
+> **Tham khảo ý tưởng**: Giao diện và cấu trúc trải nghiệm người dùng của hệ thống được tham khảo ý tưởng từ trang web của bệnh viện Hoàn Mỹ.
 
 ---
 
