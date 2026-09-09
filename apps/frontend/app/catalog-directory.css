@@ -110,8 +110,11 @@
   border-radius: var(--radius-lg) !important;
 }
 
+.site-shell :focus,
 .site-shell :focus-visible,
+.portal-shell :focus,
 .portal-shell :focus-visible,
+.admin-shell :focus,
 .admin-shell :focus-visible {
   outline: 3px solid var(--color-focus, #2a676c) !important;
   outline-offset: 3px !important;
