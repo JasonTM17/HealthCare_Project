@@ -9,6 +9,7 @@ import { ApiError, fetchArticles, subscribeToCatalogChange, type Page } from "..
 import { formatBusinessDate } from "../../lib/business-time";
 import { presentApiError } from "../../lib/present-api-error";
 import type { Article } from "../../types/hospital";
+import { resolveArticleCoverImage, resolveArticleAlt } from "../../lib/article-visuals";
 
 const READING_STEPS = [
   ["01", "Đọc theo nhu cầu", "Ưu tiên bài viết liên quan triệu chứng, chuyên khoa hoặc gói khám bạn đang cân nhắc."],
@@ -171,8 +172,16 @@ export default function ArticlesPage() {
             <div className="catalog-grid catalog-grid--articles">
               {page.content.map((article) => (
                 <article className="catalog-card" key={article.id}>
-                  <div className="resource-icon resource-icon--small" aria-hidden="true">
-                    <ClinicalIcon name="article" />
+                  <div className="relative h-44 w-full mb-4 overflow-hidden rounded-[4px] bg-slate-100 border border-slate-100">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      alt={resolveArticleAlt(article)}
+                      className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
+                      src={resolveArticleCoverImage(article)}
+                    />
+                    <span className="absolute top-2.5 left-2.5 rounded-[4px] bg-teal-950/85 backdrop-blur-md px-2 py-0.5 text-xs font-bold text-teal-100 shadow-xs">
+                      {article.category || "Cẩm nang y tế"}
+                    </span>
                   </div>
                   <p className="section-note">{formatBusinessDate(article.publishedAt)}</p>
                   <h3>{article.title}</h3>

@@ -18,6 +18,7 @@ import {
 import { formatBusinessDate } from "../../lib/business-time";
 import { presentApiError } from "../../lib/present-api-error";
 import type { Article, HealthQuestionSummary } from "../../types/hospital";
+import { resolveArticleCoverImage, resolveArticleAlt } from "../../lib/article-visuals";
 
 const ARTICLE_PAGE_SIZE = 9;
 const QUESTION_PAGE_SIZE = 4;
@@ -315,7 +316,18 @@ export default function CommonDiseasesPage() {
               <div className="catalog-grid catalog-grid--articles">
                 {articlePage.content.map((article) => (
                   <article className="catalog-card" key={article.id}>
-                    <p className="section-note">{articleCategory(article)} · {article.readingMinutes ?? 5} phút đọc</p>
+                    <div className="relative h-44 w-full mb-4 overflow-hidden rounded-[4px] bg-slate-100 border border-slate-100">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        alt={resolveArticleAlt(article)}
+                        className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
+                        src={resolveArticleCoverImage(article)}
+                      />
+                      <span className="absolute top-2.5 left-2.5 rounded-[4px] bg-teal-950/85 backdrop-blur-md px-2 py-0.5 text-xs font-bold text-teal-100 shadow-xs">
+                        {articleCategory(article)}
+                      </span>
+                    </div>
+                    <p className="section-note">{article.readingMinutes ?? 5} phút đọc</p>
                     <h3>{article.title}</h3>
                     <p>{article.summary}</p>
                     <p className="catalog-meta">Cập nhật {formatBusinessDate(article.updatedAt ?? article.publishedAt)}</p>
