@@ -25,6 +25,23 @@ function safeErrorCopy(reason: unknown): string {
   );
 }
 
+function stringList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.map((item) => String(item).trim()).filter(Boolean);
+      }
+    } catch {
+      return value.split("\n").map((line) => line.trim()).filter(Boolean);
+    }
+  }
+  return [];
+}
+
 export default function ArticleDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const [article, setArticle] = useState<Article | null>(null);
@@ -61,6 +78,10 @@ export default function ArticleDetailPage() {
   const structuredSections = article?.sections?.filter((section) => section.heading.trim() || section.body.trim()) ?? [];
   const bodyParagraphs = article?.body?.split(/\n\s*\n/).map((paragraph) => paragraph.trim()).filter(Boolean) ?? [];
   const readingMinutesLabel = article?.readingMinutes ? `${article.readingMinutes} phút đọc` : "Thời lượng chưa cập nhật";
+  const takeaways = stringList(article?.keyTakeaways);
+  const warningSigns = stringList(article?.warningSigns);
+  const preventionTips = stringList(article?.preventionTips);
+  const sources = stringList(article?.sourceReferences);
 
   return (
     <PublicPageShell>
@@ -95,15 +116,15 @@ export default function ArticleDetailPage() {
               <div className="resource-icon" aria-hidden="true">
                 <ClinicalIcon name="article" />
               </div>
-              <div className="relative w-full h-64 sm:h-80 mb-6 overflow-hidden rounded-[4px] border border-teal-800/40 shadow-sm">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  alt={resolveArticleAlt(article)}
-                  className="w-full h-full object-cover"
-                  src={resolveArticleCoverImage(article)}
-                />
-              </div>
               <div className="resource-hero-card__body">
+                <div className="relative w-full h-64 sm:h-80 mb-6 overflow-hidden rounded-[4px] border border-teal-800/40 shadow-sm">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    alt={resolveArticleAlt(article)}
+                    className="w-full h-full object-cover"
+                    src={resolveArticleCoverImage(article)}
+                  />
+                </div>
                 <p className="resource-chip">Nội dung tham khảo · không thay thế chẩn đoán</p>
                 <h2>{article.title}</h2>
                 <p className="resource-lead">{article.summary}</p>
@@ -196,21 +217,89 @@ export default function ArticleDetailPage() {
                     <p>Bạn vẫn có thể đọc phần tóm tắt, mở chuyên khoa liên quan hoặc đặt lịch nếu cần bác sĩ đánh giá trực tiếp.</p>
                   </div>
                 )}
-              </section>
-
-              <section aria-labelledby="article-next-step-title" className="resource-panel resource-panel--accent">
-                <p className="section-note">Bước tiếp theo</p>
-                <h2 id="article-next-step-title">Chuyển từ đọc sang hành động</h2>
-                <p>
-                  Dùng bài viết để chuẩn bị câu hỏi, sau đó mở chuyên khoa liên quan hoặc đặt lịch khi bạn
-                  muốn được tư vấn trực tiếp.
-                </p>
-                {article.relatedSpecialtySlug ? (
-                  <Link className="text-button" href={`/specialties/${encodeURIComponent(article.relatedSpecialtySlug)}`}>
-                    Đi tới chuyên khoa liên quan →
-                  </Link>
+                {preventionTips.length ? (
+                  <div className="mt-8 pt-6 border-t border-slate-200">
+                    <section aria-labelledby="article-prevention-title" className="resource-panel">
+                      <p className="section-note">Chủ động chăm sóc</p>
+                      <h2 id="article-prevention-title">Hướng dẫn phòng bệnh & lối sống</h2>
+                      <ul className="space-y-2 text-slate-700">
+                        {preventionTips.map((tip) => (
+                          <li key={tip} className="flex items-start gap-2">
+                            <span className="text-teal-700 font-bold">✓</span>
+                            <span>{tip}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  </div>
+                ) : null}
+                {sources.length ? (
+                  <div className="mt-6 pt-4 border-t border-slate-100">
+                    <section aria-labelledby="article-sources-title" className="resource-panel">
+                      <p className="section-note">Độ tin cậy y khoa</p>
+                      <h2 id="article-sources-title">Tài liệu & nguồn tham khảo</h2>
+                      <ul className="space-y-1 text-xs text-slate-600">
+                        {sources.map((source) => (
+                          <li key={source} className="flex items-center gap-2">
+                            <span className="text-slate-400">•</span>
+                            <span>{source}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  </div>
                 ) : null}
               </section>
+
+              <div className="space-y-6">
+                {takeaways.length ? (
+                  <section aria-labelledby="article-takeaways-title" className="resource-panel">
+                    <p className="section-note">Điểm cần nhớ</p>
+                    <h2 id="article-takeaways-title">Thông điệp chính</h2>
+                    <ul className="space-y-2 text-slate-700 text-sm">
+                      {takeaways.map((item) => (
+                        <li key={item} className="flex items-start gap-2">
+                          <span className="text-teal-700 font-bold">•</span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                ) : null}
+
+                {warningSigns.length ? (
+                  <section aria-labelledby="article-warning-title" className="resource-panel resource-panel--warning">
+                    <p className="section-note">Cảnh báo y tế</p>
+                    <h2 id="article-warning-title">Dấu hiệu cần được đánh giá sớm</h2>
+                    <p className="text-xs text-amber-900 mb-3 font-medium">
+                      Nếu triệu chứng xuất hiện đột ngột, nặng lên nhanh hoặc bạn thấy không an toàn, hãy gọi 115.
+                    </p>
+                    <ul className="space-y-2 text-amber-950 text-sm mb-4">
+                      {warningSigns.map((item) => (
+                        <li key={item} className="flex items-start gap-2">
+                          <span className="text-rose-600 font-bold">⚠</span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <a className="outline-button outline-button--small" href="tel:115">Gọi cấp cứu 115</a>
+                  </section>
+                ) : null}
+
+                <section aria-labelledby="article-next-step-title" className="resource-panel resource-panel--accent">
+                  <p className="section-note">Bước tiếp theo</p>
+                  <h2 id="article-next-step-title">Chuyển từ đọc sang hành động</h2>
+                  <p>
+                    Dùng bài viết để chuẩn bị câu hỏi, sau đó mở chuyên khoa liên quan hoặc đặt lịch khi bạn
+                    muốn được tư vấn trực tiếp.
+                  </p>
+                  {article.relatedSpecialtySlug ? (
+                    <Link className="text-button" href={`/specialties/${encodeURIComponent(article.relatedSpecialtySlug)}`}>
+                      Đi tới chuyên khoa liên quan →
+                    </Link>
+                  ) : null}
+                </section>
+              </div>
             </div>
             <p className="resource-muted" role="note">{article.clinicalDisclaimer ?? "Thông tin này chỉ nhằm giáo dục sức khỏe, không phải chẩn đoán hay đơn thuốc."}</p>
           </>
