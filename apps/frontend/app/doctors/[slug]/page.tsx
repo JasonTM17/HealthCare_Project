@@ -35,6 +35,7 @@ export default function DoctorDetailPage() {
     const task = Promise.resolve()
       .then(() => {
         if (cancelled) return undefined;
+        if (!params?.slug || typeof params.slug !== "string") return undefined;
         setDoctor(null);
         setLoading(true);
         setError(null);
@@ -47,7 +48,7 @@ export default function DoctorDetailPage() {
       .finally(() => { if (!cancelled) setLoading(false); });
     void task;
     return () => { cancelled = true; };
-  }, [params.slug]);
+  }, [params?.slug]);
 
   return (
     <PublicPageShell>

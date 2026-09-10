@@ -582,7 +582,7 @@ def chat_retrieve(request: ChatRetrieveRequest) -> ChatRetrieveResponse:
 @app.post(
     "/chat/generate",
     response_model=ChatResponse,
-    dependencies=[Depends(require_service_auth)],
+    dependencies=[Depends(require_service_auth), Depends(_require_llm_capacity)],
 )
 def chat_generate(request: ChatGenerateRequest) -> ChatResponse:
     """Generate only from Spring's exact, revisioned source allowlist."""
@@ -598,7 +598,7 @@ def chat_generate(request: ChatGenerateRequest) -> ChatResponse:
 
 @app.post(
     "/chat/generate/stream",
-    dependencies=[Depends(require_service_auth)],
+    dependencies=[Depends(require_service_auth), Depends(_require_llm_capacity)],
 )
 def chat_generate_stream(request: ChatGenerateRequest) -> StreamingResponse:
     """Stream a fully validated generation response as persisted SSE events."""
@@ -834,7 +834,7 @@ def rag_index(
 @app.post(
     "/recommendations/specialty",
     response_model=SpecialtyRecommendationResponse,
-    dependencies=[Depends(require_service_auth)],
+    dependencies=[Depends(require_service_auth), Depends(_require_llm_capacity)],
 )
 def specialty_recommendation(request: SpecialtyRecommendationRequest) -> SpecialtyRecommendationResponse:
     symptoms = _enforce_input_limit(
