@@ -174,7 +174,7 @@ FROM generate_series(1, 100) AS i
 ON CONFLICT (slug) DO NOTHING;
 
 INSERT INTO articles (id, title, slug, summary, body, published_at, category,
-                      cover_image_url, author_name, reading_minutes, related_specialty_slug,
+                      author_name, reading_minutes, related_specialty_slug,
                       sections, active)
 SELECT md5(format('hosted-article:%s', i))::uuid,
        'Bài viết y khoa số ' || i,
@@ -185,9 +185,6 @@ SELECT md5(format('hosted-article:%s', i))::uuid,
        CASE WHEN i % 3 = 0 THEN 'Tim mạch'
             WHEN i % 3 = 1 THEN 'Sức khỏe gia đình'
             ELSE 'Dinh dưỡng' END,
-       CASE WHEN i % 3 = 0 THEN '/media/articles/5-dau-hieu-tim-mach.jpg'
-            WHEN i % 3 = 1 THEN '/media/articles/cham-soc-suc-khoe-tong-quat.jpg'
-            ELSE '/media/articles/dinh-duong-tang-huyet-ap.jpg' END,
        'Đội ngũ chuyên môn',
        4 + (i % 6),
        CASE WHEN i % 3 = 0 THEN 'tim-mach'

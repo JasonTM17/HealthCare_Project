@@ -141,7 +141,7 @@ FROM generate_series(1, 100) AS i,
 ON CONFLICT (slug) DO NOTHING;
 
 -- ── Articles (500) ────────────────────────────────────────────────────────────
-INSERT INTO articles (id, title, slug, summary, body, published_at, category, cover_image_url, author_name, reading_minutes, related_specialty_slug, sections, active)
+INSERT INTO articles (id, title, slug, summary, body, published_at, category, author_name, reading_minutes, related_specialty_slug, sections, active)
 SELECT md5(format('large-article:%s', i))::uuid,
        'Bài viết y khoa số ' || i,
        'bv-' || i,
@@ -149,7 +149,6 @@ SELECT md5(format('large-article:%s', i))::uuid,
        'Nội dung chi tiết về phòng bệnh, sớm nhận biết triệu chứng và khi nào nên đi khám bác sĩ chuyên khoa.',
        TIMESTAMPTZ '2026-08-01T08:00:00+07:00' - ((i % 180) || ' days')::interval,
        CASE WHEN i % 3 = 0 THEN 'Tim mạch' WHEN i % 3 = 1 THEN 'Sức khỏe gia đình' ELSE 'Dinh dưỡng' END,
-       CASE WHEN i % 3 = 0 THEN '/media/articles/5-dau-hieu-tim-mach.jpg' WHEN i % 3 = 1 THEN '/media/articles/cham-soc-suc-khoe-tong-quat.jpg' ELSE '/media/articles/dinh-duong-tang-huyet-ap.jpg' END,
        'Đội ngũ chuyên môn',
        4 + (i % 6),
        CASE WHEN i % 3 = 0 THEN 'tim-mach' WHEN i % 3 = 1 THEN 'nhi-khoa' ELSE 'noi-tong-hop' END,

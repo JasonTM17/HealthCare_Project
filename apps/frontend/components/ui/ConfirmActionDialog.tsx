@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, type FormEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import Icon from "../UiIcon";
 import useDialogFocus from "../useDialogFocus";
 
@@ -66,7 +67,8 @@ export interface ConfirmActionDialogProps {
  */
 export default function ConfirmActionDialog(props: ConfirmActionDialogProps): React.ReactElement | null {
   if (!props.open) return null;
-  return <ConfirmActionDialogBody {...props} />;
+  if (typeof document === "undefined") return null;
+  return createPortal(<ConfirmActionDialogBody {...props} />, document.body);
 }
 
 function ConfirmActionDialogBody({
@@ -111,6 +113,7 @@ function ConfirmActionDialogBody({
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
+    event.stopPropagation();
     if (pending || stale) return;
     const form = event.currentTarget;
     if (!form.reportValidity()) return;
