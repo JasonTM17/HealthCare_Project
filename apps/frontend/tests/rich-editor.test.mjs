@@ -185,17 +185,16 @@ test("editor components adhere to flat UI design tokens without bulky rounded ut
   assert.doesNotMatch(editor, /\brounded-(?:xl|2xl|3xl)\b/);
 });
 
-test("RichTextEditor and RichContentRenderer are wired into doctor articles, admin catalog, and public details", async () => {
+test("RichTextEditor is reserved for admin catalog, and RichContentRenderer is wired into doctor articles and public details", async () => {
   const [doctorArticles, adminCatalog, articleDetail] = await Promise.all([
     read("app/doctor/articles/page.tsx"),
     read("app/admin/catalog/page.tsx"),
     read("app/articles/[slug]/page.tsx"),
   ]);
 
-  // Doctor articles page has RichTextEditor and RichContentRenderer
-  assert.match(doctorArticles, /RichTextEditor/);
+  // Doctor articles page uses clean textarea for editing (RichTextEditor reserved for Admin) and RichContentRenderer for reading
+  assert.doesNotMatch(doctorArticles, /<RichTextEditor/);
   assert.match(doctorArticles, /RichContentRenderer/);
-  assert.match(doctorArticles, /<RichTextEditor/);
   assert.match(doctorArticles, /<RichContentRenderer/);
 
   // Admin catalog page has RichTextEditor
@@ -521,7 +520,7 @@ test("RichTextEditor derives statistics and Markdown source from markup-free con
   // snippet while preserving clinical callout structure.
   const ts = (await import("typescript")).default;
   const helperCode = renderer.slice(
-    renderer.indexOf("export function decodeHtmlEntities"),
+    renderer.indexOf("const HTML_NAMED_ENTITY_MAP"),
     renderer.indexOf("export function markdownToHtml")
   );
   assert.ok(helperCode.includes("htmlToMarkdown"), "extraction window must contain htmlToMarkdown");
@@ -538,6 +537,7 @@ test("RichTextEditor derives statistics and Markdown source from markup-free con
   assert.ok(markdown.includes("Paracetamol 500mg"), "body text preserved");
   assert.ok(markdown.includes(":::clinical-warning"), "clinical callout converted to ::: syntax");
   assert.ok(markdown.includes("Không dùng quá 4g/ngày"), "callout content preserved");
+
+  const encodedVietnamese = htmlToMarkdownFn("<p>Nội dung cũ đ&atilde; được b&aacute;c sĩ duyệt &#273;úng.</p>");
+  assert.equal(encodedVietnamese, "Nội dung cũ đã được bác sĩ duyệt đúng.");
 });
-
-

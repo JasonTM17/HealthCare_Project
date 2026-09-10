@@ -10,6 +10,7 @@ import { presentApiError } from "../../../lib/present-api-error";
 import type { Article } from "../../../types/hospital";
 import { PublicAiButton, PublicBackLink, PublicBookingButton, PublicPageShell } from "../../../components/PublicPageShell";
 import { RichContentRenderer } from "../../../components/editor";
+import { resolveArticleCoverImage, resolveArticleAlt } from "../../../lib/article-visuals";
 
 const ARTICLE_STEPS = [
   ["01", "Đọc phần tóm tắt", "Xác nhận bài viết có đúng chủ đề bạn đang tìm không."],
@@ -93,6 +94,14 @@ export default function ArticleDetailPage() {
             <article className="resource-hero-card resource-hero-card--teal">
               <div className="resource-icon" aria-hidden="true">
                 <ClinicalIcon name="article" />
+              </div>
+              <div className="relative w-full h-64 sm:h-80 mb-6 overflow-hidden rounded-[4px] border border-teal-800/40 shadow-sm">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  alt={resolveArticleAlt(article)}
+                  className="w-full h-full object-cover"
+                  src={resolveArticleCoverImage(article)}
+                />
               </div>
               <div className="resource-hero-card__body">
                 <p className="resource-chip">Nội dung tham khảo · không thay thế chẩn đoán</p>

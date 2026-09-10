@@ -32,8 +32,7 @@ import { presentApiError } from "../lib/present-api-error";
 import type { Article, Branch, Doctor, HealthPackage, Specialty } from "../types/hospital";
 
 const HERO_IMAGE = "/media/hospital-team-landscape.jpg";
-// Task-first default hero copy; the CMS `homepage.hero` slot overrides it when published.
-const DEFAULT_HERO_TITLE = "Tìm chuyên khoa, bác sĩ và đặt lịch khám";
+const DEFAULT_HERO_TITLE = "Đồng hành cùng sức khỏe gia đình";
 // Retain fallback reference for test compatibility: /media/about-care-poster.jpg
 
 const PUBLIC_CARE_IMAGES = [
@@ -352,12 +351,15 @@ function HomeHeroCopy({
         {activeCmsHero?.eyebrow || "Bệnh viện đa khoa HealthCare"}
       </p>
       <h1 id="hero-title">
-        {activeCmsHero?.title && activeCmsHero.title !== DEFAULT_HERO_TITLE ? (
+        {activeCmsHero?.title &&
+        activeCmsHero.title !== DEFAULT_HERO_TITLE &&
+        activeCmsHero.title !== "Tìm chuyên khoa, bác sĩ và đặt lịch khám" ? (
           activeCmsHero.title
         ) : (
           <>
-            Tìm chuyên khoa, bác sĩ<br />
-            và <span className="hero-teal-accent">đặt lịch khám</span>
+            Đồng hành<br />
+            cùng <span className="hero-teal-accent">sức khỏe</span><br />
+            <span className="hero-teal-accent">gia đình</span>
           </>
         )}
       </h1>
