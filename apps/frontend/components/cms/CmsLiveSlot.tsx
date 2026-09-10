@@ -107,6 +107,7 @@ export function CmsLiveSlot({
     let safetyPollingActive = false;
     let sseConnected = false;
     let initialSnapshotReady = false;
+    let consecutiveNotFoundCount = 0;
     const reconciliation = new CmsReconciliationLedger();
     let refreshGeneration = 0;
     let stopFeed: () => void = () => undefined;
@@ -262,10 +263,14 @@ export function CmsLiveSlot({
 
     function scheduleNextSafetyPoll(): void {
       if (cancelled || !safetyPollingActive || safetyPollTimer) return;
+      const backoffMultiplier = consecutiveNotFoundCount > 0
+        ? Math.min(16, Math.pow(2, consecutiveNotFoundCount))
+        : 1;
+      const computedDelay = Math.max(5_000, pollIntervalMs * backoffMultiplier);
       safetyPollTimer = setTimeout(() => {
         safetyPollTimer = undefined;
         void runSafetyPoll();
-      }, Math.max(5_000, pollIntervalMs));
+      }, computedDelay);
     }
 
     async function runSafetyPoll(): Promise<void> {
@@ -279,12 +284,16 @@ export function CmsLiveSlot({
         ) return;
         const observedVersion = latestVersion.current;
         const result = await refresh(0);
-        if (
-          result === "updated"
-          && !cancelled
-          && latestVersion.current > observedVersion
-        ) {
-          setLiveNotice(`Đã đồng bộ ${backendSlotKey}, version ${latestVersion.current}.`);
+        if (result === "not-found") {
+          consecutiveNotFoundCount++;
+        } else if (result === "updated") {
+          consecutiveNotFoundCount = 0;
+          if (
+            !cancelled
+            && latestVersion.current > observedVersion
+          ) {
+            setLiveNotice(`Đã đồng bộ ${backendSlotKey}, version ${latestVersion.current}.`);
+          }
         }
       } finally {
         scheduleNextSafetyPoll();
@@ -431,6 +440,9 @@ export function CmsLiveSlot({
     // Even the first/fallback snapshot bypasses a potentially stale
     // per-instance cache. The durable cursor is the cache-coherence boundary.
     void refresh(0, reconciliation.latestEventId).then((result) => {
+      if (result === "not-found") {
+        consecutiveNotFoundCount = 1;
+      }
       if (result === "failed" && !cancelled) {
         // A healthy SSE connection does not prove the initial snapshot was
         // readable. Keep bounded polling alive until the first read succeeds.
