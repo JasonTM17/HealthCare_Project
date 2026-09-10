@@ -10602,3 +10602,30 @@ body:has(.mobile-menu) [class*="FloatingHealthAssistant_root"] {
     grid-template-columns: 1fr;
   }
 }
+
+/* Toast Countdown animation */
+@keyframes toastCountdown {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+
+/* SortableJS drag & drop visual feedback */
+.sortable-ghost {
+  opacity: 0.45 !important;
+  background-color: #f0fdfa !important;
+  border: 2px dashed #0d9488 !important;
+}
+
+.sortable-chosen {
+  background-color: #f8fafc !important;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1) !important;
+}
+
+.sortable-drag {
+  opacity: 0.95 !important;
+  cursor: grabbing !important;
+}
