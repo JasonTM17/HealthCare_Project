@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class AppointmentReminderService {
@@ -20,15 +21,18 @@ public class AppointmentReminderService {
 
     private final AppointmentRepository appointmentRepository;
     private final NotificationService notificationService;
+    private final AppointmentClaimService appointmentClaimService;
 
     @Value("${app.booking.reminder-lead-hours:24}")
     private long reminderLeadHours;
 
     public AppointmentReminderService(
             AppointmentRepository appointmentRepository,
-            NotificationService notificationService) {
+            NotificationService notificationService,
+            AppointmentClaimService appointmentClaimService) {
         this.appointmentRepository = appointmentRepository;
         this.notificationService = notificationService;
+        this.appointmentClaimService = appointmentClaimService;
     }
 
     @Scheduled(fixedDelayString = "${app.booking.reminder-scan-ms:60000}")
@@ -39,9 +43,16 @@ public class AppointmentReminderService {
         List<Appointment> dueAppointments = appointmentRepository.lockDueReminders(now, windowEnd);
 
         for (Appointment appointment : dueAppointments) {
-            if (appointment.getPatient().getUserId() != null) {
+            UUID recipientUserId = appointment.getPatient().getUserId();
+            if (recipientUserId == null) {
+                List<UUID> claimedUserIds = appointmentClaimService.claimedUserIds(appointment.getId());
+                if (!claimedUserIds.isEmpty()) {
+                    recipientUserId = claimedUserIds.get(0);
+                }
+            }
+            if (recipientUserId != null) {
                 notificationService.create(
-                    appointment.getPatient().getUserId(),
+                    recipientUserId,
                     EventType.APPOINTMENT_REMINDER,
                     "Nhắc lịch khám sắp tới",
                     "Bạn có lịch khám " + appointment.getBookingCode() + " vào "

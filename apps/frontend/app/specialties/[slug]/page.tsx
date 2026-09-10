@@ -30,6 +30,7 @@ export default function SpecialtyDetailPage() {
     const task = Promise.resolve()
       .then(() => {
         if (cancelled) return undefined;
+        if (!params?.slug || typeof params.slug !== "string") return undefined;
         setSpecialty(null);
         setLoading(true);
         setError(null);
@@ -42,7 +43,7 @@ export default function SpecialtyDetailPage() {
       .finally(() => { if (!cancelled) setLoading(false); });
     void task;
     return () => { cancelled = true; };
-  }, [params.slug]);
+  }, [params?.slug]);
 
   const symptomCount = specialty?.commonSymptoms?.length ?? 0;
   const preparationCount = specialty?.preparationSteps?.length ?? 0;
