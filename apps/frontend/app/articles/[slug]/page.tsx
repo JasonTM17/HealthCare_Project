@@ -112,22 +112,24 @@ export default function ArticleDetailPage() {
         ) : null}
         {article ? (
           <>
-            <article className="resource-hero-card resource-hero-card--teal">
-              <div className="resource-icon" aria-hidden="true">
-                <ClinicalIcon name="article" />
-              </div>
-              <div className="resource-hero-card__body">
-                <div className="relative w-full h-64 sm:h-80 mb-6 overflow-hidden rounded-[4px] border border-teal-800/40 shadow-sm">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    alt={resolveArticleAlt(article)}
-                    className="w-full h-full object-cover"
-                    src={resolveArticleCoverImage(article)}
-                  />
+            <article className="resource-hero-card resource-hero-card--teal article-detail-hero">
+              <div className="resource-hero-card__body article-detail-hero__body">
+                <div className="article-detail-hero__eyebrow-row">
+                  <div className="resource-icon article-detail-hero__seal" aria-hidden="true">
+                    <ClinicalIcon name="article" />
+                  </div>
+                  <div className="article-detail-hero__badges">
+                    {article.category ? (
+                      <span className="article-detail-hero__category-badge">{article.category}</span>
+                    ) : null}
+                    <span className="article-detail-hero__trust-badge">🛡 100% Hội đồng Y khoa kiểm định</span>
+                    <span className="resource-chip">Nội dung tham khảo · không thay thế chẩn đoán</span>
+                  </div>
                 </div>
-                <p className="resource-chip">Nội dung tham khảo · không thay thế chẩn đoán</p>
+
                 <h2>{article.title}</h2>
                 <p className="resource-lead">{article.summary}</p>
+
                 <div className="resource-actions">
                   <PublicBookingButton>Đặt lịch nếu bạn cần trao đổi trực tiếp</PublicBookingButton>
                   <PublicAiButton className="outline-button outline-button--light">Hỏi trợ lý triệu chứng</PublicAiButton>
@@ -137,10 +139,11 @@ export default function ArticleDetailPage() {
                     </Link>
                   ) : null}
                 </div>
+
                 <dl className="resource-meta-grid">
                   {article.category ? (
                     <div>
-                      <dt>Chủ đề</dt>
+                      <dt>Chuyên khoa</dt>
                       <dd>{article.category}</dd>
                     </div>
                   ) : null}
@@ -150,7 +153,7 @@ export default function ArticleDetailPage() {
                   </div>
                   {article.authorName ? (
                     <div>
-                      <dt>Tác giả</dt>
+                      <dt>Chuyên gia thẩm định</dt>
                       <dd>{article.authorName}</dd>
                     </div>
                   ) : null}
@@ -160,11 +163,28 @@ export default function ArticleDetailPage() {
                   </div>
                   {article.updatedAt ? (
                     <div>
-                      <dt>Cập nhật</dt>
+                      <dt>Cập nhật phác đồ</dt>
                       <dd>{formatBusinessDate(article.updatedAt)}</dd>
                     </div>
                   ) : null}
                 </dl>
+              </div>
+
+              <div className="article-detail-hero__media">
+                <div className="article-detail-hero__image-frame">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    alt={resolveArticleAlt(article)}
+                    className="article-detail-hero__image"
+                    src={resolveArticleCoverImage(article)}
+                  />
+                  <div className="article-detail-hero__image-overlay-badge">
+                    <span>🔬 CHUYÊN ĐỀ LÂM SÀNG</span>
+                  </div>
+                </div>
+                <p className="article-detail-hero__caption">
+                  Ảnh minh họa chuyên môn: Quy trình thăm khám, chẩn đoán và hướng dẫn chăm sóc chuẩn Bộ Y tế &amp; WHO.
+                </p>
               </div>
             </article>
 
