@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
 import {
   CmsApiError,
@@ -575,8 +576,18 @@ export function CmsLiveSlot({
       ) : null}
 
       {error && !content ? (
-        <p className="rounded-sm border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950" role="alert">
-          {publicQuiet ? "Thông tin đang được cập nhật. Vui lòng thử lại sau." : `${errorMessage(error)} Không có nội dung thay thế.`}
+        // Owned fallback for slots without a designed fallback: point the
+        // visitor to booking and the verified contact channels instead of a
+        // passive "updating" note.
+        <p className="rounded-sm border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950" data-fallback="true" role="alert">
+          {publicQuiet ? (
+            <>
+              Nội dung này tạm chưa tải được. Bạn vẫn có thể{" "}
+              <Link className="font-bold underline underline-offset-2" href="/dat-lich">đặt lịch khám</Link>
+              {" "}hoặc xem số hotline của từng cơ sở tại{" "}
+              <Link className="font-bold underline underline-offset-2" href="/contact">trang liên hệ</Link>.
+            </>
+          ) : `${errorMessage(error)} Không có nội dung thay thế.`}
         </p>
       ) : null}
 

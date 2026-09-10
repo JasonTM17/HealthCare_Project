@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { businessDate } from "../../../lib/business-time";
 import PortalChrome from "../../../components/PortalChrome";
+import ConfirmActionDialog from "../../../components/ui/ConfirmActionDialog";
 import { EmptyState, ErrorState, ForbiddenState, LoadingState, LoginRequiredState } from "../../../components/PortalStates";
 import {
   ApiError,
@@ -41,7 +42,7 @@ type ItemDraft = {
 };
 
 function statusLabel(status: string, labels: Record<string, string>): string {
-  return labels[status] ?? "Đang cập nhật";
+  return labels[status] ?? "Trạng thái chưa xác định";
 }
 
 function dateTimeLabel(value?: string | null): string {
@@ -115,6 +116,9 @@ export default function DoctorCarePlansPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [retry, setRetry] = useState(0);
+  const [pendingAction, setPendingAction] = useState<
+    { kind: "cancel-item"; planId: string; item: CarePlanItem } | { kind: "delete-plan"; plan: CarePlan } | null
+  >(null);
 
   useEffect(() => {
     if (!session || !hasRole(session.user, "DOCTOR")) return;
@@ -248,7 +252,7 @@ export default function DoctorCarePlansPage() {
   };
 
   const cancelItem = async (planId: string, itemId: string) => {
-    if (busy || !window.confirm("Hủy mục chăm sóc này?")) return;
+    if (busy) return;
     setBusy(`cancel:${itemId}`);
     setNotice(null);
     setError(null);
@@ -257,6 +261,7 @@ export default function DoctorCarePlansPage() {
       setPlans((current) => current.map((plan) => plan.id === planId ? replaceItem(plan, item) : plan));
       setEditItems((current) => current.filter((draft) => draft.id !== itemId));
       setNotice("Đã hủy mục chăm sóc.");
+      setPendingAction(null);
     } catch (reason) {
       setError(reason);
     } finally {
@@ -265,7 +270,7 @@ export default function DoctorCarePlansPage() {
   };
 
   const deletePlan = async (planId: string) => {
-    if (busy || !window.confirm("Xóa kế hoạch chăm sóc này?")) return;
+    if (busy) return;
     setBusy(`delete:${planId}`);
     setNotice(null);
     setError(null);
@@ -274,6 +279,7 @@ export default function DoctorCarePlansPage() {
       setPlans((current) => current.filter((plan) => plan.id !== planId));
       if (editingPlanId === planId) cancelEdit();
       setNotice("Đã xóa kế hoạch chăm sóc.");
+      setPendingAction(null);
     } catch (reason) {
       setError(reason);
     } finally {
@@ -355,7 +361,7 @@ export default function DoctorCarePlansPage() {
                 </div>
                 <div className="flex flex-wrap justify-end gap-2">
                   <button className="outline-button outline-button--small min-h-11" disabled={!canEdit || Boolean(busy)} onClick={() => beginEdit(plan)} type="button">Sửa</button>
-                  <button className="outline-button outline-button--small min-h-11" disabled={Boolean(busy)} onClick={() => void deletePlan(plan.id)} type="button">
+                  <button className="outline-button outline-button--small min-h-11" disabled={Boolean(busy)} onClick={() => setPendingAction({ kind: "delete-plan", plan })} type="button">
                     {busy === `delete:${plan.id}` ? "Đang xóa..." : "Xóa"}
                   </button>
                 </div>
@@ -416,7 +422,7 @@ export default function DoctorCarePlansPage() {
                         <button className="outline-button outline-button--small min-h-11" disabled={!itemOpen || Boolean(busy)} onClick={() => void completeItem(plan.id, item.id)} type="button">
                           {busy === `complete:${item.id}` ? "Đang lưu..." : "Hoàn tất"}
                         </button>
-                        <button className="outline-button outline-button--small min-h-11" disabled={!itemOpen || Boolean(busy)} onClick={() => void cancelItem(plan.id, item.id)} type="button">
+                        <button className="outline-button outline-button--small min-h-11" disabled={!itemOpen || Boolean(busy)} onClick={() => setPendingAction({ kind: "cancel-item", planId: plan.id, item })} type="button">
                           {busy === `cancel:${item.id}` ? "Đang hủy..." : "Hủy mục"}
                         </button>
                       </div>
@@ -428,6 +434,34 @@ export default function DoctorCarePlansPage() {
           );
         })}
       </section>
+
+      <ConfirmActionDialog
+        confirmLabel={pendingAction?.kind === "delete-plan" ? "Xóa kế hoạch" : "Hủy mục chăm sóc"}
+        confirmingLabel="Đang ghi nhận…"
+        description={pendingAction?.kind === "delete-plan"
+          ? "Kế hoạch và toàn bộ mục theo dõi sẽ bị xóa khỏi hồ sơ chăm sóc. Thao tác này không thể hoàn tác."
+          : "Mục chăm sóc sẽ chuyển sang “Đã hủy” và không còn nhắc bác sĩ theo dõi. Lịch sử hiển thị vẫn được giữ lại."}
+        destructive={pendingAction?.kind === "delete-plan"}
+        entity={pendingAction?.kind === "delete-plan" ? pendingAction.plan : pendingAction?.item}
+        onCancel={() => { if (!busy) setPendingAction(null); }}
+        onConfirm={() => {
+          if (pendingAction?.kind === "delete-plan") void deletePlan(pendingAction.plan.id);
+          else if (pendingAction?.kind === "cancel-item") void cancelItem(pendingAction.planId, pendingAction.item.id);
+        }}
+        open={pendingAction !== null}
+        pending={Boolean(busy)}
+        summaryItems={pendingAction?.kind === "delete-plan" ? [
+          { label: "Tên kế hoạch", value: pendingAction.plan.title },
+          { label: "Số mục theo dõi", value: String(pendingAction.plan.items.length) },
+          { label: "Trạng thái", value: statusLabel(pendingAction.plan.status, PLAN_STATUS_LABELS) },
+        ] : pendingAction ? [
+          { label: "Mục tiêu", value: pendingAction.item.goal },
+          { label: "Hạn nhắc", value: dateTimeLabel(pendingAction.item.dueAt) },
+          { label: "Trạng thái", value: statusLabel(pendingAction.item.status, ITEM_STATUS_LABELS) },
+        ] : []}
+        summaryLabel={pendingAction?.kind === "delete-plan" ? "Kế hoạch sẽ bị xóa vĩnh viễn" : "Mục chăm sóc sẽ bị hủy"}
+        title={pendingAction?.kind === "delete-plan" ? "Xóa kế hoạch chăm sóc này?" : "Hủy mục chăm sóc này?"}
+      />
     </div>
   </PortalChrome>;
 }

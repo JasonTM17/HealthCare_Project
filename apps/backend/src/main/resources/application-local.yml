@@ -37,6 +37,14 @@ app.public:
   specialty-triage:
     enabled: true
 
+# Local development keeps the hosted demo behavior: demo personas can log in
+# and the mutation boundary (HC-01/D-01) stays enforced. See application.yml
+# for the full policy.
+healthcare:
+  demo:
+    boundary: ${HEALTHCARE_DEMO_BOUNDARY:enforce}
+    login-allowed: ${HEALTHCARE_DEMO_LOGIN_ALLOWED:true}
+
 ai:
   service:
     runtime: ${AI_SERVICE_RUNTIME:local}

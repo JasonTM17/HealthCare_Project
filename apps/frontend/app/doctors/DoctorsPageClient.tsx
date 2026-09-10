@@ -114,7 +114,7 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
             <dl className="resource-meta-grid">
               <div>
                 <dt>Tổng bác sĩ</dt>
-                <dd>{loading && !page ? "Đang tải…" : error && !page ? "Chưa tải được" : doctorCount || "Chưa có dữ liệu"}</dd>
+                <dd>{loading && !page ? "Đang tải…" : error && !page ? "Chưa tải được" : doctorCount || "Chưa có bác sĩ công khai"}</dd>
               </div>
               <div>
                 <dt>Bộ lọc hiện tại</dt>

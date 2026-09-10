@@ -4,12 +4,16 @@ import com.healthcare.ai.entity.AiCreditTransaction;
 import com.healthcare.ai.repository.AiCreditTransactionRepository;
 import com.healthcare.appointment.entity.PatientProfile;
 import com.healthcare.appointment.repository.PatientProfileRepository;
+import com.healthcare.common.SafePageRequests;
 import com.healthcare.exception.BusinessException;
 import com.healthcare.exception.ResourceNotFoundException;
 import com.healthcare.hospital.entity.Doctor;
 import com.healthcare.hospital.repository.DoctorRepository;
 import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.UserRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +22,16 @@ import java.util.UUID;
 
 @Service
 public class AiCreditService {
+
+    /**
+     * HC-11: admin inventories are served in bounded windows. The default
+     * stays large because the admin UI still consumes whole arrays, and the
+     * hard maximum bounds the worst-case read; pages are ordered by immutable
+     * id so consecutive pages are stable and gap-free.
+     */
+    public static final int ADMIN_LISTING_DEFAULT_SIZE = 500;
+    public static final int ADMIN_LISTING_MAX_SIZE = 1_000;
+    private static final Sort ADMIN_LISTING_SORT = Sort.by(Sort.Direction.ASC, "id");
 
     private final PatientProfileRepository patientProfileRepository;
     private final DoctorRepository doctorRepository;
@@ -195,9 +209,16 @@ public class AiCreditService {
         }
     }
 
+    /**
+     * Bounded admin patient inventory (HC-11). Replaces the previous
+     * unbounded {@code findAll()} materialization; the response body stays a
+     * JSON array and pagination metadata travels in response headers.
+     */
     @Transactional(readOnly = true)
-    public List<PatientCreditDto> listAllPatients() {
-        return patientProfileRepository.findAll().stream()
+    public Page<PatientCreditDto> listPatients(Integer page, Integer size) {
+        Pageable bounded = SafePageRequests.normalizeAdminListing(
+            page, size, ADMIN_LISTING_DEFAULT_SIZE, ADMIN_LISTING_MAX_SIZE, ADMIN_LISTING_SORT);
+        return patientProfileRepository.findAll(bounded)
                 .map(p -> new PatientCreditDto(
                         p.getId(),
                         p.getUserId(),
@@ -206,21 +227,24 @@ public class AiCreditService {
                         p.getPhone(),
                         p.getPatientTier(),
                         p.getAiCredits() != null ? p.getAiCredits() : 0
-                ))
-                .toList();
+                ));
     }
 
+    /**
+     * Bounded admin doctor inventory (HC-11); see {@link #listPatients}.
+     */
     @Transactional(readOnly = true)
-    public List<DoctorCreditDto> listAllDoctors() {
-        return doctorRepository.findAll().stream()
+    public Page<DoctorCreditDto> listDoctors(Integer page, Integer size) {
+        Pageable bounded = SafePageRequests.normalizeAdminListing(
+            page, size, ADMIN_LISTING_DEFAULT_SIZE, ADMIN_LISTING_MAX_SIZE, ADMIN_LISTING_SORT);
+        return doctorRepository.findAll(bounded)
                 .map(d -> new DoctorCreditDto(
                         d.getId(),
                         d.getUserId(),
                         d.getFullName(),
                         d.getSlug(),
                         d.getAiCredits() != null ? d.getAiCredits() : 0
-                ))
-                .toList();
+                ));
     }
 
     @Transactional(readOnly = true)

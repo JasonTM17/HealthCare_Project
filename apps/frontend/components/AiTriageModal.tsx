@@ -368,7 +368,7 @@ export default function AiTriageModal({
                       Xem cơ sở gần nhất <Icon name="arrow-right" size={16} />
                     </Link>
                   </div>
-                  {!emergencyHref ? <p className="text-[11px] text-red-700">Backend chưa cung cấp số hotline cấp cứu cho các cơ sở hiện tại.</p> : null}
+                  {!emergencyHref ? <p className="text-[11px] text-red-700">Chưa có hotline cấp cứu công khai cho cơ sở hiện tại. Nếu có dấu hiệu nguy hiểm, hãy gọi cấp cứu địa phương hoặc đến cơ sở gần nhất.</p> : null}
                 </div>
               ) : (
                 <div className="flex flex-col gap-3 border-t border-brand-100 pt-3 sm:flex-row sm:items-center sm:justify-between">

@@ -24,6 +24,7 @@ test("patient, doctor and admin shells keep role gates and keyboard landmarks ex
   assert.match(portalChrome, /href: "\/patient\/medical-records"/);
   assert.match(portalChrome, /href: "\/patient\/prescriptions"/);
   assert.match(portalChrome, /href: "\/patient\/diagnostic-results"/);
+  assert.match(portalChrome, /href: "\/patient\/documents"/);
   assert.match(adminLayout, /href: "\/admin\/consultations"/);
   assert.match(adminLayout, /className="admin-nav mt-6"/);
   assert.match(adminLayout, /className=\{`admin-nav__link/);

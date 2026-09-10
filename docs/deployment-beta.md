@@ -38,8 +38,15 @@ render.yaml.
 
 The AI service uses `AI_PROVIDER=deepseek` for the public hospital-support
 surface, `EMBEDDING_PROVIDER=local`, and accepts hospital-support/catalog
-requests only. Remote patient/clinical AI, ClamAV, attachment scanning,
-object storage, mail, payment and consultation-upload consumers are
+requests only. Per ADR-004 (docs/adr/ADR-004-synthetic-ai-egress.md, decision
+D-05), this remote egress is restricted to non-sensitive synthetic/guest
+content: public catalog content, guest hospital-support/triage conversation,
+and synthetic demo-patient content. Authenticated patient clinical data must
+not egress to the cloud provider; patient-chat and patient-LLM egress stay
+disabled (`AI_PATIENT_CHAT_REMOTE_ENABLED=false`,
+`AI_CHAT_REMOTE_PROVIDER_ENABLED=false`, `REMOTE_AI_SYNTHETIC_ONLY=true`,
+`REMOTE_AI_KILL_SWITCH=true`). Remote patient/clinical AI, ClamAV, attachment
+scanning, object storage, mail, payment and consultation-upload consumers are
 explicitly disabled. The AI service ingests the Spring public operational
 catalog into an in-memory index; Supabase durable-RAG and patient-chat
 consumers remain disabled. Render Free web services use a public HTTPS hop

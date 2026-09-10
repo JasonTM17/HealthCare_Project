@@ -45,7 +45,7 @@ const MESSAGE_STATUS_LABELS: Record<string, string> = {
 };
 
 function statusLabel(status: string): string {
-  return STATUS_LABELS[status] ?? "Đang cập nhật";
+  return STATUS_LABELS[status] ?? "Trạng thái chưa xác định";
 }
 
 function safeDate(value: string | null | undefined, includeTime = false): string {
@@ -462,7 +462,7 @@ export default function DoctorConsultationDetailPage({ params }: { params: Promi
               <div ref={threadRef} className="portal-thread" aria-live="polite" aria-relevant="additions text" tabIndex={0}>
                 {detail.messages.length ? detail.messages.map((message) => (
                   <article className={`portal-thread__message ${message.authorRole === "DOCTOR" ? "portal-thread__message--mine" : ""}`} key={message.id}>
-                    <p className="section-note">{authorLabel(message.authorRole)} · {safeDate(message.createdAt, true)} · {MESSAGE_STATUS_LABELS[message.status] ?? "Đang cập nhật"}</p>
+                    <p className="section-note">{authorLabel(message.authorRole)} · {safeDate(message.createdAt, true)} · {MESSAGE_STATUS_LABELS[message.status] ?? "Trạng thái chưa xác định"}</p>
                     <p>{message.body}</p>
                     {message.attachments.length ? <ul className="mt-3 grid gap-2" aria-label="Tệp đính kèm">{message.attachments.map((attachment) => <li className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-sm" key={attachment.id}><span>{attachment.mimeType} · {Math.ceil(attachment.sizeBytes / 1024)} KB · {attachmentStatus(attachment)}</span>{attachment.scanStatus === "CLEAN" ? <button className="outline-button outline-button--small" onClick={() => void download(attachment)} type="button">Mở tệp an toàn</button> : null}</li>)}</ul> : null}
                   </article>

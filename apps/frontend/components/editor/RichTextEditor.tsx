@@ -14,6 +14,7 @@ import dynamic from "next/dynamic";
 import type { Editor as TinyMCEEditor } from "tinymce";
 import type { IAllProps } from "@tinymce/tinymce-react";
 import UiIcon, { type IconName } from "../UiIcon";
+import ConfirmActionDialog from "../ui/ConfirmActionDialog";
 import RichContentRenderer, { htmlToMarkdown, markdownToHtml } from "./RichContentRenderer";
 import { uploadMediaAsset, ApiError } from "../../lib/api-client";
 import { presentApiError } from "../../lib/present-api-error";
@@ -193,6 +194,7 @@ export function RichTextEditor({
   // Dropdown states
   const [showCalloutMenu, setShowCalloutMenu] = useState(false);
   const [showTemplateMenu, setShowTemplateMenu] = useState(false);
+  const [pendingTemplate, setPendingTemplate] = useState<MedicalTemplate | null>(null);
 
   // History stack for Undo / Redo with external value synchronization
   const historyRef = useRef<string[]>([safeValue]);
@@ -1097,21 +1099,57 @@ export function RichTextEditor({
     insertAtCursor(snippet);
   };
 
-  // Apply Medical Template
-  const handleApplyTemplate = (tmpl: MedicalTemplate) => {
-    if (disabled) return;
-    setShowTemplateMenu(false);
-    if (safeValue.trim()) {
-      const confirmReplace = window.confirm(
-        `Áp dụng mẫu "${tmpl.title}" sẽ thêm cấu trúc y khoa vào bài viết hiện tại. Bạn có muốn tiếp tục?`,
-      );
-      if (!confirmReplace) return;
+  // Keeps the textarea selection alive across the confirm dialog so undo/redo
+  // and the highlighted range survive an open/close round-trip.
+  const restoreSavedSelection = useCallback(() => {
+    const saved = savedSelectionRef.current;
+    savedSelectionRef.current = null;
+    const textarea = textareaRef.current;
+    if (saved && textarea) {
+      textarea.focus();
+      try {
+        textarea.setSelectionRange(saved.start, saved.end);
+      } catch {
+        // selection restore is best-effort
+      }
     }
+  }, []);
+
+  const applyTemplateNow = useCallback((tmpl: MedicalTemplate) => {
     const newValue = safeValue.trim() ? `${safeValue}\n\n${tmpl.content}` : tmpl.content;
     isInternalChangeRef.current = true;
     lastExternalValueRef.current = newValue;
     onChange(newValue);
     recordHistory(newValue, true);
+  }, [safeValue, onChange, recordHistory]);
+
+  // Apply Medical Template
+  const handleApplyTemplate = (tmpl: MedicalTemplate) => {
+    if (disabled) return;
+    setShowTemplateMenu(false);
+    if (safeValue.trim()) {
+      const textarea = textareaRef.current;
+      savedSelectionRef.current = {
+        start: textarea?.selectionStart ?? safeValue.length,
+        end: textarea?.selectionEnd ?? safeValue.length,
+      };
+      setPendingTemplate(tmpl);
+      return;
+    }
+    applyTemplateNow(tmpl);
+  };
+
+  const handleConfirmTemplate = () => {
+    const tmpl = pendingTemplate;
+    if (!tmpl) return;
+    setPendingTemplate(null);
+    restoreSavedSelection();
+    applyTemplateNow(tmpl);
+  };
+
+  const handleCancelTemplate = () => {
+    setPendingTemplate(null);
+    restoreSavedSelection();
   };
 
   const containerClasses = isFullscreen
@@ -1864,6 +1902,25 @@ export function RichTextEditor({
           </div>
         </div>
       )}
+
+      {/* Modal: Apply medical template over existing content */}
+      <ConfirmActionDialog
+        confirmLabel="Áp dụng mẫu"
+        confirmingLabel="Đang áp dụng…"
+        cancelLabel="Hủy"
+        description={`Nội dung hiện tại sẽ được giữ nguyên và cấu trúc y khoa của mẫu "${pendingTemplate?.title ?? ""}" sẽ được thêm vào cuối bài viết. Sau khi áp dụng, bạn vẫn có thể hoàn tác bằng Ctrl+Z.`}
+        destructive
+        entity={pendingTemplate}
+        onCancel={handleCancelTemplate}
+        onConfirm={handleConfirmTemplate}
+        open={pendingTemplate !== null}
+        summaryItems={pendingTemplate ? [
+          { label: "Mẫu áp dụng", value: pendingTemplate.title },
+          { label: "Độ dài nội dung hiện tại", value: `${safeValue.length} ký tự` },
+        ] : []}
+        summaryLabel="Bài viết hiện tại"
+        title="Thêm mẫu y khoa vào bài viết đã có nội dung?"
+      />
     </div>
   );
 }

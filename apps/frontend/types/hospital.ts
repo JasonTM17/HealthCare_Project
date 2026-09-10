@@ -448,6 +448,24 @@ export interface MedicalRecord {
   createdAt: string;
 }
 
+export type PatientDocumentSourceType = "VISIT_SUMMARY" | "PRESCRIPTION";
+export type PatientDocumentStatus = "PENDING" | "AVAILABLE" | "FAILED" | "SUPERSEDED" | "REVOKED";
+
+export interface PatientDocument {
+  id: string;
+  patientId: string;
+  sourceRecordId: string;
+  sourceType: PatientDocumentSourceType;
+  sourceVersion: number;
+  templateVersion: string;
+  status: PatientDocumentStatus;
+  sha256?: string | null;
+  byteSize?: number | null;
+  generatedBy: string;
+  generatedAt: string;
+  revokedAt?: string | null;
+}
+
 export interface DiagnosticResult {
   id: string;
   patientId: string;

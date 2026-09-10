@@ -247,7 +247,7 @@ export default function DiseaseGuidePage({ params }: { params: Promise<{ slug: s
                       fallback={<p>{section.body}</p>}
                     />
                   ) : (
-                    <p className="resource-muted">Nội dung đang được cập nhật.</p>
+                    <p className="resource-muted">Nội dung chi tiết đang chờ biên tập. Nếu triệu chứng kéo dài hoặc nặng lên, hãy đặt lịch để được bác sĩ đánh giá.</p>
                   )}
                 </section>
               ))}

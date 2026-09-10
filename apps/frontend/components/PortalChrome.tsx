@@ -109,6 +109,7 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
         { href: "/patient/medical-records", label: "Lịch sử khám" },
         { href: "/patient/prescriptions", label: "Đơn thuốc" },
         { href: "/patient/diagnostic-results", label: "Kết quả CLS" },
+        { href: "/patient/documents", label: "Tài liệu PDF" },
         { href: "/patient/consultations", label: "Tư vấn" },
         { href: "/patient/care-plan", label: "Kế hoạch" },
         { href: "/patient/health-questions", label: "Hỏi đáp" },

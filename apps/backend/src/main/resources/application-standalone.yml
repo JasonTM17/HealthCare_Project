@@ -46,6 +46,13 @@ ai:
     runtime: local
     allow-unauthenticated-local: false
 
+# Standalone is a local/demo runtime: keep the shared demo personas usable and
+# the HC-01/D-01 mutation boundary enforced. See application.yml for policy.
+healthcare:
+  demo:
+    boundary: ${HEALTHCARE_DEMO_BOUNDARY:enforce}
+    login-allowed: ${HEALTHCARE_DEMO_LOGIN_ALLOWED:true}
+
 # Redis only fans CMS changes out between multiple production instances. The
 # single-process standalone profile keeps the in-memory feed and must remain
 # healthy when Redis is not installed on a developer machine.

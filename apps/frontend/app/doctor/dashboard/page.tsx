@@ -535,7 +535,7 @@ export default function DoctorDashboardPage() {
               {renderLookupState(
                 records,
                 "Chưa có hồ sơ khám",
-                "Người bệnh này chưa có hồ sơ khám phù hợp hoặc thông tin đang được cập nhật.",
+                "Chưa có hồ sơ khám phù hợp cho người bệnh này. Kiểm tra mã hồ sơ hoặc chọn lại từ lịch khám ở trên.",
                 retry,
                 (items) => (
                   <div className="portal-record-list">

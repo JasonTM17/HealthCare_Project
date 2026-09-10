@@ -8,6 +8,7 @@ import {
   adminListBranches, type Branch, type Doctor, type DoctorSchedule, type DoctorScheduleException,
 } from "../../../lib/api-client";
 import AdminState from "../_components/AdminState";
+import ConfirmActionDialog from "../../../components/ui/ConfirmActionDialog";
 import { describeAdminError } from "../_lib/errors";
 import { businessDate, formatBusinessDate } from "../../../lib/business-time";
 
@@ -42,6 +43,9 @@ export default function AdminSchedulesPage() {
   const [busy, setBusy] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<
+    { kind: "schedule"; item: DoctorSchedule } | { kind: "exception"; item: DoctorScheduleException } | null
+  >(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -125,8 +129,8 @@ export default function AdminSchedulesPage() {
   };
 
   const remove = async (id: string) => {
-    if (!window.confirm("Xóa lịch làm việc này? Hành động này không thể hoàn tác.")) return;
     await runMutation(() => adminDeleteSchedule(id), "Đã xóa lịch làm việc");
+    setPendingDelete(null);
   };
 
   const saveException = async (event: FormEvent) => {
@@ -149,8 +153,8 @@ export default function AdminSchedulesPage() {
   };
 
   const removeException = async (id: string) => {
-    if (!window.confirm("Xóa ngày nghỉ hoặc giờ làm việc đặc biệt này? Hành động này không thể hoàn tác.")) return;
     await runMutation(() => adminDeleteScheduleException(id), "Đã xóa ngoại lệ");
+    setPendingDelete(null);
   };
 
   return (
@@ -264,7 +268,7 @@ export default function AdminSchedulesPage() {
                           >
                             Sửa
                           </button>
-                          <button aria-label={`Xóa lịch của ${item.doctorName}`} className="text-sm font-bold text-red-700 underline" disabled={busy} onClick={() => void remove(item.id)} type="button">Xóa</button>
+                          <button aria-label={`Xóa lịch của ${item.doctorName}`} className="text-sm font-bold text-red-700 underline" disabled={busy} onClick={() => setPendingDelete({ kind: "schedule", item })} type="button">Xóa</button>
                         </div>
                       </div>
                     </article>
@@ -338,7 +342,7 @@ export default function AdminSchedulesPage() {
                       >
                         Sửa
                       </button>
-                      <button aria-label={`Xóa ngoại lệ của ${item.doctorName}`} className="font-bold text-red-700 underline" disabled={busy} onClick={() => void removeException(item.id)} type="button">Xóa</button>
+                      <button aria-label={`Xóa ngoại lệ của ${item.doctorName}`} className="font-bold text-red-700 underline" disabled={busy} onClick={() => setPendingDelete({ kind: "exception", item })} type="button">Xóa</button>
                     </div>
                   </article>
                 ))}
@@ -347,6 +351,34 @@ export default function AdminSchedulesPage() {
           </section>
         </>
       ) : null}
+
+      <ConfirmActionDialog
+        confirmLabel={pendingDelete?.kind === "schedule" ? "Xóa lịch làm việc" : "Xóa ngoại lệ"}
+        confirmingLabel="Đang xóa…"
+        description="Lịch đã xóa không thể khôi phục. Khung giờ đặt khám sinh từ lịch này sẽ ngừng mở cho người bệnh."
+        destructive
+        entity={pendingDelete?.item}
+        onCancel={() => { if (!busy) setPendingDelete(null); }}
+        onConfirm={() => {
+          if (pendingDelete?.kind === "schedule") void remove(pendingDelete.item.id);
+          else if (pendingDelete?.kind === "exception") void removeException(pendingDelete.item.id);
+        }}
+        open={pendingDelete !== null}
+        pending={busy}
+        summaryItems={pendingDelete?.kind === "schedule" ? [
+          { label: "Bác sĩ", value: pendingDelete.item.doctorName },
+          { label: "Cơ sở", value: pendingDelete.item.branchName },
+          { label: "Khung giờ", value: `${dayNames[pendingDelete.item.dayOfWeek]} · ${pendingDelete.item.startTime.slice(0, 5)} - ${pendingDelete.item.endTime.slice(0, 5)}` },
+          { label: "Hiệu lực", value: `${formatBusinessDate(pendingDelete.item.effectiveFrom)} đến ${pendingDelete.item.effectiveTo ? formatBusinessDate(pendingDelete.item.effectiveTo) : "không giới hạn"}` },
+        ] : pendingDelete ? [
+          { label: "Bác sĩ", value: pendingDelete.item.doctorName },
+          { label: "Cơ sở", value: pendingDelete.item.branchName },
+          { label: "Ngày", value: formatBusinessDate(pendingDelete.item.exceptionDate) },
+          { label: "Loại", value: exceptionTypeLabels[pendingDelete.item.type] },
+        ] : []}
+        summaryLabel="Bản ghi sẽ bị xóa vĩnh viễn"
+        title={pendingDelete?.kind === "schedule" ? "Xóa lịch làm việc này?" : "Xóa ngày nghỉ / giờ đặc biệt này?"}
+      />
     </div>
   );
 }

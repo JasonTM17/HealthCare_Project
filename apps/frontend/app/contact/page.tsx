@@ -62,13 +62,13 @@ export default function ContactPage() {
     : error
       ? "Chưa tải được"
       : page?.empty
-        ? "Chưa có dữ liệu"
+        ? "Chưa có cơ sở công khai"
         : String(branchCount);
   const featuredBranchLabel = loading
     ? "Đang tải…"
     : error
       ? "Chưa tải được"
-      : featuredBranch?.name ?? "Chưa có dữ liệu";
+      : featuredBranch?.name ?? "Chưa chọn cơ sở nổi bật";
 
   return (
     <PublicPageShell branches={branches}>
@@ -84,7 +84,15 @@ export default function ContactPage() {
 
         {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải thông tin liên hệ…</p> : null}
         {error ? <p className="catalog-status catalog-status--error" role="alert">{error}</p> : null}
-        {!loading && !error && (!page || page.empty) ? <p className="catalog-status" role="status">Thông tin cơ sở đang được cập nhật.</p> : null}
+        {!loading && !error && (!page || page.empty) ? (
+          <div className="catalog-status" role="status">
+            <p>Chưa có cơ sở công khai để hiển thị. Bạn vẫn có thể đặt lịch hoặc gửi yêu cầu để đội ngũ hỗ trợ xác nhận đầu mối phù hợp.</p>
+            <div className="resource-actions">
+              <PublicBookingButton className="button button--amber">Đặt lịch khám</PublicBookingButton>
+              <Link className="outline-button outline-button--small" href="/dat-lich">Mở form đặt lịch</Link>
+            </div>
+          </div>
+        ) : null}
 
         <section className="resource-hero-card resource-hero-card--teal">
           <div className="resource-icon" aria-hidden="true">
@@ -120,8 +128,8 @@ export default function ContactPage() {
         <div className="resource-grid resource-grid--two">
           <section className="resource-panel resource-panel--accent">
             <p className="section-note">Liên hệ nhanh</p>
-            <h2>{featuredBranch?.name ?? "Cơ sở đang được cập nhật"}</h2>
-            <p>{featuredBranch?.address ?? "Thông tin địa chỉ đang được cập nhật."}</p>
+            <h2>{featuredBranch?.name ?? "Chưa chọn cơ sở nổi bật"}</h2>
+            <p>{featuredBranch?.address ?? "Hãy đặt lịch hoặc mở danh sách cơ sở để đội ngũ hỗ trợ xác nhận địa điểm phù hợp."}</p>
 
             {featuredBranch ? (
               <ul className="resource-list">
@@ -188,7 +196,7 @@ export default function ContactPage() {
                 const mapHref = address ? createGoogleMapsUrls(address, branch.name).open : undefined;
                 return (
                   <article className="catalog-card" key={branch.id}>
-                    <p className="section-note">{branch.workingHours ?? "Giờ làm việc đang được cập nhật."}</p>
+                    <p className="section-note">{branch.workingHours ?? "Vui lòng xác nhận giờ làm việc trước khi đến."}</p>
                     <h2>{branch.name}</h2>
                     <p>{branch.address}</p>
                     <ul className="resource-list">

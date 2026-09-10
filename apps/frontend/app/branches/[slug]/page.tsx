@@ -99,7 +99,7 @@ export default function BranchDetailPage() {
                   <dt>Địa chỉ</dt>
                   <dd>
                     {branch.address?.trim() || (
-                      <span className="resource-muted">Địa chỉ đang được cập nhật.</span>
+                      <span className="resource-muted">Địa chỉ chưa công bố; vui lòng liên hệ trước khi đến.</span>
                     )}
                   </dd>
                 </div>
@@ -109,13 +109,13 @@ export default function BranchDetailPage() {
                     {phoneHref ? (
                       <a href={phoneHref}>{branch.phone}</a>
                     ) : (
-                      <span className="resource-muted">Số điện thoại đang được cập nhật.</span>
+                      <span className="resource-muted">Chưa có số công khai; hãy đặt lịch để đội ngũ hỗ trợ xác nhận.</span>
                     )}
                   </dd>
                 </div>
                 <div>
                   <dt>Giờ làm việc</dt>
-                  <dd>{branch.workingHours || "Giờ làm việc đang được cập nhật."}</dd>
+                  <dd>{branch.workingHours || "Vui lòng xác nhận giờ làm việc trước khi đến."}</dd>
                 </div>
                 <div>
                   <dt>Cấp cứu</dt>
@@ -140,7 +140,7 @@ export default function BranchDetailPage() {
                     Gọi cơ sở
                   </a>
                 ) : (
-                  <span className="resource-muted">Số điện thoại đang được cập nhật.</span>
+                  <span className="resource-muted">Chưa có số công khai; hãy đặt lịch để đội ngũ hỗ trợ xác nhận.</span>
                 )}
               </div>
             </div>
@@ -172,7 +172,7 @@ export default function BranchDetailPage() {
                   ))}
                 </ul>
               ) : (
-                <p className="resource-muted">Thông tin tiện ích đang được cập nhật.</p>
+                <p className="resource-muted">Thông tin tiện ích đang chờ xác nhận; vui lòng xem địa chỉ và liên hệ trước khi đến.</p>
               )}
             </section>
             <section className="resource-panel resource-panel--accent">
@@ -189,7 +189,7 @@ export default function BranchDetailPage() {
                   ))}
                 </div>
               ) : (
-                <p className="resource-muted">Danh sách bác sĩ tại cơ sở đang được cập nhật.</p>
+                <p className="resource-muted">Danh sách bác sĩ tại cơ sở đang chờ xác nhận; bạn vẫn có thể đặt lịch để được điều phối phù hợp.</p>
               )}
             </section>
           </div>

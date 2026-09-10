@@ -4,6 +4,7 @@ import com.healthcare.exception.DuplicateResourceException;
 import com.healthcare.exception.BusinessException;
 import com.healthcare.exception.ErrorCodes;
 import com.healthcare.exception.ResourceNotFoundException;
+import com.healthcare.security.DemoBoundaryProperties;
 import com.healthcare.security.JwtProperties;
 import com.healthcare.security.JwtTokenProvider;
 import com.healthcare.user.dto.AuthResponse;
@@ -66,6 +67,7 @@ public class AuthService {
     private final AppointmentClaimService appointmentClaimService;
     private final BrowserSessionService browserSessionService;
     private final NotificationPreferenceService notificationPreferenceService;
+    private final DemoBoundaryProperties demoBoundaryProperties;
 
     public AuthService(UserRepository userRepository,
                        UserSecurityLock userSecurityLock,
@@ -80,7 +82,8 @@ public class AuthService {
                        AuthRateLimiter authRateLimiter,
                        AppointmentClaimService appointmentClaimService,
                        BrowserSessionService browserSessionService,
-                       NotificationPreferenceService notificationPreferenceService) {
+                       NotificationPreferenceService notificationPreferenceService,
+                       DemoBoundaryProperties demoBoundaryProperties) {
         this.userRepository = userRepository;
         this.userSecurityLock = userSecurityLock;
         this.roleRepository = roleRepository;
@@ -95,6 +98,7 @@ public class AuthService {
         this.appointmentClaimService = appointmentClaimService;
         this.browserSessionService = browserSessionService;
         this.notificationPreferenceService = notificationPreferenceService;
+        this.demoBoundaryProperties = demoBoundaryProperties;
     }
 
     @Transactional
@@ -188,7 +192,25 @@ public class AuthService {
                 "Email verification is required before login"
             );
         }
+        rejectDemoPrincipalWhenLoginDisabled(user);
         return user;
+    }
+
+    /**
+     * HC-01/D-01: a deployment that declares itself non-demo
+     * ({@code healthcare.demo.login-allowed=false}) rejects shared demo
+     * personas at authentication with a professional, stable error instead of
+     * granting the hosted demo experience. The check runs after credential
+     * verification so it never leaks which emails are demo identities.
+     */
+    private void rejectDemoPrincipalWhenLoginDisabled(User user) {
+        if (!demoBoundaryProperties.isLoginAllowed() && user.isDemo()) {
+            throw new BusinessException(
+                403,
+                ErrorCodes.DEMO_LOGIN_DISABLED,
+                "Demo accounts are disabled in this deployment."
+            );
+        }
     }
 
     @Transactional(noRollbackFor = OtpVerificationException.class)
@@ -320,6 +342,16 @@ public class AuthService {
         if (!"ACTIVE".equals(user.getStatus())) {
             revokeAllUserTokensLocked(user);
             throw new BadCredentialsException("Account is disabled");
+        }
+
+        // HC-01/D-01: non-demo deployments must not renew demo sessions either.
+        if (!demoBoundaryProperties.isLoginAllowed() && user.isDemo()) {
+            revokeAllUserTokensLocked(user);
+            throw new BusinessException(
+                403,
+                ErrorCodes.DEMO_LOGIN_DISABLED,
+                "Demo accounts are disabled in this deployment."
+            );
         }
 
         if (!user.isEmailVerified()) {

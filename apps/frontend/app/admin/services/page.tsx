@@ -11,6 +11,7 @@ import {
   type MedicalService,
 } from "../../../lib/api-client";
 import AdminState from "../_components/AdminState";
+import ConfirmActionDialog from "../../../components/ui/ConfirmActionDialog";
 import { describeAdminError } from "../_lib/errors";
 
 type ServiceForm = { name: string; slug: string; description: string; active: boolean };
@@ -45,6 +46,7 @@ export default function AdminServicesPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ tone: "success" | "error"; message: string } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<MedicalService | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -94,7 +96,6 @@ export default function AdminServicesPage() {
   };
 
   const remove = async (slug: string) => {
-    if (!window.confirm(`Xóa dịch vụ "${slug}"? Hành động này không thể hoàn tác.`)) return;
     setMutating(true);
     setFormError(null);
     setFeedback(null);
@@ -111,6 +112,7 @@ export default function AdminServicesPage() {
       setFeedback({ tone: "error", message: `${copy.title}: ${copy.description}` });
     } finally {
       setMutating(false);
+      setPendingDelete(null);
     }
   };
 
@@ -200,7 +202,7 @@ export default function AdminServicesPage() {
             </button>
           </div>
 
-          {loading ? <AdminState tone="loading" title="Đang tải dịch vụ" description="Danh sách dịch vụ đang được cập nhật." /> : null}
+          {loading ? <AdminState tone="loading" title="Đang tải dịch vụ" description="Đang lấy danh mục dịch vụ mới nhất từ hệ thống." /> : null}
           {!loading && loadError ? <AdminState action={<button className="text-sm font-bold underline underline-offset-4" onClick={() => void load()} type="button">Thử lại</button>} tone="error" title="Không thể tải dịch vụ" description={loadError} /> : null}
           {!loading && !loadError && services.length === 0 ? (
             <AdminState tone="empty" title="Chưa có dịch vụ" description="Tạo dịch vụ đầu tiên để bổ sung vào danh mục bệnh viện." />
@@ -247,7 +249,7 @@ export default function AdminServicesPage() {
                             aria-label={`Xóa ${service.name}`}
                             className="text-xs font-bold text-red-700 underline disabled:opacity-50"
                             disabled={mutating}
-                            onClick={() => void remove(service.slug)}
+                            onClick={() => setPendingDelete(service)}
                             type="button"
                           >
                             Xóa
@@ -262,6 +264,25 @@ export default function AdminServicesPage() {
           ) : null}
         </section>
       </div>
+
+      <ConfirmActionDialog
+        confirmLabel="Xóa dịch vụ"
+        confirmingLabel="Đang xóa…"
+        description="Gói khám và liên kết công khai đang dùng dịch vụ này có thể mất tham chiếu. Hãy cân nhắc tạm ẩn thay vì xóa."
+        destructive
+        entity={pendingDelete ?? undefined}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => void remove(pendingDelete?.slug ?? "")}
+        open={pendingDelete !== null}
+        pending={mutating}
+        summaryItems={pendingDelete ? [
+          { label: "Tên dịch vụ", value: pendingDelete.name },
+          { label: "Slug", value: pendingDelete.slug, mono: true },
+          { label: "Trạng thái", value: pendingDelete.active ?? true ? "Đang hiển thị" : "Tạm ẩn" },
+        ] : []}
+        summaryLabel="Dịch vụ sẽ bị xóa vĩnh viễn"
+        title="Xóa dịch vụ này?"
+      />
     </div>
   );
 }

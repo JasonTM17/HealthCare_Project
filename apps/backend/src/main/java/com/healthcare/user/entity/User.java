@@ -44,6 +44,12 @@ public class User {
     @Column(name = "email_verified", nullable = false)
     private boolean emailVerified = true;
 
+    // Synthetic shared demo personas (V70). Drives the demo trust boundary:
+    // non-demo deployments must not keep these principals active, and demo
+    // deployments deny their high-impact mutations server-side.
+    @Column(name = "is_demo", nullable = false)
+    private boolean demo = false;
+
     @Column(name = "email_verified_at")
     private OffsetDateTime emailVerifiedAt;
 
@@ -108,6 +114,14 @@ public class User {
 
     public void setEmailVerified(boolean emailVerified) {
         this.emailVerified = emailVerified;
+    }
+
+    public boolean isDemo() {
+        return demo;
+    }
+
+    public void setDemo(boolean demo) {
+        this.demo = demo;
     }
 
     public OffsetDateTime getEmailVerifiedAt() {

@@ -52,4 +52,42 @@ class SafePageRequestsTest {
 
         assertThat(normalized.getSort()).isEqualTo(Sort.by("name").ascending());
     }
+
+    @Test
+    void adminListingDefaultsToLargeWindowWhenParamsAbsent() {
+        Pageable normalized = SafePageRequests.normalizeAdminListing(
+            null, null, 500, 1000, Sort.by("id"));
+
+        assertThat(normalized.getPageNumber()).isZero();
+        assertThat(normalized.getPageSize()).isEqualTo(500);
+        assertThat(normalized.getSort()).isEqualTo(Sort.by("id"));
+    }
+
+    @Test
+    void adminListingClampsOversizedSizeToHardMaximum() {
+        Pageable normalized = SafePageRequests.normalizeAdminListing(
+            0, 100_000, 500, 1000, Sort.by("id"));
+
+        assertThat(normalized.getPageSize()).isEqualTo(1000);
+    }
+
+    @Test
+    void adminListingClampsNegativePageAndNonPositiveSize() {
+        Pageable normalized = SafePageRequests.normalizeAdminListing(
+            -7, 0, 500, 1000, Sort.by("id"));
+
+        assertThat(normalized.getPageNumber()).isZero();
+        // Explicit non-positive size clamps to the minimum window of 1;
+        // only absent params receive the 500 default.
+        assertThat(normalized.getPageSize()).isEqualTo(1);
+    }
+
+    @Test
+    void adminListingHonorsExplicitWindowWithinBounds() {
+        Pageable normalized = SafePageRequests.normalizeAdminListing(
+            3, 25, 500, 1000, Sort.by("slotKey"));
+
+        assertThat(normalized.getPageNumber()).isEqualTo(3);
+        assertThat(normalized.getPageSize()).isEqualTo(25);
+    }
 }

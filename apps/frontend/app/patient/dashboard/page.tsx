@@ -180,7 +180,7 @@ function formatPaymentStatus(status: string): string {
     REFUND_PENDING: "Đang chờ hoàn tiền",
     REFUNDED: "Đã hoàn tiền",
   };
-  return labels[status] ?? "Đang cập nhật";
+  return labels[status] ?? "Trạng thái chưa xác định";
 }
 
 function formatMoney(amount: number): string {
@@ -304,14 +304,14 @@ function StateContent<T>({
   if (state.status === "loading") return <LoadingState />;
   if (state.status === "error") return <ErrorState message={state.message} onRetry={retry} status={state.statusCode} />;
   if (Array.isArray(state.data) && state.data.length === 0) {
-    return <EmptyState description={emptyDescription ?? "Hiện chưa có thông tin để hiển thị."} title={emptyTitle ?? "Chưa có dữ liệu"} />;
+    return <EmptyState description={emptyDescription ?? "Mục này chưa có thông tin. Nếu bạn vừa cập nhật dữ liệu, hãy thử tải lại trang."} title={emptyTitle ?? "Chưa có mục để hiển thị"} />;
   }
   if (
     !Array.isArray(state.data) &&
     ((state.data as Partial<Page<unknown>>).empty ||
       (state.data as Partial<Page<unknown>>).content?.length === 0)
   ) {
-    return <EmptyState description={emptyDescription ?? "Hiện chưa có thông tin để hiển thị."} title={emptyTitle ?? "Chưa có dữ liệu"} />;
+    return <EmptyState description={emptyDescription ?? "Mục này chưa có thông tin. Nếu bạn vừa cập nhật dữ liệu, hãy thử tải lại trang."} title={emptyTitle ?? "Chưa có mục để hiển thị"} />;
   }
   return children(state.data);
 }
@@ -522,7 +522,7 @@ function PatientCareHub({
           ? "Một phần chưa tải"
           : hasRecordedData
             ? "Đang đúng tiến độ"
-            : "Chưa có dữ liệu";
+            : "Chưa có cập nhật mới";
   const statusTone = isUnavailable || hasPartialError || hasAttentionTask
     ? "attention"
     : attentionGroupCount > 0

@@ -105,6 +105,13 @@
       <artifactId>minio</artifactId>
       <version>8.5.17</version>
     </dependency>
+    <!-- ADR-005: offline deterministic rendering of synthetic clinical documents.
+         Apache-2.0; chosen over OpenPDF (LGPL) for license posture parity. -->
+    <dependency>
+      <groupId>org.apache.pdfbox</groupId>
+      <artifactId>pdfbox</artifactId>
+      <version>3.0.5</version>
+    </dependency>
     <dependency>
       <groupId>com.h2database</groupId>
       <artifactId>h2</artifactId>

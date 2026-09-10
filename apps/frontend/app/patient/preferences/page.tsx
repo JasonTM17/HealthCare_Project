@@ -459,8 +459,8 @@ export default function PatientPreferencesPage() {
             ) : null}
             {state.status === "empty" ? (
               <div aria-live="polite" className="preferences-state preferences-state--empty" role="status">
-                <h3>Chưa có dữ liệu tùy chọn riêng</h3>
-                <p>Hệ thống sẽ dùng thiết lập an toàn mặc định cho tài khoản của bạn.</p>
+                <h3>Đang dùng thiết lập thông báo mặc định</h3>
+                <p>Chưa có tùy chọn riêng cho tài khoản này. Các thông báo bắt buộc vẫn được giữ bật để bảo vệ tài khoản và giao dịch.</p>
                 <button className="outline-button outline-button--small" onClick={() => void loadPreferences()} type="button">Thử tải lại</button>
               </div>
             ) : null}
