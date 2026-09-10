@@ -597,7 +597,9 @@ function FloatingHealthAssistantPanel({
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
     if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
     event.preventDefault();
-    event.currentTarget.form?.requestSubmit();
+    if (draft.trim().length >= 2 && !sending && !consentBlocked) {
+      event.currentTarget.form?.requestSubmit();
+    }
   };
 
   return (
