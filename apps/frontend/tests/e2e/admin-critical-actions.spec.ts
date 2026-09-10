@@ -92,6 +92,10 @@ test("admin schedule deletion is dialog-gated, contextual, cancelable, and singl
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(pageEnvelope([branch])) });
       return;
     }
+    if (request.method() === "GET" && url.pathname === "/api/v1/hospital/branches") {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(pageEnvelope([branch])) });
+      return;
+    }
     if (request.method() === "DELETE" && url.pathname === `/api/v1/admin/schedules/${schedules[0]?.id ?? "deleted"}`) {
       deleteCount += 1;
       schedules = [];
@@ -198,6 +202,10 @@ test("admin catalog destructive copy offers a hide alternative and rich-text tem
     }
     if (request.method() === "GET" && url.pathname === "/api/v1/admin/articles") {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(pageEnvelope(articles)) });
+      return;
+    }
+    if (request.method() === "GET" && url.pathname === "/api/v1/hospital/branches") {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(pageEnvelope([])) });
       return;
     }
     if (request.method() === "DELETE" && url.pathname === "/api/v1/admin/articles/huong-dan-cham-soc-sau-kham") {
