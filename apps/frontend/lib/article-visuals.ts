@@ -44,6 +44,30 @@ const CATEGORY_VISUALS: Record<string, { imageSrc: string; tagColor: string }> =
     imageSrc: "/images/packages/womens-health.jpg",
     tagColor: "bg-pink-950/80 text-pink-100",
   },
+  "hô hấp": {
+    imageSrc: "/media/branches/branch-clinic-hall.jpg",
+    tagColor: "bg-cyan-950/80 text-cyan-100",
+  },
+  "tai mũi họng": {
+    imageSrc: "/media/branches/branch-clinic-2.jpg",
+    tagColor: "bg-teal-950/80 text-teal-100",
+  },
+  "da liễu": {
+    imageSrc: "/media/doctor-family-consult.jpg",
+    tagColor: "bg-amber-950/80 text-amber-100",
+  },
+  "ung bướu": {
+    imageSrc: "/images/packages/general-checkup.jpg",
+    tagColor: "bg-violet-950/80 text-violet-100",
+  },
+  "phòng bệnh chủ động": {
+    imageSrc: "/media/articles/dau-hieu-tim-mach.jpg",
+    tagColor: "bg-teal-950/80 text-teal-100",
+  },
+  "cấp cứu": {
+    imageSrc: "/media/branches/branch-hospital.jpg",
+    tagColor: "bg-red-950/80 text-red-100",
+  },
   "tổng quát": {
     imageSrc: "/media/articles/cham-soc-suc-khoe-tong-quat.jpg",
     tagColor: "bg-teal-950/80 text-teal-100",
@@ -65,29 +89,47 @@ export function resolveArticleCoverImage(
 
   const identity = `${article?.category ?? ""} ${article?.slug ?? ""} ${article?.title ?? ""}`.toLocaleLowerCase("vi-VN");
 
-  if (/tim|mạch|huyết áp|cardio/i.test(identity)) {
+  if (/tim|mạch|huyết áp|cardio|suy tim|rung nhĩ|mạch vành/i.test(identity)) {
     return CATEGORY_VISUALS["tim mạch"].imageSrc;
   }
-  if (/nhi|trẻ|em bé|pediatric/i.test(identity)) {
+  if (/nhi|trẻ|em bé|pediatric|sốt co giật|biếng ăn/i.test(identity)) {
     return CATEGORY_VISUALS["nhi khoa"].imageSrc;
   }
-  if (/dinh dưỡng|ăn uống|thực đơn|nutrition/i.test(identity)) {
+  if (/dinh dưỡng|ăn uống|thực đơn|nutrition|muối|dash|béo phì|giảm cân/i.test(identity)) {
     return CATEGORY_VISUALS["dinh dưỡng"].imageSrc;
   }
-  if (/tiểu đường|đái tháo đường|nội tiết|hba1c|metabolic/i.test(identity)) {
+  if (/tiểu đường|đái tháo đường|nội tiết|hba1c|metabolic|mỡ máu|cholesterol|insulin/i.test(identity)) {
     return CATEGORY_VISUALS["nội tiết"].imageSrc;
   }
-  if (/khớp|cột sống|lưng|xương|cơ/i.test(identity)) {
+  if (/khớp|cột sống|lưng|xương|cơ|gối|đĩa đệm|gút|loãng xương/i.test(identity)) {
     return CATEGORY_VISUALS["cơ xương khớp"].imageSrc;
   }
-  if (/dạ dày|tiêu hóa|ruột|gan|mật|gastro/i.test(identity)) {
+  if (/dạ dày|tiêu hóa|ruột|gan|mật|gastro|hp|vi khuẩn hp|gerd|trào ngược|nội soi/i.test(identity)) {
     return CATEGORY_VISUALS["tiêu hóa"].imageSrc;
   }
-  if (/thần kinh|đột quỵ|não|chóng mặt|neuro/i.test(identity)) {
+  if (/thần kinh|đột quỵ|não|chóng mặt|neuro|migraine|đau đầu|fast/i.test(identity)) {
     return CATEGORY_VISUALS["thần kinh"].imageSrc;
   }
-  if (/phụ khoa|sinh sản|mang thai|thai kỳ|women/i.test(identity)) {
+  if (/phụ khoa|sinh sản|mang thai|thai kỳ|women|mãn kinh|nipt|tiền sản/i.test(identity)) {
     return CATEGORY_VISUALS["sản phụ khoa"].imageSrc;
+  }
+  if (/hô hấp|hen|phế quản|phổi|thở|respiratory/i.test(identity)) {
+    return CATEGORY_VISUALS["hô hấp"].imageSrc;
+  }
+  if (/xoang|mũi|họng|tai|ent/i.test(identity)) {
+    return CATEGORY_VISUALS["tai mũi họng"].imageSrc;
+  }
+  if (/da|mụn|dị ứng da|mẩn ngứa|dermatology|skin/i.test(identity)) {
+    return CATEGORY_VISUALS["da liễu"].imageSrc;
+  }
+  if (/ung bướu|tầm soát ung thư|u cục|khối u|oncology/i.test(identity)) {
+    return CATEGORY_VISUALS["ung bướu"].imageSrc;
+  }
+  if (/cấp cứu|sơ cứu|cpr|115/i.test(identity)) {
+    return CATEGORY_VISUALS["cấp cứu"].imageSrc;
+  }
+  if (/phòng bệnh|tiêm chủng|vắc xin|vaccine/i.test(identity)) {
+    return CATEGORY_VISUALS["phòng bệnh chủ động"].imageSrc;
   }
 
   return DEFAULT_COVER;
