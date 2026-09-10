@@ -43,7 +43,7 @@ function safeDate(value: string | null | undefined, options: Intl.DateTimeFormat
 }
 
 function statusLabel(value: string): string {
-  return STATUS_LABELS[value] ?? "Đang cập nhật";
+  return STATUS_LABELS[value] ?? "Trạng thái chưa xác định";
 }
 
 function windowLabel(openUntil: string): string {

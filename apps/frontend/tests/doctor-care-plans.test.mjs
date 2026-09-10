@@ -29,8 +29,12 @@ test("doctor care plan page wires editing, item actions and safe portal states",
   assert.match(source, /beginEdit\(plan\)/);
   assert.match(source, /saveEdit/);
   assert.match(source, /summarizePlanStatus/);
-  assert.match(source, /window\.confirm\("Hủy mục chăm sóc này\?"\)/);
-  assert.match(source, /window\.confirm\("Xóa kế hoạch chăm sóc này\?"\)/);
+  // HC-08: destructive plan actions confirm through the shared accessible
+  // dialog instead of native window.confirm.
+  assert.match(source, /ConfirmActionDialog/);
+  assert.doesNotMatch(source, /window\.confirm/);
+  assert.match(source, /Xóa kế hoạch chăm sóc này\?/);
+  assert.match(source, /Hủy mục chăm sóc này\?/);
   assert.match(source, /aria-live="polite"/);
   assert.match(source, /LoginRequiredState/);
   assert.match(source, /ForbiddenState/);

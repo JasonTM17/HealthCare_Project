@@ -6,12 +6,18 @@ import { isIP } from "node:net";
 const API_PREFIX = "/api/v1/";
 const DEFAULT_BACKEND_ORIGIN = "http://127.0.0.1:8080";
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
+// Deadline ownership constraint: THIS layer owns the upstream deadline and
+// answers the browser with a structured payload (public-chat fallback answer
+// or JSON error). The browser deadlines in lib/api-client.ts must stay
+// slightly LONGER than the matching constant here so this payload — not a
+// client-side network abort — reaches the UI. Keep the pairs in sync:
+//   authenticated chat: BFF 30s -> browser 33s
+//   public chat:        BFF 35s -> browser 40s
+// The public window stays well inside the Route Handler maxDuration of 60s
+// (Vercel Hobby) while halving the old 55s worst-case dead wait; the graceful
+// fallback plus retry covers the shortened cold-start window.
 const DEFAULT_STREAM_REQUEST_TIMEOUT_MS = 30_000;
-// Render Free services may need a cold-start window before the backend can
-// reach the native Python AI service. Keep ordinary API calls bounded at the
-// shorter deadline, but give the stateless public chat path one bounded retry
-// window that fits the Vercel Hobby function limit.
-const DEFAULT_PUBLIC_AI_REQUEST_TIMEOUT_MS = 55_000;
+const DEFAULT_PUBLIC_AI_REQUEST_TIMEOUT_MS = 35_000;
 const MAX_REQUEST_BYTES = 12 * 1024 * 1024;
 const MAX_PATH_LENGTH = 2_048;
 const MAX_HEADER_VALUE_LENGTH = 16_384;

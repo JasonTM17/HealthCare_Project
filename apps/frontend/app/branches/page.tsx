@@ -67,15 +67,15 @@ export default function BranchesPage() {
     : error
       ? "Chưa tải được"
       : page?.empty
-        ? "Chưa có dữ liệu"
+        ? "Chưa có cơ sở công khai"
         : branchCount;
   const featuredBranchLabel = loading
     ? "Đang tải…"
     : error
       ? "Chưa tải được"
       : page?.empty
-        ? "Chưa có dữ liệu"
-        : featuredBranch?.name ?? "Chưa có dữ liệu";
+        ? "Chưa có cơ sở công khai"
+        : featuredBranch?.name ?? "Chưa chọn cơ sở ưu tiên";
   return (
     <PublicPageShell branches={page?.content ?? []}>
       <div className={`catalog-page section-inner ${styles.branchesPage}`}>
@@ -142,9 +142,13 @@ export default function BranchesPage() {
           </div>
         ) : null}
         {!loading && !error && page?.empty ? (
-          <p className="catalog-status" role="status">
-            Thông tin cơ sở đang được cập nhật.
-          </p>
+          <div className="catalog-status" role="status">
+            <p>Chưa có cơ sở công khai để hiển thị. Bạn vẫn có thể đặt lịch hoặc gửi yêu cầu liên hệ để đội ngũ hỗ trợ xác nhận địa điểm phù hợp.</p>
+            <div className="resource-actions">
+              <PublicBookingButton className="button button--amber">Đặt lịch khám</PublicBookingButton>
+              <Link className="outline-button outline-button--small" href="/contact">Liên hệ bệnh viện</Link>
+            </div>
+          </div>
         ) : null}
 
         {page && !page.empty && featuredBranch ? (
@@ -185,7 +189,7 @@ export default function BranchesPage() {
                   <div className="branch-card__address">
                     <Icon name="location" size={18} />
                     <p>
-                      {address || <span className="resource-muted">Địa chỉ đang được cập nhật.</span>}
+                      {address || <span className="resource-muted">Địa chỉ chưa công bố; vui lòng liên hệ trước khi đến.</span>}
                     </p>
                   </div>
                   <BranchMap
@@ -197,11 +201,11 @@ export default function BranchesPage() {
                   <dl className="catalog-card__details">
                     <div>
                       <dt>Điện thoại</dt>
-                      <dd>{branch.phone || "Đang cập nhật"}</dd>
+                      <dd>{branch.phone || "Liên hệ qua trang hỗ trợ"}</dd>
                     </div>
                     <div>
                       <dt>Giờ làm việc</dt>
-                      <dd>{branch.workingHours || "Đang cập nhật"}</dd>
+                      <dd>{branch.workingHours || "Vui lòng xác nhận trước khi đến"}</dd>
                     </div>
                   </dl>
                   <div className="catalog-card__actions">

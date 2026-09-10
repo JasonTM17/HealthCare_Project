@@ -8,6 +8,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import org.springframework.data.domain.Page;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -48,13 +51,36 @@ public class AdminAiCreditController {
     ) {}
 
     @GetMapping("/patients")
-    public ResponseEntity<List<AiCreditService.PatientCreditDto>> listPatients() {
-        return ResponseEntity.ok(aiCreditService.listAllPatients());
+    public ResponseEntity<List<AiCreditService.PatientCreditDto>> listPatients(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        Page<AiCreditService.PatientCreditDto> result = aiCreditService.listPatients(page, size);
+        return ResponseEntity.ok()
+            .headers(adminListingHeaders(result))
+            .body(result.getContent());
     }
 
     @GetMapping("/doctors")
-    public ResponseEntity<List<AiCreditService.DoctorCreditDto>> listDoctors() {
-        return ResponseEntity.ok(aiCreditService.listAllDoctors());
+    public ResponseEntity<List<AiCreditService.DoctorCreditDto>> listDoctors(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        Page<AiCreditService.DoctorCreditDto> result = aiCreditService.listDoctors(page, size);
+        return ResponseEntity.ok()
+            .headers(adminListingHeaders(result))
+            .body(result.getContent());
+    }
+
+    /**
+     * HC-11 compatibility transition: the body remains a plain JSON array so
+     * the existing admin client keeps working; the paging contract is exposed
+     * via headers so the client can migrate to windowed fetching later.
+     */
+    private HttpHeaders adminListingHeaders(Page<?> result) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-Total-Count", Long.toString(result.getTotalElements()));
+        headers.set("X-Page", Integer.toString(result.getNumber()));
+        headers.set("X-Total-Pages", Integer.toString(result.getTotalPages()));
+        return headers;
     }
 
     @PostMapping("/grant")

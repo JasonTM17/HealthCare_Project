@@ -44,6 +44,7 @@ import {
   isNearBottom,
   useAssistant,
 } from "./AssistantProvider";
+import { CHAT_WAIT_STAGE_COPY, useChatWaitStage } from "./useChatWaitStage";
 import styles from "./FloatingHealthAssistant.module.css";
 
 // healthcare-assistant-chibi.png is legacy provenance and intentionally stays
@@ -171,6 +172,9 @@ function FloatingHealthAssistantPanel({
 
   const isPatient = Boolean(session && hasRole(session.user, "PATIENT"));
   const hidden = assistantIsHiddenOnPath(pathname) || Boolean(session && !isPatient);
+  // Bounded staged feedback: acknowledge immediately, then report the real
+  // waiting activity instead of a single unbounded spinner.
+  const waitStage = useChatWaitStage(sending);
 
   const syncConversation = useCallback((next: AiConversation | null): void => {
     conversationIdRef.current = next?.id ?? null;
@@ -747,19 +751,19 @@ function FloatingHealthAssistantPanel({
                   <article className={`${styles.message} ${styles.assistant}`} data-testid="floating-chat-streaming-reply">
                     <span className={styles.messageRole}>HealthCare</span>
                     <p>{streamingReply}</p>
-                    <span className={styles.provenance}>Đang nhận phản hồi theo từng phần…</span>
+                    <span className={styles.provenance}>Đang nhận phản hồi từng phần đã được xác thực…</span>
                   </article>
                 ) : null}
                 {sending && !streamingReply ? (
                   <article
-                    aria-label="Trợ lý đang suy nghĩ"
+                    aria-label="Trợ lý đang xử lý câu hỏi"
                     className={`${styles.message} ${styles.assistant} ${styles.thinkingMessage}`}
                     data-testid="floating-chat-thinking"
                     role="status"
                   >
                     <span className={styles.messageRole}>HealthCare</span>
                     <p className={styles.thinkingLine}>
-                      <span>Đang suy nghĩ</span>
+                      <span>{CHAT_WAIT_STAGE_COPY[waitStage]}</span>
                       <span aria-hidden="true" className={styles.typingDots}>
                         <span />
                         <span />

@@ -6,6 +6,27 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def test_backend_test_preflight_classifies_docker_absence() -> None:
+    """HC-04 disposition: one explicit BLOCKED_ENVIRONMENT verdict, not cascading errors."""
+    preflight = ROOT / "scripts" / "check-backend-test-preflight.ps1"
+    text = preflight.read_text(encoding="utf-8")
+    assert "BACKEND_TEST_ENVIRONMENT=READY" in text
+    assert "BACKEND_TEST_ENVIRONMENT=BLOCKED_ENVIRONMENT" in text
+    assert "BACKEND_TEST_BLOCKER=docker-cli-missing" in text
+    assert "BACKEND_TEST_BLOCKER=docker-daemon-unreachable" in text
+    # The daemon probe (docker info) must gate the READY verdict, not just the CLI.
+    assert "& docker info --format '{{.ServerVersion}}'" in text
+    assert text.encode("utf-8").startswith(b"\xef\xbb\xbf")
+
+
+def test_ci_backend_job_runs_preflight_before_maven() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    build_step = workflow.index("Build and test backend")
+    preflight_step = workflow.index("check-backend-test-preflight.ps1")
+    assert preflight_step < build_step
+    assert "BACKEND_TEST_ENVIRONMENT=READY" in workflow
+
+
 def test_local_bootstrap_generates_all_required_compose_secrets() -> None:
     script = (ROOT / "scripts" / "start-and-verify-local-mvp.ps1").read_text(encoding="utf-8")
     block_start = script.index('foreach ($requiredSecret')
@@ -51,7 +72,11 @@ def test_local_verifier_records_booking_privacy_consent() -> None:
 
 def test_local_verifier_reads_current_mailpit_message_detail() -> None:
     script = (ROOT / "scripts" / "verify-local-mvp.ps1").read_text(encoding="utf-8")
-    assert '[HealthCare] Xác nhận đặt lịch' in script
+    # The OTP wait binds each code to one booking via recipient, timestamp,
+    # and booking-code match on the fetched message detail (no subject literal).
+    assert "function Wait-ForBookingOtp([string]$BookingCode, [string]$Recipient, [DateTimeOffset]$AfterUtc)" in script
+    assert "(@($_.To | ForEach-Object { $_.Address }) -contains $Recipient)" in script
+    assert "([DateTimeOffset]$_.Created -gt $AfterUtc)" in script
     assert '$MailpitApiUrl/api/v1/message/$($message.ID)' in script
     assert '$content -notmatch [regex]::Escape($BookingCode)' in script
     assert '"attachment-scanner"' in script

@@ -40,14 +40,14 @@ export default function BranchMap({
           <Icon name="location" size={24} />
         </span>
         <div>
-          <strong>Vị trí đang được cập nhật</strong>
-          <p>Địa chỉ Google Maps của cơ sở sẽ hiển thị tại đây khi có thông tin.</p>
+          <strong>Chưa có địa chỉ bản đồ</strong>
+          <p>Hãy dùng trang liên hệ hoặc xác nhận địa chỉ với cơ sở trước khi đến.</p>
         </div>
       </div>
     ) : (
       <span className={joinClassNames("branch-map-link branch-map-link--unavailable", className)}>
         <Icon name="location" size={17} />
-        Google Maps đang cập nhật
+        Chưa có địa chỉ bản đồ
       </span>
     );
   }

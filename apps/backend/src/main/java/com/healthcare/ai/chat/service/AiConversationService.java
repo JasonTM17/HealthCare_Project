@@ -371,7 +371,16 @@ public class AiConversationService {
         return sendInternal(principal, conversationId, rawIdempotencyKey, rawContent, false);
     }
 
-    public ChatExchangeResponse sendForStream(
+    /**
+     * Chunked-delivery entry point. Identical validated pipeline to
+     * {@link #send}: retrieval, source reauthorization, generation and
+     * persistence all complete before the caller replays the finished answer
+     * as SSE slices (decision D-02). The flag only asks the upstream provider
+     * to transport the already-computed answer incrementally so the wire
+     * behaves like an event stream; it is not token streaming and never emits
+     * unvalidated content.
+     */
+    public ChatExchangeResponse sendForChunkedDelivery(
             UserDetails principal,
             UUID conversationId,
             String rawIdempotencyKey,
@@ -384,7 +393,7 @@ public class AiConversationService {
             UUID conversationId,
             String rawIdempotencyKey,
             String rawContent,
-            boolean streamingGeneration) {
+            boolean chunkedDeliveryGeneration) {
         UUID userId = currentUserId(principal);
         String idempotencyKey = normalizeIdempotencyKey(rawIdempotencyKey);
         String content = normalizeContent(rawContent);
@@ -403,7 +412,7 @@ public class AiConversationService {
             AiConversation conversation = conversationRepository.findByIdAndUserId(conversationId, userId)
                 .orElseThrow(this::notFound);
             SanitizedAiResponse sanitized = groundedResponse(
-                userId, conversation.getMode(), content, recentTurns(conversationId), streamingGeneration);
+                userId, conversation.getMode(), content, recentTurns(conversationId), chunkedDeliveryGeneration);
             ChatExchangeResponse completed = transactions.execute(status ->
                 complete(
                     userId,
@@ -461,7 +470,7 @@ public class AiConversationService {
             ChatMode mode,
             String content,
             List<Map<String, String>> turns,
-            boolean streamingGeneration) {
+            boolean chunkedDeliveryGeneration) {
         Map<String, Object> request = new LinkedHashMap<>();
         request.put("message", content);
         request.put("mode", mode.name());
@@ -497,13 +506,17 @@ public class AiConversationService {
         generation.put("recent_turns", turns);
         generation.put("synthetic_beta", syntheticBetaAsserted && syntheticBetaGuard.eligible(userId));
         generation.put("authorized_sources", sourceResolver.authorizedPayload(authorized));
-        List<String> streamedDeltas = new ArrayList<>();
-        Map<String, Object> generated = streamingGeneration
-            ? aiService.generateChatStream(generation, streamedDeltas::add)
+        // The upstream transport may deliver the answer incrementally, but the
+        // FastAPI side only streams slices of a fully generated, fully
+        // validated answer (D-02): these deltas are a consistency log used to
+        // prove the delivered slices equal the persisted answer below.
+        List<String> upstreamDeliverySlices = new ArrayList<>();
+        Map<String, Object> generated = chunkedDeliveryGeneration
+            ? aiService.generateChatStream(generation, upstreamDeliverySlices::add)
             : aiService.generateChat(generation);
-        if (!streamedDeltas.isEmpty()
+        if (!upstreamDeliverySlices.isEmpty()
                 && generated.get("answer") instanceof String answer
-                && !String.join("", streamedDeltas).equals(answer)) {
+                && !String.join("", upstreamDeliverySlices).equals(answer)) {
             throw invalidAiResponse();
         }
         return sanitize(generated, mode, authorized);

@@ -19,6 +19,7 @@ public final class HealthcareUserPrincipal implements UserDetails {
     private final String email;
     private final String password;
     private final boolean enabled;
+    private final boolean demo;
     private final Set<GrantedAuthority> authorities;
 
     private HealthcareUserPrincipal(
@@ -26,11 +27,13 @@ public final class HealthcareUserPrincipal implements UserDetails {
             String email,
             String password,
             boolean enabled,
+            boolean demo,
             Set<GrantedAuthority> authorities) {
         this.userId = userId;
         this.email = email;
         this.password = password;
         this.enabled = enabled;
+        this.demo = demo;
         this.authorities = Set.copyOf(authorities);
     }
 
@@ -43,12 +46,18 @@ public final class HealthcareUserPrincipal implements UserDetails {
                 user.getEmail(),
                 user.getPasswordHash(),
                 "ACTIVE".equals(user.getStatus()),
+                user.isDemo(),
                 authorities
         );
     }
 
     public UUID getUserId() {
         return userId;
+    }
+
+    /** True when this identity is one of the shared synthetic demo personas (V70). */
+    public boolean isDemo() {
+        return demo;
     }
 
     @Override

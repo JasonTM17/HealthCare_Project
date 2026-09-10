@@ -18,7 +18,6 @@ const patientAliasRoutes = [
   ["../app/patient/medical-records/page.tsx", "/patient/dashboard#records"],
   ["../app/patient/prescriptions/page.tsx", "/patient/dashboard#prescriptions"],
   ["../app/patient/diagnostic-results/page.tsx", "/patient/dashboard#diagnostics"],
-  ["../app/patient/documents/page.tsx", "/patient/dashboard#records"],
   ["../app/patient/notifications/page.tsx", "/patient/dashboard#notifications"],
   ["../app/doctor/page.tsx", "/doctor/dashboard"],
   ["../app/doctor/appointments/page.tsx", "/doctor/dashboard#daily-appointments"],
@@ -34,6 +33,7 @@ test("authenticated client exposes portal contracts without browser bearer stora
   assert.match(source, /\/patient\/appointments/);
   assert.match(source, /\/patient\/prescriptions/);
   assert.match(source, /\/patient\/diagnostic-results/);
+  assert.match(source, /\/patients\/\$\{encodeURIComponent\(patientId\)\}\/documents/);
   assert.match(source, /\/notifications/);
   assert.match(source, /\/doctor\/patients\/\$\{encodeURIComponent\(patientId\)\}\/medical-records/);
   assert.match(source, /class ApiError/);
@@ -124,6 +124,7 @@ test("portal chrome exposes complete role navigation and keyboard landmarks", as
   assert.match(source, /tabIndex=\{-1\}/);
   assert.match(source, /\/patient\/appointments/);
   assert.match(source, /\/patient\/chat/);
+  assert.match(source, /\/patient\/documents/);
   assert.match(source, /\/patient\/preferences/);
   assert.match(source, /\/doctor\/appointments/);
   assert.match(source, /aria-current/);

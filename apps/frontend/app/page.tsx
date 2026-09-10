@@ -32,6 +32,8 @@ import { presentApiError } from "../lib/present-api-error";
 import type { Article, Branch, Doctor, HealthPackage, Specialty } from "../types/hospital";
 
 const HERO_IMAGE = "/media/hospital-team-landscape.jpg";
+// Task-first default hero copy; the CMS `homepage.hero` slot overrides it when published.
+const DEFAULT_HERO_TITLE = "Tìm chuyên khoa, bác sĩ và đặt lịch khám";
 // Retain fallback reference for test compatibility: /media/about-care-poster.jpg
 
 const PUBLIC_CARE_IMAGES = [
@@ -350,18 +352,17 @@ function HomeHeroCopy({
         {activeCmsHero?.eyebrow || "Bệnh viện đa khoa HealthCare"}
       </p>
       <h1 id="hero-title">
-        {activeCmsHero?.title && activeCmsHero.title !== "Đồng hành cùng sức khỏe gia đình" ? (
+        {activeCmsHero?.title && activeCmsHero.title !== DEFAULT_HERO_TITLE ? (
           activeCmsHero.title
         ) : (
           <>
-            Đồng hành<br />
-            cùng <span className="hero-teal-accent">sức khỏe</span><br />
-            <span className="hero-teal-accent">gia đình</span>
+            Tìm chuyên khoa, bác sĩ<br />
+            và <span className="hero-teal-accent">đặt lịch khám</span>
           </>
         )}
       </h1>
       <p className="hero-description !text-slate-700 !opacity-100" style={{ color: "#334155" }}>
-        {activeCmsHero?.body ?? "Chọn chuyên khoa, bác sĩ, gói khám hoặc cơ sở và giữ khung giờ phù hợp ngay trên hệ thống."}
+        {activeCmsHero?.body ?? "Chọn chuyên khoa, bác sĩ, gói khám hoặc cơ sở và chủ động giữ khung giờ trực tuyến thuận tiện."}
       </p>
       <form className="hero-search" onSubmit={(event) => { event.preventDefault(); onSearchSubmit(); }}>
         <label className="sr-only" htmlFor="hero-search-input">
@@ -381,7 +382,7 @@ function HomeHeroCopy({
         <button type="submit">Tìm kiếm</button>
       </form>
       <p className="hero-search__help" id="hero-search-help">
-        Tìm trong danh mục bệnh viện để chọn hướng đặt lịch phù hợp.
+        Nhập tên chuyên khoa, bác sĩ hoặc nhu cầu thăm khám của bạn.
       </p>
       <div className="hero-quick-chips" aria-label="Gợi ý tìm kiếm phổ biến">
         <span>Gợi ý:</span>
@@ -431,12 +432,10 @@ function HomeHeroCopy({
 }
 
 function HomeAssuranceStrip({
-  onBooking,
   contactHref,
   contactPhone,
   hasEmergencyBranch,
 }: {
-  onBooking: () => void;
   contactHref?: string | null;
   hasEmergencyBranch: boolean;
   contactPhone?: string;
@@ -444,10 +443,10 @@ function HomeAssuranceStrip({
   return (
     <section className="hero-assurance" aria-label="Điểm nhấn của trải nghiệm đặt khám">
       <div className="hero-assurance__inner">
-        <button className="hero-assurance__item hero-assurance__item--action" onClick={onBooking} type="button">
-          <span className="hero-assurance__icon"><Icon name="calendar" size={17} /></span>
-          <span><strong>Đặt lịch hẹn trực tuyến</strong><small>Chọn chuyên khoa, bác sĩ và khung giờ theo ý muốn.</small></span>
-        </button>
+        <Link className="hero-assurance__item hero-assurance__item--action" href="/doctors">
+          <span className="hero-assurance__icon"><Icon name="user" size={17} /></span>
+          <span><strong>Tìm bác sĩ phù hợp</strong><small>Xem chuyên môn, kinh nghiệm và lịch nhận khám.</small></span>
+        </Link>
           <Link className="hero-assurance__item hero-assurance__item--action" href="/packages">
             <span className="hero-assurance__icon"><Icon name="heart" size={17} /></span>
             <span><strong>Lựa chọn gói khám</strong><small>So sánh các gói chăm sóc định kỳ mở rộng.</small></span>
@@ -687,7 +686,7 @@ export default function Home(): React.ReactElement {
     ? "Đang tải cơ sở"
     : branches.length > 0
       ? `${branches.length} cơ sở đang hiển thị`
-      : "Cơ sở đang cập nhật";
+      : "Chưa có cơ sở công khai";
 
     return (
       <div className="site-shell">
@@ -726,7 +725,6 @@ export default function Home(): React.ReactElement {
           contactHref={contactHref}
           contactPhone={contactPhone}
           hasEmergencyBranch={Boolean(emergencyBranch)}
-          onBooking={() => handleOpenBooking()}
         />
 
         <section className="cms-live-region" id="cms-live" aria-labelledby="cms-live-title">
@@ -855,7 +853,7 @@ export default function Home(): React.ReactElement {
                 ))}
               </div>
             ) : !catalogLoading && catalog ? (
-              <div className="empty-state empty-state--wide"><p>Danh sách gói khám đang được cập nhật.</p></div>
+              <div className="empty-state empty-state--wide"><p>Chưa có gói khám nổi bật. Bạn vẫn có thể đặt lịch hoặc xem chuyên khoa phù hợp với nhu cầu thăm khám.</p></div>
             ) : null}
           </div>
         </section>

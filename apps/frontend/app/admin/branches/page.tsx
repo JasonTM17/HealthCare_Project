@@ -11,6 +11,7 @@ import {
   type Branch,
 } from "../../../lib/api-client";
 import AdminState from "../_components/AdminState";
+import ConfirmActionDialog from "../../../components/ui/ConfirmActionDialog";
 import { describeAdminError } from "../_lib/errors";
 
 type BranchForm = {
@@ -63,6 +64,7 @@ export default function AdminBranchesPage() {
     description: string;
   } | null>(null);
   const [mutating, setMutating] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<Branch | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -117,7 +119,6 @@ export default function AdminBranchesPage() {
   };
 
   const remove = async (slug: string) => {
-    if (!window.confirm(`Xóa cơ sở "${slug}"? Hành động này không thể hoàn tác.`)) return;
     setMutating(true);
     setFeedback(null);
     try {
@@ -141,6 +142,7 @@ export default function AdminBranchesPage() {
       setFeedback({ tone: "error", title: copy.title, description: copy.description });
     } finally {
       setMutating(false);
+      setPendingDelete(null);
     }
   };
 
@@ -247,7 +249,7 @@ export default function AdminBranchesPage() {
                         <td className="px-4 py-4">
                           <div className="flex justify-end gap-3">
                             <button aria-label={`Sửa ${branch.name}`} className="text-xs font-bold text-teal-800 underline disabled:opacity-50" disabled={mutating} onClick={() => { setEditingSlug(branch.slug); setForm(formFromBranch(branch)); setFormError(null); setFeedback(null); }} type="button">Sửa</button>
-                            <button aria-label={`Xóa ${branch.name}`} className="text-xs font-bold text-red-700 underline disabled:opacity-50" disabled={mutating} onClick={() => void remove(branch.slug)} type="button">Xóa</button>
+                            <button aria-label={`Xóa ${branch.name}`} className="text-xs font-bold text-red-700 underline disabled:opacity-50" disabled={mutating} onClick={() => setPendingDelete(branch)} type="button">Xóa</button>
                           </div>
                         </td>
                       </tr>
@@ -259,6 +261,26 @@ export default function AdminBranchesPage() {
           ) : null}
         </section>
       </div>
+
+      <ConfirmActionDialog
+        confirmLabel="Xóa cơ sở"
+        confirmingLabel="Đang xóa…"
+        description="Lịch khám và đặt hẹn đang gắn với cơ sở này sẽ mất liên kết. Nếu cơ sở chỉ tạm đóng, hãy dùng trạng thái “Tạm ẩn”."
+        destructive
+        entity={pendingDelete ?? undefined}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => void remove(pendingDelete?.slug ?? "")}
+        open={pendingDelete !== null}
+        pending={mutating}
+        summaryItems={pendingDelete ? [
+          { label: "Tên cơ sở", value: pendingDelete.name },
+          { label: "Slug", value: pendingDelete.slug, mono: true },
+          { label: "Địa chỉ", value: pendingDelete.address },
+          { label: "Trạng thái", value: pendingDelete.active ?? true ? "Đang hiển thị" : "Tạm ẩn" },
+        ] : []}
+        summaryLabel="Cơ sở sẽ bị xóa vĩnh viễn"
+        title="Xóa cơ sở này?"
+      />
     </div>
   );
 }

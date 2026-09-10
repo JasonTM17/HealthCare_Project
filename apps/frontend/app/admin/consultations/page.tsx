@@ -43,7 +43,7 @@ const SPECIALTY_LABELS: Record<string, string> = {
 const ADMIN_PAGE_SIZE = 100;
 
 function statusLabel(status: string): string {
-  return STATUS_LABELS[status] ?? "Đang cập nhật";
+  return STATUS_LABELS[status] ?? "Trạng thái chưa xác định";
 }
 
 function statusTone(status: string): string {

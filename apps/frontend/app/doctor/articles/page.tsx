@@ -28,6 +28,7 @@ import { useAuthSession, useAuthSessionStatus } from "../../../components/useAut
 import ImageUpload from "../../../components/ImageUpload";
 import UiIcon from "../../../components/UiIcon";
 import { RichContentRenderer, RichTextEditor } from "../../../components/editor";
+import ConfirmActionDialog from "../../../components/ui/ConfirmActionDialog";
 
 function toSlug(text: string): string {
   return text
@@ -56,6 +57,9 @@ export default function DoctorArticlesPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<
+    { kind: "article"; slug: string; title: string } | { kind: "comment"; commentId: string; authorName: string } | null
+  >(null);
 
   // Editorial Reading View ("Đọc như 1 bài báo")
   const [readingArticle, setReadingArticle] = useState<Article | null>(null);
@@ -256,8 +260,7 @@ export default function DoctorArticlesPage() {
     }
   };
 
-  const handleDeleteArticle = async (slug: string, articleTitle: string) => {
-    if (!window.confirm(`Xóa bài viết "${articleTitle}"? Thao tác này không thể hoàn tác.`)) return;
+  const handleDeleteArticle = async (slug: string) => {
     setBusy(true);
     try {
       await doctorDeleteArticle(slug);
@@ -269,6 +272,7 @@ export default function DoctorArticlesPage() {
       setError("Không thể xóa bài viết.");
     } finally {
       setBusy(false);
+      setPendingDelete(null);
     }
   };
 
@@ -293,13 +297,15 @@ export default function DoctorArticlesPage() {
   };
 
   const handleDeleteComment = async (commentId: string) => {
-    if (!readingArticle || !window.confirm("Xóa bình luận này?")) return;
+    if (!readingArticle) return;
     try {
       await deleteArticleComment(readingArticle.slug, commentId);
       const commentsData = await fetchArticleComments(readingArticle.slug);
       setReadingComments(commentsData);
     } catch {
       setError("Không thể xóa bình luận.");
+    } finally {
+      setPendingDelete(null);
     }
   };
 
@@ -562,7 +568,7 @@ export default function DoctorArticlesPage() {
                         </button>
                         <button
                           className="rounded-[4px] p-2 text-slate-600 hover:bg-red-50 hover:text-red-700 cursor-pointer"
-                          onClick={() => void handleDeleteArticle(a.slug, a.title)}
+                          onClick={() => setPendingDelete({ kind: "article", slug: a.slug, title: a.title })}
                           title="Xóa bài viết"
                           type="button"
                         >
@@ -741,7 +747,7 @@ export default function DoctorArticlesPage() {
                               </button>
                               <button
                                 className="text-xs font-semibold text-red-600 hover:underline cursor-pointer"
-                                onClick={() => void handleDeleteComment(c.id)}
+                                onClick={() => setPendingDelete({ kind: "comment", commentId: c.id, authorName: c.authorName })}
                                 type="button"
                               >
                                 Xóa
@@ -937,6 +943,32 @@ export default function DoctorArticlesPage() {
             </div>
           </div>
         )}
+
+        <ConfirmActionDialog
+          confirmLabel={pendingDelete?.kind === "article" ? "Xóa bài viết" : "Xóa bình luận"}
+          confirmingLabel="Đang xóa…"
+          description={pendingDelete?.kind === "article"
+            ? "Bài viết đã xóa sẽ mất khỏi diễn đàn chuyên môn và không thể khôi phục. Hãy cân nhắc lưu bản nháp nội dung quan trọng trước khi xóa."
+            : "Bình luận đã xóa sẽ không thể khôi phục. Nếu nội dung chỉ sai lệch nhẹ, hãy trả lời để làm rõ thay vì xóa."}
+          destructive
+          entity={pendingDelete}
+          onCancel={() => { if (!busy) setPendingDelete(null); }}
+          onConfirm={() => {
+            if (pendingDelete?.kind === "article") void handleDeleteArticle(pendingDelete.slug);
+            else if (pendingDelete?.kind === "comment") void handleDeleteComment(pendingDelete.commentId);
+          }}
+          open={pendingDelete !== null}
+          pending={busy}
+          summaryItems={pendingDelete?.kind === "article" ? [
+            { label: "Tiêu đề", value: pendingDelete.title },
+            { label: "Slug", value: pendingDelete.slug, mono: true },
+          ] : pendingDelete ? [
+            { label: "Tác giả bình luận", value: pendingDelete.authorName },
+            { label: "Bài viết", value: readingArticle?.title ?? "—" },
+          ] : []}
+          summaryLabel="Nội dung sẽ bị xóa vĩnh viễn"
+          title={pendingDelete?.kind === "article" ? "Xóa bài viết này?" : "Xóa bình luận này?"}
+        />
       </div>
     </PortalChrome>
   );

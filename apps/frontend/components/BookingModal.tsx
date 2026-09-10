@@ -1419,7 +1419,7 @@ function BookingExperience({
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-6 py-2.5 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-semibold rounded-lg shadow-sm transition-colors flex items-center gap-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
+                  className="whitespace-nowrap px-4 py-2.5 sm:px-6 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-semibold text-xs sm:text-sm rounded-lg shadow-sm transition-colors flex items-center gap-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
                 >
                   {isSubmitting ? (
                     <span className="inline-flex items-center gap-2"><Icon name="clock" size={15} /> Đang giữ chỗ...</span>
@@ -1442,12 +1442,12 @@ function BookingExperience({
                     <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">07 · Xác nhận</p>
                     <h3 className="text-xl font-bold text-gray-900">Xác nhận lịch hẹn bằng OTP</h3>
                   </div>
-                  <div className="flex flex-wrap justify-center gap-2 text-xs font-semibold">
-                    <span className="inline-flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-amber-900">
+                  <div className="flex flex-wrap justify-center items-center gap-2 text-xs font-semibold">
+                    <span className="inline-flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1 text-amber-900 whitespace-nowrap">
                       <Icon name="clock" size={15} />
                       {holdExpired ? "Thời gian giữ chỗ đã hết" : <>Giữ chỗ còn lại:{" "}<span className="font-mono font-bold text-amber-700">{formatTimer(secondsRemaining)}</span></>}
                     </span>
-                    <span className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 ${otpExpired ? "border-red-200 bg-red-50 text-red-900" : "border-brand-200 bg-brand-50 text-brand-900"}`}>
+                    <span className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 whitespace-nowrap ${otpExpired ? "border-red-200 bg-red-50 text-red-900" : "border-brand-200 bg-brand-50 text-brand-900"}`}>
                       OTP còn hiệu lực:{" "}<span className="font-mono font-bold">{otpExpired ? "00:00" : formatTimer(otpSecondsRemaining)}</span>
                     </span>
                   </div>

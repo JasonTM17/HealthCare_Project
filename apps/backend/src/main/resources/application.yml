@@ -135,6 +135,22 @@ cms:
     channel: ${CMS_REALTIME_CHANNEL:healthcare:cms:changes}
     instance-id: ${CMS_INSTANCE_ID:${HOSTNAME:local}}
 
+# Demo trust boundary (HC-01, decision D-01). The hosted beta keeps the shared
+# synthetic demo personas usable, while high-impact financial/security
+# mutations (payment decisions, AI-credit adjustments, identity/role/security
+# admin writes) are denied server-side for demo principals. A deployment that
+# must not carry the demo experience sets login-allowed=false; demo personas
+# are then rejected at authentication. UI hiding is never the boundary.
+healthcare:
+  demo:
+    # enforce (default) | off — "off" disables the mutation boundary filter,
+    # e.g. for local diagnosis; never enable it on the hosted demo.
+    boundary: ${HEALTHCARE_DEMO_BOUNDARY:enforce}
+    # true (default) keeps the hosted demo working. Set false (e.g.
+    # HEALTHCARE_DEMO_LOGIN_ALLOWED=false) only in explicitly non-demo
+    # deployments; startup then warns about still-ACTIVE demo personas.
+    login-allowed: ${HEALTHCARE_DEMO_LOGIN_ALLOWED:true}
+
 patient:
   consultation:
     cleanup-enabled: ${PATIENT_CONSULTATION_CLEANUP_ENABLED:true}

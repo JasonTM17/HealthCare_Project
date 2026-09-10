@@ -20,7 +20,7 @@ const ITEM_STATUS_LABELS: Record<string, string> = {
 };
 
 function statusLabel(status: string, labels: Record<string, string>): string {
-  return labels[status] ?? "Đang cập nhật";
+  return labels[status] ?? "Trạng thái chưa xác định";
 }
 
 function dateLabel(value?: string | null): string {

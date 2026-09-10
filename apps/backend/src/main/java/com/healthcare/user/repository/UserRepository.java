@@ -32,4 +32,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByEmailForUpdate(@Param("email") String email);
 
     boolean existsByEmail(String email);
+
+    /** Active shared demo personas (V70); non-demo deployments must have none. */
+    long countByDemoTrueAndStatus(String status);
 }

@@ -182,8 +182,8 @@ export default function ArticleDetailPage() {
                   </div>
                 ) : (
                   <div className="article-detail-card__notice">
-                    <strong>Nội dung đang được cập nhật</strong>
-                    <p>Phần thông tin chi tiết của bài viết sẽ sớm được bổ sung.</p>
+                    <strong>Nội dung chi tiết đang chờ biên tập</strong>
+                    <p>Bạn vẫn có thể đọc phần tóm tắt, mở chuyên khoa liên quan hoặc đặt lịch nếu cần bác sĩ đánh giá trực tiếp.</p>
                   </div>
                 )}
               </section>

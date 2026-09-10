@@ -5783,7 +5783,7 @@ main {
 }
 
 .site-shell .hero-trust__item small {
-  color: #70848b;
+  color: #5b7078;
   font-size: 0.65rem;
 }
 
@@ -6229,6 +6229,12 @@ main {
   color: var(--hospital-teal-dark);
 }
 
+/* The shell-wide text-button color must not repaint the solid retry button
+   inside catalog error states: dark-on-teal fails WCAG AA contrast. */
+.site-shell .catalog-status--unavailable .text-button {
+  color: #ffffff;
+}
+
 /* Keep muted copy readable on the public light surfaces while preserving
    the darker hospital palette used by the shell. */
 .site-shell .resource-muted {
@@ -6450,7 +6456,7 @@ main {
   border: none !important;
   padding: 0 !important;
   margin: 0 0 0.65rem 0 !important;
-  color: #c4f1ec !important;
+  color: #e4fbf6 !important;
   font-size: 0.8125rem;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -6563,7 +6569,7 @@ main {
   border: none !important;
   padding: 0 !important;
   margin: 0 0 0.65rem 0 !important;
-  color: #c4f1ec !important;
+  color: #e4fbf6 !important;
   font-weight: 700;
   font-size: 0.8125rem;
   letter-spacing: 0.06em;
@@ -6615,7 +6621,7 @@ main {
   height: 3rem;
   padding: 0 1.35rem;
   border-radius: var(--radius-lg);
-  background: rgba(255, 255, 255, 0.16) !important;
+  background: #1c7278 !important;
   backdrop-filter: none;
   border: 1px solid rgba(255, 255, 255, 0.42) !important;
   color: #ffffff !important;
@@ -6627,7 +6633,7 @@ main {
 }
 
 .site-shell .appointment-cta .button--cta-secondary:hover {
-  background: rgba(255, 255, 255, 0.28) !important;
+  background: #175f65 !important;
   border-color: rgba(255, 255, 255, 0.75) !important;
   color: #ffffff !important;
   transform: none;

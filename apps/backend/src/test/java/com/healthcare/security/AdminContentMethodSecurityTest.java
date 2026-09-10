@@ -56,7 +56,7 @@ class AdminContentMethodSecurityTest {
             assertDenied(() -> articles.update("ak-security-fixture", null, null));
             assertDenied(() -> articles.delete("ak-security-fixture", null));
 
-            assertDenied(cms::list);
+            assertDenied(() -> cms.list(null, null));
             assertDenied(() -> cms.get("HOME_HERO"));
             assertDenied(() -> cms.upsert("HOME_HERO", null, null));
             assertDenied(() -> cms.history("HOME_HERO", 20));

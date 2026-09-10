@@ -6,7 +6,9 @@ import com.healthcare.cms.dto.CmsContentHistoryResponse;
 import com.healthcare.cms.dto.CmsRollbackRequest;
 import com.healthcare.cms.service.CmsContentService;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
 import org.springframework.http.CacheControl;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -34,8 +36,21 @@ public class AdminCmsContentController {
     }
 
     @GetMapping
-    public ResponseEntity<List<CmsContentResponse>> list() {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(contentService.listForAdmin());
+    public ResponseEntity<List<CmsContentResponse>> list(
+        @RequestParam(required = false) Integer page,
+        @RequestParam(required = false) Integer size
+    ) {
+        // HC-11: bounded window; body stays an array for the current client,
+        // paging contract exposed via headers (see AdminAiCreditController).
+        Page<CmsContentResponse> result = contentService.listForAdmin(page, size);
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-Total-Count", Long.toString(result.getTotalElements()));
+        headers.set("X-Page", Integer.toString(result.getNumber()));
+        headers.set("X-Total-Pages", Integer.toString(result.getTotalPages()));
+        return ResponseEntity.ok()
+            .headers(headers)
+            .cacheControl(CacheControl.noStore())
+            .body(result.getContent());
     }
 
     @GetMapping("/{slotKey}")

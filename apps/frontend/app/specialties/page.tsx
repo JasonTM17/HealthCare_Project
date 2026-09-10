@@ -107,13 +107,13 @@ export default function SpecialtiesPage() {
     : error
       ? "Chưa tải được"
       : page?.empty
-        ? "Chưa có dữ liệu"
+        ? "Chưa có chuyên khoa công khai"
         : String(specialtyCount);
   const featuredSpecialtyLabel = loading
     ? "Đang tải…"
     : error
       ? "Chưa tải được"
-      : featuredSpecialty?.name ?? "Chưa có dữ liệu";
+      : featuredSpecialty?.name ?? "Chưa chọn chuyên khoa nổi bật";
 
   return (
     <PublicPageShell>
@@ -184,7 +184,7 @@ export default function SpecialtiesPage() {
             <h2>Điểm bắt đầu của danh mục</h2>
             {featuredSpecialty ? (
               <>
-                <p>{featuredSpecialty.description || "Chuyên khoa này chưa có phần mô tả chi tiết."}</p>
+                <p>{featuredSpecialty.description || "Mô tả chuyên khoa đang chờ duyệt. Hãy mở hồ sơ hoặc đặt lịch để được định hướng đúng nhu cầu."}</p>
                 <div className="resource-actions">
                   <Link className="text-button" href={`/specialties/${featuredSpecialty.slug}`}>
                     Mở hồ sơ chuyên khoa →
@@ -198,7 +198,7 @@ export default function SpecialtiesPage() {
                 </div>
               </>
             ) : (
-              <p className="resource-muted">Danh sách chuyên khoa đang được cập nhật.</p>
+              <p className="resource-muted">Chưa có chuyên khoa công khai. Bạn vẫn có thể đặt lịch hoặc hỏi trợ lý để được định hướng ban đầu.</p>
             )}
           </section>
         </div>
@@ -206,7 +206,15 @@ export default function SpecialtiesPage() {
 
         {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải chuyên khoa…</p> : null}
         {error ? <p className="catalog-status catalog-status--error" role="alert">{error}</p> : null}
-        {!loading && !error && page?.empty ? <p className="catalog-status" role="status">Danh sách chuyên khoa đang được cập nhật.</p> : null}
+        {!loading && !error && page?.empty ? (
+          <div className="catalog-status" role="status">
+            <p>Chưa có chuyên khoa công khai. Bạn vẫn có thể đặt lịch hoặc hỏi trợ lý để được định hướng ban đầu.</p>
+            <div className="resource-actions">
+              <PublicAiButton className="outline-button outline-button--small">Hỏi trợ lý triệu chứng</PublicAiButton>
+              <PublicBookingButton className="button button--amber">Đặt lịch khám</PublicBookingButton>
+            </div>
+          </div>
+        ) : null}
 
         {page && !page.empty ? (
           <>
@@ -232,7 +240,7 @@ export default function SpecialtiesPage() {
 
                     <h2 className="specialty-card__title">{specialty.name}</h2>
                     <p className="specialty-card__desc">
-                      {specialty.description || "Chuyên khoa chưa có phần mô tả chi tiết."}
+                      {specialty.description || "Mô tả chuyên khoa đang chờ duyệt. Hãy mở hồ sơ hoặc đặt lịch để được định hướng đúng nhu cầu."}
                     </p>
 
                     {specialty.commonSymptoms && specialty.commonSymptoms.length > 0 && (

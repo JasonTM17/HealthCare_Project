@@ -82,13 +82,13 @@ export default function PackagesPage() {
     : error
       ? "Chưa tải được"
       : page?.empty
-        ? "Chưa có dữ liệu"
+        ? "Chưa có gói công khai"
         : String(packageCount);
   const featuredPackageLabel = loading
     ? "Đang tải…"
     : error
       ? "Chưa tải được"
-      : featuredPackage?.name ?? "Chưa có dữ liệu";
+      : featuredPackage?.name ?? "Chưa chọn gói nổi bật";
 
   return (
     <PublicPageShell packages={page?.content ?? []}>
@@ -186,9 +186,13 @@ export default function PackagesPage() {
           </p>
         ) : null}
         {!loading && !error && page?.empty ? (
-          <p className="catalog-status" role="status">
-            Danh sách gói khám đang được cập nhật.
-          </p>
+          <div className="catalog-status" role="status">
+            <p>Chưa có gói khám công khai. Bạn vẫn có thể đặt lịch khám hoặc xem chuyên khoa phù hợp.</p>
+            <div className="resource-actions">
+              <PublicBookingButton className="button button--amber">Đặt lịch khám</PublicBookingButton>
+              <Link className="outline-button outline-button--small" href="/specialties">Xem chuyên khoa</Link>
+            </div>
+          </div>
         ) : null}
 
         {page && !page.empty ? (

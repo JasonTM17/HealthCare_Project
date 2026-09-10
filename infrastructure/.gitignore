@@ -1,0 +1,3 @@
+# Throwaway restore-drill workspaces; created and removed per run by
+# scripts/restore-drill.ps1 and never committed.
+.restore-drills/
