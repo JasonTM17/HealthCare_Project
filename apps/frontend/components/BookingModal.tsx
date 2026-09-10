@@ -1525,7 +1525,7 @@ function BookingExperience({
                       autoFocus
                       placeholder="123456"
                       value={otpCode}
-                      onChange={(e) => setOtpCode(e.target.value)}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                       disabled={holdExpired || isSubmitting || isResendingOtp}
                       className="w-48 text-center p-3 text-2xl font-mono tracking-widest bg-gray-50 border-2 border-brand-600 rounded-sm focus:ring-4 focus:ring-brand-100 focus:outline-none"
                     />
