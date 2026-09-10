@@ -53,12 +53,18 @@ export default function TraCuuPage() {
     setCancelSuccess(false);
     setErrorMessage("");
     setLoading(false);
-    if (!bookingCodeInput.trim()) {
+    const normalizedCode = bookingCodeInput.trim().toUpperCase();
+    const normalizedPhone = phoneInput.trim();
+    if (!normalizedCode) {
       setErrorMessage("Vui lòng nhập Mã lịch hẹn");
       return;
     }
-    if (!phoneInput.trim()) {
+    if (!normalizedPhone) {
       setErrorMessage("Vui lòng nhập số điện thoại đã dùng khi đặt lịch");
+      return;
+    }
+    if (!/^[+0-9() .-]{7,20}$/.test(normalizedPhone)) {
+      setErrorMessage("Số điện thoại chưa đúng định dạng. Vui lòng kiểm tra lại.");
       return;
     }
 
@@ -74,7 +80,9 @@ export default function TraCuuPage() {
         setErrorMessage(
           res.status === 404
             ? "Không tìm thấy lịch hẹn. Vui lòng kiểm tra lại mã và số điện thoại đã dùng khi đặt lịch."
-            : "Tạm thời chưa thể tra cứu lịch hẹn. Vui lòng thử lại sau."
+            : res.status === 401 || res.status === 403
+              ? "Số điện thoại không khớp với thông tin đã đăng ký trên lịch hẹn này."
+              : "Tạm thời chưa thể tra cứu lịch hẹn. Vui lòng thử lại sau."
         );
         return;
       }
@@ -94,7 +102,7 @@ export default function TraCuuPage() {
   };
 
   const handleCancelAppointment = async () => {
-    if (!appointment) return;
+    if (!appointment || loading) return;
     setLoading(true);
 
     try {
@@ -110,9 +118,11 @@ export default function TraCuuPage() {
         setErrorMessage(
           res.status === 404
             ? "Không tìm thấy lịch hẹn cần hủy. Vui lòng tra cứu lại thông tin."
-            : res.status === 409
-              ? "Lịch hẹn này không còn có thể hủy trực tuyến. Vui lòng liên hệ cơ sở để được hỗ trợ."
-              : "Tạm thời chưa thể hủy lịch hẹn. Vui lòng thử lại sau."
+            : res.status === 401 || res.status === 403
+              ? "Số điện thoại không khớp với thông tin đã đăng ký trên lịch hẹn để thực hiện hủy."
+              : res.status === 409
+                ? "Lịch hẹn này không còn có thể hủy trực tuyến. Vui lòng liên hệ cơ sở để được hỗ trợ."
+                : "Tạm thời chưa thể hủy lịch hẹn. Vui lòng thử lại sau."
         );
         return;
       }
