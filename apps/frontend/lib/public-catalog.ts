@@ -316,16 +316,46 @@ export const BIG_DATA_CLINICAL_ARTICLES: BigDataClinicalTemplate[] = [
     body: "Viêm loét dạ dày tá tràng gây ảnh hưởng lớn đến chất lượng sống, tiềm ẩn biến chứng chảy máu tiêu hóa hoặc thủng dạ dày nếu không điều trị bài bản. Việc tiệt trừ vi khuẩn HP đúng phác đồ là biện pháp hữu hiệu nhất phòng ngừa ung thư dạ dày tái phát.",
     sections: [
       {
-        heading: "1. Đường lây nhiễm HP trong gia đình và xã hội",
-        body: "Vi khuẩn HP lây qua đường miệng - miệng (dùng chung bát nước chấm, thìa đũa, gắp thức ăn cho nhau) và đường phân - miệng (nguồn nước hoặc rau sống nhiễm bẩn). Khử khuẩn đồ dùng gia đình và tạo thói quen dùng đũa muỗng riêng là biện pháp phòng tránh bền vững.",
+        heading: "1. Vi khuẩn HP là gì và lây lan qua con đường nào?",
+        body: `Vi khuẩn Helicobacter pylori (HP) là loại xoắn khuẩn gram âm sống trong lớp nhầy niêm mạc dạ dày người. Đây là một trong những nguyên nhân hàng đầu gây viêm dạ dày mạn tính, loét dạ dày - tá tràng và làm tăng nguy cơ ung thư dạ dày nếu không được phát hiện và tiệt trừ kịp thời.
+
+::: doctor-note
+**Lời khuyên từ BS.CKI Lê Văn Đức (Khoa Tiêu hóa):**
+Vi khuẩn HP lây truyền chủ yếu qua hai con đường: **đường miệng - miệng** (dùng chung bát nước chấm, đũa muỗng, gắp thức ăn cho nhau hoặc mớm cơm cho trẻ) và **đường phân - miệng** (sử dụng nguồn nước ô nhiễm hoặc ăn rau sống chưa rửa sạch). Tạo thói quen ăn chín uống sôi và dùng riêng đũa muỗng là giải pháp căn cơ nhất để bảo vệ cả gia đình.
+:::
+
+Khoảng 70% dân số Việt Nam mang vi khuẩn HP trong dạ dày, tuy nhiên không phải ai nhiễm cũng phát bệnh. Chỉ khi vi khuẩn gặp điều kiện thuận lợi như căng thẳng kéo dài, ăn uống thất thường hoặc dùng nhiều rượu bia, chúng mới tiết độc tố gây tổn thương niêm mạc.`,
       },
       {
-        heading: "2. Chẩn đoán chính xác bằng nội soi và test hơi thở C13",
-        body: "Nội soi tiêu hóa ống mềm không đau giúp bác sĩ quan sát chi tiết ổ loét và làm sinh thiết Clo-test. Sau khi hoàn thành phác đồ điều trị, test hơi thở C13 là phương pháp kiểm tra lại độ sạch vi khuẩn an toàn, nhẹ nhàng và có độ chính xác cao nhất.",
+        heading: "2. Các phương pháp chẩn đoán vi khuẩn HP chuẩn y khoa",
+        body: `Để phát hiện chính xác tình trạng nhiễm khuẩn HP và mức độ tổn thương của dạ dày, các bác sĩ chuyên khoa Tiêu hóa áp dụng các kỹ thuật cận lâm sàng sau:
+
+| Phương pháp thăm dò | Độ chính xác | Ưu điểm nổi bật | Khi nào nên chỉ định? |
+| --- | --- | --- | --- |
+| **Nội soi dạ dày Clo-test** | 95 - 98% (Tiêu chuẩn vàng) | Quan sát trực tiếp ổ loét, bấm sinh thiết tìm vi khuẩn | Đau bụng kéo dài, sụt cân nhanh, nôn ra máu |
+| **Test hơi thở C13 / C14** | 92 - 95% | Không xâm lấn, không đau, êm dịu cho trẻ nhỏ & người già | Kiểm tra kết quả tiệt trừ sau khi uống xong thuốc |
+| **Xét nghiệm kháng nguyên phân** | 90 - 94% | Chính xác, thuận tiện | Theo dõi điều trị cho bệnh nhân không thể nội soi |
+
+::: clinical-warning
+**Lưu ý quan trọng trước khi làm xét nghiệm HP:**
+Để kết quả test HP không bị âm tính giả, bệnh nhân bắt buộc phải **ngừng thuốc kháng sinh ít nhất 4 tuần** và **ngừng thuốc giảm tiết axit dạ dày (nhóm PPI) ít nhất 2 tuần** trước ngày thực hiện xét nghiệm.
+:::`,
       },
       {
-        heading: "3. Nguyên tắc vàng khi dùng thuốc tiệt trừ HP",
-        body: "Bệnh nhân cần uống thuốc kháng sinh đúng giờ, đủ 14 ngày, không được bỏ cữ thuốc dù triệu chứng đau đã hết sau 3-4 ngày đầu. Ngừng thuốc sớm là nguyên nhân hàng đầu khiến vi khuẩn biến đổi kháng thuốc.",
+        heading: "3. Nguyên tắc vàng trong phác đồ điều trị tiệt trừ HP",
+        body: `Việc tiệt trừ vi khuẩn HP đòi hỏi phác đồ phối hợp đa thuốc nghiêm ngặt theo hướng dẫn điều trị của Hội Khoa học Tiêu hóa Việt Nam và quốc tế:
+
+1. **Uống thuốc đúng giờ và đủ liều**: Phác đồ 4 thuốc có Bismuth thường kéo dài liên tục 14 ngày.
+2. **Không tự ý bỏ thuốc**: Nhiều bệnh nhân thấy êm bụng sau 3-5 ngày liền tự ý ngưng thuốc. Điều này cực kỳ nguy hiểm vì khiến vi khuẩn đột biến kháng kháng sinh.
+3. **Tuân thủ tái khám**: Sau khi hoàn thành phác đồ 14 ngày và ngừng thuốc 4 tuần, bệnh nhân bắt buộc phải làm lại test hơi thở C13 để khẳng định vi khuẩn đã bị tiệt trừ sạch sẽ.
+
+::: emergency-box
+**Các dấu hiệu nguy hiểm cần đến bệnh viện cấp cứu 115 ngay:**
+- Đau bụng thượng vị dữ dội đột ngột, bụng gồng cứng như thanh gỗ (nguy cơ thủng ổ loét dạ dày).
+- Nôn ra máu đỏ tươi hoặc dịch màu nâu đen cà phê.
+- Đi đại tiện phân đen sệt như nhựa đường, mùi tanh nồng khó chịu.
+- Chóng mặt, vã mồ hôi lạnh, hoa mắt ngất xỉu do mất máu cấp.
+:::`,
       },
     ],
     keyTakeaways: [

@@ -266,6 +266,10 @@ export function RichTextEditor({
   }, [viewMode, safeValue, onChange, recordHistory]);
 
   const handleUndo = useCallback(() => {
+    if (viewMode === "tinymce" && tinyEditorInstanceRef.current) {
+      tinyEditorInstanceRef.current.undoManager.undo();
+      return;
+    }
     if (historyIndexRef.current > 0) {
       historyIndexRef.current -= 1;
       const prev = historyRef.current[historyIndexRef.current];
@@ -276,9 +280,13 @@ export function RichTextEditor({
       setCanRedo(true);
       setTimeout(() => textareaRef.current?.focus(), 0);
     }
-  }, [onChange]);
+  }, [onChange, viewMode]);
 
   const handleRedo = useCallback(() => {
+    if (viewMode === "tinymce" && tinyEditorInstanceRef.current) {
+      tinyEditorInstanceRef.current.undoManager.redo();
+      return;
+    }
     if (historyIndexRef.current < historyRef.current.length - 1) {
       historyIndexRef.current += 1;
       const next = historyRef.current[historyIndexRef.current];
@@ -289,7 +297,7 @@ export function RichTextEditor({
       setCanRedo(historyIndexRef.current < historyRef.current.length - 1);
       setTimeout(() => textareaRef.current?.focus(), 0);
     }
-  }, [onChange]);
+  }, [onChange, viewMode]);
 
   // Statistics — computed from markup-free text so an HTML draft (TinyMCE mode)
   // does not count tags as content.
@@ -326,13 +334,13 @@ export function RichTextEditor({
       suffix: ".min",
       menubar: "file edit view insert format tools table",
       menu: {
-        file: { title: "File", items: "newdocument restoredraft | preview" },
-        edit: { title: "Edit", items: "undo redo | cut copy paste | selectall" },
+        file: { title: "File", items: "newdocument restoredraft | preview | code" },
+        edit: { title: "Edit", items: "undo redo | cut copy paste pastetext | selectall | searchreplace" },
         view: { title: "View", items: "code | visualaid visualchars visualblocks | preview fullscreen" },
         insert: {
           title: "Insert",
           items:
-            "image link media codesample inserttable | charmap emoticons hr | clinical_callouts",
+            "image link media codesample inserttable accordion | charmap emoticons hr insertdatetime | anchor pagebreak nonbreaking | clinical_callouts clinical_templates",
         },
         format: {
           title: "Format",
@@ -343,7 +351,7 @@ export function RichTextEditor({
         table: { title: "Table", items: "inserttable | cell row column | tableprops deletetable" },
       },
       toolbar:
-        "undo redo | blocks | bold italic underline strikethrough | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | table link image | clinical_warning doctor_note dosage_guide emergency_box | removeformat code preview fullscreen",
+        "undo redo | blocks fontfamily fontsize | bold italic underline strikethrough forecolor backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | table link image media accordion | clinical_warning doctor_note dosage_guide emergency_box | searchreplace emoticons charmap insertdatetime | removeformat code preview fullscreen",
       plugins: [
         "advlist",
         "autolink",
@@ -365,7 +373,28 @@ export function RichTextEditor({
         "media",
         "table",
         "wordcount",
+        "accordion",
+        "directionality",
+        "nonbreaking",
+        "pagebreak",
+        "quickbars",
       ],
+      quickbars_selection_toolbar:
+        "bold italic underline strikethrough | quicklink h2 h3 blockquote | forecolor backcolor",
+      quickbars_insert_toolbar: "quickimage quicktable | hr",
+      font_family_formats:
+        "Mặc định hệ thống=-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; Arial=arial,helvetica,sans-serif; Courier New=courier new,courier,monospace; Georgia=georgia,palatino,serif; Tahoma=tahoma,arial,helvetica,sans-serif; Times New Roman=times new roman,times,serif; Trebuchet MS=trebuchet ms,geneva,sans-serif; Verdana=verdana,geneva,sans-serif",
+      font_size_formats: "12px 13px 14px 15px 16px 18px 20px 24px 28px 32px 36px",
+      table_default_attributes: {
+        border: "1",
+      },
+      table_default_styles: {
+        "border-collapse": "collapse",
+        width: "100%",
+      },
+      automatic_uploads: true,
+      paste_data_images: true,
+      images_reuse_filename: true,
       branding: false,
       promotion: false,
       elementpath: true,
@@ -377,57 +406,66 @@ export function RichTextEditor({
         body {
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
           font-size: 14px;
-          line-height: 1.65;
+          line-height: 1.7;
           color: #0f172a;
           padding: 16px 20px;
+          background-color: #ffffff;
         }
-        h1, h2, h3, h4 { color: #134e4a; font-weight: 700; }
-        h2 { font-size: 1.35rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-top: 1.25rem; }
-        h3 { font-size: 1.15rem; margin-top: 1rem; }
-        table { border-collapse: collapse; width: 100%; margin: 12px 0; }
-        th, td { border: 1px solid #cbd5e1; padding: 8px 12px; font-size: 13px; }
-        th { background-color: #f8fafc; font-weight: 700; color: #0f172a; }
-        blockquote { border-left: 3px solid #0d9488; margin: 12px 0; padding: 6px 14px; background: #f0fdfa; color: #134e4a; }
+        h1, h2, h3, h4 { color: #0f172a; font-weight: 700; }
+        h1 { font-size: 1.75rem; margin-top: 1.5rem; margin-bottom: 0.75rem; }
+        h2 { font-size: 1.35rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-top: 1.5rem; color: #134e4a; }
+        h3 { font-size: 1.15rem; margin-top: 1.25rem; color: #134e4a; }
+        h4 { font-size: 1.05rem; margin-top: 1rem; }
+        p { margin-bottom: 1rem; }
+        table { border-collapse: collapse; width: 100%; margin: 14px 0; border: 1px solid #e2e8f0; }
+        th, td { border: 1px solid #cbd5e1; padding: 9px 12px; font-size: 13px; }
+        th { background-color: #f1f5f9; font-weight: 700; color: #0f172a; text-align: left; }
+        tr:nth-child(even) { background-color: #f8fafc; }
+        blockquote { border-left: 3px solid #0d9488; margin: 14px 0; padding: 8px 16px; background: #f0fdfa; color: #134e4a; font-style: italic; }
+        details.accordion { border: 1px solid #e2e8f0; border-radius: 4px; padding: 10px 14px; margin: 12px 0; background: #f8fafc; }
+        details.accordion summary { font-weight: 700; color: #0f172a; cursor: pointer; margin-bottom: 6px; }
         .clinical-warning {
+          border: 1px solid #fde68a;
           border-left: 4px solid #f59e0b;
           background-color: #fefce8;
-          border: 1px solid #fde68a;
-          border-left-width: 4px;
-          border-left-color: #f59e0b;
           padding: 12px 16px;
           margin: 14px 0;
           border-radius: 4px;
         }
         .doctor-note {
+          border: 1px solid #ccfbf1;
           border-left: 4px solid #0d9488;
           background-color: #f0fdfa;
-          border: 1px solid #ccfbf1;
-          border-left-width: 4px;
-          border-left-color: #0d9488;
           padding: 12px 16px;
           margin: 14px 0;
           border-radius: 4px;
         }
         .dosage-guide {
+          border: 1px solid #bae6fd;
           border-left: 4px solid #0284c7;
           background-color: #f0f9ff;
-          border: 1px solid #bae6fd;
-          border-left-width: 4px;
-          border-left-color: #0284c7;
           padding: 12px 16px;
           margin: 14px 0;
           border-radius: 4px;
         }
         .emergency-box {
+          border: 1px solid #fecdd3;
           border-left: 4px solid #e11d48;
           background-color: #fff1f2;
-          border: 1px solid #fecdd3;
-          border-left-width: 4px;
-          border-left-color: #e11d48;
           padding: 12px 16px;
           margin: 14px 0;
           border-radius: 4px;
         }
+        .clinical-prescription {
+          border: 1px solid #c7d2fe;
+          border-left: 4px solid #4f46e5;
+          background-color: #eef2ff;
+          padding: 12px 16px;
+          margin: 14px 0;
+          border-radius: 4px;
+        }
+        img { max-width: 100%; height: auto; border-radius: 4px; }
+        figcaption { font-size: 12px; color: #64748b; font-style: italic; text-align: center; margin-top: 6px; }
       `,
       setup: (editor: TinyMCEEditor) => {
         tinyEditorInstanceRef.current = editor;
@@ -546,6 +584,20 @@ export function RichTextEditor({
             callback([...clinicalCalloutEntries]);
           },
         });
+
+        const templateMenuItems = MEDICAL_TEMPLATES.map((tmpl) => ({
+          type: "menuitem" as const,
+          text: tmpl.title,
+          onAction: () => {
+            const html = markdownToHtml(tmpl.content);
+            editor.insertContent(html);
+          },
+        }));
+
+        editor.ui.registry.addNestedMenuItem("clinical_templates", {
+          text: "Mẫu bài viết y khoa chuẩn",
+          getSubmenuItems: () => templateMenuItems,
+        });
       },
       images_upload_handler: async (blobInfo: { blob: () => Blob; filename: () => string }) => {
         try {
@@ -584,6 +636,25 @@ export function RichTextEditor({
   // Helper to wrap selected text in textarea (with toggle off support)
   const wrapSelection = useCallback(
     (before: string, after: string, defaultText = "văn bản") => {
+      if (viewMode === "tinymce" && tinyEditorInstanceRef.current) {
+        const editor = tinyEditorInstanceRef.current;
+        if (before === "**") {
+          editor.execCommand("Bold");
+          return;
+        }
+        if (before === "*") {
+          editor.execCommand("Italic");
+          return;
+        }
+        if (before === "~~") {
+          editor.execCommand("Strikethrough");
+          return;
+        }
+        if (before === "`") {
+          editor.execCommand("mceToggleFormat", false, "code");
+          return;
+        }
+      }
       const textarea = textareaRef.current;
       if (!textarea) return;
 
@@ -669,6 +740,29 @@ export function RichTextEditor({
   // Helper to prefix lines with markdown (supports intelligent toggle, consecutive numbered lists, and checklist)
   const prefixLines = useCallback(
     (prefix: string) => {
+      if (viewMode === "tinymce" && tinyEditorInstanceRef.current) {
+        const editor = tinyEditorInstanceRef.current;
+        if (prefix === "## ") {
+          editor.execCommand("mceToggleFormat", false, "h2");
+          return;
+        }
+        if (prefix === "### ") {
+          editor.execCommand("mceToggleFormat", false, "h3");
+          return;
+        }
+        if (prefix === "- ") {
+          editor.execCommand("InsertUnorderedList");
+          return;
+        }
+        if (prefix === "1. ") {
+          editor.execCommand("InsertOrderedList");
+          return;
+        }
+        if (prefix === "> ") {
+          editor.execCommand("mceToggleFormat", false, "blockquote");
+          return;
+        }
+      }
       const textarea = textareaRef.current;
       if (!textarea) return;
 
@@ -902,6 +996,14 @@ export function RichTextEditor({
   // Link dialog submit (restores exact saved selection range)
   const handleInsertLink = () => {
     if (!linkUrl.trim()) return;
+    if (viewMode === "tinymce" && tinyEditorInstanceRef.current) {
+      const text = linkText.trim() || linkUrl.trim();
+      tinyEditorInstanceRef.current.insertContent(`<a href="${linkUrl.trim()}">${text}</a>`);
+      setShowLinkModal(false);
+      setLinkText("");
+      setLinkUrl("");
+      return;
+    }
     const markdown = `[${linkText.trim() || linkUrl.trim()}](${linkUrl.trim()})`;
     const sel = savedSelectionRef.current;
     savedSelectionRef.current = null;
@@ -929,6 +1031,17 @@ export function RichTextEditor({
   // Image dialog submit (restores exact saved selection range)
   const handleInsertImage = () => {
     if (!imageUrl.trim()) return;
+    if (viewMode === "tinymce" && tinyEditorInstanceRef.current) {
+      const alt = imageAlt.trim() || "Hình ảnh y khoa";
+      tinyEditorInstanceRef.current.insertContent(
+        `<figure style="margin: 14px 0; text-align: center;"><img src="${imageUrl.trim()}" alt="${alt}" style="max-width: 100%; border-radius: 4px;" /><figcaption style="font-size: 12px; color: #64748b; font-style: italic; margin-top: 6px;">${alt}</figcaption></figure><p>&nbsp;</p>`
+      );
+      setShowImageModal(false);
+      setImageAlt("");
+      setImageUrl("");
+      setImageUploadError(null);
+      return;
+    }
     const markdown = `\n![${imageAlt.trim() || "Hình ảnh y khoa"}](${imageUrl.trim()})\n`;
     const sel = savedSelectionRef.current;
     savedSelectionRef.current = null;
@@ -1068,6 +1181,13 @@ export function RichTextEditor({
 
   // Insert Table Template
   const handleInsertTable = () => {
+    if (viewMode === "tinymce" && tinyEditorInstanceRef.current) {
+      tinyEditorInstanceRef.current.execCommand("mceInsertTable", false, {
+        rows: 3,
+        columns: 3,
+      });
+      return;
+    }
     const tableSnippet = `\n| Tiêu chuẩn lâm sàng | Chỉ số khuyến nghị | Ghi chú theo dõi |
 | --- | --- | --- |
 | Huyết áp mục tiêu | < 130/80 mmHg | Đo cố định vào buổi sáng |
@@ -1078,6 +1198,12 @@ export function RichTextEditor({
 
   // Insert Code Block Template (wraps highlighted selection if available)
   const handleInsertCodeBlock = () => {
+    if (viewMode === "tinymce" && tinyEditorInstanceRef.current) {
+      const editor = tinyEditorInstanceRef.current;
+      const sel = editor.selection.getContent() || "// Nội dung định dạng kỹ thuật hoặc bảng mã y khoa";
+      editor.insertContent(`<pre><code>${sel}</code></pre><p>&nbsp;</p>`);
+      return;
+    }
     const textarea = textareaRef.current;
     const selected = textarea && textarea.selectionStart !== textarea.selectionEnd
       ? safeValue.slice(textarea.selectionStart, textarea.selectionEnd)
@@ -1090,6 +1216,29 @@ export function RichTextEditor({
   // Insert Clinical Callout (wraps highlighted selection if available)
   const handleInsertCallout = (kind: string, title?: string) => {
     setShowCalloutMenu(false);
+    if (viewMode === "tinymce" && tinyEditorInstanceRef.current) {
+      const editor = tinyEditorInstanceRef.current;
+      const sel = editor.selection.getContent({ format: "html" }) || `<p>Nhập thông tin chuyên môn, khuyến cáo y khoa hoặc hướng dẫn chi tiết tại đây...</p>`;
+      const titleColors: Record<string, string> = {
+        "clinical-warning": "#78350f",
+        "doctor-note": "#134e4a",
+        "dosage-guide": "#075985",
+        "emergency-box": "#9f1239",
+      };
+      const icons: Record<string, string> = {
+        "clinical-warning": "⚠️",
+        "doctor-note": "💡",
+        "dosage-guide": "📋",
+        "emergency-box": "🚨",
+      };
+      const icon = icons[kind] || "ℹ️";
+      const color = titleColors[kind] || "#0f172a";
+      const displayTitle = title || "Ghi chú chuyên môn";
+      editor.insertContent(
+        `<div class="${kind}" data-callout="${kind}" data-title="${displayTitle}"><p><strong style="color: ${color};">${icon} ${displayTitle}</strong></p>${sel}</div><p>&nbsp;</p>`
+      );
+      return;
+    }
     const textarea = textareaRef.current;
     const selected = textarea && textarea.selectionStart !== textarea.selectionEnd
       ? safeValue.slice(textarea.selectionStart, textarea.selectionEnd)
@@ -1116,12 +1265,21 @@ export function RichTextEditor({
   }, []);
 
   const applyTemplateNow = useCallback((tmpl: MedicalTemplate) => {
+    if (viewMode === "tinymce" && tinyEditorInstanceRef.current) {
+      const html = markdownToHtml(tmpl.content);
+      const editor = tinyEditorInstanceRef.current;
+      const currentHtml = editor.getContent();
+      const newHtml = currentHtml.trim() ? `${currentHtml}<hr /><p>&nbsp;</p>${html}` : html;
+      editor.setContent(newHtml);
+      handleTinyEditorChange(newHtml);
+      return;
+    }
     const newValue = safeValue.trim() ? `${safeValue}\n\n${tmpl.content}` : tmpl.content;
     isInternalChangeRef.current = true;
     lastExternalValueRef.current = newValue;
     onChange(newValue);
     recordHistory(newValue, true);
-  }, [safeValue, onChange, recordHistory]);
+  }, [safeValue, viewMode, handleTinyEditorChange, onChange, recordHistory]);
 
   // Apply Medical Template
   const handleApplyTemplate = (tmpl: MedicalTemplate) => {
