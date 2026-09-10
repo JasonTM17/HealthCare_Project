@@ -243,7 +243,7 @@ test("admin catalog destructive copy offers a hide alternative and rich-text tem
   await page.getByRole("dialog", { name: "Thêm mẫu y khoa vào bài viết đã có nội dung?" })
     .getByRole("button", { name: "Áp dụng mẫu" })
     .click();
-  await expect(editor).toContainText("## 1. Tổng quan tình trạng & Định nghĩa");
+  await expect(editor).toHaveValue(/## 1\. Tổng quan tình trạng & Định nghĩa/);
   await page.getByRole("button", { name: /Hoàn tác/ }).click();
   await expect(editor).toHaveValue(initialBody);
 
