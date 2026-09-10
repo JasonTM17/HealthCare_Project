@@ -66,7 +66,7 @@
 .site-shell .hero-copy {
   position: relative;
   z-index: 2;
-  max-width: 33rem;
+  max-width: 38rem;
 }
 
 .site-shell .hero-kicker {
@@ -88,10 +88,10 @@
 }
 
 .site-shell .hero-copy h1 {
-  max-width: 18ch;
-  font-size: clamp(3rem, 5vw, 4.4rem);
-  line-height: 1.1;
-  letter-spacing: 0;
+  max-width: 24ch;
+  font-size: clamp(2.5rem, 3.8vw, 3.6rem);
+  line-height: 1.15;
+  letter-spacing: -0.015em;
 }
 
 .site-shell .hero-copy h1 span,
@@ -100,6 +100,16 @@
   background: none;
   -webkit-text-fill-color: #00767c !important;
   color: #00767c !important;
+}
+
+.site-shell .hero-copy h1 .hero-title__line {
+  display: block;
+  white-space: nowrap;
+}
+
+.site-shell .hero-copy h1 .hero-title__main {
+  color: var(--hospital-navy) !important;
+  -webkit-text-fill-color: var(--hospital-navy) !important;
 }
 
 .site-shell .hero-description {
@@ -524,7 +534,7 @@
 
 @media (max-width: 1120px) {
   .site-shell .hero-copy h1 {
-    font-size: 4.25rem;
+    font-size: 3.25rem;
   }
 
   .site-shell .care-experience__copy h2 {
@@ -555,8 +565,8 @@
   }
 
   .site-shell .hero-copy h1 {
-    max-width: 18ch;
-    font-size: 3.75rem;
+    max-width: 24ch;
+    font-size: 2.85rem;
   }
 
   .site-shell .hero-visual {
@@ -606,8 +616,12 @@
   }
 
   .site-shell .hero-copy h1 {
-    max-width: 18ch;
-    font-size: clamp(2.25rem, 10vw, 2.75rem);
+    max-width: 20ch;
+    font-size: clamp(2rem, 8vw, 2.5rem);
+  }
+
+  .site-shell .hero-copy h1 .hero-title__line {
+    white-space: normal;
   }
 
   .site-shell .hero-description {
