@@ -548,7 +548,7 @@ export default function AdminCatalogPage() {
       ) : null}
 
       {!loading && !loadError ? (
-        <div className="mt-6 grid gap-6 xl:grid-cols-3">
+        <div className="mt-6 grid gap-6 xl:grid-cols-2">
           <Panel
             description="Quản lý nội dung, giá và trạng thái hiển thị của từng gói khám."
             title={editingPackage ? "Sửa gói khám" : "Gói khám"}
@@ -751,10 +751,11 @@ export default function AdminCatalogPage() {
             </div>
           </Panel>
 
-          <Panel
-            description="Biên tập bài viết và kiểm soát trạng thái xuất bản công khai."
-            title={editingArticle ? "Sửa bài viết" : "Bài viết"}
-          >
+          <div className="xl:col-span-2">
+            <Panel
+              description="Biên tập bài viết và kiểm soát trạng thái xuất bản công khai."
+              title={editingArticle ? "Sửa bài viết" : "Bài viết"}
+            >
             <form className="mt-4 space-y-6" onSubmit={saveArticle}>
               <div className="grid gap-3 md:grid-cols-2">
                 <label className="block text-sm font-semibold">
@@ -1182,6 +1183,7 @@ export default function AdminCatalogPage() {
               })}
             </div>
           </Panel>
+          </div>
         </div>
       ) : null}
 
