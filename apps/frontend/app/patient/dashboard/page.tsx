@@ -1525,136 +1525,257 @@ export default function PatientDashboardPage() {
           <div className="portal-panel__heading">
             <div>
               <h2 id="profile-title">Hồ sơ cá nhân & Tiền sử sức khỏe</h2>
-              <p className="portal-panel__subheading">Quản lý thông tin định danh, hồ sơ bệnh lý cá nhân và bảo mật tài khoản</p>
+<p className="portal-panel__subheading">Quản lý thông tin định danh, hồ sơ bệnh lý cá nhân và bảo mật tài khoản</p>
             </div>
           </div>
           <StateContent retry={retry} state={profile}>
             {() => (
-              <div className="portal-profile-layout">
+              <div className="portal-profile-layout space-y-6">
                 {/* Form 1: Profile & Medical History */}
-                <form className="portal-clinical-form" onSubmit={handleSaveProfile}>
-                  <h3 className="text-base font-bold text-teal-950 mb-3 flex items-center gap-2">
-                    <UiIcon name="user" size={18} />
-                    <span>Thông tin cá nhân & Ảnh đại diện</span>
-                  </h3>
+                <form className="space-y-6" onSubmit={handleSaveProfile}>
+                  {/* Card 1: Thông tin cá nhân & Ảnh đại diện */}
+                  <div className="bg-white border border-slate-200/90 rounded-[4px] p-6 sm:p-7 shadow-xs">
+                    <div className="flex items-start justify-between gap-4 pb-5 mb-5 border-b border-slate-100">
+                      <div className="flex items-center gap-3">
+                        <span className="flex items-center justify-center w-10 h-10 rounded-[4px] bg-teal-50 text-teal-700 border border-teal-200/70 shrink-0">
+                          <UiIcon name="user" size={20} />
+                        </span>
+                        <div>
+                          <h3 className="text-base font-bold text-teal-950 leading-snug">Thông tin cá nhân & Ảnh đại diện</h3>
+                          <p className="text-xs text-slate-500 mt-0.5">Dữ liệu định danh người bệnh dùng khi tiếp đón và đồng bộ vào hồ sơ bệnh án</p>
+                        </div>
+                      </div>
+                      <span className="hidden sm:inline-flex items-center px-2.5 py-1 rounded-[4px] text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                        Định danh cá nhân
+                      </span>
+                    </div>
 
-                  <div className="mb-4">
-                    <ImageUpload
-                      aspectRatio="square"
-                      helperText="Tải lên tệp ảnh chân dung bệnh nhân (PNG, JPG, WEBP tối đa 10 MB)"
-                      label="Ảnh chân dung đại diện"
-                      onChange={(url) => setProfileForm((v) => ({ ...v, avatarUrl: url }))}
-                      purpose="PATIENT_AVATAR"
-                      value={profileForm.avatarUrl}
-                    />
-                  </div>
-
-                  <div className="portal-clinical-form__grid">
-                    <label>Họ và tên *<input required maxLength={160} onChange={(event) => setProfileForm((value) => ({ ...value, fullName: event.target.value }))} value={profileForm.fullName} /></label>
-                    <label>Ngày sinh<input onChange={(event) => setProfileForm((value) => ({ ...value, dateOfBirth: event.target.value }))} type="date" value={profileForm.dateOfBirth} /></label>
-                    <label>Giới tính<select onChange={(event) => setProfileForm((value) => ({ ...value, gender: event.target.value as ProfileForm["gender"] }))} value={profileForm.gender}><option value="">Chưa chọn</option><option value="MALE">Nam</option><option value="FEMALE">Nữ</option><option value="OTHER">Khác</option><option value="UNSPECIFIED">Không xác định</option></select></label>
-                    <label>Địa chỉ<input maxLength={500} onChange={(event) => setProfileForm((value) => ({ ...value, address: event.target.value }))} value={profileForm.address} /></label>
-                    <label>Người liên hệ khẩn cấp<input maxLength={160} onChange={(event) => setProfileForm((value) => ({ ...value, emergencyContactName: event.target.value }))} value={profileForm.emergencyContactName} /></label>
-                    <label>Số điện thoại khẩn cấp<input maxLength={20} onChange={(event) => setProfileForm((value) => ({ ...value, emergencyContactPhone: event.target.value }))} value={profileForm.emergencyContactPhone} /></label>
-                  </div>
-
-                  <hr className="my-5 border-slate-200" />
-
-                  <h3 className="text-base font-bold text-teal-950 mb-3 flex items-center gap-2">
-                    <UiIcon name="activity" size={18} />
-                    <span>Lưu ý về tiền sử bệnh nhân riêng biệt</span>
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-                    <label className="flex flex-col gap-2 text-sm font-bold text-teal-950">
-                      <span>Nhóm máu</span>
-                      <select
-                        className="w-full h-[46px] min-h-[46px] px-3 rounded-lg border border-slate-300 bg-white text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-teal-600 focus:border-teal-600"
-                        value={profileForm.bloodType}
-                        onChange={(e) => setProfileForm((v) => ({ ...v, bloodType: e.target.value }))}
-                      >
-                        <option value="">Chưa xác định</option>
-                        <option value="A+">A+</option>
-                        <option value="A-">A-</option>
-                        <option value="B+">B+</option>
-                        <option value="B-">B-</option>
-                        <option value="AB+">AB+</option>
-                        <option value="AB-">AB-</option>
-                        <option value="O+">O+</option>
-                        <option value="O-">O-</option>
-                      </select>
-                    </label>
-                    <label className="md:col-span-2 flex flex-col gap-2 text-sm font-bold text-teal-950">
-                      <span>Dị ứng (thuốc, thực phẩm, thời tiết...)</span>
-                      <textarea
-                        className="w-full min-h-[46px] p-3 rounded-lg border border-slate-300 bg-white text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-teal-600 focus:border-teal-600 resize-y"
-                        rows={2}
-                        placeholder="Ví dụ: Dị ứng kháng sinh Penicillin, dị ứng hải sản, tôm cua..."
-                        value={profileForm.allergies}
-                        onChange={(e) => setProfileForm((v) => ({ ...v, allergies: e.target.value }))}
+                    <div className="mb-6 max-w-xl">
+                      <ImageUpload
+                        aspectRatio="square"
+                        helperText="Tải lên tệp ảnh chân dung bệnh nhân (PNG, JPG, WEBP tối đa 10 MB)"
+                        label="Ảnh chân dung đại diện"
+                        onChange={(url) => setProfileForm((v) => ({ ...v, avatarUrl: url }))}
+                        purpose="PATIENT_AVATAR"
+                        value={profileForm.avatarUrl}
                       />
-                    </label>
-                    <label className="md:col-span-3 flex flex-col gap-2 text-sm font-bold text-teal-950">
-                      <span>Tiền sử bệnh lý bản thân & gia đình</span>
-                      <textarea
-                        className="w-full min-h-[72px] p-3 rounded-lg border border-slate-300 bg-white text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-teal-600 focus:border-teal-600 resize-y"
-                        rows={3}
-                        placeholder="Ví dụ: Tăng huyết áp 5 năm, tiền sử đau dạ dày HP, gia đình có người mắc tiểu đường..."
-                        value={profileForm.medicalHistory}
-                        onChange={(e) => setProfileForm((v) => ({ ...v, medicalHistory: e.target.value }))}
-                      />
-                    </label>
+                    </div>
+
+                    <div className="portal-clinical-form__grid">
+                      <label className="flex flex-col gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700">
+                        <span className="text-slate-800">Họ và tên <span className="text-rose-600">*</span></span>
+                        <input
+                          required
+                          maxLength={160}
+                          className="w-full h-11 px-3.5 bg-white border border-slate-300 focus:border-teal-600 focus:ring-1 focus:ring-teal-600 rounded-[4px] text-sm text-slate-900 font-medium transition-colors shadow-2xs outline-none"
+                          onChange={(event) => setProfileForm((value) => ({ ...value, fullName: event.target.value }))}
+                          value={profileForm.fullName}
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700">
+                        <span className="text-slate-800">Ngày sinh</span>
+                        <input
+                          className="w-full h-11 px-3.5 bg-white border border-slate-300 focus:border-teal-600 focus:ring-1 focus:ring-teal-600 rounded-[4px] text-sm text-slate-900 font-medium transition-colors shadow-2xs outline-none"
+                          onChange={(event) => setProfileForm((value) => ({ ...value, dateOfBirth: event.target.value }))}
+                          type="date"
+                          value={profileForm.dateOfBirth}
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700">
+                        <span className="text-slate-800">Giới tính</span>
+                        <select
+                          className="w-full h-11 px-3.5 bg-white border border-slate-300 focus:border-teal-600 focus:ring-1 focus:ring-teal-600 rounded-[4px] text-sm text-slate-900 font-medium transition-colors shadow-2xs outline-none"
+                          onChange={(event) => setProfileForm((value) => ({ ...value, gender: event.target.value as ProfileForm["gender"] }))}
+                          value={profileForm.gender}
+                        >
+                          <option value="">Chưa chọn</option>
+                          <option value="MALE">Nam</option>
+                          <option value="FEMALE">Nữ</option>
+                          <option value="OTHER">Khác</option>
+                          <option value="UNSPECIFIED">Không xác định</option>
+                        </select>
+                      </label>
+                      <label className="flex flex-col gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700">
+                        <span className="text-slate-800">Địa chỉ</span>
+                        <input
+                          maxLength={500}
+                          placeholder="Số nhà, tên đường, phường/xã, quận/huyện, tỉnh/thành phố"
+                          className="w-full h-11 px-3.5 bg-white border border-slate-300 focus:border-teal-600 focus:ring-1 focus:ring-teal-600 rounded-[4px] text-sm text-slate-900 font-medium transition-colors shadow-2xs outline-none"
+                          onChange={(event) => setProfileForm((value) => ({ ...value, address: event.target.value }))}
+                          value={profileForm.address}
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700">
+                        <span className="text-slate-800">Người liên hệ khẩn cấp</span>
+                        <input
+                          maxLength={160}
+                          placeholder="Họ tên người thân (vợ/chồng, bố mẹ, con...)"
+                          className="w-full h-11 px-3.5 bg-white border border-slate-300 focus:border-teal-600 focus:ring-1 focus:ring-teal-600 rounded-[4px] text-sm text-slate-900 font-medium transition-colors shadow-2xs outline-none"
+                          onChange={(event) => setProfileForm((value) => ({ ...value, emergencyContactName: event.target.value }))}
+                          value={profileForm.emergencyContactName}
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700">
+                        <span className="text-slate-800">Số điện thoại khẩn cấp</span>
+                        <input
+                          maxLength={20}
+                          placeholder="Ví dụ: 0912345678"
+                          className="w-full h-11 px-3.5 bg-white border border-slate-300 focus:border-teal-600 focus:ring-1 focus:ring-teal-600 rounded-[4px] text-sm text-slate-900 font-medium transition-colors shadow-2xs outline-none"
+                          onChange={(event) => setProfileForm((value) => ({ ...value, emergencyContactPhone: event.target.value }))}
+                          value={profileForm.emergencyContactPhone}
+                        />
+                      </label>
+                    </div>
                   </div>
 
-                  {profileNotice ? <p aria-live="polite" className={profileNotice.startsWith("Đã") ? "portal-inline-success mt-3" : "portal-inline-error mt-3"}>{profileNotice}</p> : null}
-                  <div className="mt-4">
-                    <button className="button button--primary" disabled={profileOperation === "saving"} type="submit">
-                      {profileOperation === "saving" ? "Đang lưu…" : "Lưu hồ sơ & Tiền sử bệnh"}
-                    </button>
+                  {/* Card 2: Hồ sơ lâm sàng & Tiền sử y tế */}
+                  <div className="bg-white border border-slate-200/90 rounded-[4px] p-6 sm:p-7 shadow-xs">
+                    <div className="flex items-start justify-between gap-4 pb-5 mb-5 border-b border-slate-100">
+                      <div className="flex items-center gap-3">
+                        <span className="flex items-center justify-center w-10 h-10 rounded-[4px] bg-red-50 text-red-700 border border-red-200/70 shrink-0">
+                          <UiIcon name="activity" size={20} />
+                        </span>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-base font-bold text-teal-950 leading-snug">Hồ sơ lâm sàng & Tiền sử sức khỏe</h3>
+                          </div>
+                          <p className="text-xs text-slate-500 mt-0.5">Dữ liệu an toàn điều trị quan trọng giúp bác sĩ kê đơn và xử trí cấp cứu chính xác</p>
+                        </div>
+                      </div>
+                      <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        An toàn điều trị
+                      </span>
+                    </div>
+
+                    {/* Allergy Alert Box */}
+                    <div className="rounded-[4px] border border-amber-300 bg-amber-50/75 p-4 sm:p-5 mb-5 shadow-2xs">
+                      <div className="flex items-start gap-3">
+                        <span className="flex items-center justify-center w-7 h-7 rounded-[4px] bg-amber-100 text-amber-800 border border-amber-300 shrink-0 mt-0.5">
+                          <UiIcon name="alert-triangle" size={16} />
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <label className="block text-sm font-bold text-amber-950">
+                            Cảnh báo dị ứng (Thuốc, thực phẩm, thời tiết, hóa chất...)
+                          </label>
+                          <p className="text-xs text-amber-800/90 mt-0.5 mb-3">
+                            Thông tin này sẽ được gắn cờ cảnh báo nổi bật khi bác sĩ kê đơn để ngăn ngừa phản ứng dị ứng nguy hiểm hoặc sốc phản vệ.
+                          </p>
+                          <textarea
+                            className="w-full min-h-[60px] p-3 rounded-[4px] border border-amber-300 bg-white text-slate-900 text-sm font-medium placeholder:text-amber-800/40 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:border-amber-600 resize-y"
+                            rows={2}
+                            placeholder="Ví dụ: Dị ứng Penicillin, Cephalosporin, dị ứng hải sản (tôm, cua), dị ứng aspirin, phấn hoa..."
+                            value={profileForm.allergies}
+                            onChange={(e) => setProfileForm((v) => ({ ...v, allergies: e.target.value }))}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-start">
+                      <label className="flex flex-col gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700">
+                        <span className="text-slate-800">Nhóm máu (Hệ ABO & Rh)</span>
+                        <select
+                          className="w-full h-11 px-3.5 rounded-[4px] border border-slate-300 bg-white text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-600 focus:border-teal-600 transition-colors shadow-2xs"
+                          value={profileForm.bloodType}
+                          onChange={(e) => setProfileForm((v) => ({ ...v, bloodType: e.target.value }))}
+                        >
+                          <option value="">Chưa xác định</option>
+                          <option value="A+">Nhóm A+ (A Rh dương)</option>
+                          <option value="A-">Nhóm A- (A Rh âm)</option>
+                          <option value="B+">Nhóm B+ (B Rh dương)</option>
+                          <option value="B-">Nhóm B- (B Rh âm)</option>
+                          <option value="AB+">Nhóm AB+ (AB Rh dương)</option>
+                          <option value="AB-">Nhóm AB- (AB Rh âm)</option>
+                          <option value="O+">Nhóm O+ (O Rh dương)</option>
+                          <option value="O-">Nhóm O- (O Rh âm)</option>
+                        </select>
+                        <span className="text-[11px] font-normal normal-case text-slate-500">Cần thiết khi cấp cứu & truyền máu</span>
+                      </label>
+
+                      <label className="md:col-span-2 flex flex-col gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700">
+                        <span className="text-slate-800">Tiền sử bệnh lý bản thân & gia đình</span>
+                        <textarea
+                          className="w-full min-h-[90px] p-3.5 rounded-[4px] border border-slate-300 bg-white text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-600 focus:border-teal-600 resize-y transition-colors shadow-2xs"
+                          rows={3}
+                          placeholder="Ví dụ: Tăng huyết áp 5 năm đang dùng thuốc, viêm loét dạ dày HP, từng mổ ruột thừa năm 2020; Gia đình: Mẹ mắc đái tháo đường type 2..."
+                          value={profileForm.medicalHistory}
+                          onChange={(e) => setProfileForm((v) => ({ ...v, medicalHistory: e.target.value }))}
+                        />
+                        <span className="text-[11px] font-normal normal-case text-slate-500">Bệnh nền mạn tính, phẫu thuật trước đây hoặc yếu tố di truyền trong gia đình</span>
+                      </label>
+                    </div>
+
+                    {profileNotice ? <p aria-live="polite" className={profileNotice.startsWith("Đã") ? "portal-inline-success mt-4" : "portal-inline-error mt-4"}>{profileNotice}</p> : null}
+
+                    <div className="mt-6 pt-5 border-t border-slate-100 flex items-center justify-between gap-4">
+                      <p className="text-xs text-slate-500 hidden sm:block">Các thay đổi sẽ được lưu vào cơ sở dữ liệu y tế của tài khoản</p>
+                      <button className="button button--primary" disabled={profileOperation === "saving"} type="submit">
+                        {profileOperation === "saving" ? "Đang lưu…" : "Lưu hồ sơ & Tiền sử bệnh"}
+                      </button>
+                    </div>
                   </div>
                 </form>
 
                 {/* Form 2: Change Password */}
-                <form className="portal-clinical-form mt-8 pt-6 border-t border-slate-200" onSubmit={handleChangePassword}>
-                  <h3 className="text-base font-bold text-teal-950 mb-3 flex items-center gap-2">
-                    <UiIcon name="shield-check" size={18} />
-                    <span>Đổi mật khẩu tài khoản</span>
-                  </h3>
+                <form className="bg-white border border-slate-200/90 rounded-[4px] p-6 sm:p-7 shadow-xs" onSubmit={handleChangePassword}>
+                  <div className="flex items-start justify-between gap-4 pb-5 mb-5 border-b border-slate-100">
+                    <div className="flex items-center gap-3">
+                      <span className="flex items-center justify-center w-10 h-10 rounded-[4px] bg-slate-100 text-slate-700 border border-slate-200 shrink-0">
+                        <UiIcon name="shield-check" size={20} />
+                      </span>
+                      <div>
+                        <h3 className="text-base font-bold text-teal-950 leading-snug">Đổi mật khẩu tài khoản</h3>
+                        <p className="text-xs text-slate-500 mt-0.5">Mật khẩu mới cần tối thiểu 8 ký tự để bảo vệ thông tin sức khỏe riêng tư</p>
+                      </div>
+                    </div>
+                    <span className="hidden sm:inline-flex items-center px-2.5 py-1 rounded-[4px] text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                      Bảo mật
+                    </span>
+                  </div>
+
                   <div className="portal-clinical-form__grid">
-                    <label>
-                      Mật khẩu hiện tại *
+                    <label className="flex flex-col gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700">
+                      <span className="text-slate-800">Mật khẩu hiện tại <span className="text-rose-600">*</span></span>
                       <input
                         required
                         type="password"
+                        className="w-full h-11 px-3.5 bg-white border border-slate-300 focus:border-teal-600 focus:ring-1 focus:ring-teal-600 rounded-[4px] text-sm text-slate-900 font-medium transition-colors shadow-2xs outline-none"
                         value={passwordForm.currentPassword}
                         onChange={(e) => setPasswordForm((v) => ({ ...v, currentPassword: e.target.value }))}
                         placeholder="Nhập mật khẩu đang dùng"
                       />
                     </label>
-                    <label>
-                      Mật khẩu mới *
+                    <label className="flex flex-col gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700">
+                      <span className="text-slate-800">Mật khẩu mới <span className="text-rose-600">*</span></span>
                       <input
                         required
                         type="password"
                         minLength={8}
+                        className="w-full h-11 px-3.5 bg-white border border-slate-300 focus:border-teal-600 focus:ring-1 focus:ring-teal-600 rounded-[4px] text-sm text-slate-900 font-medium transition-colors shadow-2xs outline-none"
                         value={passwordForm.newPassword}
                         onChange={(e) => setPasswordForm((v) => ({ ...v, newPassword: e.target.value }))}
                         placeholder="Tối thiểu 8 ký tự"
                       />
                     </label>
-                    <label>
-                      Xác nhận mật khẩu mới *
+                    <label className="flex flex-col gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700 sm:col-span-2 md:col-span-1">
+                      <span className="text-slate-800">Xác nhận mật khẩu mới <span className="text-rose-600">*</span></span>
                       <input
                         required
                         type="password"
                         minLength={8}
+                        className="w-full h-11 px-3.5 bg-white border border-slate-300 focus:border-teal-600 focus:ring-1 focus:ring-teal-600 rounded-[4px] text-sm text-slate-900 font-medium transition-colors shadow-2xs outline-none"
                         value={passwordForm.confirmPassword}
                         onChange={(e) => setPasswordForm((v) => ({ ...v, confirmPassword: e.target.value }))}
                         placeholder="Nhập lại mật khẩu mới"
                       />
                     </label>
                   </div>
-                  {passwordNotice ? <p aria-live="polite" className={passwordNotice.startsWith("Đã") ? "portal-inline-success mt-3" : "portal-inline-error mt-3"}>{passwordNotice}</p> : null}
-                  <div className="mt-4">
+
+                  {passwordNotice ? <p aria-live="polite" className={passwordNotice.startsWith("Đã") ? "portal-inline-success mt-4" : "portal-inline-error mt-4"}>{passwordNotice}</p> : null}
+
+                  <div className="mt-6 pt-5 border-t border-slate-100 flex items-center justify-between gap-4">
+                    <p className="text-xs text-slate-500 hidden sm:block">Sau khi cập nhật thành công, phiên đăng nhập của bạn vẫn được giữ nguyên</p>
                     <button className="outline-button" disabled={passwordOperation === "saving"} type="submit">
                       {passwordOperation === "saving" ? "Đang cập nhật…" : "Cập nhật mật khẩu"}
                     </button>

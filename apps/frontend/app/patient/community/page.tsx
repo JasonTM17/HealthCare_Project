@@ -17,6 +17,7 @@ import {
 import { ForbiddenState, LoadingState, LoginRequiredState } from "../../../components/PortalStates";
 import { useAuthSession, useAuthSessionStatus } from "../../../components/useAuthSession";
 import UiIcon from "../../../components/UiIcon";
+import { resolveArticleCoverImage, resolveArticleAlt } from "../../../lib/article-visuals";
 
 export default function PatientCommunityPage() {
   const session = useAuthSession();
@@ -232,25 +233,17 @@ export default function PatientCommunityPage() {
                 key={article.id}
                 onClick={() => void handleOpenArticle(article)}
               >
-                {article.coverImageUrl ? (
-                  <div className="relative h-44 w-full overflow-hidden bg-slate-100">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      alt={article.title}
-                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                      src={article.coverImageUrl}
-                    />
-                    <span className="absolute top-3 left-3 rounded-md bg-teal-950/80 backdrop-blur-md px-2.5 py-0.5 text-xs font-bold text-teal-100">
-                      {article.category || "Cẩm nang y tế"}
-                    </span>
-                  </div>
-                ) : (
-                  <div className="h-28 w-full bg-gradient-to-r from-teal-900 to-teal-700 p-4 flex items-end">
-                    <span className="rounded-md bg-white/20 backdrop-blur-md px-2.5 py-0.5 text-xs font-bold text-white">
-                      {article.category || "Cẩm nang y tế"}
-                    </span>
-                  </div>
-                )}
+                <div className="relative h-44 w-full overflow-hidden bg-slate-100">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    alt={resolveArticleAlt(article)}
+                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    src={resolveArticleCoverImage(article)}
+                  />
+                  <span className="absolute top-3 left-3 rounded-[4px] bg-teal-950/85 backdrop-blur-md px-2.5 py-0.5 text-xs font-bold text-teal-100 shadow-xs">
+                    {article.category || "Cẩm nang y tế"}
+                  </span>
+                </div>
 
                 <div className="p-5 flex-1 flex flex-col justify-between">
                   <div>
@@ -316,13 +309,13 @@ export default function PatientCommunityPage() {
                 )}
 
                 {/* Hero Cover Image */}
-                {readingArticle.coverImageUrl && (
-                  <div className="w-full h-64 sm:h-80 rounded-[8px] overflow-hidden border border-slate-200 shadow-xs">
+                {readingArticle && (
+                  <div className="w-full h-64 sm:h-80 rounded-[4px] overflow-hidden border border-slate-200 shadow-xs">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      alt={readingArticle.title}
+                      alt={resolveArticleAlt(readingArticle)}
                       className="w-full h-full object-cover"
-                      src={readingArticle.coverImageUrl}
+                      src={resolveArticleCoverImage(readingArticle)}
                     />
                   </div>
                 )}

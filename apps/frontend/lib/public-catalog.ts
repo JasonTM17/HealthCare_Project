@@ -1,5 +1,32 @@
 import type { Article, Doctor, HealthPackage, MedicalService } from "../types/hospital";
 
+const TOPIC_COVER_IMAGES: Record<string, string> = {
+  "tim mạch": "/media/articles/5-dau-hieu-tim-mach.jpg",
+  "nhi khoa": "/media/articles/tre-bieng-an.jpg",
+  "dinh dưỡng": "/media/articles/dinh-duong-tang-huyet-ap.jpg",
+  "sức khỏe gia đình": "/media/articles/cham-soc-suc-khoe-tong-quat.jpg",
+  "cơ xương khớp": "/media/articles/thoai-hoa-cot-song.jpg",
+  "nội tiết": "/media/articles/tam-soat-tieu-duong.jpg",
+  "tiêu hóa": "/media/articles/viem-loet-da-day.jpg",
+  "thần kinh": "/media/articles/phong-ngua-dot-quy.jpg",
+  "sản phụ khoa": "/images/packages/womens-health.jpg",
+};
+
+const DEFAULT_COVER = "/media/articles/cham-soc-suc-khoe-tong-quat.jpg";
+
+function resolveCover(topic: string, slug: string): string {
+  const identity = `${topic} ${slug}`.toLocaleLowerCase("vi-VN");
+  if (/tim|mạch|cardio/i.test(identity)) return TOPIC_COVER_IMAGES["tim mạch"];
+  if (/nhi|trẻ|pediatric/i.test(identity)) return TOPIC_COVER_IMAGES["nhi khoa"];
+  if (/dinh dưỡng|ăn uống|nutrition/i.test(identity)) return TOPIC_COVER_IMAGES["dinh dưỡng"];
+  if (/tiểu đường|đái tháo đường|nội tiết/i.test(identity)) return TOPIC_COVER_IMAGES["nội tiết"];
+  if (/khớp|cột sống|lưng/i.test(identity)) return TOPIC_COVER_IMAGES["cơ xương khớp"];
+  if (/dạ dày|tiêu hóa|gan/i.test(identity)) return TOPIC_COVER_IMAGES["tiêu hóa"];
+  if (/thần kinh|đột quỵ/i.test(identity)) return TOPIC_COVER_IMAGES["thần kinh"];
+  if (/phụ khoa|sinh sản|thai/i.test(identity)) return TOPIC_COVER_IMAGES["sản phụ khoa"];
+  return DEFAULT_COVER;
+}
+
 /** Normalize known large-beta fixture copy before it reaches patient-facing cards. */
 const SERVICE_VARIANTS = [
   ["Khám tổng quát", "Khám lâm sàng và tư vấn sức khỏe tổng quát cho nhu cầu kiểm tra định kỳ."],
@@ -67,13 +94,20 @@ export function presentPublicPackage(item: HealthPackage): HealthPackage {
 
 export function presentPublicArticle(article: Article): Article {
   const index = fixtureIndex(article.slug, "bv");
-  if (index === null || !/^Bài viết y khoa số \d+$/i.test(article.title.trim())) return article;
+  if (index === null || !/^Bài viết y khoa số \d+$/i.test(article.title.trim())) {
+    return {
+      ...article,
+      coverImageUrl: article.coverImageUrl?.trim() || resolveCover(article.category || "", article.slug),
+    };
+  }
   const topic = article.category?.trim() || "Sức khỏe chủ động";
   const variant = ARTICLE_VARIANTS[(index - 1) % ARTICLE_VARIANTS.length];
   const cycle = Math.floor((index - 1) / ARTICLE_VARIANTS.length) + 1;
   const topicText = topic.toLocaleLowerCase("vi-VN");
+  const resolvedCover = article.coverImageUrl?.trim() || resolveCover(topic, article.slug);
   return {
     ...article,
+    coverImageUrl: resolvedCover,
     title: `${topic}: ${variant}${cycle > 1 ? ` · phần ${cycle}` : ""}`,
     summary: `Thông tin dễ hiểu về ${topicText} để bạn chuẩn bị câu hỏi và trao đổi với bác sĩ.`,
     body: `Bài viết cung cấp gợi ý thực tế về ${topicText}. Nếu triệu chứng kéo dài, nặng lên hoặc ảnh hưởng sinh hoạt, hãy liên hệ nhân viên y tế để được hướng dẫn.`,

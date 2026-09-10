@@ -27,8 +27,9 @@ import { ForbiddenState, LoadingState, LoginRequiredState } from "../../../compo
 import { useAuthSession, useAuthSessionStatus } from "../../../components/useAuthSession";
 import ImageUpload from "../../../components/ImageUpload";
 import UiIcon from "../../../components/UiIcon";
-import { RichContentRenderer, RichTextEditor } from "../../../components/editor";
+import { RichContentRenderer } from "../../../components/editor";
 import ConfirmActionDialog from "../../../components/ui/ConfirmActionDialog";
+import { resolveArticleCoverImage, resolveArticleAlt } from "../../../lib/article-visuals";
 
 function toSlug(text: string): string {
   return text
@@ -530,6 +531,14 @@ export default function DoctorArticlesPage() {
                     key={a.id}
                   >
                     <div>
+                      <div className="relative h-36 w-full mb-3 rounded-[4px] overflow-hidden bg-slate-100 border border-slate-100">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          alt={resolveArticleAlt(a)}
+                          className="h-full w-full object-cover"
+                          src={resolveArticleCoverImage(a)}
+                        />
+                      </div>
                       <div className="flex items-center justify-between text-xs text-slate-500">
                         <span className="rounded-[4px] bg-teal-50 px-2.5 py-0.5 font-bold text-teal-800">
                           {a.category || "Cẩm nang y tế"}
@@ -613,13 +622,13 @@ export default function DoctorArticlesPage() {
                 )}
 
                 {/* Hero Cover Image */}
-                {readingArticle.coverImageUrl && (
+                {readingArticle && (
                   <div className="w-full h-64 sm:h-80 rounded-[4px] overflow-hidden border border-slate-200 shadow-xs">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      alt={readingArticle.title}
+                      alt={resolveArticleAlt(readingArticle)}
                       className="w-full h-full object-cover"
-                      src={readingArticle.coverImageUrl}
+                      src={resolveArticleCoverImage(readingArticle)}
                     />
                   </div>
                 )}
@@ -881,19 +890,22 @@ export default function DoctorArticlesPage() {
                 </div>
 
                 <div>
-                  <RichTextEditor
-                    id="doctor-article-body-editor"
-                    label="Nội dung chi tiết (Body)"
-                    minHeight="320px"
-                    onChange={(newBody) => setBody(newBody)}
-                    onReadingMinutesCalculated={(mins) => {
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700" htmlFor="doctor-article-body-input">
+                    Nội dung chi tiết (Body) *
+                  </label>
+                  <textarea
+                    className="mt-1 w-full rounded-[4px] border border-slate-300 p-3 text-sm focus:border-teal-700 focus:ring-1 focus:ring-teal-700 focus:outline-none font-sans"
+                    id="doctor-article-body-input"
+                    onChange={(e) => {
+                      setBody(e.target.value);
                       if (!editingSlug) {
-                        setReadingMinutes(String(mins));
+                        const words = e.target.value.trim().split(/\s+/).filter(Boolean).length;
+                        setReadingMinutes(String(Math.max(1, Math.ceil(words / 180))));
                       }
                     }}
                     placeholder="Kiến thức y khoa, chỉ định chuyên môn, phác đồ theo dõi và lời khuyên của bác sĩ..."
-                    purpose="ARTICLE_COVER"
                     required
+                    rows={12}
                     value={body}
                   />
                 </div>
