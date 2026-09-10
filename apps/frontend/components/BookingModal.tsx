@@ -831,6 +831,7 @@ function BookingExperience({
   // Handle Step 3: Hold Slot
   const handleHoldSlot = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     if (!currentSpecialty || !selectedSpecialty) {
       setErrorMessage("Chuyên khoa không còn hợp lệ trong danh mục hiện tại. Vui lòng chọn lại trước khi giữ lịch.");
       navigateToStep(1);
@@ -979,6 +980,7 @@ function BookingExperience({
   // Handle Step 4: Confirm OTP
   const handleConfirmOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     if (holdExpired) {
       setErrorMessage("Thời gian giữ chỗ đã hết. Vui lòng chọn lại khung giờ để tiếp tục.");
       return;

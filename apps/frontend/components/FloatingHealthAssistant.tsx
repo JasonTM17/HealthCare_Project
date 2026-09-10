@@ -625,7 +625,7 @@ function FloatingHealthAssistantPanel({
                 <span>{isPatient ? "Hỗ trợ thông tin sức khỏe" : "Hỗ trợ tra cứu"}</span>
               </div>
             </div>
-            <button aria-label="Đóng trợ lý sức khỏe" className={styles.iconButton} onClick={closeAssistant} title="Đóng" type="button">
+            <button aria-label="Đóng cửa sổ trợ lý" className={styles.iconButton} onClick={closeAssistant} title="Đóng cửa sổ" type="button">
               <UiIcon name="x" size={19} />
             </button>
           </header>
@@ -826,11 +826,11 @@ function FloatingHealthAssistantPanel({
       <button
         aria-controls="floating-health-assistant-panel"
         aria-expanded={open}
-        aria-label={open ? "Đóng trợ lý sức khỏe" : "Mở trợ lý sức khỏe"}
+        aria-label={open ? "Thu nhỏ trợ lý sức khỏe" : "Mở trợ lý sức khỏe"}
         className={styles.launcher}
         onClick={() => setOpen((current) => !current)}
         ref={launcherRef}
-        title="Trợ lý sức khỏe"
+        title={open ? "Thu nhỏ trợ lý" : "Trợ lý sức khỏe"}
         type="button"
       >
         {open ? (
