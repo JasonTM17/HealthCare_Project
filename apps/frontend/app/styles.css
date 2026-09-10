@@ -3948,10 +3948,16 @@ main {
 
 /* Authenticated portal surfaces */
 .portal-shell {
+  --portal-bg: oklch(96.8% 0.018 190);
+  --portal-surface: var(--color-paper-bright);
+  --portal-surface-soft: oklch(98.2% 0.014 190);
+  --portal-line: oklch(79% 0.032 190);
+  --portal-line-strong: oklch(69% 0.04 190);
+  --portal-shadow: 0 1px 2px oklch(24% 0.03 190 / 0.06), 0 14px 34px oklch(24% 0.03 190 / 0.11);
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  background: var(--color-paper);
+  background: var(--portal-bg);
   padding-inline: max(0px, env(safe-area-inset-left)) max(0px, env(safe-area-inset-right));
 }
 
@@ -4131,9 +4137,10 @@ main {
   position: sticky;
   top: 0;
   z-index: 40;
-  border-bottom: 1px solid var(--color-line);
-  background: var(--color-paper-bright);
-  box-shadow: none;
+  border-bottom: 1px solid var(--portal-line);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 1px 0 oklch(24% 0.03 190 / 0.04);
+  backdrop-filter: blur(14px);
 }
 
 .portal-header__inner,
@@ -4207,10 +4214,12 @@ main {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: var(--sp-1) var(--sp-2);
+  gap: var(--sp-1);
   margin-left: 0;
-  padding-top: var(--sp-2);
-  border-top: 1px solid var(--color-line);
+  padding: var(--sp-2);
+  border: 1px solid var(--portal-line);
+  border-radius: var(--radius-sm);
+  background: var(--portal-surface-soft);
   overflow: visible;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
@@ -4224,38 +4233,37 @@ main {
   min-height: 44px;
   display: inline-flex;
   align-items: center;
-  padding-inline: var(--sp-3);
+  padding-inline: var(--sp-2);
   border-radius: var(--radius-sm);
-  color: var(--color-ink-muted);
+  color: var(--color-teal-900);
   font-size: 0.8125rem;
-  font-weight: 600;
+  font-weight: 700;
   white-space: nowrap;
   flex-shrink: 0;
   line-height: 1;
-  border-bottom: 2px solid transparent;
-  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+  border: 1px solid transparent;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, transform 150ms ease;
 }
 
 .portal-nav__link:hover {
-  background: var(--color-mint-light);
-  color: var(--color-teal-900);
-  border-bottom-color: var(--color-teal-400);
+  background: var(--color-paper-bright);
+  color: var(--color-teal-950);
+  border-color: var(--portal-line);
   box-shadow: none;
 }
 
 .portal-nav__link:focus-visible {
   outline: 2px solid var(--color-teal-600);
   outline-offset: -2px;
-  border-bottom-color: var(--color-teal-600);
+  border-color: var(--color-teal-600);
   box-shadow: none;
 }
 
 .portal-nav__link--active {
-  background: transparent;
-  color: var(--color-teal-950);
-  font-weight: 700;
-  border-bottom-color: var(--color-teal-700);
-  box-shadow: none;
+  background: var(--color-teal-900);
+  color: var(--color-paper-bright);
+  border-color: var(--color-teal-900);
+  box-shadow: 0 1px 0 oklch(100% 0 0 / 0.72) inset;
 }
 
 .portal-user {
@@ -4286,7 +4294,7 @@ main {
 }
 
 .portal-user__link:focus-visible {
-  outline: 2px solid var(--color-teal-600);
+  outline: 2px solid var(--color-teal-950);
   outline-offset: 2px;
 }
 
@@ -4315,7 +4323,7 @@ main {
 
 .portal-main {
   flex: 1;
-  padding: var(--sp-8) 0 var(--sp-12);
+  padding: var(--sp-8) 0 var(--sp-16);
 }
 
 .portal-hero {
@@ -4382,9 +4390,12 @@ main {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0;
-  margin-bottom: var(--sp-6);
-  border-block: 1px solid var(--color-line);
-  background: var(--color-paper-bright);
+  margin-bottom: var(--sp-8);
+  overflow: hidden;
+  border: 1px solid var(--portal-line);
+  border-radius: var(--radius-sm);
+  background: var(--portal-surface);
+  box-shadow: var(--portal-shadow);
 }
 
 .portal-summary-card {
@@ -4393,7 +4404,7 @@ main {
   flex-direction: column;
   justify-content: space-between;
   padding: var(--sp-4);
-  border-right: 1px solid var(--color-line);
+  border-right: 1px solid var(--portal-line);
   background: transparent;
   transition: background-color var(--duration-fast) ease, color var(--duration-fast) ease;
 }
@@ -4433,12 +4444,12 @@ main {
 
 .portal-panel {
   margin-bottom: var(--sp-6);
-  padding: var(--sp-6) 0 0;
-  border: 0;
-  border-top: 1px solid var(--color-line);
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
+  padding: var(--sp-5);
+  border: 1px solid var(--portal-line);
+  border-top: 3px solid oklch(75% 0.06 185);
+  border-radius: var(--radius-sm);
+  background: oklch(99.2% 0.005 190);
+  box-shadow: var(--portal-shadow);
   scroll-margin-top: calc(76px + 2rem);
 }
 
@@ -4457,7 +4468,9 @@ main {
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--sp-4);
-  margin-bottom: var(--sp-5);
+  margin-bottom: var(--sp-4);
+  padding-bottom: var(--sp-4);
+  border-bottom: 1px solid var(--portal-line);
 }
 
 .portal-panel__heading h2 {
@@ -4477,7 +4490,8 @@ main {
   justify-content: center;
   flex: 0 0 auto;
   border-radius: 50%;
-  background: var(--color-mint-light);
+  border: 1px solid var(--portal-line);
+  background: oklch(96% 0.025 185);
   color: var(--color-teal-700);
   font-family: var(--font-display);
   font-size: 1.15rem;
@@ -4561,9 +4575,9 @@ main {
 .portal-clinical-form select,
 .portal-clinical-form textarea {
   width: 100%;
-  border: 1px solid var(--color-line-dark);
+  border: 1px solid var(--color-line);
   border-radius: var(--radius-sm);
-  background: var(--color-paper);
+  background: #ffffff;
   color: var(--color-ink);
   font: inherit;
   font-weight: 500;
@@ -4628,10 +4642,10 @@ main {
 
 .portal-appointment {
   padding: var(--sp-4);
-  border: 1px solid var(--color-line);
+  border: 1px solid var(--portal-line);
   border-radius: var(--radius-sm);
-  background: var(--color-paper);
-  box-shadow: none;
+  background: var(--portal-surface);
+  box-shadow: 0 1px 2px oklch(24% 0.03 190 / 0.05), 0 8px 20px oklch(24% 0.03 190 / 0.07);
 }
 
 .portal-appointment h3 {
@@ -4666,7 +4680,7 @@ main {
   gap: var(--sp-3);
   margin: var(--sp-4) 0 0;
   padding-top: var(--sp-3);
-  border-top: 1px solid var(--color-line);
+  border-top: 1px solid var(--portal-line);
 }
 
 .portal-appointment__details div {
@@ -4741,10 +4755,23 @@ main {
 .portal-record,
 .portal-diagnostic,
 .portal-notification {
+  position: relative;
+  overflow: hidden;
   padding: var(--sp-4);
-  border: 1px solid var(--color-line);
+  border: 1px solid var(--portal-line);
   border-radius: var(--radius-sm);
-  background: var(--color-paper);
+  background: var(--portal-surface);
+  box-shadow: 0 1px 2px oklch(24% 0.03 190 / 0.05), 0 8px 20px oklch(24% 0.03 190 / 0.07);
+}
+
+.portal-record::before,
+.portal-diagnostic::before,
+.portal-notification::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: oklch(75% 0.075 185);
 }
 
 .portal-record h3,
@@ -4769,9 +4796,9 @@ main {
   display: flex;
   justify-content: space-between;
   gap: var(--sp-3);
-  color: var(--color-ink-soft);
+  color: var(--color-teal-700);
   font-size: 0.75rem;
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .portal-record__doctor {
@@ -4794,8 +4821,9 @@ main {
 .portal-medication-list li {
   display: grid;
   gap: 0.1rem;
-  padding-left: var(--sp-3);
-  border-left: 2px solid var(--color-teal-300);
+  padding: var(--sp-2) var(--sp-3);
+  border-left: 2px solid oklch(72% 0.09 185);
+  background: oklch(98% 0.011 190);
 }
 
 .portal-medication-list strong {
@@ -5668,12 +5696,12 @@ main {
 }
 
 .site-shell .hero-copy h1 {
-  max-width: 18ch;
+  max-width: 24ch;
   color: var(--hospital-navy);
-  font-size: 4.25rem;
+  font-size: 3.6rem;
   font-weight: 750;
-  letter-spacing: 0;
-  line-height: 1.1;
+  letter-spacing: -0.015em;
+  line-height: 1.15;
 }
 
 /* Published CMS titles are editable and can be substantially longer than the
@@ -5691,6 +5719,15 @@ main {
   color: #00767c !important;
   -webkit-text-fill-color: #00767c !important;
   display: inline;
+}
+
+.site-shell .hero-copy h1 .hero-title__line {
+  display: block;
+}
+
+.site-shell .hero-copy h1 .hero-title__main {
+  color: var(--hospital-navy) !important;
+  -webkit-text-fill-color: var(--hospital-navy) !important;
 }
 
 .site-shell .hero-description {
@@ -9638,17 +9675,18 @@ main {
   padding-left: 2rem;
 }
 
-/* ── Portal nav active: highlight + left border ── */
+/* ── Portal nav active: high-contrast product tab ── */
 .portal-nav__link--active {
-  background: #f0fdfa !important;
-  color: var(--color-teal-800) !important;
-  border-left: 3px solid var(--color-teal-700);
-  padding-left: calc(var(--sp-3) - 3px);
+  background: var(--color-teal-900) !important;
+  color: var(--color-paper-bright) !important;
+  border-color: var(--color-teal-900) !important;
+  padding-left: var(--sp-2);
   font-weight: 700;
 }
 
 .portal-nav__link:hover:not(.portal-nav__link--active) {
-  background: rgba(224, 242, 241, 0.5) !important;
+  background: var(--color-paper-bright) !important;
+  border-color: var(--portal-line, var(--color-line)) !important;
 }
 
 /* ── Portal brand mark ── */

@@ -357,9 +357,8 @@ function HomeHeroCopy({
           activeCmsHero.title
         ) : (
           <>
-            Đồng hành<br />
-            cùng <span className="hero-teal-accent">sức khỏe</span><br />
-            <span className="hero-teal-accent">gia đình</span>
+            <span className="hero-title__line hero-title__main">Đồng hành cùng</span>
+            <span className="hero-teal-accent hero-title__line">sức khỏe gia đình</span>
           </>
         )}
       </h1>
