@@ -6736,6 +6736,7 @@ main {
   .site-shell .journey-layout,
   .site-shell .branch-layout,
   .site-shell .content-layout,
+  .site-shell .hero-assurance__inner,
   .site-shell .cms-live-region__grid {
     grid-template-columns: 1fr;
   }
