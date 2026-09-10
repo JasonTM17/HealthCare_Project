@@ -44,6 +44,7 @@ import {
   isNearBottom,
   useAssistant,
 } from "../../../components/AssistantProvider";
+import { CHAT_WAIT_STAGE_COPY, useChatWaitStage } from "../../../components/useChatWaitStage";
 import styles from "./chat.module.css";
 
 const MESSAGE_LIMIT = 30;
@@ -240,6 +241,8 @@ function PatientChatPageContent() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [streamingReply, setStreamingReply] = useState("");
+  // Bounded staged feedback while the validated chunked answer is prepared.
+  const waitStage = useChatWaitStage(sending);
   const [sendFailure, setSendFailure] = useState<ChatFailure | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -829,7 +832,7 @@ function PatientChatPageContent() {
             <li className={`${styles.message} ${styles.messageAssistant}`} data-testid="chat-streaming-reply">
               <div className={styles.messageMeta}><strong>Trợ lý HealthCare</strong></div>
               <p className={styles.messageContent}>{streamingReply}</p>
-              <p className={styles.messageStatus}>Đang nhận phản hồi theo từng phần…</p>
+              <p className={styles.messageStatus}>Đang nhận phản hồi từng phần đã được xác thực…</p>
             </li>
           ) : null}
         </ol>
@@ -1031,6 +1034,16 @@ function PatientChatPageContent() {
                 tabIndex={0}
               >
                 {renderThread()}
+                {sending && !streamingReply ? (
+                  <p
+                    aria-label="Trợ lý đang xử lý câu hỏi"
+                    className={styles.messageStatus}
+                    data-testid="chat-waiting"
+                    role="status"
+                  >
+                    {CHAT_WAIT_STAGE_COPY[waitStage]}
+                  </p>
+                ) : null}
               </div>
 
               <form className={styles.composer} onSubmit={handleSubmit}>

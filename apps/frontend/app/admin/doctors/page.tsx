@@ -11,6 +11,7 @@ import {
   type Doctor,
 } from "../../../lib/api-client";
 import AdminState from "../_components/AdminState";
+import ConfirmActionDialog from "../../../components/ui/ConfirmActionDialog";
 import { describeAdminError } from "../_lib/errors";
 
 type DoctorForm = {
@@ -53,6 +54,7 @@ export default function AdminDoctorsPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ tone: "success" | "error"; title: string; description: string } | null>(null);
   const [mutating, setMutating] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<Doctor | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -107,7 +109,6 @@ export default function AdminDoctorsPage() {
   };
 
   const handleDelete = async (slug: string) => {
-    if (!window.confirm(`Xóa bác sĩ "${slug}"? Hành động này không thể hoàn tác.`)) return;
     setMutating(true);
     setFeedback(null);
     try {
@@ -123,6 +124,7 @@ export default function AdminDoctorsPage() {
       setFeedback({ tone: "error", title: copy.title, description: copy.description });
     } finally {
       setMutating(false);
+      setPendingDelete(null);
     }
   };
 
@@ -205,7 +207,7 @@ export default function AdminDoctorsPage() {
                             {doctor.active ?? true ? "Đang hiển thị" : "Tạm ẩn"}
                           </span>
                         </td>
-                        <td className="px-4 py-4"><div className="flex justify-end gap-3"><button aria-label={`Sửa ${doctor.fullName}`} className="text-xs font-bold text-teal-800 underline underline-offset-4 disabled:opacity-50" disabled={mutating} onClick={() => { setEditingSlug(doctor.slug); setForm(formFromDoctor(doctor)); setFormError(null); setFeedback(null); }} type="button">Sửa</button><button aria-label={`Xóa ${doctor.fullName}`} className="text-xs font-bold text-red-700 underline underline-offset-4 disabled:opacity-50" disabled={mutating} onClick={() => void handleDelete(doctor.slug)} type="button">Xóa</button></div></td>
+                        <td className="px-4 py-4"><div className="flex justify-end gap-3"><button aria-label={`Sửa ${doctor.fullName}`} className="text-xs font-bold text-teal-800 underline underline-offset-4 disabled:opacity-50" disabled={mutating} onClick={() => { setEditingSlug(doctor.slug); setForm(formFromDoctor(doctor)); setFormError(null); setFeedback(null); }} type="button">Sửa</button><button aria-label={`Xóa ${doctor.fullName}`} className="text-xs font-bold text-red-700 underline underline-offset-4 disabled:opacity-50" disabled={mutating} onClick={() => setPendingDelete(doctor)} type="button">Xóa</button></div></td>
                       </tr>
                     ))}
                   </tbody>
@@ -215,6 +217,25 @@ export default function AdminDoctorsPage() {
           ) : null}
         </section>
       </div>
+
+      <ConfirmActionDialog
+        confirmLabel="Xóa hồ sơ bác sĩ"
+        confirmingLabel="Đang xóa…"
+        description="Lịch làm việc và liên kết đặt lịch của bác sĩ này sẽ không còn hiển thị công khai. Nếu chỉ nghỉ tạm thời, hãy dùng trạng thái “Tạm ẩn”."
+        destructive
+        entity={pendingDelete ?? undefined}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => void handleDelete(pendingDelete?.slug ?? "")}
+        open={pendingDelete !== null}
+        pending={mutating}
+        summaryItems={pendingDelete ? [
+          { label: "Họ tên", value: pendingDelete.fullName },
+          { label: "Slug", value: pendingDelete.slug, mono: true },
+          { label: "Trạng thái", value: pendingDelete.active ?? true ? "Đang hiển thị" : "Tạm ẩn" },
+        ] : []}
+        summaryLabel="Hồ sơ sẽ bị xóa vĩnh viễn"
+        title="Xóa hồ sơ bác sĩ này?"
+      />
     </div>
   );
 }

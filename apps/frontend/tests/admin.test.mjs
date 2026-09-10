@@ -86,7 +86,9 @@ test("doctor and specialty screens cover loading, empty, error, and admin mutati
     assert.match(page, /adminUpdate/);
     assert.match(page, /adminDelete/);
     assert.match(page, /aria-label/);
-    assert.match(page, /window\.confirm/);
+    // HC-08: deletions confirm through the shared accessible dialog.
+    assert.match(page, /ConfirmActionDialog/);
+    assert.doesNotMatch(page, /window\.confirm/);
     assert.match(page, /role="region"/);
     assert.match(page, /tabIndex=\{0\}/);
     assert.doesNotMatch(page, /ADMIN READ CONTRACT|ADMIN WRITE CONTRACT|Bản demo local|\bActive\b|\bInactive\b/);
@@ -108,7 +110,8 @@ test("branch and service screens expose complete CRUD states without mock conten
   assert.match(branches, /adminUpdateBranch/);
   assert.match(branches, /adminDeleteBranch/);
   assert.match(branches, /adminListBranches/);
-  assert.match(branches, /window\.confirm/);
+  assert.match(branches, /ConfirmActionDialog/);
+  assert.doesNotMatch(branches, /window\.confirm/);
   assert.match(branches, /role="region"/);
   assert.match(branches, /tabIndex=\{0\}/);
   assert.doesNotMatch(branches, /fetchBranches/);
@@ -116,7 +119,8 @@ test("branch and service screens expose complete CRUD states without mock conten
   assert.match(services, /adminUpdateService/);
   assert.match(services, /adminDeleteService/);
   assert.match(services, /adminListServices/);
-  assert.match(services, /window\.confirm/);
+  assert.match(services, /ConfirmActionDialog/);
+  assert.doesNotMatch(services, /window\.confirm/);
   assert.match(services, /role="region"/);
   assert.match(services, /tabIndex=\{0\}/);
   assert.doesNotMatch(services, /fetchServices/);
@@ -136,7 +140,8 @@ test("remaining catalog screen preserves inactive records with guarded CRUD acti
   assert.match(catalog, /item\.active \?\? Boolean\(item\.publishedAt\)/);
   assert.match(catalog, /Đang hiển thị/);
   assert.match(catalog, /Chưa xuất bản/);
-  assert.match(catalog, /window\.confirm/);
+  assert.match(catalog, /ConfirmActionDialog/);
+  assert.doesNotMatch(catalog, /window\.confirm/);
   assert.match(catalog, /disabled=\{busy\}/);
   assert.match(catalog, /Chưa có gói khám/);
   assert.match(catalog, /Chưa có câu hỏi thường gặp/);
@@ -166,7 +171,9 @@ test("schedule operations separate load failures from mutation feedback", async 
   assert.match(schedules, /loadError/);
   assert.match(schedules, /setFeedback/);
   assert.match(schedules, /runMutation/);
-  assert.match(schedules, /window\.confirm/);
+  // HC-08: schedule deletions confirm through the shared accessible dialog.
+  assert.match(schedules, /ConfirmActionDialog/);
+  assert.doesNotMatch(schedules, /window\.confirm/);
   assert.match(schedules, /resetScheduleForm/);
   assert.match(schedules, /resetExceptionForm/);
   assert.match(schedules, /exceptionTypeLabels/);

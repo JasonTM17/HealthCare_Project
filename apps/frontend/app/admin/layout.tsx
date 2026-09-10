@@ -168,7 +168,7 @@ function AdminShell({ children, displayName }: { children: ReactNode; displayNam
   return (
     <div className="admin-shell min-h-screen bg-slate-50 text-slate-900">
       <a className="skip-link" href="#main-content">Bỏ qua điều hướng</a>
-      <aside className="border-b border-teal-900 bg-teal-950 text-white lg:fixed lg:inset-y-0 lg:w-64 lg:border-b-0 lg:border-r">
+      <aside className="border-b border-teal-900 bg-teal-950 text-white lg:sticky lg:top-0 lg:h-screen lg:w-64 lg:border-b-0 lg:border-r">
         <div className="flex h-full flex-col p-5">
           <div>
             <div className="flex items-center gap-3 text-teal-100"><UiIcon name="shield-check" size={24} /><strong className="text-lg">HealthCare</strong></div>
@@ -187,7 +187,7 @@ function AdminShell({ children, displayName }: { children: ReactNode; displayNam
                 <Link
                   aria-current={active ? "page" : undefined}
                   className={`admin-nav__link ${
-                    active ? "bg-teal-700 font-bold text-white" : "text-teal-100/80 hover:bg-teal-900 hover:text-white"
+                    active ? "bg-teal-700 font-bold text-white" : "bg-teal-950 text-teal-100/80 hover:bg-teal-900 hover:text-white"
                   }`}
                   href={item.href}
                   key={item.href}

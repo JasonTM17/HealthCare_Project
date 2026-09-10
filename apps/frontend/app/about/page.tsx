@@ -37,24 +37,6 @@ const VALUES = [
   },
 ];
 
-const JOURNEY = [
-  {
-    label: "Trước khi đến viện",
-    title: "Hiểu rõ lựa chọn",
-    description: "Tìm chuyên khoa, bác sĩ, gói khám và cơ sở phù hợp trên cùng một hệ thống.",
-  },
-  {
-    label: "Trong ngày thăm khám",
-    title: "Chủ động thời gian",
-    description: "Ưu tiên tiếp đón tại quầy, giảm thiểu thời gian chờ và thăm khám cùng bác sĩ.",
-  },
-  {
-    label: "Sau khi thăm khám",
-    title: "Tiếp tục đồng hành",
-    description: "Tra cứu lịch sử cuộc hẹn và theo dõi hướng dẫn chăm sóc trong hồ sơ cá nhân.",
-  },
-];
-
 export default function AboutPage() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [loading, setLoading] = useState(true);
@@ -121,13 +103,7 @@ export default function AboutPage() {
             </p>
             <div className="resource-actions">
               <PublicBookingButton className="button button--primary">Đặt lịch khám</PublicBookingButton>
-              <Link className="outline-button" href="/branches">Xem cơ sở gần bạn</Link>
             </div>
-            <ul className={styles.heroPromises} aria-label="Cam kết chăm sóc">
-              <li><Icon name="check" size={17} /> Thông tin rõ ràng</li>
-              <li><Icon name="check" size={17} /> Lựa chọn phù hợp</li>
-              <li><Icon name="check" size={17} /> Đồng hành liền mạch</li>
-            </ul>
           </div>
 
           <figure className={styles.teamShowcase}>
@@ -152,17 +128,10 @@ export default function AboutPage() {
           </div>
           <div className={styles.storyBody}>
             <p className={styles.storyLead}>
-              Một hành trình khám bệnh tốt không chỉ bắt đầu trong phòng khám. Nó bắt đầu từ lúc
-              người bệnh được giải thích rõ, chọn đúng nơi và biết điều gì sẽ diễn ra tiếp theo.
+              Một hành trình khám bệnh tốt bắt đầu từ lúc người bệnh được giải thích rõ, chọn đúng
+              nơi và biết điều gì sẽ diễn ra tiếp theo. HealthCare đặt chuyên khoa, bác sĩ, cơ sở
+              và lịch khám trong cùng một trải nghiệm để bạn chủ động hơn cho buổi khám của mình.
             </p>
-            <p>
-              HealthCare được xây dựng để thu hẹp khoảng cách đó. Thông tin chuyên khoa, đội ngũ
-              bác sĩ, cơ sở và lịch khám được đặt trong một trải nghiệm thống nhất, giúp người bệnh
-              bớt lo lắng và dành nhiều thời gian hơn cho điều quan trọng nhất: sức khỏe của mình.
-            </p>
-            <blockquote>
-              “Mỗi điểm chạm đều cần mang lại cảm giác được lắng nghe, được hướng dẫn và được tôn trọng.”
-            </blockquote>
             <figure className={styles.videoFigure}>
               <div className={styles.videoFrame}>
                 <video
@@ -202,10 +171,7 @@ export default function AboutPage() {
                 <p className="section-note">Nguyên tắc chăm sóc</p>
                 <h2 id="about-values-title">Bốn điều dẫn lối cho mọi trải nghiệm</h2>
               </div>
-              <p>
-                Không phải những khẩu hiệu xa vời, đây là cách chúng tôi thiết kế từng bước
-                người bệnh tương tác với bệnh viện.
-              </p>
+              <p>Cách chúng tôi thiết kế từng bước người bệnh tương tác với bệnh viện.</p>
             </div>
             <div className={styles.valueGrid}>
               {VALUES.map((value, index) => (
@@ -256,26 +222,6 @@ export default function AboutPage() {
               </dl>
             ) : null}
           </div>
-        </section>
-
-        <section className={`${styles.journey} section-inner`} aria-labelledby="about-journey-title">
-          <div className={styles.journeyIntro}>
-            <p className="section-note">Hành trình người bệnh</p>
-            <h2 id="about-journey-title">Đồng hành trước, trong và sau cuộc hẹn</h2>
-            <p>Mỗi bước được sắp xếp để bạn dễ hiểu, dễ thực hiện và không bỏ lỡ thông tin quan trọng.</p>
-          </div>
-          <ol className={styles.journeyList}>
-            {JOURNEY.map((item, index) => (
-              <li key={item.title}>
-                <span className={styles.journeyNumber}>{index + 1}</span>
-                <div>
-                  <p>{item.label}</p>
-                  <h3>{item.title}</h3>
-                  <span>{item.description}</span>
-                </div>
-              </li>
-            ))}
-          </ol>
         </section>
 
         <section className={`${styles.closing} section-inner`} aria-labelledby="about-closing-title">

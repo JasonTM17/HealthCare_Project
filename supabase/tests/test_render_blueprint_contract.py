@@ -60,7 +60,20 @@ def test_render_free_blueprint_keeps_private_runtime_boundaries() -> None:
     assert ai["runtime"] == "python"
     assert ai["plan"] == "free"
     assert ai["healthCheckPath"] == "/livez"
-    assert ai_env["AI_PROVIDER"]["value"] == "local"
+    # ADR-004 (docs/adr/ADR-004-synthetic-ai-egress.md, decision D-05): the
+    # synthetic-beta blueprint MAY select the DeepSeek remote provider for
+    # non-sensitive synthetic/guest content only; "local" is the deterministic
+    # fail-closed alternative. Any other provider value is out of policy.
+    assert ai_env["AI_PROVIDER"]["value"] in {"deepseek", "local"}
+    # Documented fail-closed posture (ADR-004): embeddings stay local, the
+    # remote kill switch stays armed, patient-chat and patient-LLM egress stay
+    # disabled, and the synthetic-only gate stays on. The whole-blueprint
+    # equality asserted above keeps render-free-beta.yaml in agreement.
+    assert ai_env["EMBEDDING_PROVIDER"]["value"] == "local"
+    assert ai_env["REMOTE_AI_KILL_SWITCH"]["value"] == "true"
+    assert ai_env["AI_PATIENT_CHAT_REMOTE_ENABLED"]["value"] == "false"
+    assert ai_env["AI_CHAT_REMOTE_PROVIDER_ENABLED"]["value"] == "false"
+    assert ai_env["REMOTE_AI_SYNTHETIC_ONLY"]["value"] == "true"
     assert ai_env["RAG_INGEST_ENABLED"]["value"] == "true"
     assert ai_env["AI_SERVICE_TOKEN"]["generateValue"] is True
     assert ai_env["RAG_INGEST_TOKEN"]["generateValue"] is True

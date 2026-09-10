@@ -130,6 +130,17 @@ test("admin primary mutation creates a specialty with the authorized REST payloa
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(pageEnvelope(specialties)) });
       return;
     }
+    if (request.method() === "GET" && url.pathname === "/api/v1/hospital/branches") {
+      const branch: Branch = {
+        id: "branch-primary-action",
+        name: "HealthCare Quận 1",
+        slug: "healthcare-quan-1",
+        address: "Quận 1, TP.HCM",
+        active: true,
+      };
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(pageEnvelope([branch])) });
+      return;
+    }
     if (request.method() === "POST" && url.pathname === "/api/v1/admin/specialties") {
       const payload = request.postDataJSON() as Omit<Specialty, "id">;
       const created: Specialty = { id: "specialty-created", ...payload };

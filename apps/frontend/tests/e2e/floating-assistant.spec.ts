@@ -226,7 +226,7 @@ test("guest launcher sends stateless hospital-support chat and offers login for 
   await dialog.getByLabel("Câu hỏi cho trợ lý sức khỏe").fill("Bệnh viện có những chuyên khoa nào?");
   await dialog.getByRole("button", { name: "Gửi câu hỏi" }).click();
   await expect(dialog.getByTestId("floating-chat-pending-user").getByText("Bệnh viện có những chuyên khoa nào?", { exact: true })).toBeVisible();
-  await expect(dialog.getByTestId("floating-chat-thinking")).toContainText("Đang suy nghĩ");
+  await expect(dialog.getByTestId("floating-chat-thinking")).toContainText("Đã nhận câu hỏi — đang chờ phản hồi…");
   await expect(dialog.getByText("Bạn có thể xem danh sách chuyên khoa và chọn cơ sở phù hợp.", { exact: true })).toBeVisible();
   await expect(dialog.getByTestId("floating-chat-thinking")).toBeHidden();
   await expect(dialog.getByText("Tim mạch", { exact: true })).toBeVisible();

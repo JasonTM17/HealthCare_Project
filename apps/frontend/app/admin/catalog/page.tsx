@@ -24,6 +24,7 @@ import {
   subscribeToCatalogChange,
 } from "../../../lib/api-client";
 import { RichTextEditor } from "../../../components/editor";
+import ConfirmActionDialog from "../../../components/ui/ConfirmActionDialog";
 
 function toSlug(text: string): string {
   return text
@@ -315,6 +316,15 @@ export default function AdminCatalogPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
 
+  type PendingRemoval = {
+    label: string;
+    detail: Array<{ label: string; value: string; mono?: boolean }>;
+    action: () => Promise<unknown>;
+    success: string;
+    broadcast?: { kind: "package" | "faq" | "article"; slug?: string };
+  };
+  const [pendingRemoval, setPendingRemoval] = useState<PendingRemoval | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
@@ -376,11 +386,17 @@ export default function AdminCatalogPage() {
     success: string,
     broadcast?: { kind: "package" | "faq" | "article"; slug?: string }
   ) => {
-    if (!window.confirm(`Xóa ${label}? Hành động này không thể hoàn tác.`)) return;
     const ok = await run(action, success);
     if (ok && broadcast) {
       broadcastCatalogChange({ kind: broadcast.kind, action: "deleted", slug: broadcast.slug });
     }
+  };
+
+  const confirmRemoval = async (): Promise<void> => {
+    const current = pendingRemoval;
+    if (!current) return;
+    setPendingRemoval(null);
+    await remove(current.label, current.action, current.success, current.broadcast);
   };
 
   const savePackage = async (event: FormEvent) => {
@@ -627,7 +643,17 @@ export default function AdminCatalogPage() {
                     aria-label={`Xóa ${item.name}`}
                     className="text-red-700 underline"
                     disabled={busy}
-                    onClick={() => void remove(`gói khám "${item.name}"`, () => adminDeletePackage(item.slug), "Đã xóa gói khám", { kind: "package", slug: item.slug })}
+                    onClick={() => setPendingRemoval({
+                      label: `gói khám "${item.name}"`,
+                      detail: [
+                        { label: "Tên gói khám", value: item.name },
+                        { label: "Slug", value: item.slug, mono: true },
+                        { label: "Giá", value: `${Number(item.price).toLocaleString("vi-VN")} đ` },
+                      ],
+                      action: () => adminDeletePackage(item.slug),
+                      success: "Đã xóa gói khám",
+                      broadcast: { kind: "package", slug: item.slug },
+                    })}
                     type="button"
                   >
                     Xóa
@@ -706,7 +732,16 @@ export default function AdminCatalogPage() {
                     aria-label={`Xóa câu hỏi: ${item.question}`}
                     className="text-red-700 underline"
                     disabled={busy}
-                    onClick={() => void remove(`câu hỏi "${item.question}"`, () => adminDeleteFaq(item.id), "Đã xóa câu hỏi", { kind: "faq" })}
+                    onClick={() => setPendingRemoval({
+                      label: `câu hỏi "${item.question}"`,
+                      detail: [
+                        { label: "Câu hỏi", value: item.question },
+                        { label: "Trạng thái", value: item.active ?? true ? "Đang hiển thị" : "Tạm ẩn" },
+                      ],
+                      action: () => adminDeleteFaq(item.id),
+                      success: "Đã xóa câu hỏi",
+                      broadcast: { kind: "faq" },
+                    })}
                     type="button"
                   >
                     Xóa
@@ -1128,7 +1163,16 @@ export default function AdminCatalogPage() {
                       aria-label={`Xóa ${item.title}`}
                       className="text-red-700 underline"
                       disabled={busy}
-                      onClick={() => void remove(`bài viết "${item.title}"`, () => adminDeleteArticle(item.slug), "Đã xóa bài viết", { kind: "article", slug: item.slug })}
+                      onClick={() => setPendingRemoval({
+                        label: `bài viết "${item.title}"`,
+                        detail: [
+                          { label: "Tiêu đề", value: item.title },
+                          { label: "Slug", value: item.slug, mono: true },
+                        ],
+                        action: () => adminDeleteArticle(item.slug),
+                        success: "Đã xóa bài viết",
+                        broadcast: { kind: "article", slug: item.slug },
+                      })}
                       type="button"
                     >
                       Xóa
@@ -1140,6 +1184,21 @@ export default function AdminCatalogPage() {
           </Panel>
         </div>
       ) : null}
+
+      <ConfirmActionDialog
+        confirmLabel="Xóa vĩnh viễn"
+        confirmingLabel="Đang xóa…"
+        description="Nội dung đã xóa không thể khôi phục và sẽ mất khỏi danh mục công khai ở lần làm mới kế tiếp. Nếu chỉ muốn tạm gỡ, hãy dùng trạng thái “Tạm ẩn”."
+        destructive
+        entity={pendingRemoval}
+        onCancel={() => { if (!busy) setPendingRemoval(null); }}
+        onConfirm={() => void confirmRemoval()}
+        open={pendingRemoval !== null}
+        pending={busy}
+        summaryItems={pendingRemoval?.detail ?? []}
+        summaryLabel="Bản ghi sẽ bị xóa vĩnh viễn"
+        title={pendingRemoval ? `Xóa ${pendingRemoval.label}?` : "Xóa bản ghi này?"}
+      />
     </div>
   );
 }

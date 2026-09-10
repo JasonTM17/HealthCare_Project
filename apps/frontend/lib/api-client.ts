@@ -56,6 +56,8 @@ import type {
   AiContentRevision,
   BankTransferPayment,
   PatientOverview,
+  PatientDocument,
+  PatientDocumentSourceType,
   ConsultationSummary,
   ConsultationDetail,
   ConsultationMessage,
@@ -134,6 +136,8 @@ export type {
   AiContentRevision,
   BankTransferPayment,
   PatientOverview,
+  PatientDocument,
+  PatientDocumentSourceType,
   ConsultationSummary,
   ConsultationDetail,
   ConsultationMessage,
@@ -152,10 +156,17 @@ export type {
 // keeping this path literal prevents either value from entering client code.
 const API_BASE_URL = "/api/v1";
 const API_REQUEST_TIMEOUT_MS = 12_000;
-// The BFF aborts upstream streams at 30s. Firing below that keeps the
-// client-side REQUEST_TIMEOUT copy reachable instead of racing a BFF 502.
-const AI_STREAM_REQUEST_TIMEOUT_MS = 28_000;
-const PUBLIC_AI_REQUEST_TIMEOUT_MS = 55_000;
+// Deadline ownership constraint: the BFF (lib/server/healthcare-bff.ts) owns
+// the upstream deadline and answers with a structured payload (fallback answer
+// or JSON error). Each browser deadline below MUST stay slightly longer than
+// its BFF counterpart so the BFF's structured response — not a local network
+// abort — is what reaches this UI. Keep the pairs in sync when changing either
+// side, and keep both inside the Route Handler's maxDuration of 60s:
+//   authenticated chat: BFF 30s -> browser 33s
+//   public chat:        BFF 35s -> browser 40s (bounded; the old 55s pairing
+//   raced the BFF and left guests waiting past any useful answer)
+const AI_STREAM_REQUEST_TIMEOUT_MS = 33_000;
+const PUBLIC_AI_REQUEST_TIMEOUT_MS = 40_000;
 
 /**
  * Browser-visible session metadata. Authentication secrets live only in
@@ -2263,7 +2274,14 @@ export async function sendAiConversationMessage(
   return parseAiChatExchange(response, path);
 }
 
-export async function sendAiConversationMessageStream(
+/**
+ * Validated chunked delivery of an authenticated chat exchange (D-02): the
+ * backend finishes generation and validation first, then emits content
+ * chunks. Deltas are surfaced progressively while they arrive; the exchange is
+ * only returned once the persisted `done` payload matches every chunk. The
+ * endpoint path and `text/event-stream` transport remain the Spring contract.
+ */
+export async function sendAiConversationMessageChunked(
   conversationId: string,
   content: string,
   idempotencyKey: string,
@@ -2852,6 +2870,27 @@ export async function fetchPatientPrescriptions(): Promise<Prescription[]> {
   return getAuthenticatedJson<Prescription[]>("/patient/prescriptions");
 }
 
+export interface GeneratePatientDocumentPayload {
+  sourceType: PatientDocumentSourceType;
+  sourceRecordId: string;
+}
+
+export async function fetchPatientDocuments(patientId: string): Promise<PatientDocument[]> {
+  return getAuthenticatedJson<PatientDocument[]>(
+    `/patients/${encodeURIComponent(patientId)}/documents`,
+  );
+}
+
+export async function generatePatientDocument(
+  patientId: string,
+  payload: GeneratePatientDocumentPayload,
+): Promise<PatientDocument> {
+  return getAuthenticatedJson<PatientDocument>(
+    `/patients/${encodeURIComponent(patientId)}/documents`,
+    { method: "POST", body: JSON.stringify(payload) },
+  );
+}
+
 export async function fetchPatientDiagnosticResults(): Promise<DiagnosticResult[]> {
   return getAuthenticatedJson<DiagnosticResult[]>("/patient/diagnostic-results");
 }
@@ -2955,6 +2994,38 @@ export async function downloadProtectedFile(fileUrl: string, filename = "ket-qua
   anchor.download = filename;
   anchor.click();
   URL.revokeObjectURL(blobUrl);
+}
+
+export async function downloadPatientDocument(
+  patientId: string,
+  documentId: string,
+  filename = "tai-lieu-tong-hop-demo.pdf",
+): Promise<void> {
+  const path = `/patients/${encodeURIComponent(patientId)}/documents/${encodeURIComponent(documentId)}/download`;
+  const response = await withAuthenticatedSession(path, async () => {
+    try {
+      const result = await fetch(`${API_BASE_URL}${path}`, {
+        credentials: "same-origin",
+      });
+      if (!result.ok) {
+        throw await apiErrorFromResponse(result, path, "Không thể tải tài liệu PDF.");
+      }
+      return result;
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError("Không thể kết nối đến hệ thống. Vui lòng thử lại sau.", 0, path);
+    }
+  });
+  const blob = await response.blob();
+  const blobUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = blobUrl;
+  anchor.download = filename;
+  anchor.rel = "noopener";
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(blobUrl), 0);
 }
 
 // ── Community Articles & Discussion ─────────────────────────────────────────

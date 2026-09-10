@@ -67,7 +67,7 @@ export default function HuongDanPage() {
         <section className="resource-grid resource-grid--two">
           <section className="resource-panel resource-panel--accent">
             <p className="section-note">Cơ sở khám bệnh</p><h2>Kiểm tra trước khi đến</h2>
-            {branches && !branches.empty ? <ul className="resource-list">{branches.content.slice(0, 4).map((branch) => <li key={branch.id}><strong>{branch.name}</strong><span>{branch.address}{branch.phone ? ` · ${branch.phone}` : ""}</span></li>)}</ul> : <p className="resource-muted">Thông tin cơ sở đang được cập nhật.</p>}
+            {branches && !branches.empty ? <ul className="resource-list">{branches.content.slice(0, 4).map((branch) => <li key={branch.id}><strong>{branch.name}</strong><span>{branch.address}{branch.phone ? ` · ${branch.phone}` : ""}</span></li>)}</ul> : <div className="resource-muted"><p>Chưa tải được danh sách cơ sở công khai.</p><div className="resource-actions mt-4"><Link className="outline-button outline-button--small" href="/contact">Mở trang liên hệ</Link><PublicBookingButton className="button button--amber">Đặt lịch khám</PublicBookingButton></div></div>}
           </section>
           <section className="resource-panel"><p className="section-note">Lưu ý trước cuộc hẹn</p><h2>Thông tin cần xác nhận lại</h2><p>Giờ làm việc, phí dịch vụ, bảo hiểm và giấy tờ cần thiết có thể thay đổi theo từng cơ sở. Vui lòng xem thông tin mới nhất hoặc gọi trực tiếp trước khi đến.</p><PublicBookingButton>Đặt lịch khám</PublicBookingButton></section>
         </section>

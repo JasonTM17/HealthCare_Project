@@ -146,6 +146,10 @@ export default function LoginPage() {
         </p>
 
         {/* Modern Segmented Role Selector */}
+        <p className="auth-card__intro">
+          Tài khoản demo: đây là các danh tính tổng hợp để trải nghiệm — máy chủ chặn phía backend
+          các thao tác tài chính/bảo mật nhạy cảm (thanh toán, credit AI, phân quyền) đối với tài khoản demo.
+        </p>
         <div className={styles.roleGroup}
           aria-label="Chọn tài khoản kiểm thử"
           role="group"

@@ -41,12 +41,14 @@ public class SecurityConfig {
     private final BrowserSessionAuthenticationFilter browserSessionAuthenticationFilter;
     private final BrowserCsrfFilter browserCsrfFilter;
     private final com.healthcare.auth.security.BffRequiredFilter bffRequiredFilter;
+    private final DemoMutationBoundaryFilter demoMutationBoundaryFilter;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter, ObjectMapper objectMapper, Environment environment,
             RequestRateLimitFilter requestRateLimitFilter,
             BrowserSessionAuthenticationFilter browserSessionAuthenticationFilter,
             BrowserCsrfFilter browserCsrfFilter,
-            com.healthcare.auth.security.BffRequiredFilter bffRequiredFilter) {
+            com.healthcare.auth.security.BffRequiredFilter bffRequiredFilter,
+            DemoMutationBoundaryFilter demoMutationBoundaryFilter) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.objectMapper = objectMapper;
         this.environment = environment;
@@ -54,6 +56,7 @@ public class SecurityConfig {
         this.browserSessionAuthenticationFilter = browserSessionAuthenticationFilter;
         this.browserCsrfFilter = browserCsrfFilter;
         this.bffRequiredFilter = bffRequiredFilter;
+        this.demoMutationBoundaryFilter = demoMutationBoundaryFilter;
     }
 
     @Bean
@@ -125,6 +128,10 @@ public class SecurityConfig {
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterAfter(browserSessionAuthenticationFilter, JwtAuthenticationFilter.class)
             .addFilterAfter(browserCsrfFilter, BrowserSessionAuthenticationFilter.class)
+            // HC-01/D-01: runs after authentication (JWT + browser session) so
+            // the demo claim is on the principal, and before authorization so a
+            // blocked demo mutation short-circuits with 403 DEMO_MUTATION_FORBIDDEN.
+            .addFilterAfter(demoMutationBoundaryFilter, BrowserCsrfFilter.class)
             .addFilterBefore(requestRateLimitFilter, JwtAuthenticationFilter.class)
             .addFilterBefore(bffRequiredFilter, RequestRateLimitFilter.class);
 
@@ -142,6 +149,17 @@ public class SecurityConfig {
     public FilterRegistrationBean<com.healthcare.auth.security.BffRequiredFilter> disableContainerBffRequiredRegistration() {
         FilterRegistrationBean<com.healthcare.auth.security.BffRequiredFilter> registration =
             new FilterRegistrationBean<>(bffRequiredFilter);
+        registration.setEnabled(false);
+        return registration;
+    }
+
+    @Bean
+    public FilterRegistrationBean<DemoMutationBoundaryFilter> disableContainerDemoBoundaryRegistration(
+            DemoMutationBoundaryFilter demoMutationBoundaryFilter) {
+        // The demo boundary must run inside the security chain (above), not as
+        // an extra container filter without a populated SecurityContext.
+        FilterRegistrationBean<DemoMutationBoundaryFilter> registration =
+            new FilterRegistrationBean<>(demoMutationBoundaryFilter);
         registration.setEnabled(false);
         return registration;
     }

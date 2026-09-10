@@ -71,13 +71,13 @@ export default function ServicesPage() {
     : error
       ? "Chưa tải được"
       : page?.empty
-        ? "Chưa có dữ liệu"
+        ? "Chưa có dịch vụ công khai"
         : String(serviceCount);
   const featuredServiceLabel = loading
     ? "Đang tải…"
     : error
       ? "Chưa tải được"
-      : featuredService?.name ?? "Chưa có dữ liệu";
+      : featuredService?.name ?? "Chưa chọn dịch vụ nổi bật";
 
   return (
     <PublicPageShell>
@@ -143,7 +143,7 @@ export default function ServicesPage() {
             <h2>Điểm bắt đầu của danh mục</h2>
             {featuredService ? (
               <>
-                <p>{featuredService.description || "Thông tin chi tiết của dịch vụ đang được cập nhật."}</p>
+                <p>{featuredService.description || "Mô tả ngắn đang chờ duyệt. Hãy mở chi tiết hoặc đặt lịch để được tư vấn đúng nhu cầu."}</p>
                 <div className="resource-actions">
                   <Link className="text-button" href={`/services/${featuredService.slug}`}>
                     Xem chi tiết →
@@ -154,7 +154,7 @@ export default function ServicesPage() {
                 </div>
               </>
             ) : (
-              <p className="resource-muted">Danh sách dịch vụ đang được cập nhật.</p>
+              <p className="resource-muted">Chưa có dịch vụ công khai. Bạn vẫn có thể đặt lịch tư vấn hoặc xem gói khám liên quan.</p>
             )}
           </section>
         </div>
@@ -167,9 +167,13 @@ export default function ServicesPage() {
         ) : null}
         {error ? <p className="catalog-status catalog-status--error" role="alert">{error}</p> : null}
         {!loading && !error && page?.empty ? (
-          <p className="catalog-status" role="status">
-            Danh sách dịch vụ đang được cập nhật.
-          </p>
+          <div className="catalog-status" role="status">
+            <p>Chưa có dịch vụ công khai. Bạn vẫn có thể đặt lịch tư vấn hoặc liên hệ bệnh viện để được hướng dẫn.</p>
+            <div className="resource-actions">
+              <PublicBookingButton className="button button--amber">Đặt lịch tư vấn</PublicBookingButton>
+              <Link className="outline-button outline-button--small" href="/contact">Liên hệ bệnh viện</Link>
+            </div>
+          </div>
         ) : null}
 
         {page && !page.empty ? (
@@ -184,7 +188,7 @@ export default function ServicesPage() {
                     <ClinicalIcon name="service" />
                   </span>
                   <h2>{service.name}</h2>
-                  <p>{service.description || "Thông tin chi tiết của dịch vụ đang được cập nhật."}</p>
+                  <p>{service.description || "Mô tả ngắn đang chờ duyệt. Hãy mở chi tiết hoặc đặt lịch để được tư vấn đúng nhu cầu."}</p>
                   <div className="catalog-card__actions">
                     <Link className="text-button" href={`/services/${service.slug}`}>
                       Xem chi tiết →

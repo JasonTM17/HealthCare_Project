@@ -24,7 +24,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 function statusLabel(status: string): string {
-  return STATUS_LABELS[status] ?? "Đang cập nhật";
+  return STATUS_LABELS[status] ?? "Trạng thái chưa xác định";
 }
 
 function statusTone(status: string): string {

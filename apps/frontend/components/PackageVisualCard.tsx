@@ -53,7 +53,7 @@ export default function PackageVisualCard({
           ) : null}
         </div>
         <Heading className={styles.title}><Link href={detailHref}>{packageItem.name}</Link></Heading>
-        <p className={styles.description}>{packageItem.description || "Thông tin chi tiết của gói khám đang được cập nhật."}</p>
+        <p className={styles.description}>{packageItem.description || "Thông tin chi tiết của gói khám chưa được công bố; hãy hỏi tư vấn trước khi đặt lịch."}</p>
 
         {packageItem.targetAudience ? (
           <p className={styles.audience}><Icon name="user" size={16} /><span>{packageItem.targetAudience}</span></p>

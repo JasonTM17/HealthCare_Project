@@ -75,7 +75,7 @@ function safeDate(value: string | null | undefined, includeTime = false): string
 }
 
 function statusLabel(value: string): string {
-  return STATUS_LABELS[value] ?? "Đang cập nhật";
+  return STATUS_LABELS[value] ?? "Trạng thái chưa xác định";
 }
 
 function isMessagePage(value: unknown): value is MessagePageResponse {
@@ -592,7 +592,7 @@ export default function PatientConsultationDetailPage({ params }: { params: Prom
                 {detail.messages.length ? detail.messages.map((message) => (
                   <article className={`portal-thread__message ${message.authorRole === "PATIENT" ? "portal-thread__message--mine" : ""}`} key={message.id}>
                     <p className="section-note">
-                      {message.authorRole === "PATIENT" ? "Bạn" : "Bác sĩ"} · {safeDate(message.createdAt, true)} · {MESSAGE_STATUS_LABELS[message.status] ?? "Đang cập nhật"}
+                      {message.authorRole === "PATIENT" ? "Bạn" : "Bác sĩ"} · {safeDate(message.createdAt, true)} · {MESSAGE_STATUS_LABELS[message.status] ?? "Trạng thái chưa xác định"}
                     </p>
                     <p>{message.body}</p>
                     {message.attachments.length ? (

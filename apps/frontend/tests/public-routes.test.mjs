@@ -153,7 +153,7 @@ test("contact and guidance pages do not invent branch, insurance, or FAQ data", 
   assert.match(contact, /resource-step-card/);
   assert.match(contact, /catalog-grid--branches/);
   assert.match(contact, /catalog-status--loading/);
-  assert.match(contact, /Thông tin cơ sở đang được cập nhật/);
+  assert.match(contact, /Chưa có cơ sở công khai/);
   assert.doesNotMatch(contact, /1900 1234/);
   assert.match(guidance, /fetchFaqs/);
   assert.match(guidance, /fetchBranches/);
@@ -431,7 +431,9 @@ test("CMS booking CTA has a real landing route and public chrome avoids invented
   assert.match(footer, /href="\/chinh-sach-bao-mat"/);
   for (const source of [navbar, footer, home]) assert.doesNotMatch(source, /1900\s*1234|contact@healthcare\.vn/);
   assert.match(navbar, /Xem giờ làm việc/);
-  assert.match(footer, /Thông tin điện thoại đang được cập nhật/);
+  assert.match(footer, /data-fallback="true"/);
+  assert.match(footer, /href="\/contact"/);
+  assert.match(footer, /href="\/dat-lich"/);
   assert.match(largeSeed, /homepage\.hero/);
   for (const seedContent of [seed, largeSeed]) assert.match(seedContent, /\/careers#vi-tri-dang-tuyen/);
   for (const slot of ["careers.hero", "careers.body", "search.hero", "homepage.body"]) {

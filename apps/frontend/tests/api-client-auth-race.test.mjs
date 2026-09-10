@@ -156,7 +156,7 @@ test("chat stream forwards sanitized deltas before the persisted done exchange",
   }), { status: 200, headers: { "Content-Type": "text/event-stream" } }));
   api.storeAuthSession(browserSession("stream-account"));
 
-  const result = await api.sendAiConversationMessageStream("conversation-1", "Xin chào", "stream-key", {
+  const result = await api.sendAiConversationMessageChunked("conversation-1", "Xin chào", "stream-key", {
     onDelta: (delta) => deltas.push(delta),
   });
   assert.deepEqual(deltas, ["Xin chào ", "bạn"]);
@@ -173,7 +173,7 @@ test("chat stream converts a body deadline into a retryable REQUEST_TIMEOUT", as
   });
   api.storeAuthSession(browserSession("stream-timeout"));
   await assert.rejects(
-    api.sendAiConversationMessageStream("conversation-1", "Xin chào", "stream-timeout-key"),
+    api.sendAiConversationMessageChunked("conversation-1", "Xin chào", "stream-timeout-key"),
     (error) => error?.code === "REQUEST_TIMEOUT" && error?.status === 408,
   );
 });
@@ -189,7 +189,7 @@ test("chat stream preserves caller cancellation after response headers", async (
   }), { status: 200 }));
   api.storeAuthSession(browserSession("stream-caller"));
   const caller = new AbortController();
-  const request = api.sendAiConversationMessageStream("conversation-1", "Xin chào", "stream-caller-key", { signal: caller.signal });
+  const request = api.sendAiConversationMessageChunked("conversation-1", "Xin chào", "stream-caller-key", { signal: caller.signal });
   await bodyReady;
   caller.abort();
   await assert.rejects(request, (error) => error?.name === "AbortError");

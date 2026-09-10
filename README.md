@@ -55,6 +55,9 @@ Hệ thống đã được thiết lập sẵn phân quyền người dùng theo
 | **Bác sĩ (DOCTOR)** | `doctor@healthcare.com` | `HealthCare@2026` | [`/doctor`](https://www.healthcare.id.vn/doctor) | Cổng lâm sàng (BS. Lê Quốc Hà - Chấn thương chỉnh hình): Tiếp nhận hàng đợi khám trong ngày, xuất kết quả chẩn đoán, toa thuốc điện tử & bài viết chuyên môn |
 | **Bệnh nhân (PATIENT)** | `patient@healthcare.com` | `HealthCare@2026` | [`/patient`](https://www.healthcare.id.vn/patient) | Cổng bệnh nhân (Nguyễn Văn An): Xem lịch sử hẹn khám, kết quả chẩn đoán, tải hồ sơ sức khỏe và trò chuyện cùng Trợ lý AI Y tế (RAG) |
 
+> [!NOTE]
+> **Lưu ý về ranh giới demo**: Đây là các danh tính demo tổng hợp, riêng lập và có thể đặt lại — không phải tài khoản thật. Máy chủ từ chối phía backend các thao tác đột biến ảnh hưởng cao (quyết định thanh toán, điều chỉnh credit AI, thay đổi danh tính/phân quyền) đối với tài khoản demo; các luồng trải nghiệm khác vẫn hoạt động đầy đủ.
+
 > [!TIP]
 > **Cơ chế Điều Hướng Thông Minh**: Sau khi nhập thông tin đăng nhập, hệ thống tự động phân tích vai trò trong JWT Claims và chuyển hướng chính xác đến bảng điều khiển tương ứng (`/admin`, `/doctor` hoặc `/patient`).
 

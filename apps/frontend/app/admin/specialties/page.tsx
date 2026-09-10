@@ -11,6 +11,7 @@ import {
   type Specialty,
 } from "../../../lib/api-client";
 import AdminState from "../_components/AdminState";
+import ConfirmActionDialog from "../../../components/ui/ConfirmActionDialog";
 import { describeAdminError } from "../_lib/errors";
 
 type SpecialtyForm = { name: string; slug: string; description: string; active: boolean };
@@ -34,6 +35,7 @@ export default function AdminSpecialtiesPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ tone: "success" | "error"; title: string; description: string } | null>(null);
   const [mutating, setMutating] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<Specialty | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -80,7 +82,6 @@ export default function AdminSpecialtiesPage() {
   };
 
   const handleDelete = async (slug: string) => {
-    if (!window.confirm(`Xóa chuyên khoa "${slug}"? Hành động này không thể hoàn tác.`)) return;
     setMutating(true);
     setFeedback(null);
     try {
@@ -96,6 +97,7 @@ export default function AdminSpecialtiesPage() {
       setFeedback({ tone: "error", title: copy.title, description: copy.description });
     } finally {
       setMutating(false);
+      setPendingDelete(null);
     }
   };
 
@@ -126,9 +128,28 @@ export default function AdminSpecialtiesPage() {
           {loading ? <AdminState tone="loading" title="Đang tải danh sách chuyên khoa" description="Vui lòng chờ trong giây lát." /> : null}
           {!loading && loadError ? <AdminState action={<button className="text-sm font-bold underline underline-offset-4" onClick={() => void load()} type="button">Thử lại</button>} description={loadError} title="Không thể tải danh sách chuyên khoa" tone="error" /> : null}
           {!loading && !loadError && specialties.length === 0 ? <AdminState tone="empty" title="Chưa có chuyên khoa" description="Tạo chuyên khoa đầu tiên để bắt đầu quản lý danh mục khám." /> : null}
-          {!loading && !loadError && specialties.length > 0 ? <div className="overflow-hidden rounded-lg border border-slate-200 bg-white"><div aria-label="Bảng chuyên khoa, có thể cuộn ngang" className="overflow-x-auto" role="region" tabIndex={0}><table className="min-w-[680px] w-full text-left text-sm"><caption className="sr-only">Chuyên khoa trong danh sách quản trị</caption><thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3 font-bold">Tên</th><th className="px-4 py-3 font-bold">Slug</th><th className="px-4 py-3 font-bold">Trạng thái</th><th className="px-4 py-3 text-right font-bold">Thao tác</th></tr></thead><tbody>{specialties.map((specialty) => <tr className="border-b border-slate-100 last:border-0" key={specialty.id}><td className="px-4 py-4 font-semibold text-slate-900">{specialty.name}</td><td className="px-4 py-4 font-mono text-xs text-slate-500">{specialty.slug}</td><td className="px-4 py-4"><span className={specialty.active ?? true ? "rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700" : "rounded-md bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600"}>{specialty.active ?? true ? "Đang hiển thị" : "Tạm ẩn"}</span></td><td className="px-4 py-4"><div className="flex justify-end gap-3"><button aria-label={`Sửa ${specialty.name}`} className="text-xs font-bold text-teal-800 underline underline-offset-4 disabled:opacity-50" disabled={mutating} onClick={() => { setEditingSlug(specialty.slug); setForm(formFromSpecialty(specialty)); setFormError(null); setFeedback(null); }} type="button">Sửa</button><button aria-label={`Xóa ${specialty.name}`} className="text-xs font-bold text-red-700 underline underline-offset-4 disabled:opacity-50" disabled={mutating} onClick={() => void handleDelete(specialty.slug)} type="button">Xóa</button></div></td></tr>)}</tbody></table></div></div> : null}
+          {!loading && !loadError && specialties.length > 0 ? <div className="overflow-hidden rounded-lg border border-slate-200 bg-white"><div aria-label="Bảng chuyên khoa, có thể cuộn ngang" className="overflow-x-auto" role="region" tabIndex={0}><table className="min-w-[680px] w-full text-left text-sm"><caption className="sr-only">Chuyên khoa trong danh sách quản trị</caption><thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3 font-bold">Tên</th><th className="px-4 py-3 font-bold">Slug</th><th className="px-4 py-3 font-bold">Trạng thái</th><th className="px-4 py-3 text-right font-bold">Thao tác</th></tr></thead><tbody>{specialties.map((specialty) => <tr className="border-b border-slate-100 last:border-0" key={specialty.id}><td className="px-4 py-4 font-semibold text-slate-900">{specialty.name}</td><td className="px-4 py-4 font-mono text-xs text-slate-500">{specialty.slug}</td><td className="px-4 py-4"><span className={specialty.active ?? true ? "rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700" : "rounded-md bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600"}>{specialty.active ?? true ? "Đang hiển thị" : "Tạm ẩn"}</span></td><td className="px-4 py-4"><div className="flex justify-end gap-3"><button aria-label={`Sửa ${specialty.name}`} className="text-xs font-bold text-teal-800 underline underline-offset-4 disabled:opacity-50" disabled={mutating} onClick={() => { setEditingSlug(specialty.slug); setForm(formFromSpecialty(specialty)); setFormError(null); setFeedback(null); }} type="button">Sửa</button><button aria-label={`Xóa ${specialty.name}`} className="text-xs font-bold text-red-700 underline underline-offset-4 disabled:opacity-50" disabled={mutating} onClick={() => setPendingDelete(specialty)} type="button">Xóa</button></div></td></tr>)}</tbody></table></div></div> : null}
         </section>
       </div>
+
+      <ConfirmActionDialog
+        confirmLabel="Xóa chuyên khoa"
+        confirmingLabel="Đang xóa…"
+        description="Bác sĩ và gói khám gắn với chuyên khoa này có thể mất liên kết hiển thị. Hãy cân nhắc tạm ẩn chuyên khoa thay vì xóa."
+        destructive
+        entity={pendingDelete ?? undefined}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => void handleDelete(pendingDelete?.slug ?? "")}
+        open={pendingDelete !== null}
+        pending={mutating}
+        summaryItems={pendingDelete ? [
+          { label: "Tên chuyên khoa", value: pendingDelete.name },
+          { label: "Slug", value: pendingDelete.slug, mono: true },
+          { label: "Trạng thái", value: pendingDelete.active ?? true ? "Đang hiển thị" : "Tạm ẩn" },
+        ] : []}
+        summaryLabel="Chuyên khoa sẽ bị xóa vĩnh viễn"
+        title="Xóa chuyên khoa này?"
+      />
     </div>
   );
 }

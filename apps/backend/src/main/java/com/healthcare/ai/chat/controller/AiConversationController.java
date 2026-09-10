@@ -84,8 +84,16 @@ public class AiConversationController {
         );
     }
 
+    /**
+     * Validated chunked delivery (decision D-02), not token streaming: the
+     * complete answer is generated, validated against the authorized source
+     * allowlist and persisted first; only afterwards is the finished text
+     * replayed to the browser as SSE slices. There is no time-to-first-token
+     * gain and no unvalidated partial content ever leaves the server. The
+     * route path stays {@code /messages/stream} for client compatibility.
+     */
     @PostMapping(value = "/{conversationId}/messages/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public ResponseEntity<String> sendStream(
+    public ResponseEntity<String> sendValidatedChunks(
             @AuthenticationPrincipal UserDetails principal,
             @PathVariable UUID conversationId,
             @RequestHeader("Idempotency-Key") String idempotencyKey,
@@ -96,7 +104,7 @@ public class AiConversationController {
             // content negotiation to replace the intended 404 with a 500.
             return ResponseEntity.notFound().build();
         }
-        ChatExchangeResponse exchange = conversationService.sendForStream(
+        ChatExchangeResponse exchange = conversationService.sendForChunkedDelivery(
             principal, conversationId, idempotencyKey, request.content());
         String answer = exchange.assistantMessage().content() == null ? "" : exchange.assistantMessage().content();
         StringBuilder events = new StringBuilder();

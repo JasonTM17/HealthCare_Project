@@ -46,4 +46,24 @@ public final class SafePageRequests {
     private static ResponseStatusException badRequest(String message) {
         return new ResponseStatusException(HttpStatus.BAD_REQUEST, message);
     }
+
+    /**
+     * Guard for admin inventory listings (HC-11). Unlike {@link #normalize},
+     * these endpoints previously returned the full table and clients still
+     * consume the whole array, so the default window stays large (500) and
+     * oversized requests are clamped to the hard maximum instead of rejected —
+     * this keeps the historical "admin can reach every record" behavior while
+     * bounding worst-case reads. Ordering is fixed by the caller so pages are
+     * stable and gap-free; client-supplied sort input is ignored.
+     */
+    public static Pageable normalizeAdminListing(
+            Integer page,
+            Integer size,
+            int defaultSize,
+            int hardMaxSize,
+            Sort sort) {
+        int safePage = page == null || page < 0 ? 0 : page;
+        int safeSize = size == null ? defaultSize : Math.min(Math.max(size, 1), hardMaxSize);
+        return PageRequest.of(safePage, safeSize, sort);
+    }
 }

@@ -94,11 +94,11 @@ export default function ArticlesPage() {
             <dl className="resource-meta-grid">
               <div>
                 <dt>Bài đã xuất bản</dt>
-                <dd>{loading ? "Đang tải…" : articleCount || "Chưa có dữ liệu"}</dd>
+                <dd>{loading ? "Đang tải…" : articleCount || "Chưa có bài"}</dd>
               </div>
               <div>
                 <dt>Bài mới nhất</dt>
-                <dd>{loading ? "Đang tải…" : featuredArticle ? formatBusinessDate(featuredArticle.publishedAt) : "Chưa có dữ liệu"}</dd>
+                <dd>{loading ? "Đang tải…" : featuredArticle ? formatBusinessDate(featuredArticle.publishedAt) : "Chưa chọn bài nổi bật"}</dd>
               </div>
             </dl>
           </div>
@@ -140,7 +140,9 @@ export default function ArticlesPage() {
                 </div>
               </>
             ) : (
-              <p className="resource-muted">Backend chưa có bài viết nổi bật để hiển thị.</p>
+              <p className="resource-muted">
+                Ban biên tập chưa chọn bài viết nổi bật. Bạn vẫn có thể mở danh mục bên dưới hoặc xem chuyên khoa phù hợp.
+              </p>
             )}
           </section>
         </div>

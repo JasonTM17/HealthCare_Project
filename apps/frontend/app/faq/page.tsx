@@ -165,7 +165,7 @@ export default function FaqPage() {
               {page.content.map((item) => (
                 <details className="faq-item" key={item.id}>
                   <summary>{item.question}</summary>
-                  <p>{item.answer || "Câu trả lời đang được cập nhật. Vui lòng liên hệ bệnh viện nếu cần xác nhận."}</p>
+                  <p>{item.answer || "Câu trả lời đang chờ biên tập. Vui lòng liên hệ bệnh viện nếu cần xác nhận trước."}</p>
                 </details>
               ))}
             </div>

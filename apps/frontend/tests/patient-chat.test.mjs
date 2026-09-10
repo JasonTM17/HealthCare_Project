@@ -12,7 +12,7 @@ test("patient chat client exposes every locked REST conversation resource", asyn
   assert.match(apiClient, /fetchAiConversation\(conversationId/);
   assert.match(apiClient, /fetchAiConversationMessages[\s\S]*cursor/);
   assert.match(apiClient, /sendAiConversationMessage[\s\S]*"Idempotency-Key"/);
-  assert.match(apiClient, /sendAiConversationMessageStream[\s\S]*text\/event-stream/);
+  assert.match(apiClient, /sendAiConversationMessageChunked[\s\S]*text\/event-stream/);
   assert.match(apiClient, /deleteAiConversation[\s\S]*method: "DELETE"/);
 });
 
@@ -70,11 +70,11 @@ test("patient chat reuses one idempotency key for an ambiguous logical attempt",
 
   assert.match(provider, /sendAttemptsRef = useRef\(new Map/);
   assert.match(provider, /retained\?\.content === normalizedContent[\s\S]*retained\.idempotencyKey[\s\S]*randomId\(\)/);
-  assert.match(provider, /sendAiConversationMessageStream\([\s\S]*idempotencyKey/);
+  assert.match(provider, /sendAiConversationMessageChunked\([\s\S]*idempotencyKey/);
   assert.match(provider, /TERMINAL_IDEMPOTENCY_CODES[\s\S]*sendAttemptsRef\.current\.delete/);
   assert.match(page, /sendMessage\(conversationId, normalizedContent[\s\S]*attemptId:/);
   assert.match(page, /failed-message:\$\{options\.sourceMessageId\}/);
-  assert.doesNotMatch(page, /sendAiConversationMessageStream/);
+  assert.doesNotMatch(page, /sendAiConversationMessage(?:Stream|Chunked)/);
 });
 
 test("patient chat keeps medical and emergency limits visible and accessible", async () => {

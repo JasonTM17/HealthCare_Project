@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { adminListJobApplications, adminUpdateJobApplicationStatus, type JobApplicationAdminSummary } from "../../../lib/api-client";
 import { formatBusinessDateTime } from "../../../lib/business-time";
 import AdminState from "../_components/AdminState";
+import ConfirmActionDialog from "../../../components/ui/ConfirmActionDialog";
 import { describeAdminError } from "../_lib/errors";
 
 const APPLICATION_STATUSES = [
@@ -38,6 +39,8 @@ export default function AdminCareersPage() {
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [pendingStatus, setPendingStatus] = useState<{ item: JobApplicationAdminSummary; next: ApplicationStatus } | null>(null);
+  const [statusPending, setStatusPending] = useState(false);
   const loadRequestRef = useRef(0);
 
   const load = useCallback(async () => {
@@ -63,21 +66,21 @@ export default function AdminCareersPage() {
     return () => { loadRequestRef.current += 1; };
   }, [load]);
 
-  const changeStatus = async (item: JobApplicationAdminSummary, next: ApplicationStatus) => {
-    if (next === item.status) return;
-    const confirmLine = next === "REJECTED"
-      ? `Xác nhận đánh hồ sơ ${item.applicationCode} (${item.fullName}) là không phù hợp?`
-      : `Chuyển hồ sơ ${item.applicationCode} (${item.fullName}) sang "${statusLabel(next)}"?`;
-    if (!window.confirm(confirmLine)) return;
-    setUpdating(item.id);
+  const submitStatus = async (): Promise<void> => {
+    const current = pendingStatus;
+    if (!current || statusPending) return;
+    setStatusPending(true);
+    setUpdating(current.item.id);
     setError(null);
     try {
-      await adminUpdateJobApplicationStatus(item.id, next);
+      await adminUpdateJobApplicationStatus(current.item.id, current.next);
+      setPendingStatus(null);
       await load();
     } catch (reason) {
       setError(describeAdminError(reason).description);
     } finally {
       setUpdating(null);
+      setStatusPending(false);
     }
   };
 
@@ -106,12 +109,36 @@ export default function AdminCareersPage() {
               <td className="px-4 py-4">{item.fullName}<br /><span className="text-xs text-slate-500">{item.email}</span><br /><span className="text-xs text-slate-500">{item.phone}</span>{item.yearsExperience != null ? <><br /><span className="text-xs text-slate-500">{item.yearsExperience} năm kinh nghiệm</span></> : null}{item.resumeUrl ? <><br /><a className="text-xs font-bold text-teal-800 underline" href={item.resumeUrl} rel="noopener noreferrer" target="_blank">Hồ sơ đính kèm ↗</a></> : null}</td>
               <td className="px-4 py-4">{item.jobTitle}</td>
               <td className="px-4 py-4"><span className={`rounded-md px-2 py-1 text-xs font-bold ${statusTone(item.status)}`}>{statusLabel(item.status)}</span></td>
-              <td className="px-4 py-4"><div className="flex flex-wrap gap-2">{APPLICATION_STATUSES.filter(([value]) => value !== item.status).map(([value, label]) => <button className="min-h-11 rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-100 disabled:opacity-50" disabled={updating === item.id} key={value} onClick={() => void changeStatus(item, value)} type="button">{label}</button>)}</div></td>
+              <td className="px-4 py-4"><div className="flex flex-wrap gap-2">{APPLICATION_STATUSES.filter(([value]) => value !== item.status).map(([value, label]) => <button className="min-h-11 rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-100 disabled:opacity-50" disabled={updating === item.id} key={value} onClick={() => setPendingStatus({ item, next: value })} type="button">{label}</button>)}</div></td>
             </tr>)}</tbody>
           </table>
         </div>
       ) : null}
       <nav aria-label="Phân trang hồ sơ ứng tuyển" className="mt-5 flex justify-end gap-2"><button className="rounded-lg border px-3 text-sm disabled:opacity-40" disabled={page === 0 || loading} onClick={() => setPage((value) => value - 1)} type="button">Trang trước</button><span className="inline-flex min-h-11 items-center px-3 text-sm">{totalPages === 0 ? 0 : page + 1}/{totalPages}</span><button className="rounded-lg border px-3 text-sm disabled:opacity-40" disabled={page + 1 >= totalPages || loading} onClick={() => setPage((value) => value + 1)} type="button">Trang sau</button></nav>
+
+      <ConfirmActionDialog
+        confirmLabel={pendingStatus?.next === "REJECTED" ? "Đánh dấu không phù hợp" : "Chuyển trạng thái"}
+        confirmingLabel="Đang cập nhật hồ sơ…"
+        description={pendingStatus?.next === "REJECTED"
+          ? "Ứng viên sẽ không còn ở vòng xử lý. Hãy chắc chắn đã xem đủ thư giới thiệu và hồ sơ đính kèm."
+          : "Trạng thái mới sẽ được ghi vào tiến trình xử lý hồ sơ của ứng viên."}
+        destructive={pendingStatus?.next === "REJECTED"}
+        dismissOnBackdrop={false}
+        entity={pendingStatus?.item}
+        onCancel={() => { if (!statusPending) setPendingStatus(null); }}
+        onConfirm={() => void submitStatus()}
+        open={pendingStatus !== null}
+        pending={statusPending}
+        summaryItems={pendingStatus ? [
+          { label: "Mã hồ sơ", value: pendingStatus.item.applicationCode, mono: true },
+          { label: "Ứng viên", value: pendingStatus.item.fullName },
+          { label: "Vị trí", value: pendingStatus.item.jobTitle },
+          { label: "Trạng thái hiện tại", value: statusLabel(pendingStatus.item.status) },
+          { label: "Chuyển sang", value: statusLabel(pendingStatus.next) },
+        ] : []}
+        summaryLabel="Hồ sơ đang xét"
+        title={pendingStatus?.next === "REJECTED" ? "Đánh dấu hồ sơ không phù hợp?" : "Chuyển trạng thái hồ sơ?"}
+      />
     </div>
   );
 }

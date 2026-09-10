@@ -19,7 +19,7 @@ import type {
 import {
   ApiError,
   fetchAiChatPolicy,
-  sendAiConversationMessageStream,
+  sendAiConversationMessageChunked,
   updateAiConversationConsent,
 } from "../lib/api-client";
 import { randomId } from "../lib/secure-random";
@@ -107,7 +107,7 @@ const ASSISTANT_ERROR_COPY: Readonly<Record<string, string>> = {
   AI_RESPONSE_INVALID: "Phản hồi của trợ lý chưa đạt yêu cầu an toàn. Câu hỏi vẫn được giữ lại; hãy thử lại sau ít phút.",
   CHAT_CONTENT_BLOCKED: "Hãy bỏ thông tin nhận dạng cá nhân và thử diễn đạt lại câu hỏi.",
   CHAT_RETENTION_EXPIRED: "Cuộc trò chuyện đã hết thời hạn lưu trữ và không còn truy cập được.",
-  REQUEST_TIMEOUT: "Phản hồi mất quá nhiều thời gian. Câu hỏi vẫn được giữ lại; hãy kiểm tra lịch sử trước khi thử lại.",
+  REQUEST_TIMEOUT: "Phản hồi mất quá nhiều thời gian. Câu hỏi vẫn được giữ lại; hãy thử lại.",
 };
 
 export function assistantFailureFromError(error: unknown): AssistantFailure {
@@ -289,7 +289,7 @@ export function AssistantProvider({
     sendAttemptsRef.current.set(attemptKey, { content: normalizedContent, idempotencyKey });
 
     try {
-      const exchange = await sendAiConversationMessageStream(
+      const exchange = await sendAiConversationMessageChunked(
         conversationId,
         normalizedContent,
         idempotencyKey,

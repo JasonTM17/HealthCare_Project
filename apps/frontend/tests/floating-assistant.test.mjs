@@ -30,7 +30,13 @@ test("floating assistant is mounted globally and stays on the REST chat contract
   assert.match(component, /pendingUserMessage/);
   assert.match(component, /data-testid="floating-chat-pending-user"/);
   assert.match(component, /data-testid="floating-chat-thinking"/);
-  assert.match(component, /Đang suy nghĩ/);
+  // Honest staged feedback: immediate acknowledgment, then the real waiting
+  // activity — never an unbounded "thinking" simulation.
+  const waitStage = await read("components/useChatWaitStage.ts");
+  assert.match(component, /CHAT_WAIT_STAGE_COPY\[waitStage\]/);
+  assert.match(component, /useChatWaitStage\(sending\)/);
+  assert.match(waitStage, /received: "Đã nhận câu hỏi — đang chờ phản hồi…"/);
+  assert.match(waitStage, /searching: "Đang tra cứu nguồn y tế…"/);
   assert.match(component, /Hỗ trợ tạm thời/);
   assert.doesNotMatch(component, /Đang kết nối backend và AI/);
   assert.match(styles, /\.typingDots span \{[\s\S]*animation: assistantTyping/);

@@ -28,6 +28,17 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
+      // The HC-14 accessibility budget has its own project below so default
+      // e2e runs (`playwright test`) keep their existing scope and timing.
+      testIgnore: /accessibility-budget\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        ...(browserChannel ? { channel: browserChannel } : {}),
+      },
+    },
+    {
+      name: "a11y",
+      testMatch: /accessibility-budget\.spec\.ts/,
       use: {
         ...devices["Desktop Chrome"],
         ...(browserChannel ? { channel: browserChannel } : {}),

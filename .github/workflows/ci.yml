@@ -69,6 +69,14 @@ jobs:
             echo "::warning::Maven wrapper bootstrap failed on attempt $attempt; retrying in ${delay}s"
             sleep "$delay"
           done
+      - name: Backend test environment preflight
+        run: |
+          set -euo pipefail
+          pwsh -NoLogo -NoProfile -File scripts/check-backend-test-preflight.ps1 | tee preflight.txt
+          grep -q "BACKEND_TEST_ENVIRONMENT=READY" preflight.txt || {
+            echo "::error::Backend test environment is BLOCKED_ENVIRONMENT; refusing to start Maven with cascading Testcontainers errors"
+            exit 1
+          }
       - name: Build and test backend
         working-directory: apps/backend
         env:

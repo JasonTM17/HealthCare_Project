@@ -13,7 +13,11 @@ import com.healthcare.cms.exception.CmsPayloadValidationException;
 import com.healthcare.cms.exception.CmsVersionConflictException;
 import com.healthcare.cms.repository.CmsContentChangeRepository;
 import com.healthcare.cms.repository.CmsContentRepository;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import com.healthcare.common.SafePageRequests;
 import com.healthcare.exception.DuplicateResourceException;
 import com.healthcare.exception.BusinessException;
 import com.healthcare.exception.ResourceNotFoundException;
@@ -35,6 +39,13 @@ import java.util.Optional;
 public class CmsContentService {
 
     static final long PUBLICATION_CURSOR_LOCK_KEY = 0x48434d5353450101L;
+
+    /**
+     * HC-11: the admin content inventory is served in bounded windows; see
+     * {@link #listForAdmin(Integer, Integer)}.
+     */
+    public static final int ADMIN_LISTING_DEFAULT_SIZE = 500;
+    public static final int ADMIN_LISTING_MAX_SIZE = 1_000;
 
     private final CmsContentRepository contentRepository;
     private final CmsContentChangeRepository changeRepository;
@@ -136,9 +147,22 @@ public class CmsContentService {
         return toResponse(content);
     }
 
+    /**
+     * Bounded admin content inventory (HC-11). Replaces the previous
+     * unbounded {@code findAll()} materialization; ordered by immutable slot
+     * key so consecutive pages are stable and gap-free. The public
+     * {@code listPublished()} contract is intentionally untouched.
+     */
     @Transactional(readOnly = true)
-    public List<CmsContentResponse> listForAdmin() {
-        return contentRepository.findAll().stream().map(this::toResponse).toList();
+    public Page<CmsContentResponse> listForAdmin(Integer page, Integer size) {
+        Pageable bounded = SafePageRequests.normalizeAdminListing(
+            page,
+            size,
+            ADMIN_LISTING_DEFAULT_SIZE,
+            ADMIN_LISTING_MAX_SIZE,
+            Sort.by(Sort.Direction.ASC, "slotKey")
+        );
+        return contentRepository.findAll(bounded).map(this::toResponse);
     }
 
     @Transactional

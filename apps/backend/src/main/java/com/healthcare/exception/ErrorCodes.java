@@ -43,6 +43,10 @@ public final class ErrorCodes {
     public static final String AI_CONTENT_ALREADY_DECIDED = "AI_CONTENT_ALREADY_DECIDED";
     public static final String CONSULTATION_ATTACHMENT_STORAGE_UNAVAILABLE =
         "CONSULTATION_ATTACHMENT_STORAGE_UNAVAILABLE";
+    /** HC-01/D-01: demo principals may not mutate the high-impact surface. */
+    public static final String DEMO_MUTATION_FORBIDDEN = "DEMO_MUTATION_FORBIDDEN";
+    /** HC-01/D-01: deployments that are not the demo reject demo personas at authentication. */
+    public static final String DEMO_LOGIN_DISABLED = "DEMO_LOGIN_DISABLED";
 
     private ErrorCodes() {
     }

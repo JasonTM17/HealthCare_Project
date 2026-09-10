@@ -185,7 +185,7 @@ export default function BookingLandingPage() {
                     <div className="branch-card__address">
                       <Icon name="location" size={18} />
                       <p>
-                        {address || <span className="resource-muted">Địa chỉ đang được cập nhật.</span>}
+                        {address || <span className="resource-muted">Địa chỉ chưa công bố; vui lòng xác nhận trước khi đến.</span>}
                       </p>
                     </div>
                     <BranchMap
@@ -220,9 +220,12 @@ export default function BookingLandingPage() {
               })}
             </div>
           ) : (
-            <p className="catalog-status" role="status">
-              Thông tin cơ sở đang được cập nhật.
-            </p>
+            <div className="catalog-status" role="status">
+              <p>Chưa có cơ sở công khai để chọn lịch. Bạn vẫn có thể xem danh sách cơ sở hoặc gửi yêu cầu tư vấn để được hỗ trợ.</p>
+              <Link className="outline-button outline-button--small" href="/branches">
+                Xem cơ sở
+              </Link>
+            </div>
           )}
         </section>
 

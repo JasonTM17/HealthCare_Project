@@ -292,7 +292,9 @@ accounts. The browser uses Spring REST conversation resources and never sends a
 user ID or authoritative history. Spring stores conversations for 90 days by
 default and supports user-initiated deletion; Supabase stores only public
 catalog/RAG documents. Remote patient-chat providers remain disabled by default
-with `AI_PATIENT_CHAT_REMOTE_ENABLED=false`.
+with `AI_PATIENT_CHAT_REMOTE_ENABLED=false`; per ADR-004
+(docs/adr/ADR-004-synthetic-ai-egress.md), authenticated patient clinical data
+must not egress to the cloud provider.
 
 When `AI_CHAT_CHUNKED_ENABLED=true`, the patient composer may use
 `POST /api/v1/ai/conversations/{conversationId}/messages/stream`. Spring first
@@ -447,7 +449,39 @@ to `manifest.json`. It never deletes source data or overwrites an existing
 snapshot. Treat the result as sensitive and perform restore tests only against
 disposable PostgreSQL/MinIO instances. Production needs scheduled encrypted
 off-site retention, alerting on failures, and documented recovery objectives;
-one successful local backup is not restore evidence.
+one successful local backup is not restore evidence. A backup becomes restore
+evidence only after a recorded successful run of the isolated restore drill
+below.
+
+## Isolated restore drill
+
+`scripts/restore-drill.ps1` proves a snapshot can actually be restored. It
+picks the latest `healthcare-*` snapshot (or the one you pass), starts
+throwaway `postgres` and `minio` containers with unique per-run names on
+OS-assigned loopback ports, restores `postgres.dump` with `pg_restore`, and
+starts MinIO from a scratch copy of the snapshot's `minio-data`. It then:
+
+- verifies every manifest file against its recorded SHA-256 hash and size;
+- prints restored row counts for the core tables;
+- fails if the `appointments -> patient_profiles -> users` chain contains
+  orphan rows;
+- verifies the restored MinIO object files byte-identical against the manifest;
+- prints RPO (snapshot age) and measured RTO, then removes the throwaway
+  containers with their anonymous volumes and the scratch workspace — even on
+  failure.
+
+```powershell
+.\scripts\restore-drill.ps1
+# or target one snapshot explicitly
+.\scripts\restore-drill.ps1 -SnapshotDirectory D:\encrypted-backups\healthcare\healthcare-20260909T010203Z-abcd1234
+```
+
+The drill never uses `docker compose`, never mounts the primary Compose
+volumes, and never writes into the snapshot directory, so it is safe to run
+while the local stack is up. Keep the run output as the drill record: restore
+evidence exists only after a recorded successful drill run, not after the
+backup itself. A snapshot older than the RPO budget (default 168 hours, override
+with `-MaxSnapshotAgeHours`) warns but never silently passes.
 
 Validate a private production environment file before deployment:
 
@@ -459,6 +493,31 @@ The validator fails on placeholder/short secrets, local/test profiles, fixed
 booking OTP, disabled rate limiting, non-HTTPS CORS, local SMTP, incomplete
 STARTTLS/auth, invalid bank identifiers, and a short reconciliation webhook
 secret. It prints variable names and findings, never values.
+
+## Docker preflight before backend integration tests
+
+Maven integration tests need a reachable Docker daemon for
+PostgreSQL/Testcontainers and MinIO. Run the preflight first so a missing
+daemon produces one explicit `BLOCKED_ENVIRONMENT` verdict instead of hundreds
+of cascading test errors:
+
+```powershell
+powershell -NoLogo -NoProfile -File scripts\check-backend-test-preflight.ps1
+if ($LASTEXITCODE -ne 0) { throw "Backend tests blocked: see BLOCKED_ENVIRONMENT reason above." }
+cd apps/backend
+.\mvnw.cmd test
+```
+
+On POSIX shells use the portable equivalent:
+
+```bash
+scripts/check-backend-test-preflight.sh && (cd apps/backend && ./mvnw test)
+```
+
+Exit code 2 means `BLOCKED_ENVIRONMENT` (start Docker Desktop/Engine and
+rerun); exit code 0 means the daemon is reachable. If Docker is not ready,
+Maven compilation still works with `.\mvnw.cmd -DskipTests package`, but that
+is not an end-to-end verification.
 
 ## Quality gates
 
@@ -478,9 +537,8 @@ cd ..\ai-service
 .\.venv\Scripts\python.exe -m pytest
 ```
 
-Backend integration tests require PostgreSQL/Testcontainers and MinIO. If
-Docker is not ready, Maven compilation still works with
-`.\mvnw.cmd -DskipTests package`, but that is not an end-to-end verification.
+Backend integration tests require PostgreSQL/Testcontainers and MinIO; run the
+Docker preflight above before starting them.
 
 ## Stop and diagnose
 
