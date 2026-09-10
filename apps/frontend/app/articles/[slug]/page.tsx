@@ -37,6 +37,7 @@ export default function ArticleDetailPage() {
     const task = Promise.resolve()
       .then(() => {
         if (cancelled) return undefined;
+        if (!slug || typeof slug !== "string") return undefined;
         if (loadedSlugRef.current !== slug) setArticle(null);
         loadedSlugRef.current = slug;
         setLoading(true);
