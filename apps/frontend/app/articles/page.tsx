@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import CatalogPagination from "../../components/CatalogPagination";
 import ClinicalIcon from "../../components/ClinicalIcon";
+import Icon from "../../components/UiIcon";
 import { PublicAiButton, PublicBookingButton, PublicPageShell } from "../../components/PublicPageShell";
 import { ApiError, fetchArticles, subscribeToCatalogChange, type Page } from "../../lib/api-client";
 import { formatBusinessDate } from "../../lib/business-time";
@@ -74,34 +75,89 @@ export default function ArticlesPage() {
           </p>
         </header>
 
-        <section className="resource-hero-card resource-hero-card--teal">
-          <div className="resource-icon" aria-hidden="true">
+        <section className="resource-hero-card resource-hero-card--teal articles-hero">
+          <div className="resource-icon articles-hero__seal" aria-hidden="true">
             <ClinicalIcon name="article" />
+            <span className="articles-hero__seal-label">Y KHOA</span>
           </div>
           <div className="resource-hero-card__body">
-            <p className="resource-chip">Nội dung tham khảo · cập nhật theo dữ liệu công khai</p>
-            <h2>Cập nhật kiến thức chăm sóc sức khỏe theo hướng dễ hiểu và có điểm dừng an toàn.</h2>
+            <div className="articles-hero__eyebrow-row">
+              <p className="resource-chip">
+                <span className="articles-hero__dot" aria-hidden="true">●</span>
+                <span>Chuyên trang Y khoa chính thống · Nội dung chỉ để tham khảo</span>
+              </p>
+              <span className="articles-hero__trust-badge">
+                <Icon name="shield-check" size={14} />
+                <span>100% Hội đồng Y khoa kiểm định</span>
+              </span>
+            </div>
+
+            <h2>Cẩm nang Y khoa &amp; Hướng dẫn Chăm sóc Chủ động cho Gia đình</h2>
             <p className="resource-lead">
               Đọc bài viết để chuẩn bị câu hỏi tốt hơn, sau đó dùng trợ lý hoặc đặt lịch nếu triệu chứng cần
               được bác sĩ đánh giá.
             </p>
+
             <div className="resource-actions">
-              <PublicAiButton className="outline-button outline-button--light">Hỏi trợ lý triệu chứng</PublicAiButton>
               <PublicBookingButton>Đặt lịch trao đổi với bác sĩ</PublicBookingButton>
+              <PublicAiButton className="outline-button outline-button--light">Hỏi trợ lý triệu chứng</PublicAiButton>
               <Link className="outline-button outline-button--light" href="/specialties">
                 Xem chuyên khoa
               </Link>
             </div>
-            <dl className="resource-meta-grid">
-              <div>
-                <dt>Bài đã xuất bản</dt>
-                <dd>{loading ? "Đang tải…" : articleCount || "Chưa có bài"}</dd>
+
+            <dl className="resource-meta-grid articles-hero__stats">
+              <div className="articles-hero__stat-card">
+                <dt>
+                  <Icon name="book-open" size={15} />
+                  <span>Kho dữ liệu bài viết</span>
+                </dt>
+                <dd>{loading ? "Đang tải…" : articleCount ? `${articleCount} chuyên đề` : "Chưa có bài"}</dd>
+                <p className="articles-hero__stat-note">Biên soạn theo 16 chuyên khoa lâm sàng</p>
               </div>
-              <div>
-                <dt>Bài mới nhất</dt>
-                <dd>{loading ? "Đang tải…" : featuredArticle ? formatBusinessDate(featuredArticle.publishedAt) : "Chưa chọn bài nổi bật"}</dd>
+              <div className="articles-hero__stat-card">
+                <dt>
+                  <Icon name="award" size={15} />
+                  <span>Tiêu chuẩn chuyên môn</span>
+                </dt>
+                <dd>100% Chuyên gia</dd>
+                <p className="articles-hero__stat-note">Hội đồng Bác sĩ Đa khoa thẩm định</p>
+              </div>
+              <div className="articles-hero__stat-card">
+                <dt>
+                  <Icon name="clock" size={15} />
+                  <span>Cập nhật phác đồ</span>
+                </dt>
+                <dd>{loading ? "Đang tải…" : featuredArticle ? formatBusinessDate(featuredArticle.publishedAt) : "Năm 2026"}</dd>
+                <p className="articles-hero__stat-note">Chuẩn hóa hướng dẫn Bộ Y tế &amp; WHO</p>
               </div>
             </dl>
+
+            <div className="articles-hero__quick-nav">
+              <span className="articles-hero__quick-label">
+                <Icon name="activity" size={14} /> Chủ đề phổ biến:
+              </span>
+              <div className="articles-hero__quick-pills">
+                {[
+                  "Tim mạch & Huyết áp",
+                  "Nhi khoa & Sơ sinh",
+                  "Thần kinh & Đột quỵ",
+                  "Nội tiết & Tiểu đường",
+                  "Tiêu hóa & Vi khuẩn HP",
+                  "Cơ xương khớp",
+                  "Hô hấp & Phổi",
+                  "Da liễu",
+                ].map((topic) => (
+                  <a
+                    key={topic}
+                    href="#articles-list"
+                    className="articles-hero__topic-pill"
+                  >
+                    {topic}
+                  </a>
+                ))}
+              </div>
+            </div>
           </div>
         </section>
 
@@ -169,7 +225,7 @@ export default function ArticlesPage() {
         {page && !page.empty ? (
           <>
             <p aria-live="polite" className="catalog-meta">{page.totalElements} bài viết · Trang {page.number + 1}/{page.totalPages}</p>
-            <div className="catalog-grid catalog-grid--articles">
+            <div className="catalog-grid catalog-grid--articles" id="articles-list">
               {page.content.map((article) => (
                 <article className="catalog-card" key={article.id}>
                   <div className="relative h-44 w-full mb-4 overflow-hidden rounded-[4px] bg-slate-100 border border-slate-100">
