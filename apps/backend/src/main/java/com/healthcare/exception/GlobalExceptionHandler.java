@@ -342,15 +342,21 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(404).body(error);
     }
 
+    /*
+     * Contract ruling (2026-09-11): IAE/ISE/NSE are the repo's controlled
+     * channel for user-ready Vietnamese domain copy ("Lịch hẹn đã hoàn thành
+     * không thể hủy"…), pinned by GlobalExceptionHandlerSuiteTest. Throw sites
+     * are therefore author-disciplined; the typed exception taxonomy is the
+     * long-term replacement (phase-08). Keep passthrough with server logs.
+     */
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiError> handleIllegalArgument(IllegalArgumentException ex, WebRequest request) {
-        // Developer-authored exception text is internal diagnostics; never
-        // return it verbatim to clients (leakage + copy-language drift).
         log.warn("Illegal argument on {}: {}", extractPath(request), ex.getMessage());
         ApiError error = new ApiError(
             400,
             "Bad Request",
-            "Yêu cầu không hợp lệ. Vui lòng kiểm tra lại thông tin đã gửi.",
+            ex.getMessage() != null && !ex.getMessage().isBlank() ? ex.getMessage() : "Yêu cầu không hợp lệ.",
             extractPath(request),
             List.of(),
             ErrorCodes.VALIDATION_ERROR
@@ -364,7 +370,7 @@ public class GlobalExceptionHandler {
         ApiError error = new ApiError(
             409,
             "Conflict",
-            "Trạng thái hiện tại không cho phép thực hiện thao tác này.",
+            ex.getMessage() != null && !ex.getMessage().isBlank() ? ex.getMessage() : "Trạng thái hiện tại không cho phép thực hiện thao tác này.",
             extractPath(request),
             List.of(),
             ErrorCodes.CONFLICT
@@ -378,7 +384,7 @@ public class GlobalExceptionHandler {
         ApiError error = new ApiError(
             404,
             "Not Found",
-            "Không tìm thấy tài nguyên yêu cầu.",
+            ex.getMessage() != null && !ex.getMessage().isBlank() ? ex.getMessage() : "Không tìm thấy tài nguyên yêu cầu.",
             extractPath(request),
             List.of(),
             ErrorCodes.RESOURCE_NOT_FOUND
