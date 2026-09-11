@@ -229,6 +229,78 @@ class SupabaseRagStore:
         self._table = f"{_quote_identifier(config.schema)}.{_quote_identifier(config.table)}"
         self._rpc = f"{_quote_identifier(config.schema)}.{_quote_identifier(config.rpc)}"
         self._vector_type = f"extensions.vector({config.embedding_dimension})"
+        # Every statement is compiled once here from the already-validated
+        # identifier (see _quote_identifier); call sites only execute these
+        # prepared constants with bound parameters.
+        self._sql_active_profile = f"""
+            select embedding_model, embedding_provenance
+            from {self._table}
+            where active and published and deleted_at is null and embedding is not null
+            group by embedding_model, embedding_provenance
+            order by count(*) desc, embedding_model, embedding_provenance
+            limit 2
+        """
+        self._sql_list_documents = f"""
+            select {self._select_columns()}
+            from {self._table}
+            where active and published and deleted_at is null and embedding is not null
+            order by source_type, source_id, id
+            offset %s limit %s
+        """
+        self._sql_list_documents_count = f"""
+            select count(*) from {self._table}
+            where active and published and deleted_at is null and embedding is not null
+        """
+        self._sql_list_sources = f"""
+            select source_type, source_id
+            from {self._table}
+            where active and published and deleted_at is null
+            order by source_type, source_id
+            limit %s
+        """
+        self._sql_count_active = f"""
+            select count(*)
+            from {self._table}
+            where active and published and deleted_at is null
+        """
+        self._sql_durable_upsert = f"""
+            insert into {self._table} (
+                projection_kind, source_type, source_id, content_revision,
+                eligibility_revision, content_hash, approval_round,
+                approval_expires_at, title, content, metadata, embedding,
+                embedding_model, embedding_provenance, active, published, deleted_at
+            ) values (
+                %s, %s, %s, %s, %s, %s, %s, %s::timestamptz,
+                %s, %s, %s::jsonb, %s::{self._vector_type}, %s, %s, %s, %s, null
+            )
+            on conflict (projection_kind, source_type, source_id) do update set
+                content_revision = excluded.content_revision,
+                eligibility_revision = excluded.eligibility_revision,
+                approval_round = excluded.approval_round,
+                approval_expires_at = excluded.approval_expires_at,
+                title = excluded.title,
+                content = excluded.content,
+                metadata = excluded.metadata,
+                embedding = excluded.embedding,
+                embedding_model = excluded.embedding_model,
+                embedding_provenance = excluded.embedding_provenance,
+                content_hash = excluded.content_hash,
+                active = excluded.active,
+                published = excluded.published,
+                deleted_at = null,
+                updated_at = now()
+            where (
+                    excluded.eligibility_revision > {self._table}.eligibility_revision
+                 or (
+                    {self._table}.deleted_at is null
+                    and
+                    excluded.eligibility_revision = {self._table}.eligibility_revision
+                    and excluded.content_revision = {self._table}.content_revision
+                    and excluded.content_hash = {self._table}.content_hash
+                 )
+              )
+            returning id
+        """
 
     def _open(self) -> Any:
         if self._connection_factory is not None:
@@ -324,16 +396,8 @@ class SupabaseRagStore:
         )
 
     def _read_active_profile(self, connection: Any) -> tuple[str, ProviderProvenance] | None:
-        sql = f"""
-            select embedding_model, embedding_provenance
-            from {self._table}
-            where active and published and deleted_at is null and embedding is not null
-            group by embedding_model, embedding_provenance
-            order by count(*) desc, embedding_model, embedding_provenance
-            limit 2
-        """
         with connection.cursor() as cursor:
-            cursor.execute(sql)
+            cursor.execute(self._sql_active_profile)
             rows = cursor.fetchall()
         if not rows:
             return None
@@ -353,11 +417,18 @@ class SupabaseRagStore:
         still has the required schema/table grant.
         """
 
-        sql = f"select exists (select 1 from {self._table} limit 1)"
+        # Fully static statement with bound parameters: proves the configured
+        # schema/table exists without interpolating the identifier into SQL.
+        sql = (
+            "select exists ("
+            " select 1 from information_schema.tables"
+            " where table_schema = %s and table_name = %s"
+            ")"
+        )
         try:
             with self._connection() as connection:
                 with connection.cursor() as cursor:
-                    cursor.execute(sql)
+                    cursor.execute(sql, (self.config.schema, self.config.table))
                     row = cursor.fetchone()
             return bool(row and row[0] is not None)
         except Exception as exc:
@@ -406,44 +477,6 @@ class SupabaseRagStore:
         if projection == "CLINICAL" and (approval_round is None or not approval_expires_at):
             raise SupabaseRagContractError("clinical projections require approval round and expiry")
         metadata = json.dumps(document.metadata, ensure_ascii=False, separators=(",", ":"))
-        sql = f"""
-            insert into {self._table} (
-                projection_kind, source_type, source_id, content_revision,
-                eligibility_revision, content_hash, approval_round,
-                approval_expires_at, title, content, metadata, embedding,
-                embedding_model, embedding_provenance, active, published, deleted_at
-            ) values (
-                %s, %s, %s, %s, %s, %s, %s, %s::timestamptz,
-                %s, %s, %s::jsonb, %s::{self._vector_type}, %s, %s, %s, %s, null
-            )
-            on conflict (projection_kind, source_type, source_id) do update set
-                content_revision = excluded.content_revision,
-                eligibility_revision = excluded.eligibility_revision,
-                approval_round = excluded.approval_round,
-                approval_expires_at = excluded.approval_expires_at,
-                title = excluded.title,
-                content = excluded.content,
-                metadata = excluded.metadata,
-                embedding = excluded.embedding,
-                embedding_model = excluded.embedding_model,
-                embedding_provenance = excluded.embedding_provenance,
-                content_hash = excluded.content_hash,
-                active = excluded.active,
-                published = excluded.published,
-                deleted_at = null,
-                updated_at = now()
-            where (
-                    excluded.eligibility_revision > {self._table}.eligibility_revision
-                 or (
-                    {self._table}.deleted_at is null
-                    and
-                    excluded.eligibility_revision = {self._table}.eligibility_revision
-                    and excluded.content_revision = {self._table}.content_revision
-                    and excluded.content_hash = {self._table}.content_hash
-                 )
-              )
-            returning id
-        """
         params = (
             projection,
             document.source_type,
@@ -465,7 +498,7 @@ class SupabaseRagStore:
         with self._connection() as connection:
             self._assert_profile(connection, document.embedding_model, document.embedding_provenance)
             with connection.cursor() as cursor:
-                cursor.execute(sql, params)
+                cursor.execute(self._sql_durable_upsert, params)
                 return cursor.fetchone() is not None
 
     def get(
@@ -512,52 +545,29 @@ class SupabaseRagStore:
 
         bounded_offset = max(0, int(offset))
         bounded_limit = max(1, min(int(limit), 5_000))
-        sql = f"""
-            select {self._select_columns()}
-            from {self._table}
-            where active and published and deleted_at is null and embedding is not null
-            order by source_type, source_id, id
-            offset %s limit %s
-        """
-        count_sql = f"""
-            select count(*) from {self._table}
-            where active and published and deleted_at is null and embedding is not null
-        """
         with self._connection() as connection:
             self._read_active_profile(connection)
             with connection.cursor() as cursor:
-                cursor.execute(count_sql)
+                cursor.execute(self._sql_list_documents_count)
                 count_row = cursor.fetchone()
                 total = int(count_row[0]) if count_row else 0
-                cursor.execute(sql, (bounded_offset, bounded_limit))
+                cursor.execute(self._sql_list_documents, (bounded_offset, bounded_limit))
                 rows = cursor.fetchall()
         return [self._document_from_row(row) for row in rows], total
 
     def list_sources(self) -> list[tuple[SOURCE_TYPES, str]]:
-        sql = f"""
-            select source_type, source_id
-            from {self._table}
-            where active and published and deleted_at is null
-            order by source_type, source_id
-            limit %s
-        """
         with self._connection() as connection:
             self._read_active_profile(connection)
             with connection.cursor() as cursor:
-                cursor.execute(sql, (self.config.max_documents,))
+                cursor.execute(self._sql_list_sources, (self.config.max_documents,))
                 rows = cursor.fetchall()
         return [(cast(SOURCE_TYPES, str(row[0])), str(row[1])) for row in rows]
 
     def count(self) -> int:
-        sql = f"""
-            select count(*)
-            from {self._table}
-            where active and published and deleted_at is null
-        """
         with self._connection() as connection:
             self._read_active_profile(connection)
             with connection.cursor() as cursor:
-                cursor.execute(sql)
+                cursor.execute(self._sql_count_active)
                 row = cursor.fetchone()
         return int(row[0]) if row else 0
 

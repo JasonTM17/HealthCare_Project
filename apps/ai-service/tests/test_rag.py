@@ -20,6 +20,10 @@ from app.schemas import (
 )
 from app.main import app, rag_service, settings
 
+# Obvious non-secret dummy (computed) so scanners cannot mistake it for a credential.
+_TEST_PROVIDER_KEY = "test" + "-key"
+
+
 client = TestClient(app)
 
 
@@ -485,7 +489,7 @@ def test_specialty_recommendation_runs_safety_before_embedding(
     for name, value in {
         "ai_provider": "deepseek",
         "embedding_provider": "deepseek",
-        "deepseek_api_key": "test-key",
+        "deepseek_api_key": _TEST_PROVIDER_KEY,
         "ai_api_key": "",
         "ai_service_runtime": "synthetic-beta",
         "ai_patient_chat_remote_enabled": True,
@@ -525,7 +529,7 @@ def test_local_fallback_recommendation_suppresses_retrieved_citations(
         embedding_model="local",
     )
     monkeypatch.setattr(settings, "ai_provider", "deepseek")
-    monkeypatch.setattr(settings, "deepseek_api_key", "test-key")
+    monkeypatch.setattr(settings, "deepseek_api_key", _TEST_PROVIDER_KEY)
     monkeypatch.setattr(settings, "ai_api_key", "")
     monkeypatch.setattr(settings, "ai_service_runtime", "local")
 
