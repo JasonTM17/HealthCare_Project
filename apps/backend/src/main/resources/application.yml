@@ -5,6 +5,9 @@ spring:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/healthcare}
     username: ${DATABASE_USERNAME:healthcare}
     password: ${DATABASE_PASSWORD:change-me}
+    hikari:
+      maximum-pool-size: ${SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE:10}
+      minimum-idle: ${SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE:2}
   jpa:
     hibernate:
       ddl-auto: validate
@@ -117,6 +120,15 @@ app:
       webhook-limit: ${APP_SECURITY_RATE_LIMIT_WEBHOOK_LIMIT:120}
       ai-limit: ${APP_SECURITY_RATE_LIMIT_AI_LIMIT:30}
       public-triage-limit: ${APP_SECURITY_RATE_LIMIT_PUBLIC_TRIAGE_LIMIT:20}
+      career-application-limit: ${APP_SECURITY_RATE_LIMIT_CAREER_APPLICATION_LIMIT:10}
+      consultation-limit: ${APP_SECURITY_RATE_LIMIT_CONSULTATION_LIMIT:40}
+      care-plan-limit: ${APP_SECURITY_RATE_LIMIT_CARE_PLAN_LIMIT:60}
+      clinical-limit: ${APP_SECURITY_RATE_LIMIT_CLINICAL_LIMIT:60}
+      upload-limit: ${APP_SECURITY_RATE_LIMIT_UPLOAD_LIMIT:20}
+      community-limit: ${APP_SECURITY_RATE_LIMIT_COMMUNITY_LIMIT:30}
+      doctor-article-limit: ${APP_SECURITY_RATE_LIMIT_DOCTOR_ARTICLE_LIMIT:30}
+      admin-mutation-limit: ${APP_SECURITY_RATE_LIMIT_ADMIN_MUTATION_LIMIT:60}
+      default-post-limit: ${APP_SECURITY_RATE_LIMIT_DEFAULT_POST_LIMIT:60}
     auth-otp:
       enabled: ${APP_AUTH_OTP_ENABLED:true}
       ttl-seconds: ${APP_AUTH_OTP_TTL_SECONDS:600}
@@ -233,6 +245,11 @@ server:
   # Render supplies PORT (10000 by default). Keep BACKEND_PORT as the local
   # override so Compose/standalone development remains on 8080.
   port: ${PORT:${BACKEND_PORT:8080}}
+  tomcat:
+    threads:
+      max: ${SERVER_TOMCAT_THREADS_MAX:200}
+      min-spare: ${SERVER_TOMCAT_THREADS_MIN_SPARE:10}
+    accept-count: ${SERVER_TOMCAT_ACCEPT_COUNT:50}
 
 management:
   endpoints:

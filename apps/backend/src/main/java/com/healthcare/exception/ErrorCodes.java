@@ -48,6 +48,14 @@ public final class ErrorCodes {
     /** HC-01/D-01: deployments that are not the demo reject demo personas at authentication. */
     public static final String DEMO_LOGIN_DISABLED = "DEMO_LOGIN_DISABLED";
 
+    public static final String BAD_REQUEST = "BAD_REQUEST";
+    public static final String SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE";
+    public static final String RESOURCE_EXPIRED = "RESOURCE_EXPIRED";
+    public static final String APPOINTMENT_CONFLICT = "APPOINTMENT_CONFLICT";
+    public static final String APPOINTMENT_NOT_FOUND = "APPOINTMENT_NOT_FOUND";
+    public static final String DOCTOR_UNAVAILABLE = "DOCTOR_UNAVAILABLE";
+    public static final String PAYMENT_FAILED = "PAYMENT_FAILED";
+
     private ErrorCodes() {
     }
 }

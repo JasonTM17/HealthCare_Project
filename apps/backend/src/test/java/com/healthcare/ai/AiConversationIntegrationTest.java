@@ -139,7 +139,7 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"consentAccepted\":true}"))
             .andExpect(status().isCreated())
-            .andExpect(jsonPath("$.title").value("Cuoc tro chuyen moi"))
+            .andExpect(jsonPath("$.title").value("Cuộc trò chuyện mới"))
             .andReturn()
             .getResponse()
             .getContentAsString()
@@ -676,6 +676,32 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
         conversationService.purgeExpired();
 
         assertThat(aiConversationRepository.findAll()).isEmpty();
+    }
+
+    @Test
+    void purgesConversationsOlderThanTwoWeeks() {
+        User patient = createUser("patient.twoweeks@example.com");
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+
+        // 1. Old conversation (15 days ago) - should be purged
+        AiConversation oldConv = createConversation(patient, false, now.plusDays(75));
+        oldConv.setCreatedAt(now.minusDays(16));
+        oldConv.setUpdatedAt(now.minusDays(15));
+        oldConv.setLastMessageAt(now.minusDays(15));
+        aiConversationRepository.save(oldConv);
+
+        // 2. Recent conversation (5 days ago) - should NOT be purged
+        AiConversation recentConv = createConversation(patient, false, now.plusDays(85));
+        recentConv.setCreatedAt(now.minusDays(6));
+        recentConv.setUpdatedAt(now.minusDays(5));
+        recentConv.setLastMessageAt(now.minusDays(5));
+        aiConversationRepository.save(recentConv);
+
+        int deleted = conversationService.purgeConversationsOlderThanTwoWeeks();
+
+        assertThat(deleted).isGreaterThanOrEqualTo(1);
+        assertThat(aiConversationRepository.findById(oldConv.getId())).isEmpty();
+        assertThat(aiConversationRepository.findById(recentConv.getId())).isPresent();
     }
 
     private User createUser(String email) {
