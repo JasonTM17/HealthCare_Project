@@ -171,7 +171,6 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
               <p className="resource-muted">Chưa tìm thấy bác sĩ phù hợp với lựa chọn này.</p>
             )}
           </section>
-
         </div>
         </details>
 
@@ -196,8 +195,9 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
                     <Image
                       src={getDoctorPhoto(doctor)}
                       alt={doctor.fullName}
-                      width={112}
-                      height={112}
+                      width={400}
+                      height={300}
+                      sizes="(max-width: 768px) 100vw, 360px"
                       className="resource-avatar__img"
                     />
                   </div>

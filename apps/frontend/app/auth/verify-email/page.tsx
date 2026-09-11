@@ -31,10 +31,24 @@ function VerifyEmailForm() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setSubmitting(true);
     setErrorMessage(null);
     setMessage(null);
     setFieldErrors({});
+
+    const clientErrors: AuthFieldErrors = {};
+    if (!email.trim()) {
+      clientErrors.email = "Vui lòng nhập email đăng ký.";
+    }
+    if (!code.trim()) {
+      clientErrors.code = "Vui lòng nhập mã xác minh (OTP).";
+    }
+    if (Object.keys(clientErrors).length > 0) {
+      setFieldErrors(clientErrors);
+      setErrorMessage("Vui lòng nhập đầy đủ email và mã xác minh.");
+      return;
+    }
+
+    setSubmitting(true);
     try {
       const session = await verifyEmail({ email: email.trim(), code: code.trim() });
       if (hasRole(session.user, "PATIENT")) {
@@ -86,17 +100,17 @@ function VerifyEmailForm() {
             </div>
           </section>
         ) : (
-          <form className="auth-form" onSubmit={handleSubmit}>
+          <form className="auth-form" noValidate onSubmit={handleSubmit}>
             {errorMessage ? <p aria-live="assertive" className="auth-form__error" role="alert">{errorMessage}</p> : null}
             {message ? <p aria-live="polite" className="auth-form__success" role="status">{message}</p> : null}
             <div className="auth-form__field">
               <label htmlFor="verify-email">Email</label>
-              <input aria-describedby={fieldErrors.email ? "verify-email-error" : undefined} aria-invalid={Boolean(fieldErrors.email)} autoComplete="email" id="verify-email" name="email" onChange={(event) => setEmail(event.target.value)} required type="email" value={email} />
+              <input aria-describedby={fieldErrors.email ? "verify-email-error" : undefined} aria-invalid={Boolean(fieldErrors.email)} autoComplete="email" id="verify-email" name="email" onChange={(event) => setEmail(event.target.value)} placeholder="ten@healthcare.com" required type="email" value={email} />
               {fieldErrors.email ? <small className="auth-form__field-error" id="verify-email-error">{fieldErrors.email}</small> : null}
             </div>
             <div className="auth-form__field">
               <label htmlFor="verify-code">Mã xác minh</label>
-              <input aria-describedby={fieldErrors.code ? "verify-code-error" : "verify-code-help"} aria-invalid={Boolean(fieldErrors.code)} autoComplete="one-time-code" id="verify-code" inputMode="numeric" maxLength={8} minLength={4} name="code" onChange={(event) => setCode(event.target.value)} pattern="[0-9A-Za-z-]+" required value={code} />
+              <input aria-describedby={fieldErrors.code ? "verify-code-error" : "verify-code-help"} aria-invalid={Boolean(fieldErrors.code)} autoComplete="one-time-code" id="verify-code" inputMode="numeric" maxLength={8} minLength={4} name="code" onChange={(event) => setCode(event.target.value)} pattern="[0-9A-Za-z-]+" placeholder="••••••" required type="password" value={code} />
               {fieldErrors.code ? <small className="auth-form__field-error" id="verify-code-error">{fieldErrors.code}</small> : <small id="verify-code-help">Mã gồm 6 chữ số đã được gửi qua hòm thư email của bạn (kiểm tra cả mục Hộp thư đến và Spam).</small>}
             </div>
             <button className="button button--primary auth-form__submit" disabled={submitting} type="submit">
