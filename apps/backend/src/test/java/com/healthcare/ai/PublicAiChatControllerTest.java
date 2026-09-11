@@ -81,7 +81,7 @@ class PublicAiChatControllerTest {
         verify(aiService).chat(Map.of(
             "message", "Chuyên khoa nào?",
             "public_support_chat", true,
-            "recent_turns", List.of(new PublicAiChatController.PublicChatTurn("user", "Xin chào"))
+            "recent_turns", List.of(Map.of("role", "user", "content", "Xin chào"))
         ));
     }
 
@@ -268,5 +268,42 @@ class PublicAiChatControllerTest {
             .chat(new PublicAiChatController.PublicChatRequest("Xin chào", null)))
             .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
             .hasMessageContaining("502 BAD_GATEWAY");
+    }
+
+    @Test
+    void supportsMultiTurnConversationWithMultipleTurns() {
+        AiService aiService = mock(AiService.class);
+        when(aiService.chat(any())).thenReturn(Map.of(
+            "answer", "Khoa Tim mạch làm việc từ 7h đến 17h.",
+            "disclaimer", "Chỉ mang tính tham khảo.",
+            "provenance", "local_provider",
+            "safety_action", "ANSWER",
+            "mode", "HOSPITAL_SUPPORT",
+            "citations", List.of()
+        ));
+
+        PublicAiChatController.PublicChatRequest request = new PublicAiChatController.PublicChatRequest(
+            "Giờ làm việc khoa Tim mạch?",
+            List.of(
+                new PublicAiChatController.PublicChatTurn("user", "Xin chào"),
+                new PublicAiChatController.PublicChatTurn("assistant", "Chào bạn, tôi có thể giúp gì?"),
+                new PublicAiChatController.PublicChatTurn("user", "Bệnh viện có khoa tim mạch không?")
+            )
+        );
+
+        Map<String, Object> response = new PublicAiChatController(aiService, resolverForSpecialty())
+            .chat(request)
+            .getBody();
+
+        assertThat(response).containsEntry("answer", "Khoa Tim mạch làm việc từ 7h đến 17h.");
+        verify(aiService).chat(Map.of(
+            "message", "Giờ làm việc khoa Tim mạch?",
+            "public_support_chat", true,
+            "recent_turns", List.of(
+                Map.of("role", "user", "content", "Xin chào"),
+                Map.of("role", "assistant", "content", "Chào bạn, tôi có thể giúp gì?"),
+                Map.of("role", "user", "content", "Bệnh viện có khoa tim mạch không?")
+            )
+        ));
     }
 }

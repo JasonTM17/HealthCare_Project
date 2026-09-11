@@ -38,12 +38,16 @@ public class PatientAiCreditController {
         String tier = aiCreditService.getPatientTier(user.getId());
         List<AiCreditTransaction> history = aiCreditService.listTransactions(user.getId());
 
-        int maxCredits = switch (tier.toUpperCase()) {
-            case "SILVER" -> 50;
-            case "GOLD" -> 100;
+        int tierMax = switch (tier.toUpperCase()) {
             case "VIP" -> 300;
-            default -> 20;
+            case "GOLD" -> 200;
+            case "SILVER" -> 150;
+            default -> 100;
         };
+        int historyMax = (history != null && !history.isEmpty())
+                ? history.stream().mapToInt(AiCreditTransaction::getBalanceAfter).max().orElse(0)
+                : 0;
+        int maxCredits = Math.max(tierMax, Math.max(historyMax, credits));
 
         return ResponseEntity.ok(Map.of(
                 "tier", tier,

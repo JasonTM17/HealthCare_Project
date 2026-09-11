@@ -75,6 +75,20 @@ class DemoMutationBoundaryFilterTest {
     }
 
     @Test
+    @DisplayName("Demo principal is blocked from rotating the shared demo account password")
+    void blocksDemoChangePassword() throws Exception {
+        DemoMutationBoundaryFilter filter = filter(enforce());
+        AtomicInteger downstream = new AtomicInteger();
+
+        MockHttpServletResponse changePassword = invoke(filter, "POST", "/api/v1/auth/change-password",
+            demoPrincipal(), downstream);
+
+        assertThat(changePassword.getStatus()).isEqualTo(403);
+        assertThat(changePassword.getContentAsString()).contains("DEMO_MUTATION_FORBIDDEN");
+        assertThat(downstream).hasValue(0);
+    }
+
+    @Test
     @DisplayName("Demo principal can still read the blocked admin surface (GET passes)")
     void allowsDemoReadsOfBlockedSurface() throws Exception {
         DemoMutationBoundaryFilter filter = filter(enforce());

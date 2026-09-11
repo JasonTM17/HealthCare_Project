@@ -147,6 +147,9 @@ public class AiService {
      * The AI service enforces these bounds at its schema edge; enforcing them
      * here too turns an oversized/ill-typed relay payload into a 400 at the
      * Spring boundary instead of an opaque 502 after the cross-service hop.
+     * Only map-shaped turns are accepted: every current caller (public chat
+     * controller, conversation service) relays maps, and bean validation on
+     * the public request already rejects null/blank fields before this point.
      */
     private static List<Map<String, String>> normalizeRecentTurns(Object rawTurns) {
         if (rawTurns == null) {
@@ -157,10 +160,13 @@ public class AiService {
         }
         List<Map<String, String>> normalized = new java.util.ArrayList<>();
         for (Object rawTurn : turns) {
-            if (!(rawTurn instanceof Map<?, ?> turn)
-                    || !(turn.get("role") instanceof String role)
-                    || !(role.equals("user") || role.equals("assistant"))
-                    || !(turn.get("content") instanceof String content)) {
+            if (!(rawTurn instanceof Map<?, ?> turn)) {
+                throw new ResponseStatusException(BAD_REQUEST,
+                    "recent_turns entries must be {role: user|assistant, content: string}");
+            }
+            String role = turn.get("role") instanceof String r ? r : null;
+            String content = turn.get("content") instanceof String c ? c : null;
+            if (role == null || (!role.equals("user") && !role.equals("assistant")) || content == null) {
                 throw new ResponseStatusException(BAD_REQUEST,
                     "recent_turns entries must be {role: user|assistant, content: string}");
             }

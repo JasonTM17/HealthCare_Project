@@ -32,7 +32,9 @@ public record ApiError(
             case 403 -> ErrorCodes.ACCESS_DENIED;
             case 404 -> ErrorCodes.RESOURCE_NOT_FOUND;
             case 409 -> ErrorCodes.CONFLICT;
+            case 410 -> ErrorCodes.RESOURCE_EXPIRED;
             case 429 -> ErrorCodes.RATE_LIMIT_EXCEEDED;
+            case 503 -> ErrorCodes.SERVICE_UNAVAILABLE;
             default -> status >= 500 ? ErrorCodes.INTERNAL_ERROR : ErrorCodes.REQUEST_FAILED;
         };
     }

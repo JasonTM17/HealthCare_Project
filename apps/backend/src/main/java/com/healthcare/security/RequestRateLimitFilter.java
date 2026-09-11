@@ -47,6 +47,14 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
     private final int aiLimit;
     private final int publicTriageLimit;
     private final int careerApplicationLimit;
+    private final int consultationLimit;
+    private final int carePlanLimit;
+    private final int clinicalLimit;
+    private final int uploadLimit;
+    private final int communityLimit;
+    private final int doctorArticleLimit;
+    private final int adminMutationLimit;
+    private final int defaultPostLimit;
     private final Map<String, WindowCounter> counters = new ConcurrentHashMap<>();
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -89,6 +97,30 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
         );
         this.careerApplicationLimit = environment.getProperty(
             "app.security.rate-limit.career-application-limit", Integer.class, 10
+        );
+        this.consultationLimit = environment.getProperty(
+            "app.security.rate-limit.consultation-limit", Integer.class, 40
+        );
+        this.carePlanLimit = environment.getProperty(
+            "app.security.rate-limit.care-plan-limit", Integer.class, 60
+        );
+        this.clinicalLimit = environment.getProperty(
+            "app.security.rate-limit.clinical-limit", Integer.class, 60
+        );
+        this.uploadLimit = environment.getProperty(
+            "app.security.rate-limit.upload-limit", Integer.class, 20
+        );
+        this.communityLimit = environment.getProperty(
+            "app.security.rate-limit.community-limit", Integer.class, 30
+        );
+        this.doctorArticleLimit = environment.getProperty(
+            "app.security.rate-limit.doctor-article-limit", Integer.class, 30
+        );
+        this.adminMutationLimit = environment.getProperty(
+            "app.security.rate-limit.admin-mutation-limit", Integer.class, 60
+        );
+        this.defaultPostLimit = environment.getProperty(
+            "app.security.rate-limit.default-post-limit", Integer.class, 60
         );
     }
 
@@ -168,8 +200,10 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
     }
 
     private LimitRule ruleFor(HttpServletRequest request) {
-        String path = request.getRequestURI();
         String method = request.getMethod();
+        String path = request.getRequestURI();
+
+        // 1. Authentication and identity endpoints
         if ("POST".equals(method) && (path.equals("/api/v1/auth/login")
                 || path.equals("/api/v1/auth/browser-sessions")
                 || path.equals("/api/v1/auth/register") || path.equals("/api/v1/auth/refresh")
@@ -185,28 +219,90 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
                 || path.equals("/api/v1/auth/password-reset/request")
                 || path.equals("/api/v1/auth/password-reset/confirm")
                 || path.equals("/api/v1/auth/reset-password/request")
-                || path.equals("/api/v1/auth/reset-password/confirm"))) {
+                || path.equals("/api/v1/auth/reset-password/confirm")
+                || path.equals("/api/v1/auth/change-password")
+                || path.equals("/api/v1/auth/logout"))) {
             return new LimitRule("auth", authLimit);
         }
+
+        // 2. Appointment booking and lifecycle management
         if ("POST".equals(method) && path.startsWith("/api/v1/appointments/")) {
             return new LimitRule("appointments", appointmentLimit);
         }
+
+        // 3. Payment gateway webhooks
         if ("POST".equals(method) && path.equals("/api/v1/payments/webhooks/bank-transfer")) {
             return new LimitRule("payment-webhook", webhookLimit);
         }
+
+        // 4. Payment submissions and administrative refunds
         if (("POST".equals(method) && path.matches("^/api/v1/patient/appointments/[^/]+/payment/submit$"))
                 || ("PATCH".equals(method) && path.matches("^/api/v1/admin/payments/[^/]+(?:/refund)?$"))) {
             return new LimitRule("payments", paymentLimit);
         }
+
+        // 5. Job applications
         if ("POST".equals(method) && path.matches("^/api/v1/careers/jobs/[^/]+/applications$")) {
             return new LimitRule("career-applications", careerApplicationLimit);
         }
+
+        // 6. Public triage recommendation
         if ("POST".equals(method) && path.equals("/api/v1/public/specialty-recommendation")) {
             return new LimitRule("public-triage", publicTriageLimit);
         }
+
+        // 7. AI chat, conversation streaming and intelligence services
         if (path.startsWith("/api/v1/ai/") || path.equals("/api/v1/public/ai/chat")) {
             return new LimitRule("ai", aiLimit);
         }
+
+        // 8. Consultations (patient, doctor, admin)
+        if ("POST".equals(method) && (path.startsWith("/api/v1/patient/consultations")
+                || path.startsWith("/api/v1/doctor/consultations")
+                || path.startsWith("/api/v1/admin/consultations"))) {
+            return new LimitRule("consultations", consultationLimit);
+        }
+
+        // 9. Care plans (doctor creation/management, patient item completion)
+        if ("POST".equals(method) && (path.startsWith("/api/v1/doctor/care-plans")
+                || path.startsWith("/api/v1/patient/care-plans"))) {
+            return new LimitRule("care-plans", carePlanLimit);
+        }
+
+        // 10. Clinical records and diagnostic results
+        if ("POST".equals(method) && (path.startsWith("/api/v1/clinical/")
+                || path.matches("^/api/v1/doctor/patients/[^/]+/diagnostic-results.*"))) {
+            return new LimitRule("clinical", clinicalLimit);
+        }
+
+        // 11. Media, file and document uploads
+        if ("POST".equals(method) && (path.equals("/api/v1/media/upload")
+                || path.equals("/api/v1/files/upload")
+                || path.startsWith("/api/v1/documents"))) {
+            return new LimitRule("uploads", uploadLimit);
+        }
+
+        // 12. Doctor article publication
+        if ("POST".equals(method) && path.equals("/api/v1/doctor/articles")) {
+            return new LimitRule("doctor-articles", doctorArticleLimit);
+        }
+
+        // 13. Health questions, Q&A reports, and article comments
+        if ("POST".equals(method) && (path.startsWith("/api/v1/patient/health-questions")
+                || path.matches("^/api/v1/articles/[^/]+/comments.*"))) {
+            return new LimitRule("community", communityLimit);
+        }
+
+        // 14. Admin backoffice mutations
+        if ("POST".equals(method) && path.startsWith("/api/v1/admin/")) {
+            return new LimitRule("admin-mutations", adminMutationLimit);
+        }
+
+        // 15. Catch-all for ANY other POST endpoint (ensures 100% of POST APIs are rate-limited)
+        if ("POST".equals(method)) {
+            return new LimitRule("default-post", defaultPostLimit);
+        }
+
         return null;
     }
 
