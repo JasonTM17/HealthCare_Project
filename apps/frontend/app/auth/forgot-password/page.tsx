@@ -15,10 +15,17 @@ export default function ForgotPasswordPage() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setSubmitting(true);
     setSubmitted(false);
     setErrorMessage(null);
     setFieldErrors({});
+
+    if (!email.trim()) {
+      setFieldErrors({ email: "Vui lòng nhập địa chỉ email đã đăng ký." });
+      setErrorMessage("Vui lòng cung cấp email của bạn.");
+      return;
+    }
+
+    setSubmitting(true);
     try {
       await requestPasswordReset({ email: email.trim() });
       setSubmitted(true);
@@ -52,11 +59,11 @@ export default function ForgotPasswordPage() {
             </div>
           </section>
         ) : (
-          <form className="auth-form" onSubmit={handleSubmit}>
+          <form className="auth-form" noValidate onSubmit={handleSubmit}>
             {errorMessage ? <p aria-live="assertive" className="auth-form__error" role="alert">{errorMessage}</p> : null}
             <div className="auth-form__field">
               <label htmlFor="forgot-email">Email</label>
-              <input aria-describedby={fieldErrors.email ? "forgot-email-error" : "forgot-email-help"} aria-invalid={Boolean(fieldErrors.email)} autoComplete="email" id="forgot-email" name="email" onChange={(event) => setEmail(event.target.value)} required type="email" value={email} />
+              <input aria-describedby={fieldErrors.email ? "forgot-email-error" : "forgot-email-help"} aria-invalid={Boolean(fieldErrors.email)} autoComplete="email" id="forgot-email" name="email" onChange={(event) => setEmail(event.target.value)} placeholder="ten@healthcare.com" required type="email" value={email} />
               {fieldErrors.email ? <small className="auth-form__field-error" id="forgot-email-error">{fieldErrors.email}</small> : <small id="forgot-email-help">Chúng tôi không tiết lộ email có tài khoản hay không.</small>}
             </div>
             <button className="button button--primary auth-form__submit" disabled={submitting} type="submit">

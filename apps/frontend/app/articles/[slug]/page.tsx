@@ -11,6 +11,10 @@ import type { Article } from "../../../types/hospital";
 import { PublicAiButton, PublicBackLink, PublicBookingButton, PublicPageShell } from "../../../components/PublicPageShell";
 import { RichContentRenderer } from "../../../components/editor";
 import { resolveArticleCoverImage, resolveArticleAlt } from "../../../lib/article-visuals";
+import { ReadingProgressBar } from "../../../components/articles/ReadingProgressBar";
+import { ReadingToolbar } from "../../../components/articles/ReadingToolbar";
+import { ToastContainer, useToastManager } from "../../../components/ui/ToastNotification";
+import { ArticleComments } from "../../../components/articles/ArticleComments";
 
 const ARTICLE_STEPS = [
   ["01", "Đọc phần tóm tắt", "Xác nhận bài viết có đúng chủ đề bạn đang tìm không."],
@@ -48,6 +52,8 @@ export default function ArticleDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [fontSize, setFontSize] = useState<"sm" | "base" | "lg">("base");
+  const { toasts, addToast, removeToast } = useToastManager();
   const loadedSlugRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -77,7 +83,16 @@ export default function ArticleDetailPage() {
 
   const structuredSections = article?.sections?.filter((section) => section.heading.trim() || section.body.trim()) ?? [];
   const bodyParagraphs = article?.body?.split(/\n\s*\n/).map((paragraph) => paragraph.trim()).filter(Boolean) ?? [];
-  const readingMinutesLabel = article?.readingMinutes ? `${article.readingMinutes} phút đọc` : "Thời lượng chưa cập nhật";
+
+  // Dynamic reading time estimate
+  const wordCount = (article?.body?.split(/\s+/).length || 0) + (article?.summary?.split(/\s+/).length || 0);
+  const dynamicMinutes = Math.max(1, Math.ceil(wordCount / 180));
+  const readingMinutesLabel = article?.readingMinutes
+    ? `${article.readingMinutes} phút đọc`
+    : wordCount > 30
+    ? `${dynamicMinutes} phút đọc`
+    : "Thời lượng chưa cập nhật";
+
   const takeaways = stringList(article?.keyTakeaways);
   const warningSigns = stringList(article?.warningSigns);
   const preventionTips = stringList(article?.preventionTips);
@@ -85,13 +100,31 @@ export default function ArticleDetailPage() {
 
   return (
     <PublicPageShell>
+      <ReadingProgressBar />
+      <ToastContainer toasts={toasts} onClose={removeToast} />
       <div aria-busy={loading} className="resource-page section-inner">
-        <PublicBackLink href="/articles">← Quay lại cẩm nang sức khỏe</PublicBackLink>
-        <header className="resource-page__header">
-          <p className="section-note">Cẩm nang sức khỏe</p>
-          <h1>Kiến thức y khoa trong nhịp sống hằng ngày</h1>
-          <p>Thông tin tham khảo giúp bạn chủ động chuẩn bị câu hỏi và chăm sóc sức khỏe tốt hơn.</p>
-        </header>
+        {!article ? (
+          <>
+            <PublicBackLink href="/articles">← Quay lại cẩm nang sức khỏe</PublicBackLink>
+            <header className="resource-page__header">
+              <p className="section-note">Cẩm nang sức khỏe</p>
+              <h1>Kiến thức y khoa trong nhịp sống hằng ngày</h1>
+              <p>Thông tin tham khảo giúp bạn chủ động chuẩn bị câu hỏi và chăm sóc sức khỏe tốt hơn.</p>
+            </header>
+          </>
+        ) : (
+          <div className="article-editorial-nav-bar flex items-center justify-between flex-wrap gap-3 mb-5">
+            <PublicBackLink href="/articles">← Quay lại cẩm nang sức khỏe</PublicBackLink>
+            <ReadingToolbar
+              slug={article.slug}
+              title={article.title}
+              fontSize={fontSize}
+              onFontSizeChange={setFontSize}
+              onToastMessage={(msg) => addToast({ tone: "info", title: "Cẩm nang sức khỏe", message: msg })}
+            />
+          </div>
+        )}
+
         {loading ? <p className="catalog-status catalog-status--loading" role="status">{article ? "Đang cập nhật bài viết…" : "Đang tải bài viết…"}</p> : null}
         {error ? (
           <div aria-live="assertive" className="catalog-status catalog-status--error" role="alert">
@@ -142,16 +175,16 @@ export default function ArticleDetailPage() {
                     </div>
                   </div>
 
-                  <dl className="resource-meta-grid article-editorial-header__meta">
-                    <div>
+                  <dl className="resource-meta-grid article-editorial-header__meta" style={{ border: 'none', background: 'transparent', boxShadow: 'none' }}>
+                    <div style={{ border: 'none', background: 'transparent', boxShadow: 'none', padding: 0 }}>
                       <dt>Xuất bản</dt>
                       <dd>{formatBusinessDate(article.publishedAt)}</dd>
                     </div>
-                    <div>
+                    <div style={{ border: 'none', background: 'transparent', boxShadow: 'none', padding: 0 }}>
                       <dt>Cập nhật phác đồ</dt>
                       <dd>{article.updatedAt ? formatBusinessDate(article.updatedAt) : "Năm 2026"}</dd>
                     </div>
-                    <div>
+                    <div style={{ border: 'none', background: 'transparent', boxShadow: 'none', padding: 0 }}>
                       <dt>Thời lượng đọc</dt>
                       <dd>{readingMinutesLabel}</dd>
                     </div>
@@ -169,19 +202,23 @@ export default function ArticleDetailPage() {
                     className="article-editorial-header__img"
                     src={resolveArticleCoverImage(article)}
                   />
-                  <p className="article-editorial-header__img-caption">
-                    Ảnh minh họa: Quy trình khám, chẩn đoán và điều trị theo phác đồ chuẩn Bộ Y tế &amp; WHO tại Hệ thống Bệnh viện.
-                  </p>
                 </div>
               </article>
 
-              {structuredSections.length ? (
+              {structuredSections.length || article?.body ? (
                 <nav aria-label="Mục lục bài viết" className="article-toc">
                   <div className="article-toc__heading">
                     <span className="article-toc__icon">📑</span>
                     <strong>Mục lục bài viết</strong>
                   </div>
                   <ol className="article-toc__list">
+                    {article?.body ? (
+                      <li>
+                        <a href="#section-overview" className="article-toc__link">
+                          Tổng quan lâm sàng &amp; Nội dung chính
+                        </a>
+                      </li>
+                    ) : null}
                     {structuredSections.map((sec, idx) => (
                       <li key={`toc-${idx}`}>
                         <a href={`#section-${idx + 1}`} className="article-toc__link">
@@ -207,7 +244,72 @@ export default function ArticleDetailPage() {
                 </nav>
               ) : null}
 
-              <div className="article-detail-card__body article-news-content">
+              <div
+                className="article-detail-card__body article-news-content"
+                style={{
+                  fontSize: fontSize === "sm" ? "0.9375rem" : fontSize === "lg" ? "1.1875rem" : "1.0625rem",
+                  lineHeight: 1.8,
+                }}
+              >
+                {/* Emergency Warning Signs - Prioritized for Mobile Reading Safety */}
+                {warningSigns.length ? (
+                  <div className="article-news-alert-box article-news-alert-box--danger" role="alert">
+                    <div className="article-news-alert-box__header">
+                      <span className="article-news-alert-box__icon">🚨</span>
+                      <strong>DẤU HIỆU CẦN ĐI CẤP CỨU NGAY (QUY TẮC GIỜ VÀNG)</strong>
+                    </div>
+                    <p className="article-news-alert-box__sub">
+                      Nếu xuất hiện bất kỳ triệu chứng nào sau đây, hãy ngừng gắng sức và liên hệ cơ sở y tế gần nhất:
+                    </p>
+                    <ul className="article-news-alert-box__list">
+                      {warningSigns.map((sign) => (
+                        <li key={sign}>
+                          <span className="article-news-alert-box__bullet">⚠</span>
+                          <span>{sign}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="article-news-alert-box__actions">
+                      <a className="outline-button outline-button--small outline-button--danger" href="tel:115">
+                        📞 Gọi cấp cứu 115 ngay
+                      </a>
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* Key Takeaways Box (At a Glance) */}
+                {takeaways.length ? (
+                  <div className="article-news-summary-box">
+                    <div className="article-news-summary-box__title">
+                      <span>💡</span>
+                      <strong>Điểm cốt lõi cần nhớ (Key Takeaways)</strong>
+                    </div>
+                    <ul className="article-news-summary-box__list">
+                      {takeaways.map((point) => (
+                        <li key={point}>
+                          <span className="article-news-summary-box__dot">•</span>
+                          <span>{point}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+                {/* Primary Long-form Clinical Body */}
+                {article?.body ? (
+                  <section id="section-overview" className="article-news-section article-news-overview">
+                    <div className="article-detail-card__body">
+                      <RichContentRenderer
+                        content={article.body}
+                        fallback={bodyParagraphs.map((paragraph, index) => (
+                          <p key={`${paragraph.slice(0, 24)}-${index}`}>{paragraph}</p>
+                        ))}
+                      />
+                    </div>
+                  </section>
+                ) : null}
+
+                {/* Structured In-Depth Sections */}
                 {structuredSections.length ? (
                   <div className="article-detail-card__sections">
                     {structuredSections.map((section, index) => (
@@ -220,21 +322,14 @@ export default function ArticleDetailPage() {
                       </section>
                     ))}
                   </div>
-                ) : article?.body ? (
-                  <div className="article-detail-card__body">
-                    <RichContentRenderer
-                      content={article.body}
-                      fallback={bodyParagraphs.map((paragraph, index) => (
-                        <p key={`${paragraph.slice(0, 24)}-${index}`}>{paragraph}</p>
-                      ))}
-                    />
-                  </div>
-                ) : (
+                ) : null}
+
+                {!article?.body && !structuredSections.length ? (
                   <div className="article-detail-card__notice">
                     <strong>Nội dung chi tiết đang chờ biên tập</strong>
                     <p>Bạn vẫn có thể đọc phần tóm tắt, mở chuyên khoa liên quan hoặc đặt lịch nếu cần bác sĩ đánh giá trực tiếp.</p>
                   </div>
-                )}
+                ) : null}
 
                 {preventionTips.length ? (
                   <section id="section-prevention" className="article-news-section article-news-prevention">
@@ -251,6 +346,37 @@ export default function ArticleDetailPage() {
                     </div>
                   </section>
                 ) : null}
+
+                {/* E-E-A-T Medical Reviewer Card (Mayo Clinic Style) */}
+                <div className="article-news-eatt-card">
+                  <div className="article-news-eatt-card__badge">QUY TRÌNH KIỂM DUYỆT Y KHOA HEALTHCARE</div>
+                  <div className="article-news-eatt-card__content">
+                    <div className="article-news-eatt-card__doctor">
+                      <div className="article-news-eatt-card__avatar">
+                        <span>BS</span>
+                      </div>
+                      <div>
+                        <h4 className="article-news-eatt-card__name">{article.authorName || "Hội đồng Cố vấn Y khoa Chuyên sâu"}</h4>
+                        <p className="article-news-eatt-card__title">
+                          {article.category ? `Bác sĩ Chuyên khoa ${article.category}` : "Bác sĩ Chuyên khoa Nội tổng quát"} · Hệ thống Y tế HealthCare
+                        </p>
+                      </div>
+                    </div>
+                    <p className="article-news-eatt-card__desc">
+                      Nội dung được thẩm định lâm sàng độc lập theo phác đồ hiện hành của Bộ Y tế và khuyến cáo chuyên môn quốc tế (WHO, AHA, ESC). Thông tin được rà soát định kỳ nhằm phản ánh những tiến bộ điều trị mới nhất.
+                    </p>
+                    {article.relatedSpecialtySlug ? (
+                      <div className="article-news-eatt-card__actions">
+                        <Link
+                          className="outline-button outline-button--small"
+                          href={`/specialties/${encodeURIComponent(article.relatedSpecialtySlug)}`}
+                        >
+                          Tìm hiểu chuyên khoa {article.category || ""} →
+                        </Link>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
 
                 {sources.length ? (
                   <section id="section-sources" className="article-news-section article-news-sources">
@@ -269,6 +395,8 @@ export default function ArticleDetailPage() {
                 <div className="article-news-disclaimer" role="note">
                   <p>{article.clinicalDisclaimer ?? "Thông tin trong bài viết chỉ mang tính chất giáo dục y tế và tham khảo, không thay thế cho chẩn đoán hay phác đồ điều trị chuyên khoa của bác sĩ."}</p>
                 </div>
+
+                <ArticleComments slug={article.slug} />
               </div>
             </main>
 

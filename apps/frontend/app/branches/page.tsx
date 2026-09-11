@@ -80,7 +80,7 @@ export default function BranchesPage() {
     <PublicPageShell branches={page?.content ?? []}>
       <div className={`catalog-page section-inner ${styles.branchesPage}`}>
         <header className="resource-page__header">
-          <p className="section-note">Mạng lưới cơ sở</p>
+          <p className="section-note">Hệ thống cơ sở y tế</p>
           <h1>Chọn cơ sở thuận tiện cho bạn</h1>
           <p>
             Xem địa chỉ, vị trí Google Maps, giờ làm việc và số điện thoại trước khi đến khám — tất
@@ -126,7 +126,7 @@ export default function BranchesPage() {
 
         {loading ? (
           <p className="catalog-status catalog-status--loading" role="status">
-            Đang tải mạng lưới cơ sở…
+            Đang tải danh sách cơ sở y tế…
           </p>
         ) : null}
         {error ? (
