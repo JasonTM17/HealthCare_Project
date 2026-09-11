@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import {
   adminCreateArticle,
   adminCreateFaq,
@@ -12,6 +12,8 @@ import {
   adminListArticles,
   adminListFaqs,
   adminListPackages,
+  adminReorderFaqs,
+  adminReorderPackages,
   adminUpdateArticle,
   adminUpdateFaq,
   adminUpdatePackage,
@@ -436,6 +438,71 @@ export default function AdminCatalogPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const reorderInFlightRef = useRef(false);
+  // Monotonic generation for load(): any load finishing after a newer load
+  // or a reorder has started must never write its stale response into state
+  // (an old GET resolving after a saved order would revert the list).
+  const loadGenerationRef = useRef(0);
+
+  const orderPayload = <T extends { id: string; version?: number }>(items: T[]) => items.map((item) => {
+    if (typeof item.version !== "number") throw new Error("CATALOG_ORDER_VERSION_MISSING");
+    return { id: item.id, version: item.version };
+  });
+
+  const persistFaqOrder = async (newFaqs: Faq[], oldIdx: number, newIdx: number) => {
+    if (reorderInFlightRef.current) return;
+    reorderInFlightRef.current = true;
+    loadGenerationRef.current += 1;
+    const previous = faqs;
+    setFaqs(newFaqs);
+    setBusy(true);
+    try {
+      const saved = await adminReorderFaqs(orderPayload(newFaqs));
+      setFaqs(saved);
+      addToast({ tone: "success", title: "Đã lưu thứ tự FAQ", message: `Câu hỏi ${oldIdx + 1} đã chuyển sang vị trí ${newIdx + 1}.` });
+      broadcastCatalogChange({ kind: "faq", action: "updated" });
+    } catch (error) {
+      setFaqs(previous);
+      const description = describeAdminError(error).description;
+      setFeedback({ tone: "error", title: "Không thể lưu thứ tự FAQ", description });
+      addToast({ tone: "error", title: "Đã hoàn tác thứ tự FAQ", message: `${description} Danh sách đã trở về thứ tự trước đó.` });
+    } finally {
+      reorderInFlightRef.current = false;
+      setBusy(false);
+    }
+  };
+
+  const persistPackageOrder = async (newPackages: HealthPackage[], oldIdx: number, newIdx: number) => {
+    if (reorderInFlightRef.current) return;
+    reorderInFlightRef.current = true;
+    loadGenerationRef.current += 1;
+    const previous = packages;
+    setPackages(newPackages);
+    setBusy(true);
+    try {
+      const saved = await adminReorderPackages(orderPayload(newPackages));
+      setPackages(saved);
+      addToast({ tone: "success", title: "Đã lưu thứ tự gói khám", message: `Gói khám ${oldIdx + 1} đã chuyển sang vị trí ${newIdx + 1}.` });
+      broadcastCatalogChange({ kind: "package", action: "updated" });
+    } catch (error) {
+      setPackages(previous);
+      const description = describeAdminError(error).description;
+      setFeedback({ tone: "error", title: "Không thể lưu thứ tự gói khám", description });
+      addToast({ tone: "error", title: "Đã hoàn tác thứ tự gói khám", message: `${description} Danh sách đã trở về thứ tự trước đó.` });
+    } finally {
+      reorderInFlightRef.current = false;
+      setBusy(false);
+    }
+  };
+
+  const moveItem = <T,>(items: T[], index: number, offset: -1 | 1): T[] => {
+    const nextIndex = index + offset;
+    if (nextIndex < 0 || nextIndex >= items.length) return items;
+    const next = [...items];
+    const [moved] = next.splice(index, 1);
+    next.splice(nextIndex, 0, moved);
+    return next;
+  };
 
   const { containerRef: sectionsContainerRef } = useSortableList<ArticleSectionForm>({
     items: articleForm.sections,
@@ -457,14 +524,7 @@ export default function AdminCatalogPage() {
     handle: ".faq-drag-handle",
     animation: 180,
     disabled: busy,
-    onReorder: (newFaqs, oldIdx, newIdx) => {
-      setFaqs(newFaqs);
-      addToast({
-        tone: "info",
-        title: "Đã sắp xếp lại FAQ",
-        message: `Đã đổi thứ tự câu hỏi ${oldIdx + 1} sang ${newIdx + 1}.`,
-      });
-    },
+    onReorder: (newFaqs, oldIdx, newIdx) => { void persistFaqOrder(newFaqs, oldIdx, newIdx); },
   });
 
   const { containerRef: packagesContainerRef } = useSortableList<HealthPackage>({
@@ -472,14 +532,7 @@ export default function AdminCatalogPage() {
     handle: ".package-drag-handle",
     animation: 180,
     disabled: busy,
-    onReorder: (newPackages, oldIdx, newIdx) => {
-      setPackages(newPackages);
-      addToast({
-        tone: "info",
-        title: "Đã sắp xếp Gói khám",
-        message: `Đã đổi thứ tự gói khám ${oldIdx + 1} sang ${newIdx + 1}.`,
-      });
-    },
+    onReorder: (newPackages, oldIdx, newIdx) => { void persistPackageOrder(newPackages, oldIdx, newIdx); },
   });
 
   type PendingRemoval = {
@@ -492,6 +545,7 @@ export default function AdminCatalogPage() {
   const [pendingRemoval, setPendingRemoval] = useState<PendingRemoval | null>(null);
 
   const load = useCallback(async () => {
+    const generation = ++loadGenerationRef.current;
     setLoading(true);
     setLoadError(null);
     try {
@@ -500,15 +554,19 @@ export default function AdminCatalogPage() {
         fetchAllContent(adminListFaqs, ADMIN_PAGE_SIZE),
         fetchAllContent(adminListArticles, ADMIN_PAGE_SIZE),
       ]);
+      if (generation !== loadGenerationRef.current) return false;
       setPackages(packagePage);
       setFaqs(faqPage);
       setArticles(articlePage);
       return true;
     } catch (error) {
+      if (generation !== loadGenerationRef.current) return false;
       setLoadError(describeAdminError(error).description);
       return false;
     } finally {
-      setLoading(false);
+      if (generation === loadGenerationRef.current) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -931,7 +989,7 @@ export default function AdminCatalogPage() {
                     <div className="flex items-center gap-2">
                       <button
                         aria-label={`Kéo thả đổi thứ tự ${item.name}`}
-                        className="package-drag-handle cursor-grab active:cursor-grabbing rounded-[4px] p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                        className="package-drag-handle flex min-h-11 min-w-11 cursor-grab items-center justify-center rounded-[4px] text-slate-500 hover:bg-slate-100 hover:text-slate-700 active:cursor-grabbing"
                         title="Kéo thả để sắp xếp thứ tự hiển thị"
                         type="button"
                       >
@@ -944,6 +1002,10 @@ export default function AdminCatalogPage() {
                           <circle cx="15" cy="18" r="1.5" fill="currentColor" />
                         </svg>
                       </button>
+                      <div className="flex gap-1" aria-label={`Sắp xếp ${item.name}`} role="group">
+                        <button aria-label={`Di chuyển ${item.name} lên`} className="min-h-11 rounded-[4px] border border-slate-300 px-2 font-semibold disabled:opacity-40" disabled={busy || packages.indexOf(item) === 0} onClick={() => { const index = packages.indexOf(item); void persistPackageOrder(moveItem(packages, index, -1), index, index - 1); }} type="button">▲</button>
+                        <button aria-label={`Di chuyển ${item.name} xuống`} className="min-h-11 rounded-[4px] border border-slate-300 px-2 font-semibold disabled:opacity-40" disabled={busy || packages.indexOf(item) === packages.length - 1} onClick={() => { const index = packages.indexOf(item); void persistPackageOrder(moveItem(packages, index, 1), index, index + 1); }} type="button">▼</button>
+                      </div>
                       <strong className="text-slate-900">{item.name}</strong>
                     </div>
                     <StatusBadge active={item.active ?? true} />
@@ -1042,7 +1104,7 @@ export default function AdminCatalogPage() {
                     <div className="flex items-center gap-2">
                       <button
                         aria-label={`Kéo thả đổi thứ tự ${item.question}`}
-                        className="faq-drag-handle cursor-grab active:cursor-grabbing rounded-[4px] p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                        className="faq-drag-handle flex min-h-11 min-w-11 cursor-grab items-center justify-center rounded-[4px] text-slate-500 hover:bg-slate-100 hover:text-slate-700 active:cursor-grabbing"
                         title="Kéo thả để sắp xếp thứ tự hiển thị"
                         type="button"
                       >
@@ -1055,6 +1117,10 @@ export default function AdminCatalogPage() {
                           <circle cx="15" cy="18" r="1.5" fill="currentColor" />
                         </svg>
                       </button>
+                      <div className="flex gap-1" aria-label={`Sắp xếp ${item.question}`} role="group">
+                        <button aria-label={`Di chuyển ${item.question} lên`} className="min-h-11 rounded-[4px] border border-slate-300 px-2 font-semibold disabled:opacity-40" disabled={busy || faqs.indexOf(item) === 0} onClick={() => { const index = faqs.indexOf(item); void persistFaqOrder(moveItem(faqs, index, -1), index, index - 1); }} type="button">▲</button>
+                        <button aria-label={`Di chuyển ${item.question} xuống`} className="min-h-11 rounded-[4px] border border-slate-300 px-2 font-semibold disabled:opacity-40" disabled={busy || faqs.indexOf(item) === faqs.length - 1} onClick={() => { const index = faqs.indexOf(item); void persistFaqOrder(moveItem(faqs, index, 1), index, index + 1); }} type="button">▼</button>
+                      </div>
                       <strong className="text-slate-900">{item.question}</strong>
                     </div>
                     <StatusBadge active={item.active ?? true} />
@@ -1342,7 +1408,7 @@ export default function AdminCatalogPage() {
                         <div className="flex items-center gap-2">
                           <button
                             aria-label={`Kéo thả đổi thứ tự Section ${index + 1}`}
-                            className="section-drag-handle cursor-grab active:cursor-grabbing rounded-[4px] p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
+                            className="section-drag-handle flex min-h-11 min-w-11 cursor-grab items-center justify-center rounded-[4px] text-slate-400 hover:bg-slate-200 hover:text-slate-700 active:cursor-grabbing"
                             title="Kéo thả để sắp xếp thứ tự section"
                             type="button"
                           >

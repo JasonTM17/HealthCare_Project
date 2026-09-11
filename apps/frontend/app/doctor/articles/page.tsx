@@ -204,7 +204,15 @@ export default function DoctorArticlesPage() {
       setCoverImageUrl("");
       setActive(true);
     }
+    setError(null);
     setShowEditor(true);
+  };
+
+  const handleCloseEditor = () => {
+    setShowEditor(false);
+    setEditingSlug(null);
+    setError(null);
+    setBusy(false);
   };
 
   const handleSaveArticle = async (e: FormEvent) => {
@@ -811,7 +819,12 @@ export default function DoctorArticlesPage() {
 
         {/* ── ARTICLE CREATION & EDIT MODAL WITH IMAGE UPLOAD ── */}
         {showEditor && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto backdrop-blur-sm">
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto backdrop-blur-sm"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) handleCloseEditor();
+            }}
+          >
             <div className="my-8 w-full max-w-4xl rounded-[4px] bg-white p-6 shadow-2xl border border-slate-200">
               <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                 <h2 className="text-xl font-bold text-teal-950">
@@ -820,7 +833,7 @@ export default function DoctorArticlesPage() {
                 <button
                   aria-label="Đóng biểu mẫu"
                   className="rounded-[4px] p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
-                  onClick={() => setShowEditor(false)}
+                  onClick={handleCloseEditor}
                   type="button"
                 >
                   <UiIcon name="x" size={18} />
@@ -938,7 +951,7 @@ export default function DoctorArticlesPage() {
                 <div className="mt-6 flex justify-end gap-3 border-t border-slate-100 pt-4">
                   <button
                     className="rounded-[4px] border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 min-h-10 cursor-pointer"
-                    onClick={() => setShowEditor(false)}
+                    onClick={handleCloseEditor}
                     type="button"
                   >
                     Hủy bỏ

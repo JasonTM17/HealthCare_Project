@@ -57,10 +57,10 @@ const VISUALS: Record<PackageVisual["tone"], Omit<PackageVisual, "tone">> = {
 function resolveTone(packageItem: Pick<HealthPackage, "slug" | "name">): PackageVisual["tone"] {
   const identity = `${packageItem.slug} ${packageItem.name}`.toLocaleLowerCase("vi-VN");
 
-  if (/tim|cardio/.test(identity)) return "cardio";
+  if (/tim|cardio|mạch vành/.test(identity)) return "cardio";
   if (/tiểu đường|tieu-duong|đường huyết|duong-huyet|chuyển hóa|chuyen-hoa/.test(identity)) return "metabolic";
-  if (/phụ nữ|phu-nu|sản|san-khoa/.test(identity)) return "women";
-  if (/trẻ em|tre-em|nhi khoa|nhi-khoa/.test(identity)) return "children";
+  if (/phụ nữ|phu-nu|phụ khoa|phu-khoa|thai sản|thai-san|sản|san-khoa|sinh sản/.test(identity)) return "women";
+  if (/trẻ em|tre-em|nhi|nhi-khoa|cho bé|cho-be|trẻ nhỏ|tre-nho/.test(identity)) return "children";
   if (/tiêu hóa|tieu-hoa|dạ dày|da-day|gan mật|gan-mat|đại tràng|dai-trang/.test(identity)) return "digestive";
   return "general";
 }

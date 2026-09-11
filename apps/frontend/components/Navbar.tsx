@@ -25,7 +25,7 @@ const NAV_LINKS = [
   { label: "Chuyên khoa", href: "/specialties" },
   { label: "Gói khám", href: "/packages" },
   { label: "Bác sĩ", href: "/doctors" },
-  { label: "Mạng lưới", href: "/branches" },
+  { label: "Cơ sở y tế", href: "/branches" },
 ];
 
 function getAccountDestination(session: AuthSession | null, pathname: string | null): { href: string; label: string } {

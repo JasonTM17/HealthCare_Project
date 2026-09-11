@@ -220,7 +220,7 @@ test("admin catalog destructive copy offers a hide alternative and rich-text tem
   await installAdminSession(context);
 
   await page.goto("/admin/catalog");
-  await expect(page.getByRole("heading", { name: "Bài viết", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Biên tập bài viết y khoa", exact: true })).toBeVisible();
 
   const articleDeleteButton = page.getByRole("button", { name: "Xóa Hướng dẫn chăm sóc sau khám" });
   await articleDeleteButton.click();
@@ -257,5 +257,130 @@ test("admin catalog destructive copy offers a hide alternative and rich-text tem
 
   expect(articleDeleteCount).toBe(0);
   expect(unexpectedRequests).toEqual([]);
+  await assertNoSensitiveBrowserStorage(page);
+});
+
+test("admin catalog keyboard reorder persists and failed reorder rolls back", async ({ context, page }) => {
+  let packages: HealthPackage[] = [
+    { id: "package-a", name: "Gói A", slug: "goi-a", description: "A", price: 100000, active: true, version: 1, displayOrder: 0 },
+    { id: "package-b", name: "Gói B", slug: "goi-b", description: "B", price: 200000, active: true, version: 1, displayOrder: 1 },
+  ];
+  const faqs: Faq[] = [
+    { id: "faq-a", question: "Câu hỏi A", answer: "Trả lời A", active: true, version: 2, displayOrder: 0 },
+    { id: "faq-b", question: "Câu hỏi B", answer: "Trả lời B", active: true, version: 4, displayOrder: 1 },
+  ];
+  const orderPayloads: unknown[] = [];
+  let packageOrderRequests = 0;
+
+  await context.route("**/api/v1/**", async (route) => {
+    const request = route.request();
+    expect(request.headers()["authorization"]).toBeUndefined();
+    const url = new URL(request.url());
+    if (request.method() === "GET" && url.pathname === "/api/v1/admin/packages") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(pageEnvelope(packages)) });
+    if (request.method() === "GET" && url.pathname === "/api/v1/admin/faqs") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(pageEnvelope(faqs)) });
+    if (request.method() === "GET" && url.pathname === "/api/v1/admin/articles") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(pageEnvelope([])) });
+    if (request.method() === "GET" && url.pathname === "/api/v1/hospital/branches") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(pageEnvelope([])) });
+    if (request.method() === "PUT" && url.pathname === "/api/v1/admin/packages/order") {
+      packageOrderRequests += 1;
+      const payload = request.postDataJSON();
+      orderPayloads.push(payload);
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      packages = payload.items.map((entry: { id: string }, index: number) => ({ ...packages.find((item) => item.id === entry.id)!, displayOrder: index, version: 2 }));
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(packages) });
+    }
+    if (request.method() === "PUT" && url.pathname === "/api/v1/admin/faqs/order") {
+      return route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ code: "CONFLICT" }) });
+    }
+    return route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ code: "UNEXPECTED_REQUEST" }) });
+  });
+  await installAdminSession(context);
+  await page.goto("/admin/catalog");
+
+  const movePackageDown = page.getByRole("button", { name: "Di chuyển Gói A xuống" });
+  await movePackageDown.evaluate((button: HTMLButtonElement) => {
+    button.click();
+    button.click();
+  });
+  await expect(page.getByText("Đã lưu thứ tự gói khám")).toBeVisible();
+  expect(packageOrderRequests).toBe(1);
+  expect(orderPayloads).toEqual([{ items: [{ id: "package-b", version: 1 }, { id: "package-a", version: 1 }] }]);
+
+  const successToast = page.getByRole("status").filter({ hasText: "Đã lưu thứ tự gói khám" });
+  const closeToast = successToast.getByRole("button", { name: "Đóng thông báo" });
+  await closeToast.focus();
+  await successToast.hover();
+  await page.mouse.move(0, 0);
+  await page.waitForTimeout(4200);
+  await expect(successToast).toBeVisible();
+  await closeToast.click();
+
+  await page.reload();
+  await expect(page.locator('[data-id^="package-"]').first()).toContainText("Gói B");
+
+  await page.getByRole("button", { name: "Di chuyển Câu hỏi A xuống" }).click();
+  await expect(page.getByText("Đã hoàn tác thứ tự FAQ")).toBeVisible();
+  await expect(page.locator('[data-id^="faq-"]').first()).toContainText("Câu hỏi A");
+  await assertNoSensitiveBrowserStorage(page);
+});
+
+test("stale catalog broadcast load cannot overwrite a newer load result", async ({ context, page }) => {
+  // Cross-tab interleaving: tab A's broadcast starts load gen2; tab B's newer
+  // change arrives and load gen3 renders the fresh order; gen2's slow GET
+  // settles last and must be discarded by the generation guard.
+  let packages: HealthPackage[] = [
+    { id: "package-a", name: "Gói A", slug: "goi-a", description: "A", price: 100000, active: true, version: 1, displayOrder: 0 },
+    { id: "package-b", name: "Gói B", slug: "goi-b", description: "B", price: 200000, active: true, version: 1, displayOrder: 1 },
+  ];
+  let packagesGetCount = 0;
+  const staleGate: { release: (() => void) | null } = { release: null };
+
+  await context.route("**/api/v1/**", async (route) => {
+    const request = route.request();
+    expect(request.headers()["authorization"]).toBeUndefined();
+    const url = new URL(request.url());
+    if (request.method() === "GET" && url.pathname === "/api/v1/admin/packages") {
+      packagesGetCount += 1;
+      if (packagesGetCount === 2) {
+        // gen2: hold this GET so it settles after gen3's fresh response.
+        await new Promise<void>((resolve) => { staleGate.release = resolve; });
+        const stale: HealthPackage[] = [
+          { ...packages.find((item) => item.id === "package-a")!, displayOrder: 0 },
+          { ...packages.find((item) => item.id === "package-b")!, displayOrder: 1 },
+        ];
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(pageEnvelope(stale)) });
+      }
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(pageEnvelope(packages)) });
+    }
+    if (request.method() === "GET" && url.pathname === "/api/v1/admin/faqs") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(pageEnvelope([])) });
+    }
+    if (request.method() === "GET" && url.pathname === "/api/v1/admin/articles") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(pageEnvelope([])) });
+    }
+    if (request.method() === "GET" && url.pathname === "/api/v1/hospital/branches") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(pageEnvelope([])) });
+    }
+    return route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ code: "UNEXPECTED_REQUEST" }) });
+  });
+  await installAdminSession(context);
+  await page.goto("/admin/catalog");
+  await expect(page.locator('[data-id^="package-"]').first()).toContainText("Gói A");
+
+  // gen2 broadcast: its GET response is held pending by the route handler.
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("healthcare:catalog-update", { detail: { kind: "package", action: "updated" } })));
+  await page.waitForTimeout(300);
+
+  // gen3 broadcast: a newer server state ([B, A], e.g. another admin's save).
+  packages = [
+    { id: "package-b", name: "Gói B", slug: "goi-b", description: "B", price: 200000, active: true, version: 2, displayOrder: 0 },
+    { id: "package-a", name: "Gói A", slug: "goi-a", description: "A", price: 100000, active: true, version: 2, displayOrder: 1 },
+  ];
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("healthcare:catalog-update", { detail: { kind: "package", action: "updated" } })));
+  await expect(page.locator('[data-id^="package-"]').first()).toContainText("Gói B");
+
+  // The stale gen2 GET settles last; the guard must discard it.
+  staleGate.release?.();
+  await page.waitForTimeout(500);
+  await expect(page.locator('[data-id^="package-"]').first()).toContainText("Gói B");
   await assertNoSensitiveBrowserStorage(page);
 });

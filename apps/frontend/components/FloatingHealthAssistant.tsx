@@ -12,6 +12,7 @@ import {
 } from "react";
 import UiIcon from "./UiIcon";
 import AssistantMark from "./AssistantMark";
+import ChatMessageContent from "./ChatMessageContent";
 import { useAuthSession } from "./useAuthSession";
 import {
   ApiError,
@@ -53,11 +54,60 @@ import styles from "./FloatingHealthAssistant.module.css";
 const MAX_MESSAGE_LENGTH = 10_000;
 const MAX_PUBLIC_MESSAGE_LENGTH = 500;
 const DEFAULT_DISCLAIMER = "Thông tin chỉ mang tính tham khảo, không thay thế thăm khám hoặc hướng dẫn của bác sĩ.";
-const SUGGESTED_QUESTIONS = [
-  "Tôi nên chuẩn bị gì trước khi đi khám?",
+const SUGGESTED_QUESTIONS_HOSPITAL = [
+  "Làm sao để đặt lịch khám tại HealthCare?",
+  "Bệnh viện có những chuyên khoa và cơ sở nào?",
+  "Quy trình đặt lịch hẹn và giờ làm việc ra sao?",
+];
+
+const SUGGESTED_QUESTIONS_TRIAGE = [
   "Tìm chuyên khoa phù hợp với triệu chứng của tôi",
+  "Tôi bị đau đầu kèm chóng mặt nên khám khoa nào?",
+  "Khi nào triệu chứng cần liên hệ cấp cứu 115?",
+];
+
+const SUGGESTED_QUESTIONS_EDUCATION = [
+  "Tôi nên chuẩn bị gì trước khi đi khám?",
+  "Những lưu ý nhịn ăn trước khi xét nghiệm máu?",
+  "Tại sao nên khám sức khỏe tổng quát định kỳ?",
+];
+
+const SUGGESTED_QUESTIONS_ARTICLES = [
+  "Triệu chứng của tôi nên khám chuyên khoa nào?",
+  "Khi nào cần liên hệ cấp cứu 115 ngay?",
   "Làm sao để đặt lịch khám tại HealthCare?",
 ];
+
+const SUGGESTED_QUESTIONS_DOCTORS = [
+  "Bác sĩ chuyên khoa nào khám tại cơ sở gần nhất?",
+  "Tôi muốn đặt lịch hẹn khám trong tuần này",
+  "Làm sao để đặt lịch khám tại HealthCare?",
+];
+
+const SUGGESTED_QUESTIONS_PACKAGES = [
+  "Nên chọn gói khám sức khỏe tổng quát hay chuyên sâu?",
+  "Cần chuẩn bị gì trước khi đi khám theo gói?",
+  "Làm sao để đặt lịch khám tại HealthCare?",
+];
+
+function getSuggestedQuestions(pathname: string, chatMode?: ChatMode): readonly string[] {
+  if (chatMode === "SYMPTOM_TRIAGE") {
+    return SUGGESTED_QUESTIONS_TRIAGE;
+  }
+  if (chatMode === "HEALTH_EDUCATION") {
+    return SUGGESTED_QUESTIONS_EDUCATION;
+  }
+  if (pathname.startsWith("/articles") || pathname.startsWith("/benh-pho-bien")) {
+    return SUGGESTED_QUESTIONS_ARTICLES;
+  }
+  if (pathname.startsWith("/doctors")) {
+    return SUGGESTED_QUESTIONS_DOCTORS;
+  }
+  if (pathname.startsWith("/packages")) {
+    return SUGGESTED_QUESTIONS_PACKAGES;
+  }
+  return SUGGESTED_QUESTIONS_HOSPITAL;
+}
 const PUBLIC_ASSISTANT_OPEN_EVENT = "healthcare:open-assistant";
 
 type PendingUserMessage = {
@@ -624,7 +674,10 @@ function FloatingHealthAssistantPanel({
               </span>
               <div>
                 <strong>Trợ lý HealthCare</strong>
-                <span>{isPatient ? "Hỗ trợ thông tin sức khỏe" : "Hỗ trợ tra cứu"}</span>
+                <span className={styles.headerSubtitle}>
+                  <span aria-hidden="true" className={styles.onlineDot} />
+                  {isPatient ? "Bác sĩ Trợ lý AI · Trực tuyến" : "Hỗ trợ tra cứu · Trực tuyến"}
+                </span>
               </div>
             </div>
             <button aria-label="Đóng cửa sổ trợ lý" className={styles.iconButton} onClick={closeAssistant} title="Đóng cửa sổ" type="button">
@@ -684,14 +737,21 @@ function FloatingHealthAssistantPanel({
                 {messages.map((message) => (
                   <article className={`${styles.message} ${message.role === "ASSISTANT" ? styles.assistant : styles.patient}`} key={message.id}>
                     <span className={styles.messageRole}>{message.role === "ASSISTANT" ? "HealthCare" : "Bạn"}</span>
-                    <p>{message.content}</p>
-                    <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
+                    <ChatMessageContent content={message.content} />
+                    <div className={styles.messageMeta}>
+                      <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
+                      {message.role === "ASSISTANT" ? (
+                        <>
+                          <span className={styles.metaDot} aria-hidden="true">·</span>
+                          <span className={styles.provenance} data-provenance={message.provenance ?? "local_provider"}>
+                            {provenanceLabel(message.provenance ?? "local_provider")}
+                          </span>
+                        </>
+                      ) : null}
+                    </div>
                     {message.role === "ASSISTANT" ? (
                       <>
-                        <span className={styles.provenance} data-provenance={message.provenance ?? "local_provider"}>
-                          {provenanceLabel(message.provenance ?? "local_provider")}
-                        </span>
-                        {message.disclaimer && message.disclaimer.trim() && message.disclaimer.trim() !== DEFAULT_DISCLAIMER ? (
+                        {message.disclaimer && message.disclaimer.trim() && message.disclaimer.trim() !== DEFAULT_DISCLAIMER && !message.disclaimer.includes("thay thế tư vấn của bác sĩ") ? (
                           <p className={styles.disclaimer}>{message.disclaimer.trim()}</p>
                         ) : null}
                         {message.safetyAction === "EMERGENCY" ? (
@@ -745,14 +805,14 @@ function FloatingHealthAssistantPanel({
                 {pendingUserMessage ? (
                   <article className={`${styles.message} ${styles.patient} ${styles.pendingMessage}`} data-testid="floating-chat-pending-user">
                     <span className={styles.messageRole}>Bạn</span>
-                    <p>{pendingUserMessage.content}</p>
+                    <ChatMessageContent content={pendingUserMessage.content} />
                     <time dateTime={pendingUserMessage.createdAt}>{formatTime(pendingUserMessage.createdAt)}</time>
                   </article>
                 ) : null}
                 {streamingReply ? (
                   <article className={`${styles.message} ${styles.assistant}`} data-testid="floating-chat-streaming-reply">
                     <span className={styles.messageRole}>HealthCare</span>
-                    <p>{streamingReply}</p>
+                    <ChatMessageContent content={streamingReply} />
                     <span className={styles.provenance}>Đang nhận phản hồi từng phần đã được xác thực…</span>
                   </article>
                 ) : null}
@@ -790,7 +850,7 @@ function FloatingHealthAssistantPanel({
 
               {messages.length === 0 && !loading ? (
                 <div className={styles.suggestions}>
-                  {SUGGESTED_QUESTIONS.map((question) => (
+                  {getSuggestedQuestions(pathname, mode).map((question) => (
                     <button disabled={sending} key={question} onClick={() => void handleSend(question)} type="button">{question}</button>
                   ))}
                 </div>
@@ -836,7 +896,7 @@ function FloatingHealthAssistantPanel({
         type="button"
       >
         {open ? (
-          <UiIcon name="x" size={22} />
+          <UiIcon name="chevron-down" size={22} />
         ) : (
           <span aria-hidden="true" className={styles.launcherMascot}>
             <AssistantMark className={styles.launcherMark} size={46} />

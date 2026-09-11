@@ -153,6 +153,28 @@ test("remaining catalog screen preserves inactive records with guarded CRUD acti
   assert.doesNotMatch(catalog, /ADMIN READ CONTRACT|ADMIN WRITE CONTRACT|\bInactive\b|\bUnpublished\b/);
 });
 
+test("catalog reorder persists through versioned APIs and keeps keyboard parity", async () => {
+  const catalog = await source("catalog/page.tsx");
+  const api = await readFile(new URL("../lib/api-client.ts", import.meta.url), "utf8");
+
+  assert.match(api, /adminReorderPackages[\s\S]*?\/admin\/packages\/order/);
+  assert.match(api, /adminReorderFaqs[\s\S]*?\/admin\/faqs\/order/);
+  assert.match(catalog, /orderPayload/);
+  assert.match(catalog, /Đã lưu thứ tự gói khám/);
+  assert.match(catalog, /Đã hoàn tác thứ tự FAQ/);
+  assert.match(catalog, /Di chuyển \$\{item\.name\} lên/);
+  assert.match(catalog, /Di chuyển \$\{item\.question\} xuống/);
+  assert.doesNotMatch(catalog, /title: "Đã sắp xếp Gói khám"/);
+  assert.doesNotMatch(catalog, /title: "Đã sắp xếp lại FAQ"/);
+  assert.match(catalog, /reorderInFlightRef\.current/);
+  assert.match(catalog, /if \(reorderInFlightRef\.current\) return/);
+  // Stale-load generation guard: a load finishing after a newer load or a
+  // reorder must never write its response into state (P1-C deep-scan 2026-09-11).
+  assert.match(catalog, /loadGenerationRef\.current \+= 1/);
+  assert.match(catalog, /const generation = \+\+loadGenerationRef\.current/);
+  assert.match(catalog, /generation !== loadGenerationRef\.current/);
+});
+
 test("appointment filters apply explicit draft state and keep the table keyboard-scrollable", async () => {
   const appointments = await source("appointments/page.tsx");
 

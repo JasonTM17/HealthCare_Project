@@ -150,7 +150,7 @@ test("portal styling stays dense, fixed-scale, touch-safe, and responsive", asyn
   assert.ok(start >= 0 && end > start);
   assert.doesNotMatch(portalStyles, /font-size:\s*clamp\(/);
   assert.match(portalStyles, /\.portal-summary-grid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(4/);
-  assert.match(portalStyles, /\.portal-panel\s*\{[\s\S]*?border-top:[\s\S]*?box-shadow:\s*none/);
+  assert.match(portalStyles, /\.portal-panel\s*\{[\s\S]*?border-top:[\s\S]*?box-shadow:\s*var\(--portal-shadow\)/);
   assert.match(portalStyles, /\.portal-context-link\s*\{[\s\S]*?min-height:\s*44px/);
   assert.match(portalStyles, /@media \(max-width:\s*640px\)[\s\S]*?\.portal-nav\s*\{[\s\S]*?flex-wrap:\s*wrap/);
   assert.doesNotMatch(portalStyles, /\.portal-nav\s*,\s*\.portal-summary-grid\s*\{[\s\S]*?grid-template-columns/);

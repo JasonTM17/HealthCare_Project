@@ -3,9 +3,19 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import type { AuthUser } from "../types/hospital";
-import { fetchDoctorProfile, fetchPatientProfile, logoutCurrentUser, SAFE_LOGOUT_ERROR_MESSAGE } from "../lib/api-client";
+import type { AuthUser, Notification } from "../types/hospital";
+import {
+  fetchDoctorProfile,
+  fetchNotifications,
+  fetchPatientProfile,
+  logoutCurrentUser,
+  markAllNotificationsAsRead,
+  markNotificationAsRead,
+  SAFE_LOGOUT_ERROR_MESSAGE,
+} from "../lib/api-client";
+import { formatBusinessDateTime } from "../lib/business-time";
 import BrandMark from "./BrandMark";
+import UiIcon from "./UiIcon";
 
 export type PortalRole = "PATIENT" | "DOCTOR";
 
@@ -40,6 +50,8 @@ const SECTION_HASH_FOR_HREF: Record<string, string> = {
   "/patient/medical-records": "#records",
   "/patient/prescriptions": "#prescriptions",
   "/patient/diagnostic-results": "#diagnostics",
+  "/patient/notifications": "#notifications",
+  "/patient/profile": "#profile",
 };
 
 const HREF_FOR_SECTION_HASH: Record<string, string> = {
@@ -48,7 +60,36 @@ const HREF_FOR_SECTION_HASH: Record<string, string> = {
   "#records": "/patient/medical-records",
   "#prescriptions": "/patient/prescriptions",
   "#diagnostics": "/patient/diagnostic-results",
+  "#notifications": "/patient/notifications",
+  "#profile": "/patient/profile",
 };
+
+function formatNotificationType(eventType: string): string {
+  const labels: Record<string, string> = {
+    APPOINTMENT_CREATED: "Đã tạo lịch hẹn",
+    APPOINTMENT_CONFIRMED: "Lịch hẹn đã xác nhận",
+    APPOINTMENT_RESCHEDULED: "Lịch hẹn đã thay đổi",
+    APPOINTMENT_CANCELLED: "Lịch hẹn đã hủy",
+    APPOINTMENT_REMINDER: "Nhắc lịch khám",
+    DIAGNOSTIC_RESULT_AVAILABLE: "Có kết quả mới",
+    PRESCRIPTION_ISSUED: "Đơn thuốc mới",
+    SYSTEM_NOTIFICATION: "Thông báo hệ thống",
+  };
+  return labels[eventType] ?? "Thông báo y tế";
+}
+
+function getNotificationAction(item: Notification): { label: string; hash: string } | null {
+  if (item.eventType.includes("APPOINTMENT")) {
+    return { label: "Xem lịch hẹn", hash: "#appointments" };
+  }
+  if (item.eventType.includes("PRESCRIPTION")) {
+    return { label: "Xem đơn thuốc", hash: "#prescriptions" };
+  }
+  if (item.eventType.includes("DIAGNOSTIC") || item.eventType.includes("RESULT")) {
+    return { label: "Xem kết quả CLS", hash: "#diagnostics" };
+  }
+  return null;
+}
 
 export default function PortalChrome({ role, user, avatarUrl, children }: PortalChromeProps) {
   const pathname = usePathname();
@@ -59,7 +100,106 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
   const [avatarError, setAvatarError] = useState(false);
   const [avatarLoaded, setAvatarLoaded] = useState(false);
   const [avatarLoading, setAvatarLoading] = useState(false);
+  const [unreadCount, setUnreadCount] = useState<number>(0);
+  const [notificationsList, setNotificationsList] = useState<Notification[]>([]);
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+  const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const effectiveAvatar = avatarUrl ?? resolvedAvatar ?? getCachedAvatar(role, user.id);
+
+  const loadNotifications = useCallback(() => {
+    if (role !== "PATIENT") return;
+    fetchNotifications(0, 10)
+      .then((data) => {
+        if (data?.content) {
+          setNotificationsList(data.content);
+          const unread = data.content.filter((n) => !n.read).length;
+          setUnreadCount(unread);
+        }
+      })
+      .catch(() => {});
+  }, [role]);
+
+  useEffect(() => {
+    loadNotifications();
+  }, [loadNotifications]);
+
+  useEffect(() => {
+    if (!isPopoverOpen) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setIsPopoverOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsPopoverOpen(false);
+        setSelectedNotification(null);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isPopoverOpen]);
+
+  const handleTogglePopover = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsPopoverOpen((prev) => {
+      if (!prev) {
+        loadNotifications();
+      }
+      return !prev;
+    });
+  };
+
+  const handleOpenNotificationDetail = async (notification: Notification) => {
+    setSelectedNotification(notification);
+    setIsPopoverOpen(false);
+    if (!notification.read) {
+      try {
+        await markNotificationAsRead(notification.id);
+        setNotificationsList((prev) =>
+          prev.map((item) => (item.id === notification.id ? { ...item, read: true } : item))
+        );
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+      } catch {
+        // ignore mark read error
+      }
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      await markAllNotificationsAsRead();
+      setNotificationsList((prev) => prev.map((item) => ({ ...item, read: true })));
+      setUnreadCount(0);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleViewAllNotifications = () => {
+    setIsPopoverOpen(false);
+    setSelectedNotification(null);
+    setActiveHash("#notifications");
+    if (typeof window !== "undefined") {
+      if (pathname === homePath) {
+        // replaceState keeps the URL hash in sync without the flagged global
+        // location mutation; the dispatched event drives the tab switch.
+        window.history.replaceState(null, "", "#notifications");
+        window.dispatchEvent(
+          new CustomEvent("portal:tab-change", {
+            detail: { hash: "#notifications", href: "/patient/notifications" },
+          })
+        );
+      } else {
+        router.push(`${homePath}#notifications`);
+      }
+    }
+  };
 
   useEffect(() => {
     if (avatarUrl) {
@@ -134,7 +274,7 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
 
     const handleCheck = () => {
       const hash = window.location.hash;
-      if (!hash || window.scrollY < 150) {
+      if (!hash || hash === "#" || hash === "#overview") {
         setActiveHash("");
       } else {
         setActiveHash(hash);
@@ -144,10 +284,12 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
     handleCheck();
     window.addEventListener("hashchange", handleCheck);
     window.addEventListener("scroll", handleCheck, { passive: true });
+    window.addEventListener("portal:tab-change", handleCheck);
 
     return () => {
       window.removeEventListener("hashchange", handleCheck);
       window.removeEventListener("scroll", handleCheck);
+      window.removeEventListener("portal:tab-change", handleCheck);
     };
   }, [pathname]);
 
@@ -211,17 +353,106 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
                 href={pathname === homePath && SECTION_HASH_FOR_HREF[link.href] ? `${homePath}${SECTION_HASH_FOR_HREF[link.href]}` : (pathname === homePath && link.href === homePath ? `${homePath}#` : link.href)}
                 key={link.href}
                 onClick={() => {
-                  const hash = SECTION_HASH_FOR_HREF[link.href];
-                  setActiveHash(hash || "");
+                  const hash = SECTION_HASH_FOR_HREF[link.href] || "";
+                  setActiveHash(hash);
+                  if (typeof window !== "undefined") {
+                    if (pathname === homePath) {
+                      window.location.hash = hash;
+                      window.dispatchEvent(new CustomEvent("portal:tab-change", { detail: { hash, href: link.href } }));
+                    }
+                  }
                 }}
               >
                 {link.label}
               </Link>
             ))}
-            <Link className="portal-nav__link" href="/">Trang chính</Link>
           </nav>
 
           <div className="portal-user">
+            {role === "PATIENT" ? (
+              <div className="portal-notification-wrapper" ref={popoverRef}>
+                <Link
+                  className="portal-notification-bell"
+                  href={pathname === homePath ? "#notifications" : `${homePath}#notifications`}
+                  aria-label={unreadCount > 0 ? `Thông báo từ bệnh viện (${unreadCount} tin mới)` : "Thông báo từ bệnh viện"}
+                  title="Thông báo từ bệnh viện"
+                  aria-expanded={isPopoverOpen}
+                  aria-haspopup="dialog"
+                  onClick={handleTogglePopover}
+                >
+                  <UiIcon name="bell" size={20} />
+                  {unreadCount > 0 ? (
+                    <span className="portal-notification-badge" aria-label={`${unreadCount} tin mới`}>
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  ) : null}
+                </Link>
+
+                {isPopoverOpen ? (
+                  <div
+                    className="portal-notification-popover"
+                    role="dialog"
+                    aria-label="Xem trước thông báo bệnh viện"
+                  >
+                    <div className="portal-notification-popover__header">
+                      <div className="portal-notification-popover__title">
+                        <UiIcon name="bell" size={16} />
+                        <span>Thông báo từ bệnh viện</span>
+                      </div>
+                      {unreadCount > 0 ? (
+                        <button
+                          type="button"
+                          className="portal-notification-popover__mark-all"
+                          onClick={handleMarkAllRead}
+                        >
+                          Đánh dấu đã đọc tất cả
+                        </button>
+                      ) : null}
+                    </div>
+
+                    <div className="portal-notification-popover__list">
+                      {notificationsList.length === 0 ? (
+                        <div className="portal-notification-popover__empty">
+                          <p>Chưa có thông báo nào từ bệnh viện.</p>
+                        </div>
+                      ) : (
+                        notificationsList.map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            className={`portal-notification-popover__item${!item.read ? " portal-notification-popover__item--unread" : ""}`}
+                            onClick={() => handleOpenNotificationDetail(item)}
+                          >
+                            <div className="portal-notification-popover__meta">
+                              <span className="portal-notification-popover__badge">
+                                {formatNotificationType(item.eventType)}
+                              </span>
+                              <time dateTime={item.createdAt}>
+                                {formatBusinessDateTime(item.createdAt)}
+                              </time>
+                            </div>
+                            <h4 className="portal-notification-popover__item-title">{item.title}</h4>
+                            <p className="portal-notification-popover__snippet">{item.message}</p>
+                          </button>
+                        ))
+                      )}
+                    </div>
+
+                    <div className="portal-notification-popover__footer">
+                      <button
+                        type="button"
+                        className="portal-notification-popover__view-all"
+                        onClick={handleViewAllNotifications}
+                      >
+                        <span>Xem tất cả thông báo</span>
+                        <UiIcon name="arrow-right" size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
             <Link
               className="portal-user__link"
               href={role === "PATIENT" ? "/patient/profile" : "/doctor/profile"}
@@ -265,8 +496,101 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
       </header>
       <main className="portal-main" id="portal-main-content" tabIndex={-1}>{children}</main>
       <footer className="portal-footer">
-        Thông tin sức khỏe được bảo vệ và chỉ hiển thị theo quyền của tài khoản hiện tại.
+        Thông tin sức khỏe của bạn được bảo mật an toàn theo tiêu chuẩn bệnh viện và chỉ dành riêng cho bạn.
       </footer>
+
+      {selectedNotification ? (
+        <div
+          className="portal-modal-backdrop"
+          role="presentation"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setSelectedNotification(null);
+            }
+          }}
+        >
+          <div
+            className="portal-notification-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="notification-modal-title"
+          >
+            <div className="portal-notification-modal__header">
+              <div className="portal-notification-modal__meta">
+                <span className="portal-notification-popover__badge">
+                  {formatNotificationType(selectedNotification.eventType)}
+                </span>
+                <span className="portal-notification-modal__time">
+                  {formatBusinessDateTime(selectedNotification.createdAt)}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="portal-notification-modal__close"
+                aria-label="Đóng chi tiết thông báo"
+                onClick={() => setSelectedNotification(null)}
+              >
+                <UiIcon name="x" size={18} />
+              </button>
+            </div>
+
+            <div className="portal-notification-modal__body">
+              <h3 id="notification-modal-title" className="portal-notification-modal__title">
+                {selectedNotification.title}
+              </h3>
+              <div className="portal-notification-modal__content">
+                <p>{selectedNotification.message}</p>
+              </div>
+              {selectedNotification.referenceId ? (
+                <div className="portal-notification-modal__ref">
+                  <span>Mã tham chiếu:</span>
+                  <strong>{selectedNotification.referenceId}</strong>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="portal-notification-modal__footer">
+              {(() => {
+                const action = getNotificationAction(selectedNotification);
+                if (action) {
+                  return (
+                    <button
+                      type="button"
+                      className="button button--primary button--small"
+                      onClick={() => {
+                        setSelectedNotification(null);
+                        setActiveHash(action.hash);
+                        if (typeof window !== "undefined") {
+                          if (pathname === homePath) {
+                            window.location.hash = action.hash;
+                            window.dispatchEvent(
+                              new CustomEvent("portal:tab-change", {
+                                detail: { hash: action.hash },
+                              })
+                            );
+                          } else {
+                            router.push(`${homePath}${action.hash}`);
+                          }
+                        }
+                      }}
+                    >
+                      {action.label}
+                    </button>
+                  );
+                }
+                return null;
+              })()}
+              <button
+                type="button"
+                className="outline-button outline-button--small"
+                onClick={() => setSelectedNotification(null)}
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
