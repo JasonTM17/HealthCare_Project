@@ -7,6 +7,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UuidGenerator;
 import org.hibernate.type.SqlTypes;
@@ -51,6 +52,13 @@ public class Package {
 
     @Column(name = "active", nullable = false)
     private boolean active = true;
+
+    @Column(name = "display_order", nullable = false)
+    private int displayOrder;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version = 0L;
 
     public UUID getId() {
         return id;
@@ -131,4 +139,9 @@ public class Package {
     public void setActive(boolean active) {
         this.active = active;
     }
+
+    public int getDisplayOrder() { return displayOrder; }
+    public void setDisplayOrder(int displayOrder) { this.displayOrder = displayOrder; }
+    public Long getVersion() { return version; }
+    public void setVersion(Long version) { this.version = version; }
 }

@@ -66,6 +66,9 @@ public class Faq {
     @Column(name = "active", nullable = false)
     private boolean active = true;
 
+    @Column(name = "display_order", nullable = false)
+    private int displayOrder;
+
     public UUID getId() {
         return id;
     }
@@ -116,4 +119,7 @@ public class Faq {
     public void setActive(boolean active) {
         this.active = active;
     }
+
+    public int getDisplayOrder() { return displayOrder; }
+    public void setDisplayOrder(int displayOrder) { this.displayOrder = displayOrder; }
 }

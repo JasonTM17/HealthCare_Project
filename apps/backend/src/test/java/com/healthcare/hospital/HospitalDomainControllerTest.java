@@ -172,6 +172,21 @@ class HospitalDomainControllerTest extends TestcontainersIntegrationTest {
     }
 
     @Test
+    void activeServicesCanBeListedPublicly() throws Exception {
+        MedicalService service = new MedicalService();
+        service.setName("Active list service");
+        service.setSlug("active-list-service-" + System.currentTimeMillis());
+        service.setActive(true);
+        serviceRepository.save(service);
+
+        mockMvc.perform(get("/api/v1/hospital/services")
+                .param("page", "0")
+                .param("size", "10"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content").isArray());
+    }
+
+    @Test
     void inactiveOrUnpublishedArticlesAreNotPubliclyVisible() throws Exception {
         Article inactive = new Article();
         inactive.setTitle("Inactive article");

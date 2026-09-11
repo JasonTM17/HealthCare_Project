@@ -1,6 +1,7 @@
 package com.healthcare.hospital.controller;
 
 import com.healthcare.hospital.dto.PackageRequest;
+import com.healthcare.hospital.dto.CatalogOrderRequest;
 import com.healthcare.hospital.entity.Package;
 import com.healthcare.hospital.service.AdminPackageService;
 import jakarta.validation.Valid;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/admin/packages")
@@ -30,8 +32,13 @@ public class AdminPackageController {
     }
 
     @GetMapping
-    public Page<Package> list(@PageableDefault(size = 20, sort = "name") Pageable pageable) {
+    public Page<Package> list(@PageableDefault(size = 20, sort = {"displayOrder", "id"}) Pageable pageable) {
         return adminPackageService.list(pageable);
+    }
+
+    @PutMapping("/order")
+    public List<Package> reorder(@Valid @RequestBody CatalogOrderRequest request) {
+        return adminPackageService.reorder(request);
     }
 
     @PostMapping

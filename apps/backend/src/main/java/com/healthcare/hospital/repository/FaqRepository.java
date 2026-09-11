@@ -11,6 +11,15 @@ import java.util.UUID;
 
 @Repository
 public interface FaqRepository extends JpaRepository<Faq, UUID> {
+    @Query(value = "SELECT pg_advisory_xact_lock(721002)", nativeQuery = true)
+    void lockCatalogOrder();
+
+    @Query("select f from Faq f order by f.displayOrder asc, f.id asc")
+    java.util.List<Faq> findAllInDisplayOrder();
+
+    @Query("select coalesce(max(f.displayOrder), -1) from Faq f")
+    int findMaxDisplayOrder();
+
     Page<Faq> findByActiveTrue(Pageable pageable);
 
     /** Public FAQ material is governed by the same current clinical eligibility as RAG. */
@@ -32,7 +41,7 @@ public interface FaqRepository extends JpaRepository<Faq, UUID> {
            AND r.expires_at > CURRENT_TIMESTAMP
            AND reviewer_user.status = 'ACTIVE' AND reviewer_doctor.active = TRUE
            AND reviewer_role.code = 'DOCTOR'
-        ORDER BY f.updated_at DESC
+        ORDER BY f.display_order ASC, f.id ASC
         """,
         countQuery = """
         SELECT COUNT(DISTINCT f.id)
