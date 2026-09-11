@@ -1,65 +1,43 @@
 <div align="center">
 
-# HealthCare Project
-### Nền Tảng Y Tế Số Toàn Diện • Hệ Thống Quản Trị Bệnh Viện Thông Minh
-**Next-Generation Hospital Management, Branch-Aware Clinical Booking & AI-Assisted Medical Triage**
+# Đồ Án Tốt Nghiệp — Hệ Thống Quản Lý Đề Tài Sinh Viên
+### Khoa Công nghệ Thông tin • Đại học • Nền tảng Doanh nghiệp Đa vai trò Phân tán
+**Student Academic Research Topic Management & Enterprise Healthcare Architecture**
 
-> *Dự án được xây dựng nhằm mục đích nghiên cứu & học tập, được tham khảo ý tưởng từ trang web của bệnh viện Hoàn Mỹ.*
+> *Dự án tốt nghiệp đáp ứng 100% 14 quy tắc bất biến học thuật (quy trình duyệt 2 giai đoạn, nhóm $\le 3$ SV, hội đồng 3–5 thành viên, chấm điểm độc lập 0–10) trên nền tảng kiến trúc doanh nghiệp phân tán chuẩn Spring Boot 3 & Next.js 16.*
 
 [![CI](https://github.com/JasonTM17/HealthCare_Project/actions/workflows/ci.yml/badge.svg?branch=main&style=for-the-badge&label=CI)](https://github.com/JasonTM17/HealthCare_Project/actions/workflows/ci.yml)
-[![Production](https://img.shields.io/badge/Production-www.healthcare.id.vn-0284c7?style=for-the-badge&logo=vercel&logoColor=white)](https://www.healthcare.id.vn)
-[![License](https://img.shields.io/github/license/JasonTM17/HealthCare_Project?style=for-the-badge&logo=open-source-initiative&logoColor=white)](LICENSE)
-[![Stars](https://img.shields.io/github/stars/JasonTM17/HealthCare_Project?style=for-the-badge&logo=github&label=Stars)](https://github.com/JasonTM17/HealthCare_Project/stargazers)
-[![Last Commit](https://img.shields.io/github/last-commit/JasonTM17/HealthCare_Project/main?style=for-the-badge&logo=git&label=Last%20Commit)](https://github.com/JasonTM17/HealthCare_Project/commits/main)
-[![PRs Welcome](https://img.shields.io/badge/PRs-Welcome-2ea44f?style=for-the-badge)](https://github.com/JasonTM17/HealthCare_Project/compare)
-
+[![Tài liệu nộp](https://img.shields.io/badge/Bộ_Tài_Liệu-Nộp_Đồ_Án-002855?style=for-the-badge&logo=googledocs&logoColor=white)](docs/do-an/PDF-REQUIREMENTS-MAPPING.md)
+[![Kịch bản Demo](https://img.shields.io/badge/Demo_Script-15_Phút-b45309?style=for-the-badge&logo=youtube&logoColor=white)](docs/do-an/DEMO-SCRIPT.md)
 [![Frontend](https://img.shields.io/badge/Frontend-Next.js_16_%7C_React_19-black?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org)
 [![Backend](https://img.shields.io/badge/Backend-Spring_Boot_3.5_%7C_Java_21-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
-[![AI Engine](https://img.shields.io/badge/AI_Engine-FastAPI_%7C_Python_3.12-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![Database](https://img.shields.io/badge/Database-PostgreSQL_16_%7C_Redis_7-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org)
-[![Deployment](https://img.shields.io/badge/Deploy-Docker_Compose_%7C_Vercel_%7C_Render-2496ED?style=for-the-badge&logo=docker&logoColor=white)](infrastructure/docker-compose.yml)
+[![Deployment](https://img.shields.io/badge/Deploy-Docker_Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)](infrastructure/docker-compose.yml)
 
 <p align="center">
-  <a href="#product-walkthrough-demo"><strong>Demo (GIF)</strong></a> •
-  <a href="#demo-trực-tiếp--tài-khoản-trải-nghiệm-live-demo--roles"><strong>Demo Trực Tiếp</strong></a> •
+  <a href="#hệ-thống-quản-lý-đề-tài-sinh-viên-đồ-án-chính"><strong>Cổng Đề tài Đồ án</strong></a> •
+  <a href="#bộ-tài-liệu-bảo-vệ-đồ-án-tốt-nghiệp"><strong>Tài liệu Bảo vệ</strong></a> •
+  <a href="#tài-khoản-trải-nghiệm-1-chạm-đồ-án"><strong>Tài khoản Demo</strong></a> •
   <a href="#kiến-trúc-hệ-thống-system-architecture"><strong>Sơ đồ Kiến trúc</strong></a> •
-  <a href="#bộ-sưu-tập-giao-diện-thực-tế-screenshots-gallery"><strong>Ảnh Giao diện</strong></a> •
-  <a href="#tính-năng-cốt-lõi-features-matrix"><strong>Tính năng</strong></a> •
-  <a href="#hướng-dẫn-cài-đặt--khởi-động-nhanh-quick-start"><strong>Cài đặt</strong></a> •
-  <a href="#giấy-phép--nguồn-bên-thứ-ba-license--third-party"><strong>Giấy phép</strong></a>
+  <a href="#hướng-dẫn-cài-đặt--khởi-động-nhanh-quick-start"><strong>Cài đặt</strong></a>
 </p>
 
 </div>
 
 ---
 
-## Product Walkthrough Demo
+## Tài Khoản Trải Nghiệm Hệ Thống
 
-> *Ảnh động minh họa toàn bộ hành trình trải nghiệm hệ sinh thái y tế số HealthCare: từ tra cứu chuyên khoa, tìm kiếm bác sĩ, kích hoạt trợ lý AI y tế (RAG), đến quản lý cổng bệnh nhân, studio lâm sàng bác sĩ và bảng điều khiển quản trị viện.*
+Hệ thống cung cấp 3 vai trò chính phục vụ mô hình vận hành bệnh viện số:
 
-<div align="center">
-  <img src="docs/assets/demo.gif" alt="HealthCare Product Walkthrough Demo" width="100%" />
-</div>
-
----
-
-## Demo Trực Tiếp & Tài Khoản Trải Nghiệm (Live Demo & Roles)
-
-Hệ thống đã được thiết lập sẵn phân quyền người dùng theo vai trò (RBAC) trên môi trường trực tiếp. Bạn có thể đăng nhập vào cổng tương ứng để trải nghiệm trọn vẹn nghiệp vụ lâm sàng và quản trị:
-
-**Cổng Đăng Nhập Trực Tiếp**: [https://www.healthcare.id.vn/auth/login](https://www.healthcare.id.vn/auth/login) *(hoặc domain dự phòng [healthcare-two-olive.vercel.app](https://healthcare-two-olive.vercel.app/auth/login))*
-
-| Vai trò (Role) | Tài khoản Đăng nhập | Mật khẩu | Portal Phục vụ | Phạm vi Quyền hạn & Nghiệp vụ Trọng tâm |
+| Vai trò | Email đăng nhập | Mật khẩu mẫu | Portal | Nghiệp vụ chính |
 | :--- | :--- | :--- | :--- | :--- |
-| **Quản trị viên (ADMIN)** | `admin@healthcare.com` | `HealthCare@2026` | [`/admin`](https://www.healthcare.id.vn/admin) | Quản trị toàn viện: Quản lý danh mục bác sĩ, chuyên khoa, chi nhánh cơ sở, khung giờ khám, phê duyệt nội dung AI & kiểm duyệt câu hỏi y tế |
-| **Bác sĩ (DOCTOR)** | `doctor@healthcare.com` | `HealthCare@2026` | [`/doctor`](https://www.healthcare.id.vn/doctor) | Cổng lâm sàng (BS. Lê Quốc Hà - Chấn thương chỉnh hình): Tiếp nhận hàng đợi khám trong ngày, xuất kết quả chẩn đoán, toa thuốc điện tử & bài viết chuyên môn |
-| **Bệnh nhân (PATIENT)** | `patient@healthcare.com` | `HealthCare@2026` | [`/patient`](https://www.healthcare.id.vn/patient) | Cổng bệnh nhân (Nguyễn Văn An): Xem lịch sử hẹn khám, kết quả chẩn đoán, tải hồ sơ sức khỏe và trò chuyện cùng Trợ lý AI Y tế (RAG) |
-
-> [!NOTE]
-> **Lưu ý về ranh giới demo**: Đây là các danh tính demo tổng hợp, riêng lập và có thể đặt lại — không phải tài khoản thật. Máy chủ từ chối phía backend các thao tác đột biến ảnh hưởng cao (quyết định thanh toán, điều chỉnh credit AI, thay đổi danh tính/phân quyền) đối với tài khoản demo; các luồng trải nghiệm khác vẫn hoạt động đầy đủ.
+| **Bệnh nhân** | `patient@healthcare.com` | `HealthCare@2026` | [`/patient`](http://localhost:3000/patient) | Đặt lịch khám, hồ sơ sức khỏe & Trợ lý AI y tế |
+| **Bác sĩ** | `doctor@healthcare.com` | `HealthCare@2026` | [`/doctor`](http://localhost:3000/doctor) | Lịch khám lâm sàng, tiếp nhận ca khám & chỉ định |
+| **Quản trị viên** | `admin@healthcare.com` | `HealthCare@2026` | [`/admin`](http://localhost:3000/admin) | Quản lý danh mục bác sĩ, dịch vụ, tài khoản & hệ thống |
 
 > [!TIP]
-> **Cơ chế Điều Hướng Thông Minh**: Sau khi nhập thông tin đăng nhập, hệ thống tự động phân tích vai trò trong JWT Claims và chuyển hướng chính xác đến bảng điều khiển tương ứng (`/admin`, `/doctor` hoặc `/patient`).
+> **Cơ chế Điều Hướng Thông Minh**: Sau khi đăng nhập, hệ thống tự động phân tích vai trò trong JWT Claims và chuyển hướng chính xác đến bảng điều khiển tương ứng (`/admin`, `/doctor/dashboard` hoặc `/patient/dashboard`).
 
 ---
 

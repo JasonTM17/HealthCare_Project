@@ -4,8 +4,10 @@
  */
 
 :root {
-  --font-vietnamese-ui: var(--font-inter), "Noto Sans", sans-serif;
+  --font-vietnamese-ui: var(--font-be-vietnam-pro), "Noto Sans", sans-serif;
   --font-vietnamese-display: var(--font-be-vietnam-pro), "Noto Sans", sans-serif;
+  --font-editorial-heading: var(--font-be-vietnam-pro), 'Plus Jakarta Sans', sans-serif;
+  --font-editorial-body: var(--font-be-vietnam-pro), sans-serif;
 }
 
 html[lang="vi"] {
