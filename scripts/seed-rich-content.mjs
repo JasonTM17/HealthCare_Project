@@ -177,8 +177,13 @@ async function exists(listPath, matchFn, session) {
   } catch { return null; }
 }
 
-const DOCTOR_AVATARS = ["/media/doctors/doctor-1.jpg", "/media/doctors/doctor-2.jpg",
-  "/media/doctors/doctor-3.jpg", "/media/doctors/doctor-4.jpg"];
+const DOCTOR_AVATARS = [
+  "/media/doctors/doctor-7.jpg",
+  "/media/doctors/doctor-8.jpg",
+  "/media/doctors/doctor-9.jpg",
+  "/media/doctors/doctor-10.jpg",
+  "/media/doctors/doctor-11.jpg",
+];
 const ARTICLE_COVERS = ["/media/articles/cham-soc-suc-khoe-tong-quat.jpg",
   "/media/articles/dau-hieu-tim-mach.jpg", "/media/articles/dinh-duong-tang-huyet-ap.jpg",
   "/media/articles/phong-ngua-dot-quy.jpg", "/media/articles/tam-soat-tieu-duong.jpg",
@@ -1323,11 +1328,9 @@ async function phaseMediaAndCms(admin) {
   // 2. CMS hero slots with rich Vietnamese content
   const slots = [
     { key: "homepage.hero", payload: {
-      eyebrow: "Hệ thống y tế HealthCare",
-      title: "Chăm sóc sức khỏe toàn diện cho cả gia đình bạn",
-      body: "Đội ngũ hơn 40 bác sĩ chuyên khoa giàu kinh nghiệm, trang thiết bị hiện đại và quy trình đặt khám trực tuyến chỉ trong 2 phút. Đồng hành cùng sức khỏe của bạn từ tầm soát đến điều trị.",
-      ctaLabel: "Đặt lịch khám ngay",
-      ctaHref: "/dat-lich",
+      eyebrow: "Bệnh viện đa khoa HealthCare",
+      title: "Đồng hành cùng sức khỏe gia đình",
+      body: "Chọn chuyên khoa, bác sĩ, gói khám hoặc cơ sở và giữ khung giờ phù hợp ngay trên hệ thống.",
       imageUrl: "/media/hospital-team-landscape.jpg",
     } },
     { key: "about.hero", payload: {
