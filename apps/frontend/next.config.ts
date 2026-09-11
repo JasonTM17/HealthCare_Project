@@ -23,9 +23,9 @@ if (productionBuild) {
 const contentSecurityPolicy = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${development ? " 'unsafe-eval'" : ""}`,
-  "style-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "img-src 'self' blob: data: https://images.unsplash.com https://images.pexels.com https://img.vietqr.io",
-  "font-src 'self' data:",
+  "font-src 'self' data: https://fonts.gstatic.com",
   `connect-src 'self' https://img.vietqr.io${development ? " ws://localhost:* ws://127.0.0.1:*" : ""}`,
   "media-src 'self' blob:",
   "worker-src 'self' blob:",
@@ -53,6 +53,41 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   distDir,
   reactStrictMode: true,
+  devIndicators: false,
+  async redirects() {
+    return [
+      {
+        source: "/booking",
+        destination: "/dat-lich",
+        permanent: true,
+      },
+      {
+        source: "/appointment-lookup",
+        destination: "/tra-cuu",
+        permanent: true,
+      },
+      {
+        source: "/tra-cuu-lich-hen",
+        destination: "/tra-cuu",
+        permanent: true,
+      },
+      {
+        source: "/portal/patient",
+        destination: "/patient",
+        permanent: true,
+      },
+      {
+        source: "/portal/doctor",
+        destination: "/doctor",
+        permanent: true,
+      },
+      {
+        source: "/portal/admin",
+        destination: "/admin",
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [
       {

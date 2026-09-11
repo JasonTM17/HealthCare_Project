@@ -12,7 +12,7 @@ import { authErrorMessage, authFieldErrors, safeAuthNextPath, type AuthFieldErro
 interface DemoRoleInfo {
   role: string;
   label: string;
-  icon: "user" | "stethoscope" | "shield-check";
+  icon: "user" | "stethoscope" | "shield-check" | "award" | "book-open";
   email: string;
   badge: string;
   badgeColor: string;
@@ -46,7 +46,7 @@ const DEMO_ROLES: readonly DemoRoleInfo[] = [
     label: "Quản trị viên",
     icon: "shield-check",
     email: "admin@healthcare.com",
-    badge: "Quyền quản trị: vận hành bác sĩ, cơ sở và hệ thống",
+    badge: "Tài khoản quản trị: vận hành bác sĩ, cơ sở và hệ thống",
     badgeColor: "#f0fdfa",
     badgeBorder: "#99f6e4",
     badgeText: "#0f766e",
@@ -55,9 +55,9 @@ const DEMO_ROLES: readonly DemoRoleInfo[] = [
 
 export default function LoginPage() {
   const router = useRouter();
-  const [selectedRole, setSelectedRole] = useState<string | null>("PATIENT");
-  const [email, setEmail] = useState("patient@healthcare.com");
-  const [password, setPassword] = useState("HealthCare@2026");
+  const [selectedRole, setSelectedRole] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -86,10 +86,24 @@ export default function LoginPage() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setSubmitting(true);
     setErrorMessage(null);
     setFieldErrors({});
     setVerificationEmail(null);
+
+    const clientErrors: AuthFieldErrors = {};
+    if (!email.trim()) {
+      clientErrors.email = "Vui lòng nhập địa chỉ email của bạn.";
+    }
+    if (!password) {
+      clientErrors.password = "Vui lòng nhập mật khẩu đăng nhập.";
+    }
+    if (Object.keys(clientErrors).length > 0) {
+      setFieldErrors(clientErrors);
+      setErrorMessage("Vui lòng kiểm tra lại thông tin đăng nhập.");
+      return;
+    }
+
+    setSubmitting(true);
 
     try {
       const session = await login({ email: email.trim(), password });
@@ -98,13 +112,15 @@ export default function LoginPage() {
         ? nextPath
         : hasRole(session.user, "DOCTOR") && nextPath?.startsWith("/doctor")
           ? nextPath
-          : hasRole(session.user, "PATIENT")
-            ? "/patient/dashboard"
-            : hasRole(session.user, "DOCTOR")
-              ? "/doctor/dashboard"
-              : hasRole(session.user, "ADMIN")
-                ? "/admin"
-                : "/";
+          : hasRole(session.user, "ADMIN") && nextPath?.startsWith("/admin")
+            ? nextPath
+            : hasRole(session.user, "PATIENT")
+              ? "/patient/dashboard"
+              : hasRole(session.user, "DOCTOR")
+                ? "/doctor/dashboard"
+                : hasRole(session.user, "ADMIN")
+                  ? "/admin"
+                  : "/";
       router.replace(target);
     } catch (error) {
       setFieldErrors(authFieldErrors(error));
@@ -142,18 +158,13 @@ export default function LoginPage() {
         <p className="section-note">CỔNG THÔNG TIN CÁ NHÂN</p>
         <h1 id="login-title">Đăng nhập tài khoản</h1>
         <p className="auth-card__intro">
-          Tài khoản được xác thực bởi máy chủ HealthCare. Không nhập thông tin y tế vào biểu mẫu này.
-        </p>
-
-        {/* Modern Segmented Role Selector */}
-        <p className="auth-card__intro">
-          Tài khoản demo: đây là các danh tính tổng hợp để trải nghiệm — máy chủ chặn phía backend
-          các thao tác tài chính/bảo mật nhạy cảm (thanh toán, credit AI, phân quyền) đối với tài khoản demo.
+          Đăng nhập để theo dõi lịch khám, hồ sơ sức khỏe và kết nối với bác sĩ chuyên khoa.
         </p>
         <div className={styles.roleGroup}
           aria-label="Chọn tài khoản kiểm thử"
           role="group"
         >
+          <p className="section-note">Tài khoản demo — dữ liệu tổng hợp, chỉ dùng để trải nghiệm.</p>
           {DEMO_ROLES.map((item) => {
             const active = selectedRole === item.role;
             return (
@@ -181,7 +192,7 @@ export default function LoginPage() {
           </div>
         ) : null}
 
-        <form className="auth-form" onSubmit={handleSubmit}>
+        <form className="auth-form" noValidate onSubmit={handleSubmit}>
           {errorMessage ? (
             <div aria-live="assertive" className="auth-form__error" role="alert">
               <p>{errorMessage}</p>
@@ -203,7 +214,7 @@ export default function LoginPage() {
               <Link href="/auth/forgot-password">Quên mật khẩu?</Link>
             </div>
             <div className={styles.passwordWrap}>
-              <input aria-describedby={fieldErrors.password ? "login-password-error" : undefined} aria-invalid={Boolean(fieldErrors.password)} autoComplete="current-password" className={styles.passwordInput} id="login-password" name="password" onChange={(event) => handleCustomInput("password", event.target.value)} required type={showPassword ? "text" : "password"} value={password} />
+              <input aria-describedby={fieldErrors.password ? "login-password-error" : undefined} aria-invalid={Boolean(fieldErrors.password)} autoComplete="current-password" className={styles.passwordInput} id="login-password" name="password" onChange={(event) => handleCustomInput("password", event.target.value)} placeholder="••••••••" required type={showPassword ? "text" : "password"} value={password} />
               <button aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"} className={styles.passwordToggle} onClick={() => setShowPassword(!showPassword)} type="button">
                 <Icon name={showPassword ? "eye-off" : "eye"} size={18} />
               </button>

@@ -179,7 +179,6 @@ const DoctorPhoto: React.FC<DoctorPhotoProps> = ({ doctor, featured = false }) =
           <span>{getInitials(doctor.fullName)}</span>
         </div>
       )}
-      <span className="doctor-photo__caption">Ảnh minh họa</span>
     </div>
   );
 };
@@ -303,12 +302,6 @@ function CatalogStatus({
   return null;
 }
 
-interface HeroStat {
-  icon: IconName;
-  value: string;
-  label: string;
-}
-
 interface HomeHeroCopyProps {
   searchQuery: string;
   setSearchQuery: (value: string) => void;
@@ -316,7 +309,6 @@ interface HomeHeroCopyProps {
   onBooking: () => void;
   onTriage: () => void;
   cmsHero?: CmsHeroPayload;
-  stats?: HeroStat[];
 }
 
 const PLACEHOLDER_HERO_COPY_PATTERN = /(?:Live Compose|Live CMS|demo|test)/i;
@@ -337,7 +329,6 @@ function HomeHeroCopy({
   onBooking,
   onTriage,
   cmsHero,
-  stats = [],
 }: HomeHeroCopyProps): React.ReactElement {
   const activeCmsHero = cmsHero && !isPlaceholderCmsHeroPayload(cmsHero) ? cmsHero : null;
   const cmsCta = activeCmsHero?.ctaLabel && activeCmsHero.ctaHref && isSafeCmsUrl(activeCmsHero.ctaHref)
@@ -348,22 +339,29 @@ function HomeHeroCopy({
     <div className="hero-copy" data-cms-managed={activeCmsHero ? "hero-copy" : undefined}>
       <p className="hero-kicker">
         <span className="hero-kicker__line" aria-hidden="true" />
-        {activeCmsHero?.eyebrow || "Bệnh viện đa khoa HealthCare"}
+        {activeCmsHero?.eyebrow && activeCmsHero.eyebrow !== "Hệ thống y tế HealthCare"
+          ? activeCmsHero.eyebrow
+          : "Bệnh viện đa khoa HealthCare"}
       </p>
       <h1 id="hero-title">
         {activeCmsHero?.title &&
         activeCmsHero.title !== DEFAULT_HERO_TITLE &&
+        activeCmsHero.title !== "Chăm sóc sức khỏe toàn diện cho cả gia đình bạn" &&
         activeCmsHero.title !== "Tìm chuyên khoa, bác sĩ và đặt lịch khám" ? (
           activeCmsHero.title
         ) : (
           <>
-            <span className="hero-title__line hero-title__main">Đồng hành cùng</span>
-            <span className="hero-teal-accent hero-title__line">sức khỏe gia đình</span>
+            Đồng hành<br />
+            cùng <span className="hero-teal-accent">sức khỏe</span><br />
+            <span className="hero-teal-accent">gia đình</span>
           </>
         )}
       </h1>
       <p className="hero-description !text-slate-700 !opacity-100" style={{ color: "#334155" }}>
-        {activeCmsHero?.body ?? "Chọn chuyên khoa, bác sĩ, gói khám hoặc cơ sở và chủ động giữ khung giờ trực tuyến thuận tiện."}
+        {activeCmsHero?.body &&
+        activeCmsHero.body !== "Đội ngũ hơn 40 bác sĩ chuyên khoa giàu kinh nghiệm, trang thiết bị hiện đại và quy trình đặt khám trực tuyến chỉ trong 2 phút. Đồng hành cùng sức khỏe của bạn từ tầm soát đến điều trị."
+          ? activeCmsHero.body
+          : "Chọn chuyên khoa, bác sĩ, gói khám hoặc cơ sở và giữ khung giờ phù hợp ngay trên hệ thống."}
       </p>
       <form className="hero-search" onSubmit={(event) => { event.preventDefault(); onSearchSubmit(); }}>
         <label className="sr-only" htmlFor="hero-search-input">
@@ -383,7 +381,7 @@ function HomeHeroCopy({
         <button type="submit">Tìm kiếm</button>
       </form>
       <p className="hero-search__help" id="hero-search-help">
-        Nhập tên chuyên khoa, bác sĩ hoặc nhu cầu thăm khám của bạn.
+        Tìm trong danh mục bệnh viện để chọn hướng đặt lịch phù hợp.
       </p>
       <div className="hero-quick-chips" aria-label="Gợi ý tìm kiếm phổ biến">
         <span>Gợi ý:</span>
@@ -399,7 +397,7 @@ function HomeHeroCopy({
         ))}
       </div>
       <div className="hero-actions">
-        {cmsCta ? (
+        {cmsCta && cmsCta.href !== "/dat-lich" ? (
           <a className="button button--amber" href={cmsCta.href}>
             {cmsCta.label}
             <Icon name="arrow-up-right" size={18} />
@@ -415,19 +413,6 @@ function HomeHeroCopy({
           <Icon name="stethoscope" size={18} />
         </button>
       </div>
-      {stats.length > 0 ? (
-        <div className="hero-trust" aria-label="Quy mô mạng lưới bệnh viện">
-          {stats.map((stat) => (
-            <div className="hero-trust__item" key={stat.label}>
-              <span className="hero-trust__icon"><Icon name={stat.icon} size={16} /></span>
-              <span>
-                <strong>{stat.value}</strong>
-                <small>{stat.label}</small>
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -665,18 +650,12 @@ export default function Home(): React.ReactElement {
   const contactPhone = emergencyBranch?.emergencyHotline ?? contactBranch?.phone ?? undefined;
   const contactHref = safeTelephoneHref(contactPhone);
   const homeDoctors = filteredDoctors.slice(0, 4);
-  const heroStats: HeroStat[] = catalog ? [
-    { icon: "stethoscope", value: String(catalog.specialtyTotal), label: "Chuyên khoa" },
-    { icon: "user", value: String(catalog.doctorTotal), label: "Bác sĩ" },
-    { icon: "building", value: String(catalog.branchTotal), label: "Cơ sở y tế" },
-  ] : [];
   const homeHeroProps: HomeHeroCopyProps = {
     searchQuery,
     setSearchQuery,
     onSearchSubmit: handleHeroSearchSubmit,
     onBooking: () => handleOpenBooking(),
     onTriage: () => setIsAiTriageOpen(true),
-    stats: heroStats,
   };
 
   const handleAiSpecialtySelect = (specialtyName: string, specialtyId?: string): void => {

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import CatalogPagination from "../../components/CatalogPagination";
 import ClinicalIcon from "../../components/ClinicalIcon";
 import Icon from "../../components/UiIcon";
@@ -18,6 +18,17 @@ const READING_STEPS = [
   ["03", "Xác nhận với chuyên môn", "Bài viết chỉ để tham khảo; quyết định điều trị cần được bác sĩ thăm khám trực tiếp."],
 ] as const;
 
+const TOPIC_PILLS = [
+  "Tim mạch",
+  "Nhi khoa",
+  "Thần kinh",
+  "Nội tiết",
+  "Tiêu hóa",
+  "Cơ xương khớp",
+  "Hô hấp",
+  "Da liễu",
+] as const;
+
 function safeErrorCopy(reason: unknown): string {
   return presentApiError(
     reason instanceof ApiError ? reason.code : undefined,
@@ -31,6 +42,10 @@ export default function ArticlesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [cachedArticleCount, setCachedArticleCount] = useState<number | null>(null);
+  const [cachedFeaturedArticle, setCachedFeaturedArticle] = useState<Article | null>(null);
   const loadedPageRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -52,17 +67,48 @@ export default function ArticlesPage() {
         loadedPageRef.current = currentPage;
         return fetchArticles(currentPage, 12);
     })
-      .then((data) => { if (data !== undefined && !cancelled) setPage(data); })
+      .then((data) => {
+        if (data !== undefined && !cancelled) {
+          setPage(data);
+          if (data.totalElements) setCachedArticleCount(data.totalElements);
+          if (data.content[0] && !cachedFeaturedArticle) setCachedFeaturedArticle(data.content[0]);
+        }
+      })
       .catch((reason: unknown) => {
         if (!cancelled) setError(`Tạm thời chưa thể tải bài viết. ${safeErrorCopy(reason)}`);
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     void task;
     return () => { cancelled = true; };
-  }, [currentPage, retryCount]);
+  }, [currentPage, retryCount, cachedFeaturedArticle]);
 
-  const featuredArticle = page?.content[0];
-  const articleCount = page?.totalElements ?? page?.content.length ?? 0;
+  const featuredArticle = cachedFeaturedArticle || page?.content[0];
+  const articleCount = cachedArticleCount ?? page?.totalElements ?? page?.content.length ?? 0;
+
+  // Filtered articles by category and search query
+  const displayedArticles = useMemo(() => {
+    if (!page?.content) return [];
+    let list = page.content;
+    if (selectedTopic) {
+      const topicLower = selectedTopic.toLowerCase();
+      list = list.filter(
+        (a) =>
+          a.category?.toLowerCase().includes(topicLower) ||
+          a.title.toLowerCase().includes(topicLower) ||
+          a.summary.toLowerCase().includes(topicLower),
+      );
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter(
+        (a) =>
+          a.title.toLowerCase().includes(q) ||
+          a.summary.toLowerCase().includes(q) ||
+          (a.category && a.category.toLowerCase().includes(q)),
+      );
+    }
+    return list;
+  }, [page?.content, selectedTopic, searchQuery]);
 
   return (
     <PublicPageShell>
@@ -112,7 +158,15 @@ export default function ArticlesPage() {
                   <Icon name="book-open" size={15} />
                   <span>Kho dữ liệu bài viết</span>
                 </dt>
-                <dd>{loading ? "Đang tải…" : articleCount ? `${articleCount} chuyên đề` : "Chưa có bài"}</dd>
+                <dd>
+                  {loading && !articleCount ? (
+                    <span className="inline-block w-20 h-6 bg-teal-800/40 rounded-xs animate-pulse" aria-hidden="true" />
+                  ) : articleCount ? (
+                    `${articleCount} chuyên đề`
+                  ) : (
+                    "Đang cập nhật"
+                  )}
+                </dd>
                 <p className="articles-hero__stat-note">Biên soạn theo 16 chuyên khoa lâm sàng</p>
               </div>
               <div className="articles-hero__stat-card">
@@ -128,7 +182,15 @@ export default function ArticlesPage() {
                   <Icon name="clock" size={15} />
                   <span>Cập nhật phác đồ</span>
                 </dt>
-                <dd>{loading ? "Đang tải…" : featuredArticle ? formatBusinessDate(featuredArticle.publishedAt) : "Năm 2026"}</dd>
+                <dd>
+                  {loading && !featuredArticle ? (
+                    <span className="inline-block w-24 h-6 bg-teal-800/40 rounded-xs animate-pulse" aria-hidden="true" />
+                  ) : featuredArticle ? (
+                    formatBusinessDate(featuredArticle.publishedAt)
+                  ) : (
+                    "Năm 2026"
+                  )}
+                </dd>
                 <p className="articles-hero__stat-note">Chuẩn hóa hướng dẫn Bộ Y tế &amp; WHO</p>
               </div>
             </dl>
@@ -138,23 +200,22 @@ export default function ArticlesPage() {
                 <Icon name="activity" size={14} /> Chủ đề phổ biến:
               </span>
               <div className="articles-hero__quick-pills">
-                {[
-                  "Tim mạch & Huyết áp",
-                  "Nhi khoa & Sơ sinh",
-                  "Thần kinh & Đột quỵ",
-                  "Nội tiết & Tiểu đường",
-                  "Tiêu hóa & Vi khuẩn HP",
-                  "Cơ xương khớp",
-                  "Hô hấp & Phổi",
-                  "Da liễu",
-                ].map((topic) => (
-                  <a
+                <button
+                  type="button"
+                  onClick={() => setSelectedTopic(null)}
+                  className={`articles-hero__topic-pill ${!selectedTopic ? "articles-hero__topic-pill--active bg-teal-800 text-white font-bold" : ""}`}
+                >
+                  Tất cả chủ đề
+                </button>
+                {TOPIC_PILLS.map((topic) => (
+                  <button
                     key={topic}
-                    href="#articles-list"
-                    className="articles-hero__topic-pill"
+                    type="button"
+                    onClick={() => setSelectedTopic(selectedTopic === topic ? null : topic)}
+                    className={`articles-hero__topic-pill ${selectedTopic === topic ? "articles-hero__topic-pill--active bg-teal-800 text-white font-bold" : ""}`}
                   >
                     {topic}
-                  </a>
+                  </button>
                 ))}
               </div>
             </div>
@@ -184,7 +245,7 @@ export default function ArticlesPage() {
                 <p>{featuredArticle.summary}</p>
                 <div className="resource-actions">
                   <Link className="text-button" href={`/articles/${encodeURIComponent(featuredArticle.slug)}`}>
-                    Đọc tóm tắt →
+                    Đọc bài viết →
                   </Link>
                   {featuredArticle.relatedSpecialtySlug ? (
                     <Link
@@ -202,6 +263,45 @@ export default function ArticlesPage() {
               </p>
             )}
           </section>
+        </div>
+
+        {/* Filter and Search Bar */}
+        <div className="articles-filter-bar flex items-center justify-between flex-wrap gap-4 py-3 border-y border-slate-200 my-6">
+          <div className="flex items-center gap-2 flex-1 min-w-[240px]">
+            <span className="text-slate-400 text-sm">🔍</span>
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Tìm kiếm bài viết theo từ khóa triệu chứng, bệnh lý..."
+              className="w-full bg-slate-50 border border-slate-200 rounded-xs px-3 py-1.5 text-sm text-slate-800 focus:outline-none focus:border-teal-700 focus:bg-white"
+              aria-label="Tìm kiếm cẩm nang y khoa"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="text-xs text-slate-500 hover:text-slate-700 px-1"
+              >
+                Xóa
+              </button>
+            )}
+          </div>
+          {selectedTopic && (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-slate-500">Đang lọc theo:</span>
+              <span className="bg-teal-100 text-teal-900 font-semibold px-2 py-0.5 rounded-xs">
+                {selectedTopic}
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedTopic(null)}
+                className="text-teal-700 hover:underline"
+              >
+                (Xóa lọc)
+              </button>
+            </div>
+          )}
         </div>
 
         {loading ? <p className="catalog-status catalog-status--loading" role="status">{page ? "Đang cập nhật cẩm nang…" : "Đang tải cẩm nang…"}</p> : null}
@@ -224,28 +324,48 @@ export default function ArticlesPage() {
         ) : null}
         {page && !page.empty ? (
           <>
-            <p aria-live="polite" className="catalog-meta">{page.totalElements} bài viết · Trang {page.number + 1}/{page.totalPages}</p>
-            <div className="catalog-grid catalog-grid--articles" id="articles-list">
-              {page.content.map((article) => (
-                <article className="catalog-card" key={article.id}>
-                  <div className="relative h-44 w-full mb-4 overflow-hidden rounded-[4px] bg-slate-100 border border-slate-100">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      alt={resolveArticleAlt(article)}
-                      className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
-                      src={resolveArticleCoverImage(article)}
-                    />
-                    <span className="absolute top-2.5 left-2.5 rounded-[4px] bg-teal-950/85 backdrop-blur-md px-2 py-0.5 text-xs font-bold text-teal-100 shadow-xs">
-                      {article.category || "Cẩm nang y tế"}
-                    </span>
-                  </div>
-                  <p className="section-note">{formatBusinessDate(article.publishedAt)}</p>
-                  <h3>{article.title}</h3>
-                  <p>{article.summary}</p>
-                  <Link className="text-button" href={`/articles/${encodeURIComponent(article.slug)}`}>Đọc tóm tắt →</Link>
-                </article>
-              ))}
-            </div>
+            <p aria-live="polite" className="catalog-meta">
+              {displayedArticles.length !== page.content.length
+                ? `Hiển thị ${displayedArticles.length}/${page.totalElements} bài viết phù hợp`
+                : `${page.totalElements} bài viết · Trang ${page.number + 1}/${page.totalPages}`}
+            </p>
+            {displayedArticles.length === 0 ? (
+              <div className="catalog-status text-center py-8">
+                <p className="text-slate-600 mb-3">Không tìm thấy bài viết nào phù hợp với bộ lọc hiện tại.</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedTopic(null);
+                    setSearchQuery("");
+                  }}
+                  className="outline-button outline-button--small"
+                >
+                  Xóa toàn bộ bộ lọc
+                </button>
+              </div>
+            ) : (
+              <div className="catalog-grid catalog-grid--articles" id="articles-list">
+                {displayedArticles.map((article) => (
+                  <article className="catalog-card" key={article.id}>
+                    <div className="relative h-44 w-full mb-4 overflow-hidden rounded-[4px] bg-slate-100 border border-slate-100">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        alt={resolveArticleAlt(article)}
+                        className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
+                        src={resolveArticleCoverImage(article)}
+                      />
+                      <span className="absolute top-2.5 left-2.5 rounded-[4px] bg-teal-950/85 backdrop-blur-md px-2 py-0.5 text-xs font-bold text-teal-100 shadow-xs">
+                        {article.category || "Cẩm nang y tế"}
+                      </span>
+                    </div>
+                    <p className="section-note">{formatBusinessDate(article.publishedAt)}</p>
+                    <h3>{article.title}</h3>
+                    <p>{article.summary}</p>
+                    <Link className="text-button" href={`/articles/${encodeURIComponent(article.slug)}`}>Đọc bài viết →</Link>
+                  </article>
+                ))}
+              </div>
+            )}
             <CatalogPagination label="Phân trang cẩm nang" onPageChange={setCurrentPage} page={page} />
           </>
         ) : null}

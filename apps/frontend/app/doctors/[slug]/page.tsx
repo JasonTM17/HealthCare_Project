@@ -67,12 +67,13 @@ export default function DoctorDetailPage() {
         {doctor ? (
           <>
             <article className="resource-hero-card resource-hero-card--teal">
-              <div className="resource-avatar" aria-hidden="true">
+              <div className="resource-avatar resource-avatar--doctor-detail" aria-hidden="true">
                 <Image
                   src={getDoctorPhoto(doctor)}
                   alt={doctor.fullName}
-                  width={112}
-                  height={112}
+                  width={280}
+                  height={280}
+                  sizes="(max-width: 768px) 160px, 240px"
                   className="resource-avatar__img"
                   priority
                 />
