@@ -31,9 +31,9 @@ export function routeCmsSlug(pathname: string): string | null {
 export function RouteCmsSlots({ children }: { children: ReactNode }): ReactElement {
   const pathname = usePathname();
   const slug = routeCmsSlug(pathname);
-  // Careers owns its hero/body composition. Its footer is still mounted by
-  // the shared Footer, so the standard frame preserves its native layout.
-  if (!slug || slug === "careers") return <>{children}</>;
+  // Careers owns its hero/body composition. About also preserves its native layout.
+  // Their footer is still mounted by the shared Footer, so the standard frame preserves their native layout.
+  if (!slug || slug === "careers" || slug === "about") return <>{children}</>;
 
   return (
     <div className={`native-route-cms native-route-cms--${slug}`} data-cms-route={slug}>

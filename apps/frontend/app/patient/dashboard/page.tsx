@@ -1038,10 +1038,89 @@ export default function PatientDashboardPage() {
     handleChooseReschedule(targetAppointment);
   }, [appointmentId, appointments, handleChooseReschedule, selectedAppointment]);
 
+  type TabKey = "overview" | "appointments" | "records" | "prescriptions" | "diagnostics" | "notifications" | "profile";
+
+  const parseTabFromHash = (rawHash: string): TabKey => {
+    const clean = (rawHash || "").toLowerCase().replace(/^#/, "").split(/[?&/]/)[0];
+    const validTabs: Record<string, TabKey> = {
+      overview: "overview",
+      appointments: "appointments",
+      records: "records",
+      prescriptions: "prescriptions",
+      diagnostics: "diagnostics",
+      notifications: "notifications",
+      profile: "profile",
+      settings: "profile",
+    };
+    return validTabs[clean] || "overview";
+  };
+
+  const [activeHash, setActiveHash] = useState<string>("");
+  const [selectedTab, setSelectedTab] = useState<TabKey | null>(null);
+  const activeTabRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const syncFromHash = (hashOverride?: string) => {
+      const hash = hashOverride ?? window.location.hash ?? "";
+      setActiveHash(hash);
+      const parsed = parseTabFromHash(hash);
+      setSelectedTab(parsed);
+    };
+
+    const handleCustomTabChange = (event: Event) => {
+      const customEvent = event as CustomEvent<{ hash?: string }>;
+      const targetHash = customEvent.detail?.hash ?? window.location.hash ?? "";
+      syncFromHash(targetHash);
+    };
+
+    if (window.location.hash) {
+      syncFromHash();
+    }
+
+    window.addEventListener("hashchange", () => syncFromHash());
+    window.addEventListener("popstate", () => syncFromHash());
+    window.addEventListener("portal:tab-change", handleCustomTabChange);
+
+    return () => {
+      window.removeEventListener("hashchange", () => syncFromHash());
+      window.removeEventListener("popstate", () => syncFromHash());
+      window.removeEventListener("portal:tab-change", handleCustomTabChange);
+    };
+  }, []);
+
+  const currentTab: TabKey =
+    selectedTab ?? (
+      paymentAppointmentId || appointmentId
+        ? "appointments"
+        : parseTabFromHash(activeHash)
+    );
+
+  useEffect(() => {
+    activeTabRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+  }, [currentTab]);
+
+  const navigateToTab = useCallback((tab: TabKey, hash: string) => {
+    setSelectedTab(tab);
+    setActiveHash(hash);
+    if (typeof window !== "undefined") {
+      if (window.location.hash !== hash) {
+        window.location.hash = hash;
+      }
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      window.dispatchEvent(new CustomEvent("portal:tab-change", { detail: { hash } }));
+    }
+  }, []);
+
+  const upcomingAppointment = appointments.status === "success"
+    ? findUpcomingAppointment(appointments.data)
+    : null;
+
   if (authState === "unauthenticated") {
+    const currentHash = typeof window !== "undefined" ? window.location.hash : "";
     const nextPath = paymentAppointmentId
       ? `/patient/dashboard?paymentAppointmentId=${encodeURIComponent(paymentAppointmentId)}#appointments`
-      : "/patient/dashboard";
+      : `/patient/dashboard${currentHash || ""}`;
     return <main className="portal-entry"><LoginRequiredState nextPath={nextPath} /></main>;
   }
   if (authState === "forbidden" || !user) {
@@ -1232,25 +1311,228 @@ export default function PatientDashboardPage() {
           </div>
           <div className="portal-hero__actions">
             <Link className="button button--amber" href="/tra-cuu">Tra cứu lịch hẹn</Link>
-            <a className="portal-context-link" href="#notifications">
+            <a
+              className="portal-context-link"
+              href="#notifications"
+              onClick={(e) => {
+                e.preventDefault();
+                navigateToTab("notifications", "#notifications");
+              }}
+            >
               <span aria-hidden="true"><UiIcon name="message-square" size={17} /></span>
               <span>{unreadCount === null ? "Thông báo" : `${unreadCount} thông báo chưa đọc`}</span>
             </a>
           </div>
         </header>
 
-        <section aria-label="Tóm tắt dữ liệu sức khỏe" className="portal-summary-grid">
-          <a className="portal-summary-card" href="#appointments"><span>Lịch hẹn</span><strong>{countOf(appointments)}</strong><small>Khung giờ đã ghi nhận</small></a>
-          <a className="portal-summary-card" href="#records"><span>Hồ sơ khám</span><strong>{countOf(records)}</strong><small>Thông tin lâm sàng</small></a>
-          <a className="portal-summary-card" href="#prescriptions"><span>Đơn thuốc</span><strong>{countOf(prescriptions)}</strong><small>Đơn đã được kê</small></a>
-          <a className="portal-summary-card" href="#diagnostics"><span>Kết quả</span><strong>{countOf(diagnostics)}</strong><small>Cận lâm sàng</small></a>
-          <Link className="portal-summary-card" href="/patient/community"><span>Cộng đồng</span><strong>Cẩm nang</strong><small>Đọc & Bình luận bài viết</small></Link>
-          <Link className="portal-summary-card" href="/patient/health-questions"><span>Hỏi đáp</span><strong>Tư vấn</strong><small>Bác sĩ giải đáp</small></Link>
-        </section>
+        <nav aria-label="Phân mục cổng bệnh nhân" className="portal-tab-bar">
+          <button
+            ref={currentTab === "overview" ? activeTabRef : undefined}
+            className={`portal-tab-btn ${currentTab === "overview" ? "portal-tab-btn--active" : ""}`}
+            onClick={() => navigateToTab("overview", "#overview")}
+            type="button"
+          >
+            <UiIcon name="home" size={15} />
+            <span>Tổng quan</span>
+          </button>
+          <button
+            ref={currentTab === "appointments" ? activeTabRef : undefined}
+            className={`portal-tab-btn ${currentTab === "appointments" ? "portal-tab-btn--active" : ""}`}
+            onClick={() => navigateToTab("appointments", "#appointments")}
+            type="button"
+          >
+            <UiIcon name="calendar" size={15} />
+            <span>Lịch hẹn</span>
+            <span className="portal-tab-badge">{countOf(appointments)}</span>
+          </button>
+          <button
+            ref={currentTab === "records" ? activeTabRef : undefined}
+            className={`portal-tab-btn ${currentTab === "records" ? "portal-tab-btn--active" : ""}`}
+            onClick={() => navigateToTab("records", "#records")}
+            type="button"
+          >
+            <UiIcon name="activity" size={15} />
+            <span>Hồ sơ khám</span>
+            <span className="portal-tab-badge">{countOf(records)}</span>
+          </button>
+          <button
+            ref={currentTab === "prescriptions" ? activeTabRef : undefined}
+            className={`portal-tab-btn ${currentTab === "prescriptions" ? "portal-tab-btn--active" : ""}`}
+            onClick={() => navigateToTab("prescriptions", "#prescriptions")}
+            type="button"
+          >
+            <UiIcon name="book-open" size={15} />
+            <span>Đơn thuốc</span>
+            <span className="portal-tab-badge">{countOf(prescriptions)}</span>
+          </button>
+          <button
+            ref={currentTab === "diagnostics" ? activeTabRef : undefined}
+            className={`portal-tab-btn ${currentTab === "diagnostics" ? "portal-tab-btn--active" : ""}`}
+            onClick={() => navigateToTab("diagnostics", "#diagnostics")}
+            type="button"
+          >
+            <UiIcon name="activity" size={15} />
+            <span>Cận lâm sàng</span>
+            <span className="portal-tab-badge">{countOf(diagnostics)}</span>
+          </button>
+          <button
+            ref={currentTab === "notifications" ? activeTabRef : undefined}
+            className={`portal-tab-btn ${currentTab === "notifications" ? "portal-tab-btn--active" : ""}`}
+            onClick={() => navigateToTab("notifications", "#notifications")}
+            type="button"
+          >
+            <UiIcon name="message-square" size={15} />
+            <span>Thông báo</span>
+            {unreadCount ? (
+              <span className="portal-tab-badge portal-tab-badge--highlight">{unreadCount}</span>
+            ) : (
+              <span className="portal-tab-badge">{countOf(notifications)}</span>
+            )}
+          </button>
+          <button
+            ref={currentTab === "profile" ? activeTabRef : undefined}
+            className={`portal-tab-btn ${currentTab === "profile" ? "portal-tab-btn--active" : ""}`}
+            onClick={() => navigateToTab("profile", "#profile")}
+            type="button"
+          >
+            <UiIcon name="user" size={15} />
+            <span>Hồ sơ & Bảo mật</span>
+          </button>
+        </nav>
 
-        <PatientCareHub appointments={appointments} carePlans={carePlans} overview={overview} retry={retry} />
+        {currentTab === "overview" && (
+          <>
+            <section aria-label="Tóm tắt dữ liệu sức khỏe" className="portal-summary-grid">
+              <a
+                className="portal-summary-card"
+                href="#appointments"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigateToTab("appointments", "#appointments");
+                }}
+              >
+                <span>Lịch hẹn</span>
+                <strong>{countOf(appointments)}</strong>
+                <small>Khung giờ đã ghi nhận</small>
+              </a>
+              <a
+                className="portal-summary-card"
+                href="#records"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigateToTab("records", "#records");
+                }}
+              >
+                <span>Hồ sơ khám</span>
+                <strong>{countOf(records)}</strong>
+                <small>Thông tin lâm sàng</small>
+              </a>
+              <a
+                className="portal-summary-card"
+                href="#prescriptions"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigateToTab("prescriptions", "#prescriptions");
+                }}
+              >
+                <span>Đơn thuốc</span>
+                <strong>{countOf(prescriptions)}</strong>
+                <small>Đơn đã được kê</small>
+              </a>
+              <a
+                className="portal-summary-card"
+                href="#diagnostics"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigateToTab("diagnostics", "#diagnostics");
+                }}
+              >
+                <span>Kết quả</span>
+                <strong>{countOf(diagnostics)}</strong>
+                <small>Cận lâm sàng</small>
+              </a>
+              <Link className="portal-summary-card" href="/patient/community">
+                <span>Cộng đồng</span>
+                <strong>Cẩm nang</strong>
+                <small>Đọc & Bình luận bài viết</small>
+              </Link>
+              <Link className="portal-summary-card" href="/patient/health-questions">
+                <span>Hỏi đáp</span>
+                <strong>Tư vấn</strong>
+                <small>Bác sĩ giải đáp</small>
+              </Link>
+            </section>
 
-        <section className="portal-panel" aria-labelledby="appointments-title" id="appointments">
+            <PatientCareHub appointments={appointments} carePlans={carePlans} overview={overview} retry={retry} />
+
+            <div className="portal-upcoming-preview">
+              <div className="portal-upcoming-preview__header">
+                <h3 className="portal-upcoming-preview__title">
+                  <UiIcon name="calendar" size={18} />
+                  <span>Lịch khám gần nhất</span>
+                </h3>
+                <button
+                  className="text-button"
+                  onClick={() => navigateToTab("appointments", "#appointments")}
+                  type="button"
+                >
+                  Xem tất cả lịch hẹn ({countOf(appointments)}) →
+                </button>
+              </div>
+              {appointments.status === "loading" ? (
+                <p className="portal-panel__intro">Đang kiểm tra lịch khám sắp tới…</p>
+              ) : appointments.status === "error" ? (
+                <p className="portal-inline-error">Chưa thể tải lịch khám. Bạn có thể mở chi tiết phân mục Lịch hẹn để thử lại.</p>
+              ) : upcomingAppointment ? (
+                <div className="portal-upcoming-preview__body">
+                  <div className="portal-upcoming-preview__info">
+                    <span className="portal-upcoming-preview__date">
+                      {formatBusinessDate(upcomingAppointment.appointmentDate)} · {formatPortalTime(upcomingAppointment.startTime)} đến {formatPortalTime(upcomingAppointment.endTime)}
+                    </span>
+                    <span className="portal-upcoming-preview__meta">
+                      Bác sĩ {upcomingAppointment.doctorName} · {upcomingAppointment.specialtyName ?? "Đa khoa"}{upcomingAppointment.branchName ? ` (${upcomingAppointment.branchName})` : ""}
+                    </span>
+                  </div>
+                  <button
+                    className="button button--primary button--small"
+                    onClick={() => navigateToTab("appointments", "#appointments")}
+                    type="button"
+                  >
+                    Quản lý lịch hẹn này
+                  </button>
+                </div>
+              ) : (
+                <div className="portal-upcoming-preview__body">
+                  <div className="portal-upcoming-preview__info">
+                    <span className="portal-upcoming-preview__date">Hiện không có lịch khám sắp tới</span>
+                    <span className="portal-upcoming-preview__meta">Bạn có thể chủ động chọn bác sĩ và đặt lịch trực tuyến nhanh chóng.</span>
+                  </div>
+                  <Link className="button button--primary button--small" href="/dat-lich">
+                    Đặt lịch khám mới
+                  </Link>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {currentTab === "appointments" && (
+          <>
+            <div className="portal-view-header">
+              <button
+                className="portal-back-btn"
+                onClick={() => navigateToTab("overview", "#overview")}
+                type="button"
+              >
+                <UiIcon name="arrow-left" size={15} />
+                <span>Quay lại Tổng quan</span>
+              </button>
+              <span className="portal-view-crumb">
+                Cổng bệnh nhân / <strong>Lịch hẹn của tôi</strong>
+              </span>
+            </div>
+
+            <section className="portal-panel" aria-labelledby="appointments-title" id="appointments">
           <div className="portal-panel__heading">
             <div>
               <p className="section-note">LỊCH HẸN ĐÃ XÁC THỰC</p>
@@ -1398,10 +1680,27 @@ export default function PatientDashboardPage() {
             </form>
           ) : null}
           {rescheduleNotice ? <p aria-live="polite" className={rescheduleNotice.startsWith("Đã") ? "portal-inline-success" : "portal-inline-error"}>{rescheduleNotice}</p> : null}
-        </section>
+            </section>
+          </>
+        )}
 
-        <div className="portal-grid portal-grid--main">
-          <section aria-labelledby="records-title" className="portal-panel" id="records">
+        {currentTab === "records" && (
+          <>
+            <div className="portal-view-header">
+              <button
+                className="portal-back-btn"
+                onClick={() => navigateToTab("overview", "#overview")}
+                type="button"
+              >
+                <UiIcon name="arrow-left" size={15} />
+                <span>Quay lại Tổng quan</span>
+              </button>
+              <span className="portal-view-crumb">
+                Cổng bệnh nhân / <strong>Lịch sử khám</strong>
+              </span>
+            </div>
+
+            <section aria-labelledby="records-title" className="portal-panel" id="records">
             <div className="portal-panel__heading">
               <div><p className="section-note">HỒ SƠ LÂM SÀNG</p><h2 id="records-title">Lịch sử khám</h2></div>
               <span aria-hidden="true" className="portal-panel__icon"><UiIcon name="activity" size={20} /></span>
@@ -1427,9 +1726,27 @@ export default function PatientDashboardPage() {
                 </div>
               )}
             </StateContent>
-          </section>
+            </section>
+          </>
+        )}
 
-          <section aria-labelledby="prescriptions-title" className="portal-panel" id="prescriptions">
+        {currentTab === "prescriptions" && (
+          <>
+            <div className="portal-view-header">
+              <button
+                className="portal-back-btn"
+                onClick={() => navigateToTab("overview", "#overview")}
+                type="button"
+              >
+                <UiIcon name="arrow-left" size={15} />
+                <span>Quay lại Tổng quan</span>
+              </button>
+              <span className="portal-view-crumb">
+                Cổng bệnh nhân / <strong>Đơn thuốc</strong>
+              </span>
+            </div>
+
+            <section aria-labelledby="prescriptions-title" className="portal-panel" id="prescriptions">
             <div className="portal-panel__heading">
               <div><p className="section-note">ĐIỀU TRỊ</p><h2 id="prescriptions-title">Đơn thuốc</h2></div>
               <span aria-hidden="true" className="portal-panel__icon"><UiIcon name="book-open" size={20} /></span>
@@ -1462,10 +1779,27 @@ export default function PatientDashboardPage() {
                 </div>
               )}
             </StateContent>
-          </section>
-        </div>
+            </section>
+          </>
+        )}
 
-        <section aria-labelledby="diagnostics-title" className="portal-panel" id="diagnostics">
+        {currentTab === "diagnostics" && (
+          <>
+            <div className="portal-view-header">
+              <button
+                className="portal-back-btn"
+                onClick={() => navigateToTab("overview", "#overview")}
+                type="button"
+              >
+                <UiIcon name="arrow-left" size={15} />
+                <span>Quay lại Tổng quan</span>
+              </button>
+              <span className="portal-view-crumb">
+                Cổng bệnh nhân / <strong>Kết quả cận lâm sàng</strong>
+              </span>
+            </div>
+
+            <section aria-labelledby="diagnostics-title" className="portal-panel" id="diagnostics">
           <div className="portal-panel__heading">
             <div><p className="section-note">CẬN LÂM SÀNG</p><h2 id="diagnostics-title">Kết quả chẩn đoán</h2></div>
             <span aria-hidden="true" className="portal-panel__icon"><UiIcon name="activity" size={20} /></span>
@@ -1490,9 +1824,27 @@ export default function PatientDashboardPage() {
               </div>
             )}
           </StateContent>
-        </section>
+            </section>
+          </>
+        )}
 
-        <section aria-labelledby="notifications-title" className="portal-panel" id="notifications">
+        {currentTab === "notifications" && (
+          <>
+            <div className="portal-view-header">
+              <button
+                className="portal-back-btn"
+                onClick={() => navigateToTab("overview", "#overview")}
+                type="button"
+              >
+                <UiIcon name="arrow-left" size={15} />
+                <span>Quay lại Tổng quan</span>
+              </button>
+              <span className="portal-view-crumb">
+                Cổng bệnh nhân / <strong>Thông báo</strong>
+              </span>
+            </div>
+
+            <section aria-labelledby="notifications-title" className="portal-panel" id="notifications">
           <div className="portal-panel__heading">
             <div><p className="section-note">CẬP NHẬT</p><h2 id="notifications-title">Thông báo</h2></div>
             {unreadCount ? <button className="text-button" disabled={notificationAction === "all"} onClick={handleMarkAllAsRead} type="button">Đánh dấu đã đọc</button> : null}
@@ -1519,9 +1871,27 @@ export default function PatientDashboardPage() {
               </div>
             )}
           </StateContent>
-        </section>
+            </section>
+          </>
+        )}
 
-        <section aria-labelledby="profile-title" className="portal-panel portal-panel--secondary" id="profile">
+        {currentTab === "profile" && (
+          <>
+            <div className="portal-view-header">
+              <button
+                className="portal-back-btn"
+                onClick={() => navigateToTab("overview", "#overview")}
+                type="button"
+              >
+                <UiIcon name="arrow-left" size={15} />
+                <span>Quay lại Tổng quan</span>
+              </button>
+              <span className="portal-view-crumb">
+                Cổng bệnh nhân / <strong>Hồ sơ & Bảo mật</strong>
+              </span>
+            </div>
+
+            <section aria-labelledby="profile-title" className="portal-panel portal-panel--secondary" id="profile">
           <div className="portal-panel__heading">
             <div>
               <h2 id="profile-title">Hồ sơ cá nhân & Tiền sử sức khỏe</h2>
@@ -1784,9 +2154,11 @@ export default function PatientDashboardPage() {
               </div>
             )}
           </StateContent>
-        </section>
+            </section>
+          </>
+        )}
 
-        <p className="portal-disclaimer">Thông tin trong cổng là dữ liệu do cơ sở y tế trả về. Không tự thay đổi thuốc hoặc kế hoạch điều trị dựa trên giao diện này; hãy liên hệ cơ sở y tế khi cần giải thích.</p>
+        <p className="portal-disclaimer">Hồ sơ sức khỏe được cập nhật trực tiếp từ hệ thống bệnh viện HealthCare. Để đảm bảo an toàn, quý khách vui lòng luôn tham vấn ý kiến bác sĩ trước khi thay đổi đơn thuốc hoặc liệu trình điều trị.</p>
       </div>
     </PortalChrome>
   );

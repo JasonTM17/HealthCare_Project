@@ -64,6 +64,8 @@ export interface HealthPackage {
   targetAudience?: string | null;
   durationDays?: number | null;
   preparationSteps?: string[];
+  displayOrder?: number;
+  version?: number;
 }
 
 export interface MedicalService {
@@ -79,6 +81,8 @@ export interface Faq {
   question: string;
   answer: string;
   active?: boolean;
+  displayOrder?: number;
+  version?: number;
 }
 
 export type EmploymentType = "FULL_TIME" | "PART_TIME" | "CONTRACT" | "INTERNSHIP";

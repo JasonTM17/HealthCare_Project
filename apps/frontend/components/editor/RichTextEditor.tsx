@@ -383,7 +383,7 @@ export function RichTextEditor({
         "bold italic underline strikethrough | quicklink h2 h3 blockquote | forecolor backcolor",
       quickbars_insert_toolbar: "quickimage quicktable | hr",
       font_family_formats:
-        "Mặc định hệ thống=-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; Arial=arial,helvetica,sans-serif; Courier New=courier new,courier,monospace; Georgia=georgia,palatino,serif; Tahoma=tahoma,arial,helvetica,sans-serif; Times New Roman=times new roman,times,serif; Trebuchet MS=trebuchet ms,geneva,sans-serif; Verdana=verdana,geneva,sans-serif",
+        "Be Vietnam Pro='Be Vietnam Pro',sans-serif; Mặc định hệ thống=-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; Arial=arial,helvetica,sans-serif; Courier New=courier new,courier,monospace; Georgia=georgia,palatino,serif; Tahoma=tahoma,arial,helvetica,sans-serif; Times New Roman=times new roman,times,serif; Trebuchet MS=trebuchet ms,geneva,sans-serif; Verdana=verdana,geneva,sans-serif",
       font_size_formats: "12px 13px 14px 15px 16px 18px 20px 24px 28px 32px 36px",
       table_default_attributes: {
         border: "1",
@@ -403,8 +403,9 @@ export function RichTextEditor({
       skin: "oxide",
       content_css: "default",
       content_style: `
+        @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&display=swap');
         body {
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          font-family: 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
           font-size: 14px;
           line-height: 1.7;
           color: #0f172a;

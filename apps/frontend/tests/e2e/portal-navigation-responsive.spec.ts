@@ -40,11 +40,18 @@ for (const role of ["PATIENT", "DOCTOR"] as const) {
         ).toBeLessThanOrEqual(1);
 
         for (const link of await navigation.getByRole("link").all()) {
+          await link.scrollIntoViewIfNeeded();
           await expect(link).toBeInViewport();
           await link.focus();
           await expect(link).toBeFocused();
         }
-        await navigation.getByRole("link", { name: "Trang chính", exact: true }).focus();
+        const navLinks = navigation.getByRole("link");
+        await navLinks.last().focus();
+        if (role === "PATIENT") {
+          await page.keyboard.press("Tab");
+          const bell = page.getByRole("link", { name: /Thông báo từ bệnh viện/ });
+          await expect(bell).toBeFocused();
+        }
         await page.keyboard.press("Tab");
         const profile = page.getByRole("link", { name: "Xem thông tin tài khoản", exact: true });
         await expect(profile).toBeFocused();

@@ -3,17 +3,21 @@ import React from "react";
 export type IconName =
   | "activity"
   | "alert-triangle"
+  | "arrow-left"
   | "arrow-right"
   | "arrow-up-right"
   | "award"
+  | "bell"
   | "book-open"
   | "brain"
   | "building"
   | "calendar"
   | "check"
+  | "chevron-down"
   | "chevron-right"
   | "clock"
   | "heart"
+  | "home"
   | "eye"
   | "eye-off"
   | "layers"
@@ -60,12 +64,19 @@ const Icon: React.FC<IconProps> = ({
   const paths: Record<IconName, React.ReactNode> = {
     activity: <path {...commonProps} d="M3 12h4l2.2-7 4.2 14 2.2-7H21" />,
     "alert-triangle": <path {...commonProps} d="m12 4 9 16H3L12 4Zm0 5v4m0 3h.01" />,
+    "arrow-left": <path {...commonProps} d="M20 12H4m6-6-6 6 6 6" />,
     "arrow-right": <path {...commonProps} d="M4 12h15m-6-6 6 6-6 6" />,
     "arrow-up-right": <path {...commonProps} d="M5 19 19 5m0 0H9m10 0v10" />,
     award: (
       <>
         <circle {...commonProps} cx="12" cy="8" r="6" />
         <path {...commonProps} d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.738.536L12 19.47l-4.254 2.482a.5.5 0 0 1-.738-.536l1.515-8.526" />
+      </>
+    ),
+    bell: (
+      <>
+        <path {...commonProps} d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+        <path {...commonProps} d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
       </>
     ),
     "book-open": (
@@ -84,9 +95,11 @@ const Icon: React.FC<IconProps> = ({
       <path {...commonProps} d="M6 3v3m12-3v3M4 9h16M5.5 5h13A1.5 1.5 0 0 1 20 6.5v12A1.5 1.5 0 0 1 18.5 20h-13A1.5 1.5 0 0 1 4 18.5v-12A1.5 1.5 0 0 1 5.5 5Zm3 8h.01m3.49 0H12m3.5 0h.01M8.5 16h.01m3.49 0H12" />
     ),
     check: <path {...commonProps} d="m5 12 4 4L19 6" />,
+    "chevron-down": <path {...commonProps} d="m6 9 6 6 6-6" />,
     "chevron-right": <path {...commonProps} d="m9 5 7 7-7 7" />,
     clock: <path {...commonProps} d="M12 7v5l3 2m6-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />,
     heart: <path {...commonProps} d="M20.8 8.6c0 5.2-8.8 10.4-8.8 10.4S3.2 13.8 3.2 8.6A4.6 4.6 0 0 1 12 6.3a4.6 4.6 0 0 1 8.8 2.3Z" />,
+    home: <path {...commonProps} d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />,
     eye: <><path {...commonProps} d="M2.5 12s3.3-5 9.5-5 9.5 5 9.5 5-3.3 5-9.5 5-9.5-5-9.5-5Z" /><circle {...commonProps} cx="12" cy="12" r="2.2" /></>,
     "eye-off": <><path {...commonProps} d="m3 3 18 18M10.6 6.9A10.8 10.8 0 0 1 12 7c6.2 0 9.5 5 9.5 5a17 17 0 0 1-3.2 3.4M6.2 6.2C3.8 7.5 2.5 12 2.5 12s3.3 5 9.5 5a9 9 0 0 0 2.4-.3" /></>,
     layers: (

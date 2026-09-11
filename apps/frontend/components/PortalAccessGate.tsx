@@ -12,7 +12,7 @@ import { ForbiddenState, LoadingState, LoginRequiredState } from "./PortalStates
 
 interface PortalAccessGateProps {
   children: ReactNode;
-  role: "PATIENT" | "DOCTOR";
+  role: "PATIENT" | "DOCTOR" | "ADMIN";
 }
 
 const MAX_RETURN_PATH_LENGTH = 2_048;
@@ -36,6 +36,15 @@ function safePortalReturnPath(pathname: string | null, role: PortalAccessGatePro
     return pathnameFallback;
   }
   return currentPath;
+}
+
+function getRoleDescription(role: PortalAccessGateProps["role"]): string {
+  switch (role) {
+    case "PATIENT": return "Khu vực này chỉ dành cho tài khoản bệnh nhân.";
+    case "DOCTOR": return "Khu vực này chỉ dành cho tài khoản bác sĩ.";
+    case "ADMIN": return "Khu vực này chỉ dành cho quản trị viên hệ thống.";
+    default: return "Bạn không có quyền truy cập khu vực này.";
+  }
 }
 
 export default function PortalAccessGate({ children, role }: PortalAccessGateProps) {
@@ -84,9 +93,7 @@ export default function PortalAccessGate({ children, role }: PortalAccessGatePro
       <main className="portal-entry">
         <ForbiddenState
           title="Tài khoản không có quyền mở cổng thông tin này"
-          description={role === "PATIENT"
-            ? "Khu vực này chỉ dành cho tài khoản bệnh nhân."
-            : "Khu vực này chỉ dành cho tài khoản bác sĩ."}
+          description={getRoleDescription(role)}
         />
       </main>
     );

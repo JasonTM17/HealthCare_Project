@@ -33,12 +33,16 @@ export function useSortableList<T>({
   const itemsRef = useRef(items);
   const onReorderRef = useRef(onReorder);
 
-  itemsRef.current = items;
-  onReorderRef.current = onReorder;
+  useEffect(() => {
+    itemsRef.current = items;
+    onReorderRef.current = onReorder;
+  });
+
+  const isDragDisabled = disabled || (items?.length ?? 0) <= 1;
 
   useEffect(() => {
     const el = containerRef.current;
-    if (!el || disabled) return;
+    if (!el || isDragDisabled) return;
 
     const sortable = Sortable.create(el, {
       handle,
@@ -48,6 +52,10 @@ export function useSortableList<T>({
       dragClass,
       fallbackOnBody: true,
       swapThreshold: 0.65,
+      delay: 0,
+      delayOnTouchOnly: true,
+      touchStartThreshold: 3,
+      fallbackTolerance: 3,
       onEnd: (evt) => {
         const { oldIndex, newIndex } = evt;
         if (
@@ -60,17 +68,22 @@ export function useSortableList<T>({
 
         // Revert the raw DOM manipulation so React's virtual DOM reconciliation
         // applies the reordered state cleanly without duplicate or displaced nodes.
-        if (evt.item && evt.from) {
-          const children = Array.from(evt.from.children);
-          const currentItem = evt.item;
-          const targetNode = children[oldIndex];
-          if (targetNode && targetNode !== currentItem) {
-            if (oldIndex < newIndex) {
-              evt.from.insertBefore(currentItem, targetNode);
-            } else {
-              evt.from.insertBefore(currentItem, targetNode.nextSibling);
+        try {
+          if (evt.item && evt.from) {
+            const children = Array.from(evt.from.children);
+            const currentItem = evt.item;
+            const targetNode = children[oldIndex];
+            if (targetNode && targetNode !== currentItem) {
+              if (oldIndex < newIndex) {
+                evt.from.insertBefore(currentItem, targetNode);
+              } else {
+                evt.from.insertBefore(currentItem, targetNode.nextSibling);
+              }
             }
           }
+        } catch (domErr) {
+          // If DOM rollback encounters an already unmounted node, proceed safely
+          console.warn("[useSortableList] DOM rollback warning:", domErr);
         }
 
         const currentItems = [...itemsRef.current];
@@ -85,7 +98,7 @@ export function useSortableList<T>({
     return () => {
       sortable.destroy();
     };
-  }, [handle, animation, disabled, ghostClass, chosenClass, dragClass]);
+  }, [handle, animation, isDragDisabled, ghostClass, chosenClass, dragClass]);
 
   return { containerRef };
 }
