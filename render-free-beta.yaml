@@ -118,6 +118,21 @@ services:
       - key: CMS_DISTRIBUTED_REALTIME_ENABLED
         value: "true"
 
+      # Low-memory footprint tuning for Render Free 512MB RAM constraint.
+      # Caps heap, metaspace, code cache, and thread stack size to prevent OOM restart.
+      - key: JAVA_TOOL_OPTIONS
+        value: "-XX:+UseSerialGC -Xms128m -Xmx220m -XX:MaxMetaspaceSize=130m -XX:CompressedClassSpaceSize=32m -XX:ReservedCodeCacheSize=32m -Xss512k -XX:+ExitOnOutOfMemoryError"
+      - key: MALLOC_ARENA_MAX
+        value: "2"
+      - key: SERVER_TOMCAT_THREADS_MAX
+        value: "20"
+      - key: SERVER_TOMCAT_THREADS_MIN_SPARE
+        value: "4"
+      - key: SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE
+        value: "5"
+      - key: SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE
+        value: "2"
+
       # HOSPITAL_SUPPORT uses the remote DeepSeek-backed FastAPI service.
       # Clinical modes and synthetic approval paths remain fail-closed.
       - key: AI_SERVICE_URL
