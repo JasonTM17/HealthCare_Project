@@ -98,7 +98,10 @@ public class PublicAiChatController {
         payload.put("message", request.message().trim());
         payload.put("public_support_chat", true);
         if (request.recentTurns() != null) {
-            payload.put("recent_turns", request.recentTurns());
+            List<Map<String, String>> mappedTurns = request.recentTurns().stream()
+                .map(turn -> Map.of("role", turn.role(), "content", turn.content()))
+                .toList();
+            payload.put("recent_turns", mappedTurns);
         }
 
         return ResponseEntity.ok(sanitize(aiService.chat(payload)));

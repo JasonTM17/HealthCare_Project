@@ -306,6 +306,104 @@ class RequestRateLimitFilterTest {
         assertThat(accepted).hasValue(1);
     }
 
+    @Test
+    void rateLimitsConsultationPostEndpoints() throws Exception {
+        MockEnvironment environment = new MockEnvironment()
+            .withProperty("app.security.rate-limit.consultation-limit", "1")
+            .withProperty("app.security.rate-limit.window-seconds", "60");
+        RequestRateLimitFilter filter = filter(environment);
+        AtomicInteger accepted = new AtomicInteger();
+
+        MockHttpServletResponse first = invokePost(filter, accepted, "/api/v1/patient/consultations/create", "10.0.1.1");
+        MockHttpServletResponse repeated = invokePost(filter, accepted, "/api/v1/patient/consultations/create", "10.0.1.1");
+
+        assertThat(first.getStatus()).isEqualTo(200);
+        assertThat(repeated.getStatus()).isEqualTo(429);
+        assertThat(accepted).hasValue(1);
+    }
+
+    @Test
+    void rateLimitsUploadPostEndpoints() throws Exception {
+        MockEnvironment environment = new MockEnvironment()
+            .withProperty("app.security.rate-limit.upload-limit", "1")
+            .withProperty("app.security.rate-limit.window-seconds", "60");
+        RequestRateLimitFilter filter = filter(environment);
+        AtomicInteger accepted = new AtomicInteger();
+
+        MockHttpServletResponse first = invokePost(filter, accepted, "/api/v1/media/upload", "10.0.1.2");
+        MockHttpServletResponse repeated = invokePost(filter, accepted, "/api/v1/media/upload", "10.0.1.2");
+
+        assertThat(first.getStatus()).isEqualTo(200);
+        assertThat(repeated.getStatus()).isEqualTo(429);
+        assertThat(accepted).hasValue(1);
+    }
+
+    @Test
+    void rateLimitsCarePlansAndClinicalPostEndpoints() throws Exception {
+        MockEnvironment environment = new MockEnvironment()
+            .withProperty("app.security.rate-limit.care-plan-limit", "1")
+            .withProperty("app.security.rate-limit.clinical-limit", "1")
+            .withProperty("app.security.rate-limit.window-seconds", "60");
+        RequestRateLimitFilter filter = filter(environment);
+        AtomicInteger accepted = new AtomicInteger();
+
+        MockHttpServletResponse carePlan1 = invokePost(filter, accepted, "/api/v1/doctor/care-plans", "10.0.1.3");
+        MockHttpServletResponse carePlan2 = invokePost(filter, accepted, "/api/v1/doctor/care-plans", "10.0.1.3");
+        MockHttpServletResponse clinical1 = invokePost(filter, accepted, "/api/v1/clinical/encounters", "10.0.1.3");
+        MockHttpServletResponse clinical2 = invokePost(filter, accepted, "/api/v1/clinical/encounters", "10.0.1.3");
+
+        assertThat(carePlan1.getStatus()).isEqualTo(200);
+        assertThat(carePlan2.getStatus()).isEqualTo(429);
+        assertThat(clinical1.getStatus()).isEqualTo(200);
+        assertThat(clinical2.getStatus()).isEqualTo(429);
+        assertThat(accepted).hasValue(2);
+    }
+
+    @Test
+    void rateLimitsCommunityAndDoctorArticlePostEndpoints() throws Exception {
+        MockEnvironment environment = new MockEnvironment()
+            .withProperty("app.security.rate-limit.community-limit", "1")
+            .withProperty("app.security.rate-limit.doctor-article-limit", "1")
+            .withProperty("app.security.rate-limit.window-seconds", "60");
+        RequestRateLimitFilter filter = filter(environment);
+        AtomicInteger accepted = new AtomicInteger();
+
+        MockHttpServletResponse q1 = invokePost(filter, accepted, "/api/v1/patient/health-questions", "10.0.1.4");
+        MockHttpServletResponse q2 = invokePost(filter, accepted, "/api/v1/patient/health-questions", "10.0.1.4");
+        MockHttpServletResponse art1 = invokePost(filter, accepted, "/api/v1/doctor/articles", "10.0.1.4");
+        MockHttpServletResponse art2 = invokePost(filter, accepted, "/api/v1/doctor/articles", "10.0.1.4");
+
+        assertThat(q1.getStatus()).isEqualTo(200);
+        assertThat(q2.getStatus()).isEqualTo(429);
+        assertThat(art1.getStatus()).isEqualTo(200);
+        assertThat(art2.getStatus()).isEqualTo(429);
+        assertThat(accepted).hasValue(2);
+    }
+
+    @Test
+    void rateLimitsAdminMutationsAndFallsBackToDefaultPostLimit() throws Exception {
+        MockEnvironment environment = new MockEnvironment()
+            .withProperty("app.security.rate-limit.admin-mutation-limit", "1")
+            .withProperty("app.security.rate-limit.default-post-limit", "1")
+            .withProperty("app.security.rate-limit.window-seconds", "60");
+        RequestRateLimitFilter filter = filter(environment);
+        AtomicInteger accepted = new AtomicInteger();
+
+        // Admin mutation
+        MockHttpServletResponse admin1 = invokePost(filter, accepted, "/api/v1/admin/packages/create", "10.0.1.5");
+        MockHttpServletResponse admin2 = invokePost(filter, accepted, "/api/v1/admin/packages/create", "10.0.1.5");
+
+        // Unclassified arbitrary POST endpoint triggers default-post fallback
+        MockHttpServletResponse fallback1 = invokePost(filter, accepted, "/api/v1/custom/action", "10.0.1.5");
+        MockHttpServletResponse fallback2 = invokePost(filter, accepted, "/api/v1/custom/action", "10.0.1.5");
+
+        assertThat(admin1.getStatus()).isEqualTo(200);
+        assertThat(admin2.getStatus()).isEqualTo(429);
+        assertThat(fallback1.getStatus()).isEqualTo(200);
+        assertThat(fallback2.getStatus()).isEqualTo(429);
+        assertThat(accepted).hasValue(2);
+    }
+
     private MockEnvironment rateLimitEnvironment() {
         return new MockEnvironment()
             .withProperty("app.security.rate-limit.auth-limit", "1")

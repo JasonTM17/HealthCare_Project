@@ -34,6 +34,10 @@ import java.util.List;
  *   <li>identity/role/security admin surface: {@code /api/v1/users/admin/**}
  *       and its {@code /api/v1/admin/users/**} alias, so a future user-CRUD
  *       controller on those paths cannot silently bypass the boundary</li>
+ *   <li>shared-credential rotation: {@code POST /api/v1/auth/change-password}
+ *       (AuthController) — demo personas use fixed published passwords, so a
+ *       rotation is a persistent shared-security mutation that would lock out
+ *       every other demo visitor</li>
  * </ul>
  *
  * <p>Everything else stays usable for demo principals: GET reads, patient
@@ -56,7 +60,8 @@ public class DemoMutationBoundaryFilter extends OncePerRequestFilter {
         "/api/v1/admin/payments/**",
         "/api/v1/admin/ai-credits/**",
         "/api/v1/users/admin/**",
-        "/api/v1/admin/users/**"
+        "/api/v1/admin/users/**",
+        "/api/v1/auth/change-password"
     );
 
     private final DemoBoundaryProperties properties;

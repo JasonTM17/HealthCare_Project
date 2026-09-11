@@ -28,6 +28,14 @@ public interface AiConversationRepository extends JpaRepository<AiConversation, 
 
     List<AiConversation> findByExpiresAtBeforeOrderByExpiresAtAsc(OffsetDateTime now, Pageable pageable);
 
+    @Query("""
+        select c from AiConversation c
+        where (c.lastMessageAt is not null and c.lastMessageAt < :cutoff)
+           or (c.lastMessageAt is null and c.updatedAt < :cutoff)
+        order by coalesce(c.lastMessageAt, c.updatedAt) asc
+        """)
+    List<AiConversation> findOlderThanCutoff(@Param("cutoff") OffsetDateTime cutoff, Pageable pageable);
+
     /**
      * Conversations whose in-flight lease has expired while still marked
      * in-flight — the crash window between the committed credit charge and

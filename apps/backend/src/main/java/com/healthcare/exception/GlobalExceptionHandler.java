@@ -18,6 +18,8 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.bind.MissingPathVariableException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
 import org.springframework.web.context.request.ServletWebRequest;
@@ -25,8 +27,12 @@ import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import jakarta.validation.ConstraintViolationException;
 
 import java.util.List;
+import java.util.NoSuchElementException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -49,6 +55,19 @@ public class GlobalExceptionHandler {
             ex.getMessage(),
             extractPath(request),
             List.of(),
+            ex.getCode()
+        );
+        return ResponseEntity.status(ex.getStatus()).body(error);
+    }
+
+    @ExceptionHandler(ValidationException.class)
+    public ResponseEntity<ApiError> handleValidationException(ValidationException ex, WebRequest request) {
+        ApiError error = new ApiError(
+            ex.getStatus(),
+            HttpStatus.valueOf(ex.getStatus()).getReasonPhrase(),
+            ex.getMessage(),
+            extractPath(request),
+            ex.getFieldErrors(),
             ex.getCode()
         );
         return ResponseEntity.status(ex.getStatus()).body(error);
@@ -144,6 +163,60 @@ public class GlobalExceptionHandler {
             400,
             "Bad Request",
             "Tham số yêu cầu không hợp lệ.",
+            extractPath(request),
+            List.of(),
+            ErrorCodes.VALIDATION_ERROR
+        );
+        return ResponseEntity.badRequest().body(error);
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ApiError> handleConstraintViolation(
+            ConstraintViolationException ex,
+            WebRequest request) {
+        List<ApiError.FieldError> fieldErrors = ex.getConstraintViolations().stream()
+            .map(cv -> {
+                String path = cv.getPropertyPath() != null ? cv.getPropertyPath().toString() : "";
+                int lastDot = path.lastIndexOf('.');
+                String fieldName = (lastDot >= 0 && lastDot < path.length() - 1) ? path.substring(lastDot + 1) : path;
+                return new ApiError.FieldError(fieldName, cv.getMessage());
+            })
+            .toList();
+
+        ApiError error = new ApiError(
+            400,
+            "Bad Request",
+            "Thông tin tham số chưa hợp lệ.",
+            extractPath(request),
+            fieldErrors,
+            ErrorCodes.VALIDATION_ERROR
+        );
+        return ResponseEntity.badRequest().body(error);
+    }
+
+    @ExceptionHandler(MissingPathVariableException.class)
+    public ResponseEntity<ApiError> handleMissingPathVariable(
+            MissingPathVariableException ex,
+            WebRequest request) {
+        ApiError error = new ApiError(
+            400,
+            "Bad Request",
+            "Required path variable is missing: " + ex.getVariableName(),
+            extractPath(request),
+            List.of(),
+            ErrorCodes.VALIDATION_ERROR
+        );
+        return ResponseEntity.badRequest().body(error);
+    }
+
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ApiError> handleMissingRequestHeader(
+            MissingRequestHeaderException ex,
+            WebRequest request) {
+        ApiError error = new ApiError(
+            400,
+            "Bad Request",
+            "Required request header is missing: " + ex.getHeaderName(),
             extractPath(request),
             List.of(),
             ErrorCodes.VALIDATION_ERROR
@@ -269,6 +342,64 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(404).body(error);
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiError> handleIllegalArgument(IllegalArgumentException ex, WebRequest request) {
+        // Developer-authored exception text is internal diagnostics; never
+        // return it verbatim to clients (leakage + copy-language drift).
+        log.warn("Illegal argument on {}: {}", extractPath(request), ex.getMessage());
+        ApiError error = new ApiError(
+            400,
+            "Bad Request",
+            "Yêu cầu không hợp lệ. Vui lòng kiểm tra lại thông tin đã gửi.",
+            extractPath(request),
+            List.of(),
+            ErrorCodes.VALIDATION_ERROR
+        );
+        return ResponseEntity.badRequest().body(error);
+    }
+
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ApiError> handleIllegalState(IllegalStateException ex, WebRequest request) {
+        log.warn("Illegal state on {}: {}", extractPath(request), ex.getMessage());
+        ApiError error = new ApiError(
+            409,
+            "Conflict",
+            "Trạng thái hiện tại không cho phép thực hiện thao tác này.",
+            extractPath(request),
+            List.of(),
+            ErrorCodes.CONFLICT
+        );
+        return ResponseEntity.status(409).body(error);
+    }
+
+    @ExceptionHandler({NoSuchElementException.class, EmptyResultDataAccessException.class})
+    public ResponseEntity<ApiError> handleNoSuchElement(Exception ex, WebRequest request) {
+        log.info("Resource not found on {}: {}", extractPath(request), ex.getMessage());
+        ApiError error = new ApiError(
+            404,
+            "Not Found",
+            "Không tìm thấy tài nguyên yêu cầu.",
+            extractPath(request),
+            List.of(),
+            ErrorCodes.RESOURCE_NOT_FOUND
+        );
+        return ResponseEntity.status(404).body(error);
+    }
+
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ApiError> handleOptimisticLockingFailure(ObjectOptimisticLockingFailureException ex, WebRequest request) {
+        log.warn("Optimistic locking failure on {}: {}", extractPath(request), ex.getMessage());
+        ApiError error = new ApiError(
+            409,
+            "Conflict",
+            "Dữ liệu đã được cập nhật bởi một thao tác khác cùng thời điểm. Vui lòng tải lại và thử lại.",
+            extractPath(request),
+            List.of(),
+            ErrorCodes.CONFLICT
+        );
+        return ResponseEntity.status(409).body(error);
+    }
+
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ApiError> handleResponseStatus(ResponseStatusException ex, WebRequest request) {
         int status = ex.getStatusCode().value();
@@ -276,13 +407,24 @@ public class GlobalExceptionHandler {
         String message = ex.getReason() != null
             ? ex.getReason()
             : (httpStatus != null ? httpStatus.getReasonPhrase() : "Request failed");
+        String code = switch (status) {
+            case 400 -> ErrorCodes.BAD_REQUEST;
+            case 401 -> ErrorCodes.AUTHENTICATION_REQUIRED;
+            case 403 -> ErrorCodes.ACCESS_DENIED;
+            case 404 -> ErrorCodes.RESOURCE_NOT_FOUND;
+            case 409 -> ErrorCodes.CONFLICT;
+            case 410 -> ErrorCodes.RESOURCE_EXPIRED;
+            case 429 -> ErrorCodes.RATE_LIMIT_EXCEEDED;
+            case 503 -> ErrorCodes.SERVICE_UNAVAILABLE;
+            default -> status >= 500 ? ErrorCodes.INTERNAL_ERROR : ErrorCodes.REQUEST_FAILED;
+        };
         ApiError error = new ApiError(
             status,
             httpStatus != null ? httpStatus.getReasonPhrase() : "Request failed",
             message,
             extractPath(request),
             List.of(),
-            status == 429 ? ErrorCodes.RATE_LIMIT_EXCEEDED : ErrorCodes.REQUEST_FAILED
+            code
         );
         return ResponseEntity.status(status).body(error);
     }

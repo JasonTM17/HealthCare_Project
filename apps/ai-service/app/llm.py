@@ -447,6 +447,17 @@ _PUBLIC_BOOKING_SUPPORT_TERMS = (
     "chon chuyen khoa",
     "khung gio",
 )
+_PUBLIC_PREPARATION_TERMS = (
+    "chuan bi",
+    "truoc khi di kham",
+    "truoc khi kham",
+    "nhin an",
+    "mang theo gi",
+    "giay to",
+    "bhyt",
+    "ho so kham",
+    "huong dan kham",
+)
 _CIRCUIT_LOCK = threading.Lock()
 _CIRCUIT_FAILURES = 0
 _CIRCUIT_OPEN_UNTIL = 0.0
@@ -815,18 +826,6 @@ def chat_safety_response(
 
     turn_contents = [content for _, content in recent_turns]
     user_turn_contents = [content for role, content in recent_turns if role == "user"]
-    if contains_prompt_injection(message) or any(
-        contains_prompt_injection(content) for content in turn_contents
-    ):
-        return ChatResponse(
-            answer=(
-                "Tôi không thể cung cấp chỉ dẫn hệ thống, thông tin xác thực, cấu hình nội bộ "
-                "hoặc hồ sơ, dữ liệu bệnh nhân. Tôi vẫn có thể hỗ trợ thông tin sức khỏe ở "
-                "mức tham khảo."
-            ),
-            provenance="local_fallback",
-            safety_action=ChatSafetyAction.REFUSE,
-        )
     message_normalized = _normalize_sensitive_text(message)
     user_turns_normalized = [_normalize_sensitive_text(content) for content in user_turn_contents]
     crisis_normalized = (message_normalized, *user_turns_normalized)
@@ -843,6 +842,18 @@ def chat_safety_response(
             ),
             provenance="local_fallback",
             safety_action=ChatSafetyAction.EMERGENCY,
+        )
+    if contains_prompt_injection(message) or any(
+        contains_prompt_injection(content) for content in turn_contents
+    ):
+        return ChatResponse(
+            answer=(
+                "Tôi không thể cung cấp chỉ dẫn hệ thống, thông tin xác thực, cấu hình nội bộ "
+                "hoặc hồ sơ, dữ liệu bệnh nhân. Tôi vẫn có thể hỗ trợ thông tin sức khỏe ở "
+                "mức tham khảo."
+            ),
+            provenance="local_fallback",
+            safety_action=ChatSafetyAction.REFUSE,
         )
     if any(
         any(_normalize_sensitive_text(term) in normalized for term in _UNSUPPORTED_CLINICAL_TERMS)
@@ -1233,6 +1244,13 @@ def _chat_fallback(
                 "bác sĩ hoặc cơ sở, rồi chọn khung giờ còn trống. Nếu chưa rõ nên bắt đầu từ chuyên khoa nào, "
                 "hãy mô tả ngắn nhu cầu khám để nhân viên y tế hỗ trợ điều hướng."
             )
+    if any(term in normalized for term in _PUBLIC_PREPARATION_TERMS):
+        return (
+            "Trước khi đi khám tại HealthCare, bạn nên chuẩn bị: "
+            "1) Giấy tờ tùy thân (CCCD/Hộ chiếu), thẻ BHYT và kết quả xét nghiệm, đơn thuốc cũ (nếu có); "
+            "2) Nhịn ăn sáng từ 6-8 tiếng nếu dự kiến làm xét nghiệm máu hoặc siêu âm ổ bụng tổng quát; "
+            "3) Trang phục thoải mái và ghi chú trước các câu hỏi hoặc triệu chứng muốn trao đổi trực tiếp với bác sĩ."
+        )
     if context:
         return (
             "Dựa trên thông tin tham khảo đã được lưu, "
