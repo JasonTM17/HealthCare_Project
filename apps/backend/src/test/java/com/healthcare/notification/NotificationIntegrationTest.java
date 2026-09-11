@@ -144,6 +144,60 @@ class NotificationIntegrationTest extends AbstractIntegrationTest {
         assertThat(pending).extracting(Notification::getId).containsExactly(due.getId());
     }
 
+    @Test
+    void allEventTypesCanBePersistedAndHydratedWithoutException() {
+        User user = userRepository.findAll().stream().findFirst().orElseGet(() -> {
+            User u = new User();
+            u.setEmail("enum.test." + UUID.randomUUID() + "@healthcare.local");
+            u.setPasswordHash(passwordEncoder.encode("NotUsed!123"));
+            u.setDisplayName("Enum Test");
+            u.setStatus("ACTIVE");
+            u.setCreatedAt(OffsetDateTime.now());
+            u.setUpdatedAt(OffsetDateTime.now());
+            u.addRole(roleRepository.findByCode("PATIENT").orElseThrow());
+            return userRepository.saveAndFlush(u);
+        });
+
+        for (EventType type : EventType.values()) {
+            Notification n = new Notification();
+            n.setUser(user);
+            n.setEventType(type);
+            n.setTitle("Test " + type);
+            n.setMessage("Message for " + type);
+            notificationRepository.save(n);
+        }
+        notificationRepository.flush();
+
+        List<Notification> loaded = notificationRepository.findAll();
+        assertThat(loaded).isNotEmpty();
+        for (Notification n : loaded) {
+            assertThat(n.getEventType()).isNotNull();
+        }
+    }
+
+    @Test
+    void databaseRejectsInvalidNotificationEventTypeConstraint() {
+        User user = userRepository.findAll().stream().findFirst().orElseGet(() -> {
+            User u = new User();
+            u.setEmail("chk.test." + UUID.randomUUID() + "@healthcare.local");
+            u.setPasswordHash(passwordEncoder.encode("NotUsed!123"));
+            u.setDisplayName("Chk Test");
+            u.setStatus("ACTIVE");
+            u.setCreatedAt(OffsetDateTime.now());
+            u.setUpdatedAt(OffsetDateTime.now());
+            u.addRole(roleRepository.findByCode("PATIENT").orElseThrow());
+            return userRepository.saveAndFlush(u);
+        });
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> {
+            jdbcTemplate.update(
+                "INSERT INTO notifications (id, user_id, event_type, title, message, is_read, created_at, email_available_at) " +
+                "VALUES (?, ?, ?, ?, ?, false, NOW(), NOW())",
+                UUID.randomUUID(), user.getId(), "INVALID_EVENT_TYPE", "Test Title", "Test Message"
+            );
+        }).isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+    }
+
     private Notification notification(User user, String title) {
         Notification n = new Notification();
         n.setUser(user);
