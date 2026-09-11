@@ -23,7 +23,8 @@ import java.util.Set;
 @RequestMapping("/api/v1/hospital")
 public class ContentController {
 
-    private static final Set<String> CATALOG_SORT_PROPERTIES = Set.of("id", "name", "slug", "price");
+    private static final Set<String> PACKAGE_SORT_PROPERTIES = Set.of("id", "name", "slug", "price", "displayOrder");
+    private static final Set<String> SERVICE_SORT_PROPERTIES = Set.of("id", "name", "slug");
 
     private final ServiceRepository serviceRepository;
     private final PackageRepository packageRepository;
@@ -35,7 +36,7 @@ public class ContentController {
 
     @GetMapping("/services")
     public Page<ServiceResponse> listServices(@PageableDefault(size = 20) Pageable pageable) {
-        return serviceRepository.findByActiveTrue(safePageable(pageable)).map(this::toServiceResponse);
+        return serviceRepository.findByActiveTrue(safeServicePageable(pageable)).map(this::toServiceResponse);
     }
 
     @GetMapping("/services/{slug}")
@@ -47,11 +48,15 @@ public class ContentController {
 
     @GetMapping("/packages")
     public Page<PackageResponse> listPackages(@PageableDefault(size = 20) Pageable pageable) {
-        return packageRepository.findByActiveTrue(safePageable(pageable)).map(this::toPackageResponse);
+        return packageRepository.findByActiveTrue(safePackagePageable(pageable)).map(this::toPackageResponse);
     }
 
-    private Pageable safePageable(Pageable pageable) {
-        return SafePageRequests.normalize(pageable, Sort.unsorted(), CATALOG_SORT_PROPERTIES);
+    private Pageable safeServicePageable(Pageable pageable) {
+        return SafePageRequests.normalize(pageable, Sort.by(Sort.Order.asc("name"), Sort.Order.asc("id")), SERVICE_SORT_PROPERTIES);
+    }
+
+    private Pageable safePackagePageable(Pageable pageable) {
+        return SafePageRequests.normalize(pageable, Sort.by(Sort.Order.asc("displayOrder"), Sort.Order.asc("id")), PACKAGE_SORT_PROPERTIES);
     }
 
     @GetMapping("/packages/{slug}")

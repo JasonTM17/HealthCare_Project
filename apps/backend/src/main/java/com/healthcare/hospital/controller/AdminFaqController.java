@@ -1,6 +1,7 @@
 package com.healthcare.hospital.controller;
 
 import com.healthcare.hospital.dto.FaqRequest;
+import com.healthcare.hospital.dto.CatalogOrderRequest;
 import com.healthcare.hospital.entity.Faq;
 import com.healthcare.hospital.service.AdminFaqService;
 import jakarta.validation.Valid;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/admin/faqs")
@@ -34,8 +36,13 @@ public class AdminFaqController {
     }
 
     @GetMapping
-    public Page<Faq> list(@PageableDefault(size = 20, sort = "question") Pageable pageable) {
+    public Page<Faq> list(@PageableDefault(size = 20, sort = {"displayOrder", "id"}) Pageable pageable) {
         return adminFaqService.list(pageable);
+    }
+
+    @PutMapping("/order")
+    public List<Faq> reorder(@Valid @RequestBody CatalogOrderRequest request) {
+        return adminFaqService.reorder(request);
     }
 
     @PostMapping
