@@ -367,9 +367,12 @@ def test_health_probe_checks_protected_projection_without_reading_content() -> N
 
     assert store.health_probe() is True
     sql, params = cursor.executed[0]
+    # The probe is fully static SQL; the protected projection identity is
+    # bound as a parameter instead of interpolated into the statement.
     assert "select exists" in sql.lower()
-    assert "ai_chat_documents" in sql
-    assert params is None
+    assert "information_schema.tables" in sql.lower()
+    assert params == (_config().schema, _config().table)
+    assert "ai_chat_documents" not in sql
 
 
 def test_search_maps_rpc_rows_to_citations_without_needing_raw_vectors() -> None:
