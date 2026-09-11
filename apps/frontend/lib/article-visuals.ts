@@ -45,27 +45,27 @@ const CATEGORY_VISUALS: Record<string, { imageSrc: string; tagColor: string }> =
     tagColor: "bg-pink-950/80 text-pink-100",
   },
   "hô hấp": {
-    imageSrc: "/media/branches/branch-clinic-hall.jpg",
+    imageSrc: "https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&w=1000&q=85",
     tagColor: "bg-cyan-950/80 text-cyan-100",
   },
   "tai mũi họng": {
-    imageSrc: "/media/branches/branch-clinic-2.jpg",
+    imageSrc: "https://images.unsplash.com/photo-1579684385127-1ef15d508118?auto=format&fit=crop&w=1000&q=85",
     tagColor: "bg-teal-950/80 text-teal-100",
   },
   "da liễu": {
-    imageSrc: "/media/doctor-family-consult.jpg",
+    imageSrc: "https://images.unsplash.com/photo-1584515933487-779824d29309?auto=format&fit=crop&w=1000&q=85",
     tagColor: "bg-amber-950/80 text-amber-100",
   },
   "ung bướu": {
-    imageSrc: "/images/packages/general-checkup.jpg",
+    imageSrc: "https://images.unsplash.com/photo-1579154204601-01588f351e67?auto=format&fit=crop&w=1000&q=85",
     tagColor: "bg-violet-950/80 text-violet-100",
   },
   "phòng bệnh chủ động": {
-    imageSrc: "/media/articles/dau-hieu-tim-mach.jpg",
+    imageSrc: "https://images.unsplash.com/photo-1505751172876-fa1923c5c528?auto=format&fit=crop&w=1000&q=85",
     tagColor: "bg-teal-950/80 text-teal-100",
   },
   "cấp cứu": {
-    imageSrc: "/media/branches/branch-hospital.jpg",
+    imageSrc: "https://images.unsplash.com/photo-1587351021759-3e566b6af7cc?auto=format&fit=crop&w=1000&q=85",
     tagColor: "bg-red-950/80 text-red-100",
   },
   "tổng quát": {

@@ -71,6 +71,7 @@ test("public route styling keeps dark heroes legible and guidance responsive", a
   assert.match(styles, /\.site-shell--public-route \.resource-hero-card \{[\s\S]*?border-radius: var\(--radius-sm\)[\s\S]*?box-shadow: none/);
   assert.match(directoryStyles, /Last-imported flat UI contract/);
   assert.match(directoryStyles, /\.site-shell \*,[\s\S]*?\.admin-shell \*::after \{[\s\S]*?box-shadow: none !important/);
+  assert.doesNotMatch(directoryStyles, /\.portal-shell \*[\s\S]*?box-shadow: none !important/);
   assert.match(directoryStyles, /\.site-shell :is\(\.rounded-lg, \.rounded-xl, \.rounded-2xl, \.rounded-3xl\),[\s\S]*?border-radius: var\(--radius-lg\) !important/);
   assert.match(styles, /\.site-shell--public-route \.resource-hero-card--teal::after \{\s*display: none;/);
   assert.match(styles, /\.resource-chip \{[\s\S]*?border-radius: 0;/);

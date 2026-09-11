@@ -36,6 +36,30 @@ test("presentApiError exposes only closed Vietnamese copy", async () => {
     "Hệ thống đang tạm gián đoạn. Vui lòng thử lại sau.",
   );
   assert.equal(
+    presentApiError("BAD_REQUEST", 400),
+    "Yêu cầu gửi lên chưa hợp lệ. Vui lòng kiểm tra lại.",
+  );
+  assert.equal(
+    presentApiError("SERVICE_UNAVAILABLE", 503),
+    "Dịch vụ đang tạm thời gián đoạn. Vui lòng thử lại sau.",
+  );
+  assert.equal(
+    presentApiError("RESOURCE_EXPIRED", 410),
+    "Tài nguyên hoặc phiên làm việc đã hết hạn. Vui lòng thử lại.",
+  );
+  assert.equal(
+    presentApiError("APPOINTMENT_CONFLICT", 409),
+    "Khung giờ hoặc lịch hẹn đã có người đăng ký. Vui lòng chọn thời gian khác.",
+  );
+  assert.equal(
+    presentApiError("DOCTOR_UNAVAILABLE", 409),
+    "Bác sĩ hiện không có lịch tiếp nhận vào khung giờ này. Vui lòng chọn thời gian khác.",
+  );
+  assert.equal(
+    presentApiError("PAYMENT_FAILED", 400),
+    "Thanh toán không thành công. Vui lòng kiểm tra phương thức và thử lại.",
+  );
+  assert.equal(
     presentApiError("jdbc:postgresql://internal-db/patient", 418),
     "Chưa thể hoàn tất yêu cầu. Vui lòng thử lại.",
   );

@@ -91,13 +91,11 @@
   }
 }
 
-/* Last-imported flat UI contract for the main web shells. */
+/* Last-imported flat UI contract for public/admin shells.
+   Patient and doctor portals intentionally keep restrained clinical depth. */
 .site-shell *,
 .site-shell *::before,
 .site-shell *::after,
-.portal-shell *,
-.portal-shell *::before,
-.portal-shell *::after,
 .admin-shell *,
 .admin-shell *::before,
 .admin-shell *::after {
@@ -110,12 +108,23 @@
   border-radius: var(--radius-lg) !important;
 }
 
-.site-shell :focus,
+.site-shell :focus:not(:focus-visible),
+.portal-shell :focus:not(:focus-visible),
+.admin-shell :focus:not(:focus-visible),
+.site-shell a:focus:not(:focus-visible),
+.site-shell button:focus:not(:focus-visible),
+.portal-shell a:focus:not(:focus-visible),
+.portal-shell button:focus:not(:focus-visible),
+.admin-shell a:focus:not(:focus-visible),
+.admin-shell button:focus:not(:focus-visible) {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
 .site-shell :focus-visible,
-.portal-shell :focus,
 .portal-shell :focus-visible,
-.admin-shell :focus,
 .admin-shell :focus-visible {
-  outline: 3px solid var(--color-focus, #2a676c) !important;
-  outline-offset: 3px !important;
+  outline: 2px solid var(--color-focus, #2a676c) !important;
+  outline-offset: 2px !important;
+  border-radius: var(--radius-sm) !important;
 }

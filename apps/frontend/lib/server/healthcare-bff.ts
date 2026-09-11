@@ -628,13 +628,14 @@ export async function proxyHealthcareRequest(
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   let abortFromBrowser: (() => void) | undefined;
   let responseBodyOwnsCleanup = false;
+  let apiPath: string | undefined;
   const cleanup = () => {
     if (timeoutId !== undefined) clearTimeout(timeoutId);
     if (abortFromBrowser) request.signal.removeEventListener("abort", abortFromBrowser);
   };
   try {
     const requestUrl = new URL(request.url);
-    const apiPath = buildValidatedApiPath(requestUrl, pathSegments);
+    apiPath = buildValidatedApiPath(requestUrl, pathSegments);
     if (BLOCKED_BEARER_MINT_PATHS.has(apiPath.toLowerCase())) {
       return jsonError(404, "BFF_ROUTE_UNAVAILABLE");
     }
@@ -695,6 +696,9 @@ export async function proxyHealthcareRequest(
     return response;
   } catch (error) {
     if (error instanceof BffRequestError) return jsonError(error.status, error.code);
+    if (method === "POST" && apiPath === PUBLIC_AI_CHAT_PATH) {
+      return publicAiChatFallbackResponse();
+    }
     return jsonError(502, "BFF_UPSTREAM_UNAVAILABLE");
   } finally {
     if (!responseBodyOwnsCleanup) cleanup();

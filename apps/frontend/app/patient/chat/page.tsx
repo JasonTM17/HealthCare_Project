@@ -12,6 +12,7 @@ import {
 import PortalChrome from "../../../components/PortalChrome";
 import { ForbiddenState, LoginRequiredState } from "../../../components/PortalStates";
 import UiIcon from "../../../components/UiIcon";
+import ChatMessageContent from "../../../components/ChatMessageContent";
 import { useAuthSession } from "../../../components/useAuthSession";
 import {
   ApiError,
@@ -139,7 +140,7 @@ function MessageItem({
         <strong>{assistant ? "Trợ lý HealthCare" : "Bạn"}</strong>
         <time dateTime={message.createdAt}>{formatDateTime(message.createdAt)}</time>
       </div>
-      <p className={styles.messageContent}>{message.content}</p>
+      <ChatMessageContent className={styles.messageContent} content={message.content} />
       {pending ? <p className={styles.messageStatus}>Đang chờ trợ lý xử lý</p> : null}
       {failed ? (
         <div className={styles.failedAction}>
@@ -267,6 +268,7 @@ function PatientChatPageContent() {
     const task = Promise.resolve().then(refreshCredit);
     return () => void task;
   }, [refreshCredit]);
+  const workspaceRef = useRef<HTMLElement | null>(null);
   const activeIdRef = useRef<string | null>(null);
   const listRequestRef = useRef(0);
   const threadRequestRef = useRef(0);
@@ -278,6 +280,17 @@ function PatientChatPageContent() {
   const requestControllerRef = useRef<AbortController | null>(null);
   const modeCreateInFlightRef = useRef(false);
   const consentRequestRef = useRef(0);
+
+  useEffect(() => {
+    if (selectedConversationId && workspaceRef.current) {
+      const rect = workspaceRef.current.getBoundingClientRect();
+      if (rect.top < 0) {
+        workspaceRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      } else if (rect.bottom > window.innerHeight && rect.top > 120) {
+        workspaceRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+    }
+  }, [selectedConversationId]);
 
   const invalidateSendRequest = useCallback(() => {
     sendRequestRef.current += 1;
@@ -671,6 +684,7 @@ function PatientChatPageContent() {
     setStreamingReply("");
     setSendFailure(null);
     setNotice(null);
+    setCreditStatus((prev) => (prev ? { ...prev, credits: Math.max(0, prev.credits - 1) } : prev));
     try {
       await sendMessage(conversationId, normalizedContent, {
         attemptId: options.sourceMessageId ? `failed-message:${options.sourceMessageId}` : "composer",
@@ -685,6 +699,7 @@ function PatientChatPageContent() {
       await Promise.all([
         loadThread(conversationId, { background: true }),
         loadConversationList(conversationId, { hydrateThread: false, background: true }),
+        refreshCredit(),
       ]);
     } catch (error) {
       if (isAbortError(error) || !isCurrentSendRequest()) return;
@@ -694,6 +709,7 @@ function PatientChatPageContent() {
       await Promise.allSettled([
         loadThread(conversationId, { background: true }),
         loadConversationList(conversationId, { hydrateThread: false, background: true }),
+        refreshCredit(),
       ]);
     } finally {
       if (isCurrentSendRequest()) {
@@ -831,8 +847,13 @@ function PatientChatPageContent() {
           {streamingReply ? (
             <li className={`${styles.message} ${styles.messageAssistant}`} data-testid="chat-streaming-reply">
               <div className={styles.messageMeta}><strong>Trợ lý HealthCare</strong></div>
-              <p className={styles.messageContent}>{streamingReply}</p>
+              <ChatMessageContent className={styles.messageContent} content={streamingReply} />
               <p className={styles.messageStatus}>Đang nhận phản hồi từng phần đã được xác thực…</p>
+            </li>
+          ) : sending ? (
+            <li className={`${styles.message} ${styles.messageAssistant}`} data-testid="chat-thinking-indicator">
+              <div className={styles.messageMeta}><strong>Trợ lý HealthCare</strong></div>
+              <p className={styles.messageStatus}>Đang tra cứu dữ liệu và tổng hợp câu trả lời an toàn…</p>
             </li>
           ) : null}
         </ol>
@@ -849,7 +870,7 @@ function PatientChatPageContent() {
             <h1>Trao đổi có lưu lịch sử</h1>
             <p>Đặt câu hỏi về thông tin chăm sóc và xem lại phản hồi gắn với nguồn HealthCare.</p>
             {creditStatus && (
-              <div className="mt-3 inline-flex items-center gap-2.5 rounded-lg bg-emerald-50 border border-emerald-200 px-3.5 py-1.5 text-xs font-semibold text-emerald-900 shadow-xs">
+              <div className="mt-3 inline-flex items-center gap-2.5 rounded-[4px] bg-emerald-50 border border-emerald-200 px-3.5 py-1.5 text-xs font-semibold text-emerald-900 shadow-xs">
                 <UiIcon name={creditStatus.tier === 'VIP' ? 'sparkles' : creditStatus.tier === 'GOLD' ? 'star' : creditStatus.tier === 'SILVER' ? 'award' : 'shield-check'} size={15} className="text-emerald-700 shrink-0" />
                 <span>Hạng <strong>{creditStatus.tier || 'STANDARD'}</strong></span>
                 <span className="text-emerald-300">|</span>
@@ -907,7 +928,7 @@ function PatientChatPageContent() {
             />
           </section>
         ) : (
-          <section aria-label="Không gian trò chuyện sức khỏe" className={styles.workspace}>
+          <section ref={workspaceRef} aria-label="Không gian trò chuyện sức khỏe" className={styles.workspace}>
             <aside aria-label="Danh sách cuộc trò chuyện" className={styles.conversationRail}>
               <div className={styles.railHeader}>
                 <div>
@@ -1001,18 +1022,28 @@ function PatientChatPageContent() {
                       : "Lịch sử do máy chủ HealthCare quản lý"}
                   </p>
                 </div>
-                {selectedSummary ? (
-                  <button
-                    aria-label="Tải lại lịch sử trò chuyện"
-                    className={styles.refreshButton}
-                    disabled={threadLoading || sending}
-                    onClick={() => void loadThread(selectedSummary.id, { background: true })}
-                    title="Tải lại lịch sử"
-                    type="button"
-                  >
-                    <UiIcon name="activity" size={19} />
-                  </button>
-                ) : null}
+                <div className={styles.threadHeaderRight}>
+                  {creditStatus ? (
+                    <div className={styles.threadCreditBadge} title="Số dư AI Credits khả dụng trong tài khoản">
+                      <span className={styles.threadCreditDot} />
+                      <span className={styles.threadCreditLabel}>AI Credit:</span>
+                      <strong className={styles.threadCreditValue}>{creditStatus.credits}</strong>
+                      <span className={styles.threadCreditTotal}>/{creditStatus.maxCredits}</span>
+                    </div>
+                  ) : null}
+                  {selectedSummary ? (
+                    <button
+                      aria-label="Tải lại lịch sử trò chuyện"
+                      className={styles.refreshButton}
+                      disabled={threadLoading || sending}
+                      onClick={() => void loadThread(selectedSummary.id, { background: true })}
+                      title="Tải lại lịch sử"
+                      type="button"
+                    >
+                      <UiIcon name="activity" size={19} />
+                    </button>
+                  ) : null}
+                </div>
               </header>
 
               {currentConsentRequired ? (
@@ -1048,7 +1079,17 @@ function PatientChatPageContent() {
 
               <form className={styles.composer} onSubmit={handleSubmit}>
                 <div className={styles.composerLabelRow}>
-                  <label htmlFor="patient-chat-message">Tin nhắn của bạn</label>
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="patient-chat-message">Tin nhắn của bạn</label>
+                    <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-[4px] border border-emerald-200">
+                      -1 Credit / câu hỏi
+                    </span>
+                    {creditStatus ? (
+                      <span className="text-[11px] font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded-[4px] border border-teal-200">
+                        Số dư: {creditStatus.credits} / {creditStatus.maxCredits}
+                      </span>
+                    ) : null}
+                  </div>
                   <span id="patient-chat-count">{draft.length.toLocaleString("vi-VN")} / 10.000</span>
                 </div>
                 <textarea

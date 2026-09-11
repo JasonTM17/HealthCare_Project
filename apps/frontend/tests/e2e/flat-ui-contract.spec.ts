@@ -81,5 +81,12 @@ for (const target of [
 
     await expect(page.locator(target.role === "ADMIN" ? ".admin-shell" : ".portal-shell")).toBeVisible();
     expect(await flatRadiusViolations(page)).toEqual([]);
+    if (target.role !== "ADMIN") {
+      // Assert elevation on structural surfaces, not on the flat cells nested
+      // inside a raised summary grid.
+      const depthSurface = page.locator(".portal-summary-grid, .portal-panel, .portal-record-list, .portal-record").first();
+      await expect(depthSurface).toBeVisible();
+      expect(await depthSurface.evaluate((node) => getComputedStyle(node).boxShadow)).not.toBe("none");
+    }
   });
 }

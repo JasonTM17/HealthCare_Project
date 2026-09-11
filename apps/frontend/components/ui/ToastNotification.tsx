@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export type ToastTone = "success" | "error" | "warning" | "info";
 
@@ -50,13 +50,23 @@ function ToastCard({
   onClose: (id: string) => void;
 }) {
   const { id, tone, title, message, duration = 4000 } = toast;
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const paused = hovered || focused;
+  const remainingRef = useRef(duration);
+  const startedAtRef = useRef(0);
 
   useEffect(() => {
+    if (paused) return;
+    startedAtRef.current = Date.now();
     const timer = setTimeout(() => {
       onClose(id);
-    }, duration);
-    return () => clearTimeout(timer);
-  }, [id, duration, onClose]);
+    }, remainingRef.current);
+    return () => {
+      clearTimeout(timer);
+      remainingRef.current = Math.max(0, remainingRef.current - (Date.now() - startedAtRef.current));
+    };
+  }, [id, paused, onClose]);
 
   const toneConfig = {
     success: {
@@ -149,9 +159,15 @@ function ToastCard({
 
   return (
     <div
-      aria-live="polite"
-      className={`pointer-events-auto relative overflow-hidden rounded-[4px] border ${toneConfig.border} ${toneConfig.bg} p-3.5 shadow-lg transition-all duration-200 animate-in fade-in slide-in-from-bottom-2`}
-      role="alert"
+      aria-live={tone === "error" ? "assertive" : "polite"}
+      className={`pointer-events-auto relative overflow-hidden rounded-[4px] border ${toneConfig.border} ${toneConfig.bg} p-3.5 shadow-lg transition-all duration-200 motion-reduce:transition-none motion-reduce:animate-none animate-in fade-in slide-in-from-bottom-2`}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false);
+      }}
+      onFocusCapture={() => setFocused(true)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      role={tone === "error" ? "alert" : "status"}
     >
       <div className="flex items-start gap-3">
         <div
@@ -169,7 +185,7 @@ function ToastCard({
         </div>
         <button
           aria-label="Đóng thông báo"
-          className="shrink-0 rounded-[4px] p-1 text-slate-400 hover:bg-black/5 hover:text-slate-700"
+          className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-[4px] text-slate-500 hover:bg-black/5 hover:text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700"
           onClick={() => onClose(id)}
           type="button"
         >
@@ -184,6 +200,7 @@ function ToastCard({
         style={{
           width: "100%",
           animation: `toastCountdown ${duration}ms linear forwards`,
+          animationPlayState: paused ? "paused" : "running",
         }}
       />
     </div>

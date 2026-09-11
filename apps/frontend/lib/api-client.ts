@@ -1201,14 +1201,21 @@ export type AdminArticle = Omit<Article, "summary" | "body" | "publishedAt"> & {
   active?: boolean;
 };
 
+export interface CatalogOrderItem {
+  id: string;
+  version: number;
+}
+
 export const adminListPackages = (page = 0, size = 100) => getAuthenticatedJson<Page<HealthPackage>>(`/admin/packages${toQuery({ page, size })}`);
 export const adminCreatePackage = (payload: AdminPackagePayload) => getAuthenticatedJson<HealthPackage>("/admin/packages", { method: "POST", body: JSON.stringify(payload) });
 export const adminUpdatePackage = (slug: string, payload: AdminPackagePayload) => getAuthenticatedJson<HealthPackage>(`/admin/packages/${encodeURIComponent(slug)}`, { method: "PUT", body: JSON.stringify(payload) });
 export const adminDeletePackage = (slug: string) => getAuthenticatedJson<void>(`/admin/packages/${encodeURIComponent(slug)}`, { method: "DELETE" });
+export const adminReorderPackages = (items: CatalogOrderItem[]) => getAuthenticatedJson<HealthPackage[]>("/admin/packages/order", { method: "PUT", body: JSON.stringify({ items }) });
 export const adminListFaqs = (page = 0, size = 100) => getAuthenticatedJson<Page<Faq>>(`/admin/faqs${toQuery({ page, size })}`);
 export const adminCreateFaq = (payload: AdminFaqPayload) => getAuthenticatedJson<Faq>("/admin/faqs", { method: "POST", body: JSON.stringify(payload) });
 export const adminUpdateFaq = (id: string, payload: AdminFaqPayload) => getAuthenticatedJson<Faq>(`/admin/faqs/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(payload) });
 export const adminDeleteFaq = (id: string) => getAuthenticatedJson<void>(`/admin/faqs/${encodeURIComponent(id)}`, { method: "DELETE" });
+export const adminReorderFaqs = (items: CatalogOrderItem[]) => getAuthenticatedJson<Faq[]>("/admin/faqs/order", { method: "PUT", body: JSON.stringify({ items }) });
 export const adminListArticles = (page = 0, size = 100) => getAuthenticatedJson<Page<AdminArticle>>(`/admin/articles${toQuery({ page, size })}`);
 export const adminCreateArticle = (payload: AdminArticlePayload) => getAuthenticatedJson<AdminArticle>("/admin/articles", { method: "POST", body: JSON.stringify(payload) });
 export const adminUpdateArticle = (slug: string, payload: AdminArticlePayload) => getAuthenticatedJson<AdminArticle>(`/admin/articles/${encodeURIComponent(slug)}`, { method: "PUT", body: JSON.stringify(payload) });

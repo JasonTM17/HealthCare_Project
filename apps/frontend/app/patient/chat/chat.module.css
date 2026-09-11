@@ -44,17 +44,20 @@
 
 .hero {
   align-items: center;
-  margin-bottom: var(--sp-6);
+  margin-bottom: var(--sp-2);
 }
 
 .hero h1 {
-  max-width: 21ch;
-  font-size: 3.25rem;
+  max-width: 28ch;
+  font-size: 1.5rem;
   letter-spacing: 0;
+  margin-bottom: 2px;
 }
 
 .hero p:not(:global(.section-note)) {
   max-width: 58ch;
+  font-size: 0.8125rem;
+  line-height: 1.4;
 }
 
 .catalogLink,
@@ -118,7 +121,7 @@
 .catalogLink {
   flex: 0 0 auto;
   border: 1px solid var(--chat-border-strong);
-  padding: 0 var(--sp-4);
+  padding: 0 var(--sp-3);
   background: var(--chat-surface);
   color: var(--chat-accent);
 }
@@ -132,7 +135,7 @@
   display: grid;
   grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
   overflow: hidden;
-  margin-bottom: var(--sp-4);
+  margin-bottom: var(--sp-2);
   border: 1px solid var(--chat-border);
   border-radius: var(--chat-radius);
   background: var(--chat-surface);
@@ -141,22 +144,21 @@
 .safetyItem {
   min-width: 0;
   display: flex;
-  align-items: flex-start;
-  gap: var(--sp-3);
-  padding: var(--sp-4);
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 6px var(--sp-3);
   color: var(--chat-accent-strong);
 }
 
 .safetyItem svg {
   flex: 0 0 auto;
-  margin-top: var(--sp-1);
   color: var(--chat-accent);
 }
 
 .safetyItem p {
   margin: 0;
-  font-size: 0.875rem;
-  line-height: 1.6;
+  font-size: 0.78125rem;
+  line-height: 1.4;
   text-wrap: pretty;
 }
 
@@ -171,13 +173,13 @@
 }
 
 .notice {
-  margin: 0 0 var(--sp-4);
-  padding: var(--sp-3) var(--sp-4);
+  margin: 0 0 var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
   border: 1px solid var(--chat-border-strong);
   border-radius: var(--chat-radius);
   background: var(--chat-surface-muted);
   color: var(--chat-accent-strong);
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 700;
 }
 
@@ -188,19 +190,23 @@
 }
 
 .workspace {
-  min-height: 42rem;
-  height: min(68dvh, 48rem);
+  min-height: 32rem;
+  height: clamp(32rem, 76vh, 60rem);
   display: grid;
-  grid-template-columns: minmax(16rem, var(--chat-rail-width)) minmax(0, 1fr);
+  grid-template-columns: minmax(17rem, var(--chat-rail-width)) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
   border: 1px solid var(--chat-border);
   border-radius: var(--chat-radius);
   background: var(--chat-surface);
-  box-shadow: none;
+  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.06);
 }
 
 .conversationRail {
   min-width: 0;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
   align-content: start;
@@ -330,7 +336,7 @@
   margin: 0;
   padding: var(--sp-2);
   list-style: none;
-  overscroll-behavior: contain;
+  overscroll-behavior: auto;
 }
 
 .conversationList li {
@@ -423,6 +429,8 @@
 .thread {
   min-width: 0;
   min-height: 0;
+  height: 100%;
+  max-height: 100%;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   background: var(--chat-surface);
@@ -449,13 +457,58 @@
   white-space: nowrap;
 }
 
+.threadHeaderRight {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-shrink: 0;
+}
+
+.threadCreditBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #064e3b;
+}
+
+.threadCreditDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  display: inline-block;
+}
+
+.threadCreditLabel {
+  color: #047857;
+  font-size: 0.75rem;
+}
+
+.threadCreditValue {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #065f46;
+}
+
+.threadCreditTotal {
+  color: #059669;
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
 .messageViewport {
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
   padding: var(--sp-4);
   background: color-mix(in oklch, var(--chat-surface-muted) 45%, var(--chat-surface));
-  overscroll-behavior: contain;
+  overscroll-behavior: auto;
   scroll-behavior: smooth;
 }
 
@@ -731,26 +784,29 @@
 
 .modePicker {
   display: grid;
-  gap: var(--sp-3);
-  margin-bottom: var(--sp-4);
-  padding: var(--sp-4);
+  gap: var(--sp-1);
+  margin-bottom: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
   border: 1px solid var(--chat-border);
   border-radius: var(--chat-radius);
   background: var(--chat-surface);
 }
 
 .modePickerHeading {
-  display: grid;
-  gap: var(--sp-1);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
 }
 
 .modePickerHeading strong {
   color: var(--chat-accent-strong);
+  font-size: 0.8125rem;
 }
 
 .modePickerHeading span {
   color: var(--color-ink-muted);
-  font-size: 0.8125rem;
+  font-size: 0.71875rem;
 }
 
 .modeOptions {
@@ -763,9 +819,9 @@
 .modeOptionActive {
   min-height: var(--chat-touch-size);
   display: grid;
-  gap: var(--sp-1);
+  gap: 2px;
   justify-items: start;
-  padding: var(--sp-3);
+  padding: var(--sp-1) var(--sp-2);
   border: 1px solid var(--chat-border);
   border-radius: var(--chat-radius);
   background: var(--chat-surface);
@@ -773,6 +829,11 @@
   cursor: pointer;
   font: inherit;
   text-align: left;
+}
+
+.modeOption strong,
+.modeOptionActive strong {
+  font-size: 0.8125rem;
 }
 
 .modeOptionActive {
@@ -783,8 +844,8 @@
 .modeOption span,
 .modeOptionActive span {
   color: var(--color-ink-muted);
-  font-size: 0.75rem;
-  line-height: 1.4;
+  font-size: 0.6875rem;
+  line-height: 1.25;
 }
 
 .modeOption:disabled,
@@ -830,8 +891,8 @@
 
 .composer {
   display: grid;
-  gap: var(--sp-2);
-  padding: var(--sp-3) var(--sp-4) var(--sp-4);
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3);
   border-top: 1px solid var(--chat-border);
   background: var(--chat-surface);
 }
@@ -845,28 +906,28 @@
 
 .composerLabelRow label {
   color: var(--chat-accent-strong);
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 800;
 }
 
 .composerLabelRow span {
   color: var(--color-ink-muted);
-  font-size: 0.75rem;
+  font-size: 0.71875rem;
   font-variant-numeric: tabular-nums;
 }
 
 .composer textarea {
   width: 100%;
-  min-height: 6rem;
-  max-height: 14rem;
+  min-height: 3.5rem;
+  max-height: 8rem;
   resize: vertical;
   border: 1px solid var(--chat-border);
   border-radius: var(--chat-radius);
-  padding: var(--sp-3);
+  padding: var(--sp-2);
   background: var(--chat-surface);
   color: var(--color-ink);
-  font-size: 1rem;
-  line-height: 1.6;
+  font-size: 0.9375rem;
+  line-height: 1.45;
 }
 
 .composer textarea::placeholder {
