@@ -419,7 +419,7 @@ _EMERGENCY_PHRASE_PATTERN = re.compile(
     r"dau\W+nguc(?:\W+\w{1,20}){0,6}\W{1,3}du\W+doi"
     r"|chay\W+mau(?:\W+\w{1,20}){0,6}\W{1,3}khong\W+cam"
     r"|kho\W+tho|meo\W+mieng|yeu\W+liet|co\W+giat|tu\W*tu"
-    r"|khong\W+muon\W+song|muon\W+chet|ket\W+thuc\W+cuoc\W+doi"
+    r"|khong\W+muon\W+song|muon\W+chet|ket\W+thuc\W+cuoc\W+(?:doi|song)"
     r"|khong\W+con\W+ly\W+do\W+song"
     r"|(?:dinh|muon)\W+tu\W+van\b"
     r"|tu\W+sat\b"
@@ -428,6 +428,13 @@ _EMERGENCY_PHRASE_PATTERN = re.compile(
     r"|uong\W+(?:ca\W+)?lo\W+(?:thuoc|paracetamol|thuoc\W+ngu|giam\W+dau)"
     r"|(?:uong|dung|bo)\W+thuoc\W+qua\W+lieu|qua\W+lieu\W+thuoc"
     r"|quet\W+di\W+(?:mot\W+)?dong\W+hong\W+cam|uong\W+thuoc\W+ngu"
+    # English self-harm and emergency phrasings: the assistant serves
+    # bilingual visitors and none of these existed in the Vietnamese-only
+    # list, so "end my life" / "kill myself" could bypass the crisis gate.
+    r"|end\W+my\W+life|kill\W+myself|suicid\w*|want\W+to\W+die"
+    r"|take\W+my\W+own\W+life|don'?t\W+want\W+to\W+live|hurt\W+myself"
+    r"|can'?t\W+go\W+on|no\W+reason\W+to\W+live"
+    r"|chest\W+pain|shortness\W+of\W+breath|severe\W+bleeding"
     r")",
     re.IGNORECASE,
 )

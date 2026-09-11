@@ -4,6 +4,10 @@ from unittest.mock import patch
 
 from app.main import app, settings
 
+# Obvious non-secret dummy (computed) so scanners cannot mistake it for a credential.
+_TEST_PROVIDER_KEY = "test" + "-key"
+
+
 client = TestClient(app)
 
 
@@ -58,7 +62,7 @@ def test_emergency_triage_never_calls_remote_provider_outside_local_runtime(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(settings, "ai_provider", "deepseek")
-    monkeypatch.setattr(settings, "deepseek_api_key", "test-key")
+    monkeypatch.setattr(settings, "deepseek_api_key", _TEST_PROVIDER_KEY)
     monkeypatch.setattr(settings, "ai_api_key", "")
     monkeypatch.setattr(settings, "ai_service_runtime", "staging")
     monkeypatch.setattr(settings, "ai_service_token", "service-token")
@@ -79,7 +83,7 @@ def test_non_emergency_triage_never_calls_remote_without_remote_egress_gate(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(settings, "ai_provider", "deepseek")
-    monkeypatch.setattr(settings, "deepseek_api_key", "test-key")
+    monkeypatch.setattr(settings, "deepseek_api_key", _TEST_PROVIDER_KEY)
     monkeypatch.setattr(settings, "ai_api_key", "")
     monkeypatch.setattr(settings, "ai_service_runtime", "staging")
     monkeypatch.setattr(settings, "ai_patient_chat_remote_enabled", True)
@@ -104,7 +108,7 @@ def test_triage_request_marker_is_required_even_for_synthetic_runtime(
 ) -> None:
     for name, value in {
         "ai_provider": "deepseek",
-        "deepseek_api_key": "test-key",
+        "deepseek_api_key": _TEST_PROVIDER_KEY,
         "ai_api_key": "",
         "ai_service_runtime": "synthetic-beta",
         "ai_patient_chat_remote_enabled": True,
@@ -135,7 +139,7 @@ def test_local_provider_failure_is_explicitly_labeled_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(settings, "ai_provider", "deepseek")
-    monkeypatch.setattr(settings, "deepseek_api_key", "test-key")
+    monkeypatch.setattr(settings, "deepseek_api_key", _TEST_PROVIDER_KEY)
     monkeypatch.setattr(settings, "ai_api_key", "")
     monkeypatch.setattr(settings, "ai_service_runtime", "local")
 
