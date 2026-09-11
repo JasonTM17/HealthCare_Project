@@ -348,9 +348,13 @@ class AiChatContractsTest {
             service, "groundedResponse", UUID.randomUUID(), ChatMode.HOSPITAL_SUPPORT,
             "thong tin chi nhanh", List.of());
 
+        // Phase-04 posture: a supported hospital-support question falls back to
+        // the deterministic local responder (no provider call) instead of an
+        // insufficient-evidence dead end.
+        Object provenance = ReflectionTestUtils.invokeMethod(response, "provenance");
+        assertThat((Object) provenance).isEqualTo("local_provider");
         Object safetyAction = ReflectionTestUtils.invokeMethod(response, "safetyAction");
-        assertThat((Object) safetyAction)
-            .isEqualTo(ChatSafetyAction.INSUFFICIENT_EVIDENCE);
+        assertThat((Object) safetyAction).isEqualTo(ChatSafetyAction.ANSWER);
         verify(upstream, never()).chat(org.mockito.ArgumentMatchers.any());
         verify(upstream).retrieveChat(org.mockito.ArgumentMatchers.any());
     }

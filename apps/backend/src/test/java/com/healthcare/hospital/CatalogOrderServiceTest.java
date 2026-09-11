@@ -97,7 +97,7 @@ class CatalogOrderServiceTest {
     @Test
     void packageCreateAppendsAfterHighestOrderWhenADeletedRowLeftAGap() {
         when(packages.findBySlug("new-package")).thenReturn(java.util.Optional.empty());
-        when(packages.findAllInDisplayOrder()).thenReturn(List.of(packageRow(0, 1L), packageRow(2, 1L)));
+        when(packages.findMaxDisplayOrder()).thenReturn(2);
         when(packages.save(any(Package.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Package created = new AdminPackageService(packages).create(new PackageRequest(
