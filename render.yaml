@@ -122,7 +122,7 @@ services:
       # Low-memory footprint tuning for Render Free 512MB RAM constraint.
       # Caps heap, metaspace, code cache, and thread stack size to prevent OOM restart.
       - key: JAVA_TOOL_OPTIONS
-        value: "-XX:+UseSerialGC -Xms64m -Xmx128m -XX:MaxMetaspaceSize=180m -XX:CompressedClassSpaceSize=48m -XX:ReservedCodeCacheSize=32m -Xss512k -XX:+TieredCompilation -XX:TieredStopAtLevel=1 -Djava.security.egd=file:/dev/./urandom"
+        value: "-XX:+UseSerialGC -Xms128m -Xmx220m -XX:MaxMetaspaceSize=140m -XX:CompressedClassSpaceSize=32m -XX:ReservedCodeCacheSize=32m -Xss512k -XX:+TieredCompilation -XX:TieredStopAtLevel=1 -Djava.security.egd=file:/dev/./urandom -XX:+ExitOnOutOfMemoryError"
       - key: MALLOC_ARENA_MAX
         value: "2"
       - key: SERVER_TOMCAT_THREADS_MAX
