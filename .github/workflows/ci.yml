@@ -41,7 +41,9 @@ jobs:
       - name: Start MinIO
         run: |
           set -euo pipefail
-          docker run --detach --name healthcare-ci-minio --network host \
+          # Explicit port publish instead of --network host: newer ubuntu-latest
+          # runner images reject host networking for detached containers (exit 125).
+          docker run --detach --name healthcare-ci-minio -p 127.0.0.1:9000:9000 \
             --env MINIO_ROOT_USER=healthcare \
             --env MINIO_ROOT_PASSWORD=change-me \
             minio/minio:RELEASE.2025-07-23T15-54-02Z server /data
