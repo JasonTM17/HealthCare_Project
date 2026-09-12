@@ -680,6 +680,26 @@ function PatientCareHub({
   );
 }
 
+type TabKey = "overview" | "appointments" | "records" | "prescriptions" | "diagnostics" | "notifications" | "profile";
+
+// Pure hash -> tab resolver. Kept at module scope so it is referentially stable
+// across renders (a component-scope definition would retrigger every effect that
+// depends on it and trips react-hooks/exhaustive-deps).
+const parseTabFromHash = (rawHash: string): TabKey => {
+  const clean = (rawHash || "").toLowerCase().replace(/^#/, "").split(/[?&/]/)[0];
+  const validTabs: Record<string, TabKey> = {
+    overview: "overview",
+    appointments: "appointments",
+    records: "records",
+    prescriptions: "prescriptions",
+    diagnostics: "diagnostics",
+    notifications: "notifications",
+    profile: "profile",
+    settings: "profile",
+  };
+  return validTabs[clean] || "overview";
+};
+
 export default function PatientDashboardPage() {
   const session = useAuthSession();
   const searchParams = useSearchParams();
@@ -1038,23 +1058,6 @@ export default function PatientDashboardPage() {
     handleChooseReschedule(targetAppointment);
   }, [appointmentId, appointments, handleChooseReschedule, selectedAppointment]);
 
-  type TabKey = "overview" | "appointments" | "records" | "prescriptions" | "diagnostics" | "notifications" | "profile";
-
-  const parseTabFromHash = (rawHash: string): TabKey => {
-    const clean = (rawHash || "").toLowerCase().replace(/^#/, "").split(/[?&/]/)[0];
-    const validTabs: Record<string, TabKey> = {
-      overview: "overview",
-      appointments: "appointments",
-      records: "records",
-      prescriptions: "prescriptions",
-      diagnostics: "diagnostics",
-      notifications: "notifications",
-      profile: "profile",
-      settings: "profile",
-    };
-    return validTabs[clean] || "overview";
-  };
-
   const [activeHash, setActiveHash] = useState<string>("");
   const [selectedTab, setSelectedTab] = useState<TabKey | null>(null);
   const activeTabRef = useRef<HTMLButtonElement | null>(null);
@@ -1078,13 +1081,15 @@ export default function PatientDashboardPage() {
       syncFromHash();
     }
 
-    window.addEventListener("hashchange", () => syncFromHash());
-    window.addEventListener("popstate", () => syncFromHash());
+    const handleLocationChange = () => syncFromHash();
+
+    window.addEventListener("hashchange", handleLocationChange);
+    window.addEventListener("popstate", handleLocationChange);
     window.addEventListener("portal:tab-change", handleCustomTabChange);
 
     return () => {
-      window.removeEventListener("hashchange", () => syncFromHash());
-      window.removeEventListener("popstate", () => syncFromHash());
+      window.removeEventListener("hashchange", handleLocationChange);
+      window.removeEventListener("popstate", handleLocationChange);
       window.removeEventListener("portal:tab-change", handleCustomTabChange);
     };
   }, []);
@@ -1099,6 +1104,23 @@ export default function PatientDashboardPage() {
   useEffect(() => {
     activeTabRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
   }, [currentTab]);
+
+  // This listener must be registered unconditionally, before the auth early
+  // returns below. Calling a hook after a conditional return changes the hook
+  // count when the session hydrates from unauthenticated to ready, which makes
+  // React throw "Rendered more hooks than during the previous render".
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleNotificationsUpdate = () => {
+      fetchNotifications().then((res) => {
+        setNotifications({ status: "success", data: res });
+      }).catch(() => {});
+    };
+    window.addEventListener("healthcare:notifications-updated", handleNotificationsUpdate);
+    return () => {
+      window.removeEventListener("healthcare:notifications-updated", handleNotificationsUpdate);
+    };
+  }, []);
 
   const navigateToTab = useCallback((tab: TabKey, hash: string) => {
     setSelectedTab(tab);
@@ -1136,19 +1158,6 @@ export default function PatientDashboardPage() {
   const unreadCount = notifications.status === "success"
     ? notifications.data.content.filter((notification) => !notification.read).length
     : null;
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const handleNotificationsUpdate = () => {
-      fetchNotifications().then((res) => {
-        setNotifications({ status: "success", data: res });
-      }).catch(() => {});
-    };
-    window.addEventListener("healthcare:notifications-updated", handleNotificationsUpdate);
-    return () => {
-      window.removeEventListener("healthcare:notifications-updated", handleNotificationsUpdate);
-    };
-  }, []);
 
   const handleMarkAsRead = async (notification: Notification) => {
     if (notification.read) return;

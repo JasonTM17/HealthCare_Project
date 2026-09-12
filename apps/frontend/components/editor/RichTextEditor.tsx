@@ -735,7 +735,7 @@ export function RichTextEditor({
         );
       }, 0);
     },
-    [safeValue, onChange, recordHistory],
+    [safeValue, viewMode, onChange, recordHistory],
   );
 
   // Helper to prefix lines with markdown (supports intelligent toggle, consecutive numbered lists, and checklist)
@@ -845,7 +845,7 @@ export function RichTextEditor({
         textarea.setSelectionRange(lineStart, lineStart + modified.length);
       }, 0);
     },
-    [safeValue, onChange, recordHistory],
+    [safeValue, viewMode, onChange, recordHistory],
   );
 
   // Insert raw text at cursor
