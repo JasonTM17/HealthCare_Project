@@ -10,6 +10,7 @@ import {
   browserSessionFixture,
   installMockBrowserSession,
 } from "./helpers/browser-session";
+import { fulfillBackendWarmup } from "./helpers/backend-warmup";
 
 function session(role: "DOCTOR" | "ADMIN") {
   return browserSessionFixture(role, `primary-action-${role.toLowerCase()}`, `Primary Action ${role}`);
@@ -57,6 +58,7 @@ test("doctor primary appointment action sends the authorized status mutation", a
   const unexpectedRequests: string[] = [];
 
   await context.route("**/api/v1/**", async (route) => {
+    if (await fulfillBackendWarmup(route)) return;
     const request = route.request();
     expect(request.headers()["authorization"]).toBeUndefined();
     const url = new URL(request.url());
@@ -123,6 +125,7 @@ test("admin primary mutation creates a specialty with the authorized REST payloa
   const unexpectedRequests: string[] = [];
 
   await context.route("**/api/v1/**", async (route) => {
+    if (await fulfillBackendWarmup(route)) return;
     const request = route.request();
     expect(request.headers()["authorization"]).toBeUndefined();
     const url = new URL(request.url());

@@ -82,6 +82,11 @@ async function startBookingMockBackend() {
     const method = request.method ?? "GET";
     const apiPath = requestUrl.pathname.replace(/^\/api\/v1/, "");
 
+    if (method === "GET" && apiPath === "/health") {
+      sendJson(response, 200, { status: "ok", service: "healthcare-backend", ai_ready: true });
+      return;
+    }
+
     if (method === "GET" && apiPath === "/cms/content/events") {
       response.writeHead(200, {
         "Cache-Control": "no-cache",

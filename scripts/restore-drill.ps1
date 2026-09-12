@@ -3,7 +3,7 @@ param(
     [string]$BackupRoot = (Join-Path (Split-Path $PSScriptRoot -Parent) "backups"),
     [string]$SnapshotDirectory = "",
     [string]$PostgresImage = "postgres:16-alpine",
-    [string]$MinioImage = "minio/minio:RELEASE.2025-07-23T15-54-02Z",
+    [string]$MinioImage = "quay.io/minio/minio:RELEASE.2025-07-23T15-54-02Z",
     [string]$DatabaseName = "healthcare",
     [string]$StorageBucket = "healthcare-files",
     [int]$MaxSnapshotAgeHours = 168

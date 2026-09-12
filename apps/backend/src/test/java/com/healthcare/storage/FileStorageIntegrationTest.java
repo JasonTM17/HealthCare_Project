@@ -32,7 +32,7 @@ import java.util.zip.ZipOutputStream;
 @Transactional
 class FileStorageIntegrationTest extends AbstractIntegrationTest {
 
-    private static final String MINIO_IMAGE = "minio/minio:RELEASE.2025-07-23T15-54-02Z";
+    private static final String MINIO_IMAGE = "quay.io/minio/minio:RELEASE.2025-07-23T15-54-02Z";
     private static final String MINIO_ACCESS_KEY = "healthcare-test";
     private static final String TEST_MINIO_PASSWORD = "local-test-password";
     private static final GenericContainer<?> MINIO = new GenericContainer<>(MINIO_IMAGE)
