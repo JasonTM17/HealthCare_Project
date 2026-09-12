@@ -194,13 +194,13 @@ test("patient portal launcher stays compact and low-emphasis on dense dashboards
   expect(launcherVisual.shadow).toBe("none");
 });
 
-test("guest launcher sends stateless hospital-support chat and offers login for history", async ({ context, page }) => {
+test("guest launcher sends even a greeting through stateless hospital-support chat and offers login for history", async ({ context, page }) => {
   await installMockBrowserSession(context, null);
   await context.route("**/api/v1/public/ai/chat", async (route) => {
     const request = route.request();
     expect(request.headers()["authorization"]).toBeUndefined();
     const payload = request.postDataJSON() as { message: string; recent_turns: unknown[] };
-    expect(payload.message).toBe("Bệnh viện có những chuyên khoa nào?");
+    expect(payload.message).toBe("Xin chào");
     expect(payload.recent_turns).toEqual([]);
     await new Promise((resolve) => setTimeout(resolve, 150));
     await route.fulfill({
@@ -223,9 +223,9 @@ test("guest launcher sends stateless hospital-support chat and offers login for 
   const dialog = page.getByRole("dialog", { name: "Trợ lý sức khỏe HealthCare" });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText("Bạn đang dùng chế độ khách", { exact: false })).toBeVisible();
-  await dialog.getByLabel("Câu hỏi cho trợ lý sức khỏe").fill("Bệnh viện có những chuyên khoa nào?");
+  await dialog.getByLabel("Câu hỏi cho trợ lý sức khỏe").fill("Xin chào");
   await dialog.getByRole("button", { name: "Gửi câu hỏi" }).click();
-  await expect(dialog.getByTestId("floating-chat-pending-user").getByText("Bệnh viện có những chuyên khoa nào?", { exact: true })).toBeVisible();
+  await expect(dialog.getByTestId("floating-chat-pending-user").getByText("Xin chào", { exact: true })).toBeVisible();
   await expect(dialog.getByTestId("floating-chat-thinking")).toContainText("Đã nhận câu hỏi — đang chờ phản hồi…");
   await expect(dialog.getByText("Bạn có thể xem danh sách chuyên khoa và chọn cơ sở phù hợp.", { exact: true })).toBeVisible();
   await expect(dialog.getByTestId("floating-chat-thinking")).toBeHidden();
