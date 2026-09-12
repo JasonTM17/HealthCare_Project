@@ -1,8 +1,12 @@
-import threading as _threading
+import logging
 import re
 import secrets
+import threading as _threading
+import time
+from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import Generator, cast
+from uuid import UUID, uuid4
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -75,6 +79,56 @@ from app.schemas import (
 
 settings = Settings()
 app = FastAPI(title="HealthCare AI Service", version="0.1.0")
+_trace_logger = logging.getLogger("healthcare.ai.trace")
+_REQUEST_ID_HEADER = "X-Request-ID"
+_REQUEST_ID_PATTERN = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+)
+_CHAT_TRACE_PATHS = frozenset({"/chat", "/chat/retrieve", "/chat/generate", "/chat/generate/stream"})
+
+
+def _bounded_request_id(candidate: str | None) -> str:
+    if candidate is not None and _REQUEST_ID_PATTERN.fullmatch(candidate):
+        return str(UUID(candidate))
+    return str(uuid4())
+
+
+@app.middleware("http")
+async def request_trace(
+    request: Request,
+    call_next: Callable[[Request], Awaitable[Response]],
+) -> Response:
+    """Propagate a bounded trace id and record content-free chat latency."""
+
+    request_id = _bounded_request_id(request.headers.get(_REQUEST_ID_HEADER))
+    started_at = time.perf_counter()
+    try:
+        response = await call_next(request)
+    except Exception:
+        if request.url.path in _CHAT_TRACE_PATHS:
+            _trace_logger.info(
+                "healthcare_chat_stage requestId=%s stage=fastapi outcome=failed status=500 durationMs=%d",
+                request_id,
+                round((time.perf_counter() - started_at) * 1000),
+            )
+        raise
+    response.headers[_REQUEST_ID_HEADER] = request_id
+    if request.url.path in _CHAT_TRACE_PATHS:
+        outcome = (
+            "completed"
+            if response.status_code < 400
+            else "rejected"
+            if response.status_code < 500
+            else "failed"
+        )
+        _trace_logger.info(
+            "healthcare_chat_stage requestId=%s stage=fastapi outcome=%s status=%d durationMs=%d",
+            request_id,
+            outcome,
+            response.status_code,
+            round((time.perf_counter() - started_at) * 1000),
+        )
+    return response
 
 # Shared RAG service. Local/test keeps the in-memory implementation by default,
 # while explicit Supabase configuration can switch to the durable store.

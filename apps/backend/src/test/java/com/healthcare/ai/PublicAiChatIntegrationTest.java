@@ -13,6 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -23,6 +24,7 @@ class PublicAiChatIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void unauthenticatedHospitalSupportChatIsStatelessAndBounded() throws Exception {
+        String requestId = "123e4567-e89b-42d3-a456-426614174000";
         var specialty = new com.healthcare.hospital.entity.Specialty();
         specialty.setName("Tim mạch");
         specialty.setSlug("tim-mach-public-chat-test");
@@ -41,9 +43,11 @@ class PublicAiChatIntegrationTest extends AbstractIntegrationTest {
         ));
 
         mockMvc.perform(post("/api/v1/public/ai/chat")
+                .header("X-Request-ID", requestId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"message\":\"Bệnh viện có chuyên khoa nào?\",\"recent_turns\":[]}"))
             .andExpect(status().isOk())
+            .andExpect(header().string("X-Request-ID", requestId))
             .andExpect(jsonPath("$.mode").value("HOSPITAL_SUPPORT"))
             .andExpect(jsonPath("$.answer").value("Bạn có thể xem chuyên khoa Tim mạch."))
             .andExpect(jsonPath("$.citations[0].source_type").value("specialty"))

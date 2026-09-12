@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { isIP } from "node:net";
 import test from "node:test";
@@ -50,6 +51,7 @@ async function loadBff(env = {}) {
   load(compiledModule.exports, (specifier) => {
     if (specifier === "server-only") return {};
     if (specifier === "node:buffer") return { Buffer };
+    if (specifier === "node:crypto") return { randomUUID };
     if (specifier === "node:net") return { isIP };
     throw new Error(`Unexpected runtime import: ${specifier}`);
   }, compiledModule);
@@ -219,6 +221,7 @@ test("BFF rejects browser authority headers and cross-origin mutations", async (
     "x-healthcare-bff-token",
     "x-healthcare-client-ip",
     "x-healthcare-original-origin",
+    "x-request-id",
   ]) {
     const response = await bff.proxyHealthcareRequest(
       browserRequest("/api/v1/users/me", { headers: { [name]: "browser-controlled" } }),
@@ -543,6 +546,135 @@ test("BFF returns a safe public chat fallback when the AI upstream is unavailabl
   assert.doesNotMatch(body.answer, /backend|AI|gián đoạn/i);
   assert.equal(upstreamCancelled, true);
   assert.equal(upstreamCancelReason, "BFF_PUBLIC_AI_FALLBACK");
+});
+
+test("BFF creates a UUID request id and returns the same trace handle to the browser", async () => {
+  const bff = await loadBff();
+  let upstreamRequestId = "";
+  const response = await bff.proxyHealthcareRequest(
+    browserRequest("/api/v1/public/ai/chat", {
+      method: "POST",
+      headers: {
+        Origin: "https://beta.healthcare.test",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ message: "Xin chào" }),
+    }),
+    ["public", "ai", "chat"],
+    {
+      runtimeConfig,
+      fetchImpl: async (_target, init = {}) => {
+        upstreamRequestId = new Headers(init.headers).get("X-Request-ID") ?? "";
+        return Response.json({ answer: "ok" });
+      },
+    },
+  );
+
+  const browserRequestId = response.headers.get("X-Request-ID") ?? "";
+  assert.match(browserRequestId, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+  assert.equal(upstreamRequestId, browserRequestId);
+  await response.body?.cancel();
+});
+
+test("BFF aborts its upstream fetch when the browser cancels a response body", async () => {
+  const bff = await loadBff();
+  let upstreamSignal;
+  const response = await bff.proxyHealthcareRequest(
+    browserRequest("/api/v1/ai/conversations/c-1/messages/stream", {
+      method: "POST",
+      headers: { Origin: "https://beta.healthcare.test", "Content-Type": "application/json" },
+      body: "{}",
+    }),
+    ["ai", "conversations", "c-1", "messages", "stream"],
+    {
+      runtimeConfig: { ...runtimeConfig, streamRequestTimeoutMs: 1_000 },
+      fetchImpl: async (_target, init = {}) => {
+        upstreamSignal = init.signal;
+        return new Response(new ReadableStream({ start() {} }), {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        });
+      },
+    },
+  );
+
+  assert.equal(upstreamSignal?.aborted, false);
+  await response.body.cancel("browser-navigation");
+  assert.equal(upstreamSignal?.aborted, true);
+});
+
+test("BFF records a response-body deadline as a timeout", async () => {
+  const bff = await loadBff();
+  const traceRecords = [];
+  const originalConsoleInfo = console.info;
+  console.info = (event, fields) => traceRecords.push({ event, fields });
+  try {
+    const response = await bff.proxyHealthcareRequest(
+      browserRequest("/api/v1/ai/conversations/c-1/messages/stream", {
+        method: "POST",
+        headers: { Origin: "https://beta.healthcare.test", "Content-Type": "application/json" },
+        body: "{}",
+      }),
+      ["ai", "conversations", "c-1", "messages", "stream"],
+      {
+        runtimeConfig: { ...runtimeConfig, streamRequestTimeoutMs: 20 },
+        fetchImpl: async (_target, init = {}) => new Response(new ReadableStream({
+          start(controller) {
+            init.signal.addEventListener(
+              "abort",
+              () => controller.error(new Error("upstream timed out")),
+              { once: true },
+            );
+          },
+        })),
+      },
+    );
+
+    await assert.rejects(response.text(), /upstream timed out/);
+  } finally {
+    console.info = originalConsoleInfo;
+  }
+
+  const bffTrace = traceRecords.find(({ event }) => event === "healthcare_chat_stage");
+  assert.equal(bffTrace?.fields.outcome, "timeout");
+});
+
+test("BFF aborts an in-flight public chat fetch when the browser disconnects", async () => {
+  const bff = await loadBff();
+  const browserController = new AbortController();
+  let upstreamSignal;
+  let upstreamStarted;
+  const started = new Promise((resolve) => { upstreamStarted = resolve; });
+  const responsePromise = bff.proxyHealthcareRequest(
+    browserRequest("/api/v1/public/ai/chat", {
+      method: "POST",
+      headers: { Origin: "https://beta.healthcare.test", "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "Xin chào" }),
+      signal: browserController.signal,
+    }),
+    ["public", "ai", "chat"],
+    {
+      runtimeConfig,
+      fetchImpl: async (_target, init = {}) => {
+        upstreamSignal = init.signal;
+        upstreamStarted();
+        return await new Promise((_resolve, reject) => {
+          init.signal.addEventListener(
+            "abort",
+            () => reject(new DOMException("aborted", "AbortError")),
+            { once: true },
+          );
+        });
+      },
+    },
+  );
+
+  await started;
+  browserController.abort("browser-navigation");
+  const response = await responsePromise;
+  assert.equal(upstreamSignal?.aborted, true);
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).safety_action, "INSUFFICIENT_EVIDENCE");
 });
 
 test("BFF bounds a slow chunked request body before contacting the backend", async () => {
