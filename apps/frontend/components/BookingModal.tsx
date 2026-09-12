@@ -664,6 +664,16 @@ function BookingExperience({
     return () => void task;
   }, [syncSelection]);
 
+  // Prefill deterministically once the internal catalog resolves: on slow
+  // runners the syncSelection identity chain can miss the load completing and
+  // leave the specialty select on its disabled placeholder (CI-only flake).
+  useEffect(() => {
+    if (!active || catalogLoading || catalogError !== "") return;
+    if (providedSpecialties.length > 0) return;
+    const task = Promise.resolve().then(syncSelection);
+    return () => void task;
+  }, [active, catalogLoading, catalogError, providedSpecialties.length, syncSelection]);
+
   useEffect(() => slotQueryOwner.enterLifecycle(active), [active, slotQueryOwner]);
 
   // One owner controls slot identity, active lifecycle, retry attempts, aborts,
