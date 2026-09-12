@@ -564,33 +564,49 @@ function BookingExperience({
       setCatalogLoading(true);
       setCatalogError("");
       const [doctorResult, specialtyResult, branchResult] = await Promise.allSettled([
-        needsDoctors ? fetchDoctors({ page: 0, size: 10 }) : Promise.resolve(null),
+        needsDoctors ? fetchDoctors({ page: 0, size: 6 }) : Promise.resolve(null),
         needsSpecialties ? fetchSpecialties(0, 100) : Promise.resolve(null),
         needsBranches ? fetchBranches(0, 100) : Promise.resolve(null),
       ]);
       if (cancelled) return;
 
+      let resolvedDoctor = doctorResult.status === "fulfilled" ? doctorResult.value : null;
+      let resolvedSpecialty = specialtyResult.status === "fulfilled" ? specialtyResult.value : null;
+      let resolvedBranch = branchResult.status === "fulfilled" ? branchResult.value : null;
+
+      // Resilient single-retry for transient cold starts before reporting an error
+      if (needsDoctors && !resolvedDoctor && !cancelled) {
+        resolvedDoctor = await fetchDoctors({ page: 0, size: 6 }).catch(() => null);
+      }
+      if (needsSpecialties && !resolvedSpecialty && !cancelled) {
+        resolvedSpecialty = await fetchSpecialties(0, 100).catch(() => null);
+      }
+      if (needsBranches && !resolvedBranch && !cancelled) {
+        resolvedBranch = await fetchBranches(0, 100).catch(() => null);
+      }
+      if (cancelled) return;
+
       const missing: string[] = [];
       if (needsDoctors) {
-        if (doctorResult.status === "fulfilled" && doctorResult.value) {
-          setLoadedDoctors(doctorResult.value.content);
-          if (doctorResult.value.content.length === 0) missing.push("danh sách bác sĩ");
+        if (resolvedDoctor) {
+          setLoadedDoctors(resolvedDoctor.content);
+          if (resolvedDoctor.content.length === 0) missing.push("danh sách bác sĩ");
         } else {
           missing.push("bác sĩ");
         }
       }
       if (needsSpecialties) {
-        if (specialtyResult.status === "fulfilled" && specialtyResult.value) {
-          setLoadedSpecialties(specialtyResult.value.content);
-          if (specialtyResult.value.content.length === 0) missing.push("danh sách chuyên khoa");
+        if (resolvedSpecialty) {
+          setLoadedSpecialties(resolvedSpecialty.content);
+          if (resolvedSpecialty.content.length === 0) missing.push("danh sách chuyên khoa");
         } else {
           missing.push("chuyên khoa");
         }
       }
       if (needsBranches) {
-        if (branchResult.status === "fulfilled" && branchResult.value) {
-          setLoadedBranches(branchResult.value.content);
-          if (branchResult.value.content.length === 0) missing.push("danh sách cơ sở khám");
+        if (resolvedBranch) {
+          setLoadedBranches(resolvedBranch.content);
+          if (resolvedBranch.content.length === 0) missing.push("danh sách cơ sở khám");
         } else {
           missing.push("cơ sở khám");
         }
