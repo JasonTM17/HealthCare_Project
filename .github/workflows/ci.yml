@@ -43,10 +43,12 @@ jobs:
           set -euo pipefail
           # Explicit port publish instead of --network host: newer ubuntu-latest
           # runner images reject host networking for detached containers (exit 125).
+          # quay.io mirror: Docker Hub anonymous pulls were rate-limited on the
+          # runner IP pool (pull access denied → exit 125) starting 2026-09-12.
           docker run --detach --name healthcare-ci-minio -p 127.0.0.1:9000:9000 \
             --env MINIO_ROOT_USER=healthcare \
             --env MINIO_ROOT_PASSWORD=change-me \
-            minio/minio:RELEASE.2025-07-23T15-54-02Z server /data
+            quay.io/minio/minio:RELEASE.2025-07-23T15-54-02Z server /data
           for attempt in $(seq 1 30); do
             if curl --fail --silent http://localhost:9000/minio/health/live >/dev/null; then
               exit 0
