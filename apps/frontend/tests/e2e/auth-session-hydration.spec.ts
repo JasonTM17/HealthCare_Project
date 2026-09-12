@@ -386,6 +386,21 @@ test("patient dashboard survives hard reload with a preloaded session", async ({
           body: JSON.stringify(emptyPage<Branch>()),
         });
         return;
+      // BackendWarmup fires this background GET ~1.2s after mount on every
+      // page; fulfill it so the strict oracle only reports real surprises.
+      case "/api/v1/public/ai/policy":
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            policyVersion: "e2e-static",
+            retentionDays: 0,
+            consentText: "E2E synthetic policy",
+            limitationText: null,
+            remoteProviderEnabled: false,
+          }),
+        });
+        return;
       default:
         throw new Error(`Unexpected API request: ${request.method()} ${url.pathname}${url.search}`);
     }
@@ -396,13 +411,22 @@ test("patient dashboard survives hard reload with a preloaded session", async ({
 
   await page.goto("/patient/dashboard");
   await expect(page.getByRole("heading", { name: "Xin chào, E2E Patient" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Lưu hồ sơ" })).toBeVisible();
+  // The redesigned dashboard opens on the care hub (overview default).
+  await expect(page.getByRole("heading", { name: "Việc cần làm hôm nay" })).toBeVisible();
+  // The profile form lives behind its tab; selecting it writes #profile.
+  await page.getByRole("button", { name: "Hồ sơ & Bảo mật" }).click();
+  await expect(page.getByRole("button", { name: "Lưu hồ sơ & Tiền sử bệnh" })).toBeVisible();
 
+  // A hard reload must restore the session AND the #profile deep-link tab.
   await page.reload();
   await page.waitForLoadState("networkidle");
   await expect(page.getByRole("heading", { name: "Xin chào, E2E Patient" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Lưu hồ sơ & Tiền sử bệnh" })).toBeVisible();
+
+  // Tab navigation keeps working after the reload; appointments still show
+  // their owned empty state.
+  await page.getByRole("button", { name: "Lịch hẹn" }).click();
   await expect(page.locator("#appointments")).toContainText("Chưa có lịch hẹn");
-  await expect(page.getByRole("button", { name: "Lưu hồ sơ" })).toBeVisible();
 
   const browserStorage = await page.evaluate(() => ({
     local: { ...localStorage },
