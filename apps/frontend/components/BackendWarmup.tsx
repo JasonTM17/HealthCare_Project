@@ -11,6 +11,12 @@ import { useEffect } from "react";
  */
 export default function BackendWarmup() {
   useEffect(() => {
+    // Automated browsers (Playwright sets navigator.webdriver) run strict
+    // per-request oracles; the background warmup would surface as an
+    // unexpected API call in every spec. Real visitors still get it.
+    if (typeof navigator !== "undefined" && navigator.webdriver) {
+      return;
+    }
     // Wait 1200ms so we never compete with critical page hydration or metrics
     const timer = setTimeout(() => {
       try {
