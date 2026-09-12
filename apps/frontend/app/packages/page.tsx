@@ -9,6 +9,7 @@ import { presentApiError } from "../../lib/present-api-error";
 import type { HealthPackage } from "../../types/hospital";
 import CatalogPagination from "../../components/CatalogPagination";
 import PackageVisualCard, { packageVisualStyles } from "../../components/PackageVisualCard";
+import PackageBookingModal from "../../components/PackageBookingModal";
 
 const PACKAGE_STEPS = [
   {
@@ -34,6 +35,7 @@ export default function PackagesPage() {
   const [page, setPage] = useState<Page<HealthPackage> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedPackageForModal, setSelectedPackageForModal] = useState<HealthPackage | null>(null);
 
   useEffect(() => {
     const unsubscribe = subscribeToCatalogChange((detail) => {
@@ -204,9 +206,13 @@ export default function PackagesPage() {
               {page.content.map((item, index) => (
                 <PackageVisualCard
                   bookingAction={
-                    <PublicBookingButton className={packageVisualStyles.bookButton} selection={{ packageId: item.id }}>
-                      Đặt lịch
-                    </PublicBookingButton>
+                    <button
+                      type="button"
+                      className={packageVisualStyles.bookButton}
+                      onClick={() => setSelectedPackageForModal(item)}
+                    >
+                      Đặt lịch với gói này
+                    </button>
                   }
                   headingLevel="h2"
                   key={item.id}
@@ -217,6 +223,14 @@ export default function PackagesPage() {
             </div>
             <CatalogPagination label="Phân trang gói khám" onPageChange={setCurrentPage} page={page} />
           </>
+        ) : null}
+
+        {selectedPackageForModal ? (
+          <PackageBookingModal
+            isOpen={Boolean(selectedPackageForModal)}
+            onClose={() => setSelectedPackageForModal(null)}
+            packageItem={selectedPackageForModal}
+          />
         ) : null}
       </div>
     </PublicPageShell>

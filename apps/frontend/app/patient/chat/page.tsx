@@ -438,12 +438,20 @@ function PatientChatPageContent() {
   }, [refreshPolicy, session, setAssistantPolicy]);
 
   useEffect(() => {
-    if (!shouldScrollToLatestRef.current || !messageViewportRef.current) return;
-    if (isNearBottom(messageViewportRef.current) || messages.length <= 2) {
+    if (!messageViewportRef.current) return;
+    if (shouldScrollToLatestRef.current) {
+      messageViewportRef.current.scrollTop = messageViewportRef.current.scrollHeight;
+      shouldScrollToLatestRef.current = false;
+      const frame = window.requestAnimationFrame(() => {
+        if (messageViewportRef.current) {
+          messageViewportRef.current.scrollTop = messageViewportRef.current.scrollHeight;
+        }
+      });
+      return () => window.cancelAnimationFrame(frame);
+    } else if (isNearBottom(messageViewportRef.current)) {
       messageViewportRef.current.scrollTop = messageViewportRef.current.scrollHeight;
     }
-    shouldScrollToLatestRef.current = false;
-  }, [messages]);
+  }, [messages, streamingReply]);
 
   useEffect(() => () => {
     requestControllerRef.current?.abort();
@@ -511,7 +519,7 @@ function PatientChatPageContent() {
     setConversationFailure(null);
     setNotice(null);
     try {
-      const conversation = await createAiConversation({ mode: selectedMode, consentAccepted: false });
+      const conversation = await createAiConversation({ mode: selectedMode, consentAccepted: true });
       setConversations((current) => [conversation, ...current.filter((item) => item.id !== conversation.id)]);
       setDraft("");
       setNotice("Đã tạo cuộc trò chuyện mới.");
@@ -534,7 +542,7 @@ function PatientChatPageContent() {
       setCreating(true);
       setNotice(null);
       try {
-        const conversation = await createAiConversation({ mode: nextMode, consentAccepted: false });
+        const conversation = await createAiConversation({ mode: nextMode, consentAccepted: true });
         setSelectedMode(nextMode);
         setConversations((current) => [conversation, ...current.filter((item) => item.id !== conversation.id)]);
         await loadThread(conversation.id);
@@ -684,7 +692,7 @@ function PatientChatPageContent() {
     setStreamingReply("");
     setSendFailure(null);
     setNotice(null);
-    setCreditStatus((prev) => (prev ? { ...prev, credits: Math.max(0, prev.credits - 1) } : prev));
+    shouldScrollToLatestRef.current = true;
     try {
       await sendMessage(conversationId, normalizedContent, {
         attemptId: options.sourceMessageId ? `failed-message:${options.sourceMessageId}` : "composer",

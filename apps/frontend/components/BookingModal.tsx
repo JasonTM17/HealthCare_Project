@@ -650,8 +650,13 @@ function BookingExperience({
         && doctorMatchesSpecialty(doctor, nextSpecialty));
     setSelectedBranch(nextBranchId);
     setSelectedDoctor(firstDoctor?.id ?? "");
-    setSelectedSpecialty(nextSpecialtyId);
-    setSelectedPackage(packages.some((item) => item.id === initialPackageId) ? initialPackageId ?? "" : "");
+    setSelectedPackage(
+      packages.length === 0
+        ? (initialPackageId ?? "")
+        : packages.some((item) => item.id === initialPackageId)
+          ? initialPackageId ?? ""
+          : "",
+    );
   }, [active, branches, doctors, initialBranchId, initialDoctorId, initialPackageId, initialSpecialtyId, packages, specialties]);
 
   useEffect(() => {
@@ -767,6 +772,7 @@ function BookingExperience({
   const currentDoctor = doctors.find((doctor) => doctor.id === selectedDoctor);
   const currentSpecialty = specialties.find((specialty) => specialty.id === selectedSpecialty);
   const currentBranch = branches.find((branch) => branch.id === selectedBranch);
+  const currentPackage = packages.find((pkg) => pkg.id === selectedPackage);
   const availableDoctors = doctors.filter(
     (doctor) => doctorMatchesBranch(doctor, selectedBranch) && doctorMatchesSpecialty(doctor, currentSpecialty),
   );
@@ -1022,10 +1028,14 @@ function BookingExperience({
       setConfirmedAppointment(details);
     } catch (error: unknown) {
       if (bookingSession === bookingSessionRef.current) {
-        setErrorMessage(presentApiError(
-          error instanceof ApiError ? error.code : undefined,
-          error instanceof ApiError ? error.status : undefined,
-        ));
+        setErrorMessage(
+          error instanceof Error && error.message
+            ? error.message
+            : presentApiError(
+                error instanceof ApiError ? error.code : undefined,
+                error instanceof ApiError ? error.status : undefined,
+              ),
+        );
       }
     } finally {
       if (bookingSession === bookingSessionRef.current) setIsSubmitting(false);
@@ -1137,30 +1147,60 @@ function BookingExperience({
             <div className="space-y-5">
               <div>
                 <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">01 · Nhu cầu khám</p>
-                <h3 className="text-xl font-bold text-gray-900">Bạn muốn được hỗ trợ ở chuyên khoa nào?</h3>
-                <p className="mt-1 text-sm leading-6 text-gray-600">Chọn chuyên khoa phù hợp để chúng tôi tìm cơ sở và bác sĩ đang tiếp nhận lịch.</p>
+                <h3 className="text-xl font-bold text-gray-900">
+                  {currentPackage ? `Đặt lịch theo gói: ${currentPackage.name}` : "Bạn muốn được hỗ trợ ở chuyên khoa nào?"}
+                </h3>
+                <p className="mt-1 text-sm leading-6 text-gray-600">
+                  {currentPackage
+                    ? "Gói khám đã bao gồm danh mục khám và xét nghiệm tiêu chuẩn. Bạn có thể chọn thêm chuyên khoa hoặc tiếp tục chọn cơ sở tiếp nhận."
+                    : "Chọn chuyên khoa phù hợp để chúng tôi tìm cơ sở và bác sĩ đang tiếp nhận lịch."}
+                </p>
               </div>
+              {currentPackage && (
+                <div className="rounded-lg border border-teal-200 bg-teal-50/80 p-4 text-sm text-teal-950">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <strong className="text-base text-teal-950">{currentPackage.name}</strong>
+                    <span className="font-bold text-teal-800">{new Intl.NumberFormat("vi-VN").format(currentPackage.price)} VNĐ</span>
+                  </div>
+                  <p className="mt-1 text-xs text-teal-800">{currentPackage.description}</p>
+                  {currentPackage.targetAudience ? (
+                    <p className="mt-1 text-xs text-teal-700"><strong>Phù hợp:</strong> {currentPackage.targetAudience}</p>
+                  ) : null}
+                </div>
+              )}
               <div>
-                <label className="mb-1 block text-sm font-semibold text-gray-700" htmlFor="booking-specialty">Chuyên khoa</label>
+                <label className="mb-1 block text-sm font-semibold text-gray-700" htmlFor="booking-specialty">
+                  {currentPackage ? "Chuyên khoa tiếp nhận (Tùy chọn)" : "Chuyên khoa"}
+                </label>
                 <select
                   id="booking-specialty"
                   name="specialty"
-                  required
+                  required={!currentPackage}
                   value={selectedSpecialty}
                   onChange={(e) => handleSpecialtyChange(e.target.value)}
                   disabled={isSubmitting}
                   className="w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
                 >
-                  <option value="" disabled>{catalogLoading ? "Đang tải chuyên khoa…" : "Chọn chuyên khoa cần khám"}</option>
+                  <option value="" disabled={!currentPackage}>{catalogLoading ? "Đang tải chuyên khoa…" : currentPackage ? "Tự động phân bổ theo gói khám" : "Chọn chuyên khoa cần khám"}</option>
                   {specialties.map((sp) => <option key={sp.id} value={sp.id}>{sp.name}</option>)}
                 </select>
               </div>
               <div className="rounded-sm border border-brand-100 bg-brand-50/60 p-4 text-sm text-brand-950">
-                <strong>{currentSpecialty?.name ?? "Chưa chọn chuyên khoa"}</strong>
-                <p className="mt-1 text-xs leading-5 text-brand-700">{currentSpecialty?.description ?? "Chọn một chuyên khoa để tiếp tục."}</p>
+                <strong>{currentSpecialty?.name ?? (currentPackage ? "Khám theo danh mục gói" : "Chưa chọn chuyên khoa")}</strong>
+                <p className="mt-1 text-xs leading-5 text-brand-700">{currentSpecialty?.description ?? (currentPackage ? "Hệ thống sẽ chỉ định bác sĩ phụ trách khám tổng quát theo gói." : "Chọn một chuyên khoa để tiếp tục.")}</p>
               </div>
               <div className="booking-step-actions flex justify-end border-t border-gray-100 pt-4">
-                <button type="button" disabled={isSubmitting || catalogLoading || !currentSpecialty} onClick={() => navigateToStep(2)} className="flex items-center gap-2 rounded-lg bg-brand-700 px-6 py-2.5 font-semibold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600">
+                <button
+                  type="button"
+                  disabled={isSubmitting || catalogLoading || (!currentSpecialty && !currentPackage)}
+                  onClick={() => {
+                    if (!selectedSpecialty && currentPackage && specialties.length > 0) {
+                      setSelectedSpecialty(specialties[0].id);
+                    }
+                    navigateToStep(2);
+                  }}
+                  className="flex items-center gap-2 rounded-lg bg-brand-700 px-6 py-2.5 font-semibold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
+                >
                   Tiếp tục: Chọn cơ sở <span>→</span>
                 </button>
               </div>

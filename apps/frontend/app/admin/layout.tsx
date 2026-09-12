@@ -168,9 +168,9 @@ function AdminShell({ children, displayName }: { children: ReactNode; displayNam
   return (
     <div className="admin-shell min-h-screen bg-slate-50 text-slate-900">
       <a className="skip-link" href="#main-content">Bỏ qua điều hướng</a>
-      <aside className="border-b border-teal-900 bg-teal-950 text-white lg:sticky lg:top-0 lg:h-screen lg:w-64 lg:border-b-0 lg:border-r">
-        <div className="flex h-full flex-col p-5">
-          <div>
+      <aside className="border-b border-teal-900 bg-teal-950 text-white lg:sticky lg:top-0 lg:h-screen lg:w-64 lg:border-b-0 lg:border-r lg:overflow-hidden">
+        <div className="flex h-full flex-col p-5 overflow-hidden">
+          <div className="shrink-0">
             <div className="flex items-center gap-3 text-teal-100"><UiIcon name="shield-check" size={24} /><strong className="text-lg">HealthCare</strong></div>
             <p className="mt-2 text-base font-bold">Điều hành bệnh viện</p>
             <p className="mt-2 text-xs leading-5 text-teal-100/75">
@@ -198,7 +198,7 @@ function AdminShell({ children, displayName }: { children: ReactNode; displayNam
             })}
           </nav>
 
-          <div className="mt-6 grid gap-2 border-t border-teal-900 pt-5 lg:mt-auto">
+          <div className="mt-6 grid gap-2 border-t border-teal-900 pt-5 lg:mt-auto shrink-0">
             <Link className="inline-flex min-h-11 items-center text-sm font-semibold text-teal-100/75 hover:text-white" href="/">Về trang chính</Link>
             <button className="min-h-11 w-fit text-left text-sm font-semibold text-amber-200 hover:text-amber-100 disabled:opacity-50" disabled={loggingOut} onClick={() => void handleLogout()} type="button">
               {loggingOut ? "Đang đăng xuất..." : "Đăng xuất"}

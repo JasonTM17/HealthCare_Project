@@ -79,7 +79,7 @@ public class AiService {
 
     /** Test-friendly constructor with the same safe defaults as production. */
     public AiService(RestTemplateBuilder restTemplateBuilder, ObjectMapper objectMapper) {
-        this(restTemplateBuilder, objectMapper, Duration.ofSeconds(1), Duration.ofSeconds(10));
+        this(restTemplateBuilder, objectMapper, Duration.ofSeconds(1), Duration.ofSeconds(35));
     }
 
     @Autowired
@@ -87,13 +87,13 @@ public class AiService {
         RestTemplateBuilder restTemplateBuilder,
         ObjectMapper objectMapper,
         @Value("${ai.service.connect-timeout-ms:1000}") long connectTimeoutMs,
-        @Value("${ai.service.read-timeout-ms:10000}") long readTimeoutMs
+        @Value("${ai.service.read-timeout-ms:35000}") long readTimeoutMs
     ) {
         this(
             restTemplateBuilder,
             objectMapper,
             boundedDuration(connectTimeoutMs, Duration.ofSeconds(1)),
-            boundedDuration(readTimeoutMs, Duration.ofSeconds(10))
+            boundedDuration(readTimeoutMs, Duration.ofSeconds(35))
         );
     }
 

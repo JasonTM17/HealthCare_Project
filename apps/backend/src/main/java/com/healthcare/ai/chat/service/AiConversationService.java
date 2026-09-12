@@ -133,7 +133,7 @@ public class AiConversationService {
             @Value("${ai.chat.cleanup-batch-size:200}") int cleanupBatchSize,
             @Value("${ai.chat.cleanup-max-batches:20}") int cleanupMaxBatches,
             @Value("${ai.chat.processing-lease-seconds:120}") int processingLeaseSeconds,
-            @Value("${ai.chat.remote-provider-enabled:false}") boolean remoteProviderEnabled,
+            @Value("${ai.chat.remote-provider-enabled:true}") boolean remoteProviderEnabled,
             @Value("${ai.chat.symptom-triage-enabled:false}") boolean symptomTriageEnabled,
             @Value("${ai.chat.health-education-enabled:false}") boolean healthEducationEnabled,
             @Value("${ai.chat.synthetic-beta-asserted:false}") boolean syntheticBetaAsserted,
@@ -671,6 +671,10 @@ public class AiConversationService {
             throw inProgress();
         }
 
+        if (aiCreditService != null) {
+            aiCreditService.requirePatientCredits(userId);
+        }
+
         OffsetDateTime now = now();
         UUID processingToken = UUID.randomUUID();
         conversation.setInFlight(true);
@@ -689,7 +693,6 @@ public class AiConversationService {
         request.setIdempotencyKey(idempotencyKey);
         request.setCreatedAt(now);
         messageRepository.save(request);
-        chargeAcceptedPatientExchange(userId);
         return new PreparedMessage(request.getId(), processingToken, null);
     }
 
@@ -789,6 +792,7 @@ public class AiConversationService {
         conversation.setUpdatedAt(completedAt);
         conversation.setExpiresAt(expiry(completedAt));
         conversationRepository.save(conversation);
+        chargeAcceptedPatientExchange(userId);
         return new ChatExchangeResponse(toMessage(request), toMessage(reply), false);
     }
 
@@ -835,11 +839,6 @@ public class AiConversationService {
                         message.setStatus(AiMessageStatus.FAILED);
                         message.setCompletedAt(now());
                         messageRepository.save(message);
-                        // The exchange was charged in prepare() and never
-                        // produced an answer; refund on the same PENDING ->
-                        // FAILED transition so a retried request (new
-                        // Idempotency-Key) does not double-charge the patient.
-                        refundFailedPatientExchange(userId);
                     }
                 });
                 conversation.setInFlight(false);
@@ -862,17 +861,10 @@ public class AiConversationService {
             return;
         }
 
-        boolean refunded = false;
         for (AiMessage pending : messageRepository.findByConversationIdAndStatus(
                 conversation.getId(), AiMessageStatus.PENDING)) {
             pending.setStatus(AiMessageStatus.FAILED);
             pending.setCompletedAt(recoveredAt);
-            refunded = true;
-        }
-        if (refunded && conversation.getUser() != null) {
-            // Stale-lease recovery retires charged-but-never-answered exchanges;
-            // compensate so the caller's retry is not a second full charge.
-            refundFailedPatientExchange(conversation.getUser().getId());
         }
         conversation.setInFlight(false);
         conversation.setInFlightStartedAt(null);

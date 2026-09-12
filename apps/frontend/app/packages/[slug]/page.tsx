@@ -8,6 +8,7 @@ import { PublicAiButton, PublicBackLink, PublicBookingButton, PublicPageShell } 
 import { fetchPackageBySlug } from "../../../lib/api-client";
 import { getPackageVisual } from "../../../lib/package-visuals";
 import type { HealthPackage } from "../../../types/hospital";
+import PackageBookingModal from "../../../components/PackageBookingModal";
 
 const currency = (price: number) => new Intl.NumberFormat("vi-VN").format(price);
 const PACKAGE_DETAIL_STEPS = [
@@ -21,6 +22,7 @@ export default function PackageDetailPage() {
   const [item, setItem] = useState<HealthPackage | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [packageBookingOpen, setPackageBookingOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -43,7 +45,7 @@ export default function PackageDetailPage() {
   const visual = item ? getPackageVisual(item) : null;
 
   return (
-    <PublicPageShell packages={item ? [item] : []}>
+    <PublicPageShell onBookingRequest={() => setPackageBookingOpen(true)} packages={item ? [item] : []}>
       <div className="resource-page section-inner">
         <PublicBackLink href="/packages">← Quay lại danh mục gói khám</PublicBackLink>
         {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải gói khám…</p> : null}
@@ -131,7 +133,32 @@ export default function PackageDetailPage() {
                 ) : <p className={packageVisualStyles.emptyDetail}>Hướng dẫn chuẩn bị đang được cập nhật.</p>}
               </section>
             </div>
+
+            <section className="resource-panel resource-panel--accent text-center mt-6">
+              <p className="section-note">Đăng ký dễ dàng</p>
+              <h2>Đặt lịch khám ngay hôm nay</h2>
+              <p className="max-w-xl mx-auto text-sm text-slate-600 mb-4">
+                Chủ động chọn cơ sở y tế và khung giờ tiếp nhận phù hợp. Nhận ngay mã phiếu khám điện tử và hướng dẫn chuẩn bị chi tiết.
+              </p>
+              <div className="resource-actions justify-center">
+                <button
+                  type="button"
+                  className="button button--amber"
+                  onClick={() => setPackageBookingOpen(true)}
+                >
+                  Đặt lịch với gói này
+                </button>
+              </div>
+            </section>
           </>
+        ) : null}
+
+        {item && packageBookingOpen ? (
+          <PackageBookingModal
+            isOpen={packageBookingOpen}
+            onClose={() => setPackageBookingOpen(false)}
+            packageItem={item}
+          />
         ) : null}
       </div>
     </PublicPageShell>
