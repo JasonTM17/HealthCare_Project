@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 import pytest
 from unittest.mock import patch
+from uuid import UUID
 
 from app.main import app, rag_service, settings
 
@@ -14,6 +15,24 @@ def test_health_returns_ok() -> None:
     assert "service" in response.json()
     assert "ai_provider" in response.json()
     assert response.json()["rag_ready"] is True
+
+
+def test_request_trace_echoes_a_canonical_uuid() -> None:
+    expected = "123e4567-e89b-42d3-a456-426614174000"
+
+    response = client.get("/health", headers={"X-Request-ID": expected.upper()})
+
+    assert response.status_code == 200
+    assert response.headers["X-Request-ID"] == expected
+
+
+def test_request_trace_replaces_an_untrusted_value() -> None:
+    response = client.get("/health", headers={"X-Request-ID": "not-a-safe-trace"})
+
+    assert response.status_code == 200
+    request_id = response.headers["X-Request-ID"]
+    assert UUID(request_id).version == 4
+    assert request_id != "not-a-safe-trace"
 
 
 def test_readyz_fails_closed_when_rag_probe_fails(

@@ -1,5 +1,6 @@
 """Focused contract tests for the bounded chat endpoint."""
 
+import logging
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -60,6 +61,36 @@ def test_chat_falls_back_deterministically_without_provider() -> None:
     assert result.provenance == "local_fallback"
     assert result.citations == []
     assert "tham khảo" in result.answer
+
+
+def test_chat_trace_preserves_request_id_without_logging_prompt_content(
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_id = "123e4567-e89b-42d3-a456-426614174000"
+    prompt_marker = "trace-private-prompt-marker"
+    monkeypatch.setattr(settings, "ai_service_token", "")
+    monkeypatch.setattr(settings, "ai_service_runtime", "local")
+    monkeypatch.setattr(settings, "ai_service_allow_unauthenticated_local", True)
+    monkeypatch.setattr(settings, "ai_provider", "local")
+    monkeypatch.setattr(settings, "embedding_provider", "local")
+
+    with caplog.at_level(logging.INFO, logger="healthcare.ai.trace"):
+        response = client.post(
+            "/chat",
+            headers={"X-Request-ID": request_id},
+            json={"message": f"Xin chào {prompt_marker}", "public_support_chat": True},
+        )
+
+    trace_messages = [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == "healthcare.ai.trace"
+    ]
+    assert response.status_code == 200
+    assert response.headers["X-Request-ID"] == request_id
+    assert any(f"requestId={request_id}" in message for message in trace_messages)
+    assert all(prompt_marker not in message for message in trace_messages)
 
 
 def test_patient_answer_remote_flags_still_use_local_grounded_path() -> None:

@@ -26,6 +26,7 @@ import com.healthcare.ai.service.AiCreditService;
 import com.healthcare.ai.service.AiService;
 import com.healthcare.exception.BusinessException;
 import com.healthcare.exception.ErrorCodes;
+import com.healthcare.observability.RequestTrace;
 import com.healthcare.security.HealthcareUserPrincipal;
 import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.UserRepository;
@@ -51,8 +52,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @Service
 public class AiConversationService {
@@ -406,34 +405,47 @@ public class AiConversationService {
         String idempotencyKey = normalizeIdempotencyKey(rawIdempotencyKey);
         String content = normalizeContent(rawContent);
 
+        long preparationStartedAt = System.nanoTime();
         PreparedMessage prepared = transactions.execute(status ->
             prepare(userId, conversationId, idempotencyKey, content)
         );
         if (prepared == null) {
+            recordChatStage("preparation", "failed", preparationStartedAt);
             throw new BusinessException(500, ErrorCodes.INTERNAL_ERROR, "Could not prepare chat request");
         }
         if (prepared.replay() != null) {
+            recordChatStage("preparation", "replay", preparationStartedAt);
             return prepared.replay();
         }
+        recordChatStage("preparation", "completed", preparationStartedAt);
 
         try {
             AiConversation conversation = conversationRepository.findByIdAndUserId(conversationId, userId)
                 .orElseThrow(this::notFound);
             SanitizedAiResponse sanitized = groundedResponse(
                 userId, conversation.getMode(), content, recentTurns(conversationId), chunkedDeliveryGeneration);
-            ChatExchangeResponse completed = transactions.execute(status ->
-                complete(
-                    userId,
-                    conversationId,
-                    prepared.userMessageId(),
-                    prepared.processingToken(),
-                    sanitized,
-                    conversation.getMode()
-                )
-            );
+            long persistenceStartedAt = System.nanoTime();
+            ChatExchangeResponse completed;
+            try {
+                completed = transactions.execute(status ->
+                    complete(
+                        userId,
+                        conversationId,
+                        prepared.userMessageId(),
+                        prepared.processingToken(),
+                        sanitized,
+                        conversation.getMode()
+                    )
+                );
+            } catch (RuntimeException ex) {
+                recordChatStage("persistence", "failed", persistenceStartedAt);
+                throw ex;
+            }
             if (completed == null) {
+                recordChatStage("persistence", "failed", persistenceStartedAt);
                 throw new BusinessException(500, ErrorCodes.INTERNAL_ERROR, "Could not persist AI response");
             }
+            recordChatStage("persistence", "completed", persistenceStartedAt);
             return completed;
         } catch (BusinessException ex) {
             markFailed(userId, conversationId, prepared.userMessageId(), prepared.processingToken());
@@ -489,10 +501,18 @@ public class AiConversationService {
         // through the public request body.
         request.put("synthetic_beta", syntheticBetaAsserted && syntheticBetaGuard.eligible(userId));
         Map<String, Object> retrieved = null;
+        long retrievalStartedAt = System.nanoTime();
         try {
             retrieved = aiService.retrieveChat(request);
         } catch (RuntimeException ex) {
-            log.warn("AI candidate retrieval deferred: {}", ex.getMessage());
+            log.warn(
+                "AI candidate retrieval deferred requestId={} errorType={}",
+                RequestTrace.currentId(), ex.getClass().getSimpleName()
+            );
+        } finally {
+            recordChatStage(
+                "retrieval-result", retrieved == null ? "unavailable" : "completed", retrievalStartedAt
+            );
         }
 
         if (retrieved == null) {
@@ -503,8 +523,17 @@ public class AiConversationService {
         if (safety != null && !"ANSWER".equals(safety)) {
             return safetyResponse(mode, safety);
         }
-        List<AiChatSourceResolver.ResolvedSource> authorized = sourceResolver.authorize(
-            mode, retrieved.get("candidates"));
+        long authorizationStartedAt = System.nanoTime();
+        List<AiChatSourceResolver.ResolvedSource> authorized;
+        try {
+            authorized = sourceResolver.authorize(mode, retrieved.get("candidates"));
+        } catch (RuntimeException ex) {
+            recordChatStage("source-authorization", "failed", authorizationStartedAt);
+            throw ex;
+        }
+        recordChatStage(
+            "source-authorization", authorized.isEmpty() ? "empty" : "completed", authorizationStartedAt
+        );
         if (authorized.isEmpty()) {
             return insufficient(mode);
         }
@@ -520,15 +549,31 @@ public class AiConversationService {
         // validated answer (D-02): these deltas are a consistency log used to
         // prove the delivered slices equal the persisted answer below.
         List<String> upstreamDeliverySlices = new ArrayList<>();
-        Map<String, Object> generated = chunkedDeliveryGeneration
-            ? aiService.generateChatStream(generation, upstreamDeliverySlices::add)
-            : aiService.generateChat(generation);
+        long generationStartedAt = System.nanoTime();
+        Map<String, Object> generated;
+        try {
+            generated = chunkedDeliveryGeneration
+                ? aiService.generateChatStream(generation, upstreamDeliverySlices::add)
+                : aiService.generateChat(generation);
+        } catch (RuntimeException ex) {
+            recordChatStage("generation-result", "failed", generationStartedAt);
+            throw ex;
+        }
+        recordChatStage("generation-result", "completed", generationStartedAt);
         if (!upstreamDeliverySlices.isEmpty()
                 && generated.get("answer") instanceof String answer
                 && !String.join("", upstreamDeliverySlices).equals(answer)) {
             throw invalidAiResponse();
         }
-        return sanitize(generated, mode, authorized);
+        long validationStartedAt = System.nanoTime();
+        try {
+            SanitizedAiResponse response = sanitize(generated, mode, authorized);
+            recordChatStage("response-validation", "completed", validationStartedAt);
+            return response;
+        } catch (RuntimeException ex) {
+            recordChatStage("response-validation", "failed", validationStartedAt);
+            throw ex;
+        }
     }
 
     @Transactional
@@ -1427,6 +1472,16 @@ public class AiConversationService {
 
     private String trim(String value, int maxLength) {
         return value.length() <= maxLength ? value : value.substring(0, maxLength);
+    }
+
+    private void recordChatStage(String stage, String outcome, long startedAt) {
+        String requestId = RequestTrace.currentId();
+        if (requestId == null) return;
+        long durationMillis = Math.max(0L, (System.nanoTime() - startedAt) / 1_000_000L);
+        log.info(
+            "AI chat stage requestId={} stage={} outcome={} durationMs={}",
+            requestId, stage, outcome, durationMillis
+        );
     }
 
     private BusinessException notFound() {

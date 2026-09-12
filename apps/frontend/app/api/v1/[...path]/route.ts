@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 // The public hospital-support chat can traverse two Render Free cold starts
 // (Spring and the native Python service). Keep this below the Vercel Hobby
-// maximum while allowing the BFF's bounded 55-second upstream deadline.
+// maximum while allowing the BFF's bounded 35-second upstream deadline.
 export const maxDuration = 60;
 
 interface HealthcareApiRouteContext {

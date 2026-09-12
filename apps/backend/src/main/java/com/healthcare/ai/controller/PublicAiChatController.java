@@ -6,11 +6,14 @@ import com.healthcare.ai.chat.entity.ChatMode;
 import com.healthcare.ai.chat.service.AiChatSourceResolver;
 import com.healthcare.ai.chat.service.ChatMedicalSafety;
 import com.healthcare.ai.service.AiService;
+import com.healthcare.observability.RequestTrace;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -46,6 +49,7 @@ import static org.springframework.http.HttpStatus.BAD_GATEWAY;
 @RequestMapping("/api/v1/public/ai")
 public class PublicAiChatController {
 
+    private static final Logger log = LoggerFactory.getLogger(PublicAiChatController.class);
     private static final Set<String> ALLOWED_CITATION_SOURCE_TYPES = Set.of(
         "branch", "specialty", "doctor", "service", "package"
     );
@@ -133,7 +137,15 @@ public class PublicAiChatController {
             throw badGateway("AI response failed the public safety policy");
         }
 
-        List<Map<String, String>> citations = identityOnlyCitations(upstream);
+        long authorizationStartedAt = System.nanoTime();
+        List<Map<String, String>> citations;
+        try {
+            citations = identityOnlyCitations(upstream);
+        } catch (RuntimeException ex) {
+            recordSourceAuthorization("failed", authorizationStartedAt);
+            throw ex;
+        }
+        recordSourceAuthorization(citations.isEmpty() ? "empty" : "completed", authorizationStartedAt);
         if ("ANSWER".equals(safetyAction) && citations.isEmpty()) {
             throw badGateway("AI answer is missing a verified public catalog source");
         }
@@ -248,6 +260,16 @@ public class PublicAiChatController {
 
     private ResponseStatusException badGateway(String reason) {
         return new ResponseStatusException(BAD_GATEWAY, reason);
+    }
+
+    private void recordSourceAuthorization(String outcome, long startedAt) {
+        String requestId = RequestTrace.currentId();
+        if (requestId == null) return;
+        long durationMillis = Math.max(0L, (System.nanoTime() - startedAt) / 1_000_000L);
+        log.info(
+            "AI chat stage requestId={} stage=source-authorization outcome={} durationMs={}",
+            requestId, outcome, durationMillis
+        );
     }
 
     /**
