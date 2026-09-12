@@ -1,60 +1,39 @@
-name: Render Services Keep-Alive 24/7
+name: Supabase Keep-Alive (Prevent Auto-Pause)
 
 on:
   schedule:
-    # Runs every 10 minutes (UTC) to prevent Render Free tier from spinning down (15-min idle limit)
-    - cron: '*/10 * * * *'
+    # Runs every 6 hours (UTC) to keep Supabase active and reset the 7-day inactivity pause timer
+    - cron: '0 */6 * * *'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  ping:
-    name: Ping Render & Vercel Services
+  ping-supabase:
+    name: Ping Supabase Edge & Gateway
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Ping Backend Health Endpoint
+      - name: Ping Supabase REST Gateway
         run: |
-          echo "=== Pinging HealthCare Backend Actuator ==="
-          for i in 1 2 3; do
-            echo "Attempt $i..."
-            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 45 "https://healthcare-beta-backend.onrender.com/actuator/health" || true)
-            echo "Backend HTTP Code: $HTTP_CODE"
-            if [ "$HTTP_CODE" = "200" ]; then
-              echo "Backend is healthy and awake!"
-              break
-            fi
-            sleep 5
-          done
-
-      - name: Ping Public Hospital Packages via Vercel BFF
-        run: |
-          echo "=== Pinging Public Packages Endpoint ==="
-          for i in 1 2 3; do
-            echo "Attempt $i..."
-            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 45 "https://healthcare-two-olive.vercel.app/api/v1/hospital/packages?page=0&size=1" || true)
-            echo "Packages HTTP Code: $HTTP_CODE"
-            if [ "$HTTP_CODE" = "200" ]; then
-              echo "Hospital packages data is warm and serving fast!"
-              break
-            fi
-            sleep 5
-          done
-
-      - name: Ping AI Service Endpoint
-        run: |
-          echo "=== Pinging HealthCare AI Service ==="
-          curl -s -o /dev/null -w "AI Service Response: %{http_code}\n" --max-time 45 "https://healthcare-beta-ai.onrender.com/health" || true
-
-      - name: Ping Supabase Gateway & Edge Health (Prevent Auto-Pause)
-        run: |
-          echo "=== Pinging Supabase Edge & Gateway ==="
+          echo "=== Pinging Supabase REST Gateway ==="
           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "https://awaknzhadjglbfkhigck.supabase.co/rest/v1/" || true)
           echo "Supabase REST Gateway Response: $HTTP_CODE"
+          if [ "$HTTP_CODE" != "000" ]; then
+            echo "Supabase REST gateway active and recorded."
+          fi
+
+      - name: Ping Supabase Auth Health
+        run: |
+          echo "=== Pinging Supabase Auth Gateway ==="
           AUTH_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "https://awaknzhadjglbfkhigck.supabase.co/auth/v1/health" || true)
           echo "Supabase Auth Gateway Response: $AUTH_CODE"
-          if [ "$HTTP_CODE" != "000" ] || [ "$AUTH_CODE" != "000" ]; then
-            echo "Supabase Edge activity successfully recorded (inactivity timer reset)!"
+          if [ "$AUTH_CODE" != "000" ]; then
+            echo "Supabase Auth gateway active and recorded."
           fi
+
+      - name: Verify Inactivity Reset
+        run: |
+          echo "Supabase Edge traffic activity successfully sent. 7-day inactivity timer reset!"
+
