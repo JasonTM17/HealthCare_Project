@@ -558,10 +558,10 @@ export default function Home(): React.ReactElement {
       setCatalog(null);
       try {
         const [specialties, doctors, packages, branches, articles] = await Promise.all([
-          fetchSpecialties(0, 50),
-          fetchDoctors({ page: 0, size: 50 }),
-          fetchPackages(0, 50),
-          fetchBranches(0, 50),
+          fetchSpecialties(0, 12),
+          fetchDoctors({ page: 0, size: 6 }),
+          fetchPackages(0, 8),
+          fetchBranches(0, 8),
           fetchArticles(0, 6),
         ] as [
           Promise<Page<Specialty>>,
