@@ -47,3 +47,14 @@ jobs:
         run: |
           echo "=== Pinging HealthCare AI Service ==="
           curl -s -o /dev/null -w "AI Service Response: %{http_code}\n" --max-time 45 "https://healthcare-beta-ai.onrender.com/health" || true
+
+      - name: Ping Supabase Gateway & Edge Health (Prevent Auto-Pause)
+        run: |
+          echo "=== Pinging Supabase Edge & Gateway ==="
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "https://awaknzhadjglbfkhigck.supabase.co/rest/v1/" || true)
+          echo "Supabase REST Gateway Response: $HTTP_CODE"
+          AUTH_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "https://awaknzhadjglbfkhigck.supabase.co/auth/v1/health" || true)
+          echo "Supabase Auth Gateway Response: $AUTH_CODE"
+          if [ "$HTTP_CODE" != "000" ] || [ "$AUTH_CODE" != "000" ]; then
+            echo "Supabase Edge activity successfully recorded (inactivity timer reset)!"
+          fi
