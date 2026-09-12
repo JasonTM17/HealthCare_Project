@@ -34,6 +34,7 @@ import type {
   AiConversation,
   ChatMode,
   FeedbackRating,
+  SuggestedAction,
 } from "../types/hospital";
 import {
   ASSISTANT_MODE_OPTIONS,
@@ -54,6 +55,15 @@ import styles from "./FloatingHealthAssistant.module.css";
 const MAX_MESSAGE_LENGTH = 10_000;
 const MAX_PUBLIC_MESSAGE_LENGTH = 500;
 const DEFAULT_DISCLAIMER = "Thông tin chỉ mang tính tham khảo, không thay thế thăm khám hoặc hướng dẫn của bác sĩ.";
+const CASUAL_GREETING_PATTERN = /^(hi|hello|helo|alo|xin\s*chào|chào\s*(bạn|bác\s*sĩ|bot|admin|ad|em|chị|anh)?|good\s*(morning|afternoon|evening)|chào)[\s!.]*$/i;
+const GREETING_ACTIONS: SuggestedAction[] = [
+  { kind: "VIEW_SOURCE", label: "Tìm Chuyên khoa", href: "/specialties" },
+  { kind: "VIEW_SOURCE", label: "Tra cứu Bác sĩ", href: "/doctors" },
+  { kind: "VIEW_SOURCE", label: "Gói khám Sức khỏe", href: "/packages" },
+  { kind: "START_BOOKING", label: "Đặt lịch khám", href: "/booking" },
+];
+const GREETING_ANSWER =
+  "Xin chào bạn! Tôi là Trợ lý Sức khỏe AI của HealthCare. Tôi luôn sẵn sàng hỗ trợ bạn tra cứu chuyên khoa, tìm kiếm bác sĩ, tư vấn các gói khám sức khỏe hoặc hướng dẫn quy trình đặt lịch khám. Bạn cần tôi hỗ trợ vấn đề gì hôm nay?";
 const SUGGESTED_QUESTIONS_HOSPITAL = [
   "Làm sao để đặt lịch khám tại HealthCare?",
   "Bệnh viện có những chuyên khoa và cơ sở nào?",
@@ -558,6 +568,41 @@ function FloatingHealthAssistantPanel({
     setPendingUserMessage({ content: normalized, createdAt: pendingCreatedAt });
     setFailure(null);
     setLastFailedContent(null);
+
+    if (CASUAL_GREETING_PATTERN.test(normalized)) {
+      const createdAt = pendingCreatedAt;
+      const sequence = messages.reduce((maximum, message) => Math.max(maximum, message.sequence), 0) + 1;
+      const userMessage: AiChatMessage = {
+        id: randomId(),
+        role: "USER",
+        status: "COMPLETED",
+        content: normalized,
+        sequence,
+        citations: [],
+        createdAt,
+        completedAt: createdAt,
+      };
+      const assistantMessage: AiChatMessage = {
+        id: randomId(),
+        role: "ASSISTANT",
+        status: "COMPLETED",
+        content: GREETING_ANSWER,
+        sequence: sequence + 1,
+        disclaimer: "Thông tin từ trợ lý AI chỉ mang tính tham khảo và không thay thế tư vấn, chẩn đoán hoặc điều trị của bác sĩ.",
+        provenance: "local_provider",
+        citations: [],
+        safetyAction: "ANSWER",
+        suggestedActions: GREETING_ACTIONS,
+        createdAt,
+        completedAt: createdAt,
+      };
+      setDraft("");
+      setPendingUserMessage(null);
+      setSending(false);
+      setMessages((current) => [...current, userMessage, assistantMessage].slice(-8));
+      return;
+    }
+
     let currentConversation: AiConversation | null = null;
     try {
       if (!isPatient) {

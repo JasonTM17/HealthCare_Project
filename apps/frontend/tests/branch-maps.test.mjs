@@ -75,7 +75,7 @@ test("branch loaders settle only the current request under Strict Mode cleanup",
 test("public API requests compose caller cancellation with a bounded timeout", async () => {
   const client = await read("lib/api-client.ts");
 
-  assert.match(client, /const API_REQUEST_TIMEOUT_MS = 12_000/);
+  assert.match(client, /const API_REQUEST_TIMEOUT_MS = 28_000/);
   assert.match(client, /const requestController = new AbortController\(\)/);
   assert.match(client, /callerSignal\?\.addEventListener\("abort", abortFromCaller, \{ once: true \}\)/);
   assert.match(client, /setTimeout\(\(\) => \{[\s\S]*timedOut = true;[\s\S]*requestController\.abort\(\);[\s\S]*\}, timeoutMs\)/);

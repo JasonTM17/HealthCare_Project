@@ -155,13 +155,14 @@ export type {
 // server-only helper can read the private backend origin and BFF credential;
 // keeping this path literal prevents either value from entering client code.
 const API_BASE_URL = "/api/v1";
-const API_REQUEST_TIMEOUT_MS = 12_000;
+const API_REQUEST_TIMEOUT_MS = 28_000;
 // Deadline ownership constraint: the BFF (lib/server/healthcare-bff.ts) owns
 // the upstream deadline and answers with a structured payload (fallback answer
 // or JSON error). Each browser deadline below MUST stay slightly longer than
 // its BFF counterpart so the BFF's structured response — not a local network
 // abort — is what reaches this UI. Keep the pairs in sync when changing either
 // side, and keep both inside the Route Handler's maxDuration of 60s:
+//   general requests:   BFF 25s -> browser 28s
 //   authenticated chat: BFF 30s -> browser 33s
 //   public chat:        BFF 35s -> browser 40s (bounded; the old 55s pairing
 //   raced the BFF and left guests waiting past any useful answer)
