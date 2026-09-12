@@ -86,6 +86,36 @@ const nextConfig: NextConfig = {
         destination: "/admin",
         permanent: true,
       },
+      {
+        source: "/chuyen-khoa",
+        destination: "/specialties",
+        permanent: true,
+      },
+      {
+        source: "/bac-si",
+        destination: "/doctors",
+        permanent: true,
+      },
+      {
+        source: "/goi-kham",
+        destination: "/packages",
+        permanent: true,
+      },
+      {
+        source: "/dich-vu",
+        destination: "/services",
+        permanent: true,
+      },
+      {
+        source: "/co-so-y-te",
+        destination: "/branches",
+        permanent: true,
+      },
+      {
+        source: "/ve-chung-toi",
+        destination: "/about",
+        permanent: true,
+      },
     ];
   },
   async headers() {
