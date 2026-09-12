@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type FormEvent, type ReactElement } from "react";
 import { PublicAiButton, PublicBackLink, PublicBookingButton, PublicPageShell } from "../../components/PublicPageShell";
+import PackageBookingModal from "../../components/PackageBookingModal";
 import Icon from "../../components/UiIcon";
 import {
   ApiError,
@@ -38,8 +39,29 @@ const SEARCH_GUIDE_STEPS = [
   ["03", "Mở gợi ý thông minh", "Gợi ý giúp bạn có thêm hướng tìm hiểu, không thay thế tư vấn y khoa hoặc chẩn đoán."],
 ] as const;
 
+type SearchCategory = "ALL" | "SPECIALTY" | "DOCTOR" | "PACKAGE" | "SERVICE" | "ARTICLE";
+
+interface CategoryTab {
+  key: SearchCategory;
+  label: string;
+}
+
+const CATEGORY_TABS: readonly CategoryTab[] = [
+  { key: "ALL", label: "Tất cả" },
+  { key: "SPECIALTY", label: "Chuyên khoa" },
+  { key: "DOCTOR", label: "Bác sĩ" },
+  { key: "PACKAGE", label: "Gói khám" },
+  { key: "SERVICE", label: "Dịch vụ" },
+  { key: "ARTICLE", label: "Bài viết" },
+] as const;
+
 function normalize(value: string): string {
-  return value.trim().toLocaleLowerCase("vi-VN");
+  return value
+    .trim()
+    .toLocaleLowerCase("vi-VN")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d");
 }
 
 function matches(query: string, values: Array<string | undefined>): boolean {
@@ -115,6 +137,8 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
   const [semantic, setSemantic] = useState<SemanticSearchResponse | null>(null);
   const [semanticLoading, setSemanticLoading] = useState(false);
   const [semanticError, setSemanticError] = useState<string | null>(null);
+  const [activeCategory, setActiveCategory] = useState<SearchCategory>("ALL");
+  const [selectedPackageForModal, setSelectedPackageForModal] = useState<HealthPackage | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -202,10 +226,20 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
     ? [catalog.specialties, catalog.doctors, catalog.services, catalog.packages, catalog.articles].filter((items) => items.length > 0).length
     : 0;
 
+  const categoryCounts: Record<SearchCategory, number> = useMemo(() => ({
+    ALL: resultCount,
+    SPECIALTY: result?.specialties.length ?? 0,
+    DOCTOR: result?.doctors.length ?? 0,
+    PACKAGE: result?.packages.length ?? 0,
+    SERVICE: result?.services.length ?? 0,
+    ARTICLE: result?.articles.length ?? 0,
+  }), [result, resultCount]);
+
   const submitSearch = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
     const nextQuery = query.trim();
     setSubmittedQuery(nextQuery);
+    setActiveCategory("ALL");
     setSemantic(null);
     setSemanticError(null);
     router.replace(nextQuery ? `/search?q=${encodeURIComponent(nextQuery)}` : "/search");
@@ -288,7 +322,7 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
         {error ? <p className="catalog-status catalog-status--error" role="alert">{error} Bạn vẫn có thể thử lại sau.</p> : null}
         {!hasAuthSession && normalize(query) ? <p className="catalog-status">Đăng nhập để nhận thêm gợi ý nội dung liên quan đến nhu cầu của bạn.</p> : null}
         {semanticLoading ? <p className="catalog-status catalog-status--loading" role="status">Đang tìm thêm nội dung liên quan…</p> : null}
-        {semanticError ? <p className="catalog-status catalog-status--error" role="alert">{semanticError}</p> : null}
+        {resultCount === 0 && semanticError ? <p className="catalog-status catalog-status--error" role="alert">{semanticError}</p> : null}
         {semantic?.results.length ? (
           <section className="search-results__section" aria-labelledby="semantic-results">
             <div className="section-heading search-results__heading">
@@ -330,13 +364,121 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
 
         {!loading && result && resultCount > 0 ? (
           <div className="search-results" aria-live="polite">
+            <div className="search-category-tabs flex flex-wrap items-center gap-2 pb-3 border-b border-slate-200" role="tablist" aria-label="Bộ lọc danh mục tìm kiếm">
+              {CATEGORY_TABS.map((tab) => {
+                const isActive = activeCategory === tab.key;
+                const count = categoryCounts[tab.key];
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    onClick={() => setActiveCategory(tab.key)}
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-xs border transition-colors cursor-pointer ${
+                      isActive
+                        ? "border-[#003336] bg-[#003336] text-white"
+                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300"
+                    }`}
+                  >
+                    {tab.label} <span className={isActive ? "text-teal-200" : "text-slate-400"}>({count})</span>
+                  </button>
+                );
+              })}
+            </div>
             <p className="search-results__count">{resultCount} kết quả phù hợp</p>
-            {result.specialties.length > 0 ? <ResultSection eyebrow="Chăm sóc chuyên sâu" title="Chuyên khoa"><div className="search-result-list">{result.specialties.map((item) => <Link className="search-result" href={`/specialties/${item.slug}`} key={item.id}><span className="resource-chip">Chuyên khoa</span><strong>{item.name}</strong><p>{item.description}</p></Link>)}</div></ResultSection> : null}
-            {result.doctors.length > 0 ? <ResultSection eyebrow="Đội ngũ" title="Bác sĩ"><div className="search-result-list">{result.doctors.map((item) => <article className="search-result" key={item.id}><Link href={`/doctors/${item.slug}`}><span className="resource-chip">Bác sĩ</span><strong>{item.fullName}</strong><p>{item.specialtyName ?? item.bio}</p></Link><PublicBookingButton className="outline-button outline-button--small" selection={{ doctorId: item.id }}>Đặt lịch</PublicBookingButton></article>)}</div></ResultSection> : null}
-            {result.services.length > 0 ? <ResultSection eyebrow="Dịch vụ" title="Dịch vụ y tế"><div className="search-result-list">{result.services.map((item) => <Link className="search-result" href={`/services/${item.slug}`} key={item.id}><span className="resource-chip">Dịch vụ</span><strong>{item.name}</strong><p>{item.description}</p></Link>)}</div></ResultSection> : null}
-            {result.packages.length > 0 ? <ResultSection eyebrow="Kiểm tra chủ động" title="Gói khám"><div className="search-result-list">{result.packages.map((item) => <Link className="search-result" href={`/packages/${item.slug}`} key={item.id}><span className="resource-chip resource-chip--warm">Gói khám</span><strong>{item.name}</strong><p>{item.description}</p></Link>)}</div></ResultSection> : null}
-            {result.articles.length > 0 ? <ResultSection eyebrow="Cẩm nang" title="Bài viết"><div className="search-result-list">{result.articles.map((item) => <Link className="search-result" href={`/articles/${item.slug}`} key={item.id}><span className="resource-chip">Cẩm nang</span><strong>{item.title}</strong><p>{item.summary}</p></Link>)}</div></ResultSection> : null}
+            {(activeCategory === "ALL" || activeCategory === "SPECIALTY") && result.specialties.length > 0 ? (
+              <ResultSection eyebrow="Chăm sóc chuyên sâu" title="Chuyên khoa">
+                <div className="search-result-list">
+                  {result.specialties.map((item) => (
+                    <Link className="search-result" href={`/specialties/${item.slug}`} key={item.id}>
+                      <span className="resource-chip">Chuyên khoa</span>
+                      <strong>{item.name}</strong>
+                      <p>{item.description}</p>
+                    </Link>
+                  ))}
+                </div>
+              </ResultSection>
+            ) : null}
+            {(activeCategory === "ALL" || activeCategory === "DOCTOR") && result.doctors.length > 0 ? (
+              <ResultSection eyebrow="Đội ngũ" title="Bác sĩ">
+                <div className="search-result-list">
+                  {result.doctors.map((item) => (
+                    <article className="search-result" key={item.id}>
+                      <Link href={`/doctors/${item.slug}`}>
+                        <span className="resource-chip">Bác sĩ</span>
+                        <strong>{item.fullName}</strong>
+                        <p>{item.specialtyName ?? item.bio}</p>
+                      </Link>
+                      <PublicBookingButton className="outline-button outline-button--small" selection={{ doctorId: item.id }}>
+                        Đặt lịch
+                      </PublicBookingButton>
+                    </article>
+                  ))}
+                </div>
+              </ResultSection>
+            ) : null}
+            {(activeCategory === "ALL" || activeCategory === "PACKAGE") && result.packages.length > 0 ? (
+              <ResultSection eyebrow="Kiểm tra chủ động" title="Gói khám">
+                <div className="search-result-list">
+                  {result.packages.map((item) => (
+                    <article className="search-result" key={item.id}>
+                      <Link href={`/packages/${item.slug}`}>
+                        <span className="resource-chip resource-chip--warm">Gói khám</span>
+                        <strong>{item.name}</strong>
+                        <p>{item.description}</p>
+                      </Link>
+                      <button
+                        type="button"
+                        className="outline-button outline-button--small"
+                        onClick={() => setSelectedPackageForModal(item)}
+                      >
+                        Đặt lịch với gói này
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              </ResultSection>
+            ) : null}
+            {(activeCategory === "ALL" || activeCategory === "SERVICE") && result.services.length > 0 ? (
+              <ResultSection eyebrow="Dịch vụ" title="Dịch vụ y tế">
+                <div className="search-result-list">
+                  {result.services.map((item) => (
+                    <Link className="search-result" href={`/services/${item.slug}`} key={item.id}>
+                      <span className="resource-chip">Dịch vụ</span>
+                      <strong>{item.name}</strong>
+                      <p>{item.description}</p>
+                    </Link>
+                  ))}
+                </div>
+              </ResultSection>
+            ) : null}
+            {(activeCategory === "ALL" || activeCategory === "ARTICLE") && result.articles.length > 0 ? (
+              <ResultSection eyebrow="Cẩm nang" title="Bài viết">
+                <div className="search-result-list">
+                  {result.articles.map((item) => (
+                    <Link className="search-result" href={`/articles/${item.slug}`} key={item.id}>
+                      <span className="resource-chip">Cẩm nang</span>
+                      <strong>{item.title}</strong>
+                      <p>{item.summary}</p>
+                    </Link>
+                  ))}
+                </div>
+              </ResultSection>
+            ) : null}
+            {activeCategory !== "ALL" && categoryCounts[activeCategory] === 0 ? (
+              <p className="catalog-status" role="status">
+                Không tìm thấy kết quả nào trong danh mục “{CATEGORY_TABS.find((t) => t.key === activeCategory)?.label}”.
+              </p>
+            ) : null}
           </div>
+        ) : null}
+        {selectedPackageForModal ? (
+          <PackageBookingModal
+            isOpen={Boolean(selectedPackageForModal)}
+            onClose={() => setSelectedPackageForModal(null)}
+            packageItem={selectedPackageForModal}
+          />
         ) : null}
       </div>
     </PublicPageShell>

@@ -893,7 +893,7 @@ export default function Home(): React.ReactElement {
         <section className={`section section--doctors${catalogError ? " section--unavailable" : ""}`} id="doctors" aria-labelledby="doctors-title">
           <div className="section-inner">
             <SectionHeading
-              action={<button className="section-link section-link--button" onClick={() => handleOpenBooking()} type="button">Đặt lịch với bác sĩ <Icon name="arrow-right" size={17} /></button>}
+              action={<Link className="section-link" href="/doctors">Xem tất cả bác sĩ <Icon name="arrow-right" size={17} /></Link>}
               description="Tìm hiểu chuyên môn, kinh nghiệm và đặt lịch với bác sĩ."
               headingId="doctors-title"
 

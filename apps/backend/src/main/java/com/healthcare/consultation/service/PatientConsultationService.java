@@ -788,14 +788,17 @@ public class PatientConsultationService {
                   FROM patient_consultation_threads t JOIN doctors d ON d.id = t.doctor_id
                  WHERE t.id = ?
                    AND t.retention_expires_at > CURRENT_TIMESTAMP
-                    AND EXISTS (
-                        SELECT 1
-                          FROM patient_consultation_participants p
-                         WHERE p.thread_id = t.id
-                           AND p.user_id = ?
-                           AND p.left_at IS NULL
-                    )
-                """, (rs, n) -> mapSummary(rs), userId, userId, id, userId);
+                   AND (
+                       d.user_id = ?
+                       OR EXISTS (
+                           SELECT 1
+                             FROM patient_consultation_participants p
+                            WHERE p.thread_id = t.id
+                              AND p.user_id = ?
+                              AND p.left_at IS NULL
+                       )
+                   )
+                """, (rs, n) -> mapSummary(rs), userId, userId, id, userId, userId);
         } catch (EmptyResultDataAccessException ex) { throw notFound(); }
     }
 
@@ -813,13 +816,15 @@ public class PatientConsultationService {
     private void requireParticipant(UUID id, UUID userId) {
         try {
             requireExists("""
-                SELECT p.thread_id
-                  FROM patient_consultation_participants p
-                  JOIN patient_consultation_threads t ON t.id = p.thread_id
-                 WHERE p.thread_id = ? AND p.user_id = ?
-                   AND p.left_at IS NULL
+                SELECT 1
+                  FROM patient_consultation_threads t
+                  JOIN doctors d ON d.id = t.doctor_id
+                  LEFT JOIN patient_consultation_participants p
+                    ON p.thread_id = t.id AND p.user_id = ? AND p.left_at IS NULL
+                 WHERE t.id = ?
                    AND t.retention_expires_at > CURRENT_TIMESTAMP
-                """, id, userId);
+                   AND (d.user_id = ? OR p.user_id IS NOT NULL)
+                """, userId, id, userId);
         }
         catch (DataAccessException ex) { throw notFound(); }
     }
@@ -873,13 +878,14 @@ public class PatientConsultationService {
 
     private void requireDoctorParticipant(UUID id, UUID userId) {
         requireExists("""
-            SELECT p.thread_id FROM patient_consultation_participants p
-             JOIN patient_consultation_threads t ON t.id = p.thread_id
-              WHERE p.thread_id = ? AND p.user_id = ?
-                AND p.participant_role IN ('ASSIGNED_DOCTOR','HANDOFF_DOCTOR')
-                AND p.left_at IS NULL
-                AND t.retention_expires_at > CURRENT_TIMESTAMP
-            """, id, userId);
+            SELECT 1 FROM patient_consultation_threads t
+             JOIN doctors d ON d.id = t.doctor_id
+             LEFT JOIN patient_consultation_participants p
+               ON p.thread_id = t.id AND p.user_id = ? AND p.left_at IS NULL
+             WHERE t.id = ?
+               AND t.retention_expires_at > CURRENT_TIMESTAMP
+               AND (d.user_id = ? OR (p.user_id IS NOT NULL AND p.participant_role IN ('ASSIGNED_DOCTOR','HANDOFF_DOCTOR')))
+            """, userId, id, userId);
     }
 
     private void requireDoctor(UUID userId) {

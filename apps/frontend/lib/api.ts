@@ -10,7 +10,8 @@ import type {
 // API-base override would bypass the Vercel proxy and create a second CORS
 // and credential boundary.
 const API_BASE_URL = "/api/v1";
-const BOOKING_REQUEST_TIMEOUT_MS = 12_000;
+// Raised to 28_000ms to align with API_REQUEST_TIMEOUT_MS (28s) and exceed BFF (25s) / Render cold starts.
+const BOOKING_REQUEST_TIMEOUT_MS = 28_000;
 
 const VIETNAMESE_TEXT = /[ăâđêôơưáàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]/i;
 
@@ -115,15 +116,42 @@ export async function fetchDoctorSlots(
 export async function holdAppointmentSlot(
   payload: HoldSlotPayload
 ): Promise<HoldSlotResult> {
-  const res = await fetchBookingApi(
-    `${API_BASE_URL}/appointments/hold`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    },
-    "Không thể kết nối với hệ thống đặt lịch. Khung giờ chưa được giữ; vui lòng thử lại.",
-  );
+  const requestUrl = `${API_BASE_URL}/appointments/hold`;
+  const requestInit: RequestInit = {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  };
+  const networkMessage = "Không thể kết nối với hệ thống đặt lịch. Khung giờ chưa được giữ; vui lòng thử lại.";
+
+  let res: Response | undefined;
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      res = await fetchBookingApi(requestUrl, requestInit, networkMessage);
+      // Retry once if upstream gateway timed out during Render Free cold start (502, 503, 504)
+      if (attempt === 0 && (res.status === 502 || res.status === 503 || res.status === 504)) {
+        continue;
+      }
+      lastError = undefined;
+      break;
+    } catch (error) {
+      lastError = error;
+      // Do not retry caller-initiated aborts
+      if (error instanceof Error && error.name === "AbortError") {
+        throw error;
+      }
+      // Automatic 1-time retry on network abort / cold-start timeout
+      if (attempt === 1) {
+        throw error;
+      }
+    }
+  }
+
+  if (!res) {
+    throw (lastError instanceof Error ? lastError : new Error(networkMessage));
+  }
 
   if (!res.ok) {
     throw new Error(await bookingErrorMessage(

@@ -408,10 +408,9 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void scheduledLeaseRepairRefundsAChargedButNeverAnsweredExchange() {
-        // Crash-window aftermath: prepare() committed the charge, the process
-        // died before the exchange completed, and no retry ever arrived. The
-        // sweep must retire the PENDING message and compensate exactly once.
+    void scheduledLeaseRepairRetiresStaleExchangeWithoutUnearnedRefund() {
+        // Crash-window aftermath: prepare() no longer deducts credits upon creation;
+        // the sweep must retire the PENDING message without granting an unearned refund.
         User patient = createUser("patient.lease-repair@example.com");
         createPatientProfile(patient, "0901002003", 2);
         AiConversation conversation = createConversation(
@@ -439,22 +438,49 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
         AiConversation recovered = aiConversationRepository.findById(conversation.getId()).orElseThrow();
         assertThat(recovered.isInFlight()).isFalse();
         assertThat(patientProfileRepository.findByUserId(patient.getId()).orElseThrow().getAiCredits())
-            .isEqualTo(3);
+            .isEqualTo(2);
         assertThat(jdbcTemplate.queryForObject(
             "select count(*) from ai_credit_transactions where user_id = ? and transaction_type = 'AI_CHAT_REFUND'",
             Long.class,
             patient.getId()
-        )).isEqualTo(1);
+        )).isZero();
 
-        // A second sweep finds no stale conversation and must not refund again.
+        // A second sweep finds no stale conversation and does not alter credits.
         conversationService.repairStaleInFlight();
         assertThat(patientProfileRepository.findByUserId(patient.getId()).orElseThrow().getAiCredits())
-            .isEqualTo(3);
+            .isEqualTo(2);
         assertThat(jdbcTemplate.queryForObject(
             "select count(*) from ai_credit_transactions where user_id = ? and transaction_type = 'AI_CHAT_REFUND'",
             Long.class,
             patient.getId()
-        )).isEqualTo(1);
+        )).isZero();
+    }
+
+    @Test
+    @WithMockUser(username = "patient.zero-credit@example.com", roles = "PATIENT")
+    void zeroCreditPatientIsRejectedAtPrepareWithoutCallingAi() throws Exception {
+        User patient = createUser("patient.zero-credit@example.com");
+        createPatientProfile(patient, "0901002099", 0);
+
+        String conversationId = mockMvc.perform(post("/api/v1/ai/conversations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"consentAccepted\":true}"))
+            .andExpect(status().isCreated())
+            .andReturn()
+            .getResponse()
+            .getContentAsString()
+            .replaceAll(".*\\\"id\\\":\\\"([^\\\"]+)\\\".*", "$1");
+
+        mockMvc.perform(post("/api/v1/ai/conversations/" + conversationId + "/messages")
+                .header("Idempotency-Key", "zero-credit-0001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"Toi muon hoi bac si\"}"))
+            .andExpect(status().isPaymentRequired())
+            .andExpect(jsonPath("$.code").value("INSUFFICIENT_AI_CREDITS"));
+
+        verify(aiService, never()).retrieveChat(any());
+        verify(aiService, never()).generateChat(any());
+        assertThat(aiMessageRepository.findAll()).isEmpty();
     }
 
     @Test
