@@ -396,13 +396,17 @@ test("patient dashboard survives hard reload with a preloaded session", async ({
 
   await page.goto("/patient/dashboard");
   await expect(page.getByRole("heading", { name: "Xin chào, E2E Patient" })).toBeVisible();
+  await page.getByRole("button", { name: "Hồ sơ & Bảo mật" }).click();
+  await expect(page).toHaveURL(/#profile$/u);
   await expect(page.getByRole("button", { name: "Lưu hồ sơ" })).toBeVisible();
 
   await page.reload();
   await page.waitForLoadState("networkidle");
   await expect(page.getByRole("heading", { name: "Xin chào, E2E Patient" })).toBeVisible();
-  await expect(page.locator("#appointments")).toContainText("Chưa có lịch hẹn");
+  await expect(page).toHaveURL(/#profile$/u);
   await expect(page.getByRole("button", { name: "Lưu hồ sơ" })).toBeVisible();
+  await page.getByRole("button", { name: /^Lịch hẹn 0$/u }).click();
+  await expect(page.locator("#appointments")).toContainText("Chưa có lịch hẹn");
 
   const browserStorage = await page.evaluate(() => ({
     local: { ...localStorage },
