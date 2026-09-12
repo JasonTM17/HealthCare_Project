@@ -180,8 +180,15 @@ function parseConfiguredPublicOrigins(value: string | undefined): string[] {
 }
 
 export function readHealthcareBffRuntimeConfig(): HealthcareBffRuntimeConfig {
+  let rawBackend = process.env.BACKEND_INTERNAL_URL?.trim();
+  if (
+    rawBackend === "https://healthcare-beta-backend.onrender.com"
+    || (!rawBackend && process.env.VERCEL === "1")
+  ) {
+    rawBackend = "https://healthcare-beta-backend-4wb7.onrender.com";
+  }
   const backendOrigin = normalizeBackendOrigin(
-    process.env.BACKEND_INTERNAL_URL?.trim() || DEFAULT_BACKEND_ORIGIN,
+    rawBackend || DEFAULT_BACKEND_ORIGIN,
   );
   const configuredPublicOrigin = process.env.BFF_PUBLIC_ORIGIN?.trim();
   const defaultOrigins = "https://healthcare.id.vn,https://www.healthcare.id.vn,https://healthcare-two-olive.vercel.app";
