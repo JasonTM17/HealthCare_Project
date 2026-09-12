@@ -564,7 +564,7 @@ function BookingExperience({
       setCatalogLoading(true);
       setCatalogError("");
       const [doctorResult, specialtyResult, branchResult] = await Promise.allSettled([
-        needsDoctors ? fetchDoctors({ page: 0, size: 100 }) : Promise.resolve(null),
+        needsDoctors ? fetchDoctors({ page: 0, size: 10 }) : Promise.resolve(null),
         needsSpecialties ? fetchSpecialties(0, 100) : Promise.resolve(null),
         needsBranches ? fetchBranches(0, 100) : Promise.resolve(null),
       ]);
