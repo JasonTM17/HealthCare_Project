@@ -175,16 +175,16 @@ export default function ArticleDetailPage() {
                     </div>
                   </div>
 
-                  <dl className="resource-meta-grid article-editorial-header__meta" style={{ border: 'none', background: 'transparent', boxShadow: 'none' }}>
-                    <div style={{ border: 'none', background: 'transparent', boxShadow: 'none', padding: 0 }}>
+                  <dl className="resource-meta-grid article-editorial-header__meta">
+                    <div className="article-editorial-header__meta-item">
                       <dt>Xuất bản</dt>
                       <dd>{formatBusinessDate(article.publishedAt)}</dd>
                     </div>
-                    <div style={{ border: 'none', background: 'transparent', boxShadow: 'none', padding: 0 }}>
+                    <div className="article-editorial-header__meta-item">
                       <dt>Cập nhật phác đồ</dt>
                       <dd>{article.updatedAt ? formatBusinessDate(article.updatedAt) : "Năm 2026"}</dd>
                     </div>
-                    <div style={{ border: 'none', background: 'transparent', boxShadow: 'none', padding: 0 }}>
+                    <div className="article-editorial-header__meta-item">
                       <dt>Thời lượng đọc</dt>
                       <dd>{readingMinutesLabel}</dd>
                     </div>
