@@ -25,6 +25,10 @@ test("floating assistant is mounted globally and stays on the REST chat contract
   assert.match(component, /sendPublicAiChat\(normalized, recentTurns/);
   assert.match(component, /MAX_PUBLIC_MESSAGE_LENGTH/);
   assert.match(component, /Bạn đang dùng chế độ khách/);
+  assert.match(component, /Thông tin sức khỏe · Có lưu lịch sử/);
+  assert.match(component, /Tra cứu HealthCare · Không lưu lịch sử/);
+  assert.doesNotMatch(component, /Bác sĩ Trợ lý AI|Trực tuyến|onlineDot/);
+  assert.doesNotMatch(styles, /\.onlineDot/);
   assert.match(component, /isPatient && message\.status === "COMPLETED"/);
   assert.match(component, /onDelta: \(delta\) => \{[\s\S]*isCurrentLocalRequest\(epoch, currentConversation\?\.id\)[\s\S]*setStreamingReply/);
   assert.match(component, /pendingUserMessage/);

@@ -675,8 +675,7 @@ function FloatingHealthAssistantPanel({
               <div>
                 <strong>Trợ lý HealthCare</strong>
                 <span className={styles.headerSubtitle}>
-                  <span aria-hidden="true" className={styles.onlineDot} />
-                  {isPatient ? "Bác sĩ Trợ lý AI · Trực tuyến" : "Hỗ trợ tra cứu · Trực tuyến"}
+                  {isPatient ? "Thông tin sức khỏe · Có lưu lịch sử" : "Tra cứu HealthCare · Không lưu lịch sử"}
                 </span>
               </div>
             </div>

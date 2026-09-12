@@ -87,16 +87,6 @@
   align-items: center;
 }
 
-.onlineDot {
-  display: inline-block;
-  width: 0.45rem;
-  height: 0.45rem;
-  border-radius: 50%;
-  background-color: #34d399;
-  margin-right: 0.35rem;
-  flex-shrink: 0;
-}
-
 .headerIcon {
   display: grid;
   flex: 0 0 2.25rem;
