@@ -6,6 +6,7 @@ import "./branches/maps.css";
 import "./brand-experience.css";
 import "./catalog-directory.css";
 import FloatingHealthAssistant from "../components/FloatingHealthAssistant";
+import BackendWarmup from "../components/BackendWarmup";
 
 function safeJsonLdStringify(data: unknown): string {
   return JSON.stringify(data)
@@ -70,6 +71,7 @@ export default function RootLayout({
         />
         {children}
         <FloatingHealthAssistant />
+        <BackendWarmup />
       </body>
     </html>
   );

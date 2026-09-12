@@ -122,17 +122,17 @@ services:
       # Low-memory footprint tuning for Render Free 512MB RAM constraint.
       # Caps heap, metaspace, code cache, and thread stack size to prevent OOM restart.
       - key: JAVA_TOOL_OPTIONS
-        value: "-XX:+UseSerialGC -Xms128m -Xmx220m -XX:MaxMetaspaceSize=130m -XX:CompressedClassSpaceSize=32m -XX:ReservedCodeCacheSize=32m -Xss512k -XX:+ExitOnOutOfMemoryError"
+        value: "-XX:+UseSerialGC -Xms64m -Xmx128m -XX:MaxMetaspaceSize=180m -XX:CompressedClassSpaceSize=48m -XX:ReservedCodeCacheSize=32m -Xss512k -XX:+TieredCompilation -XX:TieredStopAtLevel=1 -Djava.security.egd=file:/dev/./urandom"
       - key: MALLOC_ARENA_MAX
         value: "2"
       - key: SERVER_TOMCAT_THREADS_MAX
         value: "16"
       - key: SERVER_TOMCAT_THREADS_MIN_SPARE
-        value: "4"
+        value: "2"
       - key: SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE
         value: "5"
       - key: SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE
-        value: "2"
+        value: "1"
 
       # HOSPITAL_SUPPORT uses the remote DeepSeek-backed FastAPI service.
       # Clinical modes and synthetic approval paths remain fail-closed.

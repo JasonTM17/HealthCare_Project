@@ -1748,7 +1748,7 @@ export async function login(payload: LoginPayload): Promise<AuthSession> {
         email: payload.email,
         password: payload.password,
       }),
-    });
+    }, 28_000);
     return commitIssuedAuthSession(response, attempt, path);
   } catch (error) {
     settleFailedAuthMutation(attempt, path, error);
