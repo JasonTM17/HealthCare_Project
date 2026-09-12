@@ -23,6 +23,8 @@ test("floating assistant is mounted globally and stays on the REST chat contract
   assert.match(component, /fetchAiConversationMessages\(latest\.id/);
   assert.match(component, /sendMessage\(currentConversation\.id, normalized/);
   assert.match(component, /sendPublicAiChat\(normalized, recentTurns/);
+  assert.doesNotMatch(component, /CASUAL_GREETING_PATTERN|GREETING_ACTIONS|GREETING_ANSWER/);
+  assert.doesNotMatch(component, /href:\s*"\/booking"/);
   assert.match(component, /MAX_PUBLIC_MESSAGE_LENGTH/);
   assert.match(component, /Bạn đang dùng chế độ khách/);
   assert.match(component, /Thông tin sức khỏe · Có lưu lịch sử/);
