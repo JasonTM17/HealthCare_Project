@@ -10810,7 +10810,12 @@ body:has(.mobile-menu) [class*="FloatingHealthAssistant_root"] {
 }
 
 .article-editorial-header__meta div,
-.site-shell--public-route .article-editorial-header__meta div {
+.article-editorial-header__meta-item,
+.site-shell--public-route .article-editorial-header__meta div,
+.site-shell--public-route .article-editorial-header__meta-item,
+.site-shell--public-route .resource-hero-card--teal .article-editorial-header__meta div,
+.site-shell--public-route .resource-hero-card--teal .article-editorial-header__meta-item,
+.site-shell--public-route .resource-hero-card--teal .article-editorial-header__meta.resource-meta-grid div {
   padding: 0 !important;
   border: none !important;
   background: transparent !important;
