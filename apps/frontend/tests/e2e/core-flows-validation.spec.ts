@@ -422,9 +422,9 @@ test.describe("Flow 1: Patient Chat AI (/patient/chat)", () => {
     const convoList = page.locator('aside[aria-label="Danh sách cuộc trò chuyện"]');
     await expect(convoList).toBeVisible();
 
-    // Verify conversation list items (scoped to the list: the mobile header
-    // also shows a conversation-select button with the same title).
-    const convoSelect = convoList.getByRole("button", { name: /Chuẩn bị khám sức khỏe tổng quát/ });
+    // Verify conversation list items (scoped to the list; anchored so the
+    // per-row "Xóa cuộc trò chuyện <title>" delete button does not match).
+    const convoSelect = convoList.getByRole("button", { name: /^Chuẩn bị khám sức khỏe tổng quát/ });
     await expect(convoSelect).toBeVisible();
     await convoSelect.click();
 
@@ -498,9 +498,11 @@ test.describe("Flow 2: Search Page (/search)", () => {
     // Verify results exist
     await expect(page.locator(".search-results__count")).toContainText("kết quả phù hợp");
     await expect(page.getByRole("heading", { name: "Chuyên khoa" })).toBeVisible();
-    await expect(page.getByText("Tim mạch chuyên sâu")).toBeVisible();
-    await expect(page.getByText("BS.CKII Nguyễn Minh")).toBeVisible();
-    await expect(page.getByText("Gói khám tim mạch tổng quát")).toBeVisible();
+    // Result cards may render the title in both the card link and its label;
+    // the oracle asserts presence, so resolve ambiguity with first().
+    await expect(page.getByText("Tim mạch chuyên sâu").first()).toBeVisible();
+    await expect(page.getByText("BS.CKII Nguyễn Minh").first()).toBeVisible();
+    await expect(page.getByText("Gói khám tim mạch tổng quát").first()).toBeVisible();
 
     // CRITICAL: Red error banner MUST NOT be displayed when results exist!
     await expect(page.locator(".catalog-status--error")).toHaveCount(0);
@@ -511,9 +513,9 @@ test.describe("Flow 2: Search Page (/search)", () => {
     await page.getByRole("button", { name: "Tìm kiếm" }).click();
 
     // Verify results for Nhi khoa
-    await expect(page.getByText("Nhi khoa toàn diện")).toBeVisible();
-    await expect(page.getByText("ThS.BS Lê Thị Nhi")).toBeVisible();
-    await expect(page.getByText("Gói tầm soát sức khỏe nhi khoa")).toBeVisible();
+    await expect(page.getByText("Nhi khoa toàn diện").first()).toBeVisible();
+    await expect(page.getByText("ThS.BS Lê Thị Nhi").first()).toBeVisible();
+    await expect(page.getByText("Gói tầm soát sức khỏe nhi khoa").first()).toBeVisible();
 
     // CRITICAL: Red error banner MUST NOT appear
     await expect(page.locator(".catalog-status--error")).toHaveCount(0);
