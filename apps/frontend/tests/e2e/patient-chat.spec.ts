@@ -242,6 +242,26 @@ async function installPatientChatMocks(
 
     throw new Error(`Unexpected chat request: ${method} ${url.pathname}${url.search}`);
   });
+
+  await context.route("**/api/v1/notifications?*", async (route) => {
+    expect(route.request().method()).toBe("GET");
+    expect(route.request().headers()["authorization"]).toBeUndefined();
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        content: [],
+        page: 0,
+        size: 10,
+        totalElements: 0,
+        totalPages: 0,
+        first: true,
+        last: true,
+        numberOfElements: 0,
+        empty: true,
+      }),
+    });
+  });
   await installMockPatientPortalSession(context, PATIENT_SESSION);
 
   return {

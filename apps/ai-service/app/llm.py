@@ -543,82 +543,6 @@ def public_context_is_relevant(query: str, context: Sequence[str]) -> bool:
     return any(len(query_tokens.intersection(tokens(item))) >= 2 for item in context if item.strip())
 
 
-def public_no_context_query_allowed(query: str) -> bool:
-    """Return whether a public query is safe to answer without catalog facts.
-
-    Greetings and generic navigation guidance do not require a hospital-owned
-    fact.  Specific catalog questions do: if the RAG index is empty after a
-    restart, fail closed instead of allowing the provider to invent an answer.
-    """
-
-    normalized = _normalize_sensitive_text(query).strip(" .,!?:;-")
-    if not normalized:
-        return False
-    if re.fullmatch(
-        r"(?:xin\s+)?chao(?:\s+(?:ban|bac\s+si|em|tro\s+ly|ad|admin|ban\s+oi|moi\s+nguoi|nha))?|hello(?:\s+(?:ban|bot|there|all|oi))?|hi(?:\s+(?:ban|all|there|bot))?|hey|alo(?: ban(?: oi)?| toi can ho tro)?",
-        normalized,
-    ):
-        return True
-    if re.search(
-        r"\bchuan\s+bi(?:\s+[a-z0-9]+){0,4}\s+truoc\s+khi\s+(?:di\s+)?kham\b",
-        normalized,
-    ):
-        return True
-    if re.search(
-        r"\b(?:ban|em|may|tro\s+ly|bot)\s+(?:la\s+ai|la\s+gi|ten\s+gi|co\s+the\s+lam\s+gi|giup\s+duoc\s+gi)\b",
-        normalized,
-    ):
-        return True
-    if re.search(
-        r"\b(?:la\s+ai|gioi\s+thieu(?:\s+ban\s+than)?|chuc\s+nang(?:\s+cua\s+ban)?|ai\s+do|tro\s+ly\s+la\s+ai)\b",
-        normalized,
-    ):
-        return True
-    return any(
-        phrase in normalized
-        for phrase in (
-            "ban la ai",
-            "em la ai",
-            "la ai",
-            "gioi thieu",
-            "chuc nang",
-            "giup gi",
-            "lam duoc gi",
-            "co the lam gi",
-            "can ho tro",
-            "chuan bi truoc khi di kham",
-            "dat lich",
-            "quy trinh dat lich",
-            "tim chuyen khoa",
-            "chuyen khoa nao",
-            "kham khoa nao",
-            "nen kham khoa nao",
-            "kham o dau",
-            "o dau",
-            "dia chi",
-            "gio lam viec",
-            "huong dan",
-            "lien he",
-            "dau dau",
-            "chong mat",
-            "dau bung",
-            "sot cao",
-            "bi sot",
-            "sot",
-            "met moi",
-            "trieu chung",
-            "tu van",
-            "kham benh",
-            "kham suc khoe",
-            "cho toi hoi",
-            "toi muon hoi",
-            "can giup",
-            "giup toi",
-            "bac si",
-        )
-    )
-
-
 def _injection_detected(normalized: str) -> bool:
     """Return whether one normalized text contains an instruction override."""
 
@@ -1350,8 +1274,6 @@ def resolve_triage(
 def _chat_fallback(
     message: str,
     context: Sequence[str],
-    *,
-    public_remote_enabled: bool = False,
 ) -> str:
     normalized = _normalize_sensitive_text(message)
     if any(term in normalized for term in _PUBLIC_BOOKING_SUPPORT_TERMS):
@@ -1361,18 +1283,22 @@ def _chat_fallback(
                 "rồi đặt lịch trực tuyến theo khung giờ còn trống. Nếu chưa chắc nên chọn chuyên khoa nào, "
                 "hãy mô tả ngắn nhu cầu khám để nhân viên y tế hỗ trợ điều hướng."
             )
-        if not public_remote_enabled:
-            return (
-                "Bạn có thể đặt lịch trực tuyến trên website HealthCare bằng cách chọn chuyên khoa, "
-                "bác sĩ hoặc cơ sở, rồi chọn khung giờ còn trống. Nếu chưa rõ nên bắt đầu từ chuyên khoa nào, "
-                "hãy mô tả ngắn nhu cầu khám để nhân viên y tế hỗ trợ điều hướng."
-            )
-    if any(term in normalized for term in _PUBLIC_PREPARATION_TERMS):
         return (
-            "Trước khi đi khám tại HealthCare, bạn nên chuẩn bị: "
-            "1) Giấy tờ tùy thân (CCCD/Hộ chiếu), thẻ BHYT và kết quả xét nghiệm, đơn thuốc cũ (nếu có); "
-            "2) Nhịn ăn sáng từ 6-8 tiếng nếu dự kiến làm xét nghiệm máu hoặc siêu âm ổ bụng tổng quát; "
-            "3) Trang phục thoải mái và ghi chú trước các câu hỏi hoặc triệu chứng muốn trao đổi trực tiếp với bác sĩ."
+            "Bạn có thể đặt lịch trực tuyến trên website HealthCare bằng cách chọn chuyên khoa, "
+            "bác sĩ hoặc cơ sở, rồi chọn khung giờ còn trống. Nếu chưa rõ nên bắt đầu từ chuyên khoa nào, "
+            "hãy mô tả ngắn nhu cầu khám để nhân viên y tế hỗ trợ điều hướng."
+        )
+    if any(term in normalized for term in _PUBLIC_PREPARATION_TERMS):
+        if context:
+            return (
+                "Bạn có thể tham khảo hướng dẫn chuẩn bị đã được lưu cho dịch vụ hoặc gói khám. "
+                "Nếu hướng dẫn chưa rõ, hãy liên hệ cơ sở khám trước khi thay đổi ăn uống, "
+                "dùng thuốc hoặc lịch sinh hoạt."
+            )
+        return (
+            "Mình chưa có hướng dẫn đã được xác thực cho lần khám này. "
+            "Bạn hãy mở trang dịch vụ hoặc gói khám tương ứng, hoặc liên hệ cơ sở khám để được xác nhận "
+            "trước khi thay đổi ăn uống, dùng thuốc hay lịch sinh hoạt."
         )
     if context:
         return (
@@ -1409,21 +1335,36 @@ def resolve_chat(
 
     public_remote_enabled = public_support_chat and public_hospital_support_remote_enabled(settings)
     fallback_allowed = runtime_allows_local_fallback(settings)
-    fallback = _chat_fallback(message, context, public_remote_enabled=public_remote_enabled)
+    fallback = _chat_fallback(message, context)
     if context_contains_unsafe_data(
         context,
         allow_public_operational=allow_public_operational,
     ):
         if public_remote_enabled:
             raise ProviderUnavailable()
-        return ChatResponse(answer=fallback, provenance="local_fallback", used_sources=list(used_sources))
-    if public_support_chat and public_remote_enabled and not context and not public_no_context_query_allowed(message):
-        # A specific public question without an authorized source is not safe
-        # to answer from the model's general knowledge.  This commonly occurs
-        # for a short period after the in-memory RAG service restarts.
-        raise ProviderUnavailable()
+        return ChatResponse(
+            answer=fallback,
+            provenance="local_fallback",
+            safety_action=ChatSafetyAction.INSUFFICIENT_EVIDENCE,
+            used_sources=list(used_sources),
+        )
+    if public_support_chat and public_remote_enabled and not context:
+        # No catalog context means there is no server-owned evidence against
+        # which a provider answer can be checked. Return immediately instead
+        # of paying provider latency or accepting an uncited catalog claim.
+        return ChatResponse(
+            answer=fallback,
+            provenance="local_fallback",
+            safety_action=ChatSafetyAction.INSUFFICIENT_EVIDENCE,
+            used_sources=list(used_sources),
+        )
     if public_support_chat and not public_remote_enabled:
-        return ChatResponse(answer=fallback, provenance="local_fallback", used_sources=list(used_sources))
+        return ChatResponse(
+            answer=fallback,
+            provenance="local_fallback",
+            safety_action=ChatSafetyAction.INSUFFICIENT_EVIDENCE,
+            used_sources=list(used_sources),
+        )
     if not public_support_chat and (not synthetic_beta or not patient_chat_remote_enabled(settings)):
         return ChatResponse(answer=fallback, provenance="local_fallback", used_sources=list(used_sources))
     client = client or build_llm_client(settings)
@@ -1478,6 +1419,7 @@ def resolve_chat(
         ):
             if public_remote_enabled:
                 if public_support_chat:
+                    _record_provider_failure(settings)
                     return ChatResponse(
                         answer=fallback,
                         provenance="local_fallback",
