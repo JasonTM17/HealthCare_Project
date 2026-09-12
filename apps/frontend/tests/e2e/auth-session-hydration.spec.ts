@@ -1,5 +1,6 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import type { AuthSession } from "../../lib/api-client";
+import { fulfillBackendWarmup } from "./helpers/backend-warmup";
 import type {
   Article,
   Branch,
@@ -120,6 +121,7 @@ test("patient layout waits for hydration and preserves a safe deep-link on unaut
   const childRequests: string[] = [];
 
   await context.route("**/api/v1/**", async (route) => {
+    if (await fulfillBackendWarmup(route)) return;
     const request = route.request();
     const url = new URL(request.url());
     if (url.pathname === "/api/v1/auth/browser-sessions/current") {
@@ -206,6 +208,7 @@ async function installSearchMocks(context: BrowserContext): Promise<void> {
   };
 
   await context.route("**/api/v1/**", async (route) => {
+    if (await fulfillBackendWarmup(route)) return;
     const request = route.request();
     const url = new URL(request.url());
 
@@ -298,6 +301,7 @@ test("patient dashboard survives hard reload with a preloaded session", async ({
   const browserIssues: string[] = [];
 
   await context.route("**/api/v1/**", async (route) => {
+    if (await fulfillBackendWarmup(route)) return;
     const request = route.request();
     const url = new URL(request.url());
 
@@ -448,6 +452,7 @@ test("failed logout keeps the HttpOnly browser session authoritative and retryab
   ]);
 
   await context.route("**/api/v1/**", async (route) => {
+    if (await fulfillBackendWarmup(route)) return;
     const request = route.request();
     const url = new URL(request.url());
 
@@ -581,6 +586,7 @@ test("lost logout acknowledgement reconciles a committed revocation before redir
   const browserIssues: string[] = [];
 
   await context.route("**/api/v1/**", async (route) => {
+    if (await fulfillBackendWarmup(route)) return;
     const request = route.request();
     const url = new URL(request.url());
     if (url.pathname === "/api/v1/auth/browser-sessions/current") {

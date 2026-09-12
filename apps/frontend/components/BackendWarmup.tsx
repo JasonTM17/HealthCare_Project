@@ -14,9 +14,10 @@ export default function BackendWarmup() {
     // Wait 1200ms so we never compete with critical page hydration or metrics
     const timer = setTimeout(() => {
       try {
-        fetch("/api/v1/public/ai/policy", {
+        fetch("/api/v1/health", {
           method: "GET",
-          headers: { "Cache-Control": "no-cache" },
+          cache: "no-store",
+          keepalive: true,
         }).catch(() => {
           // Swallow any warmup errors quietly
         });

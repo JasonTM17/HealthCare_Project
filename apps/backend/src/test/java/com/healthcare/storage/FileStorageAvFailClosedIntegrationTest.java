@@ -32,7 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Transactional
 class FileStorageAvFailClosedIntegrationTest extends AbstractIntegrationTest {
 
-    private static final String MINIO_IMAGE = "minio/minio:RELEASE.2025-07-23T15-54-02Z";
+    private static final String MINIO_IMAGE = "quay.io/minio/minio:RELEASE.2025-07-23T15-54-02Z";
     private static final String MINIO_ACCESS_KEY = "healthcare-av-test";
     private static final String MINIO_PASSWORD = "local-av-test-password";
     private static final GenericContainer<?> MINIO = new GenericContainer<>(MINIO_IMAGE)
