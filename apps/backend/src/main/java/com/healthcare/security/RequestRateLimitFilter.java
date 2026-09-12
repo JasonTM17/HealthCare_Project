@@ -201,7 +201,13 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
 
     private LimitRule ruleFor(HttpServletRequest request) {
         String method = request.getMethod();
-        String path = request.getRequestURI();
+        String rawPath = request.getRequestURI();
+        String path = (rawPath != null && rawPath.length() > 1 && rawPath.endsWith("/"))
+            ? rawPath.substring(0, rawPath.length() - 1)
+            : rawPath;
+        if (path == null) {
+            return null;
+        }
 
         // 1. Authentication and identity endpoints
         if ("POST".equals(method) && (path.equals("/api/v1/auth/login")
@@ -298,8 +304,8 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
             return new LimitRule("admin-mutations", adminMutationLimit);
         }
 
-        // 15. Catch-all for ANY other POST endpoint (ensures 100% of POST APIs are rate-limited)
-        if ("POST".equals(method)) {
+        // 15. Catch-all for ANY other mutation endpoint (ensures 100% of mutation APIs are rate-limited)
+        if ("POST".equals(method) || "PUT".equals(method) || "PATCH".equals(method) || "DELETE".equals(method)) {
             return new LimitRule("default-post", defaultPostLimit);
         }
 

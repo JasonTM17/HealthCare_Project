@@ -384,3 +384,72 @@ test("stale catalog broadcast load cannot overwrite a newer load result", async 
   await expect(page.locator('[data-id^="package-"]').first()).toContainText("Gói B");
   await assertNoSensitiveBrowserStorage(page);
 });
+
+test("cross-tab load during an in-flight reorder cannot revert the saved order", async ({ context, page }) => {
+  // Wukong F4: a broadcast load that starts while a reorder PUT is in flight is
+  // served from a pre-commit snapshot; it must be discarded once the reorder
+  // commits, otherwise the list silently reverts the just-saved order.
+  let packages: HealthPackage[] = [
+    { id: "package-a", name: "Gói A", slug: "goi-a", description: "A", price: 100000, active: true, version: 1, displayOrder: 0 },
+    { id: "package-b", name: "Gói B", slug: "goi-b", description: "B", price: 200000, active: true, version: 1, displayOrder: 1 },
+  ];
+  const reorderGate: { release: (() => void) | null } = { release: null };
+  const loadGate: { release: (() => void) | null } = { release: null };
+  let holdNextLoad = false;
+
+  await context.route("**/api/v1/**", async (route) => {
+    const request = route.request();
+    expect(request.headers()["authorization"]).toBeUndefined();
+    const url = new URL(request.url());
+    if (request.method() === "GET" && url.pathname === "/api/v1/admin/packages") {
+      if (holdNextLoad) {
+        holdNextLoad = false;
+        // Capture the pre-commit snapshot before parking this response.
+        const staleBody = JSON.stringify(pageEnvelope(packages));
+        await new Promise<void>((resolve) => { loadGate.release = resolve; });
+        return route.fulfill({ status: 200, contentType: "application/json", body: staleBody });
+      }
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(pageEnvelope(packages)) });
+    }
+    if (request.method() === "GET" && url.pathname === "/api/v1/admin/faqs") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(pageEnvelope([])) });
+    }
+    if (request.method() === "GET" && url.pathname === "/api/v1/admin/articles") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(pageEnvelope([])) });
+    }
+    if (request.method() === "GET" && url.pathname === "/api/v1/hospital/branches") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(pageEnvelope([])) });
+    }
+    if (request.method() === "PUT" && url.pathname === "/api/v1/admin/packages/order") {
+      await new Promise<void>((resolve) => { reorderGate.release = resolve; });
+      const payload = request.postDataJSON();
+      packages = payload.items.map((entry: { id: string }, index: number) => ({
+        ...packages.find((item) => item.id === entry.id)!,
+        displayOrder: index,
+        version: 2,
+      }));
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(packages) });
+    }
+    return route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ code: "UNEXPECTED_REQUEST" }) });
+  });
+  await installAdminSession(context);
+  await page.goto("/admin/catalog");
+  await expect(page.locator('[data-id^="package-"]').first()).toContainText("Gói A");
+
+  // Start a reorder; its PUT stays in flight.
+  await page.getByRole("button", { name: "Di chuyển Gói A xuống" }).click();
+  await expect.poll(() => reorderGate.release !== null, { timeout: 5000 }).toBe(true);
+
+  // Cross-tab broadcast while the reorder is in flight; park this load's GET too.
+  holdNextLoad = true;
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("healthcare:catalog-update", { detail: { kind: "package", action: "updated" } })));
+  await expect.poll(() => loadGate.release !== null, { timeout: 5000 }).toBe(true);
+
+  // Commit the reorder, then let the stale pre-commit load settle last.
+  reorderGate.release?.();
+  await expect(page.locator('[data-id^="package-"]').first()).toContainText("Gói B");
+  loadGate.release?.();
+  await page.waitForTimeout(500);
+  await expect(page.locator('[data-id^="package-"]').first()).toContainText("Gói B");
+  await assertNoSensitiveBrowserStorage(page);
+});

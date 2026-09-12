@@ -158,6 +158,10 @@ _INJECTION_TERMS = (
     "disregard earlier", "disregard previous", "forget previous", "override previous",
     "print internal configuration", "show internal configuration", "dump internal configuration",
     "reveal configuration", "print system configuration",
+    "forget all safety", "forget all rules", "you are dan", "unrestricted assistant",
+    "print backend credentials", "show database passwords", "cau lenh prompt ban dau",
+    "câu lệnh prompt ban đầu", "developer instructions", "printenv",
+    "select * from", "drop table", "etc/passwd", "```system", "system:", "assistant:",
 )
 _INSTRUCTIONAL_EXFIL_PATTERN = re.compile(
     r"\b(?:follow|obey|apply|execute|return|output|print|show|reveal|dump|provide)\b"
@@ -407,6 +411,7 @@ _EMERGENCY_TERMS = (
     "đau ngực dữ dội", "dau nguc du doi", "khó thở", "kho tho", "méo miệng",
     "meo mieng", "yếu liệt", "yeu liet", "ngất", "ngat", "chảy máu không cầm",
     "chay mau khong cam", "tự tử", "tu tu", "co giật", "co giat",
+    "chet di", "chết đi", "paraquat", "thuoc diet co", "thuốc diệt cỏ",
 )
 # Crisis phrasings rarely arrive as one exact substring: callers insert filler
 # words ("đau ngực quá dữ dội"), drop diacritics, or paraphrase self-harm
@@ -416,20 +421,26 @@ _EMERGENCY_TERMS = (
 # normalized forms collide with benign words ("tư vấn", high-jump sport).
 _EMERGENCY_PHRASE_PATTERN = re.compile(
     r"\b(?:"
-    r"dau\W+nguc(?:\W+\w{1,20}){0,6}\W{1,3}du\W+doi"
+    r"dau\W+(?:that\W+)?nguc(?:\W+\w{1,20}){0,6}\W{1,3}du\W+doi"
     r"|chay\W+mau(?:\W+\w{1,20}){0,6}\W{1,3}khong\W+cam"
     r"|kho\W+tho|meo\W+mieng|yeu\W+liet|co\W+giat|tu\W*tu"
-    r"|khong\W+(?:con\W+)?muon\W+song|muon\W+chet|ket\W+thuc\W+cuoc\W+(?:doi|song)"
+    r"|(?:khong\W+(?:con\W+)?|het\W+)muon\W+song|muon\W+chet|chet\W+di|ket\W+thuc\W+cuoc\W+(?:doi|song)"
     r"|khong\W+con\W+ly\W+do\W+song"
     r"|(?:dinh|muon)\W+tu\W+van\b"
-    r"|tu\W+ket\W+lieu\b|treo\W+co\b|tu\W+sat\b"
-    r"|(?:dinh|muon|se|sap|dang)\W+nhay\W+(?:lau|cau)\b"
-    r"|cat\W+(?:co\W+)?tay|tu\W+lam\W+dau"
+    r"|tu\W+ket\W+lieu\b|tu\W+sat\b"
+    r"|(?:dinh|muon|se|sap|dang)\W+treo\W+co\b|treo\W+co\W+tu\W+tu\b"
+    r"|(?:dinh|muon|se|sap|dang)\W+nhay\W+(?:\w+\W+){0,2}(?:lau|cau)\b"
+    r"|(?:dinh|muon|se|sap|dang)\W+chet\W+duoi\b|uong\W+thuoc\W+doc\b"
+    r"|(?:cat|rach)\W+(?:co\W+)?tay|tu\W+lam\W+dau"
     r"|ra\W+di\W+(?:mai\W+mai|vinh\W+vien)|nghi\W+ngoi\W+vinh\W+vien"
-    r"|chan\W+song\b|ket\W+thuc\W+moi\W+thu\b|luoi\W+le\b"
-    r"|uong\W+(?:ca\W+)?lo\W+(?:thuoc|paracetamol|thuoc\W+ngu|giam\W+dau)"
+    r"|bien\W+mat\W+(?:khoi\W+the\W+gioi|vinh\W+vien)|ket\W+thuc\W+tat\W+ca\b"
+    r"|(?:dinh|muon|se|sap|dang)\W+ket\W+thuc\W+moi\W+thu\b"
+    r"|chan\W+song\b|luoi\W+le\b"
+    r"|uong\W+(?:het\W+)?(?:ca\W+)?(?:lo\W+)?(?:thuoc|paracetamol|thuoc\W+ngu|giam\W+dau)"
     r"|(?:uong|dung|bo)\W+thuoc\W+qua\W+lieu|qua\W+lieu\W+thuoc"
-    r"|quet\W+di\W+(?:mot\W+)?dong\W+hong\W+cam|uong\W+thuoc\W+ngu"
+    r"|quet\W+di\W+(?:mot\W+)?dong\W+hong\W+cam|uong\W+(?:het\W+)?thuoc\W+ngu"
+    r"|uong\W+(?:nham\W+)?thuoc\W+diet\W+co|paraquat"
+    r"|phu\W+moi|tho\W+rit"
     # English self-harm and emergency phrasings: the assistant serves
     # bilingual visitors and none of these existed in the Vietnamese-only
     # list, so "end my life" / "kill myself" could bypass the crisis gate.
@@ -441,6 +452,9 @@ _EMERGENCY_PHRASE_PATTERN = re.compile(
     r"|better\W+off\W+dead|end\W+it\W+all|not\W+worth\W+living"
     r"|cut\w*\W+myself|self\W*harm|overdos\w*|want\W+to\W+be\W+dead"
     r"|wish\W+i\W+(?:was|were)\W+dead|no\W+point\W+in\W+living"
+    r"|sleep\W+forever|took\W+(?:all\W+)?(?:my\W+)?pills|swallow\w*\W+pills"
+    r"|going\W+to\W+jump|jump\W+off\W+(?:a\W+)?(?:bridge|building|roof)"
+    r"|end\W+my\W+own\W+life|not\W+want\W+to\W+be\W+alive"
     r")",
     re.IGNORECASE,
 )
@@ -588,12 +602,13 @@ def public_no_context_query_allowed(query: str) -> bool:
     )
 
 
-def contains_prompt_injection(value: str) -> bool:
-    """Return whether untrusted text contains a known instruction override."""
+def _injection_detected(normalized: str) -> bool:
+    """Return whether one normalized text contains an instruction override."""
 
-    normalized = _normalize_sensitive_text(value)
+    squashed = _squash(normalized)
     return (
         any(_normalize_sensitive_text(term) in normalized for term in _INJECTION_TERMS)
+        or any(_squash(_normalize_sensitive_text(term)) in squashed for term in _INJECTION_TERMS)
         or bool(_INSTRUCTIONAL_EXFIL_PATTERN.search(normalized))
         or bool(_REQUEST_EXFIL_PATTERN.search(normalized))
         or bool(_ASKED_EXFIL_PATTERN.search(normalized))
@@ -608,6 +623,17 @@ def contains_prompt_injection(value: str) -> bool:
         or bool(_SAFEGUARD_BYPASS_PATTERN.search(normalized))
         or bool(_UNRESTRICTED_ASSISTANT_PATTERN.search(normalized))
     )
+
+
+def contains_prompt_injection(value: str) -> bool:
+    """Return whether untrusted text contains a known instruction override.
+
+    Evasion variants (letter-spacing, leet, homoglyphs) are covered so the
+    refusal gate cannot be silenced by typing "1gnore all previous instructions".
+    """
+
+    normalized = _normalize_sensitive_text(value)
+    return any(_injection_detected(variant) for variant in _policy_variants(normalized))
 
 
 def _normalize_sensitive_text(value: str) -> str:
@@ -628,41 +654,71 @@ def _normalize_sensitive_text(value: str) -> str:
 _LEET_TRANSLATION = str.maketrans(
     {"0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "@": "a", "$": "s"}
 )
+# Cyrillic/Greek lookalikes that survive diacritic stripping and casefolding.
+_HOMOGLYPH_TRANSLATION = str.maketrans(
+    {
+        "а": "a", "е": "e", "о": "o", "с": "c", "і": "i", "ѕ": "s", "у": "y",
+        "х": "x", "р": "p", "н": "h", "м": "m", "т": "t", "к": "k", "в": "b",
+        "д": "d", "л": "l", "и": "i", "я": "r",
+        "α": "a", "ε": "e", "ο": "o", "ρ": "p", "ν": "v", "τ": "t", "ι": "i",
+        "κ": "k", "σ": "s", "μ": "m",
+    }
+)
+_SINGLE_CHAR_SEPARATORS = (" ", ".", "-", "_", "*", "/")
 
 
-def _crisis_match_variants(normalized: str) -> tuple[str, ...]:
-    """Return the normalized text plus de-obfuscated variants for crisis matching.
+def _collapse_single_char_runs(text: str, separator: str) -> str:
+    """Join single characters split by a separator ("s u i c i d e", "s.u.i.c.i.d.e")."""
 
-    A genuine crisis message is sometimes typed with deliberate evasion
-    (letter-spacing, leet substitutions) that slips past a keyword gate. Every
-    other policy check keeps running on the faithful normalization; only the
-    crisis gate additionally considers these variants, because a false positive
-    here merely shows the 115 banner while a false negative can let a
-    self-harm message reach a remote provider.
+    if separator == " ":
+        pattern = r"\b(?:\w ){2,}\w\b"
+    else:
+        escaped = re.escape(separator)
+        pattern = rf"\b\w(?:{escaped}\w){{2,}}\b"
+    return re.sub(pattern, lambda match: match.group(0).replace(separator, ""), text)
+
+
+def _policy_variants(normalized: str) -> tuple[str, ...]:
+    """Return de-obfuscated variants of an already-normalized string.
+
+    Visitors sometimes type deliberate evasion (letter-spacing, leet
+    substitutions, homoglyphs) to slip past a keyword gate. Every policy gate
+    matches the faithful normalization first; these variants widen recall for
+    the pre-provider safety gates only. A false positive merely shows a refusal
+    or the 115 banner, while a false negative can let unsafe text reach a
+    remote provider.
     """
 
     variants = [normalized]
-    leet = normalized.translate(_LEET_TRANSLATION)
-    if leet != normalized:
-        variants.append(leet)
-    # Collapse runs of three or more single-character tokens ("s u i c i d e").
-    despaced = re.sub(
-        r"\b(?:\w\s){2,}\w\b",
-        lambda match: match.group(0).replace(" ", ""),
-        normalized,
-    )
-    if despaced != normalized:
-        variants.append(despaced)
+    latin = normalized.translate(_HOMOGLYPH_TRANSLATION)
+    leet = latin.translate(_LEET_TRANSLATION)
+    for candidate in (latin, leet):
+        if candidate not in variants:
+            variants.append(candidate)
+    for source in (normalized, latin, leet):
+        for separator in _SINGLE_CHAR_SEPARATORS:
+            condensed = _collapse_single_char_runs(source, separator)
+            if condensed not in variants:
+                variants.append(condensed)
     return tuple(variants)
+
+
+def _squash(text: str) -> str:
+    """Strip every non-alphanumeric character so letter-spacing cannot evade a phrase."""
+
+    return re.sub(r"[^0-9a-z]", "", text)
 
 
 def _crisis_detected(normalized: str) -> bool:
     """Return whether a normalized turn expresses a crisis, evasion included."""
 
+    squashed = _squash(normalized)
+    if any(_squash(_normalize_sensitive_text(term)) in squashed for term in _EMERGENCY_TERMS):
+        return True
     return any(
         _EMERGENCY_PHRASE_PATTERN.search(variant)
         or any(term in variant for term in _EMERGENCY_TERMS)
-        for variant in _crisis_match_variants(normalized)
+        for variant in _policy_variants(normalized)
     )
 
 

@@ -173,6 +173,17 @@ test("catalog reorder persists through versioned APIs and keeps keyboard parity"
   assert.match(catalog, /loadGenerationRef\.current \+= 1/);
   assert.match(catalog, /const generation = \+\+loadGenerationRef\.current/);
   assert.match(catalog, /generation !== loadGenerationRef\.current/);
+  // Reorder-epoch guard: a GET issued while a reorder is in flight (e.g. a
+  // cross-tab broadcast) can be served from a pre-commit snapshot, so the load
+  // must also be discarded when a reorder started or settled after it began
+  // (Wukong F4, 2026-09-12).
+  assert.match(catalog, /reorderEpochRef\.current \+= 1/);
+  assert.match(catalog, /const reorderEpoch = reorderEpochRef\.current/);
+  assert.match(catalog, /reorderEpoch !== reorderEpochRef\.current/);
+  // The newest load owns the loading indicator, so a superseded load (or a
+  // reorder that supersedes it) cannot leave the spinner stuck on.
+  assert.match(catalog, /loadingOwnerRef\.current = generation/);
+  assert.match(catalog, /generation === loadingOwnerRef\.current/);
 });
 
 test("appointment filters apply explicit draft state and keep the table keyboard-scrollable", async () => {
