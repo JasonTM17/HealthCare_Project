@@ -1029,15 +1029,33 @@ export default function Home(): React.ReactElement {
                 </div>
                 <div className="video-card__body">
                   <p className="content-meta">Từ cẩm nang sức khỏe</p>
-                  <h3>{articles[0]?.title ?? "Cẩm nang sức khỏe đang được cập nhật"}</h3>
+                  <h3>
+                    {articles[0] ? (
+                      <Link className="hover:underline text-inherit" href={`/articles/${articles[0].slug}`}>{articles[0].title}</Link>
+                    ) : (
+                      "Cẩm nang sức khỏe đang được cập nhật"
+                    )}
+                  </h3>
                   <p>{articles[0]?.summary ?? "Các bài viết mới sẽ được cập nhật tại đây."}</p>
-                  <Link className="text-button" href="/articles">Mở danh mục bài viết <Icon name="arrow-up-right" size={17} /></Link>
+                  <div className="flex items-center gap-4 flex-wrap">
+                    {articles[0] ? (
+                      <Link className="text-button" href={`/articles/${articles[0].slug}`}>
+                        Đọc bài viết <Icon name="arrow-up-right" size={17} />
+                      </Link>
+                    ) : null}
+                    <Link className="text-button" href="/articles">Mở danh mục bài viết <Icon name="arrow-up-right" size={17} /></Link>
+                  </div>
                 </div>
               </article>
               <div className="article-list">
                 <CatalogStatus error={catalogError} hasData={Boolean(catalog)} loading={catalogLoading} onRetry={retryCatalog} unavailable={catalogUnavailable} />
                 {!catalogLoading && catalog && articles.slice(0, 3).map((article, index) => (
-                  <article className="article-row" key={article.id}>
+                  <article className="article-row relative group cursor-pointer hover:bg-slate-50 transition-colors" key={article.id}>
+                    <Link
+                      className="absolute inset-0 z-10"
+                      href={`/articles/${article.slug}`}
+                      aria-label={`Đọc bài viết: ${article.title}`}
+                    />
                     <span className="article-row__index">0{index + 1}</span>
                     <div>
                       <p className="content-meta">{formatPublishedAt(article.publishedAt)}</p>

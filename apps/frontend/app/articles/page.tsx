@@ -242,7 +242,15 @@ export default function ArticlesPage() {
             <h2>Điểm bắt đầu cho hôm nay</h2>
             {featuredArticle ? (
               <>
-                <p>{featuredArticle.summary}</p>
+                <Link
+                  className="group block no-underline text-inherit mb-2"
+                  href={`/articles/${encodeURIComponent(featuredArticle.slug)}`}
+                >
+                  <strong className="text-lg font-bold text-teal-950 group-hover:text-teal-700 transition-colors block mb-1">
+                    {featuredArticle.title}
+                  </strong>
+                  <p className="text-slate-600">{featuredArticle.summary}</p>
+                </Link>
                 <div className="resource-actions">
                   <Link className="text-button" href={`/articles/${encodeURIComponent(featuredArticle.slug)}`}>
                     Đọc bài viết →
@@ -346,22 +354,34 @@ export default function ArticlesPage() {
             ) : (
               <div className="catalog-grid catalog-grid--articles" id="articles-list">
                 {displayedArticles.map((article) => (
-                  <article className="catalog-card" key={article.id}>
-                    <div className="relative h-44 w-full mb-4 overflow-hidden rounded-[4px] bg-slate-100 border border-slate-100">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        alt={resolveArticleAlt(article)}
-                        className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
-                        src={resolveArticleCoverImage(article)}
-                      />
-                      <span className="absolute top-2.5 left-2.5 rounded-[4px] bg-teal-950/85 backdrop-blur-md px-2 py-0.5 text-xs font-bold text-teal-100 shadow-xs">
-                        {article.category || "Cẩm nang y tế"}
-                      </span>
+                  <article className="catalog-card relative group flex flex-col justify-between hover:border-teal-500 hover:shadow-md transition-all cursor-pointer" key={article.id}>
+                    <Link
+                      className="absolute inset-0 z-10"
+                      href={`/articles/${encodeURIComponent(article.slug)}`}
+                      aria-label={`Đọc bài viết: ${article.title}`}
+                    />
+                    <div>
+                      <div className="relative h-44 w-full mb-4 overflow-hidden rounded-[4px] bg-slate-100 border border-slate-100">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          alt={resolveArticleAlt(article)}
+                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          src={resolveArticleCoverImage(article)}
+                        />
+                        <span className="absolute top-2.5 left-2.5 rounded-[4px] bg-teal-950/85 backdrop-blur-md px-2 py-0.5 text-xs font-bold text-teal-100 shadow-xs">
+                          {article.category || "Cẩm nang y tế"}
+                        </span>
+                      </div>
+                      <p className="section-note">{formatBusinessDate(article.publishedAt)}</p>
+                      <h3>{article.title}</h3>
+                      <p className="text-slate-600 line-clamp-3">{article.summary}</p>
                     </div>
-                    <p className="section-note">{formatBusinessDate(article.publishedAt)}</p>
-                    <h3>{article.title}</h3>
-                    <p>{article.summary}</p>
-                    <Link className="text-button" href={`/articles/${encodeURIComponent(article.slug)}`}>Đọc bài viết →</Link>
+                    <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                      <Link className="text-button pointer-events-none" href={`/articles/${encodeURIComponent(article.slug)}`}>
+                        Đọc toàn bộ bài báo →
+                      </Link>
+                      <span className="text-xs font-bold text-teal-700 group-hover:translate-x-0.5 transition-transform" aria-hidden="true">→</span>
+                    </div>
                   </article>
                 ))}
               </div>
