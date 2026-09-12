@@ -152,7 +152,7 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
                 .content("{\"content\":\"Toi bi dau dau nhe\"}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.replayed").value(false))
-            .andExpect(jsonPath("$.assistantMessage.provenance").value("local_provider"));
+            .andExpect(jsonPath("$.assistantMessage.provenance").value("local_fallback"));
 
         mockMvc.perform(post(endpoint)
                 .header("Idempotency-Key", "chat-request-0001")

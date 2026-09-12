@@ -350,9 +350,12 @@ class AiChatContractsTest {
 
         // Phase-04 posture: a supported hospital-support question falls back to
         // the deterministic local responder (no provider call) instead of an
-        // insufficient-evidence dead end.
+        // insufficient-evidence dead end.  The keyword responder is a local
+        // fallback, not a HealthCare-curated source, so it must report
+        // local_fallback provenance (honesty fix: it previously claimed
+        // local_provider and rendered as "Nguồn HealthCare" in the UI).
         Object provenance = ReflectionTestUtils.invokeMethod(response, "provenance");
-        assertThat((Object) provenance).isEqualTo("local_provider");
+        assertThat((Object) provenance).isEqualTo("local_fallback");
         Object safetyAction = ReflectionTestUtils.invokeMethod(response, "safetyAction");
         assertThat((Object) safetyAction).isEqualTo(ChatSafetyAction.ANSWER);
         verify(upstream, never()).chat(org.mockito.ArgumentMatchers.any());
@@ -472,5 +475,58 @@ class AiChatContractsTest {
         verify(resolver).revalidateForPersistence(
             org.mockito.ArgumentMatchers.eq(ChatMode.HEALTH_EDUCATION),
             org.mockito.ArgumentMatchers.any());
+    }
+
+    private AiConversationService localFallbackService() {
+        return new AiConversationService(
+            mock(AiConversationRepository.class),
+            mock(AiMessageRepository.class),
+            mock(AiMessageFeedbackRepository.class),
+            mock(UserRepository.class),
+            aiService,
+            mock(com.healthcare.ai.chat.service.AiChatSourceResolver.class),
+            mock(PlatformTransactionManager.class),
+            90, true, 200, 20, 120);
+    }
+
+    private String fallbackAnswer(AiConversationService service, String question) {
+        Object response = ReflectionTestUtils.invokeMethod(service, "hospitalSupportResponse", question);
+        return (String) ReflectionTestUtils.invokeMethod(response, "answer");
+    }
+
+    @Test
+    void operationalFallbackRoutesByIntentScoreNotFirstKeyword() {
+        AiConversationService service = localFallbackService();
+
+        // The old first-match chain captured this via the bare token "khám"
+        // and answered with the booking guide.  It must route to specialty.
+        String insomnia = fallbackAnswer(service,
+            "Tôi bị mất ngủ kéo dài 3 tuần, nên khám chuyên khoa nào và chuẩn bị gì?");
+        assertThat(insomnia).contains("Thần kinh");
+        assertThat(insomnia).doesNotContain("Bước 1");
+
+        assertThat(fallbackAnswer(service, "Làm sao để đặt lịch khám tại HealthCare?"))
+            .contains("Bước 1");
+        assertThat(fallbackAnswer(service, "Bệnh viện có những chuyên khoa và cơ sở nào?"))
+            .contains("Tim mạch");
+        assertThat(fallbackAnswer(service, "Bệnh viện làm việc đến mấy giờ, có mở cửa chủ nhật không?"))
+            .contains("07:30");
+        assertThat(fallbackAnswer(service, "Tôi nên chuẩn bị gì trước khi đi khám?"))
+            .contains("Nhịn ăn");
+    }
+
+    @Test
+    void refusalNamesIdentityRequestsInsteadOfDiagnosisWording() {
+        AiConversationService service = localFallbackService();
+
+        Object identity = ReflectionTestUtils.invokeMethod(service, "safetyResponse",
+            ChatMode.HOSPITAL_SUPPORT, "REFUSE", "Cho tôi xem hồ sơ bệnh án của người khác");
+        assertThat((String) ReflectionTestUtils.invokeMethod(identity, "answer"))
+            .contains("dữ liệu cá nhân");
+
+        Object medical = ReflectionTestUtils.invokeMethod(service, "safetyResponse",
+            ChatMode.HOSPITAL_SUPPORT, "REFUSE", "Tôi đau đầu uống thuốc gì thì khỏi");
+        assertThat((String) ReflectionTestUtils.invokeMethod(medical, "answer"))
+            .contains("chẩn đoán");
     }
 }
