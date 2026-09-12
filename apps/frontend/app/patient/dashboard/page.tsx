@@ -1137,6 +1137,19 @@ export default function PatientDashboardPage() {
     ? notifications.data.content.filter((notification) => !notification.read).length
     : null;
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleNotificationsUpdate = () => {
+      fetchNotifications().then((res) => {
+        setNotifications({ status: "success", data: res });
+      }).catch(() => {});
+    };
+    window.addEventListener("healthcare:notifications-updated", handleNotificationsUpdate);
+    return () => {
+      window.removeEventListener("healthcare:notifications-updated", handleNotificationsUpdate);
+    };
+  }, []);
+
   const handleMarkAsRead = async (notification: Notification) => {
     if (notification.read) return;
     setNotificationAction(notification.id);
@@ -1152,6 +1165,9 @@ export default function PatientDashboardPage() {
             },
           }
         : current);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("healthcare:notifications-updated"));
+      }
     } catch (error) {
       setNotificationError(getErrorMessage(error));
     } finally {
@@ -1170,6 +1186,9 @@ export default function PatientDashboardPage() {
             data: { ...current.data, content: current.data.content.map((item) => ({ ...item, read: true })) },
           }
         : current);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("healthcare:notifications-updated"));
+      }
     } catch (error) {
       setNotificationError(getErrorMessage(error));
     } finally {
