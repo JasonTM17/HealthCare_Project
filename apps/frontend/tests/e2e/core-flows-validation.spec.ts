@@ -422,9 +422,11 @@ test.describe("Flow 1: Patient Chat AI (/patient/chat)", () => {
     const convoList = page.locator('aside[aria-label="Danh sách cuộc trò chuyện"]');
     await expect(convoList).toBeVisible();
 
-    // Verify conversation list items
-    await expect(page.getByRole("button", { name: /Chuẩn bị khám sức khỏe tổng quát/ })).toBeVisible();
-    await page.getByRole("button", { name: /Chuẩn bị khám sức khỏe tổng quát/ }).click();
+    // Verify conversation list items (scoped to the list: the mobile header
+    // also shows a conversation-select button with the same title).
+    const convoSelect = convoList.getByRole("button", { name: /Chuẩn bị khám sức khỏe tổng quát/ });
+    await expect(convoSelect).toBeVisible();
+    await convoSelect.click();
 
     // Verify thread switched: messages from convo-2 are displayed
     await expect(page.getByText("Khám gói tổng quát có cần nhịn ăn sáng không?")).toBeVisible();
