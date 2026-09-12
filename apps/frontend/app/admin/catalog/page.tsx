@@ -443,6 +443,14 @@ export default function AdminCatalogPage() {
   // or a reorder has started must never write its stale response into state
   // (an old GET resolving after a saved order would revert the list).
   const loadGenerationRef = useRef(0);
+  // A GET issued while a reorder is in flight can be served from a pre-commit
+  // snapshot, so a load must also be discarded when any reorder started or
+  // settled after it began (cross-tab broadcast interleaving).
+  const reorderEpochRef = useRef(0);
+  // The newest load owns the loading indicator: when it settles the spinner
+  // clears even if an older superseded load is still in flight, and a reorder
+  // that supersedes a load cannot leave the spinner stuck on.
+  const loadingOwnerRef = useRef(0);
 
   const orderPayload = <T extends { id: string; version?: number }>(items: T[]) => items.map((item) => {
     if (typeof item.version !== "number") throw new Error("CATALOG_ORDER_VERSION_MISSING");
@@ -453,6 +461,7 @@ export default function AdminCatalogPage() {
     if (reorderInFlightRef.current) return;
     reorderInFlightRef.current = true;
     loadGenerationRef.current += 1;
+    reorderEpochRef.current += 1;
     const previous = faqs;
     setFaqs(newFaqs);
     setBusy(true);
@@ -468,6 +477,7 @@ export default function AdminCatalogPage() {
       addToast({ tone: "error", title: "Đã hoàn tác thứ tự FAQ", message: `${description} Danh sách đã trở về thứ tự trước đó.` });
     } finally {
       reorderInFlightRef.current = false;
+      reorderEpochRef.current += 1;
       setBusy(false);
     }
   };
@@ -476,6 +486,7 @@ export default function AdminCatalogPage() {
     if (reorderInFlightRef.current) return;
     reorderInFlightRef.current = true;
     loadGenerationRef.current += 1;
+    reorderEpochRef.current += 1;
     const previous = packages;
     setPackages(newPackages);
     setBusy(true);
@@ -491,6 +502,7 @@ export default function AdminCatalogPage() {
       addToast({ tone: "error", title: "Đã hoàn tác thứ tự gói khám", message: `${description} Danh sách đã trở về thứ tự trước đó.` });
     } finally {
       reorderInFlightRef.current = false;
+      reorderEpochRef.current += 1;
       setBusy(false);
     }
   };
@@ -546,6 +558,8 @@ export default function AdminCatalogPage() {
 
   const load = useCallback(async () => {
     const generation = ++loadGenerationRef.current;
+    const reorderEpoch = reorderEpochRef.current;
+    loadingOwnerRef.current = generation;
     setLoading(true);
     setLoadError(null);
     try {
@@ -555,16 +569,18 @@ export default function AdminCatalogPage() {
         fetchAllContent(adminListArticles, ADMIN_PAGE_SIZE),
       ]);
       if (generation !== loadGenerationRef.current) return false;
+      if (reorderEpoch !== reorderEpochRef.current || reorderInFlightRef.current) return false;
       setPackages(packagePage);
       setFaqs(faqPage);
       setArticles(articlePage);
       return true;
     } catch (error) {
       if (generation !== loadGenerationRef.current) return false;
+      if (reorderEpoch !== reorderEpochRef.current || reorderInFlightRef.current) return false;
       setLoadError(describeAdminError(error).description);
       return false;
     } finally {
-      if (generation === loadGenerationRef.current) {
+      if (generation === loadingOwnerRef.current) {
         setLoading(false);
       }
     }

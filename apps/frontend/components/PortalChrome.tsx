@@ -125,6 +125,17 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
   }, [loadNotifications]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleUpdate = () => {
+      loadNotifications();
+    };
+    window.addEventListener("healthcare:notifications-updated", handleUpdate);
+    return () => {
+      window.removeEventListener("healthcare:notifications-updated", handleUpdate);
+    };
+  }, [loadNotifications]);
+
+  useEffect(() => {
     if (!isPopoverOpen) return;
     const handleOutsideClick = (e: MouseEvent) => {
       if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
@@ -165,6 +176,9 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
           prev.map((item) => (item.id === notification.id ? { ...item, read: true } : item))
         );
         setUnreadCount((prev) => Math.max(0, prev - 1));
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("healthcare:notifications-updated"));
+        }
       } catch {
         // ignore mark read error
       }
@@ -176,6 +190,9 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
       await markAllNotificationsAsRead();
       setNotificationsList((prev) => prev.map((item) => ({ ...item, read: true })));
       setUnreadCount(0);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("healthcare:notifications-updated"));
+      }
     } catch {
       // ignore
     }

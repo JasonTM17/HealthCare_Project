@@ -404,6 +404,46 @@ class RequestRateLimitFilterTest {
         assertThat(accepted).hasValue(2);
     }
 
+    @Test
+    void trailingSlashNormalizedMatchesSameRule() throws Exception {
+        MockEnvironment environment = rateLimitEnvironment();
+        RequestRateLimitFilter filter = filter(environment);
+        AtomicInteger accepted = new AtomicInteger();
+
+        MockHttpServletResponse firstResponse = invokePost(
+            filter, accepted, "/api/v1/auth/login/", "10.0.0.99"
+        );
+        MockHttpServletResponse repeatedResponse = invokePost(
+            filter, accepted, "/api/v1/auth/login", "10.0.0.99"
+        );
+
+        assertThat(firstResponse.getStatus()).isEqualTo(200);
+        assertThat(repeatedResponse.getStatus()).isEqualTo(429);
+        assertThat(accepted).hasValue(1);
+    }
+
+    @Test
+    void mutationsCatchAllProtectsNonPostEndpoints() throws Exception {
+        MockEnvironment environment = rateLimitEnvironment()
+            .withProperty("app.security.rate-limit.default-post-limit", "1");
+        RequestRateLimitFilter filter = filter(environment);
+        AtomicInteger accepted = new AtomicInteger();
+
+        MockHttpServletRequest putRequest = new MockHttpServletRequest("PUT", "/api/v1/custom/resource");
+        putRequest.setRemoteAddr("10.0.0.100");
+        MockHttpServletResponse firstResponse = new MockHttpServletResponse();
+        filter.doFilter(putRequest, firstResponse, (req, res) -> accepted.incrementAndGet());
+
+        MockHttpServletRequest deleteRequest = new MockHttpServletRequest("DELETE", "/api/v1/custom/resource");
+        deleteRequest.setRemoteAddr("10.0.0.100");
+        MockHttpServletResponse repeatedResponse = new MockHttpServletResponse();
+        filter.doFilter(deleteRequest, repeatedResponse, (req, res) -> accepted.incrementAndGet());
+
+        assertThat(firstResponse.getStatus()).isEqualTo(200);
+        assertThat(repeatedResponse.getStatus()).isEqualTo(429);
+        assertThat(accepted).hasValue(1);
+    }
+
     private MockEnvironment rateLimitEnvironment() {
         return new MockEnvironment()
             .withProperty("app.security.rate-limit.auth-limit", "1")

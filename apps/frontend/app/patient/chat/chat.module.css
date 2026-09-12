@@ -1150,6 +1150,20 @@
   }
 }
 
+@media (max-height: 820px) {
+  .hero {
+    margin-bottom: var(--sp-2);
+  }
+
+  .safetyBand {
+    margin-bottom: var(--sp-2);
+  }
+
+  .workspace {
+    height: clamp(26rem, 68vh, 48rem);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .page *,
   .page *::before,
