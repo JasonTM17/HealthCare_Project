@@ -485,6 +485,34 @@ _PUBLIC_PREPARATION_TERMS = (
     "ho so kham",
     "huong dan kham",
 )
+_PUBLIC_GREETING_TERMS = (
+    "xin chao",
+    "chao ban",
+    "hello",
+    "good morning",
+    "good afternoon",
+    "good evening",
+)
+_PUBLIC_SPECIALTY_TERMS = (
+    "chuyen khoa",
+    "bac si",
+    "khoa nao",
+    "kham khoa",
+)
+_PUBLIC_BRANCH_TERMS = (
+    "dia chi",
+    "chi nhanh",
+    "co so",
+    "o dau",
+    "vi tri",
+    "duong di",
+)
+_PUBLIC_SERVICE_TERMS = (
+    "dich vu",
+    "goi kham",
+    "bang gia",
+    "chi phi",
+)
 _CIRCUIT_LOCK = threading.Lock()
 _CIRCUIT_FAILURES = 0
 _CIRCUIT_OPEN_UNTIL = 0.0
@@ -1299,6 +1327,26 @@ def _chat_fallback(
             "Mình chưa có hướng dẫn đã được xác thực cho lần khám này. "
             "Bạn hãy mở trang dịch vụ hoặc gói khám tương ứng, hoặc liên hệ cơ sở khám để được xác nhận "
             "trước khi thay đổi ăn uống, dùng thuốc hay lịch sinh hoạt."
+        )
+    if any(term in normalized for term in _PUBLIC_SPECIALTY_TERMS):
+        return (
+            "Bạn có thể mở mục Chuyên khoa hoặc Bác sĩ để xem danh sách đang được bệnh viện công bố. "
+            "Nếu chưa biết nên bắt đầu ở đâu, hãy mô tả ngắn nhu cầu khám để nhân viên y tế hỗ trợ điều hướng."
+        )
+    if any(term in normalized for term in _PUBLIC_BRANCH_TERMS):
+        return (
+            "Bạn có thể mở mục Cơ sở để xem địa chỉ, đường đi và thông tin liên hệ đang được bệnh viện công bố. "
+            "Tôi chưa có nguồn phù hợp để xác nhận một địa chỉ cụ thể ngay trong câu trả lời này."
+        )
+    if any(term in normalized for term in _PUBLIC_SERVICE_TERMS):
+        return (
+            "Bạn có thể mở mục Dịch vụ hoặc Gói khám để xem thông tin đang được bệnh viện công bố. "
+            "Chi phí và nội dung cụ thể cần được xác nhận trên trang tương ứng hoặc với cơ sở khám."
+        )
+    if any(term in normalized for term in _PUBLIC_GREETING_TERMS):
+        return (
+            "Xin chào! Tôi có thể hướng dẫn bạn đến các mục Đặt lịch, Chuyên khoa, Bác sĩ, "
+            "Dịch vụ, Gói khám hoặc Cơ sở. Bạn muốn tìm thông tin nào?"
         )
     if context:
         return (

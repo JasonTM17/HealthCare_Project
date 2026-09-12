@@ -55,6 +55,36 @@ class PublicAiChatIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void inactiveCatalogCitationRejectsTheEntirePublicAnswer() throws Exception {
+        var specialty = new com.healthcare.hospital.entity.Specialty();
+        specialty.setName("Chuyên khoa tạm ngưng");
+        specialty.setSlug("inactive-public-chat-" + java.util.UUID.randomUUID());
+        specialty.setActive(false);
+        specialty = specialtyRepository.saveAndFlush(specialty);
+
+        when(aiService.chat(any())).thenReturn(Map.of(
+            "answer", "Bạn có thể xem chuyên khoa tạm ngưng.",
+            "disclaimer", "Thông tin chỉ mang tính tham khảo.",
+            "provenance", "remote_provider",
+            "safety_action", "ANSWER",
+            "mode", "HOSPITAL_SUPPORT",
+            "citations", List.of(Map.of(
+                "source_type", "specialty",
+                "source_id", specialty.getId().toString(),
+                "title", "Chuyên khoa tạm ngưng"
+            ))
+        ));
+
+        mockMvc.perform(post("/api/v1/public/ai/chat")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"message\":\"Bệnh viện có chuyên khoa nào?\"}"))
+            .andExpect(status().isBadGateway());
+
+        assertThat(aiConversationRepository.count()).isZero();
+        assertThat(aiMessageRepository.count()).isZero();
+    }
+
+    @Test
     void publicHospitalSupportChatRejectsModeAndOversizedContent() throws Exception {
         mockMvc.perform(post("/api/v1/public/ai/chat")
                 .contentType(MediaType.APPLICATION_JSON)

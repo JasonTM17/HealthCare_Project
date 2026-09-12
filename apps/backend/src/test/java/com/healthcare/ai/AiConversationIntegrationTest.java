@@ -165,6 +165,50 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    @WithMockUser(username = "patient.chat-retrieval-outage@example.com", roles = "PATIENT")
+    void retrievalOutagePersistsAndReloadsInsufficientEvidenceInsteadOfAnUncitedAnswer() throws Exception {
+        createUser("patient.chat-retrieval-outage@example.com");
+        when(aiService.retrieveChat(any())).thenReturn(null);
+
+        String conversationId = mockMvc.perform(post("/api/v1/ai/conversations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"consentAccepted\":true}"))
+            .andExpect(status().isCreated())
+            .andReturn()
+            .getResponse()
+            .getContentAsString()
+            .replaceAll(".*\\\"id\\\":\\\"([^\\\"]+)\\\".*", "$1");
+
+        String messagesEndpoint = "/api/v1/ai/conversations/" + conversationId + "/messages";
+        mockMvc.perform(post(messagesEndpoint)
+                .header("Idempotency-Key", "retrieval-outage-0001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"Bệnh viện có chuyên khoa nào?\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.assistantMessage.safetyAction").value("INSUFFICIENT_EVIDENCE"))
+            .andExpect(jsonPath("$.assistantMessage.sourceStatus").value("UNAVAILABLE"))
+            .andExpect(jsonPath("$.assistantMessage.citations").isEmpty());
+
+        mockMvc.perform(get(messagesEndpoint))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content[1].safetyAction").value("INSUFFICIENT_EVIDENCE"))
+            .andExpect(jsonPath("$.content[1].sourceStatus").value("UNAVAILABLE"))
+            .andExpect(jsonPath("$.content[1].citations").isEmpty());
+
+        assertThat(aiMessageRepository.findAll())
+            .filteredOn(message -> message.getRole() == AiMessageRole.ASSISTANT)
+            .singleElement()
+            .satisfies(message -> {
+                assertThat(message.getSafetyAction())
+                    .isEqualTo(com.healthcare.ai.chat.entity.ChatSafetyAction.INSUFFICIENT_EVIDENCE);
+                assertThat(message.getCitations()).isEmpty();
+                assertThat(message.getContent()).doesNotContain("nhịn ăn", "07:30", "Tim mạch");
+            });
+        verify(aiService, never()).generateChat(any());
+        verify(aiService, never()).generateChatStream(any(), any());
+    }
+
+    @Test
     @WithMockUser(username = "patient.credit-replay@example.com", roles = "PATIENT")
     void idempotentReplayDoesNotDebitAgainEvenAfterBalanceReachesZero() throws Exception {
         User patient = createUser("patient.credit-replay@example.com");

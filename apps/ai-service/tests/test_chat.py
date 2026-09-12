@@ -213,6 +213,42 @@ def test_public_query_without_context_uses_immediate_grounded_fallback(message: 
     provider.complete_json.assert_not_called()
 
 
+@pytest.mark.parametrize(
+    ("message", "expected_fragments"),
+    [
+        ("Xin chào", ("Xin chào", "Đặt lịch")),
+        ("Bệnh viện có chuyên khoa nào?", ("mục Chuyên khoa", "Bác sĩ")),
+        ("Bệnh viện ở đâu?", ("mục Cơ sở", "địa chỉ")),
+        ("Tôi muốn đặt lịch khám", ("đặt lịch trực tuyến", "chuyên khoa")),
+    ],
+)
+def test_public_no_context_fallback_is_intent_aware_without_provider_or_claims(
+    message: str,
+    expected_fragments: tuple[str, str],
+) -> None:
+    provider = MagicMock()
+    local_settings = _synthetic_remote_settings()
+    local_settings.ai_public_hospital_support_remote_enabled = True
+
+    result = resolve_chat(
+        message,
+        local_settings,
+        context=[],
+        citations=[],
+        client=provider,
+        public_support_chat=True,
+        allow_public_operational=True,
+    )
+
+    assert result.provenance == "local_fallback"
+    assert result.safety_action == "INSUFFICIENT_EVIDENCE"
+    assert result.citations == []
+    assert all(fragment in result.answer for fragment in expected_fragments)
+    assert "mô tả rõ triệu chứng" not in result.answer
+    assert "07:30" not in result.answer
+    provider.complete_json.assert_not_called()
+
+
 def test_public_no_context_navigation_does_not_pay_provider_latency() -> None:
     provider = MagicMock()
     provider.complete_json.return_value = {"answer": "Bước 1: Truy cập web. Bước 2: Chọn lịch."}
