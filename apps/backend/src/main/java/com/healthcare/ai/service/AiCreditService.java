@@ -85,6 +85,18 @@ public class AiCreditService {
         return doctor != null ? doctor.getAiCredits() : 0;
     }
 
+    @Transactional(readOnly = true)
+    public void requirePatientCredits(UUID userId) {
+        PatientProfile profile = patientProfileRepository.findByUserId(userId).orElse(null);
+        if (profile != null && profile.getAiCredits() != null && profile.getAiCredits() <= 0) {
+            throw new BusinessException(
+                402,
+                "INSUFFICIENT_AI_CREDITS",
+                "Bạn đã dùng hết lượt hỏi AI (Credit: 0). Vui lòng nâng hạng thẻ hoặc liên hệ quản trị viên để được cấp thêm credit."
+            );
+        }
+    }
+
     @Transactional
     public boolean deductPatientCredit(UUID userId, String description) {
         PatientProfile profile = patientProfileRepository.findByUserId(userId).orElse(null);

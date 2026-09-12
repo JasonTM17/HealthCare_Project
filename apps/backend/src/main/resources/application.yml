@@ -236,6 +236,8 @@ ai:
     token: ${AI_SERVICE_TOKEN:}
     runtime: ${AI_SERVICE_RUNTIME:non-local}
     allow-unauthenticated-local: ${AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL:false}
+    connect-timeout-ms: ${AI_SERVICE_CONNECT_TIMEOUT_MS:1000}
+    read-timeout-ms: ${AI_SERVICE_READ_TIMEOUT_MS:35000}
   rag-ingest:
     enabled: ${AI_RAG_INGEST_ENABLED:false}
     token: ${AI_RAG_INGEST_TOKEN:}

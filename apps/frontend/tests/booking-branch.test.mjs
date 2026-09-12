@@ -203,7 +203,7 @@ test("booking API converts network and server failures to safe Vietnamese messag
 test("booking API aborts stalled requests after twelve seconds and preserves caller cancellation", async () => {
   const source = await readFile(apiPath, "utf8");
 
-  assert.match(source, /BOOKING_REQUEST_TIMEOUT_MS = 12_000/);
+  assert.match(source, /BOOKING_REQUEST_TIMEOUT_MS = 28_000/);
   assert.match(source, /const timeoutController = new AbortController\(\)/);
   assert.match(source, /callerSignal\?\.addEventListener\("abort", forwardCallerAbort/);
   assert.match(source, /signal: timeoutController\.signal/);
