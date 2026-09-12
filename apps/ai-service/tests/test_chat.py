@@ -75,7 +75,7 @@ def test_chat_trace_preserves_request_id_without_logging_prompt_content(
     monkeypatch.setattr(settings, "ai_provider", "local")
     monkeypatch.setattr(settings, "embedding_provider", "local")
 
-    with caplog.at_level(logging.INFO, logger="healthcare.ai.trace"):
+    with caplog.at_level(logging.INFO, logger="uvicorn.error.healthcare.ai.trace"):
         response = client.post(
             "/chat",
             headers={"X-Request-ID": request_id},
@@ -85,7 +85,7 @@ def test_chat_trace_preserves_request_id_without_logging_prompt_content(
     trace_messages = [
         record.getMessage()
         for record in caplog.records
-        if record.name == "healthcare.ai.trace"
+        if record.name == "uvicorn.error.healthcare.ai.trace"
     ]
     assert response.status_code == 200
     assert response.headers["X-Request-ID"] == request_id

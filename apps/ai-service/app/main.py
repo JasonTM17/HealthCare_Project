@@ -79,7 +79,12 @@ from app.schemas import (
 
 settings = Settings()
 app = FastAPI(title="HealthCare AI Service", version="0.1.0")
-_trace_logger = logging.getLogger("healthcare.ai.trace")
+# Keep chat telemetry on Uvicorn's configured logger tree. A standalone named
+# logger is silent in the container because Uvicorn does not configure the
+# process root logger; tests that install a capture handler would otherwise
+# hide that production-only observability gap.
+_TRACE_LOGGER_NAME = "uvicorn.error.healthcare.ai.trace"
+_trace_logger = logging.getLogger(_TRACE_LOGGER_NAME)
 _REQUEST_ID_HEADER = "X-Request-ID"
 _REQUEST_ID_PATTERN = re.compile(
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
