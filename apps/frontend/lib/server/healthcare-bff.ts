@@ -5,7 +5,7 @@ import { isIP } from "node:net";
 
 const API_PREFIX = "/api/v1/";
 const DEFAULT_BACKEND_ORIGIN = "http://127.0.0.1:8080";
-const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 25_000;
 // Deadline ownership constraint: THIS layer owns the upstream deadline and
 // answers the browser with a structured payload (public-chat fallback answer
 // or JSON error). The browser deadlines in lib/api-client.ts must stay

@@ -60,6 +60,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [slowWakeup, setSlowWakeup] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({});
   const [verificationEmail, setVerificationEmail] = useState<string | null>(null);
@@ -104,6 +105,10 @@ export default function LoginPage() {
     }
 
     setSubmitting(true);
+    setSlowWakeup(false);
+    const wakeupTimer = setTimeout(() => {
+      setSlowWakeup(true);
+    }, 3000);
 
     try {
       const session = await login({ email: email.trim(), password });
@@ -131,7 +136,9 @@ export default function LoginPage() {
         setErrorMessage(authErrorMessage(error, "Email hoặc mật khẩu chưa chính xác."));
       }
     } finally {
+      clearTimeout(wakeupTimer);
       setSubmitting(false);
+      setSlowWakeup(false);
     }
   };
 
@@ -160,26 +167,32 @@ export default function LoginPage() {
         <p className="auth-card__intro">
           Đăng nhập để theo dõi lịch khám, hồ sơ sức khỏe và kết nối với bác sĩ chuyên khoa.
         </p>
-        <div className={styles.roleGroup}
-          aria-label="Chọn tài khoản kiểm thử"
-          role="group"
-        >
-          <p className="section-note">Tài khoản demo — dữ liệu tổng hợp, chỉ dùng để trải nghiệm.</p>
-          {DEMO_ROLES.map((item) => {
-            const active = selectedRole === item.role;
-            return (
-              <button
-                aria-pressed={active}
-                className={`${styles.roleButton} ${active ? styles.roleButtonActive : ""}`}
-                key={item.role}
-                onClick={() => handleRoleSelect(item)}
-                type="button"
-              >
-                <Icon name={item.icon} size={17} />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
+        <div className={styles.demoSection}>
+          <p className="section-note" id="demo-accounts-label">
+            Tài khoản demo — dữ liệu tổng hợp, chỉ dùng để trải nghiệm.
+          </p>
+          <div
+            className={styles.roleGroup}
+            aria-label="Chọn tài khoản kiểm thử"
+            aria-labelledby="demo-accounts-label"
+            role="group"
+          >
+            {DEMO_ROLES.map((item) => {
+              const active = selectedRole === item.role;
+              return (
+                <button
+                  aria-pressed={active}
+                  className={`${styles.roleButton} ${active ? styles.roleButtonActive : ""}`}
+                  key={item.role}
+                  onClick={() => handleRoleSelect(item)}
+                  type="button"
+                >
+                  <Icon name={item.icon} size={17} />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Role Info Pill */}
@@ -222,7 +235,11 @@ export default function LoginPage() {
             {fieldErrors.password ? <small className="auth-form__field-error" id="login-password-error">{fieldErrors.password}</small> : null}
           </div>
           <button className={`${styles.submit} button button--primary auth-form__submit`} disabled={submitting} type="submit">
-            {submitting ? "Đang xác thực bảo mật..." : "Đăng nhập"}
+            {submitting
+              ? (slowWakeup
+                  ? "Đang kết nối (máy chủ đang khởi động lại)..."
+                  : "Đang xác thực bảo mật...")
+              : "Đăng nhập"}
           </button>
         </form>
 
