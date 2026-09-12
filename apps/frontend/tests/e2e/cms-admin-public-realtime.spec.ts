@@ -141,6 +141,11 @@ async function startCmsMockBackend() {
       const method = request.method ?? "GET";
       const apiPath = requestUrl.pathname.replace(/^\/api\/v1/, "");
 
+      if (method === "GET" && apiPath === "/health") {
+        sendJson(response, 200, { status: "ok", service: "healthcare-backend", ai_ready: true });
+        return;
+      }
+
       if (method === "GET" && apiPath === "/auth/browser-sessions/current") {
         sendJson(response, 401, { code: "BROWSER_SESSION_REQUIRED" });
         return;

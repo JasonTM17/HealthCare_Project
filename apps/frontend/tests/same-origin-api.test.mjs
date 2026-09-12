@@ -18,6 +18,15 @@ test("public browser API clients use the same-origin proxy by default", async ()
   }
 });
 
+test("background cold-start warmup uses the bounded health route, not an AI policy read", async () => {
+  const warmup = await read("components/BackendWarmup.tsx");
+
+  assert.match(warmup, /fetch\("\/api\/v1\/health"/);
+  assert.match(warmup, /cache:\s*"no-store"/);
+  assert.match(warmup, /keepalive:\s*true/);
+  assert.doesNotMatch(warmup, /public\/ai\/policy/);
+});
+
 test("route-param API clients encode slug path segments before hitting backend routes", async () => {
   const client = await read("lib/api-client.ts");
 
