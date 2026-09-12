@@ -555,7 +555,7 @@ def public_no_context_query_allowed(query: str) -> bool:
     if not normalized:
         return False
     if re.fullmatch(
-        r"(?:xin chao|chao|hello|hi|hey|alo)(?: ban(?: oi)?| toi can ho tro)?",
+        r"(?:xin\s+)?chao(?:\s+(?:ban|bac\s+si|em|tro\s+ly|ad|admin|ban\s+oi|moi\s+nguoi|nha))?|hello(?:\s+(?:ban|bot|there|all|oi))?|hi(?:\s+(?:ban|all|there|bot))?|hey|alo(?: ban(?: oi)?| toi can ho tro)?",
         normalized,
     ):
         return True
@@ -592,12 +592,29 @@ def public_no_context_query_allowed(query: str) -> bool:
             "tim chuyen khoa",
             "chuyen khoa nao",
             "kham khoa nao",
+            "nen kham khoa nao",
             "kham o dau",
             "o dau",
             "dia chi",
             "gio lam viec",
             "huong dan",
             "lien he",
+            "dau dau",
+            "chong mat",
+            "dau bung",
+            "sot cao",
+            "bi sot",
+            "sot",
+            "met moi",
+            "trieu chung",
+            "tu van",
+            "kham benh",
+            "kham suc khoe",
+            "cho toi hoi",
+            "toi muon hoi",
+            "can giup",
+            "giup toi",
+            "bac si",
         )
     )
 
@@ -1460,7 +1477,7 @@ def resolve_chat(
             allow_public_operational=allow_public_operational,
         ):
             if public_remote_enabled:
-                if public_support_chat and not context and public_no_context_query_allowed(message):
+                if public_support_chat:
                     return ChatResponse(
                         answer=fallback,
                         provenance="local_fallback",
