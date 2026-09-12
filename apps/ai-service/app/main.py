@@ -532,8 +532,8 @@ def chat(request: ChatRequest) -> ChatResponse:
     if request.public_support_chat and not public_context_is_relevant(message, context):
         # The local hash embedder can return unrelated catalog rows for
         # greetings and broad visitor questions.  Do not present those rows as
-        # grounding context; the remote public-support prompt has a narrower
-        # no-source policy and the response carries no misleading citations.
+        # grounding context; the public-support path returns a deterministic
+        # insufficient-evidence response and carries no misleading citations.
         context = []
         citations = []
     response = resolve_chat(

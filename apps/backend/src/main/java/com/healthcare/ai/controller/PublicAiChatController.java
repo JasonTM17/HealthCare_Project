@@ -133,10 +133,15 @@ public class PublicAiChatController {
             throw badGateway("AI response failed the public safety policy");
         }
 
+        List<Map<String, String>> citations = identityOnlyCitations(upstream);
+        if ("ANSWER".equals(safetyAction) && citations.isEmpty()) {
+            throw badGateway("AI answer is missing a verified public catalog source");
+        }
+
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("answer", normalizedAnswer);
         result.put("disclaimer", disclaimer);
-        result.put("citations", identityOnlyCitations(upstream));
+        result.put("citations", citations);
         result.put("provenance", provenance);
         result.put("mode", ChatMode.HOSPITAL_SUPPORT.name());
         result.put("safety_action", safetyAction);
@@ -174,8 +179,6 @@ public class PublicAiChatController {
         throw badGateway("AI safety action is invalid for public chat");
     }
 
-    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(PublicAiChatController.class);
-
     private List<Map<String, String>> identityOnlyCitations(Map<String, Object> upstream) {
         if (!upstream.containsKey("citations")
                 || !(upstream.get("citations") instanceof List<?> items)
@@ -190,11 +193,6 @@ public class PublicAiChatController {
                 throw badGateway("AI citations are invalid for public chat");
             }
             Map<String, String> identity = identityOnlyCitation(citation);
-            if (identity == null) {
-                // If an AI citation cannot be verified against the active catalog,
-                // omit it gracefully instead of crashing the visitor's entire chat response.
-                continue;
-            }
             String key = identity.get("source_type") + ":" + identity.get("source_id");
             if (!seen.add(key)) {
                 throw badGateway("AI citations are duplicated");
@@ -229,8 +227,7 @@ public class PublicAiChatController {
         try {
             resolved = sourceResolver.revalidate(ChatMode.HOSPITAL_SUPPORT, type, id);
         } catch (RuntimeException ignored) {
-            log.warn("AI citation catalog is unavailable for type={}, id={}", type, id);
-            return null;
+            throw badGateway("AI citation catalog is unavailable for public chat");
         }
         if (resolved == null
                 || !Objects.equals(type, resolved.type())
@@ -240,8 +237,7 @@ public class PublicAiChatController {
                 || resolved.title().isBlank()
                 || resolved.title().strip().length() > MAX_CITATION_TITLE_LENGTH
                 || CONTROL_CHARACTER_PATTERN.matcher(resolved.title()).find()) {
-            log.warn("AI citation is not an active public catalog source: type={}, id={}", type, id);
-            return null;
+            throw badGateway("AI citation is not an active public catalog source");
         }
         return Map.of(
             "source_type", resolved.type(),

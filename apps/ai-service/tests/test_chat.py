@@ -11,7 +11,6 @@ from app.llm import (
     chat_safety_response,
     contains_prompt_injection,
     public_context_is_relevant,
-    public_no_context_query_allowed,
     remote_answer_is_grounded,
     remote_text_output_is_safe,
     resolve_chat,
@@ -106,7 +105,7 @@ def test_public_hospital_support_chat_uses_remote_provider_when_enabled() -> Non
     provider.complete_json.assert_called_once()
 
 
-def test_public_smalltalk_uses_remote_provider_without_unrelated_context() -> None:
+def test_public_smalltalk_uses_immediate_local_fallback_without_context() -> None:
     provider = MagicMock()
     provider.complete_json.return_value = {
         "answer": "Xin chào! Tôi có thể hỗ trợ thông tin về bệnh viện và cách đặt lịch."
@@ -124,9 +123,9 @@ def test_public_smalltalk_uses_remote_provider_without_unrelated_context() -> No
         allow_public_operational=True,
     )
 
-    assert result.provenance == "remote_provider"
-    assert result.safety_action == "ANSWER"
-    provider.complete_json.assert_called_once()
+    assert result.provenance == "local_fallback"
+    assert result.safety_action == "INSUFFICIENT_EVIDENCE"
+    provider.complete_json.assert_not_called()
 
 
 def test_public_context_relevance_rejects_catalog_rows_for_broad_questions() -> None:
@@ -182,34 +181,39 @@ def test_public_chat_endpoint_drops_unrelated_rows_before_remote_resolution(
     assert seen == {"context": [], "citations": [], "allow_public_operational": True}
 
 
-def test_public_specific_question_without_context_fails_closed() -> None:
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Xin chào",
+        "Bệnh viện có chuyên khoa nào?",
+        "Tôi bị đau đầu và chóng mặt, nên khám khoa nào?",
+    ],
+)
+def test_public_query_without_context_uses_immediate_grounded_fallback(message: str) -> None:
     provider = MagicMock()
+    provider.complete_json.return_value = {
+        "answer": "Bệnh viện có khoa Tim mạch và khoa Thần kinh."
+    }
     local_settings = _synthetic_remote_settings()
     local_settings.ai_public_hospital_support_remote_enabled = True
 
-    assert public_no_context_query_allowed("hello bạn")
-    assert public_no_context_query_allowed("Làm sao để đặt lịch khám?")
-    assert public_no_context_query_allowed("Tôi nên chuẩn bị gì trước khi đi khám?")
-    assert public_no_context_query_allowed("Tìm chuyên khoa phù hợp với triệu chứng của tôi")
-    assert public_no_context_query_allowed("Bệnh viện ở đâu?")
-    assert public_no_context_query_allowed("Bệnh viện có chuyên khoa nào?")
-    assert public_no_context_query_allowed("Bạn là ai")
-    assert public_no_context_query_allowed("Bạn có thể giúp gì cho tôi?")
-    assert not public_no_context_query_allowed("Huyết học điều trị những bệnh gì?")
+    result = resolve_chat(
+        message,
+        local_settings,
+        context=[],
+        client=provider,
+        public_support_chat=True,
+        allow_public_operational=True,
+    )
 
-    with pytest.raises(ProviderUnavailable):
-        resolve_chat(
-            "Huyết học điều trị những bệnh gì?",
-            local_settings,
-            context=[],
-            client=provider,
-            public_support_chat=True,
-            allow_public_operational=True,
-        )
+    assert result.provenance == "local_fallback"
+    assert result.safety_action == "INSUFFICIENT_EVIDENCE"
+    assert result.citations == []
+    assert "Tim mạch" not in result.answer
     provider.complete_json.assert_not_called()
 
 
-def test_allowed_public_query_without_context_falls_back_when_ungrounded() -> None:
+def test_public_no_context_navigation_does_not_pay_provider_latency() -> None:
     provider = MagicMock()
     provider.complete_json.return_value = {"answer": "Bước 1: Truy cập web. Bước 2: Chọn lịch."}
     local_settings = _synthetic_remote_settings()
@@ -224,7 +228,9 @@ def test_allowed_public_query_without_context_falls_back_when_ungrounded() -> No
         allow_public_operational=True,
     )
     assert resp.provenance == "local_fallback"
-    assert "tham khảo" in resp.answer or "triệu chứng" in resp.answer
+    assert "đặt lịch trực tuyến" in resp.answer
+    assert "mô tả rõ triệu chứng" not in resp.answer
+    provider.complete_json.assert_not_called()
 
 
 def test_no_context_remote_answer_cannot_invent_numeric_operational_fact() -> None:
@@ -236,7 +242,7 @@ def test_no_context_remote_answer_cannot_invent_numeric_operational_fact() -> No
     )
 
 
-def test_public_preparation_question_accepts_natural_wording() -> None:
+def test_public_preparation_question_uses_deterministic_no_context_fallback() -> None:
     provider = MagicMock()
     provider.complete_json.return_value = {
         "answer": (
@@ -248,7 +254,6 @@ def test_public_preparation_question_accepts_natural_wording() -> None:
     local_settings = _synthetic_remote_settings()
     local_settings.ai_public_hospital_support_remote_enabled = True
 
-    assert public_no_context_query_allowed("Tôi nên chuẩn bị gì trước khi đi khám?")
     result = resolve_chat(
         "Tôi nên chuẩn bị gì trước khi đi khám?",
         local_settings,
@@ -257,9 +262,33 @@ def test_public_preparation_question_accepts_natural_wording() -> None:
         allow_public_operational=True,
     )
 
-    assert result.provenance == "remote_provider"
-    assert result.safety_action == "ANSWER"
-    provider.complete_json.assert_called_once()
+    assert result.provenance == "local_fallback"
+    assert result.safety_action == "INSUFFICIENT_EVIDENCE"
+    assert "6-8" not in result.answer
+    assert "nhịn ăn" not in result.answer.lower()
+    provider.complete_json.assert_not_called()
+
+
+def test_public_grounding_rejection_counts_toward_circuit_breaker(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = MagicMock()
+    provider.complete_json.return_value = {"answer": "Bệnh viện mở cửa lúc 23:59."}
+    local_settings = _synthetic_remote_settings()
+    local_settings.ai_public_hospital_support_remote_enabled = True
+    record_failure = MagicMock()
+    monkeypatch.setattr("app.llm._record_provider_failure", record_failure)
+
+    result = resolve_chat(
+        "Bệnh viện mở cửa lúc nào?",
+        local_settings,
+        context=["Bệnh viện mở cửa từ 7 giờ."],
+        client=provider,
+        public_support_chat=True,
+        allow_public_operational=True,
+    )
+
+    assert result.provenance == "local_fallback"
+    assert result.safety_action == "INSUFFICIENT_EVIDENCE"
+    record_failure.assert_called_once_with(local_settings)
 
 
 def test_public_generic_record_guidance_does_not_allow_owned_record_data() -> None:
@@ -278,8 +307,8 @@ def test_public_generic_record_guidance_does_not_allow_owned_record_data() -> No
     )
 
 
-def test_public_hospital_support_allows_generic_booking_label_without_identifier() -> None:
-    """Operational guidance may mention a booking label, but never its value."""
+def test_public_booking_guidance_uses_immediate_local_fallback_without_context() -> None:
+    """Generic navigation remains available without paying remote-provider latency."""
 
     provider = MagicMock()
     provider.complete_json.return_value = {
@@ -299,9 +328,11 @@ def test_public_hospital_support_allows_generic_booking_label_without_identifier
         allow_public_operational=True,
     )
 
-    assert result.provenance == "remote_provider"
-    assert result.safety_action == "ANSWER"
-    provider.complete_json.assert_called_once()
+    assert result.provenance == "local_fallback"
+    assert result.safety_action == "INSUFFICIENT_EVIDENCE"
+    assert "đặt lịch trực tuyến" in result.answer
+    assert "mô tả rõ triệu chứng" not in result.answer
+    provider.complete_json.assert_not_called()
 
 
 def test_booking_identifier_value_is_still_sensitive() -> None:
