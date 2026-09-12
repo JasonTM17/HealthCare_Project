@@ -21,6 +21,6 @@ USER healthcare:healthcare
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=5 \
   CMD wget -qO- "http://127.0.0.1:${PORT:-8080}/actuator/health" | grep -q '"status":"UP"' || exit 1
-ENV JAVA_TOOL_OPTIONS="-XX:+UseSerialGC -Xms64m -Xmx128m -XX:MaxMetaspaceSize=180m -XX:CompressedClassSpaceSize=48m -XX:ReservedCodeCacheSize=32m -Xss512k -XX:+TieredCompilation -XX:TieredStopAtLevel=1 -Djava.security.egd=file:/dev/./urandom" \
+ENV JAVA_TOOL_OPTIONS="-XX:+UseSerialGC -Xms128m -Xmx220m -XX:MaxMetaspaceSize=140m -XX:CompressedClassSpaceSize=32m -XX:ReservedCodeCacheSize=32m -Xss512k -XX:+TieredCompilation -XX:TieredStopAtLevel=1 -Djava.security.egd=file:/dev/./urandom -XX:+ExitOnOutOfMemoryError" \
     MALLOC_ARENA_MAX=2
 ENTRYPOINT ["java", "-jar", "app.jar"]
