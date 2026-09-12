@@ -419,22 +419,28 @@ _EMERGENCY_PHRASE_PATTERN = re.compile(
     r"dau\W+nguc(?:\W+\w{1,20}){0,6}\W{1,3}du\W+doi"
     r"|chay\W+mau(?:\W+\w{1,20}){0,6}\W{1,3}khong\W+cam"
     r"|kho\W+tho|meo\W+mieng|yeu\W+liet|co\W+giat|tu\W*tu"
-    r"|khong\W+muon\W+song|muon\W+chet|ket\W+thuc\W+cuoc\W+(?:doi|song)"
+    r"|khong\W+(?:con\W+)?muon\W+song|muon\W+chet|ket\W+thuc\W+cuoc\W+(?:doi|song)"
     r"|khong\W+con\W+ly\W+do\W+song"
     r"|(?:dinh|muon)\W+tu\W+van\b"
-    r"|tu\W+sat\b"
-    r"|(?:dinh|muon)\W+nhay\W+(?:lau|cau)\b"
+    r"|tu\W+ket\W+lieu\b|treo\W+co\b|tu\W+sat\b"
+    r"|(?:dinh|muon|se|sap|dang)\W+nhay\W+(?:lau|cau)\b"
     r"|cat\W+(?:co\W+)?tay|tu\W+lam\W+dau"
+    r"|ra\W+di\W+(?:mai\W+mai|vinh\W+vien)|nghi\W+ngoi\W+vinh\W+vien"
+    r"|chan\W+song\b|ket\W+thuc\W+moi\W+thu\b|luoi\W+le\b"
     r"|uong\W+(?:ca\W+)?lo\W+(?:thuoc|paracetamol|thuoc\W+ngu|giam\W+dau)"
     r"|(?:uong|dung|bo)\W+thuoc\W+qua\W+lieu|qua\W+lieu\W+thuoc"
     r"|quet\W+di\W+(?:mot\W+)?dong\W+hong\W+cam|uong\W+thuoc\W+ngu"
     # English self-harm and emergency phrasings: the assistant serves
     # bilingual visitors and none of these existed in the Vietnamese-only
     # list, so "end my life" / "kill myself" could bypass the crisis gate.
-    r"|end\W+my\W+life|kill\W+myself|suicid\w*|want\W+to\W+die"
-    r"|take\W+my\W+own\W+life|don'?t\W+want\W+to\W+live|hurt\W+myself"
+    r"|end\W+my\W+life|kill\w*\W+myself|suicid\w*|want\W+to\W+die"
+    r"|take\W+my\W+own\W+life|don'?t\W+want\W+to\W+live|hurt\w*\W+myself"
     r"|can'?t\W+go\W+on|no\W+reason\W+to\W+live"
     r"|chest\W+pain|shortness\W+of\W+breath|severe\W+bleeding"
+    r"|unalive\w*|don'?t\W+want\W+to\W+be\W+here|disappear\w*\W+forever"
+    r"|better\W+off\W+dead|end\W+it\W+all|not\W+worth\W+living"
+    r"|cut\w*\W+myself|self\W*harm|overdos\w*|want\W+to\W+be\W+dead"
+    r"|wish\W+i\W+(?:was|were)\W+dead|no\W+point\W+in\W+living"
     r")",
     re.IGNORECASE,
 )
@@ -617,6 +623,47 @@ def _normalize_sensitive_text(value: str) -> str:
         if not unicodedata.combining(character) and unicodedata.category(character) != "Cf"
     )
     return " ".join(without_diacritics.casefold().split())
+
+
+_LEET_TRANSLATION = str.maketrans(
+    {"0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "@": "a", "$": "s"}
+)
+
+
+def _crisis_match_variants(normalized: str) -> tuple[str, ...]:
+    """Return the normalized text plus de-obfuscated variants for crisis matching.
+
+    A genuine crisis message is sometimes typed with deliberate evasion
+    (letter-spacing, leet substitutions) that slips past a keyword gate. Every
+    other policy check keeps running on the faithful normalization; only the
+    crisis gate additionally considers these variants, because a false positive
+    here merely shows the 115 banner while a false negative can let a
+    self-harm message reach a remote provider.
+    """
+
+    variants = [normalized]
+    leet = normalized.translate(_LEET_TRANSLATION)
+    if leet != normalized:
+        variants.append(leet)
+    # Collapse runs of three or more single-character tokens ("s u i c i d e").
+    despaced = re.sub(
+        r"\b(?:\w\s){2,}\w\b",
+        lambda match: match.group(0).replace(" ", ""),
+        normalized,
+    )
+    if despaced != normalized:
+        variants.append(despaced)
+    return tuple(variants)
+
+
+def _crisis_detected(normalized: str) -> bool:
+    """Return whether a normalized turn expresses a crisis, evasion included."""
+
+    return any(
+        _EMERGENCY_PHRASE_PATTERN.search(variant)
+        or any(term in variant for term in _EMERGENCY_TERMS)
+        for variant in _crisis_match_variants(normalized)
+    )
 
 
 def chat_contains_sensitive_data(
@@ -836,11 +883,7 @@ def chat_safety_response(
     message_normalized = _normalize_sensitive_text(message)
     user_turns_normalized = [_normalize_sensitive_text(content) for content in user_turn_contents]
     crisis_normalized = (message_normalized, *user_turns_normalized)
-    crisis_hit = any(
-        _EMERGENCY_PHRASE_PATTERN.search(normalized)
-        or any(term in normalized for term in (_EMERGENCY_TERMS))
-        for normalized in crisis_normalized
-    )
+    crisis_hit = any(_crisis_detected(normalized) for normalized in crisis_normalized)
     if crisis_hit:
         return ChatResponse(
             answer=(
@@ -894,7 +937,7 @@ def _triage_requires_local(symptoms: str) -> bool:
     return (
         chat_contains_sensitive_data(symptoms)
         or contains_prompt_injection(symptoms)
-        or bool(_EMERGENCY_PHRASE_PATTERN.search(normalized))
+        or _crisis_detected(normalized)
         or any(_normalize_sensitive_text(term) in normalized for term in protected_terms)
     )
 
