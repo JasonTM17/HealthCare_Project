@@ -10718,13 +10718,14 @@ body:has(.mobile-menu) [class*="FloatingHealthAssistant_root"] {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.2rem 0.55rem;
-  border: 1px solid #e2e8f0;
+  padding: 0.25rem 0.65rem;
+  border: 1px solid #99f6e4;
   border-radius: var(--radius-sm);
-  background: #f8fafc;
-  color: #334155;
-  font-size: 0.6875rem;
-  font-weight: 650;
+  background: #f0fdfa;
+  color: var(--color-teal-900);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 .article-editorial-header .resource-chip {
@@ -10756,21 +10757,7 @@ body:has(.mobile-menu) [class*="FloatingHealthAssistant_root"] {
   -webkit-font-smoothing: antialiased;
 }
 
-.article-editorial-header__trust-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: 0.25rem 0.625rem;
-  background: #f0fdfa;
-  border: 1px solid #99f6e4;
-  color: var(--color-teal-900, #003336);
-  font-size: 0.75rem;
-  font-weight: 700;
-  border-radius: var(--radius-sm, 2px);
-  letter-spacing: 0.02em;
-}
-
-/* Byline Bar */
+/* Byline Bar - Clean Flat Inline Layout */
 .article-editorial-header__byline {
   display: flex;
   align-items: center;
@@ -10928,15 +10915,17 @@ body:has(.mobile-menu) [class*="FloatingHealthAssistant_root"] {
 }
 
 .article-toc__list li {
-  padding: 0.25rem 0;
+  padding: 0.3rem 0;
   font-size: 0.875rem;
   color: #334155;
+  line-height: 1.5;
 }
 
 .article-toc__link {
   color: var(--color-teal-800);
   text-decoration: none;
   font-weight: 550;
+  transition: color 0.15s ease;
 }
 
 .article-toc__link:hover {
@@ -10946,67 +10935,11 @@ body:has(.mobile-menu) [class*="FloatingHealthAssistant_root"] {
 
 .article-toc__link--emergency {
   color: #be123c !important;
-  font-weight: 700 !important;
+  font-weight: 650 !important;
 }
 
 .article-toc__link--emergency:hover {
   color: #881337 !important;
-}
-
-/* Clinical Seek-Care Callout */
-.article-news-seek-care {
-  background: #f0fdfa;
-  border: 1px solid #ccfbf1;
-  border-left: 4px solid var(--color-teal-700);
-  border-radius: var(--radius-sm, 2px);
-  padding: var(--sp-5);
-  margin: var(--sp-6) 0;
-}
-
-.article-news-seek-care__header {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--sp-3);
-  margin-bottom: var(--sp-3);
-}
-
-.article-news-seek-care__icon {
-  font-size: 1.5rem;
-  line-height: 1;
-}
-
-.article-news-seek-care__title {
-  font-size: 1.125rem;
-  font-weight: 750;
-  color: var(--color-teal-950, #003336);
-  margin: 0 0 0.25rem;
-}
-
-.article-news-seek-care__sub {
-  font-size: 0.8125rem;
-  color: var(--color-teal-800, #004b50);
-  margin: 0;
-}
-
-.article-news-seek-care__body {
-  font-size: 0.9375rem;
-  line-height: 1.65;
-  color: #1e293b;
-  margin-bottom: var(--sp-4);
-}
-
-.article-news-seek-care__actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--sp-3);
-}
-
-.article-news-seek-care__actions .button,
-.article-news-seek-care__actions .outline-button {
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
 }
 
 /* News Content Body */
@@ -11302,8 +11235,10 @@ body:has(.mobile-menu) [class*="FloatingHealthAssistant_root"] {
     grid-template-columns: 1fr;
     gap: var(--sp-6);
   }
+
   .article-news-sidebar {
     position: static;
+    top: auto;
     margin-top: var(--sp-6);
   }
 }
@@ -11312,13 +11247,20 @@ body:has(.mobile-menu) [class*="FloatingHealthAssistant_root"] {
   .article-news-layout {
     gap: var(--sp-5);
   }
+
   .article-news-sidebar__card {
     padding: var(--sp-4);
   }
+
   .article-editorial-header__byline {
     flex-direction: column;
     align-items: flex-start;
     gap: var(--sp-3);
+  }
+
+  .article-editorial-header__meta,
+  .site-shell--public-route .article-editorial-header__meta {
+    gap: var(--sp-4) !important;
   }
 }
 
@@ -11491,6 +11433,12 @@ body:has(.mobile-menu) [class*="FloatingHealthAssistant_root"] {
   gap: 0.5rem;
 }
 
+.article-news-alert-box__actions .outline-button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
 /* Key Takeaways (At a Glance) */
 .article-news-summary-box {
   background: #f0fdfa;
@@ -11531,6 +11479,67 @@ body:has(.mobile-menu) [class*="FloatingHealthAssistant_root"] {
 .article-news-summary-box__dot {
   color: #0d9488;
   font-weight: bold;
+}
+
+/* Clinical Callout: When to Seek Care ("Khi nào nên đi khám bác sĩ") */
+.article-news-seek-care {
+  background: #f0fdfa;
+  border: 1px solid #ccfbf1;
+  border-left: 4px solid var(--color-teal-700);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-4) var(--sp-5);
+  margin-bottom: var(--sp-6);
+}
+
+.article-news-seek-care__header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: var(--sp-3);
+}
+
+.article-news-seek-care__icon {
+  font-size: 1.5rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.article-news-seek-care__title {
+  font-size: 1.0625rem;
+  font-weight: 750;
+  color: var(--color-teal-900);
+  margin: 0;
+}
+
+.article-news-seek-care__sub {
+  font-size: 0.8125rem;
+  color: var(--color-teal-700);
+  margin: 0.15rem 0 0 !important;
+}
+
+.article-news-seek-care__body {
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  color: #134e4a;
+  margin-bottom: var(--sp-4);
+}
+
+.article-news-seek-care__body p {
+  margin-bottom: 0.5rem !important;
+}
+
+.article-news-seek-care__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.article-news-seek-care__actions .button,
+.article-news-seek-care__actions .outline-button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
 }
 
 /* E-E-A-T Medical Reviewer Card */

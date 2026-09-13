@@ -1,5 +1,10 @@
 -- V74__sync_consultation_participants_for_demo_doctor.sql
--- Synchronize consultation participants, read states, and messages with current assigned doctor user accounts
+-- Synchronize consultation participants, read states, and messages with current assigned doctor user accounts.
+-- The V37 row guards validate against the CURRENT thread/doctor binding; this
+-- repair migration deliberately bypasses them while it re-aligns historical
+-- rows, then re-enables the guards so runtime writes stay protected.
+
+ALTER TABLE patient_consultation_participants DISABLE TRIGGER trg_patient_consultation_participant_guard;
 
 UPDATE patient_consultation_participants p
 SET user_id = d.user_id
@@ -9,6 +14,8 @@ WHERE p.thread_id = t.id
   AND p.participant_role = 'ASSIGNED_DOCTOR'
   AND d.user_id IS NOT NULL
   AND p.user_id <> d.user_id;
+
+ALTER TABLE patient_consultation_participants ENABLE TRIGGER trg_patient_consultation_participant_guard;
 
 UPDATE patient_consultation_read_states r
 SET user_id = d.user_id

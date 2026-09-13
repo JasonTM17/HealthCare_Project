@@ -816,7 +816,7 @@ public class PatientConsultationService {
     private void requireParticipant(UUID id, UUID userId) {
         try {
             requireExists("""
-                SELECT 1
+                SELECT t.id
                   FROM patient_consultation_threads t
                   JOIN doctors d ON d.id = t.doctor_id
                   LEFT JOIN patient_consultation_participants p
@@ -878,7 +878,7 @@ public class PatientConsultationService {
 
     private void requireDoctorParticipant(UUID id, UUID userId) {
         requireExists("""
-            SELECT 1 FROM patient_consultation_threads t
+            SELECT t.id FROM patient_consultation_threads t
              JOIN doctors d ON d.id = t.doctor_id
              LEFT JOIN patient_consultation_participants p
                ON p.thread_id = t.id AND p.user_id = ? AND p.left_at IS NULL
