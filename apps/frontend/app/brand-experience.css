@@ -295,7 +295,7 @@
   text-align: right;
 }
 
-@media (max-width: 960px) {
+@media (max-width: 900px) {
   .site-shell .site-footer__inner {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

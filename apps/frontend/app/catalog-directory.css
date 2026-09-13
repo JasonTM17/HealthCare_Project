@@ -70,7 +70,7 @@
   overflow: hidden;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 640px) {
   .site-shell--public-route .catalog-page--directory .resource-hero-card {
     grid-template-columns: minmax(0, 1fr);
     gap: 12px;
