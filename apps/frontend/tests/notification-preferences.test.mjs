@@ -27,7 +27,8 @@ test("notification preferences matrix keeps the current contract and guarded sta
 
   assert.match(styles, /notification-preferences-grid/);
   assert.match(styles, /notification-preference-card/);
-  assert.match(styles, /@media \(min-width:\s*768px\)/);
+  // Unified breakpoint scale: 480 / 640 / 900 / 1200 (+1440 wide).
+  assert.match(styles, /@media \(min-width:\s*640px\)/);
   assert.match(styles, /@media \(min-width:\s*1440px\)/);
 
   assert.match(types, /export type NotificationCategory/);

@@ -255,7 +255,9 @@ test("clinical design system tokens, teal color palette and flat UI rules are un
 
   // Clinical teal color palette
   assert.match(styles, /--color-primary:\s*#003336/);
-  assert.match(styles, /--color-primary-container:\s*#004b50/);
+  // primary-container aliases the teal-800 brand token instead of repeating
+  // the #004b50 literal (single source of truth for the brand deep teal).
+  assert.match(styles, /--color-primary-container:\s*(#004b50|var\(--color-teal-800\))/);
   assert.match(styles, /--color-secondary:\s*#7c5800/);
   assert.match(styles, /--color-amber:\s*#feb700/);
   assert.match(styles, /--color-paper:\s*#f9f9fc/);

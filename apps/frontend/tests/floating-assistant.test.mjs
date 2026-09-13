@@ -79,8 +79,8 @@ test("floating assistant exposes real recovery, safety and accessible actions", 
   assert.match(styles, /launcherAvatar/);
   assert.match(styles, /\.launcher \{[\s\S]*border-radius: var\(--radius-sm\)/);
   assert.match(styles, /\.launcher \{[\s\S]*width: 3\.25rem;[\s\S]*min-height: 3\.25rem/);
-  assert.match(styles, /\.launcher \{[\s\S]*background: #004c4e;/);
-  assert.match(styles, /\.launcher\[aria-expanded="true"\] \{[\s\S]*background: #004c4e;/);
+  assert.match(styles, /\.launcher \{[\s\S]*background: var\(--color-teal-800\);/);
+  assert.match(styles, /\.launcher\[aria-expanded="true"\] \{[\s\S]*background: var\(--color-teal-800\);/);
   assert.match(styles, /@media \(max-width: 640px\) \{[\s\S]*\.launcher \{[\s\S]*width: 3rem;[\s\S]*min-height: 3rem/);
   assert.match(styles, /\.panel \{[\s\S]*border-radius: var\(--radius-lg\)/);
   assert.doesNotMatch(styles, /box-shadow:(?!\s*none\b)/);
