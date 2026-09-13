@@ -75,7 +75,7 @@ test("public knowledge content keeps medical trust boundaries visible", async ()
 
 test("existing public route tokens cover the requested viewport and reduced-motion bar", async () => {
   const styles = await read("app/styles.css");
-  assert.match(styles, /@media \(max-width: 760px\)[\s\S]*\.site-shell--public-route \.resource-page__header h1/);
+  assert.match(styles, /@media \(max-width: 900px\)[\s\S]*\.site-shell--public-route \.resource-page__header h1/);
   assert.match(styles, /@media \(max-width: 480px\)[\s\S]*\.site-shell--public-route \.catalog-card/);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.site-shell--public-route \.catalog-status--loading::before/);
   assert.match(styles, /min-height: 2\.75rem/);
