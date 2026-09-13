@@ -37,3 +37,33 @@ jobs:
         run: |
           echo "Supabase Edge traffic activity successfully sent. 7-day inactivity timer reset!"
 
+  render-health:
+    name: Render Services Health (fail loud when instances vanish)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe backend and AI health endpoints
+        run: |
+          set -euo pipefail
+          # A healthy Render service answers its health path; when the account
+          # runs out of free instance-hours or a deploy leaves zero instances,
+          # Render's proxy answers `x-render-routing: no-server` with a plain
+          # 404. That state must be loud: this workflow failing emails the
+          # repo owner instead of the outage being discovered by visitors.
+          declare -A targets=(
+            ["backend"]="https://healthcare-beta-backend.onrender.com/actuator/health"
+            ["ai"]="https://healthcare-beta-ai.onrender.com/livez"
+          )
+          failed=0
+          for name in backend ai; do
+            url="${targets[$name]}"
+            headers=$(curl -sI --max-time 45 "$url" || true)
+            code=$(printf '%s' "$headers" | head -1 | awk '{print $2}')
+            routing=$(printf '%s' "$headers" | grep -i '^x-render-routing:' | tr -d '\r' | awk '{print $2}')
+            echo "$name: http=$code x-render-routing=${routing:-absent}"
+            if [ "$code" != "200" ] || [ "${routing:-}" = "no-server" ]; then
+              echo "::error::Render service '$name' is DOWN (http=$code, routing=${routing:-absent}). Check the Render dashboard: instance hours exhausted, failed deploy, or suspended service."
+              failed=1
+            fi
+          done
+          exit $failed
