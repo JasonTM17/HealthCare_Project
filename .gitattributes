@@ -1,0 +1,3 @@
+# Database migrations must stay byte-stable across OS checkouts so that
+# Flyway checksums do not flip between builds (CRLF vs LF).
+apps/backend/src/main/resources/db/migration/*.sql text eol=lf
