@@ -10,7 +10,6 @@ import type { Doctor, Specialty } from "../../types/hospital";
 import { dedupePublicDoctors } from "../../lib/public-catalog";
 import {
   PublicAiButton,
-  PublicBackLink,
   PublicBookingButton,
   PublicPageShell,
 } from "../../components/PublicPageShell";
@@ -83,7 +82,8 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
   return (
     <PublicPageShell doctors={visibleDoctors} specialties={specialties}>
       <div className="catalog-page catalog-page--directory section-inner">
-        <PublicBackLink href="/">← Về trang chính</PublicBackLink>
+        {/* Breadcrumb above already links home; a duplicate back-link here
+            stacked two home paths within one screen. */}
         <header className="resource-page__header">
           <p className="section-note">Đội ngũ bác sĩ</p>
           <h1>Bác sĩ đồng hành cùng bạn</h1>

@@ -86,6 +86,13 @@ async function installPatientChatMocks(
   let responseLossInjected = false;
   let terminalFailureInjected = false;
 
+  await context.route("**/api/v1/notifications**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 0, first: true, last: true }),
+    });
+  });
   await context.route("**/api/v1/ai/chat-policy", async (route) => {
     expect(route.request().headers()["authorization"]).toBeUndefined();
     await route.fulfill({
@@ -301,9 +308,6 @@ test("patient chat gives a terminal failed message and a new composer message di
   const idempotencyKeys: string[] = [];
   await installPatientChatMocks(context, idempotencyKeys);
   await page.setViewportSize({ width: 1440, height: 1000 });
-  page.on("console", (msg) => { if (msg.text().includes("[auth-debug]")) console.log("PAGE-CONSOLE:", msg.text()); });
-  page.on("request", (req) => { if (req.url().includes("/api/")) console.log("PAGE-REQ:", req.method(), new URL(req.url()).pathname); });
-  page.on("response", (res) => { if (res.url().includes("/api/") && res.status() >= 400) console.log("PAGE-RESP:", res.status(), new URL(res.url()).pathname); });
   await page.goto("/patient/chat");
 
   await page.getByRole("button", { name: "Tải tin nhắn cũ hơn" }).click();

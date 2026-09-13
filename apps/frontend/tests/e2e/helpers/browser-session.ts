@@ -120,6 +120,22 @@ export async function installMockPatientPortalSession(
 ): Promise<void> {
   await installMockBrowserSession(target, session);
 
+  // Portal pages fetch notifications on mount; a strict per-request oracle
+  // elsewhere in the spec needs this route answered or it 401s and clears
+  // the freshly mocked session.
+  await target.route("**/api/v1/notifications**", async (route) => {
+    const request = route.request();
+    expect(request.method()).toBe("GET");
+    expect(new URL(request.url()).origin).toBe(expectedBrowserOrigin());
+    expect(request.headers()["authorization"]).toBeUndefined();
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers: { "Cache-Control": "no-store" },
+      body: JSON.stringify({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 0, first: true, last: true }),
+    });
+  });
+
   await target.route("**/api/v1/patient/profile", async (route) => {
     const request = route.request();
     expect(request.method()).toBe("GET");

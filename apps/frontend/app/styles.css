@@ -719,7 +719,8 @@ main {
   grid-template-columns: minmax(7rem, 0.24fr) minmax(0, 1fr);
   gap: var(--sp-8);
   align-items: start;
-  padding: clamp(1.5rem, 4vw, 3.5rem);
+  /* Max keeps the stacked 320px hero inside the 600px height budget. */
+  padding: clamp(1.25rem, 4vw, 2.25rem);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-md);
   background: var(--color-paper-bright);
@@ -1113,7 +1114,8 @@ main {
   max-width: 48rem;
 }
 
-.route-state__card h1 {
+.route-state__card h1,
+.route-state__card .route-state__title {
   margin-top: var(--sp-2);
   font-size: 4.5rem;
   line-height: 0.95;
@@ -1233,6 +1235,17 @@ main {
   margin: var(--sp-2) 0 0;
   color: var(--color-teal-950);
   font-weight: 700;
+}
+
+/* Inline skeleton for stat values while catalog data streams in — replaces
+   the literal "Đang tải…" copy that previously sat in the metric slot. */
+.resource-meta-grid dd .skeleton-line {
+  display: inline-block;
+  width: min(9rem, 100%);
+  height: 1.1rem;
+  border-radius: var(--radius-xs);
+  background: oklch(90% 0.045 180);
+  animation: shimmer 1.35s ease-in-out infinite;
 }
 
 .resource-doctor-grid {
@@ -1818,6 +1831,15 @@ main {
 .utility-bar__right {
   min-width: 0;
   flex-wrap: wrap;
+}
+
+/* Bar links measured 19px tall — under the 24px WCAG tap-target minimum.
+   Padding keeps the 40px bar height while making every link pressable. */
+.utility-bar a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding-inline: 0.15rem;
 }
 
 .utility-bar__right {
@@ -4359,8 +4381,9 @@ main {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.375rem;
-  height: 2.375rem;
+  /* 44px minimum touch target (WCAG 2.5.5; portal e2e oracle enforces it). */
+  width: 2.75rem;
+  height: 2.75rem;
   border-radius: 4px;
   color: var(--color-ink-muted);
   background: transparent;
@@ -6347,7 +6370,7 @@ main {
 
 .site-shell .hero-trust__item small {
   color: #5b7078;
-  font-size: 0.65rem;
+  font-size: 0.7rem;
 }
 
 .site-shell .hero-trust__icon {
@@ -7108,6 +7131,15 @@ main {
   color: #b9e3db;
 }
 
+/* The label floats over a bright care photo; mint text alone measured 1.2:1
+   against it. A translucent dark chip guarantees AA contrast over any image. */
+.site-shell .video-card__label {
+  padding: 0.3rem 0.7rem;
+  border-radius: var(--radius-pill);
+  background: rgb(4 47 51 / 0.85);
+  color: #ecfdf9;
+}
+
 .site-shell .appointment-cta {
   position: relative;
   overflow: hidden;
@@ -7580,7 +7612,7 @@ main {
 .site-shell .about-hero__visual figcaption {
   margin-top: 0.55rem;
   color: #71848b;
-  font-size: 0.68rem;
+  font-size: 0.7rem;
 }
 
 .site-shell .about-hero__visual figcaption a {
@@ -10225,6 +10257,9 @@ main {
 /* ── Footer link hover slide ── */
 .site-footer .footer-column a {
   position: relative;
+  display: inline-block;
+  /* ~26px tall: keeps column links above the 24px WCAG tap-target floor. */
+  padding-block: 4px;
   padding-left: 0;
   transition: padding-left 180ms var(--ease-out), color 180ms ease;
 }

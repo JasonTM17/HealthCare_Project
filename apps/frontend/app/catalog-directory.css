@@ -81,6 +81,12 @@
     display: none;
   }
 
+  /* Stacked hero + guidance panel exceeds the 600px compact-hero budget at
+     320-600px; the aggregate counts are desktop context, not a mobile task. */
+  .catalog-page--directory .resource-hero-card .resource-meta-grid {
+    display: none;
+  }
+
   .catalog-page--directory .resource-meta-grid {
     gap: 8px;
     margin-top: 16px;

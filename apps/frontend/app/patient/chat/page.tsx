@@ -418,8 +418,13 @@ function PatientChatPageContent() {
     // for hidden tabs and for non-composited webviews, which left the
     // conversation list permanently empty until the user re-focused the page.
     // loadConversationList self-guards stale responses via listRequestRef.
-    void loadConversationList(null, { hydrateThread: true });
+    // The setTimeout(0) defers the first setState out of the effect body
+    // (react-hooks/set-state-in-effect) while still running in hidden tabs.
+    const kickoff = setTimeout(() => {
+      void loadConversationList(null, { hydrateThread: true });
+    }, 0);
     return () => {
+      clearTimeout(kickoff);
       listRequestRef.current += 1;
       threadRequestRef.current += 1;
     };
