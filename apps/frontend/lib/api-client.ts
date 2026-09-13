@@ -581,13 +581,35 @@ export async function hydrateAuthSession(force = false): Promise<AuthSession | n
       if (authSessionVersion === expectedVersion) commitAuthSession(session, "settled");
       return authSessionSnapshot;
     })
-    .catch((error: unknown) => {
+    .catch(async (error: unknown) => {
       if (error instanceof ApiError && error.status === 401 && authSessionVersion === expectedVersion) {
         commitAuthSession(null, "settled");
-      } else if (authSessionVersion === expectedVersion) {
-        commitIndeterminateAuthState();
+        return authSessionSnapshot;
       }
-      return authSessionSnapshot;
+      if (authSessionVersion !== expectedVersion) return authSessionSnapshot;
+      // One bounded retry before declaring the session indeterminate.  A
+      // backend restart or network blip is indistinguishable from a hostile
+      // failure at this layer, and showing the error gate for a transient
+      // 5xx is the worse user outcome.  A second failure keeps the existing
+      // fail-closed indeterminate posture.
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      if (authSessionVersion !== expectedVersion) return authSessionSnapshot;
+      try {
+        const value = await getJson<unknown>("/auth/browser-sessions/current", {
+          method: "GET",
+          cache: "no-store",
+        });
+        const session = normalizeAuthSession(value, "/auth/browser-sessions/current");
+        if (authSessionVersion === expectedVersion) commitAuthSession(session, "settled");
+        return authSessionSnapshot;
+      } catch (retryError: unknown) {
+        if (retryError instanceof ApiError && retryError.status === 401 && authSessionVersion === expectedVersion) {
+          commitAuthSession(null, "settled");
+        } else if (authSessionVersion === expectedVersion) {
+          commitIndeterminateAuthState();
+        }
+        return authSessionSnapshot;
+      }
     })
     .finally(() => {
       if (authHydrationFlight === flight) authHydrationFlight = null;

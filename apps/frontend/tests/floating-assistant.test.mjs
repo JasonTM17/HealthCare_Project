@@ -37,7 +37,9 @@ test("floating assistant is mounted globally and stays on the REST chat contract
   assert.match(component, /useChatWaitStage\(sending\)/);
   assert.match(waitStage, /received: "Đã nhận câu hỏi — đang chờ phản hồi…"/);
   assert.match(waitStage, /searching: "Đang tra cứu nguồn y tế…"/);
-  assert.match(component, /Hỗ trợ tạm thời/);
+  // Provenance labels live in AssistantProvider so the floating panel and the
+  // full patient chat page share one source-honesty contract.
+  assert.match(provider, /Hỗ trợ tạm thời/);
   assert.doesNotMatch(component, /Đang kết nối backend và AI/);
   assert.match(styles, /\.typingDots span \{[\s\S]*animation: assistantTyping/);
   assert.match(component, /data-testid="floating-chat-streaming-reply"/);
@@ -77,7 +79,7 @@ test("floating assistant exposes real recovery, safety and accessible actions", 
   assert.match(styles, /launcherAvatar/);
   assert.match(styles, /\.launcher \{[\s\S]*border-radius: var\(--radius-sm\)/);
   assert.match(styles, /\.launcher \{[\s\S]*width: 3\.25rem;[\s\S]*min-height: 3\.25rem/);
-  assert.match(styles, /\.launcher \{[\s\S]*background: #ffffff;/);
+  assert.match(styles, /\.launcher \{[\s\S]*background: #004c4e;/);
   assert.match(styles, /\.launcher\[aria-expanded="true"\] \{[\s\S]*background: #004c4e;/);
   assert.match(styles, /@media \(max-width: 640px\) \{[\s\S]*\.launcher \{[\s\S]*width: 3rem;[\s\S]*min-height: 3rem/);
   assert.match(styles, /\.panel \{[\s\S]*border-radius: var\(--radius-lg\)/);
