@@ -5,7 +5,7 @@
 | Layer | URL | Status |
 | --- | --- | --- |
 | Frontend (Vercel) | https://www.healthcare.id.vn | ✅ **Redeployed today** from `main` (b0bd5f6) — build 44s, Ready |
-| Backend (Render Free) | https://healthcare-beta-backend-4wb7.onrender.com | ❌ **DOWN** — `x-render-routing: no-deploy` (no live deployment) |
+| Backend (Render Free) | https://healthcare-beta-backend-4wb7.onrender.com | ✅ **UP** (deployed by owner 2026-09-14; /actuator/health 200 UP) |
 | AI service (Render Free) | https://healthcare-beta-ai.onrender.com | ⚠️ Owned by the same external Render account — verify together |
 | Database (Supabase) | awaknzhadjglbfkhigck (Tokyo) | ✅ Alive (keep-alive workflow green, 6h cadence) |
 
@@ -50,6 +50,24 @@ not available in this environment; deploys there are dashboard-only.
 Optionally, to make this automatic next time: export a Render API key for that
 account as `RENDER_API_KEY` in this environment — the deployment can then be
 triggered and verified end-to-end from here.
+
+## Resolution (2026-09-14)
+
+The owner deployed the backend overnight. Full production E2E executed with
+agent-browser against https://www.healthcare.id.vn:
+
+- Home: 200, CMS hydration from live backend (screenshots 01, 01b)
+- Booking (/dat-lich): specialty combobox populated with the live catalog
+  (Tim mach ...) -- screenshot 02
+- Patient portal: login OK, greets the demo patient, appointments nav -- 03
+- AI tutor chat: one message sent, assistant replied, quota decremented
+  exactly 84 -> 83 per spec, history persisted server-side -- 04
+- Doctor portal: login OK, schedule and patient-consultation nav -- 05
+- Admin portal: login OK, hospital-operations dashboard -- 06
+
+BFF chain probe: /api/v1/hospital/specialties 200 with a JSON payload through
+Vercel -> Spring -> Supabase Postgres.
+
 
 ## Post-deploy verification (after owner deploy)
 
