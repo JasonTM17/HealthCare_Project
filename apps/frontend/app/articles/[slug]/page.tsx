@@ -205,7 +205,7 @@ export default function ArticleDetailPage() {
                     src={resolveArticleCoverImage(article)}
                   />
                   <figcaption className="article-editorial-header__img-caption">
-                    Hình ảnh y khoa minh họa · Nguồn: Hệ thống Y tế HealthCare
+                    Hình ảnh y khoa minh họa · Nguồn: Bệnh viện đa khoa HealthCare
                   </figcaption>
                 </figure>
               </article>
@@ -420,7 +420,7 @@ export default function ArticleDetailPage() {
                       <div>
                         <h4 className="article-news-eatt-card__name">{article.authorName || "Hội đồng Cố vấn Y khoa Chuyên sâu"}</h4>
                         <p className="article-news-eatt-card__title">
-                          {article.category ? `Bác sĩ Chuyên khoa ${article.category}` : "Bác sĩ Chuyên khoa Nội tổng quát"} · Hệ thống Y tế HealthCare
+                          {article.category ? `Bác sĩ Chuyên khoa ${article.category}` : "Bác sĩ Chuyên khoa Nội tổng quát"} · Bệnh viện đa khoa HealthCare
                         </p>
                       </div>
                     </div>

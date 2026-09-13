@@ -122,7 +122,7 @@ export default function SpecialtiesPage() {
 
         <header className="resource-page__header">
           <p className="section-note">Danh mục chuyên khoa</p>
-          <h1>Danh mục Chuyên khoa & Dịch vụ Mũi nhọn</h1>
+          <h1>Danh mục Chuyên khoa & Dịch vụ mũi nhọn</h1>
           <p>
             Tìm hiểu phạm vi chăm sóc y khoa, đội ngũ bác sĩ chuyên khoa và chủ động đặt lịch
             theo nhu cầu của bạn.
