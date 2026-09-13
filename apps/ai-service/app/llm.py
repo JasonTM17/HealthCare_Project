@@ -54,8 +54,17 @@ _APPOINTMENT_ID_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _LONG_NUMERIC_IDENTIFIER_PATTERN = re.compile(r"(?<!\d)\d{9,16}(?!\d)")
+# A numeric date must carry at least one calendar-valid month/day pair.  An
+# unvalidated \d{1,2}-\d{1,2}-\d{2,4} shape rejected approved clinical prose
+# such as the "20-20-20" screen rule while adding no PII coverage: a token
+# like 20-20-20 is not a date in any locale.  Both DD/MM and MM/DD orders are
+# accepted so no real date escapes the gate.
+_MONTH_TOKEN = r"(?:0?[1-9]|1[0-2])"
+_DAY_TOKEN = r"(?:0?[1-9]|[12]\d|3[01])"
 _NUMERIC_DATE_PATTERN = re.compile(
-    r"(?<!\d)(?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}[/-]\d{1,2}[/-]\d{1,2})(?!\d)"
+    rf"(?<!\d)(?:{_DAY_TOKEN}[/-]{_MONTH_TOKEN}[/-]\d{{2,4}}"
+    rf"|{_MONTH_TOKEN}[/-]{_DAY_TOKEN}[/-]\d{{2,4}}"
+    rf"|\d{{4}}[/-]{_MONTH_TOKEN}[/-]{_DAY_TOKEN})(?!\d)"
 )
 _PASSPORT_PATTERN = re.compile(
     r"(?<![A-Z0-9])[A-Z]{1,2}\d{6,9}(?![A-Z0-9])", re.IGNORECASE
@@ -68,10 +77,22 @@ _OPAQUE_ID_PATTERN = re.compile(
     r"\s*[-_:#]?\s*[a-z]*\d+[a-z0-9_-]*\b",
     re.IGNORECASE,
 )
+# The English suffix list keeps the historical wide gap between a house number
+# and the street token.  The Vietnamese tokens are handled by a dedicated
+# adjacent pattern: after diacritic folding, "phố" also folds to "pho" inside
+# "phổ biến" and "đường" folds to "duong" inside "đái tháo đường", so a gap of
+# up to six words rejected most approved clinical articles (e.g. "4 sai lầm
+# phổ biến", "tiền đái tháo đường type 2").  Real Vietnamese addresses place
+# the token directly after the number ("12 đường Lê Lợi", "số 5 phố Huế"), so
+# a one-word gap preserves that coverage while dropping the substring hits.
 _STREET_ADDRESS_PATTERN = re.compile(
     r"\b\d{1,6}[a-z]?(?:[/.-]\d{1,6})?\s+"
     r"(?:[a-z][a-z'.-]*\s+){0,6}"
-    r"(?:street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|way|court|ct|pho|duong)\b",
+    r"(?:street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|way|court|ct)\b",
+    re.IGNORECASE,
+)
+_VIETNAMESE_STREET_ADDRESS_PATTERN = re.compile(
+    r"\b\d{1,6}[a-z]?(?:[/.-]\d{1,6})?\s+(?:[a-z][a-z'.-]*\s+){0,1}(?:pho|duong)\b",
     re.IGNORECASE,
 )
 _VIETNAMESE_ADDRESS_PATTERN = re.compile(
@@ -789,6 +810,7 @@ def chat_contains_sensitive_data(
         or _INSURANCE_IDENTIFIER_PATTERN.search(normalized)
         or _OPAQUE_ID_PATTERN.search(normalized)
         or _STREET_ADDRESS_PATTERN.search(normalized)
+        or _VIETNAMESE_STREET_ADDRESS_PATTERN.search(normalized)
         or _VIETNAMESE_ADDRESS_PATTERN.search(normalized)
         or any(term in normalized for term in _IDENTITY_CONTEXT_TERMS)
         or any(term in normalized for term in _ADDRESS_CONTEXT_TERMS)
@@ -803,6 +825,7 @@ def _mask_public_operational_fields(value: str) -> str:
     masked = _INTERNATIONAL_PHONE_PATTERN.sub(" public operational contact ", value)
     masked = _PHONE_PATTERN.sub(" public operational contact ", masked)
     masked = _STREET_ADDRESS_PATTERN.sub(" public operational address ", masked)
+    masked = _VIETNAMESE_STREET_ADDRESS_PATTERN.sub(" public operational address ", masked)
     masked = _VIETNAMESE_ADDRESS_PATTERN.sub(" public operational address ", masked)
     return masked
 

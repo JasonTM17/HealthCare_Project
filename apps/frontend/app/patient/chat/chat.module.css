@@ -635,6 +635,23 @@
   font-variant-numeric: tabular-nums;
 }
 
+.metaRight {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+}
+
+/* Source honesty chip matching the floating panel's provenance labels. */
+.provenance {
+  color: var(--color-ink-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.provenance[data-provenance="local_fallback"] {
+  color: #854d0e;
+}
+
 .messageContent {
   margin: 0;
   color: var(--color-ink);
@@ -777,6 +794,10 @@
   cursor: pointer;
   font: inherit;
   font-weight: 800;
+  /* Narrow bubbles used to clip "Chưa hữu ích" because flex buttons shrink
+     below their label width. */
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .feedbackRow button[aria-pressed="true"] {

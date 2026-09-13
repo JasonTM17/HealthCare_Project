@@ -30,7 +30,6 @@ import { randomId } from "../lib/secure-random";
 import type {
   AiChatMessage,
   AiChatPolicy,
-  AiChatProvenance,
   AiConversation,
   ChatMode,
   FeedbackRating,
@@ -39,6 +38,7 @@ import type {
 import {
   ASSISTANT_MODE_OPTIONS,
   assistantFailureFromError as failureFromError,
+  provenanceLabel,
   type AssistantFailure,
   AssistantProvider,
   DEFAULT_CHAT_MODE,
@@ -140,16 +140,8 @@ function inputFailure(isPublic: boolean): AssistantFailure {
   ));
 }
 
-function provenanceLabel(provenance: AiChatProvenance): string {
-  switch (provenance) {
-    case "local_fallback":
-      return "Hỗ trợ tạm thời";
-    case "remote_provider":
-      return "Phản hồi AI có kiểm soát";
-    default:
-      return "Nguồn HealthCare";
-  }
-}
+// provenanceLabel lives in AssistantProvider so the floating panel and the
+// full patient chat page report the same source honesty.
 
 // citationHref is intentionally not used: governed citations are text-only;
 // only server-owned suggestedActions may navigate.
@@ -343,7 +335,9 @@ function FloatingHealthAssistantPanel({
         "textarea:not([disabled])",
       ].join(",")) ?? [],
     );
-    const animationFrame = window.requestAnimationFrame(() => inputRef.current?.focus());
+    // setTimeout, not requestAnimationFrame: RAF is paused for hidden tabs and
+    // non-composited webviews, which would silently skip autofocus.
+    const focusTimer = window.setTimeout(() => inputRef.current?.focus(), 0);
     const handleKeyDown = (event: globalThis.KeyboardEvent): void => {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -366,7 +360,7 @@ function FloatingHealthAssistantPanel({
 
     document.addEventListener("keydown", handleKeyDown);
     return () => {
-      window.cancelAnimationFrame(animationFrame);
+      window.clearTimeout(focusTimer);
       document.removeEventListener("keydown", handleKeyDown);
       if (launcher?.isConnected) launcher.focus();
       else if (previousFocus?.isConnected) previousFocus.focus();
@@ -377,35 +371,34 @@ function FloatingHealthAssistantPanel({
     if (!open || hidden || !isPatient || conversationIdRef.current) return;
     let cancelled = false;
     const { controller, epoch } = beginLocalRequest();
-    const frame = window.requestAnimationFrame(() => {
+    // Load immediately: requestAnimationFrame is paused for hidden tabs and
+    // non-composited webviews, which would leave the panel stuck on loading.
+    void (async () => {
       if (cancelled || !isCurrentLocalRequest(epoch)) return;
       setLoading(true);
       setFailure(null);
       // Legacy contract remains fetchAiConversations(); the signal overload
       // below only cancels stale work.
-      void fetchAiConversations({ signal: controller.signal })
-        .then(async (items) => {
-          if (cancelled || !isCurrentLocalRequest(epoch)) return;
-          const latest = items[0] ?? null;
-          syncConversation(latest);
-          if (latest) {
-            const page = await fetchAiConversationMessages(latest.id, null, 12, { signal: controller.signal });
-            if (!cancelled && isCurrentLocalRequest(epoch, latest.id)) setMessages(page.content.slice(-8));
-          }
-        })
-        .catch((error: unknown) => {
-          if (!cancelled && isCurrentLocalRequest(epoch) && !isAbortError(error)) {
-            if (error instanceof ApiError && error.status === 401) clearAuthSession();
-            setFailure(failureFromError(error));
-          }
-        })
-        .finally(() => {
-          if (!cancelled && isCurrentLocalRequest(epoch)) setLoading(false);
-        });
-    });
+      try {
+        const items = await fetchAiConversations({ signal: controller.signal });
+        if (cancelled || !isCurrentLocalRequest(epoch)) return;
+        const latest = items[0] ?? null;
+        syncConversation(latest);
+        if (latest) {
+          const page = await fetchAiConversationMessages(latest.id, null, 12, { signal: controller.signal });
+          if (!cancelled && isCurrentLocalRequest(epoch, latest.id)) setMessages(page.content.slice(-8));
+        }
+      } catch (error: unknown) {
+        if (!cancelled && isCurrentLocalRequest(epoch) && !isAbortError(error)) {
+          if (error instanceof ApiError && error.status === 401) clearAuthSession();
+          setFailure(failureFromError(error));
+        }
+      } finally {
+        if (!cancelled && isCurrentLocalRequest(epoch)) setLoading(false);
+      }
+    })();
     return () => {
       cancelled = true;
-      window.cancelAnimationFrame(frame);
       if (requestControllerRef.current === controller) {
         requestEpochRef.current += 1;
         controller.abort();
@@ -789,7 +782,7 @@ function FloatingHealthAssistantPanel({
                         <>
                           <span className={styles.metaDot} aria-hidden="true">·</span>
                           <span className={styles.provenance} data-provenance={message.provenance ?? "local_provider"}>
-                            {provenanceLabel(message.provenance ?? "local_provider")}
+                            {provenanceLabel(message.provenance ?? "local_provider", message.citations.length)}
                           </span>
                         </>
                       ) : null}

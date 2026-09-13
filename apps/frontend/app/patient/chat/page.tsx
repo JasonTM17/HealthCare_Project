@@ -43,6 +43,7 @@ import {
   assistantErrorMessage,
   assistantFailureFromError,
   isNearBottom,
+  provenanceLabel,
   useAssistant,
 } from "../../../components/AssistantProvider";
 import { CHAT_WAIT_STAGE_COPY, useChatWaitStage } from "../../../components/useChatWaitStage";
@@ -138,7 +139,14 @@ function MessageItem({
     >
       <div className={styles.messageMeta}>
         <strong>{assistant ? "Trợ lý HealthCare" : "Bạn"}</strong>
-        <time dateTime={message.createdAt}>{formatDateTime(message.createdAt)}</time>
+        <span className={styles.metaRight}>
+          {assistant && message.status === "COMPLETED" ? (
+            <span className={styles.provenance} data-provenance={message.provenance ?? "local_provider"}>
+              {provenanceLabel(message.provenance ?? "local_provider", message.citations.length)}
+            </span>
+          ) : null}
+          <time dateTime={message.createdAt}>{formatDateTime(message.createdAt)}</time>
+        </span>
       </div>
       <ChatMessageContent className={styles.messageContent} content={message.content} />
       {pending ? <p className={styles.messageStatus}>Đang chờ trợ lý xử lý</p> : null}
@@ -406,11 +414,12 @@ function PatientChatPageContent() {
 
   useEffect(() => {
     if (!session || !hasRole(session.user, "PATIENT")) return;
-    const frame = window.requestAnimationFrame(() => {
-      void loadConversationList(null, { hydrateThread: true });
-    });
+    // The initial load must not wait on requestAnimationFrame: RAF is paused
+    // for hidden tabs and for non-composited webviews, which left the
+    // conversation list permanently empty until the user re-focused the page.
+    // loadConversationList self-guards stale responses via listRequestRef.
+    void loadConversationList(null, { hydrateThread: true });
     return () => {
-      window.cancelAnimationFrame(frame);
       listRequestRef.current += 1;
       threadRequestRef.current += 1;
     };

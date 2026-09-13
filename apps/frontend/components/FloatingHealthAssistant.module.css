@@ -723,11 +723,14 @@
   min-width: 3.25rem;
   min-height: 3.25rem;
   padding: 0;
-  border: 1px solid #93c7c0;
+  border: 1px solid #004c4e;
   border-radius: var(--radius-sm);
-  background: #ffffff;
+  /* The previous white-on-white tile read as a disabled control next to the
+     page; the site-wide design contract keeps surfaces flat (no shadows or
+     gradients), so the assistant now uses the brand's solid deep teal. */
+  background: #004c4e;
   box-shadow: none;
-  color: var(--assistant-deep);
+  color: #ffffff;
   overflow: visible;
   transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease;
   cursor: pointer;
@@ -761,15 +764,15 @@
 }
 
 .launcherMark {
-  width: 1.8rem;
-  height: 1.8rem;
+  width: 1.9rem;
+  height: 1.9rem;
   color: currentColor;
   transition: none;
 }
 
 .launcher:hover,
 .launcher:focus-visible {
-  background: #e8f6f2;
+  background: #0f766e;
 }
 
 .primaryButton:hover,
@@ -777,19 +780,43 @@
   background: #0f766e;
 }
 
+/* Gentle availability pulse; disabled under prefers-reduced-motion below. */
 .launcher::after {
-  display: none;
+  position: absolute;
+  inset: -4px;
+  display: block;
   content: "";
+  border: 2px solid rgba(0, 76, 78, 0.5);
+  border-radius: calc(var(--radius-sm) + 4px);
+  opacity: 0;
+  pointer-events: none;
+  animation: launcherPulse 2.6s ease-out 0.8s infinite;
 }
 
 .launcher[aria-expanded="true"]::after {
   display: none;
+  animation: none;
+}
+
+@keyframes launcherPulse {
+  0% {
+    opacity: 0.65;
+    transform: scale(0.96);
+  }
+  70% {
+    opacity: 0;
+    transform: scale(1.12);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.12);
+  }
 }
 
 .launcher:hover,
 .launcher:focus-visible {
   border-color: #0f766e;
-  color: #004c4e;
+  color: #ffffff;
   transform: none;
   box-shadow: none;
 }
@@ -883,6 +910,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .launcher,
+  .launcher::after,
   .launcherAvatar,
   .typingDots span,
   .panel,

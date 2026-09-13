@@ -10751,6 +10751,23 @@ body:has(.mobile-menu) [class*="FloatingHealthAssistant_root"] {
   color: #0f172a !important;
   margin: var(--sp-2) 0 var(--sp-4);
   font-weight: 800;
+  text-wrap: balance;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+.article-editorial-header__trust-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0.25rem 0.625rem;
+  background: #f0fdfa;
+  border: 1px solid #99f6e4;
+  color: var(--color-teal-900, #003336);
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: var(--radius-sm, 2px);
+  letter-spacing: 0.02em;
 }
 
 /* Byline Bar */
@@ -10760,11 +10777,15 @@ body:has(.mobile-menu) [class*="FloatingHealthAssistant_root"] {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: var(--sp-4);
-  padding: var(--sp-3) var(--sp-4);
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: var(--radius-sm);
-  margin-bottom: var(--sp-5);
+  padding: 0.75rem 0;
+  margin: 1rem 0 1.25rem;
+  background: transparent !important;
+  border-top: 1px solid #e2e8f0 !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  border-left: none !important;
+  border-right: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
 }
 
 .article-editorial-header__author {
@@ -10806,7 +10827,7 @@ body:has(.mobile-menu) [class*="FloatingHealthAssistant_root"] {
   border: none !important;
   box-shadow: none !important;
   padding: 0 !important;
-  margin: var(--sp-3) 0 0 !important;
+  margin: 0 !important;
 }
 
 .article-editorial-header__meta div,
@@ -10844,18 +10865,19 @@ body:has(.mobile-menu) [class*="FloatingHealthAssistant_root"] {
 /* Editorial Sapo */
 .article-editorial-header__sapo {
   border-left: 4px solid var(--color-teal-700);
-  padding: var(--sp-2) var(--sp-4);
+  padding: var(--sp-3) var(--sp-5);
   background: #f8fafc;
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   margin-bottom: var(--sp-6);
 }
 
 .article-editorial-header__sapo .resource-lead {
-  font-size: 1.0625rem !important;
-  line-height: 1.65 !important;
-  color: #334155 !important;
+  font-size: 1.125rem !important;
+  line-height: 1.75 !important;
+  color: #1e293b !important;
   font-weight: 550 !important;
   margin: 0 !important;
+  letter-spacing: -0.01em;
 }
 
 /* Featured Image */
@@ -10920,6 +10942,71 @@ body:has(.mobile-menu) [class*="FloatingHealthAssistant_root"] {
 .article-toc__link:hover {
   text-decoration: underline;
   color: var(--color-teal-950);
+}
+
+.article-toc__link--emergency {
+  color: #be123c !important;
+  font-weight: 700 !important;
+}
+
+.article-toc__link--emergency:hover {
+  color: #881337 !important;
+}
+
+/* Clinical Seek-Care Callout */
+.article-news-seek-care {
+  background: #f0fdfa;
+  border: 1px solid #ccfbf1;
+  border-left: 4px solid var(--color-teal-700);
+  border-radius: var(--radius-sm, 2px);
+  padding: var(--sp-5);
+  margin: var(--sp-6) 0;
+}
+
+.article-news-seek-care__header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+
+.article-news-seek-care__icon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.article-news-seek-care__title {
+  font-size: 1.125rem;
+  font-weight: 750;
+  color: var(--color-teal-950, #003336);
+  margin: 0 0 0.25rem;
+}
+
+.article-news-seek-care__sub {
+  font-size: 0.8125rem;
+  color: var(--color-teal-800, #004b50);
+  margin: 0;
+}
+
+.article-news-seek-care__body {
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  color: #1e293b;
+  margin-bottom: var(--sp-4);
+}
+
+.article-news-seek-care__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+}
+
+.article-news-seek-care__actions .button,
+.article-news-seek-care__actions .outline-button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
 }
 
 /* News Content Body */
@@ -11039,7 +11126,7 @@ body:has(.mobile-menu) [class*="FloatingHealthAssistant_root"] {
   border: 1px solid #e2e8f0;
   border-radius: var(--radius-sm);
   padding: var(--sp-5);
-  box-shadow: 0 1px 2px oklch(24% 0.03 190 / 0.04);
+  box-shadow: none;
 }
 
 .article-news-sidebar__card h3 {
@@ -11213,6 +11300,25 @@ body:has(.mobile-menu) [class*="FloatingHealthAssistant_root"] {
 @media (max-width: 1024px) {
   .article-news-layout {
     grid-template-columns: 1fr;
+    gap: var(--sp-6);
+  }
+  .article-news-sidebar {
+    position: static;
+    margin-top: var(--sp-6);
+  }
+}
+
+@media (max-width: 640px) {
+  .article-news-layout {
+    gap: var(--sp-5);
+  }
+  .article-news-sidebar__card {
+    padding: var(--sp-4);
+  }
+  .article-editorial-header__byline {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--sp-3);
   }
 }
 
