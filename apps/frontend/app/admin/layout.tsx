@@ -178,7 +178,7 @@ function AdminShell({ children, displayName }: { children: ReactNode; displayNam
             </p>
           </div>
 
-          <nav aria-label="Điều hướng quản trị" className="admin-nav mt-6">
+          <nav aria-label="Điều hướng quản trị" className="admin-nav mt-6 min-h-0 flex-1 overflow-y-auto">
             {NAV.map((item) => {
               const active = item.href === "/admin"
                 ? pathname === item.href

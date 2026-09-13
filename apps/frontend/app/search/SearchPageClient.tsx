@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type FormEvent, type ReactElement } from "react";
-import { PublicAiButton, PublicBackLink, PublicBookingButton, PublicPageShell } from "../../components/PublicPageShell";
+import { PublicAiButton, PublicBookingButton, PublicPageShell } from "../../components/PublicPageShell";
 import PackageBookingModal from "../../components/PackageBookingModal";
 import Icon from "../../components/UiIcon";
 import {
@@ -252,7 +252,8 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
       specialties={catalog?.specialties ?? []}
     >
       <div className="catalog-page section-inner search-page">
-        <PublicBackLink href="/">← Về trang chính</PublicBackLink>
+        {/* Breadcrumb above already links home; a duplicate back-link here
+            stacked two home paths within one screen. */}
         <header className="resource-page__header">
           <p className="section-note">Tìm bác sĩ và dịch vụ</p>
           <h1>Tìm đúng điểm bắt đầu cho nhu cầu chăm sóc</h1>

@@ -342,6 +342,9 @@ test.describe("Flow 1: Patient Chat AI (/patient/chat)", () => {
 
       if (resource === "messages" && method === "POST") {
         const payload = route.request().postDataJSON() as { content: string };
+        // Append to the mocked thread so the client's post-send history
+        // reload (server-authoritative) includes the new exchange.
+        const threadMessages = conversationId === "convo-1" ? messagesConvo1 : messagesConvo2;
         const userMsg: AiChatMessage = {
           id: `msg-user-${Date.now()}`,
           role: "USER",
@@ -366,6 +369,8 @@ test.describe("Flow 1: Patient Chat AI (/patient/chat)", () => {
           createdAt: new Date().toISOString(),
           completedAt: new Date().toISOString(),
         };
+
+        threadMessages.push(userMsg, assistantMsg);
 
         // Quota is charged strictly after AI response completes
         currentCredits = Math.max(0, currentCredits - 1);
@@ -569,12 +574,17 @@ test.describe("Flow 2: Search Page (/search)", () => {
     // Click "Dịch vụ" tab: only Service section is shown
     await tabService.click();
     await expect(tabService).toHaveAttribute("aria-selected", "true");
-    await expect(page.getByRole("heading", { name: "Dịch vụ" })).toBeVisible();
+    // The Tim-mạch fixtures include no matching service, so the Dịch vụ tab
+    // shows the owned empty-category status instead of the section.
+    await expect(
+      page.getByRole("status").filter({ hasText: "Không tìm thấy kết quả nào trong danh mục “Dịch vụ”" }),
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Dịch vụ y tế" })).toHaveCount(0);
 
     // Click "Bài viết" tab: only Article section is shown
     await tabArticle.click();
     await expect(tabArticle).toHaveAttribute("aria-selected", "true");
-    await expect(page.getByRole("heading", { name: "Cẩm nang y tế" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Bài viết" })).toBeVisible();
 
     // Click "Tất cả" tab: all categories return
     await tabAll.click();
@@ -594,9 +604,9 @@ test.describe("Flow 2: Search Page (/search)", () => {
 
     // Verify it matches "Tim mạch" entities
     await expect(page.locator(".search-results__count")).toContainText("kết quả phù hợp");
-    await expect(page.getByText("Tim mạch chuyên sâu")).toBeVisible();
-    await expect(page.getByText("BS.CKII Nguyễn Minh")).toBeVisible();
-    await expect(page.getByText("Gói khám tim mạch tổng quát")).toBeVisible();
+    await expect(page.getByText("Tim mạch chuyên sâu").first()).toBeVisible();
+    await expect(page.getByText("BS.CKII Nguyễn Minh").first()).toBeVisible();
+    await expect(page.getByText("Gói khám tim mạch tổng quát").first()).toBeVisible();
     await expect(page.locator(".catalog-status--error")).toHaveCount(0);
   });
 });

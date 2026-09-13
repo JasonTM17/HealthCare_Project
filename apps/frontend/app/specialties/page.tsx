@@ -10,7 +10,6 @@ import { ClinicalIcon } from "../../components/ClinicalIcon";
 import CatalogPagination from "../../components/CatalogPagination";
 import {
   PublicAiButton,
-  PublicBackLink,
   PublicBookingButton,
   PublicPageShell,
 } from "../../components/PublicPageShell";
@@ -118,7 +117,8 @@ export default function SpecialtiesPage() {
   return (
     <PublicPageShell>
       <div className="catalog-page catalog-page--directory section-inner">
-        <PublicBackLink href="/">← Về trang chính</PublicBackLink>
+        {/* The PublicRouteBreadcrumb bar above already links home; a second
+            "Về trang chính" here duplicated it within one screen. */}
 
         <header className="resource-page__header">
           <p className="section-note">Danh mục chuyên khoa</p>
@@ -152,11 +152,15 @@ export default function SpecialtiesPage() {
             <dl className="resource-meta-grid">
               <div>
                 <dt>Tổng chuyên khoa</dt>
-                <dd aria-live="polite">{specialtyCountLabel}</dd>
+                <dd aria-live="polite">
+                  {loading ? <span className="skeleton-line" aria-hidden="true" /> : specialtyCountLabel}
+                </dd>
               </div>
               <div>
                 <dt>Chuyên khoa nổi bật</dt>
-                <dd aria-live="polite">{featuredSpecialtyLabel}</dd>
+                <dd aria-live="polite">
+                  {loading ? <span className="skeleton-line" aria-hidden="true" /> : featuredSpecialtyLabel}
+                </dd>
               </div>
             </dl>
           </div>

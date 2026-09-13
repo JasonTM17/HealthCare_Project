@@ -293,7 +293,9 @@ test("specialties page now behaves like a choice-and-triage hub", async () => {
   assert.match(specialties, /resource-meta-grid/);
   assert.match(specialties, /resource-step-card/);
   assert.match(specialties, /catalog-grid--specialties/);
-  assert.match(specialties, /PublicBackLink/);
+  // Back navigation moved to the shared breadcrumb inside PublicPageShell;
+  // a second standalone back link duplicated it within one screen.
+  assert.match(specialties, /PublicPageShell>/);
 });
 
 test("specialty detail page now behaves like a specialty detail hub", async () => {

@@ -187,9 +187,13 @@ test("patient portal launcher stays compact and low-emphasis on dense dashboards
   const launcherVisual = visual!;
   expect(launcherVisual.width).toBeLessThanOrEqual(54);
   expect(launcherVisual.height).toBeLessThanOrEqual(54);
-  expect(launcherVisual.background[0]).toBeGreaterThan(245);
-  expect(launcherVisual.background[1]).toBeGreaterThan(245);
-  expect(launcherVisual.background[2]).toBeGreaterThan(245);
+  // Design update: the launcher tile is the brand's solid deep teal (it
+  // previously read as a disabled white-on-white control on the dashboard).
+  expect(launcherVisual.background[0]).toBeLessThan(20);
+  expect(launcherVisual.background[1]).toBeGreaterThan(55);
+  expect(launcherVisual.background[1]).toBeLessThan(95);
+  expect(launcherVisual.background[2]).toBeGreaterThan(55);
+  expect(launcherVisual.background[2]).toBeLessThan(95);
   expect(launcherVisual.radius).toBeLessThanOrEqual(4.1);
   expect(launcherVisual.shadow).toBe("none");
 });

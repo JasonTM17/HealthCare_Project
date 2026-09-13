@@ -303,7 +303,6 @@ test("public booking modal settles catalog loading after its live catalog arrive
   });
 
   const page = await context.newPage();
-  page.on("console", (msg) => { if (msg.text().includes("[booking-debug]")) console.log("PAGE-CONSOLE:", msg.text()); });
   await page.goto("/");
   await expect(page.getByText("1 cơ sở đang hiển thị", { exact: true })).toBeVisible();
   await page.locator("button.button--nav").first().click();

@@ -335,7 +335,7 @@
 
 .site-shell .care-experience__badge small {
   color: var(--color-ink-soft);
-  font-size: 0.68rem;
+  font-size: 0.7rem;
   line-height: 1.35;
 }
 
@@ -608,7 +608,7 @@
 
   .site-shell .hero-kicker {
     margin-bottom: 0.8rem;
-    font-size: 0.66rem;
+    font-size: 0.7rem;
   }
 
   .site-shell .hero-kicker__line {
@@ -663,11 +663,11 @@
   }
 
   .site-shell .hero-trust__item strong {
-    font-size: 0.66rem;
+    font-size: 0.7rem;
   }
 
   .site-shell .hero-trust__item small {
-    font-size: 0.6rem;
+    font-size: 0.7rem;
   }
 
   .site-shell .hero-search {
