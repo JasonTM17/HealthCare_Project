@@ -505,7 +505,7 @@ public class AiConversationService {
 
         String safety = stringValue(retrieved.get("safety_action"));
         if (safety != null && !"ANSWER".equals(safety)) {
-            return safetyResponse(mode, safety);
+            return safetyResponse(mode, safety, content);
         }
         List<AiChatSourceResolver.ResolvedSource> authorized = sourceResolver.authorize(
             mode, retrieved.get("candidates"));
@@ -1072,20 +1072,22 @@ public class AiConversationService {
         return new TriageSummary(urgency, specialty);
     }
 
-    private SanitizedAiResponse safetyResponse(ChatMode mode, String rawSafety) {
+    private SanitizedAiResponse safetyResponse(ChatMode mode, String rawSafety, String userContent) {
         ChatSafetyAction action;
         try { action = ChatSafetyAction.valueOf(rawSafety); }
         catch (IllegalArgumentException ex) { throw invalidAiResponse(); }
         String answer = switch (action) {
             case EMERGENCY -> "Nếu bạn đang có dấu hiệu nguy hiểm, hãy gọi 115 ngay hoặc đến cơ sở y tế gần nhất. Tôi không tự động gọi thay bạn.";
-            case REFUSE -> "Tôi không thể chẩn đoán hoặc kê đơn. Bạn nên trao đổi trực tiếp với bác sĩ.";
+            case REFUSE -> isIdentityOrDataRequest(userContent)
+                ? "Tôi không thể tìm kiếm hoặc chia sẻ thông tin nhận dạng, hồ sơ bệnh án hay dữ liệu cá nhân của bất kỳ ai. Nếu bạn cần trích sao hồ sơ của chính mình, hãy liên hệ bộ phận Quản lý hồ sơ của bệnh viện qua mục Liên hệ."
+                : "Tôi không thể chẩn đoán hoặc kê đơn. Bạn nên trao đổi trực tiếp với bác sĩ.";
             case HUMAN_HANDOFF -> "Tôi chưa thể xử lý an toàn yêu cầu này. Bạn có thể trao đổi với nhân viên y tế.";
             default -> "Tôi chưa tìm thấy thông tin đủ tin cậy để trả lời.";
         };
         return new SanitizedAiResponse(
             answer,
             SAFE_DISCLAIMER,
-            "local_provider",
+            "local_fallback",
             List.of(),
             action,
             null,
@@ -1095,11 +1097,31 @@ public class AiConversationService {
         );
     }
 
+    /**
+     * A refusal that names an identifier or record kind should say so.  The
+     * generic diagnose/prescribe refusal otherwise reads as a non-sequitur
+     * when the rejected request was for someone else's data.
+     */
+    private static final java.util.regex.Pattern IDENTITY_OR_DATA_REQUEST =
+        java.util.regex.Pattern.compile(
+            "(?iu)(?:m[ãa]\\s+(?:b[eệ]nh\\s+nh[âa]n|h[eồ]\\s+s[eơ]|\\u0111[ặa]t\\s+l[ịi]ch)"
+                + "|(?:patient|medical\\s+record|appointment)\\s*(?:id|number)"
+                + "|h[eồ]\\s+s[eơ][^.]{0,20}?c[ủu]a\\s+(?:ng[ưu]ời|ai|t[ôo]i|b[eệ]nh\\s+nh[âa]n)"
+                + "|(?:t[iì]m|tra\\s+c[ứu]|li[eệ]t\\s+k[êe]|xem|show|list|reveal|give|cho\\s+t[ôo]i)"
+                + "[^.]{0,40}?(?:h[eồ]\\s+s[eơ]|d[ữ]\\s+li[eệ]u|th[ôo]ng\\s+tin)"
+                + "|(?:data|information|records?)\\s+(?:of|for)\\s+\\w+"
+                + ")"
+        );
+
+    private boolean isIdentityOrDataRequest(String userContent) {
+        return userContent != null && IDENTITY_OR_DATA_REQUEST.matcher(userContent).find();
+    }
+
     private SanitizedAiResponse insufficient(ChatMode mode) {
         return new SanitizedAiResponse(
             "Tôi chưa tìm thấy nguồn thông tin phù hợp và đã dừng trả lời để tránh suy đoán. Bạn có thể chọn mode khác hoặc trao đổi trực tiếp với nhân viên y tế.",
             SAFE_DISCLAIMER,
-            "local_provider",
+            "local_fallback",
             List.of(),
             ChatSafetyAction.INSUFFICIENT_EVIDENCE,
             null,
@@ -1109,12 +1131,66 @@ public class AiConversationService {
         );
     }
 
+    /**
+     * Operational fallback routing.  The previous first-match keyword chain
+     * let the bare token "khám"/"kham" in the booking branch capture almost
+     * every health question ("mất ngủ nên khám chuyên khoa nào" received the
+     * booking guide).  Intents are now scored on distinct multi-word phrases
+     * only, and the highest-scoring intent wins with the declared priority
+     * booking &gt; specialty &gt; preparation &gt; hours for ties.
+     */
+    private static final String[] BOOKING_TERMS = {
+        "đặt lịch", "dat lich", "lịch hẹn", "lich hen", "hẹn khám", "hen kham",
+        "đăng ký khám", "dang ky kham", "đặt khám", "dat kham", "đặt hẹn", "dat hen",
+        "book", "lấy số", "lay so", "số thứ tự", "so thu tu", "đổi lịch", "doi lich",
+        "hủy lịch", "huy lich", "đặt lại lịch", "dat lai lich",
+    };
+    private static final String[] SPECIALTY_TERMS = {
+        "chuyên khoa", "chuyen khoa", "bác sĩ", "bac si", "khoa nào", "khoa nao",
+        "khám khoa", "kham khoa", "nên khám", "nen kham", "khám gì", "kham gi",
+        "triệu chứng", "trieu chung", "phù hợp", "phu hop", "tư vấn", "tu van",
+    };
+    private static final String[] PREPARATION_TERMS = {
+        "chuẩn bị", "chuan bi", "nhịn ăn", "nhin an", "giấy tờ", "giay to", "bhyt",
+        "cần mang", "can mang", "mang theo", "mang theo", "trước khi khám", "truoc khi kham",
+        "trước khi đi khám", "truoc khi di kham", "hồ sơ bệnh án", "ho so benh an",
+    };
+    private static final String[] HOURS_TERMS = {
+        "giờ làm", "gio lam", "giờ khám", "gio kham", "mở cửa", "mo cua", "khung giờ",
+        "khung gio", "ca trực", "ca truc", "làm việc", "lam viec", "24/7",
+        "thời gian làm", "thoi gian lam",
+    };
+
+    private static int countMatches(String normalized, String... terms) {
+        int count = 0;
+        for (String term : terms) {
+            if (normalized.contains(term)) count++;
+        }
+        return count;
+    }
+
     private SanitizedAiResponse hospitalSupportResponse(String content) {
         String normalized = content == null ? "" : content.toLowerCase(Locale.ROOT);
+        int booking = countMatches(normalized, BOOKING_TERMS);
+        int specialty = countMatches(normalized, SPECIALTY_TERMS);
+        int preparation = countMatches(normalized, PREPARATION_TERMS);
+        int hours = countMatches(normalized, HOURS_TERMS);
+        int best = Math.max(Math.max(booking, specialty), Math.max(preparation, hours));
+
         String answer;
         List<Map<String, String>> actions = new ArrayList<>();
 
-        if (matchesAny(normalized, "đặt lịch", "dat lich", "lịch hẹn", "lich hen", "hẹn khám", "hen kham", "khám", "kham", "book", "đăng ký khám")) {
+        if (best == 0) {
+            answer = "Chào bạn, tôi là Trợ lý Thông tin của Hệ thống Y tế HealthCare. Tôi luôn sẵn sàng hỗ trợ bạn về:\n\n"
+                + "• Hướng dẫn quy trình đặt lịch khám trực tuyến với bác sĩ chuyên khoa.\n"
+                + "• Tra cứu thông tin các chuyên khoa, dịch vụ kỹ thuật và gói khám tổng quát.\n"
+                + "• Hướng dẫn giấy tờ, thủ tục BHYT và lưu ý chuẩn bị trước khi đi khám.\n"
+                + "• Tra cứu giờ làm việc và vị trí các cơ sở của bệnh viện.\n\n"
+                + "Bạn vui lòng đặt câu hỏi cụ thể để tôi hướng dẫn chi tiết nhé!";
+            actions.add(Map.of("kind", "OPEN_BOOKING", "label", "Đặt lịch khám", "href", "/dat-lich"));
+            actions.add(Map.of("kind", "VIEW_SPECIALTIES", "label", "Khám phá chuyên khoa", "href", "/specialties"));
+            actions.add(Map.of("kind", "VIEW_SERVICES", "label", "Bảng giá dịch vụ", "href", "/services"));
+        } else if (booking == best) {
             answer = "Để đặt lịch khám tại Hệ thống Y tế HealthCare, bạn có thể thực hiện nhanh chóng qua các bước sau:\n\n"
                 + "1. Bước 1: Mở mục \"Đặt lịch khám\" trên thanh điều hướng hoặc bấm nút bên dưới.\n"
                 + "2. Bước 2: Chọn Chuyên khoa theo nhu cầu (hoặc chọn trực tiếp Bác sĩ chuyên môn).\n"
@@ -1124,23 +1200,7 @@ public class AiConversationService {
             actions.add(Map.of("kind", "OPEN_BOOKING", "label", "Đặt lịch khám ngay", "href", "/dat-lich"));
             actions.add(Map.of("kind", "VIEW_SPECIALTIES", "label", "Xem danh sách chuyên khoa", "href", "/specialties"));
             actions.add(Map.of("kind", "VIEW_DOCTORS", "label", "Đội ngũ bác sĩ", "href", "/doctors"));
-        } else if (matchesAny(normalized, "chuẩn bị", "chuan bi", "nhịn ăn", "nhin an", "giấy tờ", "giay to", "bhyt", "hồ sơ", "ho so")) {
-            answer = "Trước khi đi khám tại HealthCare, bạn nên lưu ý những điều sau để quá trình thăm khám diễn ra thuận lợi nhất:\n\n"
-                + "1. Giấy tờ tùy thân: Mang theo Căn cước công dân (CCCD)/Hộ chiếu và thẻ BHYT (nếu có).\n"
-                + "2. Hồ sơ bệnh án cũ: Mang theo đơn thuốc đang dùng, kết quả xét nghiệm và phim chụp trong vòng 6 tháng gần nhất.\n"
-                + "3. Nhịn ăn sáng: Nếu bạn dự kiến làm xét nghiệm máu hoặc siêu âm ổ bụng, vui lòng nhịn ăn ít nhất 6-8 tiếng (có thể uống một ít nước lọc).\n"
-                + "4. Chuẩn bị câu hỏi: Ghi lại các triệu chứng, thời điểm xuất hiện và các băn khoăn để trao đổi trực tiếp với bác sĩ chuyên khoa.";
-            actions.add(Map.of("kind", "OPEN_BOOKING", "label", "Đặt lịch khám", "href", "/dat-lich"));
-            actions.add(Map.of("kind", "VIEW_PACKAGES", "label", "Xem các gói khám", "href", "/packages"));
-        } else if (matchesAny(normalized, "giờ", "gio", "thời gian", "thoi gian", "mở cửa", "mo cua", "ngày làm việc", "ngay lam viec")) {
-            answer = "Thời gian làm việc tại các cơ sở thuộc Hệ thống Y tế HealthCare:\n\n"
-                + "- Khám chuyên khoa tiêu chuẩn: 07:30 - 17:00 từ Thứ Hai đến Thứ Bảy.\n"
-                + "- Khám dịch vụ ngoài giờ: 17:00 - 20:00 các ngày trong tuần.\n"
-                + "- Khoa Cấp cứu & Hồi sức: Trực 24/7 tất cả các ngày trong năm (kể cả Thứ Bảy, Chủ Nhật và ngày Lễ, Tết).\n\n"
-                + "Khuyến nghị quý khách nên đặt lịch trước để được tiếp đón ưu tiên và không phải chờ đợi lâu.";
-            actions.add(Map.of("kind", "OPEN_BOOKING", "label", "Đặt lịch khám", "href", "/dat-lich"));
-            actions.add(Map.of("kind", "VIEW_BRANCHES", "label", "Danh sách cơ sở", "href", "/branches"));
-        } else if (matchesAny(normalized, "chuyên khoa", "chuyen khoa", "bác sĩ", "bac si", "khoa")) {
+        } else if (specialty == best) {
             answer = "Hệ thống Y tế HealthCare quy tụ đội ngũ bác sĩ chuyên khoa đầu ngành giàu kinh nghiệm với các chuyên khoa mũi nhọn:\n\n"
                 + "- Khoa Tim mạch & Can thiệp mạch máu\n"
                 + "- Khoa Tiêu hóa & Gan mật\n"
@@ -1152,22 +1212,28 @@ public class AiConversationService {
                 + "Bạn có thể xem chi tiết thông tin và đặt lịch với từng bác sĩ trên hệ thống.";
             actions.add(Map.of("kind", "VIEW_SPECIALTIES", "label", "Xem các chuyên khoa", "href", "/specialties"));
             actions.add(Map.of("kind", "VIEW_DOCTORS", "label", "Danh sách bác sĩ", "href", "/doctors"));
-        } else {
-            answer = "Chào bạn, tôi là Trợ lý Thông tin của Hệ thống Y tế HealthCare. Tôi luôn sẵn sàng hỗ trợ bạn về:\n\n"
-                + "• Hướng dẫn quy trình đặt lịch khám trực tuyến với bác sĩ chuyên khoa.\n"
-                + "• Tra cứu thông tin các chuyên khoa, dịch vụ kỹ thuật và gói khám tổng quát.\n"
-                + "• Hướng dẫn giấy tờ, thủ tục BHYT và lưu ý chuẩn bị trước khi đi khám.\n"
-                + "• Tra cứu giờ làm việc và vị trí các cơ sở của bệnh viện.\n\n"
-                + "Bạn vui lòng đặt câu hỏi cụ thể để tôi hướng dẫn chi tiết nhé!";
+        } else if (preparation == best) {
+            answer = "Trước khi đi khám tại HealthCare, bạn nên lưu ý những điều sau để quá trình thăm khám diễn ra thuận lợi nhất:\n\n"
+                + "1. Giấy tờ tùy thân: Mang theo Căn cước công dân (CCCD)/Hộ chiếu và thẻ BHYT (nếu có).\n"
+                + "2. Hồ sơ bệnh án cũ: Mang theo đơn thuốc đang dùng, kết quả xét nghiệm và phim chụp trong vòng 6 tháng gần nhất.\n"
+                + "3. Nhịn ăn sáng: Nếu bạn dự kiến làm xét nghiệm máu hoặc siêu âm ổ bụng, vui lòng nhịn ăn ít nhất 6-8 tiếng (có thể uống một ít nước lọc).\n"
+                + "4. Chuẩn bị câu hỏi: Ghi lại các triệu chứng, thời điểm xuất hiện và các băn khoăn để trao đổi trực tiếp với bác sĩ chuyên khoa.";
             actions.add(Map.of("kind", "OPEN_BOOKING", "label", "Đặt lịch khám", "href", "/dat-lich"));
-            actions.add(Map.of("kind", "VIEW_SPECIALTIES", "label", "Khám phá chuyên khoa", "href", "/specialties"));
-            actions.add(Map.of("kind", "VIEW_SERVICES", "label", "Bảng giá dịch vụ", "href", "/services"));
+            actions.add(Map.of("kind", "VIEW_PACKAGES", "label", "Xem các gói khám", "href", "/packages"));
+        } else {
+            answer = "Thời gian làm việc tại các cơ sở thuộc Hệ thống Y tế HealthCare:\n\n"
+                + "- Khám chuyên khoa tiêu chuẩn: 07:30 - 17:00 từ Thứ Hai đến Thứ Bảy.\n"
+                + "- Khám dịch vụ ngoài giờ: 17:00 - 20:00 các ngày trong tuần.\n"
+                + "- Khoa Cấp cứu & Hồi sức: Trực 24/7 tất cả các ngày trong năm (kể cả Thứ Bảy, Chủ Nhật và ngày Lễ, Tết).\n\n"
+                + "Khuyến nghị quý khách nên đặt lịch trước để được tiếp đón ưu tiên và không phải chờ đợi lâu.";
+            actions.add(Map.of("kind", "OPEN_BOOKING", "label", "Đặt lịch khám", "href", "/dat-lich"));
+            actions.add(Map.of("kind", "VIEW_BRANCHES", "label", "Danh sách cơ sở", "href", "/branches"));
         }
 
         return new SanitizedAiResponse(
             answer,
             "Thông tin hướng dẫn quy trình và dịch vụ chăm sóc tại Hệ thống Y tế HealthCare.",
-            "local_provider",
+            "local_fallback",
             List.of(),
             ChatSafetyAction.ANSWER,
             null,
@@ -1175,14 +1241,6 @@ public class AiConversationService {
             "CURRENT",
             List.of()
         );
-    }
-
-    private boolean matchesAny(String text, String... terms) {
-        if (text == null || text.isBlank()) return false;
-        for (String term : terms) {
-            if (text.contains(term)) return true;
-        }
-        return false;
     }
 
     private List<Map<String, String>> emergencyActions() {

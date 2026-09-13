@@ -13,6 +13,7 @@ import {
 import type {
   AiChatPolicy,
   AiChatExchange,
+  AiChatProvenance,
   AiConversation,
   ChatMode,
 } from "../types/hospital";
@@ -47,6 +48,22 @@ export const ASSISTANT_MODE_OPTIONS: ReadonlyArray<{
 ];
 
 export const DEFAULT_CHAT_MODE: ChatMode = "HOSPITAL_SUPPORT";
+
+/**
+ * Honest source label shared by the floating panel and the full chat page.
+ * A local rule answer is only attributable to HealthCare when the server
+ * attached verified catalog citations; without them it is a fallback.
+ */
+export function provenanceLabel(provenance: AiChatProvenance, citationCount: number): string {
+  switch (provenance) {
+    case "local_fallback":
+      return "Hỗ trợ tạm thời";
+    case "remote_provider":
+      return "Phản hồi AI có kiểm soát";
+    default:
+      return citationCount > 0 ? "Nguồn HealthCare" : "Hỗ trợ tạm thời";
+  }
+}
 
 export function assistantModeLabel(mode: ChatMode): string {
   return ASSISTANT_MODE_OPTIONS.find((option) => option.value === mode)?.label ?? "Thông tin bệnh viện";

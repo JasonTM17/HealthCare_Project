@@ -8,6 +8,7 @@ from app.llm import (
     RULE_BASED,
     OpenAIChatClient,
     build_llm_client,
+    chat_contains_sensitive_data,
     deepseek_triage,
     remote_text_output_is_safe,
     resolve_chat,
@@ -503,3 +504,40 @@ def test_invalid_remote_output_path_is_unreachable_outside_local_runtime() -> No
         result = resolve_triage("đau ngực", settings)
     assert result.provenance == "local_fallback"
     mock_openai.assert_not_called()
+
+
+# --- Egress gate precision: approved clinical prose vs. real PII ----------
+# The reconciliation loop rejected five approved articles because the
+# street-address and numeric-date shapes matched folded Vietnamese substrings
+# ("phổ biến" -> "pho", "đái tháo đường" -> "duong", the "20-20-20" eye rule).
+# These tests pin both directions: real addresses/dates must still fail closed.
+
+_GATE_PII_MUST_STILL_BLOCK = [
+    "địa chỉ phòng khám: 12 đường Lê Lợi, quận 1",
+    "khoa nằm ở số 5 phố Huế",
+    "nhà bệnh nhân tại 289A đường Nguyễn Trãi",
+    "tái khám 25/03/2026 lúc 9 giờ",
+    "khám ngày 12/12/2024",
+    "hẹn lịch 03-25-2026",
+    "đến 123 Main Street ngày mai",
+]
+
+_GATE_CLINICAL_PROSE_MUST_PASS = [
+    "4 sai lầm phổ biến khi chăm sóc trẻ biếng ăn",
+    "áp dụng quy tắc 20-20-20 để giảm mỏi mắt",
+    "4 bước đảo ngược tiền đái tháo đường",
+    "tầm soát biến chứng đái tháo đường type 2",
+    "trẻ bị viêm phế quản cấp 2 lần viêm đường hô hấp trong năm",
+    "người bệnh đái tháo đường nên khám mắt mỗi năm",
+    "giảm muối dưới 5 gam mỗi ngày phòng tăng huyết áp",
+]
+
+
+@pytest.mark.parametrize("text", _GATE_PII_MUST_STILL_BLOCK)
+def test_egress_gate_blocks_real_addresses_and_dates(text: str) -> None:
+    assert chat_contains_sensitive_data(text), f"expected PII block: {text}"
+
+
+@pytest.mark.parametrize("text", _GATE_CLINICAL_PROSE_MUST_PASS)
+def test_egress_gate_allows_common_clinical_prose(text: str) -> None:
+    assert not chat_contains_sensitive_data(text), f"false positive: {text}"

@@ -428,6 +428,7 @@ function BookingExperience({
   const [catalogRequest, setCatalogRequest] = useState<number>(0);
   const [selectionError, setSelectionError] = useState<string>("");
   const [selectedSpecialty, setSelectedSpecialty] = useState<string>(initialSpecialtyId || "");
+
   const [selectedDoctor, setSelectedDoctor] = useState<string>(initialDoctorId || "");
   const [selectedBranch, setSelectedBranch] = useState<string>(initialBranchId || "");
   const [selectedPackage, setSelectedPackage] = useState<string>(initialPackageId || "");
@@ -598,6 +599,10 @@ function BookingExperience({
       if (needsSpecialties) {
         if (resolvedSpecialty) {
           setLoadedSpecialties(resolvedSpecialty.content);
+          // Prefill at load time: the syncSelection identity chain alone can
+          // miss this transition under slow-runner timing and leave the
+          // specialty select on its disabled placeholder.
+          setSelectedSpecialty((current) => current || resolvedSpecialty.content[0]?.id || "");
           if (resolvedSpecialty.content.length === 0) missing.push("danh sách chuyên khoa");
         } else {
           missing.push("chuyên khoa");
@@ -606,7 +611,8 @@ function BookingExperience({
       if (needsBranches) {
         if (resolvedBranch) {
           setLoadedBranches(resolvedBranch.content);
-          if (resolvedBranch.content.length === 0) missing.push("danh sách cơ sở khám");
+          setSelectedBranch((current) => current || resolvedBranch.content[0]?.id || "");
+          if (resolvedBranch.content.length === 0) missing.push("cơ sở khám");
         } else {
           missing.push("cơ sở khám");
         }
@@ -648,6 +654,7 @@ function BookingExperience({
       && doctorMatchesSpecialty(doctor, nextSpecialty))
       ?? doctors.find((doctor) => doctorMatchesBranch(doctor, nextBranchId)
         && doctorMatchesSpecialty(doctor, nextSpecialty));
+    setSelectedSpecialty(nextSpecialtyId);
     setSelectedBranch(nextBranchId);
     setSelectedDoctor(firstDoctor?.id ?? "");
     setSelectedPackage(
@@ -663,16 +670,6 @@ function BookingExperience({
     const task = Promise.resolve().then(syncSelection);
     return () => void task;
   }, [syncSelection]);
-
-  // Prefill deterministically once the internal catalog resolves: on slow
-  // runners the syncSelection identity chain can miss the load completing and
-  // leave the specialty select on its disabled placeholder (CI-only flake).
-  useEffect(() => {
-    if (!active || catalogLoading || catalogError !== "") return;
-    if (providedSpecialties.length > 0) return;
-    const task = Promise.resolve().then(syncSelection);
-    return () => void task;
-  }, [active, catalogLoading, catalogError, providedSpecialties.length, syncSelection]);
 
   useEffect(() => slotQueryOwner.enterLifecycle(active), [active, slotQueryOwner]);
 
