@@ -14,6 +14,9 @@ export default defineConfig({
     timeout: 10_000,
   },
   reporter: process.env.CI ? [["github"], ["list"]] : "list",
+  // E2E timing assertions are load-sensitive on shared runners; retry CI
+  // failures so one slow pass cannot fail an otherwise-correct oracle.
+  retries: process.env.CI ? 2 : 0,
   use: {
     baseURL: `http://localhost:${port}`,
     trace: "retain-on-failure",

@@ -365,7 +365,9 @@ test.describe("Multi-User Roles & Realtime Interactions", () => {
   test("5 Doctors concurrently author articles, broadcast real-time updates, and discuss with patients", async ({
     browser,
   }) => {
-    test.setTimeout(90_000);
+    // Five full TinyMCE authoring flows plus multi-tab realtime: measured
+    // runtime exceeds 90s on load-shared machines.
+    test.setTimeout(150_000);
     const backend = await startMultiRoleMockBackend();
 
     try {
@@ -476,7 +478,9 @@ test.describe("Multi-User Roles & Realtime Interactions", () => {
 
       // ── Step 3: Interactive Peer Discussion & Patient Question ────────────
       // Patient 1 opens Doctor 1's cardiology article to read
-      await patientPage.locator("article").filter({ hasText: doctorArticles[0].title }).click();
+      // Community cards render as role=link with /articles/<slug> hrefs; the
+      // lone <article> element on the page is the featured-latest hero.
+      await patientPage.getByRole("link", { name: doctorArticles[0].title }).click();
       await expect(patientPage.getByRole("heading", { level: 1, name: doctorArticles[0].title })).toBeVisible();
 
       // Patient posts a question
