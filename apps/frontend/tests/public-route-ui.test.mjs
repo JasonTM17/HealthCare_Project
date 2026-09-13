@@ -77,7 +77,7 @@ test("public route styling keeps dark heroes legible and guidance responsive", a
   assert.match(styles, /\.resource-chip \{[\s\S]*?border-radius: 0;/);
   assert.match(styles, /\.site-shell--public-route \.resource-grid--two \.resource-steps--grid/);
   assert.match(styles, /\.public-route-breadcrumb__list/);
-  assert.match(styles, /@media \(max-width: 760px\)[\s\S]*\.site-shell--public-route \.resource-page__header h1/);
+  assert.match(styles, /@media \(max-width: 900px\)[\s\S]*\.site-shell--public-route \.resource-page__header h1/);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.site-shell--public-route \.catalog-status--loading::before/);
 });
 

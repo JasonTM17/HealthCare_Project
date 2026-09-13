@@ -1,6 +1,6 @@
 .root {
   --assistant-ink: #123d3e;
-  --assistant-deep: #004c4e;
+  --assistant-deep: var(--color-teal-800);
   --assistant-mint: #e9f5f1;
   --assistant-paper: #fffdf9;
   --assistant-line: #d8e4e0;
@@ -56,7 +56,7 @@
   justify-content: space-between;
   gap: 0.75rem;
   padding: 0.75rem 1rem;
-  background: #004c4e;
+  background: var(--color-teal-800);
   color: white;
 }
 
@@ -723,12 +723,12 @@
   min-width: 3.25rem;
   min-height: 3.25rem;
   padding: 0;
-  border: 1px solid #004c4e;
+  border: 1px solid var(--color-teal-800);
   border-radius: var(--radius-sm);
   /* The previous white-on-white tile read as a disabled control next to the
      page; the site-wide design contract keeps surfaces flat (no shadows or
      gradients), so the assistant now uses the brand's solid deep teal. */
-  background: #004c4e;
+  background: var(--color-teal-800);
   box-shadow: none;
   color: #ffffff;
   overflow: visible;
@@ -822,8 +822,8 @@
 }
 
 .launcher[aria-expanded="true"] {
-  border-color: #004c4e;
-  background: #004c4e;
+  border-color: var(--color-teal-800);
+  background: var(--color-teal-800);
   color: white;
 }
 
