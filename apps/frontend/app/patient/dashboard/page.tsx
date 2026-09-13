@@ -2186,7 +2186,7 @@ export default function PatientDashboardPage() {
           </>
         )}
 
-        <p className="portal-disclaimer">Hồ sơ sức khỏe được cập nhật trực tiếp từ hệ thống bệnh viện HealthCare. Để đảm bảo an toàn, quý khách vui lòng luôn tham vấn ý kiến bác sĩ trước khi thay đổi đơn thuốc hoặc liệu trình điều trị.</p>
+        <p className="portal-disclaimer">Hồ sơ sức khỏe được cập nhật trực tiếp từ hệ thống bệnh viện HealthCare. Để đảm bảo an toàn, bạn hãy luôn tham vấn ý kiến bác sĩ trước khi thay đổi đơn thuốc hoặc liệu trình điều trị.</p>
       </div>
     </PortalChrome>
   );

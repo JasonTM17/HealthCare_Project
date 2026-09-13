@@ -1181,7 +1181,7 @@ public class AiConversationService {
         List<Map<String, String>> actions = new ArrayList<>();
 
         if (best == 0) {
-            answer = "Chào bạn, tôi là Trợ lý Thông tin của Hệ thống Y tế HealthCare. Tôi luôn sẵn sàng hỗ trợ bạn về:\n\n"
+            answer = "Chào bạn, tôi là Trợ lý Thông tin của bệnh viện đa khoa HealthCare. Tôi luôn sẵn sàng hỗ trợ bạn về:\n\n"
                 + "• Hướng dẫn quy trình đặt lịch khám trực tuyến với bác sĩ chuyên khoa.\n"
                 + "• Tra cứu thông tin các chuyên khoa, dịch vụ kỹ thuật và gói khám tổng quát.\n"
                 + "• Hướng dẫn giấy tờ, thủ tục BHYT và lưu ý chuẩn bị trước khi đi khám.\n"
@@ -1191,7 +1191,7 @@ public class AiConversationService {
             actions.add(Map.of("kind", "VIEW_SPECIALTIES", "label", "Khám phá chuyên khoa", "href", "/specialties"));
             actions.add(Map.of("kind", "VIEW_SERVICES", "label", "Bảng giá dịch vụ", "href", "/services"));
         } else if (booking == best) {
-            answer = "Để đặt lịch khám tại Hệ thống Y tế HealthCare, bạn có thể thực hiện nhanh chóng qua các bước sau:\n\n"
+            answer = "Để đặt lịch khám tại bệnh viện đa khoa HealthCare, bạn có thể thực hiện nhanh chóng qua các bước sau:\n\n"
                 + "1. Bước 1: Mở mục \"Đặt lịch khám\" trên thanh điều hướng hoặc bấm nút bên dưới.\n"
                 + "2. Bước 2: Chọn Chuyên khoa theo nhu cầu (hoặc chọn trực tiếp Bác sĩ chuyên môn).\n"
                 + "3. Bước 3: Chọn cơ sở y tế gần nhất, ngày khám và khung giờ còn trống thuận tiện.\n"
@@ -1201,7 +1201,7 @@ public class AiConversationService {
             actions.add(Map.of("kind", "VIEW_SPECIALTIES", "label", "Xem danh sách chuyên khoa", "href", "/specialties"));
             actions.add(Map.of("kind", "VIEW_DOCTORS", "label", "Đội ngũ bác sĩ", "href", "/doctors"));
         } else if (specialty == best) {
-            answer = "Hệ thống Y tế HealthCare quy tụ đội ngũ bác sĩ chuyên khoa đầu ngành giàu kinh nghiệm với các chuyên khoa mũi nhọn:\n\n"
+            answer = "Bệnh viện đa khoa HealthCare quy tụ đội ngũ bác sĩ chuyên khoa đầu ngành giàu kinh nghiệm với các chuyên khoa mũi nhọn:\n\n"
                 + "- Khoa Tim mạch & Can thiệp mạch máu\n"
                 + "- Khoa Tiêu hóa & Gan mật\n"
                 + "- Khoa Thần kinh & Đột quỵ\n"
@@ -1221,18 +1221,18 @@ public class AiConversationService {
             actions.add(Map.of("kind", "OPEN_BOOKING", "label", "Đặt lịch khám", "href", "/dat-lich"));
             actions.add(Map.of("kind", "VIEW_PACKAGES", "label", "Xem các gói khám", "href", "/packages"));
         } else {
-            answer = "Thời gian làm việc tại các cơ sở thuộc Hệ thống Y tế HealthCare:\n\n"
+            answer = "Thời gian làm việc tại các cơ sở của bệnh viện đa khoa HealthCare:\n\n"
                 + "- Khám chuyên khoa tiêu chuẩn: 07:30 - 17:00 từ Thứ Hai đến Thứ Bảy.\n"
                 + "- Khám dịch vụ ngoài giờ: 17:00 - 20:00 các ngày trong tuần.\n"
                 + "- Khoa Cấp cứu & Hồi sức: Trực 24/7 tất cả các ngày trong năm (kể cả Thứ Bảy, Chủ Nhật và ngày Lễ, Tết).\n\n"
-                + "Khuyến nghị quý khách nên đặt lịch trước để được tiếp đón ưu tiên và không phải chờ đợi lâu.";
+                + "Bạn nên đặt lịch trước để được tiếp đón ưu tiên và không phải chờ đợi lâu.";
             actions.add(Map.of("kind", "OPEN_BOOKING", "label", "Đặt lịch khám", "href", "/dat-lich"));
             actions.add(Map.of("kind", "VIEW_BRANCHES", "label", "Danh sách cơ sở", "href", "/branches"));
         }
 
         return new SanitizedAiResponse(
             answer,
-            "Thông tin hướng dẫn quy trình và dịch vụ chăm sóc tại Hệ thống Y tế HealthCare.",
+            "Thông tin hướng dẫn quy trình và dịch vụ chăm sóc tại bệnh viện đa khoa HealthCare.",
             "local_fallback",
             List.of(),
             ChatSafetyAction.ANSWER,
