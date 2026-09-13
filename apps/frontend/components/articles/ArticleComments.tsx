@@ -29,7 +29,6 @@ function getSpecialtyLabel(category?: string | null, authorName?: string): strin
 function DoctorVerifiedBadge({ specialty }: { specialty: string | null }) {
   return (
     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-[4px] bg-teal-800 text-white text-[11px] font-bold">
-      <span>🩺</span>
       <span>Bác sĩ chuyên khoa xác thực</span>
       {specialty ? <span className="text-teal-200 font-normal">· {specialty}</span> : null}
     </span>
@@ -144,7 +143,6 @@ export function ArticleComments({ slug, category }: ArticleCommentsProps) {
     <section id="article-comments" aria-labelledby="article-comments-heading" className="article-news-section article-comments-section mt-10 pt-8 border-t border-slate-200">
       <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
         <div className="flex items-center gap-2">
-          <span className="text-xl" aria-hidden="true">💬</span>
           <h2 id="article-comments-heading" className="text-xl font-bold text-slate-900 m-0">
             Hỏi đáp &amp; Thảo luận y khoa ({comments.length})
           </h2>
@@ -157,7 +155,6 @@ export function ArticleComments({ slug, category }: ArticleCommentsProps) {
       {/* Safety Guidelines Card */}
       <div className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-[4px]">
         <div className="flex items-center gap-2 mb-2 text-xs font-bold text-slate-800">
-          <span aria-hidden="true">🛡️</span>
           <span>Quy tắc hỏi đáp y khoa an toàn:</span>
         </div>
         <ul className="text-[12px] text-slate-600 space-y-1 pl-4 list-disc mb-0">
@@ -216,16 +213,13 @@ export function ArticleComments({ slug, category }: ArticleCommentsProps) {
         </form>
       ) : (
         <div className="mb-8 p-4 bg-teal-50/80 border border-teal-200 rounded-[4px] flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-3">
-            <span className="text-teal-800 text-xl" aria-hidden="true">🔒</span>
-            <div>
-              <p className="text-xs text-teal-950 font-bold m-0">
-                Bạn có câu hỏi dành cho bác sĩ chuyên khoa?
-              </p>
-              <p className="text-[11px] text-teal-800 m-0">
-                Đăng nhập để đặt câu hỏi trực tiếp và nhận phản hồi từ đội ngũ chuyên môn trên cẩm nang y khoa.
-              </p>
-            </div>
+          <div>
+            <p className="text-xs text-teal-950 font-bold m-0">
+              Bạn có câu hỏi dành cho bác sĩ chuyên khoa?
+            </p>
+            <p className="text-[11px] text-teal-800 m-0">
+              Đăng nhập để đặt câu hỏi trực tiếp và nhận phản hồi từ đội ngũ chuyên môn trên cẩm nang y khoa.
+            </p>
           </div>
           <Link
             href={`/auth/login?next=${encodeURIComponent(`/articles/${slug}`)}`}
@@ -287,7 +281,7 @@ export function ArticleComments({ slug, category }: ArticleCommentsProps) {
                           {comment.authorName}
                         </span>
                         <span className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-[2px]">
-                          ❓ Câu hỏi
+                          Câu hỏi
                         </span>
                       </div>
                       <span className="text-[10px] text-slate-400">
@@ -299,7 +293,7 @@ export function ArticleComments({ slug, category }: ArticleCommentsProps) {
                     <DoctorVerifiedBadge specialty={authorSpecialty} />
                   ) : comment.authorRole === "ADMIN" ? (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[4px] bg-indigo-50 border border-indigo-300 text-[10px] font-bold text-indigo-800">
-                      🛡 Ban Biên Tập
+                      Ban Biên Tập
                     </span>
                   ) : (
                     <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] bg-slate-100 text-[10px] font-medium text-slate-600">
@@ -339,7 +333,6 @@ export function ArticleComments({ slug, category }: ArticleCommentsProps) {
                   >
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs font-bold text-teal-950 flex items-center gap-1.5">
-                        <span>🩺</span>
                         <span>Phản hồi chuyên môn từ Bác sĩ:</span>
                         {specialtyContext ? (
                           <span className="text-teal-800 font-normal">({specialtyContext})</span>
@@ -383,7 +376,6 @@ export function ArticleComments({ slug, category }: ArticleCommentsProps) {
                 {replies.length > 0 && (
                   <div className="border-l-2 border-teal-600 pl-4 ml-10.5 mt-4 space-y-3">
                     <div className="text-[11px] font-bold text-teal-900 uppercase tracking-wider flex items-center gap-1">
-                      <span>🩺</span>
                       <span>Luồng phản hồi &amp; giải đáp ({replies.length})</span>
                     </div>
                     {replies.map((reply) => {
