@@ -154,7 +154,9 @@ export default function ArticleDetailPage() {
                   {article.category ? (
                     <span className="article-editorial-header__cat-tag">{article.category}</span>
                   ) : null}
-                  <span className="article-editorial-header__trust-tag">Tham vấn y khoa (Peer-reviewed)</span>
+                  <span className="article-editorial-header__trust-tag">
+                    🛡️ Tham vấn y khoa (Peer-reviewed)
+                  </span>
                   <span className="resource-chip">Nội dung tham khảo · không thay thế chẩn đoán</span>
                 </div>
 
@@ -203,7 +205,7 @@ export default function ArticleDetailPage() {
                     src={resolveArticleCoverImage(article)}
                   />
                   <figcaption className="article-editorial-header__img-caption">
-                    Tài liệu hình ảnh tham khảo chuyên khoa y tế HealthCare
+                    Hình ảnh y khoa minh họa · Nguồn: Hệ thống Y tế HealthCare
                   </figcaption>
                 </figure>
               </article>
@@ -211,20 +213,21 @@ export default function ArticleDetailPage() {
               {structuredSections.length || article?.body || takeaways.length || warningSigns.length || article?.whenToSeekCare ? (
                 <nav aria-label="Mục lục bài viết" className="article-toc">
                   <div className="article-toc__heading">
+                    <span className="article-toc__icon">📑</span>
                     <strong>Mục lục bài viết</strong>
                   </div>
                   <ol className="article-toc__list">
                     {warningSigns.length ? (
                       <li>
                         <a href="#section-emergency" className="article-toc__link article-toc__link--emergency">
-                          Dấu hiệu cấp cứu 115 (Quy tắc giờ vàng)
+                          🚨 Dấu hiệu cấp cứu 115 (Quy tắc giờ vàng)
                         </a>
                       </li>
                     ) : null}
                     {takeaways.length ? (
                       <li>
                         <a href="#section-takeaways" className="article-toc__link">
-                          Điểm cốt lõi cần nhớ (Key Takeaways)
+                          💡 Điểm cốt lõi cần nhớ (Key Takeaways)
                         </a>
                       </li>
                     ) : null}
@@ -245,7 +248,7 @@ export default function ArticleDetailPage() {
                     {article?.whenToSeekCare ? (
                       <li>
                         <a href="#section-when-to-seek-care" className="article-toc__link">
-                          Khi nào nên đi khám bác sĩ
+                          🩺 Khi nào nên đi khám bác sĩ
                         </a>
                       </li>
                     ) : null}
@@ -265,7 +268,7 @@ export default function ArticleDetailPage() {
                     ) : null}
                     <li>
                       <a href="#section-discussion" className="article-toc__link">
-                        Hỏi đáp &amp; Thảo luận y khoa
+                        💬 Hỏi đáp &amp; Thảo luận y khoa
                       </a>
                     </li>
                   </ol>
@@ -281,8 +284,9 @@ export default function ArticleDetailPage() {
               >
                 {/* Emergency Warning Signs - Prioritized for Mobile Reading Safety */}
                 {warningSigns.length ? (
-                  <div id="section-emergency" className="article-news-alert-box article-news-alert-box--danger" role="alert">
+                  <section id="section-emergency" className="article-news-alert-box article-news-alert-box--danger" role="alert">
                     <div className="article-news-alert-box__header">
+                      <span className="article-news-alert-box__icon">🚨</span>
                       <strong>DẤU HIỆU CẦN ĐI CẤP CỨU NGAY (QUY TẮC GIỜ VÀNG)</strong>
                     </div>
                     <p className="article-news-alert-box__sub">
@@ -291,23 +295,24 @@ export default function ArticleDetailPage() {
                     <ul className="article-news-alert-box__list">
                       {warningSigns.map((sign) => (
                         <li key={sign}>
-                          <span className="article-news-alert-box__bullet">•</span>
+                          <span className="article-news-alert-box__bullet">⚠</span>
                           <span>{sign}</span>
                         </li>
                       ))}
                     </ul>
                     <div className="article-news-alert-box__actions">
                       <a className="outline-button outline-button--small outline-button--danger" href="tel:115">
-                        Gọi cấp cứu 115 ngay
+                        📞 Gọi cấp cứu 115 ngay
                       </a>
                     </div>
-                  </div>
+                  </section>
                 ) : null}
 
                 {/* Key Takeaways Box (At a Glance) */}
                 {takeaways.length ? (
-                  <div id="section-takeaways" className="article-news-summary-box">
+                  <section id="section-takeaways" className="article-news-summary-box">
                     <div className="article-news-summary-box__title">
+                      <span>💡</span>
                       <strong>Điểm cốt lõi cần nhớ (Key Takeaways)</strong>
                     </div>
                     <ul className="article-news-summary-box__list">
@@ -318,7 +323,7 @@ export default function ArticleDetailPage() {
                         </li>
                       ))}
                     </ul>
-                  </div>
+                  </section>
                 ) : null}
 
                 {/* Primary Long-form Clinical Body */}
@@ -357,25 +362,11 @@ export default function ArticleDetailPage() {
                   </div>
                 ) : null}
 
-                {preventionTips.length ? (
-                  <section id="section-prevention" className="article-news-section article-news-prevention">
-                    <h2 className="article-news-section__heading">Hướng dẫn phòng bệnh &amp; lối sống lành mạnh</h2>
-                    <div className="article-news-prevention__box">
-                      <ul className="article-news-prevention__list">
-                        {preventionTips.map((tip) => (
-                          <li key={tip}>
-                            <span className="article-news-prevention__check">✓</span>
-                            <span>{tip}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </section>
-                ) : null}
-
+                {/* Clinical Callout: When to Seek Care ("Khi nào nên đi khám bác sĩ") */}
                 {article.whenToSeekCare ? (
                   <section id="section-when-to-seek-care" className="article-news-seek-care">
                     <div className="article-news-seek-care__header">
+                      <span className="article-news-seek-care__icon" aria-hidden="true">🩺</span>
                       <div>
                         <h3 className="article-news-seek-care__title">Khi nào nên đi khám bác sĩ</h3>
                         <p className="article-news-seek-care__sub">
@@ -398,6 +389,22 @@ export default function ArticleDetailPage() {
                           Tìm hiểu chuyên khoa {article.category || ""} →
                         </Link>
                       ) : null}
+                    </div>
+                  </section>
+                ) : null}
+
+                {preventionTips.length ? (
+                  <section id="section-prevention" className="article-news-section article-news-prevention">
+                    <h2 className="article-news-section__heading">Hướng dẫn phòng bệnh &amp; lối sống lành mạnh</h2>
+                    <div className="article-news-prevention__box">
+                      <ul className="article-news-prevention__list">
+                        {preventionTips.map((tip) => (
+                          <li key={tip}>
+                            <span className="article-news-prevention__check">✓</span>
+                            <span>{tip}</span>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                   </section>
                 ) : null}
@@ -496,7 +503,7 @@ export default function ArticleDetailPage() {
 
               {takeaways.length ? (
                 <div className="article-news-sidebar__card article-news-sidebar__takeaways">
-                  <span className="article-news-sidebar__card-tag">THÔNG ĐIỆP CHÍNH</span>
+                  <span className="article-news-sidebar__card-tag">💡 THÔNG ĐIỆP CHÍNH</span>
                   <h3>Điểm cốt lõi cần nhớ</h3>
                   <ul className="article-news-sidebar__takeaways-list">
                     {takeaways.map((item) => (
@@ -511,13 +518,13 @@ export default function ArticleDetailPage() {
 
               {warningSigns.length ? (
                 <div className="article-news-sidebar__card article-news-sidebar__warning">
-                  <span className="article-news-sidebar__warning-tag">CẢNH BÁO Y TẾ</span>
+                  <span className="article-news-sidebar__warning-tag">⚠ CẢNH BÁO Y TẾ</span>
                   <h3>Dấu hiệu cần đi cấp cứu ngay</h3>
                   <p className="text-xs text-rose-800 mb-2">Nếu triệu chứng xuất hiện đột ngột hoặc nặng lên nhanh chóng, hãy gọi 115.</p>
                   <ul className="article-news-sidebar__warning-list">
                     {warningSigns.map((item) => (
                       <li key={item}>
-                        <span className="text-rose-600 font-bold">•</span>
+                        <span className="text-rose-600 font-bold">⚠</span>
                         <span>{item}</span>
                       </li>
                     ))}

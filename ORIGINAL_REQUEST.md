@@ -98,3 +98,51 @@ Integrity mode: development
 ## 2026-09-12T15:47:37Z
 
 Toàn bộ kiểm thử Backend (78/78 tests) và Frontend (319/319 tests) đã đạt PASS 100%. TypeScript typecheck và ESLint đạt 0 lỗi. Vui lòng hoàn tất nghiệm thu và tổng hợp báo cáo kết thúc Sentinel.
+
+## 2026-09-12T16:18:46Z
+
+# Teamwork Project Prompt
+
+Dự án nâng cấp toàn diện giao diện Bài viết Y khoa chuẩn tạp chí chuyên môn cao cấp (Editorial Medical Journal) và xây dựng khu vực Thảo luận / Hỏi đáp cộng đồng chuẩn Diễn đàn y khoa (Medical Community Forum & Q&A Discussion Thread) trên nền tảng HealthCare.
+
+Working directory: d:\HealthCare_Project
+Integrity mode: development
+
+## Requirements
+
+### R1. Thiết kế Giao diện Bài báo Y khoa Chuẩn Tạp chí Cao cấp (Editorial Medical Journal Layout)
+- **Cấu trúc Tiêu đề & Sa-pô bài viết**: Tiêu đề ngắt dòng hài hòa (`text-wrap: balance`), sa-pô mở đầu trang trọng với đường kẻ điểm nhấn thương hiệu y tế (`border-l-4 border-teal-600`), font chữ toát lên sự tin cậy, khoa học và đĩnh đạc.
+- **Bảo chứng chuyên môn & Metadata bài báo**: Cụm thông tin tác giả bác sĩ, ngày xuất bản, ngày cập nhật phác đồ điều trị và thời lượng đọc hiển thị dạng inline phẳng, tinh tế, không gò bó viền hộp, có huy hiệu xác thực chuyên môn y tế (Peer-reviewed).
+- **Mục lục thông minh & Bố cục đọc 2 cột**: Bố cục 2 cột (Nội dung chính và Sidebar điều hướng) tương thích hoàn hảo từ màn hình lớn (Desktop 1440px) đến tablet và mobile. Mục lục hỗ trợ nhảy nhanh đến các đề mục và khối điểm cần nhớ.
+- **Khối trích dẫn & Cảnh báo y tế cấp cứu**: Khối "Điểm cần nhớ", "Khi nào nên đi khám" và "Cảnh báo cấp cứu 115" thiết kế đồng bộ theo hệ thống Flat UI design tokens, tạo độ chú ý cao nhưng không gây hoang mang cho người bệnh.
+
+### R2. Diễn đàn Thảo luận & Hỏi đáp Y khoa Chuyên nghiệp (Medical Forum & Q&A Discussion Thread)
+- **Tích hợp khu vực thảo luận cuối bài báo**: Nhúng và tối ưu hóa phân hệ thảo luận `ArticleComments` ngay dưới chân mỗi bài viết (`/articles/[slug]`).
+- **Giao diện dạng luồng thảo luận diễn đàn (Threaded Discussion Forum)**:
+  - Phân tầng trực quan: Câu hỏi của độc giả / bệnh nhân hiển thị rõ ràng, câu trả lời lồng nhau (nested replies) có thanh chỉ dẫn phân cấp thread chuẩn diễn đàn.
+  - Nhận diện phản hồi Bác sĩ: Câu trả lời của Bác sĩ được làm nổi bật với thẻ nền y tế trang nhã, viền điểm nhấn Teal, huy hiệu `🩺 Bác sĩ chuyên khoa xác thực` kèm chuyên khoa để người đọc phân biệt ngay với bình luận của người dùng thông thường.
+  - Khung đặt câu hỏi (Q&A Composer): Thiết kế như diễn đàn y khoa quốc tế, đếm ký tự, hướng dẫn hỏi đáp văn minh, kèm hộp mời đăng nhập trang nhã cho bạn đọc chưa đăng nhập.
+
+### R3. Chuẩn hóa Frontend, Design Tokens & Khả năng tiếp cận (FE Quality & A11y)
+- **Kỷ luật Flat UI Tokens**: 100% tuân thủ token phẳng của dự án (`border-radius: var(--radius-sm, 2px)`, không lạm dụng bo góc cong lớn hay hiệu ứng bóng đổ mờ nhòe).
+- **Khả năng tiếp cận WCAG 2.1 AA**: Tỷ lệ tương phản màu văn bản đạt chuẩn ≥ 4.5:1, kích thước vùng chạm cảm ứng tối thiểu 44×44px, hỗ trợ bàn phím (`focus-visible`) và screen reader đầy đủ.
+- **Bảo toàn kiểm thử & Không phát sinh hồi quy**: 100% unit test (`npm test --prefix apps/frontend`) đạt kết quả PASS xanh (319/319 tests), TypeScript typecheck đạt 0 lỗi.
+
+## Acceptance Criteria
+
+### Giao diện Bài báo Y khoa (Editorial Medical Journal)
+- [ ] Tiêu đề và sa-pô bài viết `/articles/[slug]` hiển thị sang trọng, chuẩn tạp chí y khoa quốc tế.
+- [ ] Cụm metadata (Tác giả, Ngày xuất bản, Phác đồ cập nhật, Thời lượng) hiển thị inline phẳng, thoáng mắt, không bị viền hộp gò bó.
+- [ ] Khối mục lục, điểm cần nhớ và cảnh báo y tế 115 có phân cấp thị giác rõ ràng, đọc tốt trên cả mobile và desktop.
+
+### Khu vực Thảo luận Diễn đàn (Forum Discussion & Q&A)
+- [ ] Cuối bài viết xuất hiện khu vực "Hỏi đáp & Thảo luận y khoa" tích hợp đầy đủ API lấy và gửi bình luận.
+- [ ] Phản hồi từ Bác sĩ (`authorRole: "DOCTOR"`) có huy hiệu xác thực và màu nhận diện chuyên môn riêng biệt, nổi bật so với câu hỏi thông thường.
+- [ ] Hỗ trợ trả lời lồng nhau (nested reply) trơn tru, hiển thị dạng thread diễn đàn chuyên nghiệp.
+- [ ] Người dùng chưa đăng nhập nhìn thấy lời nhắc lịch sự và link đăng nhập nhanh.
+
+### Kiểm thử & Chất lượng Kỹ thuật
+- [ ] Toàn bộ 319 bài test trong `apps/frontend` đạt 100% PASS.
+- [ ] TypeScript typecheck (`npm run typecheck`) không có bất kỳ lỗi nào.
+- [ ] Kiểm chứng thực tế qua ảnh chụp màn hình trình duyệt xác nhận độ hoàn thiện cao về mặt thẩm mỹ.
+
