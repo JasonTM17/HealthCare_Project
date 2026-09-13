@@ -145,4 +145,3 @@ Integrity mode: development
 - [ ] Toàn bộ 319 bài test trong `apps/frontend` đạt 100% PASS.
 - [ ] TypeScript typecheck (`npm run typecheck`) không có bất kỳ lỗi nào.
 - [ ] Kiểm chứng thực tế qua ảnh chụp màn hình trình duyệt xác nhận độ hoàn thiện cao về mặt thẩm mỹ.
-
