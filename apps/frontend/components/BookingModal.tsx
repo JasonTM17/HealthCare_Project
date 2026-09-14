@@ -18,7 +18,7 @@ import {
 } from "../lib/api";
 import {
   fetchBranches,
-  fetchDoctors,
+  fetchDoctorCatalog,
   fetchSpecialties,
   ApiError,
   resendAppointmentOtp,
@@ -420,7 +420,10 @@ function BookingExperience({
   const [loadedDoctors, setLoadedDoctors] = useState<Doctor[]>([]);
   const [loadedSpecialties, setLoadedSpecialties] = useState<Specialty[]>([]);
   const [loadedBranches, setLoadedBranches] = useState<Branch[]>([]);
-  const doctors = providedDoctors.length > 0 ? providedDoctors : loadedDoctors;
+  // Catalog pages pass teaser lists as providedDoctors; the booking wizard
+  // always needs the full catalog, so loaded (complete) data wins once present
+  // and provided data only seeds preselection before the load resolves.
+  const doctors = loadedDoctors.length > 0 ? loadedDoctors : providedDoctors;
   const specialties = providedSpecialties.length > 0 ? providedSpecialties : loadedSpecialties;
   const branches = providedBranches.length > 0 ? providedBranches : loadedBranches;
   const [catalogLoading, setCatalogLoading] = useState(false);
@@ -556,21 +559,15 @@ function BookingExperience({
   useEffect(() => {
     if (!active) return;
 
-    const needsDoctors = providedDoctors.length === 0;
     const needsSpecialties = providedSpecialties.length === 0;
     const needsBranches = providedBranches.length === 0;
     let cancelled = false;
     const task = Promise.resolve().then(async () => {
       if (cancelled) return;
-      if (!needsDoctors && !needsSpecialties && !needsBranches) {
-        setCatalogLoading(false);
-        setCatalogError("");
-        return;
-      }
       setCatalogLoading(true);
       setCatalogError("");
       const [doctorResult, specialtyResult, branchResult] = await Promise.allSettled([
-        needsDoctors ? fetchDoctors({ page: 0, size: 6 }) : Promise.resolve(null),
+        fetchDoctorCatalog(),
         needsSpecialties ? fetchSpecialties(0, 100) : Promise.resolve(null),
         needsBranches ? fetchBranches(0, 100) : Promise.resolve(null),
       ]);
@@ -581,8 +578,8 @@ function BookingExperience({
       let resolvedBranch = branchResult.status === "fulfilled" ? branchResult.value : null;
 
       // Resilient single-retry for transient cold starts before reporting an error
-      if (needsDoctors && !resolvedDoctor && !cancelled) {
-        resolvedDoctor = await fetchDoctors({ page: 0, size: 6 }).catch(() => null);
+      if (!resolvedDoctor && !cancelled) {
+        resolvedDoctor = await fetchDoctorCatalog().catch(() => null);
       }
       if (needsSpecialties && !resolvedSpecialty && !cancelled) {
         resolvedSpecialty = await fetchSpecialties(0, 100).catch(() => null);
@@ -593,13 +590,11 @@ function BookingExperience({
       if (cancelled) return;
 
       const missing: string[] = [];
-      if (needsDoctors) {
-        if (resolvedDoctor) {
-          setLoadedDoctors(resolvedDoctor.content);
-          if (resolvedDoctor.content.length === 0) missing.push("danh sách bác sĩ");
-        } else {
-          missing.push("bác sĩ");
-        }
+      if (resolvedDoctor) {
+        setLoadedDoctors(resolvedDoctor);
+        if (resolvedDoctor.length === 0) missing.push("danh sách bác sĩ");
+      } else {
+        missing.push("bác sĩ");
       }
       if (needsSpecialties) {
         if (resolvedSpecialty) {
