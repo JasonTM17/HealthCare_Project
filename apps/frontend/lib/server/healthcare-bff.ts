@@ -25,6 +25,22 @@ const MIN_SERVICE_TOKEN_BYTES = 32;
 const MAX_SERVICE_TOKEN_BYTES = 512;
 const PUBLIC_AI_CHAT_PATH = `${API_PREFIX}public/ai/chat`;
 const PUBLIC_AI_FALLBACK_STATUSES = new Set([502, 503, 504]);
+const EMERGENCY_FALLBACK_TERMS = [
+  "dau nguc du doi",
+  "kho tho",
+  "meo mieng",
+  "yeu liet",
+  "ngat",
+  "chay mau khong cam",
+  "co giat",
+  "tu tu",
+  "muon chet",
+  "end my life",
+  "kill myself",
+  "chest pain",
+  "shortness of breath",
+  "severe bleeding",
+] as const;
 
 const ALLOWED_METHODS = new Set(["GET", "HEAD", "OPTIONS", "POST", "PUT", "PATCH", "DELETE"]);
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
@@ -114,24 +130,31 @@ function jsonError(status: number, code: string): Response {
   );
 }
 
-function publicAiChatFallbackResponse(): Response {
+function likelyEmergencyFallback(message: string): boolean {
+  const normalized = message.normalize("NFD").replace(/[\u0300-\u036f]/gu, "")
+    .toLowerCase().replace(/\s+/gu, " ").trim();
+  return EMERGENCY_FALLBACK_TERMS.some((term) => normalized.includes(term));
+}
+
+function publicAiChatFallbackResponse(message = ""): Response {
+  const emergency = likelyEmergencyFallback(message);
   return Response.json(
     {
-      answer: (
-        "Mình chưa có đủ thông tin đã xác thực để trả lời chắc chắn. Bạn có thể tiếp tục "
-        + "từ các mục chính thức của HealthCare bên dưới hoặc tra cứu chuyên khoa, bác sĩ, "
-        + "gói khám và đặt lịch trực tiếp trên website."
-      ),
+      answer: emergency
+        ? "Triệu chứng bạn mô tả có thể cần được đánh giá khẩn cấp. Hãy gọi 115 hoặc đến cơ sở cấp cứu gần nhất ngay; không chờ trợ lý AI."
+        : "Mình chưa có đủ thông tin đã xác thực để trả lời chắc chắn. Bạn có thể tiếp tục từ các mục chính thức của HealthCare bên dưới hoặc tra cứu chuyên khoa, bác sĩ, gói khám và đặt lịch trực tiếp trên website.",
       disclaimer: "Thông tin từ trợ lý AI chỉ mang tính tham khảo và không thay thế tư vấn, chẩn đoán hoặc điều trị của bác sĩ.",
       citations: [],
       provenance: "local_fallback",
       mode: "HOSPITAL_SUPPORT",
-      safety_action: "INSUFFICIENT_EVIDENCE",
-      suggested_actions: [
-        { kind: "START_BOOKING", label: "Đặt lịch khám", href: "/dat-lich" },
-        { kind: "VIEW_SOURCE", label: "Xem Chuyên khoa", href: "/specialties" },
-        { kind: "VIEW_SOURCE", label: "Xem Cơ sở", href: "/branches" },
-      ],
+      safety_action: emergency ? "EMERGENCY" : "INSUFFICIENT_EVIDENCE",
+      suggested_actions: emergency
+        ? [{ kind: "CALL_EMERGENCY", label: "Gọi 115", href: "tel:115" }]
+        : [
+            { kind: "START_BOOKING", label: "Đặt lịch khám", href: "/dat-lich" },
+            { kind: "VIEW_SOURCE", label: "Xem Chuyên khoa", href: "/specialties" },
+            { kind: "VIEW_SOURCE", label: "Xem Cơ sở", href: "/branches" },
+          ],
     },
     {
       status: 200,
@@ -310,38 +333,23 @@ function normalizedBrowserOrigin(request: Request, configuredPublicOrigin?: stri
   const allowedOrigins = parseConfiguredPublicOrigins(configuredPublicOrigin);
   const requestOrigin = normalizeHttpOrigin(requestUrl.origin);
 
-  const forwardedHost = request.headers.get("x-forwarded-host") || request.headers.get("host");
-  const forwardedProto = request.headers.get("x-forwarded-proto") || requestUrl.protocol.replace(":", "");
-  let hostOrigin: string | null = null;
-  if (forwardedHost) {
-    try {
-      hostOrigin = normalizeHttpOrigin(`${forwardedProto}://${forwardedHost}`);
-    } catch {
-      hostOrigin = null;
-    }
-  }
-
   const suppliedOrigin = request.headers.get("origin");
   if (!suppliedOrigin) {
     if (!SAFE_METHODS.has(request.method.toUpperCase())) {
       throw new BffRequestError(403, "BFF_ORIGIN_REQUIRED");
     }
-    return allowedOrigins.length > 0 ? allowedOrigins[0] : (hostOrigin ?? requestOrigin);
+    return allowedOrigins.length > 0 ? allowedOrigins[0] : requestOrigin;
   }
   const normalized = normalizeHttpOrigin(suppliedOrigin);
 
   if (allowedOrigins.length > 0) {
-    if (
-      allowedOrigins.includes(normalized)
-      || normalized === requestOrigin
-      || (hostOrigin !== null && normalized === hostOrigin)
-    ) {
+    if (allowedOrigins.includes(normalized) || normalized === requestOrigin) {
       return normalized;
     }
     throw new BffRequestError(403, "BFF_ORIGIN_INVALID");
   }
 
-  if (normalized !== requestOrigin && (hostOrigin === null || normalized !== hostOrigin)) {
+  if (normalized !== requestOrigin) {
     throw new BffRequestError(403, "BFF_ORIGIN_INVALID");
   }
   return normalized;
@@ -484,6 +492,16 @@ async function boundedRequestBody(request: Request, signal?: AbortSignal): Promi
     offset += chunk.byteLength;
   }
   return body.buffer;
+}
+
+function readPublicChatMessage(body: ArrayBuffer | undefined): string {
+  if (!body) return "";
+  try {
+    const parsed = JSON.parse(Buffer.from(body).toString("utf8")) as { message?: unknown };
+    return typeof parsed.message === "string" ? parsed.message.slice(0, 500) : "";
+  } catch {
+    return "";
+  }
 }
 
 function bodyReadTimeoutError(): BffRequestError {
@@ -640,6 +658,7 @@ export async function proxyHealthcareRequest(
   let abortFromBrowser: (() => void) | undefined;
   let responseBodyOwnsCleanup = false;
   let apiPath: string | undefined;
+  let publicChatMessage = "";
   const cleanup = () => {
     if (timeoutId !== undefined) clearTimeout(timeoutId);
     if (abortFromBrowser) request.signal.removeEventListener("abort", abortFromBrowser);
@@ -685,6 +704,7 @@ export async function proxyHealthcareRequest(
       : runtime.requestTimeoutMs;
     timeoutId = setTimeout(() => requestController.abort(), requestTimeoutMs);
     const body = await boundedRequestBody(request, requestController.signal);
+    publicChatMessage = apiPath === PUBLIC_AI_CHAT_PATH ? readPublicChatMessage(body) : "";
 
     const upstream = await (options.fetchImpl ?? fetch)(target, {
       method,
@@ -700,7 +720,7 @@ export async function proxyHealthcareRequest(
     }
     if (method === "POST" && apiPath === PUBLIC_AI_CHAT_PATH && PUBLIC_AI_FALLBACK_STATUSES.has(upstream.status)) {
       await cancelUpstreamBody(upstream, "BFF_PUBLIC_AI_FALLBACK");
-      return publicAiChatFallbackResponse();
+      return publicAiChatFallbackResponse(publicChatMessage);
     }
     const response = createBrowserResponse(upstream, method, cleanup);
     responseBodyOwnsCleanup = true;
@@ -708,7 +728,7 @@ export async function proxyHealthcareRequest(
   } catch (error) {
     if (error instanceof BffRequestError) return jsonError(error.status, error.code);
     if (method === "POST" && apiPath === PUBLIC_AI_CHAT_PATH) {
-      return publicAiChatFallbackResponse();
+      return publicAiChatFallbackResponse(publicChatMessage);
     }
     return jsonError(502, "BFF_UPSTREAM_UNAVAILABLE");
   } finally {

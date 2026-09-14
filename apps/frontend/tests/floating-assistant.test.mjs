@@ -49,10 +49,11 @@ test("floating assistant is mounted globally and stays on the REST chat contract
   assert.match(component, /launcherMascot/);
   assert.match(component, /provenanceLabel/);
   assert.match(component, /DEFAULT_DISCLAIMER/);
-  assert.match(component, /label: "Tìm Chuyên khoa", href: "\/specialties"/);
-  assert.match(component, /label: "Cơ sở & giờ làm việc", href: "\/branches"/);
-  assert.match(component, /Xin chào! Tôi có thể hỗ trợ bạn tra cứu Chuyên khoa/);
-  assert.doesNotMatch(component, /label: "Gói khám Sức khỏe", href: "\/packages"/);
+  // Suggested actions are server-owned. The client keeps contextual prompts,
+  // but must not synthesize a greeting response or navigation CTA locally.
+  assert.match(component, /SUGGESTED_QUESTIONS_HOSPITAL/);
+  assert.doesNotMatch(component, /CASUAL_GREETING_PATTERN|GREETING_ACTIONS|GREETING_ANSWER/);
+  assert.doesNotMatch(component, /label: "Tìm Chuyên khoa", href: "\/specialties"/);
   assert.match(component, /citationHref/);
   assert.match(provider, /AI_UNAVAILABLE/);
   assert.match(provider, /PUBLIC_CHAT_INPUT_INVALID/);
@@ -96,7 +97,7 @@ test("floating assistant exposes real recovery, safety and accessible actions", 
   assert.match(styles, /\.provenance[\s\S]*border-radius: 0/);
   assert.match(styles, /\.suggestions button::after/);
   assert.match(styles, /border-left: 3px solid var\(--assistant-assistant-accent\)/);
-  assert.match(styles, /\.feedback button \{[\s\S]*min-height: 2\.75rem/);
+  assert.match(styles, /\.feedback button \{\n  min-height: 2\.75rem;[\s\S]*?touch-action: manipulation;[\s\S]*?transition: background-color var\(--duration-fast\) ease, border-color var\(--duration-fast\) ease, color var\(--duration-fast\) ease;/);
   assert.match(styles, /\.modeOption,\s*\.modeOptionActive \{[\s\S]*font-size: 0\.74rem/);
   assert.match(styles, /max\(0\.75rem, env\(safe-area-inset-bottom\)\)/);
   assert.match(styles, /z-index: 80/);

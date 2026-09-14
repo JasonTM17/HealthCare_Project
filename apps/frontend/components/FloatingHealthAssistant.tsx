@@ -33,7 +33,6 @@ import type {
   AiConversation,
   ChatMode,
   FeedbackRating,
-  SuggestedAction,
 } from "../types/hospital";
 import {
   ASSISTANT_MODE_OPTIONS,
@@ -55,13 +54,6 @@ import styles from "./FloatingHealthAssistant.module.css";
 const MAX_MESSAGE_LENGTH = 10_000;
 const MAX_PUBLIC_MESSAGE_LENGTH = 500;
 const DEFAULT_DISCLAIMER = "Thông tin chỉ mang tính tham khảo, không thay thế thăm khám hoặc hướng dẫn của bác sĩ.";
-const CASUAL_GREETING_PATTERN = /^(hi|hello|helo|alo|xin\s*chào|chào\s*(bạn|bác\s*sĩ|bot|admin|ad|em|chị|anh)?|good\s*(morning|afternoon|evening)|chào)[\s!.]*$/i;
-const GREETING_ACTIONS: SuggestedAction[] = [
-  { kind: "VIEW_SOURCE", label: "Tìm Chuyên khoa", href: "/specialties" },
-  { kind: "VIEW_SOURCE", label: "Cơ sở & giờ làm việc", href: "/branches" },
-];
-const GREETING_ANSWER =
-  "Xin chào! Tôi có thể hỗ trợ bạn tra cứu Chuyên khoa, Bác sĩ, Cơ sở & giờ làm việc hoặc hướng dẫn bắt đầu đặt lịch khám tại HealthCare.";
 const SUGGESTED_QUESTIONS_HOSPITAL = [
   "Làm sao để đặt lịch khám tại HealthCare?",
   "Bệnh viện có những chuyên khoa và cơ sở nào?",
@@ -225,6 +217,15 @@ function FloatingHealthAssistantPanel({
   // Bounded staged feedback: acknowledge immediately, then report the real
   // waiting activity instead of a single unbounded spinner.
   const waitStage = useChatWaitStage(sending);
+  const latestMessage = messages[messages.length - 1];
+  const assistantStatus = failure?.kind === "unavailable"
+    ? "Tạm thời gián đoạn"
+    : latestMessage?.role === "ASSISTANT" && latestMessage.provenance === "local_fallback"
+      ? "Hỗ trợ tạm thời"
+      : isPatient ? "Trợ lý sức khỏe AI · Trực tuyến" : "Hỗ trợ tra cứu · Trực tuyến";
+  const assistantStatusIsDegraded = assistantStatus !== (isPatient
+    ? "Trợ lý sức khỏe AI · Trực tuyến"
+    : "Hỗ trợ tra cứu · Trực tuyến");
 
   const syncConversation = useCallback((next: AiConversation | null): void => {
     conversationIdRef.current = next?.id ?? null;
@@ -326,13 +327,6 @@ function FloatingHealthAssistantPanel({
 
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const launcher = launcherRef.current;
-    const focusableElements = (): HTMLElement[] => Array.from(
-      panelRef.current?.querySelectorAll<HTMLElement>([
-        "a[href]",
-        "button:not([disabled])",
-        "textarea:not([disabled])",
-      ].join(",")) ?? [],
-    );
     // setTimeout, not requestAnimationFrame: RAF is paused for hidden tabs and
     // non-composited webviews, which would silently skip autofocus.
     const focusTimer = window.setTimeout(() => inputRef.current?.focus(), 0);
@@ -340,19 +334,6 @@ function FloatingHealthAssistantPanel({
       if (event.key === "Escape") {
         event.preventDefault();
         closeAssistant();
-        return;
-      }
-      if (event.key !== "Tab") return;
-      const elements = focusableElements();
-      if (elements.length === 0) return;
-      const first = elements[0];
-      const last = elements[elements.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
       }
     };
 
@@ -560,40 +541,6 @@ function FloatingHealthAssistantPanel({
     setFailure(null);
     setLastFailedContent(null);
 
-    if (CASUAL_GREETING_PATTERN.test(normalized)) {
-      const createdAt = pendingCreatedAt;
-      const sequence = messages.reduce((maximum, message) => Math.max(maximum, message.sequence), 0) + 1;
-      const userMessage: AiChatMessage = {
-        id: randomId(),
-        role: "USER",
-        status: "COMPLETED",
-        content: normalized,
-        sequence,
-        citations: [],
-        createdAt,
-        completedAt: createdAt,
-      };
-      const assistantMessage: AiChatMessage = {
-        id: randomId(),
-        role: "ASSISTANT",
-        status: "COMPLETED",
-        content: GREETING_ANSWER,
-        sequence: sequence + 1,
-        disclaimer: "Thông tin từ trợ lý AI chỉ mang tính tham khảo và không thay thế tư vấn, chẩn đoán hoặc điều trị của bác sĩ.",
-        provenance: "local_provider",
-        citations: [],
-        safetyAction: "ANSWER",
-        suggestedActions: GREETING_ACTIONS,
-        createdAt,
-        completedAt: createdAt,
-      };
-      setDraft("");
-      setPendingUserMessage(null);
-      setSending(false);
-      setMessages((current) => [...current, userMessage, assistantMessage].slice(-8));
-      return;
-    }
-
     let currentConversation: AiConversation | null = null;
     try {
       if (!isPatient) {
@@ -657,9 +604,20 @@ function FloatingHealthAssistantPanel({
       setDraft("");
       setPendingUserMessage(null);
       setMessages((current) => [...current, exchange.userMessage, exchange.assistantMessage].slice(-8));
-      const page = await fetchAiConversationMessages(currentConversation.id, null, 12, { signal: controller.signal });
-      if (!isCurrentLocalRequest(epoch, currentConversation.id)) return;
-      setMessages(page.content.slice(-8));
+      try {
+        const page = await fetchAiConversationMessages(currentConversation.id, null, 12, { signal: controller.signal });
+        if (!isCurrentLocalRequest(epoch, currentConversation.id)) return;
+        setMessages(page.content.slice(-8));
+      } catch (refreshError: unknown) {
+        if (isAbortError(refreshError) || !isCurrentLocalRequest(epoch, currentConversation.id)) return;
+        if (refreshError instanceof ApiError && refreshError.status === 401) clearAuthSession();
+        setLastFailedContent(null);
+        setFailure({
+          ...failureFromError(refreshError),
+          message: "Tin nhắn đã được gửi, nhưng chưa thể tải lại lịch sử. Không cần gửi lại câu hỏi.",
+          retryable: false,
+        });
+      }
     } catch (error: unknown) {
       if (isAbortError(error) || !isCurrentLocalRequest(epoch, currentConversation?.id)) return;
       if (error instanceof ApiError && error.status === 401) clearAuthSession();
@@ -712,8 +670,11 @@ function FloatingHealthAssistantPanel({
               <div>
                 <strong>Trợ lý HealthCare</strong>
                 <span className={styles.headerSubtitle}>
-                  <span aria-hidden="true" className={styles.onlineDot} />
-                  {isPatient ? "Trợ lý sức khỏe AI · Trực tuyến" : "Hỗ trợ tra cứu · Trực tuyến"}
+                  <span
+                    aria-hidden="true"
+                    className={`${styles.onlineDot}${assistantStatusIsDegraded ? ` ${styles.offlineDot}` : ""}`}
+                  />
+                  {assistantStatus}
                 </span>
               </div>
             </div>

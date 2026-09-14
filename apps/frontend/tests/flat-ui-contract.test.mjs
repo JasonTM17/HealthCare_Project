@@ -64,6 +64,7 @@ test("flat clinical UI tokens clamp structural surfaces and controls", async () 
   assert.match(tailwind, /"3xl":\s*"0\.125rem"/);
   assert.match(about, /\.videoLabel \{[\s\S]*?background: rgb\(255 255 255 \/ 92%\);/);
   assert.match(about, /\.videoLabel \{[\s\S]*?border-radius: var\(--radius-sm\);/);
+  assert.match(about, /\.videoControl \{[\s\S]*?min-height: 2\.75rem;/);
   assert.doesNotMatch(about, /background:\s*rgb\(8 49 62 \/ 84%\)/);
 });
 

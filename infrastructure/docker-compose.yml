@@ -312,8 +312,9 @@ services:
       BACKEND_INTERNAL_URL: http://backend:8080
       BACKEND_BFF_SERVICE_TOKEN: ${BACKEND_BFF_SERVICE_TOKEN:?BACKEND_BFF_SERVICE_TOKEN is required}
       # Next.js can expose localhost:3000 internally when a different host port
-      # is published, so the external browser origin is explicit and immutable.
-      BFF_PUBLIC_ORIGIN: ${BFF_PUBLIC_ORIGIN:-http://localhost:3000}
+      # is published. Accept both local loopback aliases by default; hosted
+      # pipelines override this with their approved external origin(s).
+      BFF_PUBLIC_ORIGIN: ${BFF_PUBLIC_ORIGIN:-http://localhost:3000,http://127.0.0.1:3000}
     ports:
       - "127.0.0.1:${FRONTEND_HOST_PORT:-3000}:3000"
     networks: [default, edge]
