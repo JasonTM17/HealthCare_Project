@@ -45,7 +45,9 @@ export function useDialogFocus(
       (first ?? dialog).focus();
     };
 
-    const animationFrame = window.requestAnimationFrame(focusInitial);
+    // setTimeout, not requestAnimationFrame: RAF is paused for hidden tabs and
+    // non-composited webviews, which would silently skip the initial focus.
+    const focusTimer = window.setTimeout(focusInitial, 0);
     const handleKeyDown = (event: KeyboardEvent): void => {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -76,7 +78,7 @@ export function useDialogFocus(
 
     document.addEventListener("keydown", handleKeyDown);
     return () => {
-      window.cancelAnimationFrame(animationFrame);
+      window.clearTimeout(focusTimer);
       document.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = previousOverflow;
       if (previouslyFocused?.isConnected) previouslyFocused.focus();

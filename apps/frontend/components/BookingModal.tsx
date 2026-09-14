@@ -1322,7 +1322,7 @@ function BookingExperience({
                     <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2 w-2 rounded-full bg-slate-300" />Đã có người giữ</span>
                   </span>
                 </div>
-                {loadingSlots ? <div aria-live="polite" className="py-8 text-center text-sm text-gray-500" role="status"><Icon name="clock" size={15} /> Đang tải lịch khám khả dụng...</div>
+                {loadingSlots ? <div aria-live="polite" className="py-8 text-center text-sm text-gray-500" role="status"><Icon name="clock" size={15} /> Đang tải lịch khám khả dụng…</div>
                   : slotError ? <div aria-live="assertive" className="rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700" role="alert"><p>{slotError}</p><button className="mt-2 font-semibold underline underline-offset-2" onClick={() => setSlotRefreshNonce((value) => value + 1)} type="button">Thử tải lại khung giờ</button></div>
                   : slots.length === 0 ? <div aria-live="polite" className="rounded-lg border border-dashed border-gray-300 px-3 py-6 text-center text-sm text-gray-500" role="status">Chưa có khung giờ cho bác sĩ, cơ sở và ngày đã chọn.</div>
                   : <div aria-labelledby="booking-slot-label" className="grid max-h-56 grid-cols-3 gap-2.5 overflow-y-auto p-1 sm:grid-cols-4">{slots.map((slot) => { const isSelected = selectedSlot === slot.startTime; return <button key={`${slot.branchId}-${slot.startTime}`} type="button" disabled={isSubmitting || !slot.available || slot.branchId !== selectedBranch} onClick={() => handleSlotChange(slot.startTime)} className={`flex flex-col items-center justify-center gap-0.5 rounded-lg border p-2.5 text-xs font-semibold transition-colors ${isSelected ? "border-brand-700 bg-brand-700 text-white shadow-md ring-2 ring-brand-500" : slot.available ? "border-brand-200 bg-white text-gray-800 hover:border-brand-500 hover:bg-brand-50" : "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-500"}`}><span className="text-sm font-bold">{slot.startTime.slice(0, 5)}</span><span className="text-[10px] opacity-80">{slot.available ? "Còn trống" : "Đã kín"}</span></button>; })}</div>}
@@ -1487,7 +1487,7 @@ function BookingExperience({
                   className="whitespace-nowrap px-4 py-2.5 sm:px-6 bg-brand-700 hover:bg-brand-800 disabled:opacity-50 text-white font-semibold text-xs sm:text-sm rounded-lg shadow-sm transition-colors flex items-center gap-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
                 >
                   {isSubmitting ? (
-                    <span className="inline-flex items-center gap-2"><Icon name="clock" size={15} /> Đang giữ chỗ...</span>
+                    <span className="inline-flex items-center gap-2"><Icon name="clock" size={15} /> Đang giữ chỗ…</span>
                   ) : (
                     <>
                       <span>Giữ chỗ và nhận mã OTP</span> <span>→</span>
