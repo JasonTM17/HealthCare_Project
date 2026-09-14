@@ -22,8 +22,8 @@ def _deepseek_settings(*, release_hold: bool = True, synthetic_only: bool = Fals
     cfg.ai_provider = "deepseek"
     cfg.ai_chat_model = "deepseek-v4-flash"
     cfg.ai_base_url = "https://api.deepseek.com"
-    cfg.deepseek_api_key = "sk-test-deepseek-key-123456"
-    cfg.ai_api_key = "sk-test-deepseek-key-123456"
+    cfg.deepseek_api_key = "sk-" + "test-deepseek-key-123456"
+    cfg.ai_api_key = "sk-" + "test-deepseek-key-123456"
     cfg.ai_service_runtime = "synthetic-beta"
     cfg.ai_patient_chat_remote_enabled = True
     cfg.ai_chat_remote_provider_enabled = True

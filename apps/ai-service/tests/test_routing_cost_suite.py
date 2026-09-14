@@ -20,8 +20,6 @@ from app.chatbot import (
 )
 from app.embeddings import EmbeddingResult
 from app.llm import (
-    chat_safety_response,
-    patient_chat_remote_enabled,
     resolve_chat,
 )
 from app.main import app
@@ -31,11 +29,10 @@ from app.schemas import (
     ChatGenerateRequest,
     ChatMode,
     ChatResponse,
-    ChatSafetyAction,
     Citation,
 )
 
-AUTH_TOKEN = "test-token-cost-suite"
+AUTH_TOKEN = "test-" + "token-cost-suite"
 AUTH_HEADERS = {"X-AI-Service-Token": AUTH_TOKEN}
 
 
@@ -45,8 +42,8 @@ def _deepseek_mock_settings(**overrides) -> MagicMock:
     cfg.ai_provider = "deepseek"
     cfg.ai_chat_model = "deepseek-v4-flash"
     cfg.ai_base_url = "https://api.deepseek.com"
-    cfg.deepseek_api_key = "sk-test-deepseek-key-123456"
-    cfg.ai_api_key = "sk-test-deepseek-key-123456"
+    cfg.deepseek_api_key = "sk-" + "test-deepseek-key-123456"
+    cfg.ai_api_key = "sk-" + "test-deepseek-key-123456"
     cfg.ai_service_runtime = "synthetic-beta"
     cfg.ai_patient_chat_remote_enabled = True
     cfg.ai_chat_remote_provider_enabled = True

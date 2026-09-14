@@ -283,6 +283,19 @@ def test_public_context_relevance_requires_all_explicit_catalog_constraints() ->
     assert public_query_constraints("Cơ sở số 8 giờ làm việc thế nào?") == ("8",)
 
 
+def test_public_context_relevance_requires_requested_schedule_data() -> None:
+    query = "Cơ sở Thủ Đức giờ làm việc thế nào?"
+
+    assert public_context_is_relevant(
+        query,
+        ["Phòng khám Thảo Điền — Thủ Đức: Giờ hoạt động: 07:00–19:00."],
+    )
+    assert not public_context_is_relevant(
+        query,
+        ["Phòng khám HealthCare — Thủ Đức: Địa chỉ: 214 Võ Văn Ngân; Điện thoại: 028 3722 8899."],
+    )
+
+
 def test_public_chat_endpoint_drops_unrelated_rows_before_remote_resolution(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -362,6 +375,72 @@ def test_public_local_chat_uses_grounded_operational_source_when_identity_matche
     assert payload["provenance"] == "local_provider"
     assert [item["source_id"] for item in payload["citations"]] == ["tim-mach"]
     assert "Tim mạch" in payload["answer"]
+
+
+def test_public_local_chat_overfetches_before_constrained_branch_filtering(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A valid location must survive a catalog larger than the answer limit."""
+
+    local_settings = settings
+    monkeypatch.setattr(local_settings, "ai_service_runtime", "local")
+    monkeypatch.setattr(local_settings, "ai_service_allow_unauthenticated_local", True)
+    monkeypatch.setattr(local_settings, "ai_service_token", "")
+    monkeypatch.setattr(local_settings, "ai_provider", "local")
+    monkeypatch.setattr(local_settings, "embedding_provider", "local")
+    monkeypatch.setattr(local_settings, "ai_public_hospital_support_remote_enabled", False)
+    monkeypatch.setattr(local_settings, "ai_max_retrieved_chunks", 5)
+    monkeypatch.setattr(local_settings, "ai_public_retrieval_candidates", 40)
+
+    vector = [1.0] + [0.0] * 383
+    local_rag = RagService()
+    for index in range(1, 25):
+        local_rag.ingest(
+            "branch",
+            f"branch-{index:02d}",
+            f"Bệnh viện Đa khoa HealthCare — Cơ sở {index} — Quận {index}",
+            f"Địa chỉ: {index} Đường Sức Khỏe, Quận {index}; Giờ hoạt động: 06:30–20:00.",
+            vector,
+            embedding_model="local-hash",
+            embedding_provenance="local_provider",
+        )
+    local_rag.ingest(
+        "branch",
+        "branch-thu-duc",
+        "Phòng khám ngoại trú HealthCare — Thủ Đức",
+        "Địa chỉ: 214 Võ Văn Ngân, Thủ Đức; Giờ hoạt động: 08:00–17:00.",
+        vector,
+        embedding_model="local-hash",
+        embedding_provenance="local_provider",
+    )
+    ordered_documents = list(local_rag.index.documents)
+    search_calls: list[int] = []
+
+    def bounded_search(query_embedding: list[float], top_k: int = 5, **_: object):
+        search_calls.append(top_k)
+        return [(document, 0.8) for document in ordered_documents[:top_k]]
+
+    monkeypatch.setattr(local_rag, "search", bounded_search)
+    monkeypatch.setattr("app.main.rag_service", local_rag)
+    monkeypatch.setattr(
+        "app.main.embed",
+        lambda *_, **__: EmbeddingResult(vector, "local-hash", "local_provider"),
+    )
+
+    response = client.post(
+        "/chat",
+        json={
+            "message": "Cơ sở Thủ Đức giờ làm việc thế nào?",
+            "public_support_chat": True,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert search_calls == [40]
+    assert payload["provenance"] == "local_provider"
+    assert [item["source_id"] for item in payload["citations"]] == ["branch-thu-duc"]
+    assert "08:00–17:00" in payload["answer"]
 
 
 def test_public_local_chat_drops_partial_matches_for_multi_constraint_lookup(
