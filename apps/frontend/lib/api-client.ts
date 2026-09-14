@@ -1094,6 +1094,25 @@ export async function fetchDoctors(filter: DoctorFilter = {}): Promise<Page<Doct
   return getJson<Page<Doctor>>(`/hospital/doctors${query}`);
 }
 
+export const DOCTOR_CATALOG_PAGE_SIZE = 100;
+const DOCTOR_CATALOG_PAGE_CAP = 5;
+
+/**
+ * Full doctor catalog for booking wizards: branch/specialty filtering must run
+ * against every active doctor, not just the first page. Stops after the first
+ * page whose `last` flag is not exactly false, so mocked single-page responses
+ * never trigger follow-up requests.
+ */
+export async function fetchDoctorCatalog(): Promise<Doctor[]> {
+  const doctors: Doctor[] = [];
+  for (let page = 0; page < DOCTOR_CATALOG_PAGE_CAP; page += 1) {
+    const result = await fetchDoctors({ page, size: DOCTOR_CATALOG_PAGE_SIZE });
+    doctors.push(...result.content);
+    if (result.last !== false) break;
+  }
+  return doctors;
+}
+
 export async function fetchDoctorBySlug(slug: string): Promise<Doctor> {
   return getJson<Doctor>(`/hospital/doctors/${encodeURIComponent(slug)}`);
 }
