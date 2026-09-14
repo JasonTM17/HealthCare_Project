@@ -74,6 +74,7 @@ test("floating assistant exposes real recovery, safety and accessible actions", 
   assert.match(provider, /CHAT_CONTENT_BLOCKED/);
   assert.match(provider, /REQUEST_TIMEOUT/);
   assert.match(component, /Trường hợp cấp cứu, gọi 115/);
+  assert.match(component, /message\.safetyAction !== "EMERGENCY" && message\.suggestedActions/);
   assert.match(component, /Thử lại/);
   assert.match(component, /aria-expanded=\{open\}/);
   assert.match(component, /role="dialog"/);

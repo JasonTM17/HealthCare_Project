@@ -73,6 +73,10 @@
   /* Typography extras */
   --tracking-tight: 0em;
   --tracking-normal: 0em;
+  /* Delight layer (flat-safe; no shadows introduced) */
+  --fx-lift: -3px;
+  --fx-press-scale: 0.97;
+  --duration-celebrate: 720ms;
   --tracking-wide: 0.04em;
   --tracking-wider: 0.1em;
   --tracking-widest: 0.18em;
@@ -11842,4 +11846,186 @@ body:has(.mobile-menu) [class*="FloatingHealthAssistant_root"] {
 .portal-upcoming-preview__meta {
   font-size: 0.8125rem;
   color: var(--color-ink-muted);
+}
+
+/* ================= Daily health tip (Meo suc khoe moi ngay) ================= */
+.daily-tip {
+  display: flex;
+  gap: var(--sp-4);
+  align-items: flex-start;
+  width: min(100% - 2rem, 78rem);
+  margin: 0 auto var(--sp-8);
+  padding: var(--sp-5) var(--sp-6);
+  background: var(--color-paper-bright);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+}
+
+.daily-tip__icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 3rem;
+  height: 3rem;
+  color: var(--color-teal-700);
+  background: var(--color-surface);
+  border-radius: 50%;
+}
+
+.daily-tip__kicker {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0 0 var(--sp-2);
+  font-size: 0.8125rem;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+}
+.daily-tip__pulse { width: 0.5rem; height: 0.5rem; background: var(--color-amber); border-radius: 50%; }
+.daily-tip__tag {
+  padding: 0 var(--sp-2);
+  color: var(--color-teal-700);
+  background: var(--color-surface);
+  border-radius: var(--radius-sm);
+  text-transform: none;
+  letter-spacing: var(--tracking-normal);
+}
+.daily-tip__content h2 { margin: 0 0 var(--sp-1); font-family: var(--font-display); font-size: 1.25rem; color: var(--color-teal-900); }
+.daily-tip__content p { margin: 0; color: var(--color-ink-muted); }
+.daily-tip__actions { display: flex; align-items: center; gap: var(--sp-4); margin-top: var(--sp-3); }
+.daily-tip__next { min-height: 44px; }
+.daily-tip__dots { display: inline-flex; gap: 0.375rem; }
+.daily-tip__dot { width: 0.375rem; height: 0.375rem; background: var(--color-mint-mid); border-radius: 50%; transition: background var(--duration-fast) var(--ease-snappy); }
+.daily-tip__dot--on { background: var(--color-teal-600); }
+.daily-tip__hint { font-size: 0.75rem; color: var(--color-ink-soft); }
+
+@media (max-width: 640px) {
+  .daily-tip { flex-direction: column; }
+  .daily-tip__hint { display: none; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .daily-tip__icon { animation: fx-float 5.2s var(--ease-snappy) infinite alternate; }
+  .daily-tip[data-reveal="pre"] { opacity: 0; transform: translateY(12px); }
+  .daily-tip[data-reveal="in"] { animation: fx-rise var(--duration-slow) var(--ease-out) both; }
+  .daily-tip__content { animation: fx-tip-swap var(--duration-base) var(--ease-out); }
+  .daily-tip:hover .daily-tip__icon,
+  .daily-tip:focus-within .daily-tip__icon { animation-play-state: paused; }
+}
+
+@keyframes fx-float { from { transform: translateY(0); } to { transform: translateY(-3px); } }
+@keyframes fx-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fx-tip-swap { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .daily-tip__icon, .daily-tip[data-reveal] { animation: none !important; opacity: 1 !important; transform: none !important; }
+}
+
+/* ================= Booking success celebration ================= */
+.fx-check-wrap { position: relative; display: grid; place-items: center; margin-inline: auto; color: var(--color-teal-700); }
+.fx-check-svg { width: 100%; height: 100%; display: block; }
+.fx-check-circle, .fx-check-mark { stroke-dasharray: 1; stroke-dashoffset: 1; }
+.fx-confetti { position: absolute; inset: 0; pointer-events: none; }
+.fx-confetti__dot { position: absolute; top: 50%; left: 50%; margin: -0.25rem 0 0 -0.25rem; opacity: 0; }
+.fx-confetti__dot--teal { background: var(--color-mint-mid); }
+.fx-confetti__dot--amber { background: var(--color-amber); }
+.fx-confetti__dot--deep { background: var(--color-teal-600); }
+.fx-confetti__dot--sand { background: var(--color-surface-strong); }
+.fx-thanks { color: var(--color-teal-700); font-weight: 600; }
+.fx-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); }
+.fx-chip {
+  display: inline-flex; align-items: center; gap: var(--sp-1);
+  min-height: 44px; padding: 0 var(--sp-4);
+  font-size: 0.8125rem; font-weight: 600; color: var(--color-teal-700);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  transition: background var(--duration-fast) var(--ease-snappy), border-color var(--duration-fast) var(--ease-snappy);
+}
+.fx-chip:hover { background: var(--color-surface); border-color: var(--color-teal-300); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .fx-check-wrap { animation: fx-pop var(--duration-base) var(--ease-spring) both; }
+  .fx-check-circle { animation: fx-draw var(--duration-slow) var(--ease-out) forwards; }
+  .fx-check-mark { animation: fx-draw 300ms var(--ease-out) 320ms forwards; }
+  .fx-confetti__dot { animation: fx-confetti-burst var(--duration-celebrate) var(--ease-out) forwards; }
+}
+
+@keyframes fx-draw { to { stroke-dashoffset: 0; } }
+@keyframes fx-pop { 0% { transform: scale(0.6); opacity: 0; } 60% { transform: scale(1.08); opacity: 1; } 100% { transform: scale(1); } }
+@keyframes fx-confetti-burst {
+  0% { opacity: 1; transform: translate(0, 0) rotate(0deg) scale(1); }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--fx-tx), var(--fx-ty)) rotate(var(--fx-rot, 90deg)) scale(0.85); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fx-confetti { display: none; }
+  .fx-check-circle, .fx-check-mark { animation: none !important; stroke-dashoffset: 0 !important; }
+}
+
+/* ================= fx: global delight layer (transform/opacity only) ================= */
+.site-shell .hm-specialty-card,
+.site-shell .hm-doctor-card,
+.site-shell .hm-branch-card,
+.site-shell .hm-quick-card,
+.site-shell .button,
+.site-shell .text-button,
+.site-shell .outline-button,
+.site-shell .hero-quick-chip {
+  transition: transform var(--duration-base) var(--ease-spring);
+}
+
+.site-shell .hero-section { position: relative; overflow: hidden; }
+/* Floating accent orbs: solid, low-opacity palette circles that drift slowly
+   behind the hero. Transform/opacity only; the flat contract bans blended fills,
+   so depth comes from layered solid shapes instead. */
+.site-shell .hero-section::before,
+.site-shell .hero-section::after {
+  content: "";
+  position: absolute;
+  width: 22rem;
+  height: 22rem;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.site-shell .hero-section::before {
+  top: -9rem;
+  right: -7rem;
+  background: rgb(163 206 210 / 0.18);
+}
+.site-shell .hero-section::after {
+  bottom: -12rem;
+  left: -6rem;
+  background: rgb(254 183 0 / 0.12);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .site-shell .hm-specialty-card:hover,
+  .site-shell .hm-doctor-card:hover,
+  .site-shell .hm-branch-card:hover,
+  .site-shell .hm-quick-card:hover { transform: translateY(var(--fx-lift)); }
+
+  .site-shell .button:active,
+  .site-shell .text-button:active,
+  .site-shell .outline-button:active,
+  .site-shell .hero-quick-chip:active { transform: scale(var(--fx-press-scale)); }
+
+  .site-shell .hero-section::before { animation: fx-orb-drift 16s var(--ease-snappy) infinite alternate; }
+  .site-shell .hero-section::after { animation: fx-orb-drift 21s var(--ease-snappy) infinite alternate-reverse; }
+
+  .site-shell .hero-quick-chip:hover { transform: translateY(-2px); }
+
+  .site-shell .text-button svg { transition: transform var(--duration-fast) var(--ease-snappy); }
+  .site-shell .text-button:hover svg { transform: translate(2px, -2px); }
+}
+
+@keyframes fx-orb-drift {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(-2.5rem, 1.5rem) scale(1.08); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-shell .hero-section::before,
+  .site-shell .hero-section::after { animation: none !important; }
 }

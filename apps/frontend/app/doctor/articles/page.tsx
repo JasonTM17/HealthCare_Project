@@ -27,7 +27,7 @@ import { ForbiddenState, LoadingState, LoginRequiredState } from "../../../compo
 import { useAuthSession, useAuthSessionStatus } from "../../../components/useAuthSession";
 import ImageUpload from "../../../components/ImageUpload";
 import UiIcon from "../../../components/UiIcon";
-import { RichContentRenderer } from "../../../components/editor";
+import { RichContentRenderer, RichTextEditor } from "../../../components/editor";
 import ConfirmActionDialog from "../../../components/ui/ConfirmActionDialog";
 import { resolveArticleCoverImage, resolveArticleAlt } from "../../../lib/article-visuals";
 
@@ -903,22 +903,26 @@ export default function DoctorArticlesPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700" htmlFor="doctor-article-body-input">
-                    Nội dung chi tiết (Body) *
-                  </label>
-                  <textarea
-                    className="mt-1 w-full rounded-[4px] border border-slate-300 p-3 text-sm focus:border-teal-700 focus:ring-1 focus:ring-teal-700 focus:outline-none font-sans"
+                  {/* TinyMCE medical editor (same as admin catalog): the body
+                      is medical prose with callouts/templates — a plain
+                      textarea cannot express it, and the persisted markdown
+                      contract stays identical via htmlToMarkdown. */}
+                  <RichTextEditor
                     id="doctor-article-body-input"
-                    onChange={(e) => {
-                      setBody(e.target.value);
+                    label="Nội dung chi tiết (Body)"
+                    minHeight="360px"
+                    onChange={(value) => {
+                      setBody(value);
                       if (!editingSlug) {
-                        const words = e.target.value.trim().split(/\s+/).filter(Boolean).length;
+                        const words = value.trim().split(/\s+/).filter(Boolean).length;
                         setReadingMinutes(String(Math.max(1, Math.ceil(words / 180))));
                       }
                     }}
+                    onReadingMinutesCalculated={(minutes) => {
+                      if (!editingSlug) setReadingMinutes(String(Math.max(1, minutes)));
+                    }}
                     placeholder="Kiến thức y khoa, chỉ định chuyên môn, phác đồ theo dõi và lời khuyên của bác sĩ..."
                     required
-                    rows={12}
                     value={body}
                   />
                 </div>
