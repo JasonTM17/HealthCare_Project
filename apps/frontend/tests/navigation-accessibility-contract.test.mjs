@@ -23,7 +23,9 @@ test("public Navbar mobile navigation has a labelled dialog and complete keyboar
 
   assert.match(source, /const previouslyFocused = document\.activeElement instanceof HTMLElement/);
   assert.match(source, /const focusableSelector = "a\[href\], button:not\(\[disabled\]\), input/);
-  assert.match(source, /const focusFrame = window\.requestAnimationFrame\(\(\) => getFocusable\(\)\[0\]\?\.focus\(\)\)/);
+  // Initial menu focus uses setTimeout, not requestAnimationFrame: RAF is
+  // paused for hidden tabs and non-composited webviews and would skip focus.
+  assert.match(source, /const focusTimer = window\.setTimeout\(\(\) => getFocusable\(\)\[0\]\?\.focus\(\), 0\)/);
   assert.match(source, /document\.addEventListener\("keydown", handleKeyDown\)/);
   assert.match(source, /if \(event\.key === "Escape"\)[\s\S]*?event\.preventDefault\(\);[\s\S]*?setMobileMenuOpen\(false\)/);
   assert.match(source, /event\.shiftKey && document\.activeElement === first[\s\S]*?last\.focus\(\)/);

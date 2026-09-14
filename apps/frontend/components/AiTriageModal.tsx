@@ -254,7 +254,7 @@ export default function AiTriageModal({
                 disabled={loading || !symptoms.trim()}
                 className="flex min-h-11 items-center gap-2 rounded-sm bg-brand-700 px-6 py-2.5 text-sm font-bold text-white shadow-md transition-colors hover:bg-brand-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
               >
-                {loading ? <><Icon name="clock" size={15} /> Đang xem xét thông tin...</> : <><Icon name="stethoscope" size={15} /> Xem gợi ý chuyên khoa</>}
+                {loading ? <><Icon name="clock" size={15} /> Đang xem xét thông tin…</> : <><Icon name="stethoscope" size={15} /> Xem gợi ý chuyên khoa</>}
               </button>
             </div>
           </form>

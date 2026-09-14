@@ -27,7 +27,7 @@ const TinyEditor = dynamic<IAllProps>(
       <div className="flex min-h-[420px] items-center justify-center bg-slate-50 text-xs text-slate-500 font-medium border border-slate-200 rounded-[4px]">
         <div className="flex items-center gap-2">
           <span className="inline-block w-4 h-4 rounded-full border-2 border-teal-800 border-t-transparent animate-spin" />
-          <span>Đang khởi động trình soạn thảo TinyMCE...</span>
+          <span>Đang khởi động trình soạn thảo TinyMCE…</span>
         </div>
       </div>
     ),
@@ -1724,7 +1724,7 @@ export function RichTextEditor({
         {isDirectUploading && (
           <div className="flex items-center gap-2 bg-teal-50 border-b border-teal-200 px-3 py-1.5 text-xs text-teal-800 font-medium">
             <UiIcon name="activity" size={13} />
-            <span>Đang tải hình ảnh lên máy chủ bệnh viện...</span>
+            <span>Đang tải hình ảnh lên máy chủ bệnh viện…</span>
           </div>
         )}
         {directUploadError && (

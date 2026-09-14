@@ -175,7 +175,7 @@ export default function ImageUpload({
         {uploading ? (
           <div aria-live="polite" className={styles.uploadingOverlay} role="status">
             <div className={styles.spinner} />
-            <p className={styles.uploadingText}>Đang tải ảnh an toàn lên máy chủ...</p>
+            <p className={styles.uploadingText}>Đang tải ảnh an toàn lên máy chủ…</p>
           </div>
         ) : null}
       </div>
