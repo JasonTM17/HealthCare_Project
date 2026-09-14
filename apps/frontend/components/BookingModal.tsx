@@ -490,6 +490,11 @@ function BookingExperience({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [confirmedAppointment, setConfirmedAppointment] = useState<AppointmentDetails | null>(null);
+  const successHeadingRef = useRef<HTMLHeadingElement | null>(null);
+  // Move focus to the success heading when the E-Card swaps in (dialog focus pattern).
+  useEffect(() => {
+    if (confirmedAppointment) successHeadingRef.current?.focus();
+  }, [confirmedAppointment]);
   const bookingSessionRef = useRef(0);
   const otpResendAttemptRef = useRef(0);
   const otpResendControllerRef = useRef<AbortController | null>(null);
@@ -1614,15 +1619,35 @@ function BookingExperience({
                 </form>
               ) : (
                 /* Confirmed Electronic Appointment Card (E-Card) */
-                <div className="space-y-4 text-center py-2 animate-fadeIn">
-                  <div className="w-16 h-16 bg-brand-100 text-brand-700 rounded-full flex items-center justify-center text-3xl mx-auto mb-2">
-                    ✓
+                <div className="space-y-4 text-center py-2 animate-fadeIn" aria-live="polite">
+                  <div className="fx-check-wrap w-16 h-16 bg-brand-100 text-brand-700 rounded-full mx-auto mb-2">
+                    <span aria-hidden="true" className="fx-confetti">
+                      <i className="fx-confetti__dot fx-confetti__dot--teal h-2 w-2 rounded-full" style={{ "--fx-tx": "-56px", "--fx-ty": "-44px", "--fx-rot": "-140deg", animationDelay: "40ms" } as React.CSSProperties} />
+                      <i className="fx-confetti__dot fx-confetti__dot--amber h-2 w-2 rounded-full" style={{ "--fx-tx": "52px", "--fx-ty": "-50px", "--fx-rot": "120deg", animationDelay: "90ms" } as React.CSSProperties} />
+                      <i className="fx-confetti__dot fx-confetti__dot--deep h-2 w-2 rounded-full" style={{ "--fx-tx": "-20px", "--fx-ty": "-62px", "--fx-rot": "-80deg", animationDelay: "140ms" } as React.CSSProperties} />
+                      <i className="fx-confetti__dot fx-confetti__dot--sand h-2 w-2 rounded-full" style={{ "--fx-tx": "26px", "--fx-ty": "-58px", "--fx-rot": "70deg", animationDelay: "190ms" } as React.CSSProperties} />
+                      <i className="fx-confetti__dot fx-confetti__dot--amber h-2 w-2 rounded-full" style={{ "--fx-tx": "-62px", "--fx-ty": "-8px", "--fx-rot": "-100deg", animationDelay: "240ms" } as React.CSSProperties} />
+                      <i className="fx-confetti__dot fx-confetti__dot--teal h-2 w-2 rounded-full" style={{ "--fx-tx": "60px", "--fx-ty": "-12px", "--fx-rot": "90deg", animationDelay: "290ms" } as React.CSSProperties} />
+                      <i className="fx-confetti__dot fx-confetti__dot--sand h-2 w-2 rounded-full" style={{ "--fx-tx": "-44px", "--fx-ty": "24px", "--fx-rot": "-60deg", animationDelay: "340ms" } as React.CSSProperties} />
+                      <i className="fx-confetti__dot fx-confetti__dot--deep h-2 w-2 rounded-full" style={{ "--fx-tx": "46px", "--fx-ty": "26px", "--fx-rot": "110deg", animationDelay: "390ms" } as React.CSSProperties} />
+                      <i className="fx-confetti__dot fx-confetti__dot--amber h-2 w-2 rounded-full" style={{ "--fx-tx": "-8px", "--fx-ty": "-66px", "--fx-rot": "-120deg", animationDelay: "440ms" } as React.CSSProperties} />
+                      <i className="fx-confetti__dot fx-confetti__dot--teal h-2 w-2 rounded-full" style={{ "--fx-tx": "12px", "--fx-ty": "34px", "--fx-rot": "60deg", animationDelay: "490ms" } as React.CSSProperties} />
+                      <i className="fx-confetti__dot fx-confetti__dot--sand h-2 w-2 rounded-full" style={{ "--fx-tx": "-30px", "--fx-ty": "-56px", "--fx-rot": "-90deg", animationDelay: "540ms" } as React.CSSProperties} />
+                      <i className="fx-confetti__dot fx-confetti__dot--deep h-2 w-2 rounded-full" style={{ "--fx-tx": "34px", "--fx-ty": "-52px", "--fx-rot": "100deg", animationDelay: "590ms" } as React.CSSProperties} />
+                    </span>
+                    <svg aria-hidden="true" className="fx-check-svg" viewBox="0 0 52 52" fill="none">
+                      <circle className="fx-check-circle" cx="26" cy="26" r="24" pathLength={151} stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                      <path className="fx-check-mark" d="M14 27 L23 36 L38 19" pathLength={40} stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
                   </div>
-                  <h3 className="text-2xl font-bold text-brand-900">
+                  <h3 ref={successHeadingRef} tabIndex={-1} className="text-2xl font-bold text-brand-900 focus-visible:outline-none">
                     Đặt lịch khám thành công!
                   </h3>
                   <p className="text-xs text-gray-600 max-w-md mx-auto">
                     Thông tin lịch hẹn đã được lưu vào hệ thống bệnh viện. Vui lòng xuất trình mã lịch hẹn tại quầy tiếp đón khi đến khám.
+                  </p>
+                  <p className="fx-thanks text-sm max-w-md mx-auto">
+                    Cảm ơn bạn đã tin tưởng HealthCare. Đội ngũ của chúng tôi rất mong được gặp bạn.
                   </p>
 
                   {/* E-Card Ticket */}
@@ -1698,6 +1723,18 @@ function BookingExperience({
                     >
                       {completionActionLabel}
                     </button>
+                  </div>
+
+                  <div className="fx-chips" aria-label="Bước tiếp theo">
+                    <Link className="fx-chip" href="/huong-dan">
+                      <Icon name="book-open" size={15} /> Chuẩn bị trước khi khám
+                    </Link>
+                    <Link className="fx-chip" href="/tra-cuu">
+                      <Icon name="calendar" size={15} /> Tra cứu lịch hẹn
+                    </Link>
+                    <Link className="fx-chip" href="/patient/dashboard#appointments">
+                      <Icon name="user" size={15} /> Lịch hẹn của tôi
+                    </Link>
                   </div>
                 </div>
               )}

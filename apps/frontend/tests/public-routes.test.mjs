@@ -697,3 +697,23 @@ test("booking, AI, and appointment tracking states use the icon family", async (
     assert.doesNotMatch(source, /gradient/);
   }
 });
+
+test("home carries the daily health tip widget", async () => {
+  const home = await read("app/page.tsx");
+  const tip = await read("components/DailyHealthTip.tsx");
+  assert.match(home, /DailyHealthTip/);
+  assert.match(tip, /Mẹo sức khỏe mỗi ngày/);
+  assert.match(tip, /aria-live="polite"/);
+  assert.match(tip, /prefers-reduced-motion: reduce/);
+});
+
+test("booking success celebrates with the drawn check and next-step chips", async () => {
+  const booking = await read("components/BookingModal.tsx");
+  assert.match(booking, /Đặt lịch khám thành công!/);
+  assert.match(booking, /fx-check-mark/);
+  assert.match(booking, /fx-confetti__dot/);
+  assert.match(booking, /aria-live="polite"/);
+  assert.match(booking, /successHeadingRef/);
+  assert.match(booking, /Cảm ơn bạn đã tin tưởng HealthCare/);
+  assert.match(booking, /fx-chip/);
+});

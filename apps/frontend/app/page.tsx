@@ -8,6 +8,7 @@ import BranchMap from "../components/BranchMap";
 import AiTriageModal from "../components/AiTriageModal";
 import BookingModal from "../components/BookingModal";
 import CareExperience from "../components/CareExperience";
+import DailyHealthTip from "../components/DailyHealthTip";
 import { CmsLiveSlot } from "../components/cms";
 import { CmsContentRenderer } from "../components/cms/CmsRenderer";
 import Footer from "../components/Footer";
@@ -706,6 +707,8 @@ export default function Home(): React.ReactElement {
           contactPhone={contactPhone}
           hasEmergencyBranch={Boolean(emergencyBranch)}
         />
+
+        <DailyHealthTip />
 
         <section className="cms-live-region" id="cms-live" aria-labelledby="cms-live-title">
           <div className="section-inner">
