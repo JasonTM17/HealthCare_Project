@@ -142,7 +142,7 @@ function MessageItem({
         <span className={styles.metaRight}>
           {assistant && message.status === "COMPLETED" ? (
             <span className={styles.provenance} data-provenance={message.provenance ?? "local_provider"}>
-              {provenanceLabel(message.provenance ?? "local_provider", message.citations.length)}
+              {provenanceLabel(message.provenance ?? "local_provider", message.citations.length, message.safetyAction)}
             </span>
           ) : null}
           <time dateTime={message.createdAt}>{formatDateTime(message.createdAt)}</time>
@@ -198,6 +198,7 @@ function MessageItem({
       ) : null}
       {assistant && message.suggestedActions && message.suggestedActions.length > 0 ? (
         <div aria-label="Bước tiếp theo" className={styles.suggestedActions} role="group">
+          <span className={styles.suggestedActionsLabel}>Bước tiếp theo</span>
           {message.suggestedActions.map((action) => (
             action.href === "tel:115"
               ? <a href={action.href} key={`${action.kind}-${action.href}`}>{action.label}</a>

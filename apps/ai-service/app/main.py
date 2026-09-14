@@ -11,6 +11,7 @@ from app.config import Settings
 from app.chatbot import (
     ChatContractError,
     generate_chat_response,
+    is_complex_multisymptom_query,
     retrieve_chat_candidates,
 )
 from app.embeddings import EmbeddingResult, embed
@@ -43,8 +44,10 @@ from app.supabase_rag import (
 )
 from app.schemas import (
     Citation,
+    ChatMode,
     ChatRequest,
     ChatResponse,
+    ChatSafetyAction,
     ChatGenerateRequest,
     ChatRetrieveRequest,
     ChatRetrieveResponse,
@@ -536,16 +539,48 @@ def chat(request: ChatRequest) -> ChatResponse:
         # no-source policy and the response carries no misleading citations.
         context = []
         citations = []
-    response = resolve_chat(
-        message,
-        settings,
-        recent_turns=turns,
-        context=context,
-        citations=citations,
-        synthetic_beta=request.synthetic_beta,
-        allow_public_operational=request.public_support_chat,
-        public_support_chat=request.public_support_chat,
-    )
+    top_score = max([score for _, score in hits], default=0.0)
+    similarity_thresh = getattr(settings, "ai_chat_similarity_threshold", 0.65)
+    is_complex = is_complex_multisymptom_query(message)
+
+    if (
+        hits
+        and top_score >= similarity_thresh
+        and not is_complex
+        and not request.public_support_chat
+        and patient_chat_remote_enabled(settings)
+    ):
+        top_doc, _ = hits[0]
+        grounded_answer = (
+            f"Dựa trên thông tin chính thức từ {top_doc.title}: {top_doc.content[:2000]}. "
+            "Nếu bạn cần thêm thông tin chi tiết hoặc đặt lịch khám, hãy liên hệ trực tiếp với bệnh viện."
+        )
+        response = ChatResponse(
+            answer=grounded_answer,
+            citations=citations[:3],
+            provenance="local_provider",
+            mode=request.mode,
+            safety_action=ChatSafetyAction.ANSWER,
+            cost_tier="local_free",
+            routing_reason="high_similarity_internal_kb",
+        )
+    else:
+        response = resolve_chat(
+            message,
+            settings,
+            recent_turns=turns,
+            context=context,
+            citations=citations,
+            synthetic_beta=request.synthetic_beta,
+            allow_public_operational=request.public_support_chat,
+            public_support_chat=request.public_support_chat,
+        )
+        if response.provenance == "remote_provider":
+            routing_reason = "complex_multisymptom_clinical_reasoning" if is_complex else "low_similarity_escalation"
+            response = response.model_copy(update={
+                "cost_tier": "remote_llm",
+                "routing_reason": routing_reason,
+            })
     final_provenance = merge_provenance(response.provenance, embedding_provenance)
     if final_provenance == "local_fallback":
         return response.model_copy(
@@ -553,9 +588,16 @@ def chat(request: ChatRequest) -> ChatResponse:
                 "provenance": final_provenance,
                 "citations": [],
                 "mode": request.mode,
+                "cost_tier": response.cost_tier,
+                "routing_reason": response.routing_reason,
             }
         )
-    return response.model_copy(update={"provenance": final_provenance, "mode": request.mode})
+    return response.model_copy(update={
+        "provenance": final_provenance,
+        "mode": request.mode,
+        "cost_tier": response.cost_tier,
+        "routing_reason": response.routing_reason,
+    })
 
 
 @app.post(

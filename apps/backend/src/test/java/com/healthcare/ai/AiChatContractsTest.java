@@ -498,21 +498,29 @@ class AiChatContractsTest {
     void operationalFallbackRoutesByIntentScoreNotFirstKeyword() {
         AiConversationService service = localFallbackService();
 
-        // The old first-match chain captured this via the bare token "khám"
-        // and answered with the booking guide.  It must route to specialty.
+        // A symptom question must ask for the missing details instead of
+        // inventing a specialty list or falling into the booking guide.
         String insomnia = fallbackAnswer(service,
             "Tôi bị mất ngủ kéo dài 3 tuần, nên khám chuyên khoa nào và chuẩn bị gì?");
-        assertThat(insomnia).contains("Thần kinh");
-        assertThat(insomnia).doesNotContain("Bước 1");
+        assertThat(insomnia)
+            .contains("chuyên khoa phù hợp")
+            .doesNotContain("Thần kinh")
+            .doesNotContain("Bước 1")
+            .doesNotContain("6-8");
 
         assertThat(fallbackAnswer(service, "Làm sao để đặt lịch khám tại HealthCare?"))
-            .contains("Bước 1");
+            .contains("Đặt lịch khám")
+            .doesNotContain("đã được lưu");
         assertThat(fallbackAnswer(service, "Bệnh viện có những chuyên khoa và cơ sở nào?"))
-            .contains("Tim mạch");
+            .contains("Cơ sở & giờ làm việc")
+            .doesNotContain("Tim mạch");
         assertThat(fallbackAnswer(service, "Bệnh viện làm việc đến mấy giờ, có mở cửa chủ nhật không?"))
-            .contains("07:30");
+            .contains("Giờ làm việc")
+            .doesNotContain("07:30");
         assertThat(fallbackAnswer(service, "Tôi nên chuẩn bị gì trước khi đi khám?"))
-            .contains("Nhịn ăn");
+            .contains("kiểm tra hướng dẫn")
+            .doesNotContain("Nhịn ăn")
+            .doesNotContain("6-8");
     }
 
     @Test

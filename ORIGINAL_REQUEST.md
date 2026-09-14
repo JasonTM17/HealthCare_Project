@@ -145,3 +145,48 @@ Integrity mode: development
 - [ ] Toàn bộ 319 bài test trong `apps/frontend` đạt 100% PASS.
 - [ ] TypeScript typecheck (`npm run typecheck`) không có bất kỳ lỗi nào.
 - [ ] Kiểm chứng thực tế qua ảnh chụp màn hình trình duyệt xác nhận độ hoàn thiện cao về mặt thẩm mỹ.
+
+## 2026-09-14T09:09:49Z
+
+Nâng cấp toàn diện cơ sở tri thức y khoa Supabase pgvector và thiết lập cơ chế định tuyến lai thông minh (Cost-Saving Hybrid RAG Router), ưu tiên giải đáp chính xác từ kho dữ liệu vector nội bộ và chỉ kích hoạt DeepSeek v4 Flash đối với các câu hỏi triệu chứng phức tạp hoặc nằm ngoài phạm vi tri thức có sẵn để tối ưu hóa chi phí vận hành.
+
+Working directory: d:/HealthCare_Project
+Integrity mode: development
+
+## Requirements
+
+### R1. Làm giàu cơ sở tri thức y tế thực tế trong Supabase Vector DB
+- Thay thế hoàn toàn các văn bản giữ chỗ giả lập trong `ai_documents` bằng nội dung y khoa thực tế, chuẩn chỉnh:
+  - **30 chuyên khoa lâm sàng**: Tích hợp mô tả bệnh học chuyên sâu, triệu chứng chỉ điểm, quy trình thăm khám, lưu ý chuẩn bị trước khi khám và hướng điều trị cơ bản.
+  - **20 chi nhánh bệnh viện**: Bổ sung địa chỉ, số hotline cấp cứu, khung giờ hoạt động, danh mục khoa phòng và tiện ích phục vụ người bệnh.
+  - **Cẩm nang bệnh học thường gặp (Clinical Guides)**: Soạn thảo các bài viết y khoa thực tế về Tim Mạch (tăng huyết áp, mạch vành), Tiêu Hóa (dạ dày, trào ngược), Hô Hấp (hen suyễn, viêm phế quản), Nội Tiết (tiểu đường, tuyến giáp), Nhi Khoa và Da Liễu.
+  - **Ngân hàng câu hỏi thường gặp (Medical & Hospital FAQs)**: Hướng dẫn chi tiết về bảo hiểm y tế, quy trình nhập viện/xuất viện, bảng giá khám và dịch vụ cận lâm sàng.
+- Xây dựng công cụ Ingestion CLI linh hoạt (`supabase/tools/ingest_clinical_knowledge.py`) hỗ trợ nạp thêm tài liệu y khoa từ JSON/Markdown vào `ai_documents` với embeddings 384 chiều đồng bộ.
+
+### R2. Cơ chế Định tuyến Tiết Kiệm Chi Phí (Cost-Saving Smart Router)
+- Xây dựng tầng lọc và đánh giá độ tin cậy kết quả tìm kiếm RAG:
+  - **Luồng 1 (Local Vector RAG - Chi phí 0đ)**: Khi câu hỏi đạt ngưỡng tương đồng ngữ nghĩa cao (\(\ge \text{similarity\_threshold}\)) với các tài liệu nội bộ trong Supabase (chuyên khoa, bác sĩ, giờ khám, dịch vụ, cẩm nang bệnh học), hệ thống phản hồi trực tiếp dựa trên tri thức nội bộ mà không gọi DeepSeek.
+  - **Luồng 2 (DeepSeek v4 Flash Escalation)**: Chỉ chuyển tiếp lên DeepSeek v4 Flash (với key cấu hình bảo mật qua biến môi trường `DEEPSEEK_API_KEY` / `AI_API_KEY`) khi:
+    1. Không tìm thấy tài liệu phù hợp trong Vector DB (kết quả tìm kiếm dưới ngưỡng tin cậy).
+    2. Hoặc câu hỏi chứa nhiều triệu chứng phức tạp chồng chéo cần khả năng suy luận lâm sàng chuyên sâu của mô hình ngôn ngữ lớn.
+- Bổ sung trường `routing_reason` và `cost_tier` (`local_free` hoặc `remote_llm`) trong phản hồi để kiểm toán độ hiệu quả của việc định tuyến.
+
+### R3. Tuân thủ Ranh giới An toàn Y tế & Duy trì Toàn vẹn Hệ thống
+- Đảm bảo 100% phản hồi từ mọi luồng (Local RAG hay DeepSeek) tuân thủ nghiêm ngặt hợp đồng lâm sàng: không tự ý kê đơn thuốc, không cam kết chẩn đoán tuyệt đối, cảnh báo cấp cứu khẩn cấp kịp thời đối với triệu chứng báo động đỏ.
+- Giữ vững toàn bộ 1,004 bài test hiện có, không làm suy yếu bất kỳ kiểm tra bảo mật hay hợp đồng hạ tầng nào.
+
+## Acceptance Criteria
+
+### Dữ liệu Vector & Công cụ Ingestion
+- [ ] Bảng `ai_documents` trong Supabase được làm giàu với hơn 200+ bản ghi tri thức lâm sàng thực tế, phủ kín 30 chuyên khoa, 20 chi nhánh, cẩm nang bệnh học và FAQ.
+- [ ] Tất cả tài liệu đều được gắn vector embedding 384 chiều hợp lệ, content hash chuẩn SHA-256 và metadata danh mục chính xác.
+- [ ] Công cụ Ingestion CLI hoạt động ổn định, cho phép nạp và cập nhật tài liệu y tế mới mà không làm gián đoạn hệ thống.
+
+### Định tuyến & Tối ưu Chi phí
+- [ ] Các câu hỏi tra cứu thông tin hành chính, cơ sở, chuyên khoa, lịch khám, bảng giá và triệu chứng cơ bản được giải quyết thành công qua Local RAG với `provenance = "local_provider"` / `cost_tier = "local_free"`.
+- [ ] Các câu hỏi lâm sàng đa triệu chứng phức tạp hoặc câu hỏi ngoài cơ sở dữ liệu chuyển tiếp chuẩn xác lên DeepSeek v4 Flash với `provenance = "remote_provider"`.
+- [ ] API Key DeepSeek được nạp qua cấu hình bảo mật (`.env` / Environment Variables), không bị để lộ trong mã nguồn công khai.
+
+### Kiểm thử Hệ thống (System Verification)
+- [ ] Bộ test tích hợp mới kiểm tra phân luồng chi phí (Routing & Cost Test) đạt 100% PASS.
+- [ ] Toàn bộ 1,004 test suites hiện hữu (AI Service, Backend Spring Boot, Frontend Next.js, Supabase, Infrastructure) tiếp tục PASS 100%.

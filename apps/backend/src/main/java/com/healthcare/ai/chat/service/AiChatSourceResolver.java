@@ -4,12 +4,14 @@ import com.healthcare.ai.chat.entity.ChatMode;
 import com.healthcare.hospital.entity.Article;
 import com.healthcare.hospital.entity.Branch;
 import com.healthcare.hospital.entity.Doctor;
+import com.healthcare.hospital.entity.DoctorBranch;
 import com.healthcare.hospital.entity.Faq;
 import com.healthcare.hospital.entity.MedicalService;
 import com.healthcare.hospital.entity.Package;
 import com.healthcare.hospital.entity.Specialty;
 import com.healthcare.hospital.repository.ArticleRepository;
 import com.healthcare.hospital.repository.BranchRepository;
+import com.healthcare.hospital.repository.DoctorBranchRepository;
 import com.healthcare.hospital.repository.DoctorRepository;
 import com.healthcare.hospital.repository.FaqRepository;
 import com.healthcare.hospital.repository.PackageRepository;
@@ -26,6 +28,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -48,12 +51,36 @@ public class AiChatSourceResolver {
     private final BranchRepository branchRepository;
     private final SpecialtyRepository specialtyRepository;
     private final DoctorRepository doctorRepository;
+    private final DoctorBranchRepository doctorBranchRepository;
     private final ServiceRepository serviceRepository;
     private final PackageRepository packageRepository;
     private final ArticleRepository articleRepository;
     private final FaqRepository faqRepository;
     private final JdbcTemplate jdbc;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    public AiChatSourceResolver(
+            BranchRepository branchRepository,
+            SpecialtyRepository specialtyRepository,
+            DoctorRepository doctorRepository,
+            DoctorBranchRepository doctorBranchRepository,
+            ServiceRepository serviceRepository,
+            PackageRepository packageRepository,
+            ArticleRepository articleRepository,
+            FaqRepository faqRepository,
+            JdbcTemplate jdbc) {
+        this.branchRepository = branchRepository;
+        this.specialtyRepository = specialtyRepository;
+        this.doctorRepository = doctorRepository;
+        this.doctorBranchRepository = doctorBranchRepository;
+        this.serviceRepository = serviceRepository;
+        this.packageRepository = packageRepository;
+        this.articleRepository = articleRepository;
+        this.faqRepository = faqRepository;
+        this.jdbc = jdbc;
+    }
+
+    /** Compatibility constructor for source-focused tests and older callers. */
     public AiChatSourceResolver(
             BranchRepository branchRepository,
             SpecialtyRepository specialtyRepository,
@@ -63,14 +90,8 @@ public class AiChatSourceResolver {
             ArticleRepository articleRepository,
             FaqRepository faqRepository,
             JdbcTemplate jdbc) {
-        this.branchRepository = branchRepository;
-        this.specialtyRepository = specialtyRepository;
-        this.doctorRepository = doctorRepository;
-        this.serviceRepository = serviceRepository;
-        this.packageRepository = packageRepository;
-        this.articleRepository = articleRepository;
-        this.faqRepository = faqRepository;
-        this.jdbc = jdbc;
+        this(branchRepository, specialtyRepository, doctorRepository, null,
+            serviceRepository, packageRepository, articleRepository, faqRepository, jdbc);
     }
 
     /** Resolve AI retrieval candidates into exact source metadata for generate. */
@@ -323,7 +344,7 @@ public class AiChatSourceResolver {
                 .orElse(null);
             case "doctor" -> doctorRepository.findById(uuid)
                 .filter(Doctor::isActive)
-                .map(value -> source(type, id, value.getFullName(), value.getSlug(), true, true))
+                .map(value -> source(type, id, doctorDisplayTitle(value), value.getSlug(), true, true))
                 .orElse(null);
             case "service" -> serviceRepository.findById(uuid)
                 .filter(MedicalService::isActive)
@@ -454,6 +475,30 @@ public class AiChatSourceResolver {
         };
         return new ResolvedSource(type, id, title == null ? "Nguồn bệnh viện" : title.strip(),
             safeSlug, active, published, "OPERATIONAL", null, null, null, null, viewHref, bookingHref);
+    }
+
+    private String doctorDisplayTitle(Doctor doctor) {
+        String fullName = doctor.getFullName() == null || doctor.getFullName().isBlank()
+            ? "Bác sĩ HealthCare" : doctor.getFullName().strip();
+        if (doctorBranchRepository == null || doctor.getId() == null) return fullName;
+
+        List<DoctorBranch> assignments = doctorBranchRepository.findByDoctorId(doctor.getId());
+        if (assignments == null || assignments.isEmpty()) return fullName;
+        List<String> branchNames = assignments.stream()
+            .filter(Objects::nonNull)
+            .map(DoctorBranch::getBranch)
+            .filter(Objects::nonNull)
+            .filter(Branch::isActive)
+            .map(Branch::getName)
+            .filter(Objects::nonNull)
+            .map(String::strip)
+            .filter(value -> !value.isBlank())
+            .distinct()
+            .limit(3)
+            .toList();
+        return branchNames.isEmpty()
+            ? fullName
+            : fullName + " — " + String.join(" · ", branchNames);
     }
 
     private void addAction(List<Map<String, String>> actions, String kind, String label, String href) {

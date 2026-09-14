@@ -3,8 +3,11 @@ package com.healthcare.ai;
 import com.healthcare.ai.chat.entity.ChatMode;
 import com.healthcare.ai.chat.service.AiChatSourceResolver;
 import com.healthcare.hospital.entity.Branch;
+import com.healthcare.hospital.entity.Doctor;
+import com.healthcare.hospital.entity.DoctorBranch;
 import com.healthcare.hospital.repository.ArticleRepository;
 import com.healthcare.hospital.repository.BranchRepository;
+import com.healthcare.hospital.repository.DoctorBranchRepository;
 import com.healthcare.hospital.repository.DoctorRepository;
 import com.healthcare.hospital.repository.FaqRepository;
 import com.healthcare.hospital.repository.PackageRepository;
@@ -81,5 +84,41 @@ class AiChatSourceResolverTest {
             ChatMode.HEALTH_EDUCATION,
             List.of(Map.of("source_type", "branch", "source_id", id.toString())))).isEmpty();
         verify(branches, never()).findByIdAndActiveTrue(id);
+    }
+
+    @Test
+    void hospitalSupportDoctorIdentityIncludesAssignedBranchForDisambiguation() {
+        BranchRepository branches = mock(BranchRepository.class);
+        SpecialtyRepository specialties = mock(SpecialtyRepository.class);
+        DoctorRepository doctors = mock(DoctorRepository.class);
+        DoctorBranchRepository doctorBranches = mock(DoctorBranchRepository.class);
+        UUID id = UUID.randomUUID();
+
+        Doctor doctor = new Doctor();
+        doctor.setId(id);
+        doctor.setFullName("Bác sĩ mẫu 3 - Nội tổng hợp");
+        doctor.setSlug("bac-si-mau-3-noi-tong-hop");
+        doctor.setActive(true);
+        Branch branch = new Branch();
+        branch.setName("Phòng khám ngoại trú HealthCare — Thủ Đức");
+        branch.setActive(true);
+        DoctorBranch assignment = new DoctorBranch();
+        assignment.setDoctor(doctor);
+        assignment.setBranch(branch);
+        when(doctors.findById(id)).thenReturn(Optional.of(doctor));
+        when(doctorBranches.findByDoctorId(id)).thenReturn(List.of(assignment));
+
+        AiChatSourceResolver resolver = new AiChatSourceResolver(
+            branches, specialties, doctors, doctorBranches,
+            mock(com.healthcare.hospital.repository.ServiceRepository.class),
+            mock(PackageRepository.class), mock(ArticleRepository.class),
+            mock(FaqRepository.class), mock(JdbcTemplate.class));
+
+        List<AiChatSourceResolver.ResolvedSource> sources = resolver.authorize(
+            ChatMode.HOSPITAL_SUPPORT,
+            List.of(Map.of("source_type", "doctor", "source_id", id.toString())));
+
+        assertThat(sources).extracting(AiChatSourceResolver.ResolvedSource::title)
+            .containsExactly("Bác sĩ mẫu 3 - Nội tổng hợp — Phòng khám ngoại trú HealthCare — Thủ Đức");
     }
 }

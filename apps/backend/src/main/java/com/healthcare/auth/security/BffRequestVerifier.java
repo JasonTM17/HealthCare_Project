@@ -30,6 +30,8 @@ public class BffRequestVerifier {
         "/api/v1/auth/verify-email",
         "/api/v1/auth/confirm-email"
     );
+    private static final String DEFAULT_ALLOWED_ORIGINS =
+        "http://localhost:3000,http://127.0.0.1:3000";
 
     private final byte[] configuredCredential;
     private final Set<String> allowedOrigins;
@@ -45,7 +47,7 @@ public class BffRequestVerifier {
             throw new IllegalStateException("BFF service credential is required");
         }
         this.allowedOrigins = Arrays.stream(
-                environment.getProperty("app.security.bff.allowed-origins", "http://localhost:3000").split(","))
+                environment.getProperty("app.security.bff.allowed-origins", DEFAULT_ALLOWED_ORIGINS).split(","))
             .map(String::trim)
             .filter(value -> !value.isEmpty())
             .map(this::normalizeOrigin)

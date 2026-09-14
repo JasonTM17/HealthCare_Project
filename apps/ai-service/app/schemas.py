@@ -230,6 +230,8 @@ class ChatResponse(BaseModel):
     safety_action: ChatSafetyAction = ChatSafetyAction.ANSWER
     used_sources: list[UsedSource] = Field(default_factory=list, max_length=MAX_RETRIEVED_CHUNKS)
     triage: TriageSummary | None = None
+    cost_tier: Literal["local_free", "remote_llm"] = "local_free"
+    routing_reason: str | None = None
 
 
 class TriageResponse(BaseModel):

@@ -15,6 +15,7 @@ import type {
   AiChatExchange,
   AiChatProvenance,
   AiConversation,
+  ChatSafetyAction,
   ChatMode,
 } from "../types/hospital";
 import {
@@ -51,17 +52,23 @@ export const DEFAULT_CHAT_MODE: ChatMode = "HOSPITAL_SUPPORT";
 
 /**
  * Honest source label shared by the floating panel and the full chat page.
- * A local rule answer is only attributable to HealthCare when the server
- * attached verified catalog citations; without them it is a fallback.
+ * Keep the label aligned with the evidence shown beside the answer. A local
+ * route guide is useful without catalog facts, but it must not look like a
+ * verified HealthCare source.
  */
-export function provenanceLabel(provenance: AiChatProvenance, citationCount: number): string {
+export function provenanceLabel(
+  provenance: AiChatProvenance,
+  citationCount: number,
+  safetyAction?: ChatSafetyAction,
+): string {
+  if (safetyAction === "INSUFFICIENT_EVIDENCE") return "Chưa có nguồn xác thực";
   switch (provenance) {
     case "local_fallback":
-      return "Hỗ trợ tạm thời";
+      return safetyAction === "ANSWER" ? "Hướng dẫn nhanh" : "Hỗ trợ tạm thời";
     case "remote_provider":
       return "Phản hồi AI có kiểm soát";
     default:
-      return citationCount > 0 ? "Nguồn HealthCare" : "Hỗ trợ tạm thời";
+      return citationCount > 0 ? "Nguồn HealthCare" : "Hướng dẫn nhanh";
   }
 }
 

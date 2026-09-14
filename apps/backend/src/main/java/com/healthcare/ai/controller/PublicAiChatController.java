@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.healthcare.ai.chat.entity.ChatMode;
 import com.healthcare.ai.chat.service.AiChatSourceResolver;
 import com.healthcare.ai.chat.service.ChatMedicalSafety;
+import com.healthcare.ai.chat.service.ChatSuggestedActionResolver;
 import com.healthcare.ai.service.AiService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -104,10 +105,10 @@ public class PublicAiChatController {
             payload.put("recent_turns", mappedTurns);
         }
 
-        return ResponseEntity.ok(sanitize(aiService.chat(payload)));
+        return ResponseEntity.ok(sanitize(aiService.chat(payload), request.message().trim()));
     }
 
-    private Map<String, Object> sanitize(Map<String, Object> upstream) {
+    private Map<String, Object> sanitize(Map<String, Object> upstream, String userMessage) {
         if (upstream == null || !(upstream.get("answer") instanceof String answer)
                 || answer.isBlank()
                 || answer.strip().length() > MAX_ANSWER_LENGTH
@@ -133,14 +134,37 @@ public class PublicAiChatController {
             throw badGateway("AI response failed the public safety policy");
         }
 
+        List<ValidatedCitation> validatedCitations = validatedCitations(upstream);
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("answer", normalizedAnswer);
         result.put("disclaimer", disclaimer);
-        result.put("citations", identityOnlyCitations(upstream));
+        result.put("citations", validatedCitations.stream()
+            .map(ValidatedCitation::identity)
+            .toList());
         result.put("provenance", provenance);
         result.put("mode", ChatMode.HOSPITAL_SUPPORT.name());
         result.put("safety_action", safetyAction);
+        result.put("suggested_actions", suggestedActions(userMessage, safetyAction, validatedCitations));
         return result;
+    }
+
+    private List<Map<String, String>> suggestedActions(
+            String userMessage,
+            String safetyAction,
+            List<ValidatedCitation> citations) {
+        if ("EMERGENCY".equals(safetyAction)) {
+            return List.of(Map.of("kind", "CALL_EMERGENCY", "label", "Gọi 115", "href", "tel:115"));
+        }
+        if (Set.of("REFUSE", "HUMAN_HANDOFF").contains(safetyAction)) {
+            return List.of();
+        }
+        if ("ANSWER".equals(safetyAction) && !citations.isEmpty()) {
+            List<Map<String, String>> sourceActions = sourceResolver.actions(citations.stream()
+                .map(ValidatedCitation::source)
+                .toList());
+            if (!sourceActions.isEmpty()) return sourceActions;
+        }
+        return ChatSuggestedActionResolver.hospitalSupportFallback(userMessage);
     }
 
     private String requiredString(
@@ -176,7 +200,7 @@ public class PublicAiChatController {
 
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(PublicAiChatController.class);
 
-    private List<Map<String, String>> identityOnlyCitations(Map<String, Object> upstream) {
+    private List<ValidatedCitation> validatedCitations(Map<String, Object> upstream) {
         if (!upstream.containsKey("citations")
                 || !(upstream.get("citations") instanceof List<?> items)
                 || items.size() > MAX_CITATIONS) {
@@ -184,27 +208,28 @@ public class PublicAiChatController {
         }
 
         Set<String> seen = new HashSet<>();
-        List<Map<String, String>> result = new ArrayList<>(items.size());
+        List<ValidatedCitation> result = new ArrayList<>(items.size());
         for (Object item : items) {
             if (!(item instanceof Map<?, ?> citation)) {
                 throw badGateway("AI citations are invalid for public chat");
             }
-            Map<String, String> identity = identityOnlyCitation(citation);
-            if (identity == null) {
+            ValidatedCitation validated = identityOnlyCitation(citation);
+            if (validated == null) {
                 // If an AI citation cannot be verified against the active catalog,
                 // omit it gracefully instead of crashing the visitor's entire chat response.
                 continue;
             }
+            Map<String, String> identity = validated.identity();
             String key = identity.get("source_type") + ":" + identity.get("source_id");
             if (!seen.add(key)) {
                 throw badGateway("AI citations are duplicated");
             }
-            result.add(identity);
+            result.add(validated);
         }
         return List.copyOf(result);
     }
 
-    private Map<String, String> identityOnlyCitation(Map<?, ?> citation) {
+    private ValidatedCitation identityOnlyCitation(Map<?, ?> citation) {
         Object sourceType = citation.get("source_type");
         Object sourceId = citation.get("source_id");
         Object title = citation.get("title");
@@ -243,11 +268,18 @@ public class PublicAiChatController {
             log.warn("AI citation is not an active public catalog source: type={}, id={}", type, id);
             return null;
         }
-        return Map.of(
-            "source_type", resolved.type(),
-            "source_id", resolved.id(),
-            "title", resolved.title().strip()
-        );
+        return new ValidatedCitation(
+            Map.of(
+                "source_type", resolved.type(),
+                "source_id", resolved.id(),
+                "title", resolved.title().strip()
+            ),
+            resolved);
+    }
+
+    private record ValidatedCitation(
+            Map<String, String> identity,
+            AiChatSourceResolver.ResolvedSource source) {
     }
 
     private ResponseStatusException badGateway(String reason) {
