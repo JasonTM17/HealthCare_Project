@@ -181,7 +181,7 @@ services:
       # intermittent "session indeterminate" errors.  Compose runs on machines
       # with headroom, so give the local backend a realistic budget; the flag
       # stays operator-overridable.
-      LOGGING_LEVEL_COM_HEALTHCARE_AI: ${BACKEND_LOG_LEVEL:-DEBUG}
+      LOGGING_LEVEL_COM_HEALTHCARE_AI: ${BACKEND_LOG_LEVEL:-INFO}
       JAVA_TOOL_OPTIONS: "${BACKEND_JAVA_TOOL_OPTIONS:--XX:+UseSerialGC -Xms192m -Xmx512m -XX:MaxMetaspaceSize=288m -XX:CompressedClassSpaceSize=64m -XX:ReservedCodeCacheSize=64m -Xss512k -Djava.security.egd=file:/dev/./urandom -XX:+ExitOnOutOfMemoryError}"
       # Local Compose enables clinical modes only after the local synthetic
       # approval/reconciliation gate; production should override both false.
