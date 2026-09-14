@@ -157,7 +157,9 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
     document.body.style.overflow = "hidden";
     const focusableSelector = "a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex=\"-1\"])";
     const getFocusable = (): HTMLElement[] => Array.from(menu.querySelectorAll<HTMLElement>(focusableSelector));
-    const focusFrame = window.requestAnimationFrame(() => getFocusable()[0]?.focus());
+    // setTimeout, not requestAnimationFrame: RAF is paused for hidden tabs and
+    // non-composited webviews, which would skip the menu's initial focus.
+    const focusTimer = window.setTimeout(() => getFocusable()[0]?.focus(), 0);
     const handleKeyDown = (event: KeyboardEvent): void => {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -180,7 +182,7 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
 
     document.addEventListener("keydown", handleKeyDown);
     return () => {
-      window.cancelAnimationFrame(focusFrame);
+      window.clearTimeout(focusTimer);
       document.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = previousOverflow;
       if (previouslyFocused?.isConnected) previouslyFocused.focus();
