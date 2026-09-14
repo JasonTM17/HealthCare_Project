@@ -12,6 +12,8 @@ from app.llm import (
     contains_prompt_injection,
     public_context_is_relevant,
     public_no_context_query_allowed,
+    public_query_constraints,
+    public_source_types_for_query,
     remote_answer_is_grounded,
     remote_text_output_is_safe,
     resolve_chat,
@@ -193,6 +195,31 @@ def test_direct_diagnosis_and_prescription_request_is_refused() -> None:
     assert "chẩn đoán" in result.answer.casefold()
 
 
+def test_previous_emergency_does_not_stick_to_a_benign_follow_up() -> None:
+    result = chat_safety_response(
+        "Bệnh viện có chuyên khoa Tim mạch không?",
+        [("user", "Tôi đang khó thở và đau ngực dữ dội"), ("assistant", "Hãy gọi 115 ngay.")],
+    )
+
+    assert result is None
+
+
+def test_public_operational_assistant_history_does_not_poison_follow_up() -> None:
+    result = chat_safety_response(
+        "Làm sao để đặt lịch khám tại HealthCare?",
+        [
+            ("user", "Cơ sở Thủ Đức giờ làm việc thế nào?"),
+            (
+                "assistant",
+                "Phòng khám Đa khoa Thảo Điền: Số 45 Xa lộ Hà Nội, "
+                "Phường Thảo Điền, TP. Thủ Đức 028 3744 2233 07:00–19:00.",
+            ),
+        ],
+    )
+
+    assert result is None
+
+
 def test_public_smalltalk_uses_remote_provider_without_unrelated_context() -> None:
     provider = MagicMock()
     provider.complete_json.return_value = {
@@ -229,6 +256,30 @@ def test_public_context_relevance_rejects_catalog_rows_for_broad_questions() -> 
         "Làm sao để đặt lịch khám tại HealthCare?",
         ["Nam khoa: Khám và điều trị các bệnh lý nam giới."],
     )
+    assert public_source_types_for_query("Bệnh viện có chuyên khoa Tim mạch không?") == {"specialty"}
+    assert public_source_types_for_query("Tôi muốn tìm bác sĩ Tim mạch") == {"doctor"}
+    assert public_source_types_for_query("Cơ sở Thủ Đức giờ làm việc") == {"branch"}
+
+
+def test_public_context_relevance_requires_all_explicit_catalog_constraints() -> None:
+    query = "Tôi muốn tìm bác sĩ Tim mạch tại cơ sở Thủ Đức"
+
+    assert public_query_constraints(query) == ("tim mach", "thu duc")
+    assert public_context_is_relevant(
+        query,
+        ["Bác sĩ mẫu 8 - Tim mạch — Phòng khám ngoại trú HealthCare — Thủ Đức"],
+    )
+    assert not public_context_is_relevant(
+        query,
+        ["Bác sĩ mẫu 4 - Sản phụ khoa — Phòng khám ngoại trú HealthCare — Thủ Đức"],
+    )
+    assert not public_context_is_relevant(
+        query,
+        ["Bác sĩ mẫu 8 - Tim mạch — Bệnh viện Đa khoa HealthCare — Quận 7"],
+    )
+    assert public_query_constraints("Làm sao để đặt lịch khám tại HealthCare?") == ()
+    assert public_query_constraints("Bệnh viện ở đâu?") == ()
+    assert public_query_constraints("Cơ sở số 8 giờ làm việc thế nào?") == ("8",)
 
 
 def test_public_chat_endpoint_drops_unrelated_rows_before_remote_resolution(
@@ -267,6 +318,153 @@ def test_public_chat_endpoint_drops_unrelated_rows_before_remote_resolution(
 
     assert response.status_code == 200
     assert seen == {"context": [], "citations": [], "allow_public_operational": True}
+
+
+def test_public_local_chat_uses_grounded_operational_source_when_identity_matches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    local_settings = settings
+    monkeypatch.setattr(local_settings, "ai_service_runtime", "local")
+    monkeypatch.setattr(local_settings, "ai_service_allow_unauthenticated_local", True)
+    monkeypatch.setattr(local_settings, "ai_service_token", "")
+    monkeypatch.setattr(local_settings, "ai_provider", "local")
+    monkeypatch.setattr(local_settings, "embedding_provider", "local")
+    monkeypatch.setattr(local_settings, "ai_public_hospital_support_remote_enabled", False)
+
+    vector = [1.0] + [0.0] * 383
+    local_rag = RagService()
+    local_rag.ingest(
+        "specialty",
+        "tim-mach",
+        "Tim mạch",
+        "Chuyên khoa Tim mạch tiếp nhận thông tin khám và đặt lịch.",
+        vector,
+        embedding_model="local-hash",
+        embedding_provenance="local_provider",
+    )
+    monkeypatch.setattr("app.main.rag_service", local_rag)
+    monkeypatch.setattr(
+        "app.main.embed",
+        lambda *_, **__: EmbeddingResult(vector, "local-hash", "local_provider"),
+    )
+
+    response = client.post(
+        "/chat",
+        json={
+            "message": "Bệnh viện có chuyên khoa Tim mạch không?",
+            "public_support_chat": True,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provenance"] == "local_provider"
+    assert [item["source_id"] for item in payload["citations"]] == ["tim-mach"]
+    assert "Tim mạch" in payload["answer"]
+
+
+def test_public_local_chat_drops_partial_matches_for_multi_constraint_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    local_settings = settings
+    monkeypatch.setattr(local_settings, "ai_service_runtime", "local")
+    monkeypatch.setattr(local_settings, "ai_service_allow_unauthenticated_local", True)
+    monkeypatch.setattr(local_settings, "ai_service_token", "")
+    monkeypatch.setattr(local_settings, "ai_provider", "local")
+    monkeypatch.setattr(local_settings, "embedding_provider", "local")
+    monkeypatch.setattr(local_settings, "ai_public_hospital_support_remote_enabled", False)
+
+    vector = [1.0] + [0.0] * 383
+    local_rag = RagService()
+    for source_id, title, content in (
+        (
+            "doctor-thu-duc-cardio",
+            "Bác sĩ mẫu 8 - Tim mạch — Phòng khám ngoại trú HealthCare — Thủ Đức",
+            "Bác sĩ Tim mạch tiếp nhận tại cơ sở Thủ Đức.",
+        ),
+        (
+            "doctor-thu-duc-obgyn",
+            "Bác sĩ mẫu 4 - Sản phụ khoa — Phòng khám ngoại trú HealthCare — Thủ Đức",
+            "Bác sĩ Sản phụ khoa tiếp nhận tại cơ sở Thủ Đức.",
+        ),
+        (
+            "doctor-quan-7-cardio",
+            "Bác sĩ mẫu 8 - Tim mạch — Bệnh viện Đa khoa HealthCare — Quận 7",
+            "Bác sĩ Tim mạch tiếp nhận tại cơ sở Quận 7.",
+        ),
+    ):
+        local_rag.ingest(
+            "doctor",
+            source_id,
+            title,
+            content,
+            vector,
+            embedding_model="local-hash",
+            embedding_provenance="local_provider",
+        )
+    monkeypatch.setattr("app.main.rag_service", local_rag)
+    monkeypatch.setattr(
+        "app.main.embed",
+        lambda *_, **__: EmbeddingResult(vector, "local-hash", "local_provider"),
+    )
+
+    response = client.post(
+        "/chat",
+        json={
+            "message": "Tôi muốn tìm bác sĩ Tim mạch tại cơ sở Thủ Đức",
+            "public_support_chat": True,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert [item["source_id"] for item in payload["citations"]] == ["doctor-thu-duc-cardio"]
+    assert "Sản phụ khoa" not in payload["answer"]
+    assert "Quận 7" not in payload["answer"]
+    assert "Thủ Đức" in payload["answer"]
+
+
+def test_public_local_chat_fails_closed_for_broad_catalog_query(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    local_settings = settings
+    monkeypatch.setattr(local_settings, "ai_service_runtime", "local")
+    monkeypatch.setattr(local_settings, "ai_service_allow_unauthenticated_local", True)
+    monkeypatch.setattr(local_settings, "ai_service_token", "")
+    monkeypatch.setattr(local_settings, "ai_provider", "local")
+    monkeypatch.setattr(local_settings, "embedding_provider", "local")
+    monkeypatch.setattr(local_settings, "ai_public_hospital_support_remote_enabled", False)
+
+    vector = [1.0] + [0.0] * 383
+    local_rag = RagService()
+    local_rag.ingest(
+        "doctor",
+        "doctor-1",
+        "Bác sĩ mẫu",
+        "Bác sĩ chuyên khoa tại bệnh viện.",
+        vector,
+        embedding_model="local-hash",
+        embedding_provenance="local_provider",
+    )
+    monkeypatch.setattr("app.main.rag_service", local_rag)
+    monkeypatch.setattr(
+        "app.main.embed",
+        lambda *_, **__: EmbeddingResult(vector, "local-hash", "local_provider"),
+    )
+
+    response = client.post(
+        "/chat",
+        json={
+            "message": "Bệnh viện có những chuyên khoa và cơ sở nào?",
+            "public_support_chat": True,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provenance"] == "local_fallback"
+    assert payload["citations"] == []
+    assert "Bạn muốn tra cứu mục nào?" in payload["answer"]
 
 
 def test_public_specific_question_without_context_fails_closed() -> None:

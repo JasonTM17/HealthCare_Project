@@ -518,6 +518,118 @@ _PUBLIC_OPERATIONAL_CONNECTOR_TOKENS = frozenset(
         "luu",
     }
 )
+_PUBLIC_QUERY_CONNECTOR_TOKENS = frozenset(
+    {
+        "ban",
+        "benh",
+        "benhvien",
+        "vien",
+        "co",
+        "so",
+        "chuyen",
+        "khoa",
+        "nao",
+        "nhung",
+        "danh",
+        "sach",
+        "bac",
+        "si",
+        "xem",
+        "muon",
+        "dat",
+        "lich",
+        "hen",
+        "kham",
+        "gio",
+        "lam",
+        "viec",
+        "mo",
+        "cua",
+        "tai",
+        "dia",
+        "chi",
+        "dich",
+        "vu",
+        "goi",
+        "sao",
+        "the",
+        "cho",
+        "gi",
+        "hay",
+        "khong",
+        "toi",
+        "cach",
+        "online",
+        "healthcare",
+    }
+)
+_PUBLIC_SOURCE_IDENTITY_MARKERS = (
+    "chuyen khoa",
+    "co so",
+    "bac si",
+    "dat lich",
+    "lich hen",
+    "gio lam",
+    "gio kham",
+    "mo cua",
+    "dich vu",
+    "goi kham",
+    "bang gia",
+)
+_PUBLIC_QUERY_ENTITY_STOP_MARKERS = (
+    "tai co so",
+    "o co so",
+    "gan co so",
+    "tai chi nhanh",
+    "o chi nhanh",
+    "gan chi nhanh",
+    "gio lam",
+    "gio kham",
+    "mo cua",
+    "dia chi",
+    "dat lich",
+    "lich hen",
+    "dau",
+    "khong",
+    "nao",
+    "hay",
+    "va",
+    "tai",
+    "o",
+    "gan",
+    "co so",
+    "chi nhanh",
+)
+_PUBLIC_SPECIALTY_QUERY_MARKERS = (
+    "bac si chuyen khoa",
+    "bac si khoa",
+    "chuyen khoa",
+    "bac si",
+)
+_PUBLIC_LOCATION_QUERY_MARKERS = (
+    "tai co so",
+    "o co so",
+    "gan co so",
+    "tai chi nhanh",
+    "o chi nhanh",
+    "gan chi nhanh",
+    "co so",
+    "chi nhanh",
+    "tai",
+    "o",
+    "gan",
+)
+_PUBLIC_ENTITY_TOKEN_PATTERN = re.compile(r"\b[a-z0-9]+\b", re.IGNORECASE)
+_PUBLIC_NON_ENTITY_TOKENS = _PUBLIC_QUERY_CONNECTOR_TOKENS | frozenset(
+    {
+        "dau",
+        "gan",
+        "nhat",
+        "the",
+        "nao",
+        "healthcare",
+    }
+)
 _PUBLIC_CONTACT_CLAIM_PATTERN = re.compile(
     r"\b(?:hotline|dien\s+thoai|so\s+dien\s+thoai)\b"
     r".{0,24}?(?P<number>\d(?:[\s().-]*\d){2,14})",
@@ -724,10 +836,123 @@ def public_context_is_relevant(query: str, context: Sequence[str]) -> bool:
             if token not in stopwords
         }
 
-    query_tokens = tokens(query)
+    normalized_query = _normalize_sensitive_text(query)
+    query_tokens = tokens(normalized_query)
     if len(query_tokens) < 2:
         return False
+    query_constraints = public_query_constraints(normalized_query)
+    if query_constraints:
+        # Identity queries are conjunctive: "bác sĩ Tim mạch tại cơ sở
+        # Thủ Đức" must not cite a row that matches only the specialty or
+        # only the location.  This check runs after retrieval, where a vector
+        # search can otherwise return plausible but incompatible rows.
+        if not any(
+            all(_public_entity_phrase_in_text(constraint, item) for constraint in query_constraints)
+            for item in context
+            if item.strip()
+        ):
+            return False
+    # Generic visitor intents contain catalog words that appear in almost
+    # every row. They are useful for navigation fallback, but are not an
+    # identity for a source row. Require a concrete entity token for those
+    # intents so a random doctor/branch cannot become a fake citation.
+    identity_query = any(marker in normalized_query for marker in _PUBLIC_SOURCE_IDENTITY_MARKERS)
+    distinctive_tokens = query_tokens - _PUBLIC_QUERY_CONNECTOR_TOKENS
+    if identity_query:
+        if not distinctive_tokens:
+            return False
+        required_overlap = 2 if len(distinctive_tokens) >= 2 else 1
+        return any(
+            len(distinctive_tokens.intersection(tokens(item))) >= required_overlap
+            for item in context
+            if item.strip()
+        )
     return any(len(query_tokens.intersection(tokens(item))) >= 2 for item in context if item.strip())
+
+
+def _public_entity_phrase_after_marker(
+    normalized_query: str,
+    markers: Sequence[str],
+) -> str | None:
+    """Extract one explicit catalog entity after a natural-language marker."""
+
+    for marker in sorted(markers, key=len, reverse=True):
+        match = re.search(rf"(?<!\w){re.escape(marker)}(?!\w)", normalized_query)
+        if not match:
+            continue
+        tail = normalized_query[match.end():].strip(" .,!?:;-\n")
+        if not tail:
+            continue
+        boundary_positions = [
+            boundary_match.start()
+            for boundary in _PUBLIC_QUERY_ENTITY_STOP_MARKERS
+            if (
+                boundary_match := re.search(
+                    rf"(?<!\w){re.escape(boundary)}(?!\w)",
+                    tail,
+                )
+            )
+        ]
+        phrase = tail[: min(boundary_positions)] if boundary_positions else tail
+        phrase = phrase.strip(" .,!?:;-\n")
+        entity_tokens = [
+            token
+            for token in _PUBLIC_ENTITY_TOKEN_PATTERN.findall(phrase)
+            if token not in _PUBLIC_NON_ENTITY_TOKENS
+        ]
+        if entity_tokens:
+            return " ".join(entity_tokens)
+    return None
+
+
+def public_query_constraints(query: str) -> tuple[str, ...]:
+    """Return explicit specialty/location entities that a source must satisfy.
+
+    This deliberately extracts only high-confidence entities introduced by
+    catalog markers.  It avoids treating conversational words (for example
+    "tôi muốn tìm") as source identity while still enforcing all explicit
+    constraints in a multi-condition lookup.
+    """
+
+    normalized = _normalize_sensitive_text(query)
+    if not normalized:
+        return ()
+    constraints: list[str] = []
+    specialty = _public_entity_phrase_after_marker(normalized, _PUBLIC_SPECIALTY_QUERY_MARKERS)
+    location = _public_entity_phrase_after_marker(normalized, _PUBLIC_LOCATION_QUERY_MARKERS)
+    for phrase in (specialty, location):
+        if phrase and phrase not in constraints:
+            constraints.append(phrase)
+    return tuple(constraints)
+
+
+def _public_entity_phrase_in_text(phrase: str, text: str) -> bool:
+    normalized_phrase = _normalize_sensitive_text(phrase)
+    normalized_text = _normalize_sensitive_text(text)
+    if not normalized_phrase or not normalized_text:
+        return False
+    phrase_tokens = _PUBLIC_ENTITY_TOKEN_PATTERN.findall(normalized_phrase)
+    if not phrase_tokens:
+        return False
+    pattern = r"(?<!\w)" + r"\W+".join(re.escape(token) for token in phrase_tokens) + r"(?!\w)"
+    return re.search(pattern, normalized_text) is not None
+
+
+def public_source_types_for_query(query: str) -> frozenset[str] | None:
+    """Return a narrow operational source projection for explicit public intent."""
+
+    normalized = _normalize_sensitive_text(query)
+    if "bac si" in normalized:
+        return frozenset({"doctor"})
+    if "chuyen khoa" in normalized or "khoa nao" in normalized:
+        return frozenset({"specialty"})
+    if any(term in normalized for term in ("co so", "gio lam", "gio kham", "mo cua", "dia chi")):
+        return frozenset({"branch"})
+    if "dich vu" in normalized:
+        return frozenset({"service"})
+    if "goi kham" in normalized or "goi suc khoe" in normalized:
+        return frozenset({"package"})
+    return None
 
 
 def public_no_context_query_allowed(query: str) -> bool:
@@ -934,7 +1159,18 @@ def chat_contains_sensitive_data(
     allow_public_operational: bool = False,
     allow_public_generic_guidance: bool = False,
 ) -> bool:
-    combined = "\n".join([*(content for _, content in recent_turns), message])
+    # Only user-authored history is evidence that a visitor supplied PII.  An
+    # assistant turn can legitimately contain a public branch phone/address
+    # from the closed catalog; treating that answer as user input makes a
+    # benign follow-up (for example, "how do I book?") fail closed because a
+    # prior operational answer contained a phone number.  Prompt-injection
+    # detection intentionally still scans every role in chat_safety_response.
+    user_history = [
+        content
+        for role, content in recent_turns
+        if str(getattr(role, "value", role)).casefold() == "user"
+    ]
+    combined = "\n".join([*user_history, message])
     normalized = _normalize_sensitive_text(combined)
     # A booking label without an identifier is safe public guidance. Reject
     # an attached value before any operational masking so a public-context
@@ -1135,18 +1371,14 @@ def chat_safety_response(
     """Short-circuit unsafe input before embeddings, retrieval, or remote providers.
 
     Recent turns are shipped verbatim into the provider prompt, so injection
-    detection covers every turn; crisis and unsupported-clinical detection
-    covers the message plus user-authored turns (assistant turns legitimately
-    quote emergency guidance such as "gọi 115 khi đau ngực dữ dội" and must
-    not re-trigger escalation on a benign follow-up).
+    detection covers every turn. Crisis and unsupported-clinical decisions are
+    scoped to the current user message; an old emergency must not make every
+    later navigation question look like a new emergency.
     """
 
     turn_contents = [content for _, content in recent_turns]
-    user_turn_contents = [content for role, content in recent_turns if role == "user"]
     message_normalized = _normalize_sensitive_text(message)
-    user_turns_normalized = [_normalize_sensitive_text(content) for content in user_turn_contents]
-    crisis_normalized = (message_normalized, *user_turns_normalized)
-    crisis_hit = any(_crisis_detected(normalized) for normalized in crisis_normalized)
+    crisis_hit = _crisis_detected(message_normalized)
     if crisis_hit:
         return ChatResponse(
             answer=(
@@ -1172,10 +1404,7 @@ def chat_safety_response(
             cost_tier="local_free",
             routing_reason="safety_guardrail_shortcircuit",
         )
-    if any(
-        any(_normalize_sensitive_text(term) in normalized for term in _UNSUPPORTED_CLINICAL_TERMS)
-        for normalized in crisis_normalized
-    ):
+    if any(_normalize_sensitive_text(term) in message_normalized for term in _UNSUPPORTED_CLINICAL_TERMS):
         return ChatResponse(
             answer=(
                 "Tôi không thể chẩn đoán, kê đơn hoặc thay đổi thuốc. Hãy trao đổi trực tiếp "
