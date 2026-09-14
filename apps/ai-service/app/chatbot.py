@@ -542,7 +542,13 @@ def _lexical_overlap(query_tokens: frozenset[str], document_text: str) -> float:
     if not query_tokens:
         return 0.0
     document_tokens = _lexical_tokens(normalize_sensitive_text(document_text))
-    return len(query_tokens & document_tokens) / len(query_tokens)
+    shared = len(query_tokens & document_tokens)
+    # A single shared token proves nothing (Kongming review: one-token
+    # queries trivially reach 1.0 and open the grounded path on tangential
+    # documents); require at least two distinct shared tokens.
+    if shared < 2:
+        return 0.0
+    return shared / len(query_tokens)
 
 
 def _focus_candidates_for_question(
@@ -612,7 +618,7 @@ def _insufficient_response(mode: ChatMode, *, reason: str = "") -> ChatResponse:
     return ChatResponse(
         answer=(
             "Tôi chưa tìm thấy nguồn thông tin phù hợp và đã dừng trả lời để tránh suy đoán. "
-            "Bạn có thể chọn một mode khác hoặc trao đổi trực tiếp với nhân viên y tế."
+            "Bạn có thể chọn một chế độ khác hoặc trao đổi trực tiếp với nhân viên y tế."
             f"{suffix}"
         ),
         mode=mode,
