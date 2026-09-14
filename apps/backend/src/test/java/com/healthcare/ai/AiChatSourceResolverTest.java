@@ -46,8 +46,9 @@ class AiChatSourceResolverTest {
         UUID id = UUID.randomUUID();
         Branch branch = new Branch();
         branch.setId(id);
-        branch.setName("Cơ sở Quận 1");
+        branch.setName("Bệnh viện Đa khoa HealthCare — Cơ sở 2");
         branch.setSlug("co-so-quan-1");
+        branch.setAddress("2 Đường số 3, Quận 3, TP. Hồ Chí Minh");
         branch.setActive(true);
         when(branches.findByIdAndActiveTrue(id)).thenReturn(Optional.of(branch));
 
@@ -56,13 +57,14 @@ class AiChatSourceResolverTest {
             List.of(Map.of("source_type", "branch", "source_id", id.toString(), "title", "AI title")));
 
         assertThat(sources).hasSize(1);
-        assertThat(sources.get(0).title()).isEqualTo("Cơ sở Quận 1");
+        assertThat(sources.get(0).title())
+            .isEqualTo("Bệnh viện Đa khoa HealthCare — Cơ sở 2 — Quận 3");
         assertThat(resolver.citations(sources).get(0))
             .containsEntry("projection_kind", "OPERATIONAL")
             .containsEntry("source_type", "branch")
             .doesNotContainKey("content_hash");
         assertThat(resolver.actions(sources)).containsExactly(
-            Map.of("kind", "VIEW_SOURCE", "label", "Cơ sở Quận 1", "href", "/branches/co-so-quan-1"),
+            Map.of("kind", "VIEW_SOURCE", "label", "Bệnh viện Đa khoa HealthCare — Cơ sở 2 — Quận 3", "href", "/branches/co-so-quan-1"),
             Map.of("kind", "START_BOOKING", "label", "Đặt lịch", "href", "/dat-lich?branchId=" + id));
     }
 

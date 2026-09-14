@@ -27,6 +27,8 @@ import java.util.LinkedHashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.List;
+import java.util.Arrays;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 
@@ -151,14 +153,12 @@ public class AiCatalogIndexService {
             Page<Branch> branches = branchRepository.findAll(PageRequest.of(0, pageSize));
             completeTypes.put("branch", !branches.hasNext());
             for (Branch item : branches) {
+                String displayTitle = branchDisplayTitle(item);
                 currentSources.add(index(
                     "branch",
                     item.getId().toString(),
-                    item.getName(),
-                    text(item.getName(), item.getAddress(), item.getPhone(),
-                        item.getWorkingHours(), item.getEmergencyHotline(),
-                        item.getMapUrl(),
-                        item.getAmenities() == null ? null : item.getAmenities().toString()),
+                    displayTitle,
+                    branchContent(item),
                     item.isActive(),
                     true,
                     item.getSlug(),
@@ -269,6 +269,44 @@ public class AiCatalogIndexService {
             }
         }
         return result.toString();
+    }
+
+    private String branchContent(Branch branch) {
+        return text(
+            labeled("Địa chỉ", branch.getAddress()),
+            labeled("Điện thoại", branch.getPhone()),
+            labeled("Giờ hoạt động", branch.getWorkingHours()),
+            labeled("Hotline cấp cứu", branch.getEmergencyHotline()),
+            branch.getMapUrl(),
+            branch.getAmenities() == null ? null : branch.getAmenities().toString());
+    }
+
+    private String labeled(String label, String value) {
+        return value == null || value.isBlank() ? null : label + ": " + value.strip() + ";";
+    }
+
+    private String branchDisplayTitle(Branch branch) {
+        String name = branch.getName() == null || branch.getName().isBlank()
+            ? "Cơ sở HealthCare" : branch.getName().strip();
+        String address = branch.getAddress();
+        if (address == null || address.isBlank()
+                || !name.matches("(?s).*\\bCơ sở\\s+\\d+\\s*$")) {
+            return name;
+        }
+        String locality = Arrays.stream(address.split(","))
+            .map(String::strip)
+            .filter(part -> {
+                String normalized = part.toLowerCase(Locale.ROOT);
+                return normalized.startsWith("quận")
+                    || normalized.startsWith("huyện")
+                    || normalized.startsWith("thành phố")
+                    || normalized.startsWith("tp.")
+                    || normalized.equals("hà nội")
+                    || normalized.contains("thủ đức");
+            })
+            .findFirst()
+            .orElse(null);
+        return locality == null ? name : name + " — " + locality;
     }
 
     private String doctorDisplayTitle(Doctor doctor) {

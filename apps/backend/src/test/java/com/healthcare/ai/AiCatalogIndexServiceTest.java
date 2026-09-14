@@ -93,9 +93,9 @@ class AiCatalogIndexServiceTest {
 
         Branch branch = new Branch();
         branch.setId(UUID.randomUUID());
-        branch.setName("Cơ sở Trung tâm");
+        branch.setName("Bệnh viện Đa khoa HealthCare — Cơ sở 2");
         branch.setSlug("co-so-trung-tam");
-        branch.setAddress("1 Đường Sức Khỏe");
+        branch.setAddress("1 Đường Sức Khỏe, Quận 3, TP. Hồ Chí Minh");
         branch.setPhone("028 1234 5678");
         branch.setWorkingHours("07:00-17:00");
         when(branches.findAll(any(Pageable.class))).thenReturn(new PageImpl<>(List.of(branch)));
@@ -118,8 +118,11 @@ class AiCatalogIndexServiceTest {
             .containsEntry("source_id", branch.getId().toString())
             .containsEntry("active", true)
             .containsEntry("published", true);
+        assertThat(payload.getValue().get("title"))
+            .isEqualTo("Bệnh viện Đa khoa HealthCare — Cơ sở 2 — Quận 3");
         assertThat(payload.getValue().get("content").toString())
-            .contains("Cơ sở Trung tâm", "1 Đường Sức Khỏe", "028 1234 5678");
+            .contains("Địa chỉ: 1 Đường Sức Khỏe", "Điện thoại: 028 1234 5678",
+                "Giờ hoạt động: 07:00-17:00");
         assertThat(payload.getValue().get("metadata"))
             .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
             .containsEntry("slug", "co-so-trung-tam")
@@ -167,7 +170,8 @@ class AiCatalogIndexServiceTest {
         verify(aiService).indexDocument(payload.capture());
         assertThat(payload.getValue()).containsEntry("active", false);
         assertThat(payload.getValue().get("content").toString())
-            .contains("Cơ sở cũ", "Địa chỉ cũ", "0900 111 222", "Đã đóng cửa", "115", "Cấp cứu");
+            .contains("Địa chỉ: Địa chỉ cũ", "Điện thoại: 0900 111 222",
+                "Giờ hoạt động: Đã đóng cửa", "Hotline cấp cứu: 115", "Cấp cứu");
         assertThat(processed).isEqualTo(1);
     }
 
