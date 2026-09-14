@@ -36,7 +36,7 @@ AUTH_TOKEN = "test-" + "token-cost-suite"
 AUTH_HEADERS = {"X-AI-Service-Token": AUTH_TOKEN}
 
 
-def _deepseek_mock_settings(**overrides) -> MagicMock:
+def _deepseek_mock_settings(**overrides: object) -> MagicMock:
     """Create settings simulating DeepSeek v4 Flash configuration."""
     cfg = MagicMock()
     cfg.ai_provider = "deepseek"

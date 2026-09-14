@@ -259,6 +259,7 @@ def test_public_context_relevance_rejects_catalog_rows_for_broad_questions() -> 
     assert public_source_types_for_query("Bệnh viện có chuyên khoa Tim mạch không?") == {"specialty"}
     assert public_source_types_for_query("Tôi muốn tìm bác sĩ Tim mạch") == {"doctor"}
     assert public_source_types_for_query("Cơ sở Thủ Đức giờ làm việc") == {"branch"}
+    assert public_source_types_for_query("Giờ hoạt động cơ sở Thủ Đức") == {"branch"}
     assert public_source_types_for_query("Bệnh viện ở đâu?") == {"branch"}
 
 
@@ -284,16 +285,18 @@ def test_public_context_relevance_requires_all_explicit_catalog_constraints() ->
 
 
 def test_public_context_relevance_requires_requested_schedule_data() -> None:
-    query = "Cơ sở Thủ Đức giờ làm việc thế nào?"
+    complete_context = ["Phòng khám Thảo Điền — Thủ Đức: Giờ hoạt động: 07:00–19:00."]
+    incomplete_context = [
+        "Phòng khám HealthCare — Thủ Đức: Địa chỉ: 214 Võ Văn Ngân; Điện thoại: 028 3722 8899.",
+    ]
 
-    assert public_context_is_relevant(
-        query,
-        ["Phòng khám Thảo Điền — Thủ Đức: Giờ hoạt động: 07:00–19:00."],
-    )
-    assert not public_context_is_relevant(
-        query,
-        ["Phòng khám HealthCare — Thủ Đức: Địa chỉ: 214 Võ Văn Ngân; Điện thoại: 028 3722 8899."],
-    )
+    for query in (
+        "Cơ sở Thủ Đức giờ làm việc thế nào?",
+        "Cơ sở Thủ Đức giờ hoạt động thế nào?",
+        "Cơ sở Thủ Đức thời gian làm việc ra sao?",
+    ):
+        assert public_context_is_relevant(query, complete_context)
+        assert not public_context_is_relevant(query, incomplete_context)
 
 
 def test_public_chat_endpoint_drops_unrelated_rows_before_remote_resolution(
@@ -416,7 +419,9 @@ def test_public_local_chat_overfetches_before_constrained_branch_filtering(
     ordered_documents = list(local_rag.index.documents)
     search_calls: list[int] = []
 
-    def bounded_search(query_embedding: list[float], top_k: int = 5, **_: object):
+    def bounded_search(
+        query_embedding: list[float], top_k: int = 5, **_: object
+    ) -> list[tuple[object, float]]:
         search_calls.append(top_k)
         return [(document, 0.8) for document in ordered_documents[:top_k]]
 
