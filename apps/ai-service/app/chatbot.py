@@ -19,6 +19,7 @@ from app.embeddings import EmbeddingResult, LocalEmbeddingClient, embed
 from app.llm import (
     chat_safety_response,
     context_contains_unsafe_data,
+    normalize_sensitive_text,
     patient_chat_remote_enabled,
     resolve_chat,
     rule_based_triage,
@@ -365,6 +366,76 @@ def _threshold(settings: Any) -> float:
     return max(0.0, min(1.0, value))
 
 
+# --- Lexical rescue pass for the local (hash-embedding) retriever ----------
+# Local hash embeddings score most Vietnamese queries around 0.2, permanently
+# under a 0.35 relevance threshold, so the grounded-answer path could never
+# open without a remote embedding provider. When vector search yields nothing
+# above the threshold, a diacritic-folded token-overlap score gives the
+# already-ingested catalog documents a second chance. Symptom phrases are
+# expanded to the vocabulary of the specialty pages so "mất ngủ" still finds
+# the Thần kinh document ("rối loạn giấc ngủ").
+_VI_LEXICAL_STOPWORDS = frozenset({
+    "va", "hoac", "cua", "cho", "co", "khong", "nen", "can", "la", "cach",
+    "nhung", "theo", "khi", "voi", "bi", "duoc", "gi", "nao", "o", "tai",
+    "mot", "hai", "vao", "ra", "di", "den", "tu", "tren", "trong", "nhieu",
+    "it", "minh", "toi", "ban", "nhu", "nhung", "qua", "da", "se",
+})
+
+_VI_SYMPTOM_EXPANSIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("mat ngu", ("giac", "ngu", "than", "kinh")),
+    ("roi loan giac ngu", ("than", "kinh")),
+    ("dau dau", ("than", "kinh")),
+    ("chong mat", ("tai", "mui", "hong", "than")),
+    ("dau bung duoi", ("san", "phu")),
+    ("dau bung", ("tieu", "hoa", "san", "phu")),
+    ("kho tieu", ("tieu", "hoa")),
+    ("day hoi", ("tieu", "hoa")),
+    ("tieu chay", ("tieu", "hoa")),
+    ("viem gan", ("tieu", "hoa")),
+    ("tieu duong", ("noi", "tong", "hop")),
+    ("mo mau", ("noi", "tong", "hop")),
+    ("duong huyet", ("noi", "tong", "hop")),
+    ("met moi keo dai", ("noi", "tong", "hop")),
+    ("dau khop", ("co", "xuong", "khop")),
+    ("cung khop", ("co", "xuong", "khop")),
+    ("dau lung", ("co", "xuong", "khop")),
+    ("nghet mui", ("tai", "mui", "hong")),
+    ("dau hong", ("tai", "mui", "hong")),
+    ("viem hong", ("tai", "mui", "hong")),
+    ("viem xoang", ("tai", "mui", "hong")),
+    ("u tai", ("tai", "mui", "hong")),
+    ("dau uc nguc", ("tim", "mach")),
+    ("hoi hop", ("tim", "mach")),
+    ("danh trong nguc", ("tim", "mach")),
+    ("kho tho", ("tim", "mach", "ho", "hap")),
+    ("ho keo dai", ("ho", "hap", "nhi")),
+    ("so ho keo dai", ("ho", "hap", "nhi")),
+    ("bieng an", ("nhi",)),
+    ("tre em", ("nhi",)),
+    ("so sinh", ("nhi",)),
+    ("kinh nguyet", ("san", "phu")),
+    ("ra huyet", ("san", "phu")),
+)
+
+
+def _lexical_tokens(normalized: str, *, expand: bool = False) -> frozenset[str]:
+    tokens = frozenset(re.findall(r"[a-z0-9]{2,}", normalized)) - _VI_LEXICAL_STOPWORDS
+    if not expand:
+        return tokens
+    expanded = set(tokens)
+    for phrase, extra in _VI_SYMPTOM_EXPANSIONS:
+        if phrase in normalized:
+            expanded.update(extra)
+    return frozenset(expanded)
+
+
+def _lexical_overlap(query_tokens: frozenset[str], document_text: str) -> float:
+    if not query_tokens:
+        return 0.0
+    document_tokens = _lexical_tokens(normalize_sensitive_text(document_text))
+    return len(query_tokens & document_tokens) / len(query_tokens)
+
+
 def _unsafe_claim(answer: str) -> bool:
     return any(pattern.search(answer) for pattern in _UNSAFE_CLAIM_PATTERNS)
 
@@ -583,6 +654,22 @@ def retrieve_chat_candidates(
             provenance="local_fallback" if provenance == "local_fallback" else "local_provider",
         )
 
+    if not hits:
+        # The durable backend's hybrid RPC can return zero rows when
+        # source-type filters ride along with a Vietnamese FTS query. Retry
+        # unfiltered and let the Python-side mode/expiry/safety gates filter —
+        # they run either way below.
+        try:
+            hits = rag_service.search(
+                vector,
+                top_k=min(max(request.top_k, 20), 60),
+                query_text=request.message,
+                embedding_model=model,
+                embedding_provenance=search_provenance,
+            )
+        except (EmbeddingContractError, ProviderUnavailable):
+            hits = []
+
     threshold = _threshold(settings)
     candidates: list[ChatCandidate] = []
     for document, score in hits:
@@ -598,6 +685,30 @@ def retrieve_chat_candidates(
         candidates.append(_candidate(meta, score))
         if len(candidates) >= min(request.top_k, 20):
             break
+
+    # Lexical rescue: vector hits below the relevance threshold are the norm
+    # with local hash embeddings. When nothing qualified, rescore the same
+    # hits by diacritic-folded token overlap (with Vietnamese symptom→specialty
+    # expansions) so approved catalog content can still be cited. Documents
+    # that fail the mode/expiry/safety gates above are skipped here too.
+    if not candidates and hits:
+        query_tokens = _lexical_tokens(normalize_sensitive_text(request.message), expand=True)
+        for document, score in hits:
+            meta = _source_metadata(document)
+            if not _mode_allows(meta, request.mode) or _expired(meta):
+                continue
+            if not _context_is_safe(meta):
+                continue
+            overlap = _lexical_overlap(
+                query_tokens,
+                f"{getattr(document, 'title', '')}\n{getattr(document, 'content', '')}",
+            )
+            if overlap < threshold:
+                continue
+            candidates.append(_candidate(meta, max(score, overlap)))
+            if len(candidates) >= min(request.top_k, 20):
+                break
+
     return ChatRetrieveResponse(
         mode=request.mode,
         candidates=candidates,
