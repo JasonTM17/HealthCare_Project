@@ -3274,6 +3274,19 @@ main {
   font-weight: 700;
 }
 
+/* Play affordance that makes the featured-article card read as a video
+   preview (removed by mistake during the a1279ea UI pass, restored here). */
+.video-card__circle {
+  width: 64px;
+  height: 64px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid oklch(88% 0.03 182 / 0.5);
+  border-radius: 50%;
+  color: var(--color-amber);
+}
+
 .video-card__body {
   padding: var(--sp-8);
 }

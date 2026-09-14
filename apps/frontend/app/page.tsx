@@ -1026,6 +1026,7 @@ export default function Home(): React.ReactElement {
                   />
                   <span className="video-card__wash" aria-hidden="true" />
                   <span className="video-card__label">Gợi ý đọc</span>
+                  <span aria-hidden="true" className="video-card__circle"><Icon name="play" size={22} /></span>
                 </div>
                 <div className="video-card__body">
                   <p className="content-meta">Từ cẩm nang sức khỏe</p>
