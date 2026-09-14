@@ -21,6 +21,7 @@ from app.llm import (
     contains_sensitive_or_injection,
     public_context_is_relevant,
     public_hospital_support_remote_enabled,
+    public_source_types_for_query,
     patient_chat_remote_enabled,
     resolve_chat,
     resolve_triage,
@@ -44,6 +45,7 @@ from app.supabase_rag import (
     build_rag_service,
 )
 from app.schemas import (
+    AuthorizedSource,
     Citation,
     ChatMode,
     ChatRequest,
@@ -519,11 +521,14 @@ def chat(request: ChatRequest) -> ChatResponse:
         source_types = (
             list(mode_source_types(request.mode))
             if not request.public_support_chat
-            else None
+            else public_source_types_for_query(message)
         )
         hits = rag_service.search(
             query_embedding,
-            top_k=min(request.top_k, settings.ai_max_retrieved_chunks),
+            top_k=min(
+                max(request.top_k, 20) if request.public_support_chat else request.top_k,
+                settings.ai_max_retrieved_chunks,
+            ),
             query_text=message,
             source_types=source_types,
             embedding_model=query_model,
@@ -535,6 +540,19 @@ def chat(request: ChatRequest) -> ChatResponse:
         # A persisted index built by another embedding model is not safe
         # context for a local fallback. Continue with the deterministic answer.
         hits = []
+    if request.public_support_chat:
+        # Public chat has no Spring-owned two-step allowlist. Keep only rows
+        # whose own title/content carries a concrete identity from the query;
+        # generic catalog words must never turn an arbitrary row into a
+        # citation or a grounded answer.
+        hits = [
+            (document, score)
+            for document, score in hits
+            if public_context_is_relevant(
+                message,
+                [f"{document.title}: {document.content}"],
+            )
+        ]
     context = [f"{doc.title}: {doc.content}" for doc, _ in hits]
     citations = [
         _citation(doc.source_type, doc.source_id, doc.title)
@@ -551,7 +569,42 @@ def chat(request: ChatRequest) -> ChatResponse:
     similarity_thresh = getattr(settings, "ai_chat_similarity_threshold", 0.45)
     is_complex = is_complex_multisymptom_query(message)
 
-    if (
+    if request.public_support_chat and hits and not public_hospital_support_remote_enabled(settings):
+        try:
+            grounded_request = ChatGenerateRequest(
+                message=message,
+                mode=request.mode,
+                recent_turns=request.recent_turns,
+                authorized_sources=[
+                    AuthorizedSource(
+                        source_type=document.source_type,
+                        source_id=document.source_id,
+                        projection_kind=cast(
+                            ProjectionKind,
+                            normalize_projection_kind(document.metadata) or "OPERATIONAL",
+                        ),
+                    )
+                    # Public guest answers are deliberately compact. The
+                    # server-owned CTA resolver can expose a follow-up list;
+                    # the answer itself should not concatenate an entire
+                    # catalog page into one bubble.
+                    for document, _ in hits[: min(request.top_k, 3)]
+                ],
+                synthetic_beta=request.synthetic_beta,
+            )
+            response = generate_chat_response(grounded_request, settings, rag_service)
+        except ChatContractError:
+            # A stale/malformed local projection must degrade to navigation
+            # guidance, never to an answer that is only apparently grounded.
+            response = resolve_chat(
+                message,
+                settings,
+                recent_turns=turns,
+                synthetic_beta=request.synthetic_beta,
+                allow_public_operational=allow_public_op,
+                public_support_chat=request.public_support_chat,
+            )
+    elif (
         hits
         and top_score >= similarity_thresh
         and not is_complex

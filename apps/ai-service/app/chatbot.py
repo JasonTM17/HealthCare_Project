@@ -630,13 +630,21 @@ def _grounded_excerpt(meta: _SourceMetadata) -> str:
     if meta.document.source_type == "doctor":
         # Doctor bios may contain synthetic schedules and fixture disclaimers;
         # the source-authorized, branch-aware title is the useful answer fact.
-        return title
+        return f"{title}." if title and not title.endswith(".") else title
 
     content = str(getattr(meta.document, "content", "")).strip()
     if content.casefold().startswith(title.casefold()):
         content = content[len(title):].lstrip(" :\n-\t")
+    if meta.document.source_type == "branch":
+        # Branch projections may contain navigation URLs and serialized
+        # amenities for the catalog UI. They are not useful in a compact chat
+        # answer and make the source look like raw debug output.
+        content = re.sub(r"https?://\S+", "", content, flags=re.IGNORECASE)
+        content = re.sub(r"\[[^\]]*\]", "", content)
+        content = re.sub(r"\s{2,}", " ", content).strip(" ,;.-")
     content = content[:MAX_CONTEXT_CHARS].strip()
-    return f"{title}: {content}" if content else title
+    excerpt = f"{title}: {content}" if content else title
+    return f"{excerpt}." if excerpt and excerpt[-1].isalnum() else excerpt
 
 
 def _local_grounded_response(
