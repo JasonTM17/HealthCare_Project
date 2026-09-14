@@ -105,3 +105,25 @@ test("targeted CSS avoids direct border radii above the 4px control limit", asyn
     }
   }
 });
+
+test("delight layer stays flat, tokened and reduced-motion safe", async () => {
+  const styles = await read("app/styles.css");
+  assert.match(styles, /--fx-lift: -3px;/);
+  assert.match(styles, /--fx-press-scale: 0\.97;/);
+  assert.match(
+    styles,
+    /\(prefers-reduced-motion: no-preference\)[\s\S]*?fx-confetti-burst/,
+    "celebration motion must be gated behind no-preference",
+  );
+  assert.match(
+    styles,
+    /\(prefers-reduced-motion: reduce\)[\s\S]*?\.fx-confetti \{\s*display: none/,
+    "confetti must vanish entirely under reduced motion",
+  );
+  assert.match(
+    styles,
+    /\(prefers-reduced-motion: no-preference\)[\s\S]*?fx-orb-drift/,
+    "hero orbs must be motion-gated",
+  );
+  assert.doesNotMatch(styles, /fx-gradient/);
+});

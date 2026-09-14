@@ -157,3 +157,13 @@ test("logout and browser-session boundaries fail closed without raw errors or be
     assert.match(source, /role="status"/);
   }
 });
+
+test("daily tip rotate control meets the 44px target and motion is gated", async () => {
+  const styles = await read("app/styles.css");
+  assert.match(styles, /\.daily-tip__next \{[^}]*min-height: 44px/);
+  assert.match(
+    styles,
+    /\(prefers-reduced-motion: no-preference\)[\s\S]*?\.daily-tip\[data-reveal="in"\]/,
+    "tip reveal must live behind the no-preference guard",
+  );
+});

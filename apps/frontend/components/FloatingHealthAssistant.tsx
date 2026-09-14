@@ -759,7 +759,10 @@ function FloatingHealthAssistantPanel({
                             <a href="tel:115">Gọi 115</a>
                           </div>
                         ) : null}
-                        {message.suggestedActions && message.suggestedActions.length > 0 ? (
+                        {message.safetyAction !== "EMERGENCY" && message.suggestedActions && message.suggestedActions.length > 0 ? (
+                          // The emergency alert already owns the single
+                          // primary action (tel:115). Do not render the same
+                          // CTA again as a secondary "next step".
                           <div className={styles.suggestedActions} aria-label="Bước tiếp theo" role="group">
                             <span className={styles.suggestedActionsLabel}>Bước tiếp theo</span>
                             {message.suggestedActions.map((action) => (
