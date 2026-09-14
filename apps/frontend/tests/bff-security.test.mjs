@@ -472,6 +472,31 @@ test("BFF binds CSRF origin to a server-owned public origin behind a reverse pro
   assert.equal(rejected.status, 403);
   assert.deepEqual(await rejected.json(), { code: "BFF_ORIGIN_INVALID" });
   assert.equal(fetchCalls, 1);
+
+  const forgedForwardedAuthority = await bff.proxyHealthcareRequest(
+    new Request("http://localhost:3000/api/v1/auth/browser-sessions", {
+      method: "POST",
+      headers: {
+        Origin: "https://attacker.test",
+        "X-Forwarded-Host": "attacker.test",
+        "X-Forwarded-Proto": "https",
+        "Content-Type": "application/json",
+      },
+      body: "{}",
+    }),
+    ["auth", "browser-sessions"],
+    {
+      runtimeConfig: configuredRuntime,
+      fetchImpl: async () => {
+        fetchCalls += 1;
+        return Response.json({ unexpected: true });
+      },
+    },
+  );
+
+  assert.equal(forgedForwardedAuthority.status, 403);
+  assert.deepEqual(await forgedForwardedAuthority.json(), { code: "BFF_ORIGIN_INVALID" });
+  assert.equal(fetchCalls, 1, "browser-controlled forwarded authority must not widen the origin allowlist");
 });
 
 test("BFF can forward a canonical backend origin for allowed custom domains", async () => {
@@ -548,6 +573,30 @@ test("BFF returns a safe public chat fallback when the AI upstream is unavailabl
   assert.doesNotMatch(body.answer, /backend|AI|gián đoạn/i);
   assert.equal(upstreamCancelled, true);
   assert.equal(upstreamCancelReason, "BFF_PUBLIC_AI_FALLBACK");
+});
+
+test("BFF keeps emergency guidance deterministic when public AI is unavailable", async () => {
+  const bff = await loadBff();
+  const response = await bff.proxyHealthcareRequest(
+    browserRequest("/api/v1/public/ai/chat", {
+      method: "POST",
+      headers: { Origin: "https://beta.healthcare.test", "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "Tôi đang khó thở" }),
+    }),
+    ["public", "ai", "chat"],
+    {
+      runtimeConfig,
+      fetchImpl: async () => Response.json({ unavailable: true }, { status: 503 }),
+    },
+  );
+
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.safety_action, "EMERGENCY");
+  assert.deepEqual(body.suggested_actions, [
+    { kind: "CALL_EMERGENCY", label: "Gọi 115", href: "tel:115" },
+  ]);
+  assert.match(body.answer, /115/);
 });
 
 test("BFF bounds a slow chunked request body before contacting the backend", async () => {
@@ -823,4 +872,29 @@ test("BFF accepts multiple comma-separated public origins and custom domains", a
     },
   );
   assert.equal(rejected.status, 403);
+});
+
+test("BFF accepts the 127.0.0.1 loopback origin when the runtime URL is localhost", async () => {
+  const bff = await loadBff();
+  const runtime = {
+    ...runtimeConfig,
+    publicOrigin: "http://localhost:3000,http://127.0.0.1:3000",
+  };
+  let observedOrigin = "";
+  const response = await bff.proxyHealthcareRequest(
+    new Request("http://localhost:3000/api/v1/hospital/branches", {
+      headers: { Origin: "http://127.0.0.1:3000" },
+    }),
+    ["hospital", "branches"],
+    {
+      runtimeConfig: runtime,
+      fetchImpl: async (_target, init) => {
+        observedOrigin = new Headers(init?.headers).get("X-Healthcare-Original-Origin") ?? "";
+        return Response.json({ ok: true });
+      },
+    },
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(observedOrigin, "http://127.0.0.1:3000");
 });

@@ -41,6 +41,8 @@ export default function AboutPage() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [networkAttempt, setNetworkAttempt] = useState(0);
+  const [videoPaused, setVideoPaused] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -69,7 +71,7 @@ export default function AboutPage() {
       cancelled = true;
       void task;
     };
-  }, []);
+  }, [networkAttempt]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -80,15 +82,38 @@ export default function AboutPage() {
       if (motionPreference.matches) {
         video.pause();
         video.currentTime = 0;
+        setVideoPaused(true);
         return;
       }
-      void video.play().catch(() => undefined);
+      void video.play()
+        .then(() => setVideoPaused(false))
+        .catch(() => setVideoPaused(true));
     };
 
     syncPlayback();
     motionPreference.addEventListener("change", syncPlayback);
     return () => motionPreference.removeEventListener("change", syncPlayback);
   }, []);
+
+  const retryNetwork = () => {
+    setLoading(true);
+    setError(false);
+    setSnapshot(null);
+    setNetworkAttempt((attempt) => attempt + 1);
+  };
+
+  const toggleVideo = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused) {
+      void video.play()
+        .then(() => setVideoPaused(false))
+        .catch(() => setVideoPaused(true));
+      return;
+    }
+    video.pause();
+    setVideoPaused(true);
+  };
 
   return (
     <PublicPageShell>
@@ -106,33 +131,17 @@ export default function AboutPage() {
             </div>
           </div>
 
-          <figure className={styles.videoFigure}>
-            <div className={styles.videoFrame}>
-              <video
-                ref={videoRef}
-                aria-label="Thước phim minh họa hành trình tư vấn và chăm sóc người bệnh"
-                autoPlay
-                disablePictureInPicture
-                loop
-                muted
-                onContextMenu={(event) => event.preventDefault()}
-                playsInline
-                poster="/media/about-care-poster.jpg"
-                preload="metadata"
-              >
-                <source src="/media/about-introduction.mp4" type="video/mp4" />
-                Trình duyệt của bạn chưa hỗ trợ phát video. Bạn vẫn có thể tìm hiểu về HealthCare qua nội dung bên dưới.
-              </video>
-              <div className={styles.videoLabel}>
-                <span className={styles.videoPulse} aria-hidden="true" />
-                Thước phim giới thiệu
-              </div>
-            </div>
-            <figcaption>
-              Thước phim minh họa hành trình tư vấn. Nguồn:{" "}
-              <a href="https://www.pexels.com/video/woman-getting-medical-consultation-4486776/" rel="noreferrer" target="_blank">
-                Cedric Fauntleroy / Pexels
-              </a>
+          <figure className={styles.teamShowcase}>
+            <Image
+              src="/media/hospital-team-landscape.jpg"
+              alt="Đội ngũ bác sĩ và nhân viên y tế chuyên khoa Bệnh viện HealthCare"
+              width={1024}
+              height={682}
+              priority
+              className={styles.teamImage}
+            />
+            <figcaption className={styles.teamCaption}>
+              Đội ngũ chuyên gia y tế, bác sĩ chuyên khoa và điều dưỡng tận tâm tại HealthCare luôn sẵn sàng đồng hành cùng bạn.
             </figcaption>
           </figure>
         </section>
@@ -148,17 +157,42 @@ export default function AboutPage() {
               nơi và biết điều gì sẽ diễn ra tiếp theo. HealthCare đặt chuyên khoa, bác sĩ, cơ sở
               và lịch khám trong cùng một trải nghiệm để bạn chủ động hơn cho buổi khám của mình.
             </p>
-            <figure className={styles.teamShowcase}>
-              <Image
-                src="/media/hospital-team-landscape.jpg"
-                alt="Đội ngũ bác sĩ và nhân viên y tế chuyên khoa Bệnh viện HealthCare"
-                width={1024}
-                height={682}
-                priority
-                className={styles.teamImage}
-              />
-              <figcaption className={styles.teamCaption}>
-                Đội ngũ chuyên gia y tế, bác sĩ chuyên khoa và điều dưỡng tận tâm tại HealthCare luôn sẵn sàng đồng hành cùng bạn.
+            <figure className={styles.videoFigure}>
+              <div className={styles.videoFrame}>
+                <video
+                  ref={videoRef}
+                  aria-label="Thước phim minh họa hành trình tư vấn và chăm sóc người bệnh"
+                  autoPlay
+                  disablePictureInPicture
+                  loop
+                  muted
+                  onContextMenu={(event) => event.preventDefault()}
+                  playsInline
+                  poster="/media/about-care-poster.jpg"
+                  preload="metadata"
+                >
+                  <source src="/media/about-introduction.mp4" type="video/mp4" />
+                  Trình duyệt của bạn chưa hỗ trợ phát video. Bạn vẫn có thể tìm hiểu về HealthCare qua nội dung bên dưới.
+                </video>
+                <div className={styles.videoLabel}>
+                  <span className={styles.videoPulse} aria-hidden="true" />
+                  Thước phim giới thiệu
+                </div>
+                <button
+                  aria-label={videoPaused ? "Phát thước phim giới thiệu" : "Tạm dừng thước phim giới thiệu"}
+                  aria-pressed={videoPaused}
+                  className={styles.videoControl}
+                  type="button"
+                  onClick={toggleVideo}
+                >
+                  {videoPaused ? "Phát" : "Tạm dừng"}
+                </button>
+              </div>
+              <figcaption>
+                Thước phim minh họa hành trình tư vấn. Nguồn:{" "}
+                <a href="https://www.pexels.com/video/woman-getting-medical-consultation-4486776/" rel="noreferrer" target="_blank">
+                  Cedric Fauntleroy / Pexels
+                </a>
               </figcaption>
             </figure>
           </div>
@@ -203,9 +237,16 @@ export default function AboutPage() {
               <p className={styles.networkStatus} role="status">Đang cập nhật quy mô mạng lưới…</p>
             ) : null}
             {error ? (
-              <p className={styles.networkStatus} role="status">
-                Quy mô mạng lưới đang được cập nhật. Bạn vẫn có thể xem từng cơ sở từ liên kết bên cạnh.
-              </p>
+              <div className={styles.networkStatus} role="alert" aria-live="polite">
+                <span>Chưa tải được quy mô mạng lưới. Bạn vẫn có thể xem từng cơ sở từ liên kết bên cạnh.</span>
+                <button
+                  className={styles.networkRetry}
+                  type="button"
+                  onClick={retryNetwork}
+                >
+                  Thử tải lại
+                </button>
+              </div>
             ) : null}
             {snapshot ? (
               <dl className={styles.metrics} aria-label="Quy mô mạng lưới hiện tại">

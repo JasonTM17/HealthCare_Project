@@ -956,15 +956,19 @@ public class AiConversationService {
                 finalSources.add(current);
             }
         }
-        List<Map<String, String>> citations = finalSources.isEmpty()
-            ? sanitizeCitations(response.get("citations"))
-            : sourceResolver.citations(finalSources);
+        boolean suppressSources = safetyAction == ChatSafetyAction.REFUSE
+            || safetyAction == ChatSafetyAction.HUMAN_HANDOFF;
+        List<Map<String, String>> citations = suppressSources
+            ? List.of()
+            : finalSources.isEmpty()
+                ? sanitizeCitations(response.get("citations"))
+                : sourceResolver.citations(finalSources);
         // An emergency response has one deterministic action only.  It must
         // never be crowded out by catalog CTAs, even when triage used an
         // approved specialty as supporting context.
         List<Map<String, String>> actions = safetyAction == ChatSafetyAction.EMERGENCY
             ? emergencyActions()
-            : finalSources.isEmpty() ? List.of() : sourceResolver.actions(finalSources);
+            : suppressSources || finalSources.isEmpty() ? List.of() : sourceResolver.actions(finalSources);
         if (actions.isEmpty()
                 && mode == ChatMode.HOSPITAL_SUPPORT
                 && safetyAction != ChatSafetyAction.EMERGENCY
