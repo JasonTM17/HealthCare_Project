@@ -55,7 +55,7 @@ test("Compose keeps browser traffic same-origin through the server-only BFF", as
 
   assert.match(compose, /BACKEND_INTERNAL_URL:\s+http:\/\/backend:8080/);
   assert.match(compose, /BACKEND_BFF_SERVICE_TOKEN:\s+\$\{BACKEND_BFF_SERVICE_TOKEN:\?BACKEND_BFF_SERVICE_TOKEN is required\}/);
-  assert.match(compose, /BFF_PUBLIC_ORIGIN:\s+\$\{BFF_PUBLIC_ORIGIN:-http:\/\/localhost:3000\}/);
+  assert.match(compose, /BFF_PUBLIC_ORIGIN:\s+\$\{BFF_PUBLIC_ORIGIN:-http:\/\/localhost:3000,http:\/\/127\.0\.0\.1:3000\}/);
   assert.match(compose, /BACKEND_BFF_REQUIRED:\s+"true"/);
   assert.match(compose, /BFF_ALLOWED_ORIGINS:\s+\$\{BFF_ALLOWED_ORIGINS:-http:\/\/localhost:3000,http:\/\/127\.0\.0\.1:3000\}/);
   assert.match(compose, /AI_SERVICE_URL:\s+http:\/\/ai-service:8000/);
@@ -102,7 +102,7 @@ test("Compose keeps browser traffic same-origin through the server-only BFF", as
   assert.doesNotMatch(envExample, /NEXT_PUBLIC_(?:CMS_)?API_BASE_URL/);
   assert.match(envExample, /^BACKEND_BFF_SERVICE_TOKEN=$/m);
   assert.match(envExample, /^BACKEND_BFF_REQUIRED=true$/m);
-  assert.match(envExample, /^BFF_PUBLIC_ORIGIN=http:\/\/localhost:3000$/m);
+  assert.match(envExample, /^BFF_PUBLIC_ORIGIN=http:\/\/localhost:3000,http:\/\/127\.0\.0\.1:3000$/m);
   assert.match(envExample, /^BFF_ALLOWED_ORIGINS=http:\/\/localhost:3000,http:\/\/127\.0\.0\.1:3000$/m);
   assert.match(envExample, /^CORS_ALLOWED_ORIGINS=$/m);
 });

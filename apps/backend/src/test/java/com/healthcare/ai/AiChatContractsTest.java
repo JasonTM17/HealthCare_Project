@@ -273,6 +273,47 @@ class AiChatContractsTest {
     }
 
     @Test
+    void refusalSuppressesAuthorizedCitationsAndActions() {
+        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
+        UUID sourceId = UUID.randomUUID();
+        AiChatSourceResolver.ResolvedSource source = new AiChatSourceResolver.ResolvedSource(
+            "specialty", sourceId.toString(), "Tim mạch", "tim-mach", true, true,
+            "OPERATIONAL", null, null, null, null, "/specialties/tim-mach", "/dat-lich?specialtyId=" + sourceId);
+        when(resolver.revalidate(ChatMode.HOSPITAL_SUPPORT, "specialty", sourceId.toString()))
+            .thenReturn(source);
+
+        AiConversationService service = new AiConversationService(
+            mock(AiConversationRepository.class),
+            mock(AiMessageRepository.class),
+            mock(AiMessageFeedbackRepository.class),
+            mock(UserRepository.class),
+            aiService,
+            resolver,
+            mock(PlatformTransactionManager.class),
+            90, true, 200, 20, 120);
+
+        Object sanitized = ReflectionTestUtils.invokeMethod(
+            service,
+            "sanitize",
+            Map.of(
+                "answer", "Tôi không thể xử lý yêu cầu này.",
+                "provenance", "local_provider",
+                "safety_action", "REFUSE",
+                "used_sources", List.of(Map.of(
+                    "source_type", "specialty",
+                    "source_id", sourceId.toString(),
+                    "projection_kind", "OPERATIONAL"))),
+            ChatMode.HOSPITAL_SUPPORT,
+            List.of(source),
+            "nội dung bị từ chối");
+
+        assertThat((List<?>) ReflectionTestUtils.invokeMethod(sanitized, "citations"))
+            .isEmpty();
+        assertThat((List<?>) ReflectionTestUtils.invokeMethod(sanitized, "suggestedActions"))
+            .isEmpty();
+    }
+
+    @Test
     void groundedPatientChatCarriesOnlyDatabaseAuthorizedSyntheticAssertion() {
         AiService upstream = mock(AiService.class);
         com.healthcare.ai.chat.service.SyntheticBetaGuardService guard = mock(

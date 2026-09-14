@@ -357,7 +357,7 @@ test("patient chat reuses the idempotency key after response loss without a dupl
   expect(idempotencyKeys).toHaveLength(1);
 
   await page.getByRole("button", { name: "Gửi tin nhắn" }).click();
-  await expect(page.getByText("Trợ lý đã phản hồi. Lịch sử bên dưới được tải lại từ máy chủ.")).toBeVisible();
+  await expect(page.getByText("Trợ lý đã phản hồi. Lịch sử sẽ tiếp tục đồng bộ từ máy chủ.")).toBeVisible();
 
   expect(idempotencyKeys).toHaveLength(2);
   expect(idempotencyKeys[1]).toBe(idempotencyKeys[0]);
@@ -382,7 +382,7 @@ test("patient chat retires the key only after an explicit terminal backend failu
   expect(idempotencyKeys).toHaveLength(1);
 
   await page.getByRole("button", { name: "Gửi tin nhắn" }).click();
-  await expect(page.getByText("Trợ lý đã phản hồi. Lịch sử bên dưới được tải lại từ máy chủ.")).toBeVisible();
+  await expect(page.getByText("Trợ lý đã phản hồi. Lịch sử sẽ tiếp tục đồng bộ từ máy chủ.")).toBeVisible();
   expect(idempotencyKeys).toHaveLength(2);
   expect(idempotencyKeys[1]).not.toBe(idempotencyKeys[0]);
   await assertNoSensitiveBrowserStorage(page, [content]);

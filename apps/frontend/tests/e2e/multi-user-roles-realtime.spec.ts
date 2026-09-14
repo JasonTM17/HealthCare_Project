@@ -488,6 +488,14 @@ test.describe("Multi-User Roles & Realtime Interactions", () => {
       await patientPage.locator("textarea[placeholder*='Đặt câu hỏi y khoa']").fill(patientCommentText);
       await patientPage.getByRole("button", { name: "Gửi bình luận y tế" }).click();
       await expect(patientPage.getByText(patientCommentText)).toBeVisible();
+      // The article UI renders an optimistic comment before the mock server
+      // acknowledges the POST. Wait for the backend state before opening the
+      // second tab so worker/CPU contention cannot make the next assertion
+      // observe a transient one-comment state.
+      await expect.poll(() => backend.comments.length, {
+        message: "patient comment should be persisted before the doctor reply",
+        timeout: 10_000,
+      }).toBe(1);
 
       // Doctor 2 opens the same article from their view and adds a peer comment
       const doctor2Page = await sharedContext.newPage();
@@ -505,8 +513,12 @@ test.describe("Multi-User Roles & Realtime Interactions", () => {
       await doctor2Page.getByRole("button", { name: "Gửi giải đáp chuyên môn" }).click();
       await expect(doctor2Page.getByText(doctor2PeerComment)).toBeVisible();
 
-      // Verify comments in backend
-      expect(backend.comments.length).toBe(2);
+      // Verify the second comment after the server acknowledges it; the page
+      // may show it optimistically a few milliseconds earlier.
+      await expect.poll(() => backend.comments.length, {
+        message: "doctor reply should be persisted before realtime assertions",
+        timeout: 10_000,
+      }).toBe(2);
 
       // ── Step 4: Admin Real-time CMS modification synchronization ──────────
       const adminPage = await sharedContext.newPage();

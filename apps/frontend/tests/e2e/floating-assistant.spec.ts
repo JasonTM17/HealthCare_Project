@@ -234,10 +234,29 @@ test("guest launcher sends stateless hospital-support chat and offers login for 
   await expect(dialog.getByText("Bạn đang dùng chế độ khách", { exact: false })).toBeVisible();
   await dialog.getByLabel("Câu hỏi cho trợ lý sức khỏe").fill("Bệnh viện có những chuyên khoa nào?");
   await dialog.getByRole("button", { name: "Gửi câu hỏi" }).click();
-  await expect(dialog.getByTestId("floating-chat-pending-user").getByText("Bệnh viện có những chuyên khoa nào?", { exact: true })).toBeVisible();
-  await expect(dialog.getByTestId("floating-chat-thinking")).toContainText("Đã nhận câu hỏi — đang chờ phản hồi…");
+  // A fast deterministic response may promote the pending turn to the
+  // completed exchange before the assertion runs. The user question must
+  // remain visible in the transcript in either state; only assert the staged
+  // waiting copy while that transient state is still present.
+  const userTurn = dialog.getByRole("log").getByText("Bệnh viện có những chuyên khoa nào?", { exact: true });
+  await expect(userTurn).toBeVisible();
+  const thinking = dialog.getByTestId("floating-chat-thinking");
+  if (await thinking.count() > 0) {
+    const transientThinkingText = await thinking.evaluate((element) => {
+      const style = window.getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      const isVisible = style.display !== "none"
+        && style.visibility !== "hidden"
+        && rect.width > 0
+        && rect.height > 0;
+      return isVisible ? element.textContent ?? "" : null;
+    }, { timeout: 0 }).catch(() => null);
+    if (transientThinkingText !== null) {
+      expect(transientThinkingText).toContain("Đã nhận câu hỏi — đang chờ phản hồi…");
+    }
+  }
   await expect(dialog.getByText("Bạn có thể xem danh sách chuyên khoa và chọn cơ sở phù hợp.", { exact: true })).toBeVisible();
-  await expect(dialog.getByTestId("floating-chat-thinking")).toBeHidden();
+  await expect(thinking).toBeHidden();
   await expect(dialog.getByText("Tim mạch", { exact: true })).toBeVisible();
   await expect(dialog.getByText("Thông tin chỉ mang tính tham khảo.", { exact: true })).toBeVisible();
   await expect(dialog.getByText("Bước tiếp theo", { exact: true })).toBeVisible();
@@ -249,6 +268,78 @@ test("guest launcher sends stateless hospital-support chat and offers login for 
   await expect(dialog).toBeHidden();
   await expect(page.getByRole("button", { name: "Mở trợ lý sức khỏe" })).toBeFocused();
   await assertNoSensitiveBrowserStorage(page);
+});
+
+test("guest greeting uses the public chat contract instead of a client-side shortcut", async ({ context, page }) => {
+  await installMockBrowserSession(context, null);
+  let calls = 0;
+  await context.route("**/api/v1/public/ai/chat", async (route) => {
+    calls += 1;
+    const payload = route.request().postDataJSON() as { message: string; recent_turns: unknown[] };
+    expect(payload.message).toBe("Xin chào!");
+    expect(payload.recent_turns).toEqual([]);
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        answer: "Xin chào! Bạn có thể hỏi về chuyên khoa, cơ sở hoặc đặt lịch.",
+        disclaimer: "Thông tin chỉ mang tính tham khảo.",
+        citations: [],
+        provenance: "local_provider",
+        mode: "HOSPITAL_SUPPORT",
+        safety_action: "ANSWER",
+        suggested_actions: [
+          { kind: "VIEW_SOURCE", label: "Xem Chuyên khoa", href: "/specialties" },
+          { kind: "VIEW_SOURCE", label: "Xem Cơ sở", href: "/branches" },
+        ],
+      }),
+    });
+  });
+
+  await page.setViewportSize({ width: 812, height: 375 });
+  await page.goto("/about");
+  const dialog = page.getByRole("dialog", { name: "Trợ lý sức khỏe HealthCare" });
+  await page.getByRole("button", { name: "Mở trợ lý sức khỏe" }).click();
+  await dialog.getByLabel("Câu hỏi cho trợ lý sức khỏe").fill("Xin chào!");
+  await dialog.getByRole("button", { name: "Gửi câu hỏi" }).click();
+  await expect(dialog.getByText("Xin chào! Bạn có thể hỏi về chuyên khoa, cơ sở hoặc đặt lịch.", { exact: true })).toBeVisible();
+  await expect(dialog.getByRole("link", { name: "Xem Chuyên khoa" })).toHaveAttribute("href", "/specialties");
+  expect(calls).toBe(1);
+});
+
+test("floating panel remains reachable in a short landscape viewport", async ({ context, page }) => {
+  await unavailableApi(context);
+  await installMockBrowserSession(context, null);
+  await page.setViewportSize({ width: 812, height: 375 });
+  await page.goto("/about", { waitUntil: "domcontentloaded" });
+
+  await page.getByRole("button", { name: "Mở trợ lý sức khỏe" }).click();
+  const dialog = page.getByRole("dialog", { name: "Trợ lý sức khỏe HealthCare" });
+  await expect(dialog).toBeVisible();
+  const geometry = await page.evaluate(() => {
+    const panel = document.querySelector<HTMLElement>("#floating-health-assistant-panel");
+    const close = panel?.querySelector<HTMLButtonElement>("button[aria-label='Đóng cửa sổ trợ lý']");
+    const composer = panel?.querySelector<HTMLElement>("form");
+    if (!panel || !close || !composer) throw new Error("Floating assistant controls are missing");
+    const rect = panel.getBoundingClientRect();
+    const closeRect = close.getBoundingClientRect();
+    const composerRect = composer.getBoundingClientRect();
+    return {
+      panel: { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right },
+      close: { top: closeRect.top, bottom: closeRect.bottom, left: closeRect.left, right: closeRect.right },
+      composer: { top: composerRect.top, bottom: composerRect.bottom },
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+    };
+  });
+
+  expect(geometry.panel.top).toBeGreaterThanOrEqual(0);
+  expect(geometry.panel.bottom).toBeLessThanOrEqual(geometry.viewport.height);
+  expect(geometry.panel.left).toBeGreaterThanOrEqual(0);
+  expect(geometry.panel.right).toBeLessThanOrEqual(geometry.viewport.width);
+  expect(geometry.close.top).toBeGreaterThanOrEqual(0);
+  expect(geometry.close.bottom).toBeLessThanOrEqual(geometry.viewport.height);
+  expect(geometry.composer.bottom).toBeLessThanOrEqual(geometry.viewport.height);
+  await expect(dialog.getByRole("button", { name: "Đóng cửa sổ trợ lý" })).toBeVisible();
 });
 
 test("patient mobile widget creates and sends through the REST conversation API", async ({ context, page }) => {
@@ -298,11 +389,12 @@ test("provider unavailable state offers a real retry without storing the draft",
   await dialog.getByLabel("Câu hỏi cho trợ lý sức khỏe").fill(question);
   await dialog.getByRole("button", { name: "Gửi câu hỏi" }).click();
   await expect(dialog.getByText("Trợ lý tạm thời gián đoạn", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Tạm thời gián đoạn", { exact: true })).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Thử lại" })).toBeVisible();
   await dialog.getByRole("button", { name: "Thử lại" }).click();
   await expect(dialog.getByTestId("floating-chat-streaming-reply")).toBeHidden();
   await expect(dialog.locator("article:not([data-testid='floating-chat-streaming-reply'])").getByText("Bạn nên mang giấy tờ tùy thân, kết quả cũ và danh sách thuốc đang dùng.", { exact: true })).toBeVisible();
-  await expect(dialog.getByText("Hỗ trợ tạm thời", { exact: true })).toBeVisible();
+  await expect(dialog.locator("header").getByText("Hỗ trợ tạm thời", { exact: true })).toBeVisible();
   expect(observedKeys).toHaveLength(2);
   expect(observedKeys[0]).not.toBe(observedKeys[1]);
   await assertNoSensitiveBrowserStorage(page, [question]);

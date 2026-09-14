@@ -98,6 +98,10 @@
   flex-shrink: 0;
 }
 
+.offlineDot {
+  background-color: #f59e0b;
+}
+
 .headerIcon {
   display: grid;
   flex: 0 0 2.25rem;
@@ -561,7 +565,7 @@
 }
 
 .feedback button {
-  min-height: 1.85rem;
+  min-height: 2.75rem;
   padding: 0.2rem 0.6rem;
   border: 1px solid var(--assistant-line);
   border-radius: var(--radius-sm);
@@ -571,7 +575,8 @@
   font: inherit;
   font-size: 0.72rem;
   font-weight: 600;
-  transition: all var(--duration-fast) ease;
+  touch-action: manipulation;
+  transition: background-color var(--duration-fast) ease, border-color var(--duration-fast) ease, color var(--duration-fast) ease;
 }
 
 .feedback button:hover {
@@ -913,6 +918,34 @@
   .launcher::after {
     right: -0.08rem;
     bottom: 0;
+  }
+}
+
+/* In short landscape viewports the mobile care rail is not present at every
+   breakpoint, so the normal mobile clearance can push the panel above the
+   viewport. Keep the whole companion widget reachable without changing its
+   non-modal interaction model. */
+@media (orientation: landscape) and (max-height: 600px) {
+  .root {
+    --assistant-bottom-clearance: 0px;
+    bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
+
+  .panel {
+    height: min(35rem, calc(100dvh - 5.5rem));
+    max-height: calc(100dvh - 5.5rem);
+  }
+
+  /* Optional prompt chips are the first thing to collapse in a short
+     landscape viewport. Preserve the header, transcript, composer and help
+     text so the companion remains usable without clipping its close control. */
+  .thread {
+    min-height: 0;
+    max-height: none;
+  }
+
+  .suggestions {
+    display: none;
   }
 }
 

@@ -12,6 +12,7 @@ from app.chatbot import (
     ChatContractError,
     generate_chat_response,
     is_complex_multisymptom_query,
+    mode_source_types,
     retrieve_chat_candidates,
 )
 from app.embeddings import EmbeddingResult, embed
@@ -490,6 +491,7 @@ def chat(request: ChatRequest) -> ChatResponse:
         # reporting the HOSPITAL_SUPPORT default (mirrors /chat/generate).
         return safety_response.model_copy(update={"mode": request.mode})
 
+    allow_public_op = request.public_support_chat or request.mode is ChatMode.HOSPITAL_SUPPORT
     embedding_provider = settings.embedding_provider.strip().casefold()
     if (
         embedding_provider not in LOCAL_EMBEDDING_PROVIDERS
@@ -501,7 +503,7 @@ def chat(request: ChatRequest) -> ChatResponse:
             recent_turns=turns,
             synthetic_beta=request.synthetic_beta,
             public_support_chat=request.public_support_chat,
-            allow_public_operational=request.public_support_chat,
+            allow_public_operational=allow_public_op,
         )
 
     query_embedding, query_model, embedding_provenance = _embedding_parts(
@@ -514,10 +516,16 @@ def chat(request: ChatRequest) -> ChatResponse:
         "local_provider" if embedding_provenance == "local_fallback" else embedding_provenance
     )
     try:
+        source_types = (
+            list(mode_source_types(request.mode))
+            if not request.public_support_chat
+            else None
+        )
         hits = rag_service.search(
             query_embedding,
             top_k=min(request.top_k, settings.ai_max_retrieved_chunks),
             query_text=message,
+            source_types=source_types,
             embedding_model=query_model,
             embedding_provenance=retrieval_provenance,
         )
@@ -540,7 +548,7 @@ def chat(request: ChatRequest) -> ChatResponse:
         context = []
         citations = []
     top_score = max([score for _, score in hits], default=0.0)
-    similarity_thresh = getattr(settings, "ai_chat_similarity_threshold", 0.65)
+    similarity_thresh = getattr(settings, "ai_chat_similarity_threshold", 0.45)
     is_complex = is_complex_multisymptom_query(message)
 
     if (
@@ -572,7 +580,7 @@ def chat(request: ChatRequest) -> ChatResponse:
             context=context,
             citations=citations,
             synthetic_beta=request.synthetic_beta,
-            allow_public_operational=request.public_support_chat,
+            allow_public_operational=allow_public_op,
             public_support_chat=request.public_support_chat,
         )
         if response.provenance == "remote_provider":

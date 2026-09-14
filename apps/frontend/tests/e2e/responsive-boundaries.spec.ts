@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Route } from "@playwright/test";
 
 test.describe("public responsive boundaries", () => {
   test("resource heroes collapse to one readable column and defer the floating assistant on phones", async ({ page }) => {
@@ -147,6 +147,9 @@ test.describe("public responsive boundaries", () => {
     await expect(video).not.toHaveAttribute("controls", /.*/);
     await expect(video).toHaveAttribute("autoplay", "");
     await expect(video).toHaveAttribute("disablepictureinpicture", "");
+    await expect(page.getByRole("button", { name: "Tạm dừng thước phim giới thiệu" })).toBeVisible();
+    await page.getByRole("button", { name: "Tạm dừng thước phim giới thiệu" }).click();
+    await expect(page.getByRole("button", { name: "Phát thước phim giới thiệu" })).toBeVisible();
 
     const placement = await page.evaluate(() => {
       const heroElement = document.querySelector<HTMLElement>('section[aria-labelledby="about-title"]');
@@ -161,6 +164,53 @@ test.describe("public responsive boundaries", () => {
 
     expect(placement.videoTop).toBeGreaterThan(placement.heroBottom);
     expect(placement.overflow).toBeLessThanOrEqual(1);
+  });
+
+  test("about network metrics expose a retry after a failed first load", async ({ context, page }) => {
+    let firstRequest = true;
+    const routeCatalogPage = async (route: Route) => {
+      const requestUrl = new URL(route.request().url());
+      const pathname = requestUrl.pathname;
+      if (requestUrl.searchParams.get("size") !== "1") {
+        await route.fallback();
+        return;
+      }
+      if (firstRequest) {
+        firstRequest = false;
+        await route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({ code: "SERVICE_UNAVAILABLE" }),
+        });
+        return;
+      }
+      const totalElements = pathname.endsWith("/doctors") ? 12 : pathname.endsWith("/specialties") ? 7 : 3;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          content: [],
+          totalElements,
+          totalPages: 1,
+          size: 1,
+          number: 0,
+          first: true,
+          last: true,
+          empty: true,
+        }),
+      });
+    };
+    for (const endpoint of ["doctors", "specialties", "branches"]) {
+      await context.route(`**/api/v1/hospital/${endpoint}?**`, routeCatalogPage);
+    }
+
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto("/about", { waitUntil: "domcontentloaded" });
+    await expect(page.locator("[role='alert'][class*='networkStatus']")).toContainText("Chưa tải được quy mô mạng lưới");
+    await expect(page.getByRole("button", { name: "Thử tải lại" })).toBeVisible();
+    await page.getByRole("button", { name: "Thử tải lại" }).click();
+    await expect(page.locator("[class*='metrics']")).toBeVisible();
+    await expect(page.locator("[class*='metrics'] dd")).toHaveText(["12", "7", "3"]);
   });
 
   test("articles stays within a 320px viewport, including navigation and pagination", async ({ context, page }) => {

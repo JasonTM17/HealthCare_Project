@@ -33,7 +33,7 @@ test("patient chat is role gated and keeps server history authoritative", async 
   assert.match(page, /hasRole\(session\.user, "PATIENT"\)/);
   assert.match(page, /ForbiddenState/);
   assert.match(page, /Promise\.all\(\[\s*fetchAiConversation\(conversationId\),\s*fetchAiConversationMessages/);
-  assert.match(page, /await sendMessage[\s\S]*await Promise\.all\(\[[\s\S]*loadThread/);
+  assert.match(page, /await sendMessage[\s\S]*await Promise\.allSettled\(\[[\s\S]*loadThread/);
   assert.match(page, /onDelta: \(delta\) => \{[\s\S]*isCurrentSendRequest\(\)[\s\S]*setStreamingReply/);
   assert.match(page, /data-testid="chat-streaming-reply"/);
   assert.match(page, /fetchAiConversationMessages\(conversationId, cursor, MESSAGE_LIMIT\)/);

@@ -15,9 +15,10 @@ import java.util.regex.Pattern;
 public final class ChatSuggestedActionResolver {
 
     private static final Pattern GREETING_PATTERN = Pattern.compile(
-        "(?:xin\\s+)?chao(?:\\s+(?:ban|bac\\s+si|em|tro\\s+ly|ad|admin|ban\\s+oi|moi\\s+nguoi|nha))?"
+        "(?:(?:xin\\s+)?chao(?:\\s+(?:ban|bac\\s+si|em|tro\\s+ly|ad|admin|ban\\s+oi|moi\\s+nguoi|nha))?"
             + "|hello(?:\\s+(?:ban|bot|there|all|oi))?|hi(?:\\s+(?:ban|all|there|bot))?|hey"
-            + "|alo(?: ban(?: oi)?| toi can ho tro)?"
+            + "|alo(?: ban(?: oi)?| toi can ho tro)?)"
+            + "\\s*[.!?,;:…]*\\s*"
     );
 
     private static final String[] BOOKING_TERMS = {
@@ -135,7 +136,9 @@ public final class ChatSuggestedActionResolver {
 
     private static boolean containsAny(String value, String... terms) {
         for (String term : terms) {
-            if (value.contains(term)) return true;
+            String boundaryPattern = "(?<![\\p{L}\\p{N}])" + Pattern.quote(term)
+                + "(?![\\p{L}\\p{N}])";
+            if (Pattern.compile(boundaryPattern).matcher(value).find()) return true;
         }
         return false;
     }

@@ -51,6 +51,11 @@ class ChatSuggestedActionResolverTest {
                 assertThat(action.get("href")).startsWith("/");
                 assertThat(action.get("kind")).isIn("VIEW_SOURCE", "START_BOOKING");
             });
+
+        assertThat(ChatSuggestedActionResolver.hospitalSupportFallback("Xin chào!"))
+            .containsExactly(
+                Map.of("kind", "VIEW_SOURCE", "label", "Xem Chuyên khoa", "href", "/specialties"),
+                Map.of("kind", "VIEW_SOURCE", "label", "Xem Cơ sở", "href", "/branches"));
     }
 
     @Test
@@ -60,5 +65,11 @@ class ChatSuggestedActionResolverTest {
         assertThat(ChatSuggestedActionResolver.hospitalSupportFallback("Tôi muốn xem bác sĩ"))
             .extracting(action -> action.get("href"))
             .startsWith("/doctors", "/dat-lich");
+    }
+
+    @Test
+    void doesNotTreatAWordFragmentAsASymptom() {
+        assertThat(ChatSuggestedActionResolver.classify("Bạn cho tôi biết nên khám khoa nào"))
+            .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.GENERAL);
     }
 }

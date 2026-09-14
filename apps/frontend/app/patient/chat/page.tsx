@@ -709,7 +709,7 @@ function PatientChatPageContent() {
     setNotice(null);
     shouldScrollToLatestRef.current = true;
     try {
-      await sendMessage(conversationId, normalizedContent, {
+      const exchange = await sendMessage(conversationId, normalizedContent, {
         attemptId: options.sourceMessageId ? `failed-message:${options.sourceMessageId}` : "composer",
         signal: controller.signal,
         onDelta: (delta) => {
@@ -718,8 +718,9 @@ function PatientChatPageContent() {
       });
       if (!isCurrentSendRequest()) return;
       if (options.clearDraftOnSuccess) setDraft("");
-      setNotice("Trợ lý đã phản hồi. Lịch sử bên dưới được tải lại từ máy chủ.");
-      await Promise.all([
+      setMessages((current) => mergeMessages(current, [exchange.userMessage, exchange.assistantMessage]));
+      setNotice("Trợ lý đã phản hồi. Lịch sử sẽ tiếp tục đồng bộ từ máy chủ.");
+      await Promise.allSettled([
         loadThread(conversationId, { background: true }),
         loadConversationList(conversationId, { hydrateThread: false, background: true }),
         refreshCredit(),
