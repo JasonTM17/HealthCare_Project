@@ -520,6 +520,14 @@
   margin-top: 0.55rem;
 }
 
+.suggestedActionsLabel {
+  flex-basis: 100%;
+  color: #6b7976;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
 .suggestedActions a {
   display: inline-flex;
   min-height: 2.75rem;

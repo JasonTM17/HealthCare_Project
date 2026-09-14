@@ -769,6 +769,14 @@
   gap: var(--sp-2);
 }
 
+.suggestedActionsLabel {
+  flex-basis: 100%;
+  color: var(--color-ink-muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
 .suggestedActions a:not([href="tel:115"]) {
   border: 1px solid var(--chat-border-strong);
   background: var(--chat-surface-muted);

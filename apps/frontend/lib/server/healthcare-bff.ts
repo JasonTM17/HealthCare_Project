@@ -118,16 +118,20 @@ function publicAiChatFallbackResponse(): Response {
   return Response.json(
     {
       answer: (
-        "Mình chưa có đủ thông tin đã xác thực để trả lời chắc chắn. Bạn có thể tra cứu "
-        + "chuyên khoa, bác sĩ, gói khám và đặt lịch trực tiếp trên website HealthCare. "
-        + "Nếu có dấu hiệu nặng hoặc diễn tiến nhanh, hãy gọi cấp cứu 115 hoặc đến cơ sở "
-        + "y tế gần nhất."
+        "Mình chưa có đủ thông tin đã xác thực để trả lời chắc chắn. Bạn có thể tiếp tục "
+        + "từ các mục chính thức của HealthCare bên dưới hoặc tra cứu chuyên khoa, bác sĩ, "
+        + "gói khám và đặt lịch trực tiếp trên website."
       ),
       disclaimer: "Thông tin từ trợ lý AI chỉ mang tính tham khảo và không thay thế tư vấn, chẩn đoán hoặc điều trị của bác sĩ.",
       citations: [],
       provenance: "local_fallback",
       mode: "HOSPITAL_SUPPORT",
       safety_action: "INSUFFICIENT_EVIDENCE",
+      suggested_actions: [
+        { kind: "START_BOOKING", label: "Đặt lịch khám", href: "/dat-lich" },
+        { kind: "VIEW_SOURCE", label: "Xem Chuyên khoa", href: "/specialties" },
+        { kind: "VIEW_SOURCE", label: "Xem Cơ sở", href: "/branches" },
+      ],
     },
     {
       status: 200,

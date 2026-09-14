@@ -4,9 +4,12 @@ import com.healthcare.ai.service.AiCatalogIndexService;
 import com.healthcare.ai.service.AiService;
 import com.healthcare.hospital.entity.Specialty;
 import com.healthcare.hospital.entity.Branch;
+import com.healthcare.hospital.entity.Doctor;
+import com.healthcare.hospital.entity.DoctorBranch;
 import com.healthcare.hospital.repository.ArticleRepository;
 import com.healthcare.hospital.repository.BranchRepository;
 import com.healthcare.hospital.repository.DoctorRepository;
+import com.healthcare.hospital.repository.DoctorBranchRepository;
 import com.healthcare.hospital.repository.FaqRepository;
 import com.healthcare.hospital.repository.PackageRepository;
 import com.healthcare.hospital.repository.ServiceRepository;
@@ -196,6 +199,54 @@ class AiCatalogIndexServiceTest {
             .synchronizeCatalogNow();
 
         verify(aiService).removeIndexedDocument("branch", staleId, 1L, "OPERATIONAL");
+        assertThat(processed).isEqualTo(1);
+    }
+
+    @Test
+    void indexesDoctorWithAssignedBranchInTitleAndContent() {
+        AiService aiService = mock(AiService.class);
+        BranchRepository branches = mock(BranchRepository.class);
+        SpecialtyRepository specialties = mock(SpecialtyRepository.class);
+        DoctorRepository doctors = mock(DoctorRepository.class);
+        DoctorBranchRepository doctorBranches = mock(DoctorBranchRepository.class);
+        ServiceRepository services = mock(ServiceRepository.class);
+        PackageRepository packages = mock(PackageRepository.class);
+        ArticleRepository articles = mock(ArticleRepository.class);
+        FaqRepository faqs = mock(FaqRepository.class);
+        when(aiService.isRagIngestConfigured()).thenReturn(true);
+
+        Doctor doctor = new Doctor();
+        doctor.setId(UUID.randomUUID());
+        doctor.setFullName("Bác sĩ mẫu 3 - Nội tổng hợp");
+        doctor.setBio("Khám nội tổng hợp và rối loạn giấc ngủ.");
+        doctor.setSlug("bac-si-mau-3-noi-tong-hop-thu-duc");
+        doctor.setActive(true);
+        Branch branch = new Branch();
+        branch.setName("Phòng khám ngoại trú HealthCare — Thủ Đức");
+        branch.setActive(true);
+        DoctorBranch assignment = new DoctorBranch();
+        assignment.setDoctor(doctor);
+        assignment.setBranch(branch);
+        when(doctorBranches.findByDoctorId(doctor.getId())).thenReturn(List.of(assignment));
+        when(branches.findAll(any(Pageable.class))).thenReturn(Page.empty());
+        when(specialties.findAll(any(Pageable.class))).thenReturn(Page.empty());
+        when(doctors.findAll(any(Pageable.class))).thenReturn(new PageImpl<>(List.of(doctor)));
+        when(services.findAll(any(Pageable.class))).thenReturn(Page.empty());
+        when(packages.findAll(any(Pageable.class))).thenReturn(Page.empty());
+        when(articles.findAll(any(Pageable.class))).thenReturn(Page.empty());
+        when(faqs.findAll(any(Pageable.class))).thenReturn(Page.empty());
+
+        int processed = new AiCatalogIndexService(
+            aiService, branches, specialties, doctors, doctorBranches, services,
+            packages, articles, faqs, null).synchronizeCatalogNow();
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> payload = ArgumentCaptor.forClass(Map.class);
+        verify(aiService).indexDocument(payload.capture());
+        assertThat(payload.getValue().get("title"))
+            .isEqualTo("Bác sĩ mẫu 3 - Nội tổng hợp — Phòng khám ngoại trú HealthCare — Thủ Đức");
+        assertThat(payload.getValue().get("content").toString())
+            .contains("Phòng khám ngoại trú HealthCare — Thủ Đức", "rối loạn giấc ngủ");
         assertThat(processed).isEqualTo(1);
     }
 }

@@ -106,17 +106,33 @@ export default function AboutPage() {
             </div>
           </div>
 
-          <figure className={styles.teamShowcase}>
-            <Image
-              src="/media/hospital-team-landscape.jpg"
-              alt="Đội ngũ bác sĩ và nhân viên y tế chuyên khoa Bệnh viện HealthCare"
-              width={1024}
-              height={682}
-              priority
-              className={styles.teamImage}
-            />
-            <figcaption className={styles.teamCaption}>
-              Đội ngũ chuyên gia y tế, bác sĩ chuyên khoa và điều dưỡng tận tâm tại HealthCare luôn sẵn sàng đồng hành cùng bạn.
+          <figure className={styles.videoFigure}>
+            <div className={styles.videoFrame}>
+              <video
+                ref={videoRef}
+                aria-label="Thước phim minh họa hành trình tư vấn và chăm sóc người bệnh"
+                autoPlay
+                disablePictureInPicture
+                loop
+                muted
+                onContextMenu={(event) => event.preventDefault()}
+                playsInline
+                poster="/media/about-care-poster.jpg"
+                preload="metadata"
+              >
+                <source src="/media/about-introduction.mp4" type="video/mp4" />
+                Trình duyệt của bạn chưa hỗ trợ phát video. Bạn vẫn có thể tìm hiểu về HealthCare qua nội dung bên dưới.
+              </video>
+              <div className={styles.videoLabel}>
+                <span className={styles.videoPulse} aria-hidden="true" />
+                Thước phim giới thiệu
+              </div>
+            </div>
+            <figcaption>
+              Thước phim minh họa hành trình tư vấn. Nguồn:{" "}
+              <a href="https://www.pexels.com/video/woman-getting-medical-consultation-4486776/" rel="noreferrer" target="_blank">
+                Cedric Fauntleroy / Pexels
+              </a>
             </figcaption>
           </figure>
         </section>
@@ -132,33 +148,17 @@ export default function AboutPage() {
               nơi và biết điều gì sẽ diễn ra tiếp theo. HealthCare đặt chuyên khoa, bác sĩ, cơ sở
               và lịch khám trong cùng một trải nghiệm để bạn chủ động hơn cho buổi khám của mình.
             </p>
-            <figure className={styles.videoFigure}>
-              <div className={styles.videoFrame}>
-                <video
-                  ref={videoRef}
-                  aria-label="Thước phim minh họa hành trình tư vấn và chăm sóc người bệnh"
-                  autoPlay
-                  disablePictureInPicture
-                  loop
-                  muted
-                  onContextMenu={(event) => event.preventDefault()}
-                  playsInline
-                  poster="/media/about-care-poster.jpg"
-                  preload="metadata"
-                >
-                  <source src="/media/about-introduction.mp4" type="video/mp4" />
-                  Trình duyệt của bạn chưa hỗ trợ phát video. Bạn vẫn có thể tìm hiểu về HealthCare qua nội dung bên dưới.
-                </video>
-                <div className={styles.videoLabel}>
-                  <span className={styles.videoPulse} aria-hidden="true" />
-                  Thước phim giới thiệu
-                </div>
-              </div>
-              <figcaption>
-                Thước phim minh họa hành trình tư vấn. Nguồn:{" "}
-                <a href="https://www.pexels.com/video/woman-getting-medical-consultation-4486776/" rel="noreferrer" target="_blank">
-                  Cedric Fauntleroy / Pexels
-                </a>
+            <figure className={styles.teamShowcase}>
+              <Image
+                src="/media/hospital-team-landscape.jpg"
+                alt="Đội ngũ bác sĩ và nhân viên y tế chuyên khoa Bệnh viện HealthCare"
+                width={1024}
+                height={682}
+                priority
+                className={styles.teamImage}
+              />
+              <figcaption className={styles.teamCaption}>
+                Đội ngũ chuyên gia y tế, bác sĩ chuyên khoa và điều dưỡng tận tâm tại HealthCare luôn sẵn sàng đồng hành cùng bạn.
               </figcaption>
             </figure>
           </div>

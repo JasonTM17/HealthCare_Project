@@ -392,6 +392,7 @@ _GROUNDING_STOPWORDS = frozenset(
 )
 _PUBLIC_OPERATIONAL_CONNECTOR_TOKENS = frozenset(
     {
+        # Original tokens
         "ban",
         "co",
         "the",
@@ -412,6 +413,109 @@ _PUBLIC_OPERATIONAL_CONNECTOR_TOKENS = frozenset(
         "tin",
         "tham",
         "khao",
+        # Polite & Conversational
+        "xin",
+        "chao",
+        "cam",
+        "quy",
+        "khach",
+        "rat",
+        "vui",
+        "long",
+        "duoc",
+        "ho",
+        "tro",
+        "giai",
+        "dap",
+        "thac",
+        "mac",
+        "cau",
+        "hoi",
+        "nha",
+        "oi",
+        "chuc",
+        "suc",
+        "khoe",
+        "mot",
+        "tot",
+        "lanh",
+        # Operational navigation
+        "benh",
+        "vien",
+        "phong",
+        "kham",
+        "chuyen",
+        "khoa",
+        "bac",
+        "si",
+        "dich",
+        "vu",
+        "goi",
+        "lich",
+        "hen",
+        "dat",
+        "truoc",
+        "truc",
+        "tuyen",
+        "online",
+        "huong",
+        "dan",
+        "quy",
+        "trinh",
+        "thu",
+        "tuc",
+        "giay",
+        "bhyt",
+        "chi",
+        "tiet",
+        "cu",
+        "sau",
+        "day",
+        "duoi",
+        "gom",
+        "nhu",
+        "trao",
+        "doi",
+        "tiep",
+        "hoac",
+        "qua",
+        "kenh",
+        "biet",
+        "them",
+        "cap",
+        "nhat",
+        "chinh",
+        "xac",
+        "nhanh",
+        "chong",
+        "thuan",
+        "tien",
+        "phu",
+        "hop",
+        "cau",
+        "chuan",
+        "mang",
+        "theo",
+        "tong",
+        "dai",
+        "website",
+        "trang",
+        "chu",
+        "ung",
+        "dung",
+        "app",
+        "hien",
+        "cung",
+        "cap",
+        "cac",
+        "nhung",
+        "ngoai",
+        "neu",
+        "can",
+        "khi",
+        "trong",
+        "truong",
+        "luu",
     }
 )
 _PUBLIC_CONTACT_CLAIM_PATTERN = re.compile(
@@ -482,6 +586,7 @@ _EMERGENCY_PHRASE_PATTERN = re.compile(
 _UNSUPPORTED_CLINICAL_TERMS = (
     "kê đơn", "ke don", "liều thuốc", "lieu thuoc", "chẩn đoán tôi",
     "chan doan toi", "thay đổi thuốc", "thay doi thuoc",
+    "kê thuốc", "ke thuoc", "chẩn đoán chắc chắn", "chan doan chac chan",
 )
 _PUBLIC_BOOKING_SUPPORT_TERMS = (
     "dat lich",
@@ -506,6 +611,61 @@ _PUBLIC_PREPARATION_TERMS = (
     "ho so kham",
     "huong dan kham",
 )
+_PUBLIC_SPECIALTY_GUIDANCE_TERMS = (
+    "nen kham",
+    "kham chuyen khoa",
+    "chuyen khoa phu hop",
+    "khoa nao phu hop",
+    "phu hop voi trieu chung",
+)
+_PUBLIC_CATALOG_TERMS = (
+    "danh sach co so",
+    "benh vien o dau",
+    "dia chi benh vien",
+    "chuyen khoa va co so",
+    "chuyen khoa nao",
+    "co chuyen khoa nao",
+    "nhung chuyen khoa",
+    "danh sach chuyen khoa",
+    "co so nao",
+)
+_PUBLIC_DOCTOR_TERMS = (
+    "danh sach bac si",
+    "doi ngu bac si",
+    "tim bac si",
+    "thong tin bac si",
+    "bac si nao",
+    "xem bac si",
+    "muon xem bac si",
+)
+_PUBLIC_PACKAGE_TERMS = (
+    "goi kham",
+    "goi suc khoe",
+    "kham tong quat",
+)
+_PUBLIC_SERVICE_TERMS = (
+    "dich vu",
+    "bang gia",
+    "gia dich vu",
+)
+_PUBLIC_BRANCH_HOURS_TERMS = (
+    "co so",
+    "gio lam",
+    "gio kham",
+    "mo cua",
+    "thoi gian lam",
+    "lam viec",
+    "dia chi",
+    "chu nhat",
+    "cuoi tuan",
+)
+_PUBLIC_GREETING_PATTERN = re.compile(
+    r"(?:xin\s+)?chao(?:\s+(?:ban|bac\s+si|em|tro\s+ly|ad|admin|ban\s+oi|moi\s+nguoi|nha))?"
+    r"|hello(?:\s+(?:ban|bot|there|all|oi))?"
+    r"|hi(?:\s+(?:ban|all|there|bot))?|hey"
+    r"|alo(?: ban(?: oi)?| toi can ho tro)?",
+    re.IGNORECASE,
+)
 _CIRCUIT_LOCK = threading.Lock()
 _CIRCUIT_FAILURES = 0
 _CIRCUIT_OPEN_UNTIL = 0.0
@@ -513,9 +673,15 @@ _MAX_PROVIDER_RESPONSE_CHARS = 32_000
 
 
 def patient_chat_remote_enabled(settings: Any) -> bool:
-    """Keep every patient-answer provider path disabled in this beta build."""
+    """Return whether patient-chat remote provider egress is authorized."""
 
-    del settings
+    if getattr(settings, "remote_ai_release_hold", None) is not True:
+        return False
+    value = getattr(settings, "ai_patient_chat_remote_enabled", False)
+    if value is True:
+        return True
+    if isinstance(value, str):
+        return value.strip().casefold() in {"1", "true", "yes", "on"}
     return False
 
 
@@ -575,10 +741,7 @@ def public_no_context_query_allowed(query: str) -> bool:
     normalized = _normalize_sensitive_text(query).strip(" .,!?:;-")
     if not normalized:
         return False
-    if re.fullmatch(
-        r"(?:xin\s+)?chao(?:\s+(?:ban|bac\s+si|em|tro\s+ly|ad|admin|ban\s+oi|moi\s+nguoi|nha))?|hello(?:\s+(?:ban|bot|there|all|oi))?|hi(?:\s+(?:ban|all|there|bot))?|hey|alo(?: ban(?: oi)?| toi can ho tro)?",
-        normalized,
-    ):
+    if _PUBLIC_GREETING_PATTERN.fullmatch(normalized):
         return True
     if re.search(
         r"\bchuan\s+bi(?:\s+[a-z0-9]+){0,4}\s+truoc\s+khi\s+(?:di\s+)?kham\b",
@@ -992,6 +1155,8 @@ def chat_safety_response(
             ),
             provenance="local_fallback",
             safety_action=ChatSafetyAction.EMERGENCY,
+            cost_tier="local_free",
+            routing_reason="safety_guardrail_shortcircuit",
         )
     if contains_prompt_injection(message) or any(
         contains_prompt_injection(content) for content in turn_contents
@@ -1004,6 +1169,8 @@ def chat_safety_response(
             ),
             provenance="local_fallback",
             safety_action=ChatSafetyAction.REFUSE,
+            cost_tier="local_free",
+            routing_reason="safety_guardrail_shortcircuit",
         )
     if any(
         any(_normalize_sensitive_text(term) in normalized for term in _UNSUPPORTED_CLINICAL_TERMS)
@@ -1016,6 +1183,8 @@ def chat_safety_response(
             ),
             provenance="local_fallback",
             safety_action=ChatSafetyAction.REFUSE,
+            cost_tier="local_free",
+            routing_reason="safety_guardrail_shortcircuit",
         )
     if chat_contains_sensitive_data(message, recent_turns):
         return ChatResponse(
@@ -1025,6 +1194,8 @@ def chat_safety_response(
             ),
             provenance="local_fallback",
             safety_action=ChatSafetyAction.REFUSE,
+            cost_tier="local_free",
+            routing_reason="safety_guardrail_shortcircuit",
         )
     return None
 
@@ -1216,6 +1387,69 @@ _RULES = [
         "Bác sĩ sẽ đánh giá vận động và quyết định có cần chẩn đoán hình ảnh hay không.",
         ["Có cứng khớp vào buổi sáng không?", "Khớp có sưng, nóng hoặc hạn chế vận động không?"],
     ),
+    (
+        ["hô hấp", "phổi", "hen", "khò khè", "ho nhiều", "viêm phế quản", "copd", "ho có đờm", "ho kéo dài"],
+        "Hô Hấp & Phổi",
+        "NORMAL",
+        "Triệu chứng có thể liên quan đến đường hô hấp. "
+        "Bác sĩ chuyên khoa sẽ thăm khám, nghe phổi và có thể chỉ định chụp X-quang hoặc đo chức năng hô hấp nếu cần.",
+        ["Cơn ho có đờm hay ho khan?", "Có khó thở khi gắng sức hoặc về đêm không?"],
+    ),
+    (
+        ["tai", "mũi", "họng", "amidan", "viêm xoang", "ù tai", "chảy máu cam", "khàn tiếng", "nghẹt mũi"],
+        "Tai Mũi Họng",
+        "NORMAL",
+        "Triệu chứng có thể liên quan đến tai mũi họng. "
+        "Nội soi tai mũi họng sẽ giúp bác sĩ quan sát trực tiếp niêm mạc và đưa ra tư vấn phù hợp.",
+        ["Triệu chứng xuất hiện bao lâu rồi?", "Có sốt hoặc nuốt đau vướng họng không?"],
+    ),
+    (
+        ["da", "ngứa", "mẩn đỏ", "vảy nến", "dị ứng", "mụn", "nấm da", "viêm da", "mề đay"],
+        "Da Liễu & Thẩm Mỹ Da",
+        "NORMAL",
+        "Triệu chứng có thể liên quan đến bệnh lý ngoài da hoặc phản ứng dị ứng. "
+        "Bác sĩ chuyên khoa da liễu sẽ thăm khám trực tiếp tổn thương để tư vấn hướng chăm sóc và điều trị thích hợp.",
+        ["Vùng da ngứa có lan rộng không?", "Gần đây có tiếp xúc hóa chất hoặc dùng thuốc, thực phẩm lạ không?"],
+    ),
+    (
+        ["trẻ em", "trẻ nhỏ", "em bé", "bé nhà", "sơ sinh", "khoa nhi", "nhi đồng", "biếng ăn", "nôn trớ", "quấy khóc"],
+        "Nhi Khoa",
+        "NORMAL",
+        "Triệu chứng ở trẻ em cần được theo dõi cẩn thận. Bác sĩ Nhi khoa sẽ thăm khám và đánh giá thể trạng toàn diện của bé.",
+        ["Bé đã sốt bao nhiêu độ và bao nhiêu ngày?", "Bé có ăn uống, bú mẹ và chơi ngoan không?"],
+    ),
+    (
+        ["sản", "phụ khoa", "kinh nguyệt", "mang thai", "thai kỳ", "khí hư", "u xơ", "vú"],
+        "Sản Phụ Khoa",
+        "NORMAL",
+        "Triệu chứng có thể liên quan đến sức khỏe sinh sản phụ nữ. "
+        "Khám chuyên khoa Sản Phụ khoa định kỳ giúp phát hiện sớm các vấn đề sức khỏe phụ khoa.",
+        ["Chu kỳ kinh nguyệt gần nhất có bình thường không?", "Hiện tại có đang mang thai hoặc nghi ngờ có thai không?"],
+    ),
+    (
+        ["mắt", "nhìn mờ", "đau mắt", "cận thị", "đỏ mắt", "cộm mắt"],
+        "Mắt & Nhãn Khoa",
+        "NORMAL",
+        "Triệu chứng có thể liên quan đến thị lực hoặc bề mặt nhãn cầu. "
+        "Bác sĩ chuyên khoa Mắt sẽ đo thị lực và khám sinh hiển vi để đánh giá chính xác.",
+        ["Mắt mờ đột ngột hay mờ từ từ?", "Có kèm đau nhức hoặc chảy nước mắt nhiều không?"],
+    ),
+    (
+        ["tiểu đường", "đường huyết", "tuyến giáp", "bướu cổ", "nội tiết", "sụt cân"],
+        "Nội Tiết & Chuyển Hóa",
+        "NORMAL",
+        "Triệu chứng có thể liên quan đến rối loạn chuyển hóa hoặc nội tiết. "
+        "Bác sĩ Nội tiết sẽ chỉ định các xét nghiệm đường huyết, hormon tuyến giáp để đánh giá chuyên sâu.",
+        ["Có cảm thấy khát nước nhiều và đi tiểu nhiều lần không?", "Cân nặng thay đổi thế nào trong những tháng gần đây?"],
+    ),
+    (
+        ["thận", "tiết niệu", "tiểu buốt", "tiểu rắt", "tiểu ra máu", "sỏi thận", "nam khoa"],
+        "Thận - Tiết Niệu & Nam Khoa",
+        "NORMAL",
+        "Triệu chứng có thể liên quan đến hệ tiết niệu hoặc nam khoa. "
+        "Bác sĩ chuyên khoa sẽ thăm khám, siêu âm và xét nghiệm nước tiểu để xác định nguyên nhân.",
+        ["Có đau quặn vùng hông lưng không?", "Màu sắc nước tiểu có thay đổi bất thường không?"],
+    ),
 ]
 
 _DEFAULT = TriageResponse(
@@ -1308,7 +1542,8 @@ def deepseek_triage(
     # same explicit remote-egress gate as patient chat.  Without this check a
     # configured DeepSeek key could send non-synthetic triage text directly to
     # the provider even when patient-chat remote access is disabled.
-    if not synthetic_beta or not patient_chat_remote_enabled(settings):
+    synthetic_blocked = getattr(settings, "remote_ai_synthetic_only", False) and not synthetic_beta
+    if synthetic_blocked or not patient_chat_remote_enabled(settings):
         return fallback
     client = client or build_llm_client(settings)
     if client is None:
@@ -1359,7 +1594,8 @@ def resolve_triage(
         return rule_based_triage(symptoms).model_copy(update={"provenance": "local_fallback"})
     remote_requested = remote_provider_requested(settings, "ai_provider", LOCAL_CHAT_PROVIDERS)
     if remote_requested:
-        if not synthetic_beta or not patient_chat_remote_enabled(settings):
+        synthetic_blocked = getattr(settings, "remote_ai_synthetic_only", False) and not synthetic_beta
+        if synthetic_blocked or not patient_chat_remote_enabled(settings):
             return rule_based_triage(symptoms).model_copy(update={"provenance": "local_fallback"})
         client = build_llm_client(settings)
         if client is None and not runtime_allows_local_fallback(settings):
@@ -1381,25 +1617,47 @@ def _chat_fallback(
     public_remote_enabled: bool = False,
 ) -> str:
     normalized = _normalize_sensitive_text(message)
-    if any(term in normalized for term in _PUBLIC_BOOKING_SUPPORT_TERMS):
-        if context:
-            return (
-                "Bạn có thể dùng thông tin đã được lưu để chọn chuyên khoa, bác sĩ hoặc cơ sở phù hợp, "
-                "rồi đặt lịch trực tuyến theo khung giờ còn trống. Nếu chưa chắc nên chọn chuyên khoa nào, "
-                "hãy mô tả ngắn nhu cầu khám để nhân viên y tế hỗ trợ điều hướng."
-            )
-        if not public_remote_enabled:
-            return (
-                "Bạn có thể đặt lịch trực tuyến trên website HealthCare bằng cách chọn chuyên khoa, "
-                "bác sĩ hoặc cơ sở, rồi chọn khung giờ còn trống. Nếu chưa rõ nên bắt đầu từ chuyên khoa nào, "
-                "hãy mô tả ngắn nhu cầu khám để nhân viên y tế hỗ trợ điều hướng."
-            )
+    if _PUBLIC_GREETING_PATTERN.fullmatch(normalized.strip(" .,!?:;-")):
+        return (
+            "Xin chào! Tôi có thể hỗ trợ bạn tra cứu Chuyên khoa, Bác sĩ, Cơ sở & giờ làm việc "
+            "hoặc hướng dẫn bắt đầu đặt lịch khám tại HealthCare."
+        )
+    # Specialty guidance must win over the broader `chuyên khoa nào` catalog
+    # token when the visitor also describes a symptom.
+    if any(term in normalized for term in _PUBLIC_SPECIALTY_GUIDANCE_TERMS) or any(
+        term in normalized for term in ("chuyen khoa phu hop", "kham khoa nao", "nen kham khoa")
+    ):
+        return (
+            "Với câu hỏi chọn chuyên khoa, bạn có thể mở danh sách Chuyên khoa để xem hướng dẫn phù hợp. "
+            "Bạn cũng có thể xem Bác sĩ hoặc Đặt lịch khám; trợ lý AI không chẩn đoán từ một mô tả ngắn."
+        )
+    if any(term in normalized for term in _PUBLIC_CATALOG_TERMS):
+        return (
+            "Bạn muốn tra cứu mục nào? Hãy chọn Chuyên khoa, Bác sĩ hoặc Cơ sở & giờ làm việc "
+            "bên dưới để xem thông tin chính thức của HealthCare."
+        )
+    if any(term in normalized for term in _PUBLIC_BOOKING_SUPPORT_TERMS) or "dat lich" in normalized:
+        return (
+            "Đặt lịch khám trực tuyến tại HealthCare: chọn chuyên khoa, "
+            "bác sĩ hoặc cơ sở, rồi chọn khung giờ còn trống. Nếu chưa rõ nên bắt đầu từ chuyên khoa nào, "
+            "hãy mô tả ngắn nhu cầu khám để nhân viên y tế hỗ trợ điều hướng."
+        )
+    if any(term in normalized for term in _PUBLIC_DOCTOR_TERMS):
+        return (
+            "Để tìm bác sĩ phù hợp, bạn có thể mở danh sách Bác sĩ để xem thông tin hiện có; "
+            "sau đó chọn Đặt lịch khám nếu muốn tiếp tục."
+        )
     if any(term in normalized for term in _PUBLIC_PREPARATION_TERMS):
         return (
             "Trước khi đi khám tại HealthCare, bạn nên chuẩn bị: "
             "1) Giấy tờ tùy thân (CCCD/Hộ chiếu), thẻ BHYT và kết quả xét nghiệm, đơn thuốc cũ (nếu có); "
             "2) Nhịn ăn sáng từ 6-8 tiếng nếu dự kiến làm xét nghiệm máu hoặc siêu âm ổ bụng tổng quát; "
             "3) Trang phục thoải mái và ghi chú trước các câu hỏi hoặc triệu chứng muốn trao đổi trực tiếp với bác sĩ."
+        )
+    if any(term in normalized for term in _PUBLIC_BRANCH_HOURS_TERMS):
+        return (
+            "Giờ làm việc có thể khác theo từng cơ sở. Hãy mở mục Cơ sở & giờ làm việc "
+            "để xem thông tin hiện tại trước khi đến khám."
         )
     if context:
         return (
@@ -1443,29 +1701,60 @@ def resolve_chat(
     ):
         if public_remote_enabled:
             raise ProviderUnavailable()
-        return ChatResponse(answer=fallback, provenance="local_fallback", used_sources=list(used_sources))
+        return ChatResponse(
+            answer=fallback,
+            provenance="local_fallback",
+            used_sources=list(used_sources),
+            cost_tier="local_free",
+            routing_reason="unsafe_context_fallback",
+        )
     if public_support_chat and public_remote_enabled and not context and not public_no_context_query_allowed(message):
         # A specific public question without an authorized source is not safe
         # to answer from the model's general knowledge.  This commonly occurs
         # for a short period after the in-memory RAG service restarts.
         raise ProviderUnavailable()
     if public_support_chat and not public_remote_enabled:
-        return ChatResponse(answer=fallback, provenance="local_fallback", used_sources=list(used_sources))
-    if not public_support_chat and (not synthetic_beta or not patient_chat_remote_enabled(settings)):
-        return ChatResponse(answer=fallback, provenance="local_fallback", used_sources=list(used_sources))
+        return ChatResponse(
+            answer=fallback,
+            provenance="local_fallback",
+            used_sources=list(used_sources),
+            cost_tier="local_free",
+            routing_reason="public_support_local_fallback",
+        )
+    synthetic_blocked = getattr(settings, "remote_ai_synthetic_only", False) and not synthetic_beta
+    if not public_support_chat and (synthetic_blocked or not patient_chat_remote_enabled(settings)):
+        return ChatResponse(
+            answer=fallback,
+            provenance="local_fallback",
+            used_sources=list(used_sources),
+            cost_tier="local_free",
+            routing_reason="remote_disabled_fallback",
+        )
     client = client or build_llm_client(settings)
     if client is None:
         if public_remote_enabled:
             raise ProviderUnavailable()
         if not fallback_allowed:
             raise ProviderUnavailable()
-        return ChatResponse(answer=fallback, provenance="local_fallback", used_sources=list(used_sources))
+        return ChatResponse(
+            answer=fallback,
+            provenance="local_fallback",
+            used_sources=list(used_sources),
+            cost_tier="local_free",
+            routing_reason="client_unavailable_fallback",
+        )
 
     if not _circuit_allows_request():
         if public_remote_enabled:
             raise ProviderUnavailable()
         if fallback_allowed:
-            return ChatResponse(answer=fallback, provenance="local_fallback", used_sources=list(used_sources))
+            return ChatResponse(
+                answer=fallback,
+                provenance="local_fallback",
+                used_sources=list(used_sources),
+                cost_tier="local_free",
+                routing_reason="circuit_open_fallback",
+            )
         raise ProviderUnavailable()
 
     conversation = [f"{role}: {content[:2_000]}" for role, content in recent_turns[-6:]]
@@ -1510,6 +1799,8 @@ def resolve_chat(
                         provenance="local_fallback",
                         safety_action=ChatSafetyAction.INSUFFICIENT_EVIDENCE,
                         used_sources=list(used_sources),
+                        cost_tier="local_free",
+                        routing_reason="grounding_failed_fallback",
                     )
                 raise ProviderUnavailable()
             return ChatResponse(
@@ -1517,6 +1808,8 @@ def resolve_chat(
                 provenance="local_fallback",
                 safety_action=ChatSafetyAction.INSUFFICIENT_EVIDENCE,
                 used_sources=list(used_sources),
+                cost_tier="local_free",
+                routing_reason="grounding_failed_fallback",
             )
         _record_provider_success()
         return ChatResponse(
@@ -1524,6 +1817,8 @@ def resolve_chat(
             citations=list(citations),
             provenance="remote_provider",
             used_sources=list(used_sources),
+            cost_tier="remote_llm",
+            routing_reason="remote_llm_escalation",
         )
     except ProviderUnavailable:
         _record_provider_failure(settings)
@@ -1533,5 +1828,11 @@ def resolve_chat(
         if public_remote_enabled:
             raise ProviderUnavailable()
         if fallback_allowed:
-            return ChatResponse(answer=fallback, provenance="local_fallback", used_sources=list(used_sources))
+            return ChatResponse(
+                answer=fallback,
+                provenance="local_fallback",
+                used_sources=list(used_sources),
+                cost_tier="local_free",
+                routing_reason="provider_exception_fallback",
+            )
         raise ProviderUnavailable()

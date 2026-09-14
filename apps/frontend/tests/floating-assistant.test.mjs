@@ -49,6 +49,10 @@ test("floating assistant is mounted globally and stays on the REST chat contract
   assert.match(component, /launcherMascot/);
   assert.match(component, /provenanceLabel/);
   assert.match(component, /DEFAULT_DISCLAIMER/);
+  assert.match(component, /label: "Tìm Chuyên khoa", href: "\/specialties"/);
+  assert.match(component, /label: "Cơ sở & giờ làm việc", href: "\/branches"/);
+  assert.match(component, /Xin chào! Tôi có thể hỗ trợ bạn tra cứu Chuyên khoa/);
+  assert.doesNotMatch(component, /label: "Gói khám Sức khỏe", href: "\/packages"/);
   assert.match(component, /citationHref/);
   assert.match(provider, /AI_UNAVAILABLE/);
   assert.match(provider, /PUBLIC_CHAT_INPUT_INVALID/);

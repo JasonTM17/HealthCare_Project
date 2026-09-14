@@ -217,6 +217,11 @@ test("guest launcher sends stateless hospital-support chat and offers login for 
         provenance: "local_provider",
         mode: "HOSPITAL_SUPPORT",
         safety_action: "ANSWER",
+        suggested_actions: [
+          { kind: "VIEW_SOURCE", label: "Xem Chuyên khoa", href: "/specialties" },
+          { kind: "VIEW_SOURCE", label: "Xem Cơ sở", href: "/branches" },
+          { kind: "START_BOOKING", label: "Đặt lịch khám", href: "/dat-lich" },
+        ],
       }),
     });
   });
@@ -235,6 +240,9 @@ test("guest launcher sends stateless hospital-support chat and offers login for 
   await expect(dialog.getByTestId("floating-chat-thinking")).toBeHidden();
   await expect(dialog.getByText("Tim mạch", { exact: true })).toBeVisible();
   await expect(dialog.getByText("Thông tin chỉ mang tính tham khảo.", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Bước tiếp theo", { exact: true })).toBeVisible();
+  await expect(dialog.getByRole("link", { name: "Xem Chuyên khoa" })).toHaveAttribute("href", "/specialties");
+  await expect(dialog.getByRole("link", { name: "Đặt lịch khám" })).toHaveAttribute("href", "/dat-lich");
   await expect(dialog.getByRole("link", { name: "đăng nhập" })).toHaveAttribute("href", "/auth/login?next=%2Fpatient%2Fchat");
   await expect(dialog.getByRole("button", { name: "Hữu ích" })).toHaveCount(0);
   await page.keyboard.press("Escape");

@@ -29,6 +29,9 @@ class PublicAiChatControllerTest {
             .thenReturn(new AiChatSourceResolver.ResolvedSource(
                 "specialty", SPECIALTY_ID, "Tim mạch", "tim-mach", true, true,
                 "OPERATIONAL", null, null, null, null, "/specialties/tim-mach", "/dat-lich?specialtyId=" + SPECIALTY_ID));
+        when(resolver.actions(any())).thenReturn(List.of(
+            Map.of("kind", "VIEW_SOURCE", "label", "Tim mạch", "href", "/specialties/tim-mach"),
+            Map.of("kind", "START_BOOKING", "label", "Đặt lịch", "href", "/dat-lich?specialtyId=" + SPECIALTY_ID)));
         return resolver;
     }
 
@@ -77,7 +80,10 @@ class PublicAiChatControllerTest {
             .containsEntry("safety_action", "ANSWER")
             .doesNotContainKey("recommended_specialty_id")
             .containsEntry("citations", List.of(Map.of(
-                "source_type", "specialty", "source_id", SPECIALTY_ID, "title", "Tim mạch")));
+                "source_type", "specialty", "source_id", SPECIALTY_ID, "title", "Tim mạch")))
+            .containsEntry("suggested_actions", List.of(
+                Map.of("kind", "VIEW_SOURCE", "label", "Tim mạch", "href", "/specialties/tim-mach"),
+                Map.of("kind", "START_BOOKING", "label", "Đặt lịch", "href", "/dat-lich?specialtyId=" + SPECIALTY_ID)));
         verify(aiService).chat(Map.of(
             "message", "Chuyên khoa nào?",
             "public_support_chat", true,
@@ -105,7 +111,10 @@ class PublicAiChatControllerTest {
             .containsEntry("mode", "HOSPITAL_SUPPORT")
             .containsEntry("provenance", "local_provider")
             .containsEntry("safety_action", "ANSWER")
-            .containsEntry("citations", List.of());
+            .containsEntry("citations", List.of())
+            .containsEntry("suggested_actions", List.of(
+                Map.of("kind", "VIEW_SOURCE", "label", "Xem Chuyên khoa", "href", "/specialties"),
+                Map.of("kind", "VIEW_SOURCE", "label", "Xem Cơ sở", "href", "/branches")));
         verify(aiService).chat(Map.of(
             "message", "Xin chào",
             "public_support_chat", true
@@ -132,7 +141,8 @@ class PublicAiChatControllerTest {
             .containsEntry("mode", "HOSPITAL_SUPPORT")
             .containsEntry("provenance", "local_provider")
             .containsEntry("safety_action", "INSUFFICIENT_EVIDENCE")
-            .containsEntry("citations", List.of());
+            .containsEntry("citations", List.of())
+            .containsKey("suggested_actions");
     }
 
     @Test
@@ -211,8 +221,52 @@ class PublicAiChatControllerTest {
             .containsEntry("safety_action", "REFUSE")
             .containsEntry("provenance", "local_fallback")
             .containsEntry("citations", List.of())
+            .containsEntry("suggested_actions", List.of())
             .containsEntry("answer", "Để bảo vệ quyền riêng tư, vui lòng không gửi email, số điện thoại, "
                 + "mã đặt lịch, mã hồ sơ hoặc thông tin định danh.");
+    }
+
+    @Test
+    void emitsEmergencyCallActionWithoutCatalogNavigation() {
+        AiService aiService = mock(AiService.class);
+        when(aiService.chat(any())).thenReturn(Map.of(
+            "answer", "Gọi cấp cứu ngay.",
+            "mode", "HOSPITAL_SUPPORT",
+            "safety_action", "EMERGENCY",
+            "provenance", "local_fallback",
+            "disclaimer", "Thông tin chỉ mang tính tham khảo.",
+            "citations", List.of()
+        ));
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolverForSpecialty())
+            .chat(new PublicAiChatController.PublicChatRequest("Tôi khó thở", null))
+            .getBody();
+
+        assertThat(body).containsEntry("suggested_actions", List.of(
+            Map.of("kind", "CALL_EMERGENCY", "label", "Gọi 115", "href", "tel:115")));
+    }
+
+    @Test
+    void emitsSymptomGuidanceFallbackActionsWhenNoCitationIsAvailable() {
+        AiService aiService = mock(AiService.class);
+        when(aiService.chat(any())).thenReturn(Map.of(
+            "answer", "Bạn có thể xem thông tin chuyên khoa phù hợp.",
+            "mode", "HOSPITAL_SUPPORT",
+            "safety_action", "ANSWER",
+            "provenance", "local_fallback",
+            "disclaimer", "Thông tin chỉ mang tính tham khảo.",
+            "citations", List.of()
+        ));
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolverForSpecialty())
+            .chat(new PublicAiChatController.PublicChatRequest(
+                "Tôi bị đau đầu kéo dài, nên khám chuyên khoa nào?", null))
+            .getBody();
+
+        assertThat(body).containsEntry("suggested_actions", List.of(
+            Map.of("kind", "VIEW_SOURCE", "label", "Xem Chuyên khoa", "href", "/specialties"),
+            Map.of("kind", "VIEW_SOURCE", "label", "Xem Bác sĩ", "href", "/doctors"),
+            Map.of("kind", "START_BOOKING", "label", "Đặt lịch khám", "href", "/dat-lich")));
     }
 
     @Test

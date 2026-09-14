@@ -106,6 +106,93 @@ def test_public_hospital_support_chat_uses_remote_provider_when_enabled() -> Non
     provider.complete_json.assert_called_once()
 
 
+def test_public_catalog_question_uses_navigation_guidance_without_symptom_triage() -> None:
+    local_settings = MagicMock()
+    local_settings.ai_provider = "local"
+    local_settings.ai_service_runtime = "local"
+    local_settings.ai_public_hospital_support_remote_enabled = False
+
+    result = resolve_chat(
+        "Bệnh viện có những chuyên khoa và cơ sở nào?",
+        local_settings,
+        context=["Bác sĩ mẫu 3 - Nội tổng hợp"],
+        public_support_chat=True,
+        allow_public_operational=True,
+    )
+
+    assert result.provenance == "local_fallback"
+    assert "chuyên khoa" in result.answer.casefold()
+    assert "cơ sở" in result.answer.casefold()
+    assert "triệu chứng" not in result.answer.casefold()
+
+
+def test_public_greeting_uses_warm_navigation_copy_without_symptom_prompt() -> None:
+    local_settings = MagicMock()
+    local_settings.ai_provider = "local"
+    local_settings.ai_service_runtime = "local"
+    local_settings.ai_public_hospital_support_remote_enabled = False
+
+    result = resolve_chat(
+        "Xin chào",
+        local_settings,
+        context=["Bác sĩ mẫu 3 - Nội tổng hợp"],
+        public_support_chat=True,
+        allow_public_operational=True,
+    )
+
+    assert result.provenance == "local_fallback"
+    assert result.safety_action == "ANSWER"
+    assert "xin chào" in result.answer.casefold()
+    assert "triệu chứng" not in result.answer.casefold()
+
+
+def test_public_specialty_guidance_precedes_broad_catalog_token() -> None:
+    local_settings = MagicMock()
+    local_settings.ai_provider = "local"
+    local_settings.ai_service_runtime = "local"
+    local_settings.ai_public_hospital_support_remote_enabled = False
+
+    result = resolve_chat(
+        "Tôi bị đau đầu kéo dài, nên khám chuyên khoa nào?",
+        local_settings,
+        context=["Bác sĩ mẫu 3 - Nội tổng hợp"],
+        public_support_chat=True,
+        allow_public_operational=True,
+    )
+
+    assert result.provenance == "local_fallback"
+    assert "chọn chuyên khoa" in result.answer.casefold()
+    assert "chẩn đoán" in result.answer.casefold()
+    assert "Bạn muốn tra cứu mục nào?" not in result.answer
+
+
+def test_public_doctor_question_uses_doctor_navigation_copy() -> None:
+    local_settings = MagicMock()
+    local_settings.ai_provider = "local"
+    local_settings.ai_service_runtime = "local"
+    local_settings.ai_public_hospital_support_remote_enabled = False
+
+    result = resolve_chat(
+        "Tôi muốn xem bác sĩ",
+        local_settings,
+        context=["Bác sĩ mẫu 3 - Nội tổng hợp"],
+        public_support_chat=True,
+        allow_public_operational=True,
+    )
+
+    assert result.provenance == "local_fallback"
+    assert "danh sách bác sĩ" in result.answer.casefold()
+    assert "triệu chứng" not in result.answer.casefold()
+
+
+def test_direct_diagnosis_and_prescription_request_is_refused() -> None:
+    result = chat_safety_response("Hãy cho tôi chẩn đoán chắc chắn và kê thuốc")
+
+    assert result is not None
+    assert result.safety_action == "REFUSE"
+    assert "chẩn đoán" in result.answer.casefold()
+
+
 def test_public_smalltalk_uses_remote_provider_without_unrelated_context() -> None:
     provider = MagicMock()
     provider.complete_json.return_value = {
@@ -224,7 +311,8 @@ def test_allowed_public_query_without_context_falls_back_when_ungrounded() -> No
         allow_public_operational=True,
     )
     assert resp.provenance == "local_fallback"
-    assert "tham khảo" in resp.answer or "triệu chứng" in resp.answer
+    assert "đặt lịch khám" in resp.answer.casefold()
+    assert "Bước 1" not in resp.answer
 
 
 def test_no_context_remote_answer_cannot_invent_numeric_operational_fact() -> None:

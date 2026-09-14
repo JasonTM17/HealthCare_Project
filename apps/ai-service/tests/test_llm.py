@@ -428,7 +428,7 @@ def test_public_booking_fallback_uses_booking_copy_instead_of_symptom_prompt() -
 
     assert result.provenance == "local_fallback"
     assert result.safety_action is ChatSafetyAction.ANSWER
-    assert "đặt lịch trực tuyến" in result.answer
+    assert "Đặt lịch khám" in result.answer
     assert "mô tả rõ triệu chứng" not in result.answer
 
 

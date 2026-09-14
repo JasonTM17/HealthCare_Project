@@ -444,6 +444,41 @@ def test_operational_and_clinical_projection_same_identity_do_not_collide() -> N
     assert "đã duyệt" in clinical.answer
 
 
+def test_grounded_doctor_answer_keeps_branch_title_without_fixture_noise() -> None:
+    service = RagService()
+    service.ingest(
+        "doctor",
+        "doctor-1",
+        "Bác sĩ mẫu 3 - Nội tổng hợp — Phòng khám ngoại trú HealthCare — Thủ Đức",
+        (
+            "Bác sĩ mẫu 3 - Nội tổng hợp DỮ LIỆU MINH HỌA: Hồ sơ giả lập phục vụ thử nghiệm. "
+            "Cơ sở mẫu: Phòng khám ngoại trú HealthCare — Thủ Đức. Lịch thử nghiệm 08:00-17:00."
+        ),
+        [0.0, 1.0] + [0.0] * 382,
+        embedding_model="local-hash",
+    )
+
+    response = generate_chat_response(
+        ChatGenerateRequest(
+            message="Tôi muốn xem bác sĩ phù hợp",
+            mode=ChatMode.HOSPITAL_SUPPORT,
+            authorized_sources=[
+                AuthorizedSource(
+                    source_type="doctor",
+                    source_id="doctor-1",
+                    projection_kind="OPERATIONAL",
+                )
+            ],
+        ),
+        _settings(),
+        service,
+    )
+
+    assert "Phòng khám ngoại trú HealthCare — Thủ Đức" in response.answer
+    assert "DỮ LIỆU MINH HỌA" not in response.answer
+    assert "Lịch thử nghiệm" not in response.answer
+
+
 def test_protected_endpoints_return_mode_filtered_candidates_and_grounded_answer(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1013,3 +1048,46 @@ def test_lexical_rescue_stays_silent_without_real_overlap() -> None:
         embedder=lambda *_: ([1.0] + [0.0] * 382, "local-hash"),
     )
     assert response.candidates == []
+
+
+def test_specialty_question_focuses_retrieval_on_specialty_rows() -> None:
+    service = RagService()
+    vector = [0.0, 1.0] + [0.0] * 382
+    service.ingest(
+        "specialty",
+        "than-kinh",
+        "Thần kinh",
+        "Khám và điều trị rối loạn giấc ngủ.",
+        vector,
+        embedding_model="local-hash",
+    )
+    service.ingest(
+        "doctor",
+        "doctor-3",
+        "Bác sĩ mẫu 3 — Phòng khám Thủ Đức",
+        "Bác sĩ nội tổng hợp có lịch thử nghiệm.",
+        vector,
+        embedding_model="local-hash",
+    )
+    service.ingest(
+        "doctor",
+        "doctor-5",
+        "Bác sĩ mẫu 5 — Phòng khám Thủ Đức",
+        "Bác sĩ tai mũi họng.",
+        vector,
+        embedding_model="local-hash",
+    )
+
+    response = retrieve_chat_candidates(
+        ChatRetrieveRequest(
+            message="Tôi bị mất ngủ kéo dài 3 tuần, nên khám chuyên khoa nào?",
+            mode=ChatMode.HOSPITAL_SUPPORT,
+            top_k=5,
+        ),
+        _settings(),
+        service,
+        embedder=lambda *_: (vector, "local-hash"),
+    )
+
+    assert [candidate.source_type for candidate in response.candidates] == ["specialty"]
+    assert response.candidates[0].source_id == "than-kinh"

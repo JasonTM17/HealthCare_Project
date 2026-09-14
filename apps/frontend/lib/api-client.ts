@@ -663,6 +663,7 @@ const CTA_LABEL_MAX_LENGTH = 160;
 // not silently discarded while still rejecting path metacharacters.
 const CTA_SLUG_PATTERN = /^[A-Za-z0-9][A-Za-z0-9-]{0,219}$/;
 const CTA_SOURCE_PATH_PATTERN = new RegExp(`^/(branches|specialties|doctors|services|packages|articles)/${CTA_SLUG_PATTERN.source.slice(1, -1)}$`);
+const CTA_CATALOG_PATH_PATTERN = /^\/(branches|specialties|doctors|services|packages)$/;
 const CTA_FAQ_PATH_PATTERN = /^\/faq#faq-([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
 // Catalog IDs are generated demo/factory UUIDs whose third group is not a
 // RFC-4122 version nibble ("10000000-0000-…"), so the booking CTA validates
@@ -694,8 +695,10 @@ export function isSafeSuggestedAction(value: unknown): value is SuggestedAction 
   if (!label || label.length > CTA_LABEL_MAX_LENGTH) return false;
   if (value.kind === "CALL_EMERGENCY") return href === "tel:115";
   if (hasUnsafeUrlCharacters(href)) return false;
-  if (value.kind === "VIEW_SOURCE") return CTA_SOURCE_PATH_PATTERN.test(href) || CTA_FAQ_PATH_PATTERN.test(href);
-  if (value.kind === "START_BOOKING") return CTA_BOOKING_QUERY_PATTERN.test(href);
+  if (value.kind === "VIEW_SOURCE") {
+    return CTA_CATALOG_PATH_PATTERN.test(href) || CTA_SOURCE_PATH_PATTERN.test(href) || CTA_FAQ_PATH_PATTERN.test(href);
+  }
+  if (value.kind === "START_BOOKING") return href === "/dat-lich" || CTA_BOOKING_QUERY_PATTERN.test(href);
   return false;
 }
 
@@ -2389,6 +2392,7 @@ export interface PublicAiChatResult {
   provenance: AiChatProvenance;
   mode: "HOSPITAL_SUPPORT";
   safetyAction: ChatSafetyAction;
+  suggestedActions: SuggestedAction[];
 }
 
 export interface PublicAiChatTurn {
@@ -2406,12 +2410,15 @@ function parsePublicAiChatResponse(value: unknown, path: string): PublicAiChatRe
   const citations = value.citations ?? [];
   const provenance = value.provenance;
   const safetyAction = value.safety_action ?? value.safetyAction;
+  const suggestedActions = value.suggestedActions ?? value.suggested_actions;
   if (
     value.mode !== "HOSPITAL_SUPPORT"
     || !Array.isArray(citations)
     || citations.some((citation) => !isSafeChatCitation(citation))
     || (provenance !== "local_provider" && provenance !== "local_fallback" && provenance !== "remote_provider")
     || !isChatSafetyAction(safetyAction)
+    || (typeof suggestedActions !== "undefined" && !Array.isArray(suggestedActions))
+    || (Array.isArray(suggestedActions) && suggestedActions.some((action) => !isSafeSuggestedAction(action)))
   ) {
     throw invalidAiChatResponse(path);
   }
@@ -2430,6 +2437,7 @@ function parsePublicAiChatResponse(value: unknown, path: string): PublicAiChatRe
     provenance,
     mode: "HOSPITAL_SUPPORT",
     safetyAction,
+    suggestedActions: sanitizeSuggestedActions(suggestedActions),
   };
 }
 
