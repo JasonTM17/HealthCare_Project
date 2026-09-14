@@ -523,11 +523,15 @@ def chat(request: ChatRequest) -> ChatResponse:
             if not request.public_support_chat
             else public_source_types_for_query(message)
         )
+        public_retrieval_candidates = max(
+            request.top_k,
+            int(getattr(settings, "ai_public_retrieval_candidates", 40)),
+        ) if request.public_support_chat else request.top_k
         hits = rag_service.search(
             query_embedding,
             top_k=min(
-                max(request.top_k, 20) if request.public_support_chat else request.top_k,
-                settings.ai_max_retrieved_chunks,
+                public_retrieval_candidates,
+                100,
             ),
             query_text=message,
             source_types=source_types,
