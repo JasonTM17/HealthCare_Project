@@ -55,6 +55,11 @@ class Settings(BaseSettings):
     ai_chat_circuit_reset_seconds: float = Field(default=30.0, gt=0, le=300)
     ai_max_input_chars: int = Field(default=10_000, ge=2, le=10_000)
     ai_max_retrieved_chunks: int = Field(default=5, ge=1, le=20)
+    # Public catalog questions may need to over-fetch before identity and
+    # locality filters run. This is deliberately separate from the compact
+    # answer/citation limit above so a valid branch is not lost in a large
+    # catalog when its operational fields are sparse.
+    ai_public_retrieval_candidates: int = Field(default=40, ge=20, le=100)
     # Patient two-step retrieval is fail-closed below this hybrid score.
     ai_chat_relevance_threshold: float = Field(default=0.35, ge=0, le=1)
     # Queries matching internal KB above this threshold resolve locally for 0đ cost.

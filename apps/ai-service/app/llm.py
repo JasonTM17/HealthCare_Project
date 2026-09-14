@@ -541,8 +541,12 @@ _PUBLIC_QUERY_CONNECTOR_TOKENS = frozenset(
         "hen",
         "kham",
         "gio",
+        "hoat",
+        "dong",
         "lam",
         "viec",
+        "thoi",
+        "gian",
         "mo",
         "cua",
         "tai",
@@ -571,7 +575,10 @@ _PUBLIC_SOURCE_IDENTITY_MARKERS = (
     "lich hen",
     "gio lam",
     "gio kham",
+    "gio hoat dong",
     "mo cua",
+    "thoi gian lam",
+    "lich lam viec",
     "dich vu",
     "goi kham",
     "bang gia",
@@ -585,7 +592,11 @@ _PUBLIC_QUERY_ENTITY_STOP_MARKERS = (
     "gan chi nhanh",
     "gio lam",
     "gio kham",
+    "gio hoat dong",
     "mo cua",
+    "thoi gian lam",
+    "thoi gian mo cua",
+    "lich lam viec",
     "dia chi",
     "dat lich",
     "lich hen",
@@ -764,12 +775,34 @@ _PUBLIC_BRANCH_HOURS_TERMS = (
     "co so",
     "gio lam",
     "gio kham",
+    "gio hoat dong",
     "mo cua",
     "thoi gian lam",
+    "thoi gian mo cua",
+    "lich lam viec",
     "lam viec",
     "dia chi",
     "chu nhat",
     "cuoi tuan",
+)
+_PUBLIC_BRANCH_SCHEDULE_TERMS = (
+    "gio lam",
+    "gio kham",
+    "gio hoat dong",
+    "mo cua",
+    "thoi gian lam",
+    "thoi gian mo cua",
+    "lam viec",
+    "lich lam viec",
+    "chu nhat",
+    "cuoi tuan",
+)
+_PUBLIC_SCHEDULE_FIELD_MARKERS = (
+    "gio hoat dong",
+    "gio lam viec",
+    "gio lam",
+    "thoi gian lam",
+    "mo cua",
 )
 _PUBLIC_GREETING_PATTERN = re.compile(
     r"(?:xin\s+)?chao(?:\s+(?:ban|bac\s+si|em|tro\s+ly|ad|admin|ban\s+oi|moi\s+nguoi|nha))?"
@@ -840,6 +873,13 @@ def public_context_is_relevant(query: str, context: Sequence[str]) -> bool:
     query_tokens = tokens(normalized_query)
     if len(query_tokens) < 2:
         return False
+    eligible_context = [
+        item
+        for item in context
+        if item.strip() and _public_context_supports_requested_fields(normalized_query, item)
+    ]
+    if not eligible_context:
+        return False
     query_constraints = public_query_constraints(normalized_query)
     if query_constraints:
         # Identity queries are conjunctive: "bác sĩ Tim mạch tại cơ sở
@@ -848,8 +888,7 @@ def public_context_is_relevant(query: str, context: Sequence[str]) -> bool:
         # search can otherwise return plausible but incompatible rows.
         if not any(
             all(_public_entity_phrase_in_text(constraint, item) for constraint in query_constraints)
-            for item in context
-            if item.strip()
+            for item in eligible_context
         ):
             return False
     # Generic visitor intents contain catalog words that appear in almost
@@ -864,10 +903,18 @@ def public_context_is_relevant(query: str, context: Sequence[str]) -> bool:
         required_overlap = 2 if len(distinctive_tokens) >= 2 else 1
         return any(
             len(distinctive_tokens.intersection(tokens(item))) >= required_overlap
-            for item in context
-            if item.strip()
+            for item in eligible_context
         )
-    return any(len(query_tokens.intersection(tokens(item))) >= 2 for item in context if item.strip())
+    return any(len(query_tokens.intersection(tokens(item))) >= 2 for item in eligible_context)
+
+
+def _public_context_supports_requested_fields(query: str, context: str) -> bool:
+    """Reject a source that cannot answer the operational field requested."""
+
+    if not any(term in query for term in _PUBLIC_BRANCH_SCHEDULE_TERMS):
+        return True
+    normalized_context = _normalize_sensitive_text(context)
+    return any(marker in normalized_context for marker in _PUBLIC_SCHEDULE_FIELD_MARKERS)
 
 
 def _public_entity_phrase_after_marker(
@@ -948,7 +995,19 @@ def public_source_types_for_query(query: str) -> frozenset[str] | None:
         return frozenset({"branch"})
     if "chuyen khoa" in normalized or "khoa nao" in normalized:
         return frozenset({"specialty"})
-    if any(term in normalized for term in ("co so", "gio lam", "gio kham", "mo cua", "dia chi")):
+    if any(
+        term in normalized
+        for term in (
+            "co so",
+            "gio lam",
+            "gio kham",
+            "gio hoat dong",
+            "mo cua",
+            "thoi gian lam",
+            "lich lam viec",
+            "dia chi",
+        )
+    ):
         return frozenset({"branch"})
     if "dich vu" in normalized:
         return frozenset({"service"})
