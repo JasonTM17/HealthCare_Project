@@ -259,6 +259,7 @@ def test_public_context_relevance_rejects_catalog_rows_for_broad_questions() -> 
     assert public_source_types_for_query("Bệnh viện có chuyên khoa Tim mạch không?") == {"specialty"}
     assert public_source_types_for_query("Tôi muốn tìm bác sĩ Tim mạch") == {"doctor"}
     assert public_source_types_for_query("Cơ sở Thủ Đức giờ làm việc") == {"branch"}
+    assert public_source_types_for_query("Bệnh viện ở đâu?") == {"branch"}
 
 
 def test_public_context_relevance_requires_all_explicit_catalog_constraints() -> None:

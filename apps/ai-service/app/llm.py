@@ -944,6 +944,8 @@ def public_source_types_for_query(query: str) -> frozenset[str] | None:
     normalized = _normalize_sensitive_text(query)
     if "bac si" in normalized:
         return frozenset({"doctor"})
+    if any(term in normalized for term in ("benh vien o dau", "dia chi benh vien")):
+        return frozenset({"branch"})
     if "chuyen khoa" in normalized or "khoa nao" in normalized:
         return frozenset({"specialty"})
     if any(term in normalized for term in ("co so", "gio lam", "gio kham", "mo cua", "dia chi")):

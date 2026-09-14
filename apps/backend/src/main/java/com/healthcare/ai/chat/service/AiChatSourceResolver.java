@@ -22,6 +22,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -337,7 +338,7 @@ public class AiChatSourceResolver {
         }
         return switch (type) {
             case "branch" -> branchRepository.findByIdAndActiveTrue(uuid)
-                .map(value -> source(type, id, value.getName(), value.getSlug(), true, true))
+                .map(value -> source(type, id, branchDisplayTitle(value), value.getSlug(), true, true))
                 .orElse(null);
             case "specialty" -> specialtyRepository.findByIdAndActiveTrue(uuid)
                 .map(value -> source(type, id, value.getName(), value.getSlug(), true, true))
@@ -499,6 +500,30 @@ public class AiChatSourceResolver {
         return branchNames.isEmpty()
             ? fullName
             : fullName + " — " + String.join(" · ", branchNames);
+    }
+
+    private String branchDisplayTitle(Branch branch) {
+        String name = branch.getName() == null || branch.getName().isBlank()
+            ? "Cơ sở HealthCare" : branch.getName().strip();
+        String address = branch.getAddress();
+        if (address == null || address.isBlank()
+                || !name.matches("(?s).*\\bCơ sở\\s+\\d+\\s*$")) {
+            return name;
+        }
+        String locality = Arrays.stream(address.split(","))
+            .map(String::strip)
+            .filter(part -> {
+                String normalized = part.toLowerCase(Locale.ROOT);
+                return normalized.startsWith("quận")
+                    || normalized.startsWith("huyện")
+                    || normalized.startsWith("thành phố")
+                    || normalized.startsWith("tp.")
+                    || normalized.equals("hà nội")
+                    || normalized.contains("thủ đức");
+            })
+            .findFirst()
+            .orElse(null);
+        return locality == null ? name : name + " — " + locality;
     }
 
     private void addAction(List<Map<String, String>> actions, String kind, String label, String href) {

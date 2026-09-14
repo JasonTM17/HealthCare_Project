@@ -185,15 +185,16 @@ test("editor components adhere to flat UI design tokens without bulky rounded ut
   assert.doesNotMatch(editor, /\brounded-(?:xl|2xl|3xl)\b/);
 });
 
-test("RichTextEditor is reserved for admin catalog, and RichContentRenderer is wired into doctor articles and public details", async () => {
+test("TinyMCE editor is wired into doctor articles, admin catalog, and public details", async () => {
   const [doctorArticles, adminCatalog, articleDetail] = await Promise.all([
     read("app/doctor/articles/page.tsx"),
     read("app/admin/catalog/page.tsx"),
     read("app/articles/[slug]/page.tsx"),
   ]);
 
-  // Doctor articles page uses clean textarea for editing (RichTextEditor reserved for Admin) and RichContentRenderer for reading
-  assert.doesNotMatch(doctorArticles, /<RichTextEditor/);
+  // Doctor articles page uses the full TinyMCE editor for writing medical
+  // articles (same clinical component as admin) and RichContentRenderer for reading
+  assert.match(doctorArticles, /<RichTextEditor/);
   assert.match(doctorArticles, /RichContentRenderer/);
   assert.match(doctorArticles, /<RichContentRenderer/);
 
