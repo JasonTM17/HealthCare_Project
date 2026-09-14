@@ -1,5 +1,27 @@
 # Production Deployment Handoff — 2026-09-13
 
+## Update 2026-09-14 (chatbot accuracy session)
+
+- Frontend (Vercel): redeployed from `d95cad6` — verified serving the fixed
+  bundle (booking-CTA UUID pattern + unified copy). The chatbot no longer
+  shows the false "chưa đạt yêu cầu an toàn" banner.
+- Chatbot accuracy pipeline (local, fully verified): ai-service now has a
+  lexical retrieval-rescue pass (Vietnamese symptom→specialty expansions +
+  diacritic-folded token overlap) so grounded, citation-backed answers open
+  without a remote embedding provider; the CTA pattern that rejected demo
+  catalog UUIDs (and thereby threw AI_RESPONSE_INVALID on every grounded
+  answer) is fixed. End-to-end UI check passes: "mất ngủ 3 tuần" answers with
+  the Thần kinh source, citations and booking CTA.
+- Backend (Render): currently `x-render-routing: no-deploy` again as of this
+  session's final probe — the free instance lost its deployment.
+- CI published fresh, attested images for the owner to deploy:
+  - backend `sha256:ef407dcdbbc2917606b7c83fb989a29347e4d3262b31817e2d5871cd23dfe5a1`
+  - ai-service `sha256:c77c38cdd72ef59c20c01b25357a2f8dedb851bff1073f187e74dacb85b38640`
+    (includes the lexical rescue; required for grounded answers in production).
+- Owner action (unchanged): Render dashboard → deploy the two digests above
+  for `healthcare-beta-backend` and `healthcare-beta-ai`, then re-probe
+  `/actuator/health` (free-tier wake can take ~120s).
+
 ## Current production state
 
 | Layer | URL | Status |
