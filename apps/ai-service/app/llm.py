@@ -689,6 +689,10 @@ def _normalize_sensitive_text(value: str) -> str:
     return " ".join(without_diacritics.casefold().split())
 
 
+# Public read-only alias for policy/lexical scoring in sibling modules.
+normalize_sensitive_text = _normalize_sensitive_text
+
+
 _LEET_TRANSLATION = str.maketrans(
     {"0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "@": "a", "$": "s"}
 )

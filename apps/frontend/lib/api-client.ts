@@ -664,7 +664,10 @@ const CTA_LABEL_MAX_LENGTH = 160;
 const CTA_SLUG_PATTERN = /^[A-Za-z0-9][A-Za-z0-9-]{0,219}$/;
 const CTA_SOURCE_PATH_PATTERN = new RegExp(`^/(branches|specialties|doctors|services|packages|articles)/${CTA_SLUG_PATTERN.source.slice(1, -1)}$`);
 const CTA_FAQ_PATH_PATTERN = /^\/faq#faq-([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
-const CTA_BOOKING_QUERY_PATTERN = /^\/dat-lich\?(branchId|specialtyId|doctorId|packageId)=([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
+// Catalog IDs are generated demo/factory UUIDs whose third group is not a
+// RFC-4122 version nibble ("10000000-0000-…"), so the booking CTA validates
+// the 8-4-4-4-12 hex shape rather than a specific UUID version.
+const CTA_BOOKING_QUERY_PATTERN = /^\/dat-lich\?(branchId|specialtyId|doctorId|packageId)=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 const CTA_LABEL_CONTROL_PATTERN = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u;
 
 function hasUnsafeUrlCharacters(value: string): boolean {
