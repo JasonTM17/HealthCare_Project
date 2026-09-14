@@ -886,7 +886,10 @@ function FloatingHealthAssistantPanel({
                 </div>
               ) : null}
 
-              {messages.length === 0 && !loading ? (
+              {/* Suggestions are an empty-state affordance only: once the first
+                  question is in flight or answered, they must not crowd the
+                  thread (the pending bubble is not yet in `messages`). */}
+              {messages.length === 0 && !loading && !sending && !pendingUserMessage ? (
                 <div className={styles.suggestions}>
                   {getSuggestedQuestions(pathname, mode).map((question) => (
                     <button disabled={sending} key={question} onClick={() => void handleSend(question)} type="button">{question}</button>
