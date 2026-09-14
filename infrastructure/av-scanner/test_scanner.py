@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import hashlib
+import http.client
 import socketserver
 import struct
 import threading
 import unittest
-import urllib.error
-import urllib.request
 from contextlib import contextmanager
 
 import scanner
@@ -74,67 +73,86 @@ def http_server(clamd_address: tuple[str, int]):
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        yield f"http://127.0.0.1:{server.server_address[1]}"
+        yield server.server_address[1]
     finally:
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)
 
 
-def scan_request(base_url: str, payload: bytes, token: str = TEST_TOKEN):
-    return urllib.request.Request(
-        f"{base_url}/scan",
-        data=payload,
-        method="POST",
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/octet-stream",
-            "X-Content-SHA256": hashlib.sha256(payload).hexdigest(),
-        },
-    )
+def scan_post(port: int, payload: bytes, declared_hash: str | None = None, token: str = TEST_TOKEN):
+    """POST one scan to the loopback fixture with an explicit host pin.
+
+    http.client with a literal "127.0.0.1" host (and the port the fixture
+    bound) keeps the request target provably local: no URL parsing, no
+    redirects, no way to repoint the suite at an internal or metadata host.
+    """
+    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=2)
+    try:
+        connection.request(
+            "POST",
+            "/scan",
+            body=payload,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/octet-stream",
+                "X-Content-SHA256": declared_hash or hashlib.sha256(payload).hexdigest(),
+            },
+        )
+        response = connection.getresponse()
+        return response.status, dict(response.getheaders()), response.read()
+    finally:
+        connection.close()
+
+
+def scan_get(port: int, path: str):
+    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=2)
+    try:
+        connection.request("GET", path)
+        response = connection.getresponse()
+        return response.status, response.read()
+    finally:
+        connection.close()
 
 
 class ScannerContractTest(unittest.TestCase):
     def test_clean_payload_requires_authentication_and_hash_then_returns_clean(self) -> None:
         payload = b"synthetic-clean-file"
-        with clamd_server() as clamd, http_server(clamd) as base_url:
-            with urllib.request.urlopen(scan_request(base_url, payload), timeout=2) as response:
-                self.assertEqual(200, response.status)
-                self.assertEqual(b"CLEAN", response.read())
-                self.assertEqual("no-store", response.headers["Cache-Control"])
+        with clamd_server() as clamd, http_server(clamd) as port:
+            status, headers, body = scan_post(port, payload)
+            self.assertEqual(200, status)
+            self.assertEqual(b"CLEAN", body)
+            self.assertEqual("no-store", headers.get("Cache-Control"))
 
-            with self.assertRaises(urllib.error.HTTPError) as unauthenticated:
-                urllib.request.urlopen(scan_request(base_url, payload, "wrong"), timeout=2)
-            self.assertEqual(401, unauthenticated.exception.code)
-            unauthenticated.exception.close()
+            wrong_token_status, _, _ = scan_post(port, payload, token="wrong")
+            self.assertEqual(401, wrong_token_status)
 
     def test_infected_clamd_verdict_never_becomes_clean(self) -> None:
-        with clamd_server(b"stream: Eicar-Signature FOUND\0") as clamd, http_server(clamd) as base_url:
-            with urllib.request.urlopen(scan_request(base_url, b"synthetic-eicar"), timeout=2) as response:
-                self.assertEqual(b"MALWARE", response.read())
+        with clamd_server(b"stream: Eicar-Signature FOUND\0") as clamd, http_server(clamd) as port:
+            _, _, body = scan_post(port, b"synthetic-eicar")
+            self.assertEqual(b"MALWARE", body)
 
     def test_malformed_not_ok_verdict_fails_closed(self) -> None:
-        with clamd_server(b"stream: NOT OK\0") as clamd, http_server(clamd) as base_url:
-            with self.assertRaises(urllib.error.HTTPError) as malformed:
-                urllib.request.urlopen(scan_request(base_url, b"synthetic-malformed"), timeout=2)
-            self.assertEqual(503, malformed.exception.code)
-            self.assertEqual(b"UNAVAILABLE", malformed.exception.read())
-            malformed.exception.close()
+        with clamd_server(b"stream: NOT OK\0") as clamd, http_server(clamd) as port:
+            status, _, body = scan_post(port, b"synthetic-malformed")
+            self.assertEqual(503, status)
+            self.assertEqual(b"UNAVAILABLE", body)
 
     def test_hash_mismatch_fails_before_scan(self) -> None:
-        with clamd_server() as clamd, http_server(clamd) as base_url:
-            request = scan_request(base_url, b"expected")
-            request.data = b"mutated"
-            with self.assertRaises(urllib.error.HTTPError) as mismatch:
-                urllib.request.urlopen(request, timeout=2)
-            self.assertEqual(400, mismatch.exception.code)
-            self.assertEqual(b"HASH_MISMATCH", mismatch.exception.read())
-            mismatch.exception.close()
+        with clamd_server() as clamd, http_server(clamd) as port:
+            status, _, body = scan_post(
+                port,
+                b"mutated",
+                declared_hash=hashlib.sha256(b"expected").hexdigest(),
+            )
+            self.assertEqual(400, status)
+            self.assertEqual(b"HASH_MISMATCH", body)
 
     def test_ready_probe_checks_clamd(self) -> None:
-        with clamd_server() as clamd, http_server(clamd) as base_url:
-            with urllib.request.urlopen(f"{base_url}/readyz", timeout=2) as response:
-                self.assertEqual(b"READY", response.read())
+        with clamd_server() as clamd, http_server(clamd) as port:
+            status, body = scan_get(port, "/readyz")
+            self.assertEqual(200, status)
+            self.assertEqual(b"READY", body)
 
 
 if __name__ == "__main__":
