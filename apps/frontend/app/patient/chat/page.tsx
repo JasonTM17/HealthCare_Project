@@ -90,7 +90,7 @@ function mergeMessages(...groups: AiChatMessage[][]): AiChatMessage[] {
 
 function formatDateTime(value: string): string {
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Vừa cập nhật";
+  if (Number.isNaN(date.getTime())) return "Vừa xong";
   return new Intl.DateTimeFormat("vi-VN", {
     dateStyle: "short",
     timeStyle: "short",
@@ -197,7 +197,7 @@ function MessageItem({
         </p>
       ) : null}
       {assistant && message.suggestedActions && message.suggestedActions.length > 0 ? (
-        <div aria-label="Bước tiếp theo" className={styles.suggestedActions}>
+        <div aria-label="Bước tiếp theo" className={styles.suggestedActions} role="group">
           {message.suggestedActions.map((action) => (
             action.href === "tel:115"
               ? <a href={action.href} key={`${action.kind}-${action.href}`}>{action.label}</a>
@@ -206,7 +206,7 @@ function MessageItem({
         </div>
       ) : null}
       {assistant && message.status === "COMPLETED" ? (
-        <div aria-label="Đánh giá phản hồi" className={styles.feedbackRow}>
+        <div aria-label="Đánh giá phản hồi" className={styles.feedbackRow} role="group">
           <span>Phản hồi này hữu ích?</span>
           {(["HELPFUL", "NOT_HELPFUL"] as const).map((rating) => (
             <button
@@ -922,7 +922,7 @@ function PatientChatPageContent() {
             <strong>Chọn mục đích trước khi bắt đầu</strong>
             <span>{activeConversation ? "Mỗi cuộc trò chuyện giữ một chế độ; chọn mục đích khác sẽ mở cuộc trò chuyện mới." : "Mỗi cuộc trò chuyện giữ một chế độ cố định."}</span>
           </div>
-          <div className={styles.modeOptions} role="group">
+          <div aria-label="Mục đích cuộc trò chuyện" className={styles.modeOptions} role="group">
             {ASSISTANT_MODE_OPTIONS.map((option) => (
               <button
                 aria-pressed={selectedMode === option.value}
@@ -1046,9 +1046,9 @@ function PatientChatPageContent() {
                 </div>
                 <div className={styles.threadHeaderRight}>
                   {creditStatus ? (
-                    <div className={styles.threadCreditBadge} title="Số dư AI Credits khả dụng trong tài khoản">
+                    <div className={styles.threadCreditBadge} title="Số dư lượt AI khả dụng trong tài khoản">
                       <span className={styles.threadCreditDot} />
-                      <span className={styles.threadCreditLabel}>AI Credit:</span>
+                      <span className={styles.threadCreditLabel}>Lượt AI:</span>
                       <strong className={styles.threadCreditValue}>{creditStatus.credits}</strong>
                       <span className={styles.threadCreditTotal}>/{creditStatus.maxCredits}</span>
                     </div>
@@ -1073,7 +1073,7 @@ function PatientChatPageContent() {
                   <strong>Xác nhận sử dụng trợ lý</strong>
                   <p id="patient-chat-consent-copy">Cuộc trò chuyện được lưu tối đa 90 ngày rồi tự động xóa. Trợ lý chỉ cung cấp thông tin tham khảo, không chẩn đoán hoặc kê đơn. Remote AI đang tắt trong môi trường này.</p>
                   <button className={styles.primaryConsentButton} disabled={consentBusy} onClick={() => void handleConsent()} type="button">
-                    {consentBusy ? "Đang xác nhận..." : "Tôi đồng ý với chính sách"}
+                    {consentBusy ? "Đang xác nhận…" : "Tôi đồng ý với chính sách"}
                   </button>
                   {consentFailure ? <p aria-live="assertive" className={styles.consentError} role="alert">{consentFailure}</p> : null}
                 </section>
@@ -1104,7 +1104,7 @@ function PatientChatPageContent() {
                   <div className="flex items-center gap-2">
                     <label htmlFor="patient-chat-message">Tin nhắn của bạn</label>
                     <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-[4px] border border-emerald-200">
-                      -1 Credit / câu hỏi
+                      -1 lượt / câu hỏi
                     </span>
                     {creditStatus ? (
                       <span className="text-[11px] font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded-[4px] border border-teal-200">

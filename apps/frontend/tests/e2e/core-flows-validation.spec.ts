@@ -416,8 +416,8 @@ test.describe("Flow 1: Patient Chat AI (/patient/chat)", () => {
     // With empty textarea, send button is disabled
     await expect(sendButton).toBeDisabled();
 
-    // Verify initial quota display (12 AI Credits)
-    await expect(page.locator("text=AI Credit:").locator("..")).toContainText("12");
+    // Verify initial quota display (12 lượt AI)
+    await expect(page.locator("text=Lượt AI:").locator("..")).toContainText("12");
 
     // 2. Typing in textarea enables send button
     await composerTextarea.fill("Tôi cần lưu ý gì trước khi đi khám?");
