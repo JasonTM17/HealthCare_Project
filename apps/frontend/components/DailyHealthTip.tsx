@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Icon, { type IconName } from "./UiIcon";
 
 const TIPS: Array<{ icon: IconName; tag: string; title: string; text: string }> = [
@@ -15,6 +15,20 @@ const TIPS: Array<{ icon: IconName; tag: string; title: string; text: string }> 
 
 const AUTO_ADVANCE_MS = 9000;
 
+// Server (UTC) and browser (local) clocks can disagree on the day, so a
+// render-time day seed would hydrate mismatched tip text. The tip index is
+// derived instead: 0 for SSR and the hydration pass, then day-seeded once the
+// store reports a mounted client.
+const emptySubscribe = () => () => {};
+
+function getMountedSnapshot(): boolean {
+  return true;
+}
+
+function getServerSnapshot(): boolean {
+  return false;
+}
+
 /**
  * "Mẹo sức khỏe mỗi ngày" — a rotating, zero-backend wellness tip card.
  * The first tip is seeded by the day of year so the card feels fresh daily.
@@ -22,17 +36,21 @@ const AUTO_ADVANCE_MS = 9000;
  * prefers-reduced-motion (the reveal observer also bails on reduce).
  */
 export default function DailyHealthTip() {
-  const initialIndex = useMemo(() => {
+  const mounted = useSyncExternalStore(emptySubscribe, getMountedSnapshot, getServerSnapshot);
+  const [rotation, setRotation] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const [reveal, setReveal] = useState<"idle" | "pre" | "in">("idle");
+  const rootRef = useRef<HTMLElement | null>(null);
+
+  const dayIndex = useMemo(() => {
+    if (!mounted) return 0;
     const now = new Date();
     const dayOfYear = Math.floor(
       (now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000,
     );
     return dayOfYear % TIPS.length;
-  }, []);
-  const [index, setIndex] = useState(initialIndex);
-  const [paused, setPaused] = useState(false);
-  const [reveal, setReveal] = useState<"idle" | "pre" | "in">("idle");
-  const rootRef = useRef<HTMLElement | null>(null);
+  }, [mounted]);
+  const index = mounted ? (dayIndex + rotation) % TIPS.length : 0;
 
   useEffect(() => {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -54,7 +72,7 @@ export default function DailyHealthTip() {
   useEffect(() => {
     if (paused) return;
     const timer = window.setInterval(
-      () => setIndex((v) => (v + 1) % TIPS.length),
+      () => setRotation((v) => (v + 1) % TIPS.length),
       AUTO_ADVANCE_MS,
     );
     return () => window.clearInterval(timer);
@@ -90,7 +108,7 @@ export default function DailyHealthTip() {
         <div className="daily-tip__actions">
           <button
             className="text-button daily-tip__next"
-            onClick={() => setIndex((v) => (v + 1) % TIPS.length)}
+            onClick={() => setRotation((v) => (v + 1) % TIPS.length)}
             type="button"
           >
             Mẹo khác <Icon name="arrow-right" size={16} />

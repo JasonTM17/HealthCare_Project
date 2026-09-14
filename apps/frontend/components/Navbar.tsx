@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { Branch } from "../types/hospital";
 import BrandMark from "./BrandMark";
 import Icon from "./UiIcon";
@@ -41,6 +41,10 @@ function getAccountDestination(session: AuthSession | null, pathname: string | n
 }
 const NAVBAR_AVATAR_CACHE: Record<string, string> = {};
 
+// Hydration-safe client detection: server and the first client render both see
+// `false`, so branch-dependent markup only appears in post-hydration updates.
+const emptySubscribe = () => () => {};
+
 function getCachedNavbarAvatar(userId?: string): string | null {
   if (!userId) return null;
   return NAVBAR_AVATAR_CACHE[userId] ?? null;
@@ -59,6 +63,10 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
   const [avatarLoading, setAvatarLoading] = useState(false);
   const [copiedHotline, setCopiedHotline] = useState(false);
   const [hotlineCopyError, setHotlineCopyError] = useState(false);
+  // The hotline entry depends on the branches prop, which catalog pages only
+  // populate after mount. Rendering it during hydration would swap the
+  // fallback link server-side vs client-side and trip a React #418 mismatch.
+  const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
   const effectiveNavbarAvatar = navbarAvatar ?? getCachedNavbarAvatar(authSession?.user?.id);
 
   useEffect(() => {
@@ -101,7 +109,7 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
   const emergencyBranch = branches.find((branch) => Boolean(branch.emergencyHotline));
   const contactBranch = branches.find((branch) => Boolean(branch.phone));
   const contactPhone = emergencyBranch?.emergencyHotline ?? contactBranch?.phone;
-  const contactHref = safeTelephoneHref(contactPhone);
+  const contactHref = mounted ? safeTelephoneHref(contactPhone) : "";
   const accountDestination = getAccountDestination(authSession, pathname);
 
   const closeMobileMenu = (): void => setMobileMenuOpen(false);

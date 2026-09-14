@@ -14,7 +14,7 @@ import { confirmAppointment, fetchDoctorSlots, holdAppointmentSlot } from "../li
 import {
   ApiError,
   fetchBranches,
-  fetchDoctors,
+  fetchDoctorCatalog,
   resendAppointmentOtp,
 } from "../lib/api-client";
 import { businessDate, formatBusinessDate } from "../lib/business-time";
@@ -151,9 +151,9 @@ export default function PackageBookingModal({
       setCatalogLoading(true);
       setCatalogError("");
       try {
-        const [branchRes, doctorRes] = await Promise.all([
+        const [branchRes, doctorList] = await Promise.all([
           needsBranches ? fetchBranches(0, 100).catch(() => null) : null,
-          fetchDoctors({ page: 0, size: 100 }).catch(() => null),
+          fetchDoctorCatalog().catch(() => [] as Doctor[]),
         ]);
 
         if (cancelled) return;
@@ -161,8 +161,8 @@ export default function PackageBookingModal({
         if (branchRes) {
           setLoadedBranches(branchRes.content);
         }
-        if (doctorRes) {
-          setLoadedDoctors(doctorRes.content);
+        if (doctorList.length > 0) {
+          setLoadedDoctors(doctorList);
         }
       } catch {
         if (!cancelled) {

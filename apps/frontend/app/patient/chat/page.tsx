@@ -52,6 +52,14 @@ import styles from "./chat.module.css";
 const MESSAGE_LIMIT = 30;
 const MAX_MESSAGE_LENGTH = 10_000;
 
+// Vietnamese labels for triage urgency enums so patients never see raw English codes.
+const TRIAGE_URGENCY_VI: Readonly<Record<string, string>> = {
+  EMERGENCY: "Khẩn cấp",
+  HIGH: "Ưu tiên cao",
+  NORMAL: "Bình thường",
+  LOW: "Ưu tiên thấp",
+};
+
 interface ChatFailure {
   code: string | null;
   message: string;
@@ -192,7 +200,7 @@ function MessageItem({
       ) : null}
       {assistant && message.triage ? (
         <p className={styles.triageSummary}>
-          Mức ưu tiên: <strong>{message.triage.urgencyLevel}</strong>
+          Mức ưu tiên: <strong>{TRIAGE_URGENCY_VI[message.triage.urgencyLevel] ?? message.triage.urgencyLevel}</strong>
           {message.triage.recommendedSpecialty ? ` · Gợi ý: ${message.triage.recommendedSpecialty}` : ""}
         </p>
       ) : null}

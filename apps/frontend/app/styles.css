@@ -861,6 +861,11 @@ main {
   color: var(--color-amber-dark);
 }
 
+/* Marks seeded illustrative profiles so demo doctors never read as real staff. */
+.resource-chip--muted {
+  color: var(--color-slate-500, #64748b);
+}
+
 .resource-hero-card--teal .resource-chip {
   background: transparent;
   color: var(--color-teal-900);

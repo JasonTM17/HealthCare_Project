@@ -201,6 +201,9 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
                       className="resource-avatar__img"
                     />
                   </div>
+                  {doctor.slug.startsWith("demo-bs-")
+                    ? <span className="resource-chip resource-chip--muted">Hồ sơ minh họa</span>
+                    : null}
                   {doctor.specialtyName ? <span className="resource-chip">{doctor.specialtyName}</span> : null}
                   <h2>{doctor.fullName}</h2>
                   <p className="catalog-card__summary">{doctor.bio || "Hồ sơ chưa có phần giới thiệu chi tiết."}</p>

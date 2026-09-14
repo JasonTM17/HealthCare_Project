@@ -165,10 +165,12 @@ function AdminShell({ children, displayName }: { children: ReactNode; displayNam
     }
   };
 
+  // The rail is position:sticky, which stays in normal flow — the shell must
+  // be a flex row at lg or main would start one full viewport below it.
   return (
-    <div className="admin-shell min-h-screen bg-slate-50 text-slate-900">
+    <div className="admin-shell min-h-screen bg-slate-50 text-slate-900 lg:flex">
       <a className="skip-link" href="#main-content">Bỏ qua điều hướng</a>
-      <aside className="border-b border-teal-900 bg-teal-950 text-white lg:sticky lg:top-0 lg:h-screen lg:w-64 lg:border-b-0 lg:border-r lg:overflow-hidden">
+      <aside className="border-b border-teal-900 bg-teal-950 text-white lg:sticky lg:top-0 lg:h-screen lg:w-64 lg:shrink-0 lg:border-b-0 lg:border-r lg:overflow-hidden">
         <div className="flex h-full flex-col p-5 overflow-hidden">
           <div className="shrink-0">
             <div className="flex items-center gap-3 text-teal-100"><UiIcon name="shield-check" size={24} /><strong className="text-lg">HealthCare</strong></div>
@@ -208,7 +210,7 @@ function AdminShell({ children, displayName }: { children: ReactNode; displayNam
         </div>
       </aside>
 
-      <main className="min-w-0 p-4 sm:p-6 lg:ml-64 lg:p-8" id="main-content" tabIndex={-1}>
+      <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8" id="main-content" tabIndex={-1}>
         <div className="mx-auto max-w-7xl">
           <div className="admin-scope-note mb-6 border-b border-teal-200 bg-teal-50 px-4 py-3 text-sm leading-6 text-teal-950">
             <strong>Phạm vi quản trị:</strong> nội dung công khai, lịch làm việc và dữ liệu vận hành chỉ hiển thị theo quyền của tài khoản hiện tại.
