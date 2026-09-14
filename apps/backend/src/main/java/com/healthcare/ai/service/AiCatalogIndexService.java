@@ -2,11 +2,13 @@ package com.healthcare.ai.service;
 
 import com.healthcare.hospital.entity.Branch;
 import com.healthcare.hospital.entity.Doctor;
+import com.healthcare.hospital.entity.DoctorBranch;
 import com.healthcare.hospital.entity.MedicalService;
 import com.healthcare.hospital.entity.Specialty;
 import com.healthcare.hospital.repository.ArticleRepository;
 import com.healthcare.hospital.repository.BranchRepository;
 import com.healthcare.hospital.repository.DoctorRepository;
+import com.healthcare.hospital.repository.DoctorBranchRepository;
 import com.healthcare.hospital.repository.FaqRepository;
 import com.healthcare.hospital.repository.PackageRepository;
 import com.healthcare.hospital.repository.ServiceRepository;
@@ -24,6 +26,8 @@ import org.springframework.stereotype.Service;
 import java.util.LinkedHashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /** Periodically mirrors bounded, public catalog text into the protected AI index. */
@@ -35,6 +39,7 @@ public class AiCatalogIndexService {
     private final BranchRepository branchRepository;
     private final SpecialtyRepository specialtyRepository;
     private final DoctorRepository doctorRepository;
+    private final DoctorBranchRepository doctorBranchRepository;
     private final ServiceRepository serviceRepository;
     private final PackageRepository packageRepository;
     private final ArticleRepository articleRepository;
@@ -55,6 +60,7 @@ public class AiCatalogIndexService {
             BranchRepository branchRepository,
             SpecialtyRepository specialtyRepository,
             DoctorRepository doctorRepository,
+            DoctorBranchRepository doctorBranchRepository,
             ServiceRepository serviceRepository,
             PackageRepository packageRepository,
             ArticleRepository articleRepository,
@@ -64,11 +70,27 @@ public class AiCatalogIndexService {
         this.branchRepository = branchRepository;
         this.specialtyRepository = specialtyRepository;
         this.doctorRepository = doctorRepository;
+        this.doctorBranchRepository = doctorBranchRepository;
         this.serviceRepository = serviceRepository;
         this.packageRepository = packageRepository;
         this.articleRepository = articleRepository;
         this.faqRepository = faqRepository;
         this.jdbcTemplate = jdbcTemplate;
+    }
+
+    /** Compatibility constructor for callers that predate doctor branch context. */
+    public AiCatalogIndexService(
+            AiService aiService,
+            BranchRepository branchRepository,
+            SpecialtyRepository specialtyRepository,
+            DoctorRepository doctorRepository,
+            ServiceRepository serviceRepository,
+            PackageRepository packageRepository,
+            ArticleRepository articleRepository,
+            FaqRepository faqRepository,
+            JdbcTemplate jdbcTemplate) {
+        this(aiService, branchRepository, specialtyRepository, doctorRepository, null,
+            serviceRepository, packageRepository, articleRepository, faqRepository, jdbcTemplate);
     }
 
     /** Test/source compatibility constructor; production always uses the
@@ -157,7 +179,8 @@ public class AiCatalogIndexService {
         Page<Doctor> doctors = doctorRepository.findAll(PageRequest.of(0, pageSize));
         completeTypes.put("doctor", !doctors.hasNext());
         for (Doctor item : doctors) {
-            currentSources.add(index("doctor", item.getId().toString(), item.getFullName(), text(item.getFullName(), item.getBio()), item.isActive(), true, item.getSlug(), syncRevision)); indexed++;
+            String displayTitle = doctorDisplayTitle(item);
+            currentSources.add(index("doctor", item.getId().toString(), displayTitle, text(displayTitle, item.getBio()), item.isActive(), true, item.getSlug(), syncRevision)); indexed++;
         }
         Page<MedicalService> services = serviceRepository.findAll(PageRequest.of(0, pageSize));
         completeTypes.put("service", !services.hasNext());
@@ -246,5 +269,29 @@ public class AiCatalogIndexService {
             }
         }
         return result.toString();
+    }
+
+    private String doctorDisplayTitle(Doctor doctor) {
+        String fullName = doctor.getFullName() == null || doctor.getFullName().isBlank()
+            ? "Bác sĩ HealthCare" : doctor.getFullName().strip();
+        if (doctorBranchRepository == null || doctor.getId() == null) return fullName;
+
+        List<DoctorBranch> assignments = doctorBranchRepository.findByDoctorId(doctor.getId());
+        if (assignments == null || assignments.isEmpty()) return fullName;
+        List<String> branchNames = assignments.stream()
+            .filter(Objects::nonNull)
+            .map(DoctorBranch::getBranch)
+            .filter(Objects::nonNull)
+            .filter(Branch::isActive)
+            .map(Branch::getName)
+            .filter(Objects::nonNull)
+            .map(String::strip)
+            .filter(value -> !value.isBlank())
+            .distinct()
+            .limit(3)
+            .toList();
+        return branchNames.isEmpty()
+            ? fullName
+            : fullName + " — " + String.join(" · ", branchNames);
     }
 }

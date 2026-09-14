@@ -56,6 +56,13 @@ from app.schemas import (
 
 DEFAULT_RELEVANCE_THRESHOLD = 0.35
 MAX_CONTEXT_CHARS = 2_000
+_SPECIALTY_GUIDANCE_TERMS = (
+    "chuyen khoa nao",
+    "kham khoa nao",
+    "nen kham khoa nao",
+    "tim chuyen khoa",
+    "phu hop voi trieu chung",
+)
 
 MODE_SOURCE_TYPES: dict[ChatMode, frozenset[str]] = {
     ChatMode.HOSPITAL_SUPPORT: frozenset(
@@ -415,6 +422,108 @@ _VI_SYMPTOM_EXPANSIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("so sinh", ("nhi",)),
     ("kinh nguyet", ("san", "phu")),
     ("ra huyet", ("san", "phu")),
+    # Tim mach & Tuan hoan
+    ("dau that nguc", ("tim", "mach")),
+    ("thieu mau co tim", ("tim", "mach")),
+    ("tang huyet ap", ("tim", "mach")),
+    ("huyet ap cao", ("tim", "mach")),
+    ("ha huyet ap", ("tim", "mach")),
+    ("loan nhip", ("tim", "mach")),
+    ("tim dap nhanh", ("tim", "mach")),
+    ("suy tim", ("tim", "mach")),
+    ("tuc nguc", ("tim", "mach")),
+    # Tieu hoa & Gan mat
+    ("trao nguoc", ("tieu", "hoa")),
+    ("o chua", ("tieu", "hoa")),
+    ("o nong", ("tieu", "hoa")),
+    ("viem loet da day", ("tieu", "hoa")),
+    ("dau da day", ("tieu", "hoa")),
+    ("dau thuong vi", ("tieu", "hoa")),
+    ("xuat huyet tieu hoa", ("tieu", "hoa")),
+    ("di ngoai ra mau", ("tieu", "hoa")),
+    ("tao bon", ("tieu", "hoa")),
+    ("viem dai trang", ("tieu", "hoa")),
+    ("men gan cao", ("tieu", "hoa")),
+    # Ho hap
+    ("hen phe quan", ("ho", "hap")),
+    ("viem phoi", ("ho", "hap")),
+    ("viem phe quan", ("ho", "hap")),
+    ("copd", ("ho", "hap")),
+    ("ho ra mau", ("ho", "hap")),
+    ("tho kho khe", ("ho", "hap")),
+    # Nhi khoa
+    ("sot o tre", ("nhi",)),
+    ("sot cao co giat", ("nhi", "cap", "cuu")),
+    ("non tro", ("nhi",)),
+    ("quay khoc", ("nhi",)),
+    ("phat ban o tre", ("nhi", "da", "lieu")),
+    ("suy dinh duong", ("nhi",)),
+    # Than kinh
+    ("dau nua dau", ("than", "kinh")),
+    ("te bi tay chan", ("than", "kinh")),
+    ("run tay", ("than", "kinh")),
+    ("dong kinh", ("than", "kinh")),
+    ("tai bien", ("than", "kinh", "tim", "mach")),
+    ("dot quy", ("than", "kinh", "cap", "cuu")),
+    ("suy giam tri nho", ("than", "kinh")),
+    ("tien dinh", ("than", "kinh", "tai", "mui", "hong")),
+    # Co xuong khop
+    ("thoai hoa khop", ("co", "xuong", "khop")),
+    ("thoat vi dia dem", ("co", "xuong", "khop")),
+    ("viem khop dang thap", ("co", "xuong", "khop")),
+    ("gout", ("co", "xuong", "khop")),
+    ("gut", ("co", "xuong", "khop")),
+    ("dau vai gay", ("co", "xuong", "khop")),
+    ("dau dau goi", ("co", "xuong", "khop")),
+    ("gay xuong", ("co", "xuong", "khop")),
+    ("tran dich khop", ("co", "xuong", "khop")),
+    # Tai Mui Hong
+    ("viem amidan", ("tai", "mui", "hong")),
+    ("chay mau cam", ("tai", "mui", "hong")),
+    ("giam thinh luc", ("tai", "mui", "hong")),
+    ("viem tai giua", ("tai", "mui", "hong")),
+    ("khan tieng", ("tai", "mui", "hong")),
+    # Da lieu
+    ("di ung da", ("da", "lieu")),
+    ("man ngua", ("da", "lieu")),
+    ("vay nen", ("da", "lieu")),
+    ("eczema", ("da", "lieu")),
+    ("mun trung ca", ("da", "lieu")),
+    ("nam da", ("da", "lieu")),
+    ("zona", ("da", "lieu")),
+    ("me day", ("da", "lieu")),
+    ("viem da co dia", ("da", "lieu")),
+    # Noi tiet & Tong hop
+    ("dai thao duong", ("noi", "tong", "hop")),
+    ("ha duong huyet", ("noi", "tong", "hop")),
+    ("tuyen giap", ("noi", "tong", "hop")),
+    ("bua co", ("noi", "tong", "hop")),
+    ("sut can nhanh", ("noi", "tong", "hop")),
+    # San phu khoa
+    ("mang thai", ("san", "phu")),
+    ("thai ky", ("san", "phu")),
+    ("kham thai", ("san", "phu")),
+    ("dong thai", ("san", "phu")),
+    ("u xo tu cung", ("san", "phu")),
+    ("viem am dao", ("san", "phu")),
+    ("khi hu bat thuong", ("san", "phu")),
+    # Mat
+    ("dau mat", ("mat",)),
+    ("dau mat do", ("mat",)),
+    ("mo mat", ("mat",)),
+    ("can thi", ("mat",)),
+    ("duc thuy tinh the", ("mat",)),
+    # Rang Ham Mat
+    ("dau rang", ("rang", "ham", "mat")),
+    ("sau rang", ("rang", "ham", "mat")),
+    ("viem loi", ("rang", "ham", "mat")),
+    ("viem nuou", ("rang", "ham", "mat")),
+    # Than - Tiet nieu
+    ("soi than", ("tiet", "nieu")),
+    ("tieu buot", ("tiet", "nieu")),
+    ("tieu rat", ("tiet", "nieu")),
+    ("tieu ra mau", ("tiet", "nieu")),
+    ("suy than", ("tiet", "nieu", "noi")),
 )
 
 
@@ -436,6 +545,64 @@ def _lexical_overlap(query_tokens: frozenset[str], document_text: str) -> float:
     return len(query_tokens & document_tokens) / len(query_tokens)
 
 
+def _focus_candidates_for_question(
+    message: str,
+    mode: ChatMode,
+    candidates: list[ChatCandidate],
+) -> list[ChatCandidate]:
+    """Keep specialty guidance focused when a query asks which specialty to visit."""
+
+    if mode is not ChatMode.HOSPITAL_SUPPORT or not candidates:
+        return candidates
+    normalized = normalize_sensitive_text(message)
+    if not any(term in normalized for term in _SPECIALTY_GUIDANCE_TERMS):
+        return candidates
+    # An explicit doctor/booking request still needs operational candidates.
+    if "bac si" in normalized or "dat lich" in normalized:
+        return candidates
+    specialties = [candidate for candidate in candidates if candidate.source_type == "specialty"]
+    return specialties or candidates
+
+
+_COMPLEX_SYMPTOM_INDICATORS: tuple[str, ...] = (
+    "kem theo", "di kem", "kem", "ket hop", "cung voi", "dong thoi", "song song",
+    "vua bi", "vua dau", "vua sot", "vua kho tho", "vua",
+    "lan toa", "lan ra", "lan xuong", "lan len",
+    "nghi ngo", "tien su", "bien chung", "man tinh",
+    "nhieu ngay", "keo dai", "uong thuoc khong do", "khong giam", "tai phat",
+    "dau quan", "du doi", "kho tho du doi", "hon me", "yeu liet",
+)
+
+_ORGAN_SYSTEM_CLUSTERS: list[set[str]] = [
+    # Tim mach
+    {"dau nguc", "tuc nguc", "thieu mau co tim", "hoi hop", "dap nhanh", "tim dap nhanh", "suy tim", "mach vanh", "tang huyet ap"},
+    # Ho hap
+    {"kho tho", "ho ra mau", "tho khe", "hen phe quan", "viem phoi", "copd", "sot cao", "ho nhieu dom"},
+    # Tieu hoa
+    {"dau bung", "thuong vi", "xuat huyet", "di ngoai ra mau", "non mua", "non oi", "non tro", "buon non", "tieu chay", "vang da", "men gan"},
+    # Than kinh
+    {"te bi", "dong kinh", "yeu nua nguoi", "liet", "mat y thuc", "hon me", "dau dau du doi", "dau dau", "chong mat", "choang vang", "mo mat", "hoa mat", "dot quy"},
+    # Co xuong khop
+    {"sung khop", "tran dich", "thoat vi", "gout", "bien dang khop"},
+    # Tiet nieu
+    {"tieu buot", "tieu ra mau", "vo nieu", "soi than", "phu toan than"},
+    # Noi tiet / Chuyen hoa
+    {"tieu duong", "sut can nhanh", "ha duong huyet", "tuyen giap"},
+    # Da lieu / Di ung
+    {"phat ban", "noi man", "me day", "ngua toan than", "lo loet"},
+    # Toan than / Canh bao
+    {"va mo hoi", "sot cao", "ret run", "suy nhuoc"},
+]
+
+
+def is_complex_multisymptom_query(message: str) -> bool:
+    """Detect queries that involve complex multi-symptom clinical presentations."""
+    normalized = normalize_sensitive_text(message)
+    indicators_hit = sum(1 for term in _COMPLEX_SYMPTOM_INDICATORS if term in normalized)
+    clusters_hit = sum(1 for cluster in _ORGAN_SYSTEM_CLUSTERS if any(term in normalized for term in cluster))
+    return clusters_hit >= 2 or indicators_hit >= 2 or (clusters_hit >= 1 and indicators_hit >= 1)
+
+
 def _unsafe_claim(answer: str) -> bool:
     return any(pattern.search(answer) for pattern in _UNSAFE_CLAIM_PATTERNS)
 
@@ -451,7 +618,25 @@ def _insufficient_response(mode: ChatMode, *, reason: str = "") -> ChatResponse:
         mode=mode,
         safety_action=ChatSafetyAction.INSUFFICIENT_EVIDENCE,
         provenance="local_provider",
+        cost_tier="local_free",
+        routing_reason="insufficient_evidence",
     )
+
+
+def _grounded_excerpt(meta: _SourceMetadata) -> str:
+    """Render concise source-owned text for the patient-facing answer."""
+
+    title = str(getattr(meta.document, "title", "")).strip()
+    if meta.document.source_type == "doctor":
+        # Doctor bios may contain synthetic schedules and fixture disclaimers;
+        # the source-authorized, branch-aware title is the useful answer fact.
+        return title
+
+    content = str(getattr(meta.document, "content", "")).strip()
+    if content.casefold().startswith(title.casefold()):
+        content = content[len(title):].lstrip(" :\n-\t")
+    content = content[:MAX_CONTEXT_CHARS].strip()
+    return f"{title}: {content}" if content else title
 
 
 def _local_grounded_response(
@@ -475,9 +660,7 @@ def _local_grounded_response(
     used_sources = [_used_source(meta) for meta in metas]
     if mode is ChatMode.SYMPTOM_TRIAGE:
         triage = rule_based_triage(message)
-        excerpts = " ".join(
-            f"{meta.document.title}: {meta.document.content[:MAX_CONTEXT_CHARS]}" for meta in metas[:3]
-        )
+        excerpts = " ".join(_grounded_excerpt(meta) for meta in metas[:3])
         answer = (
             f"{triage.clinical_advice} Theo nguồn tham khảo đã được duyệt: {excerpts} "
             "Hãy trao đổi với bác sĩ để được đánh giá trực tiếp."
@@ -489,9 +672,7 @@ def _local_grounded_response(
             recommended_specialty=triage.recommended_specialty,
         )
     else:
-        excerpts = " ".join(
-            f"{meta.document.title}: {meta.document.content[:MAX_CONTEXT_CHARS]}" for meta in metas[:3]
-        )
+        excerpts = " ".join(_grounded_excerpt(meta) for meta in metas[:3])
         answer = (
             f"Dựa trên nguồn thông tin đã được kiểm duyệt, {excerpts} "
             "Nếu cần quyết định phù hợp với tình trạng riêng, hãy trao đổi trực tiếp với nhân viên y tế."
@@ -509,6 +690,8 @@ def _local_grounded_response(
         safety_action=action,
         used_sources=used_sources,
         triage=summary,
+        cost_tier="local_free",
+        routing_reason="high_similarity_internal_kb",
     )
 
 
@@ -709,6 +892,8 @@ def retrieve_chat_candidates(
             if len(candidates) >= min(request.top_k, 20):
                 break
 
+    candidates = _focus_candidates_for_question(request.message, request.mode, candidates)
+
     return ChatRetrieveResponse(
         mode=request.mode,
         candidates=candidates,
@@ -729,7 +914,12 @@ def generate_chat_response(
     turns = [(turn.role, turn.content) for turn in request.recent_turns]
     safety = chat_safety_response(request.message, turns)
     if safety is not None:
-        return safety.model_copy(update={"mode": request.mode, "used_sources": []})
+        return safety.model_copy(update={
+            "mode": request.mode,
+            "used_sources": [],
+            "cost_tier": "local_free",
+            "routing_reason": "safety_guardrail_shortcircuit",
+        })
 
     if (
         getattr(settings, "ai_patient_chat_remote_enabled", False) is True
@@ -760,34 +950,49 @@ def generate_chat_response(
     if not remote_requested or not patient_chat_remote_enabled(settings):
         response = _local_grounded_response(request.message, request.mode, metas)
     else:
-        allow_public_operational = (
-            request.mode is ChatMode.HOSPITAL_SUPPORT
-            and all(_public_operational_context(meta) for meta in metas)
-        )
-        context = [
-            f"{meta.document.title}: {meta.document.content[:MAX_CONTEXT_CHARS]}" for meta in metas
-        ]
-        citations = [
-            Citation(
-                source_type=meta.document.source_type,
-                source_id=meta.document.source_id,
-                title=meta.document.title,
+        is_complex = is_complex_multisymptom_query(request.message)
+        is_operational = request.mode is ChatMode.HOSPITAL_SUPPORT or all(meta.projection_kind == "OPERATIONAL" for meta in metas)
+        if client is None and not is_complex and is_operational:
+            response = _local_grounded_response(request.message, request.mode, metas)
+            response = response.model_copy(update={
+                "cost_tier": "local_free",
+                "routing_reason": "high_similarity_internal_kb",
+            })
+        else:
+            allow_public_operational = (
+                request.mode is ChatMode.HOSPITAL_SUPPORT
+                and all(_public_operational_context(meta) for meta in metas)
             )
-            for meta in metas
-        ]
-        response = resolve_chat(
-            request.message,
-            settings,
-            recent_turns=turns,
-            context=context,
-            citations=citations,
-            used_sources=expected_used,
-            client=client,
-            synthetic_beta=request.synthetic_beta,
-            allow_public_operational=allow_public_operational,
-        )
-        if response.safety_action is ChatSafetyAction.INSUFFICIENT_EVIDENCE:
-            return _insufficient_response(request.mode)
+            context = [
+                f"{meta.document.title}: {meta.document.content[:MAX_CONTEXT_CHARS]}" for meta in metas
+            ]
+            citations = [
+                Citation(
+                    source_type=meta.document.source_type,
+                    source_id=meta.document.source_id,
+                    title=meta.document.title,
+                )
+                for meta in metas
+            ]
+            response = resolve_chat(
+                request.message,
+                settings,
+                recent_turns=turns,
+                context=context,
+                citations=citations,
+                used_sources=expected_used,
+                client=client,
+                synthetic_beta=request.synthetic_beta,
+                allow_public_operational=allow_public_operational,
+            )
+            if response.safety_action is ChatSafetyAction.INSUFFICIENT_EVIDENCE:
+                return _insufficient_response(request.mode)
+            if response.provenance == "remote_provider":
+                routing_reason = "complex_multisymptom_clinical_reasoning" if is_complex else "remote_llm_escalation"
+                response = response.model_copy(update={
+                    "cost_tier": "remote_llm",
+                    "routing_reason": routing_reason,
+                })
     if response.provenance == "remote_provider" and _unsafe_claim(response.answer):
         return _insufficient_response(request.mode)
 
@@ -797,6 +1002,8 @@ def generate_chat_response(
                 "mode": request.mode,
                 "used_sources": [],
                 "citations": [],
+                "cost_tier": response.cost_tier,
+                "routing_reason": response.routing_reason,
             }
         )
 
@@ -824,5 +1031,7 @@ def generate_chat_response(
                 if response.safety_action is not ChatSafetyAction.ANSWER
                 else ChatSafetyAction.ANSWER
             ),
+            "cost_tier": response.cost_tier,
+            "routing_reason": response.routing_reason,
         }
     )

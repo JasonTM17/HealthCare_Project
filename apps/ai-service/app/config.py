@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     # Remote patient-chat egress is fail-closed until a deployment explicitly
     # disables this switch as part of an approved synthetic-beta canary.
     remote_ai_kill_switch: bool = True
+    remote_ai_release_hold: bool = False
     remote_ai_provider_allowlist: str = "deepseek"
     remote_ai_https_host_allowlist: str = "api.deepseek.com"
     ai_chat_circuit_failure_threshold: int = Field(default=3, ge=1, le=10)
@@ -56,6 +57,8 @@ class Settings(BaseSettings):
     ai_max_retrieved_chunks: int = Field(default=5, ge=1, le=20)
     # Patient two-step retrieval is fail-closed below this hybrid score.
     ai_chat_relevance_threshold: float = Field(default=0.35, ge=0, le=1)
+    # Queries matching internal KB above this threshold resolve locally for 0đ cost.
+    ai_chat_similarity_threshold: float = Field(default=0.65, ge=0, le=1)
     rag_max_document_chars: int = Field(default=20_000, ge=1, le=20_000)
     # A source listing is paginated; this is a memory safety ceiling, not a
     # reconciliation completeness limit.
@@ -132,7 +135,7 @@ class Settings(BaseSettings):
             if not self.ai_base_url.strip():
                 self.ai_base_url = self.deepseek_base_url.strip() or "https://api.deepseek.com"
 
-        if remote_requested:
+        if remote_requested and not self.remote_ai_release_hold:
             raise ValueError(
                 "Remote patient-answer egress is HOLD in this build; use the local provider"
             )

@@ -58,12 +58,10 @@ const DEFAULT_DISCLAIMER = "Thông tin chỉ mang tính tham khảo, không thay
 const CASUAL_GREETING_PATTERN = /^(hi|hello|helo|alo|xin\s*chào|chào\s*(bạn|bác\s*sĩ|bot|admin|ad|em|chị|anh)?|good\s*(morning|afternoon|evening)|chào)[\s!.]*$/i;
 const GREETING_ACTIONS: SuggestedAction[] = [
   { kind: "VIEW_SOURCE", label: "Tìm Chuyên khoa", href: "/specialties" },
-  { kind: "VIEW_SOURCE", label: "Tra cứu Bác sĩ", href: "/doctors" },
-  { kind: "VIEW_SOURCE", label: "Gói khám Sức khỏe", href: "/packages" },
-  { kind: "START_BOOKING", label: "Đặt lịch khám", href: "/booking" },
+  { kind: "VIEW_SOURCE", label: "Cơ sở & giờ làm việc", href: "/branches" },
 ];
 const GREETING_ANSWER =
-  "Xin chào bạn! Tôi là Trợ lý Sức khỏe AI của HealthCare. Tôi luôn sẵn sàng hỗ trợ bạn tra cứu chuyên khoa, tìm kiếm bác sĩ, tư vấn các gói khám sức khỏe hoặc hướng dẫn quy trình đặt lịch khám. Bạn cần tôi hỗ trợ vấn đề gì hôm nay?";
+  "Xin chào! Tôi có thể hỗ trợ bạn tra cứu Chuyên khoa, Bác sĩ, Cơ sở & giờ làm việc hoặc hướng dẫn bắt đầu đặt lịch khám tại HealthCare.";
 const SUGGESTED_QUESTIONS_HOSPITAL = [
   "Làm sao để đặt lịch khám tại HealthCare?",
   "Bệnh viện có những chuyên khoa và cơ sở nào?",
@@ -627,6 +625,7 @@ function FloatingHealthAssistantPanel({
           provenance: reply.provenance,
           citations: reply.citations,
           safetyAction: reply.safetyAction,
+          suggestedActions: reply.suggestedActions,
           createdAt,
           completedAt: createdAt,
         };
@@ -782,7 +781,7 @@ function FloatingHealthAssistantPanel({
                         <>
                           <span className={styles.metaDot} aria-hidden="true">·</span>
                           <span className={styles.provenance} data-provenance={message.provenance ?? "local_provider"}>
-                            {provenanceLabel(message.provenance ?? "local_provider", message.citations.length)}
+                            {provenanceLabel(message.provenance ?? "local_provider", message.citations.length, message.safetyAction)}
                           </span>
                         </>
                       ) : null}
@@ -801,10 +800,11 @@ function FloatingHealthAssistantPanel({
                         ) : null}
                         {message.suggestedActions && message.suggestedActions.length > 0 ? (
                           <div className={styles.suggestedActions} aria-label="Bước tiếp theo" role="group">
+                            <span className={styles.suggestedActionsLabel}>Bước tiếp theo</span>
                             {message.suggestedActions.map((action) => (
-                              <Link href={action.href} key={`${action.kind}-${action.href}`}>
-                                {action.label}
-                              </Link>
+                              action.href === "tel:115"
+                                ? <a href={action.href} key={`${action.kind}-${action.href}`}>{action.label}</a>
+                                : <Link href={action.href} key={`${action.kind}-${action.href}`}>{action.label}</Link>
                             ))}
                           </div>
                         ) : null}

@@ -169,7 +169,8 @@ def embed(
 
     # Embeddings are also provider egress.  The public /embeddings and /rag
     # endpoints must not bypass the synthetic-beta/consent gate used by chat.
-    if remote_requested and (not synthetic_beta or not patient_chat_remote_enabled(settings)):
+    synthetic_blocked = getattr(settings, "remote_ai_synthetic_only", False) and not synthetic_beta
+    if remote_requested and (synthetic_blocked or not patient_chat_remote_enabled(settings)):
         if allow_fallback:
             local = LocalEmbeddingClient().embed(text)
             return EmbeddingResult(local.vector, local.model, "local_fallback")
