@@ -939,3 +939,77 @@ def test_health_livez_and_readyz_are_exposed(monkeypatch: pytest.MonkeyPatch) ->
     client = TestClient(app)
     assert client.get("/livez").status_code == 200
     assert client.get("/readyz").status_code == 200
+
+
+def _neurology_service() -> RagService:
+    # HOSPITAL_SUPPORT only consults operational catalog projections; the
+    # CLINICAL projection (doctor-approved) is gated to other modes.
+    service = RagService()
+    service.ingest(
+        "specialty",
+        "than-kinh",
+        "Thần kinh",
+        "Khám và điều trị đau đầu, đau nửa đầu, rối loạn giấc ngủ, các bệnh lý thần kinh.",
+        [0.0, 1.0] + [0.0] * 382,
+        embedding_model="local-hash",
+    )
+    return service
+
+
+def test_lexical_rescue_pass_opens_grounded_path_for_symptom_queries() -> None:
+    """The insomnia query scores ~0.2 on local hash embeddings (below the
+    0.35 threshold), which used to send every question to the keyword
+    templates. The diacritic-folded token-overlap rescue must surface the
+    Thần kinh document so patients get the sourced answer instead."""
+    service = _neurology_service()
+    relaxed = _settings().model_copy(update={"ai_chat_relevance_threshold": 0.35})
+    response = retrieve_chat_candidates(
+        ChatRetrieveRequest(
+            message="Tôi bị mất ngủ kéo dài 3 tuần, nên khám chuyên khoa nào?",
+            mode=ChatMode.HOSPITAL_SUPPORT,
+        ),
+        relaxed,
+        service,
+        embedder=lambda *_: ([0.0, 1.0] + [0.0] * 382, "local-hash"),
+    )
+    assert response.candidates, "lexical rescue must find the neurology document"
+    assert response.candidates[0].source_id == "than-kinh"
+    assert response.candidates[0].score >= 0.35
+    assert response.safety_action is ChatSafetyAction.ANSWER
+
+
+def test_lexical_rescue_expands_vietnamese_symptom_vocabulary() -> None:
+    """Symptom phrases must expand to specialty vocabulary: 'mất ngủ' shares
+    no literal token with 'rối loạn giấc ngủ' after diacritic folding, yet the
+    expansion ('giac', 'than', 'kinh') bridges the gap."""
+    service = _neurology_service()
+    relaxed = _settings().model_copy(update={"ai_chat_relevance_threshold": 0.35})
+    response = retrieve_chat_candidates(
+        ChatRetrieveRequest(
+            message="mat ngu keo dai",
+            mode=ChatMode.HOSPITAL_SUPPORT,
+        ),
+        relaxed,
+        service,
+        embedder=lambda *_: ([0.0, 1.0] + [0.0] * 382, "local-hash"),
+    )
+    assert response.candidates, "expansion bridge failed"
+    assert response.candidates[0].source_id == "than-kinh"
+
+
+def test_lexical_rescue_stays_silent_without_real_overlap() -> None:
+    """Small talk must not acquire a fake citation through the rescue pass.
+    The stub vector is orthogonal to the document so the vector loop scores
+    zero and only the lexical overlap could admit a candidate."""
+    service = _neurology_service()
+    relaxed = _settings().model_copy(update={"ai_chat_relevance_threshold": 0.35})
+    response = retrieve_chat_candidates(
+        ChatRetrieveRequest(
+            message="xin chào Bot",
+            mode=ChatMode.HOSPITAL_SUPPORT,
+        ),
+        relaxed,
+        service,
+        embedder=lambda *_: ([1.0] + [0.0] * 382, "local-hash"),
+    )
+    assert response.candidates == []
