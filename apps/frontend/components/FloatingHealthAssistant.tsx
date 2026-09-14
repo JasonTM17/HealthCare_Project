@@ -714,7 +714,7 @@ function FloatingHealthAssistantPanel({
                 <strong>Trợ lý HealthCare</strong>
                 <span className={styles.headerSubtitle}>
                   <span aria-hidden="true" className={styles.onlineDot} />
-                  {isPatient ? "Bác sĩ Trợ lý AI · Trực tuyến" : "Hỗ trợ tra cứu · Trực tuyến"}
+                  {isPatient ? "Trợ lý sức khỏe AI · Trực tuyến" : "Hỗ trợ tra cứu · Trực tuyến"}
                 </span>
               </div>
             </div>
@@ -758,13 +758,13 @@ function FloatingHealthAssistantPanel({
                   <strong>Xác nhận trước khi trò chuyện</strong>
                   <p id="floating-assistant-consent-copy">Bạn đồng ý lưu cuộc trò chuyện trong 90 ngày để HealthCare đồng bộ lịch sử tư vấn. Trợ lý hỗ trợ giải đáp thông tin và chuẩn bị thăm khám; không thay thế chẩn đoán hoặc phác đồ từ bác sĩ chuyên khoa.</p>
                   <button className={styles.primaryButton} disabled={consentBusy} onClick={() => void handleConsent()} type="button">
-                    {consentBusy ? "Đang xác nhận..." : "Tôi đồng ý và tiếp tục"}
+                    {consentBusy ? "Đang xác nhận…" : "Tôi đồng ý và tiếp tục"}
                   </button>
                   {consentError ? <p aria-live="assertive" className={styles.consentError} role="alert">{consentError}</p> : null}
                 </section>
               ) : null}
               <div aria-busy={loading || sending} aria-live="polite" className={styles.thread} ref={messageViewportRef} role="log">
-                {loading ? <p className={styles.status} role="status"><UiIcon name="clock" size={15} /> Đang tải lịch sử từ máy chủ...</p> : null}
+                {loading ? <p className={styles.status} role="status"><UiIcon name="clock" size={15} /> Đang tải lịch sử từ máy chủ…</p> : null}
                 {!loading && messages.length === 0 && !pendingUserMessage && !sending ? (
                   <div className={styles.emptyState}>
                     <UiIcon name="message-square" size={26} />
@@ -800,7 +800,7 @@ function FloatingHealthAssistantPanel({
                           </div>
                         ) : null}
                         {message.suggestedActions && message.suggestedActions.length > 0 ? (
-                          <div className={styles.suggestedActions} aria-label="Bước tiếp theo">
+                          <div className={styles.suggestedActions} aria-label="Bước tiếp theo" role="group">
                             {message.suggestedActions.map((action) => (
                               <Link href={action.href} key={`${action.kind}-${action.href}`}>
                                 {action.label}
@@ -809,7 +809,7 @@ function FloatingHealthAssistantPanel({
                           </div>
                         ) : null}
                         {isPatient && message.status === "COMPLETED" ? (
-                          <div className={styles.feedback} aria-label="Đánh giá phản hồi">
+                          <div className={styles.feedback} aria-label="Đánh giá phản hồi" role="group">
                             <span>Phản hồi này hữu ích?</span>
                             {(["HELPFUL", "NOT_HELPFUL"] as const).map((rating) => (
                               <button
@@ -906,7 +906,7 @@ function FloatingHealthAssistantPanel({
                     setDraft(event.target.value);
                   }}
                   onKeyDown={handleKeyDown}
-                  placeholder="Nhập câu hỏi của bạn..."
+                  placeholder="Nhập câu hỏi của bạn…"
                   ref={inputRef}
                   rows={2}
                   value={draft}
