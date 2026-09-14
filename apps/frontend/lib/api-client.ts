@@ -664,7 +664,9 @@ const CTA_LABEL_MAX_LENGTH = 160;
 const CTA_SLUG_PATTERN = /^[A-Za-z0-9][A-Za-z0-9-]{0,219}$/;
 const CTA_SOURCE_PATH_PATTERN = new RegExp(`^/(branches|specialties|doctors|services|packages|articles)/${CTA_SLUG_PATTERN.source.slice(1, -1)}$`);
 const CTA_CATALOG_PATH_PATTERN = /^\/(branches|specialties|doctors|services|packages)$/;
-const CTA_FAQ_PATH_PATTERN = /^\/faq#faq-([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
+// Same shape-only UUID rule as the booking CTA: seeded demo ids
+// (70000000-0000-…) are not RFC-4122 version-stamped.
+const CTA_FAQ_PATH_PATTERN = /^\/faq#faq-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 // Catalog IDs are generated demo/factory UUIDs whose third group is not a
 // RFC-4122 version nibble ("10000000-0000-…"), so the booking CTA validates
 // the 8-4-4-4-12 hex shape rather than a specific UUID version.
