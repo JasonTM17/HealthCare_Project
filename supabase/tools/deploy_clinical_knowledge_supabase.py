@@ -38,10 +38,7 @@ except ImportError:
     print("Error: psycopg is required. Run 'pip install \"psycopg[binary]\"'")
     sys.exit(1)
 
-DEFAULT_DSN = os.environ.get(
-    "SUPABASE_DB_URL",
-    "postgresql://postgres.awaknzhadjglbfkhigck:Healthcare2026_xK9mQ7vL2wZ5@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require",
-)
+DEFAULT_DSN = os.environ.get("SUPABASE_DB_URL", "").strip()
 DATA_PATH = Path("supabase/tools/data/clinical_knowledge.json")
 EMBEDDING_DIMENSION = 384
 
@@ -114,7 +111,10 @@ def deploy(dsn: str, dry_run: bool = False) -> None:
         return
 
     print(f"\nConnecting to Supabase PostgreSQL at aws-0-ap-northeast-1...", flush=True)
-    with psycopg.connect(dsn, autocommit=True, connect_timeout=15) as conn:
+    # Keep the complete enrichment and verification in one transaction. A
+    # failed statement or failed post-write canary must roll back the whole
+    # batch instead of leaving Supabase partially enriched.
+    with psycopg.connect(dsn, autocommit=False, connect_timeout=15) as conn:
         with conn.cursor() as cur:
             # -------------------------------------------------------------
             # 1. Inspect initial counts
@@ -579,11 +579,6 @@ def deploy(dsn: str, dry_run: bool = False) -> None:
                     specialty_update_count += 1
             print(f"  -> Updated {specialty_update_count} specialties.", flush=True)
 
-            # Commit transaction if not in autocommit mode
-            if not conn.autocommit:
-                conn.commit()
-            print("\n>>> ALL DATA COMMITTED SUCCESSFULLY TO SUPABASE! <<<", flush=True)
-
             # -------------------------------------------------------------
             # 8. Post-deployment Verification & Metrics
             # -------------------------------------------------------------
@@ -639,12 +634,21 @@ def deploy(dsn: str, dry_run: bool = False) -> None:
             for m in matches:
                 print(f"  [{m[0]}] {m[1]} - {m[2]} (score: {m[3]:.4f})")
 
+            # Commit only after counts, projection shape, and vector retrieval
+            # have all succeeded. The connection context rolls back on any
+            # exception before this point.
+            conn.commit()
+            print("\n>>> ALL DATA COMMITTED SUCCESSFULLY TO SUPABASE! <<<", flush=True)
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Deploy clinical knowledge to Supabase")
-    parser.add_argument("--dsn", default=DEFAULT_DSN, help="PostgreSQL DSN")
+    parser.add_argument("--dsn", default=DEFAULT_DSN, help="PostgreSQL DSN (or set SUPABASE_DB_URL)")
     parser.add_argument("--dry-run", action="store_true", help="Validate without writing")
     args = parser.parse_args()
+
+    if not args.dry_run and not args.dsn:
+        parser.error("SUPABASE_DB_URL or --dsn is required; refusing to run without an explicit database URL")
 
     deploy(args.dsn, args.dry_run)
 
