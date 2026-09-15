@@ -100,6 +100,12 @@ via the dashboard UI. The repo-side release state is complete and correct.
 
 ### Deploy failure narrowing (final pass)
 
+- **DECISIVE diagnostic**: redeploying the OLD known-good digest
+  (`sha256:02719d11…`) via API ALSO failed `update_failed` at ~90s —
+  identical to the new-digest attempt. The failure is therefore
+  **platform-level for all API-triggered deploys on this service**
+  (independent of image content or V75), and predates this release
+  (failures logged since 2026-09-12 11:03 UTC).
 - **GHCR pull auth ruled out**: the image
   `ghcr.io/jasontm17/healthcare-project-backend` is anonymously pullable
   (manifest fetch for tag `sha-c83fe58…` returns 200 without credentials), so
@@ -110,9 +116,9 @@ via the dashboard UI. The repo-side release state is complete and correct.
   sleep/wake cycles.
 - Third attempt with `clearCache: "clear"` also failed at ~180s
   (`dep-dakn2unf3r2c73b9juc0`) — rules out stale pull cache as well.
-- Remaining failure hypothesis: boot-time health-check timeout on the free
-  512MB instance (JVM boot + Flyway exceeding the deploy grace window) —
-  only confirmable from the dashboard's Events/Deploy logs, which also carry
-  the fix (raise health-check grace period / plan change).
-- Service remains live and healthy between attempts; failed update deploys do
-  not take the running instance down.
+- Remaining diagnosis requires the Render dashboard's Events/Deploy logs
+  (deploy is failing at the platform level — instance hours, plan limit, or
+  service config; not visible via API).
+- Service target image restored to the release digest
+  (`sha256:bd4d5b9f…`) after the diagnostic; service remains live and
+  healthy throughout; failed deploys do not take the running instance down.
