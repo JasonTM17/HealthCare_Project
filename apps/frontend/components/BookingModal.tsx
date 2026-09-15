@@ -429,6 +429,7 @@ function BookingExperience({
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState<string>("");
   const [catalogRequest, setCatalogRequest] = useState<number>(0);
+  const [comboLoading, setComboLoading] = useState(false);
   const [selectionError, setSelectionError] = useState<string>("");
   const [selectedSpecialty, setSelectedSpecialty] = useState<string>(initialSpecialtyId || "");
 
@@ -630,17 +631,22 @@ function BookingExperience({
     if (!specialtySlug || !branchSlug) return;
 
     let cancelled = false;
-    const task = Promise.resolve().then(async () => {
+    const loadComboDoctors = async () => {
+      setComboLoading(true);
       try {
         const page = await fetchDoctors({ specialtySlug, branchSlug, page: 0, size: 50 });
         if (!cancelled) setLoadedDoctors(page.content);
       } catch {
-        if (!cancelled) setLoadedDoctors([]);
+        // Single retry: hosted backends hiccup on cold starts.
+        const retry = await fetchDoctors({ specialtySlug, branchSlug, page: 0, size: 50 }).catch(() => null);
+        if (!cancelled) setLoadedDoctors(retry?.content ?? []);
+      } finally {
+        if (!cancelled) setComboLoading(false);
       }
-    });
+    };
+    void loadComboDoctors();
     return () => {
       cancelled = true;
-      void task;
     };
   }, [active, selectedSpecialty, selectedBranch, specialties, branches]);
 
