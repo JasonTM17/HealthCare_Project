@@ -50,9 +50,11 @@ jobs:
           # Render's proxy answers `x-render-routing: no-server` with a plain
           # 404. That state must be loud: this workflow failing emails the
           # repo owner instead of the outage being discovered by visitors.
+          # Hostnames carry Render's random suffixes; the suffix-less names
+          # belong to deleted services and answer `no-server` forever.
           declare -A targets=(
-            ["backend"]="https://healthcare-beta-backend.onrender.com/actuator/health"
-            ["ai"]="https://healthcare-beta-ai.onrender.com/livez"
+            ["backend"]="https://healthcare-beta-backend-4wb7.onrender.com/actuator/health"
+            ["ai"]="https://healthcare-beta-ai-9mip.onrender.com/livez"
           )
           failed=0
           for name in backend ai; do
