@@ -14,7 +14,7 @@ import { confirmAppointment, fetchDoctorSlots, holdAppointmentSlot } from "../li
 import {
   ApiError,
   fetchBranches,
-  fetchDoctorCatalog,
+  fetchDoctors,
   resendAppointmentOtp,
 } from "../lib/api-client";
 import { businessDate, formatBusinessDate } from "../lib/business-time";
@@ -139,30 +139,22 @@ export default function PackageBookingModal({
 
   useDialogFocus(dialogRef, isOpen, onClose);
 
-  // Fetch branches and doctors if needed
+  // Fetch branches if needed; doctors load per active branch below.
   useEffect(() => {
     if (!isOpen) return;
 
     let cancelled = false;
     const loadCatalogs = async () => {
       const needsBranches = providedBranches.length === 0;
-      if (!needsBranches && loadedDoctors.length > 0) return;
+      if (!needsBranches) return;
 
       setCatalogLoading(true);
       setCatalogError("");
       try {
-        const [branchRes, doctorList] = await Promise.all([
-          needsBranches ? fetchBranches(0, 100).catch(() => null) : null,
-          fetchDoctorCatalog().catch(() => [] as Doctor[]),
-        ]);
-
+        const branchRes = await fetchBranches(0, 100).catch(() => null);
         if (cancelled) return;
-
         if (branchRes) {
           setLoadedBranches(branchRes.content);
-        }
-        if (doctorList.length > 0) {
-          setLoadedDoctors(doctorList);
         }
       } catch {
         if (!cancelled) {
@@ -179,7 +171,7 @@ export default function PackageBookingModal({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, providedBranches.length, loadedDoctors.length]);
+  }, [isOpen, providedBranches.length]);
 
   // Resolve active branch
   const activeBranchId = useMemo(() => {
@@ -197,6 +189,25 @@ export default function PackageBookingModal({
     () => effectiveBranches.find((b) => b.id === activeBranchId) || effectiveBranches[0],
     [effectiveBranches, activeBranchId],
   );
+
+  // Doctors are fetched per active branch: branch-scoped queries stay small on
+  // hosted backends, while unfiltered catalogs time out at larger page sizes.
+  useEffect(() => {
+    if (!isOpen || !currentBranch?.slug) return;
+    let cancelled = false;
+    const task = Promise.resolve().then(async () => {
+      try {
+        const page = await fetchDoctors({ branchSlug: currentBranch.slug, page: 0, size: 100 });
+        if (!cancelled && page.content.length > 0) setLoadedDoctors(page.content);
+      } catch {
+        // keep prior doctors; the branch card UI still renders without them
+      }
+    });
+    return () => {
+      cancelled = true;
+      void task;
+    };
+  }, [isOpen, currentBranch]);
 
   const intakeDoctor = useMemo(() => {
     if (!currentBranch) return loadedDoctors[0];
