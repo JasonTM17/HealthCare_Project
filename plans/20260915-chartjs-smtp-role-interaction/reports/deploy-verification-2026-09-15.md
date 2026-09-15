@@ -122,3 +122,10 @@ via the dashboard UI. The repo-side release state is complete and correct.
 - Service target image restored to the release digest
   (`sha256:bd4d5b9f…`) after the diagnostic; service remains live and
   healthy throughout; failed deploys do not take the running instance down.
+- **2026-09-16 retry** (`dep-dakti8rl550s73ar5qa0`, digest `bd4d5b9f…`):
+  `update_failed` after ~180s — **7/7 deploy attempts failed across two days**
+  (2026-09-15 API + dashboard, 2026-09-16 API). The blocker is confirmed
+  persistent at the Render account/platform level (free instance hours
+  exhausted by the workspace's always-on free services, plan limitation, or
+  service state) and can only be diagnosed/fixed from the Render dashboard by
+  the account owner.
