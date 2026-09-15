@@ -66,3 +66,14 @@
    documents behavioral probe on the host.
 3. After 2026-09-21 01:24 UTC, the scheduled automation dispatches the three
    review agents; verdicts land in this folder.
+
+## Additional evidence (2026-09-15 late pass)
+
+- The `RENDER_API_KEY` in `.env` is format-valid (`rnd_…` prefix) but returns
+  401 — it was revoked/rotated server-side, not a formatting issue. Mint a
+  fresh key to restore API-based verification.
+- `render-keep-alive.yml` run 34959103651 (2026-09-15 10:39–10:40 UTC — BEFORE
+  the release push at 14:41 UTC) exited 1 via its fail-loud Render health
+  step. So the free-instance suspension of `healthcare-beta-backend` was
+  already active before this release existed; it is a pre-existing hosted
+  condition, independent of the release commits.
