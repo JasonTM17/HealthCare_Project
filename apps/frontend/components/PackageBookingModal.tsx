@@ -679,6 +679,9 @@ export default function PackageBookingModal({
                 <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
                   {effectiveBranches.map((branch) => {
                     const isSelected = activeBranchId === branch.id;
+                    const primaryContact = branch.emergencyHotline?.trim() || branch.phone?.trim();
+                    const contactLabel = branch.emergencyHotline?.trim() ? "Hotline cấp cứu" : "Điện thoại";
+                    const workingHours = branch.workingHours?.trim();
                     return (
                       <div
                         key={branch.id}
@@ -706,12 +709,16 @@ export default function PackageBookingModal({
                               <p className="text-xs text-gray-600 mt-0.5 flex items-center gap-1">
                                 <Icon name="building" size={13} /> {branch.address}
                               </p>
-                              {branch.phone || branch.emergencyHotline ? (
-                                <p className="text-xs text-brand-700 mt-1">
-                                  Hotline: <span className="font-semibold">{branch.emergencyHotline || branch.phone}</span>
-                                  {branch.workingHours ? ` · ${branch.workingHours}` : " · 07:30 - 17:00"}
-                                </p>
-                              ) : null}
+                              <p className="text-xs text-brand-700 mt-1">
+                                {primaryContact ? (
+                                  <>
+                                    {contactLabel}: <span className="font-semibold">{primaryContact}</span>
+                                  </>
+                                ) : (
+                                  <span className="text-gray-600">Liên hệ đang cập nhật</span>
+                                )}
+                                {` · ${workingHours || "Giờ làm việc đang cập nhật"}`}
+                              </p>
                             </div>
                           </div>
                           {isSelected ? (
