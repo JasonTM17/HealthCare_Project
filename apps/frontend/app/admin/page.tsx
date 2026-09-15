@@ -13,6 +13,7 @@ import {
   adminListSpecialties,
 } from "../../lib/api-client";
 import AdminState from "./_components/AdminState";
+import AdminAppointmentsChart from "../../components/charts/AdminAppointmentsChart";
 import { describeAdminError } from "./_lib/errors";
 import UiIcon from "../../components/UiIcon";
 
@@ -157,6 +158,14 @@ export default function AdminDashboard() {
           <SnapshotCard href="/admin/catalog" label="FAQ" snapshot={snapshots.faqs} />
           <SnapshotCard href="/admin/catalog" label="Bài viết" snapshot={snapshots.articles} />
           <SnapshotCard href="/admin/appointments" label="Tổng lịch hẹn" snapshot={snapshots.appointments} successNote="Bản ghi vận hành" />
+        </div>
+      </section>
+
+      <section aria-labelledby="admin-chart-insights-title" className="mt-8">
+        <h2 className="text-xl font-bold text-slate-900" id="admin-chart-insights-title">Nhịp lịch hẹn</h2>
+        <p className="mt-2 text-sm text-slate-600">Tổng quan từ dữ liệu lịch hẹn thực tế do tài khoản hiện tại được phép đọc.</p>
+        <div className="mt-4 border border-slate-200">
+          <AdminAppointmentsChart />
         </div>
       </section>
 
