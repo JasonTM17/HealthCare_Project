@@ -41,9 +41,28 @@
 - The hosted demo database uses a different seed lineage (patient ids
   `90000000-…`) than local, so behavioral probes are weaker evidence than the
   local reproduction of the 409 (verified fixed after V75 locally).
+- Hosted documents probe semantics refined: the 404 `RESOURCE_NOT_FOUND` body
+  is the custom `NoSuchElementException` handler response
+  (GlobalExceptionHandler.java:382-392) thrown by
+  `DocumentService.requireLinkedPatient` — i.e., the documents route EXISTS on
+  the hosted backend, but the hosted demo user
+  (patient@healthcare.com) has no linked Patient row, so a behavioral V75
+  probe (200 [] vs 409) is impossible with this persona. Re-running the probe
+  needs a hosted persona with a linked patient row.
 - `healthcare-beta-ai` on Render builds from git with `autoDeployTrigger: off`
   — releasing it needs a manual deploy trigger in the Render dashboard.
 - Follow-up scheduled: 2026-09-21 09:00 local — dispatch Advisor/Kongming/Wukong
   for independent review of the ChartJS+V75 delta (automation
   `automation-339843b5-2df6-44fe-b162-e0bdd7e9d1ea`, subagent quota resets
   2026-09-21 01:24 UTC).
+
+## Actions required from the product owner
+
+1. Render dashboard → `healthcare-beta-backend`: confirm the deploy for image
+   `sha256:bd4d5b9f…` (blueprint change pushed at 8bf24fc/9d01cce/2f0835e);
+   Flyway V75 runs at boot. Optionally mint a fresh RENDER_API_KEY for the
+   repo `.env` to re-enable API verification.
+2. Optionally seed a hosted persona with a linked patient row to allow the
+   documents behavioral probe on the host.
+3. After 2026-09-21 01:24 UTC, the scheduled automation dispatches the three
+   review agents; verdicts land in this folder.
