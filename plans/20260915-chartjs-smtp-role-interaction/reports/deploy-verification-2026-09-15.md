@@ -108,6 +108,8 @@ via the dashboard UI. The repo-side release state is complete and correct.
   `api` — the API/image-update path has never succeeded on this service in
   that window, while the service itself keeps serving 200 UP across
   sleep/wake cycles.
+- Third attempt with `clearCache: "clear"` also failed at ~180s
+  (`dep-dakn2unf3r2c73b9juc0`) — rules out stale pull cache as well.
 - Remaining failure hypothesis: boot-time health-check timeout on the free
   512MB instance (JVM boot + Flyway exceeding the deploy grace window) —
   only confirmable from the dashboard's Events/Deploy logs, which also carry
