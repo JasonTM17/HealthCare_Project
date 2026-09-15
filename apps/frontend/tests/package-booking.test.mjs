@@ -45,6 +45,9 @@ test("PackageBookingModal exports proper types and tailored 4-step wizard", asyn
   assert.match(source, /packageItem\.preparationSteps/);
   assert.match(source, /role="dialog"/);
   assert.match(source, /aria-modal="true"/);
+  assert.match(source, /Giờ làm việc đang cập nhật/);
+  assert.match(source, /branch\.workingHours\?\.trim\(\)/);
+  assert.doesNotMatch(source, /07:30 - 17:00/);
 });
 
 test("packages catalog (/packages) synchronizes 'Đặt lịch với gói này' on all package cards", async () => {
