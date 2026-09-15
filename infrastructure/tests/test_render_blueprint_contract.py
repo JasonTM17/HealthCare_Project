@@ -12,8 +12,10 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 BACKEND_DIGEST = (
-    "sha256:02719d118783c51fcb46eb097a55e6b9ab60b24bdf150c8144a1a6b445b833d1"
+    "sha256:bd4d5b9fa5fe03793f470500c8e45582a26b749028b421717c93dbf2798cb69b"
 )
+
+
 def _blueprint(path: Path) -> dict:
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
