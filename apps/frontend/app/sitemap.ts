@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { SITE_URL } from "../lib/site-url";
 import {
   diseaseGuideCanonicalPath,
   listEligibleDiseaseGuides,
@@ -26,7 +27,7 @@ const PUBLIC_PATHS = [
 ];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://healthcare-beta.example").replace(/\/$/u, "");
+  const baseUrl = SITE_URL;
   const allowIndexing = process.env.NEXT_PUBLIC_ALLOW_INDEXING === "true";
   if (!allowIndexing) return [];
 
