@@ -278,13 +278,15 @@ for (const viewport of VIEWPORTS) {
 
     const overflow = await page.evaluate(() => ({
       document: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-      portalNavigation: (() => {
+      portalNavigationHeight: (() => {
         const element = document.querySelector<HTMLElement>(".portal-nav");
-        return element ? element.scrollWidth - element.clientWidth : 0;
+        return element ? element.clientHeight : 0;
       })(),
     }));
     expect(overflow.document).toBeLessThanOrEqual(1);
-    expect(overflow.portalNavigation).toBeLessThanOrEqual(1);
+    // Portal tabs are a single horizontally scrollable strip: one row tall at
+    // every viewport, never wrapped onto a second row.
+    expect(overflow.portalNavigationHeight).toBeLessThanOrEqual(64);
 
     const undersizedTargets = await page.locator("a, button, textarea").evaluateAll((elements) => elements.flatMap((element) => {
       const htmlElement = element as HTMLElement;

@@ -93,7 +93,8 @@ test("patient chat keeps medical and emergency limits visible and accessible", a
   assert.match(moduleStyles, /border-radius: var\(--chat-radius\)/);
   assert.match(moduleStyles, /@media \(prefers-reduced-motion: reduce\)/);
   assert.doesNotMatch(moduleStyles, /transition:\s*all/);
-  assert.match(globalStyles, /\.portal-nav\s*\{\s*flex-wrap: wrap;\s*overflow-x: visible;/);
+  // Portal tabs stay a single scrollable strip; chat tabs must not wrap.
+  assert.match(globalStyles, /\.portal-nav\s*\{[^}]*flex-wrap: nowrap;[^}]*overflow-x: auto;/);
 });
 
 test("patient chat keeps consent fail-closed when policy is missing or changes", async () => {
