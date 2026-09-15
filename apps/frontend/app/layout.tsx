@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { SITE_URL } from "../lib/site-url";
 import "./styles.css";
 import "./effects.css";
 import "./typography.css";
@@ -25,7 +26,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://healthcare-beta.example"),
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "HealthCare | Bệnh viện đa khoa",
     template: "%s | HealthCare",
@@ -64,7 +65,7 @@ export default function RootLayout({
               "@context": "https://schema.org",
               "@type": "MedicalOrganization",
               name: "HealthCare",
-              url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://healthcare-beta.example",
+              url: SITE_URL,
               description: "Cổng thông tin và đặt lịch khám của HealthCare.",
             }),
           }}

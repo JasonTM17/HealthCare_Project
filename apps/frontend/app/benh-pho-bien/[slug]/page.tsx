@@ -8,6 +8,7 @@ import { formatBusinessDate } from "../../../lib/business-time";
 import { presentApiError } from "../../../lib/present-api-error";
 import type { Article, ArticleSection } from "../../../types/hospital";
 import { RichContentRenderer } from "../../../components/editor";
+import { safeSiteOrigin } from "../../../lib/site-url";
 
 const CATEGORY_LABELS: Record<string, string> = {
   CARDIOLOGY: "Tim mạch",
@@ -61,17 +62,8 @@ function validSlug(value: string | null | undefined): value is string {
 }
 
 function canonicalDiseaseGuideUrl(slug: string): string {
-  const defaultOrigin = "https://healthcare-beta.example";
   const path = `/benh-pho-bien/${encodeURIComponent(slug)}`;
-  try {
-    const configured = new URL(process.env.NEXT_PUBLIC_SITE_URL ?? defaultOrigin);
-    if (!/^https?:$/u.test(configured.protocol) || configured.username || configured.password) {
-      return `${defaultOrigin}${path}`;
-    }
-    return new URL(path, `${configured.origin}/`).toString();
-  } catch {
-    return `${defaultOrigin}${path}`;
-  }
+  return `${safeSiteOrigin()}${path}`;
 }
 
 function safeJsonLdStringify(data: unknown): string {
