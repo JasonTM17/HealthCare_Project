@@ -97,3 +97,20 @@ Render dashboard → `healthcare-beta-backend` → **Events** tab: read the two
 failed deploys' logs (16:02–16:05 UTC window), fix the stated cause, then
 "Manual Deploy" (or "Apply blueprint changes"). Alternatively resume/redeploy
 via the dashboard UI. The repo-side release state is complete and correct.
+
+### Deploy failure narrowing (final pass)
+
+- **GHCR pull auth ruled out**: the image
+  `ghcr.io/jasontm17/healthcare-project-backend` is anonymously pullable
+  (manifest fetch for tag `sha-c83fe58…` returns 200 without credentials), so
+  Render can pull every digest without registry credentials.
+- All 10 recent deploys (back to 2026-09-12 11:03 UTC) are `update_failed` /
+  `api` — the API/image-update path has never succeeded on this service in
+  that window, while the service itself keeps serving 200 UP across
+  sleep/wake cycles.
+- Remaining failure hypothesis: boot-time health-check timeout on the free
+  512MB instance (JVM boot + Flyway exceeding the deploy grace window) —
+  only confirmable from the dashboard's Events/Deploy logs, which also carry
+  the fix (raise health-check grace period / plan change).
+- Service remains live and healthy between attempts; failed update deploys do
+  not take the running instance down.
