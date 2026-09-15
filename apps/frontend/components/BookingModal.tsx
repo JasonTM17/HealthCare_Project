@@ -18,7 +18,7 @@ import {
 } from "../lib/api";
 import {
   fetchBranches,
-  fetchDoctorCatalog,
+  fetchDoctors,
   fetchSpecialties,
   ApiError,
   resendAppointmentOtp,
@@ -566,21 +566,16 @@ function BookingExperience({
       if (cancelled) return;
       setCatalogLoading(true);
       setCatalogError("");
-      const [doctorResult, specialtyResult, branchResult] = await Promise.allSettled([
-        fetchDoctorCatalog(),
+      const [specialtyResult, branchResult] = await Promise.allSettled([
         needsSpecialties ? fetchSpecialties(0, 100) : Promise.resolve(null),
         needsBranches ? fetchBranches(0, 100) : Promise.resolve(null),
       ]);
       if (cancelled) return;
 
-      let resolvedDoctor = doctorResult.status === "fulfilled" ? doctorResult.value : null;
       let resolvedSpecialty = specialtyResult.status === "fulfilled" ? specialtyResult.value : null;
       let resolvedBranch = branchResult.status === "fulfilled" ? branchResult.value : null;
 
       // Resilient single-retry for transient cold starts before reporting an error
-      if (!resolvedDoctor && !cancelled) {
-        resolvedDoctor = await fetchDoctorCatalog().catch(() => null);
-      }
       if (needsSpecialties && !resolvedSpecialty && !cancelled) {
         resolvedSpecialty = await fetchSpecialties(0, 100).catch(() => null);
       }
@@ -590,12 +585,6 @@ function BookingExperience({
       if (cancelled) return;
 
       const missing: string[] = [];
-      if (resolvedDoctor) {
-        setLoadedDoctors(resolvedDoctor);
-        if (resolvedDoctor.length === 0) missing.push("danh sách bác sĩ");
-      } else {
-        missing.push("bác sĩ");
-      }
       if (needsSpecialties) {
         if (resolvedSpecialty) {
           setLoadedSpecialties(resolvedSpecialty.content);
@@ -628,7 +617,32 @@ function BookingExperience({
       cancelled = true;
       void task;
     };
-  }, [active, catalogRequest, providedBranches.length, providedDoctors.length, providedSpecialties.length]);
+  }, [active, catalogRequest, providedBranches.length, providedSpecialties.length]);
+
+  // Doctor options are fetched server-side per specialty+branch combo instead
+  // of as a full catalog: hosted backends reject large unfiltered doctor
+  // queries, and a combo-scoped query is small, exact, and refetches whenever
+  // the user changes either selection.
+  useEffect(() => {
+    if (!active || !selectedSpecialty || !selectedBranch) return;
+    const specialtySlug = specialties.find((item) => item.id === selectedSpecialty)?.slug;
+    const branchSlug = branches.find((item) => item.id === selectedBranch)?.slug;
+    if (!specialtySlug || !branchSlug) return;
+
+    let cancelled = false;
+    const task = Promise.resolve().then(async () => {
+      try {
+        const page = await fetchDoctors({ specialtySlug, branchSlug, page: 0, size: 50 });
+        if (!cancelled) setLoadedDoctors(page.content);
+      } catch {
+        if (!cancelled) setLoadedDoctors([]);
+      }
+    });
+    return () => {
+      cancelled = true;
+      void task;
+    };
+  }, [active, selectedSpecialty, selectedBranch, specialties, branches]);
 
   const syncSelection = useCallback(() => {
     if (!active) return;
