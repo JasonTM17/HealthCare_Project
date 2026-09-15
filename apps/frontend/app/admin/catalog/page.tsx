@@ -1226,7 +1226,7 @@ export default function AdminCatalogPage() {
                 </label>
                 <div>
                   <div className="flex items-center justify-between">
-                    <label className="block text-sm font-semibold">Slug</label>
+                    <label className="block text-sm font-semibold" htmlFor="admin-article-slug">Slug</label>
                     <button
                       className="text-xs font-semibold text-teal-800 underline hover:text-teal-900"
                       onClick={handleRegenerateSlug}
@@ -1236,7 +1236,9 @@ export default function AdminCatalogPage() {
                     </button>
                   </div>
                   <input
+                    aria-label="Slug bài viết"
                     className={inputClass}
+                    id="admin-article-slug"
                     required
                     value={articleForm.slug}
                     onChange={(event) => setArticleForm({ ...articleForm, slug: event.target.value })}

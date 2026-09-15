@@ -105,7 +105,19 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const navRef = useRef<HTMLElement>(null);
   const effectiveAvatar = avatarUrl ?? resolvedAvatar ?? getCachedAvatar(role, user.id);
+
+  // The mobile tab strip scrolls horizontally, so keep the active tab visible
+  // whenever the route changes instead of leaving it hidden off-screen.
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const active = nav.querySelector<HTMLElement>(".portal-nav__link--active");
+    if (!active) return;
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    active.scrollIntoView({ block: "nearest", inline: "nearest", behavior: prefersReducedMotion ? "auto" : "smooth" });
+  }, [pathname]);
 
   const loadNotifications = useCallback(() => {
     if (role !== "PATIENT") return;
@@ -362,7 +374,7 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
             <BrandMark size="compact" tagline={ROLE_LABEL[role]} />
           </Link>
 
-          <nav aria-label="Điều hướng cổng thông tin" className="portal-nav">
+          <nav aria-label="Điều hướng cổng thông tin" className="portal-nav" ref={navRef}>
             {links.map((link) => (
               <Link
                 aria-current={isActive(link.href) ? "page" : undefined}

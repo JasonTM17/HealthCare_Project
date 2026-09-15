@@ -623,7 +623,7 @@ export function CmsEditor({
               type="button"
             >
               {label}
-              <span className="ml-2 font-mono text-xs font-normal opacity-70">/{routeSlug}</span>
+              <span className="ml-2 font-mono text-xs font-normal text-slate-600">/{routeSlug}</span>
             </button>
           ))}
         </div>

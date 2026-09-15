@@ -172,6 +172,18 @@ export function RichTextEditor({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileUploadInputRef = useRef<HTMLInputElement | null>(null);
 
+  // axe frame-title + aria-prohibited-attr: name the editing iframe via its
+  // title attribute, and drop TinyMCE's default aria-label on <body>, which
+  // the ARIA spec prohibits on that element.
+  const handleEditorInit = useCallback((_evt: unknown, editor: TinyMCEEditor) => {
+    const iframe = editor.iframeElement ?? null;
+    const frameTitle = label || "Trình soạn thảo nội dung";
+    if (iframe && !iframe.getAttribute("title")) {
+      iframe.setAttribute("title", frameTitle);
+    }
+    editor.getBody?.()?.removeAttribute?.("aria-label");
+  }, [label]);
+
   // View mode: tinymce, edit, split, preview
   const [viewMode, setViewMode] = useState<EditorViewMode>("tinymce");
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -1748,9 +1760,10 @@ export function RichTextEditor({
             <TinyEditor
               disabled={disabled}
               id={id ? `${id}-tinymce` : "healthcare-tinymce-editor"}
-              init={tinyMceInitConfig}
+              init={{ ...tinyMceInitConfig, iframe_title: label || "Trình soạn thảo nội dung" }}
               licenseKey="gpl"
               onEditorChange={handleTinyEditorChange}
+              onInit={handleEditorInit}
               tinymceScriptSrc="/tinymce/tinymce.min.js"
               value={safeValueHtml}
             />
