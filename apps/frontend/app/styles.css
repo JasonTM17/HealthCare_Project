@@ -4309,8 +4309,10 @@ main {
   width: 100%;
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  overflow-x: visible;
+  /* Single scrollable tab strip at every width: wrapping pushed 13 patient
+     tabs across five rows and buried the first screen of content on phones. */
+  flex-wrap: nowrap;
+  overflow-x: auto;
   gap: 0.25rem;
   margin-left: 0;
   padding: 0;
@@ -5758,7 +5760,6 @@ main {
   .portal-nav {
     order: 3;
     width: 100%;
-    flex-wrap: wrap;
     margin-left: 0;
   }
 
@@ -5831,12 +5832,6 @@ main {
   .portal-user {
     padding-left: 0;
     border-left: 0;
-  }
-
-  .portal-nav {
-    flex-wrap: wrap;
-    overflow-x: visible;
-    gap: var(--sp-1);
   }
 
   .portal-nav__link {
@@ -10604,6 +10599,7 @@ body:has(.mobile-menu) [class*="FloatingHealthAssistant_root"] {
 }
 
 .articles-hero__stat-note {
+  display: block;
   margin-top: 0.3rem !important;
   font-size: 0.75rem !important;
   color: var(--color-teal-800) !important;

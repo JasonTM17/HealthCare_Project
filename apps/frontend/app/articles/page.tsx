@@ -166,16 +166,14 @@ export default function ArticlesPage() {
                   ) : (
                     "Đang cập nhật"
                   )}
-                </dd>
-                <p className="articles-hero__stat-note">Biên soạn theo 16 chuyên khoa lâm sàng</p>
+                <span className="articles-hero__stat-note">Biên soạn theo 16 chuyên khoa lâm sàng</span></dd>
               </div>
               <div className="articles-hero__stat-card">
                 <dt>
                   <Icon name="award" size={15} />
                   <span>Tiêu chuẩn chuyên môn</span>
                 </dt>
-                <dd>100% Chuyên gia</dd>
-                <p className="articles-hero__stat-note">Hội đồng Bác sĩ Đa khoa thẩm định</p>
+                <dd>100% Chuyên gia<span className="articles-hero__stat-note">Hội đồng Bác sĩ Đa khoa thẩm định</span></dd>
               </div>
               <div className="articles-hero__stat-card">
                 <dt>
@@ -190,8 +188,7 @@ export default function ArticlesPage() {
                   ) : (
                     "Năm 2026"
                   )}
-                </dd>
-                <p className="articles-hero__stat-note">Chuẩn hóa hướng dẫn Bộ Y tế &amp; WHO</p>
+                <span className="articles-hero__stat-note">Chuẩn hóa hướng dẫn Bộ Y tế &amp; WHO</span></dd>
               </div>
             </dl>
 
