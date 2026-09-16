@@ -1,5 +1,6 @@
 package com.healthcare.hospital.service;
 
+import com.healthcare.ai.service.AiClinicalContentRevisionService;
 import com.healthcare.exception.DuplicateResourceException;
 import com.healthcare.exception.BusinessException;
 import com.healthcare.exception.ResourceNotFoundException;
@@ -8,6 +9,7 @@ import com.healthcare.hospital.entity.Doctor;
 import com.healthcare.hospital.repository.DoctorRepository;
 import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -18,10 +20,20 @@ public class AdminDoctorService {
 
     private final DoctorRepository doctorRepository;
     private final UserRepository userRepository;
+    private final AiClinicalContentRevisionService revisionService;
 
     public AdminDoctorService(DoctorRepository doctorRepository, UserRepository userRepository) {
+        this(doctorRepository, userRepository, null);
+    }
+
+    @Autowired
+    public AdminDoctorService(
+            DoctorRepository doctorRepository,
+            UserRepository userRepository,
+            AiClinicalContentRevisionService revisionService) {
         this.doctorRepository = doctorRepository;
         this.userRepository = userRepository;
+        this.revisionService = revisionService;
     }
 
     @Transactional(readOnly = true)
@@ -68,6 +80,7 @@ public class AdminDoctorService {
     public void delete(String slug) {
         Doctor doctor = doctorRepository.findBySlug(slug)
             .orElseThrow(() -> new com.healthcare.exception.ResourceNotFoundException("Doctor not found: " + slug));
+        if (revisionService != null) revisionService.recordDoctorDeletion(doctor, null);
         doctorRepository.delete(doctor);
     }
 
