@@ -7,11 +7,14 @@ import com.healthcare.ai.chat.service.AiChatSourceResolver;
 import com.healthcare.ai.chat.service.ChatMedicalSafety;
 import com.healthcare.ai.chat.service.ChatSuggestedActionResolver;
 import com.healthcare.ai.service.AiService;
+import com.healthcare.observability.RequestTrace;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -47,6 +50,7 @@ import static org.springframework.http.HttpStatus.BAD_GATEWAY;
 @RequestMapping("/api/v1/public/ai")
 public class PublicAiChatController {
 
+    private static final Logger log = LoggerFactory.getLogger(PublicAiChatController.class);
     private static final Set<String> ALLOWED_CITATION_SOURCE_TYPES = Set.of(
         "branch", "specialty", "doctor", "service", "package"
     );
@@ -105,7 +109,20 @@ public class PublicAiChatController {
             payload.put("recent_turns", mappedTurns);
         }
 
-        return ResponseEntity.ok(sanitize(aiService.chat(payload), request.message().trim()));
+        String userMessage = request.message().trim();
+        try {
+            return ResponseEntity.ok(sanitize(aiService.chat(payload), userMessage));
+        } catch (ResponseStatusException ex) {
+            // Broad catalog navigation can be answered from the same live
+            // Spring catalog even while the semantic/RAG service is cold or
+            // unavailable.  Other questions retain the normal upstream error
+            // contract and are handled by the BFF's safe fallback.
+            if (isAiFailure(ex)) {
+                Map<String, Object> fallback = publicCatalogFallback(userMessage);
+                if (fallback != null) return ResponseEntity.ok(fallback);
+            }
+            throw ex;
+        }
     }
 
     private Map<String, Object> sanitize(Map<String, Object> upstream, String userMessage) {
@@ -135,6 +152,13 @@ public class PublicAiChatController {
         }
 
         List<ValidatedCitation> validatedCitations = validatedCitations(upstream);
+        if ("ANSWER".equals(safetyAction) && validatedCitations.isEmpty()) {
+            throw badGateway("AI answer is missing a verified public catalog source");
+        }
+        if ("INSUFFICIENT_EVIDENCE".equals(safetyAction)) {
+            Map<String, Object> fallback = publicCatalogFallback(userMessage);
+            if (fallback != null) return fallback;
+        }
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("answer", normalizedAnswer);
         result.put("disclaimer", disclaimer);
@@ -146,6 +170,144 @@ public class PublicAiChatController {
         result.put("safety_action", safetyAction);
         result.put("suggested_actions", suggestedActions(userMessage, safetyAction, validatedCitations));
         return result;
+    }
+
+    private boolean isAiFailure(ResponseStatusException exception) {
+        int status = exception.getStatusCode().value();
+        return status == 502 || status == 503 || status == 504;
+    }
+
+    private Map<String, Object> publicCatalogFallback(String userMessage) {
+        ChatSuggestedActionResolver.HospitalSupportIntent intent =
+            ChatSuggestedActionResolver.classify(userMessage);
+        if (intent == ChatSuggestedActionResolver.HospitalSupportIntent.BRANCH) {
+            return publicBranchFallback(userMessage);
+        }
+        if (intent != ChatSuggestedActionResolver.HospitalSupportIntent.CATALOG) return null;
+
+        AiChatSourceResolver.CatalogOverview overview;
+        try {
+            overview = sourceResolver.catalogOverview();
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+        if (overview == null || !overview.hasData() || overview.sources().isEmpty()) {
+            return null;
+        }
+
+        List<Map<String, String>> citations = verifiedOperationalCitations(overview.sources());
+        if (citations.isEmpty()) return null;
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put(
+            "answer",
+            overview.summary()
+                + " Bạn có thể mở các mục bên dưới để xem thông tin chi tiết và đặt lịch.");
+        result.put(
+            "disclaimer",
+            "Thông tin từ trợ lý AI chỉ mang tính tham khảo và không thay thế tư vấn, "
+                + "chẩn đoán hoặc điều trị của bác sĩ.");
+        result.put("citations", citations);
+        result.put("provenance", "local_fallback");
+        result.put("mode", ChatMode.HOSPITAL_SUPPORT.name());
+        result.put("safety_action", "ANSWER");
+        result.put("suggested_actions", ChatSuggestedActionResolver.hospitalSupportFallback(userMessage));
+        return result;
+    }
+
+    private Map<String, Object> publicBranchFallback(String userMessage) {
+        List<AiChatSourceResolver.BranchDetails> matches;
+        try {
+            matches = sourceResolver.branchDetails(userMessage);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+        // A branch number without a locality can match multiple active rows;
+        // never choose one silently in a public health-support answer.
+        if (matches == null || matches.size() != 1 || matches.get(0) == null
+                || matches.get(0).source() == null) {
+            return null;
+        }
+
+        AiChatSourceResolver.BranchDetails branch = matches.get(0);
+        AiChatSourceResolver.ResolvedSource source = branch.source();
+        List<Map<String, String>> citations = verifiedOperationalCitations(List.of(source));
+        if (citations.isEmpty()
+                || !validPublicText(source.title(), MAX_CITATION_TITLE_LENGTH)
+                || (branch.address() != null && !validPublicText(branch.address(), 500))
+                || (branch.workingHours() != null && !validPublicText(branch.workingHours(), 255))) {
+            return null;
+        }
+
+        String address = branch.address() == null
+            ? "Địa chỉ đang cập nhật."
+            : "Địa chỉ: " + branch.address() + ".";
+        String hours = branch.workingHours() == null
+            ? "Giờ làm việc đang cập nhật; bạn nên kiểm tra lại trước khi đến."
+            : "Giờ làm việc: " + branch.workingHours() + ".";
+        List<Map<String, String>> actions;
+        try {
+            actions = sourceResolver.actions(List.of(source));
+        } catch (RuntimeException ignored) {
+            actions = List.of();
+        }
+        if (actions == null || actions.isEmpty()) {
+            actions = ChatSuggestedActionResolver.hospitalSupportFallback(userMessage);
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put(
+            "answer",
+            "Theo dữ liệu cơ sở đang hoạt động, " + source.title() + ". "
+                + address + " " + hours
+                + " Bạn có thể mở nguồn bên dưới để xem chi tiết và đặt lịch.");
+        result.put(
+            "disclaimer",
+            "Thông tin từ trợ lý AI chỉ mang tính tham khảo và không thay thế tư vấn, "
+                + "chẩn đoán hoặc điều trị của bác sĩ.");
+        result.put("citations", citations);
+        result.put("provenance", "local_fallback");
+        result.put("mode", ChatMode.HOSPITAL_SUPPORT.name());
+        result.put("safety_action", "ANSWER");
+        result.put("suggested_actions", actions);
+        return result;
+    }
+
+    private List<Map<String, String>> verifiedOperationalCitations(
+            List<AiChatSourceResolver.ResolvedSource> sources) {
+        List<Map<String, String>> rawCitations;
+        try {
+            rawCitations = sourceResolver.citations(sources);
+        } catch (RuntimeException ignored) {
+            return List.of();
+        }
+        if (rawCitations == null || rawCitations.isEmpty()) return List.of();
+        List<Map<String, String>> citations = new ArrayList<>(rawCitations.size());
+        for (Map<String, String> citation : rawCitations) {
+            if (citation == null) return List.of();
+            String sourceType = citation.get("source_type");
+            String sourceId = citation.get("source_id");
+            String title = citation.get("title");
+            if (sourceType == null || sourceId == null || title == null
+                    || !ALLOWED_CITATION_SOURCE_TYPES.contains(sourceType)
+                    || sourceId.length() > MAX_CITATION_SOURCE_ID_LENGTH
+                    || !CITATION_SOURCE_ID_PATTERN.matcher(sourceId).matches()
+                    || !validPublicText(title, MAX_CITATION_TITLE_LENGTH)) {
+                return List.of();
+            }
+            citations.add(Map.of(
+                "source_type", sourceType,
+                "source_id", sourceId,
+                "title", title.strip()));
+        }
+        return List.copyOf(citations);
+    }
+
+    private boolean validPublicText(String value, int maxLength) {
+        return value != null
+            && !value.isBlank()
+            && value.strip().length() <= maxLength
+            && !CONTROL_CHARACTER_PATTERN.matcher(value).find();
     }
 
     private List<Map<String, String>> suggestedActions(
@@ -197,8 +359,6 @@ public class PublicAiChatController {
         }
         throw badGateway("AI safety action is invalid for public chat");
     }
-
-    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(PublicAiChatController.class);
 
     private List<ValidatedCitation> validatedCitations(Map<String, Object> upstream) {
         if (!upstream.containsKey("citations")
@@ -254,8 +414,7 @@ public class PublicAiChatController {
         try {
             resolved = sourceResolver.revalidate(ChatMode.HOSPITAL_SUPPORT, type, id);
         } catch (RuntimeException ignored) {
-            log.warn("AI citation catalog is unavailable for type={}, id={}", type, id);
-            return null;
+            throw badGateway("AI citation catalog is unavailable for public chat");
         }
         if (resolved == null
                 || !Objects.equals(type, resolved.type())
@@ -265,8 +424,7 @@ public class PublicAiChatController {
                 || resolved.title().isBlank()
                 || resolved.title().strip().length() > MAX_CITATION_TITLE_LENGTH
                 || CONTROL_CHARACTER_PATTERN.matcher(resolved.title()).find()) {
-            log.warn("AI citation is not an active public catalog source: type={}, id={}", type, id);
-            return null;
+            throw badGateway("AI citation is not an active public catalog source");
         }
         return new ValidatedCitation(
             Map.of(
@@ -284,6 +442,16 @@ public class PublicAiChatController {
 
     private ResponseStatusException badGateway(String reason) {
         return new ResponseStatusException(BAD_GATEWAY, reason);
+    }
+
+    private void recordSourceAuthorization(String outcome, long startedAt) {
+        String requestId = RequestTrace.currentId();
+        if (requestId == null) return;
+        long durationMillis = Math.max(0L, (System.nanoTime() - startedAt) / 1_000_000L);
+        log.info(
+            "AI chat stage requestId={} stage=source-authorization outcome={} durationMs={}",
+            requestId, outcome, durationMillis
+        );
     }
 
     /**

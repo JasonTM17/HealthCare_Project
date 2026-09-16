@@ -13,6 +13,7 @@ import {
   browserSessionFixture,
   installMockBrowserSession,
 } from "./helpers/browser-session";
+import { fulfillBackendWarmup } from "./helpers/backend-warmup";
 
 function pageEnvelope<T>(content: T[]) {
   return {
@@ -71,6 +72,7 @@ test("admin schedule deletion is dialog-gated, contextual, cancelable, and singl
   let deleteCount = 0;
 
   await context.route("**/api/v1/**", async (route) => {
+    if (await fulfillBackendWarmup(route)) return;
     const request = route.request();
     expect(request.headers()["authorization"]).toBeUndefined();
     const url = new URL(request.url());
@@ -187,6 +189,7 @@ test("admin catalog destructive copy offers a hide alternative and rich-text tem
   let articleDeleteCount = 0;
 
   await context.route("**/api/v1/**", async (route) => {
+    if (await fulfillBackendWarmup(route)) return;
     const request = route.request();
     expect(request.headers()["authorization"]).toBeUndefined();
     const url = new URL(request.url());
@@ -273,6 +276,7 @@ test("admin catalog keyboard reorder persists and failed reorder rolls back", as
   let packageOrderRequests = 0;
 
   await context.route("**/api/v1/**", async (route) => {
+    if (await fulfillBackendWarmup(route)) return;
     const request = route.request();
     expect(request.headers()["authorization"]).toBeUndefined();
     const url = new URL(request.url());
@@ -335,6 +339,7 @@ test("stale catalog broadcast load cannot overwrite a newer load result", async 
   const staleGate: { release: (() => void) | null } = { release: null };
 
   await context.route("**/api/v1/**", async (route) => {
+    if (await fulfillBackendWarmup(route)) return;
     const request = route.request();
     expect(request.headers()["authorization"]).toBeUndefined();
     const url = new URL(request.url());
@@ -398,6 +403,7 @@ test("cross-tab load during an in-flight reorder cannot revert the saved order",
   let holdNextLoad = false;
 
   await context.route("**/api/v1/**", async (route) => {
+    if (await fulfillBackendWarmup(route)) return;
     const request = route.request();
     expect(request.headers()["authorization"]).toBeUndefined();
     const url = new URL(request.url());

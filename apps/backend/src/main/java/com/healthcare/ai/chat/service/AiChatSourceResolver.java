@@ -17,9 +17,13 @@ import com.healthcare.hospital.repository.FaqRepository;
 import com.healthcare.hospital.repository.PackageRepository;
 import com.healthcare.hospital.repository.ServiceRepository;
 import com.healthcare.hospital.repository.SpecialtyRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
+import java.text.Normalizer;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -32,6 +36,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.LinkedHashSet;
 import java.util.regex.Pattern;
 
 /**
@@ -44,6 +49,16 @@ import java.util.regex.Pattern;
 public class AiChatSourceResolver {
 
     private static final Pattern SLUG = Pattern.compile("^[A-Za-z0-9][A-Za-z0-9-]{0,219}$");
+    private static final int MAX_CATALOG_SAMPLES = 3;
+    private static final int MAX_BRANCH_LOOKUP_ROWS = 100;
+    private static final Pattern BRANCH_NUMBER = Pattern.compile(
+        "\\b(?:co\\s+so|chi\\s+nhanh)(?:\\s+thu)?\\s+(?:so\\s+){0,2}(\\d+)\\b");
+    private static final Pattern DISTRICT_ANCHOR = Pattern.compile("\\b(?:quan|huyen|phuong)\\s+[a-z0-9]+\\b");
+    private static final Set<String> BRANCH_LOOKUP_STOPWORDS = Set.of(
+        "bao", "benh", "chi", "cho", "co", "cua", "da", "den", "dia", "duoc", "gio",
+        "healthcare", "hoi", "kham", "lam", "may", "mo", "nhanh", "nhieu", "o", "so", "tai", "the",
+        "thoi", "thu", "toi", "viec", "vien", "xem"
+    );
     private static final Set<String> SUPPORT_TYPES = Set.of(
         "branch", "specialty", "doctor", "service", "package"
     );
@@ -309,6 +324,189 @@ public class AiChatSourceResolver {
         }).toList();
     }
 
+    /**
+     * Read a small, server-owned operational catalog snapshot for broad
+     * visitor/patient navigation questions.  This is intentionally separate
+     * from RAG retrieval: counts, labels and links come from the live Spring
+     * catalog, while the AI service remains responsible for semantic search
+     * and generation.  An unavailable catalog is represented as empty data so
+     * callers can keep the normal fail-closed response.
+     */
+    public CatalogOverview catalogOverview() {
+        try {
+            Page<Specialty> specialties = specialtyRepository.findByActiveTrue(PageRequest.of(
+                0, MAX_CATALOG_SAMPLES, Sort.by(Sort.Direction.ASC, "name")));
+            Page<Branch> branches = branchRepository.findByActiveTrue(PageRequest.of(
+                0, MAX_CATALOG_SAMPLES, Sort.by(Sort.Direction.ASC, "name")));
+            if (specialties == null || branches == null) {
+                return CatalogOverview.empty();
+            }
+
+            List<ResolvedSource> specialtySources = specialties.getContent().stream()
+                .filter(Objects::nonNull)
+                .map(value -> catalogSource("specialty", value.getId(), value.getName(), value.getSlug()))
+                .filter(Objects::nonNull)
+                .toList();
+            List<ResolvedSource> branchSources = branches.getContent().stream()
+                .filter(Objects::nonNull)
+                .map(value -> catalogSource(
+                    "branch", value.getId(), branchDisplayTitle(value), value.getSlug()))
+                .filter(Objects::nonNull)
+                .toList();
+            return new CatalogOverview(
+                boundedCount(specialties.getTotalElements()),
+                boundedCount(branches.getTotalElements()),
+                specialtySources,
+                branchSources);
+        } catch (RuntimeException ex) {
+            return CatalogOverview.empty();
+        }
+    }
+
+    /**
+     * Resolve a specific branch question against the live active catalog.
+     * Matching is deliberately conservative: a branch number without a
+     * unique locality remains ambiguous and returns every candidate so the
+     * caller can fail closed instead of guessing.
+     */
+    public List<BranchDetails> branchDetails(String query) {
+        String normalizedQuery = normalizeLookupText(query);
+        if (normalizedQuery.isBlank()) return List.of();
+
+        Integer requestedNumber = branchNumber(normalizedQuery);
+        Set<String> locationAnchors = branchLocationAnchors(normalizedQuery);
+        Set<String> identityTerms = branchIdentityTerms(normalizedQuery, locationAnchors, requestedNumber);
+        if (requestedNumber == null && locationAnchors.isEmpty() && identityTerms.isEmpty()) {
+            return List.of();
+        }
+
+        try {
+            Page<Branch> branches = branchRepository.findByActiveTrue(PageRequest.of(
+                0, MAX_BRANCH_LOOKUP_ROWS, Sort.by(Sort.Direction.ASC, "name")));
+            if (branches == null || branches.getContent() == null) return List.of();
+
+            List<BranchDetails> matches = new ArrayList<>();
+            for (Branch branch : branches.getContent()) {
+                if (branch == null || !branch.isActive() || !matchesBranch(
+                        branch, requestedNumber, locationAnchors, identityTerms)) {
+                    continue;
+                }
+                ResolvedSource source = catalogSource(
+                    "branch", branch.getId(), branchDisplayTitle(branch), branch.getSlug());
+                if (source == null) continue;
+                matches.add(new BranchDetails(
+                    source,
+                    cleanBranchField(branch.getAddress(), 500),
+                    cleanBranchField(branch.getWorkingHours(), 255)));
+                if (matches.size() >= MAX_BRANCH_LOOKUP_ROWS) break;
+            }
+            return List.copyOf(matches);
+        } catch (RuntimeException ex) {
+            return List.of();
+        }
+    }
+
+    private boolean matchesBranch(
+            Branch branch,
+            Integer requestedNumber,
+            Set<String> locationAnchors,
+            Set<String> identityTerms) {
+        String identity = normalizeLookupText(
+            (branch.getName() == null ? "" : branch.getName()) + " "
+                + (branch.getAddress() == null ? "" : branch.getAddress()));
+        if (requestedNumber != null && !branchHasNumber(identity, requestedNumber)) return false;
+        if (locationAnchors.stream().anyMatch(anchor -> !identity.contains(anchor))) return false;
+        return identityTerms.stream().allMatch(identity::contains);
+    }
+
+    private boolean branchHasNumber(String normalizedIdentity, int requestedNumber) {
+        var matcher = BRANCH_NUMBER.matcher(normalizedIdentity);
+        while (matcher.find()) {
+            if (Integer.parseInt(matcher.group(1)) == requestedNumber) return true;
+        }
+        return false;
+    }
+
+    private Integer branchNumber(String normalizedQuery) {
+        var matcher = BRANCH_NUMBER.matcher(normalizedQuery);
+        return matcher.find() ? Integer.valueOf(matcher.group(1)) : null;
+    }
+
+    private Set<String> branchLocationAnchors(String normalizedQuery) {
+        Set<String> anchors = new LinkedHashSet<>();
+        var districtMatcher = DISTRICT_ANCHOR.matcher(normalizedQuery);
+        while (districtMatcher.find()) anchors.add(districtMatcher.group());
+        for (String locality : List.of("thu duc", "ha noi", "da nang", "can tho", "ho chi minh")) {
+            if (normalizedQuery.contains(locality)) anchors.add(locality);
+        }
+        return Set.copyOf(anchors);
+    }
+
+    private Set<String> branchIdentityTerms(
+            String normalizedQuery,
+            Set<String> locationAnchors,
+            Integer requestedNumber) {
+        Set<String> locationTokens = new HashSet<>();
+        for (String anchor : locationAnchors) locationTokens.addAll(List.of(anchor.split(" ")));
+        Set<String> terms = new LinkedHashSet<>();
+        for (String token : normalizedQuery.split(" ")) {
+            if (token.isBlank() || token.length() < 2 || BRANCH_LOOKUP_STOPWORDS.contains(token)
+                    || locationTokens.contains(token)
+                    || (requestedNumber != null && token.equals(Integer.toString(requestedNumber)))) {
+                continue;
+            }
+            terms.add(token);
+        }
+        return Set.copyOf(terms);
+    }
+
+    private String normalizeLookupText(String value) {
+        if (value == null) return "";
+        String decomposed = Normalizer.normalize(value, Normalizer.Form.NFD)
+            .replaceAll("\\p{M}+", "")
+            .replace('đ', 'd')
+            .replace('Đ', 'D')
+            .toLowerCase(Locale.ROOT);
+        String normalized = decomposed.replaceAll("[^a-z0-9]+", " ").strip().replaceAll("\\s+", " ");
+        return normalized
+            .replaceAll("\\b(?:tp|thanh pho)\\s+(?:hcm|ho chi minh)\\b", "ho chi minh")
+            .replaceAll("\\btphcm\\b", "ho chi minh")
+            .replaceAll("\\bhcm\\b", "ho chi minh")
+            .replaceAll("\\bsai gon\\b", "ho chi minh")
+            .replaceAll("\\s+", " ")
+            .strip();
+    }
+
+    private String cleanBranchField(String value, int maxLength) {
+        if (value == null) return null;
+        String clean = value.strip();
+        if (clean.isEmpty() || clean.length() > maxLength
+                || clean.chars().anyMatch(Character::isISOControl)) {
+            return null;
+        }
+        return clean;
+    }
+
+    private ResolvedSource catalogSource(String type, UUID id, String title, String slug) {
+        String cleanTitle = cleanCatalogTitle(title);
+        if (id == null || cleanTitle == null) return null;
+        return source(type, id.toString(), cleanTitle, slug, true, true);
+    }
+
+    private String cleanCatalogTitle(String value) {
+        if (value == null) return null;
+        String clean = value.strip();
+        if (clean.isEmpty() || clean.length() > 300
+                || clean.chars().anyMatch(Character::isISOControl)) {
+            return null;
+        }
+        return clean;
+    }
+
+    private int boundedCount(long value) {
+        return (int) Math.min(Math.max(0L, value), Integer.MAX_VALUE);
+    }
+
     private ResolvedSource resolve(ChatMode mode, String type, String id) {
         if (!isUuid(id)) return null;
         boolean clinical = mode == ChatMode.SYMPTOM_TRIAGE || mode == ChatMode.HEALTH_EDUCATION;
@@ -566,6 +764,71 @@ public class AiChatSourceResolver {
                 Long.toString(head.approvalRound()), viewHref, bookingHref);
         }
     }
+
+    public record CatalogOverview(
+        int specialtyCount,
+        int branchCount,
+        List<ResolvedSource> specialties,
+        List<ResolvedSource> branches
+    ) {
+        public CatalogOverview {
+            specialtyCount = Math.max(0, specialtyCount);
+            branchCount = Math.max(0, branchCount);
+            specialties = specialties == null ? List.of() : List.copyOf(specialties);
+            branches = branches == null ? List.of() : List.copyOf(branches);
+        }
+
+        public static CatalogOverview empty() {
+            return new CatalogOverview(0, 0, List.of(), List.of());
+        }
+
+        public boolean hasData() {
+            return specialtyCount > 0 || branchCount > 0
+                || !specialties.isEmpty() || !branches.isEmpty();
+        }
+
+        public String summary() {
+            List<String> facts = new ArrayList<>();
+            if (specialtyCount > 0) facts.add(specialtyCount + " chuyên khoa");
+            if (branchCount > 0) facts.add(branchCount + " cơ sở đang hoạt động");
+            StringBuilder answer = new StringBuilder("Hiện HealthCare có ");
+            answer.append(facts.isEmpty()
+                ? "các danh mục đang hoạt động"
+                : String.join(" và ", facts));
+            answer.append(" theo dữ liệu đang hoạt động.");
+
+            List<String> specialtyNames = specialties.stream()
+                .map(ResolvedSource::title)
+                .filter(value -> value != null && !value.isBlank())
+                .toList();
+            if (!specialtyNames.isEmpty()) {
+                answer.append(" Một số chuyên khoa: ")
+                    .append(String.join(", ", specialtyNames)).append(".");
+            }
+            List<String> branchNames = branches.stream()
+                .map(ResolvedSource::title)
+                .filter(value -> value != null && !value.isBlank())
+                .toList();
+            if (!branchNames.isEmpty()) {
+                answer.append(" Một số cơ sở: ")
+                    .append(String.join(", ", branchNames)).append(".");
+            }
+            return answer.toString();
+        }
+
+        public List<ResolvedSource> sources() {
+            List<ResolvedSource> result = new ArrayList<>(specialties.size() + branches.size());
+            result.addAll(specialties);
+            result.addAll(branches);
+            return List.copyOf(result);
+        }
+    }
+
+    public record BranchDetails(
+        ResolvedSource source,
+        String address,
+        String workingHours
+    ) { }
 
     private record ReviewHead(
         long contentRevision,

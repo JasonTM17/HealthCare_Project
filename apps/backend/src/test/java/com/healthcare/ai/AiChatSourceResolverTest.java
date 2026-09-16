@@ -14,6 +14,8 @@ import com.healthcare.hospital.repository.PackageRepository;
 import com.healthcare.hospital.repository.ServiceRepository;
 import com.healthcare.hospital.repository.SpecialtyRepository;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.List;
@@ -26,9 +28,108 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
 
 /** Focused allowlist/CTA regression coverage for the Spring source authority. */
 class AiChatSourceResolverTest {
+
+    @Test
+    void catalogOverviewUsesOnlyActiveSpringRowsAndBuildsCurrentCitations() {
+        BranchRepository branches = mock(BranchRepository.class);
+        SpecialtyRepository specialties = mock(SpecialtyRepository.class);
+        UUID specialtyId = UUID.randomUUID();
+        UUID branchId = UUID.randomUUID();
+
+        com.healthcare.hospital.entity.Specialty specialty =
+            new com.healthcare.hospital.entity.Specialty();
+        specialty.setId(specialtyId);
+        specialty.setName("Tim mạch");
+        specialty.setSlug("tim-mach");
+
+        Branch branch = new Branch();
+        branch.setId(branchId);
+        branch.setName("Cơ sở 1");
+        branch.setSlug("co-so-1");
+        branch.setAddress("Quận 3");
+        branch.setActive(true);
+
+        when(specialties.findByActiveTrue(any(Pageable.class))).thenReturn(
+            new PageImpl<>(List.of(specialty), org.springframework.data.domain.PageRequest.of(0, 3), 1));
+        when(branches.findByActiveTrue(any(Pageable.class))).thenReturn(
+            new PageImpl<>(List.of(branch), org.springframework.data.domain.PageRequest.of(0, 3), 1));
+
+        AiChatSourceResolver resolver = new AiChatSourceResolver(
+            branches,
+            specialties,
+            mock(DoctorRepository.class),
+            mock(ServiceRepository.class),
+            mock(PackageRepository.class),
+            mock(ArticleRepository.class),
+            mock(FaqRepository.class),
+            mock(JdbcTemplate.class));
+
+        AiChatSourceResolver.CatalogOverview overview = resolver.catalogOverview();
+
+        assertThat(overview.specialtyCount()).isEqualTo(1);
+        assertThat(overview.branchCount()).isEqualTo(1);
+        assertThat(overview.summary())
+            .contains("1 chuyên khoa")
+            .contains("1 cơ sở đang hoạt động")
+            .contains("Tim mạch")
+            .contains("Cơ sở 1");
+        assertThat(resolver.citations(overview.sources()))
+            .extracting(citation -> citation.get("projection_kind"))
+            .containsOnly("OPERATIONAL");
+    }
+
+    @Test
+    void branchDetailsRequireAUniqueNumberAndLocalityAndPreserveMissingHours() {
+        BranchRepository branches = mock(BranchRepository.class);
+        Branch branchDistrict3 = new Branch();
+        branchDistrict3.setId(UUID.randomUUID());
+        branchDistrict3.setName("Bệnh viện Đa khoa HealthCare — Cơ sở 2");
+        branchDistrict3.setSlug("co-so-2-quan-3");
+        branchDistrict3.setAddress("2 Đường số 3, Quận 3, TP. Hồ Chí Minh");
+        branchDistrict3.setWorkingHours("06:30–20:00, tất cả các ngày");
+        branchDistrict3.setActive(true);
+
+        Branch branchDistrict7 = new Branch();
+        branchDistrict7.setId(UUID.randomUUID());
+        branchDistrict7.setName("Bệnh viện Đa khoa HealthCare — Cơ sở 2, Quận 7");
+        branchDistrict7.setSlug("co-so-2-quan-7");
+        branchDistrict7.setAddress("105 Nguyễn Văn Linh, Phú Mỹ Hưng, Quận 7, TP. Hồ Chí Minh");
+        branchDistrict7.setActive(true);
+
+        when(branches.findByActiveTrue(any(Pageable.class))).thenReturn(
+            new PageImpl<>(List.of(branchDistrict3, branchDistrict7), org.springframework.data.domain.PageRequest.of(0, 100), 2));
+
+        AiChatSourceResolver resolver = new AiChatSourceResolver(
+            branches,
+            mock(SpecialtyRepository.class),
+            mock(DoctorRepository.class),
+            mock(ServiceRepository.class),
+            mock(PackageRepository.class),
+            mock(ArticleRepository.class),
+            mock(FaqRepository.class),
+            mock(JdbcTemplate.class));
+
+        assertThat(resolver.branchDetails("Cơ sở số 2 làm việc đến mấy giờ?"))
+            .hasSize(2);
+        assertThat(resolver.branchDetails("Cơ sở số 2 ở Quận 7 làm việc đến mấy giờ?"))
+            .singleElement()
+            .satisfies(value -> assertThat(value.source().title())
+                .isEqualTo("Bệnh viện Đa khoa HealthCare — Cơ sở 2, Quận 7"))
+            .satisfies(value -> assertThat(value.workingHours()).isNull());
+        assertThat(resolver.branchDetails("Cơ sở số 2 ở Quận 3 làm việc đến mấy giờ?"))
+            .singleElement()
+            .satisfies(value -> assertThat(value.source().title())
+                .isEqualTo("Bệnh viện Đa khoa HealthCare — Cơ sở 2 — Quận 3"))
+            .satisfies(value -> assertThat(value.workingHours())
+                .isEqualTo("06:30–20:00, tất cả các ngày"));
+
+        assertThat(resolver.branchDetails("Chi nhánh thứ 2 ở TP. Hồ Chí Minh làm việc đến mấy giờ?"))
+            .hasSize(2);
+    }
 
     @Test
     void hospitalSupportRehydratesBranchIdentityAndBookingCta() {

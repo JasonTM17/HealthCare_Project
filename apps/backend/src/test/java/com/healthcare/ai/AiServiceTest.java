@@ -3,8 +3,10 @@ package com.healthcare.ai;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.healthcare.ai.service.AiService;
 import com.sun.net.httpserver.HttpServer;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.MDC;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -47,6 +49,11 @@ class AiServiceTest {
         server = MockRestServiceServer.bindTo(restTemplate).build();
     }
 
+    @AfterEach
+    void clearRequestTrace() {
+        MDC.remove("request_id");
+    }
+
     @Test
     void renderPrivateServiceHostPortIsNormalizedToAnHttpEndpoint() {
         ReflectionTestUtils.setField(aiService, "aiServiceUrl", "ai.internal:8000/");
@@ -87,6 +94,19 @@ class AiServiceTest {
         ));
 
         assertThat(response).containsEntry("answer", "Hello");
+        server.verify();
+    }
+
+    @Test
+    void chatForwardsTheBoundedRequestTraceToFastApi() {
+        String requestId = "123e4567-e89b-42d3-a456-426614174000";
+        MDC.put("request_id", requestId);
+        server.expect(requestTo("http://ai.test/chat"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(header("X-Request-ID", requestId))
+            .andRespond(withSuccess("{\"answer\":\"Hello\"}", MediaType.APPLICATION_JSON));
+
+        assertThat(aiService.chat(Map.of("message", "hello"))).containsEntry("answer", "Hello");
         server.verify();
     }
 
