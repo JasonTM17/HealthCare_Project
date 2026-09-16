@@ -359,12 +359,12 @@ export function RichTextEditor({
         format: {
           title: "Format",
           items:
-            "bold italic underline strikethrough superscript subscript codeformat | formats blockformats fontformats fontsizes align lineheight | forecolor backcolor | removeformat",
+            "bold italic underline strikethrough codeformat | formats blockformats align lineheight | removeformat",
         },
         tools: { title: "Tools", items: "code wordcount" },
         table: { title: "Table", items: "inserttable | cell row column | tableprops deletetable" },
       },
-      toolbar: `undo redo | blocks fontfamily fontsize | bold italic underline strikethrough forecolor backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | table link ${
+      toolbar: `undo redo | blocks | bold italic underline strikethrough | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | table link ${
         MEDIA_UPLOADS_ENABLED ? "image media " : ""
       }accordion | clinical_warning doctor_note dosage_guide emergency_box | searchreplace emoticons charmap insertdatetime | removeformat code preview fullscreen`,
       plugins: [
@@ -395,7 +395,7 @@ export function RichTextEditor({
         "quickbars",
       ],
       quickbars_selection_toolbar:
-        "bold italic underline strikethrough | quicklink h2 h3 blockquote | forecolor backcolor",
+        "bold italic underline strikethrough | quicklink h2 h3 blockquote",
       quickbars_insert_toolbar: `${MEDIA_UPLOADS_ENABLED ? "quickimage " : ""}quicktable | hr`,
       font_family_formats:
         "Be Vietnam Pro='Be Vietnam Pro',sans-serif; Mặc định hệ thống=-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; Arial=arial,helvetica,sans-serif; Courier New=courier new,courier,monospace; Georgia=georgia,palatino,serif; Tahoma=tahoma,arial,helvetica,sans-serif; Times New Roman=times new roman,times,serif; Trebuchet MS=trebuchet ms,geneva,sans-serif; Verdana=verdana,geneva,sans-serif",
