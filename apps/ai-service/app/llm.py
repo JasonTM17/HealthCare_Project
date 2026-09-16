@@ -2069,10 +2069,14 @@ def _public_fallback_requires_source(message: str) -> bool:
     Navigation copy can remain an ``ANSWER`` without a citation, but a
     preparation/service/package fallback contains a user-visible catalog or
     medical claim and must be surfaced as insufficient evidence until a
-    verified source is available.
+    verified source is available. Booking-logistics questions ("chuẩn bị trước
+    khi đặt lịch") are answered by the navigation booking branch, not the
+    clinical preparation branch, so they stay ``ANSWER``.
     """
 
     normalized = _normalize_sensitive_text(message)
+    if any(term in normalized for term in _PUBLIC_BOOKING_SUPPORT_TERMS) or "dat lich" in normalized:
+        return False
     return any(
         term in normalized
         for term in (*_PUBLIC_PREPARATION_TERMS, *_PUBLIC_SERVICE_TERMS, *_PUBLIC_PACKAGE_TERMS)
