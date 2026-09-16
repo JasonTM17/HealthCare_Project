@@ -97,6 +97,13 @@ public final class ChatContracts {
     ) {
     }
 
+    public record UsedSourceSummary(
+        String id,
+        String title,
+        String sourceType
+    ) {
+    }
+
     public record MessageResponse(
         UUID id,
         String role,
@@ -111,6 +118,9 @@ public final class ChatContracts {
         List<SuggestedAction> suggestedActions,
         FeedbackResponse feedback,
         String sourceStatus,
+        List<UsedSourceSummary> usedSources,
+        String costTier,
+        String routingReason,
         OffsetDateTime createdAt,
         OffsetDateTime completedAt
     ) {
@@ -126,7 +136,7 @@ public final class ChatContracts {
                 OffsetDateTime createdAt,
                 OffsetDateTime completedAt) {
             this(id, role, status, content, sequence, disclaimer, provenance, citations,
-                null, null, List.of(), null, "CURRENT", createdAt, completedAt);
+                null, null, List.of(), null, "CURRENT", List.of(), null, null, createdAt, completedAt);
         }
     }
 

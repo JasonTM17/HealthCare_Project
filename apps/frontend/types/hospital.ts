@@ -770,6 +770,11 @@ export interface AiChatMessage {
   suggestedActions?: SuggestedAction[];
   feedback?: AiChatFeedback | FeedbackRating | null;
   sourceStatus?: AiSourceStatus;
+  /** Validated catalog sources actually used to ground this answer. */
+  usedSources?: Array<{ id: string; title?: string | null; sourceType?: string | null }>;
+  /** Cost-routing audit: which tier produced the answer. */
+  costTier?: "local_free" | "remote_llm";
+  routingReason?: string | null;
   createdAt: string;
   completedAt?: string | null;
 }
