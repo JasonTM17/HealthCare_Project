@@ -4,6 +4,8 @@ import com.healthcare.appointment.entity.Appointment;
 import com.healthcare.auth.mail.AfterCommitEmailSender;
 import com.healthcare.auth.mail.EmailTemplateKey;
 import com.healthcare.payment.entity.BankTransferPayment;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -12,6 +14,8 @@ import java.util.Locale;
 /** Sends transactional payment notices without including financial references or clinical data. */
 @Service
 public class PaymentStatusEmailService {
+
+    private static final Logger log = LoggerFactory.getLogger(PaymentStatusEmailService.class);
 
     private final AfterCommitEmailSender emailSender;
     private final boolean enabled;
@@ -53,10 +57,15 @@ public class PaymentStatusEmailService {
         String recipient = appointment.getPatient().getEmail();
         if (recipient == null || recipient.isBlank()) return;
 
-        emailSender.sendTemplate(
-            EmailTemplateKey.PAYMENT_STATUS,
-            recipient.trim().toLowerCase(Locale.ROOT),
-            java.util.Map.of("message", statusLine)
-        );
+        try {
+            emailSender.sendTemplateBestEffort(
+                EmailTemplateKey.PAYMENT_STATUS,
+                recipient.trim().toLowerCase(Locale.ROOT),
+                java.util.Map.of("message", statusLine)
+            );
+        } catch (RuntimeException exception) {
+            log.warn("Payment status email degraded to best-effort failure (cause={})",
+                exception.getClass().getSimpleName());
+        }
     }
 }
