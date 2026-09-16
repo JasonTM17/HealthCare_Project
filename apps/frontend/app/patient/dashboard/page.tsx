@@ -1563,7 +1563,7 @@ export default function PatientDashboardPage() {
             <section className="portal-panel" aria-labelledby="appointments-title" id="appointments">
           <div className="portal-panel__heading">
             <div>
-              <p className="section-note">LỊCH HẸN ĐÃ XÁC THỰC</p>
+              <p className="section-note">LỊCH HẸN CỦA BẠN</p>
               <h2 id="appointments-title" tabIndex={-1}>Lịch hẹn của tôi</h2>
             </div>
             <span aria-hidden="true" className="portal-panel__icon"><UiIcon name="calendar" size={20} /></span>

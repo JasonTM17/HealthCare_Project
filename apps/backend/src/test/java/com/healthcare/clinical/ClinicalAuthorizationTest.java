@@ -376,6 +376,44 @@ class ClinicalAuthorizationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void pastEncounterCannotAuthorizeNewDiagnosticResult() throws Exception {
+        ClinicalFixture fixture = fixture();
+        createAppointment(fixture, AppointmentStatus.COMPLETED,
+            LocalDate.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh")).minusDays(2));
+
+        mockMvc.perform(post("/api/v1/doctor/patients/{patientId}/diagnostic-results", fixture.patient().getId())
+                .header("Authorization", bearer(fixture.doctorUser()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"testName\":\"Stale visit result\"}"))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void diagnosisBeyondDatabaseColumnIsRejectedWithFieldError() throws Exception {
+        ClinicalFixture fixture = fixture();
+        Appointment appointment = createAppointment(fixture);
+        String overlongDiagnosis = "X".repeat(2001);
+        String body = """
+            {
+              "appointmentId": "%s",
+              "patientId": "%s",
+              "doctorId": "%s",
+              "diagnosis": "%s"
+            }
+            """.formatted(
+                appointment.getId(),
+                fixture.patient().getId(),
+                fixture.doctor().getId(),
+                overlongDiagnosis);
+
+        mockMvc.perform(post("/api/v1/clinical/records")
+                .header("Authorization", bearer(fixture.doctorUser()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void invalidNestedPrescriptionItemIsRejected() throws Exception {
         ClinicalFixture fixture = fixture();
         Appointment appointment = createAppointment(fixture);
@@ -456,7 +494,11 @@ class ClinicalAuthorizationTest extends AbstractIntegrationTest {
     }
 
     private Appointment createAppointment(ClinicalFixture fixture) {
-        LocalDate date = LocalDate.now();
+        return createAppointment(fixture, AppointmentStatus.IN_PROGRESS,
+            LocalDate.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh")));
+    }
+
+    private Appointment createAppointment(ClinicalFixture fixture, AppointmentStatus status, LocalDate date) {
         LocalTime start = LocalTime.of(9, 0);
         Appointment appointment = new Appointment();
         appointment.setBookingCode("CLIN-" + UUID.randomUUID().toString().replace("-", "").substring(0, 20));
@@ -466,7 +508,7 @@ class ClinicalAuthorizationTest extends AbstractIntegrationTest {
         appointment.setStartTime(start);
         appointment.setEndTime(start.plusMinutes(30));
         appointment.setAppointmentTime(OffsetDateTime.of(date, start, OffsetDateTime.now().getOffset()));
-        appointment.setStatus(AppointmentStatus.IN_PROGRESS);
+        appointment.setStatus(status);
         appointment.setPaymentStatus("UNPAID");
         appointment.setReasonForVisit("Clinical test visit");
         return appointmentRepository.saveAndFlush(appointment);

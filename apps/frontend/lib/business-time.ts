@@ -45,6 +45,19 @@ export function formatBusinessDateTime(value: string): string {
       }).format(date);
 }
 
-export function businessDateTimeIso(value: string): string {
-  return `${value}T00:00:00+07:00`;
+export function businessDateTimeIso(value: string, time?: string): string {
+  const safeTime = /^\d{2}:\d{2}$/.test(time ?? "") ? (time as string) : "00:00";
+  return `${value}T${safeTime}:00+07:00`;
+}
+
+/** Current wall-clock time in the business zone as HH:mm. */
+export function businessTimeNow(now: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: BUSINESS_TIME_ZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(now);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.hour}:${values.minute}`;
 }

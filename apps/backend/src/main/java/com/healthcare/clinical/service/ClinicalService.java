@@ -49,6 +49,8 @@ import java.util.UUID;
 @Service
 public class ClinicalService {
 
+    private static final java.time.ZoneId BUSINESS_ZONE = java.time.ZoneId.of("Asia/Ho_Chi_Minh");
+
     private final MedicalRecordRepository medicalRecordRepository;
     private final PrescriptionRepository prescriptionRepository;
     private final DiagnosticResultRepository diagnosticResultRepository;
@@ -330,7 +332,23 @@ public class ClinicalService {
             CreateDiagnosticResultRequest request,
             UserDetails principal) {
         Doctor doctor = requireLinkedDoctor(principal);
-        ensureDoctorCanAccessPatient(patientId, doctor.getId());
+        // Writing a result is a clinical act for today's encounter only. A past
+        // visit must never authorize new diagnostics for that patient.
+        boolean hasActiveEncounterToday = appointmentRepository
+            .existsByPatientIdAndDoctorIdAndStatusInAndAppointmentDate(
+                patientId,
+                doctor.getId(),
+                java.util.EnumSet.of(
+                    AppointmentStatus.CONFIRMED,
+                    AppointmentStatus.CHECKED_IN,
+                    AppointmentStatus.IN_PROGRESS
+                ),
+                java.time.LocalDate.now(BUSINESS_ZONE)
+            );
+        if (!hasActiveEncounterToday) {
+            throw new AccessDeniedException(
+                "Kết quả chẩn đoán chỉ có thể lập cho bệnh nhân đang trong lịch khám hôm nay của bạn");
+        }
         PatientProfile patient = patientProfileRepository.findById(patientId)
             .orElseThrow(() -> new ResourceNotFoundException("Patient not found with ID: " + patientId));
 
