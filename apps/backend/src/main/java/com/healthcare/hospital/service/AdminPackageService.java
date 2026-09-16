@@ -1,5 +1,6 @@
 package com.healthcare.hospital.service;
 
+import com.healthcare.ai.service.AiClinicalContentRevisionService;
 import com.healthcare.exception.DuplicateResourceException;
 import com.healthcare.hospital.dto.PackageRequest;
 import com.healthcare.hospital.dto.CatalogOrderRequest;
@@ -7,6 +8,7 @@ import com.healthcare.exception.BusinessException;
 import com.healthcare.exception.ErrorCodes;
 import com.healthcare.hospital.entity.Package;
 import com.healthcare.hospital.repository.PackageRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -20,9 +22,18 @@ import java.util.UUID;
 public class AdminPackageService {
 
     private final PackageRepository packageRepository;
+    private final AiClinicalContentRevisionService revisionService;
 
     public AdminPackageService(PackageRepository packageRepository) {
+        this(packageRepository, null);
+    }
+
+    @Autowired
+    public AdminPackageService(
+            PackageRepository packageRepository,
+            AiClinicalContentRevisionService revisionService) {
         this.packageRepository = packageRepository;
+        this.revisionService = revisionService;
     }
 
     @Transactional(readOnly = true)
@@ -66,6 +77,7 @@ public class AdminPackageService {
         packageRepository.lockCatalogOrder();
         Package pkg = packageRepository.findBySlug(slug)
             .orElseThrow(() -> new com.healthcare.exception.ResourceNotFoundException("Package not found: " + slug));
+        if (revisionService != null) revisionService.recordPackageDeletion(pkg, null);
         packageRepository.delete(pkg);
     }
 

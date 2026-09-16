@@ -154,7 +154,7 @@ class PatientConsultationServiceTest {
         service.listForAdmin();
 
         var sql = org.mockito.ArgumentCaptor.forClass(String.class);
-        verify(jdbc).query(sql.capture(), any(org.springframework.jdbc.core.RowMapper.class));
+        verify(jdbc).query(sql.capture(), any(org.springframework.jdbc.core.RowMapper.class), eq(20), eq(0));
         assertThat(sql.getValue().toLowerCase()).doesNotContain(
             "t.subject", "patient_profile_id", "user_id", "full_name", "email",
             "phone", "patient_consultation_messages", "patient_consultation_attachments");

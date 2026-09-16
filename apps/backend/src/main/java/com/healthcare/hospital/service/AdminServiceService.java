@@ -1,9 +1,11 @@
 package com.healthcare.hospital.service;
 
+import com.healthcare.ai.service.AiClinicalContentRevisionService;
 import com.healthcare.exception.DuplicateResourceException;
 import com.healthcare.hospital.dto.ServiceRequest;
 import com.healthcare.hospital.entity.MedicalService;
 import com.healthcare.hospital.repository.ServiceRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -13,9 +15,18 @@ import org.springframework.transaction.annotation.Transactional;
 public class AdminServiceService {
 
     private final ServiceRepository serviceRepository;
+    private final AiClinicalContentRevisionService revisionService;
 
     public AdminServiceService(ServiceRepository serviceRepository) {
+        this(serviceRepository, null);
+    }
+
+    @Autowired
+    public AdminServiceService(
+            ServiceRepository serviceRepository,
+            AiClinicalContentRevisionService revisionService) {
         this.serviceRepository = serviceRepository;
+        this.revisionService = revisionService;
     }
 
     @Transactional(readOnly = true)
@@ -54,6 +65,7 @@ public class AdminServiceService {
     public void delete(String slug) {
         MedicalService service = serviceRepository.findBySlug(slug)
             .orElseThrow(() -> new com.healthcare.exception.ResourceNotFoundException("Service not found: " + slug));
+        if (revisionService != null) revisionService.recordServiceDeletion(service, null);
         serviceRepository.delete(service);
     }
 }

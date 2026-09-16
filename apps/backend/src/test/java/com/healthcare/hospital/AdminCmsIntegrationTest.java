@@ -28,6 +28,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.Map;
 import java.util.UUID;
 
 @Transactional
@@ -334,6 +335,58 @@ class AdminCmsIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void adminCatalogDeletesWriteRecoverableSnapshotsBeforeDeletion() throws Exception {
+        String adminBearer = bearer("ADMIN");
+        String suffix = UUID.randomUUID().toString().replace("-", "");
+        String doctorSlug = "delete-snapshot-doctor-" + suffix;
+        String serviceSlug = "delete-snapshot-service-" + suffix;
+        String branchSlug = "delete-snapshot-branch-" + suffix;
+        String packageSlug = "delete-snapshot-package-" + suffix;
+
+        mockMvc.perform(post("/api/v1/admin/doctors")
+                .header("Authorization", adminBearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(doctor("Snapshot Doctor", doctorSlug))))
+            .andExpect(status().isOk());
+        UUID doctorId = doctorRepository.findBySlug(doctorSlug).orElseThrow().getId();
+
+        mockMvc.perform(post("/api/v1/admin/services")
+                .header("Authorization", adminBearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(service("Snapshot Service", serviceSlug, false))))
+            .andExpect(status().isOk());
+        UUID serviceId = serviceRepository.findBySlug(serviceSlug).orElseThrow().getId();
+
+        mockMvc.perform(post("/api/v1/admin/branches")
+                .header("Authorization", adminBearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(branch("Snapshot Branch", branchSlug, false))))
+            .andExpect(status().isOk());
+        UUID branchId = branchRepository.findBySlug(branchSlug).orElseThrow().getId();
+
+        mockMvc.perform(post("/api/v1/admin/packages")
+                .header("Authorization", adminBearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(healthPackage("Snapshot Package", packageSlug, false))))
+            .andExpect(status().isOk());
+        UUID packageId = packageRepository.findBySlug(packageSlug).orElseThrow().getId();
+
+        mockMvc.perform(delete("/api/v1/admin/doctors/" + doctorSlug).header("Authorization", adminBearer))
+            .andExpect(status().isNoContent());
+        mockMvc.perform(delete("/api/v1/admin/services/" + serviceSlug).header("Authorization", adminBearer))
+            .andExpect(status().isNoContent());
+        mockMvc.perform(delete("/api/v1/admin/branches/" + branchSlug).header("Authorization", adminBearer))
+            .andExpect(status().isNoContent());
+        mockMvc.perform(delete("/api/v1/admin/packages/" + packageSlug).header("Authorization", adminBearer))
+            .andExpect(status().isNoContent());
+
+        assertDeleteRevision("DOCTOR", doctorId, doctorSlug, "full_name", "Snapshot Doctor");
+        assertDeleteRevision("SERVICE", serviceId, serviceSlug, "name", "Snapshot Service");
+        assertDeleteRevision("BRANCH", branchId, branchSlug, "name", "Snapshot Branch");
+        assertDeleteRevision("PACKAGE", packageId, packageSlug, "name", "Snapshot Package");
+    }
+
+    @Test
     void adminDoctorContentUpdatePreservesExistingUserLink() throws Exception {
         String slug = "linked-doctor-" + UUID.randomUUID();
         String adminBearer = bearer("ADMIN");
@@ -370,5 +423,19 @@ class AdminCmsIntegrationTest extends AbstractIntegrationTest {
 
         assertThat(doctorRepository.findBySlug(slug).orElseThrow().getUserId())
             .isEqualTo(doctorUser.getId());
+    }
+
+    private void assertDeleteRevision(String sourceType, UUID sourceId, String slug, String titleField, String title) {
+        Map<String, Object> row = jdbcTemplate.queryForMap("""
+            SELECT content_revision, content_snapshot ->> 'slug' AS slug,
+                   content_snapshot ->> ? AS title,
+                   content_snapshot ->> 'deleted' AS deleted
+              FROM ai_content_revisions
+             WHERE source_type = ? AND source_id = ?
+            """, titleField, sourceType, sourceId);
+        assertThat(((Number) row.get("content_revision")).longValue()).isEqualTo(1L);
+        assertThat(row.get("slug")).isEqualTo(slug);
+        assertThat(row.get("title")).isEqualTo(title);
+        assertThat(row.get("deleted")).isEqualTo("true");
     }
 }

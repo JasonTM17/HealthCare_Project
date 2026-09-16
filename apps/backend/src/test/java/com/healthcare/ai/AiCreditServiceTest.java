@@ -153,7 +153,7 @@ class AiCreditServiceTest {
     // ---- HC-11: bounded admin inventories ----
 
     @Test
-    @DisplayName("Patient inventory defaults to a 500-row window ordered by id when params absent")
+    @DisplayName("Patient inventory defaults to a 20-row window ordered by id when params absent")
     void patientInventoryAppliesDefaultBound() {
         when(patientProfileRepository.findAll(any(org.springframework.data.domain.Pageable.class)))
             .thenReturn(Page.empty());
