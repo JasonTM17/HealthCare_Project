@@ -518,9 +518,36 @@ def test_specialty_guidance_focus_keeps_tied_multi_system_matches() -> None:
         ),
     ]
 
+    focused = focus_public_retrieval_hits("Tôi đau bụng dưới nên khám khoa nào?", hits)
+
+    assert [document.source_id for document, _ in focused] == ["obgyn"]
+
+
+def test_specialty_guidance_focus_routes_generic_abdominal_pain_to_digestive() -> None:
+    hits = [
+        (
+            SimpleNamespace(
+                source_type="specialty",
+                source_id="digestive",
+                title="Tiêu hóa",
+                content="Chuyên khoa Tiêu hóa tiếp nhận đau bụng.",
+            ),
+            0.8,
+        ),
+        (
+            SimpleNamespace(
+                source_type="specialty",
+                source_id="obgyn",
+                title="Sản phụ khoa",
+                content="Chuyên khoa Sản phụ khoa tiếp nhận đau bụng dưới.",
+            ),
+            0.7,
+        ),
+    ]
+
     focused = focus_public_retrieval_hits("Tôi đau bụng nên khám khoa nào?", hits)
 
-    assert [document.source_id for document, _ in focused] == ["digestive", "obgyn"]
+    assert [document.source_id for document, _ in focused] == ["digestive"]
 
 
 def test_public_local_chat_overfetches_before_constrained_branch_filtering(

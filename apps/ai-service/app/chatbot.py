@@ -393,8 +393,11 @@ _VI_SYMPTOM_EXPANSIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("roi loan giac ngu", ("than", "kinh")),
     ("dau dau", ("than", "kinh")),
     ("chong mat", ("tai", "mui", "hong", "than")),
+    # Keep the generic abdominal-pain route digestive.  Gynaecology is the
+    # more specific route for lower-abdominal pain; matching both phrases for
+    # "dau bung duoi" made the public answer depend on vector tie order.
     ("dau bung duoi", ("san", "phu")),
-    ("dau bung", ("tieu", "hoa", "san", "phu")),
+    ("dau bung", ("tieu", "hoa")),
     ("kho tieu", ("tieu", "hoa")),
     ("day hoi", ("tieu", "hoa")),
     ("tieu chay", ("tieu", "hoa")),
@@ -532,8 +535,16 @@ def _lexical_tokens(normalized: str, *, expand: bool = False) -> frozenset[str]:
     if not expand:
         return tokens
     expanded = set(tokens)
+    matched_phrases = [
+        phrase for phrase, _ in _VI_SYMPTOM_EXPANSIONS if phrase in normalized
+    ]
     for phrase, extra in _VI_SYMPTOM_EXPANSIONS:
-        if phrase in normalized:
+        if phrase in matched_phrases and not any(
+            phrase != longer_phrase
+            and phrase in longer_phrase
+            and longer_phrase in matched_phrases
+            for longer_phrase in matched_phrases
+        ):
             expanded.update(extra)
     return frozenset(expanded)
 
