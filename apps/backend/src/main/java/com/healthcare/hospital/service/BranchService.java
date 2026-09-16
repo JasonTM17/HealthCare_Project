@@ -12,8 +12,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 @Service
 public class BranchService {
@@ -29,17 +32,25 @@ public class BranchService {
     }
 
     public Page<BranchResponse> listActive(Pageable pageable) {
-        return branchRepository.findByActiveTrue(SafePageRequests.normalize(pageable, Sort.unsorted(), ALLOWED_SORT_PROPERTIES))
-            .map(branch -> toResponse(branch, false));
+        Page<Branch> page = branchRepository.findByActiveTrue(
+            SafePageRequests.normalize(pageable, Sort.unsorted(), ALLOWED_SORT_PROPERTIES));
+        Map<UUID, Long> activeDoctorCounts = activeDoctorCounts(page.getContent());
+        return page.map(branch -> toResponse(
+            branch,
+            false,
+            activeDoctorCounts.getOrDefault(branch.getId(), 0L)));
     }
 
     public BranchResponse getBySlug(String slug) {
         return branchRepository.findBySlugAndActiveTrue(slug)
-            .map(branch -> toResponse(branch, true))
+            .map(branch -> toResponse(
+                branch,
+                true,
+                activeDoctorCounts(List.of(branch)).getOrDefault(branch.getId(), 0L)))
             .orElseThrow(() -> new ResourceNotFoundException("Branch not found: " + slug));
     }
 
-    private BranchResponse toResponse(Branch branch, boolean includeDoctors) {
+    private BranchResponse toResponse(Branch branch, boolean includeDoctors, long activeDoctorCount) {
         List<DoctorSummaryResponse> doctors = includeDoctors
             ? doctorBranchRepository.findByBranchId(branch.getId()).stream()
                 .filter(link -> link.getDoctor().isActive())
@@ -66,7 +77,21 @@ public class BranchService {
             branch.getEmergencyHotline(),
             branch.getMapUrl(),
             HospitalJsonMapper.strings(branch.getAmenities()),
-            doctors
+            doctors,
+            activeDoctorCount
         );
+    }
+
+    private Map<UUID, Long> activeDoctorCounts(List<Branch> branches) {
+        if (branches.isEmpty()) return Map.of();
+        Map<UUID, Long> counts = new HashMap<>();
+        List<UUID> branchIds = branches.stream()
+            .map(Branch::getId)
+            .filter(id -> id != null)
+            .toList();
+        if (branchIds.isEmpty()) return counts;
+        doctorBranchRepository.countActiveDoctorsByBranchIds(branchIds)
+            .forEach(item -> counts.put(item.getBranchId(), item.getDoctorCount()));
+        return counts;
     }
 }

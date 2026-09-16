@@ -208,12 +208,18 @@ export default function BookingLandingPage() {
                       <Link className="text-button" href={`/branches/${branch.slug}`}>
                         Tìm hiểu thêm →
                       </Link>
-                      <PublicBookingButton
-                        className="outline-button outline-button--small"
-                        selection={{ branchId: branch.id }}
-                      >
-                        Đặt lịch hẹn
-                      </PublicBookingButton>
+                      {branch.activeDoctorCount === 0 ? (
+                        <Link className="outline-button outline-button--small" href={`/branches/${branch.slug}`}>
+                          Xem tình trạng lịch
+                        </Link>
+                      ) : (
+                        <PublicBookingButton
+                          className="outline-button outline-button--small"
+                          selection={{ branchId: branch.id }}
+                        >
+                          Đặt lịch hẹn
+                        </PublicBookingButton>
+                      )}
                     </div>
                   </article>
                 );

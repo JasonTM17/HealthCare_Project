@@ -12,6 +12,7 @@ public record BranchResponse(
     String emergencyHotline,
     String mapUrl,
     List<String> amenities,
-    List<DoctorSummaryResponse> doctors
+    List<DoctorSummaryResponse> doctors,
+    long activeDoctorCount
 ) {
 }

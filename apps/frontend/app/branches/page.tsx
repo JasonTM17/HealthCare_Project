@@ -101,9 +101,15 @@ export default function BranchesPage() {
               Xem địa chỉ, giờ làm việc, đầu mối liên hệ và mở chỉ đường ngay từ danh sách bên dưới.
             </p>
             <div className="resource-actions">
-              <PublicBookingButton selection={featuredBranch ? { branchId: featuredBranch.id } : undefined}>
-                Đặt lịch tại cơ sở
-              </PublicBookingButton>
+              {featuredBranch?.activeDoctorCount === 0 ? (
+                <Link className="button button--amber" href={`/branches/${featuredBranch.slug}`}>
+                  Xem tình trạng lịch
+                </Link>
+              ) : (
+                <PublicBookingButton selection={featuredBranch ? { branchId: featuredBranch.id } : undefined}>
+                  Đặt lịch tại cơ sở
+                </PublicBookingButton>
+              )}
               <PublicAiButton className="outline-button">Hỏi trợ lý triệu chứng</PublicAiButton>
               <Link className="outline-button" href="/contact">
                 Liên hệ bệnh viện
@@ -207,6 +213,12 @@ export default function BranchesPage() {
                       <dt>Giờ làm việc</dt>
                       <dd>{branch.workingHours || "Vui lòng xác nhận trước khi đến"}</dd>
                     </div>
+                    {typeof branch.activeDoctorCount === "number" ? (
+                      <div>
+                        <dt>Lịch trực tuyến</dt>
+                        <dd>{branch.activeDoctorCount > 0 ? "Có bác sĩ phụ trách" : "Chưa mở tại cơ sở này"}</dd>
+                      </div>
+                    ) : null}
                   </dl>
                   <div className="catalog-card__actions">
                     <Link className="text-button" href={`/branches/${branch.slug}`}>
@@ -222,12 +234,18 @@ export default function BranchesPage() {
                         Gọi cấp cứu →
                       </a>
                     ) : null}
-                    <PublicBookingButton
-                      className="outline-button outline-button--small"
-                      selection={{ branchId: branch.id }}
-                    >
-                      Đặt lịch
-                    </PublicBookingButton>
+                    {branch.activeDoctorCount === 0 ? (
+                      <Link className="outline-button outline-button--small" href={`/branches/${branch.slug}`}>
+                        Xem tình trạng lịch
+                      </Link>
+                    ) : (
+                      <PublicBookingButton
+                        className="outline-button outline-button--small"
+                        selection={{ branchId: branch.id }}
+                      >
+                        Đặt lịch
+                      </PublicBookingButton>
+                    )}
                   </div>
                 </article>
               );

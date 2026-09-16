@@ -923,6 +923,20 @@ def public_context_is_relevant(query: str, context: Sequence[str]) -> bool:
             for item in eligible_context
         ):
             return False
+    # Broad service/package catalog questions intentionally do not contain a
+    # unique entity. They are still safe to ground when the projection has an
+    # explicit type label; without that label a random operational row could
+    # be mistaken for a service or package catalog entry.
+    if any(term in normalized_query for term in _PUBLIC_SERVICE_TERMS):
+        return any(
+            re.search(r"\bdich\s+vu\s*:", _normalize_sensitive_text(item))
+            for item in eligible_context
+        )
+    if any(term in normalized_query for term in _PUBLIC_PACKAGE_TERMS):
+        return any(
+            re.search(r"\bgoi\s+kham\s*:", _normalize_sensitive_text(item))
+            for item in eligible_context
+        )
     # Generic visitor intents contain catalog words that appear in almost
     # every row. They are useful for navigation fallback, but are not an
     # identity for a source row. Require a concrete entity token for those
@@ -1077,9 +1091,9 @@ def public_source_types_for_query(query: str) -> frozenset[str] | None:
         )
     ):
         return frozenset({"branch"})
-    if "dich vu" in normalized:
+    if any(term in normalized for term in ("dich vu", "bang gia", "gia dich vu")):
         return frozenset({"service"})
-    if "goi kham" in normalized or "goi suc khoe" in normalized:
+    if any(term in normalized for term in ("goi kham", "goi suc khoe", "kham tong quat")):
         return frozenset({"package"})
     return None
 
@@ -1148,6 +1162,12 @@ def public_no_context_query_allowed(query: str) -> bool:
             "tu van",
             "kham benh",
             "kham suc khoe",
+            "dich vu",
+            "bang gia",
+            "gia dich vu",
+            "goi kham",
+            "goi suc khoe",
+            "kham tong quat",
             "cho toi hoi",
             "toi muon hoi",
             "can giup",
@@ -1989,6 +2009,17 @@ def _chat_fallback(
             "Với câu hỏi chọn chuyên khoa, bạn có thể mở danh sách Chuyên khoa để xem hướng dẫn phù hợp. "
             "Bạn cũng có thể xem Bác sĩ hoặc Đặt lịch khám; trợ lý AI không chẩn đoán từ một mô tả ngắn."
         )
+    if any(term in normalized for term in _PUBLIC_SERVICE_TERMS):
+        return (
+            "Bạn có thể mở danh mục Dịch vụ của HealthCare để xem các dịch vụ đang được cung cấp "
+            "và thông tin chi tiết trước khi đặt lịch. Nếu bạn cho biết tên dịch vụ, tôi sẽ hỗ trợ "
+            "tra cứu đúng mục trong danh mục hiện có."
+        )
+    if any(term in normalized for term in _PUBLIC_PACKAGE_TERMS):
+        return (
+            "Bạn có thể mở danh mục Gói khám để xem từng gói, hạng mục và thông tin đặt lịch. "
+            "Nếu đã biết tên hoặc nhu cầu khám, hãy gửi thêm để tôi tra cứu đúng gói."
+        )
     if any(term in normalized for term in _PUBLIC_CATALOG_TERMS):
         return (
             "Bạn muốn tra cứu mục nào? Hãy chọn Chuyên khoa, Bác sĩ hoặc Cơ sở & giờ làm việc "
@@ -2009,7 +2040,8 @@ def _chat_fallback(
         return (
             "Trước khi đi khám tại HealthCare, bạn nên chuẩn bị: "
             "1) Giấy tờ tùy thân (CCCD/Hộ chiếu), thẻ BHYT và kết quả xét nghiệm, đơn thuốc cũ (nếu có); "
-            "2) Nhịn ăn sáng từ 6-8 tiếng nếu dự kiến làm xét nghiệm máu hoặc siêu âm ổ bụng tổng quát; "
+            "2) Yêu cầu nhịn ăn tùy loại xét nghiệm hoặc thủ thuật; không nên áp dụng một mốc giờ chung "
+            "mà hãy xác nhận trước với cơ sở hoặc bác sĩ; "
             "3) Trang phục thoải mái và ghi chú trước các câu hỏi hoặc triệu chứng muốn trao đổi trực tiếp với bác sĩ."
         )
     if any(term in normalized for term in _PUBLIC_BRANCH_HOURS_TERMS):
@@ -2028,6 +2060,22 @@ def _chat_fallback(
         "Tôi có thể hỗ trợ định hướng thông tin sức khỏe ở mức tham khảo. "
         "Bạn hãy mô tả rõ triệu chứng, thời gian xuất hiện và điều gì khiến bạn lo lắng. "
         "Nếu có dấu hiệu nặng hoặc diễn tiến nhanh, hãy liên hệ cơ sở cấp cứu."
+    )
+
+
+def _public_fallback_requires_source(message: str) -> bool:
+    """Mark factual public fallback copy as ungrounded at the API boundary.
+
+    Navigation copy can remain an ``ANSWER`` without a citation, but a
+    preparation/service/package fallback contains a user-visible catalog or
+    medical claim and must be surfaced as insufficient evidence until a
+    verified source is available.
+    """
+
+    normalized = _normalize_sensitive_text(message)
+    return any(
+        term in normalized
+        for term in (*_PUBLIC_PREPARATION_TERMS, *_PUBLIC_SERVICE_TERMS, *_PUBLIC_PACKAGE_TERMS)
     )
 
 
@@ -2076,6 +2124,11 @@ def resolve_chat(
             answer=fallback,
             provenance="local_fallback",
             used_sources=list(used_sources),
+            safety_action=(
+                ChatSafetyAction.INSUFFICIENT_EVIDENCE
+                if _public_fallback_requires_source(message)
+                else ChatSafetyAction.ANSWER
+            ),
             cost_tier="local_free",
             routing_reason="public_support_local_fallback",
         )

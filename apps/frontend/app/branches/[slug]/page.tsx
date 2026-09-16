@@ -52,6 +52,11 @@ export default function BranchDetailPage() {
   const phoneHref = safeTelephoneHref(branch?.phone);
   const emergencyHref = safeTelephoneHref(branch?.emergencyHotline);
   const callHref = emergencyHref ?? phoneHref;
+  const onlineBookingAvailable = branch
+    ? typeof branch.activeDoctorCount === "number"
+      ? branch.activeDoctorCount > 0
+      : Boolean(branch.doctors?.length)
+    : false;
 
   return (
     <PublicPageShell branches={branch ? [branch] : []}>
@@ -129,9 +134,23 @@ export default function BranchDetailPage() {
                 </div>
               </dl>
               <div className="resource-actions">
-                <PublicBookingButton selection={{ branchId: branch.id }}>
-                  Đặt lịch tại cơ sở này
-                </PublicBookingButton>
+                {onlineBookingAvailable ? (
+                  <PublicBookingButton selection={{ branchId: branch.id }}>
+                    Đặt lịch tại cơ sở này
+                  </PublicBookingButton>
+                ) : (
+                  <>
+                    <span className="resource-muted" role="status">
+                      Cơ sở này chưa có bác sĩ được gán lịch trực tuyến.
+                    </span>
+                    <Link className="button button--amber" href="/contact">
+                      Liên hệ để xác nhận lịch
+                    </Link>
+                    <PublicBookingButton className="outline-button">
+                      Đặt lịch ở cơ sở khác
+                    </PublicBookingButton>
+                  </>
+                )}
                 {callHref ? (
                   <a
                     className="outline-button"
@@ -189,7 +208,9 @@ export default function BranchDetailPage() {
                   ))}
                 </div>
               ) : (
-                <p className="resource-muted">Danh sách bác sĩ tại cơ sở đang chờ xác nhận; bạn vẫn có thể đặt lịch để được điều phối phù hợp.</p>
+                <p className="resource-muted">
+                  Cơ sở này chưa có bác sĩ được gán lịch trực tuyến. Vui lòng liên hệ để xác nhận lịch hoặc chọn một cơ sở khác.
+                </p>
               )}
             </section>
           </div>

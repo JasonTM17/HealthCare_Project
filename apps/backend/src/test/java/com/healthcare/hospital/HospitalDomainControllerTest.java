@@ -307,7 +307,8 @@ class HospitalDomainControllerTest extends TestcontainersIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.workingHours").value("07:00–19:00"))
             .andExpect(jsonPath("$.amenities[0]").value("Pharmacy"))
-            .andExpect(jsonPath("$.doctors[0].fullName").value("Structured doctor"));
+            .andExpect(jsonPath("$.doctors[0].fullName").value("Structured doctor"))
+            .andExpect(jsonPath("$.activeDoctorCount").value(1));
 
         mockMvc.perform(get("/api/v1/hospital/packages/{slug}", pkg.getSlug()))
             .andExpect(status().isOk())

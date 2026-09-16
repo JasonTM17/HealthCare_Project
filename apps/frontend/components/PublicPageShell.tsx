@@ -49,13 +49,15 @@ export function PublicBookingButton({
   children = "Đặt lịch khám",
   className = "button button--amber",
   selection,
+  ariaLabel,
 }: {
   children?: ReactNode;
   className?: string;
   selection?: Parameters<PublicPageActions["openBooking"]>[0];
+  ariaLabel?: string;
 }) {
   const { openBooking } = usePublicPageActions();
-  return <button className={className} onClick={() => openBooking(selection)} type="button">{children}</button>;
+  return <button aria-label={ariaLabel} className={className} onClick={() => openBooking(selection)} type="button">{children}</button>;
 }
 
 export function PublicAiButton({ children = "Trợ lý triệu chứng", className = "outline-button" }: { children?: ReactNode; className?: string }) {
