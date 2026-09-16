@@ -54,6 +54,7 @@ public class ClinicalService {
     private final MedicalRecordRepository medicalRecordRepository;
     private final PrescriptionRepository prescriptionRepository;
     private final DiagnosticResultRepository diagnosticResultRepository;
+    private final com.healthcare.clinical.repository.DiagnosticOrderRepository diagnosticOrderRepository;
     private final PatientProfileRepository patientProfileRepository;
     private final DoctorRepository doctorRepository;
     private final AppointmentRepository appointmentRepository;
@@ -66,6 +67,7 @@ public class ClinicalService {
             MedicalRecordRepository medicalRecordRepository,
             PrescriptionRepository prescriptionRepository,
             DiagnosticResultRepository diagnosticResultRepository,
+            com.healthcare.clinical.repository.DiagnosticOrderRepository diagnosticOrderRepository,
             PatientProfileRepository patientProfileRepository,
             DoctorRepository doctorRepository,
             AppointmentRepository appointmentRepository,
@@ -76,6 +78,7 @@ public class ClinicalService {
         this.medicalRecordRepository = medicalRecordRepository;
         this.prescriptionRepository = prescriptionRepository;
         this.diagnosticResultRepository = diagnosticResultRepository;
+        this.diagnosticOrderRepository = diagnosticOrderRepository;
         this.patientProfileRepository = patientProfileRepository;
         this.doctorRepository = doctorRepository;
         this.appointmentRepository = appointmentRepository;
@@ -352,6 +355,17 @@ public class ClinicalService {
         PatientProfile patient = patientProfileRepository.findById(patientId)
             .orElseThrow(() -> new ResourceNotFoundException("Patient not found with ID: " + patientId));
 
+        // A result can only exist against an open order from the same doctor.
+        com.healthcare.clinical.entity.DiagnosticOrder order = diagnosticOrderRepository
+            .findById(request.orderId())
+            .orElseThrow(() -> new ResourceNotFoundException("Diagnostic order not found with ID: " + request.orderId()));
+        if (!order.getPatient().getId().equals(patientId) || !order.getDoctor().getId().equals(doctor.getId())) {
+            throw new AccessDeniedException("The diagnostic order does not belong to this doctor and patient");
+        }
+        if (!"REQUESTED".equals(order.getStatus()) && !"COLLECTED".equals(order.getStatus())) {
+            throw new BusinessException(409, "Chỉ định này đã được hoàn tất hoặc hủy");
+        }
+
         StoredFile storedFile = null;
         if (request.fileId() != null) {
             storedFile = storedFileRepository.findById(request.fileId())
@@ -370,11 +384,16 @@ public class ClinicalService {
         DiagnosticResult diagnostic = new DiagnosticResult();
         diagnostic.setPatient(patient);
         diagnostic.setDoctor(doctor);
+        diagnostic.setOrder(order);
         diagnostic.setTestName(request.testName().trim());
         diagnostic.setResult(request.result() == null ? null : request.result().trim());
         diagnostic.setStoredFile(storedFile);
         diagnostic.setTestDate(request.testDate() == null ? java.time.OffsetDateTime.now() : request.testDate());
         DiagnosticResult saved = diagnosticResultRepository.saveAndFlush(diagnostic);
+
+        order.setStatus("COMPLETED");
+        order.setUpdatedAt(java.time.OffsetDateTime.now());
+        diagnosticOrderRepository.save(order);
 
         if (patient.getUserId() != null) {
             notificationService.create(
@@ -386,6 +405,80 @@ public class ClinicalService {
             );
         }
         return mapToDiagnosticResponse(saved);
+    }
+
+    @Transactional
+    public com.healthcare.clinical.dto.DiagnosticOrderResponse createDiagnosticOrder(
+            UUID patientId,
+            com.healthcare.clinical.dto.CreateDiagnosticOrderRequest request,
+            UserDetails principal) {
+        Doctor doctor = requireLinkedDoctor(principal);
+        boolean hasActiveEncounterToday = appointmentRepository
+            .existsByPatientIdAndDoctorIdAndStatusInAndAppointmentDate(
+                patientId,
+                doctor.getId(),
+                java.util.EnumSet.of(
+                    AppointmentStatus.CONFIRMED,
+                    AppointmentStatus.CHECKED_IN,
+                    AppointmentStatus.IN_PROGRESS
+                ),
+                java.time.LocalDate.now(BUSINESS_ZONE)
+            );
+        if (!hasActiveEncounterToday) {
+            throw new AccessDeniedException(
+                "Chỉ định xét nghiệm chỉ có thể lập cho bệnh nhân đang trong lịch khám hôm nay của bạn");
+        }
+        PatientProfile patient = patientProfileRepository.findById(patientId)
+            .orElseThrow(() -> new ResourceNotFoundException("Patient not found with ID: " + patientId));
+
+        com.healthcare.appointment.entity.Appointment appointment = null;
+        if (request.appointmentId() != null) {
+            appointment = appointmentRepository.findById(request.appointmentId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                    "Appointment not found with ID: " + request.appointmentId()));
+            if (!appointment.getPatient().getId().equals(patientId)
+                    || !appointment.getDoctor().getId().equals(doctor.getId())) {
+                throw new AccessDeniedException("Appointment, patient, and doctor do not belong together");
+            }
+        }
+
+        com.healthcare.clinical.entity.DiagnosticOrder order = new com.healthcare.clinical.entity.DiagnosticOrder();
+        order.setPatient(patient);
+        order.setDoctor(doctor);
+        order.setAppointment(appointment);
+        order.setTestName(request.testName().trim());
+        order.setNotes(request.notes() == null ? null : request.notes().trim());
+        order.setStatus("REQUESTED");
+        return mapToOrderResponse(diagnosticOrderRepository.saveAndFlush(order));
+    }
+
+    @Transactional
+    public java.util.List<com.healthcare.clinical.dto.DiagnosticOrderResponse> getDoctorPatientDiagnosticOrders(
+            UUID patientId,
+            UserDetails principal) {
+        Doctor doctor = requireLinkedDoctor(principal);
+        ensureDoctorCanAccessPatient(patientId, doctor.getId());
+        return diagnosticOrderRepository
+            .findByPatientIdAndDoctorIdOrderByCreatedAtDesc(patientId, doctor.getId())
+            .stream()
+            .map(this::mapToOrderResponse)
+            .toList();
+    }
+
+    private com.healthcare.clinical.dto.DiagnosticOrderResponse mapToOrderResponse(
+            com.healthcare.clinical.entity.DiagnosticOrder order) {
+        return new com.healthcare.clinical.dto.DiagnosticOrderResponse(
+            order.getId(),
+            order.getPatient().getId(),
+            order.getPatient().getFullName(),
+            order.getDoctor().getId(),
+            order.getDoctor().getFullName(),
+            order.getAppointment() == null ? null : order.getAppointment().getId(),
+            order.getTestName(),
+            order.getNotes(),
+            order.getStatus(),
+            order.getCreatedAt()
+        );
     }
 
     private void authorizePatientHistory(UUID patientId, UserDetails principal) {

@@ -13,8 +13,8 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "diagnostic_results")
-public class DiagnosticResult {
+@Table(name = "diagnostic_orders")
+public class DiagnosticOrder {
 
     @Id
     @UuidGenerator
@@ -25,36 +25,32 @@ public class DiagnosticResult {
     @JoinColumn(name = "patient_id", nullable = false)
     private com.healthcare.appointment.entity.PatientProfile patient;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "doctor_id")
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "doctor_id", nullable = false)
     private com.healthcare.hospital.entity.Doctor doctor;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "order_id")
-    private DiagnosticOrder order;
+    @JoinColumn(name = "appointment_id")
+    private com.healthcare.appointment.entity.Appointment appointment;
 
     @Column(name = "test_name", nullable = false, length = 200)
     private String testName;
 
-    @Column(name = "result", length = 4000)
-    private String result;
+    @Column(name = "notes", length = 1000)
+    private String notes;
 
-    @Column(name = "file_url", length = 500)
-    private String fileUrl;
+    /** REQUESTED | COLLECTED | COMPLETED | CANCELLED (V76 CHECK). */
+    @Column(name = "status", nullable = false, length = 24)
+    private String status = "REQUESTED";
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "stored_file_id")
-    private com.healthcare.storage.entity.StoredFile storedFile;
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private OffsetDateTime createdAt = OffsetDateTime.now();
 
-    @Column(name = "test_date", nullable = false)
-    private OffsetDateTime testDate = OffsetDateTime.now();
+    @Column(name = "updated_at", nullable = false)
+    private OffsetDateTime updatedAt = OffsetDateTime.now();
 
     public UUID getId() {
         return id;
-    }
-
-    public void setId(UUID id) {
-        this.id = id;
     }
 
     public com.healthcare.appointment.entity.PatientProfile getPatient() {
@@ -73,12 +69,12 @@ public class DiagnosticResult {
         this.doctor = doctor;
     }
 
-    public DiagnosticOrder getOrder() {
-        return order;
+    public com.healthcare.appointment.entity.Appointment getAppointment() {
+        return appointment;
     }
 
-    public void setOrder(DiagnosticOrder order) {
-        this.order = order;
+    public void setAppointment(com.healthcare.appointment.entity.Appointment appointment) {
+        this.appointment = appointment;
     }
 
     public String getTestName() {
@@ -89,35 +85,31 @@ public class DiagnosticResult {
         this.testName = testName;
     }
 
-    public String getResult() {
-        return result;
+    public String getNotes() {
+        return notes;
     }
 
-    public void setResult(String result) {
-        this.result = result;
+    public void setNotes(String notes) {
+        this.notes = notes;
     }
 
-    public String getFileUrl() {
-        return fileUrl;
+    public String getStatus() {
+        return status;
     }
 
-    public void setFileUrl(String fileUrl) {
-        this.fileUrl = fileUrl;
+    public void setStatus(String status) {
+        this.status = status;
     }
 
-    public com.healthcare.storage.entity.StoredFile getStoredFile() {
-        return storedFile;
+    public OffsetDateTime getCreatedAt() {
+        return createdAt;
     }
 
-    public void setStoredFile(com.healthcare.storage.entity.StoredFile storedFile) {
-        this.storedFile = storedFile;
+    public OffsetDateTime getUpdatedAt() {
+        return updatedAt;
     }
 
-    public OffsetDateTime getTestDate() {
-        return testDate;
-    }
-
-    public void setTestDate(OffsetDateTime testDate) {
-        this.testDate = testDate;
+    public void setUpdatedAt(OffsetDateTime updatedAt) {
+        this.updatedAt = updatedAt;
     }
 }
