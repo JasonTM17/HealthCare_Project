@@ -66,4 +66,13 @@ public final class SafePageRequests {
         int safeSize = size == null ? defaultSize : Math.min(Math.max(size, 1), hardMaxSize);
         return PageRequest.of(safePage, safeSize, sort);
     }
+
+    public static int safePage(Integer page) {
+        return page == null || page < 0 ? 0 : page;
+    }
+
+    public static int safeSize(Integer size, int defaultSize, int hardMaxSize) {
+        return size == null ? defaultSize : Math.min(Math.max(size, 1), hardMaxSize);
+    }
 }
+

@@ -79,7 +79,8 @@ public class AiClinicalOutboxService {
 
     private String normalizeType(String sourceType) {
         String normalized = sourceType == null ? "" : sourceType.trim().toUpperCase(Locale.ROOT);
-        if (!java.util.Set.of("SPECIALTY", "ARTICLE", "FAQ").contains(normalized)) {
+        if (!java.util.Set.of("SPECIALTY", "ARTICLE", "FAQ", "DOCTOR", "SERVICE", "BRANCH", "PACKAGE")
+                .contains(normalized)) {
             throw new IllegalArgumentException("unsupported clinical outbox source type");
         }
         return normalized;

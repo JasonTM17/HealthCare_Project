@@ -139,6 +139,7 @@ public class AiClinicalReviewService {
                    ) AS title
               FROM ai_content_review_heads h
              WHERE h.eligibility_state = ?
+               AND h.source_type IN ('SPECIALTY', 'ARTICLE', 'FAQ')
             ORDER BY h.submitted_at NULLS LAST, h.source_type, h.source_id
             LIMIT ? OFFSET ?
             """, normalized, safeSize, safePage * safeSize);
@@ -194,7 +195,7 @@ public class AiClinicalReviewService {
                      END
                    ) AS title
               FROM ai_content_review_heads h
-             WHERE 1 = 1
+             WHERE h.source_type IN ('SPECIALTY', 'ARTICLE', 'FAQ')
             """ + (normalizedState == null ? "" : " AND h.eligibility_state = ?")
                 + (normalizedType == null ? "" : " AND h.source_type = ?") + """
              ORDER BY h.submitted_at NULLS LAST, h.source_type, h.source_id

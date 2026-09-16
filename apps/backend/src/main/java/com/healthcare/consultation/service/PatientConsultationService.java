@@ -1,5 +1,6 @@
 package com.healthcare.consultation.service;
 
+import com.healthcare.common.SafePageRequests;
 import com.healthcare.consultation.dto.ConsultationContracts;
 import com.healthcare.exception.BusinessException;
 import com.healthcare.exception.ErrorCodes;
@@ -710,6 +711,13 @@ public class PatientConsultationService {
 
     @Transactional(readOnly = true)
     public List<ConsultationContracts.AdminQueueItem> listForAdmin() {
+        return listForAdmin(0, 20);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ConsultationContracts.AdminQueueItem> listForAdmin(Integer page, Integer size) {
+        int safePage = SafePageRequests.safePage(page);
+        int safeSize = SafePageRequests.safeSize(size, 20, 100);
         return jdbc.query("""
             SELECT t.id AS thread_id,
                    CASE WHEN t.status IN ('OPEN', 'WAITING_FOR_DOCTOR', 'WAITING_FOR_PATIENT')
@@ -734,8 +742,10 @@ public class PatientConsultationService {
                               p.joined_at DESC, p.id DESC
                      LIMIT 1
               ) assignment ON TRUE
-             WHERE t.retention_expires_at > CURRENT_TIMESTAMP ORDER BY t.updated_at DESC
-            """, (rs, n) -> mapAdminQueueItem(rs));
+             WHERE t.retention_expires_at > CURRENT_TIMESTAMP
+             ORDER BY t.updated_at DESC, t.id DESC
+             LIMIT ? OFFSET ?
+            """, (rs, n) -> mapAdminQueueItem(rs), safeSize, safePage * safeSize);
     }
 
     @Transactional

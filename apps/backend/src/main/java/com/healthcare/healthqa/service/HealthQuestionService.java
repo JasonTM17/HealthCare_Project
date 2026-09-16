@@ -1,6 +1,7 @@
 package com.healthcare.healthqa.service;
 
 import com.healthcare.ai.service.AiClinicalContentRevisionService;
+import com.healthcare.common.SafePageRequests;
 import com.healthcare.exception.BusinessException;
 import com.healthcare.exception.ResourceNotFoundException;
 import com.healthcare.healthqa.dto.HealthQuestionContracts;
@@ -167,8 +168,17 @@ public class HealthQuestionService {
 
     @Transactional(readOnly = true)
     public List<HealthQuestionContracts.Summary> adminQueue(String state) {
-        if (state == null || state.isBlank()) return list("WHERE q.status <> 'CLOSED'");
-        return list("WHERE q.status = ?", state.trim());
+        return adminQueue(state, 0, 20);
+    }
+
+    @Transactional(readOnly = true)
+    public List<HealthQuestionContracts.Summary> adminQueue(String state, Integer page, Integer size) {
+        int safePage = SafePageRequests.safePage(page);
+        int safeSize = SafePageRequests.safeSize(size, 20, 100);
+        if (state == null || state.isBlank()) {
+            return listWindow("WHERE q.status <> 'CLOSED'", safeSize, safePage * safeSize);
+        }
+        return listWindow("WHERE q.status = ?", safeSize, safePage * safeSize, state.trim());
     }
 
     @Transactional(readOnly = true)
@@ -268,6 +278,13 @@ public class HealthQuestionService {
     }
 
     private List<HealthQuestionContracts.Summary> list(String where, Object... args) {
+        return listWindow(where, 200, 0, args);
+    }
+
+    private List<HealthQuestionContracts.Summary> listWindow(String where, int limit, int offset, Object... args) {
+        Object[] queryArgs = java.util.Arrays.copyOf(args, args.length + 2);
+        queryArgs[args.length] = limit;
+        queryArgs[args.length + 1] = offset;
         return jdbc.query("""
             SELECT q.id, q.topic_slug, q.normalized_question, q.public_alias, q.status, q.created_at,
                    a.answer_text, a.status answer_status
@@ -275,10 +292,11 @@ public class HealthQuestionService {
                     SELECT answer_text, status FROM health_question_answers
                      WHERE question_id = q.id ORDER BY revision DESC LIMIT 1
               ) a ON TRUE """ + (where.isBlank() ? " WHERE " : " " + where + " AND ")
-            + "q.retention_expires_at > CURRENT_TIMESTAMP AND q.deleted_at IS NULL ORDER BY q.created_at DESC LIMIT 200", (rs, n) -> new HealthQuestionContracts.Summary(
+            + "q.retention_expires_at > CURRENT_TIMESTAMP AND q.deleted_at IS NULL "
+            + "ORDER BY q.created_at DESC, q.id DESC LIMIT ? OFFSET ?", (rs, n) -> new HealthQuestionContracts.Summary(
                 rs.getObject("id", UUID.class), rs.getString("topic_slug"), rs.getString("normalized_question"),
                 rs.getString("public_alias"), rs.getString("status"), rs.getObject("created_at", OffsetDateTime.class),
-                rs.getString("answer_text"), rs.getString("answer_status")), args);
+                rs.getString("answer_text"), rs.getString("answer_status")), queryArgs);
     }
 
     private HealthQuestionContracts.Summary get(UUID id, UUID userId, boolean owner) {

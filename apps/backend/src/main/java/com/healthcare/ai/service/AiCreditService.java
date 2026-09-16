@@ -24,13 +24,13 @@ import java.util.UUID;
 public class AiCreditService {
 
     /**
-     * HC-11: admin inventories are served in bounded windows. The default
-     * stays large because the admin UI still consumes whole arrays, and the
-     * hard maximum bounds the worst-case read; pages are ordered by immutable
-     * id so consecutive pages are stable and gap-free.
+     * HC-11: admin inventories are served in bounded windows. The body still
+     * stays a JSON array for compatibility, while page metadata travels in
+     * headers; pages are ordered by immutable id so consecutive pages are stable
+     * and gap-free.
      */
-    public static final int ADMIN_LISTING_DEFAULT_SIZE = 500;
-    public static final int ADMIN_LISTING_MAX_SIZE = 1_000;
+    public static final int ADMIN_LISTING_DEFAULT_SIZE = 20;
+    public static final int ADMIN_LISTING_MAX_SIZE = 100;
     private static final Sort ADMIN_LISTING_SORT = Sort.by(Sort.Direction.ASC, "id");
 
     private final PatientProfileRepository patientProfileRepository;

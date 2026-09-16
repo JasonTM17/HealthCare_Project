@@ -3,7 +3,11 @@ package com.healthcare.ai.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.healthcare.hospital.entity.Article;
+import com.healthcare.hospital.entity.Branch;
+import com.healthcare.hospital.entity.Doctor;
 import com.healthcare.hospital.entity.Faq;
+import com.healthcare.hospital.entity.MedicalService;
+import com.healthcare.hospital.entity.Package;
 import com.healthcare.hospital.entity.Specialty;
 import com.healthcare.security.HealthcareUserPrincipal;
 import com.healthcare.user.entity.User;
@@ -116,6 +120,30 @@ public class AiClinicalContentRevisionService {
     public void recordFaqDeletion(Faq source, UserDetails actor) {
         requireId(source == null ? null : source.getId(), "FAQ");
         record("FAQ", source.getId(), tombstoneSnapshot(source.getId()), actor, "TOMBSTONE");
+    }
+
+    @Transactional
+    public void recordDoctorDeletion(Doctor source, UserDetails actor) {
+        requireId(source == null ? null : source.getId(), "DOCTOR");
+        record("DOCTOR", source.getId(), deletionSnapshot(doctorSnapshot(source)), actor, "TOMBSTONE");
+    }
+
+    @Transactional
+    public void recordServiceDeletion(MedicalService source, UserDetails actor) {
+        requireId(source == null ? null : source.getId(), "SERVICE");
+        record("SERVICE", source.getId(), deletionSnapshot(serviceSnapshot(source)), actor, "TOMBSTONE");
+    }
+
+    @Transactional
+    public void recordBranchDeletion(Branch source, UserDetails actor) {
+        requireId(source == null ? null : source.getId(), "BRANCH");
+        record("BRANCH", source.getId(), deletionSnapshot(branchSnapshot(source)), actor, "TOMBSTONE");
+    }
+
+    @Transactional
+    public void recordPackageDeletion(Package source, UserDetails actor) {
+        requireId(source == null ? null : source.getId(), "PACKAGE");
+        record("PACKAGE", source.getId(), deletionSnapshot(packageSnapshot(source)), actor, "TOMBSTONE");
     }
 
     private void record(
@@ -375,11 +403,70 @@ public class AiClinicalContentRevisionService {
         return value;
     }
 
+    private Map<String, Object> doctorSnapshot(Doctor source) {
+        Map<String, Object> value = new LinkedHashMap<>();
+        value.put("active", source.isActive());
+        value.put("ai_credits", source.getAiCredits());
+        value.put("bio", source.getBio());
+        value.put("full_name", source.getFullName());
+        value.put("id", source.getId().toString());
+        value.put("photo_url", source.getPhotoUrl());
+        value.put("slug", source.getSlug());
+        value.put("user_id", source.getUserId() == null ? null : source.getUserId().toString());
+        return value;
+    }
+
+    private Map<String, Object> serviceSnapshot(MedicalService source) {
+        Map<String, Object> value = new LinkedHashMap<>();
+        value.put("active", source.isActive());
+        value.put("description", source.getDescription());
+        value.put("id", source.getId().toString());
+        value.put("name", source.getName());
+        value.put("slug", source.getSlug());
+        return value;
+    }
+
+    private Map<String, Object> branchSnapshot(Branch source) {
+        Map<String, Object> value = new LinkedHashMap<>();
+        value.put("active", source.isActive());
+        value.put("address", source.getAddress());
+        value.put("amenities", source.getAmenities());
+        value.put("emergency_hotline", source.getEmergencyHotline());
+        value.put("id", source.getId().toString());
+        value.put("map_url", source.getMapUrl());
+        value.put("name", source.getName());
+        value.put("phone", source.getPhone());
+        value.put("slug", source.getSlug());
+        value.put("working_hours", source.getWorkingHours());
+        return value;
+    }
+
+    private Map<String, Object> packageSnapshot(Package source) {
+        Map<String, Object> value = new LinkedHashMap<>();
+        value.put("active", source.isActive());
+        value.put("checklist", source.getChecklist());
+        value.put("description", source.getDescription());
+        value.put("display_order", source.getDisplayOrder());
+        value.put("duration_days", source.getDurationDays());
+        value.put("id", source.getId().toString());
+        value.put("name", source.getName());
+        value.put("preparation_steps", source.getPreparationSteps());
+        value.put("price", source.getPrice());
+        value.put("slug", source.getSlug());
+        value.put("target_audience", source.getTargetAudience());
+        return value;
+    }
+
     private Map<String, Object> tombstoneSnapshot(UUID sourceId) {
         Map<String, Object> value = new LinkedHashMap<>();
         value.put("deleted", true);
         value.put("id", sourceId.toString());
         return value;
+    }
+
+    private Map<String, Object> deletionSnapshot(Map<String, Object> source) {
+        source.put("deleted", true);
+        return source;
     }
 
     private UUID actorId(UserDetails principal) {
