@@ -5,6 +5,7 @@ export interface DoctorSummary {
   photoUrl?: string | null;
   specialtyName?: string | null;
   branchId?: string | null;
+  demo?: boolean;
 }
 
 export interface Specialty {
@@ -36,6 +37,7 @@ export interface Doctor {
   specialtySlugs?: string[];
   achievements?: string | null;
   aiCredits?: number | null;
+  demo?: boolean;
 }
 
 export interface Branch {

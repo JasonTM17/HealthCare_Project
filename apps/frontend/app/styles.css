@@ -12030,3 +12030,13 @@ body:has(.mobile-menu) [class*="FloatingHealthAssistant_root"] {
   .site-shell .hero-section::before,
   .site-shell .hero-section::after { animation: none !important; }
 }
+
+.doctor-card__demo-badge {
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: var(--radius-sm);
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.1rem 0.5rem;
+}

@@ -20,6 +20,7 @@ import {
   fetchBranches,
   fetchDoctors,
   fetchSpecialties,
+  getAuthSessionSnapshot,
   ApiError,
   resendAppointmentOtp,
 } from "../lib/api-client";
@@ -1728,9 +1729,22 @@ function BookingExperience({
                   </div>
 
                   <div className="pt-3">
-                    <Link className="mr-3 inline-flex rounded-lg border border-brand-700 px-6 py-2.5 text-sm font-bold text-brand-800" href={`/patient/dashboard?paymentAppointmentId=${encodeURIComponent(confirmedAppointment.id)}#appointments`}>
-                      Thanh toán chuyển khoản
-                    </Link>
+                    {(() => {
+                      const paymentNext = `/patient/dashboard?paymentAppointmentId=${encodeURIComponent(confirmedAppointment.id)}#appointments`;
+                      const signedIn = Boolean(getAuthSessionSnapshot()?.user);
+                      return signedIn ? (
+                        <Link className="mr-3 inline-flex rounded-lg border border-brand-700 px-6 py-2.5 text-sm font-bold text-brand-800" href={paymentNext}>
+                          Thanh toán chuyển khoản
+                        </Link>
+                      ) : (
+                        <Link
+                          className="mr-3 inline-flex rounded-lg border border-brand-700 px-6 py-2.5 text-sm font-bold text-brand-800"
+                          href={`/auth/login?next=${encodeURIComponent(paymentNext)}`}
+                        >
+                          Đăng nhập để thanh toán chuyển khoản
+                        </Link>
+                      );
+                    })()}
                     <button
                       type="button"
                       onClick={closeBooking}
@@ -1747,9 +1761,11 @@ function BookingExperience({
                     <Link className="fx-chip" href="/tra-cuu">
                       <Icon name="calendar" size={15} /> Tra cứu lịch hẹn
                     </Link>
-                    <Link className="fx-chip" href="/patient/dashboard#appointments">
-                      <Icon name="user" size={15} /> Lịch hẹn của tôi
-                    </Link>
+                    {Boolean(getAuthSessionSnapshot()?.user) ? (
+                      <Link className="fx-chip" href="/patient/dashboard#appointments">
+                        <Icon name="user" size={15} /> Lịch hẹn của tôi
+                      </Link>
+                    ) : null}
                   </div>
                 </div>
               )}

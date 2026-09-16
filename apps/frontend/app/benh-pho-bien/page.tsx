@@ -305,8 +305,8 @@ export default function CommonDiseasesPage() {
                 <Link className="button button--primary button--small" href="/articles">
                   Mở cẩm nang sức khỏe →
                 </Link>
-                <Link className="outline-button outline-button--small" href="/patient/community">
-                  Hỏi bác sĩ chuyên khoa
+                <Link className="outline-button outline-button--small" href="/contact">
+                  Liên hệ bác sĩ chuyên khoa
                 </Link>
               </div>
             </div>
