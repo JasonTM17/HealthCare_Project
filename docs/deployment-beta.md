@@ -57,6 +57,35 @@ no local Docker image is pulled to support it.
 Provider credentials stay in Render/Vercel/Supabase secret stores. Never commit
 or print a database password, BFF token, JWT secret, Supabase DB URL, or API key.
 
+## Chat delivery SLO and trace contract
+
+These are beta targets, not measured production claims. They become accepted
+only after an exact-deployment synthetic probe records enough samples to report
+p50 and p95 on the same deployed source identity.
+
+| Surface | Feedback target | Warm completion target | Hard user-visible bound |
+| --- | --- | --- | --- |
+| Guest hospital navigation/booking | UI acknowledgement p95 <= 250 ms | p50 <= 1 s; p95 <= 3 s | BFF 35 s, browser 40 s; safe local fallback |
+| Authenticated validated patient chat | UI acknowledgement p95 <= 250 ms | p50 <= 5 s; p95 <= 15 s | BFF 30 s, browser 33 s; retryable bounded error |
+
+“Feedback” means the locally rendered user message and honest processing state.
+It does not mean a generated token: decision D-02 validates, reauthorizes and
+persists the complete answer before replaying it as chunks.
+
+The BFF owns a fresh canonical UUID in `X-Request-ID`; browser-supplied values
+are rejected. Spring echoes the same identifier and forwards it to FastAPI.
+Content-free timing records use only `requestId`, `stage`, `outcome`, `status`
+and `durationMs`. They must never include prompt/answer text, user or
+conversation identifiers, source content, provider payloads, tokens or PHI.
+Expected stages are BFF, retrieval, SQL source authorization, generation,
+response validation and persistence.
+
+Browser aborts, BFF deadlines and response-body cancellation abort the BFF's
+upstream fetch. Spring and FastAPI retain their own bounded service/provider
+timeouts. Do not claim cross-process cooperative cancellation until an
+exact-deployment disconnect probe proves that server work itself terminates;
+a closed BFF socket alone is not that proof.
+
 ## Dormant feature flags (beta contract)
 
 Every optional switch ships `false` unless a row below says otherwise. Flip a flag only

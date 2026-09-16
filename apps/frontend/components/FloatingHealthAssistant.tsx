@@ -222,10 +222,7 @@ function FloatingHealthAssistantPanel({
     ? "Tạm thời gián đoạn"
     : latestMessage?.role === "ASSISTANT" && latestMessage.provenance === "local_fallback"
       ? "Hỗ trợ tạm thời"
-      : isPatient ? "Trợ lý sức khỏe AI · Trực tuyến" : "Hỗ trợ tra cứu · Trực tuyến";
-  const assistantStatusIsDegraded = assistantStatus !== (isPatient
-    ? "Trợ lý sức khỏe AI · Trực tuyến"
-    : "Hỗ trợ tra cứu · Trực tuyến");
+      : null;
 
   const syncConversation = useCallback((next: AiConversation | null): void => {
     conversationIdRef.current = next?.id ?? null;
@@ -670,11 +667,8 @@ function FloatingHealthAssistantPanel({
               <div>
                 <strong>Trợ lý HealthCare</strong>
                 <span className={styles.headerSubtitle}>
-                  <span
-                    aria-hidden="true"
-                    className={`${styles.onlineDot}${assistantStatusIsDegraded ? ` ${styles.offlineDot}` : ""}`}
-                  />
-                  {assistantStatus}
+                  {isPatient ? "Thông tin sức khỏe · Có lưu lịch sử" : "Tra cứu HealthCare · Không lưu lịch sử"}
+                  {assistantStatus ? <span className={styles.statusNote}> · {assistantStatus}</span> : null}
                 </span>
               </div>
             </div>

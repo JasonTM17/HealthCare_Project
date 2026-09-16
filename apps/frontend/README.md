@@ -60,7 +60,7 @@ contract passed on 2026-09-01, including normal `ANSWER`, Vietnamese
 bypass/exfiltration `REFUSE`, emergency `EMERGENCY`, strict request-shape,
 origin, reserved-header, and tokenless-direct-backend rejection checks. A
 spun-down Render Free service can still make the first request slow. The
-measured Spring cold start was about 285 seconds, beyond the 55-second public
+measured Spring cold start was about 285 seconds, beyond the 35-second public
 chat deadline and the 60-second Vercel API-function limit; the first request
 after idle can therefore return `502 BFF_UPSTREAM_UNAVAILABLE`. Wait for the
 Render service to wake and use the assistant's `Thử lại` action. This is the

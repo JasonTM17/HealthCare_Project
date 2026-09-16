@@ -899,7 +899,12 @@ def public_context_is_relevant(query: str, context: Sequence[str]) -> bool:
     distinctive_tokens = query_tokens - _PUBLIC_QUERY_CONNECTOR_TOKENS
     if identity_query:
         if not distinctive_tokens:
-            return False
+            # Numeric branch identifiers (for example "Cơ sở số 2") are
+            # intentionally excluded from the generic token pattern.  The
+            # explicit constraint pass above still verifies the number
+            # against the source row, so do not turn a valid numeric lookup
+            # into a false negative merely because it has no lexical token.
+            return bool(query_constraints)
         required_overlap = 2 if len(distinctive_tokens) >= 2 else 1
         return any(
             len(distinctive_tokens.intersection(tokens(item))) >= required_overlap

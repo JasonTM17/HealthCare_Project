@@ -26,6 +26,7 @@ import com.healthcare.ai.service.AiCreditService;
 import com.healthcare.ai.service.AiService;
 import com.healthcare.exception.BusinessException;
 import com.healthcare.exception.ErrorCodes;
+import com.healthcare.observability.RequestTrace;
 import com.healthcare.security.HealthcareUserPrincipal;
 import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.UserRepository;
@@ -49,11 +50,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.Locale;
 import java.util.UUID;
 import java.util.regex.Pattern;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @Service
 public class AiConversationService {
@@ -407,34 +405,47 @@ public class AiConversationService {
         String idempotencyKey = normalizeIdempotencyKey(rawIdempotencyKey);
         String content = normalizeContent(rawContent);
 
+        long preparationStartedAt = System.nanoTime();
         PreparedMessage prepared = transactions.execute(status ->
             prepare(userId, conversationId, idempotencyKey, content)
         );
         if (prepared == null) {
+            recordChatStage("preparation", "failed", preparationStartedAt);
             throw new BusinessException(500, ErrorCodes.INTERNAL_ERROR, "Could not prepare chat request");
         }
         if (prepared.replay() != null) {
+            recordChatStage("preparation", "replay", preparationStartedAt);
             return prepared.replay();
         }
+        recordChatStage("preparation", "completed", preparationStartedAt);
 
         try {
             AiConversation conversation = conversationRepository.findByIdAndUserId(conversationId, userId)
                 .orElseThrow(this::notFound);
             SanitizedAiResponse sanitized = groundedResponse(
                 userId, conversation.getMode(), content, recentTurns(conversationId), chunkedDeliveryGeneration);
-            ChatExchangeResponse completed = transactions.execute(status ->
-                complete(
-                    userId,
-                    conversationId,
-                    prepared.userMessageId(),
-                    prepared.processingToken(),
-                    sanitized,
-                    conversation.getMode()
-                )
-            );
+            long persistenceStartedAt = System.nanoTime();
+            ChatExchangeResponse completed;
+            try {
+                completed = transactions.execute(status ->
+                    complete(
+                        userId,
+                        conversationId,
+                        prepared.userMessageId(),
+                        prepared.processingToken(),
+                        sanitized,
+                        conversation.getMode()
+                    )
+                );
+            } catch (RuntimeException ex) {
+                recordChatStage("persistence", "failed", persistenceStartedAt);
+                throw ex;
+            }
             if (completed == null) {
+                recordChatStage("persistence", "failed", persistenceStartedAt);
                 throw new BusinessException(500, ErrorCodes.INTERNAL_ERROR, "Could not persist AI response");
             }
+            recordChatStage("persistence", "completed", persistenceStartedAt);
             return completed;
         } catch (BusinessException ex) {
             markFailed(userId, conversationId, prepared.userMessageId(), prepared.processingToken());
@@ -490,30 +501,41 @@ public class AiConversationService {
         // through the public request body.
         request.put("synthetic_beta", syntheticBetaAsserted && syntheticBetaGuard.eligible(userId));
         Map<String, Object> retrieved = null;
+        long retrievalStartedAt = System.nanoTime();
         try {
             retrieved = aiService.retrieveChat(request);
         } catch (RuntimeException ex) {
-            log.warn("AI candidate retrieval deferred: {}", ex.getMessage());
+            log.warn(
+                "AI candidate retrieval deferred requestId={} errorType={}",
+                RequestTrace.currentId(), ex.getClass().getSimpleName()
+            );
+        } finally {
+            recordChatStage(
+                "retrieval-result", retrieved == null ? "unavailable" : "completed", retrievalStartedAt
+            );
         }
 
         if (retrieved == null) {
-            if (mode == ChatMode.HOSPITAL_SUPPORT) {
-                return hospitalSupportResponse(content);
-            }
-            return insufficient(mode);
+            return supportAwareFallback(mode, content);
         }
 
         String safety = stringValue(retrieved.get("safety_action"));
         if (safety != null && !"ANSWER".equals(safety)) {
             return safetyResponse(mode, safety, content);
         }
-        List<AiChatSourceResolver.ResolvedSource> authorized = sourceResolver.authorize(
-            mode, retrieved.get("candidates"));
+        long authorizationStartedAt = System.nanoTime();
+        List<AiChatSourceResolver.ResolvedSource> authorized;
+        try {
+            authorized = sourceResolver.authorize(mode, retrieved.get("candidates"));
+        } catch (RuntimeException ex) {
+            recordChatStage("source-authorization", "failed", authorizationStartedAt);
+            throw ex;
+        }
+        recordChatStage(
+            "source-authorization", authorized.isEmpty() ? "empty" : "completed", authorizationStartedAt
+        );
         if (authorized.isEmpty()) {
-            if (mode == ChatMode.HOSPITAL_SUPPORT) {
-                return hospitalSupportResponse(content);
-            }
-            return insufficient(mode);
+            return supportAwareFallback(mode, content);
         }
 
         Map<String, Object> generation = new LinkedHashMap<>();
@@ -527,9 +549,17 @@ public class AiConversationService {
         // validated answer (D-02): these deltas are a consistency log used to
         // prove the delivered slices equal the persisted answer below.
         List<String> upstreamDeliverySlices = new ArrayList<>();
-        Map<String, Object> generated = chunkedDeliveryGeneration
-            ? aiService.generateChatStream(generation, upstreamDeliverySlices::add)
-            : aiService.generateChat(generation);
+        long generationStartedAt = System.nanoTime();
+        Map<String, Object> generated;
+        try {
+            generated = chunkedDeliveryGeneration
+                ? aiService.generateChatStream(generation, upstreamDeliverySlices::add)
+                : aiService.generateChat(generation);
+        } catch (RuntimeException ex) {
+            recordChatStage("generation-result", "failed", generationStartedAt);
+            throw ex;
+        }
+        recordChatStage("generation-result", "completed", generationStartedAt);
         if (!upstreamDeliverySlices.isEmpty()
                 && generated.get("answer") instanceof String answer
                 && !String.join("", upstreamDeliverySlices).equals(answer)) {
@@ -1150,8 +1180,31 @@ public class AiConversationService {
         );
     }
 
+    private SanitizedAiResponse supportAwareFallback(ChatMode mode, String content) {
+        return mode == ChatMode.HOSPITAL_SUPPORT
+            ? hospitalSupportResponse(content)
+            : insufficient(mode);
+    }
+
+    /**
+     * Keep the deterministic hospital-support copy available for focused
+     * contract checks and future local UX fallbacks. It is explicitly marked
+     * as insufficient evidence because it is navigation guidance, not a
+     * HealthCare-curated answer or citation-bearing RAG response.
+     */
     private SanitizedAiResponse hospitalSupportResponse(String content) {
-        String answer = switch (ChatSuggestedActionResolver.classify(content)) {
+        ChatSuggestedActionResolver.HospitalSupportIntent intent =
+            ChatSuggestedActionResolver.classify(content);
+        if (intent == ChatSuggestedActionResolver.HospitalSupportIntent.CATALOG) {
+            SanitizedAiResponse catalog = catalogOverviewResponse(content);
+            if (catalog != null) return catalog;
+        }
+        if (intent == ChatSuggestedActionResolver.HospitalSupportIntent.BRANCH) {
+            SanitizedAiResponse branch = branchDetailsResponse(content);
+            if (branch != null) return branch;
+        }
+
+        String answer = switch (intent) {
             case GREETING ->
                 "Xin chào! Mình có thể hỗ trợ bạn tra cứu Chuyên khoa, Bác sĩ, Cơ sở & giờ làm việc "
                     + "hoặc hướng dẫn bắt đầu đặt lịch khám tại HealthCare.";
@@ -1187,14 +1240,104 @@ public class AiConversationService {
 
         return new SanitizedAiResponse(
             answer,
-            "Thông tin hướng dẫn quy trình và dịch vụ chăm sóc tại bệnh viện đa khoa HealthCare.",
+            SAFE_DISCLAIMER,
             "local_fallback",
             List.of(),
+            ChatSafetyAction.INSUFFICIENT_EVIDENCE,
+            null,
+            ChatSuggestedActionResolver.hospitalSupportFallback(content),
+            "UNAVAILABLE",
+            List.of()
+        );
+    }
+
+    /**
+     * Give broad catalog questions a useful answer during a RAG cold start or
+     * retrieval outage.  This path is deliberately deterministic and marked
+     * local_fallback: it reports only live Spring catalog identities that are
+     * also carried as citations, never a guessed LLM answer.
+     */
+    private SanitizedAiResponse catalogOverviewResponse(String content) {
+        AiChatSourceResolver.CatalogOverview overview;
+        try {
+            overview = sourceResolver.catalogOverview();
+        } catch (RuntimeException ex) {
+            return null;
+        }
+        if (overview == null || !overview.hasData()) return null;
+
+        List<AiChatSourceResolver.ResolvedSource> sources = overview.sources();
+        if (sources.isEmpty()) return null;
+        List<Map<String, String>> citations = sourceResolver.citations(sources);
+        if (citations == null || citations.isEmpty()) return null;
+
+        String answer = overview.summary()
+            + " Bạn có thể mở các mục bên dưới để xem thông tin chi tiết và đặt lịch.";
+
+        return new SanitizedAiResponse(
+            answer,
+            SAFE_DISCLAIMER,
+            "local_fallback",
+            citations,
             ChatSafetyAction.ANSWER,
             null,
             ChatSuggestedActionResolver.hospitalSupportFallback(content),
             "CURRENT",
-            List.of()
+            sources
+        );
+    }
+
+    /**
+     * Answer a uniquely identified branch question from the live operational
+     * catalog during a RAG cold start.  Ambiguous branch numbers and missing
+     * rows intentionally return null so the normal insufficient-evidence path
+     * remains the safe outcome.
+     */
+    private SanitizedAiResponse branchDetailsResponse(String content) {
+        List<AiChatSourceResolver.BranchDetails> matches;
+        try {
+            matches = sourceResolver.branchDetails(content);
+        } catch (RuntimeException ex) {
+            return null;
+        }
+        if (matches == null || matches.size() != 1 || matches.get(0) == null
+                || matches.get(0).source() == null) {
+            return null;
+        }
+
+        AiChatSourceResolver.BranchDetails branch = matches.get(0);
+        AiChatSourceResolver.ResolvedSource source = branch.source();
+        List<Map<String, String>> citations;
+        try {
+            citations = sourceResolver.citations(List.of(source));
+        } catch (RuntimeException ex) {
+            return null;
+        }
+        if (citations == null || citations.isEmpty()) return null;
+
+        String address = branch.address() == null
+            ? "Địa chỉ đang cập nhật."
+            : "Địa chỉ: " + branch.address() + ".";
+        String hours = branch.workingHours() == null
+            ? "Giờ làm việc đang cập nhật; bạn nên kiểm tra lại trước khi đến."
+            : "Giờ làm việc: " + branch.workingHours() + ".";
+        List<Map<String, String>> actions = sourceResolver.actions(List.of(source));
+        if (actions == null || actions.isEmpty()) {
+            actions = ChatSuggestedActionResolver.hospitalSupportFallback(content);
+        }
+
+        return new SanitizedAiResponse(
+            "Theo dữ liệu cơ sở đang hoạt động, " + source.title() + ". "
+                + address + " " + hours
+                + " Bạn có thể mở nguồn bên dưới để xem chi tiết và đặt lịch.",
+            SAFE_DISCLAIMER,
+            "local_fallback",
+            citations,
+            ChatSafetyAction.ANSWER,
+            null,
+            actions,
+            "CURRENT",
+            List.of(source)
         );
     }
 
@@ -1537,6 +1680,16 @@ public class AiConversationService {
 
     private String trim(String value, int maxLength) {
         return value.length() <= maxLength ? value : value.substring(0, maxLength);
+    }
+
+    private void recordChatStage(String stage, String outcome, long startedAt) {
+        String requestId = RequestTrace.currentId();
+        if (requestId == null) return;
+        long durationMillis = Math.max(0L, (System.nanoTime() - startedAt) / 1_000_000L);
+        log.info(
+            "AI chat stage requestId={} stage={} outcome={} durationMs={}",
+            requestId, stage, outcome, durationMillis
+        );
     }
 
     private BusinessException notFound() {

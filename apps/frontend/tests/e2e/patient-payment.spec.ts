@@ -16,6 +16,7 @@ import {
   browserSessionFixture,
   installMockBrowserSession,
 } from "./helpers/browser-session";
+import { fulfillBackendWarmup } from "./helpers/backend-warmup";
 
 type PageEnvelope<T> = {
   content: T[];
@@ -115,6 +116,7 @@ async function installPaymentMocks(context: BrowserContext): Promise<void> {
   });
 
   await context.route("**/api/v1/**", async (route) => {
+    if (await fulfillBackendWarmup(route)) return;
     const request = route.request();
     expect(request.headers()["authorization"]).toBeUndefined();
     const url = new URL(request.url());

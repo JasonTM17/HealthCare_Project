@@ -1,6 +1,7 @@
 import "server-only";
 
 import { Buffer } from "node:buffer";
+import { randomUUID } from "node:crypto";
 import { isIP } from "node:net";
 
 const API_PREFIX = "/api/v1/";
@@ -41,6 +42,7 @@ const EMERGENCY_FALLBACK_TERMS = [
   "shortness of breath",
   "severe bleeding",
 ] as const;
+const REQUEST_ID_HEADER = "X-Request-ID";
 
 const ALLOWED_METHODS = new Set(["GET", "HEAD", "OPTIONS", "POST", "PUT", "PATCH", "DELETE"]);
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
@@ -62,6 +64,7 @@ const RESERVED_BROWSER_HEADERS = new Set([
   "x-healthcare-bff-token",
   "x-healthcare-client-ip",
   "x-healthcare-original-origin",
+  "x-request-id",
 ]);
 const RESPONSE_HEADER_ALLOWLIST = new Set([
   "accept-ranges",
@@ -164,6 +167,38 @@ function publicAiChatFallbackResponse(message = ""): Response {
       },
     },
   );
+}
+
+type BffTraceOutcome = "completed" | "cancelled" | "failed" | "fallback" | "timeout";
+
+function isChatDeliveryPath(apiPath: string | undefined): boolean {
+  if (!apiPath) return false;
+  return apiPath === PUBLIC_AI_CHAT_PATH
+    || (
+      apiPath.startsWith(`${API_PREFIX}ai/conversations/`)
+      && (apiPath.endsWith("/messages") || apiPath.endsWith("/messages/stream"))
+    );
+}
+
+/**
+ * Emit one content-free timing record per chat request. Request bodies, user,
+ * conversation and provider data are deliberately excluded from this record.
+ */
+function recordChatTrace(
+  apiPath: string | undefined,
+  requestId: string,
+  startedAt: number,
+  outcome: BffTraceOutcome,
+  status: number,
+): void {
+  if (!isChatDeliveryPath(apiPath)) return;
+  console.info("healthcare_chat_stage", {
+    durationMs: Math.max(0, Date.now() - startedAt),
+    outcome,
+    requestId,
+    stage: "bff",
+    status,
+  });
 }
 
 async function cancelUpstreamBody(upstream: Response, reason: string): Promise<void> {
@@ -584,7 +619,7 @@ function allowlistedSetCookie(rawCookie: string): string | null {
 function createBrowserResponse(
   upstream: Response,
   requestMethod: string,
-  onBodySettled?: () => void,
+  onBodySettled?: (outcome: "completed" | "cancelled" | "failed") => void,
 ): Response {
   const headers = new Headers();
   for (const [name, value] of upstream.headers.entries()) {
@@ -598,7 +633,7 @@ function createBrowserResponse(
 
   const withoutBody = requestMethod === "HEAD" || upstream.status === 204 || upstream.status === 304;
   if (withoutBody || !upstream.body || !onBodySettled) {
-    onBodySettled?.();
+    onBodySettled?.("completed");
     return new Response(withoutBody ? null : upstream.body, {
       status: upstream.status,
       headers,
@@ -607,10 +642,11 @@ function createBrowserResponse(
 
   const reader = upstream.body.getReader();
   let settled = false;
-  const settle = () => {
+  let cancellationRequested = false;
+  const settle = (outcome: "completed" | "cancelled" | "failed") => {
     if (settled) return;
     settled = true;
-    onBodySettled();
+    onBodySettled(outcome);
   };
   const body = new ReadableStream<Uint8Array>({
     async pull(controller) {
@@ -618,20 +654,21 @@ function createBrowserResponse(
         const chunk = await reader.read();
         if (chunk.done) {
           controller.close();
-          settle();
+          settle("completed");
         } else if (chunk.value) {
           controller.enqueue(chunk.value);
         }
       } catch (error) {
         controller.error(error);
-        settle();
+        settle(cancellationRequested ? "cancelled" : "failed");
       }
     },
     async cancel(reason) {
+      cancellationRequested = true;
       try {
         await reader.cancel(reason);
       } finally {
-        settle();
+        settle("cancelled");
       }
     },
   });
@@ -646,19 +683,30 @@ export async function proxyHealthcareRequest(
   pathSegments: readonly string[],
   options: HealthcareBffProxyOptions = {},
 ): Promise<Response> {
+  const requestId = randomUUID();
+  const traceStartedAt = Date.now();
+  let apiPath: string | undefined;
+  const tracedResponse = (response: Response, outcome: BffTraceOutcome): Response => {
+    response.headers.set(REQUEST_ID_HEADER, requestId);
+    recordChatTrace(apiPath, requestId, traceStartedAt, outcome, response.status);
+    return response;
+  };
   const method = request.method.toUpperCase();
   if (!ALLOWED_METHODS.has(method)) {
-    return new Response(null, {
+    return tracedResponse(new Response(null, {
       status: 405,
       headers: { Allow: [...ALLOWED_METHODS].join(", "), "Cache-Control": "no-store" },
-    });
+    }), "failed");
   }
 
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   let abortFromBrowser: (() => void) | undefined;
   let responseBodyOwnsCleanup = false;
-  let apiPath: string | undefined;
   let publicChatMessage = "";
+  let deadlineExpired = false;
+  let browserAborted = false;
+  const interruptedOutcome = (fallback: BffTraceOutcome): BffTraceOutcome =>
+    deadlineExpired ? "timeout" : browserAborted ? "cancelled" : fallback;
   const cleanup = () => {
     if (timeoutId !== undefined) clearTimeout(timeoutId);
     if (abortFromBrowser) request.signal.removeEventListener("abort", abortFromBrowser);
@@ -667,7 +715,7 @@ export async function proxyHealthcareRequest(
     const requestUrl = new URL(request.url);
     apiPath = buildValidatedApiPath(requestUrl, pathSegments);
     if (BLOCKED_BEARER_MINT_PATHS.has(apiPath.toLowerCase())) {
-      return jsonError(404, "BFF_ROUTE_UNAVAILABLE");
+      return tracedResponse(jsonError(404, "BFF_ROUTE_UNAVAILABLE"), "failed");
     }
 
     const runtime = options.runtimeConfig ?? readHealthcareBffRuntimeConfig();
@@ -685,6 +733,7 @@ export async function proxyHealthcareRequest(
     const upstreamOrigin = process.env.BACKEND_ORIGIN_OVERRIDE?.trim() || browserOrigin;
     headers.set("X-Healthcare-Bff-Token", runtime.serviceToken);
     headers.set("X-Healthcare-Original-Origin", upstreamOrigin);
+    headers.set(REQUEST_ID_HEADER, requestId);
     const securityCookieHeader = serializeHealthcareSecurityCookies(securityCookies);
     if (securityCookieHeader) headers.set("Cookie", securityCookieHeader);
     const clientIp = trustedVercelClientIp(request);
@@ -694,7 +743,10 @@ export async function proxyHealthcareRequest(
     }
 
     const requestController = new AbortController();
-    abortFromBrowser = () => requestController.abort(request.signal.reason);
+    abortFromBrowser = () => {
+      browserAborted = true;
+      requestController.abort(request.signal.reason);
+    };
     if (request.signal.aborted) abortFromBrowser();
     else request.signal.addEventListener("abort", abortFromBrowser, { once: true });
     const requestTimeoutMs = apiPath === PUBLIC_AI_CHAT_PATH
@@ -702,7 +754,10 @@ export async function proxyHealthcareRequest(
       : apiPath.endsWith("/messages/stream")
       ? runtime.streamRequestTimeoutMs ?? runtime.requestTimeoutMs
       : runtime.requestTimeoutMs;
-    timeoutId = setTimeout(() => requestController.abort(), requestTimeoutMs);
+    timeoutId = setTimeout(() => {
+      deadlineExpired = true;
+      requestController.abort();
+    }, requestTimeoutMs);
     const body = await boundedRequestBody(request, requestController.signal);
     publicChatMessage = apiPath === PUBLIC_AI_CHAT_PATH ? readPublicChatMessage(body) : "";
 
@@ -716,21 +771,34 @@ export async function proxyHealthcareRequest(
     });
     if (upstream.status >= 300 && upstream.status < 400) {
       await cancelUpstreamBody(upstream, "BFF_UPSTREAM_REDIRECT_REJECTED");
-      return jsonError(502, "BFF_UPSTREAM_REDIRECT_REJECTED");
+      return tracedResponse(jsonError(502, "BFF_UPSTREAM_REDIRECT_REJECTED"), "failed");
     }
     if (method === "POST" && apiPath === PUBLIC_AI_CHAT_PATH && PUBLIC_AI_FALLBACK_STATUSES.has(upstream.status)) {
       await cancelUpstreamBody(upstream, "BFF_PUBLIC_AI_FALLBACK");
-      return publicAiChatFallbackResponse(publicChatMessage);
+      return tracedResponse(publicAiChatFallbackResponse(publicChatMessage), "fallback");
     }
-    const response = createBrowserResponse(upstream, method, cleanup);
+    const response = createBrowserResponse(upstream, method, (outcome) => {
+      if (outcome !== "completed") requestController.abort(outcome);
+      cleanup();
+      recordChatTrace(
+        apiPath,
+        requestId,
+        traceStartedAt,
+        interruptedOutcome(outcome),
+        upstream.status,
+      );
+    });
+    response.headers.set(REQUEST_ID_HEADER, requestId);
     responseBodyOwnsCleanup = true;
     return response;
   } catch (error) {
-    if (error instanceof BffRequestError) return jsonError(error.status, error.code);
-    if (method === "POST" && apiPath === PUBLIC_AI_CHAT_PATH) {
-      return publicAiChatFallbackResponse(publicChatMessage);
+    if (error instanceof BffRequestError) {
+      return tracedResponse(jsonError(error.status, error.code), interruptedOutcome("failed"));
     }
-    return jsonError(502, "BFF_UPSTREAM_UNAVAILABLE");
+    if (method === "POST" && apiPath === PUBLIC_AI_CHAT_PATH) {
+      return tracedResponse(publicAiChatFallbackResponse(publicChatMessage), interruptedOutcome("fallback"));
+    }
+    return tracedResponse(jsonError(502, "BFF_UPSTREAM_UNAVAILABLE"), interruptedOutcome("failed"));
   } finally {
     if (!responseBodyOwnsCleanup) cleanup();
   }

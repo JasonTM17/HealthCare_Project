@@ -27,6 +27,24 @@ def test_ci_backend_job_runs_preflight_before_maven() -> None:
     assert "BACKEND_TEST_ENVIRONMENT=READY" in workflow
 
 
+def test_minio_runtime_and_test_images_use_the_reachable_official_registry() -> None:
+    expected = "quay.io/minio/minio:RELEASE.2025-07-23T15-54-02Z"
+    unavailable = "minio/minio:RELEASE.2025-07-23T15-54-02Z"
+    paths = (
+        ROOT / ".github" / "workflows" / "ci.yml",
+        ROOT / "infrastructure" / "docker-compose.yml",
+        ROOT / "scripts" / "restore-drill.ps1",
+        ROOT / "apps" / "backend" / "src" / "test" / "java" / "com" / "healthcare" / "media" / "MediaAssetStorageIntegrationTest.java",
+        ROOT / "apps" / "backend" / "src" / "test" / "java" / "com" / "healthcare" / "storage" / "FileStorageIntegrationTest.java",
+        ROOT / "apps" / "backend" / "src" / "test" / "java" / "com" / "healthcare" / "storage" / "FileStorageAvFailClosedIntegrationTest.java",
+    )
+    for path in paths:
+        content = path.read_text(encoding="utf-8")
+        assert expected in content, path
+        assert f'"{unavailable}"' not in content, path
+        assert f"image: {unavailable}" not in content, path
+
+
 def test_local_bootstrap_generates_all_required_compose_secrets() -> None:
     script = (ROOT / "scripts" / "start-and-verify-local-mvp.ps1").read_text(encoding="utf-8")
     block_start = script.index('foreach ($requiredSecret')
