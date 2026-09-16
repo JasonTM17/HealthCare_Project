@@ -28,6 +28,8 @@ const reportStatusLabels: Record<string, string> = {
   DISMISSED: "Không vi phạm",
 };
 
+const ADMIN_QUEUE_PAGE_SIZE = 20;
+
 function formatDate(value: string) {
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime())
@@ -44,12 +46,20 @@ export default function AdminHealthQuestionsPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [reportBusy, setReportBusy] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
+  const [page, setPage] = useState(0);
+  const hasNextPage = items.length === ADMIN_QUEUE_PAGE_SIZE;
 
   useEffect(() => {
     let cancelled = false;
-    void adminListHealthQuestions()
+    setLoading(true);
+    setError("");
+    void adminListHealthQuestions({ page, size: ADMIN_QUEUE_PAGE_SIZE })
       .then((value) => {
-        if (!cancelled) setItems(value);
+        if (!cancelled) {
+          setItems(value);
+          setReportsByQuestion({});
+          setOpenReports({});
+        }
       })
       .catch((reason) => {
         if (!cancelled) {
@@ -65,7 +75,7 @@ export default function AdminHealthQuestionsPage() {
     return () => {
       cancelled = true;
     };
-  }, [retry]);
+  }, [page, retry]);
 
   const moderate = async (id: string, decision: string) => {
     setBusy(id);
@@ -142,6 +152,28 @@ export default function AdminHealthQuestionsPage() {
           Lọc PII và nội dung lạm dụng trước khi chuyển câu hỏi cho bác sĩ. Không xuất bản trực tiếp từ AI.
         </p>
       </header>
+
+      <nav aria-label="Phân trang câu hỏi sức khỏe" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-3 text-sm">
+        <span className="font-bold text-slate-700">Trang {page + 1}</span>
+        <div className="flex gap-2">
+          <button
+            className="min-h-10 rounded-lg border border-slate-300 px-3 font-bold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={loading || page === 0}
+            onClick={() => setPage((value) => Math.max(0, value - 1))}
+            type="button"
+          >
+            Trước
+          </button>
+          <button
+            className="min-h-10 rounded-lg border border-slate-300 px-3 font-bold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={loading || !hasNextPage}
+            onClick={() => setPage((value) => value + 1)}
+            type="button"
+          >
+            Sau
+          </button>
+        </div>
+      </nav>
 
       {loading ? <AdminState tone="loading" title="Đang tải hàng đợi" description="Đang đọc trạng thái kiểm duyệt từ backend." /> : null}
       {error ? (
