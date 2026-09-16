@@ -70,11 +70,11 @@
   overflow: hidden;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 600px) {
   .site-shell--public-route .catalog-page--directory .resource-hero-card {
     grid-template-columns: minmax(0, 1fr);
     gap: 12px;
-    padding: 20px;
+    padding: 16px;
   }
 
   .catalog-page--directory .resource-hero-card > .resource-icon {

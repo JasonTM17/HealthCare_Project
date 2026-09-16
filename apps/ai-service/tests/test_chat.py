@@ -284,6 +284,21 @@ def test_public_context_relevance_requires_all_explicit_catalog_constraints() ->
     assert public_query_constraints("Cơ sở số 8 giờ làm việc thế nào?") == ("8",)
 
 
+def test_public_context_relevance_accepts_numeric_branch_identity() -> None:
+    query = "Cơ sở số 2 có giờ hoạt động thế nào?"
+    matching = [
+        "Bệnh viện Đa khoa HealthCare — Cơ sở 2: "
+        "Địa chỉ: 2 Đường Số 3, Quận 3; Giờ hoạt động: 06:30–20:00."
+    ]
+    unrelated = [
+        "Bệnh viện Đa khoa HealthCare — Cơ sở 1: "
+        "Địa chỉ: 1 Đường Sức Khỏe, Quận 1; Giờ hoạt động: 06:30–20:00."
+    ]
+
+    assert public_context_is_relevant(query, matching)
+    assert not public_context_is_relevant(query, unrelated)
+
+
 def test_public_context_relevance_requires_requested_schedule_data() -> None:
     complete_context = ["Phòng khám Thảo Điền — Thủ Đức: Giờ hoạt động: 07:00–19:00."]
     incomplete_context = [

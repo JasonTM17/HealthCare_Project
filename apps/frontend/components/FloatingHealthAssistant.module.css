@@ -84,24 +84,16 @@
 }
 
 .headerSubtitle {
-  display: flex !important;
-  align-items: center;
+  display: block !important;
+  line-height: 1.35;
 }
 
-.onlineDot {
-  display: inline-block;
-  width: 0.45rem;
-  height: 0.45rem;
-  border-radius: 50%;
-  background-color: #34d399;
-  margin-right: 0.35rem;
-  flex-shrink: 0;
+.headerSubtitle .statusNote {
+  display: inline;
+  margin-top: 0;
+  color: #fde68a;
+  font-weight: 800;
 }
-
-.offlineDot {
-  background-color: #f59e0b;
-}
-
 .headerIcon {
   display: grid;
   flex: 0 0 2.25rem;

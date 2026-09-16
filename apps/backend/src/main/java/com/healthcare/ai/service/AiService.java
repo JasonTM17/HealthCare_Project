@@ -3,6 +3,7 @@ package com.healthcare.ai.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.healthcare.observability.RequestTrace;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
@@ -212,6 +213,8 @@ public class AiService {
             ChatDeltaConsumer onDelta) {
         Map<String, Object> payload = normalizePatientChatPayload(request, true);
         ensureServiceAuthConfiguration();
+        long startedAt = System.nanoTime();
+        String outcome = "failed";
         try {
             byte[] body = objectMapper.writeValueAsBytes(payload);
             Map<String, Object> response = restTemplate.execute(
@@ -227,6 +230,7 @@ public class AiService {
             if (response == null || response.isEmpty()) {
                 throw new ResponseStatusException(BAD_GATEWAY, "AI service stream returned an empty response");
             }
+            outcome = "completed";
             return response;
         } catch (RestClientResponseException e) {
             log.warn("AI upstream returned HTTP {} for {}", e.getStatusCode().value(), "/chat/generate/stream");
@@ -236,6 +240,8 @@ public class AiService {
             throw new ResponseStatusException(BAD_GATEWAY, "AI service is unavailable", e);
         } catch (JsonProcessingException e) {
             throw new ResponseStatusException(BAD_GATEWAY, "AI request could not be encoded", e);
+        } finally {
+            recordChatStage("/chat/generate/stream", outcome, startedAt);
         }
     }
 
@@ -426,6 +432,8 @@ public class AiService {
     }
 
     private Map<String, Object> exchange(HttpMethod method, URI uri, HttpEntity<?> requestEntity) {
+        long startedAt = System.nanoTime();
+        String outcome = "failed";
         try {
             HttpEntity<?> entity = requestEntity == null
                 ? new HttpEntity<>(headers())
@@ -439,7 +447,11 @@ public class AiService {
                 throw new ResponseStatusException(BAD_GATEWAY, "AI service response exceeded the configured limit");
             }
             String body = new String(raw, StandardCharsets.UTF_8);
-            return objectMapper.readValue(body, new TypeReference<Map<String, Object>>() { });
+            Map<String, Object> decoded = objectMapper.readValue(
+                body, new TypeReference<Map<String, Object>>() { }
+            );
+            outcome = "completed";
+            return decoded;
         } catch (RestClientResponseException e) {
             log.warn("AI upstream returned HTTP {} for {}", e.getStatusCode().value(), uri.getPath());
             throw new ResponseStatusException(BAD_GATEWAY, "AI service is unavailable", e);
@@ -448,6 +460,8 @@ public class AiService {
             throw new ResponseStatusException(BAD_GATEWAY, "AI service is unavailable", e);
         } catch (JsonProcessingException e) {
             throw new ResponseStatusException(BAD_GATEWAY, "AI service returned invalid JSON", e);
+        } finally {
+            recordChatStage(uri.getPath(), outcome, startedAt);
         }
     }
 
@@ -569,10 +583,32 @@ public class AiService {
     private HttpHeaders headers() {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
+        String requestId = RequestTrace.currentId();
+        if (requestId != null) {
+            headers.set(RequestTrace.HEADER, requestId);
+        }
         if (aiServiceToken != null && !aiServiceToken.isBlank()) {
             headers.set("X-AI-Service-Token", aiServiceToken);
         }
         return headers;
+    }
+
+    private void recordChatStage(String path, String outcome, long startedAt) {
+        String stage = switch (path) {
+            case "/chat" -> "public-generation";
+            case "/chat/retrieve" -> "retrieval";
+            case "/chat/generate" -> "generation";
+            case "/chat/generate/stream" -> "validated-chunk-generation";
+            default -> null;
+        };
+        if (stage == null) return;
+        String requestId = RequestTrace.currentId();
+        if (requestId == null) return;
+        long durationMillis = Duration.ofNanos(System.nanoTime() - startedAt).toMillis();
+        log.info(
+            "AI chat stage requestId={} stage={} outcome={} durationMs={}",
+            requestId, stage, outcome, durationMillis
+        );
     }
 
     private String endpoint(String path) {

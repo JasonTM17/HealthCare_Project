@@ -51,7 +51,7 @@ def test_restore_drill_uses_unique_disposable_containers_on_isolated_loopback_po
     primary_minio_image = next(
         line.split("image: ", 1)[1].strip()
         for line in compose.splitlines()
-        if line.strip().startswith("image: minio/minio:")
+        if line.strip().startswith("image: quay.io/minio/minio:")
     )
     assert f'$PostgresImage = "{primary_postgres_image}"' in script
     assert f'$MinioImage = "{primary_minio_image}"' in script

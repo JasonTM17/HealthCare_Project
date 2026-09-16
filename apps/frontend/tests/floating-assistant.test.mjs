@@ -23,8 +23,14 @@ test("floating assistant is mounted globally and stays on the REST chat contract
   assert.match(component, /fetchAiConversationMessages\(latest\.id/);
   assert.match(component, /sendMessage\(currentConversation\.id, normalized/);
   assert.match(component, /sendPublicAiChat\(normalized, recentTurns/);
+  assert.doesNotMatch(component, /CASUAL_GREETING_PATTERN|GREETING_ACTIONS|GREETING_ANSWER/);
+  assert.doesNotMatch(component, /href:\s*"\/booking"/);
   assert.match(component, /MAX_PUBLIC_MESSAGE_LENGTH/);
   assert.match(component, /Bạn đang dùng chế độ khách/);
+  assert.match(component, /Thông tin sức khỏe · Có lưu lịch sử/);
+  assert.match(component, /Tra cứu HealthCare · Không lưu lịch sử/);
+  assert.doesNotMatch(component, /Bác sĩ Trợ lý AI|Trực tuyến|onlineDot/);
+  assert.doesNotMatch(styles, /\.onlineDot/);
   assert.match(component, /isPatient && message\.status === "COMPLETED"/);
   assert.match(component, /onDelta: \(delta\) => \{[\s\S]*isCurrentLocalRequest\(epoch, currentConversation\?\.id\)[\s\S]*setStreamingReply/);
   assert.match(component, /pendingUserMessage/);
@@ -98,7 +104,7 @@ test("floating assistant exposes real recovery, safety and accessible actions", 
   assert.match(styles, /\.provenance[\s\S]*border-radius: 0/);
   assert.match(styles, /\.suggestions button::after/);
   assert.match(styles, /border-left: 3px solid var\(--assistant-assistant-accent\)/);
-  assert.match(styles, /\.feedback button \{\n  min-height: 2\.75rem;[\s\S]*?touch-action: manipulation;[\s\S]*?transition: background-color var\(--duration-fast\) ease, border-color var\(--duration-fast\) ease, color var\(--duration-fast\) ease;/);
+  assert.match(styles, /\.feedback button \{\r?\n  min-height: 2\.75rem;[\s\S]*?touch-action: manipulation;[\s\S]*?transition: background-color var\(--duration-fast\) ease, border-color var\(--duration-fast\) ease, color var\(--duration-fast\) ease;/);
   assert.match(styles, /\.modeOption,\s*\.modeOptionActive \{[\s\S]*font-size: 0\.74rem/);
   assert.match(styles, /max\(0\.75rem, env\(safe-area-inset-bottom\)\)/);
   assert.match(styles, /z-index: 80/);
