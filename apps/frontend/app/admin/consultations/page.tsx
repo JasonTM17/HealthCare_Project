@@ -41,6 +41,7 @@ const SPECIALTY_LABELS: Record<string, string> = {
   respiratory: "Hô hấp",
 };
 const ADMIN_PAGE_SIZE = 100;
+const CONSULTATION_QUEUE_PAGE_SIZE = 20;
 
 function statusLabel(status: string): string {
   return STATUS_LABELS[status] ?? "Trạng thái chưa xác định";
@@ -104,6 +105,7 @@ export default function AdminConsultationsPage() {
   const [assigning, setAssigning] = useState<string | null>(null);
   const [selection, setSelection] = useState<Record<string, string>>({});
   const [notice, setNotice] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
 
   useEffect(() => {
     if (!session || !hasRole(session.user, "ADMIN")) return;
@@ -113,10 +115,13 @@ export default function AdminConsultationsPage() {
         if (cancelled) return undefined;
         setQueueLoading(true);
         setQueueError(null);
-        return fetchAdminConsultationQueue();
+        return fetchAdminConsultationQueue({ page, size: CONSULTATION_QUEUE_PAGE_SIZE });
       })
       .then((value) => {
-        if (!cancelled && value) setItems(value);
+        if (!cancelled && value) {
+          setItems(value);
+          setSelection({});
+        }
       })
       .catch((reason) => {
         if (!cancelled) setQueueError(presentApiError(reason instanceof ApiError ? reason.code : undefined, reason instanceof ApiError ? reason.status : undefined));
@@ -145,7 +150,9 @@ export default function AdminConsultationsPage() {
     return () => {
       cancelled = true;
     };
-  }, [retry, session]);
+  }, [page, retry, session]);
+
+  const hasNextPage = items.length === CONSULTATION_QUEUE_PAGE_SIZE;
 
   const filteredItems = useMemo(() => items.filter((item) => {
     if (statusFilter && item.status !== statusFilter) return false;
@@ -197,9 +204,16 @@ export default function AdminConsultationsPage() {
             <span className="rounded-md bg-slate-100 px-3 py-1.5">{items.length} kênh metadata</span>
           </div>
         </div>
-        <button aria-label="Tải lại hàng đợi tư vấn" className="outline-button min-h-11" disabled={queueLoading || doctorsLoading} onClick={() => setRetry((value) => value + 1)} type="button">
-          {queueLoading || doctorsLoading ? "Đang tải…" : "Tải lại"}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button aria-label="Tải lại hàng đợi tư vấn" className="outline-button min-h-11" disabled={queueLoading || doctorsLoading} onClick={() => setRetry((value) => value + 1)} type="button">
+            {queueLoading || doctorsLoading ? "Đang tải…" : "Tải lại"}
+          </button>
+          <nav aria-label="Phân trang hàng đợi tư vấn" className="flex items-center gap-2 text-sm font-bold text-teal-950">
+            <button className="outline-button outline-button--small min-h-11" disabled={queueLoading || page === 0} onClick={() => setPage((value) => Math.max(0, value - 1))} type="button">Trước</button>
+            <span>Trang {page + 1}</span>
+            <button className="outline-button outline-button--small min-h-11" disabled={queueLoading || !hasNextPage} onClick={() => setPage((value) => value + 1)} type="button">Sau</button>
+          </nav>
+        </div>
       </header>
 
       <section aria-label="Phạm vi quyền" className="portal-panel grid gap-3">

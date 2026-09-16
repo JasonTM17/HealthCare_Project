@@ -19,29 +19,37 @@ type DoctorForm = {
   slug: string;
   bio: string;
   photoUrl: string;
+  userId: string;
   active: boolean;
 };
 
-const EMPTY_FORM: DoctorForm = { fullName: "", slug: "", bio: "", photoUrl: "", active: true };
+const EMPTY_FORM: DoctorForm = { fullName: "", slug: "", bio: "", photoUrl: "", userId: "", active: true };
 const ADMIN_PAGE_SIZE = 100;
+const USER_ID_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function formFromDoctor(doctor: Doctor): DoctorForm {
+  const linkedUserId = "userId" in doctor && typeof (doctor as { userId?: unknown }).userId === "string"
+    ? (doctor as { userId: string }).userId
+    : "";
   return {
     fullName: doctor.fullName,
     slug: doctor.slug,
     bio: doctor.bio ?? "",
     photoUrl: doctor.photoUrl ?? "",
+    userId: linkedUserId,
     active: doctor.active ?? true,
   };
 }
 
 function toPayload(form: DoctorForm): AdminDoctorPayload {
+  const userId = form.userId.trim();
   return {
     fullName: form.fullName.trim(),
     slug: form.slug.trim(),
     bio: form.bio.trim() || null,
     photoUrl: form.photoUrl.trim() || null,
     active: form.active,
+    ...(userId ? { userId } : {}),
   };
 }
 
@@ -82,6 +90,11 @@ export default function AdminDoctorsPage() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const linkedUserId = form.userId.trim();
+    if (linkedUserId && !USER_ID_UUID_PATTERN.test(linkedUserId)) {
+      setFormError("User ID liên kết phải là UUID hợp lệ.");
+      return;
+    }
     setMutating(true);
     setFormError(null);
     setFeedback(null);
@@ -166,6 +179,11 @@ export default function AdminDoctorsPage() {
             <div>
               <label className="text-sm font-semibold text-slate-700" htmlFor="doctor-photo-url">Ảnh đại diện URL (tùy chọn)</label>
               <input className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" id="doctor-photo-url" maxLength={500} onChange={(event) => setForm({ ...form, photoUrl: event.target.value })} type="url" value={form.photoUrl} />
+            </div>
+            <div>
+              <label className="text-sm font-semibold text-slate-700" htmlFor="doctor-user-id">User ID liên kết (tùy chọn)</label>
+              <input className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-mono text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" id="doctor-user-id" maxLength={36} onChange={(event) => setForm({ ...form, userId: event.target.value })} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" value={form.userId} />
+              <p className="mt-1 text-xs text-slate-500">Chỉ nhập khi cần liên kết hồ sơ bác sĩ với tài khoản người dùng hiện có.</p>
             </div>
             <label className="flex items-center gap-2 text-sm text-slate-700" htmlFor="doctor-active">
               <input checked={form.active} className="h-4 w-4 accent-teal-700" id="doctor-active" onChange={(event) => setForm({ ...form, active: event.target.checked })} type="checkbox" />

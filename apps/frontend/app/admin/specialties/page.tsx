@@ -14,16 +14,44 @@ import AdminState from "../_components/AdminState";
 import ConfirmActionDialog from "../../../components/ui/ConfirmActionDialog";
 import { describeAdminError } from "../_lib/errors";
 
-type SpecialtyForm = { name: string; slug: string; description: string; active: boolean };
-const EMPTY_FORM: SpecialtyForm = { name: "", slug: "", description: "", active: true };
+type SpecialtyForm = {
+  name: string;
+  slug: string;
+  description: string;
+  commonSymptoms: string;
+  preparationSteps: string;
+  carePathway: string;
+  active: boolean;
+};
+const EMPTY_FORM: SpecialtyForm = { name: "", slug: "", description: "", commonSymptoms: "", preparationSteps: "", carePathway: "", active: true };
 const ADMIN_PAGE_SIZE = 100;
 
-function formFromSpecialty(specialty: Specialty): SpecialtyForm {
-  return { name: specialty.name, slug: specialty.slug, description: specialty.description ?? "", active: specialty.active ?? true };
+function csvToList(value: string): string[] {
+  return value.split(",").map((item) => item.trim()).filter(Boolean);
 }
 
-function toPayload(form: SpecialtyForm): AdminSpecialtyPayload {
-  return { name: form.name.trim(), slug: form.slug.trim(), description: form.description.trim() || null, active: form.active };
+function formFromSpecialty(specialty: Specialty): SpecialtyForm {
+  return {
+    name: specialty.name,
+    slug: specialty.slug,
+    description: specialty.description ?? "",
+    commonSymptoms: (specialty.commonSymptoms ?? []).join(", "),
+    preparationSteps: (specialty.preparationSteps ?? []).join(", "),
+    carePathway: specialty.carePathway ?? "",
+    active: specialty.active ?? true,
+  };
+}
+
+function toPayload(form: SpecialtyForm): AdminSpecialtyPayload & { commonSymptoms: string[]; preparationSteps: string[]; carePathway: string | null } {
+  return {
+    name: form.name.trim(),
+    slug: form.slug.trim(),
+    description: form.description.trim() || null,
+    commonSymptoms: csvToList(form.commonSymptoms),
+    preparationSteps: csvToList(form.preparationSteps),
+    carePathway: form.carePathway.trim() || null,
+    active: form.active,
+  };
 }
 
 export default function AdminSpecialtiesPage() {
@@ -117,6 +145,9 @@ export default function AdminSpecialtiesPage() {
             <div><label className="text-sm font-semibold text-slate-700" htmlFor="specialty-name">Tên chuyên khoa</label><input className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" id="specialty-name" maxLength={160} onChange={(event) => setForm({ ...form, name: event.target.value })} required value={form.name} /></div>
             <div><label className="text-sm font-semibold text-slate-700" htmlFor="specialty-slug">Slug</label><input className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-mono text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" id="specialty-slug" maxLength={180} onChange={(event) => setForm({ ...form, slug: event.target.value })} required value={form.slug} /><p className="mt-1 text-xs text-slate-500">Slug phải duy nhất trong danh sách chuyên khoa.</p></div>
             <div><label className="text-sm font-semibold text-slate-700" htmlFor="specialty-description">Mô tả</label><textarea className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" id="specialty-description" maxLength={2000} onChange={(event) => setForm({ ...form, description: event.target.value })} rows={5} value={form.description} /></div>
+            <div><label className="text-sm font-semibold text-slate-700" htmlFor="specialty-common-symptoms">Triệu chứng thường gặp</label><input className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" id="specialty-common-symptoms" maxLength={1000} onChange={(event) => setForm({ ...form, commonSymptoms: event.target.value })} placeholder="Đau ngực, khó thở, hồi hộp" value={form.commonSymptoms} /><p className="mt-1 text-xs text-slate-500">Nhập các mục cách nhau bằng dấu phẩy.</p></div>
+            <div><label className="text-sm font-semibold text-slate-700" htmlFor="specialty-preparation-steps">Các bước chuẩn bị</label><input className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" id="specialty-preparation-steps" maxLength={1000} onChange={(event) => setForm({ ...form, preparationSteps: event.target.value })} placeholder="Mang hồ sơ cũ, nhịn ăn nếu được dặn" value={form.preparationSteps} /><p className="mt-1 text-xs text-slate-500">Nhập các mục cách nhau bằng dấu phẩy.</p></div>
+            <div><label className="text-sm font-semibold text-slate-700" htmlFor="specialty-care-pathway">Lộ trình chăm sóc</label><textarea className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" id="specialty-care-pathway" maxLength={2000} onChange={(event) => setForm({ ...form, carePathway: event.target.value })} rows={4} value={form.carePathway} /></div>
             <label className="flex items-center gap-2 text-sm text-slate-700" htmlFor="specialty-active"><input checked={form.active} className="h-4 w-4 accent-teal-700" id="specialty-active" onChange={(event) => setForm({ ...form, active: event.target.checked })} type="checkbox" />Đang hiển thị trong catalog công khai</label>
             <button className="w-full rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50" disabled={mutating} type="submit">{mutating ? "Đang gửi…" : editingSlug ? "Lưu thay đổi" : "Tạo chuyên khoa"}</button>
           </form>
