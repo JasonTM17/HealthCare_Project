@@ -10,6 +10,7 @@ import com.healthcare.ai.chat.dto.ChatContracts.MessagePageResponse;
 import com.healthcare.ai.chat.dto.ChatContracts.MessageResponse;
 import com.healthcare.ai.chat.dto.ChatContracts.SuggestedAction;
 import com.healthcare.ai.chat.dto.ChatContracts.TriageSummary;
+import com.healthcare.ai.chat.dto.ChatContracts.UsedSourceSummary;
 import com.healthcare.ai.chat.entity.AiMessageFeedback;
 import com.healthcare.ai.chat.entity.AiConversation;
 import com.healthcare.ai.chat.entity.AiConversationStatus;
@@ -826,7 +827,33 @@ public class AiConversationService {
         conversation.setExpiresAt(expiry(completedAt));
         conversationRepository.save(conversation);
         chargeAcceptedPatientExchange(userId);
-        return new ChatExchangeResponse(toMessage(request), toMessage(reply), false);
+        return new ChatExchangeResponse(
+            toMessage(request),
+            withLiveMetadata(toMessage(reply), response),
+            false);
+    }
+
+    private MessageResponse withLiveMetadata(MessageResponse message, SanitizedAiResponse response) {
+        return new MessageResponse(
+            message.id(),
+            message.role(),
+            message.status(),
+            message.content(),
+            message.sequence(),
+            message.disclaimer(),
+            message.provenance(),
+            message.citations(),
+            message.safetyAction(),
+            message.triage(),
+            message.suggestedActions(),
+            message.feedback(),
+            message.sourceStatus(),
+            usedSourceSummaries(response.finalSources()),
+            response.costTier(),
+            response.routingReason(),
+            message.createdAt(),
+            message.completedAt()
+        );
     }
 
     private boolean sameSourceSet(
@@ -1018,8 +1045,27 @@ public class AiConversationService {
             triage,
             actions,
             finalSources.isEmpty() ? "UNAVAILABLE" : "CURRENT",
-            List.copyOf(finalSources)
+            List.copyOf(finalSources),
+            parseCostTier(response.get("cost_tier")),
+            parseRoutingReason(response.get("routing_reason"))
         );
+    }
+
+    private String parseCostTier(Object raw) {
+        if (raw == null) return "local_free";
+        String value = stringValue(raw);
+        if (value == null || !(value.equals("local_free") || value.equals("remote_llm"))) {
+            throw invalidAiResponse();
+        }
+        return value;
+    }
+
+    private String parseRoutingReason(Object raw) {
+        if (raw == null) return null;
+        String value = stringValue(raw);
+        if (value == null) return null;
+        value = trim(value.strip(), 500);
+        return value.isBlank() ? null : value;
     }
 
     private boolean usedSourcesMatch(
@@ -1145,7 +1191,9 @@ public class AiConversationService {
             null,
             action == ChatSafetyAction.EMERGENCY ? emergencyActions() : List.of(),
             "CURRENT",
-            List.of()
+            List.of(),
+            "local_free",
+            "safety_response"
         );
     }
 
@@ -1179,7 +1227,9 @@ public class AiConversationService {
             null,
             List.of(),
             "UNAVAILABLE",
-            List.of()
+            List.of(),
+            "local_free",
+            "insufficient_evidence"
         );
     }
 
@@ -1250,7 +1300,9 @@ public class AiConversationService {
             null,
             ChatSuggestedActionResolver.hospitalSupportFallback(content),
             "UNAVAILABLE",
-            List.of()
+            List.of(),
+            "local_free",
+            "hospital_support_fallback"
         );
     }
 
@@ -1286,7 +1338,9 @@ public class AiConversationService {
             null,
             ChatSuggestedActionResolver.hospitalSupportFallback(content),
             "CURRENT",
-            sources
+            sources,
+            "local_free",
+            "catalog_overview_fallback"
         );
     }
 
@@ -1378,7 +1432,9 @@ public class AiConversationService {
             null,
             actions,
             "CURRENT",
-            List.of(source)
+            List.of(source),
+            "local_free",
+            "branch_details_fallback"
         );
     }
 
@@ -1427,7 +1483,9 @@ public class AiConversationService {
             null,
             actions,
             "CURRENT",
-            sources
+            sources,
+            "local_free",
+            "ambiguous_branch_fallback"
         );
     }
 
@@ -1442,7 +1500,9 @@ public class AiConversationService {
             null,
             ChatSuggestedActionResolver.hospitalSupportFallback(content),
             "UNAVAILABLE",
-            List.of()
+            List.of(),
+            "local_free",
+            "branch_unavailable"
         );
     }
 
@@ -1664,6 +1724,9 @@ public class AiConversationService {
         }
         String content = AiChatHistorySanitizer.sanitize(
             value.getRole(), value.getContent(), requestContent, displaySources, value.getProvenance());
+        List<UsedSourceSummary> usedSources = stale
+            ? List.of()
+            : usedSourceSummaries(displaySources);
         return new MessageResponse(
             value.getId(),
             value.getRole().name(),
@@ -1679,9 +1742,19 @@ public class AiConversationService {
                 item.get("kind"), item.get("label"), item.get("href"))).toList(),
             feedback,
             sourceStatus,
+            usedSources,
+            null,
+            null,
             value.getCreatedAt(),
             value.getCompletedAt()
         );
+    }
+
+    private List<UsedSourceSummary> usedSourceSummaries(List<AiChatSourceResolver.ResolvedSource> sources) {
+        if (sources == null || sources.isEmpty()) return List.of();
+        return sources.stream()
+            .map(source -> new UsedSourceSummary(source.id(), source.title(), source.type()))
+            .toList();
     }
 
     private boolean citationMatchesCurrent(
@@ -1845,7 +1918,9 @@ public class AiConversationService {
         TriageSummary triage,
         List<Map<String, String>> suggestedActions,
         String sourceStatus,
-        List<AiChatSourceResolver.ResolvedSource> finalSources
+        List<AiChatSourceResolver.ResolvedSource> finalSources,
+        String costTier,
+        String routingReason
     ) {
         SanitizedAiResponse withSources(
                 List<AiChatSourceResolver.ResolvedSource> sources,
@@ -1860,7 +1935,9 @@ public class AiConversationService {
                 triage,
                 refreshedActions,
                 sourceStatus,
-                List.copyOf(sources)
+                List.copyOf(sources),
+                costTier,
+                routingReason
             );
         }
     }
