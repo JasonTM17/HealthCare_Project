@@ -62,7 +62,8 @@ public class BranchService {
                         doctor.getSlug(),
                         doctor.getPhotoUrl(),
                         null,
-                        branch.getId().toString()
+                        branch.getId().toString(),
+                        DoctorSummaryResponse.isDemoSlug(doctor.getSlug())
                     );
                 })
                 .toList()

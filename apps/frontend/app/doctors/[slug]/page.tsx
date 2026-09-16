@@ -50,6 +50,8 @@ export default function DoctorDetailPage() {
     return () => { cancelled = true; };
   }, [params?.slug]);
 
+  const isDemoDoctor = Boolean(doctor?.demo) || Boolean(doctor?.slug?.startsWith("demo-bs-"));
+
   return (
     <PublicPageShell>
       <div className="resource-page section-inner">
@@ -80,12 +82,19 @@ export default function DoctorDetailPage() {
               </div>
               <div className="resource-hero-card__body">
                 <div className="resource-chip-row">
+                  {isDemoDoctor ? <span className="resource-chip resource-chip--muted">Hồ sơ minh họa</span> : null}
                   {doctor.specialtyName ? <span className="resource-chip">{doctor.specialtyName}</span> : null}
                   {doctor.experienceYears ? <span className="resource-chip resource-chip--warm">{doctor.experienceYears} năm kinh nghiệm</span> : null}
                 </div>
                 <h2>{doctor.fullName}</h2>
                 <p className="resource-lead">{doctor.title ?? "Bác sĩ chuyên khoa"}</p>
                 <p>{doctor.bio || "Hồ sơ chưa có phần giới thiệu chi tiết."}</p>
+                {isDemoDoctor ? (
+                  <p className="resource-muted" role="note">
+                    Dữ liệu minh họa: đây là hồ sơ giả lập phục vụ trải nghiệm đặt lịch thử nghiệm,
+                    không đại diện cho một bác sĩ thật của cơ sở y tế.
+                  </p>
+                ) : null}
                 <div className="resource-actions">
                   <PublicBookingButton selection={{ doctorId: doctor.id }}>Đặt lịch với bác sĩ</PublicBookingButton>
                   <PublicAiButton className="outline-button outline-button--light">Hỗ trợ chọn chuyên khoa</PublicAiButton>

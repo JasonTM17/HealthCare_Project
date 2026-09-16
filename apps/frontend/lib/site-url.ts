@@ -11,6 +11,23 @@ export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? DEFAULT_ORIGIN).rep
  * Validated origin for URL composition: falls back to the default when the
  * configured value is not a usable http(s) origin (misconfiguration guard).
  */
+const CANONICAL_INDEXABLE_HOSTS = new Set(["healthcare.id.vn", "www.healthcare.id.vn"]);
+
+/**
+ * Indexing policy: explicit env always wins; otherwise a production canonical
+ * domain is indexable while localhost/preview deployments stay noindexed.
+ */
+export function indexingAllowed(): boolean {
+  const explicit = process.env.NEXT_PUBLIC_ALLOW_INDEXING;
+  if (explicit === "true") return true;
+  if (explicit === "false") return false;
+  try {
+    return CANONICAL_INDEXABLE_HOSTS.has(new URL(SITE_URL).hostname);
+  } catch {
+    return false;
+  }
+}
+
 export function safeSiteOrigin(): string {
   try {
     const configured = new URL(SITE_URL);

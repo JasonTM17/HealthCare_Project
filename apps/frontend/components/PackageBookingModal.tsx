@@ -678,7 +678,8 @@ export default function PackageBookingModal({
                 <p className="text-xs font-bold uppercase tracking-wider text-brand-700">Bước 1 / 4</p>
                 <h3 className="text-lg sm:text-xl font-bold text-gray-900">Chọn cơ sở y tế thuận tiện nhất</h3>
                 <p className="text-xs sm:text-sm text-gray-600 mt-0.5">
-                  Tất cả các cơ sở đều được trang bị đầy đủ máy móc xét nghiệm, chẩn đoán hình ảnh chuẩn cho gói khám này.
+                  Chọn cơ sở thuận tiện nhất với bạn; nhân viên tiếp đón sẽ xác nhận khả năng thực hiện
+                  các hạng mục của gói tại cơ sở bạn chọn trước khi khám.
                 </p>
               </div>
 

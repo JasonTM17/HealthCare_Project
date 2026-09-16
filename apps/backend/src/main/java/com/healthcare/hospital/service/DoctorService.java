@@ -95,7 +95,8 @@ public class DoctorService {
             branchLinks.stream().map(link -> link.getBranch().getName()).toList(),
             specialtyLinks.stream().map(link -> link.getSpecialty().getSlug()).toList(),
             doctor.getAchievements(),
-            doctor.getAiCredits()
+            doctor.getAiCredits(),
+            DoctorSummaryResponse.isDemoSlug(doctor.getSlug())
         );
     }
 
@@ -128,7 +129,8 @@ public class DoctorService {
             doctor.getSlug(),
             doctor.getPhotoUrl(),
             specialtyName,
-            branchId
+            branchId,
+            DoctorSummaryResponse.isDemoSlug(doctor.getSlug())
         );
     }
 }
