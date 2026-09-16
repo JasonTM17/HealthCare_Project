@@ -609,6 +609,10 @@ def chat(request: ChatRequest) -> ChatResponse:
         # whose own title/content carries a concrete identity from the query;
         # generic catalog words must never turn an arbitrary row into a
         # citation or a grounded answer.
+        # Focus symptom guidance before the lexical relevance gate. Otherwise
+        # generic words such as "khám" and "khoa" can discard the best
+        # specialty row before the symptom-specific scorer sees it.
+        hits = focus_public_retrieval_hits(message, hits)
         hits = [
             (document, score)
             for document, score in hits
