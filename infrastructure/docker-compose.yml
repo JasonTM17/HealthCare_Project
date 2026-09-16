@@ -191,9 +191,12 @@ services:
       # Spring provenance gate stays closed even if an AI provider key exists.
       AI_CHAT_REMOTE_PROVIDER_ENABLED: ${AI_CHAT_REMOTE_PROVIDER_ENABLED:-false}
       AI_CHAT_SYNTHETIC_BETA_ASSERTED: ${AI_CHAT_SYNTHETIC_BETA_ASSERTED:-false}
-      APP_MAIL_ENABLED:      ${APP_MAIL_ENABLED:-true}
-      APP_MAIL_FROM:         ${APP_MAIL_FROM:-no-reply@healthcare.local}
-      APP_MAIL_PORTAL_BASE_URL: ${APP_MAIL_PORTAL_BASE_URL:-}
+      # This stack always terminates mail in the local Mailpit sink.  Do not
+      # inherit bare-host SMTP credentials, STARTTLS, or production portal
+      # links from the root .env file into the disposable Compose network.
+      APP_MAIL_ENABLED:      "true"
+      APP_MAIL_FROM:         "no-reply@healthcare.local"
+      APP_MAIL_PORTAL_BASE_URL: ""
       APP_MAIL_OUTBOX_ENABLED: "true"
       APP_MAIL_OUTBOX_ENCRYPTION_KEY: ${APP_MAIL_OUTBOX_ENCRYPTION_KEY:?APP_MAIL_OUTBOX_ENCRYPTION_KEY is required}
       APP_MAIL_OUTBOX_POLL_MS: ${APP_MAIL_OUTBOX_POLL_MS:-1000}
@@ -205,11 +208,11 @@ services:
       # correct, but that value must never leak into this container network.
       SPRING_MAIL_HOST:      mailpit
       SPRING_MAIL_PORT:      "1025"
-      SPRING_MAIL_USERNAME:  ${SPRING_MAIL_USERNAME:-}
-      SPRING_MAIL_PASSWORD:  ${SPRING_MAIL_PASSWORD:-}
-      SPRING_MAIL_SMTP_AUTH: ${SPRING_MAIL_SMTP_AUTH:-false}
-      SPRING_MAIL_STARTTLS_ENABLE: ${SPRING_MAIL_STARTTLS_ENABLE:-false}
-      SPRING_MAIL_STARTTLS_REQUIRED: ${SPRING_MAIL_STARTTLS_REQUIRED:-false}
+      SPRING_MAIL_USERNAME:  ""
+      SPRING_MAIL_PASSWORD:  ""
+      SPRING_MAIL_SMTP_AUTH: "false"
+      SPRING_MAIL_STARTTLS_ENABLE: "false"
+      SPRING_MAIL_STARTTLS_REQUIRED: "false"
       SPRING_MAIL_CONNECTION_TIMEOUT: ${SPRING_MAIL_CONNECTION_TIMEOUT:-5000}
       SPRING_MAIL_TIMEOUT:   ${SPRING_MAIL_TIMEOUT:-5000}
       SPRING_MAIL_WRITE_TIMEOUT: ${SPRING_MAIL_WRITE_TIMEOUT:-5000}
