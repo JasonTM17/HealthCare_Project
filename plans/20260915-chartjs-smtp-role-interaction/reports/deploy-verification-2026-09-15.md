@@ -129,3 +129,33 @@ via the dashboard UI. The repo-side release state is complete and correct.
   exhausted by the workspace's always-on free services, plan limitation, or
   service state) and can only be diagnosed/fixed from the Render dashboard by
   the account owner.
+
+## Root-cause synthesis (2026-09-16)
+
+Production probes on www.healthcare.id.vn (fresh session, backend awake):
+`branches?size=100` → 200/20, `specialties?size=100` → 200/30,
+`doctors?size=100` → **502 after ~25s**, `doctors?size=20` → 200,
+`doctors?size=50&specialtySlug=…&branchSlug=…` → 200/5.
+
+Combined with the deploy history (all API deploys failing since 09-12 11:03
+UTC, incl. a redeploy of the already-running digest) and the keep-alive
+fail-loud at 10:40 UTC, the coherent root cause is: **the Render free-tier
+instance (512MB) has been resource-starved since ~2026-09-12** — heavy
+unfiltered catalog queries now exceed the proxy timeout (502), deploys fail
+their health-check window, and the keep-alive probe goes fail-loud. The first
+free-instance-hours exhaustion date (~09-11/09-12 for 750 hrs/month with two
+always-on web services) matches exactly.
+
+Consequences on production (www.healthcare.id.vn, Vercel frontend live at
+latest): booking wizard hangs at "Đang tải chuyên khoa…" intermittently
+(page-level doctors fetch 502s after 25s), and the frontend's combo-scoped
+doctors fetch (`size=50&specialtySlug&branchSlug` — verified 200/5 doctors)
+can still fail during backend flap windows.
+
+**Fix is owner-side only**: Render dashboard → raise the plan (Starter) or
+suspend other always-on free services to restore instance hours → then
+"Manual Deploy" of digest `sha256:bd4d5b9f…` (already the service target) —
+Flyway V75 runs at boot and the documents-409 fix goes live. No further
+code change is required for the booking flow: once the backend serves
+reliably, the shipped combo fetch (200/5 doctors verified) populates the
+doctor dropdown.
