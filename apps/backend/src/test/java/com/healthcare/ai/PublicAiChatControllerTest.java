@@ -174,6 +174,29 @@ class PublicAiChatControllerTest {
     }
 
     @Test
+    void keepsSafePreparationFallbackVisibleWhenNoCitationIsAvailable() {
+        AiService aiService = mock(AiService.class);
+        when(aiService.chat(any())).thenReturn(Map.of(
+            "answer", "Yêu cầu nhịn ăn tùy loại xét nghiệm; hãy xác nhận trước với cơ sở hoặc bác sĩ.",
+            "disclaimer", "Chỉ mang tính tham khảo.",
+            "provenance", "local_fallback",
+            "safety_action", "INSUFFICIENT_EVIDENCE",
+            "mode", "HOSPITAL_SUPPORT",
+            "citations", List.of()
+        ));
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolverForSpecialty())
+            .chat(new PublicAiChatController.PublicChatRequest(
+                "Tôi cần nhịn ăn trước xét nghiệm máu không?", null))
+            .getBody();
+
+        assertThat(body)
+            .containsEntry("answer", "Yêu cầu nhịn ăn tùy loại xét nghiệm; hãy xác nhận trước với cơ sở hoặc bác sĩ.")
+            .containsEntry("safety_action", "INSUFFICIENT_EVIDENCE")
+            .containsEntry("citations", List.of());
+    }
+
+    @Test
     void replacesInsufficientPublicCatalogAnswerWithLiveSpringOverview() {
         AiService aiService = mock(AiService.class);
         when(aiService.chat(any())).thenReturn(Map.of(

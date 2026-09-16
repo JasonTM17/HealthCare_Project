@@ -207,7 +207,7 @@ const DoctorCard: React.FC<DoctorCardProps> = ({ doctor, featured = false, onBoo
         {doctor.title ?? "Bác sĩ chuyên khoa"}
       </p>
       <p className="doctor-bio">{doctor.bio}</p>
-      <button className="text-button doctor-card__book-btn" onClick={() => onBook(doctor.id)} type="button">
+      <button aria-label={`Đặt lịch với bác sĩ ${doctor.fullName}`} className="text-button doctor-card__book-btn" onClick={() => onBook(doctor.id)} type="button">
         Đặt lịch với bác sĩ
         <Icon name="arrow-up-right" size={17} />
       </button>
@@ -815,6 +815,7 @@ export default function Home(): React.ReactElement {
                   <PackageVisualCard
                     bookingAction={(
                       <button
+                        aria-label={`Đặt lịch với gói ${packageItem.name}`}
                         className={packageVisualStyles.bookButton}
                         onClick={() => handleOpenBooking(undefined, undefined, packageItem.id)}
                         type="button"
@@ -998,7 +999,15 @@ export default function Home(): React.ReactElement {
                       <div className="hm-branch-card__actions">
                         {safeTelephoneHref(branch.phone) ? <a className="text-button" href={safeTelephoneHref(branch.phone) ?? undefined} aria-label={`Gọi ${branch.name}`}><Icon name="phone" size={16} />{branch.phone}</a> : <span className="resource-muted">Số điện thoại đang cập nhật.</span>}
                         <BranchMap address={branch.address} branchName={branch.name} className="branch-row__map-link" variant="link" />
-                        <button className="outline-button outline-button--small" onClick={() => handleOpenBooking(undefined, undefined, undefined, branch.id)} type="button">Đặt lịch</button>
+                        {branch.activeDoctorCount === 0 ? (
+                          <Link className="outline-button outline-button--small" href={`/branches/${branch.slug}`}>
+                            Xem tình trạng lịch
+                          </Link>
+                        ) : (
+                          <button aria-label={`Đặt lịch tại ${branch.name}`} className="outline-button outline-button--small" onClick={() => handleOpenBooking(undefined, undefined, undefined, branch.id)} type="button">
+                            Đặt lịch
+                          </button>
+                        )}
                       </div>
                     </div>
                   </article>

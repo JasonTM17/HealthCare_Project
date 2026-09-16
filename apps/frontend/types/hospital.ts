@@ -49,6 +49,7 @@ export interface Branch {
   mapUrl?: string | null;
   amenities?: string[];
   doctors?: DoctorSummary[];
+  activeDoctorCount?: number;
   active?: boolean;
 }
 

@@ -160,6 +160,7 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
                     Xem hồ sơ →
                   </Link>
                   <PublicBookingButton
+                    ariaLabel={`Đặt lịch với bác sĩ ${featuredDoctor.fullName}`}
                     className="outline-button outline-button--small"
                     selection={{ doctorId: featuredDoctor.id }}
                   >
@@ -209,7 +210,7 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
                   <p className="catalog-card__summary">{doctor.bio || "Hồ sơ chưa có phần giới thiệu chi tiết."}</p>
                   <div className="catalog-card__actions">
                     <Link className="text-button" href={`/doctors/${doctor.slug}`}>Xem hồ sơ →</Link>
-                    <PublicBookingButton className="outline-button outline-button--small" selection={{ doctorId: doctor.id }}>Đặt lịch</PublicBookingButton>
+                    <PublicBookingButton ariaLabel={`Đặt lịch với bác sĩ ${doctor.fullName}`} className="outline-button outline-button--small" selection={{ doctorId: doctor.id }}>Đặt lịch</PublicBookingButton>
                   </div>
                 </article>
               ))}

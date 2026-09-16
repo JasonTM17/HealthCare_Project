@@ -62,7 +62,7 @@ for (const width of [375, 760, 794, 1080, 1440]) {
     await page.goto('/');
     const rail = page.getByRole('region', { name: 'Gói khám sức khỏe', exact: true });
     await expect(rail.locator('article')).toHaveCount(4);
-    await expect(rail.getByRole('button', { name: 'Đặt lịch', exact: true })).toHaveCount(4);
+    await expect(rail.getByRole('button', { name: /Đặt lịch với gói/ })).toHaveCount(4);
     const bounds = await rail.boundingBox();
     const cards = await rail.locator('article').evaluateAll((nodes) => nodes.map((node) => {
       const rect = node.getBoundingClientRect();
