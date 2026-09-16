@@ -3,6 +3,7 @@
 import { useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import { ApiError, uploadMediaAsset } from "../lib/api-client";
 import { presentApiError } from "../lib/present-api-error";
+import { MEDIA_UPLOADS_DISABLED_MESSAGE, MEDIA_UPLOADS_ENABLED } from "../lib/media-uploads";
 import UiIcon from "./UiIcon";
 import styles from "./ImageUpload.module.css";
 
@@ -30,6 +31,10 @@ export default function ImageUpload({
   const [imageError, setImageError] = useState(false);
 
   const handleProcessFile = async (file: File) => {
+    if (!MEDIA_UPLOADS_ENABLED) {
+      setError(MEDIA_UPLOADS_DISABLED_MESSAGE);
+      return;
+    }
     if (!file.type.startsWith("image/")) {
       setError("Vui lòng chọn tệp hình ảnh hợp lệ (PNG, JPG, WEBP, GIF).");
       return;
@@ -127,7 +132,13 @@ export default function ImageUpload({
                 <button
                   className={styles.changeBtn}
                   disabled={uploading}
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => {
+                    if (!MEDIA_UPLOADS_ENABLED) {
+                      setError(MEDIA_UPLOADS_DISABLED_MESSAGE);
+                      return;
+                    }
+                    fileInputRef.current?.click();
+                  }}
                   type="button"
                 >
                   <UiIcon name="sparkles" size={13} />
@@ -144,6 +155,14 @@ export default function ImageUpload({
                 </button>
               </div>
             </div>
+          </div>
+        ) : !MEDIA_UPLOADS_ENABLED ? (
+          <div className={styles.dropzone} role="note">
+            <div className={styles.dropzoneIcon}>
+              <UiIcon name="plus" size={20} />
+            </div>
+            <p className={styles.dropzoneText}>Tải ảnh lên đang tạm tắt trên môi trường này</p>
+            <p className={styles.dropzoneHint}>{MEDIA_UPLOADS_DISABLED_MESSAGE}</p>
           </div>
         ) : (
           <div

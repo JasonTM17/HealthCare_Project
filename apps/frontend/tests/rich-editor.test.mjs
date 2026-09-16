@@ -394,7 +394,9 @@ test("RichTextEditor integrates TinyMCE with self-hosted assets, menubar, toolba
   assert.match(editor, /toolbar:[\s\S]*?bold italic/);
   assert.match(editor, /toolbar:[\s\S]*?alignleft aligncenter alignright alignjustify/);
   assert.match(editor, /toolbar:[\s\S]*?bullist numlist outdent indent/);
-  assert.match(editor, /toolbar:[\s\S]*?table link image/);
+  // Image controls are gated on the backend upload posture (storage 503 honesty)
+  assert.match(editor, /toolbar:[\s\S]*?table link \$\{/);
+  assert.match(editor, /toolbar:[\s\S]*?MEDIA_UPLOADS_ENABLED \? "image media " : ""/);
   assert.match(editor, /toolbar:[\s\S]*?clinical_warning doctor_note dosage_guide emergency_box/);
 
   // Custom clinical button registrations

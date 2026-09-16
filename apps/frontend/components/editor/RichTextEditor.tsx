@@ -17,6 +17,7 @@ import UiIcon, { type IconName } from "../UiIcon";
 import ConfirmActionDialog from "../ui/ConfirmActionDialog";
 import RichContentRenderer, { htmlToMarkdown, markdownToHtml } from "./RichContentRenderer";
 import { uploadMediaAsset, ApiError } from "../../lib/api-client";
+import { MEDIA_UPLOADS_DISABLED_MESSAGE, MEDIA_UPLOADS_ENABLED } from "../../lib/media-uploads";
 import { presentApiError } from "../../lib/present-api-error";
 
 const TinyEditor = dynamic<IAllProps>(
@@ -351,8 +352,9 @@ export function RichTextEditor({
         view: { title: "View", items: "code | visualaid visualchars visualblocks | preview fullscreen" },
         insert: {
           title: "Insert",
-          items:
-            "image link media codesample inserttable accordion | charmap emoticons hr insertdatetime | anchor pagebreak nonbreaking | clinical_callouts clinical_templates",
+          items: `${
+            MEDIA_UPLOADS_ENABLED ? "image " : ""
+          }link media codesample inserttable accordion | charmap emoticons hr insertdatetime | anchor pagebreak nonbreaking | clinical_callouts clinical_templates`,
         },
         format: {
           title: "Format",
@@ -362,8 +364,9 @@ export function RichTextEditor({
         tools: { title: "Tools", items: "code wordcount" },
         table: { title: "Table", items: "inserttable | cell row column | tableprops deletetable" },
       },
-      toolbar:
-        "undo redo | blocks fontfamily fontsize | bold italic underline strikethrough forecolor backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | table link image media accordion | clinical_warning doctor_note dosage_guide emergency_box | searchreplace emoticons charmap insertdatetime | removeformat code preview fullscreen",
+      toolbar: `undo redo | blocks fontfamily fontsize | bold italic underline strikethrough forecolor backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | table link ${
+        MEDIA_UPLOADS_ENABLED ? "image media " : ""
+      }accordion | clinical_warning doctor_note dosage_guide emergency_box | searchreplace emoticons charmap insertdatetime | removeformat code preview fullscreen`,
       plugins: [
         "advlist",
         "autolink",
@@ -393,7 +396,7 @@ export function RichTextEditor({
       ],
       quickbars_selection_toolbar:
         "bold italic underline strikethrough | quicklink h2 h3 blockquote | forecolor backcolor",
-      quickbars_insert_toolbar: "quickimage quicktable | hr",
+      quickbars_insert_toolbar: `${MEDIA_UPLOADS_ENABLED ? "quickimage " : ""}quicktable | hr`,
       font_family_formats:
         "Be Vietnam Pro='Be Vietnam Pro',sans-serif; Mặc định hệ thống=-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; Arial=arial,helvetica,sans-serif; Courier New=courier new,courier,monospace; Georgia=georgia,palatino,serif; Tahoma=tahoma,arial,helvetica,sans-serif; Times New Roman=times new roman,times,serif; Trebuchet MS=trebuchet ms,geneva,sans-serif; Verdana=verdana,geneva,sans-serif",
       font_size_formats: "12px 13px 14px 15px 16px 18px 20px 24px 28px 32px 36px",
@@ -404,8 +407,8 @@ export function RichTextEditor({
         "border-collapse": "collapse",
         width: "100%",
       },
-      automatic_uploads: true,
-      paste_data_images: true,
+      automatic_uploads: MEDIA_UPLOADS_ENABLED,
+      paste_data_images: MEDIA_UPLOADS_ENABLED,
       images_reuse_filename: true,
       branding: false,
       promotion: false,
@@ -613,6 +616,11 @@ export function RichTextEditor({
         });
       },
       images_upload_handler: async (blobInfo: { blob: () => Blob; filename: () => string }) => {
+        if (!MEDIA_UPLOADS_ENABLED) {
+          const message = MEDIA_UPLOADS_DISABLED_MESSAGE;
+          setDirectUploadError(message);
+          throw new Error(message);
+        }
         try {
           setIsDirectUploading(true);
           const blob = blobInfo.blob();
