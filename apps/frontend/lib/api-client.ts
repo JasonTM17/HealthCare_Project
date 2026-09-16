@@ -1578,8 +1578,10 @@ export async function fetchDoctorConsultationHandoffDirectory(id: string): Promi
   return getAuthenticatedJson<ConsultationHandoffDoctor[]>(`/doctor/consultations/${encodeURIComponent(id)}/handoff-directory`);
 }
 
-export async function fetchAdminConsultationQueue(): Promise<ConsultationAdminQueueItem[]> {
-  return getAuthenticatedJson<ConsultationAdminQueueItem[]>("/admin/consultations/queue");
+export async function fetchAdminConsultationQueue(
+  options: { page?: number; size?: number } = {},
+): Promise<ConsultationAdminQueueItem[]> {
+  return getAuthenticatedJson<ConsultationAdminQueueItem[]>(`/admin/consultations/queue${toQuery({ page: options.page, size: options.size })}`);
 }
 
 export async function assignAdminConsultation(id: string, doctorId: string): Promise<void> {
@@ -1618,8 +1620,10 @@ export async function reportPublishedHealthQuestion(
   );
 }
 
-export async function adminListHealthQuestions(state?: string): Promise<HealthQuestionSummary[]> {
-  return getAuthenticatedJson<HealthQuestionSummary[]>(`/admin/health-questions${toQuery({ state })}`);
+export async function adminListHealthQuestions(
+  options: { state?: string; page?: number; size?: number } = {},
+): Promise<HealthQuestionSummary[]> {
+  return getAuthenticatedJson<HealthQuestionSummary[]>(`/admin/health-questions${toQuery({ state: options.state, page: options.page, size: options.size })}`);
 }
 
 export async function adminModerateHealthQuestion(id: string, decision: string, reasonCode?: string): Promise<void> {
