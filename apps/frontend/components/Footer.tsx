@@ -74,14 +74,12 @@ const Footer: React.FC<FooterProps> = ({ branches = [], cmsSlug }) => {
         {contactHref ? (
           <a className="footer-hotline" href={contactHref}><Icon name="phone" size={18} />{contactPhone}</a>
         ) : (
-          // Owned fallback: no phone number is invented here; the contact page
-          // lists the verified hotline of each branch.
           <p className="footer-hotline-fallback" data-fallback="true">
-            Số điện thoại tổng đài đang được xác minh lại. Hãy xem số hotline của từng cơ sở hoặc đặt lịch trực tuyến:{" "}
+            Quý khách vui lòng xem hotline của từng cơ sở hoặc đặt lịch trực tuyến:{" "}
             <Link href="/contact">kênh liên hệ</Link> · <Link href="/dat-lich">đặt lịch khám</Link>
           </p>
         )}
-        <p>{emergencyBranch ? `Tiếp nhận hỗ trợ tại ${emergencyBranch.name}.` : "Xem địa chỉ, giờ làm việc và kênh liên hệ của từng cơ sở."}</p>
+        <p>{emergencyBranch ? `Tiếp nhận hỗ trợ tại ${emergencyBranch.name}.` : "Xem địa chỉ, hotline từng cơ sở và kênh hỗ trợ trực tuyến."}</p>
         <Link className="text-button text-button--light" href="/branches">Xem cơ sở <Icon name="arrow-up-right" size={17} /></Link>
       </aside>
     </div>

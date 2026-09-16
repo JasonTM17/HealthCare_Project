@@ -115,6 +115,8 @@ class AiChatSourceResolverTest {
 
         assertThat(resolver.branchDetails("Cơ sở số 2 làm việc đến mấy giờ?"))
             .hasSize(2);
+        assertThat(resolver.branchDetails("Cơ sở số 2 có giờ hoạt động thế nào?"))
+            .hasSize(2);
         assertThat(resolver.branchDetails("Cơ sở số 2 ở Quận 7 làm việc đến mấy giờ?"))
             .singleElement()
             .satisfies(value -> assertThat(value.source().title())
@@ -129,6 +131,12 @@ class AiChatSourceResolverTest {
 
         assertThat(resolver.branchDetails("Chi nhánh thứ 2 ở TP. Hồ Chí Minh làm việc đến mấy giờ?"))
             .hasSize(2);
+        assertThat(resolver.branchDetails("Chi nhánh thứ 2 ở TP. Hồ Chí Minh có địa chỉ gì?"))
+            .hasSize(2);
+        assertThat(resolver.isSpecificBranchQuery("Cơ sở số 2 có giờ hoạt động thế nào?"))
+            .isTrue();
+        assertThat(resolver.isSpecificBranchQuery("Giờ làm việc của bệnh viện thế nào?"))
+            .isFalse();
     }
 
     @Test

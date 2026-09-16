@@ -501,6 +501,57 @@ class AiChatContractsTest {
     }
 
     @Test
+    void authenticatedSpecificBranchQueryDoesNotFallThroughToNearbyRagRows() {
+        AiService upstream = mock(AiService.class);
+        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
+        AiChatSourceResolver.ResolvedSource district3 = new AiChatSourceResolver.ResolvedSource(
+            "branch", "00000000-0000-0000-0000-000000000003",
+            "Bệnh viện Đa khoa HealthCare — Cơ sở 2 — Quận 3", "co-so-2-quan-3",
+            true, true, "OPERATIONAL", null, null, null, null,
+            "/branches/co-so-2-quan-3", "/dat-lich?branchId=00000000-0000-0000-0000-000000000003");
+        AiChatSourceResolver.ResolvedSource district7 = new AiChatSourceResolver.ResolvedSource(
+            "branch", "00000000-0000-0000-0000-000000000004",
+            "Bệnh viện Đa khoa HealthCare — Cơ sở 2, Quận 7", "co-so-2-quan-7",
+            true, true, "OPERATIONAL", null, null, null, null,
+            "/branches/co-so-2-quan-7", "/dat-lich?branchId=00000000-0000-0000-0000-000000000004");
+        when(resolver.isSpecificBranchQuery(org.mockito.ArgumentMatchers.anyString())).thenReturn(true);
+        when(resolver.branchDetails(org.mockito.ArgumentMatchers.anyString())).thenReturn(List.of(
+            new AiChatSourceResolver.BranchDetails(district3, "2 Đường số 3, Quận 3", "06:30–20:00"),
+            new AiChatSourceResolver.BranchDetails(district7, "105 Nguyễn Văn Linh, Quận 7", null)));
+        when(resolver.citations(org.mockito.ArgumentMatchers.any())).thenReturn(List.of(
+            Map.of("source_type", "branch", "source_id", district3.id(), "title", district3.title()),
+            Map.of("source_type", "branch", "source_id", district7.id(), "title", district7.title())));
+        when(resolver.actions(org.mockito.ArgumentMatchers.any())).thenReturn(List.of(
+            Map.of("kind", "VIEW_SOURCE", "label", district3.title(), "href", district3.viewHref()),
+            Map.of("kind", "VIEW_SOURCE", "label", district7.title(), "href", district7.viewHref())));
+
+        AiConversationService service = new AiConversationService(
+            mock(AiConversationRepository.class),
+            mock(AiMessageRepository.class),
+            mock(AiMessageFeedbackRepository.class),
+            mock(UserRepository.class),
+            upstream,
+            resolver,
+            mock(PlatformTransactionManager.class),
+            90, true, 200, 20, 120);
+
+        Object response = ReflectionTestUtils.invokeMethod(
+            service, "groundedResponse", UUID.randomUUID(), ChatMode.HOSPITAL_SUPPORT,
+            "Cơ sở số 2 có giờ hoạt động thế nào?", List.of());
+
+        assertThat((String) ReflectionTestUtils.invokeMethod(response, "answer"))
+            .contains("Cơ sở 2 — Quận 3", "Cơ sở 2, Quận 7")
+            .contains("cho mình biết quận/thành phố")
+            .doesNotContain("Cơ sở 13");
+        assertThat((Object) ReflectionTestUtils.invokeMethod(response, "safetyAction"))
+            .isEqualTo(ChatSafetyAction.ANSWER);
+        assertThat((Object) ReflectionTestUtils.invokeMethod(response, "finalSources"))
+            .isEqualTo(List.of(district3, district7));
+        verify(upstream, never()).retrieveChat(org.mockito.ArgumentMatchers.any());
+        verify(upstream, never()).generateChat(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
     void emptyAuthorizedSourcesCannotBecomeAnAnswer() {
         AiService upstream = mock(AiService.class);
         when(upstream.retrieveChat(org.mockito.ArgumentMatchers.any())).thenReturn(Map.of(

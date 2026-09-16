@@ -29,7 +29,7 @@ const BOOKING_STAGES: Array<{ icon: IconName; title: string; description: string
   {
     icon: "mail",
     title: "4. Xác nhận OTP",
-    description: "Mã OTP và thời gian giữ chỗ được xử lý riêng để tránh nhầm trạng thái lịch.",
+    description: "Xác thực mã OTP gửi qua SMS/Email giúp bảo mật thông tin và hoàn tất lịch hẹn an toàn.",
   },
 ];
 
