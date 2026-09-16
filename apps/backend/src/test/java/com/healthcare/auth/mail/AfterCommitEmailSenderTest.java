@@ -136,6 +136,58 @@ class AfterCommitEmailSenderTest {
     }
 
     @Test
+    void bestEffortTemplateDoesNotFailCommittedOperationWhenRichDeliveryFails() {
+        EmailSender richDelegate = mock(EmailSender.class,
+            org.mockito.Mockito.withSettings().extraInterfaces(RichEmailDelivery.class));
+        AfterCommitEmailSender richSender = new AfterCommitEmailSender(richDelegate);
+        beginTransactionSynchronization();
+        doThrow(new IllegalStateException("SMTP unavailable"))
+            .when((RichEmailDelivery) richDelegate).sendRich(
+                org.mockito.Mockito.eq("patient@example.com"),
+                org.mockito.Mockito.anyString(),
+                org.mockito.Mockito.anyString(),
+                org.mockito.Mockito.anyString());
+
+        richSender.sendTemplateBestEffort(
+            EmailTemplateKey.EMAIL_VERIFICATION,
+            "patient@example.com",
+            Map.of("code", "123456", "minutes", "5")
+        );
+
+        assertDoesNotThrow(() -> TransactionSynchronizationManager.getSynchronizations()
+            .forEach(TransactionSynchronization::afterCommit));
+        verify((RichEmailDelivery) richDelegate).sendRich(
+            org.mockito.Mockito.eq("patient@example.com"),
+            org.mockito.Mockito.eq("[HealthCare] Xác minh email"),
+            org.mockito.Mockito.contains("123456"),
+            org.mockito.Mockito.contains("123456")
+        );
+    }
+
+    @Test
+    void bestEffortTemplateUsesTypedOutboxBridgeWhenAvailable() {
+        EmailSender transactionalDelegate = mock(EmailSender.class,
+            org.mockito.Mockito.withSettings().extraInterfaces(TransactionalEmailSender.class));
+        AfterCommitEmailSender transactionalSender = new AfterCommitEmailSender(transactionalDelegate);
+
+        transactionalSender.sendTemplateBestEffort(
+            EmailTemplateKey.PASSWORD_RESET,
+            "patient@example.com",
+            Map.of("code", "123456", "minutes", "5")
+        );
+
+        verify((TransactionalEmailSender) transactionalDelegate).enqueue(
+            org.mockito.ArgumentMatchers.eq(EmailTemplateKey.PASSWORD_RESET),
+            org.mockito.ArgumentMatchers.eq("patient@example.com"),
+            org.mockito.ArgumentMatchers.eq(Map.of("code", "123456", "minutes", "5")),
+            org.mockito.ArgumentMatchers.anyString(),
+            org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.isNull(),
+            org.mockito.ArgumentMatchers.eq("PASSWORD_RESET"), org.mockito.ArgumentMatchers.eq(900L));
+        verify(transactionalDelegate, org.mockito.Mockito.never()).send(
+            org.mockito.Mockito.anyString(), org.mockito.Mockito.anyString(), org.mockito.Mockito.anyString());
+    }
+
+    @Test
     void bestEffortNotificationDoesNotFailCommittedOperationWhenSmtpFails() {
         beginTransactionSynchronization();
         doThrow(new IllegalStateException("SMTP unavailable"))

@@ -13,6 +13,8 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -67,9 +69,19 @@ class PaymentStatusEmailServiceTest {
         verifyNoInteractions(emailSender);
     }
 
+    @Test
+    void paymentStatusUpdateDoesNotFailWhenEmailBestEffortDeliveryFails() {
+        doThrow(new IllegalStateException("SMTP unavailable")).when(emailSender).sendTemplateBestEffort(
+            org.mockito.ArgumentMatchers.eq(com.healthcare.auth.mail.EmailTemplateKey.PAYMENT_STATUS),
+            org.mockito.ArgumentMatchers.anyString(),
+            org.mockito.ArgumentMatchers.anyMap());
+
+        assertDoesNotThrow(() -> service.paymentConfirmed(payment));
+    }
+
     private void assertSafeDelivery(String expectedText) {
         ArgumentCaptor<Map<String, String>> variables = ArgumentCaptor.forClass(Map.class);
-        verify(emailSender).sendTemplate(
+        verify(emailSender).sendTemplateBestEffort(
             org.mockito.ArgumentMatchers.eq(com.healthcare.auth.mail.EmailTemplateKey.PAYMENT_STATUS),
             org.mockito.ArgumentMatchers.eq("patient@example.com"), variables.capture());
 

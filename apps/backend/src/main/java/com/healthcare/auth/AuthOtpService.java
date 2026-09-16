@@ -155,10 +155,10 @@ public class AuthOtpService {
                 "auth-otp-" + challenge.getId(), lockedUser.getId(), challenge.getId(),
                 purpose.name(), ttlSeconds);
         } else {
-            // The non-outbox fallback still uses the code-owned rich template
-            // and delivers only after the transaction commits. It never logs
-            // or returns the OTP and does not claim provider acceptance early.
-            emailSender.sendTemplate(template, lockedUser.getEmail(), variables);
+            // Without the durable outbox, SMTP is a best-effort side effect
+            // after commit. Provider failures are logged by the mail boundary
+            // and never roll back account creation or OTP issuance.
+            emailSender.sendTemplateBestEffort(template, lockedUser.getEmail(), variables);
         }
     }
 
