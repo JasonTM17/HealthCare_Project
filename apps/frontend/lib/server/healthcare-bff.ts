@@ -253,7 +253,7 @@ export function readHealthcareBffRuntimeConfig(): HealthcareBffRuntimeConfig {
     rawBackend || DEFAULT_BACKEND_ORIGIN,
   );
   const configuredPublicOrigin = process.env.BFF_PUBLIC_ORIGIN?.trim();
-  const defaultOrigins = "https://healthcare.id.vn,https://www.healthcare.id.vn,https://healthcare-two-olive.vercel.app";
+  const defaultOrigins = "https://healthcare.id.vn,https://www.healthcare.id.vn";
   const mergedPublicOrigins = configuredPublicOrigin
     ? `${configuredPublicOrigin},${defaultOrigins}`
     : defaultOrigins;

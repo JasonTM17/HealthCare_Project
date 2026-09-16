@@ -20,6 +20,7 @@ from app.llm import (
 )
 from app.providers import ProviderUnavailable
 from app.rag import RagService
+from app.chatbot import focus_public_retrieval_hits
 from app.main import app, rag_service, settings
 from app.schemas import ChatRequest, ChatResponse, Citation
 from app.embeddings import EmbeddingResult
@@ -299,6 +300,36 @@ def test_public_context_relevance_accepts_numeric_branch_identity() -> None:
     assert not public_context_is_relevant(query, unrelated)
 
 
+def test_public_context_relevance_matches_branch_number_not_address_number() -> None:
+    query = "Cơ sở số 2 có giờ hoạt động thế nào?"
+    exact_branch = [
+        "Bệnh viện Đa khoa HealthCare — Cơ sở 2 — Quận 3: "
+        "Địa chỉ: 2 Đường Số 3, Quận 3; Giờ hoạt động: 06:30–20:00."
+    ]
+    nearby_numeric_rows = [
+        "Bệnh viện Đa khoa HealthCare — Cơ sở 13 — Quận 2: "
+        "Địa chỉ: 13 Đường Sức Khỏe, Quận 2; Giờ hoạt động: 06:30–20:00."
+    ]
+
+    assert public_context_is_relevant(query, exact_branch)
+    assert not public_context_is_relevant(query, nearby_numeric_rows)
+
+
+def test_public_context_relevance_requires_branch_locality_when_explicit() -> None:
+    query = "Cơ sở số 2 ở Quận 3 làm việc đến mấy giờ?"
+    district3 = [
+        "Bệnh viện Đa khoa HealthCare — Cơ sở 2 — Quận 3: "
+        "Địa chỉ: 2 Đường Số 3, Quận 3; Giờ hoạt động: 06:30–20:00."
+    ]
+    district7 = [
+        "Bệnh viện Đa khoa HealthCare — Cơ sở 2 — Quận 7: "
+        "Địa chỉ: 105 Nguyễn Văn Linh, Quận 7; Giờ hoạt động: 06:30–20:00."
+    ]
+
+    assert public_context_is_relevant(query, district3)
+    assert not public_context_is_relevant(query, district7)
+
+
 def test_public_context_relevance_requires_requested_schedule_data() -> None:
     complete_context = ["Phòng khám Thảo Điền — Thủ Đức: Giờ hoạt động: 07:00–19:00."]
     incomplete_context = [
@@ -393,6 +424,103 @@ def test_public_local_chat_uses_grounded_operational_source_when_identity_matche
     assert payload["provenance"] == "local_provider"
     assert [item["source_id"] for item in payload["citations"]] == ["tim-mach"]
     assert "Tim mạch" in payload["answer"]
+
+
+def test_public_local_chat_focuses_specialty_guidance_on_matching_symptom(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    local_settings = settings
+    monkeypatch.setattr(local_settings, "ai_service_runtime", "local")
+    monkeypatch.setattr(local_settings, "ai_service_allow_unauthenticated_local", True)
+    monkeypatch.setattr(local_settings, "ai_service_token", "")
+    monkeypatch.setattr(local_settings, "ai_provider", "local")
+    monkeypatch.setattr(local_settings, "embedding_provider", "local")
+    monkeypatch.setattr(local_settings, "ai_public_hospital_support_remote_enabled", False)
+
+    vector = [1.0] + [0.0] * 383
+    local_rag = RagService()
+    for source_id, title, content in (
+        (
+            "specialty-neurology",
+            "Thần kinh",
+            "Chuyên khoa Thần kinh tiếp nhận khám đau đầu, chóng mặt và rối loạn giấc ngủ.",
+        ),
+        (
+            "specialty-orthopedics",
+            "Cơ xương khớp",
+            "Chuyên khoa Cơ xương khớp tiếp nhận khám đau khớp và đau lưng.",
+        ),
+        (
+            "specialty-obgyn",
+            "Sản phụ khoa",
+            "Chuyên khoa Sản phụ khoa hỗ trợ khám thai và tư vấn sức khỏe phụ nữ.",
+        ),
+    ):
+        local_rag.ingest(
+            "specialty",
+            source_id,
+            title,
+            content,
+            vector,
+            embedding_model="local-hash",
+            embedding_provenance="local_provider",
+        )
+    monkeypatch.setattr("app.main.rag_service", local_rag)
+    monkeypatch.setattr(
+        "app.main.embed",
+        lambda *_, **__: EmbeddingResult(vector, "local-hash", "local_provider"),
+    )
+
+    response = client.post(
+        "/chat",
+        json={
+            "message": "Tôi đau đầu nên khám khoa nào?",
+            "public_support_chat": True,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert [item["source_id"] for item in payload["citations"]] == ["specialty-neurology"]
+    assert "Thần kinh" in payload["answer"]
+    assert "Cơ xương khớp" not in payload["answer"]
+    assert "Sản phụ khoa" not in payload["answer"]
+
+
+def test_specialty_guidance_focus_keeps_tied_multi_system_matches() -> None:
+    hits = [
+        (
+            SimpleNamespace(
+                source_type="specialty",
+                source_id="digestive",
+                title="Tiêu hóa",
+                content="Chuyên khoa Tiêu hóa tiếp nhận đau bụng.",
+            ),
+            0.8,
+        ),
+        (
+            SimpleNamespace(
+                source_type="specialty",
+                source_id="obgyn",
+                title="Sản phụ khoa",
+                content="Chuyên khoa Sản phụ khoa tiếp nhận đau bụng dưới.",
+            ),
+            0.7,
+        ),
+        (
+            SimpleNamespace(
+                source_type="specialty",
+                source_id="neurology",
+                title="Thần kinh",
+                content="Chuyên khoa Thần kinh tiếp nhận đau đầu.",
+            ),
+            0.6,
+        ),
+    ]
+
+    focused = focus_public_retrieval_hits("Tôi đau bụng nên khám khoa nào?", hits)
+
+    assert [document.source_id for document, _ in focused] == ["digestive", "obgyn"]
 
 
 def test_public_local_chat_overfetches_before_constrained_branch_filtering(

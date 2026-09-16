@@ -56,8 +56,8 @@ public class AiChatSourceResolver {
     private static final Pattern DISTRICT_ANCHOR = Pattern.compile("\\b(?:quan|huyen|phuong)\\s+[a-z0-9]+\\b");
     private static final Set<String> BRANCH_LOOKUP_STOPWORDS = Set.of(
         "bao", "benh", "chi", "cho", "co", "cua", "da", "den", "dia", "duoc", "gio",
-        "healthcare", "hoi", "kham", "lam", "may", "mo", "nhanh", "nhieu", "o", "so", "tai", "the",
-        "thoi", "thu", "toi", "viec", "vien", "xem"
+        "healthcare", "hoat", "hoi", "kham", "lam", "may", "mo", "nhanh", "nhieu", "o", "so", "tai", "the",
+        "thoi", "thu", "toi", "viec", "vien", "xem", "nao", "dong", "gi"
     );
     private static final Set<String> SUPPORT_TYPES = Set.of(
         "branch", "specialty", "doctor", "service", "package"
@@ -404,6 +404,22 @@ public class AiChatSourceResolver {
         } catch (RuntimeException ex) {
             return List.of();
         }
+    }
+
+    /**
+     * Return whether a branch question contains an explicit identity or
+     * locality constraint.  This lets public and authenticated chat callers
+     * stop before generic RAG retrieval when the live catalog must decide
+     * between an exact row, multiple rows, or no row at all.
+     */
+    public boolean isSpecificBranchQuery(String query) {
+        String normalizedQuery = normalizeLookupText(query);
+        if (normalizedQuery.isBlank()) return false;
+        Integer requestedNumber = branchNumber(normalizedQuery);
+        Set<String> locationAnchors = branchLocationAnchors(normalizedQuery);
+        Set<String> identityTerms = branchIdentityTerms(
+            normalizedQuery, locationAnchors, requestedNumber);
+        return requestedNumber != null || !locationAnchors.isEmpty() || !identityTerms.isEmpty();
     }
 
     private boolean matchesBranch(
