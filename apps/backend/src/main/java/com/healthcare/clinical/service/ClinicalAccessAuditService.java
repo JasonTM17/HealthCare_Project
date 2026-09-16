@@ -24,6 +24,7 @@ public class ClinicalAccessAuditService {
     public static final String TARGET_FILE = "FILE";
     public static final String ACTION_READ = "READ";
     public static final String ACTION_DOWNLOAD = "DOWNLOAD";
+    public static final String ACTION_PRESCRIBE = "PRESCRIBE";
     public static final String DECISION_ALLOW = "ALLOW";
     public static final String DECISION_DENY = "DENY";
 

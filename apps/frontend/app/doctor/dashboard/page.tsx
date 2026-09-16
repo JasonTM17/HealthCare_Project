@@ -60,6 +60,11 @@ interface ClinicalFormValues {
   treatmentPlan: string;
   doctorNotes: string;
   followUpDate: string;
+  prescriptionItems: PrescriptionItemDraft[];
+  prescriptionAdvice: string;
+}
+
+interface PrescriptionItemDraft {
   medicationName: string;
   dosage: string;
   unit: string;
@@ -67,8 +72,17 @@ interface ClinicalFormValues {
   durationDays: string;
   totalQuantity: string;
   usageNote: string;
-  prescriptionAdvice: string;
 }
+
+const EMPTY_PRESCRIPTION_ITEM: PrescriptionItemDraft = {
+  medicationName: "",
+  dosage: "",
+  unit: "Viên",
+  frequency: "",
+  durationDays: "",
+  totalQuantity: "",
+  usageNote: "",
+};
 
 const EMPTY_CLINICAL_FORM: ClinicalFormValues = {
   appointmentId: "",
@@ -78,13 +92,7 @@ const EMPTY_CLINICAL_FORM: ClinicalFormValues = {
   treatmentPlan: "",
   doctorNotes: "",
   followUpDate: "",
-  medicationName: "",
-  dosage: "",
-  unit: "",
-  frequency: "",
-  durationDays: "",
-  totalQuantity: "",
-  usageNote: "",
+  prescriptionItems: [{ ...EMPTY_PRESCRIPTION_ITEM }],
   prescriptionAdvice: "",
 };
 
@@ -379,6 +387,30 @@ export default function DoctorDashboardPage() {
     setClinicalError(null);
   };
 
+  const updatePrescriptionItem = (index: number, field: keyof PrescriptionItemDraft, value: string): void => {
+    setClinicalForm((current) => ({
+      ...current,
+      prescriptionItems: current.prescriptionItems.map((item, idx) => (
+        idx === index ? { ...item, [field]: value } : item
+      )),
+    }));
+    setClinicalError(null);
+  };
+
+  const addPrescriptionItem = (): void => {
+    setClinicalForm((current) => ({
+      ...current,
+      prescriptionItems: [...current.prescriptionItems, { ...EMPTY_PRESCRIPTION_ITEM }],
+    }));
+  };
+
+  const removePrescriptionItem = (index: number): void => {
+    setClinicalForm((current) => ({
+      ...current,
+      prescriptionItems: current.prescriptionItems.filter((_, idx) => idx !== index),
+    }));
+  };
+
   const handleCreateClinicalRecord = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
     setClinicalError(null);
@@ -391,10 +423,14 @@ export default function DoctorDashboardPage() {
       setClinicalError("Hãy chọn một lịch hẹn từ danh sách đã xác thực trước khi ghi nhận kết quả.");
       return;
     }
-    const medicationFields = [clinicalForm.medicationName, clinicalForm.dosage, clinicalForm.frequency, clinicalForm.durationDays, clinicalForm.totalQuantity];
-    const hasMedication = medicationFields.some((value) => value.trim().length > 0);
-    if (hasMedication && medicationFields.some((value) => value.trim().length === 0)) {
-      setClinicalError("Nếu kê thuốc, hãy điền đủ tên thuốc, liều dùng, tần suất, số ngày và tổng số lượng.");
+    const startedItems = clinicalForm.prescriptionItems.filter((item) =>
+      [item.medicationName, item.dosage, item.frequency, item.durationDays, item.totalQuantity]
+        .some((value) => value.trim().length > 0));
+    const incompleteItems = startedItems.filter((item) =>
+      [item.medicationName, item.dosage, item.frequency, item.durationDays, item.totalQuantity]
+        .some((value) => value.trim().length === 0));
+    if (incompleteItems.length > 0) {
+      setClinicalError("Nếu kê thuốc, mỗi dòng thuốc cần đủ tên thuốc, liều dùng, tần suất, số ngày và tổng số lượng.");
       return;
     }
     setClinicalOperation("saving");
@@ -408,15 +444,15 @@ export default function DoctorDashboardPage() {
         treatmentPlan: clinicalForm.treatmentPlan.trim() || undefined,
         doctorNotes: clinicalForm.doctorNotes.trim() || undefined,
         followUpDate: clinicalForm.followUpDate || undefined,
-        prescriptionItems: hasMedication ? [{
-          medicationName: clinicalForm.medicationName.trim(),
-          dosage: clinicalForm.dosage.trim(),
-          unit: clinicalForm.unit.trim() || "Viên",
-          frequency: clinicalForm.frequency.trim(),
-          durationDays: Number(clinicalForm.durationDays),
-          totalQuantity: Number(clinicalForm.totalQuantity),
-          usageNote: clinicalForm.usageNote.trim() || undefined,
-        }] : undefined,
+        prescriptionItems: startedItems.length > 0 ? startedItems.map((item) => ({
+          medicationName: item.medicationName.trim(),
+          dosage: item.dosage.trim(),
+          unit: item.unit.trim() || "Viên",
+          frequency: item.frequency.trim(),
+          durationDays: Number(item.durationDays),
+          totalQuantity: Number(item.totalQuantity),
+          usageNote: item.usageNote.trim() || undefined,
+        })) : undefined,
         prescriptionAdvice: clinicalForm.prescriptionAdvice.trim() || undefined,
       });
       setClinicalForm(EMPTY_CLINICAL_FORM);
@@ -529,17 +565,32 @@ export default function DoctorDashboardPage() {
               </div>
               <label>Ngày tái khám<input onChange={(event) => updateClinicalForm("followUpDate", event.target.value)} placeholder="dd/mm/yyyy" type="date" value={clinicalForm.followUpDate} /></label>
               <fieldset className="portal-clinical-form__fieldset">
-                <legend>Kê một thuốc (tuỳ chọn)</legend>
-                <div className="portal-clinical-form__grid">
-                  <label>Tên thuốc<input onChange={(event) => updateClinicalForm("medicationName", event.target.value)} value={clinicalForm.medicationName} /></label>
-                  <label>Liều dùng<input onChange={(event) => updateClinicalForm("dosage", event.target.value)} value={clinicalForm.dosage} /></label>
-                  <label>Tần suất<input onChange={(event) => updateClinicalForm("frequency", event.target.value)} placeholder="Ví dụ: 2 lần/ngày" value={clinicalForm.frequency} /></label>
-                  <label>Đơn vị<input onChange={(event) => updateClinicalForm("unit", event.target.value)} placeholder="Viên" value={clinicalForm.unit} /></label>
-                  <label>Số ngày<input min="1" onChange={(event) => updateClinicalForm("durationDays", event.target.value)} type="number" value={clinicalForm.durationDays} /></label>
-                  <label>Tổng số lượng<input min="1" onChange={(event) => updateClinicalForm("totalQuantity", event.target.value)} type="number" value={clinicalForm.totalQuantity} /></label>
-                </div>
-                <label>Dặn dò dùng thuốc<textarea onChange={(event) => updateClinicalForm("usageNote", event.target.value)} value={clinicalForm.usageNote} /></label>
-                <label>Dặn dò chung<textarea onChange={(event) => updateClinicalForm("prescriptionAdvice", event.target.value)} value={clinicalForm.prescriptionAdvice} /></label>
+                <legend>Kê đơn thuốc (tuỳ chọn, nhiều dòng)</legend>
+                {clinicalForm.prescriptionItems.map((item, itemIndex) => (
+                  <div className="portal-clinical-form__fieldset" key={itemIndex}>
+                    <legend>Thuốc {itemIndex + 1}</legend>
+                    <div className="portal-clinical-form__grid">
+                      <label>Tên thuốc *<input onChange={(event) => updatePrescriptionItem(itemIndex, "medicationName", event.target.value)} value={item.medicationName} /></label>
+                      <label>Liều dùng *<input onChange={(event) => updatePrescriptionItem(itemIndex, "dosage", event.target.value)} value={item.dosage} /></label>
+                      <label>Tần suất *<input onChange={(event) => updatePrescriptionItem(itemIndex, "frequency", event.target.value)} placeholder="Ví dụ: 2 lần/ngày" value={item.frequency} /></label>
+                      <label>Đơn vị<input onChange={(event) => updatePrescriptionItem(itemIndex, "unit", event.target.value)} placeholder="Viên" value={item.unit} /></label>
+                      <label>Số ngày *<input min="1" onChange={(event) => updatePrescriptionItem(itemIndex, "durationDays", event.target.value)} type="number" value={item.durationDays} /></label>
+                      <label>Tổng số lượng *<input min="1" onChange={(event) => updatePrescriptionItem(itemIndex, "totalQuantity", event.target.value)} type="number" value={item.totalQuantity} /></label>
+                    </div>
+                    <label>Dặn dò dùng thuốc<textarea onChange={(event) => updatePrescriptionItem(itemIndex, "usageNote", event.target.value)} value={item.usageNote} /></label>
+                    {clinicalForm.prescriptionItems.length > 1 ? (
+                      <button
+                        className="outline-button outline-button--small"
+                        onClick={() => removePrescriptionItem(itemIndex)}
+                        type="button"
+                      >
+                        Xóa thuốc {itemIndex + 1}
+                      </button>
+                    ) : null}
+                  </div>
+                ))}
+                <button className="outline-button outline-button--small" onClick={() => addPrescriptionItem()} type="button">+ Thêm thuốc</button>
+                <label>Dặn dò chung<textarea maxLength={2000} onChange={(event) => updateClinicalForm("prescriptionAdvice", event.target.value)} value={clinicalForm.prescriptionAdvice} /></label>
               </fieldset>
               {clinicalError ? <p aria-live="assertive" className="portal-inline-error" role="alert">{clinicalError}</p> : null}
               {clinicalNotice ? <p aria-live="polite" className="portal-inline-success" role="status">{clinicalNotice}</p> : null}
