@@ -399,6 +399,47 @@ class ClinicalAuthorizationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void prescribingWritesPrescribeAuditRow() throws Exception {
+        ClinicalFixture fixture = fixture();
+        Appointment appointment = createAppointment(fixture);
+        String body = """
+            {
+              "appointmentId": "%s",
+              "patientId": "%s",
+              "doctorId": "%s",
+              "diagnosis": "Hypertension follow-up",
+              "prescriptionItems": [
+                {
+                  "medicationName": "Amlodipine 5mg",
+                  "dosage": "1 vien",
+                  "unit": "Vien",
+                  "frequency": "1 lan/ngay",
+                  "durationDays": 30,
+                  "totalQuantity": 30
+                }
+              ]
+            }
+            """.formatted(appointment.getId(), fixture.patient().getId(), fixture.doctor().getId());
+
+        mockMvc.perform(post("/api/v1/clinical/records")
+                .header("Authorization", bearer(fixture.doctorUser()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+            .andExpect(status().isCreated());
+
+        Integer prescribeAllow = jdbcTemplate.queryForObject(
+            """
+            select count(*) from clinical_access_audit
+            where target_type = 'PRESCRIPTION' and action = 'PRESCRIBE' and decision = 'ALLOW'
+              and patient_id = ? and target_id <> 'unknown'
+            """,
+            Integer.class,
+            fixture.patient().getId()
+        );
+        assertThat(prescribeAllow).isEqualTo(1);
+    }
+
+    @Test
     void pastEncounterCannotAuthorizeNewDiagnosticResult() throws Exception {
         ClinicalFixture fixture = fixture();
         createAppointment(fixture, AppointmentStatus.COMPLETED,
