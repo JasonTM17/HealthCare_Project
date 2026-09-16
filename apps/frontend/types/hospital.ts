@@ -21,6 +21,19 @@ export interface Specialty {
   relatedDoctors?: DoctorSummary[];
 }
 
+export interface DiagnosticOrder {
+  id: string;
+  patientId: string;
+  patientName: string;
+  doctorId: string;
+  doctorName: string;
+  appointmentId?: string | null;
+  testName: string;
+  notes?: string | null;
+  status: "REQUESTED" | "COLLECTED" | "COMPLETED" | "CANCELLED";
+  createdAt: string;
+}
+
 export interface Doctor {
   id: string;
   fullName: string;

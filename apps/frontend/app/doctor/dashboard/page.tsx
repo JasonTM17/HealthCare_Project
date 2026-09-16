@@ -12,13 +12,22 @@ import {
   fetchDoctorAppointments,
   fetchDoctorProfile,
   fetchDoctorPatientDiagnosticResults,
+  fetchDoctorDiagnosticOrders,
+  createDoctorDiagnosticOrder,
   fetchDoctorPatientMedicalRecords,
   hasRole,
   updateDoctorAppointmentStatus,
   uploadDiagnosticFile,
   type Page,
 } from "../../../lib/api-client";
-import type { Doctor, DoctorPortalAppointment, AuthUser, DiagnosticResult, MedicalRecord } from "../../../types/hospital";
+import type {
+  Doctor,
+  DoctorPortalAppointment,
+  AuthUser,
+  DiagnosticResult,
+  DiagnosticOrder,
+  MedicalRecord,
+} from "../../../types/hospital";
 import { EmptyState, ErrorState, ForbiddenState, LoadingState, LoginRequiredState } from "../../../components/PortalStates";
 import PortalAppointments from "../../../components/PortalAppointments";
 import { useAuthSession } from "../../../components/useAuthSession";
@@ -160,6 +169,11 @@ export default function DoctorDashboardPage() {
   const [activePatientId, setActivePatientId] = useState<string | null>(null);
   const [records, setRecords] = useState<LookupState<MedicalRecord[]>>({ status: "idle" });
   const [diagnostics, setDiagnostics] = useState<LookupState<DiagnosticResult[]>>({ status: "idle" });
+  const [orders, setOrders] = useState<LookupState<DiagnosticOrder[]>>({ status: "idle" });
+  const [orderName, setOrderName] = useState("");
+  const [orderNotes, setOrderNotes] = useState("");
+  const [orderOperation, setOrderOperation] = useState<"idle" | "saving">("idle");
+  const [selectedOrderId, setSelectedOrderId] = useState<string>("");
   const [dailyDate, setDailyDate] = useState(getTodayIsoDate);
   const [dailyStatus, setDailyStatus] = useState("");
   const [dailyAppointments, setDailyAppointments] = useState<LookupState<Page<DoctorPortalAppointment>>>({ status: "loading" });
@@ -226,13 +240,15 @@ export default function DoctorDashboardPage() {
     setRecords({ status: "loading" });
     setDiagnostics({ status: "loading" });
 
-    const [recordsResult, diagnosticsResult] = await Promise.allSettled([
+    const [recordsResult, diagnosticsResult, ordersResult] = await Promise.allSettled([
       fetchDoctorPatientMedicalRecords(requestedPatientId),
       fetchDoctorPatientDiagnosticResults(requestedPatientId),
+      fetchDoctorDiagnosticOrders(requestedPatientId),
     ]);
     if (!patientLookupFence.isCurrent(requestId)) return;
 
     const results = [recordsResult, diagnosticsResult];
+    setSelectedOrderId("");
     const unauthorized = results.some((result) => result.status === "rejected" && getErrorStatus(result.reason) === 401);
     if (unauthorized) {
       clearAuthSession();
@@ -245,6 +261,9 @@ export default function DoctorDashboardPage() {
     setDiagnostics(diagnosticsResult.status === "fulfilled"
       ? { status: "success", data: diagnosticsResult.value }
       : { status: "error", message: getErrorMessage(diagnosticsResult.reason), statusCode: getErrorStatus(diagnosticsResult.reason) });
+    setOrders(ordersResult.status === "fulfilled"
+      ? { status: "success", data: ordersResult.value }
+      : { status: "error", message: getErrorMessage(ordersResult.reason), statusCode: getErrorStatus(ordersResult.reason) });
   };
 
   const handleLookup = async (event: FormEvent<HTMLFormElement>) => {
@@ -300,15 +319,40 @@ export default function DoctorDashboardPage() {
     }
   };
 
-  const handleCreateDiagnostic = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
+  const handleCreateOrder = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
     if (!activePatientId) return;
+    setOrderOperation("saving");
+    setLookupError(null);
+    try {
+      const order = await createDoctorDiagnosticOrder(activePatientId, {
+        testName: orderName.trim(),
+        notes: orderNotes.trim() || undefined,
+      });
+      setOrders((current) => current.status === "success"
+        ? { status: "success", data: [order, ...current.data] }
+        : { status: "success", data: [order] });
+      setOrderName("");
+      setOrderNotes("");
+      setDiagnosticName(order.testName);
+      setSelectedOrderId(order.id);
+    } catch (error: unknown) {
+      setLookupError(getErrorMessage(error));
+    } finally {
+      setOrderOperation("idle");
+    }
+  };
+
+  const handleCreateDiagnostic = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
+    event.preventDefault();
+    if (!activePatientId || !selectedOrderId) return;
     setDiagnosticOperation("saving");
     setLookupError(null);
     setDiagnosticNotice(null);
     try {
       const storedFile = diagnosticFile ? await uploadDiagnosticFile(diagnosticFile, activePatientId) : null;
       await createDoctorDiagnosticResult(activePatientId, {
+        orderId: selectedOrderId,
         testName: diagnosticName.trim(),
         result: diagnosticValue.trim() || undefined,
         fileId: storedFile?.id,
@@ -317,8 +361,12 @@ export default function DoctorDashboardPage() {
       setDiagnosticName("");
       setDiagnosticValue("");
       setDiagnosticFile(null);
+      setOrders((current) => current.status === "success"
+        ? { status: "success", data: current.data.map((order) => order.id === selectedOrderId ? { ...order, status: "COMPLETED" as const } : order) }
+        : current);
+      setSelectedOrderId("");
       await loadPatient(activePatientId);
-      setDiagnosticNotice("Đã công bố kết quả chẩn đoán cho hồ sơ đang mở.");
+      setDiagnosticNotice("Đã công bố kết quả và hoàn tất chỉ định.");
     } catch (error: unknown) {
       setLookupError(getErrorMessage(error));
     } finally {
@@ -561,17 +609,53 @@ export default function DoctorDashboardPage() {
                 <div><h2 id="doctor-diagnostics-title">Kết quả chẩn đoán</h2></div>
                 <span aria-hidden="true" className="portal-panel__icon"><UiIcon name="activity" size={20} /></span>
               </div>
+              <form className="portal-clinical-form" onSubmit={handleCreateOrder}>
+                <p className="portal-panel__intro"><strong>Bước 1 — Chỉ định xét nghiệm:</strong> lập chỉ định trước khi có kết quả.</p>
+                <div className="portal-clinical-form__grid">
+                  <label>Tên xét nghiệm *<input maxLength={200} onChange={(event) => setOrderName(event.target.value)} required value={orderName} /></label>
+                  <label>Ghi chú chỉ định<input maxLength={1000} onChange={(event) => setOrderNotes(event.target.value)} value={orderNotes} /></label>
+                </div>
+                <button className="button button--primary" disabled={orderOperation === "saving" || !activePatientId} type="submit">{orderOperation === "saving" ? "Đang lập chỉ định…" : "Lập chỉ định xét nghiệm"}</button>
+              </form>
+
+              {renderLookupState(
+                orders,
+                "Chưa có chỉ định xét nghiệm",
+                "Chưa có chỉ định nào cho người bệnh này. Hãy lập chỉ định ở trên trước khi công bố kết quả.",
+                () => activePatientId && void loadPatient(activePatientId),
+                (items) => (
+                  <div className="portal-record-list">
+                    {items.map((order) => (
+                      <label className="portal-record" key={order.id}>
+                        <input
+                          checked={selectedOrderId === order.id}
+                          disabled={order.status !== "REQUESTED" && order.status !== "COLLECTED"}
+                          onChange={() => { setSelectedOrderId(order.id); setDiagnosticName(order.testName); }}
+                          type="radio"
+                          name="diagnostic-order"
+                        />
+                        <span>
+                          <strong>{order.testName}</strong> · <span>{order.status === "REQUESTED" ? "Đã chỉ định" : order.status === "COLLECTED" ? "Đã lấy mẫu" : order.status === "COMPLETED" ? "Đã có kết quả" : "Đã hủy"}</span>
+                          {order.notes ? <><br /><small>{order.notes}</small></> : null}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                ),
+              )}
+
               <form className="portal-clinical-form" onSubmit={handleCreateDiagnostic}>
+                <p className="portal-panel__intro"><strong>Bước 2 — Công bố kết quả:</strong> chọn một chỉ định đang mở ở trên.</p>
                 <div className="portal-clinical-form__grid">
                   <label>Tên xét nghiệm *<input maxLength={200} onChange={(event) => setDiagnosticName(event.target.value)} required value={diagnosticName} /></label>
                   <label>Ngày thực hiện<input max={getTodayIsoDate()} onChange={(event) => setDiagnosticDate(event.target.value)} required type="date" value={diagnosticDate} /></label>
                   <label>Giờ thực hiện<input onChange={(event) => setDiagnosticTime(event.target.value)} type="time" value={diagnosticTime} /></label>
                 </div>
-                <p className="portal-handoff-note">Chỉ có thể công bố kết quả cho bệnh nhân đang có lịch khám hôm nay với bạn (đã xác nhận, đã tiếp nhận hoặc đang khám).</p>
+                <p className="portal-handoff-note">Chỉ có thể công bố kết quả cho bệnh nhân đang có lịch khám hôm nay với bạn (đã xác nhận, đã tiếp nhận hoặc đang khám) và phải chọn một chỉ định đang mở.</p>
                 <label>Kết quả<textarea maxLength={4000} onChange={(event) => setDiagnosticValue(event.target.value)} value={diagnosticValue} /></label>
                 <label>Tệp đính kèm (tuỳ chọn)<input accept="application/pdf,image/jpeg,image/png" onChange={(event) => setDiagnosticFile(event.target.files?.[0] ?? null)} type="file" /></label>
                 {diagnosticNotice ? <p aria-live="polite" className="portal-inline-success" role="status">{diagnosticNotice}</p> : null}
-                <button className="button button--primary" disabled={diagnosticOperation === "saving"} type="submit">{diagnosticOperation === "saving" ? "Đang công bố…" : "Công bố kết quả"}</button>
+                <button className="button button--primary" disabled={diagnosticOperation === "saving" || !selectedOrderId} type="submit" title={selectedOrderId ? undefined : "Hãy chọn một chỉ định đang mở"}>{diagnosticOperation === "saving" ? "Đang công bố…" : "Công bố kết quả"}</button>
               </form>
               {renderLookupState(
                 diagnostics,

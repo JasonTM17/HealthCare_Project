@@ -39,6 +39,7 @@ import java.util.UUID;
 class ClinicalAuthorizationTest extends AbstractIntegrationTest {
 
     @Autowired private ObjectMapper objectMapper;
+    @Autowired private com.healthcare.clinical.repository.DiagnosticOrderRepository diagnosticOrderRepository;
     @Autowired private RoleRepository roleRepository;
     @Autowired private DoctorRepository doctorRepository;
     @Autowired private PasswordEncoder passwordEncoder;
@@ -341,12 +342,31 @@ class ClinicalAuthorizationTest extends AbstractIntegrationTest {
     void assignedDoctorCanPublishDiagnosticResultVisibleToPatient() throws Exception {
         ClinicalFixture fixture = fixture();
         createAppointment(fixture);
+
+        String orderBody = """
+            {
+              "patientId": "%s",
+              "testName": "Complete blood count"
+            }
+            """.formatted(fixture.patient().getId());
+        String orderId = mockMvc.perform(post("/api/v1/doctor/patients/{patientId}/diagnostic-orders", fixture.patient().getId())
+                .header("Authorization", bearer(fixture.doctorUser()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(orderBody))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.status").value("REQUESTED"))
+            .andReturn()
+            .getResponse()
+            .getContentAsString()
+            .replaceAll(".*\\\"id\\\":\\\"([^\\\"]+)\\\".*", "$1");
+
         String body = """
             {
+              "orderId": "%s",
               "testName": "Complete blood count",
               "result": "Within reference range"
             }
-            """;
+            """.formatted(orderId);
 
         mockMvc.perform(post("/api/v1/doctor/patients/{patientId}/diagnostic-results", fixture.patient().getId())
                 .header("Authorization", bearer(fixture.doctorUser()))
@@ -368,10 +388,13 @@ class ClinicalAuthorizationTest extends AbstractIntegrationTest {
         ClinicalFixture fixture = fixture();
         createAppointment(fixture);
 
+        com.healthcare.clinical.entity.DiagnosticOrder order = seedOrder(fixture);
+
         mockMvc.perform(post("/api/v1/doctor/patients/{patientId}/diagnostic-results", fixture.patient().getId())
                 .header("Authorization", bearer(fixture.otherDoctorUser()))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"testName\":\"Unauthorized result\"}"))
+                .content(("{\"orderId\":\"%s\",\"testName\":\"Unauthorized result\"}")
+                    .formatted(order.getId())))
             .andExpect(status().isForbidden());
     }
 
@@ -380,11 +403,13 @@ class ClinicalAuthorizationTest extends AbstractIntegrationTest {
         ClinicalFixture fixture = fixture();
         createAppointment(fixture, AppointmentStatus.COMPLETED,
             LocalDate.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh")).minusDays(2));
+        com.healthcare.clinical.entity.DiagnosticOrder order = seedOrder(fixture);
 
         mockMvc.perform(post("/api/v1/doctor/patients/{patientId}/diagnostic-results", fixture.patient().getId())
                 .header("Authorization", bearer(fixture.doctorUser()))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"testName\":\"Stale visit result\"}"))
+                .content(("{\"orderId\":\"%s\",\"testName\":\"Stale visit result\"}")
+                    .formatted(order.getId())))
             .andExpect(status().isForbidden());
     }
 
@@ -496,6 +521,15 @@ class ClinicalAuthorizationTest extends AbstractIntegrationTest {
     private Appointment createAppointment(ClinicalFixture fixture) {
         return createAppointment(fixture, AppointmentStatus.IN_PROGRESS,
             LocalDate.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh")));
+    }
+
+    private com.healthcare.clinical.entity.DiagnosticOrder seedOrder(ClinicalFixture fixture) {
+        com.healthcare.clinical.entity.DiagnosticOrder order = new com.healthcare.clinical.entity.DiagnosticOrder();
+        order.setPatient(fixture.patient());
+        order.setDoctor(fixture.doctor());
+        order.setTestName("Seeded test");
+        order.setStatus("REQUESTED");
+        return diagnosticOrderRepository.saveAndFlush(order);
     }
 
     private Appointment createAppointment(ClinicalFixture fixture, AppointmentStatus status, LocalDate date) {
