@@ -1,5 +1,14 @@
 import type { MetadataRoute } from "next";
-import { SITE_URL } from "../lib/site-url";
+import { SITE_URL, indexingAllowed } from "../lib/site-url";
+import {
+  listArticleSitemapEntries,
+  listBranchSitemapEntries,
+  listDoctorSitemapEntries,
+  listPackageSitemapEntries,
+  listServiceSitemapEntries,
+  listSpecialtySitemapEntries,
+  type CatalogSitemapEntry,
+} from "../lib/server/catalog-sitemap";
 import {
   diseaseGuideCanonicalPath,
   listEligibleDiseaseGuides,
@@ -28,7 +37,7 @@ const PUBLIC_PATHS = [
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = SITE_URL;
-  const allowIndexing = process.env.NEXT_PUBLIC_ALLOW_INDEXING === "true";
+  const allowIndexing = indexingAllowed();
   if (!allowIndexing) return [];
 
   const staticEntries: MetadataRoute.Sitemap = PUBLIC_PATHS.map((path) => ({
@@ -43,5 +52,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.8,
     ...(guide.lastModified ? { lastModified: guide.lastModified } : {}),
   }));
-  return [...staticEntries, ...diseaseEntries];
+  const detailGroups: Array<{ path: (entry: CatalogSitemapEntry) => string; entries: CatalogSitemapEntry[] }> = [
+    { path: (e) => `/doctors/${e.slug}`, entries: await listDoctorSitemapEntries() },
+    { path: (e) => `/specialties/${e.slug}`, entries: await listSpecialtySitemapEntries() },
+    { path: (e) => `/services/${e.slug}`, entries: await listServiceSitemapEntries() },
+    { path: (e) => `/packages/${e.slug}`, entries: await listPackageSitemapEntries() },
+    { path: (e) => `/branches/${e.slug}`, entries: await listBranchSitemapEntries() },
+    { path: (e) => `/articles/${e.slug}`, entries: await listArticleSitemapEntries() },
+  ];
+  const detailEntries: MetadataRoute.Sitemap = detailGroups.flatMap(({ path, entries }) =>
+    entries.map((entry) => ({
+      url: `${baseUrl}${path(entry)}`,
+      changeFrequency: "weekly" as const,
+      priority: 0.6,
+      ...(entry.lastModified ? { lastModified: entry.lastModified } : {}),
+    })),
+  );
+  return [...staticEntries, ...diseaseEntries, ...detailEntries];
 }

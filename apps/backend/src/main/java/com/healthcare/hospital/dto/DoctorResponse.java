@@ -14,7 +14,8 @@ public record DoctorResponse(
     List<String> branchNames,
     List<String> specialtySlugs,
     String achievements,
-    Integer aiCredits
+    Integer aiCredits,
+    boolean demo
 ) {
     public DoctorResponse(
         String id,
@@ -29,7 +30,7 @@ public record DoctorResponse(
         List<String> specialtySlugs,
         String achievements
     ) {
-        this(id, fullName, slug, bio, photoUrl, specialtyName, branchId, branchIds, branchNames, specialtySlugs, achievements, 150);
+        this(id, fullName, slug, bio, photoUrl, specialtyName, branchId, branchIds, branchNames, specialtySlugs, achievements, null, false);
     }
     public DoctorResponse(
         String id,

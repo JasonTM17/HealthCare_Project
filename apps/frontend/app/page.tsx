@@ -198,6 +198,9 @@ const DoctorCard: React.FC<DoctorCardProps> = ({ doctor, featured = false, onBoo
     <div className="doctor-card__body">
       <div className="doctor-card__meta">
         <span className="doctor-specialty">{doctor.specialtyName ?? "Chuyên khoa"}</span>
+        {doctor.demo || doctor.slug.startsWith("demo-bs-") ? (
+          <span className="doctor-card__demo-badge" title="Hồ sơ minh họa, không phải bác sĩ thật">Minh họa</span>
+        ) : null}
         {doctor.experienceYears ? (
           <span className="doctor-card__exp-badge">{doctor.experienceYears}+ năm kinh nghiệm</span>
         ) : null}
@@ -1046,10 +1049,10 @@ export default function Home(): React.ReactElement {
                     {articles[0] ? (
                       <Link className="hover:underline text-inherit" href={`/articles/${articles[0].slug}`}>{articles[0].title}</Link>
                     ) : (
-                      "Cẩm nang sức khỏe đang được cập nhật"
+                      "Cẩm nang sức khỏe từ đội ngũ bác sĩ"
                     )}
                   </h3>
-                  <p>{articles[0]?.summary ?? "Các bài viết mới sẽ được cập nhật tại đây."}</p>
+                  <p>{articles[0]?.summary ?? "Khám phá các bài viết hướng dẫn chăm sóc sức khỏe được biên soạn bởi đội ngũ chuyên khoa."}</p>
                   <div className="flex items-center gap-4 flex-wrap">
                     {articles[0] ? (
                       <Link className="text-button" href={`/articles/${articles[0].slug}`}>
@@ -1072,7 +1075,7 @@ export default function Home(): React.ReactElement {
                     <span className="article-row__index">0{index + 1}</span>
                     <div>
                       <p className="content-meta">{formatPublishedAt(article.publishedAt)}</p>
-                      <h3><Link href={`/articles/${article.slug}`}>{article.title}</Link></h3>
+                      <h3>{article.title}</h3>
                       <p>{article.summary}</p>
                     </div>
                     <Icon name="arrow-up-right" size={18} />

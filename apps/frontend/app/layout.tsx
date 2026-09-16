@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { SITE_URL } from "../lib/site-url";
+import { SITE_URL, indexingAllowed } from "../lib/site-url";
 import "./styles.css";
 import "./effects.css";
 import "./typography.css";
@@ -34,7 +34,7 @@ export const metadata: Metadata = {
   description:
     "Tìm hiểu chuyên khoa, bác sĩ, cơ sở và chủ động đặt lịch khám tại HealthCare.",
   keywords: ["y tế", "bệnh viện", "khám bệnh", "đặt lịch", "chuyên khoa"],
-  robots: process.env.NEXT_PUBLIC_ALLOW_INDEXING === "true"
+  robots: indexingAllowed()
     ? { index: true, follow: true }
     : { index: false, follow: false },
   openGraph: {

@@ -45,7 +45,8 @@ public class SpecialtyService {
                         doctor.getSlug(),
                         doctor.getPhotoUrl(),
                         specialty.getName(),
-                        null
+                        null,
+                        DoctorSummaryResponse.isDemoSlug(doctor.getSlug())
                     );
                 })
                 .toList()
