@@ -174,8 +174,9 @@ public class ClinicalService {
         if (appointment != null) {
             appointment.setStatus(AppointmentStatus.COMPLETED);
         }
+        MedicalRecord savedRecord = null;
         try {
-            return mapToResponse(medicalRecordRepository.saveAndFlush(record));
+            savedRecord = medicalRecordRepository.saveAndFlush(record);
         } catch (DataIntegrityViolationException exception) {
             // appointment_id is UNIQUE at PostgreSQL. When two doctors submit
             // the same appointment concurrently, the losing transaction must
@@ -183,6 +184,19 @@ public class ClinicalService {
             // of leaking a generic 500.
             throw new BusinessException(409, "A medical record already exists for this appointment");
         }
+        if (request.prescriptionItems() != null && !request.prescriptionItems().isEmpty() && savedRecord != null) {
+            for (Prescription prescription : savedRecord.getPrescriptions()) {
+                clinicalAccessAuditService.record(
+                    principal,
+                    patient.getId(),
+                    ClinicalAccessAuditService.TARGET_PRESCRIPTION,
+                    prescription.getId() == null ? "unknown" : prescription.getId().toString(),
+                    ClinicalAccessAuditService.ACTION_PRESCRIBE,
+                    ClinicalAccessAuditService.DECISION_ALLOW
+                );
+            }
+        }
+        return mapToResponse(savedRecord);
     }
 
     @Transactional(readOnly = true)
