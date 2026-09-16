@@ -100,6 +100,22 @@ public class DoctorPortalController {
         return ResponseEntity.ok(clinicalService.getDoctorPatientDiagnostics(patientId, userDetails));
     }
 
+    @GetMapping("/patients/{patientId}/diagnostic-orders")
+    public ResponseEntity<List<com.healthcare.clinical.dto.DiagnosticOrderResponse>> getPatientDiagnosticOrders(
+            @PathVariable UUID patientId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(clinicalService.getDoctorPatientDiagnosticOrders(patientId, userDetails));
+    }
+
+    @PostMapping("/patients/{patientId}/diagnostic-orders")
+    public ResponseEntity<com.healthcare.clinical.dto.DiagnosticOrderResponse> createPatientDiagnosticOrder(
+            @PathVariable UUID patientId,
+            @Valid @RequestBody com.healthcare.clinical.dto.CreateDiagnosticOrderRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED)
+            .body(clinicalService.createDiagnosticOrder(patientId, request, userDetails));
+    }
+
     @PostMapping("/patients/{patientId}/diagnostic-results")
     public ResponseEntity<DiagnosticResultResponse> createPatientDiagnostic(
             @PathVariable UUID patientId,

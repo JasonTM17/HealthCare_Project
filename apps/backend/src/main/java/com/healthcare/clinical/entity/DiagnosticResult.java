@@ -29,6 +29,10 @@ public class DiagnosticResult {
     @JoinColumn(name = "doctor_id")
     private com.healthcare.hospital.entity.Doctor doctor;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "order_id")
+    private DiagnosticOrder order;
+
     @Column(name = "test_name", nullable = false, length = 200)
     private String testName;
 
@@ -67,6 +71,14 @@ public class DiagnosticResult {
 
     public void setDoctor(com.healthcare.hospital.entity.Doctor doctor) {
         this.doctor = doctor;
+    }
+
+    public DiagnosticOrder getOrder() {
+        return order;
+    }
+
+    public void setOrder(DiagnosticOrder order) {
+        this.order = order;
     }
 
     public String getTestName() {

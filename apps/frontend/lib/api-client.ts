@@ -1,6 +1,7 @@
 import type {
   AuthUser,
   Doctor,
+  DiagnosticOrder,
   DiagnosticResult,
   Specialty,
   Branch,
@@ -3018,10 +3019,33 @@ export async function uploadDiagnosticFile(file: File, patientId: string): Promi
 }
 
 export interface CreateDiagnosticResultPayload {
+  orderId: string;
   testName: string;
   result?: string;
   fileId?: string;
   testDate?: string;
+}
+
+export interface CreateDiagnosticOrderPayload {
+  testName: string;
+  notes?: string;
+  appointmentId?: string;
+}
+
+export async function createDoctorDiagnosticOrder(
+  patientId: string,
+  payload: CreateDiagnosticOrderPayload,
+): Promise<DiagnosticOrder> {
+  return getAuthenticatedJson<DiagnosticOrder>(
+    `/doctor/patients/${encodeURIComponent(patientId)}/diagnostic-orders`,
+    { method: "POST", body: JSON.stringify(payload) },
+  );
+}
+
+export async function fetchDoctorDiagnosticOrders(patientId: string): Promise<DiagnosticOrder[]> {
+  return getAuthenticatedJson<DiagnosticOrder[]>(
+    `/doctor/patients/${encodeURIComponent(patientId)}/diagnostic-orders`,
+  );
 }
 
 export async function createDoctorDiagnosticResult(
