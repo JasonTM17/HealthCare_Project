@@ -171,7 +171,29 @@ public class PublicAiChatController {
         result.put("mode", ChatMode.HOSPITAL_SUPPORT.name());
         result.put("safety_action", safetyAction);
         result.put("suggested_actions", suggestedActions(userMessage, safetyAction, validatedCitations));
+        result.put("costTier", publicCostTier(upstream));
+        result.put("routingReason", publicRoutingReason(upstream));
         return result;
+    }
+
+    private String publicCostTier(Map<String, Object> upstream) {
+        Object raw = upstream.containsKey("cost_tier") ? upstream.get("cost_tier") : upstream.get("costTier");
+        if (raw == null) return "local_free";
+        if (!(raw instanceof String value) || !(value.equals("local_free") || value.equals("remote_llm"))) {
+            throw badGateway("AI cost tier is invalid for public chat");
+        }
+        return value;
+    }
+
+    private String publicRoutingReason(Map<String, Object> upstream) {
+        Object raw = upstream.containsKey("routing_reason") ? upstream.get("routing_reason") : upstream.get("routingReason");
+        if (raw == null) return null;
+        if (!(raw instanceof String value)) {
+            throw badGateway("AI routing reason is invalid for public chat");
+        }
+        value = value.strip();
+        if (value.isBlank()) return null;
+        return value.length() <= 500 ? value : value.substring(0, 500);
     }
 
     private boolean isAiFailure(ResponseStatusException exception) {
@@ -214,6 +236,8 @@ public class PublicAiChatController {
         result.put("mode", ChatMode.HOSPITAL_SUPPORT.name());
         result.put("safety_action", "ANSWER");
         result.put("suggested_actions", ChatSuggestedActionResolver.hospitalSupportFallback(userMessage));
+        result.put("costTier", "local_free");
+        result.put("routingReason", "public_catalog_fallback");
         return result;
     }
 
@@ -319,6 +343,8 @@ public class PublicAiChatController {
         result.put("mode", ChatMode.HOSPITAL_SUPPORT.name());
         result.put("safety_action", "ANSWER");
         result.put("suggested_actions", actions);
+        result.put("costTier", "local_free");
+        result.put("routingReason", "public_branch_fallback");
         return result;
     }
 
@@ -353,6 +379,8 @@ public class PublicAiChatController {
         result.put("mode", ChatMode.HOSPITAL_SUPPORT.name());
         result.put("safety_action", "ANSWER");
         result.put("suggested_actions", publicViewActions(sources, userMessage));
+        result.put("costTier", "local_free");
+        result.put("routingReason", "public_ambiguous_branch_fallback");
         return result;
     }
 
@@ -371,6 +399,8 @@ public class PublicAiChatController {
         result.put("mode", ChatMode.HOSPITAL_SUPPORT.name());
         result.put("safety_action", "INSUFFICIENT_EVIDENCE");
         result.put("suggested_actions", ChatSuggestedActionResolver.hospitalSupportFallback(userMessage));
+        result.put("costTier", "local_free");
+        result.put("routingReason", "public_branch_unavailable");
         return result;
     }
 
