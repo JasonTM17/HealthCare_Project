@@ -53,6 +53,10 @@ const DEMO_ROLES: readonly DemoRoleInfo[] = [
   },
 ] as const;
 
+// Demo credentials must never render in production. The helper panel is
+// opt-in via build-time env so hosted builds default to a plain login form.
+const SHOW_DEMO_ACCOUNTS = process.env.NEXT_PUBLIC_ENABLE_DEMO_LOGIN === "true";
+
 export default function LoginPage() {
   const router = useRouter();
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
@@ -68,6 +72,7 @@ export default function LoginPage() {
   const selectedRoleInfo = DEMO_ROLES.find((item) => item.role === selectedRole);
 
   const handleRoleSelect = (item: DemoRoleInfo) => {
+    if (!SHOW_DEMO_ACCOUNTS) return;
     setSelectedRole(item.role);
     setEmail(item.email);
     setPassword("HealthCare@2026");
@@ -78,8 +83,10 @@ export default function LoginPage() {
   const handleCustomInput = (field: "email" | "password", value: string) => {
     if (field === "email") {
       setEmail(value);
-      const match = DEMO_ROLES.find((r) => r.email === value.trim().toLowerCase());
-      setSelectedRole(match ? match.role : null);
+      if (SHOW_DEMO_ACCOUNTS) {
+        const match = DEMO_ROLES.find((r) => r.email === value.trim().toLowerCase());
+        setSelectedRole(match ? match.role : null);
+      }
     } else {
       setPassword(value);
     }
@@ -167,36 +174,38 @@ export default function LoginPage() {
         <p className="auth-card__intro">
           Đăng nhập để theo dõi lịch khám, hồ sơ sức khỏe và kết nối với bác sĩ chuyên khoa.
         </p>
-        <div className={styles.demoSection}>
-          <p className="section-note" id="demo-accounts-label">
-            Tài khoản demo — dữ liệu tổng hợp, chỉ dùng để trải nghiệm.
-          </p>
-          <div
-            className={styles.roleGroup}
-            aria-label="Chọn tài khoản kiểm thử"
-            aria-labelledby="demo-accounts-label"
-            role="group"
-          >
-            {DEMO_ROLES.map((item) => {
-              const active = selectedRole === item.role;
-              return (
-                <button
-                  aria-pressed={active}
-                  className={`${styles.roleButton} ${active ? styles.roleButtonActive : ""}`}
-                  key={item.role}
-                  onClick={() => handleRoleSelect(item)}
-                  type="button"
-                >
-                  <Icon name={item.icon} size={17} />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
+        {SHOW_DEMO_ACCOUNTS ? (
+          <div className={styles.demoSection}>
+            <p className="section-note" id="demo-accounts-label">
+              Tài khoản demo — dữ liệu tổng hợp, chỉ dùng để trải nghiệm.
+            </p>
+            <div
+              className={styles.roleGroup}
+              aria-label="Chọn tài khoản kiểm thử"
+              aria-labelledby="demo-accounts-label"
+              role="group"
+            >
+              {DEMO_ROLES.map((item) => {
+                const active = selectedRole === item.role;
+                return (
+                  <button
+                    aria-pressed={active}
+                    className={`${styles.roleButton} ${active ? styles.roleButtonActive : ""}`}
+                    key={item.role}
+                    onClick={() => handleRoleSelect(item)}
+                    type="button"
+                  >
+                    <Icon name={item.icon} size={17} />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        ) : null}
 
         {/* Role Info Pill */}
-        {selectedRoleInfo ? (
+        {SHOW_DEMO_ACCOUNTS && selectedRoleInfo ? (
           <div className={styles.roleBadge}>
             <span>{selectedRoleInfo.badge}</span>
             <span className={styles.rolePassword}>
