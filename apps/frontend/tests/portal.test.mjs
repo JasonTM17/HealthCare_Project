@@ -71,7 +71,7 @@ test("patient portal keeps missing appointment list data explicit", async () => 
 
   assert.match(source, /Lịch hẹn của tôi/);
   assert.match(source, /fetchPatientAppointments/);
-  assert.match(source, /LỊCH HẸN ĐÃ XÁC THỰC/);
+  assert.match(source, /LỊCH HẸN CỦA BẠN/, "patient queue must not claim verification it cannot guarantee");
   assert.match(source, /PortalAppointments/);
   assert.match(source, /không dựng dữ liệu mẫu/);
   assert.match(source, /LoginRequiredState/);
@@ -84,7 +84,7 @@ test("doctor portal only renders authorized patient clinical lookup", async () =
 
   assert.match(source, /Lịch làm việc theo ngày/);
   assert.match(source, /fetchDoctorAppointments/);
-  assert.match(source, /LỊCH HẸN ĐÃ XÁC THỰC/);
+  assert.match(source, /LỊCH HẸN TRONG NGÀY/, "queue label must not claim verification it cannot guarantee");
   assert.match(source, /daily-appointment-date/);
   assert.match(source, /daily-appointment-status/);
   assert.match(source, /PortalAppointments/);

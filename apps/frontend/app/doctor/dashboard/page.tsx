@@ -22,7 +22,7 @@ import type { Doctor, DoctorPortalAppointment, AuthUser, DiagnosticResult, Medic
 import { EmptyState, ErrorState, ForbiddenState, LoadingState, LoginRequiredState } from "../../../components/PortalStates";
 import PortalAppointments from "../../../components/PortalAppointments";
 import { useAuthSession } from "../../../components/useAuthSession";
-import { businessDate, businessDateTimeIso, formatBusinessDate, formatBusinessDateTime } from "../../../lib/business-time";
+import { businessDate, businessDateTimeIso, businessTimeNow, formatBusinessDate, formatBusinessDateTime } from "../../../lib/business-time";
 import UiIcon from "../../../components/UiIcon";
 
 type LookupState<T> =
@@ -176,6 +176,7 @@ export default function DoctorDashboardPage() {
   const [diagnosticName, setDiagnosticName] = useState("");
   const [diagnosticValue, setDiagnosticValue] = useState("");
   const [diagnosticDate, setDiagnosticDate] = useState(getTodayIsoDate);
+  const [diagnosticTime, setDiagnosticTime] = useState(businessTimeNow);
   const [diagnosticFile, setDiagnosticFile] = useState<File | null>(null);
   const [diagnosticOperation, setDiagnosticOperation] = useState<"idle" | "saving">("idle");
   const [diagnosticNotice, setDiagnosticNotice] = useState<string | null>(null);
@@ -311,7 +312,7 @@ export default function DoctorDashboardPage() {
         testName: diagnosticName.trim(),
         result: diagnosticValue.trim() || undefined,
         fileId: storedFile?.id,
-        testDate: businessDateTimeIso(diagnosticDate),
+        testDate: businessDateTimeIso(diagnosticDate, diagnosticTime || undefined),
       });
       setDiagnosticName("");
       setDiagnosticValue("");
@@ -413,7 +414,7 @@ export default function DoctorDashboardPage() {
               <h1 className="mb-0">Không gian làm việc lâm sàng</h1>
               {doctorProfile.status === "success" && (
                 <span className="px-3 py-1.5 rounded-md text-xs font-bold bg-teal-50 text-teal-950 border border-teal-200">
-                  {doctorProfile.data.aiCredits ?? 150} lượt AI khả dụng
+                  {typeof doctorProfile.data.aiCredits === "number" ? `${doctorProfile.data.aiCredits} lượt AI khả dụng` : "Hạn mức AI đang cập nhật"}
                 </span>
               )}
             </div>
@@ -434,10 +435,10 @@ export default function DoctorDashboardPage() {
 
         <section aria-busy={Boolean(appointmentAction)} aria-labelledby="daily-title" className="portal-panel" id="daily-appointments">
           <div className="portal-panel__heading">
-            <div><p className="section-note">LỊCH HẸN ĐÃ XÁC THỰC</p><h2 id="daily-title">Lịch làm việc theo ngày</h2></div>
+            <div><p className="section-note">LỊCH HẸN TRONG NGÀY</p><h2 id="daily-title">Lịch làm việc theo ngày</h2></div>
             <span aria-hidden="true" className="portal-panel__icon"><UiIcon name="calendar" size={20} /></span>
           </div>
-          <p className="portal-panel__intro">Danh sách chỉ gồm các lịch hẹn được phân công cho hồ sơ bác sĩ hiện tại.</p>
+          <p className="portal-panel__intro">Danh sách gồm mọi lịch hẹn trong ngày được phân công cho bác sĩ, kể cả lịch đang chờ bệnh nhân xác nhận — dùng bộ lọc trạng thái để thu hẹp.</p>
           <form className="portal-lookup-form" onSubmit={(event) => { event.preventDefault(); retryDailyAppointments(); }}>
             <div>
               <label htmlFor="daily-appointment-date">Ngày xem lịch</label>
@@ -472,11 +473,11 @@ export default function DoctorDashboardPage() {
                 <label>Mã lịch hẹn<input readOnly value={clinicalForm.appointmentId} /></label>
               </div>
               {!clinicalForm.appointmentId ? <p className="portal-handoff-note">Chưa chọn lịch hẹn. Hãy bấm “Ghi nhận kết quả khám” trên một lịch hợp lệ.</p> : null}
-              <label>Chẩn đoán *<input required maxLength={4000} onChange={(event) => updateClinicalForm("diagnosis", event.target.value)} value={clinicalForm.diagnosis} /></label>
-              <label>Triệu chứng<textarea maxLength={4000} onChange={(event) => updateClinicalForm("symptomsSummary", event.target.value)} value={clinicalForm.symptomsSummary} /></label>
+              <label>Chẩn đoán *<input required maxLength={2000} onChange={(event) => updateClinicalForm("diagnosis", event.target.value)} value={clinicalForm.diagnosis} /></label>
+              <label>Triệu chứng<textarea maxLength={2000} onChange={(event) => updateClinicalForm("symptomsSummary", event.target.value)} value={clinicalForm.symptomsSummary} /></label>
               <div className="portal-clinical-form__grid">
-                <label>Kế hoạch điều trị<textarea maxLength={4000} onChange={(event) => updateClinicalForm("treatmentPlan", event.target.value)} value={clinicalForm.treatmentPlan} /></label>
-                <label>Ghi chú bác sĩ<textarea maxLength={4000} onChange={(event) => updateClinicalForm("doctorNotes", event.target.value)} value={clinicalForm.doctorNotes} /></label>
+                <label>Kế hoạch điều trị<textarea maxLength={3000} onChange={(event) => updateClinicalForm("treatmentPlan", event.target.value)} value={clinicalForm.treatmentPlan} /></label>
+                <label>Ghi chú bác sĩ<textarea maxLength={2000} onChange={(event) => updateClinicalForm("doctorNotes", event.target.value)} value={clinicalForm.doctorNotes} /></label>
               </div>
               <label>Ngày tái khám<input onChange={(event) => updateClinicalForm("followUpDate", event.target.value)} placeholder="dd/mm/yyyy" type="date" value={clinicalForm.followUpDate} /></label>
               <fieldset className="portal-clinical-form__fieldset">
@@ -564,7 +565,9 @@ export default function DoctorDashboardPage() {
                 <div className="portal-clinical-form__grid">
                   <label>Tên xét nghiệm *<input maxLength={200} onChange={(event) => setDiagnosticName(event.target.value)} required value={diagnosticName} /></label>
                   <label>Ngày thực hiện<input max={getTodayIsoDate()} onChange={(event) => setDiagnosticDate(event.target.value)} required type="date" value={diagnosticDate} /></label>
+                  <label>Giờ thực hiện<input onChange={(event) => setDiagnosticTime(event.target.value)} type="time" value={diagnosticTime} /></label>
                 </div>
+                <p className="portal-handoff-note">Chỉ có thể công bố kết quả cho bệnh nhân đang có lịch khám hôm nay với bạn (đã xác nhận, đã tiếp nhận hoặc đang khám).</p>
                 <label>Kết quả<textarea maxLength={4000} onChange={(event) => setDiagnosticValue(event.target.value)} value={diagnosticValue} /></label>
                 <label>Tệp đính kèm (tuỳ chọn)<input accept="application/pdf,image/jpeg,image/png" onChange={(event) => setDiagnosticFile(event.target.files?.[0] ?? null)} type="file" /></label>
                 {diagnosticNotice ? <p aria-live="polite" className="portal-inline-success" role="status">{diagnosticNotice}</p> : null}
