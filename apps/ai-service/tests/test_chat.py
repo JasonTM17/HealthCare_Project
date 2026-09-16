@@ -262,6 +262,23 @@ def test_public_context_relevance_rejects_catalog_rows_for_broad_questions() -> 
     assert public_source_types_for_query("Cơ sở Thủ Đức giờ làm việc") == {"branch"}
     assert public_source_types_for_query("Giờ hoạt động cơ sở Thủ Đức") == {"branch"}
     assert public_source_types_for_query("Bệnh viện ở đâu?") == {"branch"}
+    assert public_source_types_for_query("Bệnh viện có những dịch vụ nào?") == {"service"}
+    assert public_source_types_for_query("Tôi muốn tìm gói khám tổng quát") == {"package"}
+
+
+def test_public_context_relevance_accepts_only_explicit_service_package_labels_for_broad_catalog() -> None:
+    assert public_context_is_relevant(
+        "Bệnh viện có những dịch vụ nào?",
+        ["Siêu âm thai 4D: Dịch vụ: Siêu âm thai 4D theo chỉ định."],
+    )
+    assert not public_context_is_relevant(
+        "Bệnh viện có những dịch vụ nào?",
+        ["Bệnh viện HealthCare — Cơ sở 2: Địa chỉ: Quận 7; Điện thoại: 028 0000 0000."],
+    )
+    assert public_context_is_relevant(
+        "Tôi muốn tìm gói khám tổng quát",
+        ["Gói khám tổng quát tiêu chuẩn: Gói khám: Gói khám tổng quát tiêu chuẩn."],
+    )
 
 
 def test_public_context_relevance_requires_all_explicit_catalog_constraints() -> None:
@@ -487,7 +504,7 @@ def test_public_local_chat_focuses_specialty_guidance_on_matching_symptom(
     assert "Sản phụ khoa" not in payload["answer"]
 
 
-def test_specialty_guidance_focus_keeps_tied_multi_system_matches() -> None:
+def test_specialty_guidance_focus_routes_lower_abdominal_pain_to_obgyn() -> None:
     hits = [
         (
             SimpleNamespace(
@@ -720,6 +737,51 @@ def test_public_local_chat_fails_closed_for_broad_catalog_query(
     assert payload["provenance"] == "local_fallback"
     assert payload["citations"] == []
     assert "Bạn muốn tra cứu mục nào?" in payload["answer"]
+
+
+def test_public_service_catalog_query_grounds_service_projection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    local_settings = settings
+    monkeypatch.setattr(local_settings, "ai_service_runtime", "local")
+    monkeypatch.setattr(local_settings, "ai_service_allow_unauthenticated_local", True)
+    monkeypatch.setattr(local_settings, "ai_service_token", "")
+    monkeypatch.setattr(local_settings, "ai_provider", "local")
+    monkeypatch.setattr(local_settings, "embedding_provider", "local")
+    monkeypatch.setattr(local_settings, "ai_public_hospital_support_remote_enabled", False)
+
+    vector = [1.0] + [0.0] * 383
+    local_rag = RagService()
+    local_rag.ingest(
+        "service",
+        "service-1",
+        "Siêu âm thai 4D",
+        "Dịch vụ: Siêu âm thai 4D. Theo dõi hình thái thai nhi theo chỉ định.",
+        vector,
+        embedding_model="local-hash",
+        embedding_provenance="local_provider",
+    )
+    monkeypatch.setattr("app.main.rag_service", local_rag)
+    monkeypatch.setattr(
+        "app.main.embed",
+        lambda *_, **__: EmbeddingResult(vector, "local-hash", "local_provider"),
+    )
+
+    response = client.post(
+        "/chat",
+        json={
+            "message": "Bệnh viện có những dịch vụ nào?",
+            "public_support_chat": True,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provenance"] == "local_provider"
+    assert payload["citations"][0]["source_type"] == "service"
+    assert payload["citations"][0]["source_id"] == "service-1"
+    assert "Siêu âm thai 4D" in payload["answer"]
+    assert "triệu chứng" not in payload["answer"].casefold()
 
 
 def test_public_specific_question_without_context_fails_closed() -> None:

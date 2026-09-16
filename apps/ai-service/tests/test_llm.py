@@ -432,6 +432,46 @@ def test_public_booking_fallback_uses_booking_copy_instead_of_symptom_prompt() -
     assert "mô tả rõ triệu chứng" not in result.answer
 
 
+def test_public_service_fallback_uses_catalog_copy_instead_of_symptom_prompt() -> None:
+    settings = SimpleNamespace(
+        ai_provider="local",
+        ai_service_runtime="test",
+        ai_public_hospital_support_remote_enabled=False,
+    )
+
+    result = resolve_chat(
+        "Bệnh viện có những dịch vụ nào?",
+        settings,
+        public_support_chat=True,
+    )
+
+    assert result.provenance == "local_fallback"
+    assert result.safety_action is ChatSafetyAction.INSUFFICIENT_EVIDENCE
+    assert "danh mục dịch vụ" in result.answer.casefold()
+    assert "mô tả rõ triệu chứng" not in result.answer.casefold()
+
+
+def test_public_preparation_fallback_does_not_invent_universal_fasting_duration() -> None:
+    settings = SimpleNamespace(
+        ai_provider="local",
+        ai_service_runtime="test",
+        ai_public_hospital_support_remote_enabled=False,
+    )
+
+    result = resolve_chat(
+        "Tôi cần nhịn ăn trước khi xét nghiệm máu không?",
+        settings,
+        public_support_chat=True,
+    )
+
+    assert result.provenance == "local_fallback"
+    assert result.safety_action is ChatSafetyAction.INSUFFICIENT_EVIDENCE
+    assert "tùy loại xét nghiệm" in result.answer.casefold()
+    assert "xác nhận" in result.answer.casefold()
+    assert "6-8" not in result.answer
+    assert "8 giờ" not in result.answer
+
+
 def test_chat_safety_uses_current_user_turn_not_prior_assistant_refusal() -> None:
     settings = SimpleNamespace(
         ai_provider="local",

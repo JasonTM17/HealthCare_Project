@@ -25,6 +25,9 @@ test("homepage exposes patient-first navigation and appointment intents", async 
   assert.doesNotMatch(page, /className="ai-navigator-fab"/);
   assert.doesNotMatch(page, /TP\. Hồ Chí Minh/);
   assert.match(page, /branchAreaLabel/);
+  assert.match(page, /aria-label=\{`Đặt lịch với bác sĩ \$\{doctor\.fullName\}`\}/);
+  assert.match(page, /aria-label=\{`Đặt lịch với gói \$\{packageItem\.name\}`\}/);
+  assert.match(page, /aria-label=\{`Đặt lịch tại \$\{branch\.name\}`\}/);
   assert.match(page, /className="care-links"/);
   assert.doesNotMatch(page, /care-link--accent/);
   const navLinksSource = navbar.slice(

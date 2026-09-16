@@ -1,5 +1,6 @@
 package com.healthcare.ai.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.healthcare.hospital.entity.Branch;
 import com.healthcare.hospital.entity.Doctor;
 import com.healthcare.hospital.entity.DoctorBranch;
@@ -174,7 +175,7 @@ public class AiCatalogIndexService {
         Page<Specialty> specialties = specialtyRepository.findAll(PageRequest.of(0, pageSize));
         completeTypes.put("specialty", !specialties.hasNext());
         for (Specialty item : specialties) {
-            currentSources.add(index("specialty", item.getId().toString(), item.getName(), text(item.getName(), item.getDescription()), item.isActive(), true, item.getSlug(), syncRevision)); indexed++;
+            currentSources.add(index("specialty", item.getId().toString(), item.getName(), specialtyContent(item), item.isActive(), true, item.getSlug(), syncRevision)); indexed++;
         }
         Page<Doctor> doctors = doctorRepository.findAll(PageRequest.of(0, pageSize));
         completeTypes.put("doctor", !doctors.hasNext());
@@ -185,12 +186,12 @@ public class AiCatalogIndexService {
         Page<MedicalService> services = serviceRepository.findAll(PageRequest.of(0, pageSize));
         completeTypes.put("service", !services.hasNext());
         for (MedicalService item : services) {
-            currentSources.add(index("service", item.getId().toString(), item.getName(), text(item.getName(), item.getDescription()), item.isActive(), true, item.getSlug(), syncRevision)); indexed++;
+            currentSources.add(index("service", item.getId().toString(), item.getName(), text(labeled("Dịch vụ", item.getName()), item.getDescription()), item.isActive(), true, item.getSlug(), syncRevision)); indexed++;
         }
         Page<com.healthcare.hospital.entity.Package> packages = packageRepository.findAll(PageRequest.of(0, pageSize));
         completeTypes.put("package", !packages.hasNext());
         for (com.healthcare.hospital.entity.Package item : packages) {
-            currentSources.add(index("package", item.getId().toString(), item.getName(), text(item.getName(), item.getDescription()), item.isActive(), true, item.getSlug(), syncRevision)); indexed++;
+            currentSources.add(index("package", item.getId().toString(), item.getName(), text(labeled("Gói khám", item.getName()), item.getDescription()), item.isActive(), true, item.getSlug(), syncRevision)); indexed++;
         }
         // ARTICLE and FAQ are governed clinical projections.  The old
         // periodic writer must never index them because it has no approval
@@ -279,6 +280,35 @@ public class AiCatalogIndexService {
             labeled("Hotline cấp cứu", branch.getEmergencyHotline()),
             branch.getMapUrl(),
             branch.getAmenities() == null ? null : branch.getAmenities().toString());
+    }
+
+    /**
+     * Keep the operational specialty projection useful for symptom guidance.
+     * The catalog's public symptom and preparation fields are part of the
+     * approved hospital content, but they must be copied explicitly because
+     * they are stored as JSONB rather than plain entity text.
+     */
+    private String specialtyContent(Specialty specialty) {
+        return text(
+            specialty.getName(),
+            specialty.getDescription(),
+            labeled("Triệu chứng thường gặp", jsonText(specialty.getCommonSymptoms())),
+            labeled("Chuẩn bị", jsonText(specialty.getPreparationSteps())),
+            labeled("Lộ trình", specialty.getCarePathway()),
+            specialty.getClinicalOverview(),
+            labeled("Khi nào cần đi khám", specialty.getWhenToSeekCare()));
+    }
+
+    private String jsonText(JsonNode node) {
+        if (node == null || !node.isArray()) return null;
+        StringBuilder result = new StringBuilder();
+        node.forEach(item -> {
+            if (item != null && item.isTextual() && !item.asText().isBlank()) {
+                if (!result.isEmpty()) result.append("; ");
+                result.append(item.asText().strip());
+            }
+        });
+        return result.isEmpty() ? null : result.toString();
     }
 
     private String labeled(String label, String value) {

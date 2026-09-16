@@ -6,6 +6,7 @@ import com.healthcare.hospital.entity.Specialty;
 import com.healthcare.hospital.entity.Branch;
 import com.healthcare.hospital.entity.Doctor;
 import com.healthcare.hospital.entity.DoctorBranch;
+import com.healthcare.hospital.entity.MedicalService;
 import com.healthcare.hospital.repository.ArticleRepository;
 import com.healthcare.hospital.repository.BranchRepository;
 import com.healthcare.hospital.repository.DoctorRepository;
@@ -49,6 +50,12 @@ class AiCatalogIndexServiceTest {
         specialty.setName("Thần kinh");
         specialty.setSlug("than-kinh");
         specialty.setDescription("Khám đau đầu và chóng mặt");
+        specialty.setCommonSymptoms(JsonNodeFactory.instance.arrayNode()
+            .add("Đau đầu kéo dài")
+            .add("Chóng mặt"));
+        specialty.setPreparationSteps(JsonNodeFactory.instance.arrayNode()
+            .add("Ghi lại thời điểm và mức độ triệu chứng"));
+        specialty.setCarePathway("Khai thác triệu chứng → khám chuyên khoa → theo dõi.");
         specialty.setActive(true);
         when(specialties.findAll(any(Pageable.class))).thenReturn(new PageImpl<>(List.of(specialty)));
         when(doctors.findAll(any(Pageable.class))).thenReturn(Page.empty());
@@ -68,7 +75,9 @@ class AiCatalogIndexServiceTest {
             .containsEntry("source_id", specialty.getId().toString())
             .containsEntry("active", true)
             .containsEntry("published", true);
-        assertThat(payload.getValue().get("content").toString()).contains("đau đầu");
+        assertThat(payload.getValue().get("content").toString())
+            .contains("đau đầu", "Triệu chứng thường gặp", "Đau đầu kéo dài",
+                "Chuẩn bị", "Ghi lại thời điểm", "Lộ trình", "theo dõi");
         assertThat(payload.getValue().get("metadata"))
             .isInstanceOf(Map.class);
         @SuppressWarnings("unchecked")
@@ -76,6 +85,43 @@ class AiCatalogIndexServiceTest {
         assertThat(metadata)
             .containsEntry("slug", "than-kinh")
             .containsKey("_sync_revision");
+        assertThat(processed).isEqualTo(1);
+    }
+
+    @Test
+    void labelsServiceProjectionSoBroadServiceQuestionsCanBeGrounded() {
+        AiService aiService = mock(AiService.class);
+        SpecialtyRepository specialties = mock(SpecialtyRepository.class);
+        DoctorRepository doctors = mock(DoctorRepository.class);
+        ServiceRepository services = mock(ServiceRepository.class);
+        PackageRepository packages = mock(PackageRepository.class);
+        ArticleRepository articles = mock(ArticleRepository.class);
+        FaqRepository faqs = mock(FaqRepository.class);
+        when(aiService.isRagIngestConfigured()).thenReturn(true);
+
+        MedicalService service = new MedicalService();
+        service.setId(UUID.randomUUID());
+        service.setName("Siêu âm thai 4D");
+        service.setSlug("sieu-am-thai-4d");
+        service.setDescription("Theo dõi hình thái thai nhi theo chỉ định.");
+        when(specialties.findAll(any(Pageable.class))).thenReturn(Page.empty());
+        when(doctors.findAll(any(Pageable.class))).thenReturn(Page.empty());
+        when(services.findAll(any(Pageable.class))).thenReturn(new PageImpl<>(List.of(service)));
+        when(packages.findAll(any(Pageable.class))).thenReturn(Page.empty());
+        when(articles.findAll(any(Pageable.class))).thenReturn(Page.empty());
+        when(faqs.findAll(any(Pageable.class))).thenReturn(Page.empty());
+
+        int processed = new AiCatalogIndexService(aiService, specialties, doctors, services, packages, articles, faqs)
+            .synchronizeCatalogNow();
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> payload = ArgumentCaptor.forClass(Map.class);
+        verify(aiService).indexDocument(payload.capture());
+        assertThat(payload.getValue())
+            .containsEntry("source_type", "service")
+            .containsEntry("source_id", service.getId().toString());
+        assertThat(payload.getValue().get("content").toString())
+            .contains("Dịch vụ: Siêu âm thai 4D", "Theo dõi hình thái");
         assertThat(processed).isEqualTo(1);
     }
 

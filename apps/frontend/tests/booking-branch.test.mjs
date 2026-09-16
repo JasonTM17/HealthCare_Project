@@ -134,6 +134,26 @@ test("booking input and OTP validation match the backend contract", async () => 
   assert.match(source, /secondsRemaining <= 0/);
 });
 
+test("branch booking CTAs reflect the live doctor-assignment gate", async () => {
+  const [detail, list, booking, home, types] = await Promise.all([
+    readFile(new URL("../app/branches/[slug]/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/branches/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/dat-lich/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(typesPath, "utf8"),
+  ]);
+
+  assert.match(types, /activeDoctorCount\?: number/);
+  assert.match(detail, /onlineBookingAvailable/);
+  assert.match(detail, /Cơ sở này chưa có bác sĩ được gán lịch trực tuyến/);
+  assert.match(detail, /Liên hệ để xác nhận lịch/);
+  assert.match(detail, /Đặt lịch ở cơ sở khác/);
+  for (const source of [list, booking, home]) {
+    assert.match(source, /activeDoctorCount === 0/);
+    assert.match(source, /Xem tình trạng lịch/);
+  }
+});
+
 test("booking UI keeps the server hold and OTP expiries separate", async () => {
   const source = await readFile(modalPath, "utf8");
 
