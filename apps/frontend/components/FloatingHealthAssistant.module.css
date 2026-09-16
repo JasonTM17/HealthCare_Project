@@ -896,7 +896,10 @@
   }
 
   .panel {
-    width: min(23rem, calc(100vw - 1.5rem));
+    /* 100vw includes the vertical scrollbar in desktop browser emulation.
+       Leave enough room for the mobile gutter so the fixed panel cannot
+       start outside the content viewport at 360px and below. */
+    width: min(23rem, calc(100vw - 2.25rem));
     max-height: calc(100dvh - 7rem);
   }
 

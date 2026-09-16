@@ -630,6 +630,21 @@ _PUBLIC_LOCATION_QUERY_MARKERS = (
     "o",
     "gan",
 )
+_PUBLIC_BRANCH_NUMBER_PATTERN = re.compile(
+    r"(?<!\w)(?:co\s+so|chi\s+nhanh)(?:\s+thu)?(?:\s+so)?\s+(\d+)(?!\w)",
+    re.IGNORECASE,
+)
+_PUBLIC_BRANCH_DISTRICT_PATTERN = re.compile(
+    r"(?<!\w)(?:quan|huyen|phuong)\s+[a-z0-9]+(?!\w)",
+    re.IGNORECASE,
+)
+_PUBLIC_BRANCH_CITY_ANCHORS = (
+    "thu duc",
+    "ha noi",
+    "da nang",
+    "can tho",
+    "ho chi minh",
+)
 _PUBLIC_ENTITY_TOKEN_PATTERN = re.compile(r"\b[a-z0-9]+\b", re.IGNORECASE)
 _PUBLIC_NON_ENTITY_TOKENS = _PUBLIC_QUERY_CONNECTOR_TOKENS | frozenset(
     {
@@ -880,6 +895,23 @@ def public_context_is_relevant(query: str, context: Sequence[str]) -> bool:
     ]
     if not eligible_context:
         return False
+    branch_number, branch_locations = _public_branch_identity_constraints(normalized_query)
+    if branch_number is not None:
+        eligible_context = [
+            item
+            for item in eligible_context
+            if _public_branch_number_in_text(branch_number, item)
+        ]
+    if branch_locations:
+        eligible_context = [
+            item
+            for item in eligible_context
+            if all(_public_entity_phrase_in_text(anchor, item) for anchor in branch_locations)
+        ]
+    if (branch_number is not None or branch_locations) and not eligible_context:
+        # A branch number must be matched in a branch identity, never merely
+        # in an address or district number (Cơ sở 13, Quận 2 is not Cơ sở 2).
+        return False
     query_constraints = public_query_constraints(normalized_query)
     if query_constraints:
         # Identity queries are conjunctive: "bác sĩ Tim mạch tại cơ sở
@@ -898,6 +930,12 @@ def public_context_is_relevant(query: str, context: Sequence[str]) -> bool:
     identity_query = any(marker in normalized_query for marker in _PUBLIC_SOURCE_IDENTITY_MARKERS)
     distinctive_tokens = query_tokens - _PUBLIC_QUERY_CONNECTOR_TOKENS
     if identity_query:
+        if branch_number is not None:
+            # The exact branch label plus any explicit locality already form
+            # the closed identity. Numeric tokens are intentionally omitted
+            # from lexical overlap, so requiring two extra words would reject
+            # valid queries such as "Cơ sở số 2 ở Quận 3".
+            return bool(eligible_context)
         if not distinctive_tokens:
             # Numeric branch identifiers (for example "Cơ sở số 2") are
             # intentionally excluded from the generic token pattern.  The
@@ -976,6 +1014,31 @@ def public_query_constraints(query: str) -> tuple[str, ...]:
         if phrase and phrase not in constraints:
             constraints.append(phrase)
     return tuple(constraints)
+
+
+def _public_branch_identity_constraints(
+    normalized_query: str,
+) -> tuple[int | None, tuple[str, ...]]:
+    """Extract exact branch identity constraints from a public query."""
+
+    number_match = _PUBLIC_BRANCH_NUMBER_PATTERN.search(normalized_query)
+    number = int(number_match.group(1)) if number_match else None
+    locations = list(dict.fromkeys(_PUBLIC_BRANCH_DISTRICT_PATTERN.findall(normalized_query)))
+    for anchor in _PUBLIC_BRANCH_CITY_ANCHORS:
+        if _public_entity_phrase_in_text(anchor, normalized_query):
+            locations.append(anchor)
+    return number, tuple(dict.fromkeys(locations))
+
+
+def _public_branch_number_in_text(number: int, text: str) -> bool:
+    normalized_text = _normalize_sensitive_text(text)
+    return bool(
+        re.search(
+            rf"(?<!\w)(?:co\s+so|chi\s+nhanh)(?:\s+thu)?(?:\s+so)?\s+{number}(?!\w)",
+            normalized_text,
+            re.IGNORECASE,
+        )
+    )
 
 
 def _public_entity_phrase_in_text(phrase: str, text: str) -> bool:

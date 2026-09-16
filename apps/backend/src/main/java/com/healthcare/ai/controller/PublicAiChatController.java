@@ -110,6 +110,8 @@ public class PublicAiChatController {
         }
 
         String userMessage = request.message().trim();
+        Map<String, Object> deterministicBranch = publicSpecificBranchResponse(userMessage);
+        if (deterministicBranch != null) return ResponseEntity.ok(deterministicBranch);
         try {
             return ResponseEntity.ok(sanitize(aiService.chat(payload), userMessage));
         } catch (ResponseStatusException ex) {
@@ -222,14 +224,61 @@ public class PublicAiChatController {
         } catch (RuntimeException ignored) {
             return null;
         }
-        // A branch number without a locality can match multiple active rows;
-        // never choose one silently in a public health-support answer.
-        if (matches == null || matches.size() != 1 || matches.get(0) == null
-                || matches.get(0).source() == null) {
+        return publicBranchResponse(userMessage, matches);
+    }
+
+    /**
+     * Resolve an explicit branch identity before public RAG retrieval.  The
+     * semantic index can return nearby numeric rows (for example Cơ sở 13 for
+     * a query about Cơ sở 2), so a specific operational lookup must be decided
+     * by the live Spring catalog first.
+     */
+    private Map<String, Object> publicSpecificBranchResponse(String userMessage) {
+        if (ChatSuggestedActionResolver.classify(userMessage)
+                != ChatSuggestedActionResolver.HospitalSupportIntent.BRANCH) {
+            return null;
+        }
+        if (ChatMedicalSafety.containsProtectedInputCue(userMessage)) {
+            // Let the AI service's input safety guard decide emergency,
+            // refusal, or clinical guidance before any catalog shortcut.
             return null;
         }
 
-        AiChatSourceResolver.BranchDetails branch = matches.get(0);
+        boolean specific;
+        List<AiChatSourceResolver.BranchDetails> matches;
+        try {
+            specific = sourceResolver.isSpecificBranchQuery(userMessage);
+            if (!specific) return null;
+            matches = sourceResolver.branchDetails(userMessage);
+        } catch (RuntimeException ignored) {
+            return publicBranchUnavailable(userMessage);
+        }
+        if (matches == null || matches.isEmpty()) {
+            return publicBranchUnavailable(userMessage);
+        }
+        return publicBranchResponse(userMessage, matches);
+    }
+
+    private Map<String, Object> publicBranchResponse(
+            String userMessage,
+            List<AiChatSourceResolver.BranchDetails> matches) {
+        if (matches == null || matches.isEmpty()) return null;
+        List<AiChatSourceResolver.BranchDetails> validMatches = matches.stream()
+            .filter(Objects::nonNull)
+            .filter(value -> value.source() != null)
+            .limit(3)
+            .toList();
+        if (validMatches.isEmpty()) return null;
+        if (validMatches.size() > 1) {
+            return publicAmbiguousBranchResponse(userMessage, validMatches);
+        }
+        return publicUniqueBranchResponse(userMessage, validMatches.get(0));
+    }
+
+    private Map<String, Object> publicUniqueBranchResponse(
+            String userMessage,
+            AiChatSourceResolver.BranchDetails branch) {
+
         AiChatSourceResolver.ResolvedSource source = branch.source();
         List<Map<String, String>> citations = verifiedOperationalCitations(List.of(source));
         if (citations.isEmpty()
@@ -271,6 +320,75 @@ public class PublicAiChatController {
         result.put("safety_action", "ANSWER");
         result.put("suggested_actions", actions);
         return result;
+    }
+
+    private Map<String, Object> publicAmbiguousBranchResponse(
+            String userMessage,
+            List<AiChatSourceResolver.BranchDetails> matches) {
+        List<AiChatSourceResolver.ResolvedSource> sources = matches.stream()
+            .map(AiChatSourceResolver.BranchDetails::source)
+            .toList();
+        List<Map<String, String>> citations = verifiedOperationalCitations(sources);
+        if (citations.size() != sources.size()) return null;
+
+        String labels = sources.stream()
+            .map(AiChatSourceResolver.ResolvedSource::title)
+            .filter(value -> validPublicText(value, MAX_CITATION_TITLE_LENGTH))
+            .toList()
+            .stream()
+            .collect(java.util.stream.Collectors.joining("; "));
+        if (labels.isBlank()) return null;
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put(
+            "answer",
+            "Mình tìm thấy nhiều cơ sở phù hợp với yêu cầu này: " + labels
+                + ". Bạn cho mình biết quận/thành phố hoặc chọn đúng cơ sở để mình tra giờ làm việc chính xác.");
+        result.put(
+            "disclaimer",
+            "Thông tin từ trợ lý AI chỉ mang tính tham khảo và không thay thế tư vấn, "
+                + "chẩn đoán hoặc điều trị của bác sĩ.");
+        result.put("citations", citations);
+        result.put("provenance", "local_fallback");
+        result.put("mode", ChatMode.HOSPITAL_SUPPORT.name());
+        result.put("safety_action", "ANSWER");
+        result.put("suggested_actions", publicViewActions(sources, userMessage));
+        return result;
+    }
+
+    private Map<String, Object> publicBranchUnavailable(String userMessage) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put(
+            "answer",
+            "Mình chưa thể xác minh cơ sở này từ danh mục đang hoạt động. Bạn hãy kiểm tra lại số cơ sở, "
+                + "quận/thành phố hoặc mở mục Cơ sở & giờ làm việc trước khi đến khám.");
+        result.put(
+            "disclaimer",
+            "Thông tin từ trợ lý AI chỉ mang tính tham khảo và không thay thế tư vấn, "
+                + "chẩn đoán hoặc điều trị của bác sĩ.");
+        result.put("citations", List.of());
+        result.put("provenance", "local_fallback");
+        result.put("mode", ChatMode.HOSPITAL_SUPPORT.name());
+        result.put("safety_action", "INSUFFICIENT_EVIDENCE");
+        result.put("suggested_actions", ChatSuggestedActionResolver.hospitalSupportFallback(userMessage));
+        return result;
+    }
+
+    private List<Map<String, String>> publicViewActions(
+            List<AiChatSourceResolver.ResolvedSource> sources,
+            String userMessage) {
+        try {
+            List<Map<String, String>> actions = sourceResolver.actions(sources).stream()
+                .filter(Objects::nonNull)
+                .filter(value -> "VIEW_SOURCE".equals(value.get("kind")))
+                .limit(3)
+                .toList();
+            return actions.isEmpty()
+                ? ChatSuggestedActionResolver.hospitalSupportFallback(userMessage)
+                : actions;
+        } catch (RuntimeException ignored) {
+            return ChatSuggestedActionResolver.hospitalSupportFallback(userMessage);
+        }
     }
 
     private List<Map<String, String>> verifiedOperationalCitations(

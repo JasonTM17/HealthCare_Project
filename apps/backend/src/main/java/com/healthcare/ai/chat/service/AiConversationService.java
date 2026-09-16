@@ -491,6 +491,9 @@ public class AiConversationService {
             String content,
             List<Map<String, String>> turns,
             boolean chunkedDeliveryGeneration) {
+        SanitizedAiResponse deterministicBranch = deterministicBranchResponse(mode, content);
+        if (deterministicBranch != null) return deterministicBranch;
+
         Map<String, Object> request = new LinkedHashMap<>();
         request.put("message", content);
         request.put("mode", mode.name());
@@ -1300,6 +1303,44 @@ public class AiConversationService {
         } catch (RuntimeException ex) {
             return null;
         }
+        return branchDetailsResponse(content, matches);
+    }
+
+    /**
+     * Resolve explicit branch identities before the semantic index is asked
+     * to generate.  Numeric branch labels are especially prone to nearby-row
+     * matches (Cơ sở 13 can look similar to Cơ sở 2), so an exact operational
+     * lookup must be unique before any RAG/provider path is allowed.
+     */
+    private SanitizedAiResponse deterministicBranchResponse(ChatMode mode, String content) {
+        if (mode != ChatMode.HOSPITAL_SUPPORT
+                || ChatSuggestedActionResolver.classify(content)
+                    != ChatSuggestedActionResolver.HospitalSupportIntent.BRANCH) {
+            return null;
+        }
+
+        try {
+            if (!sourceResolver.isSpecificBranchQuery(content)) return null;
+            List<AiChatSourceResolver.BranchDetails> matches = sourceResolver.branchDetails(content);
+            if (matches == null || matches.isEmpty()) return branchUnavailableResponse(content);
+            List<AiChatSourceResolver.BranchDetails> bounded = matches.stream()
+                .filter(java.util.Objects::nonNull)
+                .filter(value -> value.source() != null)
+                .limit(3)
+                .toList();
+            if (bounded.isEmpty()) return branchUnavailableResponse(content);
+            if (bounded.size() == 1) return branchDetailsResponse(content, bounded);
+            return ambiguousBranchResponse(content, bounded);
+        } catch (RuntimeException ex) {
+            // A catalog failure is not permission to fall through to generic
+            // RAG for a specific branch identity.
+            return branchUnavailableResponse(content);
+        }
+    }
+
+    private SanitizedAiResponse branchDetailsResponse(
+            String content,
+            List<AiChatSourceResolver.BranchDetails> matches) {
         if (matches == null || matches.size() != 1 || matches.get(0) == null
                 || matches.get(0).source() == null) {
             return null;
@@ -1338,6 +1379,70 @@ public class AiConversationService {
             actions,
             "CURRENT",
             List.of(source)
+        );
+    }
+
+    private SanitizedAiResponse ambiguousBranchResponse(
+            String content,
+            List<AiChatSourceResolver.BranchDetails> matches) {
+        List<AiChatSourceResolver.ResolvedSource> sources = matches.stream()
+            .map(AiChatSourceResolver.BranchDetails::source)
+            .toList();
+        List<Map<String, String>> citations;
+        try {
+            citations = sourceResolver.citations(sources);
+        } catch (RuntimeException ex) {
+            return branchUnavailableResponse(content);
+        }
+        if (citations == null || citations.size() != sources.size()) {
+            return branchUnavailableResponse(content);
+        }
+        String labels = sources.stream()
+            .map(AiChatSourceResolver.ResolvedSource::title)
+            .filter(value -> value != null && !value.isBlank())
+            .collect(java.util.stream.Collectors.joining("; "));
+        if (labels.isBlank()) return branchUnavailableResponse(content);
+
+        List<Map<String, String>> actions;
+        try {
+            actions = sourceResolver.actions(sources).stream()
+                .filter(java.util.Objects::nonNull)
+                .filter(value -> "VIEW_SOURCE".equals(value.get("kind")))
+                .limit(3)
+                .toList();
+        } catch (RuntimeException ex) {
+            actions = List.of();
+        }
+        if (actions.isEmpty()) {
+            actions = ChatSuggestedActionResolver.hospitalSupportFallback(content);
+        }
+
+        return new SanitizedAiResponse(
+            "Mình tìm thấy nhiều cơ sở phù hợp với yêu cầu này: " + labels
+                + ". Bạn cho mình biết quận/thành phố hoặc chọn đúng cơ sở để mình tra giờ làm việc chính xác.",
+            SAFE_DISCLAIMER,
+            "local_fallback",
+            citations,
+            ChatSafetyAction.ANSWER,
+            null,
+            actions,
+            "CURRENT",
+            sources
+        );
+    }
+
+    private SanitizedAiResponse branchUnavailableResponse(String content) {
+        return new SanitizedAiResponse(
+            "Mình chưa thể xác minh cơ sở này từ danh mục đang hoạt động. Bạn hãy kiểm tra lại số cơ sở, "
+                + "quận/thành phố hoặc mở mục Cơ sở & giờ làm việc trước khi đến khám.",
+            SAFE_DISCLAIMER,
+            "local_fallback",
+            List.of(),
+            ChatSafetyAction.INSUFFICIENT_EVIDENCE,
+            null,
+            ChatSuggestedActionResolver.hospitalSupportFallback(content),
+            "UNAVAILABLE",
+            List.of()
         );
     }
 

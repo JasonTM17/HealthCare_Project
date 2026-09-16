@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from app.config import Settings
 from app.chatbot import (
     ChatContractError,
+    focus_public_retrieval_hits,
     generate_chat_response,
     is_complex_multisymptom_query,
     mode_source_types,
@@ -616,6 +617,7 @@ def chat(request: ChatRequest) -> ChatResponse:
                 [f"{document.title}: {document.content}"],
             )
         ]
+        hits = focus_public_retrieval_hits(message, hits)
     context = [f"{doc.title}: {doc.content}" for doc, _ in hits]
     citations = [
         _citation(doc.source_type, doc.source_id, doc.title)

@@ -252,6 +252,79 @@ class PublicAiChatControllerTest {
     }
 
     @Test
+    void resolvesAmbiguousBranchIdentityBeforeCallingPublicRag() {
+        AiService aiService = mock(AiService.class);
+        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
+        AiChatSourceResolver.ResolvedSource district3 = new AiChatSourceResolver.ResolvedSource(
+            "branch", BRANCH_ID, "Bệnh viện Đa khoa HealthCare — Cơ sở 2 — Quận 3", "co-so-2-quan-3",
+            true, true, "OPERATIONAL", null, null, null, null,
+            "/branches/co-so-2-quan-3", "/dat-lich?branchId=" + BRANCH_ID);
+        AiChatSourceResolver.ResolvedSource district7 = new AiChatSourceResolver.ResolvedSource(
+            "branch", "00000000-0000-0000-0000-000000000004",
+            "Bệnh viện Đa khoa HealthCare — Cơ sở 2, Quận 7", "co-so-2-quan-7",
+            true, true, "OPERATIONAL", null, null, null, null,
+            "/branches/co-so-2-quan-7", "/dat-lich?branchId=00000000-0000-0000-0000-000000000004");
+        when(resolver.isSpecificBranchQuery(any())).thenReturn(true);
+        when(resolver.branchDetails(any())).thenReturn(List.of(
+            new AiChatSourceResolver.BranchDetails(district3, "2 Đường số 3, Quận 3", "06:30–20:00"),
+            new AiChatSourceResolver.BranchDetails(district7, "105 Nguyễn Văn Linh, Quận 7", null)));
+        when(resolver.citations(any())).thenReturn(List.of(
+            Map.of("source_type", "branch", "source_id", BRANCH_ID, "title", district3.title()),
+            Map.of("source_type", "branch", "source_id", district7.id(), "title", district7.title())));
+        when(resolver.actions(any())).thenReturn(List.of(
+            Map.of("kind", "VIEW_SOURCE", "label", district3.title(), "href", district3.viewHref()),
+            Map.of("kind", "START_BOOKING", "label", "Đặt lịch", "href", district3.bookingHref()),
+            Map.of("kind", "VIEW_SOURCE", "label", district7.title(), "href", district7.viewHref())));
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolver)
+            .chat(new PublicAiChatController.PublicChatRequest(
+                "Cơ sở số 2 có giờ hoạt động thế nào?", null))
+            .getBody();
+
+        assertThat(body)
+            .containsEntry("safety_action", "ANSWER")
+            .containsEntry("provenance", "local_fallback")
+            .containsEntry("citations", List.of(
+                Map.of("source_type", "branch", "source_id", BRANCH_ID, "title", district3.title()),
+                Map.of("source_type", "branch", "source_id", district7.id(), "title", district7.title())))
+            .containsEntry("suggested_actions", List.of(
+                Map.of("kind", "VIEW_SOURCE", "label", district3.title(), "href", district3.viewHref()),
+                Map.of("kind", "VIEW_SOURCE", "label", district7.title(), "href", district7.viewHref())));
+        assertThat((String) body.get("answer"))
+            .contains("Cơ sở 2 — Quận 3", "Cơ sở 2, Quận 7")
+            .contains("cho mình biết quận/thành phố")
+            .doesNotContain("Cơ sở 13");
+        verify(aiService, org.mockito.Mockito.never()).chat(any());
+    }
+
+    @Test
+    void doesNotLetBranchShortcutBypassClinicalSafety() {
+        AiService aiService = mock(AiService.class);
+        when(aiService.chat(any())).thenReturn(Map.of(
+            "answer", "Triệu chứng bạn mô tả có thể cần được đánh giá khẩn cấp. Hãy gọi 115.",
+            "mode", "HOSPITAL_SUPPORT",
+            "safety_action", "EMERGENCY",
+            "provenance", "local_fallback",
+            "disclaimer", "Thông tin chỉ mang tính tham khảo.",
+            "citations", List.of()
+        ));
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolverForBranch())
+            .chat(new PublicAiChatController.PublicChatRequest(
+                "Cơ sở số 2, tôi đau ngực dữ dội", null))
+            .getBody();
+
+        assertThat(body)
+            .containsEntry("safety_action", "EMERGENCY")
+            .containsEntry("suggested_actions", List.of(
+                Map.of("kind", "CALL_EMERGENCY", "label", "Gọi 115", "href", "tel:115")));
+        verify(aiService).chat(Map.of(
+            "message", "Cơ sở số 2, tôi đau ngực dữ dội",
+            "public_support_chat", true
+        ));
+    }
+
+    @Test
     void propagatesAiServiceUnavailableAsBadGateway() {
         AiService aiService = mock(AiService.class);
         when(aiService.chat(any())).thenThrow(new org.springframework.web.server.ResponseStatusException(

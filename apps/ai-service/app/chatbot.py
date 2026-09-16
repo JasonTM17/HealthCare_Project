@@ -551,6 +551,87 @@ def _lexical_overlap(query_tokens: frozenset[str], document_text: str) -> float:
     return shared / len(query_tokens)
 
 
+def _specialty_guidance_hint_tokens(message: str) -> frozenset[str]:
+    """Return symptom-to-specialty expansion terms for a guidance question.
+
+    The regular query tokens contain generic words such as ``khoa`` and
+    ``kham`` that occur in almost every specialty projection.  The expansion
+    vocabulary is the discriminating part of the existing lexical rescue
+    contract (for example, ``dau dau`` -> ``than``/``kinh``), so reuse it for
+    answer shaping instead of maintaining a second symptom map in the public
+    endpoint.
+    """
+
+    normalized = normalize_sensitive_text(message)
+    if not any(term in normalized for term in _SPECIALTY_GUIDANCE_TERMS):
+        return frozenset()
+    if "bac si" in normalized or "dat lich" in normalized:
+        return frozenset()
+    base_tokens = _lexical_tokens(normalized)
+    expanded_tokens = _lexical_tokens(normalized, expand=True)
+    return expanded_tokens - base_tokens
+
+
+def focus_public_retrieval_hits(
+    message: str,
+    hits: Sequence[tuple[RagDocument, float]],
+) -> list[tuple[RagDocument, float]]:
+    """Focus public specialty guidance on the best symptom-aligned rows.
+
+    Public ``/chat`` performs retrieval directly so it can preserve the
+    server-owned source allowlist.  Before this focus pass, a local hash
+    embedder could return several unrelated specialty rows and the generator
+    would concatenate all of them into one answer.  Keep the best specialty
+    match (ties are retained for genuinely multi-system symptoms) while
+    preserving the original retrieval order and score.
+    """
+
+    hint_tokens = _specialty_guidance_hint_tokens(message)
+    if not hint_tokens or not hits:
+        return list(hits)
+
+    specialty_hits = [
+        (document, score)
+        for document, score in hits
+        if getattr(document, "source_type", "") == "specialty"
+    ]
+    if not specialty_hits:
+        return list(hits)
+
+    ranked: list[tuple[RagDocument, float, int]] = []
+    for document, score in specialty_hits:
+        title_tokens = _lexical_tokens(
+            normalize_sensitive_text(getattr(document, "title", ""))
+        )
+        content_tokens = _lexical_tokens(
+            normalize_sensitive_text(getattr(document, "content", ""))
+        )
+        match_score = (
+            len(hint_tokens.intersection(title_tokens)) * 3
+            + len(hint_tokens.intersection(content_tokens))
+        )
+        if match_score > 0:
+            ranked.append((document, score, match_score))
+
+    if not ranked:
+        return specialty_hits
+
+    best_score = max(match_score for _, _, match_score in ranked)
+    focused_ids = {
+        (getattr(document, "source_type", ""), getattr(document, "source_id", ""))
+        for document, _, match_score in ranked
+        if match_score == best_score
+    }
+    return [
+        (document, score)
+        for document, score in specialty_hits
+        if (
+            getattr(document, "source_type", ""),
+            getattr(document, "source_id", ""),
+        ) in focused_ids
+    ]
+
+
 def _focus_candidates_for_question(
     message: str,
     mode: ChatMode,
@@ -567,7 +648,23 @@ def _focus_candidates_for_question(
     if "bac si" in normalized or "dat lich" in normalized:
         return candidates
     specialties = [candidate for candidate in candidates if candidate.source_type == "specialty"]
-    return specialties or candidates
+    if not specialties:
+        return candidates
+
+    hint_tokens = _specialty_guidance_hint_tokens(message)
+    if not hint_tokens:
+        return specialties
+
+    ranked: list[tuple[ChatCandidate, int]] = []
+    for candidate in specialties:
+        title_tokens = _lexical_tokens(normalize_sensitive_text(candidate.title))
+        match_score = len(hint_tokens.intersection(title_tokens))
+        if match_score > 0:
+            ranked.append((candidate, match_score))
+    if not ranked:
+        return specialties
+    best_score = max(match_score for _, match_score in ranked)
+    return [candidate for candidate, match_score in ranked if match_score == best_score]
 
 
 _COMPLEX_SYMPTOM_INDICATORS: tuple[str, ...] = (
@@ -672,6 +769,11 @@ def _local_grounded_response(
         for meta in metas
     ]
     used_sources = [_used_source(meta) for meta in metas]
+    specialty_guidance = (
+        mode is ChatMode.HOSPITAL_SUPPORT
+        and bool(_specialty_guidance_hint_tokens(message))
+        and all(meta.document.source_type == "specialty" for meta in metas)
+    )
     if mode is ChatMode.SYMPTOM_TRIAGE:
         triage = rule_based_triage(message)
         excerpts = " ".join(_grounded_excerpt(meta) for meta in metas[:3])
@@ -685,6 +787,20 @@ def _local_grounded_response(
             urgency_level=urgency,
             recommended_specialty=triage.recommended_specialty,
         )
+    elif specialty_guidance:
+        titles = [meta.document.title for meta in metas[:3]]
+        if len(titles) == 1:
+            lead = f"Với mô tả ngắn này, bạn có thể bắt đầu tham khảo chuyên khoa {titles[0]}."
+        else:
+            lead = "Với mô tả ngắn này, các chuyên khoa có thể liên quan gồm: " + ", ".join(titles) + "."
+        excerpts = " ".join(_grounded_excerpt(meta) for meta in metas[:3])
+        answer = (
+            f"{lead} Theo nguồn thông tin đã được kiểm duyệt: {excerpts} "
+            "Trợ lý AI không chẩn đoán thay cho bác sĩ; hãy đặt lịch hoặc trao đổi trực tiếp "
+            "với nhân viên y tế nếu triệu chứng kéo dài, nặng lên hoặc khiến bạn lo lắng."
+        )
+        action = ChatSafetyAction.ANSWER
+        summary = None
     else:
         excerpts = " ".join(_grounded_excerpt(meta) for meta in metas[:3])
         answer = (
