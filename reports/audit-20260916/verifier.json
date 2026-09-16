@@ -1,0 +1,25 @@
+{
+  "protocol": "ak.ultra/v1",
+  "skill": "ak:plan",
+  "evidence": {
+    "files": ["reports/audit-20260916/evidence-packet.md"],
+    "base": "frozen@ebaeea3"
+  },
+  "evidence_sha256": "9e9d5d5a8e473027cb37ec576c37285a903107b7ccdcc2f4f90066a1685ad5bb",
+  "candidates": ["c1", "c2", "c3", "c4", "c5"],
+  "candidate_status": {"c1": "usable", "c2": "usable", "c3": "usable", "c4": "usable", "c5": "usable"},
+  "verifier": {
+    "verdict": "ACCEPT",
+    "winner_id": "c2",
+    "rubric_version": "ultra-v1",
+    "assessments": {
+      "c1": {"rubric": {"contract": 18, "evidence": 17, "safety_scope": 18, "feasibility_portability": 13, "verification_rollback": 13, "clarity": 9}, "score": 88, "vetoes": []},
+      "c2": {"rubric": {"contract": 19, "evidence": 18, "safety_scope": 19, "feasibility_portability": 14, "verification_rollback": 14, "clarity": 9}, "score": 93, "vetoes": []},
+      "c3": {"rubric": {"contract": 18, "evidence": 17, "safety_scope": 17, "feasibility_portability": 13, "verification_rollback": 12, "clarity": 8}, "score": 85, "vetoes": []},
+      "c4": {"rubric": {"contract": 19, "evidence": 17, "safety_scope": 17, "feasibility_portability": 13, "verification_rollback": 14, "clarity": 8}, "score": 88, "vetoes": ["minor: Phase 5 TinyMCE directive self-contradicts ('smaller change that preserves fidelity' — the smaller change reduces fidelity); decision-critical area for this objective"]},
+      "c5": {"rubric": {"contract": 19, "evidence": 17, "safety_scope": 18, "feasibility_portability": 13, "verification_rollback": 13, "clarity": 9}, "score": 89, "vetoes": []}
+    },
+    "margin_note": "Winner leads next eligible (c5, 89) by 4 points on the numeric rubric — inside noise. Decisive tie-break: c2 is the only candidate whose TinyMCE root-cause approach is both internally consistent and risk-proportionate (honest toolbar + gated sanitized-HTML option), which is the user's declared priority area. No candidate was blended; c2 is adopted unchanged."
+  },
+  "limits": {"candidate_count": 5, "max_redispatch": 1, "redispatch_used": 0, "max_debate_rounds": 2, "candidate_timeout_seconds": 900, "verifier_timeout_seconds": 900}
+}
