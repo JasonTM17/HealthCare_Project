@@ -86,16 +86,38 @@ public class AfterCommitEmailSender {
             return;
         }
         RenderedEmail rendered = renderer.render(templateKey, variables);
+        runAfterCommit(() -> deliverRendered(recipient, rendered));
+    }
+
+    /**
+     * Sends a typed template through the durable outbox when present; otherwise
+     * delivery is attempted after commit and SMTP/provider failures are logged
+     * without failing the already accepted user-facing operation.
+     */
+    public void sendTemplateBestEffort(EmailTemplateKey templateKey,
+                                       String recipient,
+                                       Map<String, String> variables) {
+        if (delegate instanceof TransactionalEmailSender transactional) {
+            transactional.enqueue(
+                templateKey,
+                recipient,
+                variables,
+                EmailOutboxService.templateIdempotencyKey(templateKey, recipient, variables),
+                null,
+                null,
+                templateKey.name(),
+                900
+            );
+            return;
+        }
+        log.info("Email delivery using best-effort non-outbox path (template={})", templateKey);
+        RenderedEmail rendered = renderer.render(templateKey, variables);
         runAfterCommit(() -> {
-            if (delegate instanceof RichEmailDelivery richDelivery) {
-                richDelivery.sendRich(
-                    recipient,
-                    rendered.subject(),
-                    rendered.htmlBody(),
-                    rendered.plainTextBody()
-                );
-            } else {
-                delegate.send(recipient, rendered.subject(), rendered.plainTextBody());
+            try {
+                deliverRendered(recipient, rendered);
+            } catch (RuntimeException exception) {
+                log.warn("Best-effort template email delivery failed after transaction commit (template={}, cause={})",
+                    templateKey, exception.getClass().getSimpleName());
             }
         });
     }
@@ -187,6 +209,19 @@ public class AfterCommitEmailSender {
             return;
         }
         delivery.run();
+    }
+
+    private void deliverRendered(String recipient, RenderedEmail rendered) {
+        if (delegate instanceof RichEmailDelivery richDelivery) {
+            richDelivery.sendRich(
+                recipient,
+                rendered.subject(),
+                rendered.htmlBody(),
+                rendered.plainTextBody()
+            );
+        } else {
+            delegate.send(recipient, rendered.subject(), rendered.plainTextBody());
+        }
     }
 
     private boolean deliverWithinTransactionIfSupported(

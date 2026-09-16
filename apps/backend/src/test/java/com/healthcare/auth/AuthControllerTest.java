@@ -41,6 +41,7 @@ import java.util.regex.Pattern;
 
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -78,6 +79,42 @@ class AuthControllerTest extends TestcontainersIntegrationTest {
             sentEmailCount.incrementAndGet();
             return null;
         }).when(emailSender).send(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void registrationAndOtpIssuanceSucceedWhenSmtpFailsWithOutboxDisabled() throws Exception {
+        doThrow(new IllegalStateException("SMTP unavailable"))
+            .when(emailSender).send(anyString(), anyString(), anyString());
+
+        mockMvc.perform(post("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "email": "smtp.down.registration@example.com",
+                      "password": "Str0ng!Pass",
+                      "displayName": "SMTP Down Registration"
+                    }
+                    """))
+            .andExpect(status().isAccepted())
+            .andExpect(jsonPath("$.verificationRequired").value(true));
+
+        User user = userRepository.findByEmail("smtp.down.registration@example.com").orElseThrow();
+        assertThat(user.isEmailVerified()).isFalse();
+        assertThat(authOtpChallengeRepository.findAll()).anySatisfy(challenge -> {
+            assertThat(challenge.getUser().getId()).isEqualTo(user.getId());
+            assertThat(challenge.getPurpose()).isEqualTo(com.healthcare.auth.entity.AuthOtpPurpose.EMAIL_VERIFICATION);
+            assertThat(challenge.getConsumedAt()).isNull();
+        });
+
+        mockMvc.perform(post("/api/v1/auth/password-reset-requests")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"smtp.down.registration@example.com\"}"))
+            .andExpect(status().isAccepted());
+        assertThat(authOtpChallengeRepository.findAll()).anySatisfy(challenge -> {
+            assertThat(challenge.getUser().getId()).isEqualTo(user.getId());
+            assertThat(challenge.getPurpose()).isEqualTo(com.healthcare.auth.entity.AuthOtpPurpose.PASSWORD_RESET);
+            assertThat(challenge.getConsumedAt()).isNull();
+        });
     }
 
     @Test
