@@ -41,6 +41,7 @@ import {
   type AssistantFailure,
   AssistantProvider,
   DEFAULT_CHAT_MODE,
+  focusableAssistantElements,
   hasCurrentChatConsent,
   isNearBottom,
   useAssistant,
@@ -326,12 +327,35 @@ function FloatingHealthAssistantPanel({
     const launcher = launcherRef.current;
     // setTimeout, not requestAnimationFrame: RAF is paused for hidden tabs and
     // non-composited webviews, which would silently skip autofocus.
-    const focusTimer = window.setTimeout(() => inputRef.current?.focus(), 0);
+    const focusTimer = window.setTimeout(() => {
+      const initialFocusTarget = inputRef.current && !inputRef.current.disabled
+        ? inputRef.current
+        : focusableAssistantElements(panelRef.current)[0] ?? panelRef.current;
+      initialFocusTarget?.focus();
+    }, 0);
     const handleKeyDown = (event: globalThis.KeyboardEvent): void => {
       if (event.key === "Escape") {
         event.preventDefault();
         closeAssistant();
+        return;
       }
+      if (event.key !== "Tab") return;
+
+      const panel = panelRef.current;
+      const focusable = focusableAssistantElements(panel);
+      if (!panel || focusable.length === 0) {
+        event.preventDefault();
+        panel?.focus();
+        return;
+      }
+
+      const activeElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      const currentIndex = activeElement ? focusable.indexOf(activeElement) : -1;
+      const nextIndex = event.shiftKey
+        ? (currentIndex <= 0 ? focusable.length - 1 : currentIndex - 1)
+        : (currentIndex === -1 || currentIndex === focusable.length - 1 ? 0 : currentIndex + 1);
+      event.preventDefault();
+      focusable[nextIndex]?.focus();
     };
 
     document.addEventListener("keydown", handleKeyDown);
@@ -654,10 +678,12 @@ function FloatingHealthAssistantPanel({
         <section
           aria-describedby="floating-health-assistant-help"
           aria-label="Trợ lý sức khỏe HealthCare"
+          aria-modal={"true"}
           className={styles.panel}
           id="floating-health-assistant-panel"
           ref={panelRef}
           role="dialog"
+          tabIndex={-1}
         >
           <header className={styles.header}>
             <div className={styles.headerTitle}>

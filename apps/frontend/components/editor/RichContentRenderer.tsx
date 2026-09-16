@@ -924,7 +924,7 @@ export function htmlToMarkdown(html: string): string {
   if (!html || !html.trim()) return "";
   let md = html;
 
-  // Defensive sanitization: remove script, style, iframe tags
+  // Defensive sanitization: remove script and style tag blocks before markdown conversion.
   md = md.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "");
   md = md.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "");
 
