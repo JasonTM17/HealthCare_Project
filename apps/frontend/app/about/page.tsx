@@ -276,10 +276,6 @@ export default function AboutPage() {
             <Link className="outline-button" href="/contact">Liên hệ bệnh viện</Link>
           </div>
         </section>
-
-        <p className={`${styles.referenceNote} section-inner`}>
-          Tham khảo từ trang web Bệnh viện Hoàn Mỹ.
-        </p>
       </div>
     </PublicPageShell>
   );

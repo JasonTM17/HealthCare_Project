@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { getDoctorPhoto } from "../../../lib/doctor-portrait";
+import { getDoctorInitials, getDoctorPhoto } from "../../../lib/doctor-portrait";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { fetchDoctorBySlug } from "../../../lib/api-client";
@@ -58,8 +58,10 @@ export default function DoctorDetailPage() {
         <PublicBackLink href="/doctors">← Quay lại danh sách bác sĩ</PublicBackLink>
         <header className="resource-page__header">
           <p className="section-note">Hồ sơ bác sĩ</p>
-          <h1>Bác sĩ đồng hành cùng bạn</h1>
-          <p>Tìm hiểu chuyên môn, kinh nghiệm và chọn cơ sở, ngày khám thuận tiện với bạn.</p>
+          {/* Every doctor URL used to ship the same H1, so search results and
+              browser tabs were indistinguishable from one another. */}
+          <h1>{doctor?.fullName ?? "Bác sĩ đồng hành cùng bạn"}</h1>
+          <p>{doctor?.title ?? "Tìm hiểu chuyên môn, kinh nghiệm và chọn cơ sở, ngày khám thuận tiện với bạn."}</p>
         </header>
 
         {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải hồ sơ bác sĩ…</p> : null}
@@ -69,16 +71,22 @@ export default function DoctorDetailPage() {
         {doctor ? (
           <>
             <article className="resource-hero-card resource-hero-card--teal">
-              <div className="resource-avatar resource-avatar--doctor-detail" aria-hidden="true">
-                <Image
-                  src={getDoctorPhoto(doctor)}
-                  alt={doctor.fullName}
-                  width={280}
-                  height={280}
-                  sizes="(max-width: 768px) 160px, 240px"
-                  className="resource-avatar__img"
-                  priority
-                />
+              <div className="resource-avatar resource-avatar--doctor-detail">
+                {getDoctorPhoto(doctor) ? (
+                  <Image
+                    src={getDoctorPhoto(doctor) as string}
+                    alt={`Ảnh bác sĩ ${doctor.fullName}`}
+                    width={280}
+                    height={280}
+                    sizes="(max-width: 768px) 160px, 240px"
+                    className="resource-avatar__img"
+                    priority
+                  />
+                ) : (
+                  <span className="resource-avatar__initials" aria-hidden="true">
+                    {getDoctorInitials(doctor.fullName)}
+                  </span>
+                )}
               </div>
               <div className="resource-hero-card__body">
                 <div className="resource-chip-row">

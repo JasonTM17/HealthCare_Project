@@ -150,8 +150,7 @@ const getSpecialtyIcon = (specialty: Specialty): IconName => {
   return "stethoscope";
 };
 
-const getDoctorImage = (doctor: Doctor): string | undefined => {
-
+const getDoctorImage = (doctor: Doctor): string | null => {
   return getDoctorPhoto(doctor);
 };
 
@@ -167,7 +166,7 @@ const DoctorPhoto: React.FC<DoctorPhotoProps> = ({ doctor, featured = false }) =
     <div className={`doctor-photo${featured ? " doctor-photo--featured" : ""}${!photoLoaded && photoUrl ? " doctor-photo--loading" : ""}`}>
       {photoUrl ? (
         <Image
-          alt={`Ảnh minh họa bác sĩ ${doctor.fullName}`}
+          alt={`Ảnh bác sĩ ${doctor.fullName}`}
           className={`doctor-photo__image${photoLoaded ? " doctor-photo__image--loaded" : ""}`}
           fill
           onLoad={() => setPhotoLoaded(true)}

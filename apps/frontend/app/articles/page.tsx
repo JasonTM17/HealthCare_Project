@@ -7,6 +7,7 @@ import ClinicalIcon from "../../components/ClinicalIcon";
 import Icon from "../../components/UiIcon";
 import { PublicAiButton, PublicBookingButton, PublicPageShell } from "../../components/PublicPageShell";
 import { ApiError, fetchArticles, subscribeToCatalogChange, type Page } from "../../lib/api-client";
+import { resolveArticleCategoryLabel } from "../../lib/article-category";
 import { formatBusinessDate } from "../../lib/business-time";
 import { presentApiError } from "../../lib/present-api-error";
 import type { Article } from "../../types/hospital";
@@ -134,7 +135,7 @@ export default function ArticlesPage() {
               </p>
               <span className="articles-hero__trust-badge">
                 <Icon name="shield-check" size={14} />
-                <span>100% Hội đồng Y khoa kiểm định</span>
+                <span>Hội đồng chuyên môn thẩm định</span>
               </span>
             </div>
 
@@ -166,14 +167,14 @@ export default function ArticlesPage() {
                   ) : (
                     "Đang cập nhật"
                   )}
-                <span className="articles-hero__stat-note">Biên soạn theo 16 chuyên khoa lâm sàng</span></dd>
+                <span className="articles-hero__stat-note">Biên soạn theo danh mục chuyên khoa của bệnh viện</span></dd>
               </div>
               <div className="articles-hero__stat-card">
                 <dt>
                   <Icon name="award" size={15} />
                   <span>Tiêu chuẩn chuyên môn</span>
                 </dt>
-                <dd>100% Chuyên gia<span className="articles-hero__stat-note">Hội đồng Bác sĩ Đa khoa thẩm định</span></dd>
+                <dd>Bác sĩ chuyên khoa<span className="articles-hero__stat-note">Nội dung được bác sĩ chuyên khoa thẩm định</span></dd>
               </div>
               <div className="articles-hero__stat-card">
                 <dt>
@@ -186,9 +187,9 @@ export default function ArticlesPage() {
                   ) : featuredArticle ? (
                     formatBusinessDate(featuredArticle.publishedAt)
                   ) : (
-                    "Năm 2026"
+                    "Đang cập nhật"
                   )}
-                <span className="articles-hero__stat-note">Chuẩn hóa hướng dẫn Bộ Y tế &amp; WHO</span></dd>
+                <span className="articles-hero__stat-note">Tham chiếu hướng dẫn điều trị đang áp dụng</span></dd>
               </div>
             </dl>
 
@@ -331,7 +332,7 @@ export default function ArticlesPage() {
           <>
             <p aria-live="polite" className="catalog-meta">
               {displayedArticles.length !== page.content.length
-                ? `Hiển thị ${displayedArticles.length}/${page.totalElements} bài viết phù hợp`
+                ? `Hiển thị ${displayedArticles.length}/${page.content.length} bài viết trên trang này`
                 : `${page.totalElements} bài viết · Trang ${page.number + 1}/${page.totalPages}`}
             </p>
             {displayedArticles.length === 0 ? (
@@ -366,7 +367,7 @@ export default function ArticlesPage() {
                           src={resolveArticleCoverImage(article)}
                         />
                         <span className="absolute top-2.5 left-2.5 rounded-[4px] bg-teal-950/85 backdrop-blur-md px-2 py-0.5 text-xs font-bold text-teal-100 shadow-xs">
-                          {article.category || "Cẩm nang y tế"}
+                          {resolveArticleCategoryLabel(article.category)}
                         </span>
                       </div>
                       <p className="section-note">{formatBusinessDate(article.publishedAt)}</p>
