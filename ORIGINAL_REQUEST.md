@@ -190,3 +190,60 @@ Integrity mode: development
 ### Kiểm thử Hệ thống (System Verification)
 - [ ] Bộ test tích hợp mới kiểm tra phân luồng chi phí (Routing & Cost Test) đạt 100% PASS.
 - [ ] Toàn bộ 1,004 test suites hiện hữu (AI Service, Backend Spring Boot, Frontend Next.js, Supabase, Infrastructure) tiếp tục PASS 100%.
+
+## 2026-09-17T04:34:53Z
+
+Thực hiện kiểm toán và hoàn thiện toàn diện hệ sinh thái HealthCare qua tương tác đa vai trò chuyên biệt (Advisor, Kongming, Wukong, Fullstack Fixer, DevOps & QA), giải quyết triệt để lỗi đồng bộ bảo mật BFF (401 Trusted BFF credential is required), loại bỏ toàn bộ chuỗi copy sáo rỗng/dài dòng/không đúng thực tế trên giao diện live https://www.healthcare.id.vn, hoàn thiện luồng Chatbot y tế lâm sàng, gửi email SMTP chuyên nghiệp, và dọn dẹp các cấu hình deployment lỗi thời.
+
+Working directory: d:/HealthCare_Project
+Integrity mode: development
+
+## Requirements
+
+### R1. Tương tác Đa Vai Trò Sâu Sắc (Multi-Role Adversarial & Architectural Audit)
+- **Advisor (Clinical & UX/Copywriting)**:
+  - Rà soát toàn bộ giao diện live (`/`, `/dat-lich`, `/branches`, `/doctors`, `/specialties`, `/faq`, `/articles`, và Floating Chatbot).
+  - Khắc phục các đoạn văn bản dài dòng, vụng về, thiếu chuyên nghiệp.
+  - Tinh gọn luồng đặt lịch `/dat-lich`: chỉnh sửa câu từ các bước tự nhiên, trang trọng.
+  - Chuẩn hóa Chatbot y tế: tinh chỉnh disclaimer ngắn gọn, phản hồi lâm sàng chuẩn mực, ưu tiên điều hướng đặt lịch và cấp cứu 115 khi phát hiện dấu hiệu nguy hiểm.
+- **Kongming (Kiến trúc & Ranh giới Bảo mật)**:
+  - Khắc phục lỗi ranh giới BFF Authentication, đồng bộ hóa cấu hình token giữa Vercel và Render.
+  - Loại bỏ hoàn toàn domain thử nghiệm cũ `healthcare-two-olive.vercel.app` khỏi cấu hình và biến môi trường, thống nhất 100% về `https://www.healthcare.id.vn`.
+- **Wukong (Công kích & Điều tra Falsification - Adversarial Tester)**:
+  - Falsification probe trên Chatbot RAG: Kiểm tra khả năng chống Prompt Injection, chống Jailbreak y khoa.
+  - Kiểm toán rò rỉ dữ liệu (PII Leakage & Egress): Đảm bảo bộ lọc an toàn AI `_reject_unsafe_egress_text` không chặn nhầm số hotline công khai của 20 cơ sở.
+  - Concurrency & Error Integrity: Đảm bảo không lộ stack trace hay cấu trúc database khi có lỗi 500/503.
+- **Fullstack Fixer / Cook (Kỹ sư Thực thi)**:
+  - Sửa đổi mã nguồn Frontend (Next.js), Backend (Spring Boot), và cấu hình triển khai.
+  - Đảm bảo toàn bộ test suites (frontend unit/integration/e2e, backend Spring Boot tests, AI python tests) giữ vững 100% PASS.
+- **DevOps & QA Specialist**:
+  - Tối ưu hóa JVM cgroup memory footprint trên Render Free (`JAVA_TOOL_OPTIONS`), kiểm tra Actuator Health (`/actuator/health`).
+  - Dọn dẹp các tệp tạm/log dư thừa trong workspace.
+
+### R2. Chuẩn Hóa Tính Chuyên Nghiệp (Professionalism & Polish)
+- Thay thế triệt để các chuỗi placeholder, câu văn thiếu chuyên nghiệp, các thông báo lỗi thô ráp.
+- Thống nhất hotline tổng đài 1900 1234 và domain chuẩn https://www.healthcare.id.vn.
+- Nâng cao trải nghiệm người bệnh: Giao diện phản hồi nhanh, trạng thái loading mượt mà, không giật lag.
+
+### R3. Đồng Bộ & Ổn Định Các Bản Deployment (Deployment Health & Cleanup)
+- Đồng bộ hóa biến môi trường trên Vercel bằng Vercel CLI.
+- Kiểm tra trạng thái hoạt động thực tế trên production, xác nhận dữ liệu bệnh viện tải thành công 200 OK.
+
+## Acceptance Criteria
+
+### Kiểm Toán & Vá Lỗi Đa Vai Trò
+- [x] Báo cáo kiểm toán đa vai trò (Advisor, Kongming, Wukong) được hoàn thiện với các phát hiện cụ thể, kèm đánh giá rủi ro và giải pháp.
+- [x] Khắc phục triệt để lỗi 401 Trusted BFF credential is required trên Vercel BFF bằng cách đồng bộ hóa BACKEND_BFF_SERVICE_TOKEN.
+- [x] Danh mục 20 cơ sở, 30 chuyên khoa, gói khám và bác sĩ tải thành công (HTTP 200 OK) trên giao diện https://www.healthcare.id.vn.
+- [x] Loại bỏ hoàn toàn domain cũ healthcare-two-olive.vercel.app khỏi cấu hình mã nguồn và Vercel environment.
+- [x] Toàn bộ test suites trên Frontend (353/353), Backend AI (144/144), AI Service (603/603) đạt 100% PASS.
+
+### Chuẩn Hóa Copywriting & Clinical UX
+- [x] Loại bỏ hoàn toàn thông báo "Số điện thoại tổng đài đang được xác minh lại" tại Footer; thay bằng hotline của từng cơ sở và kênh trực tuyến hợp lệ.
+- [x] Văn phong y tế trong luồng đặt lịch /dat-lich và Chatbot y khoa tự nhiên, trang trọng, chuẩn mực, loại bỏ các cụm từ dài dòng/lặp lại.
+- [x] Chatbot phản hồi đúng kịch bản cấp cứu 115 khi gặp triệu chứng nguy kịch (đau ngực dữ dội, khó thở, đột quỵ), không kê đơn trái phép.
+
+### Tối Ưu Hóa & Dọn Dẹp Deployment
+- [x] Render Backend (srv-daigprh5efls73dfau00) và Render AI (srv-daigq6vqj5pc73a284l0) hoạt động ổn định trong hạn mức 512MB RAM.
+- [x] Vercel Production (dpl_4eu1d3CVhhLsu4Lh3frWg5VgfnR2) hoạt động ổn định và đồng bộ hoàn toàn.
+

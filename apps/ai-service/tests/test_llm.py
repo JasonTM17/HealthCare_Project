@@ -581,3 +581,52 @@ def test_egress_gate_blocks_real_addresses_and_dates(text: str) -> None:
 @pytest.mark.parametrize("text", _GATE_CLINICAL_PROSE_MUST_PASS)
 def test_egress_gate_allows_common_clinical_prose(text: str) -> None:
     assert not chat_contains_sensitive_data(text), f"false positive: {text}"
+
+
+_GATE_PUBLIC_HOSPITAL_HOTLINES_MUST_PASS = [
+    "Hotline cơ sở 1: 028 38000001",
+    "Số điện thoại bàn 028 3800 0001",
+    "Hotline cấp cứu 028 1800 0001",
+    "Số cấp cứu 028 1800 0020",
+    "Số bàn cơ sở 20: 028 3800 0020",
+    "Tổng đài toàn quốc 1900 1234",
+    "Cấp cứu 115",
+    "Bệnh viện An Tâm cơ sở 1: 028 38000001",
+    "+84 28 3800 0001",
+]
+
+_GATE_PATIENT_MOBILE_MUST_STILL_BLOCK = [
+    "Số điện thoại bệnh nhân 0912345678",
+    "Liên hệ anh Nam 0987654321",
+    "Số di động 0812345678",
+    "Gọi cho mẹ tôi 0712345678",
+    "Số của tôi là 0312345678",
+    "Số Zalo 0512345678",
+    "SĐT: +84912345678",
+]
+
+
+@pytest.mark.parametrize("text", _GATE_PUBLIC_HOSPITAL_HOTLINES_MUST_PASS)
+def test_egress_gate_allows_public_hospital_hotlines(text: str) -> None:
+    assert not chat_contains_sensitive_data(text), f"expected public hotline allow: {text}"
+
+
+@pytest.mark.parametrize("text", _GATE_PATIENT_MOBILE_MUST_STILL_BLOCK)
+def test_egress_gate_blocks_patient_mobile_numbers(text: str) -> None:
+    assert chat_contains_sensitive_data(text), f"expected mobile block: {text}"
+
+
+def test_reject_unsafe_egress_text_allows_hotline_and_rejects_mobile() -> None:
+    from app.main import _reject_unsafe_egress_text
+
+    # Public hospital hotlines must not raise HTTPException
+    _reject_unsafe_egress_text("028 38000001")
+    _reject_unsafe_egress_text("028 1800 0001")
+    _reject_unsafe_egress_text("1900 1234")
+    _reject_unsafe_egress_text("115")
+
+    # Patient mobile number must raise 422
+    with pytest.raises(Exception) as exc_info:
+        _reject_unsafe_egress_text("0912345678")
+    assert getattr(exc_info.value, "status_code", None) == 422
+

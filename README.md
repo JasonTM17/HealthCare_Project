@@ -388,7 +388,7 @@ cd apps/ai-service && python -m pytest && ruff check . && mypy
 ### Trạng thái Production Vercel (2026-09-08)
 - **Deployment ID**: `dpl_7LBTguGVawqJdR6v6AFyXzMH6uwU` (READY/PROMOTED)
 - **Commit SHA**: `5d104d974221cddd4cdd19a54ddfbf11b596cae2`
-- **Domain phục vụ**: `www.healthcare.id.vn` & `healthcare-two-olive.vercel.app`
+- **Domain phục vụ**: `https://www.healthcare.id.vn` (và `https://healthcare.id.vn`)
 - **Kiểm thử canary**: `/`, `/specialties`, `/api/v1/health` đều trả về HTTP 200; BFF Origin Guard chặn truy cập không hợp lệ với mã `403 BFF_ORIGIN_INVALID`.
 
 ### Trạng thái Render Free Backend & AI (2026-09-02)

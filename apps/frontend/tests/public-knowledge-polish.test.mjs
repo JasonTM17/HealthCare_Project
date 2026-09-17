@@ -69,7 +69,7 @@ test("public knowledge content keeps medical trust boundaries visible", async ()
   assert.match(diseaseDetail, /không phải chẩn đoán hay đơn thuốc/i);
   assert.match(articles, /chỉ để tham khảo/);
   assert.match(articleDetail, /không thay thế chẩn đoán/);
-  assert.match(faq, /dữ liệu thật của hệ thống/);
+  assert.match(faq, /Danh mục câu hỏi thường gặp đang được cập nhật/);
   assert.doesNotMatch(articles, /Không có bài viết demo thay thế/);
 });
 

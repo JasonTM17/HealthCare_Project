@@ -234,7 +234,7 @@ export default function CommonDiseasesPage() {
           <p className="section-note">Kho kiến thức bệnh phổ biến</p>
           <h1>Hiểu đúng để biết khi nào nên đi khám</h1>
           <p>
-            Nội dung tham khảo đã được bệnh viện kiểm duyệt theo quy trình nội bộ. Không thay thế thăm khám hoặc chẩn đoán.
+            Nội dung tham khảo được thẩm định chuyên môn bởi Hội đồng Y khoa HealthCare. Không thay thế thăm khám hoặc chẩn đoán trực tiếp từ bác sĩ.
           </p>
           <div className="resource-actions">
             <PublicAiButton className="outline-button">Hỏi trợ lý triệu chứng</PublicAiButton>

@@ -195,7 +195,7 @@ export default function BranchesPage() {
                   <div className="branch-card__address">
                     <Icon name="location" size={18} />
                     <p>
-                      {address || <span className="resource-muted">Địa chỉ chưa công bố; vui lòng liên hệ trước khi đến.</span>}
+                      {address || <span className="resource-muted">Đang cập nhật địa chỉ chi tiết · Vui lòng liên hệ tổng đài trước khi đến.</span>}
                     </p>
                   </div>
                   <BranchMap
@@ -216,7 +216,7 @@ export default function BranchesPage() {
                     {typeof branch.activeDoctorCount === "number" ? (
                       <div>
                         <dt>Lịch trực tuyến</dt>
-                        <dd>{branch.activeDoctorCount > 0 ? "Có bác sĩ phụ trách" : "Chưa mở tại cơ sở này"}</dd>
+                        <dd>{branch.activeDoctorCount > 0 ? "Có bác sĩ phụ trách" : "Đang sắp xếp lịch tiếp nhận"}</dd>
                       </div>
                     ) : null}
                   </dl>

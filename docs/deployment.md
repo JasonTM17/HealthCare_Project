@@ -68,13 +68,13 @@ the release images. Provider runtime bindings can intentionally lag a source
 overlay when a component is unchanged; always use the component-level identity
 below rather than assuming one SHA for every platform.
 
-- Frontend: [healthcare-two-olive.vercel.app](https://healthcare-two-olive.vercel.app),
+- Frontend: [www.healthcare.id.vn](https://www.healthcare.id.vn),
   Vercel deployment `dpl_7LBTguGVawqJdR6v6AFyXzMH6uwU`, `READY`/`PROMOTED`
   production, uploaded from repository commit
   `5d104d974221cddd4cdd19a54ddfbf11b596cae2` after the hero image fallback,
   sticky nav bleed, brand asset, and mobile collision fixes. The stable
   aliases `https://www.healthcare.id.vn` and
-  `https://healthcare-two-olive.vercel.app` were verified live (HTTP 200).
+  `https://healthcare.id.vn` were verified live (HTTP 200).
 
   A stateless public-chat canary returned `200 HOSPITAL_SUPPORT /
   local_fallback / ANSWER` for a benign support question and `200 / REFUSE`

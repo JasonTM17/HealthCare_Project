@@ -18,8 +18,8 @@ const BOOKING_STAGES: Array<{ icon: IconName; title: string; description: string
   },
   {
     icon: "building",
-    title: "2. Chọn cơ sở và khung giờ",
-    description: "Xem ngày và giờ còn trống tại cơ sở phù hợp với bạn.",
+    title: "2. Ngày & Khung giờ khám",
+    description: "Xem ngày và khung giờ tiếp nhận còn trống tại cơ sở phù hợp với bạn.",
   },
   {
     icon: "user",
@@ -83,10 +83,10 @@ export default function BookingLandingPage() {
         <header className="booking-page__hero resource-page__header booking-page__hero--centered">
           <div className="booking-page__hero-copy">
             <p className="section-note">Đặt lịch khám</p>
-            <h1>Bảng thông tin đặt lịch</h1>
+            <h1>Đặt lịch khám trực tuyến</h1>
             <p>
-              Chọn chuyên khoa, cơ sở, bác sĩ và khung giờ phù hợp trong một luồng rõ ràng.
-              Hoàn tất thông tin liên hệ ngay bên dưới.
+              Chọn chuyên khoa, cơ sở, bác sĩ và khung giờ khám thuận tiện nhất.
+              Quy trình tiếp nhận tinh gọn, bảo mật và hỗ trợ ưu tiên tại quầy tiếp đón.
             </p>
             <div className="booking-page__hero-actions">
               <PublicBookingButton>
@@ -108,11 +108,10 @@ export default function BookingLandingPage() {
           tabIndex={-1}
         >
           <div className="booking-page__inline-heading booking-page__inline-heading--centered">
-            <p className="section-note">Thông tin lịch hẹn</p>
-            <h2 id="booking-inline-heading">Hoàn tất lịch khám trong cùng một trang</h2>
+            <p className="section-note">Hệ thống tiếp nhận</p>
+            <h2 id="booking-inline-heading">Đăng ký lịch khám nhanh chóng</h2>
             <p>
-              Nhập thông tin khách hàng, chọn bệnh viện hoặc phòng khám, rồi xác nhận mã OTP khi
-              bạn đã sẵn sàng.
+              Quý khách vui lòng điền thông tin người khám, chọn cơ sở y tế thuận tiện và xác thực OTP để nhận phiếu khám điện tử tức thì.
             </p>
           </div>
           <BookingInlineExperience key={bookingRequest.nonce} selection={bookingRequest.selection} />

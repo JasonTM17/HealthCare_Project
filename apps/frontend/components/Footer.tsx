@@ -75,7 +75,7 @@ const Footer: React.FC<FooterProps> = ({ branches = [], cmsSlug }) => {
           <a className="footer-hotline" href={contactHref}><Icon name="phone" size={18} />{contactPhone}</a>
         ) : (
           <p className="footer-hotline-fallback" data-fallback="true">
-            Quý khách vui lòng xem hotline của từng cơ sở hoặc đặt lịch trực tuyến:{" "}
+            Tổng đài tiếp nhận 24/7 và đường dây nóng các cơ sở:{" "}
             <Link href="/contact">kênh liên hệ</Link> · <Link href="/dat-lich">đặt lịch khám</Link>
           </p>
         )}
