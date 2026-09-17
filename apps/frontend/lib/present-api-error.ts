@@ -5,8 +5,9 @@ const ERROR_COPY_BY_CODE = Object.freeze({
   ACCESS_DENIED: "Bạn không có quyền thực hiện thao tác này.",
   RESOURCE_NOT_FOUND: "Nội dung này không còn tồn tại hoặc bạn không có quyền xem.",
   RATE_LIMIT_EXCEEDED: "Bạn đã gửi quá nhiều yêu cầu. Vui lòng chờ một lúc rồi thử lại.",
-  OTP_RESEND_THROTTLED: "Mã OTP vừa được yêu cầu. Vui lòng chờ rồi thử lại.",
-  OTP_EXPIRED: "Mã OTP đã hết hạn. Vui lòng gửi lại mã trong thời gian giữ chỗ.",
+  // Throttled means the request was refused, not that a code went out.
+  OTP_RESEND_THROTTLED: "Bạn vừa yêu cầu mã OTP. Vui lòng chờ một lát rồi gửi lại.",
+  OTP_EXPIRED: "Mã OTP đã hết hạn. Vui lòng yêu cầu mã mới khi phiếu khám còn hiệu lực.",
   EMAIL_DELIVERY_UNAVAILABLE: "Dịch vụ email đang tạm gián đoạn. Vui lòng thử lại sau.",
   VALIDATION_ERROR: "Thông tin chưa hợp lệ. Vui lòng kiểm tra lại các trường đã nhập.",
   BAD_REQUEST: "Yêu cầu gửi lên chưa hợp lệ. Vui lòng kiểm tra lại.",

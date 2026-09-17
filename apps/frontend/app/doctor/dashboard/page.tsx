@@ -40,7 +40,11 @@ type LookupState<T> =
   | { status: "success"; data: T }
   | { status: "error"; message: string; statusCode?: number };
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+// Shape-only, matching lib/api-client.ts: the seeded and factory records this
+// project ships (for example 70000000-0000-…, 10000000-0000-…) are not
+// RFC-4122 version-stamped, so requiring a version nibble rejected real
+// patient ids while every other validator accepted them.
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const APPOINTMENT_STATUSES = [
   ["", "Tất cả trạng thái"],
   ["PENDING_CONFIRMATION", "Chờ xác nhận"],

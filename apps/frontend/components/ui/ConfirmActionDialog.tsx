@@ -19,6 +19,12 @@ export interface ConfirmActionField {
   multiline?: boolean;
   autoComplete?: string;
   inputMode?: "text" | "numeric" | "tel" | "url";
+  /**
+   * Constrained choices. A moderation reason is a code from a closed set, and
+   * the caller must not be able to invent one or leave the operator with a
+   * silently defaulted value.
+   */
+  options?: { value: string; label: string }[];
 }
 
 export interface ConfirmActionSummaryItem {
@@ -194,7 +200,19 @@ function ConfirmActionDialogBody({
               <label className="block text-sm font-semibold text-slate-700" key={field.name}>
                 {field.label}
                 {field.required ? <span aria-hidden="true"> *</span> : null}
-                {field.multiline ? (
+                {field.options?.length ? (
+                  <select
+                    className="mt-1 w-full rounded-sm border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                    defaultValue=""
+                    name={field.name}
+                    required={field.required}
+                  >
+                    <option disabled value="">Chọn một mục…</option>
+                    {field.options.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                ) : field.multiline ? (
                   <textarea
                     className="mt-1 w-full rounded-sm border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
                     maxLength={field.maxLength}
