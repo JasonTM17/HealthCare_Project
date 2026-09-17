@@ -1422,7 +1422,7 @@ function BookingExperience({
                     type="email"
                     required
                     maxLength={320}
-                    placeholder="patient@example.com"
+                    placeholder="email@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     disabled={isSubmitting}
