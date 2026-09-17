@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import PortalChrome from "../../../components/PortalChrome";
 import { EmptyState, ErrorState, ForbiddenState, LoadingState, LoginRequiredState } from "../../../components/PortalStates";
 import { ApiError, completePatientCarePlanItem, fetchPatientCarePlans, hasRole } from "../../../lib/api-client";
+import { presentApiError } from "../../../lib/present-api-error";
 import { useAuthSession } from "../../../components/useAuthSession";
 import type { CarePlan } from "../../../types/hospital";
 
@@ -41,6 +42,10 @@ export default function PatientCarePlanPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
 
+  // A failed toggle is a transient action error, not a load failure: reusing
+  // the load error state replaced the visible plan with "cannot load plans".
+  const [actionError, setActionError] = useState<unknown>(null);
+
   useEffect(() => {
     if (!session || !hasRole(session.user, "PATIENT")) return;
     let cancelled = false;
@@ -59,7 +64,7 @@ export default function PatientCarePlanPage() {
     try {
       await completePatientCarePlanItem(itemId);
       setPlans((current) => current.map((plan) => plan.id !== planId ? plan : { ...plan, status: plan.items.every((item) => item.id === itemId || item.status !== "OPEN") ? "DONE" : plan.status, items: plan.items.map((item) => item.id === itemId ? { ...item, status: "DONE", completedAt: new Date().toISOString() } : item) }));
-    } catch (reason) { setError(reason); } finally { setBusy(null); }
+    } catch (reason) { setActionError(reason); } finally { setBusy(null); }
   };
   const status = error instanceof ApiError ? error.status : undefined;
   const openItems = plans.flatMap((plan) => plan.items).filter((item) => item.status === "OPEN");
@@ -72,6 +77,7 @@ export default function PatientCarePlanPage() {
     <header className="portal-hero"><div><p className="section-note">FOLLOW-UP CARE</p><h1>Kế hoạch chăm sóc</h1><p>Các mục tiêu và lời nhắc do bác sĩ tạo từ lịch hẹn. Đây là checklist theo dõi, không phải toa thuốc và không do AI tự sinh.</p></div><button className="outline-button min-h-11" disabled={loading} onClick={() => setRetry((value) => value + 1)} type="button">{loading ? "Đang tải…" : "Tải lại"}</button></header>
     {loading ? <LoadingState label="Đang tải kế hoạch…" /> : null}
     {error ? <ErrorState message="Không thể tải kế hoạch chăm sóc." status={status} onRetry={() => setRetry((value) => value + 1)} /> : null}
+    {actionError ? <p className="portal-panel text-sm text-rose-700" role="alert">{presentApiError(actionError instanceof ApiError ? actionError.code : undefined, actionError instanceof ApiError ? actionError.status : undefined)}</p> : null}
     {!loading && !error && plans.length === 0 ? <EmptyState title="Chưa có kế hoạch" description="Bác sĩ có thể tạo mục tiêu theo dõi sau một lịch hẹn đủ điều kiện." /> : null}
     {!loading && !error && plans.length > 0 ? <>
       <section className="portal-panel grid gap-4" aria-labelledby="care-plan-progress-title">

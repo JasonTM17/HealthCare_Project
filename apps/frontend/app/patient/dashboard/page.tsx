@@ -1330,7 +1330,11 @@ export default function PatientDashboardPage() {
                   </span>
                   <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-teal-50 text-teal-900 border border-teal-200">
                     <UiIcon name="sparkles" size={13} className="text-teal-700" />
-                    <span>{profile.data.aiCredits ?? 20} AI Credits</span>
+                    <span>
+                      {typeof profile.data.aiCredits === "number"
+                        ? `${profile.data.aiCredits} AI Credits`
+                        : "Chưa có thông tin lượt"}
+                    </span>
                   </span>
                 </div>
               )}
