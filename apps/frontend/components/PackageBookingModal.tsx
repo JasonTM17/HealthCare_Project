@@ -977,7 +977,7 @@ export default function PackageBookingModal({
                     type="email"
                     required
                     autoComplete="email"
-                    placeholder="patient@example.com"
+                    placeholder="email@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     disabled={isSubmitting}
