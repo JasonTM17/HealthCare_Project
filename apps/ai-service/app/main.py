@@ -23,6 +23,7 @@ from app.chatbot import (
 )
 from app.embeddings import EmbeddingResult, embed
 from app.llm import (
+    _mask_known_public_hotlines,
     chat_safety_response,
     contains_sensitive_or_injection,
     public_context_is_relevant,
@@ -377,7 +378,7 @@ def _reject_unsafe_egress_text(
 
     if any(
         contains_sensitive_or_injection(
-            value,
+            _mask_known_public_hotlines(value),
             allow_public_operational=allow_public_operational,
         )
         for value in values

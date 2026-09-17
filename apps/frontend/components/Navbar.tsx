@@ -226,7 +226,7 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
             <Link className="utility-hours" href="/branches"><Icon name="clock" size={15} />Xem giờ làm việc</Link>
           </div>
           <div className="utility-bar__right">
-            <Link href="/huong-dan">Hướng dẫn khách hàng</Link>
+            <Link href="/huong-dan">Hướng dẫn khám</Link>
             <Link href="/tra-cuu">Tra cứu lịch hẹn</Link>
           </div>
         </div>

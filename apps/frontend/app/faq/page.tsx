@@ -72,7 +72,7 @@ export default function FaqPage() {
       <div aria-busy={loading} className="resource-page section-inner">
         <header className="resource-page__header">
           <p className="section-note">Hỗ trợ người bệnh</p>
-          <h1>Giải đáp nhanh, rồi mới tới cuộc hẹn</h1>
+          <h1>Câu hỏi thường gặp & Hướng dẫn y khoa</h1>
           <p>
             Các câu hỏi thường gặp giúp bạn nắm nhanh cách đặt lịch, chuẩn bị trước khi khám và
             biết khi nào nên chuyển sang trao đổi trực tiếp.
@@ -90,7 +90,7 @@ export default function FaqPage() {
         ) : null}
         {!loading && !error && page?.empty ? (
           <div className="catalog-status" role="status">
-            <p>Hiện chưa có dữ liệu thật của hệ thống để hiển thị câu hỏi đã duyệt. Bạn vẫn có thể xem hướng dẫn đặt lịch hoặc liên hệ bệnh viện để được hỗ trợ theo tình huống cụ thể.</p>
+            <p>Danh mục câu hỏi thường gặp đang được cập nhật nội dung mới nhất. Quý khách vui lòng xem hướng dẫn khám hoặc liên hệ đường dây nóng để được hỗ trợ trực tiếp.</p>
             <div className="resource-actions">
               <Link className="outline-button outline-button--small" href="/contact">Liên hệ bệnh viện</Link>
               <PublicBookingButton className="button button--amber">Đặt lịch khám</PublicBookingButton>
@@ -122,7 +122,7 @@ export default function FaqPage() {
               </div>
               <div>
                 <dt>Trạng thái</dt>
-                <dd>{loading ? "Đang tải" : page && !page.empty ? "Có thể tra cứu" : "Chưa có câu hỏi đã duyệt"}</dd>
+                <dd>{loading ? "Đang tải" : page && !page.empty ? "Có thể tra cứu" : "Đang cập nhật"}</dd>
               </div>
             </dl>
           </div>
@@ -145,7 +145,7 @@ export default function FaqPage() {
 
           <section className="resource-panel">
             <p className="section-note">Cách đọc nhanh</p>
-            <h2>Ba bước để đi từ FAQ sang hành động</h2>
+            <h2>3 bước tra cứu và kết nối thăm khám</h2>
             <div className="resource-steps resource-steps--grid">
               {FAQ_STEPS.map((step) => (
                 <div className="resource-step-card" key={step.number}>

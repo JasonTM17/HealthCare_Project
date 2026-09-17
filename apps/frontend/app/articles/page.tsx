@@ -222,7 +222,7 @@ export default function ArticlesPage() {
         <div className="resource-grid resource-grid--two">
           <section className="resource-panel resource-panel--accent">
             <p className="section-note">Đọc cẩm nang an toàn</p>
-            <h2>Ba bước trước khi tự diễn giải thông tin</h2>
+            <h2>Lưu ý quan trọng khi tham khảo kiến thức y khoa</h2>
             <div className="resource-steps resource-steps--grid">
               {READING_STEPS.map(([number, title, description]) => (
                 <div className="resource-step-card" key={number}>
@@ -236,7 +236,7 @@ export default function ArticlesPage() {
 
           <section className="resource-panel">
             <p className="section-note">Nội dung nổi bật</p>
-            <h2>Điểm bắt đầu cho hôm nay</h2>
+            <h2>Chuyên đề y khoa nổi bật</h2>
             {featuredArticle ? (
               <>
                 <Link

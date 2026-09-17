@@ -135,10 +135,9 @@ export default function SpecialtiesPage() {
           </div>
           <div className="resource-hero-card__body">
             <p className="resource-chip">Chọn chuyên khoa</p>
-            <h2>Một lối vào thống nhất trước khi bạn đặt lịch.</h2>
+            <h2>Định hướng chuyên khoa chuẩn xác trước khi đặt lịch.</h2>
             <p className="resource-lead">
-              Dùng trợ lý triệu chứng để định hướng ban đầu, rồi mở đúng chuyên khoa hoặc bác sĩ phù
-              hợp thay vì đoán mò từ đầu.
+              Sử dụng trợ lý triệu chứng AI để được gợi ý chuyên khoa phù hợp, giúp Quý khách chuẩn bị chu đáo và tiết kiệm thời gian thăm khám.
             </p>
             <div className="resource-actions">
               <PublicAiButton className="outline-button outline-button--light">Hỏi trợ lý triệu chứng</PublicAiButton>
@@ -185,10 +184,10 @@ export default function SpecialtiesPage() {
 
           <section className="resource-panel">
             <p className="section-note">Chuyên khoa nổi bật</p>
-            <h2>Điểm bắt đầu của danh mục</h2>
+            <h2>Chuyên khoa tiêu biểu</h2>
             {featuredSpecialty ? (
               <>
-                <p>{featuredSpecialty.description || "Mô tả chuyên khoa đang chờ duyệt. Hãy mở hồ sơ hoặc đặt lịch để được định hướng đúng nhu cầu."}</p>
+                <p>{featuredSpecialty.description || "Thông tin chuyên khoa đang được cập nhật chi tiết. Quý khách vui lòng liên hệ tổng đài hoặc đặt lịch để được bác sĩ tư vấn."}</p>
                 <div className="resource-actions">
                   <Link className="text-button" href={`/specialties/${featuredSpecialty.slug}`}>
                     Mở hồ sơ chuyên khoa →
@@ -244,7 +243,7 @@ export default function SpecialtiesPage() {
 
                     <h2 className="specialty-card__title">{specialty.name}</h2>
                     <p className="specialty-card__desc">
-                      {specialty.description || "Mô tả chuyên khoa đang chờ duyệt. Hãy mở hồ sơ hoặc đặt lịch để được định hướng đúng nhu cầu."}
+                      {specialty.description || "Thông tin chuyên khoa đang được cập nhật chi tiết. Quý khách vui lòng liên hệ tổng đài hoặc đặt lịch để được bác sĩ tư vấn."}
                     </p>
 
                     {specialty.commonSymptoms && specialty.commonSymptoms.length > 0 && (

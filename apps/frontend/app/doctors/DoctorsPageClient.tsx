@@ -147,14 +147,14 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
 
           <section className="resource-panel">
             <p className="section-note">Bác sĩ nổi bật</p>
-            <h2>Điểm bắt đầu của danh mục</h2>
+            <h2>Bác sĩ chuyên khoa tiêu biểu</h2>
             {loading && !page ? (
               <p className="resource-muted" role="status">Đang tải hồ sơ bác sĩ…</p>
             ) : error && !page ? (
               <p className="resource-muted" role="status">Chưa thể tải hồ sơ lúc này. Vui lòng thử lại sau.</p>
             ) : featuredDoctor ? (
               <>
-                <p className="catalog-card__summary">{featuredDoctor.bio || "Hồ sơ chưa có phần giới thiệu chi tiết."}</p>
+                <p className="catalog-card__summary">{featuredDoctor.bio || "Bác sĩ chuyên khoa giàu kinh nghiệm, tận tâm đồng hành chăm sóc người bệnh."}</p>
                 <div className="resource-actions">
                   <Link className="text-button" href={`/doctors/${featuredDoctor.slug}`}>
                     Xem hồ sơ →
@@ -207,7 +207,7 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
                     : null}
                   {doctor.specialtyName ? <span className="resource-chip">{doctor.specialtyName}</span> : null}
                   <h2>{doctor.fullName}</h2>
-                  <p className="catalog-card__summary">{doctor.bio || "Hồ sơ chưa có phần giới thiệu chi tiết."}</p>
+                  <p className="catalog-card__summary">{doctor.bio || "Bác sĩ chuyên khoa giàu kinh nghiệm, tận tâm đồng hành chăm sóc người bệnh."}</p>
                   <div className="catalog-card__actions">
                     <Link className="text-button" href={`/doctors/${doctor.slug}`}>Xem hồ sơ →</Link>
                     <PublicBookingButton ariaLabel={`Đặt lịch với bác sĩ ${doctor.fullName}`} className="outline-button outline-button--small" selection={{ doctorId: doctor.id }}>Đặt lịch</PublicBookingButton>

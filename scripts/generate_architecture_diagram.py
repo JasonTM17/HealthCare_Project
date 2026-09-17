@@ -164,7 +164,7 @@ def generate_architecture_svg(output_path):
     lines.append('      <circle cx="28" cy="24" r="12" fill="#DCFCE7"/>')
     lines.append('      <path d="M 28 14 A 10 10 0 1 0 28 34 M 18 24 H 38 M 28 14 C 24 18 24 30 28 34 C 32 30 32 18 28 14" stroke="#16A34A" stroke-width="1.5" fill="none"/>')
     lines.append('      <text x="50" y="24" font-size="13" font-weight="700" fill="#0F172A">Custom Domain &amp; Anycast Edge</text>')
-    lines.append('      <text x="50" y="40" class="mono" font-size="11" font-weight="600" fill="#15803D">www.healthcare.id.vn • healthcare-two-olive</text>')
+    lines.append('      <text x="50" y="40" class="mono" font-size="11" font-weight="600" fill="#15803D">www.healthcare.id.vn (Production)</text>')
     lines.append('      <text x="50" y="56" font-size="10.5" fill="#475569">Global SSL/TLS 1.3 Termination, Edge Static Caching</text>')
     lines.append('    </g>')
 

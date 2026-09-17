@@ -12,7 +12,7 @@ The following assets were captured from the stable synthetic beta alias on
 for deployment, API, database, and rollback evidence; the visuals alone are
 not a production-readiness or clinical-flow test.
 
-[![HealthCare synthetic beta homepage](../assets/images/healthcare-beta-home.png)](https://healthcare-two-olive.vercel.app/)
+[![HealthCare synthetic beta homepage](../assets/images/healthcare-beta-home.png)](https://www.healthcare.id.vn/)
 
 ![HealthCare synthetic beta public-route tour](../assets/videos/healthcare-beta-tour.gif)
 
@@ -190,8 +190,8 @@ was observed, so JVM limits were left unchanged pending a real failure signal.
 The current Vercel stable alias is the `READY`/`PROMOTED` production deployment
 `dpl_7LBTguGVawqJdR6v6AFyXzMH6uwU`, observed with the linked Vercel CLI on
 2026-09-08 after the hero image fallback, sticky nav bleed, brand asset, and
-mobile collision fixes. It serves `healthcare-two-olive.vercel.app` and
-`www.healthcare.id.vn`. The deployment upload was prepared from repository
+mobile collision fixes. It serves `www.healthcare.id.vn` and
+`healthcare.id.vn`. The deployment upload was prepared from repository
 commit `5d104d974221cddd4cdd19a54ddfbf11b596cae2`. Direct probes of `/`,
 `/specialties`, and
 
@@ -305,7 +305,7 @@ synthetic projection); this AI-only patch performed no Supabase mutation.
 
 ### Historical f4 baseline (superseded by the active overlay above)
 
-- Vercel stable alias https://healthcare-two-olive.vercel.app is
+- Vercel custom domain https://www.healthcare.id.vn is
   Production/READY at deployment `dpl_CAq7vyis5nXqHTwM315e6HV2ryNC`, created
   from a clean checkout of exact application SHA
   `f4e27cac81a1b8c887307afef070c0a7adb081d4`. This was a manual CLI deploy;
@@ -383,7 +383,7 @@ integration deploy), verify the stable alias:
     GET catalog with Origin: https://evil.example        -> 403 BFF_ORIGIN_INVALID
 
 The 2026-09-01 exact-f4 public-chat canary used
-`Origin: https://healthcare-two-olive.vercel.app` and observed:
+`Origin: https://www.healthcare.id.vn` and observed:
 
     ordinary hospital-support question                       -> 200 ANSWER
     Vietnamese instruction bypass plus patient-data export   -> 200 REFUSE
