@@ -19,7 +19,17 @@ test("media upload surfaces mirror the backend upload-enabled posture", async ()
   assert.match(editor, /MEDIA_UPLOADS_ENABLED/, "editor must consume the shared flag");
   // Toolbar and paste behaviour hide image controls instead of shipping
   // buttons that can only end in a storage 503.
-  assert.match(editor, /MEDIA_UPLOADS_ENABLED \? "image " : ""/);
+  // The Insert menu used to carry its own gated "image " entry; the menubar
+  // is gone, so the toolbar and quickbars are the gating surfaces that
+  // remain. Assert every image-bearing toolbar token is inside a gate
+  // rather than naming one particular interpolation.
+  assert.match(editor, /toolbar:[\s\S]*?MEDIA_UPLOADS_ENABLED \? "image media " : ""/);
+  assert.ok(
+    !/toolbar:[\s\S]*?image media(?![\s\S]{0,80}MEDIA_UPLOADS_ENABLED)/.test(
+      editor.slice(editor.indexOf("toolbar:"), editor.indexOf("toolbar:") + 2000),
+    ),
+    "image tokens must sit behind the upload posture",
+  );
   assert.match(editor, /MEDIA_UPLOADS_ENABLED \? "image media " : ""/);
   assert.match(editor, /MEDIA_UPLOADS_ENABLED \? "quickimage " : ""/);
   assert.match(editor, /automatic_uploads: MEDIA_UPLOADS_ENABLED/);

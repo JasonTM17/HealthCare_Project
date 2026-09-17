@@ -385,8 +385,13 @@ test("RichTextEditor integrates TinyMCE with self-hosted assets, menubar, toolba
   assert.match(editor, /base_url:\s*"\/tinymce"/);
   assert.match(editor, /suffix:\s*"\.min"/);
 
-  // Menubar matching user screenshot
-  assert.match(editor, /menubar:\s*"file edit view insert format tools table"/);
+  // No menubar: its labels were English in a Vietnamese product and TinyMCE
+  // ships language packs separately, so the commands live on the toolbar and
+  // the untranslated chrome is gone. Every menubar-only command is asserted to
+  // be reachable below, so this is a relocation rather than a capability loss.
+  assert.match(editor, /menubar:\s*false/, "the English menubar must stay disabled");
+  assert.doesNotMatch(editor, /menubar:\s*"file edit/, "the menubar must not come back without a vi language pack");
+  assert.match(editor, /toolbar_mode:\s*"wrap"/, "the wider toolbar must wrap instead of overflowing");
 
   // Toolbar matching user screenshot
   assert.match(editor, /toolbar:[\s\S]*?undo redo/);
@@ -395,7 +400,7 @@ test("RichTextEditor integrates TinyMCE with self-hosted assets, menubar, toolba
   assert.match(editor, /toolbar:[\s\S]*?alignleft aligncenter alignright alignjustify/);
   assert.match(editor, /toolbar:[\s\S]*?bullist numlist outdent indent/);
   // Image controls are gated on the backend upload posture (storage 503 honesty)
-  assert.match(editor, /toolbar:[\s\S]*?table link \$\{/);
+  assert.match(editor, /toolbar:[\s\S]*?table tablecellprops[\s\S]*?\$\{/);
   assert.match(editor, /toolbar:[\s\S]*?MEDIA_UPLOADS_ENABLED \? "image media " : ""/);
   assert.match(editor, /toolbar:[\s\S]*?clinical_warning doctor_note dosage_guide emergency_box/);
 
@@ -418,7 +423,7 @@ test("RichTextEditor integrates TinyMCE with self-hosted assets, menubar, toolba
   assert.doesNotMatch(renderer, /dangerouslySetInnerHTML/);
 });
 
-test("TinyMCE menubar commands all map to registered self-hosted plugins (no dead menu entries)", async () => {
+test("TinyMCE toolbar commands all map to registered self-hosted plugins (no dead toolbar entries)", async () => {
   const [editor, fs] = await Promise.all([read("components/editor/RichTextEditor.tsx"), import("node:fs/promises")]);
 
   // Parse the plugins array from the init config
@@ -435,54 +440,82 @@ test("TinyMCE menubar commands all map to registered self-hosted plugins (no dea
     );
   }
 
-  // Parse every menubar items string (File/Edit/View/Insert/Format/Tools/Table)
-  const menuTokens = new Set();
-  for (const itemsMatch of editor.matchAll(/items:\s*"([^"]+)"/g)) {
-    for (const token of itemsMatch[1].split(/\s+/)) {
-      if (token && token !== "|") menuTokens.add(token);
-    }
-  }
+  // The menubar is gone, so the toolbar is now the whole surface: parse it and
+  // hold it to the same guarantee the menubar used to carry. A toolbar token
+  // naming a plugin that is not registered is silently dropped by TinyMCE, so
+  // the button simply never appears and the author has no way to notice.
+  const toolbarMatch = editor.match(/toolbar:\s*`([\s\S]*?)`/);
+  assert.ok(toolbarMatch, "toolbar template literal must be present");
+  const toolbarTokens = new Set(
+    toolbarMatch[1]
+      .replace(/\$\{[^}]*\}/g, " ")
+      .split(/[\s|]+/)
+      .filter(Boolean),
+  );
 
-  // Menu commands that require a backing plugin in TinyMCE 8
+  // Commands that require a backing plugin in TinyMCE 8. Commands absent from
+  // this map are core (undo, bold, alignleft, bullist, hr, anchor, pagebreak,
+  // nonbreaking, selectall, lineheight, removeformat) and need no plugin.
   const tokenPlugin = {
-    restoredraft: "autosave",
     preview: "preview",
     code: "code",
-    visualchars: "visualchars",
     visualblocks: "visualblocks",
     fullscreen: "fullscreen",
     image: "image",
     link: "link",
     media: "media",
-    codesample: "codesample",
     charmap: "charmap",
     emoticons: "emoticons",
-    wordcount: "wordcount",
-    inserttable: "table",
-    cell: "table",
-    row: "table",
-    column: "table",
-    tableprops: "table",
-    deletetable: "table",
+    searchreplace: "searchreplace",
+    insertdatetime: "insertdatetime",
+    accordion: "accordion",
+    table: "table",
+    tablecellprops: "table",
+    tablemergecells: "table",
+    tablesplitcells: "table",
+    tableinsertrowbefore: "table",
+    tableinsertrowafter: "table",
+    tabledeleterow: "table",
+    tableinsertcolbefore: "table",
+    tableinsertcolafter: "table",
+    tabledeletecol: "table",
   };
 
   for (const [token, plugin] of Object.entries(tokenPlugin)) {
-    if (!menuTokens.has(token)) continue;
+    if (!toolbarTokens.has(token)) continue;
     assert.ok(
       registeredPlugins.includes(plugin),
-      `menu command "${token}" requires plugin "${plugin}" which is absent from the plugins array`
+      `toolbar command "${token}" requires plugin "${plugin}" which is absent from the plugins array`
     );
   }
 
   // TinyMCE 8 removed the template and print plugins upstream: referencing them
-  // in a menu silently drops the entry, so they must never come back without
-  // re-adding the assets first.
-  assert.ok(!menuTokens.has("template"), "menu token 'template' has no TinyMCE 8 plugin; remove it from the Insert menu");
-  assert.ok(!menuTokens.has("print"), "menu token 'print' has no TinyMCE 8 plugin; remove it from the File menu");
+  // silently drops the button, so they must never come back without re-adding
+  // the assets first.
+  assert.ok(!toolbarTokens.has("template"), "toolbar token 'template' has no TinyMCE 8 plugin");
+  assert.ok(!toolbarTokens.has("print"), "toolbar token 'print' has no TinyMCE 8 plugin");
 
-  // clinical_callouts must be registered as a real Insert-menu item (sharing the
-  // toolbar menu button's entries), otherwise the menubar token is dropped.
-  assert.match(editor, /addNestedMenuItem\("clinical_callouts"/);
+  // Every command that lived only in the removed menubar must now be on the
+  // toolbar, otherwise dropping the menubar would have quietly cost capability.
+  const menubarOnlyCommands = [
+    "selectall", "lineheight", "visualblocks", "hr", "anchor", "pagebreak", "nonbreaking",
+    "tablecellprops", "tablemergecells", "tablesplitcells",
+    "tableinsertrowbefore", "tableinsertrowafter", "tabledeleterow",
+    "tableinsertcolbefore", "tableinsertcolafter", "tabledeletecol",
+  ];
+  for (const command of menubarOnlyCommands) {
+    assert.ok(
+      toolbarTokens.has(command),
+      `"${command}" was only reachable from the menubar and is now unreachable`
+    );
+  }
+
+  // The four clinical callout buttons stay on the toolbar; the grouped menu
+  // button was menubar-only and is not required for the capability.
+  for (const callout of ["clinical_warning", "doctor_note", "dosage_guide", "emergency_box"]) {
+    assert.ok(toolbarTokens.has(callout), `callout button "${callout}" missing from the toolbar`);
+  }
+  assert.match(editor, /addMenuButton\("clinical_callouts"/);
   assert.match(editor, /getSubmenuItems:\s*\(\)\s*=>/);
 });
 
