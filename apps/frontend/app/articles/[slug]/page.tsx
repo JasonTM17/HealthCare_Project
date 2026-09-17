@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import ClinicalIcon from "../../../components/ClinicalIcon";
 import { ApiError, fetchArticleBySlug } from "../../../lib/api-client";
+import { resolveArticleCategoryLabel } from "../../../lib/article-category";
 import { formatBusinessDate } from "../../../lib/business-time";
 import { presentApiError } from "../../../lib/present-api-error";
 import type { Article } from "../../../types/hospital";
@@ -152,10 +153,10 @@ export default function ArticleDetailPage() {
                     <ClinicalIcon name="article" />
                   </div>
                   {article.category ? (
-                    <span className="article-editorial-header__cat-tag">{article.category}</span>
+                    <span className="article-editorial-header__cat-tag">{resolveArticleCategoryLabel(article.category, "Chuyên đề")}</span>
                   ) : null}
                   <span className="article-editorial-header__trust-tag">
-                    🛡️ Tham vấn y khoa (Peer-reviewed)
+                    <span aria-hidden="true">🛡️</span> Tham vấn y khoa chuyên khoa
                   </span>
                   <span className="resource-chip">Nội dung tham khảo · không thay thế chẩn đoán</span>
                 </div>
@@ -172,7 +173,7 @@ export default function ArticleDetailPage() {
                         {article.authorName || "Hội đồng Cố vấn Y khoa"}
                       </div>
                       <div className="article-editorial-header__author-role">
-                        {article.category ? `Bác sĩ Chuyên khoa ${article.category}` : "Bác sĩ Chuyên khoa Bệnh viện"}
+                        {article.category ? `Bác sĩ Chuyên khoa ${resolveArticleCategoryLabel(article.category, "")}` : "Bác sĩ Chuyên khoa Bệnh viện"}
                       </div>
                     </div>
                   </div>
@@ -184,7 +185,7 @@ export default function ArticleDetailPage() {
                     </div>
                     <div className="article-editorial-header__meta-item">
                       <dt>Cập nhật phác đồ</dt>
-                      <dd>{article.updatedAt ? formatBusinessDate(article.updatedAt) : "Năm 2026"}</dd>
+                      <dd>{article.updatedAt ? formatBusinessDate(article.updatedAt) : "Đang cập nhật"}</dd>
                     </div>
                     <div className="article-editorial-header__meta-item">
                       <dt>Thời lượng đọc</dt>
@@ -227,7 +228,7 @@ export default function ArticleDetailPage() {
                     {takeaways.length ? (
                       <li>
                         <a href="#section-takeaways" className="article-toc__link">
-                          💡 Điểm cốt lõi cần nhớ (Key Takeaways)
+                          <span aria-hidden="true">💡</span> Điểm cốt lõi cần nhớ
                         </a>
                       </li>
                     ) : null}
@@ -312,8 +313,8 @@ export default function ArticleDetailPage() {
                 {takeaways.length ? (
                   <section id="section-takeaways" className="article-news-summary-box">
                     <div className="article-news-summary-box__title">
-                      <span>💡</span>
-                      <strong>Điểm cốt lõi cần nhớ (Key Takeaways)</strong>
+                      <span aria-hidden="true">💡</span>
+                      <strong>Điểm cốt lõi cần nhớ</strong>
                     </div>
                     <ul className="article-news-summary-box__list">
                       {takeaways.map((point) => (
@@ -386,7 +387,7 @@ export default function ArticleDetailPage() {
                           className="outline-button outline-button--small"
                           href={`/specialties/${encodeURIComponent(article.relatedSpecialtySlug)}`}
                         >
-                          Tìm hiểu chuyên khoa {article.category || ""} →
+                          Tìm hiểu chuyên khoa {resolveArticleCategoryLabel(article.category, "")} →
                         </Link>
                       ) : null}
                     </div>
@@ -420,7 +421,7 @@ export default function ArticleDetailPage() {
                       <div>
                         <h4 className="article-news-eatt-card__name">{article.authorName || "Hội đồng Cố vấn Y khoa Chuyên sâu"}</h4>
                         <p className="article-news-eatt-card__title">
-                          {article.category ? `Bác sĩ Chuyên khoa ${article.category}` : "Bác sĩ Chuyên khoa Nội tổng quát"} · Bệnh viện đa khoa HealthCare
+                          {article.category ? `Bác sĩ Chuyên khoa ${resolveArticleCategoryLabel(article.category, "")}` : "Bác sĩ Chuyên khoa Nội tổng quát"} · Bệnh viện đa khoa HealthCare
                         </p>
                       </div>
                     </div>
@@ -433,7 +434,7 @@ export default function ArticleDetailPage() {
                           className="outline-button outline-button--small"
                           href={`/specialties/${encodeURIComponent(article.relatedSpecialtySlug)}`}
                         >
-                          Tìm hiểu chuyên khoa {article.category || ""} →
+                          Tìm hiểu chuyên khoa {resolveArticleCategoryLabel(article.category, "")} →
                         </Link>
                       </div>
                     ) : null}
@@ -474,7 +475,7 @@ export default function ArticleDetailPage() {
                     <span className="article-news-sidebar__doctor-badge">BÁC SĨ THAM VẤN</span>
                     <h3 className="article-news-sidebar__doctor-name">{article.authorName || "BS.CKI Đội ngũ Y khoa"}</h3>
                     <p className="article-news-sidebar__doctor-sub">
-                      {article.category ? `Khoa ${article.category}` : "Bệnh viện Đa khoa"}
+                      {article.category ? `Khoa ${resolveArticleCategoryLabel(article.category, "")}` : "Bệnh viện Đa khoa"}
                     </p>
                   </div>
                 </div>
@@ -490,7 +491,7 @@ export default function ArticleDetailPage() {
               {article.relatedSpecialtySlug ? (
                 <div className="article-news-sidebar__card article-news-sidebar__specialty">
                   <span className="article-news-sidebar__card-tag">CHUYÊN KHOA LIÊN QUAN</span>
-                  <h3>Khoa {article.category || "Chuyên môn"}</h3>
+                  <h3>Khoa {resolveArticleCategoryLabel(article.category, "Chuyên môn")}</h3>
                   <p>Tìm hiểu các dịch vụ khám, trang thiết bị chẩn đoán và đội ngũ bác sĩ chuyên khoa.</p>
                   <Link
                     className="outline-button outline-button--small"

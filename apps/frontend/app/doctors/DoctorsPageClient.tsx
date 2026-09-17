@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import CatalogPagination from "../../components/CatalogPagination";
-import { getDoctorPhoto } from "../../lib/doctor-portrait";
+import { getDoctorInitials, getDoctorPhoto } from "../../lib/doctor-portrait";
 import { useEffect, useState } from "react";
 import { fetchDoctors, fetchSpecialties, type Page } from "../../lib/api-client";
 import type { Doctor, Specialty } from "../../types/hospital";
@@ -192,15 +192,21 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
             <div className="catalog-grid catalog-grid--doctors">
               {visibleDoctors.map((doctor) => (
                 <article className="catalog-card" key={doctor.id}>
-                  <div className="resource-avatar" aria-hidden="true">
-                    <Image
-                      src={getDoctorPhoto(doctor)}
-                      alt={doctor.fullName}
-                      width={400}
-                      height={300}
-                      sizes="(max-width: 768px) 100vw, 360px"
-                      className="resource-avatar__img"
-                    />
+                  <div className="resource-avatar">
+                    {getDoctorPhoto(doctor) ? (
+                      <Image
+                        src={getDoctorPhoto(doctor) as string}
+                        alt={`Ảnh bác sĩ ${doctor.fullName}`}
+                        width={400}
+                        height={300}
+                        sizes="(max-width: 768px) 100vw, 360px"
+                        className="resource-avatar__img"
+                      />
+                    ) : (
+                      <span className="resource-avatar__initials" aria-hidden="true">
+                        {getDoctorInitials(doctor.fullName)}
+                      </span>
+                    )}
                   </div>
                   {doctor.demo || doctor.slug.startsWith("demo-bs-")
                     ? <span className="resource-chip resource-chip--muted">Hồ sơ minh họa</span>

@@ -35,8 +35,8 @@ export default function PrivacyPolicyPage() {
             Cách HealthCare xử lý thông tin đặt lịch
           </h1>
           <p className="mt-5 text-base leading-8 text-ink-muted">
-            Trang này mô tả phạm vi xử lý dữ liệu trong hệ thống HealthCare local MVP.
-            Đây không phải chứng nhận tuân thủ y tế hoặc pháp lý cho môi trường sản xuất.
+            Trang này mô tả cách HealthCare thu thập, sử dụng và bảo vệ thông tin bạn
+            cung cấp khi đặt lịch khám trực tuyến, cùng quyền của bạn đối với thông tin đó.
           </p>
           <div className="resource-actions mt-7">
             <PublicBookingButton className="button button--primary">Đặt lịch khám</PublicBookingButton>

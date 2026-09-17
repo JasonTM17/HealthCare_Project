@@ -19,23 +19,11 @@ import { formatBusinessDate } from "../../lib/business-time";
 import { presentApiError } from "../../lib/present-api-error";
 import type { Article, HealthQuestionSummary } from "../../types/hospital";
 import { resolveArticleCoverImage, resolveArticleAlt } from "../../lib/article-visuals";
+import { ARTICLE_CATEGORY_LABELS } from "../../lib/article-category";
 
 const ARTICLE_PAGE_SIZE = 9;
 const QUESTION_PAGE_SIZE = 4;
 
-const CATEGORY_LABELS: Record<string, string> = {
-  CARDIOLOGY: "Tim mạch",
-  DERMATOLOGY: "Da liễu",
-  ENDOCRINOLOGY: "Nội tiết",
-  GASTROENTEROLOGY: "Tiêu hóa",
-  GENERAL: "Sức khỏe tổng quát",
-  GYNECOLOGY: "Sản phụ khoa",
-  NEUROLOGY: "Thần kinh",
-  ONCOLOGY: "Ung bướu",
-  PEDIATRICS: "Nhi khoa",
-  RESPIRATORY: "Hô hấp",
-  UROLOGY: "Tiết niệu",
-};
 
 const TOPIC_LABELS: Record<string, string> = {
   ANXIETY: "Lo âu và giấc ngủ",
@@ -61,7 +49,7 @@ function labelForToken(value: string | null | undefined, labels: Record<string, 
 }
 
 function articleCategory(article: Article): string {
-  return labelForToken(article.category, CATEGORY_LABELS, "Bệnh phổ biến");
+  return labelForToken(article.category, ARTICLE_CATEGORY_LABELS, "Bệnh phổ biến");
 }
 
 function topicLabel(topic: string): string {
@@ -261,7 +249,7 @@ export default function CommonDiseasesPage() {
               <select className="disease-filter__control" id="disease-category" value={category} onChange={(event) => setCategory(event.target.value)}>
                 <option value="ALL">Tất cả chuyên đề</option>
                 {categories.map((value) => (
-                  <option key={value} value={value.toUpperCase()}>{labelForToken(value, CATEGORY_LABELS, "Chuyên đề sức khỏe")}</option>
+                  <option key={value} value={value.toUpperCase()}>{labelForToken(value, ARTICLE_CATEGORY_LABELS, "Chuyên đề sức khỏe")}</option>
                 ))}
               </select>
             </label>
