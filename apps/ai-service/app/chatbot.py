@@ -10,6 +10,7 @@ linearization points before persisting an answer.
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -21,6 +22,8 @@ from app.llm import (
     context_contains_unsafe_data,
     normalize_sensitive_text,
     patient_chat_remote_enabled,
+    public_chat_mode_for_query,
+    public_education_topic_tokens,
     resolve_chat,
     rule_based_triage,
 )
@@ -56,6 +59,7 @@ from app.schemas import (
 
 DEFAULT_RELEVANCE_THRESHOLD = 0.35
 MAX_CONTEXT_CHARS = 2_000
+MAX_PATIENT_EXCERPT_CHARS = 720
 _SPECIALTY_GUIDANCE_TERMS = (
     "chuyen khoa nao",
     "kham khoa nao",
@@ -587,15 +591,58 @@ def focus_public_retrieval_hits(
     message: str,
     hits: Sequence[tuple[RagDocument, float]],
 ) -> list[tuple[RagDocument, float]]:
-    """Focus public specialty guidance on the best symptom-aligned rows.
+    """Focus public retrieval on the best topic-aligned rows.
 
     Public ``/chat`` performs retrieval directly so it can preserve the
     server-owned source allowlist.  Before this focus pass, a local hash
     embedder could return several unrelated specialty rows and the generator
     would concatenate all of them into one answer.  Keep the best specialty
-    match (ties are retained for genuinely multi-system symptoms) while
-    preserving the original retrieval order and score.
+    or education match (ties are retained for genuinely multi-topic queries)
+    while preserving the original retrieval order and score.
     """
+
+    if not hits:
+        return []
+    if public_chat_mode_for_query(message) is ChatMode.HEALTH_EDUCATION:
+        topic_tokens = public_education_topic_tokens(message)
+        if len(topic_tokens) < 2:
+            return []
+        topic_set = set(topic_tokens)
+        topic_phrase = " ".join(topic_tokens)
+        ranked_education: list[tuple[RagDocument, float, int]] = []
+        for document, score in hits:
+            if getattr(document, "source_type", "") not in {"article", "faq"}:
+                continue
+            title = normalize_sensitive_text(getattr(document, "title", ""))
+            content = normalize_sensitive_text(getattr(document, "content", ""))
+            full_text = f"{title}: {content}"
+            full_tokens = set(re.findall(r"\b[a-z0-9]{2,}\b", full_text))
+            if topic_phrase not in full_text and not topic_set.issubset(full_tokens):
+                continue
+            education_title_tokens = set(re.findall(r"\b[a-z0-9]{2,}\b", title))
+            match_score = len(topic_set.intersection(education_title_tokens)) * 10
+            if topic_phrase in title:
+                match_score += 100
+            elif topic_phrase in content:
+                match_score += 30
+            match_score += len(topic_set.intersection(full_tokens))
+            ranked_education.append((document, score, match_score))
+        if not ranked_education:
+            return []
+        best_score = max(match_score for _, _, match_score in ranked_education)
+        focused_ids = {
+            (getattr(document, "source_type", ""), getattr(document, "source_id", ""))
+            for document, _, match_score in ranked_education
+            if match_score == best_score
+        }
+        return [
+            (document, score)
+            for document, score in hits
+            if (
+                getattr(document, "source_type", ""),
+                getattr(document, "source_id", ""),
+            ) in focused_ids
+        ]
 
     hint_tokens = _specialty_guidance_hint_tokens(message)
     if not hint_tokens or not hits:
@@ -648,9 +695,43 @@ def _focus_candidates_for_question(
     mode: ChatMode,
     candidates: list[ChatCandidate],
 ) -> list[ChatCandidate]:
-    """Keep specialty guidance focused when a query asks which specialty to visit."""
+    """Keep clinical candidates focused on the user's explicit topic."""
 
-    if mode is not ChatMode.HOSPITAL_SUPPORT or not candidates:
+    if not candidates:
+        return candidates
+    if mode is ChatMode.HEALTH_EDUCATION:
+        topic_tokens = public_education_topic_tokens(message)
+        if len(topic_tokens) < 2:
+            return []
+        topic_set = set(topic_tokens)
+        topic_phrase = " ".join(topic_tokens)
+        ranked_education: list[tuple[ChatCandidate, int]] = []
+        for candidate in candidates:
+            if candidate.source_type not in {"article", "faq"}:
+                continue
+            title = normalize_sensitive_text(candidate.title)
+            education_title_tokens = set(re.findall(r"\b[a-z0-9]{2,}\b", title))
+            if topic_phrase not in title and not topic_set.issubset(education_title_tokens):
+                continue
+            match_score = len(topic_set.intersection(education_title_tokens))
+            if topic_phrase in title:
+                match_score += 100
+            ranked_education.append((candidate, match_score))
+        if not ranked_education:
+            return []
+        best_score = max(match_score for _, match_score in ranked_education)
+        focused_ids = {
+            (candidate.source_type, candidate.source_id)
+            for candidate, match_score in ranked_education
+            if match_score == best_score
+        }
+        return [
+            candidate
+            for candidate in candidates
+            if (candidate.source_type, candidate.source_id) in focused_ids
+        ]
+
+    if mode is not ChatMode.HOSPITAL_SUPPORT:
         return candidates
     normalized = normalize_sensitive_text(message)
     if not any(term in normalized for term in _SPECIALTY_GUIDANCE_TERMS):
@@ -737,8 +818,60 @@ def _insufficient_response(mode: ChatMode, *, reason: str = "") -> ChatResponse:
     )
 
 
+def _extract_serialized_sections(content: str) -> tuple[str, str]:
+    """Split a legacy article projection from a trailing JSON sections array.
+
+    Older SQL projections append ``sections::text`` to the searchable content.
+    That is useful for retrieval but must never appear as implementation-shaped
+    JSON in a patient-facing answer.  Only a valid, trailing list of section
+    objects is transformed; unrelated bracketed text remains untouched.
+    """
+
+    decoder = json.JSONDecoder()
+    for index, character in enumerate(content):
+        if character != "[":
+            continue
+        try:
+            payload, consumed = decoder.raw_decode(content[index:])
+        except json.JSONDecodeError:
+            continue
+        trailing = content[index + consumed :].strip(" \t\r\n.,;:")
+        if trailing or not isinstance(payload, list) or not payload:
+            continue
+
+        rendered: list[str] = []
+        valid = True
+        for section in payload:
+            if not isinstance(section, dict):
+                valid = False
+                break
+            heading = section.get("heading") or section.get("title")
+            body = section.get("body") or section.get("content")
+            heading_text = heading.strip() if isinstance(heading, str) else ""
+            body_text = body.strip() if isinstance(body, str) else ""
+            if not heading_text and not body_text:
+                valid = False
+                break
+            rendered.append(
+                f"{heading_text}: {body_text}".strip(": ")
+                if heading_text and body_text
+                else heading_text or body_text
+            )
+        if valid:
+            return content[:index].rstrip(" \t\r\n:;,-"), "\n".join(rendered)
+    return content, ""
+
+
+def _clean_patient_source_content(content: str) -> str:
+    """Render indexed source text without leaking storage serialization."""
+
+    prefix, sections = _extract_serialized_sections(str(content))
+    parts = [part for part in (prefix, sections) if part.strip()]
+    return normalize_content("\n".join(parts))
+
+
 def _grounded_excerpt(meta: _SourceMetadata) -> str:
-    """Render concise source-owned text for the patient-facing answer."""
+    """Render concise, source-owned text for the patient-facing answer."""
 
     title = str(getattr(meta.document, "title", "")).strip()
     if meta.document.source_type == "doctor":
@@ -746,7 +879,7 @@ def _grounded_excerpt(meta: _SourceMetadata) -> str:
         # the source-authorized, branch-aware title is the useful answer fact.
         return f"{title}." if title and not title.endswith(".") else title
 
-    content = str(getattr(meta.document, "content", "")).strip()
+    content = _clean_patient_source_content(str(getattr(meta.document, "content", ""))).strip()
     if content.casefold().startswith(title.casefold()):
         content = content[len(title):].lstrip(" :\n-\t")
     if meta.document.source_type == "branch":
@@ -756,9 +889,17 @@ def _grounded_excerpt(meta: _SourceMetadata) -> str:
         content = re.sub(r"https?://\S+", "", content, flags=re.IGNORECASE)
         content = re.sub(r"\[[^\]]*\]", "", content)
         content = re.sub(r"\s{2,}", " ", content).strip(" ,;.-")
-    content = content[:MAX_CONTEXT_CHARS].strip()
+    if len(content) > MAX_PATIENT_EXCERPT_CHARS:
+        content = content[:MAX_PATIENT_EXCERPT_CHARS].rsplit(" ", 1)[0].rstrip(" ,;:-") + "…"
+    content = content.strip()
     excerpt = f"{title}: {content}" if content else title
     return f"{excerpt}." if excerpt and excerpt[-1].isalnum() else excerpt
+
+
+def grounded_source_excerpt(document: RagDocument) -> str:
+    """Expose the same compact source renderer to the legacy chat path."""
+
+    return _grounded_excerpt(_source_metadata(document))
 
 
 def _local_grounded_response(
@@ -1105,7 +1246,9 @@ def generate_chat_response(
                 and all(_public_operational_context(meta) for meta in metas)
             )
             context = [
-                f"{meta.document.title}: {meta.document.content[:MAX_CONTEXT_CHARS]}" for meta in metas
+                f"{meta.document.title}: "
+                f"{_clean_patient_source_content(meta.document.content)[:MAX_CONTEXT_CHARS]}"
+                for meta in metas
             ]
             citations = [
                 Citation(

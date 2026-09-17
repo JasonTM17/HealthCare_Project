@@ -198,6 +198,34 @@ class AiChatSourceResolverTest {
     }
 
     @Test
+    void clinicalSourceActionsUseCompactLabelsWithoutHidingTheCitationTitle() {
+        AiChatSourceResolver resolver = new AiChatSourceResolver(
+            mock(BranchRepository.class),
+            mock(SpecialtyRepository.class),
+            mock(DoctorRepository.class),
+            mock(ServiceRepository.class),
+            mock(PackageRepository.class),
+            mock(ArticleRepository.class),
+            mock(FaqRepository.class),
+            mock(JdbcTemplate.class));
+
+        AiChatSourceResolver.ResolvedSource article = new AiChatSourceResolver.ResolvedSource(
+            "article", UUID.randomUUID().toString(), "Hướng dẫn chăm sóc mắt", "huong-dan-cham-soc-mat",
+            true, true, "CLINICAL", 1L, 1L, "hash", "approval",
+            "/articles/huong-dan-cham-soc-mat", null);
+        AiChatSourceResolver.ResolvedSource faq = new AiChatSourceResolver.ResolvedSource(
+            "faq", UUID.randomUUID().toString(), "Cần chuẩn bị gì trước khi khám?", null,
+            true, true, "CLINICAL", 1L, 1L, "hash-2", "approval-2",
+            "/faq#faq-00000000-0000-0000-0000-000000000001", null);
+
+        assertThat(resolver.actions(List.of(article, faq))).containsExactly(
+            Map.of("kind", "VIEW_SOURCE", "label", "Đọc bài viết", "href", "/articles/huong-dan-cham-soc-mat"),
+            Map.of("kind", "VIEW_SOURCE", "label", "Xem câu trả lời", "href", "/faq#faq-00000000-0000-0000-0000-000000000001"));
+        assertThat(article.title()).isEqualTo("Hướng dẫn chăm sóc mắt");
+        assertThat(faq.title()).isEqualTo("Cần chuẩn bị gì trước khi khám?");
+    }
+
+    @Test
     void hospitalSupportDoctorIdentityIncludesAssignedBranchForDisambiguation() {
         BranchRepository branches = mock(BranchRepository.class);
         SpecialtyRepository specialties = mock(SpecialtyRepository.class);
