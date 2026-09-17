@@ -49,7 +49,7 @@ public class DoctorPortalController {
     }
 
     @GetMapping("/profile")
-    public ResponseEntity<DoctorResponse> getProfile(
+    public ResponseEntity<com.healthcare.hospital.dto.DoctorProfileResponse> getProfile(
             @AuthenticationPrincipal UserDetails userDetails) {
         if (!(userDetails instanceof HealthcareUserPrincipal principal)) {
             throw new org.springframework.security.access.AccessDeniedException("Authenticated doctor profile is unavailable");
@@ -58,7 +58,7 @@ public class DoctorPortalController {
     }
 
     @org.springframework.web.bind.annotation.PutMapping("/profile")
-    public ResponseEntity<DoctorResponse> updateProfile(
+    public ResponseEntity<com.healthcare.hospital.dto.DoctorProfileResponse> updateProfile(
             @Valid @RequestBody com.healthcare.hospital.dto.UpdateDoctorProfileRequest request,
             @AuthenticationPrincipal UserDetails userDetails) {
         if (!(userDetails instanceof HealthcareUserPrincipal principal)) {

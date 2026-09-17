@@ -17,6 +17,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -52,8 +53,22 @@ public class ArticleCommentService {
 
     @Transactional
     public ArticleCommentResponse addComment(String articleSlug, CreateCommentRequest request, UserDetails actor) {
-        if (!articleRepository.findBySlug(articleSlug).isPresent()) {
-            throw new ResourceNotFoundException("Article not found: " + articleSlug);
+        // A comment must land on something readers can actually open. Checking
+        // only that the slug exists let comments attach to drafts and scheduled
+        // articles, and they surfaced the moment the article published — content
+        // nobody had moderated against a live page. The predicate here is the
+        // public read contract, so the two cannot drift.
+        articleRepository.findBySlugAndActiveTrueAndPublishedAtLessThanEqual(articleSlug, OffsetDateTime.now())
+            .orElseThrow(() -> new ResourceNotFoundException("Article not found: " + articleSlug));
+
+        if (request.parentCommentId() != null) {
+            ArticleComment parent = commentRepository.findById(request.parentCommentId())
+                .filter(ArticleComment::isActive)
+                .filter(candidate -> articleSlug.equals(candidate.getArticleSlug()))
+                .orElseThrow(() -> new BusinessException(
+                    400,
+                    com.healthcare.exception.ErrorCodes.VALIDATION_ERROR,
+                    "Câu trả lời không thuộc bài viết này hoặc đã bị gỡ."));
         }
 
         User user = userRepository.findByEmail(actor.getUsername())

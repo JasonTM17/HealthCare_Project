@@ -2,6 +2,15 @@ package com.healthcare.hospital.dto;
 
 import java.util.List;
 
+/**
+ * Public projection of a doctor.
+ *
+ * <p>Carries no internal accounting: the AI credit balance moved to
+ * {@link DoctorProfileResponse}, which only the authenticated profile endpoints
+ * return. This shape is served by the public catalog and by the portal
+ * appointment and care-plan surfaces, so anything added here is visible to
+ * anonymous visitors.
+ */
 public record DoctorResponse(
     String id,
     String fullName,
@@ -14,7 +23,6 @@ public record DoctorResponse(
     List<String> branchNames,
     List<String> specialtySlugs,
     String achievements,
-    Integer aiCredits,
     boolean demo
 ) {
     public DoctorResponse(
@@ -30,7 +38,7 @@ public record DoctorResponse(
         List<String> specialtySlugs,
         String achievements
     ) {
-        this(id, fullName, slug, bio, photoUrl, specialtyName, branchId, branchIds, branchNames, specialtySlugs, achievements, null, false);
+        this(id, fullName, slug, bio, photoUrl, specialtyName, branchId, branchIds, branchNames, specialtySlugs, achievements, false);
     }
     public DoctorResponse(
         String id,
@@ -44,6 +52,6 @@ public record DoctorResponse(
         List<String> branchNames,
         List<String> specialtySlugs
     ) {
-        this(id, fullName, slug, bio, photoUrl, specialtyName, branchId, branchIds, branchNames, specialtySlugs, null);
+        this(id, fullName, slug, bio, photoUrl, specialtyName, branchId, branchIds, branchNames, specialtySlugs, null, false);
     }
 }
