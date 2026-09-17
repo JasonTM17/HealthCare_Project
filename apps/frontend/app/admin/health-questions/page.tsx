@@ -51,11 +51,15 @@ export default function AdminHealthQuestionsPage() {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError("");
-    void adminListHealthQuestions({ page, size: ADMIN_QUEUE_PAGE_SIZE })
+    void Promise.resolve()
+      .then(() => {
+        if (cancelled) return undefined;
+        setLoading(true);
+        setError("");
+        return adminListHealthQuestions({ page, size: ADMIN_QUEUE_PAGE_SIZE });
+      })
       .then((value) => {
-        if (!cancelled) {
+        if (!cancelled && value) {
           setItems(value);
           setReportsByQuestion({});
           setOpenReports({});
