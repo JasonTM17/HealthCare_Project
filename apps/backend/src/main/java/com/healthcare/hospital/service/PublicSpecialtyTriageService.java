@@ -35,7 +35,8 @@ public class PublicSpecialtyTriageService {
     );
     private static final Pattern EMERGENCY = Pattern.compile(
         "(đau\\s+ngực\\s+dữ\\s+dội|khó\\s+thở\\s+nặng|tự\\s+tử|tự\\s+sát|xuất\\s+huyết\\s+nhiều|"
-            + "mất\\s+ý\\s+thức|chest\\s+pain|suicide)",
+            + "mất\\s+ý\\s+thức|bất\\s+tỉnh|đột\\s+quỵ|tai\\s+biến|đau\\s+tim|nhồi\\s+máu\\s+cơ\\s+tim|"
+            + "ngưng\\s+thở|ngưng\\s+tim|chest\\s+pain|suicide|stroke|heart\\s+attack|cardiac\\s+arrest|unconscious)",
         Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE
     );
     private static final Pattern PII = Pattern.compile(

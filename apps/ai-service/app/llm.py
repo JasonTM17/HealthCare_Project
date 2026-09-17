@@ -693,6 +693,10 @@ _EMERGENCY_TERMS = (
     "meo mieng", "yếu liệt", "yeu liet", "ngất", "ngat", "chảy máu không cầm",
     "chay mau khong cam", "tự tử", "tu tu", "co giật", "co giat",
     "chet di", "chết đi", "paraquat", "thuoc diet co", "thuốc diệt cỏ",
+    "đột quỵ", "dot quy", "tai biến", "tai bien",
+    "đau tim", "dau tim", "nhồi máu cơ tim", "nhoi mau co tim",
+    "ngưng thở", "ngung tho", "ngưng tim", "ngung tim",
+    "bất tỉnh", "bat tinh", "mất ý thức", "mat y thuc",
 )
 # Crisis phrasings rarely arrive as one exact substring: callers insert filler
 # words ("đau ngực quá dữ dội"), drop diacritics, or paraphrase self-harm
@@ -705,6 +709,7 @@ _EMERGENCY_PHRASE_PATTERN = re.compile(
     r"dau\W+(?:that\W+)?nguc(?:\W+\w{1,20}){0,6}\W{1,3}du\W+doi"
     r"|chay\W+mau(?:\W+\w{1,20}){0,6}\W{1,3}khong\W+cam"
     r"|kho\W+tho|meo\W+mieng|yeu\W+liet|co\W+giat|tu\W*tu"
+    r"|dot\W+quy|tai\W+bien|dau\W+tim|nhoi\W+mau\W+co\W+tim|ngung\W+tho|ngung\W+tim|bat\W+tinh|mat\W+y\W+thuc"
     r"|(?:khong\W+(?:con\W+)?|het\W+)muon\W+song|muon\W+chet|chet\W+di|ket\W+thuc\W+cuoc\W+(?:doi|song)"
     r"|khong\W+con\W+ly\W+do\W+song"
     r"|(?:dinh|muon)\W+tu\W+van\b"
@@ -729,6 +734,7 @@ _EMERGENCY_PHRASE_PATTERN = re.compile(
     r"|take\W+my\W+own\W+life|don'?t\W+want\W+to\W+live|hurt\w*\W+myself"
     r"|can'?t\W+go\W+on|no\W+reason\W+to\W+live"
     r"|chest\W+pain|shortness\W+of\W+breath|severe\W+bleeding"
+    r"|stroke|heart\W+attack|cardiac\W+arrest|unconscious"
     r"|unalive\w*|don'?t\W+want\W+to\W+be\W+here|disappear\w*\W+forever"
     r"|better\W+off\W+dead|end\W+it\W+all|not\W+worth\W+living"
     r"|cut\w*\W+myself|self\W*harm|overdos\w*|want\W+to\W+be\W+dead"
