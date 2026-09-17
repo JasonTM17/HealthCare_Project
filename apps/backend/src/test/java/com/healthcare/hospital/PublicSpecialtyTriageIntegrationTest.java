@@ -61,4 +61,15 @@ class PublicSpecialtyTriageIntegrationTest extends AbstractIntegrationTest {
             .andExpect(jsonPath("$.specialty_resolution").value("UNRESOLVED"))
             .andExpect(jsonPath("$.recommended_specialty_id").doesNotExist());
     }
+
+    @Test
+    void acuteEmergencySymptomsTriggerEmergencyLevel() throws Exception {
+        mockMvc.perform(post("/api/v1/public/specialty-recommendation")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(java.util.Map.of("symptoms", "Tôi bị đột quỵ và bất tỉnh"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.urgency_level").value("EMERGENCY"))
+            .andExpect(jsonPath("$.specialty_resolution").value("UNRESOLVED"))
+            .andExpect(jsonPath("$.recommended_specialty_id").doesNotExist());
+    }
 }
