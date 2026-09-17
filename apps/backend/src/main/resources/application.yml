@@ -105,6 +105,11 @@ app:
       # Shared only between the Next.js server and Spring. Leave blank for
       # direct local API-client testing; hosted beta must inject a secret.
       service-token: ${BACKEND_BFF_SERVICE_TOKEN:}
+      # Rotation window only. Set to the outgoing value while the frontend
+      # redeploys so both are accepted and no call 401s during the cutover;
+      # clear it once the frontend holds the new value. Leave unset otherwise —
+      # an accepted credential that nothing rotates is just another secret.
+      service-token-previous: ${BACKEND_BFF_SERVICE_TOKEN_PREVIOUS:}
       # Packaged/beta runtimes must set BACKEND_BFF_REQUIRED=true. Tests and a
       # bare local process keep the escape hatch off so MockMvc bearer clients work.
       required: ${BACKEND_BFF_REQUIRED:false}
