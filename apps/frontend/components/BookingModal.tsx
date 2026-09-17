@@ -667,7 +667,7 @@ function BookingExperience({
         ? ""
         : specialties[0]?.id ?? "";
     setSelectionError(requestedSpecialtyId && !requestedSpecialty
-      ? "Chuyên khoa từ trợ lý không còn trong danh mục hiện tại (catalog live). Vui lòng chọn lại trước khi tiếp tục."
+      ? "Chuyên khoa từ trợ lý không còn trong danh mục hiện tại. Vui lòng chọn lại trước khi tiếp tục."
       : "");
     const nextSpecialty = specialties.find((specialty) => specialty.id === nextSpecialtyId);
     const firstDoctor = doctors.find((doctor) => doctor.id === initialDoctorId

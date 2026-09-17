@@ -9750,6 +9750,23 @@ main {
   display: block;
 }
 
+/* Shown when no photograph of this clinician exists. A hospital must not
+   publish a stranger's face next to a named doctor, so the catalog renders
+   initials instead of substituting stock imagery. */
+.resource-avatar__initials {
+  align-items: center;
+  background: var(--color-teal-50, #e6f2f2);
+  color: var(--color-teal-900, #003336);
+  display: flex;
+  font-family: var(--font-display, inherit);
+  font-size: clamp(1.75rem, 4vw, 2.75rem);
+  font-weight: 700;
+  height: 100%;
+  justify-content: center;
+  letter-spacing: 0.02em;
+  width: 100%;
+}
+
 /* Professional clinical doctor portrait display */
 .catalog-grid--doctors .catalog-card {
   padding: var(--sp-5);
@@ -10664,7 +10681,7 @@ body:has(.mobile-menu) [class*="FloatingHealthAssistant_root"] {
   }
 }
 
-/* ── Authentic Newspaper / Hoàn Mỹ Hospital Editorial Article ── */
+/* ── Editorial medical-journal article layout ── */
 .article-news-page {
   background: #ffffff !important;
   color: #1e293b !important;

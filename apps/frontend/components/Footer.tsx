@@ -97,7 +97,7 @@ const Footer: React.FC<FooterProps> = ({ branches = [], cmsSlug }) => {
     ) : null}
 
     <div className="site-footer__bottom">
-      <span>© 2026 HealthCare. Bảo lưu mọi quyền.</span>
+      <span>© {new Date().getFullYear()} HealthCare. Bảo lưu mọi quyền.</span>
       <span>Thông tin trên website không thay thế chẩn đoán hoặc tư vấn trực tiếp từ bác sĩ.</span>
     </div>
 
