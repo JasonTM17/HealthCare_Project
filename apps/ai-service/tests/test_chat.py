@@ -1,6 +1,9 @@
 """Focused contract tests for the bounded chat endpoint."""
 
 from types import SimpleNamespace
+from typing import cast
+
+from app.rag import RagDocument
 from unittest.mock import MagicMock
 
 import pytest
@@ -505,7 +508,8 @@ def test_public_local_chat_focuses_specialty_guidance_on_matching_symptom(
 
 
 def test_specialty_guidance_focus_routes_lower_abdominal_pain_to_obgyn() -> None:
-    hits = [
+    # SimpleNamespace mirrors the RagDocument attributes focus_public_retrieval_hits reads.
+    hits: list[tuple[RagDocument, float]] = cast("list[tuple[RagDocument, float]]", [
         (
             SimpleNamespace(
                 source_type="specialty",
@@ -533,7 +537,7 @@ def test_specialty_guidance_focus_routes_lower_abdominal_pain_to_obgyn() -> None
             ),
             0.6,
         ),
-    ]
+    ])
 
     focused = focus_public_retrieval_hits("Tôi đau bụng dưới nên khám khoa nào?", hits)
 
@@ -541,7 +545,7 @@ def test_specialty_guidance_focus_routes_lower_abdominal_pain_to_obgyn() -> None
 
 
 def test_specialty_guidance_focus_routes_generic_abdominal_pain_to_digestive() -> None:
-    hits = [
+    hits: list[tuple[RagDocument, float]] = cast("list[tuple[RagDocument, float]]", [
         (
             SimpleNamespace(
                 source_type="specialty",
@@ -560,7 +564,7 @@ def test_specialty_guidance_focus_routes_generic_abdominal_pain_to_digestive() -
             ),
             0.7,
         ),
-    ]
+    ])
 
     focused = focus_public_retrieval_hits("Tôi đau bụng nên khám khoa nào?", hits)
 

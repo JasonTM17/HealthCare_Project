@@ -169,4 +169,3 @@ Evidence from `apps/frontend/lib/api-client.ts` and backend controller mapping g
 - Patient profile copy says administrative data is used for “xác minh bảo hiểm y tế” (`apps/frontend/app/patient/profile/page.tsx:377-380`).
 - Profile update shape contains no insurance/BHYT fields (`apps/frontend/lib/api-client.ts:2076-2093`; backend DTO `UpdatePatientProfileRequest.java:10-23`). Backend grep found appointment-level `has_insurance` and appointment email copy, but no patient profile insurance verification field/endpoint.
 - Patient impact: patients may believe the profile page verifies BHYT coverage, but the form cannot collect or verify insurance data.
-
