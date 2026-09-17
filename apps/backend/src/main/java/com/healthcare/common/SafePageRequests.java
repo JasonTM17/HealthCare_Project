@@ -75,4 +75,3 @@ public final class SafePageRequests {
         return size == null ? defaultSize : Math.min(Math.max(size, 1), hardMaxSize);
     }
 }
-
