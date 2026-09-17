@@ -107,6 +107,15 @@ public class Doctor {
     public void setUserId(UUID userId) {
         this.userId = userId;
     }
+    /**
+     * Internal accounting, not part of any HTTP contract.
+     *
+     * <p>The admin controller serialises this entity directly, so without the
+     * annotation every doctor's quota appeared in the admin list response. The
+     * owning clinician still receives it through
+     * {@link com.healthcare.hospital.dto.DoctorProfileResponse}.
+     */
+    @JsonIgnore
     public Integer getAiCredits() { return aiCredits != null ? aiCredits : 150; }
     public void setAiCredits(Integer aiCredits) { this.aiCredits = aiCredits; }
 }

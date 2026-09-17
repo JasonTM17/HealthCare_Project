@@ -60,7 +60,11 @@ class ArticleCommentServiceTest {
         String slug = "cham-soc-tim-mach";
         Article article = new Article();
         article.setSlug(slug);
-        when(articleRepository.findBySlug(slug)).thenReturn(Optional.of(article));
+        // The service now requires an article readers can open, using the same
+        // predicate as the public read path, so the stub matches that contract.
+        when(articleRepository.findBySlugAndActiveTrueAndPublishedAtLessThanEqual(
+            org.mockito.ArgumentMatchers.eq(slug), org.mockito.ArgumentMatchers.any()))
+            .thenReturn(Optional.of(article));
 
         UUID userId = UUID.randomUUID();
         User user = new User();
@@ -100,7 +104,11 @@ class ArticleCommentServiceTest {
         String slug = "cham-soc-tim-mach";
         Article article = new Article();
         article.setSlug(slug);
-        when(articleRepository.findBySlug(slug)).thenReturn(Optional.of(article));
+        // The service now requires an article readers can open, using the same
+        // predicate as the public read path, so the stub matches that contract.
+        when(articleRepository.findBySlugAndActiveTrueAndPublishedAtLessThanEqual(
+            org.mockito.ArgumentMatchers.eq(slug), org.mockito.ArgumentMatchers.any()))
+            .thenReturn(Optional.of(article));
 
         UUID userId = UUID.randomUUID();
         User user = new User();
@@ -124,7 +132,14 @@ class ArticleCommentServiceTest {
         when(actor.getUsername()).thenReturn("doctor@healthcare.local");
         when(actor.getAuthorities()).thenAnswer(inv -> List.of(new SimpleGrantedAuthority("ROLE_DOCTOR")));
 
+        // A reply must reference a comment that exists, is active, and belongs to
+        // the same article; the fixture provides one instead of a random id.
         UUID parentId = UUID.randomUUID();
+        ArticleComment parent = new ArticleComment();
+        parent.setId(parentId);
+        parent.setArticleSlug(slug);
+        parent.setActive(true);
+        when(commentRepository.findById(parentId)).thenReturn(Optional.of(parent));
         CreateCommentRequest request = new CreateCommentRequest("Chào bạn, bạn nên đo huyết áp...", parentId);
         ArticleCommentResponse response = commentService.addComment(slug, request, actor);
 

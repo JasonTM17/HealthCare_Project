@@ -17,10 +17,10 @@ public class MinioConfig {
     @Value("${storage.public-endpoint:}")
     private String publicEndpoint;
 
-    @Value("${storage.access-key:${minio.access-key:${MINIO_ACCESS_KEY:${MINIO_ROOT_USER:healthcare}}}}")
+    @Value("${storage.access-key:${minio.access-key:${MINIO_ACCESS_KEY:${MINIO_ROOT_USER:}}}}")
     private String accessKey;
 
-    @Value("${storage.secret-key:${minio.secret-key:${MINIO_SECRET_KEY:${MINIO_ROOT_PASSWORD:change-me}}}}")
+    @Value("${storage.secret-key:${minio.secret-key:${MINIO_SECRET_KEY:${MINIO_ROOT_PASSWORD:}}}}")
     private String secretKey;
 
     @Value("${storage.require-private-endpoint:false}")
@@ -35,11 +35,34 @@ public class MinioConfig {
         StorageEndpointPolicy.validatePrivateEndpoint(requirePrivateEndpoint, endpoint, accessKey, secretKey);
         MinioClient.Builder builder = MinioClient.builder()
             .endpoint(endpoint.trim())
-            .credentials(accessKey, secretKey);
+            .credentials(effectiveAccessKey(), effectiveSecretKey());
         if (region != null && !region.isBlank()) {
             builder.region(region.trim());
         }
         return builder.build();
+    }
+
+    /**
+     * MinioClient refuses to build with empty credentials, and this bean is
+     * created unconditionally — so a runtime that has no object storage at all
+     * (uploads and consultations both default off, as in the hosted beta) still
+     * needs a non-empty value here.
+     *
+     * <p>The sentinel is deliberately not a plausible credential: it cannot
+     * authenticate against any real bucket, and
+     * {@link com.healthcare.storage.FailClosedStoragePolicy} refuses to start a
+     * runtime that enables uploads while the credentials are still blank or a
+     * placeholder. That startup check is what makes the posture fail-closed —
+     * an unconfigured runtime keeps working, a configured one must be real.
+     */
+    private static final String UNCONFIGURED = "storage-not-configured";
+
+    private String effectiveAccessKey() {
+        return accessKey == null || accessKey.isBlank() ? UNCONFIGURED : accessKey;
+    }
+
+    private String effectiveSecretKey() {
+        return secretKey == null || secretKey.isBlank() ? UNCONFIGURED : secretKey;
     }
 
     /** Sign for the browser's endpoint, without rewriting a signed Host. */
@@ -70,6 +93,6 @@ public class MinioConfig {
             throw new IllegalStateException("Storage region is required for a public signing endpoint");
         }
         return MinioClient.builder().endpoint(publicEndpoint.trim())
-            .credentials(accessKey, secretKey).region(region.trim()).build();
+            .credentials(effectiveAccessKey(), effectiveSecretKey()).region(region.trim()).build();
     }
 }
