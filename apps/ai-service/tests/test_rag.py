@@ -473,7 +473,13 @@ def test_specialty_recommendation_cites_indexed_sources_only() -> None:
         mock_embed.return_value = ([1.0, 0.0, 0.0], "local")
         response = client.post(
             "/recommendations/specialty",
-            json={"symptoms": "đau ngực"},
+            # Palpitations, not "đau ngực": unqualified chest pain is now a
+            # Tier-1 emergency in app.emergency_terms, so the endpoint correctly
+            # takes its local triage path (covered by the sibling test below)
+            # and returns no citations. This test is about citation provenance —
+            # the indexed document embeds a URL that must never reach the
+            # response — so it needs a symptom that reaches retrieval.
+            json={"symptoms": "hồi hộp và tim đập nhanh"},
         )
 
     assert response.status_code == 200

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import html
+import os
 import re
 import threading
 import time
@@ -11,6 +12,7 @@ import unicodedata
 from dataclasses import dataclass
 from typing import Any, Protocol, Sequence
 
+from app import emergency_terms
 from app.providers import (
     LOCAL_CHAT_PROVIDERS,
     DEFAULT_DEEPSEEK_CHAT_MODEL,
@@ -35,7 +37,17 @@ from app.schemas import (
 )
 
 RULE_BASED = "rule_based_triage"
-_VIETNAMESE_D_TRANSLATION = {ord("đ"): "d", ord("Đ"): "D"}
+# "đ" folds to "d" so diacritic-free typing still matches policy vocabulary.
+# "ð"/"Ð" (eth) is mapped too: it survives both NFKC and NFKD unchanged, so a
+# visitor typing "ðột quỵ" reached the gate as "ðot quy" and slipped past every
+# rule written for "đột quỵ" — an evasion the homoglyph table below never
+# covered because it only listed Cyrillic/Greek lookalikes.
+_VIETNAMESE_D_TRANSLATION = {
+    ord("đ"): "d",
+    ord("Đ"): "D",
+    ord("ð"): "d",
+    ord("Ð"): "D",
+}
 
 _EMAIL_PATTERN = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)
 _PHONE_PATTERN = re.compile(r"(?<!\d)(?:\+?84|0)[\s.-]?(?:\d[\s.-]?){8,10}(?!\d)")
@@ -710,18 +722,25 @@ _EMERGENCY_PHRASE_PATTERN = re.compile(
     r"\b(?:"
     r"dau\W+(?:that\W+)?nguc(?:\W+\w{1,20}){0,6}\W{1,3}du\W+doi"
     r"|chay\W+mau(?:\W+\w{1,20}){0,6}\W{1,3}khong\W+cam"
-    r"|kho\W+tho|meo\W+mieng|yeu\W+liet|co\W+giat|tu\W*tu"
-    r"|dot\W+quy|tai\W+bien(?:\W+mach\W+mau\W+nao)?|dau\W+tim|nhoi\W+mau\W+co\W+tim|ngung\W+tho|ngung\W+tim|bat\W+tinh|mat\W+y\W+thuc"
-    r"|(?:khong\W+(?:con\W+)?|het\W+)muon\W+song|muon\W+chet|chet\W+di|ket\W+thuc\W+cuoc\W+(?:doi|song)"
-    r"|khong\W+con\W+ly\W+do\W+song"
-    r"|(?:dinh|muon)\W+tu\W+van\b"
+    # Every short alternative below carries an explicit trailing boundary. Without
+    # it "tu\W*tu" matched inside "tự túc" and "tư tưởng", so an ordinary question
+    # about self-catered meals raised the 115 banner.
+    r"|kho\W+tho\b|meo\W+mieng\b|yeu\W+liet\b|co\W+giat\b|tu\W+tu\b"
+    r"|dot\W+quy\b|tai\W+bien(?:\W+mach\W+mau\W+nao)?\b|dau\W+tim\b|nhoi\W+mau\W+co\W+tim\b|ngung\W+tho\b|ngung\W+tim\b|bat\W+tinh\b|mat\W+y\W+thuc\b"
+    r"|(?:khong\W+(?:con\W+)?|het\W+)muon\W+song\b|muon\W+chet\b|chet\W+di\b|ket\W+thuc\W+cuoc\W+(?:doi|song)\b"
+    r"|khong\W+con\W+ly\W+do\W+song\b"
+    # NOTE: the "tự vẫn" / "tư vấn" homophone is deliberately NOT matched here.
+    # Written without diacritics both are "tu van", and "muốn tư vấn" is the most
+    # common way visitors open this assistant, so a bare pattern put a 115 banner
+    # on ordinary consultation requests. app.emergency_terms owns that term and
+    # requires self-harm corroboration before it escalates.
     r"|tu\W+ket\W+lieu\b|tu\W+sat\b"
     r"|(?:dinh|muon|se|sap|dang)\W+treo\W+co\b|treo\W+co\W+tu\W+tu\b"
     r"|(?:dinh|muon|se|sap|dang)\W+nhay\W+(?:\w+\W+){0,2}(?:lau|cau)\b"
     r"|(?:dinh|muon|se|sap|dang)\W+chet\W+duoi\b|uong\W+thuoc\W+doc\b"
-    r"|(?:cat|rach)\W+(?:co\W+)?tay|tu\W+lam\W+dau"
-    r"|ra\W+di\W+(?:mai\W+mai|vinh\W+vien)|nghi\W+ngoi\W+vinh\W+vien"
-    r"|bien\W+mat\W+(?:khoi\W+the\W+gioi|vinh\W+vien)|ket\W+thuc\W+tat\W+ca\b"
+    r"|(?:cat|rach)\W+(?:co\W+)?tay\b|tu\W+lam\W+dau\b"
+    r"|ra\W+di\W+(?:mai\W+mai|vinh\W+vien)\b|nghi\W+ngoi\W+vinh\W+vien\b"
+    r"|bien\W+mat\W+(?:khoi\W+the\W+gioi|vinh\W+vien)\b|ket\W+thuc\W+tat\W+ca\b"
     r"|(?:dinh|muon|se|sap|dang)\W+ket\W+thuc\W+moi\W+thu\b"
     r"|chan\W+song\b|luoi\W+le\b"
     r"|uong\W+(?:het\W+)?(?:ca\W+)?(?:lo\W+)?(?:thuoc|paracetamol|thuoc\W+ngu|giam\W+dau)"
@@ -1463,17 +1482,55 @@ def _squash(text: str) -> str:
     return re.sub(r"[^0-9a-z]", "", text)
 
 
-def _crisis_detected(normalized: str) -> bool:
-    """Return whether a normalized turn expresses a crisis, evasion included."""
+def _emergency_recall() -> str:
+    """Return the configured emergency vocabulary breadth.
 
-    squashed = _squash(normalized)
-    if any(_squash(_normalize_sensitive_text(term)) in squashed for term in _EMERGENCY_TERMS):
+    The gate runs on paths that carry no settings object — triage scoring, the
+    two-step chatbot contract, and the request handlers — so the flag is read
+    from the environment rather than threaded through every call. It is read per
+    request, not cached at import, so flipping the Render variable and
+    restarting the service is enough to contain an over-firing release.
+    ``Settings.ai_emergency_keyword_recall`` documents and validates the same
+    variable for operators; the normalisation here is defensive so a malformed
+    value degrades to the safe default instead of disabling the gate.
+    """
+
+    value = os.getenv("AI_EMERGENCY_KEYWORD_RECALL", "expanded").strip().casefold()
+    return "baseline" if value == "baseline" else "expanded"
+
+
+def _crisis_detected(normalized: str, *, recall: str | None = None) -> bool:
+    """Return whether a normalized turn states a Tier-1 emergency.
+
+    Recall is delegated to :mod:`app.emergency_terms`, which matches on word
+    boundaries and separates the ambiguous ``tu van`` homophone from the
+    unambiguous crisis vocabulary. ``_EMERGENCY_PHRASE_PATTERN`` still runs as a
+    secondary net so a phrasing this module has not catalogued yet keeps its
+    previous behaviour.
+
+    ``recall`` selects the vocabulary breadth. ``"baseline"`` restores the
+    pre-expansion behaviour for a single request, which is the kill switch an
+    operator flips from the environment when an over-firing release needs to be
+    contained without a rebuild.
+    """
+
+    effective_recall = recall if recall is not None else _emergency_recall()
+    variants = _policy_variants(normalized)
+    if effective_recall == "baseline":
+        # Pre-expansion behaviour, kept reachable so an operator can contain an
+        # over-firing release from the environment without a redeploy. It is the
+        # squashed term list plus the legacy phrase pattern, exactly as it was.
+        squashed = _squash(normalized)
+        if any(_squash(_normalize_sensitive_text(term)) in squashed for term in _EMERGENCY_TERMS):
+            return True
+        return any(
+            _EMERGENCY_PHRASE_PATTERN.search(variant)
+            or any(term in variant for term in _EMERGENCY_TERMS)
+            for variant in variants
+        )
+    if emergency_terms.emergency_hit(variants):
         return True
-    return any(
-        _EMERGENCY_PHRASE_PATTERN.search(variant)
-        or any(term in variant for term in _EMERGENCY_TERMS)
-        for variant in _policy_variants(normalized)
-    )
+    return any(_EMERGENCY_PHRASE_PATTERN.search(variant) for variant in variants)
 
 
 def chat_contains_sensitive_data(
@@ -1690,6 +1747,39 @@ def remote_answer_is_grounded(
     return len(answer_tokens.intersection(context_tokens)) >= 2
 
 
+# Canned safety answers. A conversation that refused once used to refuse every
+# later turn: the refusal text itself matches the exfiltration detectors, the
+# history scan re-read it, and the gate short-circuited again on every benign
+# follow-up. The fix is ``SAFETY_REFUSAL_ANSWERS`` — the history scan skips our
+# own canned output, because an assistant turn produced by this gate is not
+# attacker-controlled input, while an assistant turn that arrived from a
+# provider or a retrieved document still is, and is still scanned.
+#
+# These strings are contract-visible: callers assert on the copy and the loop
+# guard compares them verbatim, so change the constant rather than inlining a
+# new literal.
+SAFETY_REFUSAL_INJECTION_ANSWER = (
+    "Tôi không thể cung cấp chỉ dẫn hệ thống, thông tin xác thực, cấu hình nội bộ "
+    "hoặc hồ sơ, dữ liệu bệnh nhân. Tôi vẫn có thể hỗ trợ thông tin sức khỏe ở "
+    "mức tham khảo."
+)
+SAFETY_REFUSAL_CLINICAL_ANSWER = (
+    "Tôi không thể chẩn đoán, kê đơn hoặc thay đổi thuốc. Hãy trao đổi trực tiếp "
+    "với bác sĩ hoặc dược sĩ đang theo dõi để được đánh giá an toàn."
+)
+SAFETY_REFUSAL_PRIVACY_ANSWER = (
+    "Để bảo vệ quyền riêng tư, vui lòng không gửi email, số điện thoại, mã đặt lịch, "
+    "mã hồ sơ hoặc thông tin định danh. Bạn có thể mô tả triệu chứng mà không nêu danh tính."
+)
+SAFETY_REFUSAL_ANSWERS = frozenset(
+    {
+        SAFETY_REFUSAL_INJECTION_ANSWER,
+        SAFETY_REFUSAL_CLINICAL_ANSWER,
+        SAFETY_REFUSAL_PRIVACY_ANSWER,
+    }
+)
+
+
 def chat_safety_response(
     message: str,
     recent_turns: Sequence[tuple[str, str]] = (),
@@ -1700,9 +1790,23 @@ def chat_safety_response(
     detection covers every turn. Crisis and unsupported-clinical decisions are
     scoped to the current user message; an old emergency must not make every
     later navigation question look like a new emergency.
+
+    Assistant turns are scanned too, because a poisoned answer can carry an
+    instruction into the next prompt. The exception is our own canned safety
+    refusals: they are fixed strings, they are the only thing this service ever
+    says that deliberately names the concepts an exfiltration detector looks
+    for, and re-scanning them made a conversation refuse every later turn once
+    it had refused once. ``SAFETY_REFUSAL_ANSWERS`` is that exception list.
     """
 
-    turn_contents = [content for _, content in recent_turns]
+    turn_contents = [
+        content
+        for role, content in recent_turns
+        if not (
+            str(getattr(role, "value", role)).casefold() == "assistant"
+            and content.strip() in SAFETY_REFUSAL_ANSWERS
+        )
+    ]
     message_normalized = _normalize_sensitive_text(message)
     crisis_hit = _crisis_detected(message_normalized)
     if crisis_hit:
@@ -1720,11 +1824,7 @@ def chat_safety_response(
         contains_prompt_injection(content) for content in turn_contents
     ):
         return ChatResponse(
-            answer=(
-                "Tôi không thể cung cấp chỉ dẫn hệ thống, thông tin xác thực, cấu hình nội bộ "
-                "hoặc hồ sơ, dữ liệu bệnh nhân. Tôi vẫn có thể hỗ trợ thông tin sức khỏe ở "
-                "mức tham khảo."
-            ),
+            answer=SAFETY_REFUSAL_INJECTION_ANSWER,
             provenance="local_fallback",
             safety_action=ChatSafetyAction.REFUSE,
             cost_tier="local_free",
@@ -1732,10 +1832,7 @@ def chat_safety_response(
         )
     if any(_normalize_sensitive_text(term) in message_normalized for term in _UNSUPPORTED_CLINICAL_TERMS):
         return ChatResponse(
-            answer=(
-                "Tôi không thể chẩn đoán, kê đơn hoặc thay đổi thuốc. Hãy trao đổi trực tiếp "
-                "với bác sĩ hoặc dược sĩ đang theo dõi để được đánh giá an toàn."
-            ),
+            answer=SAFETY_REFUSAL_CLINICAL_ANSWER,
             provenance="local_fallback",
             safety_action=ChatSafetyAction.REFUSE,
             cost_tier="local_free",
@@ -1743,10 +1840,7 @@ def chat_safety_response(
         )
     if chat_contains_sensitive_data(message, recent_turns):
         return ChatResponse(
-            answer=(
-                "Để bảo vệ quyền riêng tư, vui lòng không gửi email, số điện thoại, mã đặt lịch, "
-                "mã hồ sơ hoặc thông tin định danh. Bạn có thể mô tả triệu chứng mà không nêu danh tính."
-            ),
+            answer=SAFETY_REFUSAL_PRIVACY_ANSWER,
             provenance="local_fallback",
             safety_action=ChatSafetyAction.REFUSE,
             cost_tier="local_free",
