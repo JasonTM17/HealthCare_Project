@@ -147,6 +147,7 @@ function jsonError(status: number, code: string): Response {
 
 function likelyEmergencyFallback(message: string): boolean {
   const normalized = message.normalize("NFD").replace(/[\u0300-\u036f]/gu, "")
+    .replace(/[đĐ]/gu, "d")
     .toLowerCase().replace(/\s+/gu, " ").trim();
   return EMERGENCY_FALLBACK_TERMS.some((term) => normalized.includes(term));
 }
