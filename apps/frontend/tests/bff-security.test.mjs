@@ -504,11 +504,11 @@ test("BFF binds CSRF origin to a server-owned public origin behind a reverse pro
 
 test("BFF can forward a canonical backend origin for allowed custom domains", async () => {
   const bff = await loadBff({
-    BACKEND_ORIGIN_OVERRIDE: "https://healthcare-two-olive.vercel.app",
+    BACKEND_ORIGIN_OVERRIDE: "https://www.healthcare.id.vn",
   });
   const runtime = {
     ...runtimeConfig,
-    publicOrigin: "https://healthcare-two-olive.vercel.app,https://healthcare.id.vn,https://www.healthcare.id.vn",
+    publicOrigin: "https://www.healthcare.id.vn,https://healthcare.id.vn",
   };
   let observedOrigin = "";
 
@@ -532,7 +532,7 @@ test("BFF can forward a canonical backend origin for allowed custom domains", as
   );
 
   assert.equal(response.status, 200);
-  assert.equal(observedOrigin, "https://healthcare-two-olive.vercel.app");
+  assert.equal(observedOrigin, "https://www.healthcare.id.vn");
 });
 
 test("BFF returns a safe public chat fallback when the AI upstream is unavailable", async () => {
@@ -962,11 +962,10 @@ test("BFF accepts multiple comma-separated public origins and custom domains", a
   const bff = await loadBff();
   const multiOriginRuntime = {
     ...runtimeConfig,
-    publicOrigin: "https://healthcare-two-olive.vercel.app,https://healthcare.id.vn,https://www.healthcare.id.vn",
+    publicOrigin: "https://www.healthcare.id.vn,https://healthcare.id.vn",
   };
 
   for (const origin of [
-    "https://healthcare-two-olive.vercel.app",
     "https://healthcare.id.vn",
     "https://www.healthcare.id.vn",
   ]) {

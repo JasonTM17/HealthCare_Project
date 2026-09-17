@@ -721,7 +721,7 @@ export default function Home(): React.ReactElement {
                 fallback={(
                   <HomeCmsFallbackCard
                     accent
-                    description="Giờ khám, thông báo quan trọng và tin bệnh viện sẽ hiển thị ở đây khi chưa có cập nhật mới."
+                    description="Cập nhật lịch khám, hướng dẫn y tế và các hoạt động chuyên môn mới nhất từ Bệnh viện HealthCare."
                     eyebrow="Thông báo bệnh viện"
                     href="/branches"
                     hrefLabel="Xem cơ sở"
@@ -890,7 +890,7 @@ export default function Home(): React.ReactElement {
               </div>
             ) : !catalogLoading && catalog ? (
               <div className="empty-state">
-                <p>{searchQuery ? `Chưa có chuyên khoa khớp với “${searchQuery}”.` : "Chưa có chuyên khoa đang cung cấp."}</p>
+                <p>{searchQuery ? `Chưa có chuyên khoa khớp với “${searchQuery}”.` : "Chưa tìm thấy chuyên khoa phù hợp với từ khóa."}</p>
                 <button className="text-button" onClick={() => setSearchQuery("")} type="button">Xóa tìm kiếm <Icon name="x" size={17} /></button>
               </div>
             ) : null}
@@ -921,7 +921,7 @@ export default function Home(): React.ReactElement {
               </div>
             ) : catalog ? (
               <div className="empty-state empty-state--wide">
-                <p>{searchQuery ? `Chưa có bác sĩ khớp với “${searchQuery}”.` : "Chưa có bác sĩ đang cung cấp."}</p>
+                <p>{searchQuery ? `Chưa có bác sĩ khớp với “${searchQuery}”.` : "Hiện chưa tìm thấy bác sĩ phù hợp với tiêu chí tìm kiếm."}</p>
                 <button className="text-button" onClick={() => setSearchQuery("")} type="button">Xóa tìm kiếm <Icon name="x" size={17} /></button>
               </div>
             ) : null}
@@ -975,8 +975,8 @@ export default function Home(): React.ReactElement {
             <div className="branch-layout">
               <div className="branch-intro">
                 <div className="branch-intro__topline"><Icon name="location" size={20} /><span>{branchAreaLabel}</span></div>
-                <h3>Chọn nơi bạn muốn bắt đầu chăm sóc.</h3>
-                <p>Địa chỉ và giờ làm việc lấy từ danh mục bệnh viện. Hãy kiểm tra lại trước khi đến.</p>
+                <h3>Lựa chọn cơ sở y tế thuận tiện.</h3>
+                <p>Quý khách vui lòng kiểm tra giờ tiếp nhận và hotline của từng cơ sở trước khi đến khám.</p>
                 {contactHref ? <a className="text-button" href={contactHref}>{emergencyBranch ? "Gọi hotline cấp cứu" : "Gọi cơ sở"} <Icon name="phone" size={17} /></a> : <Link className="text-button" href="/contact">Xem thông tin liên hệ <Icon name="arrow-up-right" size={17} /></Link>}
               </div>
               <div className="hm-branch-grid">

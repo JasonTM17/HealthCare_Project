@@ -78,7 +78,7 @@ export default function ContactPage() {
           <h1>Liên hệ đúng nơi, đúng lúc</h1>
           <p>
             Tìm hotline, giờ làm việc, địa chỉ, bản đồ và cơ sở gần nhất trên một trang rõ ràng,
-            thay vì phải dò từng chỗ rời rạc.
+            giúp Quý khách chủ động kết nối và tiết kiệm thời gian tối đa.
           </p>
         </header>
 
@@ -100,10 +100,10 @@ export default function ContactPage() {
           </div>
           <div className="resource-hero-card__body">
             <p className="resource-chip">Liên hệ công khai</p>
-            <h2>Một điểm chạm rõ ràng trước khi bạn tới bệnh viện.</h2>
+            <h2>Thông tin kết nối chính thức đến Bệnh viện HealthCare</h2>
             <p className="resource-lead">
-              Số điện thoại, địa chỉ và giờ làm việc của cơ sở phù hợp đều được gom lại theo cùng một
-              nhịp để bạn dễ quyết định hơn.
+              Tổng hợp đầy đủ đường dây nóng, địa chỉ và giờ tiếp nhận của từng cơ sở để Quý khách
+              thuận tiện lựa chọn.
             </p>
             <div className="resource-actions">
               <PublicBookingButton>Đặt lịch khám</PublicBookingButton>

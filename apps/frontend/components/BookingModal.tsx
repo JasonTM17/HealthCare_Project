@@ -46,7 +46,7 @@ const BOOKING_STEPS = [
 
 const BOOKING_STAGES = [
   { ids: [1, 2, 3], title: "1. Chọn nhu cầu khám" },
-  { ids: [4, 5], title: "2. Chọn cơ sở và khung giờ" },
+  { ids: [4, 5], title: "2. Ngày & Khung giờ khám" },
   { ids: [6], title: "3. Điền thông tin liên hệ" },
   { ids: [7], title: "4. Xác nhận OTP" },
 ];
@@ -1240,7 +1240,7 @@ function BookingExperience({
             <div className="space-y-5">
               <div>
                 <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">02 · Cơ sở</p>
-                <h3 className="text-xl font-bold text-gray-900">Chọn nơi bạn muốn đến khám</h3>
+                <h3 className="text-xl font-bold text-gray-900">Chọn cơ sở y tế thuận tiện nhất</h3>
                 <p className="mt-1 text-sm leading-6 text-gray-600">Lịch làm việc và khung giờ sẽ được kiểm tra theo đúng cơ sở này.</p>
               </div>
               <div>
@@ -1268,7 +1268,7 @@ function BookingExperience({
             <div className="space-y-5">
               <div>
                 <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">03 · Chuyên gia</p>
-                <h3 className="text-xl font-bold text-gray-900">Chọn bác sĩ đồng hành</h3>
+                <h3 className="text-xl font-bold text-gray-900">Lựa chọn bác sĩ chuyên khoa tiếp nhận</h3>
                 <p className="mt-1 text-sm leading-6 text-gray-600">Danh sách được lọc theo chuyên khoa và cơ sở bạn vừa chọn.</p>
               </div>
               <div>
@@ -1302,7 +1302,7 @@ function BookingExperience({
               <div>
                 <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">04 · Ngày khám</p>
                 <h3 className="text-xl font-bold text-gray-900">Chọn ngày thuận tiện cho bạn</h3>
-                <p className="mt-1 text-sm leading-6 text-gray-600">Bạn có thể chọn lịch từ ngày mai trở đi.</p>
+                <p className="mt-1 text-sm leading-6 text-gray-600">Quý khách vui lòng chọn ngày khám từ ngày làm việc tiếp theo.</p>
               </div>
               <div>
                 <label className="mb-1 block text-sm font-semibold text-gray-700" htmlFor="booking-date">Ngày khám mong muốn</label>
@@ -1327,7 +1327,7 @@ function BookingExperience({
               <div>
                 <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">05 · Khung giờ</p>
                 <h3 className="text-xl font-bold text-gray-900">Chọn một khung giờ còn trống</h3>
-                <p className="mt-1 text-sm leading-6 text-gray-600">Khung giờ được tính từ lịch làm việc thật và sẽ được kiểm tra lại khi giữ chỗ.</p>
+                <p className="mt-1 text-sm leading-6 text-gray-600">Khung giờ khám theo lịch trực thực tế của bác sĩ và được bảo lưu giữ chỗ khi xác nhận.</p>
               </div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-sm border border-brand-100 bg-brand-50/60 p-3 text-xs text-brand-900">
                 <span><strong>Ngày:</strong> {formatBusinessDate(selectedDate)}</span>
@@ -1362,8 +1362,8 @@ function BookingExperience({
             <form onSubmit={handleHoldSlot} className="space-y-4">
               <div>
                 <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">06 · Thông tin bệnh nhân</p>
-                <h3 className="text-xl font-bold text-gray-900">Cho chúng tôi biết cách liên hệ với bạn</h3>
-                <p className="mt-1 text-sm leading-6 text-gray-600">Thông tin chỉ được gửi khi bạn bấm giữ chỗ và không được đưa vào URL.</p>
+                <h3 className="text-xl font-bold text-gray-900">Thông tin người đến thăm khám</h3>
+                <p className="mt-1 text-sm leading-6 text-gray-600">Thông tin được mã hóa bảo mật chuẩn y tế, phục vụ công tác lập hồ sơ và chuẩn bị tiếp đón.</p>
               </div>
               <div className="p-3.5 bg-brand-50/60 border border-brand-100 rounded-sm text-xs text-brand-900 space-y-1">
                 <div className="flex justify-between font-semibold">
@@ -1663,7 +1663,7 @@ function BookingExperience({
                     Thông tin lịch hẹn đã được lưu vào hệ thống bệnh viện. Vui lòng xuất trình mã lịch hẹn tại quầy tiếp đón khi đến khám.
                   </p>
                   <p className="fx-thanks text-sm max-w-md mx-auto">
-                    Cảm ơn bạn đã tin tưởng HealthCare. Đội ngũ của chúng tôi rất mong được gặp bạn.
+                    Cảm ơn bạn đã tin tưởng HealthCare. Đội ngũ y bác sĩ luôn sẵn sàng đồng hành chăm sóc sức khỏe của Quý khách.
                   </p>
 
                   {/* E-Card Ticket */}

@@ -42,6 +42,23 @@ _PHONE_PATTERN = re.compile(r"(?<!\d)(?:\+?84|0)[\s.-]?(?:\d[\s.-]?){8,10}(?!\d)
 _INTERNATIONAL_PHONE_PATTERN = re.compile(
     r"(?<!\w)(?:\+|00)(?:[\s().-]*\d){8,15}(?!\d)"
 )
+_PUBLIC_HOSPITAL_PHONE_PATTERN = re.compile(
+    r"(?<!\d)(?:"
+    r"1900[\s.-]?1234|"
+    r"115|"
+    r"(?:\+?84|0)[\s.-]?28[\s.-]?(?:3800[\s.-]?00[\s.-]?[0-2]\d|1800[\s.-]?00[\s.-]?[0-2]\d|"
+    r"3838[\s.-]?[12]\d{3}|3744[\s.-]?22\d{2}|3997[\s.-]?20\d{2})"
+    r")(?!\d)",
+    re.IGNORECASE,
+)
+
+
+def _mask_known_public_hotlines(text: str) -> str:
+    """Mask known authentic hospital contact numbers before PII detection."""
+    return _PUBLIC_HOSPITAL_PHONE_PATTERN.sub(" public hospital hotline ", text)
+
+
+mask_known_public_hotlines = _mask_known_public_hotlines
 _UUID_PATTERN = re.compile(
     r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b",
     re.IGNORECASE,
@@ -1471,6 +1488,7 @@ def chat_contains_sensitive_data(
     ]
     combined = "\n".join([*user_history, message])
     normalized = _normalize_sensitive_text(combined)
+    normalized = _mask_known_public_hotlines(normalized)
     # A booking label without an identifier is safe public guidance. Reject
     # an attached value before any operational masking so a public-context
     # exception cannot make a real booking code eligible for egress.
@@ -1524,7 +1542,8 @@ def chat_contains_sensitive_data(
 def _mask_public_operational_fields(value: str) -> str:
     """Remove only public contact/address patterns from trusted catalog text."""
 
-    masked = _INTERNATIONAL_PHONE_PATTERN.sub(" public operational contact ", value)
+    masked = _mask_known_public_hotlines(value)
+    masked = _INTERNATIONAL_PHONE_PATTERN.sub(" public operational contact ", masked)
     masked = _PHONE_PATTERN.sub(" public operational contact ", masked)
     masked = _STREET_ADDRESS_PATTERN.sub(" public operational address ", masked)
     masked = _VIETNAMESE_STREET_ADDRESS_PATTERN.sub(" public operational address ", masked)
