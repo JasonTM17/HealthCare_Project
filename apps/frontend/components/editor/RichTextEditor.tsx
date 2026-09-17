@@ -345,28 +345,21 @@ export function RichTextEditor({
     () => ({
       base_url: "/tinymce",
       suffix: ".min",
-      menubar: "file edit view insert format tools table",
-      menu: {
-        file: { title: "File", items: "newdocument restoredraft | preview | code" },
-        edit: { title: "Edit", items: "undo redo | cut copy paste pastetext | selectall | searchreplace" },
-        view: { title: "View", items: "code | visualaid visualchars visualblocks | preview fullscreen" },
-        insert: {
-          title: "Insert",
-          items: `${
-            MEDIA_UPLOADS_ENABLED ? "image " : ""
-          }link media codesample inserttable accordion | charmap emoticons hr insertdatetime | anchor pagebreak nonbreaking | clinical_callouts clinical_templates`,
-        },
-        format: {
-          title: "Format",
-          items:
-            "bold italic underline strikethrough codeformat | formats blockformats align lineheight | removeformat",
-        },
-        tools: { title: "Tools", items: "code wordcount" },
-        table: { title: "Table", items: "inserttable | cell row column | tableprops deletetable" },
-      },
-      toolbar: `undo redo | blocks | bold italic underline strikethrough | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | table link ${
+      // No menubar. Every label in it — File, Edit, View, Insert, Format, Tools,
+      // Table and the whole dropdown beneath each — was English in a Vietnamese
+      // product, and TinyMCE ships language packs separately. The choice was a
+      // vendored download or no untranslated chrome, so the chrome goes: the
+      // toolbar below carries the commands, including the table cell, row and
+      // column operations the clinical templates need to build dosage tables.
+      // Restore `menubar` together with a reviewed `language_url` if a vi pack
+      // is ever added.
+      menubar: false,
+      // Wrap rather than overflow: the added commands must stay reachable in a
+      // narrow editor instead of hiding behind a "more" button.
+      toolbar_mode: "wrap" as const,
+      toolbar: `undo redo | blocks | bold italic underline strikethrough | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | table tablecellprops tablemergecells tablesplitcells tableinsertrowbefore tableinsertrowafter tabledeleterow tableinsertcolbefore tableinsertcolafter tabledeletecol link ${
         MEDIA_UPLOADS_ENABLED ? "image media " : ""
-      }accordion | clinical_warning doctor_note dosage_guide emergency_box | searchreplace emoticons charmap insertdatetime | removeformat code preview fullscreen`,
+      }accordion | clinical_warning doctor_note dosage_guide emergency_box | searchreplace emoticons charmap insertdatetime | hr anchor pagebreak nonbreaking selectall lineheight visualblocks | removeformat code preview fullscreen`,
       plugins: [
         "advlist",
         "autolink",
@@ -413,7 +406,11 @@ export function RichTextEditor({
       branding: false,
       promotion: false,
       elementpath: true,
-      height: isFullscreen ? "100%" : 480,
+      // A fixed height only. Referencing `isFullscreen` here looked like it
+      // resized the editor, but `init` is read once at mount and never again,
+      // so the fullscreen container grew around a 480px editor. The toggle is
+      // now handled at runtime by the resizeTo effect below.
+      height: 480,
       min_height: 380,
       skin: "oxide",
       content_css: "default",
@@ -653,6 +650,40 @@ export function RichTextEditor({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isFullscreen, showLinkModal, showImageModal, showCalloutMenu, showTemplateMenu]);
+
+  // The fullscreen container grew while the editor inside it stayed 480px tall.
+  // `init` is read once at mount, so a height declared there can never react to
+  // the toggle — the original config put `isFullscreen ? "100%" : 480` in init
+  // and it was never applied. resizeTo is the runtime API for this.
+  useEffect(() => {
+    const editor = tinyEditorInstanceRef.current;
+    if (!editor) return;
+    let cancelled = false;
+    const apply = () => {
+      if (cancelled) return;
+      const instance = tinyEditorInstanceRef.current;
+      if (!instance) return;
+      const targetHeight = isFullscreen
+        ? Math.max(360, Math.round(window.innerHeight * 0.7))
+        : 480;
+      try {
+        // `resizeTo` is documented and present at runtime but absent from the
+        // bundled type definitions, so it is reached through a narrow shape
+        // rather than casting the whole editor to `any`.
+        (instance.theme as unknown as { resizeTo?: (w: number | null, h: number) => void })
+          .resizeTo?.(null, targetHeight);
+      } catch {
+        // The editor can be torn down between the toggle and this callback;
+        // a stale instance is not an error worth surfacing to the author.
+      }
+    };
+    // Let the container finish its layout before measuring the target.
+    const frame = window.requestAnimationFrame(apply);
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(frame);
+    };
+  }, [isFullscreen]);
 
   // Helper to wrap selected text in textarea (with toggle off support)
   const wrapSelection = useCallback(
