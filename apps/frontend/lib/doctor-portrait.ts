@@ -99,9 +99,13 @@ export function getDoctorPhoto(doctor: {
   const cleanName = stripTitle(doctor.fullName || "").toLowerCase();
   const slug = (doctor.slug || "").toLowerCase();
 
-  for (const [leaderSlug, photo] of Object.entries(CORE_DOCTOR_PORTRAITS)) {
-    if (slug.includes(leaderSlug)) return photo;
-  }
+  // Exact slug match only. A substring test made "vo-thi-mai" match
+  // "vo-thi-mai-anh", so a future doctor sharing the first two name syllables
+  // would inherit someone else's photograph — the misrepresentation this module
+  // exists to prevent. Slugs the map does not cover fall through to the name
+  // map below, which carries both accented and diacritic-free full names.
+  const curatedBySlug = CORE_DOCTOR_PORTRAITS[slug];
+  if (curatedBySlug) return curatedBySlug;
   if (DOCTOR_NAME_MAP[cleanName]) {
     return DOCTOR_NAME_MAP[cleanName];
   }

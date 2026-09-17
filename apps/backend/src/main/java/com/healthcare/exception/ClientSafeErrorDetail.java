@@ -23,9 +23,18 @@ import java.util.regex.Pattern;
  */
 final class ClientSafeErrorDetail {
 
-    /** A fully-qualified Java type, for example com.healthcare.hospital.entity.Article. */
+    /**
+     * A fully-qualified Java type, for example com.healthcare.hospital.entity.Article.
+     *
+     * <p>Anchored to the root packages this application actually references
+     * rather than "any lower.capital dotted token": a Vietnamese message may
+     * legitimately name an app, a domain or a person ("mở app.VietMed để tiếp
+     * tục", "bs.Long sẽ gọi lại"), and suppressing those would replace real
+     * product copy with the generic fallback.
+     */
     private static final Pattern JAVA_TYPE_REFERENCE = Pattern.compile(
-        "\\b[a-z][a-z0-9_]*(?:\\.[a-z0-9_]+)*\\.[A-Z][A-Za-z0-9_$]*\\b");
+        "\\b(?:com|org|net|io|java|javax|jakarta|sun|jdk)"
+            + "(?:\\.[a-z][a-z0-9_]*)*\\.[A-Z][A-Za-z0-9_$]*\\b");
 
     /** Stack-frame or source-location fragments. */
     private static final Pattern SOURCE_LOCATION = Pattern.compile(

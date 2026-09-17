@@ -173,8 +173,8 @@ TIER1_TERMS: Final[tuple[str, ...]] = (
     "chet duoi",
     "duoi nuoc",
     "dien giat",
-    "bong nang",
     "bong do",
+    "bong sau",
     "chan thuong dau",
     "chan thuong so nao",
     "tai nan giao thong",
@@ -238,6 +238,7 @@ SELF_HARM_TERMS: Final[tuple[str, ...]] = (
     "khong con muon song",
     "muon chet",
     "muon chet di",
+    "chet di",
     "khong con ly do song",
     "khong con ly do de song",
     "chan song",
@@ -330,6 +331,15 @@ CONSULT_FRAME_TERMS: Final[tuple[str, ...]] = (
     "tu van lich",
     "tu van kham",
     "tu van theo",
+    "tu van nhanh",
+    "tu van bac si",
+    "tu van y te",
+    "tu van dien thoai",
+    "tu van qua dien thoai",
+    "tu van giup",
+    "tu van them",
+    "tu van cu the",
+    "tu van chung",
     "dat lich tu van",
     "lich tu van",
     "nhan tu van",
@@ -341,12 +351,16 @@ CONSULT_FRAME_TERMS: Final[tuple[str, ...]] = (
     "information about",
 )
 
-# ``tư vấn`` is a transitive verb: it takes an object ("tư vấn dinh dưỡng"), so
-# in running text it is almost never the last thing said. ``tự vẫn`` is a
-# decision, and a decision is stated and then stopped. Requiring the ambiguous
-# run to be clause-final therefore separates the two readings far more reliably
-# than any list of complements, which is what made
-# "tư vấn theo dõi huyết áp định kỳ" escalate during development.
+# ``tư vấn`` is a transitive verb: it takes a topic object ("tư vấn dinh dưỡng",
+# "tư vấn về bệnh gan"). ``tự vẫn`` is intransitive and is followed by a reason,
+# a companion, or a time — the shape a decision takes.
+#
+# Requiring the ambiguous run to be *clause-final* was too strict: it missed
+# "tôi muốn tự vẫn với vợ con", "tôi định tự vẫn vì mất việc" and "tự vẫn cùng
+# con", all of which the previous release caught and all of which are stated
+# intentions, not topic questions. The rule is therefore a positive one — an
+# intent verb plus one of these continuations reads as a decision — while a
+# consultation complement still suppresses.
 SELF_HARM_CLAUSE_FINAL_MARKERS: Final[tuple[str, ...]] = (
     "thoi",
     "roi",
@@ -362,12 +376,61 @@ SELF_HARM_CLAUSE_FINAL_MARKERS: Final[tuple[str, ...]] = (
     "oi",
 )
 
+# Continuations that follow a stated decision and not a consultation topic.
+# "với" is deliberately absent: "tư vấn với bác sĩ" is an ordinary request, so
+# it is resolved separately below.
+SELF_HARM_DECISION_CONTINUATIONS: Final[tuple[str, ...]] = (
+    "cung",
+    "vi",
+    "boi",
+    "sang",
+    "mai",
+    "chieu",
+    "toi",
+    "ngay",
+    "dem",
+    "trong",
+    "de",
+    "khong",
+)
+
+# Object of "với": a family relationship continues a decision, a clinical role
+# makes it a consultation request.
+SELF_HARM_COMPANION_TERMS: Final[tuple[str, ...]] = (
+    "vo",
+    "chong",
+    "con",
+    "con trai",
+    "con gai",
+    "me",
+    "ba",
+    "cha",
+    "bo",
+    "gia dinh",
+    "nguoi than",
+    "em",
+    "anh",
+    "chi",
+)
+
 _AMBIGUOUS_TERM_PATTERN = r"\btu\W+van\b"
 _CLAUSE_FINAL_PATTERN: Final[re.Pattern[str]] = re.compile(
     _AMBIGUOUS_TERM_PATTERN
     + r"(?:\W+(?:"
     + "|".join(SELF_HARM_CLAUSE_FINAL_MARKERS)
     + r"))*\W*[.!?…]*$"
+)
+_DECISION_CONTINUATION_PATTERN: Final[re.Pattern[str]] = re.compile(
+    _AMBIGUOUS_TERM_PATTERN
+    + r"\W+(?:"
+    + "|".join(SELF_HARM_DECISION_CONTINUATIONS)
+    + r")\b"
+)
+_COMPANION_PATTERN: Final[re.Pattern[str]] = re.compile(
+    _AMBIGUOUS_TERM_PATTERN
+    + r"\W+(?:voi|cung)\W+(?:"
+    + "|".join(SELF_HARM_COMPANION_TERMS)
+    + r")\b"
 )
 
 # Corroborating vocabulary that disambiguates ``tu van`` toward its crisis
@@ -422,6 +485,20 @@ SEVERITY_MARKERS: Final[tuple[str, ...]] = (
 
 # (symptom terms, severity markers, minimum count of distinct markers)
 SEVERITY_BOUND_RULES: Final[tuple[tuple[tuple[str, ...], tuple[str, ...], int], ...]] = (
+    # A burn escalates on extent and site, not on the word "burn".
+    #
+    # "bỏng nặng" is deliberately NOT a marker: diacritic-free it is identical to
+    # "bóng nắng" (the shadow of sunlight), so "bóng nắng chiếu vào phòng có hại
+    # không?" — an ordinary question about a room — raised the 115 banner. The
+    # collision cannot be resolved lexically, and a false banner on a
+    # non-emergency costs more than the recall it buys, because the burn cases
+    # that matter are described by extent or site ("bỏng rộng", "bỏng toàn
+    # thân", "bỏng ở mặt", "bỏng độ 3") and those all still escalate.
+    (
+        ("bong", "phong rong", "bong nuoc soi"),
+        ("do", "sau", "rong", "nhieu", "toan than", "tre em", "mat", "ho hap"),
+        1,
+    ),
     # Chest pain in the reversed word order visitors actually type
     # ("ngực đau dữ dội"), which the forward-only phrase pattern never matched.
     (
@@ -621,14 +698,14 @@ def _ambiguous_self_harm_hit(variant: str) -> bool:
 
     Written without diacritics both readings are the same five letters, and
     "muốn tư vấn" is the most common way visitors open this assistant. The
-    reading is settled by evidence in the same turn:
+    reading is settled by evidence in the same turn, in this order:
 
-    * unambiguous self-harm vocabulary nearby → crisis, escalate;
-    * a consultation complement ("tư vấn về", "tư vấn dinh dưỡng") → consult,
-      stay silent;
-    * otherwise the phrase must be clause-final and follow a stated intention
-      ("tôi định tự vẫn thôi"), which is the shape a decision takes and the
-      shape a transitive verb does not.
+    * unambiguous self-harm vocabulary nearby → crisis;
+    * a consultation complement ("tư vấn về", "tư vấn dinh dưỡng") → consult;
+    * a stated intention that ends the clause or is followed by a reason,
+      companion or time ("tôi định tự vẫn thôi", "tự vẫn với vợ con") → crisis;
+    * otherwise no escalation, so a topic question phrased in a way this table
+      has not catalogued stays answerable.
     """
 
     if not _boundary_hit(_AMBIGUOUS_BOUNDARY, variant):
@@ -637,9 +714,15 @@ def _ambiguous_self_harm_hit(variant: str) -> bool:
         return True
     if _boundary_hit(_CONSULT_FRAME_BOUNDARY, variant):
         return False
-    if not _CLAUSE_FINAL_PATTERN.search(variant):
+    # A companion phrase states the act itself ("tự vẫn cùng con"), so it does
+    # not need a separate intent verb to be a decision.
+    if _COMPANION_PATTERN.search(variant):
+        return True
+    if not _boundary_hit(_INTENT_VERB_BOUNDARY, variant):
         return False
-    return _boundary_hit(_INTENT_VERB_BOUNDARY, variant)
+    if _CLAUSE_FINAL_PATTERN.search(variant):
+        return True
+    return bool(_DECISION_CONTINUATION_PATTERN.search(variant))
 
 
 def consult_frame_present(variants: tuple[str, ...] | list[str]) -> bool:

@@ -73,7 +73,7 @@ UNDER_TRIGGER_PRESENTATIONS: tuple[tuple[str, str], ...] = (
     ("paediatric-fever", "sốt cao không hạ"),
     # Neurological and trauma.
     ("neuro-coma", "hôn mê"),
-    ("trauma-burn", "bỏng nặng"),
+    ("trauma-burn", "bỏng độ 3"),
     ("trauma-head", "chấn thương đầu"),
     ("toxic-ingestion", "ngộ độc"),
     ("drowning", "chết đuối"),
@@ -89,6 +89,15 @@ UNDER_TRIGGER_PRESENTATIONS: tuple[tuple[str, str], ...] = (
     # "ðot quy" and matched no rule written for "đột quỵ".
     ("homoglyph-eth", "ðột quỵ"),
     ("homoglyph-eth-capital", "Ðột quỵ"),
+    # Burn extent and site. "bỏng nặng" is deliberately absent from the
+    # vocabulary because diacritic-free it is "bóng nắng" (the shadow of
+    # sunlight); these are the phrasings that carry the same clinical signal.
+    ("burn-extensive", "bỏng rộng"),
+    ("burn-full-thickness", "bỏng toàn thân"),
+    ("burn-face", "bỏng ở mặt"),
+    # Joined-syllable self-harm typing, which only squashed matching reaches.
+    ("self-harm-joined", "chetdi"),
+    ("self-harm-spaced-joined", "c h e t d i"),
 )
 
 # Presentations that must stay silent. The first block is the audited
@@ -115,6 +124,12 @@ OVER_TRIGGER_PRESENTATIONS: tuple[tuple[str, str], ...] = (
     ("reflux", "tôi bị trào ngược dạ dày"),
     ("opening-hours", "giờ làm việc của bệnh viện"),
     ("cardio-booking", "đặt lịch khám tim mạch"),
+    # Collisions the widened vocabulary introduced or that the homophone rule
+    # must not reach: sun shadow versus severe burn, and a consultation that
+    # names a clinician rather than a companion.
+    ("sun-shadow", "bóng nắng chiếu vào phòng có hại không"),
+    ("consult-with-doctor", "tôi muốn tư vấn với bác sĩ"),
+    ("consult-by-phone", "tôi muốn tư vấn qua điện thoại"),
 )
 
 # Suffixes that mark a stated decision rather than a transitive verb with an
@@ -123,6 +138,13 @@ HOMOPHONE_CRISIS_STATEMENTS: tuple[str, ...] = (
     "Tôi định tự vẫn thôi",
     "tôi muốn tự vẫn",
     "toi dinh tu van roi",
+    # A stated intention followed by a reason, a companion or a time. An earlier
+    # revision of the homophone rule required the phrase to end the clause and
+    # missed every one of these, which the release before it had caught.
+    ("intent-companion", "Tôi muốn tự vẫn với vợ con"),
+    ("intent-reason", "Tôi định tự vẫn vì mất việc"),
+    ("intent-shared", "tự vẫn cùng con"),
+    ("intent-time", "Tôi muốn tự vẫn sáng mai"),
 )
 
 
@@ -158,10 +180,15 @@ def test_ordinary_question_does_not_escalate(label: str, message: str) -> None:
     assert response is None or response.safety_action != ChatSafetyAction.EMERGENCY
 
 
-@pytest.mark.parametrize("message", HOMOPHONE_CRISIS_STATEMENTS)
-def test_stated_self_harm_intention_still_escalates(message: str) -> None:
+@pytest.mark.parametrize(
+    "case",
+    HOMOPHONE_CRISIS_STATEMENTS,
+    ids=[entry[0] if isinstance(entry, tuple) else entry for entry in HOMOPHONE_CRISIS_STATEMENTS],
+)
+def test_stated_self_harm_intention_still_escalates(case) -> None:
     """The homophone rule suppresses consultations, not stated intentions."""
 
+    message = case[1] if isinstance(case, tuple) else case
     assert _crisis_detected(_normalize_sensitive_text(message)) is True
 
 
