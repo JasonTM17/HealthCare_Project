@@ -171,10 +171,15 @@ test("admin primary mutation creates a specialty with the authorized REST payloa
   const request = await requestPromise;
 
   expect(request.headers()["authorization"]).toBeUndefined();
+  // The specialty contract carries the clinical trio alongside the identity
+  // fields; the admin left them blank, so the form sends explicit empties.
   expect(request.postDataJSON()).toEqual({
     name: "Y học giấc ngủ",
     slug: "y-hoc-giac-ngu",
     description: "Đánh giá và hỗ trợ các vấn đề về giấc ngủ.",
+    commonSymptoms: [],
+    preparationSteps: [],
+    carePathway: null,
     active: true,
   });
   await expect(page.getByText("Đã tạo chuyên khoa", { exact: true })).toBeVisible();
