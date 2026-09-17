@@ -64,6 +64,15 @@ class Settings(BaseSettings):
     ai_chat_relevance_threshold: float = Field(default=0.35, ge=0, le=1)
     # Queries matching internal KB above this threshold resolve locally for 0đ cost.
     ai_chat_similarity_threshold: float = Field(default=0.65, ge=0, le=1)
+    # Emergency vocabulary breadth for the pre-provider safety gate.
+    #
+    # "expanded" ships the full audited term set in app.emergency_terms.
+    # "baseline" falls back to the legacy phrase pattern alone. It exists so an
+    # over-firing release can be contained by changing a Render environment
+    # variable and restarting the service — no rebuild, no code revert. The gate
+    # is the only always-on defence when the provider circuit is open, so the
+    # default stays "expanded".
+    ai_emergency_keyword_recall: str = Field(default="expanded", pattern="^(expanded|baseline)$")
     rag_max_document_chars: int = Field(default=20_000, ge=1, le=20_000)
     # A source listing is paginated; this is a memory safety ceiling, not a
     # reconciliation completeness limit.
