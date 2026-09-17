@@ -177,7 +177,7 @@ export default function LoginPage() {
         {SHOW_DEMO_ACCOUNTS ? (
           <div className={styles.demoSection}>
             <p className="section-note" id="demo-accounts-label">
-              Tài khoản demo — dữ liệu tổng hợp, chỉ dùng để trải nghiệm.
+              Tài khoản demo dùng để trải nghiệm
             </p>
             <div
               className={styles.roleGroup}
