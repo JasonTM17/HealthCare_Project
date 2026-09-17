@@ -356,7 +356,9 @@ public class GlobalExceptionHandler {
         ApiError error = new ApiError(
             400,
             "Bad Request",
-            ex.getMessage() != null && !ex.getMessage().isBlank() ? ex.getMessage() : "Yêu cầu không hợp lệ.",
+            ClientSafeErrorDetail.forClient(ex.getMessage()) != null
+                ? ClientSafeErrorDetail.forClient(ex.getMessage())
+                : "Yêu cầu không hợp lệ.",
             extractPath(request),
             List.of(),
             ErrorCodes.VALIDATION_ERROR
@@ -370,7 +372,9 @@ public class GlobalExceptionHandler {
         ApiError error = new ApiError(
             409,
             "Conflict",
-            ex.getMessage() != null && !ex.getMessage().isBlank() ? ex.getMessage() : "Trạng thái hiện tại không cho phép thực hiện thao tác này.",
+            ClientSafeErrorDetail.forClient(ex.getMessage()) != null
+                ? ClientSafeErrorDetail.forClient(ex.getMessage())
+                : "Trạng thái hiện tại không cho phép thực hiện thao tác này.",
             extractPath(request),
             List.of(),
             ErrorCodes.CONFLICT
@@ -384,7 +388,9 @@ public class GlobalExceptionHandler {
         ApiError error = new ApiError(
             404,
             "Not Found",
-            ex.getMessage() != null && !ex.getMessage().isBlank() ? ex.getMessage() : "Không tìm thấy tài nguyên yêu cầu.",
+            ClientSafeErrorDetail.forClient(ex.getMessage()) != null
+                ? ClientSafeErrorDetail.forClient(ex.getMessage())
+                : "Không tìm thấy tài nguyên yêu cầu.",
             extractPath(request),
             List.of(),
             ErrorCodes.RESOURCE_NOT_FOUND
