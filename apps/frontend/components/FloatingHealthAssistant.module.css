@@ -94,6 +94,13 @@
   color: #fde68a;
   font-weight: 800;
 }
+
+/* The separator is decorative, so it stays out of the DOM text: assistive
+   tech announces the status itself and the e2e oracle can match it exactly. */
+.headerSubtitle .statusNote::before {
+  content: " · ";
+  font-weight: 400;
+}
 .headerIcon {
   display: grid;
   flex: 0 0 2.25rem;

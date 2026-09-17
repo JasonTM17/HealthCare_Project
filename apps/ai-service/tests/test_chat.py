@@ -362,7 +362,7 @@ def test_public_education_focus_prefers_topic_title_over_tangential_articles() -
     )
     focused = focus_public_retrieval_hits(
         query,
-        [(tangential, 0.95), (target, 0.50)],
+        cast("list[tuple[RagDocument, float]]", [(tangential, 0.95), (target, 0.50)]),
     )
 
     assert [document.source_id for document, _ in focused] == ["blood-pressure"]

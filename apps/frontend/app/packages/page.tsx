@@ -207,7 +207,7 @@ export default function PackagesPage() {
                 <PackageVisualCard
                   bookingAction={
                     <button
-                      aria-label={`Đặt lịch với gói ${item.name}`}
+                      aria-label={`Đặt lịch với gói này: ${item.name}`}
                       type="button"
                       className={packageVisualStyles.bookButton}
                       onClick={() => setSelectedPackageForModal(item)}
