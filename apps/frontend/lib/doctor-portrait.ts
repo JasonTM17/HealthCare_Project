@@ -86,6 +86,19 @@ function stripTitle(fullName: string): string {
 }
 
 /**
+ * Hosts that serve generic stock photography. A portrait from one of these is
+ * not a photograph of the named clinician, so it is never published as one.
+ *
+ * The catalog currently carries Unsplash URLs in `photoUrl` for a handful of
+ * synthetic rows, which is how a stock face reached a named doctor's card even
+ * after the frontend stopped generating them. Filtering on the host is the
+ * frontend's half of the fix; the rows themselves should be cleared or given
+ * real photography before this product goes anywhere near real patients.
+ */
+const STOCK_PHOTO_HOST_PATTERN =
+  /(?:images\.unsplash\.com|unsplash\.com|images\.pexels\.com|pexels\.com|cdn\.pixabay\.com|pixabay\.com|shutterstock\.com|istockphoto\.com|gettyimages\.com|freepik\.com|placehold\.co|placekitten\.com|picsum\.photos|loremflickr\.com)/i;
+
+/**
  * Resolve a doctor's portrait, or ``null`` when no photograph of this clinician
  * is known. Callers must render an initials avatar for ``null`` rather than
  * substituting a stock image.
@@ -110,15 +123,16 @@ export function getDoctorPhoto(doctor: {
     return DOCTOR_NAME_MAP[cleanName];
   }
 
-  // A catalog-supplied photograph wins over the curated map when it is not one
-  // of the recycled local avatars.
+  // A catalog-supplied photograph wins over the curated map when it is neither
+  // a recycled local avatar nor generic stock imagery.
+  const candidate = doctor.photoUrl?.trim() ?? "";
   if (
-    doctor.photoUrl &&
-    doctor.photoUrl.trim() &&
-    !doctor.photoUrl.includes("404") &&
-    !/^\/media\/doctors\/doctor-\d+\.jpg$/i.test(doctor.photoUrl.trim())
+    candidate &&
+    !candidate.includes("404") &&
+    !/^\/media\/doctors\/doctor-\d+\.jpg$/i.test(candidate) &&
+    !STOCK_PHOTO_HOST_PATTERN.test(candidate)
   ) {
-    return doctor.photoUrl;
+    return candidate;
   }
 
   return null;
