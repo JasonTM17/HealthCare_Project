@@ -16,10 +16,17 @@ test("doctor detail page discloses demo profiles near the booking CTA", async ()
   assert.match(source, /role="note"/, "disclosure must be a note for assistive tech");
 });
 
-test("homepage doctor cards carry the demo badge", async () => {
-  const source = await read("../app/page.tsx");
-  assert.match(source, /doctor-card__demo-badge/);
-  assert.match(source, /doctor\.demo \|\| doctor\.slug\.startsWith\("demo-bs-"\)/);
+test("homepage doctor cards and doctor list carry the demo badge flag-aware", async () => {
+  const home = await read("../app/page.tsx");
+  assert.match(home, /doctor-card__demo-badge/);
+  assert.match(home, /doctor\.demo \|\| doctor\.slug\.startsWith\("demo-bs-"\)/);
+
+  const list = await read("../app/doctors/DoctorsPageClient.tsx");
+  assert.match(
+    list,
+    /doctor\.demo \|\| doctor\.slug\.startsWith\("demo-bs-"\)/,
+    "list disclosure must honour the backend demo flag, not only the slug",
+  );
 });
 
 test("public booking success never dead-ends guests into the patient portal", async () => {
