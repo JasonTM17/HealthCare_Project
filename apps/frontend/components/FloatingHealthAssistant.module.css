@@ -88,19 +88,21 @@
   line-height: 1.35;
 }
 
+/* The separator is drawn, not written. A generated `::before` is still part of
+   the rendered text that assistive technology and Playwright read, so
+   `content: " · "` kept the status string from matching exactly. A rule and
+   inline padding separate the two visually without adding a character to the
+   text the status is announced as. */
 .headerSubtitle .statusNote {
+  border-left: 1px solid rgba(253, 230, 138, 0.55);
   display: inline;
+  margin-left: 0.5rem;
   margin-top: 0;
+  padding-left: 0.5rem;
   color: #fde68a;
   font-weight: 800;
 }
 
-/* The separator is decorative, so it stays out of the DOM text: assistive
-   tech announces the status itself and the e2e oracle can match it exactly. */
-.headerSubtitle .statusNote::before {
-  content: " · ";
-  font-weight: 400;
-}
 .headerIcon {
   display: grid;
   flex: 0 0 2.25rem;

@@ -773,7 +773,7 @@ function FloatingHealthAssistantPanel({
                   <article className={`${styles.message} ${message.role === "ASSISTANT" ? styles.assistant : styles.patient}`} key={message.id}>
                     <span className={styles.messageRole}>{message.role === "ASSISTANT" ? "HealthCare" : "Bạn"}</span>
                     <ChatMessageContent content={message.content} />
-                    <div className={styles.messageMeta}>
+                    <header className={styles.messageMeta}>
                       <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
                       {message.role === "ASSISTANT" ? (
                         <>
@@ -783,7 +783,7 @@ function FloatingHealthAssistantPanel({
                           </span>
                         </>
                       ) : null}
-                    </div>
+                    </header>
                     {message.role === "ASSISTANT" ? (
                       <>
                         {message.disclaimer && message.disclaimer.trim() && message.disclaimer.trim() !== DEFAULT_DISCLAIMER && !message.disclaimer.includes("thay thế tư vấn của bác sĩ") ? (
