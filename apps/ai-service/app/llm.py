@@ -694,8 +694,10 @@ _EMERGENCY_TERMS = (
     "chay mau khong cam", "tự tử", "tu tu", "co giật", "co giat",
     "chet di", "chết đi", "paraquat", "thuoc diet co", "thuốc diệt cỏ",
     "đột quỵ", "dot quy", "tai biến", "tai bien",
+    "tai biến mạch máu não", "tai bien mach mau nao",
     "đau tim", "dau tim", "nhồi máu cơ tim", "nhoi mau co tim",
     "ngưng thở", "ngung tho", "ngưng tim", "ngung tim",
+    "stroke", "heart attack", "cardiac arrest",
     "bất tỉnh", "bat tinh", "mất ý thức", "mat y thuc",
 )
 # Crisis phrasings rarely arrive as one exact substring: callers insert filler
@@ -709,7 +711,7 @@ _EMERGENCY_PHRASE_PATTERN = re.compile(
     r"dau\W+(?:that\W+)?nguc(?:\W+\w{1,20}){0,6}\W{1,3}du\W+doi"
     r"|chay\W+mau(?:\W+\w{1,20}){0,6}\W{1,3}khong\W+cam"
     r"|kho\W+tho|meo\W+mieng|yeu\W+liet|co\W+giat|tu\W*tu"
-    r"|dot\W+quy|tai\W+bien|dau\W+tim|nhoi\W+mau\W+co\W+tim|ngung\W+tho|ngung\W+tim|bat\W+tinh|mat\W+y\W+thuc"
+    r"|dot\W+quy|tai\W+bien(?:\W+mach\W+mau\W+nao)?|dau\W+tim|nhoi\W+mau\W+co\W+tim|ngung\W+tho|ngung\W+tim|bat\W+tinh|mat\W+y\W+thuc"
     r"|(?:khong\W+(?:con\W+)?|het\W+)muon\W+song|muon\W+chet|chet\W+di|ket\W+thuc\W+cuoc\W+(?:doi|song)"
     r"|khong\W+con\W+ly\W+do\W+song"
     r"|(?:dinh|muon)\W+tu\W+van\b"
@@ -1925,7 +1927,7 @@ _RULES = [
         ["Đau xuất hiện lúc đói hay sau khi ăn?", "Có sụt cân bất thường gần đây không?"],
     ),
     (
-        ["đầu", "chóng mặt", "mất ngủ", "tê", "đột quỵ", "yếu tay", "liệt"],
+        ["đầu", "chóng mặt", "mất ngủ", "tê", "đột quỵ", "dot quy", "tai biến", "tai bien", "tai biến mạch máu não", "tai bien mach mau nao", "yếu tay", "liệt"],
         "Thần Kinh & Đột Quỵ",
         "NORMAL",
         "Triệu chứng có thể liên quan đến hệ thần kinh. Nếu có méo miệng, yếu liệt "
@@ -2030,7 +2032,15 @@ def rule_based_triage(symptoms: str) -> TriageResponse:
                 urgency = "EMERGENCY"
             if specialty == "Thần Kinh & Đột Quỵ" and any(
                 keyword in symptom_text
-                for keyword in ["méo miệng", "nói ngọng", "yếu một bên", "mờ mắt đột ngột"]
+                for keyword in [
+                    "méo miệng", "nói ngọng", "yếu một bên", "mờ mắt đột ngột",
+                    "đột quỵ", "dot quy", "tai biến", "tai bien",
+                ]
+            ):
+                urgency = "EMERGENCY"
+            if any(
+                term in symptom_text
+                for term in ["đột quỵ", "dot quy", "tai biến", "tai bien"]
             ):
                 urgency = "EMERGENCY"
             return TriageResponse(
