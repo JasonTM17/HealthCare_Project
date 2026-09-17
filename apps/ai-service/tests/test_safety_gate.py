@@ -179,3 +179,24 @@ def test_widened_gate_keeps_benign_context(message: str) -> None:
     result = chat_safety_response(message)
 
     assert result is None or result.safety_action != ChatSafetyAction.EMERGENCY
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Tôi bị đột quỵ phải làm sao",
+        "Người nhà tôi bị tai biến",
+        "Bệnh nhân đang bị nhồi máu cơ tim",
+        "Tôi bị đau tim dữ dội",
+        "Người bệnh đang ngưng thở",
+        "Bệnh nhân bị bất tỉnh mất ý thức",
+        "I think I am having a stroke",
+        "He is having a heart attack right now",
+    ],
+)
+def test_acute_clinical_emergencies_trigger_115(message: str) -> None:
+    """Acute life-threatening conditions must trigger immediate 115 emergency protocol."""
+    result = chat_safety_response(message)
+    assert result is not None
+    assert result.safety_action == ChatSafetyAction.EMERGENCY
+    assert "115" in result.answer
