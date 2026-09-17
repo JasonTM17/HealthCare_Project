@@ -209,6 +209,7 @@ function FloatingHealthAssistantPanel({
   const policyEpochRef = useRef(0);
   const messageViewportRef = useRef<HTMLDivElement>(null);
   const shouldScrollRef = useRef(false);
+  const stickToBottomRef = useRef(true);
   const handleModeChangeRef = useRef<(nextMode: ChatMode) => Promise<void>>(
     async () => undefined,
   );
@@ -221,8 +222,8 @@ function FloatingHealthAssistantPanel({
   const latestMessage = messages[messages.length - 1];
   const assistantStatus = failure?.kind === "unavailable"
     ? "Tạm thời gián đoạn"
-    : latestMessage?.role === "ASSISTANT" && latestMessage.provenance === "local_fallback"
-      ? "Hỗ trợ tạm thời"
+    : latestMessage?.role === "ASSISTANT" && latestMessage.safetyAction === "INSUFFICIENT_EVIDENCE"
+      ? "Chưa có nguồn xác thực"
       : null;
 
   const syncConversation = useCallback((next: AiConversation | null): void => {
@@ -435,16 +436,22 @@ function FloatingHealthAssistantPanel({
 
   useEffect(() => {
     shouldScrollRef.current = true;
-  }, [messages.length]);
+  }, [messages.length, pendingUserMessage]);
 
   useEffect(() => {
     const viewport = messageViewportRef.current;
     if (!viewport || !shouldScrollRef.current) return;
-    if (isNearBottom(viewport) || messages.length <= 2) {
+    if (stickToBottomRef.current) {
       viewport.scrollTop = viewport.scrollHeight;
     }
     shouldScrollRef.current = false;
-  }, [messages]);
+  }, [messages, pendingUserMessage]);
+
+  useEffect(() => {
+    const viewport = messageViewportRef.current;
+    if (!viewport || !streamingReply || !stickToBottomRef.current) return;
+    viewport.scrollTop = viewport.scrollHeight;
+  }, [streamingReply]);
 
   useEffect(() => {
     handleModeChangeRef.current = handleModeChange;
@@ -554,6 +561,7 @@ function FloatingHealthAssistantPanel({
       return;
     }
 
+    stickToBottomRef.current = true;
     const { controller, epoch } = beginLocalRequest();
     const pendingCreatedAt = new Date().toISOString();
     setSending(true);
@@ -743,7 +751,16 @@ function FloatingHealthAssistantPanel({
                   {consentError ? <p aria-live="assertive" className={styles.consentError} role="alert">{consentError}</p> : null}
                 </section>
               ) : null}
-              <div aria-busy={loading || sending} aria-live="polite" className={styles.thread} ref={messageViewportRef} role="log">
+              <div
+                aria-busy={loading || sending}
+                aria-live="polite"
+                className={styles.thread}
+                onScroll={(event) => {
+                  stickToBottomRef.current = isNearBottom(event.currentTarget);
+                }}
+                ref={messageViewportRef}
+                role="log"
+              >
                 {loading ? <p className={styles.status} role="status"><UiIcon name="clock" size={15} /> Đang tải lịch sử từ máy chủ…</p> : null}
                 {!loading && messages.length === 0 && !pendingUserMessage && !sending ? (
                   <div className={styles.emptyState}>

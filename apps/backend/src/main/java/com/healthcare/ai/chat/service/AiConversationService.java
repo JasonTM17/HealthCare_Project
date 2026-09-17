@@ -1286,6 +1286,9 @@ public class AiConversationService {
                 "Trước khi đi khám, bạn nên kiểm tra hướng dẫn của cơ sở, mang giấy tờ cần thiết "
                     + "và các kết quả hoặc đơn thuốc liên quan nếu có. Yêu cầu chuẩn bị có thể khác "
                     + "theo dịch vụ; hãy xác nhận lại khi đặt lịch hoặc với cơ sở.";
+            case EDUCATION ->
+                "Mình chưa tìm thấy bài viết hoặc câu hỏi thường gặp phù hợp trong kho kiến thức "
+                    + "đã được kiểm duyệt. Bạn có thể mở Cẩm nang sức khỏe hoặc Câu hỏi thường gặp.";
             case GENERAL ->
                 "Mình có thể hỗ trợ tra cứu Chuyên khoa, Bác sĩ, Gói khám, Dịch vụ, "
                     + "Cơ sở & giờ làm việc và hướng dẫn Đặt lịch. Bạn đang muốn tìm mục nào?";

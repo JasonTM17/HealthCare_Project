@@ -129,4 +129,26 @@ class AiClinicalProjectionIndexServiceTest {
                 org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.eq("CLINICAL"));
     }
+
+    @Test
+    void reconciliationQueryFencesEveryClinicalProjectionToLiveCanonicalContent() {
+        AiService aiService = mock(AiService.class);
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        when(aiService.isRagIngestConfigured()).thenReturn(true);
+        when(jdbc.queryForList(org.mockito.ArgumentMatchers.anyString())).thenReturn(List.of());
+        when(aiService.listIndexedDocuments()).thenReturn(List.of());
+
+        AiClinicalProjectionIndexService service = new AiClinicalProjectionIndexService(aiService, jdbc);
+        assertThat(service.synchronizeClinicalNow()).isZero();
+
+        ArgumentCaptor<String> query = ArgumentCaptor.forClass(String.class);
+        verify(jdbc).queryForList(query.capture());
+        assertThat(query.getValue())
+            .contains("'body', a.body")
+            .contains("'answer', f.answer")
+            .contains("'care_pathway', s.care_pathway")
+            .contains("jsonb_array_elements")
+            .doesNotContain("a.sections::text")
+            .contains("h.content_hash = encode(digest(convert_to(jsonb_build_object(");
+    }
 }

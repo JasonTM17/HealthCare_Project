@@ -15,6 +15,7 @@ from app.config import Settings
 from app.chatbot import (
     ChatContractError,
     focus_public_retrieval_hits,
+    grounded_source_excerpt,
     generate_chat_response,
     is_complex_multisymptom_query,
     mode_source_types,
@@ -546,14 +547,40 @@ def chat(request: ChatRequest) -> ChatResponse:
         label="Chat message",
         setting_name="ai_max_input_chars",
     )
+    # The legacy one-step endpoint is operational-only for public support.
+    # Clinical education must use Spring's retrieve -> authorize -> generate
+    # contract, so this endpoint never derives a clinical mode from text.
+    effective_mode = request.mode
+    if request.public_support_chat and effective_mode is not ChatMode.HOSPITAL_SUPPORT:
+        raise HTTPException(
+            status_code=400,
+            detail="public /chat accepts HOSPITAL_SUPPORT only; use retrieve/generate for clinical modes",
+        )
     turns = [(turn.role, turn.content) for turn in request.recent_turns]
     safety_response = chat_safety_response(message, turns)
     if safety_response is not None:
         # A refusal keeps the caller's requested mode instead of silently
         # reporting the HOSPITAL_SUPPORT default (mirrors /chat/generate).
-        return safety_response.model_copy(update={"mode": request.mode})
+        return safety_response.model_copy(update={"mode": effective_mode})
 
-    allow_public_op = request.public_support_chat or request.mode is ChatMode.HOSPITAL_SUPPORT
+    if request.public_support_chat and public_source_types_for_query(message) == frozenset({"article", "faq"}):
+        # Do not let a legacy caller turn a clinical-looking public question
+        # into a one-step RAG/generation request. The Spring public BFF owns
+        # this routing and will return a verified education answer or a
+        # source-unavailable response after authorization.
+        return ChatResponse(
+            answer=(
+                "Mình chưa thể trả lời bài viết hoặc câu hỏi thường gặp ở kênh này. "
+                "Bạn hãy gửi qua kênh Cẩm nang sức khỏe để hệ thống kiểm tra nguồn đã được kiểm duyệt."
+            ),
+            mode=effective_mode,
+            safety_action=ChatSafetyAction.INSUFFICIENT_EVIDENCE,
+            provenance="local_fallback",
+            cost_tier="local_free",
+            routing_reason="public_education_requires_two_step_contract",
+        )
+
+    allow_public_op = request.public_support_chat or effective_mode is ChatMode.HOSPITAL_SUPPORT
     embedding_provider = settings.embedding_provider.strip().casefold()
     if (
         embedding_provider not in LOCAL_EMBEDDING_PROVIDERS
@@ -579,7 +606,7 @@ def chat(request: ChatRequest) -> ChatResponse:
     )
     try:
         source_types = (
-            list(mode_source_types(request.mode))
+            list(mode_source_types(effective_mode))
             if not request.public_support_chat
             else public_source_types_for_query(message)
         )
@@ -587,17 +614,24 @@ def chat(request: ChatRequest) -> ChatResponse:
             request.top_k,
             int(getattr(settings, "ai_public_retrieval_candidates", 40)),
         ) if request.public_support_chat else request.top_k
-        hits = rag_service.search(
-            query_embedding,
-            top_k=min(
-                public_retrieval_candidates,
-                100,
-            ),
-            query_text=message,
-            source_types=source_types,
-            embedding_model=query_model,
-            embedding_provenance=retrieval_provenance,
-        )
+        if request.public_support_chat and source_types is not None and not source_types:
+            # `RagIndex.search` treats an empty source filter as unrestricted.
+            # Keep generic booking/preparation questions on their deterministic
+            # navigation path instead of letting unrelated catalog rows become
+            # apparent grounding context.
+            hits = []
+        else:
+            hits = rag_service.search(
+                query_embedding,
+                top_k=min(
+                    public_retrieval_candidates,
+                    100,
+                ),
+                query_text=message,
+                source_types=source_types,
+                embedding_model=query_model,
+                embedding_provenance=retrieval_provenance,
+            )
     except EmbeddingContractError:
         if embedding_provenance != "local_fallback":
             raise
@@ -634,6 +668,7 @@ def chat(request: ChatRequest) -> ChatResponse:
         # insufficient-evidence response and carries no misleading citations.
         context = []
         citations = []
+        hits = []
     top_score = max([score for _, score in hits], default=0.0)
     similarity_thresh = getattr(settings, "ai_chat_similarity_threshold", 0.45)
     is_complex = is_complex_multisymptom_query(message)
@@ -642,7 +677,7 @@ def chat(request: ChatRequest) -> ChatResponse:
         try:
             grounded_request = ChatGenerateRequest(
                 message=message,
-                mode=request.mode,
+                mode=effective_mode,
                 recent_turns=request.recent_turns,
                 authorized_sources=[
                     AuthorizedSource(
@@ -651,6 +686,26 @@ def chat(request: ChatRequest) -> ChatResponse:
                         projection_kind=cast(
                             ProjectionKind,
                             normalize_projection_kind(document.metadata) or "OPERATIONAL",
+                        ),
+                        content_revision=(
+                            _metadata_revision(document.metadata, "content_revision")
+                            if normalize_projection_kind(document.metadata) == "CLINICAL"
+                            else None
+                        ),
+                        eligibility_revision=(
+                            _metadata_revision(document.metadata, "eligibility_revision")
+                            if normalize_projection_kind(document.metadata) == "CLINICAL"
+                            else None
+                        ),
+                        content_hash=(
+                            _metadata_value(document.metadata, "content_hash")
+                            if normalize_projection_kind(document.metadata) == "CLINICAL"
+                            else None
+                        ),
+                        approval_id=(
+                            _metadata_value(document.metadata, "approval_id")
+                            if normalize_projection_kind(document.metadata) == "CLINICAL"
+                            else None
                         ),
                     )
                     # Public guest answers are deliberately compact. The
@@ -681,8 +736,9 @@ def chat(request: ChatRequest) -> ChatResponse:
         and patient_chat_remote_enabled(settings)
     ):
         top_doc, _ = hits[0]
+        grounded_excerpt = grounded_source_excerpt(top_doc)
         grounded_answer = (
-            f"Dựa trên thông tin chính thức từ {top_doc.title}: {top_doc.content[:2000]}. "
+            f"Dựa trên thông tin chính thức từ {grounded_excerpt} "
             "Nếu bạn cần thêm thông tin chi tiết hoặc đặt lịch khám, hãy liên hệ trực tiếp với bệnh viện."
         )
         response = ChatResponse(
@@ -717,14 +773,14 @@ def chat(request: ChatRequest) -> ChatResponse:
             update={
                 "provenance": final_provenance,
                 "citations": [],
-                "mode": request.mode,
+                "mode": effective_mode,
                 "cost_tier": response.cost_tier,
                 "routing_reason": response.routing_reason,
             }
         )
     return response.model_copy(update={
         "provenance": final_provenance,
-        "mode": request.mode,
+        "mode": effective_mode,
         "cost_tier": response.cost_tier,
         "routing_reason": response.routing_reason,
     })

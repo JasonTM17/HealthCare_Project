@@ -1,5 +1,6 @@
 """Focused contract tests for the bounded chat endpoint."""
 
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import cast
 
@@ -14,6 +15,7 @@ from app.llm import (
     chat_safety_response,
     contains_prompt_injection,
     public_context_is_relevant,
+    public_chat_mode_for_query,
     public_no_context_query_allowed,
     public_query_constraints,
     public_source_types_for_query,
@@ -25,7 +27,7 @@ from app.providers import ProviderUnavailable
 from app.rag import RagService
 from app.chatbot import focus_public_retrieval_hits
 from app.main import app, rag_service, settings
-from app.schemas import ChatRequest, ChatResponse, Citation
+from app.schemas import ChatMode, ChatRequest, ChatResponse, ChatSafetyAction, Citation
 from app.embeddings import EmbeddingResult
 
 
@@ -267,6 +269,215 @@ def test_public_context_relevance_rejects_catalog_rows_for_broad_questions() -> 
     assert public_source_types_for_query("Bệnh viện ở đâu?") == {"branch"}
     assert public_source_types_for_query("Bệnh viện có những dịch vụ nào?") == {"service"}
     assert public_source_types_for_query("Tôi muốn tìm gói khám tổng quát") == {"package"}
+    assert public_source_types_for_query("Bài viết nào hướng dẫn đo huyết áp?") == {"article", "faq"}
+    assert public_source_types_for_query("FAQ về đặt lịch khám") == set()
+    assert public_source_types_for_query("Đặt lịch khám chuyên khoa Tim mạch") == {"specialty"}
+    assert public_source_types_for_query("Đặt lịch tại Cơ sở Thủ Đức") == {"branch"}
+    assert public_chat_mode_for_query("Bài viết nào hướng dẫn đo huyết áp?") is ChatMode.HEALTH_EDUCATION
+    assert public_chat_mode_for_query("Tôi cần chuẩn bị gì trước khi đặt lịch?") is ChatMode.HOSPITAL_SUPPORT
+    assert public_chat_mode_for_query("FAQ về đặt lịch khám") is ChatMode.HOSPITAL_SUPPORT
+
+
+def test_public_education_fallback_requires_an_approved_source() -> None:
+    local_settings = MagicMock()
+    local_settings.ai_provider = "local"
+    local_settings.ai_service_runtime = "local"
+    local_settings.ai_public_hospital_support_remote_enabled = False
+
+    result = resolve_chat(
+        "Bài viết nào hướng dẫn đo huyết áp?",
+        local_settings,
+        public_support_chat=True,
+    )
+
+    assert result.provenance == "local_fallback"
+    assert result.mode is ChatMode.HOSPITAL_SUPPORT
+    assert result.safety_action is ChatSafetyAction.INSUFFICIENT_EVIDENCE
+    assert "bài viết" in result.answer.casefold()
+    assert "hướng dẫn đo" not in result.answer.casefold()
+
+
+def test_public_generic_booking_skips_unrelated_rag_rows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    local_settings = settings
+    monkeypatch.setattr(local_settings, "ai_service_runtime", "local")
+    monkeypatch.setattr(local_settings, "ai_service_allow_unauthenticated_local", True)
+    monkeypatch.setattr(local_settings, "ai_service_token", "")
+    monkeypatch.setattr(local_settings, "ai_provider", "local")
+    monkeypatch.setattr(local_settings, "embedding_provider", "local")
+    monkeypatch.setattr(local_settings, "ai_public_hospital_support_remote_enabled", False)
+
+    retriever = MagicMock()
+    retriever.search.return_value = [(
+        SimpleNamespace(
+            source_type="specialty",
+            source_id="unrelated-specialty",
+            title="Nội tiết",
+            content="Thông tin chuyên khoa không liên quan đến quy trình đặt lịch.",
+        ),
+        0.99,
+    )]
+    monkeypatch.setattr("app.main.rag_service", retriever)
+    vector = [1.0] + [0.0] * 383
+    monkeypatch.setattr(
+        "app.main.embed",
+        lambda *_, **__: EmbeddingResult(vector, "local-hash", "local_provider"),
+    )
+
+    response = client.post(
+        "/chat",
+        json={
+            "message": "Tôi cần chuẩn bị gì trước khi đặt lịch?",
+            "public_support_chat": True,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provenance"] == "local_fallback"
+    assert payload["citations"] == []
+    assert "Đặt lịch khám" in payload["answer"]
+    retriever.search.assert_not_called()
+
+
+def test_public_education_focus_prefers_topic_title_over_tangential_articles() -> None:
+    query = "Bài viết nào hướng dẫn đo huyết áp?"
+    tangential = SimpleNamespace(
+        source_type="article",
+        source_id="stroke",
+        title="Phòng ngừa đột quỵ",
+        content="Theo dõi huyết áp và có thể đo huyết áp định kỳ để phòng ngừa đột quỵ.",
+    )
+    target = SimpleNamespace(
+        source_type="article",
+        source_id="blood-pressure",
+        title="Hướng dẫn tự đo huyết áp tại nhà đúng cách",
+        content="Đo huyết áp tại nhà theo hướng dẫn.",
+    )
+
+    assert not public_context_is_relevant(
+        query,
+        ["Rối loạn nội tiết: huyết áp tăng và các dấu hiệu khác"],
+    )
+    focused = focus_public_retrieval_hits(
+        query,
+        [(tangential, 0.95), (target, 0.50)],
+    )
+
+    assert [document.source_id for document, _ in focused] == ["blood-pressure"]
+
+
+def test_public_legacy_chat_refuses_to_route_education_without_two_step_authorization(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    local_settings = settings
+    monkeypatch.setattr(local_settings, "ai_service_runtime", "local")
+    monkeypatch.setattr(local_settings, "ai_service_allow_unauthenticated_local", True)
+    monkeypatch.setattr(local_settings, "ai_service_token", "")
+    monkeypatch.setattr(local_settings, "ai_provider", "local")
+    monkeypatch.setattr(local_settings, "embedding_provider", "local")
+    monkeypatch.setattr(local_settings, "ai_public_hospital_support_remote_enabled", False)
+
+    vector = [1.0] + [0.0] * 383
+    local_rag = RagService()
+    local_rag.ingest(
+        "article",
+        "article-blood-pressure",
+        "Hướng dẫn tự đo huyết áp tại nhà đúng cách",
+        "Đo huyết áp tại nhà: ngồi yên 5 phút, đo hai lần cách nhau một phút và ghi lại kết quả.",
+        vector,
+        embedding_model="local-hash",
+        embedding_provenance="local_provider",
+        metadata={
+            "projection_kind": "CLINICAL",
+            "content_revision": "1",
+            "eligibility_revision": "1",
+            "approval_id": "round-1",
+            "approval_state": "APPROVED",
+            "approval_expires_at": (datetime.now(timezone.utc) + timedelta(days=1)).isoformat(),
+            "content_hash": "a" * 64,
+        },
+    )
+    monkeypatch.setattr("app.main.rag_service", local_rag)
+    monkeypatch.setattr(
+        "app.main.embed",
+        lambda *_, **__: EmbeddingResult(vector, "local-hash", "local_provider"),
+    )
+
+    response = client.post(
+        "/chat",
+        json={
+            "message": "Bài viết nào hướng dẫn đo huyết áp?",
+            "public_support_chat": True,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["mode"] == "HOSPITAL_SUPPORT"
+    assert payload["provenance"] == "local_fallback"
+    assert payload["safety_action"] == "INSUFFICIENT_EVIDENCE"
+    assert payload["citations"] == []
+    assert "kiểm tra nguồn" in payload["answer"].casefold()
+
+
+def test_public_legacy_chat_rejects_browser_style_clinical_mode_override() -> None:
+    response = client.post(
+        "/chat",
+        json={
+            "message": "Bài viết nào hướng dẫn đo huyết áp?",
+            "public_support_chat": True,
+            "mode": "HEALTH_EDUCATION",
+        },
+    )
+
+    assert response.status_code == 400
+
+
+def test_public_education_never_generates_from_operational_projection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    local_settings = settings
+    monkeypatch.setattr(local_settings, "ai_service_runtime", "local")
+    monkeypatch.setattr(local_settings, "ai_service_allow_unauthenticated_local", True)
+    monkeypatch.setattr(local_settings, "ai_service_token", "")
+    monkeypatch.setattr(local_settings, "ai_provider", "local")
+    monkeypatch.setattr(local_settings, "embedding_provider", "local")
+    monkeypatch.setattr(local_settings, "ai_public_hospital_support_remote_enabled", False)
+
+    vector = [1.0] + [0.0] * 383
+    local_rag = RagService()
+    local_rag.ingest(
+        "article",
+        "article-operational",
+        "Hướng dẫn tự đo huyết áp tại nhà",
+        "Dữ liệu vận hành không phải nội dung lâm sàng đã duyệt.",
+        vector,
+        embedding_model="local-hash",
+        embedding_provenance="local_provider",
+        metadata={"projection_kind": "OPERATIONAL"},
+    )
+    monkeypatch.setattr("app.main.rag_service", local_rag)
+    monkeypatch.setattr(
+        "app.main.embed",
+        lambda *_, **__: EmbeddingResult(vector, "local-hash", "local_provider"),
+    )
+
+    response = client.post(
+        "/chat",
+        json={
+            "message": "Bài viết nào hướng dẫn đo huyết áp?",
+            "public_support_chat": True,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["mode"] == "HOSPITAL_SUPPORT"
+    assert payload["provenance"] == "local_fallback"
+    assert payload["safety_action"] == "INSUFFICIENT_EVIDENCE"
+    assert payload["citations"] == []
 
 
 def test_public_context_relevance_accepts_only_explicit_service_package_labels_for_broad_catalog() -> None:

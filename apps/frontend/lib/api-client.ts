@@ -664,7 +664,7 @@ const CTA_LABEL_MAX_LENGTH = 160;
 // not silently discarded while still rejecting path metacharacters.
 const CTA_SLUG_PATTERN = /^[A-Za-z0-9][A-Za-z0-9-]{0,219}$/;
 const CTA_SOURCE_PATH_PATTERN = new RegExp(`^/(branches|specialties|doctors|services|packages|articles)/${CTA_SLUG_PATTERN.source.slice(1, -1)}$`);
-const CTA_CATALOG_PATH_PATTERN = /^\/(branches|specialties|doctors|services|packages)$/;
+const CTA_CATALOG_PATH_PATTERN = /^\/(branches|specialties|doctors|services|packages|articles|faq)$/;
 // Same shape-only UUID rule as the booking CTA: seeded demo ids
 // (70000000-0000-…) are not RFC-4122 version-stamped.
 const CTA_FAQ_PATH_PATTERN = /^\/faq#faq-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
@@ -2411,12 +2411,20 @@ export async function sendAiConversationMessageChunked(
 }
 
 /** Stateless visitor chat response; no conversation or browser persistence is involved. */
+const PUBLIC_AI_CHAT_MODES = ["HOSPITAL_SUPPORT", "HEALTH_EDUCATION"] as const;
+type PublicAiChatMode = (typeof PUBLIC_AI_CHAT_MODES)[number];
+
+function isPublicAiChatMode(value: unknown): value is PublicAiChatMode {
+  return PUBLIC_AI_CHAT_MODES.includes(value as PublicAiChatMode);
+}
+
 export interface PublicAiChatResult {
   answer: string;
   disclaimer: string;
   citations: AiChatCitation[];
   provenance: AiChatProvenance;
-  mode: "HOSPITAL_SUPPORT";
+  /** The server may route a public question to the governed education mode. */
+  mode: PublicAiChatMode;
   safetyAction: ChatSafetyAction;
   suggestedActions: SuggestedAction[];
 }
@@ -2435,10 +2443,11 @@ function parsePublicAiChatResponse(value: unknown, path: string): PublicAiChatRe
   }
   const citations = value.citations ?? [];
   const provenance = value.provenance;
+  const mode = value.mode;
   const safetyAction = value.safety_action ?? value.safetyAction;
   const suggestedActions = value.suggestedActions ?? value.suggested_actions;
   if (
-    value.mode !== "HOSPITAL_SUPPORT"
+    !isPublicAiChatMode(mode)
     || !Array.isArray(citations)
     || citations.some((citation) => !isSafeChatCitation(citation))
     || (provenance !== "local_provider" && provenance !== "local_fallback" && provenance !== "remote_provider")
@@ -2461,7 +2470,7 @@ function parsePublicAiChatResponse(value: unknown, path: string): PublicAiChatRe
       ...(citation.source_status ? { source_status: citation.source_status } : {}),
     })),
     provenance,
-    mode: "HOSPITAL_SUPPORT",
+    mode,
     safetyAction,
     suggestedActions: sanitizeSuggestedActions(suggestedActions),
   };

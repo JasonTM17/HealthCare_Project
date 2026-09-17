@@ -46,6 +46,9 @@ test("floating assistant is mounted globally and stays on the REST chat contract
   // Provenance labels live in AssistantProvider so the floating panel and the
   // full patient chat page share one source-honesty contract.
   assert.match(provider, /Hỗ trợ tạm thời/);
+  assert.match(component, /latestMessage\.safetyAction === "INSUFFICIENT_EVIDENCE"/);
+  assert.match(component, /stickToBottomRef/);
+  assert.match(component, /onScroll=\{\(event\) => \{[\s\S]*isNearBottom\(event\.currentTarget\)/);
   assert.doesNotMatch(component, /Đang kết nối backend và AI/);
   assert.match(styles, /\.typingDots span \{[\s\S]*animation: assistantTyping/);
   assert.match(component, /data-testid="floating-chat-streaming-reply"/);
@@ -133,6 +136,8 @@ test("floating assistant fails closed across mode changes and policy refreshes",
   assert.match(apiClient, /\{0,219\}/);
   assert.match(apiClient, /CTA_LABEL_CONTROL_PATTERN\.test\(value\.label\)/);
   assert.match(apiClient, /PUBLIC_CHAT_INPUT_INVALID/);
-  assert.match(apiClient, /value\.mode !== "HOSPITAL_SUPPORT"/);
+  assert.match(apiClient, /PUBLIC_AI_CHAT_MODES = \["HOSPITAL_SUPPORT", "HEALTH_EDUCATION"\]/);
+  assert.match(apiClient, /!isPublicAiChatMode\(mode\)/);
   assert.match(apiClient, /provenance !== "local_provider"/);
+  assert.ok(apiClient.includes('const CTA_CATALOG_PATH_PATTERN = /^\\/(branches|specialties|doctors|services|packages|articles|faq)$/;'));
 });

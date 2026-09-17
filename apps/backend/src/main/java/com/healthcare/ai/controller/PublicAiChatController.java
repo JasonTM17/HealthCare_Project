@@ -52,6 +52,9 @@ public class PublicAiChatController {
 
     private static final Logger log = LoggerFactory.getLogger(PublicAiChatController.class);
     private static final Set<String> ALLOWED_CITATION_SOURCE_TYPES = Set.of(
+        "branch", "specialty", "doctor", "service", "package", "article", "faq"
+    );
+    private static final Set<String> ALLOWED_OPERATIONAL_CITATION_SOURCE_TYPES = Set.of(
         "branch", "specialty", "doctor", "service", "package"
     );
     private static final java.util.regex.Pattern CITATION_SOURCE_ID_PATTERN =
@@ -102,18 +105,24 @@ public class PublicAiChatController {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("message", request.message().trim());
         payload.put("public_support_chat", true);
+        List<Map<String, String>> mappedTurns = null;
         if (request.recentTurns() != null) {
-            List<Map<String, String>> mappedTurns = request.recentTurns().stream()
+            mappedTurns = request.recentTurns().stream()
                 .map(turn -> Map.of("role", turn.role(), "content", turn.content()))
                 .toList();
             payload.put("recent_turns", mappedTurns);
         }
 
         String userMessage = request.message().trim();
+        ChatMode publicMode = ChatSuggestedActionResolver.publicMode(userMessage);
+        payload.put("mode", publicMode.name());
         Map<String, Object> deterministicBranch = publicSpecificBranchResponse(userMessage);
         if (deterministicBranch != null) return ResponseEntity.ok(deterministicBranch);
         try {
-            return ResponseEntity.ok(sanitize(aiService.chat(payload), userMessage));
+            if (publicMode == ChatMode.HEALTH_EDUCATION) {
+                return ResponseEntity.ok(publicEducationChat(userMessage, mappedTurns));
+            }
+            return ResponseEntity.ok(sanitize(aiService.chat(payload), userMessage, publicMode));
         } catch (ResponseStatusException ex) {
             // Broad catalog navigation can be answered from the same live
             // Spring catalog even while the semantic/RAG service is cold or
@@ -127,7 +136,81 @@ public class PublicAiChatController {
         }
     }
 
-    private Map<String, Object> sanitize(Map<String, Object> upstream, String userMessage) {
+    /**
+     * Public education is deliberately a server-mediated two-step contract.
+     * The browser cannot choose the mode, the AI cannot choose the clinical
+     * identities, and generation is never called until the live Spring review
+     * projection has authorized the retrieved article/FAQ rows.
+     */
+    private Map<String, Object> publicEducationChat(
+            String userMessage,
+            List<Map<String, String>> recentTurns) {
+        Map<String, Object> retrieval = new LinkedHashMap<>();
+        retrieval.put("message", userMessage);
+        retrieval.put("mode", ChatMode.HEALTH_EDUCATION.name());
+        retrieval.put("top_k", 20);
+        if (recentTurns != null) retrieval.put("recent_turns", recentTurns);
+
+        Map<String, Object> retrieved;
+        try {
+            retrieved = aiService.retrieveChat(retrieval);
+        } catch (ResponseStatusException ex) {
+            if (isAiFailure(ex)) return publicEducationFallback(userMessage);
+            throw ex;
+        }
+        if (retrieved == null) return publicEducationFallback(userMessage);
+
+        String upstreamMode = requiredString(
+            retrieved, "mode", 64, "AI retrieval mode is invalid for public education");
+        if (!ChatMode.HEALTH_EDUCATION.name().equals(upstreamMode)) {
+            throw badGateway("AI retrieval mode is invalid for public education");
+        }
+        boundedProvenance(retrieved);
+        String safetyAction = boundedSafetyAction(retrieved);
+        if (!"ANSWER".equals(safetyAction)) {
+            return publicSafetyFallback(userMessage, safetyAction);
+        }
+
+        List<AiChatSourceResolver.ResolvedSource> authorized;
+        try {
+            authorized = sourceResolver.authorize(ChatMode.HEALTH_EDUCATION, retrieved.get("candidates"))
+                .stream()
+                .filter(Objects::nonNull)
+                .filter(source -> Set.of("article", "faq").contains(source.type()))
+                .toList();
+        } catch (RuntimeException ignored) {
+            return publicEducationFallback(userMessage);
+        }
+        if (authorized.isEmpty()) return publicEducationFallback(userMessage);
+
+        Map<String, Object> generation = new LinkedHashMap<>();
+        generation.put("message", userMessage);
+        generation.put("mode", ChatMode.HEALTH_EDUCATION.name());
+        if (recentTurns != null) generation.put("recent_turns", recentTurns);
+        generation.put("authorized_sources", sourceResolver.authorizedPayload(authorized));
+
+        Map<String, Object> generated;
+        try {
+            generated = aiService.generateChat(generation);
+        } catch (ResponseStatusException ex) {
+            if (isAiFailure(ex)) return publicEducationFallback(userMessage);
+            throw ex;
+        }
+        return sanitize(generated, userMessage, ChatMode.HEALTH_EDUCATION, authorized);
+    }
+
+    private Map<String, Object> sanitize(
+            Map<String, Object> upstream,
+            String userMessage,
+            ChatMode publicMode) {
+        return sanitize(upstream, userMessage, publicMode, List.of());
+    }
+
+    private Map<String, Object> sanitize(
+            Map<String, Object> upstream,
+            String userMessage,
+            ChatMode publicMode,
+            List<AiChatSourceResolver.ResolvedSource> authorized) {
         if (upstream == null || !(upstream.get("answer") instanceof String answer)
                 || answer.isBlank()
                 || answer.strip().length() > MAX_ANSWER_LENGTH
@@ -140,7 +223,7 @@ public class PublicAiChatController {
         String normalizedAnswer = answer.strip();
         String upstreamMode = requiredString(
             upstream, "mode", 64, "AI mode is invalid for public chat");
-        if (!ChatMode.HOSPITAL_SUPPORT.name().equals(upstreamMode)) {
+        if (!publicMode.name().equals(upstreamMode)) {
             throw badGateway("AI mode is invalid for public chat");
         }
         String disclaimer = requiredString(
@@ -153,13 +236,31 @@ public class PublicAiChatController {
             throw badGateway("AI response failed the public safety policy");
         }
 
-        List<ValidatedCitation> validatedCitations = validatedCitations(upstream);
+        List<ValidatedCitation> validatedCitations = validatedCitations(upstream, publicMode);
         if ("ANSWER".equals(safetyAction) && validatedCitations.isEmpty()) {
+            Map<String, Object> navigationFallback = publicNavigationFallback(
+                userMessage, publicMode, provenance);
+            if (navigationFallback != null) return navigationFallback;
             throw badGateway("AI answer is missing a verified public catalog source");
         }
         if ("INSUFFICIENT_EVIDENCE".equals(safetyAction)) {
+            if (publicMode == ChatMode.HEALTH_EDUCATION) {
+                return publicEducationFallback(userMessage);
+            }
             Map<String, Object> fallback = publicCatalogFallback(userMessage);
             if (fallback != null) return fallback;
+        }
+        List<AiChatSourceResolver.ResolvedSource> currentAuthorized = List.of();
+        if (publicMode == ChatMode.HEALTH_EDUCATION && "ANSWER".equals(safetyAction)) {
+            if (authorized.isEmpty()) {
+                throw badGateway("AI education response is missing an authorized source");
+            }
+            validateUsedSources(upstream, authorized);
+            currentAuthorized = revalidateAuthorized(authorized);
+        }
+        if (publicMode == ChatMode.HEALTH_EDUCATION && !currentAuthorized.isEmpty()
+                && !citationSetMatchesAuthorized(validatedCitations, currentAuthorized)) {
+            throw badGateway("AI education citations are not exhaustive");
         }
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("answer", normalizedAnswer);
@@ -168,11 +269,124 @@ public class PublicAiChatController {
             .map(ValidatedCitation::identity)
             .toList());
         result.put("provenance", provenance);
-        result.put("mode", ChatMode.HOSPITAL_SUPPORT.name());
+        result.put("mode", publicMode.name());
         result.put("safety_action", safetyAction);
-        result.put("suggested_actions", suggestedActions(userMessage, safetyAction, validatedCitations));
+        result.put("suggested_actions", suggestedActions(
+            userMessage, safetyAction, validatedCitations));
         result.put("costTier", publicCostTier(upstream));
         result.put("routingReason", publicRoutingReason(upstream));
+        return result;
+    }
+
+    private Map<String, Object> publicEducationFallback(String userMessage) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put(
+            "answer",
+            "Mình chưa tìm thấy bài viết hoặc câu hỏi thường gặp phù hợp trong kho kiến thức "
+                + "đã được kiểm duyệt nên chưa thể trả lời chắc chắn. Bạn có thể mở Cẩm nang sức khỏe "
+                + "hoặc Câu hỏi thường gặp để xem nguồn hiện có.");
+        result.put(
+            "disclaimer",
+            "Thông tin từ trợ lý AI chỉ mang tính tham khảo và không thay thế tư vấn, "
+                + "chẩn đoán hoặc điều trị của bác sĩ.");
+        result.put("citations", List.of());
+        result.put("provenance", "local_fallback");
+        result.put("mode", ChatMode.HEALTH_EDUCATION.name());
+        result.put("safety_action", "INSUFFICIENT_EVIDENCE");
+        result.put("suggested_actions", ChatSuggestedActionResolver.hospitalSupportFallback(userMessage));
+        result.put("costTier", "local_free");
+        result.put("routingReason", "public_education_source_unavailable");
+        return result;
+    }
+
+    /**
+     * Accept only the AI service's deterministic, non-factual navigation path
+     * without a catalog citation.  A provider response that claims
+     * {@code local_fallback} is still not trusted here; the response is
+     * replaced with server-owned copy and closed actions.  Factual service,
+     * package, preparation, and education answers continue to require a
+     * verified source.
+     */
+    private Map<String, Object> publicNavigationFallback(
+            String userMessage,
+            ChatMode publicMode,
+            String provenance) {
+        if (publicMode != ChatMode.HOSPITAL_SUPPORT || !"local_fallback".equals(provenance)) {
+            return null;
+        }
+        ChatSuggestedActionResolver.HospitalSupportIntent intent =
+            ChatSuggestedActionResolver.classify(userMessage);
+        String answer = switch (intent) {
+            case GREETING ->
+                "Xin chào! Mình có thể hỗ trợ bạn tra cứu Chuyên khoa, Bác sĩ, Cơ sở & giờ làm việc "
+                    + "hoặc hướng dẫn bắt đầu đặt lịch khám tại HealthCare.";
+            case BOOKING ->
+                "Bạn có thể bắt đầu tại trang Đặt lịch khám: chọn chuyên khoa hoặc bác sĩ, "
+                    + "sau đó chọn cơ sở và khung giờ còn trống. Nếu chưa biết nên bắt đầu từ đâu, "
+                    + "hãy mở danh sách Chuyên khoa.";
+            case SPECIALTY_GUIDANCE ->
+                "Mình chưa thể xác định chuyên khoa phù hợp chỉ từ mô tả hiện tại. "
+                    + "Bạn hãy mở danh sách Chuyên khoa để xem thông tin chính thức của HealthCare.";
+            case CATALOG ->
+                "Bạn muốn tra cứu mục nào? Hãy chọn Chuyên khoa, Bác sĩ hoặc Cơ sở & giờ làm việc "
+                    + "bên dưới để xem thông tin chính thức của HealthCare.";
+            case DOCTOR ->
+                "Để tìm bác sĩ phù hợp, bạn có thể mở danh sách Bác sĩ để xem thông tin hiện có; "
+                    + "sau đó chọn Đặt lịch khám nếu muốn tiếp tục.";
+            case BRANCH ->
+                "Giờ làm việc có thể khác theo từng cơ sở. Hãy mở mục Cơ sở & giờ làm việc "
+                    + "để xem thông tin hiện tại trước khi đến khám.";
+            case GENERAL ->
+                "Mình có thể hỗ trợ tra cứu Chuyên khoa, Bác sĩ, Gói khám, Dịch vụ, "
+                    + "Cơ sở & giờ làm việc và hướng dẫn Đặt lịch. Bạn đang muốn tìm mục nào?";
+            default -> null;
+        };
+        if (answer == null) return null;
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("answer", answer);
+        result.put(
+            "disclaimer",
+            "Thông tin từ trợ lý AI chỉ mang tính tham khảo và không thay thế tư vấn, "
+                + "chẩn đoán hoặc điều trị của bác sĩ.");
+        result.put("citations", List.of());
+        result.put("provenance", "local_fallback");
+        result.put("mode", ChatMode.HOSPITAL_SUPPORT.name());
+        result.put("safety_action", "ANSWER");
+        result.put("suggested_actions", ChatSuggestedActionResolver.hospitalSupportFallback(userMessage));
+        result.put("costTier", "local_free");
+        result.put("routingReason", "public_navigation_fallback");
+        return result;
+    }
+
+    private Map<String, Object> publicSafetyFallback(String userMessage, String safetyAction) {
+        String answer = switch (safetyAction) {
+            case "EMERGENCY" ->
+                "Nếu bạn đang có dấu hiệu nguy hiểm, hãy gọi 115 ngay hoặc đến cơ sở y tế gần nhất. "
+                    + "Tôi không tự động gọi thay bạn.";
+            case "REFUSE" ->
+                "Tôi không thể chẩn đoán hoặc kê đơn. Bạn nên trao đổi trực tiếp với bác sĩ.";
+            case "HUMAN_HANDOFF" ->
+                "Tôi chưa thể xử lý an toàn yêu cầu này. Bạn có thể trao đổi với nhân viên y tế.";
+            default -> "Mình chưa tìm thấy nguồn thông tin phù hợp để trả lời chắc chắn.";
+        };
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("answer", answer);
+        result.put(
+            "disclaimer",
+            "Thông tin từ trợ lý AI chỉ mang tính tham khảo và không thay thế tư vấn, "
+                + "chẩn đoán hoặc điều trị của bác sĩ.");
+        result.put("citations", List.of());
+        result.put("provenance", "local_fallback");
+        result.put("mode", ChatMode.HEALTH_EDUCATION.name());
+        result.put("safety_action", safetyAction);
+        result.put(
+            "suggested_actions",
+            "EMERGENCY".equals(safetyAction)
+                ? List.of(Map.of("kind", "CALL_EMERGENCY", "label", "Gọi 115", "href", "tel:115"))
+                : List.of());
+        result.put("costTier", "local_free");
+        result.put("routingReason", "public_safety_guardrail");
         return result;
     }
 
@@ -437,7 +651,7 @@ public class PublicAiChatController {
             String sourceId = citation.get("source_id");
             String title = citation.get("title");
             if (sourceType == null || sourceId == null || title == null
-                    || !ALLOWED_CITATION_SOURCE_TYPES.contains(sourceType)
+                    || !ALLOWED_OPERATIONAL_CITATION_SOURCE_TYPES.contains(sourceType)
                     || sourceId.length() > MAX_CITATION_SOURCE_ID_LENGTH
                     || !CITATION_SOURCE_ID_PATTERN.matcher(sourceId).matches()
                     || !validPublicText(title, MAX_CITATION_TITLE_LENGTH)) {
@@ -508,7 +722,9 @@ public class PublicAiChatController {
         throw badGateway("AI safety action is invalid for public chat");
     }
 
-    private List<ValidatedCitation> validatedCitations(Map<String, Object> upstream) {
+    private List<ValidatedCitation> validatedCitations(
+            Map<String, Object> upstream,
+            ChatMode publicMode) {
         if (!upstream.containsKey("citations")
                 || !(upstream.get("citations") instanceof List<?> items)
                 || items.size() > MAX_CITATIONS) {
@@ -521,7 +737,7 @@ public class PublicAiChatController {
             if (!(item instanceof Map<?, ?> citation)) {
                 throw badGateway("AI citations are invalid for public chat");
             }
-            ValidatedCitation validated = identityOnlyCitation(citation);
+            ValidatedCitation validated = identityOnlyCitation(citation, publicMode);
             if (validated == null) {
                 // If an AI citation cannot be verified against the active catalog,
                 // omit it gracefully instead of crashing the visitor's entire chat response.
@@ -537,7 +753,129 @@ public class PublicAiChatController {
         return List.copyOf(result);
     }
 
-    private ValidatedCitation identityOnlyCitation(Map<?, ?> citation) {
+    private boolean citationSetMatchesAuthorized(
+            List<ValidatedCitation> citations,
+            List<AiChatSourceResolver.ResolvedSource> authorized) {
+        if (citations.size() != authorized.size()) return false;
+        Set<String> citationKeys = new HashSet<>();
+        for (ValidatedCitation citation : citations) {
+            Map<String, String> identity = citation.identity();
+            citationKeys.add(sourceKey(identity.get("source_type"), identity.get("source_id")));
+        }
+        Set<String> authorizedKeys = new HashSet<>();
+        for (AiChatSourceResolver.ResolvedSource source : authorized) {
+            authorizedKeys.add(sourceKey(source.type(), source.id()));
+        }
+        return citationKeys.size() == citations.size() && citationKeys.equals(authorizedKeys);
+    }
+
+    private List<AiChatSourceResolver.ResolvedSource> revalidateAuthorized(
+            List<AiChatSourceResolver.ResolvedSource> authorized) {
+        List<AiChatSourceResolver.ResolvedSource> current = new ArrayList<>(authorized.size());
+        for (AiChatSourceResolver.ResolvedSource expected : authorized) {
+            AiChatSourceResolver.ResolvedSource refreshed;
+            try {
+                refreshed = sourceResolver.revalidate(
+                    ChatMode.HEALTH_EDUCATION, expected.type(), expected.id());
+            } catch (RuntimeException ignored) {
+                throw badGateway("AI education catalog is unavailable for public chat");
+            }
+            if (refreshed == null || !sameProvenance(expected, refreshed)) {
+                throw badGateway("AI education source changed during public chat");
+            }
+            current.add(refreshed);
+        }
+        return List.copyOf(current);
+    }
+
+    private boolean sameProvenance(
+            AiChatSourceResolver.ResolvedSource expected,
+            AiChatSourceResolver.ResolvedSource actual) {
+        return Objects.equals(expected.type(), actual.type())
+            && Objects.equals(expected.id(), actual.id())
+            && Objects.equals(expected.active(), actual.active())
+            && Objects.equals(expected.published(), actual.published())
+            && Objects.equals(expected.projectionKind(), actual.projectionKind())
+            && Objects.equals(expected.contentRevision(), actual.contentRevision())
+            && Objects.equals(expected.eligibilityRevision(), actual.eligibilityRevision())
+            && Objects.equals(expected.contentHash(), actual.contentHash())
+            && Objects.equals(expected.approvalId(), actual.approvalId());
+    }
+
+    private void validateUsedSources(
+            Map<String, Object> upstream,
+            List<AiChatSourceResolver.ResolvedSource> authorized) {
+        Object raw = upstream.get("used_sources");
+        if (!(raw instanceof List<?> values) || values.size() != authorized.size()) {
+            throw badGateway("AI education used sources are incomplete");
+        }
+
+        Map<String, AiChatSourceResolver.ResolvedSource> expectedByKey = new LinkedHashMap<>();
+        for (AiChatSourceResolver.ResolvedSource source : authorized) {
+            String key = sourceKey(source.type(), source.id());
+            if (expectedByKey.put(key, source) != null) {
+                throw badGateway("AI education sources are duplicated");
+            }
+        }
+
+        Set<String> seen = new HashSet<>();
+        Set<String> allowedFields = Set.of(
+            "source_type", "source_id", "projection_kind", "content_revision",
+            "eligibility_revision", "content_hash", "approval_id");
+        for (Object rawValue : values) {
+            if (!(rawValue instanceof Map<?, ?> value)
+                    || value.keySet().stream().anyMatch(key -> !(key instanceof String)
+                        || !allowedFields.contains(key))) {
+                throw badGateway("AI education used sources are invalid");
+            }
+            String type = usedText(value, "source_type");
+            String id = usedText(value, "source_id");
+            if (type == null || id == null) {
+                throw badGateway("AI education used sources are invalid");
+            }
+            String key = sourceKey(type, id);
+            AiChatSourceResolver.ResolvedSource expected = expectedByKey.get(key);
+            if (expected == null || !seen.add(key)
+                    || !usedTextMatches(value, "projection_kind", expected.projectionKind())
+                    || !usedNumberMatches(value, "content_revision", expected.contentRevision())
+                    || !usedNumberMatches(value, "eligibility_revision", expected.eligibilityRevision())
+                    || !usedTextMatches(value, "content_hash", expected.contentHash())
+                    || !usedTextMatches(value, "approval_id", expected.approvalId())) {
+                throw badGateway("AI education used source metadata is invalid");
+            }
+        }
+        if (seen.size() != expectedByKey.size()) {
+            throw badGateway("AI education used sources are incomplete");
+        }
+    }
+
+    private String usedText(Map<?, ?> value, String key) {
+        Object raw = value.get(key);
+        return raw instanceof String text && !text.isBlank() ? text.strip() : null;
+    }
+
+    private boolean usedTextMatches(Map<?, ?> value, String key, String expected) {
+        if (expected == null) return !value.containsKey(key) || value.get(key) == null;
+        return value.get(key) instanceof String actual && expected.equals(actual.strip());
+    }
+
+    private boolean usedNumberMatches(Map<?, ?> value, String key, Long expected) {
+        if (expected == null) return !value.containsKey(key) || value.get(key) == null;
+        Object raw = value.get(key);
+        if (!(raw instanceof Number number)) return false;
+        if (number instanceof Float || number instanceof Double) {
+            return number.doubleValue() == expected.doubleValue();
+        }
+        return number.longValue() == expected;
+    }
+
+    private String sourceKey(String type, String id) {
+        return type + ":" + id;
+    }
+
+    private ValidatedCitation identityOnlyCitation(
+            Map<?, ?> citation,
+            ChatMode publicMode) {
         Object sourceType = citation.get("source_type");
         Object sourceId = citation.get("source_id");
         Object title = citation.get("title");
@@ -560,14 +898,14 @@ public class PublicAiChatController {
 
         AiChatSourceResolver.ResolvedSource resolved;
         try {
-            resolved = sourceResolver.revalidate(ChatMode.HOSPITAL_SUPPORT, type, id);
+            resolved = sourceResolver.revalidate(publicMode, type, id);
         } catch (RuntimeException ignored) {
             throw badGateway("AI citation catalog is unavailable for public chat");
         }
         if (resolved == null
                 || !Objects.equals(type, resolved.type())
                 || !Objects.equals(id, resolved.id())
-                || !"OPERATIONAL".equals(resolved.projectionKind())
+                || !expectedProjectionKind(publicMode).equals(resolved.projectionKind())
                 || resolved.title() == null
                 || resolved.title().isBlank()
                 || resolved.title().strip().length() > MAX_CITATION_TITLE_LENGTH
@@ -581,6 +919,10 @@ public class PublicAiChatController {
                 "title", resolved.title().strip()
             ),
             resolved);
+    }
+
+    private String expectedProjectionKind(ChatMode publicMode) {
+        return publicMode == ChatMode.HEALTH_EDUCATION ? "CLINICAL" : "OPERATIONAL";
     }
 
     private record ValidatedCitation(

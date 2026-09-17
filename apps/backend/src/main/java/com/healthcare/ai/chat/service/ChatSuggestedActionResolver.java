@@ -1,5 +1,7 @@
 package com.healthcare.ai.chat.service;
 
+import com.healthcare.ai.chat.entity.ChatMode;
+
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
@@ -48,6 +50,10 @@ public final class ChatSuggestedActionResolver {
         "chuan bi", "truoc khi di kham", "truoc khi kham", "mang theo gi", "giay to",
         "bhyt", "ho so kham", "huong dan kham"
     };
+    private static final String[] EDUCATION_TERMS = {
+        "bai viet", "bai nao", "cam nang", "faq", "cau hoi thuong gap",
+        "kien thuc suc khoe", "huong dan suc khoe"
+    };
     private static final String[] SYMPTOM_TERMS = {
         "trieu chung", "dau", "sot", "ho", "met moi", "mat ngu", "chong mat",
         "buon non", "phu hop"
@@ -66,6 +72,7 @@ public final class ChatSuggestedActionResolver {
         SERVICE,
         BRANCH,
         PREPARATION,
+        EDUCATION,
         GENERAL
     }
 
@@ -73,8 +80,11 @@ public final class ChatSuggestedActionResolver {
     public static HospitalSupportIntent classify(String question) {
         String normalized = normalize(question);
         if (GREETING_PATTERN.matcher(normalized.trim()).matches()) return HospitalSupportIntent.GREETING;
-        if (isSpecialtyGuidance(normalized)) return HospitalSupportIntent.SPECIALTY_GUIDANCE;
+        // Logistics wins over education wording so a mixed question such as
+        // "FAQ về đặt lịch" cannot enter the clinical article/FAQ lane.
         if (containsAny(normalized, BOOKING_TERMS)) return HospitalSupportIntent.BOOKING;
+        if (containsAny(normalized, EDUCATION_TERMS)) return HospitalSupportIntent.EDUCATION;
+        if (isSpecialtyGuidance(normalized)) return HospitalSupportIntent.SPECIALTY_GUIDANCE;
         if (containsAny(normalized, CATALOG_TERMS)) return HospitalSupportIntent.CATALOG;
         if (containsAny(normalized, DOCTOR_TERMS)) return HospitalSupportIntent.DOCTOR;
         if (containsAny(normalized, PACKAGE_TERMS)) return HospitalSupportIntent.PACKAGE;
@@ -84,12 +94,22 @@ public final class ChatSuggestedActionResolver {
         return HospitalSupportIntent.GENERAL;
     }
 
+    /** Select the public mode from server-owned intent, never browser input. */
+    public static ChatMode publicMode(String question) {
+        return classify(question) == HospitalSupportIntent.EDUCATION
+            ? ChatMode.HEALTH_EDUCATION
+            : ChatMode.HOSPITAL_SUPPORT;
+    }
+
     /** Build at most three safe actions for a hospital-support fallback. */
     public static List<Map<String, String>> hospitalSupportFallback(String question) {
         return switch (classify(question)) {
             case GREETING -> actions(
                 source("Xem Chuyên khoa", "/specialties"),
                 source("Xem Cơ sở", "/branches"));
+            case EDUCATION -> actions(
+                source("Mở Cẩm nang sức khỏe", "/articles"),
+                source("Câu hỏi thường gặp", "/faq"));
             case SPECIALTY_GUIDANCE -> actions(
                 source("Xem Chuyên khoa", "/specialties"),
                 source("Xem Bác sĩ", "/doctors"),
