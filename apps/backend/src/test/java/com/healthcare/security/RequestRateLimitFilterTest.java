@@ -381,6 +381,29 @@ class RequestRateLimitFilterTest {
     }
 
     @Test
+    void articleCommentsUseTheCommunityTierOnTheirRealMountedPath() throws Exception {
+        // The comment controller is mounted under /api/v1/hospital/articles/...,
+        // but the rule matched /api/v1/articles/..., so comment posts fell
+        // through to the looser default-post tier and the community limit never
+        // applied to the endpoint it was written for.
+        MockEnvironment environment = new MockEnvironment()
+            .withProperty("app.security.rate-limit.community-limit", "1")
+            .withProperty("app.security.rate-limit.default-post-limit", "100")
+            .withProperty("app.security.rate-limit.window-seconds", "60");
+        RequestRateLimitFilter filter = filter(environment);
+        AtomicInteger accepted = new AtomicInteger();
+
+        MockHttpServletResponse first = invokePost(
+            filter, accepted, "/api/v1/hospital/articles/tang-huyet-ap/comments", "10.0.2.1");
+        MockHttpServletResponse second = invokePost(
+            filter, accepted, "/api/v1/hospital/articles/tang-huyet-ap/comments", "10.0.2.1");
+
+        assertThat(first.getStatus()).isEqualTo(200);
+        assertThat(second.getStatus()).isEqualTo(429);
+        assertThat(accepted).hasValue(1);
+    }
+
+    @Test
     void rateLimitsAdminMutationsAndFallsBackToDefaultPostLimit() throws Exception {
         MockEnvironment environment = new MockEnvironment()
             .withProperty("app.security.rate-limit.admin-mutation-limit", "1")

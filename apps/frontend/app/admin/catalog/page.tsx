@@ -25,7 +25,7 @@ import {
   broadcastCatalogChange,
   subscribeToCatalogChange,
 } from "../../../lib/api-client";
-import { RichTextEditor } from "../../../components/editor";
+import { RichTextEditor, toStoredArticleBody } from "../../../components/editor";
 import ConfirmActionDialog from "../../../components/ui/ConfirmActionDialog";
 import { useSortableList } from "../../../lib/useSortableList";
 import { ToastContainer, useToastManager } from "../../../components/ui/ToastNotification";
@@ -861,7 +861,7 @@ export default function AdminCatalogPage() {
       title: articleForm.title.trim(),
       slug: finalSlug,
       summary: articleForm.summary.trim() || null,
-      body: articleForm.body.trim() || null,
+      body: toStoredArticleBody(articleForm.body) || null,
       category: articleForm.category.trim() || null,
       authorName: articleForm.authorName.trim() || null,
       readingMinutes,
