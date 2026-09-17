@@ -227,7 +227,7 @@ export default function LoginPage() {
           ) : null}
           <div className="auth-form__field">
             <label htmlFor="login-email">Email</label>
-            <input aria-describedby={fieldErrors.email ? "login-email-error" : undefined} aria-invalid={Boolean(fieldErrors.email)} autoComplete="username" id="login-email" name="email" onChange={(event) => handleCustomInput("email", event.target.value)} placeholder="ten@healthcare.com" required type="email" value={email} />
+            <input aria-describedby={fieldErrors.email ? "login-email-error" : undefined} aria-invalid={Boolean(fieldErrors.email)} autoComplete="username" id="login-email" name="email" onChange={(event) => handleCustomInput("email", event.target.value)} placeholder="email@example.com" required type="email" value={email} />
             {fieldErrors.email ? <small className="auth-form__field-error" id="login-email-error">{fieldErrors.email}</small> : null}
           </div>
           <div className="auth-form__field">
