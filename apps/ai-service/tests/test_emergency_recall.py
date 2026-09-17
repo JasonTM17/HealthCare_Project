@@ -132,15 +132,14 @@ OVER_TRIGGER_PRESENTATIONS: tuple[tuple[str, str], ...] = (
     ("consult-by-phone", "tôi muốn tư vấn qua điện thoại"),
 )
 
-# Suffixes that mark a stated decision rather than a transitive verb with an
-# object. The homophone resolver requires one of these to be present.
-HOMOPHONE_CRISIS_STATEMENTS: tuple[str, ...] = (
-    "Tôi định tự vẫn thôi",
-    "tôi muốn tự vẫn",
-    "toi dinh tu van roi",
-    # A stated intention followed by a reason, a companion or a time. An earlier
-    # revision of the homophone rule required the phrase to end the clause and
-    # missed every one of these, which the release before it had caught.
+# Stated self-harm intentions that the ambiguous "tu van" homophone must still
+# escalate. The labelled entries after the first three are the ones an earlier
+# revision of the rule missed by requiring the phrase to end its clause, which
+# the release before it had caught.
+HOMOPHONE_CRISIS_STATEMENTS: tuple[tuple[str, str], ...] = (
+    ("clause-final", "Tôi định tự vẫn thôi"),
+    ("bare-intention", "tôi muốn tự vẫn"),
+    ("joined-syllables", "toi dinh tu van roi"),
     ("intent-companion", "Tôi muốn tự vẫn với vợ con"),
     ("intent-reason", "Tôi định tự vẫn vì mất việc"),
     ("intent-shared", "tự vẫn cùng con"),
@@ -181,14 +180,13 @@ def test_ordinary_question_does_not_escalate(label: str, message: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "case",
+    ("label", "message"),
     HOMOPHONE_CRISIS_STATEMENTS,
-    ids=[entry[0] if isinstance(entry, tuple) else entry for entry in HOMOPHONE_CRISIS_STATEMENTS],
+    ids=[label for label, _ in HOMOPHONE_CRISIS_STATEMENTS],
 )
-def test_stated_self_harm_intention_still_escalates(case) -> None:
+def test_stated_self_harm_intention_still_escalates(label: str, message: str) -> None:
     """The homophone rule suppresses consultations, not stated intentions."""
 
-    message = case[1] if isinstance(case, tuple) else case
     assert _crisis_detected(_normalize_sensitive_text(message)) is True
 
 
