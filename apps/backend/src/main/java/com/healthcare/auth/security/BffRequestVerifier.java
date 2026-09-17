@@ -33,17 +33,37 @@ public class BffRequestVerifier {
     private static final String DEFAULT_ALLOWED_ORIGINS =
         "http://localhost:3000,http://127.0.0.1:3000";
 
-    private final byte[] configuredCredential;
+    /**
+     * Every credential this runtime accepts, in configuration order.
+     *
+     * <p>Normally one. A second entry is accepted only while a rotation is in
+     * flight: the frontend and the backend are separate platforms that each pick
+     * up an environment change on redeploy, so between the two deploys one side
+     * holds the old value and the other the new one, and every call would answer
+     * 401. Setting {@code app.security.bff.service-token-previous} to the
+     * outgoing value lets the backend accept both while the frontend catches up,
+     * and it is removed once it has.
+     */
+    private final List<byte[]> acceptedCredentials;
     private final Set<String> allowedOrigins;
 
     public BffRequestVerifier(Environment environment) {
         String credential = environment.getProperty("app.security.bff.service-token", "").trim();
-        this.configuredCredential = credential.getBytes(StandardCharsets.UTF_8);
+        String previousCredential = environment
+            .getProperty("app.security.bff.service-token-previous", "").trim();
         boolean required = environment.getProperty("app.security.bff.required", Boolean.class, false);
-        if (configuredCredential.length > 0 && configuredCredential.length < 32) {
-            throw new IllegalStateException("BFF service credential must be at least 32 bytes");
+
+        List<byte[]> credentials = new ArrayList<>(2);
+        for (String value : List.of(credential, previousCredential)) {
+            if (value.isEmpty()) continue;
+            byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
+            if (bytes.length < 32) {
+                throw new IllegalStateException("BFF service credential must be at least 32 bytes");
+            }
+            credentials.add(bytes);
         }
-        if (required && configuredCredential.length == 0) {
+        this.acceptedCredentials = List.copyOf(credentials);
+        if (required && acceptedCredentials.isEmpty()) {
             throw new IllegalStateException("BFF service credential is required");
         }
         this.allowedOrigins = Arrays.stream(
@@ -63,13 +83,22 @@ public class BffRequestVerifier {
     }
 
     public boolean isTrusted(HttpServletRequest request) {
-        if (configuredCredential.length == 0) return false;
+        if (acceptedCredentials.isEmpty()) return false;
         Optional<String> presentedHeader = singleHeader(request, CREDENTIAL_HEADER);
         if (presentedHeader.isEmpty()) return false;
-        return MessageDigest.isEqual(
-            configuredCredential,
-            presentedHeader.get().getBytes(StandardCharsets.UTF_8)
-        );
+        byte[] presented = presentedHeader.get().getBytes(StandardCharsets.UTF_8);
+        boolean matched = false;
+        // No early exit: every accepted credential is compared on every call, so
+        // the response time does not say which one matched.
+        for (byte[] accepted : acceptedCredentials) {
+            matched |= MessageDigest.isEqual(accepted, presented);
+        }
+        return matched;
+    }
+
+    /** True while a rotation window is open, for the startup log line. */
+    public boolean isAcceptingPreviousCredential() {
+        return acceptedCredentials.size() > 1;
     }
 
     /**
