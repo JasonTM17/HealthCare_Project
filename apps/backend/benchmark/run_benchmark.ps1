@@ -92,13 +92,20 @@ $scriptBlock = {
 
 $monitorJob = Start-Job -ScriptBlock $scriptBlock -ArgumentList $CsvPath
 
+# Credentials come from the environment; the harness carries no defaults
+# because a service token committed to the repository is a published token.
+if (-not $env:BACKEND_BFF_SERVICE_TOKEN -or -not $env:BENCH_EMAIL -or -not $env:BENCH_PASSWORD) {
+    Write-Error "Set BACKEND_BFF_SERVICE_TOKEN, BENCH_EMAIL and BENCH_PASSWORD before running the benchmark."
+    exit 1
+}
+
 # 4. Run k6 benchmark
 Write-Host "[4/5] Executing k6 stress test harness..."
 $k6Path = "C:\Program Files\k6\k6.exe"
 $k6Script = "$ProjectRoot\apps\backend\benchmark\stress_test.js"
 
 $k6StartTime = Get-Date
-& $k6Path run $k6Script
+& $k6Path run -e "BFF_TOKEN=$env:BACKEND_BFF_SERVICE_TOKEN" -e "BENCH_EMAIL=$env:BENCH_EMAIL" -e "BENCH_PASSWORD=$env:BENCH_PASSWORD" -e "BASE_URL=$env:BENCH_BASE_URL" $k6Script
 $k6ExitCode = $LASTEXITCODE
 $k6EndTime = Get-Date
 

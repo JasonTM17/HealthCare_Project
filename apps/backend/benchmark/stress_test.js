@@ -13,7 +13,27 @@ const appointmentHoldSuccess = new Counter('appointment_hold_success');
 const appointmentHoldConflict = new Counter('appointment_hold_conflict');
 
 const BASE_URL = __ENV.BASE_URL || 'http://127.0.0.1:8080';
-const BFF_TOKEN = __ENV.BFF_TOKEN || 'yxE+hN0bwyAS1kRv3D3P0yQcUGlkmCqnNnuYb5ojtAw=';
+// No default. A service credential that ships in the repository is a published
+// credential: this value matched the runtime BACKEND_BFF_SERVICE_TOKEN, and the
+// BFF gate is what decides whether a caller may reach the backend directly.
+// k6 exposes script environment through __ENV, so pass it per run:
+//   k6 run -e BFF_TOKEN="$BACKEND_BFF_SERVICE_TOKEN" ...
+const BFF_TOKEN = (() => {
+  const value = __ENV.BFF_TOKEN;
+  if (!value) {
+    throw new Error('BFF_TOKEN is required: pass -e BFF_TOKEN=... (see benchmark/README.md)');
+  }
+  return value;
+})();
+// The demo accounts below are published on purpose — the beta ships a public
+// demo panel and the README documents them. They are read from the environment
+// all the same, so a load test cannot be pointed at a real deployment by
+// accident and no runnable pair sits in the source.
+const BENCH_EMAIL = __ENV.BENCH_EMAIL;
+const BENCH_PASSWORD = __ENV.BENCH_PASSWORD;
+if (!BENCH_EMAIL || !BENCH_PASSWORD) {
+  throw new Error('BENCH_EMAIL and BENCH_PASSWORD are required: pass -e BENCH_EMAIL=... -e BENCH_PASSWORD=...');
+}
 const ORIGIN = 'http://localhost:3000';
 
 const DOCTOR_ID = '30000000-0000-0000-0000-000000000001';
@@ -169,8 +189,8 @@ export function stage3AuthenticatedSessions() {
   if (!sessionByVu[__VU]) {
     const loginPayload = JSON.stringify({
       grantType: 'PASSWORD',
-      email: 'patient@healthcare.com',
-      password: 'HealthCare@2026',
+      email: BENCH_EMAIL,
+      password: BENCH_PASSWORD,
     });
 
     const resLogin = http.post(`${BASE_URL}/api/v1/auth/browser-sessions`, loginPayload, { headers });
