@@ -29,6 +29,7 @@ from app.schemas import (
     TriageResponse,
     ChatResponse,
     Citation,
+    ChatMode,
     ChatSafetyAction,
     UsedSource,
 )
@@ -738,6 +739,81 @@ _PUBLIC_BOOKING_SUPPORT_TERMS = (
     "chon chuyen khoa",
     "khung gio",
 )
+_PUBLIC_BOOKING_ENTITY_TERMS = {
+    "branch": (
+        "co so",
+        "chi nhanh",
+        "dia chi",
+        "quan",
+        "huyen",
+        "phuong",
+    ),
+    "specialty": (
+        "chuyen khoa",
+        "khoa nao",
+    ),
+    "doctor": (
+        "bac si",
+    ),
+    "service": (
+        "dich vu",
+        "xet nghiem",
+    ),
+    "package": (
+        "goi kham",
+        "goi suc khoe",
+        "kham tong quat",
+    ),
+}
+_PUBLIC_EDUCATION_TERMS = (
+    "bai viet",
+    "bai nao",
+    "cam nang",
+    "cam nang suc khoe",
+    "faq",
+    "cau hoi thuong gap",
+    "kien thuc suc khoe",
+    "huong dan suc khoe",
+)
+_PUBLIC_EDUCATION_QUERY_MARKERS = (
+    "cam nang suc khoe",
+    "cau hoi thuong gap",
+    "kien thuc suc khoe",
+    "huong dan suc khoe",
+    "bai viet",
+    "bai nao",
+    "huong dan",
+    "cam nang",
+    "faq",
+)
+_PUBLIC_EDUCATION_TOPIC_STOPWORDS = frozenset(
+    {
+        "bai",
+        "viet",
+        "nao",
+        "cam",
+        "nang",
+        "suc",
+        "khoe",
+        "cau",
+        "hoi",
+        "thuong",
+        "gap",
+        "kien",
+        "thuc",
+        "huong",
+        "dan",
+        "ve",
+        "nay",
+        "cho",
+        "toi",
+        "co",
+        "the",
+        "gi",
+        "muon",
+        "tim",
+    }
+)
 _PUBLIC_PREPARATION_TERMS = (
     "chuan bi",
     "truoc khi di kham",
@@ -894,6 +970,20 @@ def public_context_is_relevant(query: str, context: Sequence[str]) -> bool:
         if item.strip() and _public_context_supports_requested_fields(normalized_query, item)
     ]
     if not eligible_context:
+        return False
+    if public_chat_mode_for_query(normalized_query) is ChatMode.HEALTH_EDUCATION:
+        topic_tokens = public_education_topic_tokens(normalized_query)
+        if len(topic_tokens) < 2:
+            return False
+        topic_set = set(topic_tokens)
+        topic_phrase = " ".join(topic_tokens)
+        for item in eligible_context:
+            normalized_item = _normalize_sensitive_text(item)
+            item_tokens = set(re.findall(r"\b[a-z0-9]{2,}\b", normalized_item))
+            if topic_phrase in normalized_item:
+                return True
+            if len(topic_set) >= 2 and topic_set.issubset(item_tokens):
+                return True
         return False
     branch_number, branch_locations = _public_branch_identity_constraints(normalized_query)
     if branch_number is not None:
@@ -1068,9 +1158,36 @@ def _public_entity_phrase_in_text(phrase: str, text: str) -> bool:
 
 
 def public_source_types_for_query(query: str) -> frozenset[str] | None:
-    """Return a narrow operational source projection for explicit public intent."""
+    """Return a narrow source projection for explicit public intent."""
 
     normalized = _normalize_sensitive_text(query)
+    # Booking/logistics must win over education wording so a mixed question
+    # such as "FAQ về đặt lịch" cannot enter the clinical article/FAQ lane.
+    if any(term in normalized for term in _PUBLIC_BOOKING_SUPPORT_TERMS) or "dat lich" in normalized:
+        # Generic booking instructions are deterministic navigation guidance;
+        # retrieving arbitrary operational rows here can make a question such
+        # as "cần chuẩn bị gì trước khi đặt lịch" answer with unrelated
+        # specialty content.  Only retrieve when the user names a concrete
+        # operational entity family (branch, doctor, specialty, service, or
+        # package).  An empty set is handled explicitly by the caller as
+        # "skip retrieval", not as an unrestricted search.
+        requested_types = {
+            source_type
+            for source_type, terms in _PUBLIC_BOOKING_ENTITY_TERMS.items()
+            if any(
+                re.search(
+                    rf"(?<![a-z0-9]){re.escape(term)}(?![a-z0-9])",
+                    normalized,
+                )
+                for term in terms
+            )
+        }
+        return frozenset(requested_types)
+    # Explicit education wording must win over generic catalog/symptom terms.
+    # Clinical article and FAQ rows are governed separately from operational
+    # hospital-support projections.
+    if any(term in normalized for term in _PUBLIC_EDUCATION_TERMS):
+        return frozenset({"article", "faq"})
     if "bac si" in normalized:
         return frozenset({"doctor"})
     if any(term in normalized for term in ("benh vien o dau", "dia chi benh vien")):
@@ -1098,6 +1215,34 @@ def public_source_types_for_query(query: str) -> frozenset[str] | None:
     return None
 
 
+def public_education_topic_tokens(query: str) -> tuple[str, ...]:
+    """Extract the user topic after removing education-request wording."""
+
+    normalized = _normalize_sensitive_text(query)
+    for marker in sorted(_PUBLIC_EDUCATION_QUERY_MARKERS, key=len, reverse=True):
+        normalized = re.sub(
+            rf"(?<!\w){re.escape(marker)}(?!\w)",
+            " ",
+            normalized,
+        )
+    return tuple(
+        token
+        for token in re.findall(r"\b[a-z0-9]{2,}\b", normalized)
+        if token not in _PUBLIC_EDUCATION_TOPIC_STOPWORDS
+        and token not in _GROUNDING_STOPWORDS
+    )
+
+
+def public_chat_mode_for_query(query: str) -> ChatMode:
+    """Choose the server-owned public mode for one latest user question."""
+
+    return (
+        ChatMode.HEALTH_EDUCATION
+        if public_source_types_for_query(query) == frozenset({"article", "faq"})
+        else ChatMode.HOSPITAL_SUPPORT
+    )
+
+
 def public_no_context_query_allowed(query: str) -> bool:
     """Return whether a public query is safe to answer without catalog facts.
 
@@ -1108,6 +1253,11 @@ def public_no_context_query_allowed(query: str) -> bool:
 
     normalized = _normalize_sensitive_text(query).strip(" .,!?:;-")
     if not normalized:
+        return False
+    # Article/FAQ requests require a current approved clinical source even
+    # when generic navigation vocabulary (for example "hướng dẫn") is also
+    # present in the question.
+    if public_chat_mode_for_query(normalized) is ChatMode.HEALTH_EDUCATION:
         return False
     if _PUBLIC_GREETING_PATTERN.fullmatch(normalized):
         return True
@@ -2000,6 +2150,12 @@ def _chat_fallback(
             "Xin chào! Tôi có thể hỗ trợ bạn tra cứu Chuyên khoa, Bác sĩ, Cơ sở & giờ làm việc "
             "hoặc hướng dẫn bắt đầu đặt lịch khám tại HealthCare."
         )
+    if any(term in normalized for term in _PUBLIC_EDUCATION_TERMS):
+        return (
+            "Mình chưa tìm thấy bài viết hoặc câu hỏi thường gặp phù hợp trong kho kiến thức "
+            "đã được kiểm duyệt. Bạn có thể mở Cẩm nang sức khỏe hoặc Câu hỏi thường gặp "
+            "để tìm thêm thông tin."
+        )
     # Specialty guidance must win over the broader `chuyên khoa nào` catalog
     # token when the visitor also describes a symptom.
     if any(term in normalized for term in _PUBLIC_SPECIALTY_GUIDANCE_TERMS) or any(
@@ -2075,6 +2231,8 @@ def _public_fallback_requires_source(message: str) -> bool:
     """
 
     normalized = _normalize_sensitive_text(message)
+    if public_chat_mode_for_query(normalized) is ChatMode.HEALTH_EDUCATION:
+        return True
     if any(term in normalized for term in _PUBLIC_BOOKING_SUPPORT_TERMS) or "dat lich" in normalized:
         return False
     return any(

@@ -14,7 +14,9 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
@@ -24,6 +26,7 @@ class PublicAiChatControllerTest {
     private static final String SPECIALTY_ID = "00000000-0000-0000-0000-000000000001";
     private static final String SECOND_SPECIALTY_ID = "00000000-0000-0000-0000-000000000002";
     private static final String BRANCH_ID = "00000000-0000-0000-0000-000000000003";
+    private static final String ARTICLE_ID = "00000000-0000-0000-0000-000000000004";
 
     private AiChatSourceResolver resolverForSpecialty() {
         AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
@@ -72,6 +75,29 @@ class PublicAiChatControllerTest {
         when(resolver.actions(List.of(branch))).thenReturn(List.of(
             Map.of("kind", "VIEW_SOURCE", "label", branch.title(), "href", branch.viewHref()),
             Map.of("kind", "START_BOOKING", "label", "Đặt lịch", "href", branch.bookingHref())));
+        return resolver;
+    }
+
+    private AiChatSourceResolver resolverForArticle() {
+        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
+        AiChatSourceResolver.ResolvedSource article = new AiChatSourceResolver.ResolvedSource(
+            "article", ARTICLE_ID, "Hướng dẫn tự đo huyết áp tại nhà đúng cách",
+            "huong-dan-tu-do-huyet-ap", true, true, "CLINICAL", 1L, 1L,
+            "a".repeat(64), "1", "/articles/huong-dan-tu-do-huyet-ap", null);
+        when(resolver.revalidate(ChatMode.HEALTH_EDUCATION, "article", ARTICLE_ID))
+            .thenReturn(article);
+        when(resolver.actions(any())).thenReturn(List.of(
+            Map.of("kind", "VIEW_SOURCE", "label", article.title(), "href", article.viewHref())));
+        when(resolver.authorize(eq(ChatMode.HEALTH_EDUCATION), any())).thenReturn(List.of(article));
+        when(resolver.authorizedPayload(any())).thenReturn(List.of(
+            Map.of(
+                "source_type", "article",
+                "source_id", ARTICLE_ID,
+                "projection_kind", "CLINICAL",
+                "content_revision", 1L,
+                "eligibility_revision", 1L,
+                "content_hash", "a".repeat(64),
+                "approval_id", "1")));
         return resolver;
     }
 
@@ -127,6 +153,7 @@ class PublicAiChatControllerTest {
         verify(aiService).chat(Map.of(
             "message", "Chuyên khoa nào?",
             "public_support_chat", true,
+            "mode", "HOSPITAL_SUPPORT",
             "recent_turns", List.of(Map.of("role", "user", "content", "Xin chào"))
         ));
     }
@@ -147,6 +174,33 @@ class PublicAiChatControllerTest {
             .chat(new PublicAiChatController.PublicChatRequest("Xin chào", null)))
             .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
             .hasMessageContaining("502 BAD_GATEWAY");
+    }
+
+    @Test
+    void replacesLocalBookingFallbackWithServerOwnedNavigationWithoutCitation() {
+        AiService aiService = mock(AiService.class);
+        when(aiService.chat(any())).thenReturn(Map.of(
+            "answer", "Đặt lịch khám trực tuyến tại HealthCare.",
+            "disclaimer", "Chỉ mang tính tham khảo.",
+            "provenance", "local_fallback",
+            "safety_action", "ANSWER",
+            "mode", "HOSPITAL_SUPPORT",
+            "citations", List.of()));
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolverForSpecialty())
+            .chat(new PublicAiChatController.PublicChatRequest(
+                "Tôi cần chuẩn bị gì trước khi đặt lịch?", null))
+            .getBody();
+
+        assertThat(body)
+            .containsEntry("provenance", "local_fallback")
+            .containsEntry("safety_action", "ANSWER")
+            .containsEntry("citations", List.of())
+            .containsEntry("routingReason", "public_navigation_fallback")
+            .containsEntry("answer",
+                "Bạn có thể bắt đầu tại trang Đặt lịch khám: chọn chuyên khoa hoặc bác sĩ, "
+                    + "sau đó chọn cơ sở và khung giờ còn trống. Nếu chưa biết nên bắt đầu từ đâu, "
+                    + "hãy mở danh sách Chuyên khoa.");
     }
 
     @Test
@@ -343,7 +397,8 @@ class PublicAiChatControllerTest {
                 Map.of("kind", "CALL_EMERGENCY", "label", "Gọi 115", "href", "tel:115")));
         verify(aiService).chat(Map.of(
             "message", "Cơ sở số 2, tôi đau ngực dữ dội",
-            "public_support_chat", true
+            "public_support_chat", true,
+            "mode", "HOSPITAL_SUPPORT"
         ));
     }
 
@@ -383,6 +438,143 @@ class PublicAiChatControllerTest {
             .containsEntry("citations", List.of(Map.of(
                 "source_type", "specialty", "source_id", SPECIALTY_ID, "title", "Tim mạch")))
             .containsKey("answer");
+    }
+
+    @Test
+    void acceptsApprovedPublicEducationCitationOnlyInServerSelectedEducationMode() {
+        AiService aiService = mock(AiService.class);
+        when(aiService.retrieveChat(any())).thenReturn(Map.of(
+            "mode", "HEALTH_EDUCATION",
+            "provenance", "local_provider",
+            "safety_action", "ANSWER",
+            "relevance_threshold", 0.45,
+            "candidates", List.of(Map.of(
+                "source_type", "article", "source_id", ARTICLE_ID,
+                "title", "untrusted candidate title", "score", 0.9,
+                "projection_kind", "CLINICAL", "content_revision", 1L,
+                "eligibility_revision", 1L, "content_hash", "a".repeat(64),
+                "approval_id", "1"))));
+        when(aiService.generateChat(any())).thenReturn(Map.of(
+            "answer", "Bài viết hướng dẫn đo huyết áp tại nhà đã được kiểm duyệt.",
+            "provenance", "local_provider",
+            "mode", "HEALTH_EDUCATION",
+            "disclaimer", "Chỉ mang tính tham khảo.",
+            "safety_action", "ANSWER",
+            "citations", List.of(Map.of(
+                "source_type", "article", "source_id", ARTICLE_ID,
+                "title", "tiêu đề do AI gửi không được tin cậy")),
+            "used_sources", List.of(Map.of(
+                "source_type", "article", "source_id", ARTICLE_ID,
+                "projection_kind", "CLINICAL", "content_revision", 1L,
+                "eligibility_revision", 1L, "content_hash", "a".repeat(64),
+                "approval_id", "1"))
+        ));
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolverForArticle())
+            .chat(new PublicAiChatController.PublicChatRequest(
+                "Bài viết nào hướng dẫn đo huyết áp?", null))
+            .getBody();
+
+        assertThat(body)
+            .containsEntry("mode", "HEALTH_EDUCATION")
+            .containsEntry("safety_action", "ANSWER")
+            .containsEntry("citations", List.of(Map.of(
+                "source_type", "article", "source_id", ARTICLE_ID,
+                "title", "Hướng dẫn tự đo huyết áp tại nhà đúng cách")))
+            .containsEntry("suggested_actions", List.of(Map.of(
+                "kind", "VIEW_SOURCE", "label", "Hướng dẫn tự đo huyết áp tại nhà đúng cách",
+                "href", "/articles/huong-dan-tu-do-huyet-ap")));
+        verify(aiService).retrieveChat(Map.of(
+            "message", "Bài viết nào hướng dẫn đo huyết áp?",
+            "mode", "HEALTH_EDUCATION",
+            "top_k", 20));
+        verify(aiService).generateChat(Map.of(
+            "message", "Bài viết nào hướng dẫn đo huyết áp?",
+            "mode", "HEALTH_EDUCATION",
+            "authorized_sources", List.of(Map.of(
+                "source_type", "article", "source_id", ARTICLE_ID,
+                "projection_kind", "CLINICAL", "content_revision", 1L,
+                "eligibility_revision", 1L, "content_hash", "a".repeat(64),
+                "approval_id", "1"))));
+        verify(aiService, never()).chat(any());
+    }
+
+    @Test
+    void refusesToGeneratePublicEducationWhenSpringCannotAuthorizeCandidate() {
+        AiService aiService = mock(AiService.class);
+        when(aiService.retrieveChat(any())).thenReturn(Map.of(
+            "mode", "HEALTH_EDUCATION",
+            "provenance", "local_provider",
+            "safety_action", "ANSWER",
+            "relevance_threshold", 0.45,
+            "candidates", List.of(Map.of(
+                "source_type", "article", "source_id", ARTICLE_ID,
+                "title", "Ứng viên chưa được duyệt", "score", 0.9))));
+        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
+        when(resolver.authorize(eq(ChatMode.HEALTH_EDUCATION), any())).thenReturn(List.of());
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolver)
+            .chat(new PublicAiChatController.PublicChatRequest(
+                "Bài viết nào hướng dẫn đo huyết áp?", null))
+            .getBody();
+
+        assertThat(body)
+            .containsEntry("mode", "HEALTH_EDUCATION")
+            .containsEntry("safety_action", "INSUFFICIENT_EVIDENCE")
+            .containsEntry("citations", List.of());
+        verify(aiService, never()).generateChat(any());
+    }
+
+    @Test
+    void keepsMixedFaqBookingQuestionInOperationalMode() {
+        AiService aiService = mock(AiService.class);
+        when(aiService.chat(any())).thenReturn(Map.of(
+            "answer", "Bạn có thể bắt đầu đặt lịch tại trang Đặt lịch khám.",
+            "disclaimer", "Chỉ mang tính tham khảo.",
+            "provenance", "local_provider",
+            "safety_action", "ANSWER",
+            "mode", "HOSPITAL_SUPPORT",
+            "citations", List.of(Map.of(
+                "source_type", "specialty", "source_id", SPECIALTY_ID, "title", "untrusted title"))));
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolverForSpecialty())
+            .chat(new PublicAiChatController.PublicChatRequest("FAQ về đặt lịch khám", null))
+            .getBody();
+
+        assertThat(body).containsEntry("mode", "HOSPITAL_SUPPORT");
+        verify(aiService).chat(Map.of(
+            "message", "FAQ về đặt lịch khám",
+            "public_support_chat", true,
+            "mode", "HOSPITAL_SUPPORT"));
+        verify(aiService, never()).retrieveChat(any());
+        verify(aiService, never()).generateChat(any());
+    }
+
+    @Test
+    void rejectsPublicEducationAnswerWhenUsedSourcesAreNotExhaustive() {
+        AiService aiService = mock(AiService.class);
+        when(aiService.retrieveChat(any())).thenReturn(Map.of(
+            "mode", "HEALTH_EDUCATION", "provenance", "local_provider",
+            "safety_action", "ANSWER", "relevance_threshold", 0.45,
+            "candidates", List.of(Map.of(
+                "source_type", "article", "source_id", ARTICLE_ID,
+                "title", "candidate", "score", 0.9))));
+        when(aiService.generateChat(any())).thenReturn(Map.of(
+            "answer", "Bài viết đã được kiểm duyệt.",
+            "provenance", "local_provider", "mode", "HEALTH_EDUCATION",
+            "disclaimer", "Chỉ mang tính tham khảo.", "safety_action", "ANSWER",
+            "citations", List.of(Map.of(
+                "source_type", "article", "source_id", ARTICLE_ID, "title", "provider title")),
+            "used_sources", List.of()));
+
+        assertThatThrownBy(() -> new PublicAiChatController(aiService, resolverForArticle())
+            .chat(new PublicAiChatController.PublicChatRequest(
+                "Bài viết nào hướng dẫn đo huyết áp?", null)))
+            .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+            .hasMessageContaining("502 BAD_GATEWAY");
+        verify(aiService).retrieveChat(any());
+        verify(aiService).generateChat(any());
+        verify(aiService, never()).chat(any());
     }
 
     @Test
@@ -627,6 +819,7 @@ class PublicAiChatControllerTest {
         verify(aiService).chat(Map.of(
             "message", "Giờ làm việc khoa Tim mạch?",
             "public_support_chat", true,
+            "mode", "HOSPITAL_SUPPORT",
             "recent_turns", List.of(
                 Map.of("role", "user", "content", "Xin chào"),
                 Map.of("role", "assistant", "content", "Chào bạn, tôi có thể giúp gì?"),

@@ -300,13 +300,22 @@ public class AiChatSourceResolver {
     public List<Map<String, String>> actions(List<ResolvedSource> sources) {
         List<Map<String, String>> actions = new ArrayList<>();
         for (ResolvedSource source : sources) {
-            addAction(actions, "VIEW_SOURCE", source.title(), source.viewHref());
+            addAction(actions, "VIEW_SOURCE", viewActionLabel(source), source.viewHref());
             if (source.bookingHref() != null) {
                 addAction(actions, "START_BOOKING", "Đặt lịch", source.bookingHref());
             }
             if (actions.size() >= 3) break;
         }
         return List.copyOf(actions);
+    }
+
+    private String viewActionLabel(ResolvedSource source) {
+        if (source == null || source.type() == null) return "Xem thông tin";
+        return switch (source.type().toLowerCase(Locale.ROOT)) {
+            case "article" -> "Đọc bài viết";
+            case "faq" -> "Xem câu trả lời";
+            default -> source.title();
+        };
     }
 
     /** Return a provider-ready exact allowlist (snake_case keys). */

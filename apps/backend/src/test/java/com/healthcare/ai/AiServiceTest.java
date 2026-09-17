@@ -98,6 +98,25 @@ class AiServiceTest {
     }
 
     @Test
+    void publicChatForwardsServerSelectedModeToFastApi() {
+        server.expect(requestTo("http://ai.test/chat"))
+            .andExpect(method(HttpMethod.POST))
+            .andExpect(content().json(
+                "{\"message\":\"hello\",\"public_support_chat\":true,"
+                    + "\"mode\":\"HEALTH_EDUCATION\"}"))
+            .andRespond(withSuccess("{\"answer\":\"Hello\"}", MediaType.APPLICATION_JSON));
+
+        Map<String, Object> response = aiService.chat(Map.of(
+            "message", "  hello ",
+            "public_support_chat", true,
+            "mode", "HEALTH_EDUCATION"
+        ));
+
+        assertThat(response).containsEntry("answer", "Hello");
+        server.verify();
+    }
+
+    @Test
     void chatForwardsTheBoundedRequestTraceToFastApi() {
         String requestId = "123e4567-e89b-42d3-a456-426614174000";
         MDC.put("request_id", requestId);

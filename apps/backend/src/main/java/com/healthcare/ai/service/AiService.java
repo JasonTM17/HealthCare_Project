@@ -3,6 +3,7 @@ package com.healthcare.ai.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.healthcare.ai.chat.entity.ChatMode;
 import com.healthcare.observability.RequestTrace;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -141,6 +142,19 @@ public class AiService {
             publicSupportChat = request.get("publicSupportChat");
         }
         if (publicSupportChat != null) payload.put("public_support_chat", publicSupportChat);
+        Object mode = request.get("mode");
+        if (mode != null) {
+            if (!(mode instanceof String rawMode)) {
+                throw new ResponseStatusException(BAD_REQUEST, "mode is invalid");
+            }
+            String normalizedMode = rawMode.trim();
+            try {
+                ChatMode.valueOf(normalizedMode);
+            } catch (IllegalArgumentException ex) {
+                throw new ResponseStatusException(BAD_REQUEST, "mode is invalid", ex);
+            }
+            payload.put("mode", normalizedMode);
+        }
         return postJson("/chat", payload);
     }
 
@@ -264,6 +278,13 @@ public class AiService {
         Object turns = request.get("recent_turns");
         if (turns == null) turns = request.get("recent_history");
         if (turns != null) payload.put("recent_turns", turns);
+        Object topK = request.get("top_k");
+        if (topK != null) {
+            if (!(topK instanceof Number value) || value.intValue() < 1 || value.intValue() > 20) {
+                throw new ResponseStatusException(BAD_REQUEST, "top_k must be between 1 and 20");
+            }
+            payload.put("top_k", topK);
+        }
         Object syntheticBeta = request.get("synthetic_beta");
         if (syntheticBeta == null) syntheticBeta = request.get("syntheticBeta");
         if (syntheticBeta != null) payload.put("synthetic_beta", syntheticBeta);

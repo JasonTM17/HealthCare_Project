@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from app.chatbot import (
     ChatContractError,
     _unsafe_claim,
+    grounded_source_excerpt,
     generate_chat_response,
     retrieve_chat_candidates,
     validate_exhaustive_used_sources,
@@ -20,6 +21,7 @@ import app.main as main
 from app.config import Settings
 from app.main import app, settings
 from app.rag import RagService
+from app.rag import RagDocument
 from app.rag import normalize_content
 from app.schemas import (
     AuthorizedSource,
@@ -477,6 +479,30 @@ def test_grounded_doctor_answer_keeps_branch_title_without_fixture_noise() -> No
     assert "Phòng khám ngoại trú HealthCare — Thủ Đức" in response.answer
     assert "DỮ LIỆU MINH HỌA" not in response.answer
     assert "Lịch thử nghiệm" not in response.answer
+
+
+def test_grounded_article_excerpt_hides_serialized_sections_and_stays_compact() -> None:
+    document = RagDocument(
+        id="article:article-1",
+        source_type="article",
+        source_id="article-1",
+        title="Khô mắt do màn hình",
+        content=(
+            "Khô mắt do màn hình\n"
+            "Nghỉ mắt thường xuyên và chớp mắt đầy đủ giúp giảm khó chịu. "
+            "Hãy đi khám nếu triệu chứng kéo dài hoặc ảnh hưởng thị lực.\n"
+            '[{"heading":"Quy tắc 20-20-20",'
+            '"body":"Sau mỗi 20 phút, nhìn xa khoảng 20 feet trong 20 giây."}]'
+        ),
+    )
+
+    answer = grounded_source_excerpt(document)
+
+    assert "[{" not in answer
+    assert '"heading"' not in answer
+    assert "Quy tắc 20-20-20" in answer
+    assert "Nghỉ mắt thường xuyên" in answer
+    assert len(answer) <= 760
 
 
 def test_protected_endpoints_return_mode_filtered_candidates_and_grounded_answer(

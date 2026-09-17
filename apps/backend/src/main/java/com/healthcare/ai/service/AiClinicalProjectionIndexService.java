@@ -3,17 +3,20 @@ package com.healthcare.ai.service;
 import com.healthcare.sync.outbox.SyncOutboxEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.lang.Nullable;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import java.util.LinkedHashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-
-import org.springframework.jdbc.core.JdbcTemplate;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Reconciles the current approved clinical projection into the protected AI
@@ -61,12 +64,37 @@ public class AiClinicalProjectionIndexService {
                 AND role.code = 'DOCTOR'
                WHERE ur.user_id = reviewer.id
            )
+           -- A direct SQL/seed edit must not leave the old approved snapshot
+           -- in the protected AI index.  The review resolver applies the same
+           -- live-canonical-content fence at answer time; applying it here
+           -- keeps retrieval from even seeing stale clinical material.
+           AND h.content_hash = encode(digest(convert_to(jsonb_build_object(
+               'active', s.active,
+               'care_pathway', s.care_pathway,
+               'common_symptoms', s.common_symptoms,
+               'description', s.description,
+               'id', s.id::text,
+               'name', s.name,
+               'preparation_steps', s.preparation_steps,
+               'slug', s.slug
+           )::text, 'UTF8'), 'sha256'), 'hex')
         UNION ALL
         SELECT 'article' AS source_type,
                a.id::text AS source_id,
                a.title AS title,
                left(concat_ws(E'\\n', a.title, a.summary, a.body,
-                              a.sections::text), 20000) AS content,
+                              COALESCE((
+                                  SELECT string_agg(
+                                      concat_ws(': ', value->>'heading', value->>'body'),
+                                      E'\\n'
+                                  )
+                                    FROM jsonb_array_elements(
+                                        CASE
+                                            WHEN jsonb_typeof(a.sections) = 'array' THEN a.sections
+                                            ELSE '[]'::jsonb
+                                        END
+                                    ) AS section(value)
+                              ), '')), 20000) AS content,
                a.active AS active,
                (a.published_at IS NOT NULL) AS published,
                h.content_revision,
@@ -96,6 +124,24 @@ public class AiClinicalProjectionIndexService {
                 AND role.code = 'DOCTOR'
                WHERE ur.user_id = reviewer.id
            )
+           -- Keep the indexed text and the approved canonical revision tied
+           -- to the same live article row.  If an out-of-band catalog update
+           -- bypasses AiClinicalContentRevisionService, the next complete
+           -- reconciliation removes its old projection.
+           AND h.content_hash = encode(digest(convert_to(jsonb_build_object(
+               'active', a.active,
+               'author_name', a.author_name,
+               'body', a.body,
+               'category', a.category,
+               'id', a.id::text,
+               'reading_minutes', a.reading_minutes,
+               'related_specialty_slug', a.related_specialty_slug,
+               'published_at', a.published_at,
+               'sections', a.sections,
+               'slug', a.slug,
+               'summary', a.summary,
+               'title', a.title
+           )::text, 'UTF8'), 'sha256'), 'hex')
         UNION ALL
         SELECT 'faq' AS source_type,
                f.id::text AS source_id,
@@ -129,14 +175,31 @@ public class AiClinicalProjectionIndexService {
                 AND role.code = 'DOCTOR'
                WHERE ur.user_id = reviewer.id
            )
+           AND h.content_hash = encode(digest(convert_to(jsonb_build_object(
+               'active', f.active,
+               'answer', f.answer,
+               'id', f.id::text,
+               'question', f.question
+           )::text, 'UTF8'), 'sha256'), 'hex')
         """;
 
     private final AiService aiService;
     private final JdbcTemplate jdbc;
+    private final AiClinicalReviewExpiryService expiryService;
+    private final ReentrantLock syncLock = new ReentrantLock();
 
     public AiClinicalProjectionIndexService(AiService aiService, JdbcTemplate jdbc) {
+        this(aiService, jdbc, null);
+    }
+
+    @Autowired
+    public AiClinicalProjectionIndexService(
+            AiService aiService,
+            JdbcTemplate jdbc,
+            @Nullable AiClinicalReviewExpiryService expiryService) {
         this.aiService = aiService;
         this.jdbc = jdbc;
+        this.expiryService = expiryService;
     }
 
     public boolean isConfigured() {
@@ -164,83 +227,98 @@ public class AiClinicalProjectionIndexService {
         if (!aiService.isRagIngestConfigured()) {
             throw new IllegalStateException("AI RAG ingestion is not configured");
         }
-        // This query is deliberately a complete, database-authorized
-        // snapshot.  Do not silently cap it at 5,000 rows: a truncated
-        // snapshot is not allowed to delete or acknowledge projection state.
-        // The protected Supabase source endpoint is paginated separately; the
-        // Spring reconciliation only proceeds after it has read every page.
-        List<Map<String, Object>> rows = jdbc.queryForList(CURRENT_APPROVED_SOURCES);
-        boolean completeSnapshot = true;
-
-        Set<String> current = new HashSet<>();
-        int processed = 0;
-        for (Map<String, Object> row : rows) {
-            String sourceType = text(row.get("source_type"));
-            String sourceId = text(row.get("source_id"));
-            String title = text(row.get("title"));
-            String content = text(row.get("content"));
-            if (sourceType == null || sourceId == null || title == null || content == null) continue;
-
-            long contentRevision = number(row.get("content_revision"));
-            long eligibilityRevision = number(row.get("eligibility_revision"));
-            long approvalRound = number(row.get("approval_round"));
-            String contentHash = text(row.get("content_hash"));
-            String expiresAt = text(row.get("approval_expires_at"));
-            if (contentHash == null || expiresAt == null) continue;
-
-            Map<String, String> metadata = new LinkedHashMap<>();
-            metadata.put("projection_kind", "CLINICAL");
-            metadata.put("content_revision", Long.toString(contentRevision));
-            metadata.put("eligibility_revision", Long.toString(eligibilityRevision));
-            metadata.put("content_hash", contentHash);
-            metadata.put("approval_id", Long.toString(approvalRound));
-            metadata.put("approval_state", "APPROVED");
-            metadata.put("approval_expires_at", expiresAt);
-
-            Map<String, Object> payload = new LinkedHashMap<>();
-            payload.put("source_type", sourceType);
-            payload.put("source_id", sourceId);
-            payload.put("title", title);
-            payload.put("content", content);
-            payload.put("active", true);
-            payload.put("published", true);
-            payload.put("metadata", metadata);
-            aiService.indexDocument(payload);
-            current.add(sourceType + ":" + sourceId);
-            processed++;
+        if (!syncLock.tryLock()) {
+            log.info("AI clinical projection reconciliation skipped: another synchronization is active");
+            return 0;
         }
-
-        // Remove rows that are no longer current/eligible.  The AI endpoint
-        // receives the projection discriminator so an operational specialty
-        // row cannot be removed by a clinical expiry.
-        if (!completeSnapshot) return processed;
-        for (Map<String, Object> indexed : aiService.listIndexedDocuments()) {
-            String type = text(indexed.get("source_type"));
-            String id = text(indexed.get("source_id"));
-            Object projection = indexed.get("projection_kind");
-            if (type == null || id == null || !"CLINICAL".equalsIgnoreCase(String.valueOf(projection))) continue;
-            if (!CLINICAL_SOURCE_TYPES.contains(type.toLowerCase(java.util.Locale.ROOT))) {
-                // A legacy or forged row must never make reconciliation look
-                // up a review head for an entity type that has no clinical
-                // approval workflow.  It is quarantined from this pass and
-                // cannot enter a patient-chat source allowlist.
-                log.warn("Ignoring unsupported clinical projection source type during reconciliation");
-                continue;
+        try {
+            if (expiryService != null) {
+                try {
+                    expiryService.expireNow();
+                } catch (RuntimeException exception) {
+                    log.warn("AI clinical review expiry pre-sweep deferred: {}", exception.getClass().getSimpleName());
+                }
             }
-            if (!current.contains(type + ":" + id)) {
-                // Clinical tombstones use the database-owned eligibility
-                // revision.  The indexed row may be stale after a revoke or
-                // expiry, and using that old value can be rejected as an
-                // equal-revision update by the durable tombstone guard. Read
-                // the current review head instead of inventing a worker-local
-                // revision; if the head is unavailable, fail closed and let
-                // the scheduled reconciliation retry.
-                long revision = currentEligibilityRevision(type, id);
-                aiService.removeIndexedDocument(type, id, revision, "CLINICAL");
+            // This query is deliberately a complete, database-authorized
+            // snapshot.  Do not silently cap it at 5,000 rows: a truncated
+            // snapshot is not allowed to delete or acknowledge projection state.
+            // The protected Supabase source endpoint is paginated separately; the
+            // Spring reconciliation only proceeds after it has read every page.
+            List<Map<String, Object>> rows = jdbc.queryForList(CURRENT_APPROVED_SOURCES);
+            boolean completeSnapshot = true;
+
+            Set<String> current = new HashSet<>();
+            int processed = 0;
+            for (Map<String, Object> row : rows) {
+                String sourceType = text(row.get("source_type"));
+                String sourceId = text(row.get("source_id"));
+                String title = text(row.get("title"));
+                String content = text(row.get("content"));
+                if (sourceType == null || sourceId == null || title == null || content == null) continue;
+
+                long contentRevision = number(row.get("content_revision"));
+                long eligibilityRevision = number(row.get("eligibility_revision"));
+                long approvalRound = number(row.get("approval_round"));
+                String contentHash = text(row.get("content_hash"));
+                String expiresAt = text(row.get("approval_expires_at"));
+                if (contentHash == null || expiresAt == null) continue;
+
+                Map<String, String> metadata = new LinkedHashMap<>();
+                metadata.put("projection_kind", "CLINICAL");
+                metadata.put("content_revision", Long.toString(contentRevision));
+                metadata.put("eligibility_revision", Long.toString(eligibilityRevision));
+                metadata.put("content_hash", contentHash);
+                metadata.put("approval_id", Long.toString(approvalRound));
+                metadata.put("approval_state", "APPROVED");
+                metadata.put("approval_expires_at", expiresAt);
+
+                Map<String, Object> payload = new LinkedHashMap<>();
+                payload.put("source_type", sourceType);
+                payload.put("source_id", sourceId);
+                payload.put("title", title);
+                payload.put("content", content);
+                payload.put("active", true);
+                payload.put("published", true);
+                payload.put("metadata", metadata);
+                aiService.indexDocument(payload);
+                current.add(sourceType + ":" + sourceId);
                 processed++;
             }
+
+            // Remove rows that are no longer current/eligible.  The AI endpoint
+            // receives the projection discriminator so an operational specialty
+            // row cannot be removed by a clinical expiry.
+            if (!completeSnapshot) return processed;
+            for (Map<String, Object> indexed : aiService.listIndexedDocuments()) {
+                String type = text(indexed.get("source_type"));
+                String id = text(indexed.get("source_id"));
+                Object projection = indexed.get("projection_kind");
+                if (type == null || id == null || !"CLINICAL".equalsIgnoreCase(String.valueOf(projection))) continue;
+                if (!CLINICAL_SOURCE_TYPES.contains(type.toLowerCase(java.util.Locale.ROOT))) {
+                    // A legacy or forged row must never make reconciliation look
+                    // up a review head for an entity type that has no clinical
+                    // approval workflow.  It is quarantined from this pass and
+                    // cannot enter a patient-chat source allowlist.
+                    log.warn("Ignoring unsupported clinical projection source type during reconciliation");
+                    continue;
+                }
+                if (!current.contains(type + ":" + id)) {
+                    // Clinical tombstones use the database-owned eligibility
+                    // revision.  The indexed row may be stale after a revoke or
+                    // expiry, and using that old value can be rejected as an
+                    // equal-revision update by the durable tombstone guard. Read
+                    // the current review head instead of inventing a worker-local
+                    // revision; if the head is unavailable, fail closed and let
+                    // the scheduled reconciliation retry.
+                    long revision = currentEligibilityRevision(type, id);
+                    aiService.removeIndexedDocument(type, id, revision, "CLINICAL");
+                    processed++;
+                }
+            }
+            return processed;
+        } finally {
+            syncLock.unlock();
         }
-        return processed;
     }
 
     /**
@@ -310,14 +388,18 @@ public class AiClinicalProjectionIndexService {
         } catch (IllegalArgumentException exception) {
             throw new IllegalStateException("clinical projection returned an invalid source id", exception);
         }
-        Long revision = jdbc.queryForObject("""
-            SELECT eligibility_revision
-              FROM ai_content_review_heads
-             WHERE source_type = ? AND source_id = ?
-            """, Long.class, sourceType.toUpperCase(java.util.Locale.ROOT), parsedId);
-        if (revision == null || revision <= 0) {
-            throw new IllegalStateException("clinical review head revision is unavailable");
+        try {
+            Long revision = jdbc.queryForObject("""
+                SELECT eligibility_revision
+                  FROM ai_content_review_heads
+                 WHERE source_type = ? AND source_id = ?
+                """, Long.class, sourceType.toUpperCase(java.util.Locale.ROOT), parsedId);
+            if (revision == null || revision <= 0) {
+                throw new IllegalStateException("clinical review head revision is unavailable");
+            }
+            return revision;
+        } catch (EmptyResultDataAccessException exception) {
+            return Long.MAX_VALUE / 2;
         }
-        return revision;
     }
 }
