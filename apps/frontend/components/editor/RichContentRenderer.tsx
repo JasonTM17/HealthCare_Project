@@ -112,7 +112,7 @@ export function renderInlineMarkdown(text: string): ReactNode[] {
   // 9. Italic underscores (CommonMark: only flanked by whitespace or punctuation):
   //    ((?:^|(?<=[\s\p{P}]))_([^_]+)_(?:$|(?=[\s\p{P}])))
   const tokenRegex =
-    /(!\[([^\]]*)\]\(([^)]+)\))|(\[([^\]]+)\]\(([^)]+)\))|(`([^`]+)`)|(\*\*\*([^*]+)\*\*\*)|(\*\*([^*]+)\*\*)|(__([^_]+)__)|(~~([^~]+)~~)|((?<!\*)\*([^*\n]+)\*(?!\*))|((?:^|(?<=[\s\p{P}]))_([^_]+)_(?:$|(?=[\s\p{P}])))/gu;
+    /(!\[([^\]]*)\]\(([^)]+)\))|(\[([^\]]+)\]\(([^)]+)\))|(`([^`]+)`)|(\*\*\*([^*]+)\*\*\*)|(\*\*([^*]+)\*\*)|(__([^_]+)__)|(~~([^~]+)~~)|((?<!\*)\*([^*\n]+)\*(?!\*))|((?:^|(?<=[\s\p{P}]))_([^_]+)_(?:$|(?=[\s\p{P}])))|(<u>([^<]*)<\/u>)/gu;
 
   let lastIndex = 0;
   let match: RegExpExecArray | null;
@@ -133,6 +133,7 @@ export function renderInlineMarkdown(text: string): ReactNode[] {
       isDel, delText,
       isItalic1, italic1Text,
       isItalic2, italic2Text,
+      isUnderline, underlineText,
     ] = match;
 
     const key = `inline-${match.index}-${match[0].slice(0, 8)}`;
@@ -205,6 +206,15 @@ export function renderInlineMarkdown(text: string): ReactNode[] {
         <em className="italic text-slate-800" key={key}>
           {renderInlineMarkdown(italic1Text || italic2Text)}
         </em>,
+      );
+    } else if (isUnderline) {
+      // Markdown has no underline, so htmlToMarkdown keeps the tag and this
+      // renders it back. Without the branch the tag was emitted into the DOM as
+      // visible text.
+      nodes.push(
+        <u className="underline decoration-slate-400" key={key}>
+          {renderInlineMarkdown(underlineText)}
+        </u>,
       );
     }
 
@@ -913,13 +923,114 @@ export function decodeHtmlEntities(text: string): string {
   });
 }
 
+// Sentinels that carry the editor's underline through the tag-stripping pass.
+// Markdown has no underline syntax, so the tag survives as inline HTML and is
+// rendered explicitly; without this stripTags deleted it and the author's
+// emphasis disappeared silently.
+const UNDERLINE_OPEN = "\u0001u\u0001";
+const UNDERLINE_CLOSE = "\u0001/u\u0001";
+
 function stripTags(html: string): string {
   return decodeHtmlEntities(html.replace(/<[^>]+>/g, ""));
+}
+
+/** Escapes text destined for an HTML text node. */
+function escapeHtmlText(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function escapeHtmlAttribute(value: string): string {
+  return escapeHtmlText(value).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+/**
+ * Reads one attribute regardless of where it appears in the tag. */
+function htmlAttribute(tag: string, name: string): string | null {
+  const pattern = new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, "i");
+  const match = pattern.exec(tag);
+  if (!match) return null;
+  return match[1] ?? match[2] ?? match[3] ?? "";
+}
+
+/**
+ * Renders one table cell as markdown.
+ *
+ * Two things matter here. Inline markup is kept rather than stripped, because a
+ * dosage table is exactly where emphasis carries meaning. And a literal pipe is
+ * escaped, because a cell such as `5 mg | 3 lần/ngày` split its row into extra
+ * columns on the way back in — silent corruption of clinical content.
+ */
+function toTableCell(html: string): string {
+  return htmlToMarkdown(html)
+    .replace(/\s*\n+\s*/g, " ")
+    .replace(/\|/g, "\\|")
+    .trim();
 }
 
 /**
  * Converts rich HTML (e.g. from TinyMCE) into markdown blocks and callouts
  */
+export const CALLOUT_KINDS = ["clinical-warning", "doctor-note", "dosage-guide", "emergency-box"] as const;
+
+/** Index of the `</div>` that closes the element opened before `from`, or -1. */
+function findMatchingDivClose(html: string, from: number): number {
+  const tagPattern = /<div\b[^>]*>|<\/div>/gi;
+  tagPattern.lastIndex = from;
+  let depth = 1;
+  let match: RegExpExecArray | null;
+  while ((match = tagPattern.exec(html)) !== null) {
+    if (match[0].toLowerCase().startsWith("</div")) {
+      depth -= 1;
+      if (depth === 0) return match.index;
+    } else {
+      depth += 1;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Replaces callout divs with `:::` blocks.
+ *
+ * The previous lazy pattern (`([\s\S]*?)<\/div>`) stopped at the first nested
+ * closing tag, so a callout holding anything block-level — an aligned div, a
+ * nested panel — was cut in half and the tail was dropped by the tag stripper.
+ * This walks the element instead of guessing where it ends.
+ */
+function extractCallouts(html: string): string {
+  let out = "";
+  let cursor = 0;
+  const openPattern = /<div\b[^>]*>/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = openPattern.exec(html)) !== null) {
+    const tag = match[0];
+    const kind = CALLOUT_KINDS.find((candidate) =>
+      new RegExp(`class=["'][^"']*${candidate}`, "i").test(tag));
+    if (!kind) continue;
+
+    const bodyStart = match.index + tag.length;
+    const bodyEnd = findMatchingDivClose(html, bodyStart);
+    if (bodyEnd === -1) continue;
+
+    const inner = html.slice(bodyStart, bodyEnd);
+    const declaredTitle = htmlAttribute(tag, "data-title");
+    const strongMatch = /<strong[^>]*>([^\n<]+)<\/strong>/i.exec(inner);
+    const title = (declaredTitle ?? strongMatch?.[1] ?? "").replace(/^[⚠️💡📋🚨]\s*/, "").trim();
+
+    out += html.slice(cursor, match.index);
+    out += `\n:::${kind}${title ? ` ${title}` : ""}\n${htmlToMarkdown(inner).trim()}\n:::\n`;
+    cursor = bodyEnd + "</div>".length;
+    openPattern.lastIndex = cursor;
+  }
+
+  out += html.slice(cursor);
+  return out;
+}
+
 export function htmlToMarkdown(html: string): string {
   if (!html || !html.trim()) return "";
   let md = html;
@@ -928,26 +1039,7 @@ export function htmlToMarkdown(html: string): string {
   md = md.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "");
   md = md.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "");
 
-  // Clinical callouts with data-callout or class="clinical-warning" etc.
-  md = md.replace(
-    /<div[^>]*class=["'][^"']*?(clinical-warning|doctor-note|dosage-guide|emergency-box)[^"']*?["'][^>]*data-title=["']([^"']*)["'][^>]*>([\s\S]*?)<\/div>/gi,
-    (_m, kind, title, content) => {
-      const inner = htmlToMarkdown(content).trim();
-      return `\n:::${kind} ${title}\n${inner}\n:::\n`;
-    }
-  );
-  md = md.replace(
-    /<div[^>]*class=["'][^"']*?(clinical-warning|doctor-note|dosage-guide|emergency-box)[^"']*?["'][^>]*>([\s\S]*?)<\/div>/gi,
-    (_m, kind, content) => {
-      let calloutTitle = "";
-      const titleMatch = content.match(/<strong[^>]*>([^\n<]+)<\/strong>/i);
-      if (titleMatch) {
-        calloutTitle = titleMatch[1].replace(/^[⚠️💡📋🚨]\s*/, "").trim();
-      }
-      const inner = htmlToMarkdown(content).trim();
-      return `\n:::${kind}${calloutTitle ? ` ${calloutTitle}` : ""}\n${inner}\n:::\n`;
-    }
-  );
+  md = extractCallouts(md);
 
   // Alignments: <div style="text-align: (center|right|justify)"...>...</div> or <p style="...">
   md = md.replace(
@@ -985,7 +1077,7 @@ export function htmlToMarkdown(html: string): string {
       const cellRegex = /<(?:th|td)[^>]*>([\s\S]*?)<\/(?:th|td)>/gi;
       let cellMatch: RegExpExecArray | null;
       while ((cellMatch = cellRegex.exec(rowMatch[1])) !== null) {
-        cells.push(stripTags(cellMatch[1]).trim());
+        cells.push(toTableCell(cellMatch[1]));
       }
       if (cells.length > 0) rows.push(cells);
     }
@@ -1033,18 +1125,29 @@ export function htmlToMarkdown(html: string): string {
   // Horizontal rules
   md = md.replace(/<hr[^>]*\/?>/gi, "\n\n---\n\n");
 
+  // Underline: preserved as inline HTML behind sentinels, because the toolbar
+  // offers it and markdown has no syntax for it.
+  md = md.replace(/<u(?:\s[^>]*)?>([\s\S]*?)<\/u>/gi, `${UNDERLINE_OPEN}$1${UNDERLINE_CLOSE}`);
+
   // Inline formatting
   md = md.replace(/<(?:strong|b)[^>]*>([\s\S]*?)<\/(?:strong|b)>/gi, "**$1**");
   md = md.replace(/<(?:em|i)[^>]*>([\s\S]*?)<\/(?:em|i)>/gi, "*$1*");
   md = md.replace(/<(?:del|s|strike)[^>]*>([\s\S]*?)<\/(?:del|s|strike)>/gi, "~~$1~~");
   md = md.replace(/<code[^>]*>([\s\S]*?)<\/code>/gi, "`$1`");
   md = md.replace(/<a[^>]*href=["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi, "[$2]($1)");
-  md = md.replace(/<img[^>]*src=["']([^"']*)["'][^>]*alt=["']([^"']*)["'][^>]*\/?>/gi, "![$2]($1)");
-  md = md.replace(/<img[^>]*src=["']([^"']*)["'][^>]*\/?>/gi, "![]($1)");
+  // Images: read the attributes instead of assuming an order. The previous
+  // two-pattern approach required src before alt, so a re-serialised tag lost
+  // its alt text — an accessibility regression on a medical site.
+  md = md.replace(/<img\b[^>]*\/?>/gi, (tag) => {
+    const src = htmlAttribute(tag, "src");
+    if (!src) return "";
+    return `![${htmlAttribute(tag, "alt") ?? ""}](${src})`;
+  });
   md = md.replace(/<br\s*\/?>/gi, "\n");
 
   // Strip remaining HTML tags and decode entities
   md = stripTags(md);
+  md = md.split(UNDERLINE_OPEN).join("<u>").split(UNDERLINE_CLOSE).join("</u>");
 
   // Normalize duplicate newlines
   md = md.replace(/\n{3,}/g, "\n\n");
@@ -1088,9 +1191,15 @@ export function markdownToHtml(md: string): string {
   let i = 0;
 
   const formatInline = (text: string): string => {
-    let s = text;
-    s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" />');
-    s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+    // Escape the source text before any markup is introduced, so a literal "<"
+    // in clinical prose cannot become a tag and a quote inside a URL cannot
+    // close the attribute the pattern just opened. The substitutions below
+    // insert real tags after this point, so they are deliberately not escaped.
+    let s = escapeHtmlText(text);
+    s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, alt, url) =>
+      `<img src="${escapeHtmlAttribute(url)}" alt="${escapeHtmlAttribute(alt)}" />`);
+    s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, label, url) =>
+      `<a href="${escapeHtmlAttribute(url)}">${label}</a>`);
     s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
     s = s.replace(/__([^_]+)__/g, "<strong>$1</strong>");
     s = s.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, "<em>$1</em>");
@@ -1105,6 +1214,23 @@ export function markdownToHtml(md: string): string {
 
     if (!trimmed) {
       i++;
+      continue;
+    }
+
+    // Fenced code. The display parser handles fences, so a draft containing one
+    // rendered correctly in preview and became literal "<p>```</p>" inside the
+    // editor — a guaranteed WYSIWYG divergence.
+    if (trimmed.startsWith("```")) {
+      const language = trimmed.slice(3).trim();
+      const codeLines: string[] = [];
+      i++;
+      while (i < lines.length && !lines[i].trim().startsWith("```")) {
+        codeLines.push(lines[i]);
+        i++;
+      }
+      if (i < lines.length) i++;
+      const classAttribute = language ? ` class="language-${escapeHtmlAttribute(language)}"` : "";
+      htmlParts.push(`<pre><code${classAttribute}>${escapeHtmlText(codeLines.join("\n"))}</code></pre>`);
       continue;
     }
 
