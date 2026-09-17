@@ -22,8 +22,6 @@ import java.util.regex.Pattern;
  */
 final class ArticleBodySanitizer {
 
-    private static final int MAX_BODY_CHARS = 8_000;
-
     /** Blocks whose entire content is unsafe, removed with their bodies. */
     private static final Pattern DANGEROUS_BLOCK = Pattern.compile(
         "(?is)<\\s*(script|style|iframe|object|embed|applet|frame|frameset|form|meta|link|base)"
@@ -34,24 +32,39 @@ final class ArticleBodySanitizer {
         "(?is)<\\s*/?\\s*(script|style|iframe|object|embed|applet|frame|frameset|form|meta|link|base)"
             + "\\b[^>]*>");
 
-    /** Inline event handlers, quoted or bare. */
+    /** Inline event handlers. HTML5 accepts "/" as an attribute separator too. */
     private static final Pattern EVENT_HANDLER = Pattern.compile(
-        "(?is)\\son[a-z]+\\s*=\\s*(\"[^\"]*\"|'[^']*'|[^\\s>]+)");
+        "(?is)[\\s/]+on[a-z]+\\s*=\\s*(\"[^\"]*\"|'[^']*'|[^\\s>]+)");
 
-    /** Script-bearing URL schemes in any attribute. */
+    /**
+     * Script-bearing URL schemes in any attribute. Browsers strip tab, newline
+     * and carriage return from a URL before parsing the scheme, so the
+     * separator class has to allow them inside the scheme itself.
+     */
     private static final Pattern SCRIPT_URL = Pattern.compile(
-        "(?is)(href|src|xlink:href|action|formaction|data)\\s*=\\s*"
-            + "(\"|')?\\s*(?:javascript|vbscript|data\\s*:\\s*text/html)\\s*:[^\"'>\\s]*(\"|')?");
+        "(?is)(href|src|xlink:href|action|formaction)\\s*=\\s*"
+            + "(\"|')?\\s*(?:java|vb)[\\s\\t\\n\\r]*script[\\s\\t\\n\\r]*:[^\"'>\\s]*(\"|')?"
+            + "|(?is)(href|src|xlink:href|action|formaction)\\s*=\\s*"
+            + "(\"|')?\\s*data\\s*:\\s*text/html[^\"'>\\s]*(\"|')?");
 
     /** CSS expression() and url(javascript:) escapes. */
     private static final Pattern CSS_ESCAPE = Pattern.compile(
-        "(?is)(expression\\s*\\(|url\\s*\\(\\s*(\"|')?\\s*javascript:)");
+        "(?is)(expression\\s*\\(|url\\s*\\(\\s*(\"|')?\\s*(?:java|vb)[\\s\\t\\n\\r]*script\\s*:)");
+
+    /** Control characters with no place in stored prose, and a common carrier. */
+    private static final Pattern CONTROL_CHARACTERS = Pattern.compile(
+        "[\\p{Cntrl}&&[^\\t\\n\\r]]");
 
     private ArticleBodySanitizer() {
     }
 
     /**
      * Return a body safe to persist, or {@code null} when the input is null.
+     *
+     * <p>Control characters are removed <em>first</em>. Stripping them last
+     * reassembled the very tags the earlier passes had removed: a body written
+     * as {@code <scr\0ipt>} survived the tag passes as {@code <scr\0ipt>}, and
+     * deleting the null afterwards produced a working {@code <script>}.
      *
      * <p>Truncation is intentionally absent: silently cutting clinical text
      * would change what the author published, so an over-long body keeps its
@@ -61,7 +74,7 @@ final class ArticleBodySanitizer {
         if (body == null) {
             return null;
         }
-        String cleaned = body;
+        String cleaned = CONTROL_CHARACTERS.matcher(body).replaceAll("");
         if (cleaned.indexOf('<') >= 0) {
             cleaned = DANGEROUS_BLOCK.matcher(cleaned).replaceAll("");
             cleaned = DANGEROUS_VOID.matcher(cleaned).replaceAll("");
@@ -69,21 +82,21 @@ final class ArticleBodySanitizer {
             cleaned = SCRIPT_URL.matcher(cleaned).replaceAll("$1=\"#\"");
             cleaned = CSS_ESCAPE.matcher(cleaned).replaceAll("");
         }
-        // Control characters other than tab/newline/carriage-return have no
-        // place in stored prose and are a common obfuscation carrier.
-        cleaned = cleaned.replaceAll("[\\p{Cntrl}&&[^\\t\\n\\r]]", "");
-        if (cleaned.length() > MAX_BODY_CHARS) {
-            return cleaned;
-        }
         return cleaned;
     }
 
-    /** True when the body still carries an executable construct. */
+    /**
+     * True when the body still carries an executable construct.
+     *
+     * <p>Reports what this gate can recognise, not a proof of safety: it exists
+     * so a caller can assert a body was cleaned, and it shares the patterns
+     * above rather than promising more than they check.
+     */
     static boolean containsExecutableContent(String body) {
         if (body == null || body.isBlank()) {
             return false;
         }
-        String lowered = body.toLowerCase(Locale.ROOT);
+        String lowered = CONTROL_CHARACTERS.matcher(body).replaceAll("").toLowerCase(Locale.ROOT);
         return DANGEROUS_BLOCK.matcher(lowered).find()
             || DANGEROUS_VOID.matcher(lowered).find()
             || EVENT_HANDLER.matcher(lowered).find()
