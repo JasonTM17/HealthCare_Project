@@ -702,7 +702,7 @@ function FloatingHealthAssistantPanel({
                 <strong>Trợ lý HealthCare</strong>
                 <span className={styles.headerSubtitle}>
                   {isPatient ? "Thông tin sức khỏe · Có lưu lịch sử" : "Tra cứu HealthCare · Không lưu lịch sử"}
-                  {assistantStatus ? <span className={styles.statusNote}> · {assistantStatus}</span> : null}
+                  {assistantStatus ? <span className={styles.statusNote}>{assistantStatus}</span> : null}
                 </span>
               </div>
             </div>

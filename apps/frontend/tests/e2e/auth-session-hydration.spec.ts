@@ -429,9 +429,9 @@ test("patient dashboard survives hard reload with a preloaded session", async ({
   await expect(page.getByRole("button", { name: "Lưu hồ sơ & Tiền sử bệnh" })).toBeVisible();
 
   // Tab navigation keeps working after the reload; appointments still show
-  // their owned empty state.
+  // their owned empty state. Selecting a tab rewrites the hash to that tab.
   await page.getByRole("button", { name: "Lịch hẹn" }).click();
-  await expect(page).toHaveURL(/#profile$/u);
+  await expect(page).toHaveURL(/#appointments$/u);
   await page.getByRole("button", { name: /^Lịch hẹn 0$/u }).click();
   await expect(page.locator("#appointments")).toContainText("Chưa có lịch hẹn");
 

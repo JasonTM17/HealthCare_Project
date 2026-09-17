@@ -226,7 +226,7 @@ test("booking landing keeps the appointment flow inline without auto-opening a d
 
     const inlineRegion = page.locator(".booking-page__inline");
     await expect(inlineRegion).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Hoàn tất lịch khám trong cùng một trang" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Đăng ký lịch khám nhanh chóng" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Đặt lịch trực tuyến nhanh chóng" })).toBeVisible();
     await expect(page.locator('[role="dialog"]')).toHaveCount(0);
     await expect(page.locator('[aria-modal="true"]')).toHaveCount(0);
