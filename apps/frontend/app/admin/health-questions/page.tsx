@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import AdminState from "../_components/AdminState";
+import ConfirmActionDialog from "../../../components/ui/ConfirmActionDialog";
 import {
   adminDecideHealthQuestionReport,
   adminListHealthQuestionReports,
@@ -30,6 +31,31 @@ const reportStatusLabels: Record<string, string> = {
 
 const ADMIN_QUEUE_PAGE_SIZE = 20;
 
+// Mirrors HealthQuestionService's accepted moderation reason codes. The backend
+// rejects a non-APPROVE decision without one, so the operator has to choose;
+// the page previously sent a hardcoded OUT_OF_SCOPE for every rejection, which
+// recorded a reason nobody had verified.
+const MODERATION_REASON_OPTIONS = [
+  { value: "OUT_OF_SCOPE", label: "Ngoài phạm vi chuyên môn" },
+  { value: "PII_DETECTED", label: "Có thông tin định danh cá nhân" },
+  { value: "SAFETY_CONCERN", label: "Lo ngại an toàn người bệnh" },
+  { value: "DUPLICATE", label: "Trùng với câu hỏi khác" },
+  { value: "SPAM", label: "Spam hoặc lạm dụng" },
+  { value: "LEGAL_REQUEST", label: "Yêu cầu pháp lý" },
+];
+
+interface PendingModeration {
+  id: string;
+  decision: "REJECT";
+  question: HealthQuestionSummary;
+}
+
+interface PendingRemoval {
+  questionId: string;
+  reportId: string;
+  reasonLabel: string;
+}
+
 function formatDate(value: string) {
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime())
@@ -48,6 +74,8 @@ export default function AdminHealthQuestionsPage() {
   const [retry, setRetry] = useState(0);
   const [page, setPage] = useState(0);
   const hasNextPage = items.length === ADMIN_QUEUE_PAGE_SIZE;
+  const [pendingModeration, setPendingModeration] = useState<PendingModeration | null>(null);
+  const [pendingRemoval, setPendingRemoval] = useState<PendingRemoval | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -81,11 +109,11 @@ export default function AdminHealthQuestionsPage() {
     };
   }, [page, retry]);
 
-  const moderate = async (id: string, decision: string) => {
+  const moderate = async (id: string, decision: string, reasonCode?: string) => {
     setBusy(id);
     setError("");
     try {
-      await adminModerateHealthQuestion(id, decision, decision === "REJECT" ? "OUT_OF_SCOPE" : undefined);
+      await adminModerateHealthQuestion(id, decision, reasonCode);
       setItems((current) => current.map((item) =>
         item.id === id
           ? { ...item, status: decision === "APPROVE" ? "AWAITING_DOCTOR" : decision === "REJECT" ? "REJECTED" : "CLOSED" }
@@ -217,7 +245,7 @@ export default function AdminHealthQuestionsPage() {
                   {item.status === "PENDING_MODERATION" ? (
                     <>
                       <button className="min-h-11 rounded-lg bg-teal-800 px-3 text-sm font-bold text-white" disabled={busy === item.id} onClick={() => void moderate(item.id, "APPROVE")} type="button">Chuyển bác sĩ</button>
-                      <button className="min-h-11 rounded-lg border border-rose-200 px-3 text-sm font-bold text-rose-700" disabled={busy === item.id} onClick={() => void moderate(item.id, "REJECT")} type="button">Từ chối</button>
+                      <button className="min-h-11 rounded-lg border border-rose-200 px-3 text-sm font-bold text-rose-700" disabled={busy === item.id} onClick={() => setPendingModeration({ id: item.id, decision: "REJECT", question: item })} type="button">Từ chối</button>
                     </>
                   ) : null}
                   <button
@@ -251,7 +279,11 @@ export default function AdminHealthQuestionsPage() {
                             {report.status === "OPEN" || report.status === "UNDER_REVIEW" ? (
                               <div className="flex flex-wrap gap-2">
                                 {report.status === "OPEN" ? <button className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-700" disabled={reportBusy === report.id} type="button" onClick={() => void decideReport(item.id, report, "UNDER_REVIEW")}>Nhận xử lý</button> : null}
-                                <button className="min-h-10 rounded-lg bg-rose-700 px-3 text-xs font-bold text-white" disabled={reportBusy === report.id} type="button" onClick={() => void decideReport(item.id, report, "RESOLVED", "REMOVED")}>Gỡ nội dung</button>
+                                <button className="min-h-10 rounded-lg bg-rose-700 px-3 text-xs font-bold text-white" disabled={reportBusy === report.id} type="button" onClick={() => setPendingRemoval({
+                                  questionId: item.id,
+                                  reportId: report.id,
+                                  reasonLabel: reportReasonLabels[report.reasonCode] ?? "Lý do khác",
+                                })}>Gỡ nội dung</button>
                                 <button className="min-h-10 rounded-lg border border-teal-300 bg-white px-3 text-xs font-bold text-teal-800" disabled={reportBusy === report.id} type="button" onClick={() => void decideReport(item.id, report, "DISMISSED", "NO_ACTION")}>Không vi phạm</button>
                               </div>
                             ) : null}
@@ -266,6 +298,64 @@ export default function AdminHealthQuestionsPage() {
           );
         })}
       </div>
+
+      <ConfirmActionDialog
+        confirmLabel="Từ chối câu hỏi"
+        description="Câu hỏi sẽ không được chuyển tới bác sĩ và người gửi sẽ nhận trạng thái từ chối kèm lý do bạn chọn."
+        destructive
+        entity={pendingModeration?.id ?? null}
+        error={null}
+        fields={[
+          {
+            name: "reasonCode",
+            label: "Lý do từ chối",
+            required: true,
+            options: MODERATION_REASON_OPTIONS,
+            description: "Lý do này được lưu cùng quyết định và hiển thị cho người gửi.",
+          },
+        ]}
+        onCancel={() => setPendingModeration(null)}
+        onConfirm={(values) => {
+          const staged = pendingModeration;
+          setPendingModeration(null);
+          if (!staged || !values.reasonCode) return;
+          void moderate(staged.id, staged.decision, values.reasonCode);
+        }}
+        open={pendingModeration !== null}
+        pending={busy === pendingModeration?.id}
+        summaryItems={[
+          { label: "Câu hỏi", value: pendingModeration?.question.question ?? "—" },
+          { label: "Chủ đề", value: pendingModeration?.question.topicSlug ?? "—" },
+        ]}
+        summaryLabel="Nội dung sẽ bị từ chối"
+        title="Từ chối câu hỏi sức khỏe?"
+      />
+
+      <ConfirmActionDialog
+        confirmLabel="Gỡ nội dung"
+        description="Nội dung sẽ bị ẩn khỏi trang công khai. Thao tác này ảnh hưởng tới nội dung người bệnh đang xem."
+        destructive
+        entity={pendingRemoval?.reportId ?? null}
+        error={null}
+        onCancel={() => setPendingRemoval(null)}
+        onConfirm={() => {
+          const staged = pendingRemoval;
+          const report = staged
+            ? (reportsByQuestion[staged.questionId] ?? []).find((entry) => entry.id === staged.reportId)
+            : undefined;
+          setPendingRemoval(null);
+          if (!staged || !report) return;
+          void decideReport(staged.questionId, report, "RESOLVED", "REMOVED");
+        }}
+        open={pendingRemoval !== null}
+        pending={reportBusy === pendingRemoval?.reportId}
+        summaryItems={[
+          { label: "Lý do báo cáo", value: pendingRemoval?.reasonLabel ?? "—" },
+          { label: "Kết quả ghi nhận", value: "Đã xử lý · nội dung bị gỡ" },
+        ]}
+        summaryLabel="Báo cáo đang xử lý"
+        title="Gỡ nội dung này?"
+      />
     </main>
   );
 }

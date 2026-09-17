@@ -7,6 +7,7 @@ import type { AuthUser, Notification } from "../types/hospital";
 import {
   fetchDoctorProfile,
   fetchNotifications,
+  fetchPatientOverview,
   fetchPatientProfile,
   logoutCurrentUser,
   markAllNotificationsAsRead,
@@ -121,15 +122,27 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
 
   const loadNotifications = useCallback(() => {
     if (role !== "PATIENT") return;
-    fetchNotifications(0, 10)
-      .then((data) => {
-        if (data?.content) {
-          setNotificationsList(data.content);
-          const unread = data.content.filter((n) => !n.read).length;
-          setUnreadCount(unread);
+    // The badge counts the whole inbox, not the ten rows this panel previews:
+    // deriving it from the first page under-reported as soon as a patient had
+    // more than ten notifications, and the badge is the only signal that
+    // anything is waiting.
+    fetchPatientOverview()
+      .then((overview) => {
+        if (typeof overview?.unreadNotificationCount === "number") {
+          setUnreadCount(overview.unreadNotificationCount);
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        // A failed count must not blank a badge the patient may still have
+        // notifications behind; keep the last known value.
+      });
+    fetchNotifications(0, 10)
+      .then((data) => {
+        if (data?.content) setNotificationsList(data.content);
+      })
+      .catch(() => {
+        // The preview list is optional; the badge above is the load-bearing part.
+      });
   }, [role]);
 
   useEffect(() => {
