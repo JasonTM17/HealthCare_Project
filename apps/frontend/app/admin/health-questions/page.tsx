@@ -303,7 +303,7 @@ export default function AdminHealthQuestionsPage() {
         confirmLabel="Từ chối câu hỏi"
         description="Câu hỏi sẽ không được chuyển tới bác sĩ và người gửi sẽ nhận trạng thái từ chối kèm lý do bạn chọn."
         destructive
-        entity={pendingModeration?.id ?? null}
+        entity={pendingModeration?.question ?? null}
         error={null}
         fields={[
           {
@@ -335,7 +335,12 @@ export default function AdminHealthQuestionsPage() {
         confirmLabel="Gỡ nội dung"
         description="Nội dung sẽ bị ẩn khỏi trang công khai. Thao tác này ảnh hưởng tới nội dung người bệnh đang xem."
         destructive
-        entity={pendingRemoval?.reportId ?? null}
+        entity={
+          pendingRemoval
+            ? (reportsByQuestion[pendingRemoval.questionId] ?? [])
+                .find((entry) => entry.id === pendingRemoval.reportId) ?? null
+            : null
+        }
         error={null}
         onCancel={() => setPendingRemoval(null)}
         onConfirm={() => {

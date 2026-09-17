@@ -29,6 +29,20 @@ class ClientSafeErrorDetailTest {
     }
 
     @Test
+    @DisplayName("product copy naming an app, a domain or a person survives")
+    void keepsDottedProductCopy() {
+        // Anchoring the FQCN test to real Java root packages keeps these
+        // visible: an earlier revision suppressed any lower.capital dotted
+        // token and replaced real copy with the generic fallback.
+        assertThat(ClientSafeErrorDetail.forClient("Vui lòng mở app.VietMed để tiếp tục"))
+            .isEqualTo("Vui lòng mở app.VietMed để tiếp tục");
+        assertThat(ClientSafeErrorDetail.forClient("bs.Long sẽ gọi lại cho bạn"))
+            .isEqualTo("bs.Long sẽ gọi lại cho bạn");
+        assertThat(ClientSafeErrorDetail.forClient("Tra cứu tại docs.HealthCare.vn"))
+            .isEqualTo("Tra cứu tại docs.HealthCare.vn");
+    }
+
+    @Test
     @DisplayName("a reflected enum constant is withheld")
     void withholdsEnumConstantDetail() {
         assertThat(ClientSafeErrorDetail.forClient(
