@@ -184,10 +184,13 @@ def test_widened_gate_keeps_benign_context(message: str) -> None:
 @pytest.mark.parametrize(
     "message",
     [
+        "Tôi bị đột quỵ",
         "Tôi bị đột quỵ phải làm sao",
+        "Người nhà bị tai biến",
         "Người nhà tôi bị tai biến",
         "Bệnh nhân đang bị nhồi máu cơ tim",
         "Tôi bị đau tim dữ dội",
+        "Tôi đang bị đau tim dữ dội",
         "Người bệnh đang ngưng thở",
         "Bệnh nhân bị bất tỉnh mất ý thức",
         "I think I am having a stroke",
@@ -200,3 +203,13 @@ def test_acute_clinical_emergencies_trigger_115(message: str) -> None:
     assert result is not None
     assert result.safety_action == ChatSafetyAction.EMERGENCY
     assert "115" in result.answer
+
+
+def test_remediation_explicit_emergency_guidance() -> None:
+    """Explicit regression test for 115 emergency protocol on stroke, tai biến, and heart attack."""
+    for prompt in ["Tôi bị đột quỵ", "Người nhà bị tai biến", "Tôi đang bị đau tim dữ dội"]:
+        res = chat_safety_response(prompt)
+        assert res is not None, f"Expected safety response for '{prompt}'"
+        assert res.safety_action == ChatSafetyAction.EMERGENCY
+        assert "115" in res.answer
+
