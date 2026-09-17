@@ -71,7 +71,7 @@ function ResetPasswordForm() {
             {errorMessage ? <p aria-live="assertive" className="auth-form__error" role="alert">{errorMessage}</p> : null}
             <div className="auth-form__field">
               <label htmlFor="reset-email">Email</label>
-              <input aria-describedby={fieldErrors.email ? "reset-email-error" : undefined} aria-invalid={Boolean(fieldErrors.email)} autoComplete="email" id="reset-email" name="email" onChange={(event) => setEmail(event.target.value)} placeholder="ten@healthcare.com" required type="email" value={email} />
+              <input aria-describedby={fieldErrors.email ? "reset-email-error" : undefined} aria-invalid={Boolean(fieldErrors.email)} autoComplete="email" id="reset-email" name="email" onChange={(event) => setEmail(event.target.value)} placeholder="email@example.com" required type="email" value={email} />
               {fieldErrors.email ? <small className="auth-form__field-error" id="reset-email-error">{fieldErrors.email}</small> : null}
             </div>
             {!searchParams.get("token") && !searchParams.get("code") ? (

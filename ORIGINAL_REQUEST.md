@@ -247,3 +247,52 @@ Integrity mode: development
 - [x] Render Backend (srv-daigprh5efls73dfau00) và Render AI (srv-daigq6vqj5pc73a284l0) hoạt động ổn định trong hạn mức 512MB RAM.
 - [x] Vercel Production (dpl_4eu1d3CVhhLsu4Lh3frWg5VgfnR2) hoạt động ổn định và đồng bộ hoàn toàn.
 
+## 2026-09-17T10:06:40Z
+
+Thực hiện kiểm toán chuyên sâu --ultra và hoàn thiện toàn diện hệ thống HealthCare trên cả 3 tầng (Frontend UI/UX, Backend API, Chatbot y khoa lâm sàng), loại bỏ triệt để các chi tiết chưa chuyên nghiệp/chưa đúng nghiệp vụ, xác minh đa vai trò qua subagents chuyên biệt (Advisor, Kongming, Wukong), commit và triển khai live, sau đó xóa toàn bộ các bản deploy cũ trên Vercel để giải phóng dung lượng và hạn ngạch.
+
+Working directory: d:/HealthCare_Project
+Integrity mode: development
+
+## Requirements
+
+### R1. Rà Soát & Hoàn Thiện Tính Chuyên Nghiệp FE UI/UX (Frontend & Copy Polish)
+- **Chuẩn hóa Placeholders & Labels**:
+  - Thay thế toàn bộ placeholder dễ gây nhầm lẫn ten@healthcare.com trên các trang xác thực (/auth/login, /auth/forgot-password, /auth/reset-password, /auth/verify-email) thành email@example.com tiêu chuẩn.
+  - Rà soát toàn bộ các trang công khai (/, /dat-lich, /branches, /doctors, /specialties, /faq, /articles, /benh-pho-bien) đảm bảo không còn chuỗi tiếng Anh chưa dịch, không có từ ngữ thiếu tự nhiên hoặc cụm từ sáo rỗng.
+- **Trải Nghiệm Đặt Lịch & Cổng Người Dùng**:
+  - Đảm bảo luồng đặt lịch khám, tra cứu lịch hẹn, và cổng thông tin bệnh nhân/bác sĩ hiển thị rõ ràng, chuyên nghiệp, thông báo lỗi thân thiện (thông qua presentApiError).
+
+### R2. Đảm Bảo Nghiệp Vụ & An Toàn Chatbot Y Khoa (Clinical & Chatbot Integrity)
+- **Clinical Governance & Disclaimer**:
+  - Đảm bảo Chatbot luôn tuân thủ nguyên tắc y đức: không khẳng định chẩn đoán tuyệt đối, không kê đơn thuốc trái phép, luôn kèm khuyến nghị thăm khám với bác sĩ chuyên khoa.
+  - Khi phát hiện triệu chứng cấp cứu (như đau ngực dữ dội, khó thở cấp, dấu hiệu đột quỵ), lập tức kích hoạt hướng dẫn gọi cấp cứu 115 và đến cơ sở y tế gần nhất.
+- **Suggested Actions & Điều Hướng**:
+  - Các hành động gợi ý (SuggestedAction) phải điều hướng chính xác về các tuyến đường nội bộ bệnh viện (/dat-lich, /doctors, /branches, /specialties).
+
+### R3. Kiểm Toán Đa Vai Trò Độc Lập Qua Subagents (Advisor, Kongming, Wukong)
+- **Advisor**: Kiểm toán lâm sàng, mức độ rõ ràng của thông điệp y tế, tính tiện dụng của giao diện.
+- **Kongming**: Kiểm toán kiến trúc hệ thống, ranh giới BFF, bảo vệ dữ liệu nội bộ.
+- **Wukong**: Công kích bảo mật, chống Prompt Injection, chống rò rỉ dữ liệu nhạy cảm (PII).
+
+### R4. Triển Khai & Dọn Dẹp Bản Deploy Cũ (Deployment & Space Cleanup)
+- Commit toàn bộ thay đổi với Conventional Commits.
+- Triển khai bản phát hành chính thức lên Vercel Production (https://www.healthcare.id.vn).
+- Xóa toàn bộ các bản deploy cũ trên Vercel (npx vercel rm ... --yes) để mở rộng dung lượng và giải phóng tài nguyên.
+- Xác thực trực tiếp trên production: HTTP 200 OK, 0 lỗi 404, hình ảnh và dữ liệu CMS tải hoàn hảo.
+
+## Acceptance Criteria
+
+### Tính Chuyên Nghiệp & Giao Diện (FE & UI/UX)
+- [ ] Không còn placeholder gây hiểu nhầm ten@healthcare.com trên các trang auth.
+- [ ] Toàn bộ 353 bài kiểm thử Frontend đạt 100% PASS; npm run typecheck đạt 0 lỗi.
+
+### Nghiệp Vụ Y Tế & Chatbot
+- [ ] Chatbot phản hồi chuẩn mực, không vi phạm an toàn y khoa, kích hoạt kịch bản cấp cứu 115 chuẩn xác.
+- [ ] 144 bài kiểm thử Backend AI và 620 bài kiểm thử AI Service đạt 100% PASS.
+
+### Kiểm Toán Đa Vai Trò & Dọn Dẹp Deployment
+- [ ] Cả 3 subagents (Advisor, Kongming, Wukong) xác nhận đạt tiêu chuẩn an toàn và chuyên nghiệp.
+- [ ] Các bản deploy cũ trên Vercel được dọn dẹp thành công.
+- [ ] Bản deploy mới nhất hoạt động ổn định trên https://www.healthcare.id.vn.
+

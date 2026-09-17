@@ -105,7 +105,7 @@ function VerifyEmailForm() {
             {message ? <p aria-live="polite" className="auth-form__success" role="status">{message}</p> : null}
             <div className="auth-form__field">
               <label htmlFor="verify-email">Email</label>
-              <input aria-describedby={fieldErrors.email ? "verify-email-error" : undefined} aria-invalid={Boolean(fieldErrors.email)} autoComplete="email" id="verify-email" name="email" onChange={(event) => setEmail(event.target.value)} placeholder="ten@healthcare.com" required type="email" value={email} />
+              <input aria-describedby={fieldErrors.email ? "verify-email-error" : undefined} aria-invalid={Boolean(fieldErrors.email)} autoComplete="email" id="verify-email" name="email" onChange={(event) => setEmail(event.target.value)} placeholder="email@example.com" required type="email" value={email} />
               {fieldErrors.email ? <small className="auth-form__field-error" id="verify-email-error">{fieldErrors.email}</small> : null}
             </div>
             <div className="auth-form__field">
