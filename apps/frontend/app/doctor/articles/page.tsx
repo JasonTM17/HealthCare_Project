@@ -27,9 +27,16 @@ import { ForbiddenState, LoadingState, LoginRequiredState } from "../../../compo
 import { useAuthSession, useAuthSessionStatus } from "../../../components/useAuthSession";
 import ImageUpload from "../../../components/ImageUpload";
 import UiIcon from "../../../components/UiIcon";
-import { RichContentRenderer, RichTextEditor } from "../../../components/editor";
+import { RichContentRenderer, RichTextEditor, toStoredArticleBody } from "../../../components/editor";
 import ConfirmActionDialog from "../../../components/ui/ConfirmActionDialog";
 import { resolveArticleCoverImage, resolveArticleAlt } from "../../../lib/article-visuals";
+
+// Mirrors the backend ArticleRequest cap. The editor emits HTML, which is far
+// larger than the markdown that gets stored, so the guard runs against the
+// converted body: that is the number the backend actually validates. Long-form
+// clinical content belongs in the structured sections, which have their own
+// budget.
+const ARTICLE_BODY_MAX_CHARS = 8000;
 
 function toSlug(text: string): string {
   return text
@@ -231,6 +238,19 @@ export default function DoctorArticlesPage() {
       return;
     }
 
+    // Convert visual-editor HTML to the stored markdown contract here, where the
+    // author can still be told the result, instead of leaving the format to depend
+    // on which editor mode they happened to be in.
+    const storedBody = toStoredArticleBody(body);
+    if (storedBody.length > ARTICLE_BODY_MAX_CHARS) {
+      setError(
+        `Nội dung bài viết vượt quá ${ARTICLE_BODY_MAX_CHARS.toLocaleString("vi-VN")} ký tự `
+        + `(hiện tại ${storedBody.length.toLocaleString("vi-VN")}). `
+        + "Vui lòng rút gọn phần tóm tắt, hoặc chuyển nội dung dài sang các mục chuyên môn.",
+      );
+      return;
+    }
+
     setBusy(true);
     setError(null);
     setSuccess(null);
@@ -243,7 +263,7 @@ export default function DoctorArticlesPage() {
       authorName: session.user.displayName || "Bác sĩ Bệnh viện",
       readingMinutes: parseInt(readingMinutes, 10) || 5,
       summary: summary.trim(),
-      body: body.trim(),
+      body: storedBody,
       coverImageUrl: coverImageUrl.trim() || undefined,
       active,
     };

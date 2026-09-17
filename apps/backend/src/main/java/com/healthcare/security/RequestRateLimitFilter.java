@@ -294,8 +294,13 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
         }
 
         // 13. Health questions, Q&A reports, and article comments
+        //
+        // The comment controller is mounted under /api/v1/hospital/articles/...;
+        // matching only /api/v1/articles/... meant comment posts fell through to
+        // the catch-all default-post tier and the tighter community limit never
+        // applied to the endpoint it was written for.
         if ("POST".equals(method) && (path.startsWith("/api/v1/patient/health-questions")
-                || path.matches("^/api/v1/articles/[^/]+/comments.*"))) {
+                || path.matches("^/api/v1/(?:hospital/)?articles/[^/]+/comments.*"))) {
             return new LimitRule("community", communityLimit);
         }
 

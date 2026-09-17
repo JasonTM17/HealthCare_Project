@@ -1053,6 +1053,28 @@ export function htmlToMarkdown(html: string): string {
 }
 
 /**
+ * Normalises editor output into the stored article format.
+ *
+ * The article body is persisted as markdown, and the renderer already converts
+ * legacy HTML on read. Authors, however, only produced markdown if they
+ * manually switched the editor out of its visual mode: the default mode emits
+ * HTML, and the submit handlers sent it verbatim. The result was that the
+ * documented contract held for some articles and not others, and a body stored
+ * as HTML is re-parsed lossily on every read.
+ *
+ * Converting at submit makes the contract true at the only point where the
+ * author can still be told what is happening, and it is safe for input that is
+ * already markdown because the HTML test only matches a real block-level tag.
+ */
+export function toStoredArticleBody(content: string): string {
+  const value = content ?? "";
+  if (!value.trim()) return "";
+  return /<(?:p|div|h[1-6]|table|ul|ol|blockquote|figure|span|strong|em|a|img)\b[^>]*>/i.test(value)
+    ? htmlToMarkdown(value)
+    : value.trim();
+}
+
+/**
  * Converts markdown text to clean HTML for TinyMCE initialization
  */
 export function markdownToHtml(md: string): string {

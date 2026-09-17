@@ -55,7 +55,7 @@ public class AdminArticleService {
         article.setTitle(request.title());
         article.setSlug(request.slug());
         article.setSummary(request.summary());
-        article.setBody(request.body());
+        article.setBody(ArticleBodySanitizer.sanitize(request.body()));
         applyRichFields(article, request);
         article.setActive(request.active());
         applyPublicationState(article, request, true);
@@ -86,7 +86,7 @@ public class AdminArticleService {
         article.setTitle(request.title());
         article.setSlug(request.slug());
         article.setSummary(request.summary());
-        article.setBody(request.body());
+        article.setBody(ArticleBodySanitizer.sanitize(request.body()));
         applyRichFields(article, request);
         article.setActive(request.active());
         applyPublicationState(article, request, false);

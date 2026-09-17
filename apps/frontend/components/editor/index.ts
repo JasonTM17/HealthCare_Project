@@ -5,5 +5,8 @@ export {
   renderInlineMarkdown,
   isSafeUrl,
   parseMarkdownBlocks,
+  htmlToMarkdown,
+  markdownToHtml,
+  toStoredArticleBody,
 } from "./RichContentRenderer";
 export type { RichContentRendererProps, ParsedBlock } from "./RichContentRenderer";
