@@ -59,10 +59,20 @@ public class DoctorService {
             .orElseThrow(() -> new ResourceNotFoundException("Doctor not found: " + slug));
     }
 
-    public DoctorResponse getByUserId(java.util.UUID userId) {
+    public com.healthcare.hospital.dto.DoctorProfileResponse getByUserId(java.util.UUID userId) {
         return doctorRepository.findByUserId(userId)
-            .map(this::toResponse)
+            .map(this::toProfileResponse)
             .orElseThrow(() -> new ResourceNotFoundException("Doctor profile not found for the authenticated user"));
+    }
+
+    /**
+     * The public projection plus the AI credit balance. Only the authenticated
+     * profile endpoints return this: the balance is the owning clinician's
+     * accounting, and the public catalog shares {@link DoctorResponse} with the
+     * appointment and care-plan surfaces.
+     */
+    private com.healthcare.hospital.dto.DoctorProfileResponse toProfileResponse(Doctor doctor) {
+        return com.healthcare.hospital.dto.DoctorProfileResponse.of(toResponse(doctor), doctor.getAiCredits());
     }
 
     private String normalizeFilter(String value) {
@@ -95,13 +105,12 @@ public class DoctorService {
             branchLinks.stream().map(link -> link.getBranch().getName()).toList(),
             specialtyLinks.stream().map(link -> link.getSpecialty().getSlug()).toList(),
             doctor.getAchievements(),
-            doctor.getAiCredits(),
             DoctorSummaryResponse.isDemoSlug(doctor.getSlug())
         );
     }
 
     @org.springframework.transaction.annotation.Transactional
-    public DoctorResponse updateProfile(UUID userId, com.healthcare.hospital.dto.UpdateDoctorProfileRequest request) {
+    public com.healthcare.hospital.dto.DoctorProfileResponse updateProfile(UUID userId, com.healthcare.hospital.dto.UpdateDoctorProfileRequest request) {
         Doctor doctor = doctorRepository.findByUserId(userId)
             .orElseThrow(() -> new com.healthcare.exception.ResourceNotFoundException("Doctor profile not found for user"));
         if (request.bio() != null) {
@@ -113,7 +122,7 @@ public class DoctorService {
         if (request.photoUrl() != null && !request.photoUrl().isBlank()) {
             doctor.setPhotoUrl(request.photoUrl());
         }
-        return toResponse(doctorRepository.saveAndFlush(doctor));
+        return toProfileResponse(doctorRepository.saveAndFlush(doctor));
     }
 
     DoctorSummaryResponse toSummary(Doctor doctor) {

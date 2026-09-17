@@ -77,7 +77,7 @@ public class AppointmentController {
     @Operation(summary = "Resend OTP for the existing appointment hold")
     public ResponseEntity<ResendOtpResponse> resendOtp(
             @PathVariable String bookingCode,
-            @RequestBody(required = false) ResendBookingOtpRequest request,
+            @Valid @RequestBody(required = false) ResendBookingOtpRequest request,
             @AuthenticationPrincipal UserDetails userDetails,
             HttpServletRequest httpRequest) {
         bookingRateLimiter.check("otp-resend", httpRequest, bookingCode);

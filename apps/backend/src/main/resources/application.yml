@@ -181,8 +181,13 @@ storage:
   # Optional browser-reachable origin for signed URLs. Never rewrite a signed
   # URL afterward; S3 signatures include Host. Requires an explicit region.
   public-endpoint: ${STORAGE_PUBLIC_ENDPOINT:}
-  access-key: ${STORAGE_ACCESS_KEY:${minio.access-key:${MINIO_ACCESS_KEY:${MINIO_ROOT_USER:healthcare}}}}
-  secret-key: ${STORAGE_SECRET_KEY:${minio.secret-key:${MINIO_SECRET_KEY:${MINIO_ROOT_PASSWORD:change-me}}}}
+  # No default credential. A well-known placeholder that authenticates is
+  # worse than an empty value: a deployment that sets only an endpoint would
+  # otherwise start against real storage with credentials taken from the
+  # source. Blank fails closed, and FailClosedStorageSettings refuses to
+  # start at all when uploads are enabled without real ones.
+  access-key: ${STORAGE_ACCESS_KEY:${minio.access-key:${MINIO_ACCESS_KEY:${MINIO_ROOT_USER:}}}}
+  secret-key: ${STORAGE_SECRET_KEY:${minio.secret-key:${MINIO_SECRET_KEY:${MINIO_ROOT_PASSWORD:}}}}
   bucket: ${STORAGE_BUCKET:${minio.bucket:healthcare-files}}
   region: ${STORAGE_REGION:}
   require-private-endpoint: ${STORAGE_REQUIRE_PRIVATE_ENDPOINT:false}

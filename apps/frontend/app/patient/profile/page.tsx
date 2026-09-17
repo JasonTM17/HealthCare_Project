@@ -174,9 +174,17 @@ export default function PatientProfilePage() {
 
   const tierKey = (profile?.patientTier || "STANDARD").toUpperCase();
   const tierInfo = TIER_META[tierKey] || TIER_META.STANDARD;
-  const currentCredits = profile?.aiCredits ?? 20;
-  const creditPercent = Math.min(100, Math.max(5, Math.round((currentCredits / tierInfo.maxCredits) * 100)));
-  const patientCode = `PAT-2026-${(profile?.id || session.user.id || "882910").slice(-6).toUpperCase()}`;
+  // The same fabricated default the dashboard carried: an absent field rendered
+  // as "20 credits", which contradicts the authoritative quota on the chat page.
+  const currentCredits = typeof profile?.aiCredits === "number" ? profile.aiCredits : null;
+  const creditPercent = currentCredits === null
+    ? 0
+    : Math.min(100, Math.max(5, Math.round((currentCredits / tierInfo.maxCredits) * 100)));
+  // The code is derived from the patient's real id; the previous hardcoded
+  // fallback invented a 2026 sequence for anyone whose id had not loaded.
+  const patientCode = profile?.id || session.user.id
+    ? `PAT-${new Date().getFullYear()}-${(profile?.id || session.user.id).slice(-6).toUpperCase()}`
+    : "Đang cập nhật";
 
   const handleSaveProfile = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -346,7 +354,9 @@ export default function PatientProfilePage() {
               <div className={styles.creditMeterLabel}>
                 <span>Trợ lý AI Y khoa</span>
                 <span>
-                  <strong className={styles.creditNumbers}>{currentCredits}</strong>
+                  <strong className={styles.creditNumbers}>
+                    {currentCredits === null ? "—" : currentCredits}
+                  </strong>
                   <span className={styles.creditTotal}>/ {tierInfo.maxCredits} lượt</span>
                 </span>
               </div>
