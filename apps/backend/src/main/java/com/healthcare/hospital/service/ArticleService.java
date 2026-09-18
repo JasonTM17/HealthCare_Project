@@ -52,6 +52,16 @@ public class ArticleService {
             .map(this::toResponse);
     }
 
+    public Page<ArticleResponse> listByAuthor(String authorName, String altName, String pureName, String contentKind, Pageable pageable) {
+        Page<Article> page;
+        if (contentKind != null && !contentKind.isBlank()) {
+            page = articleRepository.findByAuthorNamesAndContentKind(authorName, altName, pureName, contentKind.trim().toUpperCase(), safePageable(pageable));
+        } else {
+            page = articleRepository.findByAuthorNames(authorName, altName, pureName, safePageable(pageable));
+        }
+        return page.map(this::toResponse);
+    }
+
     private Pageable safePageable(Pageable pageable) {
         return SafePageRequests.normalize(pageable, Sort.by(Sort.Direction.DESC, "publishedAt"), ALLOWED_SORT_PROPERTIES);
     }

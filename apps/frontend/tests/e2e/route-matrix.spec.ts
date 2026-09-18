@@ -72,6 +72,7 @@ const PATIENT_ROUTES = [
 
 const DOCTOR_ROUTES = [
   "/doctor",
+  "/doctor/academic",
   "/doctor/ai-content-reviews",
   "/doctor/dashboard",
   "/doctor/appointments",

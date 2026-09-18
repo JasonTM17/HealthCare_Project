@@ -3185,6 +3185,137 @@ export async function doctorDeleteArticle(slug: string): Promise<void> {
   });
 }
 
+// ── Academic Theses & Faculty Management (Viện - Trường) ─────────────────────
+
+export interface DefenseCommitteeMember {
+  id: string;
+  thesisId: string;
+  lecturerId: string;
+  lecturerName: string;
+  academicRank: string;
+  department: string;
+  committeeRole: "CHAIR" | "SECRETARY" | "REVIEWER" | "MEMBER";
+  score?: number | null;
+  evaluationNotes?: string | null;
+  evaluatedAt?: string | null;
+}
+
+export interface AcademicThesis {
+  id: string;
+  topicCode: string;
+  title: string;
+  abstractText?: string | null;
+  academicYear: string;
+  trainingLevel: "GRADUATION_THESIS" | "RESIDENCY_DISSERTATION" | "MASTER_THESIS";
+  specialtyId?: string | null;
+  specialtyName?: string | null;
+  specialtySlug?: string | null;
+  primarySupervisorId: string;
+  supervisorName: string;
+  supervisorRank: string;
+  department: string;
+  studentName: string;
+  studentCode: string;
+  status: "PROPOSED" | "APPROVED" | "IN_PROGRESS" | "DEFENSE_SCHEDULED" | "DEFENDED" | "REJECTED";
+  defenseScore?: number | null;
+  defenseDate?: string | null;
+  defenseLocation?: string | null;
+  thesisDocumentUrl?: string | null;
+  submissionNotes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  committeeMembers?: DefenseCommitteeMember[];
+}
+
+export interface FacultyLecturerProfile {
+  id: string;
+  doctorId: string;
+  doctorName: string;
+  doctorPhotoUrl?: string | null;
+  academicRank: string;
+  academicTitle: string;
+  department: string;
+  maxTheses: number;
+  currentThesesCount: number;
+  biography?: string | null;
+  active: boolean;
+}
+
+export interface CreateAcademicThesisPayload {
+  topicCode: string;
+  title: string;
+  abstractText?: string;
+  academicYear: string;
+  trainingLevel: string;
+  specialtyId?: string;
+  studentName: string;
+  studentCode: string;
+  thesisDocumentUrl?: string;
+  submissionNotes?: string;
+}
+
+export interface UpdateAcademicThesisPayload {
+  title: string;
+  abstractText?: string;
+  academicYear?: string;
+  trainingLevel?: string;
+  specialtyId?: string;
+  studentName?: string;
+  studentCode?: string;
+  status?: string;
+  thesisDocumentUrl?: string;
+  submissionNotes?: string;
+}
+
+export interface GradeAcademicThesisPayload {
+  defenseScore: number;
+  defenseLocation?: string;
+  defenseDate?: string;
+  submissionNotes?: string;
+}
+
+export async function fetchDoctorFacultyProfile(): Promise<FacultyLecturerProfile> {
+  return getAuthenticatedJson<FacultyLecturerProfile>("/doctor/academic/theses/faculty-profile");
+}
+
+export async function fetchDoctorTheses(
+  status?: string,
+  academicYear?: string,
+  page = 0,
+  size = 20
+): Promise<Page<AcademicThesis>> {
+  const query: Record<string, string | number> = { page, size };
+  if (status && status !== "ALL") query.status = status;
+  if (academicYear && academicYear !== "ALL") query.academicYear = academicYear;
+  return getAuthenticatedJson<Page<AcademicThesis>>(`/doctor/academic/theses${toQuery(query)}`);
+}
+
+export async function fetchThesisDetail(id: string): Promise<AcademicThesis> {
+  return getAuthenticatedJson<AcademicThesis>(`/doctor/academic/theses/${encodeURIComponent(id)}`);
+}
+
+export async function createDoctorThesis(payload: CreateAcademicThesisPayload): Promise<AcademicThesis> {
+  return getAuthenticatedJson<AcademicThesis>("/doctor/academic/theses", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateDoctorThesis(id: string, payload: UpdateAcademicThesisPayload): Promise<AcademicThesis> {
+  return getAuthenticatedJson<AcademicThesis>(`/doctor/academic/theses/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function gradeDoctorThesis(id: string, payload: GradeAcademicThesisPayload): Promise<AcademicThesis> {
+  return getAuthenticatedJson<AcademicThesis>(`/doctor/academic/theses/${encodeURIComponent(id)}/grade`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+
 // ── AI Credits & Tier System ────────────────────────────────────────────────
 
 export interface PatientCreditDto {

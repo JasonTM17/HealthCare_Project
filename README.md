@@ -1,25 +1,23 @@
 <div align="center">
 
-# Đồ Án Tốt Nghiệp — Hệ Thống Quản Lý Đề Tài Sinh Viên
-### Khoa Công nghệ Thông tin • Đại học • Nền tảng Doanh nghiệp Đa vai trò Phân tán
-**Student Academic Research Topic Management & Enterprise Healthcare Architecture**
+# HealthCare Project — Hệ Sinh Thái Y Tế Bệnh Viện Thông Minh & Đào Tạo Viện - Trường (Academic Medical Center)
+### Mô Hình Kết Hợp Bệnh Viện Thông Minh Đa Cơ Sở & Quản Lý Đào Tạo Khóa Luận / Đề Tài Nghiên Cứu Y Khoa
+**Enterprise Healthcare Smart Hospital Ecosystem & Medical Academic Research Management**
 
-> *Dự án tốt nghiệp đáp ứng 100% 14 quy tắc bất biến học thuật (quy trình duyệt 2 giai đoạn, nhóm $\le 3$ SV, hội đồng 3–5 thành viên, chấm điểm độc lập 0–10) trên nền tảng kiến trúc doanh nghiệp phân tán chuẩn Spring Boot 3 & Next.js 16.*
+> *Nền tảng y tế số cấp doanh nghiệp kết hợp đào tạo Viện - Trường chuẩn mực: Vận hành khám chữa bệnh thông minh đa vai trò, trợ lý AI Y tế bảo vệ đa tầng (RAG), và phân hệ quản lý đề tài nghiên cứu, khóa luận tốt nghiệp y khoa, luận văn nội trú với hội đồng phản biện độc lập.*
 
 [![CI](https://github.com/JasonTM17/HealthCare_Project/actions/workflows/ci.yml/badge.svg?branch=main&style=for-the-badge&label=CI)](https://github.com/JasonTM17/HealthCare_Project/actions/workflows/ci.yml)
-[![Tài liệu nộp](https://img.shields.io/badge/Bộ_Tài_Liệu-Nộp_Đồ_Án-002855?style=for-the-badge&logo=googledocs&logoColor=white)](docs/do-an/PDF-REQUIREMENTS-MAPPING.md)
-[![Kịch bản Demo](https://img.shields.io/badge/Demo_Script-15_Phút-b45309?style=for-the-badge&logo=youtube&logoColor=white)](docs/do-an/DEMO-SCRIPT.md)
 [![Frontend](https://img.shields.io/badge/Frontend-Next.js_16_%7C_React_19-black?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org)
 [![Backend](https://img.shields.io/badge/Backend-Spring_Boot_3.5_%7C_Java_21-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
 [![Database](https://img.shields.io/badge/Database-PostgreSQL_16_%7C_Redis_7-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org)
 [![Deployment](https://img.shields.io/badge/Deploy-Docker_Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)](infrastructure/docker-compose.yml)
 
 <p align="center">
-  <a href="#hệ-thống-quản-lý-đề-tài-sinh-viên-đồ-án-chính"><strong>Cổng Đề tài Đồ án</strong></a> •
-  <a href="#bộ-tài-liệu-bảo-vệ-đồ-án-tốt-nghiệp"><strong>Tài liệu Bảo vệ</strong></a> •
-  <a href="#tài-khoản-trải-nghiệm-1-chạm-đồ-án"><strong>Tài khoản Demo</strong></a> •
+  <a href="#tài-khoản-trải-nghiệm-hệ-thống"><strong>Tài khoản Demo</strong></a> •
   <a href="#kiến-trúc-hệ-thống-system-architecture"><strong>Sơ đồ Kiến trúc</strong></a> •
-  <a href="#hướng-dẫn-cài-đặt--khởi-động-nhanh-quick-start"><strong>Cài đặt</strong></a>
+  <a href="#bộ-sưu-tập-giao-diện-thực-tế-screenshots-gallery"><strong>Giao diện Thực tế</strong></a> •
+  <a href="#tính-năng-cốt-lõi-features-matrix"><strong>Tính năng Cốt lõi</strong></a> •
+  <a href="#hướng-dẫn-cài-đặt--khởi-động-nhanh-quick-start"><strong>Cài đặt Nhanh</strong></a>
 </p>
 
 </div>
