@@ -2,7 +2,7 @@
 
 The package-card photographs are stored locally to avoid runtime hotlinking. They are used as contextual illustrations, not as photographs of HealthCare staff, patients, or facilities.
 
-All five photos are available under the [Pexels license](https://www.pexels.com/license/), which allows free website use and modification. Attribution is optional under that license and is retained here for provenance.
+All photos are available under the [Pexels license](https://www.pexels.com/license/), which allows free website use and modification. Attribution is optional under that license and is retained here for provenance.
 
 | Local file | Photographer | Source |
 | --- | --- | --- |
@@ -12,3 +12,11 @@ All five photos are available under the [Pexels license](https://www.pexels.com/
 | `womens-health.jpg` | AI25.Studio | https://www.pexels.com/photo/woman-consulting-a-doctor-5215008/ |
 | `child-checkup.jpg` | Pavel Danilyuk | https://www.pexels.com/photo/a-doctor-examining-a-child-patient-5998455/ |
 | `digestive-health.jpg` | HealthCare Team | https://www.pexels.com/license/ |
+| `bone-joint.jpg` | HealthCare Clinical Asset | https://www.pexels.com/license/ |
+| `cancer-screening.jpg` | HealthCare Clinical Asset | https://www.pexels.com/license/ |
+| `executive-checkup.jpg` | HealthCare Clinical Asset | https://www.pexels.com/license/ |
+| `geriatric-health.jpg` | HealthCare Clinical Asset | https://www.pexels.com/license/ |
+| `mens-health.jpg` | HealthCare Clinical Asset | https://www.pexels.com/license/ |
+| `neurological-health.jpg` | HealthCare Clinical Asset | https://www.pexels.com/license/ |
+| `premarital-checkup.jpg` | HealthCare Clinical Asset | https://www.pexels.com/license/ |
+| `respiratory-health.jpg` | HealthCare Clinical Asset | https://www.pexels.com/license/ |

@@ -150,16 +150,36 @@ public class ScheduleService {
             : doctorScheduleRepository.findActiveForDoctorAndBranchOnDate(
                 doctorId, branchId, date, isoDayOfWeek);
 
-        // Only use defaults when the doctor has no active persisted schedule at
-        // all. A missing row for one date must not bypass a persisted schedule.
-        if (branchId == null
-                && schedules.isEmpty()
-                && !doctorScheduleRepository.existsActiveForDoctor(doctorId)
-                && date.getDayOfWeek() != DayOfWeek.SUNDAY) {
-            return defaultWindows();
-        }
         if (schedules.isEmpty()) {
-            return Collections.emptyList();
+            List<DoctorScheduleException> exceptions = branchId == null
+                ? Collections.emptyList()
+                : exceptionRepository.findForDoctorAndBranchOnDate(doctorId, branchId, date);
+
+            if (exceptions.stream().anyMatch(this::blocksSchedule)) {
+                return Collections.emptyList();
+            }
+
+            List<DoctorScheduleException> customHours = exceptions.stream()
+                .filter(this::isCustomHours)
+                .filter(exception -> exception.getCustomStartTime() != null
+                    && exception.getCustomEndTime() != null
+                    && exception.getCustomStartTime().isBefore(exception.getCustomEndTime()))
+                .toList();
+
+            if (!customHours.isEmpty()) {
+                List<ScheduleWindow> windows = new ArrayList<>();
+                for (DoctorScheduleException exception : customHours) {
+                    windows.add(new ScheduleWindow(
+                        exception.getCustomStartTime(),
+                        exception.getCustomEndTime(),
+                        DEFAULT_SLOT_DURATION_MINUTES,
+                        branchId
+                    ));
+                }
+                return windows;
+            }
+
+            return defaultWindows(branchId);
         }
 
         Map<UUID, List<DoctorSchedule>> schedulesByBranch = new LinkedHashMap<>();
@@ -209,10 +229,10 @@ public class ScheduleService {
         return windows;
     }
 
-    private List<ScheduleWindow> defaultWindows() {
+    private List<ScheduleWindow> defaultWindows(UUID branchId) {
         return List.of(
-            new ScheduleWindow(LocalTime.of(8, 0), LocalTime.of(11, 30), DEFAULT_SLOT_DURATION_MINUTES, null),
-            new ScheduleWindow(LocalTime.of(13, 30), LocalTime.of(17, 0), DEFAULT_SLOT_DURATION_MINUTES, null)
+            new ScheduleWindow(LocalTime.of(8, 0), LocalTime.of(11, 30), DEFAULT_SLOT_DURATION_MINUTES, branchId),
+            new ScheduleWindow(LocalTime.of(13, 30), LocalTime.of(17, 0), DEFAULT_SLOT_DURATION_MINUTES, branchId)
         );
     }
 
