@@ -1,10 +1,10 @@
 <div align="center">
 
-# HealthCare Project — Hệ Sinh Thái Y Tế Bệnh Viện Thông Minh & Đào Tạo Viện - Trường (Academic Medical Center)
-### Mô Hình Kết Hợp Bệnh Viện Thông Minh Đa Cơ Sở & Quản Lý Đào Tạo Khóa Luận / Đề Tài Nghiên Cứu Y Khoa
-**Enterprise Healthcare Smart Hospital Ecosystem & Medical Academic Research Management**
+# HealthCare Project — Hệ Sinh Thái Y Tế Bệnh Viện Đa Khoa Thông Minh
+### Nền Tảng Khám Chữa Bệnh & Đặt Lịch Y Tế Số Đa Cơ Sở Tích Hợp Trí Tuệ Nhân Tạo
+**Enterprise Smart Healthcare & Hospital Ecosystem**
 
-> *Nền tảng y tế số cấp doanh nghiệp kết hợp đào tạo Viện - Trường chuẩn mực: Vận hành khám chữa bệnh thông minh đa vai trò, trợ lý AI Y tế bảo vệ đa tầng (RAG), và phân hệ quản lý đề tài nghiên cứu, khóa luận tốt nghiệp y khoa, luận văn nội trú với hội đồng phản biện độc lập.*
+> *Nền tảng y tế số cấp doanh nghiệp: Vận hành khám chữa bệnh thông minh đa vai trò (Bệnh nhân • Bác sĩ • Quản trị viên), phân luồng lịch khám đa cơ sở, trợ lý AI Y tế bảo vệ đa tầng (RAG & Triage an toàn).*
 
 [![CI](https://github.com/JasonTM17/HealthCare_Project/actions/workflows/ci.yml/badge.svg?branch=main&style=for-the-badge&label=CI)](https://github.com/JasonTM17/HealthCare_Project/actions/workflows/ci.yml)
 [![Frontend](https://img.shields.io/badge/Frontend-Next.js_16_%7C_React_19-black?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org)

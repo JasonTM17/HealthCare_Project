@@ -308,7 +308,6 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
         { href: "/doctor/health-questions", label: "Hỏi đáp" },
         { href: "/doctor/ai-content-reviews", label: "Duyệt AI" },
         { href: "/doctor/articles", label: "Cộng đồng" },
-        { href: "/doctor/academic", label: "Khóa luận & Đào tạo" },
       ];
   const [activeHash, setActiveHash] = useState<string>("");
 
