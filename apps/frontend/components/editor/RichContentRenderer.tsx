@@ -75,7 +75,9 @@ export function isSafeUrl(url: string): boolean {
   if (
     trimmed.startsWith("javascript:") ||
     trimmed.startsWith("vbscript:") ||
-    trimmed.startsWith("data:")
+    trimmed.startsWith("data:") ||
+    trimmed.startsWith("//") ||
+    trimmed.startsWith("\\\\")
   ) {
     return false;
   }
