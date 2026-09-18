@@ -34,9 +34,11 @@ const BOOKING_STAGES: Array<{ icon: IconName; title: string; description: string
 ];
 
 const PREPARE_ITEMS = [
-  "Chuẩn bị số điện thoại có thể nhận OTP.",
+  "Chuẩn bị số điện thoại có thể nhận OTP xác thực.",
+  "Đến trước giờ hẹn 15 phút để hoàn tất thủ tục tiếp đón và đo sinh hiệu ban đầu.",
+  "Mang theo CMND/CCCD, thẻ BHYT và kết quả thăm khám cũ (nếu có).",
+  "Nhịn ăn sáng trước khi lấy mẫu nếu có chỉ định xét nghiệm máu hoặc đường huyết.",
   "Xem danh sách chuyên khoa trước nếu bạn chưa chắc nên bắt đầu từ đâu.",
-  "Kiểm tra lại cơ sở và giờ làm việc trước khi đến khám.",
 ] as const;
 
 export default function BookingLandingPage() {
