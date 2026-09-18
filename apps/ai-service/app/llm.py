@@ -1821,7 +1821,19 @@ def remote_answer_is_grounded(
             claim = re.split(r"[,.;:\n]", tail, maxsplit=1)[0].strip()
             if claim and claim not in normalized_context:
                 return False
-    if any(number not in normalized_context for number in _GROUNDING_NUMBER_PATTERN.findall(normalized_answer)):
+    # Numbers used to be required verbatim in the context. That rejected
+    # ordinary clinical guidance — "huyết áp dưới 140/90", "tái khám sau 3
+    # ngày" — whenever the retrieved passages did not happen to contain the
+    # same string, which is most of the time, and the visitor got the canned
+    # fallback. What grounding actually has to prevent is an operational
+    # identifier (phone, price, hour, date) that the catalog never supplied,
+    # and that is what the operational-fact pattern below checks.
+    ungrounded_numbers = [
+        number
+        for number in _GROUNDING_NUMBER_PATTERN.findall(normalized_answer)
+        if number not in normalized_context
+    ]
+    if ungrounded_numbers and _UNGROUNDED_OPERATIONAL_FACT_PATTERN.search(normalized_answer):
         return False
     answer_tokens = {
         token
