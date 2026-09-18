@@ -400,6 +400,10 @@ _REMOTE_OUTPUT_FORBIDDEN_PATTERN = re.compile(
     r"\b(?:(?:ban\s+nen|hay)\s+(?:uong|dung|su\s+dung)|you\s+should\s+(?:take|use))\b|"
     r"\b(?:uong|dung|su\s+dung|take|use)\s+(?:thuoc\s+)?(?:aspirin|paracetamol|"
     r"acetaminophen|ibuprofen|amoxicillin|antibiotic|khang\s+sinh)\b|"
+    # A bare named drug followed by a strength is a prescription even when no
+    # verb precedes it ("paracetamol 500mg là lựa chọn").
+    r"\b(?:aspirin|paracetamol|acetaminophen|ibuprofen|amoxicillin)\s*"
+    r"\d+(?:[.,]\d+)?\s*(?:mg|ml|viên|vien)\b|"
     r"\b(?:uong|take|dung)\s+(?:[a-z][a-z0-9-]*\s+){0,4}"
     r"\d+(?:[.,]\d+)?\s*(?:mg|ml|vien)\b)",
     re.IGNORECASE,
@@ -1668,6 +1672,61 @@ def context_contains_unsafe_data(
     )
 
 
+# A compliant answer refuses to prescribe or diagnose, which means it names the
+# very words the pattern above hunts for. Splitting on clause boundaries and
+# excusing any clause that carries a refusal frame keeps "Tôi không thể kê đơn"
+# from being discarded for doing the right thing, while the clause after a
+# contrastive "nhưng" is judged on its own — so a refusal that then goes on to
+# recommend a drug is still caught.
+_NEGATED_CLINICAL_REFUSAL_FRAMES = (
+    "toi khong the",
+    "toi khong",
+    "khong the",
+    "khong duoc phep",
+    "khong",
+    "i cannot",
+    "i can not",
+    "i can't",
+    "i do not",
+    "i don't",
+    "we cannot",
+    "we do not",
+)
+
+# Sentence boundaries only — deliberately not ":". Splitting there cuts a URL
+# in half so the https:// match can never be found again, which would excuse
+# exactly the output the URL rule exists to reject.
+_SENTENCE_BOUNDARY_PATTERN = re.compile(r"[.!?;\n]")
+_CONTRASTIVE_WORD_PATTERN = re.compile(r"\b(?:nhung|tuy nhien|however|but|ngoai ra)\b", re.IGNORECASE)
+
+
+def _has_unnegated_forbidden_match(normalized: str) -> bool:
+    """Report a forbidden phrase that is not part of a refusal.
+
+    Splitting on sentence boundaries only, because a refusal legitimately lists
+    what it will not do across commas ("không thể chẩn đoán, kê đơn hoặc thay
+    đổi thuốc"). A forbidden phrase counts as a refusal only while no
+    contrastive word separates it from the negation frame that precedes it —
+    that is what separates "tôi không thể kê đơn" from "tôi không thể kê đơn,
+    nhưng hãy uống thuốc này".
+    """
+
+    for sentence in _SENTENCE_BOUNDARY_PATTERN.split(normalized):
+        for match in _REMOTE_OUTPUT_FORBIDDEN_PATTERN.finditer(sentence):
+            preceding = [
+                sentence.find(frame)
+                for frame in _NEGATED_CLINICAL_REFUSAL_FRAMES
+                if frame in sentence
+            ]
+            preceding = [pos for pos in preceding if 0 <= pos < match.start()]
+            if not preceding:
+                return True
+            gap = sentence[max(preceding):match.start()]
+            if _CONTRASTIVE_WORD_PATTERN.search(gap):
+                return True
+    return False
+
+
 def remote_text_output_is_safe(
     value: str,
     *,
@@ -1687,8 +1746,27 @@ def remote_text_output_is_safe(
             allow_public_operational=allow_public_operational,
             allow_public_generic_guidance=allow_public_generic_guidance,
         )
-        or _REMOTE_OUTPUT_FORBIDDEN_PATTERN.search(normalized)
+        or _has_unnegated_forbidden_match(normalized)
     )
+
+
+# Operational facts a no-context answer must not invent. Deliberately narrow:
+# a phone number, a currency amount, a clock time, or a calendar date reads as
+# if the catalog had supplied it. General clinical quantities ("140/90",
+# "2 lít", "3 ngày") are exactly what a useful answer needs, so they are left
+# alone — the earlier rule rejected every digit and discarded nearly every
+# answer the model produced.
+_UNGROUNDED_OPERATIONAL_FACT_PATTERN = re.compile(
+    r"(?:"
+    r"(?<!\w)(?:\+?84|0)[\s.-]?(?:\d[\s.-]?){8,10}(?!\w)"
+    r"|(?:\d{1,3}(?:[.,]\d{3})+|\d+[\s.,]?\d*k?)\s*(?:vnd|vnđ|đồng|dong|triệu|nghìn|ngan)\b"
+    r"|\b\d{1,2}\s*[h:]\s*\d{2}\b"
+    r"|\b\d{1,2}/\d{1,2}/\d{2,4}\b"
+    r"|\b24\s*/\s*7\b"
+    r"|\b\d{1,2}\s*(?:gio|h)\s*(?:-|–|den)\s*\d{1,2}\s*(?:gio|h)?\b"
+    r")",
+    re.IGNORECASE,
+)
 
 
 def remote_answer_is_grounded(
@@ -1701,11 +1779,19 @@ def remote_answer_is_grounded(
 
     normalized_answer = _normalize_sensitive_text(answer)
     if not context:
-        # A no-hit public query may still receive a short conversational or
-        # generic guidance response.  It must not be allowed to invent a
-        # phone number, hour, date, price, or other numeric operational fact
-        # when the catalog supplied no supporting source.
-        return not bool(_GROUNDING_NUMBER_PATTERN.search(normalized_answer))
+        # A no-hit public query may still receive a general health-guidance
+        # response. What it must not do is invent an operational fact — a
+        # phone number, a price, an opening hour, a calendar date — that reads
+        # as if the catalog had supplied it.
+        #
+        # Requiring *zero digits* made that impossible to satisfy: ordinary
+        # clinical guidance is numeric ("đo huyết áp 140/90", "uống 2 lít nước
+        # mỗi ngày", "tái khám sau 3 ngày"), so nearly every useful answer was
+        # rejected and the visitor got the canned fallback instead. The rule now
+        # targets the identifiers that would actually pass for catalog data.
+        # Clinical safety — prescribing, diagnosis, PII, injection — is enforced
+        # independently by remote_text_output_is_safe, which still runs first.
+        return not bool(_UNGROUNDED_OPERATIONAL_FACT_PATTERN.search(normalized_answer))
     normalized_context = _normalize_sensitive_text("\n".join(context))
     if allow_public_operational:
         context_phones = {
@@ -2476,11 +2562,11 @@ def resolve_chat(
         )
         if public_support_chat and not context:
             system_prompt += (
-                " Không có nguồn catalog khớp với câu hỏi này. Chỉ trả lời lời chào hoặc "
-                "hướng dẫn chung và tuyệt đối không sử dụng con số (không dùng số thứ tự 1, 2, 3, "
-                "không dùng số điện thoại, giờ, ngày, giá); không khẳng định tên, địa chỉ, số điện thoại, "
-                "giờ mở cửa, giá, lịch hay dịch vụ cụ thể của HealthCare; "
-                "nếu cần thông tin cụ thể, hãy mời người dùng xem các mục tương ứng trên website chính thức."
+                " Không có nguồn catalog khớp với câu hỏi này. Chỉ đưa hướng dẫn "
+                "sức khỏe chung; tuyệt đối không nêu số điện thoại, giờ mở cửa, "
+                "địa chỉ, mức giá hay mã đặt lịch của HealthCare — đó là thông tin "
+                "bạn không có nguồn để xác nhận. Nếu người dùng cần thông tin cụ "
+                "thể đó, hãy mời họ xem các mục tương ứng trên website chính thức."
             )
         data = client.complete_json(
             system_prompt=system_prompt,
