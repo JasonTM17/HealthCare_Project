@@ -576,19 +576,17 @@ function FloatingHealthAssistantPanel({
     const { controller, epoch } = beginLocalRequest();
     const conversationId = conversation.id;
     setFeedbackBusy(message.id);
+    const current = feedbackRating(message);
+    // Optimistically update feedback so the prompt disappears immediately upon click
+    setMessages((items) => items.map((item) => item.id === message.id ? { ...item, feedback: { rating } } : item));
     try {
-      const current = feedbackRating(message);
-      if (current === rating) {
-        await deleteAiMessageFeedback(conversationId, message.id, { signal: controller.signal });
-        if (!isCurrentLocalRequest(epoch, conversationId)) return;
-        setMessages((items) => items.map((item) => item.id === message.id ? { ...item, feedback: null } : item));
-      } else {
-        const feedback = await updateAiMessageFeedback(conversationId, message.id, rating, { signal: controller.signal });
-        if (!isCurrentLocalRequest(epoch, conversationId)) return;
-        setMessages((items) => items.map((item) => item.id === message.id ? { ...item, feedback } : item));
-      }
+      const feedback = await updateAiMessageFeedback(conversationId, message.id, rating, { signal: controller.signal });
+      if (!isCurrentLocalRequest(epoch, conversationId)) return;
+      setMessages((items) => items.map((item) => item.id === message.id ? { ...item, feedback } : item));
     } catch (error) {
       if (!isAbortError(error) && isCurrentLocalRequest(epoch, conversationId)) {
+        // Revert optimistic update if API failed
+        setMessages((items) => items.map((item) => item.id === message.id ? { ...item, feedback: current } : item));
         setFailure(failureFromError(error));
       }
     } finally {
@@ -860,7 +858,7 @@ function FloatingHealthAssistantPanel({
                             ))}
                           </div>
                         ) : null}
-                        {isPatient && message.status === "COMPLETED" ? (
+                        {isPatient && message.status === "COMPLETED" && !feedbackRating(message) ? (
                           <div className={styles.feedback} aria-label="Đánh giá phản hồi" role="group">
                             <span>Phản hồi này hữu ích?</span>
                             {(["HELPFUL", "NOT_HELPFUL"] as const).map((rating) => (
