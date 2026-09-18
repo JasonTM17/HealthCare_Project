@@ -220,7 +220,7 @@ function MessageItem({
           ))}
         </div>
       ) : null}
-      {assistant && message.status === "COMPLETED" ? (
+      {assistant && message.status === "COMPLETED" && !feedbackRating(message) ? (
         <div aria-label="Đánh giá phản hồi" className={styles.feedbackRow} role="group">
           <span>Phản hồi này hữu ích?</span>
           {(["HELPFUL", "NOT_HELPFUL"] as const).map((rating) => (
@@ -637,17 +637,16 @@ function PatientChatPageContent() {
     const conversationId = activeIdRef.current;
     if (!conversationId || feedbackBusy || message.role !== "ASSISTANT" || message.status !== "COMPLETED") return;
     setFeedbackBusy(message.id);
+    const current = feedbackRating(message);
+    // Optimistically update feedback so the prompt disappears immediately upon click
+    setMessages((items) => items.map((item) => item.id === message.id ? { ...item, feedback: { rating } } : item));
     try {
-      const current = feedbackRating(message);
-      if (current === rating) {
-        await deleteAiMessageFeedback(conversationId, message.id);
-        setMessages((items) => items.map((item) => item.id === message.id ? { ...item, feedback: null } : item));
-      } else {
-        const feedback = await updateAiMessageFeedback(conversationId, message.id, rating);
-        setMessages((items) => items.map((item) => item.id === message.id ? { ...item, feedback } : item));
-      }
+      const feedback = await updateAiMessageFeedback(conversationId, message.id, rating);
+      setMessages((items) => items.map((item) => item.id === message.id ? { ...item, feedback } : item));
     } catch (error) {
       if (!isAbortError(error)) {
+        // Revert optimistic update if API failed
+        setMessages((items) => items.map((item) => item.id === message.id ? { ...item, feedback: current } : item));
         const failure = toFailure(error);
         handleUnauthorized(failure);
         setSendFailure(failure);
