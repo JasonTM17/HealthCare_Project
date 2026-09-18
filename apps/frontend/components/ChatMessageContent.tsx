@@ -25,7 +25,7 @@ export default function ChatMessageContent({ content, className }: ChatMessageCo
       const text = currentParagraph.join("\n").trim();
       if (text) {
         blocks.push(
-          <p key={`p-${blocks.length}`} style={{ margin: "0.3rem 0", lineHeight: 1.55, overflowWrap: "anywhere" }}>
+          <p key={`p-${blocks.length}`} style={{ margin: "0.35rem 0", lineHeight: 1.6, overflowWrap: "anywhere" }}>
             {renderInlineMarkdown(text)}
           </p>
         );
@@ -38,9 +38,9 @@ export default function ChatMessageContent({ content, className }: ChatMessageCo
     if (currentList) {
       if (currentList.type === "ul") {
         blocks.push(
-          <ul key={`ul-${blocks.length}`} style={{ margin: "0.35rem 0", paddingLeft: "1.25rem", listStyleType: "disc", overflowWrap: "anywhere" }}>
+          <ul key={`ul-${blocks.length}`} style={{ margin: "0.45rem 0", paddingLeft: "1.25rem", listStyleType: "disc", overflowWrap: "anywhere" }}>
             {currentList.items.map((item, idx) => (
-              <li key={idx} style={{ marginBottom: "0.2rem", lineHeight: 1.5 }}>
+              <li key={idx} style={{ marginBottom: "0.3rem", lineHeight: 1.6 }}>
                 {renderInlineMarkdown(item)}
               </li>
             ))}
@@ -48,9 +48,9 @@ export default function ChatMessageContent({ content, className }: ChatMessageCo
         );
       } else {
         blocks.push(
-          <ol key={`ol-${blocks.length}`} style={{ margin: "0.35rem 0", paddingLeft: "1.25rem", listStyleType: "decimal", overflowWrap: "anywhere" }}>
+          <ol key={`ol-${blocks.length}`} style={{ margin: "0.45rem 0", paddingLeft: "1.25rem", listStyleType: "decimal", overflowWrap: "anywhere" }}>
             {currentList.items.map((item, idx) => (
-              <li key={idx} style={{ marginBottom: "0.2rem", lineHeight: 1.5 }}>
+              <li key={idx} style={{ marginBottom: "0.3rem", lineHeight: 1.6 }}>
                 {renderInlineMarkdown(item)}
               </li>
             ))}
@@ -89,7 +89,7 @@ export default function ChatMessageContent({ content, className }: ChatMessageCo
       flushParagraph();
       flushList();
       blocks.push(
-        <strong key={`h-${blocks.length}`} style={{ display: "block", margin: "0.45rem 0 0.2rem", fontWeight: 700, color: "inherit", fontSize: "0.95em" }}>
+        <strong key={`h-${blocks.length}`} style={{ display: "block", margin: "0.6rem 0 0.25rem", fontWeight: 700, color: "inherit", fontSize: "1.02em" }}>
           {renderInlineMarkdown(headingMatch[1])}
         </strong>
       );
