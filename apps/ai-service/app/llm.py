@@ -771,6 +771,11 @@ _UNSUPPORTED_CLINICAL_TERMS = (
     "chan doan toi", "thay đổi thuốc", "thay doi thuoc",
     "kê thuốc", "ke thuoc", "kê toa", "ke toa", "bốc thuốc", "boc thuoc",
     "chẩn đoán chắc chắn", "chan doan chac chan",
+    "morphine", "morfin", "fentanyl", "oxycodone", "diazepam", "seduxen",
+    "thuốc gây nghiện", "thuoc gay nghien", "thuốc hướng thần", "thuoc huong than",
+    "mua thuốc không cần đơn", "mua thuoc khong can don",
+    "thuốc an thần liều cao", "thuoc an than lieu cao",
+    "kháng sinh không cần đơn", "khang sinh khong can don",
 )
 _PUBLIC_BOOKING_SUPPORT_TERMS = (
     "dat lich",
