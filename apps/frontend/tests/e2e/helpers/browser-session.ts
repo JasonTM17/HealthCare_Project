@@ -1,6 +1,6 @@
 import { expect, type BrowserContext, type Page } from "@playwright/test";
 import type { AiCreditStatus } from "../../../lib/api-client";
-import type { AuthUser, Doctor, PatientProfile } from "../../../types/hospital";
+import type { AuthUser, Doctor, PatientOverview, PatientProfile } from "../../../types/hospital";
 
 export interface BrowserSessionFixture {
   user: AuthUser;
@@ -88,6 +88,23 @@ export function patientAiCreditStatusFixture(
   };
 }
 
+export function patientOverviewFixture(
+  overrides: Partial<PatientOverview> = {},
+): PatientOverview {
+  return {
+    latestAppointment: null,
+    appointmentCount: 0,
+    diagnosticResultCount: 0,
+    prescriptionCount: 0,
+    hasNewDiagnosticResult: false,
+    hasNewPrescription: false,
+    unreadNotificationCount: 0,
+    unreadConsultationCount: 0,
+    openCarePlanTaskCount: 0,
+    ...overrides,
+  };
+}
+
 export function doctorProfileFixture(
   session: BrowserSessionFixture,
   overrides: Partial<Doctor> = {},
@@ -159,6 +176,19 @@ export async function installMockPatientPortalSession(
       contentType: "application/json",
       headers: { "Cache-Control": "no-store" },
       body: JSON.stringify(patientAiCreditStatusFixture(options.credits)),
+    });
+  });
+
+  await target.route("**/api/v1/patient/overview", async (route) => {
+    const request = route.request();
+    expect(request.method()).toBe("GET");
+    expect(new URL(request.url()).origin).toBe(expectedBrowserOrigin());
+    expect(request.headers()["authorization"]).toBeUndefined();
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers: { "Cache-Control": "no-store" },
+      body: JSON.stringify(patientOverviewFixture()),
     });
   });
 }

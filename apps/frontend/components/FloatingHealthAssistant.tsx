@@ -267,9 +267,11 @@ function FloatingHealthAssistantPanel({
   const latestMessage = messages[messages.length - 1];
   const assistantStatus = failure?.kind === "unavailable"
     ? "Tạm thời gián đoạn"
-    : latestMessage?.role === "ASSISTANT" && latestMessage.safetyAction === "INSUFFICIENT_EVIDENCE"
-      ? "Chưa có nguồn xác thực"
-      : null;
+    : latestMessage?.role === "ASSISTANT" && latestMessage.provenance === "local_fallback"
+      ? "Hỗ trợ tạm thời"
+      : latestMessage?.role === "ASSISTANT" && latestMessage.safetyAction === "INSUFFICIENT_EVIDENCE"
+        ? "Chưa có nguồn xác thực"
+        : isPatient ? "Thông tin sức khỏe · Có lưu lịch sử" : "Tra cứu HealthCare · Không lưu lịch sử";
 
   const syncConversation = useCallback((next: AiConversation | null): void => {
     conversationIdRef.current = next?.id ?? null;
@@ -746,8 +748,7 @@ function FloatingHealthAssistantPanel({
               <div>
                 <strong>Trợ lý HealthCare</strong>
                 <span className={styles.headerSubtitle}>
-                  {isPatient ? "Thông tin sức khỏe · Có lưu lịch sử" : "Tra cứu HealthCare · Không lưu lịch sử"}
-                  {assistantStatus ? <span className={styles.statusNote}>{assistantStatus}</span> : null}
+                  {assistantStatus}
                 </span>
               </div>
             </div>
@@ -818,7 +819,7 @@ function FloatingHealthAssistantPanel({
                   <article className={`${styles.message} ${message.role === "ASSISTANT" ? styles.assistant : styles.patient}`} key={message.id}>
                     <span className={styles.messageRole}>{message.role === "ASSISTANT" ? "HealthCare" : "Bạn"}</span>
                     <ChatMessageContent content={message.content} />
-                    <header className={styles.messageMeta}>
+                    <div className={styles.messageMeta}>
                       <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
                       {message.role === "ASSISTANT" ? (
                         <>
@@ -828,7 +829,7 @@ function FloatingHealthAssistantPanel({
                           </span>
                         </>
                       ) : null}
-                    </header>
+                    </div>
                     {message.role === "ASSISTANT" ? (
                       <>
                         {message.disclaimer && message.disclaimer.trim() && message.disclaimer.trim() !== DEFAULT_DISCLAIMER && !message.disclaimer.includes("thay thế tư vấn của bác sĩ") ? (
