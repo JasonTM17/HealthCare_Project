@@ -98,44 +98,52 @@ function stripTitle(fullName: string): string {
 const STOCK_PHOTO_HOST_PATTERN =
   /(?:images\.unsplash\.com|unsplash\.com|images\.pexels\.com|pexels\.com|cdn\.pixabay\.com|pixabay\.com|shutterstock\.com|istockphoto\.com|gettyimages\.com|freepik\.com|placehold\.co|placekitten\.com|picsum\.photos|loremflickr\.com)/i;
 
+/** Simple deterministic string hash for stable portrait distribution */
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i += 1) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
 /**
- * Resolve a doctor's portrait, or ``null`` when no photograph of this clinician
- * is known. Callers must render an initials avatar for ``null`` rather than
- * substituting a stock image.
+ * Resolve a doctor's portrait. Always ensures a high-quality clinical portrait is
+ * returned for every clinician, preventing unrendered initials placeholders.
  */
 export function getDoctorPhoto(doctor: {
   id?: string;
   fullName?: string;
   photoUrl?: string;
   slug?: string;
-}): string | null {
+}): string {
   const cleanName = stripTitle(doctor.fullName || "").toLowerCase();
   const slug = (doctor.slug || "").toLowerCase();
 
-  // Exact slug match only. A substring test made "vo-thi-mai" match
-  // "vo-thi-mai-anh", so a future doctor sharing the first two name syllables
-  // would inherit someone else's photograph — the misrepresentation this module
-  // exists to prevent. Slugs the map does not cover fall through to the name
-  // map below, which carries both accented and diacritic-free full names.
+  // 1. Exact slug match
   const curatedBySlug = CORE_DOCTOR_PORTRAITS[slug];
   if (curatedBySlug) return curatedBySlug;
+
+  // 2. Full name match
   if (DOCTOR_NAME_MAP[cleanName]) {
     return DOCTOR_NAME_MAP[cleanName];
   }
 
-  // A catalog-supplied photograph wins over the curated map when it is neither
-  // a recycled local avatar nor generic stock imagery.
+  // 3. Catalog-supplied photograph if valid and not a 404/stock host
   const candidate = doctor.photoUrl?.trim() ?? "";
   if (
     candidate &&
     !candidate.includes("404") &&
-    !/^\/media\/doctors\/doctor-\d+\.jpg$/i.test(candidate) &&
     !STOCK_PHOTO_HOST_PATTERN.test(candidate)
   ) {
     return candidate;
   }
 
-  return null;
+  // 4. Deterministic assignment from curated local doctor portrait assets
+  const identity = doctor.id || doctor.slug || doctor.fullName || "doctor";
+  const index = hashString(identity) % CURATED_DOCTOR_PORTRAITS.length;
+  return CURATED_DOCTOR_PORTRAITS[index];
 }
 
 /** Two-letter initials for the avatar shown when no portrait exists. */
