@@ -11043,6 +11043,101 @@ body:has(.mobile-menu) [class*="FloatingHealthAssistant_root"] {
   border-bottom: 2px solid #f1f5f9;
 }
 
+/* Emergency Warning Alert Box (Red Callout 115) */
+.article-news-alert-box {
+  border-radius: var(--radius-md, 12px);
+  padding: 1.25rem 1.5rem;
+  margin: var(--sp-6) 0;
+  transition: box-shadow 0.2s ease;
+}
+
+.article-news-alert-box--danger {
+  background: #fff1f2;
+  border: 2px solid #e11d48;
+  box-shadow: 0 4px 14px rgba(225, 29, 72, 0.12);
+}
+
+.article-news-alert-box__header {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  font-family: var(--font-display, inherit);
+  font-size: 1.0625rem;
+  font-weight: 750;
+  color: #9f1239;
+  letter-spacing: -0.01em;
+  margin-bottom: 0.5rem;
+}
+
+.article-news-alert-box__icon {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.article-news-alert-box__sub {
+  color: #881337;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  margin-bottom: 0.75rem !important;
+  line-height: 1.5;
+}
+
+.article-news-alert-box__list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.article-news-alert-box__list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.9375rem;
+  color: #4c0519;
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+.article-news-alert-box__bullet {
+  color: #e11d48;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.article-news-alert-box__actions {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #fecdd3;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.article-news-alert-box__call-115 {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #e11d48;
+  color: #ffffff !important;
+  font-weight: 700;
+  font-size: 0.9375rem;
+  padding: 0.625rem 1.25rem;
+  border-radius: var(--radius-sm, 8px);
+  text-decoration: none;
+  box-shadow: 0 2px 6px rgba(225, 29, 72, 0.25);
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.article-news-alert-box__call-115:hover {
+  background: #be123c;
+  color: #ffffff !important;
+  transform: translateY(-1px);
+}
+
 .article-news-prevention__box {
   background: #f8fafc;
   border: 1px solid #e2e8f0;

@@ -14,8 +14,10 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class DoctorService {
@@ -37,16 +39,38 @@ public class DoctorService {
     }
 
     public Page<DoctorResponse> listActive(Pageable pageable) {
-        return doctorRepository.findByActiveTrue(safePageable(pageable)).map(this::toResponse);
+        Page<Doctor> page = doctorRepository.findByActiveTrue(safePageable(pageable));
+        return toResponsePage(page);
     }
 
     public Page<DoctorResponse> listActive(Pageable pageable, String specialtySlug, String branchSlug, String query) {
-        return doctorRepository.findActiveWithFilters(
+        Page<Doctor> page = doctorRepository.findActiveWithFilters(
             normalizeFilter(specialtySlug),
             normalizeFilter(branchSlug),
             normalizeFilter(query),
             safePageable(pageable)
-        ).map(this::toResponse);
+        );
+        return toResponsePage(page);
+    }
+
+    private Page<DoctorResponse> toResponsePage(Page<Doctor> page) {
+        if (page.isEmpty()) {
+            return page.map(this::toResponse);
+        }
+        List<Doctor> doctors = page.getContent();
+        List<UUID> doctorIds = doctors.stream().map(Doctor::getId).toList();
+
+        Map<UUID, List<com.healthcare.hospital.entity.DoctorBranch>> branchMap = doctorBranchRepository.findByDoctorIdIn(doctorIds).stream()
+            .collect(Collectors.groupingBy(link -> link.getDoctor().getId()));
+
+        Map<UUID, List<com.healthcare.hospital.entity.DoctorSpecialty>> specialtyMap = doctorSpecialtyRepository.findByDoctorIdIn(doctorIds).stream()
+            .collect(Collectors.groupingBy(link -> link.getDoctor().getId()));
+
+        return page.map(doctor -> toResponse(
+            doctor,
+            branchMap.getOrDefault(doctor.getId(), List.of()),
+            specialtyMap.getOrDefault(doctor.getId(), List.of())
+        ));
     }
 
     private Pageable safePageable(Pageable pageable) {
@@ -84,6 +108,14 @@ public class DoctorService {
     private DoctorResponse toResponse(Doctor doctor) {
         List<com.healthcare.hospital.entity.DoctorBranch> branchLinks = doctorBranchRepository.findByDoctorId(doctor.getId());
         List<com.healthcare.hospital.entity.DoctorSpecialty> specialtyLinks = doctorSpecialtyRepository.findByDoctorId(doctor.getId());
+        return toResponse(doctor, branchLinks, specialtyLinks);
+    }
+
+    private DoctorResponse toResponse(
+        Doctor doctor,
+        List<com.healthcare.hospital.entity.DoctorBranch> branchLinks,
+        List<com.healthcare.hospital.entity.DoctorSpecialty> specialtyLinks
+    ) {
         String branchId = branchLinks.stream()
             .findFirst()
             .map(link -> link.getBranch().getId().toString())

@@ -365,6 +365,12 @@ export default function ArticlesPage() {
                           alt={resolveArticleAlt(article)}
                           className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                           src={resolveArticleCoverImage(article)}
+                          onError={(e) => {
+                            const target = e.currentTarget;
+                            if (!target.src.endsWith("/media/articles/cham-soc-suc-khoe-tong-quat.jpg")) {
+                              target.src = "/media/articles/cham-soc-suc-khoe-tong-quat.jpg";
+                            }
+                          }}
                         />
                         <span className="absolute top-2.5 left-2.5 rounded-[4px] bg-teal-950/85 backdrop-blur-md px-2 py-0.5 text-xs font-bold text-teal-100 shadow-xs">
                           {resolveArticleCategoryLabel(article.category)}
