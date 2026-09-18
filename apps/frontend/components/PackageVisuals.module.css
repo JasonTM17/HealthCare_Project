@@ -44,6 +44,54 @@
   --package-deep: #174d68;
 }
 
+.tone-bone-joint {
+  --package-accent: #0f766e;
+  --package-soft: #e6f4f1;
+  --package-deep: #115e59;
+}
+
+.tone-neurological {
+  --package-accent: #4f46e5;
+  --package-soft: #eef2ff;
+  --package-deep: #3730a3;
+}
+
+.tone-cancer {
+  --package-accent: #9333ea;
+  --package-soft: #f5f3ff;
+  --package-deep: #6b21a8;
+}
+
+.tone-geriatric {
+  --package-accent: #ca8a04;
+  --package-soft: #fefce8;
+  --package-deep: #854d0e;
+}
+
+.tone-men {
+  --package-accent: #0369a1;
+  --package-soft: #f0f9ff;
+  --package-deep: #075985;
+}
+
+.tone-respiratory {
+  --package-accent: #0891b2;
+  --package-soft: #ecfeff;
+  --package-deep: #155e75;
+}
+
+.tone-premarital {
+  --package-accent: #e11d48;
+  --package-soft: #fff1f2;
+  --package-deep: #9f1239;
+}
+
+.tone-executive {
+  --package-accent: #1e293b;
+  --package-soft: #f1f5f9;
+  --package-deep: #0f172a;
+}
+
 .mediaLink {
   display: block;
 }
