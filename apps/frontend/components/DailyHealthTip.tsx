@@ -123,7 +123,6 @@ export default function DailyHealthTip() {
               />
             ))}
           </span>
-          <span className="daily-tip__hint">{paused ? "Tạm dừng" : "Tự động chuyển"}</span>
         </div>
       </div>
     </section>
