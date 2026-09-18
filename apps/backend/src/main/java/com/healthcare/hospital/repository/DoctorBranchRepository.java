@@ -18,6 +18,9 @@ public interface DoctorBranchRepository extends JpaRepository<DoctorBranch, UUID
 
     List<DoctorBranch> findByDoctorId(UUID doctorId);
 
+    @Query("select db from DoctorBranch db join fetch db.branch where db.doctor.id in :doctorIds")
+    List<DoctorBranch> findByDoctorIdIn(@Param("doctorIds") Collection<UUID> doctorIds);
+
     List<DoctorBranch> findByBranchId(UUID branchId);
 
     Optional<DoctorBranch> findFirstByDoctorId(UUID doctorId);

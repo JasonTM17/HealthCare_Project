@@ -204,6 +204,12 @@ export default function ArticleDetailPage() {
                     alt={resolveArticleAlt(article)}
                     className="article-editorial-header__img"
                     src={resolveArticleCoverImage(article)}
+                    onError={(e) => {
+                      const target = e.currentTarget;
+                      if (!target.src.endsWith("/media/articles/cham-soc-suc-khoe-tong-quat.jpg")) {
+                        target.src = "/media/articles/cham-soc-suc-khoe-tong-quat.jpg";
+                      }
+                    }}
                   />
                   <figcaption className="article-editorial-header__img-caption">
                     Hình ảnh y khoa minh họa · Nguồn: Bệnh viện đa khoa HealthCare
@@ -302,8 +308,8 @@ export default function ArticleDetailPage() {
                       ))}
                     </ul>
                     <div className="article-news-alert-box__actions">
-                      <a className="outline-button outline-button--small outline-button--danger" href="tel:115">
-                        📞 Gọi cấp cứu 115 ngay
+                      <a className="article-news-alert-box__call-115" href="tel:115">
+                        <span aria-hidden="true">📞</span> Gọi cấp cứu 115 ngay (Quy tắc giờ vàng)
                       </a>
                     </div>
                   </section>

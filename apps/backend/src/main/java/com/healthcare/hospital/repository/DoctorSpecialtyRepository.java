@@ -12,6 +12,9 @@ import java.util.UUID;
 public interface DoctorSpecialtyRepository extends JpaRepository<DoctorSpecialty, UUID> {
     List<DoctorSpecialty> findByDoctorId(UUID doctorId);
 
+    @org.springframework.data.jpa.repository.Query("select ds from DoctorSpecialty ds join fetch ds.specialty where ds.doctor.id in :doctorIds")
+    List<DoctorSpecialty> findByDoctorIdIn(@org.springframework.data.repository.query.Param("doctorIds") java.util.Collection<UUID> doctorIds);
+
     List<DoctorSpecialty> findBySpecialtyId(UUID specialtyId);
 
     Optional<DoctorSpecialty> findFirstByDoctorId(UUID doctorId);
