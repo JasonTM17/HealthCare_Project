@@ -331,3 +331,56 @@ Integrity mode: development
 - Sử dụng Playwright kiểm thử thực tế trên trình duyệt: kiểm tra tải danh sách bác sĩ, kiểm tra thẻ cấp cứu 115 trên bài viết, chụp ảnh màn hình nghiệm thu.
 - Triển khai lên Vercel Production và xác nhận hoạt động ổn định.
 
+## 2026-09-18T15:06:49Z
+
+Thực hiện nâng cấp toàn diện dữ liệu và giao diện hệ thống y tế HealthCare:
+1. Khắc phục triệt để lỗi mất ảnh bác sĩ trên Trang chủ và trang Danh mục, thay thế ô placeholder viết tắt (`QH`, `QM`) bằng 100% ảnh chân dung bác sĩ lâm sàng chất lượng cao.
+2. Tạo 'Big Data' lịch khám phong phú cho tất cả bác sĩ trên tất cả các ngày trong tuần (Thứ 2 đến Chủ Nhật, ca sáng và chiều) để bệnh nhân đặt bất kỳ bác sĩ nào cũng có sẵn ngày và ca khám ngay lập tức.
+3. Tạo và gắn ảnh chuyên biệt, đa dạng cho từng gói khám sức khỏe để không còn bị trùng lặp một bức ảnh mặc định.
+
+Working directory: d:/HealthCare_Project
+Integrity mode: development
+
+## Requirements
+
+### R1. Khắc Phục Lỗi Mất Ảnh Bác Sĩ (Doctor Portrait Display Integrity)
+- Cập nhật logic phân giải ảnh bác sĩ trong `apps/frontend/lib/doctor-portrait.ts`:
+  - Gỡ bỏ giới hạn chặn ảnh nội bộ `/media/doctors/doctor-*.jpg`.
+  - Bổ sung cơ chế phân giải ảnh xác định (deterministic resolution) qua hash cho toàn bộ bác sĩ trên hệ thống, đảm bảo 100% bác sĩ có ảnh chân dung y khoa rõ nét, không bao giờ rơi vào fallback chữ viết tắt (`QH`, `QM`).
+- Tạo migration `V83__seed_big_data_doctor_schedules_and_avatars.sql` để cập nhật `photo_url` chuẩn cho tất cả bác sĩ trong database.
+
+### R2. 'Big Data' Lịch Khám Toàn Diện Cho Mọi Bác Sĩ (Comprehensive Doctor Schedules & Slots)
+- Trong database migration `V83`:
+  - Đảm bảo toàn bộ bác sĩ đang hoạt động (`active = true`) được liên kết với cơ sở trong `doctor_branches`.
+  - Sinh lịch trực định kỳ (`doctor_schedules`) cho **tất cả bác sĩ** trên **tất cả 7 ngày trong tuần (Thứ Hai đến Chủ Nhật)**:
+    - Ca sáng: 08:00 - 12:00 (8 slot 30 phút).
+    - Ca chiều: 13:30 - 17:30 (8 slot 30 phút).
+    - Hiệu lực từ `2026-01-01` (`effective_to IS NULL`).
+- Trong `apps/backend/src/main/java/com/healthcare/appointment/service/ScheduleService.java`:
+  - Bổ sung cơ chế dự phòng an toàn: nếu bác sĩ có profile hoạt động tại cơ sở, luôn sẵn sàng sinh khung giờ khám tiêu chuẩn bệnh viện để bất kỳ bác sĩ nào được chọn cũng có ca khám book được ngay.
+
+### R3. Ảnh Riêng Biệt Cho Từng Gói Khám (Distinct Health Package Imagery)
+- Bổ sung thư viện ảnh gói khám chuyên khoa phong phú tại `apps/frontend/public/images/packages/` (Tổng quát, Tim mạch, Tiểu đường, Phụ nữ, Nhi khoa, Tiêu hóa, Ung thư, Người cao tuổi, Cơ xương khớp, Thần kinh, Nam khoa, VIP...).
+- Cập nhật `apps/frontend/lib/package-visuals.ts`:
+  - Mở rộng phân loại nhận diện chuyên khoa gói khám.
+  - Phân bổ ảnh xác định theo slug/id gói khám để mỗi gói khám có bức ảnh đặc trưng, sống động riêng biệt, không còn tình trạng trùng lặp ảnh `general-checkup.jpg`.
+
+### R4. Kiểm Thử & Triển Khai Production (Verification & Deployment)
+- Chạy toàn bộ test suites Backend (Maven) và Frontend (npm test) đảm bảo 100% PASS.
+- Build Next.js thành công 66/66 routes.
+- Commit Conventional Commits, push `main`, và deploy lên Vercel Production (`https://www.healthcare.id.vn`).
+- Chụp ảnh màn hình kiểm chứng trực quan qua trình duyệt thực tế.
+
+## Acceptance Criteria
+
+### Ảnh Bác Sĩ & Giao Diện
+- [ ] 100% thẻ bác sĩ trên trang chủ và trang `/doctors` hiển thị ảnh chân dung rõ nét, không còn ô viết tắt `QH`, `QM`.
+- [ ] Danh sách gói khám `/packages` hiển thị các hình ảnh phong phú, khác nhau theo từng chuyên đề khám.
+
+### Lịch Khám 'Big Data'
+- [ ] Bất kỳ bác sĩ nào khi mở form đặt lịch đều hiển thị sẵn các ca khám (sáng/chiều) trên tất cả các ngày trong tuần (Thứ Hai đến Chủ Nhật).
+- [ ] Bệnh nhân không cần phải chuyển đổi bác sĩ để tìm ca khám.
+
+### Kiểm Thử & Triển Khai
+- [ ] 100% test case (Frontend 368+, Backend) đạt PASS.
+- [ ] Deploy thành công lên production `https://www.healthcare.id.vn` và kiểm chứng qua ảnh chụp trình duyệt thực tế.
