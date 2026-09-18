@@ -7,7 +7,11 @@ import com.healthcare.appointment.repository.AppointmentRepository;
 import com.healthcare.appointment.repository.DoctorScheduleRepository;
 import com.healthcare.scheduling.entity.DoctorScheduleException;
 import com.healthcare.scheduling.repository.DoctorScheduleExceptionRepository;
+import com.healthcare.hospital.entity.DoctorBranch;
+import com.healthcare.hospital.repository.DoctorBranchRepository;
 import com.healthcare.hospital.repository.DoctorRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,16 +42,28 @@ public class ScheduleService {
     private final DoctorScheduleExceptionRepository exceptionRepository;
     private final AppointmentRepository appointmentRepository;
     private final DoctorRepository doctorRepository;
+    private final DoctorBranchRepository doctorBranchRepository;
+
+    @Autowired
+    public ScheduleService(
+            DoctorScheduleRepository doctorScheduleRepository,
+            DoctorScheduleExceptionRepository exceptionRepository,
+            AppointmentRepository appointmentRepository,
+            DoctorRepository doctorRepository,
+            @Nullable DoctorBranchRepository doctorBranchRepository) {
+        this.doctorScheduleRepository = doctorScheduleRepository;
+        this.exceptionRepository = exceptionRepository;
+        this.appointmentRepository = appointmentRepository;
+        this.doctorRepository = doctorRepository;
+        this.doctorBranchRepository = doctorBranchRepository;
+    }
 
     public ScheduleService(
             DoctorScheduleRepository doctorScheduleRepository,
             DoctorScheduleExceptionRepository exceptionRepository,
             AppointmentRepository appointmentRepository,
             DoctorRepository doctorRepository) {
-        this.doctorScheduleRepository = doctorScheduleRepository;
-        this.exceptionRepository = exceptionRepository;
-        this.appointmentRepository = appointmentRepository;
-        this.doctorRepository = doctorRepository;
+        this(doctorScheduleRepository, exceptionRepository, appointmentRepository, doctorRepository, null);
     }
 
     /** Computes configured slots and marks every interval overlapping an appointment as occupied. */
@@ -151,6 +167,11 @@ public class ScheduleService {
                 doctorId, branchId, date, isoDayOfWeek);
 
         if (schedules.isEmpty()) {
+            if (branchId != null && doctorBranchRepository != null
+                    && !doctorBranchRepository.existsByDoctorIdAndBranchId(doctorId, branchId)) {
+                return Collections.emptyList();
+            }
+
             List<DoctorScheduleException> exceptions = branchId == null
                 ? Collections.emptyList()
                 : exceptionRepository.findForDoctorAndBranchOnDate(doctorId, branchId, date);
@@ -177,6 +198,44 @@ public class ScheduleService {
                     ));
                 }
                 return windows;
+            }
+
+            if (branchId == null && doctorBranchRepository != null) {
+                List<DoctorBranch> assignments = doctorBranchRepository.findByDoctorId(doctorId);
+                if (assignments != null && !assignments.isEmpty()) {
+                    List<ScheduleWindow> windows = new ArrayList<>();
+                    for (DoctorBranch assignment : assignments) {
+                        if (assignment.getBranch() != null && assignment.getBranch().isActive()) {
+                            UUID assignedBranchId = assignment.getBranch().getId();
+                            List<DoctorScheduleException> branchExceptions = exceptionRepository
+                                .findForDoctorAndBranchOnDate(doctorId, assignedBranchId, date);
+                            if (branchExceptions.stream().anyMatch(this::blocksSchedule)) {
+                                continue;
+                            }
+                            List<DoctorScheduleException> branchCustomHours = branchExceptions.stream()
+                                .filter(this::isCustomHours)
+                                .filter(e -> e.getCustomStartTime() != null
+                                    && e.getCustomEndTime() != null
+                                    && e.getCustomStartTime().isBefore(e.getCustomEndTime()))
+                                .toList();
+                            if (!branchCustomHours.isEmpty()) {
+                                for (DoctorScheduleException exception : branchCustomHours) {
+                                    windows.add(new ScheduleWindow(
+                                        exception.getCustomStartTime(),
+                                        exception.getCustomEndTime(),
+                                        DEFAULT_SLOT_DURATION_MINUTES,
+                                        assignedBranchId
+                                    ));
+                                }
+                            } else {
+                                windows.addAll(defaultWindows(assignedBranchId));
+                            }
+                        }
+                    }
+                    if (!windows.isEmpty()) {
+                        return windows;
+                    }
+                }
             }
 
             return defaultWindows(branchId);
