@@ -148,11 +148,15 @@ function MessageItem({
       <div className={styles.messageMeta}>
         <strong>{assistant ? "Trợ lý HealthCare" : "Bạn"}</strong>
         <span className={styles.metaRight}>
-          {assistant && message.status === "COMPLETED" ? (
-            <span className={styles.provenance} data-provenance={message.provenance ?? "local_provider"}>
-              {provenanceLabel(message.provenance ?? "local_provider", message.citations.length, message.safetyAction)}
-            </span>
-          ) : null}
+          {assistant && message.status === "COMPLETED" ? (() => {
+            const label = provenanceLabel(message.provenance ?? "local_provider", message.citations.length, message.safetyAction);
+            if (!label) return null;
+            return (
+              <span className={styles.provenance} data-provenance={message.provenance ?? "local_provider"}>
+                {label}
+              </span>
+            );
+          })() : null}
           <time dateTime={message.createdAt}>{formatDateTime(message.createdAt)}</time>
         </span>
       </div>

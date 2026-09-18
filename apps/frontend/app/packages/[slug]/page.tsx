@@ -85,7 +85,7 @@ export default function PackageDetailPage() {
                   </dl>
                 ) : null}
 
-                <div className="resource-actions">
+                <div className={`resource-actions ${packageVisualStyles.detailActions}`}>
                   <PublicBookingButton className={packageVisualStyles.detailAction} selection={{ packageId: item.id }}>
                     Đặt lịch với gói này
                   </PublicBookingButton>

@@ -490,7 +490,7 @@ export default function ArticleDetailPage() {
                 </p>
                 <div className="resource-actions article-news-sidebar__actions">
                   <PublicBookingButton>Đặt lịch khám với bác sĩ</PublicBookingButton>
-                  <PublicAiButton className="outline-button outline-button--small">Hỏi trợ lý triệu chứng</PublicAiButton>
+                  <PublicAiButton className="outline-button">Hỏi trợ lý triệu chứng</PublicAiButton>
                 </div>
               </div>
 
