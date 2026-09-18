@@ -17,7 +17,7 @@ const CATEGORY_VISUALS: Record<string, { imageSrc: string; tagColor: string }> =
     tagColor: "bg-amber-950/80 text-amber-100",
   },
   "dinh dưỡng": {
-    imageSrc: "/media/articles/dinh-duong-tang-huyet-ap.jpg",
+    imageSrc: "/media/articles/dinh-duong-lanh-manh.jpg",
     tagColor: "bg-emerald-950/80 text-emerald-100",
   },
   "sức khỏe gia đình": {
@@ -25,7 +25,7 @@ const CATEGORY_VISUALS: Record<string, { imageSrc: string; tagColor: string }> =
     tagColor: "bg-teal-950/80 text-teal-100",
   },
   "cơ xương khớp": {
-    imageSrc: "/media/articles/thoai-hoa-cot-song.jpg",
+    imageSrc: "/media/articles/co-xuong-khop.jpg",
     tagColor: "bg-sky-950/80 text-sky-100",
   },
   "nội tiết": {
@@ -37,36 +37,64 @@ const CATEGORY_VISUALS: Record<string, { imageSrc: string; tagColor: string }> =
     tagColor: "bg-orange-950/80 text-orange-100",
   },
   "thần kinh": {
-    imageSrc: "/media/articles/phong-ngua-dot-quy.jpg",
+    imageSrc: "/media/articles/than-kinh-dot-quy.jpg",
     tagColor: "bg-purple-950/80 text-purple-100",
   },
   "sản phụ khoa": {
-    imageSrc: "/images/packages/womens-health.jpg",
+    imageSrc: "/media/articles/san-phu-khoa.jpg",
     tagColor: "bg-pink-950/80 text-pink-100",
   },
   "hô hấp": {
-    imageSrc: "https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&w=1000&q=85",
+    imageSrc: "/media/articles/ho-hap.jpg",
     tagColor: "bg-cyan-950/80 text-cyan-100",
   },
   "tai mũi họng": {
-    imageSrc: "https://images.unsplash.com/photo-1579684385127-1ef15d508118?auto=format&fit=crop&w=1000&q=85",
+    imageSrc: "/media/articles/tai-mui-hong.jpg",
     tagColor: "bg-teal-950/80 text-teal-100",
   },
   "da liễu": {
-    imageSrc: "https://images.unsplash.com/photo-1584515933487-779824d29309?auto=format&fit=crop&w=1000&q=85",
+    imageSrc: "/media/articles/da-lieu.jpg",
     tagColor: "bg-amber-950/80 text-amber-100",
   },
   "ung bướu": {
-    imageSrc: "https://images.unsplash.com/photo-1579154204601-01588f351e67?auto=format&fit=crop&w=1000&q=85",
+    imageSrc: "/media/articles/ung-buou.jpg",
     tagColor: "bg-violet-950/80 text-violet-100",
   },
+  "mắt": {
+    imageSrc: "/media/articles/mat.jpg",
+    tagColor: "bg-blue-950/80 text-blue-100",
+  },
   "phòng bệnh chủ động": {
-    imageSrc: "https://images.unsplash.com/photo-1505751172876-fa1923c5c528?auto=format&fit=crop&w=1000&q=85",
+    imageSrc: "/media/articles/cham-soc-suc-khoe-tong-quat.jpg",
     tagColor: "bg-teal-950/80 text-teal-100",
   },
   "cấp cứu": {
-    imageSrc: "https://images.unsplash.com/photo-1587351021759-3e566b6af7cc?auto=format&fit=crop&w=1000&q=85",
+    imageSrc: "/media/articles/cap-cuu.jpg",
     tagColor: "bg-red-950/80 text-red-100",
+  },
+  "răng hàm mặt": {
+    imageSrc: "/media/articles/rang-ham-mat.jpg",
+    tagColor: "bg-emerald-950/80 text-emerald-100",
+  },
+  "nam khoa": {
+    imageSrc: "/media/articles/nam-khoa-tiet-nieu.jpg",
+    tagColor: "bg-blue-950/80 text-blue-100",
+  },
+  "tiết niệu": {
+    imageSrc: "/media/articles/nam-khoa-tiet-nieu.jpg",
+    tagColor: "bg-sky-950/80 text-sky-100",
+  },
+  "y học cổ truyền": {
+    imageSrc: "/media/articles/y-hoc-co-truyen.jpg",
+    tagColor: "bg-lime-950/80 text-lime-100",
+  },
+  "phục hồi chức năng": {
+    imageSrc: "/media/articles/phuc-hoi-chuc-nang.jpg",
+    tagColor: "bg-cyan-950/80 text-cyan-100",
+  },
+  "huyết học": {
+    imageSrc: "/media/articles/xet-nghiem-huyet-hoc.jpg",
+    tagColor: "bg-rose-950/80 text-rose-100",
   },
   "tổng quát": {
     imageSrc: "/media/articles/cham-soc-suc-khoe-tong-quat.jpg",
@@ -83,7 +111,11 @@ const DEFAULT_COVER = "/media/articles/cham-soc-suc-khoe-tong-quat.jpg";
 export function resolveArticleCoverImage(
   article?: Partial<Pick<Article, "coverImageUrl" | "category" | "slug" | "title">> | null,
 ): string {
-  if (article?.coverImageUrl && article.coverImageUrl.trim()) {
+  if (
+    article?.coverImageUrl &&
+    article.coverImageUrl.trim() &&
+    !article.coverImageUrl.includes("unsplash.com")
+  ) {
     return article.coverImageUrl.trim();
   }
 
@@ -101,7 +133,7 @@ export function resolveArticleCoverImage(
   if (/tiểu đường|đái tháo đường|nội tiết|hba1c|metabolic|mỡ máu|cholesterol|insulin/i.test(identity)) {
     return CATEGORY_VISUALS["nội tiết"].imageSrc;
   }
-  if (/khớp|cột sống|lưng|xương|cơ|gối|đĩa đệm|gút|loãng xương/i.test(identity)) {
+  if (/khớp|cột sống|lưng|xương|cơ|gối|đĩa đệm|gút|loãng xương|chấn thương/i.test(identity)) {
     return CATEGORY_VISUALS["cơ xương khớp"].imageSrc;
   }
   if (/dạ dày|tiêu hóa|ruột|gan|mật|gastro|hp|vi khuẩn hp|gerd|trào ngược|nội soi/i.test(identity)) {
@@ -110,20 +142,38 @@ export function resolveArticleCoverImage(
   if (/thần kinh|đột quỵ|não|chóng mặt|neuro|migraine|đau đầu|fast/i.test(identity)) {
     return CATEGORY_VISUALS["thần kinh"].imageSrc;
   }
-  if (/phụ khoa|sinh sản|mang thai|thai kỳ|women|mãn kinh|nipt|tiền sản/i.test(identity)) {
+  if (/phụ khoa|sinh sản|mang thai|thai kỳ|women|mãn kinh|nipt|tiền sản|siêu âm thai|sản/i.test(identity)) {
     return CATEGORY_VISUALS["sản phụ khoa"].imageSrc;
+  }
+  if (/mắt|thị lực|nhãn khoa|glaucoma|cận thị|khô mắt|giác mạc|đáy mắt/i.test(identity)) {
+    return CATEGORY_VISUALS["mắt"].imageSrc;
   }
   if (/hô hấp|hen|phế quản|phổi|thở|respiratory/i.test(identity)) {
     return CATEGORY_VISUALS["hô hấp"].imageSrc;
   }
-  if (/xoang|mũi|họng|tai|ent/i.test(identity)) {
+  if (/xoang|mũi|họng|tai|ent|thính học/i.test(identity)) {
     return CATEGORY_VISUALS["tai mũi họng"].imageSrc;
   }
-  if (/da|mụn|dị ứng da|mẩn ngứa|dermatology|skin/i.test(identity)) {
+  if (/da|mụn|dị ứng da|mẩn ngứa|dermatology|skin|thẩm mỹ da/i.test(identity)) {
     return CATEGORY_VISUALS["da liễu"].imageSrc;
   }
-  if (/ung bướu|tầm soát ung thư|u cục|khối u|oncology/i.test(identity)) {
+  if (/ung bướu|tầm soát ung thư|u cục|khối u|oncology|tumor/i.test(identity)) {
     return CATEGORY_VISUALS["ung bướu"].imageSrc;
+  }
+  if (/răng|nha khoa|nha chu|tủy răng|niềng răng/i.test(identity)) {
+    return CATEGORY_VISUALS["răng hàm mặt"].imageSrc;
+  }
+  if (/nam khoa|tiết niệu|thận|bàng quang|tiền liệt tuyến/i.test(identity)) {
+    return CATEGORY_VISUALS["nam khoa"].imageSrc;
+  }
+  if (/cổ truyền|đông y|châm cứu|dược liệu|thảo mộc/i.test(identity)) {
+    return CATEGORY_VISUALS["y học cổ truyền"].imageSrc;
+  }
+  if (/phục hồi chức năng|vật lý trị liệu|vận động trị liệu/i.test(identity)) {
+    return CATEGORY_VISUALS["phục hồi chức năng"].imageSrc;
+  }
+  if (/huyết học|máu|thiếu máu|bạch cầu|tiểu cầu|miễn dịch/i.test(identity)) {
+    return CATEGORY_VISUALS["huyết học"].imageSrc;
   }
   if (/cấp cứu|sơ cứu|cpr|115/i.test(identity)) {
     return CATEGORY_VISUALS["cấp cứu"].imageSrc;

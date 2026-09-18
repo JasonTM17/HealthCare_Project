@@ -30,6 +30,7 @@ import { formatBusinessDate } from "../lib/business-time";
 import { isSafeCmsUrl, type CmsContent, type CmsHeroPayload } from "../lib/cms-client";
 import { safeTelephoneHref } from "../lib/phone";
 import { presentApiError } from "../lib/present-api-error";
+import { resolveArticleCoverImage, resolveArticleAlt } from "../lib/article-visuals";
 import type { Article, Branch, Doctor, HealthPackage, Specialty } from "../types/hospital";
 
 const HERO_IMAGE = "/media/hospital-team-landscape.jpg";
@@ -1032,11 +1033,11 @@ export default function Home(): React.ReactElement {
               <article className="video-card">
                 <div className="video-card__visual">
                   <Image
-                    alt="Nhân viên y tế trao đổi cùng người bệnh"
+                    alt={articles[0] ? resolveArticleAlt(articles[0]) : "Cẩm nang sức khỏe từ đội ngũ bác sĩ"}
                     className="video-card__image"
                     fill
                     sizes="(max-width: 900px) 100vw, 32vw"
-                    src={getPublicCareImage(5)}
+                    src={articles[0] ? resolveArticleCoverImage(articles[0]) : getPublicCareImage(5)}
                   />
                   <span className="video-card__wash" aria-hidden="true" />
                   <span className="video-card__label">Gợi ý đọc</span>
