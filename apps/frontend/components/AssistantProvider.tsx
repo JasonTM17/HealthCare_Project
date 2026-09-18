@@ -60,8 +60,8 @@ export function provenanceLabel(
   provenance: AiChatProvenance,
   citationCount: number,
   safetyAction?: ChatSafetyAction,
-): string {
-  if (safetyAction === "INSUFFICIENT_EVIDENCE") return "Chưa có nguồn xác thực";
+): string | null {
+  if (safetyAction === "INSUFFICIENT_EVIDENCE") return null;
   switch (provenance) {
     case "local_fallback":
       return safetyAction === "ANSWER" ? "Hướng dẫn nhanh" : "Hỗ trợ tạm thời";

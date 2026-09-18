@@ -213,7 +213,7 @@ export default function SpecialtiesPage() {
           <div className="catalog-status" role="status">
             <p>Chưa có chuyên khoa công khai. Bạn vẫn có thể đặt lịch hoặc hỏi trợ lý để được định hướng ban đầu.</p>
             <div className="resource-actions">
-              <PublicAiButton className="outline-button outline-button--small">Hỏi trợ lý triệu chứng</PublicAiButton>
+              <PublicAiButton className="outline-button">Hỏi trợ lý triệu chứng</PublicAiButton>
               <PublicBookingButton className="button button--amber">Đặt lịch khám</PublicBookingButton>
             </div>
           </div>
