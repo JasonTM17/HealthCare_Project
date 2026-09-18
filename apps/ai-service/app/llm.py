@@ -56,9 +56,9 @@ _INTERNATIONAL_PHONE_PATTERN = re.compile(
 )
 _PUBLIC_HOSPITAL_PHONE_PATTERN = re.compile(
     r"(?<!\d)(?:"
-    r"1900[\s.-]?1234|"
+    r"(?:\(\+84\)|(?:\+?84|0))?[\s.-]?1900[\s.-]?1234|"
     r"115|"
-    r"(?:\+?84|0)[\s.-]?28[\s.-]?(?:3800[\s.-]?00[\s.-]?[0-2]\d|1800[\s.-]?00[\s.-]?[0-2]\d|"
+    r"(?:\(\+84\)\s*28|\(\+84\)[\s.-]?\(0?28\)|\(028\)|(?:\+?84|0)[\s.-]?28)[\s.-]?(?:3800[\s.-]?00[\s.-]?[0-2]\d|1800[\s.-]?00[\s.-]?[0-2]\d|"
     r"3838[\s.-]?[12]\d{3}|3744[\s.-]?22\d{2}|3997[\s.-]?20\d{2})"
     r")(?!\d)",
     re.IGNORECASE,
@@ -394,7 +394,7 @@ _UNRESTRICTED_ASSISTANT_PATTERN = re.compile(
 _REMOTE_OUTPUT_FORBIDDEN_PATTERN = re.compile(
     r"(?:https?://|www\.|javascript:|data:|href\s*=|source[_ -]?id|doctor[_ -]?id|"
     r"\bcitation\b|\b(?:ban|you)\s+(?:(?:co\s+(?:the|kha\s+nang)|co\s+le|may|might|could|likely)\s+)?(?:bi|mac|have|has)\b|"
-    r"\b(?:chan\s+doan\s+la|diagnosed\s+as|i\s+diagnose|ke\s+don|prescribe|"
+    r"\b(?:chan\s+doan\s+la|diagnosed\s+as|i\s+diagnose|ke\s+don|ke\s+toa|boc\s+thuoc|prescribe|"
     r"prescription|lieu\s+thuoc|dosage|ngung\s+thuoc|stop\s+medication|"
     r"change\s+your\s+medication)\b|"
     r"\b(?:(?:ban\s+nen|hay)\s+(?:uong|dung|su\s+dung)|you\s+should\s+(?:take|use))\b|"
@@ -769,7 +769,8 @@ _EMERGENCY_PHRASE_PATTERN = re.compile(
 _UNSUPPORTED_CLINICAL_TERMS = (
     "kê đơn", "ke don", "liều thuốc", "lieu thuoc", "chẩn đoán tôi",
     "chan doan toi", "thay đổi thuốc", "thay doi thuoc",
-    "kê thuốc", "ke thuoc", "chẩn đoán chắc chắn", "chan doan chac chan",
+    "kê thuốc", "ke thuoc", "kê toa", "ke toa", "bốc thuốc", "boc thuoc",
+    "chẩn đoán chắc chắn", "chan doan chac chan",
 )
 _PUBLIC_BOOKING_SUPPORT_TERMS = (
     "dat lich",

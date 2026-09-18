@@ -494,15 +494,36 @@
 
 .emergencyAction {
   display: grid;
-  gap: 0.25rem;
+  gap: 0.35rem;
   margin-top: 0.55rem;
-  padding: 0.55rem;
-  border: 1px solid #d9968f;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #b91c1c;
   border-radius: var(--radius-sm);
-  background: #fff0ed;
-  color: #7a2f2a;
-  font-size: 0.74rem;
-  line-height: 1.4;
+  background: #fef2f2;
+  color: #7f1d1d;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  contain: layout paint;
+}
+
+.emergencyHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #991b1b;
+  font-size: 0.8rem;
+}
+
+.emergencyHeader strong {
+  font-weight: 800;
+}
+
+.emergencyActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.25rem;
 }
 
 .emergencyAction a {
@@ -510,12 +531,41 @@
   min-height: 2.75rem;
   width: fit-content;
   align-items: center;
-  padding: 0 0.7rem;
+  gap: 0.35rem;
+  padding: 0 0.85rem;
   border-radius: var(--radius-sm);
-  background: #8a3a34;
+  background: #b91c1c;
   color: white;
   font-weight: 800;
   text-decoration: none;
+  transition: opacity var(--duration-fast) ease, transform var(--duration-fast) ease;
+}
+
+.emergencyAction a:hover,
+.emergencyAction a:focus-visible {
+  background: #991b1b;
+  color: white;
+}
+
+.emergencyBranchLink {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0 0.75rem;
+  border: 1px solid #b91c1c;
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+  color: #991b1b;
+  font-weight: 700;
+  text-decoration: none;
+  font-size: 0.75rem;
+}
+
+.emergencyBranchLink:hover,
+.emergencyBranchLink:focus-visible {
+  background: #fee2e2;
+  color: #7f1d1d;
 }
 
 .suggestedActions {

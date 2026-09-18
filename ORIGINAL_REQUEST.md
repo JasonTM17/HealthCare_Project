@@ -296,3 +296,38 @@ Integrity mode: development
 - [ ] Các bản deploy cũ trên Vercel được dọn dẹp thành công.
 - [ ] Bản deploy mới nhất hoạt động ổn định trên https://www.healthcare.id.vn.
 
+## 2026-09-18T01:59:56Z
+
+Thực hiện sửa dứt điểm 6 lỗi đã phát hiện qua đợt kiểm toán đa vai trò (Advisor, Kongming, Wukong) và browser audit trên hệ thống HealthCare:
+
+Working directory: d:/HealthCare_Project
+Integrity mode: development
+
+## Requirements
+
+### R1. Triệt Tiêu N+1 Query Trên Danh Mục Bác Sĩ (Backend Performance)
+- Sửa DoctorBranchRepository.java, DoctorSpecialtyRepository.java, và DoctorService.java.
+- Bổ sung truy vấn gom nhóm findByDoctorIdIn với JOIN FETCH để tải trước toàn bộ nhánh và chuyên khoa cho cả trang bác sĩ trong đúng 2 truy vấn bổ sung thay vì 100 truy vấn lặp.
+- Đảm bảo API /api/v1/hospital/doctors?size=50 trả về trong < 200ms thay vì bị timeout 502 (>25s).
+
+### R2. Chuẩn Hóa Chuyên Khoa Bác Sĩ & Vệ Sinh Dữ Liệu (Clinical Governance & Data Hygiene)
+- Khởi tạo Flyway migration V82__reconcile_doctor_specialties_and_clean_data.sql.
+- Đối soát và đồng bộ 100% (506/506) bác sĩ với đúng chuyên khoa nêu trong tiểu sử lâm sàng (bio).
+- Đưa photo_url của 182 bác sĩ chứa URL Unsplash về NULL để tuân thủ nguyên tắc nhận diện chân thực.
+
+### R3. Xóa Bỏ Hoàn Toàn Tiêu Đề Bài Viết "Phần X" (Editorial Polish)
+- Thay thế 470 bài viết nhân bản mang hậu tố "(Phần X)" hoặc tiêu đề chung chung bằng 504 đề tài bệnh học chân thực, chuẩn y khoa thuộc 30 chuyên khoa (GERD, Sỏi thận, Thoát vị đĩa đệm, Đột quỵ, Gút, v.v.).
+- Đảm bảo 0 bài viết nào còn chứa chuỗi "(Phần " hay "Phần ".
+
+### R4. Thẻ Cảnh Báo Cấp Cứu 115 Tương Phản Cao & An Toàn Người Bệnh (Clinical UX & Patient Safety)
+- Bổ sung định dạng CSS cho .article-news-alert-box--danger và nút gọi cấp cứu .article-news-alert-box__call-115 trong styles.css.
+- Đảm bảo trên các bài viết cấp tính, cảnh báo giờ vàng và nút bấm gọi tel:115 nổi bật, trực quan, dễ thao tác ngay cả trên thiết bị di động.
+
+### R5. Fallback onError Cho Toàn Bộ Thẻ Ảnh Bài Viết (Frontend Robustness)
+- Thêm thuộc tính onError trên tất cả thẻ <img> tại /articles và /articles/[slug] để tự động chuyển sang ảnh nội bộ chuẩn nếu có sự cố mạng.
+
+### R6. Kiểm Thử & Kiểm Toán Trình Duyệt Toàn Diện (Testing & Browser Audit)
+- Kiểm tra toàn bộ test suites của Backend và Frontend đạt 100% PASS.
+- Sử dụng Playwright kiểm thử thực tế trên trình duyệt: kiểm tra tải danh sách bác sĩ, kiểm tra thẻ cấp cứu 115 trên bài viết, chụp ảnh màn hình nghiệm thu.
+- Triển khai lên Vercel Production và xác nhận hoạt động ổn định.
+
