@@ -193,9 +193,15 @@ function MessageItem({
       ) : null}
       {assistant && message.safetyAction === "EMERGENCY" ? (
         <div aria-live="assertive" className={styles.emergencyMessage} role="alert">
-          <strong>Đây có thể là tình huống khẩn cấp.</strong>
+          <div className={styles.emergencyHeader}>
+            <UiIcon name="alert-triangle" size={17} />
+            <strong>Đây có thể là tình huống khẩn cấp.</strong>
+          </div>
           <span>Không chờ trợ lý phản hồi; gọi 115 hoặc đến khoa cấp cứu gần nhất.</span>
-          <a href="tel:115">Gọi 115</a>
+          <div className={styles.emergencyActions}>
+            <a href="tel:115">Gọi 115</a>
+            <Link className={styles.emergencyBranchLink} href="/branches">Cơ sở cấp cứu gần nhất</Link>
+          </div>
         </div>
       ) : null}
       {assistant && message.triage ? (
@@ -204,13 +210,13 @@ function MessageItem({
           {message.triage.recommendedSpecialty ? ` · Gợi ý: ${message.triage.recommendedSpecialty}` : ""}
         </p>
       ) : null}
-      {assistant && message.suggestedActions && message.suggestedActions.length > 0 ? (
+      {assistant && message.safetyAction !== "EMERGENCY" && message.suggestedActions && message.suggestedActions.length > 0 ? (
         <div aria-label="Bước tiếp theo" className={styles.suggestedActions} role="group">
           <span className={styles.suggestedActionsLabel}>Bước tiếp theo</span>
-          {message.suggestedActions.map((action) => (
+          {message.suggestedActions.map((action, idx) => (
             action.href === "tel:115"
-              ? <a href={action.href} key={`${action.kind}-${action.href}`}>{action.label}</a>
-              : <Link href={action.href} key={`${action.kind}-${action.href}`}>{action.label}</Link>
+              ? <a href={action.href} key={`${action.kind}-${action.href}-${idx}`}>{action.label}</a>
+              : <Link href={action.href} key={`${action.kind}-${action.href}-${idx}`}>{action.label}</Link>
           ))}
         </div>
       ) : null}

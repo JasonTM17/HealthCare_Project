@@ -116,6 +116,11 @@ const nextConfig: NextConfig = {
         destination: "/about",
         permanent: true,
       },
+      {
+        source: "/articles/dot-quy-nhan-biet-gio-vang",
+        destination: "/articles/phong-ngua-dot-quy-o-nguoi-tre-va-trung-nien",
+        permanent: false,
+      },
     ];
   },
   async headers() {

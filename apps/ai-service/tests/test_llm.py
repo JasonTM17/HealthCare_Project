@@ -593,6 +593,9 @@ _GATE_PUBLIC_HOSPITAL_HOTLINES_MUST_PASS = [
     "Cấp cứu 115",
     "Bệnh viện An Tâm cơ sở 1: 028 38000001",
     "+84 28 3800 0001",
+    "(+84) 28 3800 0001",
+    "(028) 3800 0001",
+    "(+84) 1900 1234",
 ]
 
 _GATE_PATIENT_MOBILE_MUST_STILL_BLOCK = [
@@ -603,6 +606,7 @@ _GATE_PATIENT_MOBILE_MUST_STILL_BLOCK = [
     "Số của tôi là 0312345678",
     "Số Zalo 0512345678",
     "SĐT: +84912345678",
+    "SĐT: (+84) 912345678",
 ]
 
 

@@ -100,7 +100,7 @@ _UNSAFE_CLAIM_PATTERNS = (
         re.IGNORECASE,
     ),
     re.compile(r"\b(chẩn đoán là|diagnosed as|i diagnose)\b", re.IGNORECASE),
-    re.compile(r"\b(kê đơn|prescribe|prescription|liều thuốc|dosage)\b", re.IGNORECASE),
+    re.compile(r"\b(kê đơn|kê toa|ke don|ke toa|bốc thuốc|boc thuoc|prescribe|prescription|liều thuốc|dosage)\b", re.IGNORECASE),
     re.compile(r"\b(?:uống|take|dùng)\s+\d+(?:[.,]\d+)?\s*(?:mg|ml|viên)\b", re.IGNORECASE),
     re.compile(
         r"\b(?:(?:hãy|hay|bạn\s+nên|ban\s+nen)\s+(?:uống|uong|dùng|dung|sử\s+dụng|su\s+dung)|"
