@@ -76,6 +76,7 @@ class ScheduleServiceTest {
         List<TimeSlotDto> slots = scheduleService.getAvailableSlots(doctorId, branchId, futureDate);
 
         assertThat(slots).isNotEmpty();
+        assertThat(slots).hasSize(16);
         assertThat(slots).allMatch(slot -> slot.branchId().equals(branchId));
         assertThat(slots.get(0).startTime()).isEqualTo(LocalTime.of(8, 0));
         assertThat(slots.get(0).available()).isTrue();

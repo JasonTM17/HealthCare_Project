@@ -231,8 +231,8 @@ public class ScheduleService {
 
     private List<ScheduleWindow> defaultWindows(UUID branchId) {
         return List.of(
-            new ScheduleWindow(LocalTime.of(8, 0), LocalTime.of(11, 30), DEFAULT_SLOT_DURATION_MINUTES, branchId),
-            new ScheduleWindow(LocalTime.of(13, 30), LocalTime.of(17, 0), DEFAULT_SLOT_DURATION_MINUTES, branchId)
+            new ScheduleWindow(LocalTime.of(8, 0), LocalTime.of(12, 0), DEFAULT_SLOT_DURATION_MINUTES, branchId),
+            new ScheduleWindow(LocalTime.of(13, 30), LocalTime.of(17, 30), DEFAULT_SLOT_DURATION_MINUTES, branchId)
         );
     }
 

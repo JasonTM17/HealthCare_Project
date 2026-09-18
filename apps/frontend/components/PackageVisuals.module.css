@@ -44,6 +44,12 @@
   --package-deep: #174d68;
 }
 
+.tone-digestive {
+  --package-accent: #0d9488;
+  --package-soft: #f0fdfa;
+  --package-deep: #134e4a;
+}
+
 .tone-bone-joint {
   --package-accent: #0f766e;
   --package-soft: #e6f4f1;
