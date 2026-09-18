@@ -91,12 +91,57 @@ const SUGGESTED_QUESTIONS_PACKAGES = [
   "Làm sao để đặt lịch khám tại HealthCare?",
 ];
 
+const SUGGESTED_QUESTIONS_BOOKING = [
+  "Cần chuẩn bị giấy tờ gì khi đến khám trực tiếp?",
+  "Chính sách đổi hoặc hủy lịch hẹn như thế nào?",
+  "Bệnh viện có tiếp nhận thẻ BHYT và bảo lãnh viện phí không?",
+];
+
+const SUGGESTED_QUESTIONS_BRANCHES = [
+  "Cơ sở nào có khoa Cấp cứu hoạt động 24/7?",
+  "Thời gian làm việc ngoài giờ và khám thứ 7, Chủ Nhật?",
+  "Cơ sở nào thuận tiện đỗ xe ô tô và gần trung tâm?",
+];
+
+const SUGGESTED_QUESTIONS_SPECIALTIES = [
+  "Làm sao biết triệu chứng của tôi nên khám chuyên khoa nào?",
+  "HealthCare có những chuyên khoa mũi nhọn nào?",
+  "Khám chuyên khoa có cần đặt hẹn trước không?",
+];
+
+const SUGGESTED_QUESTIONS_SERVICES = [
+  "Thời gian trả kết quả xét nghiệm máu và chụp MRI/CT?",
+  "Bệnh viện có dịch vụ lấy mẫu xét nghiệm tận nơi không?",
+  "Quy trình nội soi tiêu hóa không đau (gây mê) như thế nào?",
+];
+
+const SUGGESTED_QUESTIONS_FAQ = [
+  "Quy trình tiếp đón người bệnh có bảo hiểm y tế?",
+  "Làm sao để tra cứu kết quả xét nghiệm và đơn thuốc trực tuyến?",
+  "Số điện thoại tổng đài cấp cứu và tư vấn 24/7 là gì?",
+];
+
 function getSuggestedQuestions(pathname: string, chatMode?: ChatMode): readonly string[] {
   if (chatMode === "SYMPTOM_TRIAGE") {
     return SUGGESTED_QUESTIONS_TRIAGE;
   }
   if (chatMode === "HEALTH_EDUCATION") {
     return SUGGESTED_QUESTIONS_EDUCATION;
+  }
+  if (pathname.startsWith("/dat-lich")) {
+    return SUGGESTED_QUESTIONS_BOOKING;
+  }
+  if (pathname.startsWith("/branches")) {
+    return SUGGESTED_QUESTIONS_BRANCHES;
+  }
+  if (pathname.startsWith("/specialties")) {
+    return SUGGESTED_QUESTIONS_SPECIALTIES;
+  }
+  if (pathname.startsWith("/services")) {
+    return SUGGESTED_QUESTIONS_SERVICES;
+  }
+  if (pathname.startsWith("/faq")) {
+    return SUGGESTED_QUESTIONS_FAQ;
   }
   if (pathname.startsWith("/articles") || pathname.startsWith("/benh-pho-bien")) {
     return SUGGESTED_QUESTIONS_ARTICLES;
@@ -791,9 +836,15 @@ function FloatingHealthAssistantPanel({
                         ) : null}
                         {message.safetyAction === "EMERGENCY" ? (
                           <div aria-live="assertive" className={styles.emergencyAction} role="alert">
-                            <strong>Đây có thể là tình huống khẩn cấp.</strong>
+                            <div className={styles.emergencyHeader}>
+                              <UiIcon name="alert-triangle" size={17} />
+                              <strong>Đây có thể là tình huống khẩn cấp.</strong>
+                            </div>
                             <span>Không chờ trợ lý phản hồi; gọi 115 hoặc đến khoa cấp cứu gần nhất.</span>
-                            <a href="tel:115">Gọi 115</a>
+                            <div className={styles.emergencyActions}>
+                              <a href="tel:115">Gọi 115</a>
+                              <Link className={styles.emergencyBranchLink} href="/branches">Cơ sở cấp cứu gần nhất</Link>
+                            </div>
                           </div>
                         ) : null}
                         {message.safetyAction !== "EMERGENCY" && message.suggestedActions && message.suggestedActions.length > 0 ? (
@@ -802,10 +853,10 @@ function FloatingHealthAssistantPanel({
                           // CTA again as a secondary "next step".
                           <div className={styles.suggestedActions} aria-label="Bước tiếp theo" role="group">
                             <span className={styles.suggestedActionsLabel}>Bước tiếp theo</span>
-                            {message.suggestedActions.map((action) => (
+                            {message.suggestedActions.map((action, idx) => (
                               action.href === "tel:115"
-                                ? <a href={action.href} key={`${action.kind}-${action.href}`}>{action.label}</a>
-                                : <Link href={action.href} key={`${action.kind}-${action.href}`}>{action.label}</Link>
+                                ? <a href={action.href} key={`${action.kind}-${action.href}-${idx}`}>{action.label}</a>
+                                : <Link href={action.href} key={`${action.kind}-${action.href}-${idx}`}>{action.label}</Link>
                             ))}
                           </div>
                         ) : null}

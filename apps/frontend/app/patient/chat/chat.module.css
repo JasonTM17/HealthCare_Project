@@ -741,6 +741,44 @@
   color: var(--chat-danger);
   font-size: 0.8125rem;
   line-height: 1.5;
+  contain: layout paint;
+}
+
+.emergencyHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: 0.875rem;
+  font-weight: 800;
+}
+
+.emergencyActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-1);
+}
+
+.emergencyBranchLink {
+  width: fit-content;
+  min-height: var(--chat-touch-size);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--chat-danger);
+  border-radius: var(--chat-radius);
+  background: var(--color-paper-bright);
+  color: var(--chat-danger);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.emergencyBranchLink:hover,
+.emergencyBranchLink:focus-visible {
+  background: var(--chat-danger-surface);
+  color: var(--chat-danger);
 }
 
 .emergencyMessage a,
@@ -749,6 +787,7 @@
   min-height: var(--chat-touch-size);
   display: inline-flex;
   align-items: center;
+  gap: var(--sp-2);
   padding: 0 var(--sp-3);
   border-radius: var(--chat-radius);
   background: var(--chat-danger);
