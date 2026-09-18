@@ -265,11 +265,10 @@ function FloatingHealthAssistantPanel({
   // waiting activity instead of a single unbounded spinner.
   const waitStage = useChatWaitStage(sending);
   const latestMessage = messages[messages.length - 1];
+  const isInsufficientEvidence = latestMessage?.role === "ASSISTANT" && latestMessage.safetyAction === "INSUFFICIENT_EVIDENCE";
   const assistantStatus = failure?.kind === "unavailable"
     ? "Tạm thời gián đoạn"
-    : latestMessage?.role === "ASSISTANT" && latestMessage.safetyAction === "INSUFFICIENT_EVIDENCE"
-      ? "Chưa có nguồn xác thực"
-      : null;
+    : null;
 
   const syncConversation = useCallback((next: AiConversation | null): void => {
     conversationIdRef.current = next?.id ?? null;
@@ -823,14 +822,18 @@ function FloatingHealthAssistantPanel({
                     <ChatMessageContent content={message.content} />
                     <header className={styles.messageMeta}>
                       <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
-                      {message.role === "ASSISTANT" ? (
-                        <>
-                          <span className={styles.metaDot} aria-hidden="true">·</span>
-                          <span className={styles.provenance} data-provenance={message.provenance ?? "local_provider"}>
-                            {provenanceLabel(message.provenance ?? "local_provider", message.citations.length, message.safetyAction)}
-                          </span>
-                        </>
-                      ) : null}
+                      {message.role === "ASSISTANT" ? (() => {
+                        const label = provenanceLabel(message.provenance ?? "local_provider", message.citations.length, message.safetyAction);
+                        if (!label) return null;
+                        return (
+                          <>
+                            <span className={styles.metaDot} aria-hidden="true">·</span>
+                            <span className={styles.provenance} data-provenance={message.provenance ?? "local_provider"}>
+                              {label}
+                            </span>
+                          </>
+                        );
+                      })() : null}
                     </header>
                     {message.role === "ASSISTANT" ? (
                       <>
