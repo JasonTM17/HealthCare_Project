@@ -8,7 +8,7 @@
 
 -- 1. Remediate doctor photo_url to reliable local clinical portraits
 UPDATE doctors
-SET photo_url = '/media/doctors/doctor-' || ((abs(hashtext(id::text)) % 11) + 1) || '.jpg'
+SET photo_url = '/media/doctors/doctor-' || ((abs(hashtext(id::text)::bigint) % 11) + 1) || '.jpg'
 WHERE photo_url IS NULL OR btrim(photo_url) = '' OR photo_url LIKE '%unsplash%';
 
 -- 2. Ensure every active doctor is linked to at least one active branch

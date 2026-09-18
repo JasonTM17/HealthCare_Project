@@ -54,6 +54,9 @@ const nextConfig: NextConfig = {
   distDir,
   reactStrictMode: true,
   devIndicators: false,
+  experimental: {
+    cpus: 1,
+  },
   async redirects() {
     return [
       {

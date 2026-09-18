@@ -23,7 +23,24 @@ export interface PackageVisual {
     | "executive";
 }
 
-const VISUALS: Record<PackageVisual["tone"], Omit<PackageVisual, "tone">> = {
+export const ALL_PACKAGE_TONES: readonly PackageVisual["tone"][] = [
+  "general",
+  "cardio",
+  "metabolic",
+  "women",
+  "children",
+  "digestive",
+  "bone-joint",
+  "neurological",
+  "cancer",
+  "geriatric",
+  "men",
+  "respiratory",
+  "premarital",
+  "executive",
+] as const;
+
+export const VISUALS: Record<PackageVisual["tone"], Omit<PackageVisual, "tone">> = {
   general: {
     imageSrc: "/images/packages/general-checkup.jpg",
     imageAlt: "Người bệnh trao đổi nhu cầu sức khỏe trong phòng khám",
@@ -124,40 +141,157 @@ const VISUALS: Record<PackageVisual["tone"], Omit<PackageVisual, "tone">> = {
   },
 };
 
-function resolveTone(packageItem: Pick<HealthPackage, "slug" | "name">): PackageVisual["tone"] {
-  const identity = `${packageItem.slug} ${packageItem.name}`.toLocaleLowerCase("vi-VN");
-
-  if (/tim|mạch|cardio|huyết áp|huyet-ap/.test(identity)) return "cardio";
-  if (/tiểu đường|tieu-duong|đường huyết|duong-huyet|chuyển hóa|chuyen-hoa|tuyến giáp|tuyen-giap/.test(identity)) return "metabolic";
-  if (/phụ nữ|phu-nu|phụ khoa|phu-khoa|thai sản|thai-san|sản|san-khoa|sinh sản|tử cung|buồng trứng/.test(identity)) return "women";
-  if (/tiền hôn nhân|tien-hon-nhan|cặp đôi|cap-doi|hôn nhân|hon-nhan/.test(identity)) return "premarital";
-  if (/trẻ em|tre-em|nhi|nhi-khoa|cho bé|cho-be|trẻ nhỏ|tre-nho/.test(identity)) return "children";
-  if (/tiêu hóa|tieu-hoa|dạ dày|da-day|gan mật|gan-mat|đại tràng|dai-trang|vi khuẩn hp|nội soi/.test(identity)) return "digestive";
-  if (/xương khớp|xuong-khop|cơ xương khớp|co-xuong-khop|loãng xương|loang-xuong|cột sống|cot-song|thoái hóa/.test(identity)) return "bone-joint";
-  if (/thần kinh|than-kinh|đột quỵ|dot-quy|não|nao-bo|tai biến|tiền đình/.test(identity)) return "neurological";
-  if (/ung bướu|ung-buou|ung thư|ung-thu|tầm soát u|tam-soat-u|sinh thiết|marker ung thư/.test(identity)) return "cancer";
-  if (/cao tuổi|cao-tuoi|lão khoa|lao-khoa|người già|nguoi-gia|hưu trí/.test(identity)) return "geriatric";
-  if (/nam giới|nam-gioi|nam khoa|nam-khoa|phái mạnh|tuyến tiền liệt/.test(identity)) return "men";
-  if (/hô hấp|ho-hap|phổi|phoi|phế quản|phe-quan|hen suyễn/.test(identity)) return "respiratory";
-  if (/vip|doanh nhân|doanh-nhan|chuyên sâu|toàn diện cao cấp|executive/.test(identity)) return "executive";
-
-  return "general";
+/** Deterministic string hash for stable visual allocation across package collections */
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i += 1) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
 }
 
-export function getPackageVisual(packageItem: Pick<HealthPackage, "slug" | "name">): PackageVisual {
-  const tone = resolveTone(packageItem);
-  const baseVisual = VISUALS[tone];
+/**
+ * Recognize clinical specialty from package name or slug keywords.
+ * Returns the matching tone, or null if it's a general or unclassified package.
+ */
+export function resolveTone(packageItem: Pick<HealthPackage, "slug" | "name">): PackageVisual["tone"] | null {
+  const identity = `${packageItem.slug} ${packageItem.name}`.toLocaleLowerCase("vi-VN");
 
-  const rankMatch = packageItem.name.match(/Hạng\s*(\d+)/i) || packageItem.slug.match(/goi-(\d+)/i);
-  if (rankMatch) {
-    const rankNum = parseInt(rankMatch[1], 10);
-    if (tone === "general" && rankNum % 2 === 0) {
-      return { ...VISUALS.executive, tone };
-    }
-    if (tone === "bone-joint" && rankNum % 2 === 1 && rankNum > 3) {
-      return { ...VISUALS.geriatric, tone };
-    }
+  // 1. Cardio / Tim mạch & Huyết áp
+  if (/tim|mạch|cardio|huyết áp|huyet-ap|mạch vành|đo điện tim|ecg|holter|xơ vữa/.test(identity)) {
+    return "cardio";
   }
 
-  return { ...baseVisual, tone };
+  // 2. Metabolic & Diabetes / Chuyển hóa & Tiểu đường
+  if (/tiểu đường|tieu-duong|đường huyết|duong-huyet|chuyển hóa|chuyen-hoa|tuyến giáp|tuyen-giap|gút|gout|mỡ máu|lipid|đái tháo đường|dinh dưỡng/.test(identity)) {
+    return "metabolic";
+  }
+
+  // 3. Premarital / Tiền hôn nhân & Cặp đôi (evaluated before women to keep couples distinct)
+  if (/tiền hôn nhân|tien-hon-nhan|cặp đôi|cap-doi|hôn nhân|hon-nhan|sinh sản cặp đôi|chuẩn bị kết hôn/.test(identity)) {
+    return "premarital";
+  }
+
+  // 4. Women's Health / Sản phụ khoa & Sức khỏe phụ nữ
+  if (/phụ nữ|phu-nu|phụ khoa|phu-khoa|thai sản|thai-san|sản|san-khoa|sinh sản|tử cung|buồng trứng|nhũ ảnh|tầm soát vú|mammography|cổ tử cung|pap smear/.test(identity)) {
+    return "women";
+  }
+
+  // 5. Pediatrics / Nhi khoa & Trẻ em
+  if (/trẻ em|tre-em|nhi|nhi-khoa|cho bé|cho-be|trẻ nhỏ|tre-nho|tiêm chủng|tiem-chung|sơ sinh|so-sinh|phát triển trẻ/.test(identity)) {
+    return "children";
+  }
+
+  // 6. Digestive & Hepatobiliary / Tiêu hóa & Gan mật
+  if (/tiêu hóa|tieu-hoa|dạ dày|da-day|gan mật|gan-mat|đại tràng|dai-trang|vi khuẩn hp|nội soi|trào ngược|gerd|viêm gan|men gan|trĩ|ruột/.test(identity)) {
+    return "digestive";
+  }
+
+  // 7. Musculoskeletal & Bone-Joint / Cơ xương khớp
+  if (/xương khớp|xuong-khop|cơ xương khớp|co-xuong-khop|loãng xương|loang-xuong|cột sống|cot-song|thoái hóa|khớp|gân|thoát vị|thoat-vi|dexa|mật độ xương/.test(identity)) {
+    return "bone-joint";
+  }
+
+  // 8. Neurology & Stroke / Thần kinh & Đột quỵ
+  if (/thần kinh|than-kinh|đột quỵ|dot-quy|não|nao-bo|tai biến|tiền đình|mất ngủ|đau đầu|stress|mạch máu não/.test(identity)) {
+    return "neurological";
+  }
+
+  // 9. Oncology & Cancer Screening / Ung bướu & Tầm soát ung thư
+  if (/ung bướu|ung-buou|ung thư|ung-thu|tầm soát u|tam-soat-u|sinh thiết|marker ung thư|khối u|oncology|tầm soát sớm ung thư/.test(identity)) {
+    return "cancer";
+  }
+
+  // 10. Geriatrics / Lão khoa & Người cao tuổi
+  if (/cao tuổi|cao-tuoi|lão khoa|lao-khoa|người già|nguoi-gia|hưu trí|tuổi vàng|người cao tuổi|an dưỡng/.test(identity)) {
+    return "geriatric";
+  }
+
+  // 11. Men's Health / Nam khoa & Phái mạnh
+  if (/nam giới|nam-gioi|nam khoa|nam-khoa|phái mạnh|tuyến tiền liệt|nam học|andrology|sinh lý nam/.test(identity)) {
+    return "men";
+  }
+
+  // 12. Respiratory / Hô hấp & Phổi
+  if (/hô hấp|ho-hap|phổi|phoi|phế quản|phe-quan|hen suyễn|xoang|chức năng hô hấp|viêm phế quản/.test(identity)) {
+    return "respiratory";
+  }
+
+  // 13. Executive / VIP & Doanh nhân
+  if (/vip|doanh nhân|doanh-nhan|lãnh đạo|executive|hạng thương gia|premium|platinum|diamond/.test(identity)) {
+    return "executive";
+  }
+
+  return null;
+}
+
+/** Extract rank, level, or numeric identifier from package name and slug */
+function extractRankOrIndex(packageItem: Pick<HealthPackage, "slug" | "name">): number | null {
+  const name = packageItem.name || "";
+  const slug = packageItem.slug || "";
+
+  // Explicit rank, tier, grade, or count in Vietnamese or English
+  const nameMatch = name.match(/(?:Hạng|Hang|Cấp\s+[A-Z]\s+#|#|lần|lựa chọn|số|Gói)\s*(\d+)/i);
+  if (nameMatch) {
+    const num = parseInt(nameMatch[1], 10);
+    if (!Number.isNaN(num) && num > 0) return num;
+  }
+
+  // Slug patterns (e.g. "goi-1", "goi-kham-2", "pkg-3", "package-4", "so-5", "-6")
+  const slugMatch = slug.match(/(?:goi|pkg|package|so|kham|hang)[-_](\d+)/i) || slug.match(/[-_](\d+)$/);
+  if (slugMatch) {
+    const num = parseInt(slugMatch[1], 10);
+    if (!Number.isNaN(num) && num > 0) return num;
+  }
+
+  return null;
+}
+
+/** Intra-specialty tone variants to prevent identical imagery on multi-tiered packages */
+const SPECIALTY_VARIANTS: Partial<Record<PackageVisual["tone"], readonly PackageVisual["tone"][]>> = {
+  executive: ["executive", "cardio", "cancer", "neurological", "digestive", "geriatric"],
+  women: ["women", "premarital", "cancer", "metabolic"],
+  "bone-joint": ["bone-joint", "geriatric", "neurological"],
+  cardio: ["cardio", "metabolic", "executive"],
+  digestive: ["digestive", "cancer", "metabolic"],
+};
+
+/**
+ * Deterministically allocate vivid, distinct images for health packages.
+ *
+ * Guarantees that packages on catalog and detail pages never collapse into
+ * duplicate default fallbacks, rotating smoothly across all 14+ clinical tones.
+ */
+export function getPackageVisual(
+  packageItem?: (Pick<HealthPackage, "slug" | "name"> & { id?: string }) | null
+): PackageVisual {
+  if (!packageItem) {
+    return { ...VISUALS.general, tone: "general" };
+  }
+
+  const recognizedTone = resolveTone(packageItem);
+  const rankNum = extractRankOrIndex(packageItem);
+
+  // 1. Explicit specialty recognized from clinical keywords
+  if (recognizedTone) {
+    const variants = SPECIALTY_VARIANTS[recognizedTone];
+    if (variants && rankNum !== null && rankNum > 1) {
+      const variantTone = variants[(rankNum - 1) % variants.length];
+      return { ...VISUALS[variantTone], tone: variantTone };
+    }
+    return { ...VISUALS[recognizedTone], tone: recognizedTone };
+  }
+
+  // 2. Ranked or numbered general packages: cycle deterministically across all 14 tones
+  if (rankNum !== null) {
+    const tone = ALL_PACKAGE_TONES[(rankNum - 1) % ALL_PACKAGE_TONES.length];
+    return { ...VISUALS[tone], tone };
+  }
+
+  // 3. Unranked packages: deterministically allocate across all 14 tones by identity hash
+  const identity = packageItem.id || packageItem.slug || packageItem.name || "package";
+  const index = hashString(identity) % ALL_PACKAGE_TONES.length;
+  const tone = ALL_PACKAGE_TONES[index];
+  return { ...VISUALS[tone], tone };
 }
