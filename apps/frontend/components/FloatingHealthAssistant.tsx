@@ -481,15 +481,18 @@ function FloatingHealthAssistantPanel({
 
   useEffect(() => {
     shouldScrollRef.current = true;
+    stickToBottomRef.current = true;
   }, [messages.length, pendingUserMessage]);
 
   useEffect(() => {
     const viewport = messageViewportRef.current;
     if (!viewport || !shouldScrollRef.current) return;
-    if (stickToBottomRef.current) {
-      viewport.scrollTop = viewport.scrollHeight;
-    }
+    viewport.scrollTop = viewport.scrollHeight;
+    const timer = setTimeout(() => {
+      if (viewport) viewport.scrollTop = viewport.scrollHeight;
+    }, 60);
     shouldScrollRef.current = false;
+    return () => clearTimeout(timer);
   }, [messages, pendingUserMessage]);
 
   useEffect(() => {
@@ -649,6 +652,7 @@ function FloatingHealthAssistantPanel({
           completedAt: createdAt,
         };
         setDraft("");
+        if (inputRef.current) inputRef.current.style.height = "auto";
         setPendingUserMessage(null);
         setMessages((current) => [...current, userMessage, assistantMessage].slice(-8));
         return;
@@ -674,6 +678,7 @@ function FloatingHealthAssistantPanel({
       });
       if (!isCurrentLocalRequest(epoch, currentConversation.id)) return;
       setDraft("");
+      if (inputRef.current) inputRef.current.style.height = "auto";
       setPendingUserMessage(null);
       setMessages((current) => [...current, exchange.userMessage, exchange.assistantMessage].slice(-8));
       try {
@@ -814,7 +819,7 @@ function FloatingHealthAssistantPanel({
                 ) : null}
                 {messages.map((message) => (
                   <article className={`${styles.message} ${message.role === "ASSISTANT" ? styles.assistant : styles.patient}`} key={message.id}>
-                    <span className={styles.messageRole}>{message.role === "ASSISTANT" ? "HealthCare" : "Bạn"}</span>
+                    <span className={styles.messageRole}><UiIcon name={message.role === "ASSISTANT" ? "stethoscope" : "user"} size={13} /> {message.role === "ASSISTANT" ? "HealthCare" : "Bạn"}</span>
                     <ChatMessageContent content={message.content} />
                     <header className={styles.messageMeta}>
                       <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
@@ -892,14 +897,14 @@ function FloatingHealthAssistantPanel({
                 ))}
                 {pendingUserMessage ? (
                   <article className={`${styles.message} ${styles.patient} ${styles.pendingMessage}`} data-testid="floating-chat-pending-user">
-                    <span className={styles.messageRole}>Bạn</span>
+                    <span className={styles.messageRole}><UiIcon name="user" size={13} /> Bạn</span>
                     <ChatMessageContent content={pendingUserMessage.content} />
                     <time dateTime={pendingUserMessage.createdAt}>{formatTime(pendingUserMessage.createdAt)}</time>
                   </article>
                 ) : null}
                 {streamingReply ? (
                   <article className={`${styles.message} ${styles.assistant}`} data-testid="floating-chat-streaming-reply">
-                    <span className={styles.messageRole}>HealthCare</span>
+                    <span className={styles.messageRole}><UiIcon name="stethoscope" size={13} /> HealthCare</span>
                     <ChatMessageContent content={streamingReply} />
                     <span className={styles.provenance}>Đang nhận phản hồi từng phần đã được xác thực…</span>
                   </article>
@@ -911,7 +916,7 @@ function FloatingHealthAssistantPanel({
                     data-testid="floating-chat-thinking"
                     role="status"
                   >
-                    <span className={styles.messageRole}>HealthCare</span>
+                    <span className={styles.messageRole}><UiIcon name="stethoscope" size={13} /> HealthCare</span>
                     <p className={styles.thinkingLine}>
                       <span>{CHAT_WAIT_STAGE_COPY[waitStage]}</span>
                       <span aria-hidden="true" className={styles.typingDots}>
@@ -956,7 +961,10 @@ function FloatingHealthAssistantPanel({
                   maxLength={isPatient ? MAX_MESSAGE_LENGTH : MAX_PUBLIC_MESSAGE_LENGTH}
                   onChange={(event) => {
                     if (conversationIdRef.current) resetSendAttempt(conversationIdRef.current);
-                    setDraft(event.target.value);
+                    const nextDraft = event.target.value;
+                    setDraft(nextDraft);
+                    event.target.style.height = "auto";
+                    event.target.style.height = `${Math.min(event.target.scrollHeight, 136)}px`;
                   }}
                   onKeyDown={handleKeyDown}
                   placeholder="Nhập câu hỏi của bạn…"
