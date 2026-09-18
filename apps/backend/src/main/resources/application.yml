@@ -240,7 +240,7 @@ ai:
     synthetic-beta-asserted: ${AI_CHAT_SYNTHETIC_BETA_ASSERTED:false}
     symptom-triage-enabled: ${AI_CHAT_SYMPTOM_TRIAGE_ENABLED:false}
     health-education-enabled: ${AI_CHAT_HEALTH_EDUCATION_ENABLED:false}
-    chunked-enabled: ${AI_CHAT_CHUNKED_ENABLED:false}
+    chunked-enabled: ${AI_CHAT_CHUNKED_ENABLED:true}
   service:
     url: ${AI_SERVICE_URL:http://localhost:8000}
     token: ${AI_SERVICE_TOKEN:}

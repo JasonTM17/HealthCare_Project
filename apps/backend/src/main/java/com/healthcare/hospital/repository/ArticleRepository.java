@@ -24,6 +24,34 @@ public interface ArticleRepository extends JpaRepository<Article, UUID> {
     Page<Article> findByContentKindAndActiveTrueAndPublishedAtLessThanEqualOrderByPublishedAtDesc(
         String contentKind, OffsetDateTime publicationCutoff, Pageable pageable);
 
+    @Query("""
+        SELECT a FROM Article a
+         WHERE LOWER(a.authorName) = LOWER(:authorName)
+            OR (:altName IS NOT NULL AND LOWER(a.authorName) = LOWER(:altName))
+            OR (:pureName IS NOT NULL AND :pureName <> '' AND LOWER(a.authorName) LIKE LOWER(CONCAT('%', :pureName, '%')))
+         ORDER BY a.publishedAt DESC NULLS LAST, a.updatedAt DESC
+    """)
+    Page<Article> findByAuthorNames(
+        @org.springframework.data.repository.query.Param("authorName") String authorName,
+        @org.springframework.data.repository.query.Param("altName") String altName,
+        @org.springframework.data.repository.query.Param("pureName") String pureName,
+        Pageable pageable);
+
+    @Query("""
+        SELECT a FROM Article a
+         WHERE (LOWER(a.authorName) = LOWER(:authorName)
+            OR (:altName IS NOT NULL AND LOWER(a.authorName) = LOWER(:altName))
+            OR (:pureName IS NOT NULL AND :pureName <> '' AND LOWER(a.authorName) LIKE LOWER(CONCAT('%', :pureName, '%'))))
+           AND a.contentKind = :contentKind
+         ORDER BY a.publishedAt DESC NULLS LAST, a.updatedAt DESC
+    """)
+    Page<Article> findByAuthorNamesAndContentKind(
+        @org.springframework.data.repository.query.Param("authorName") String authorName,
+        @org.springframework.data.repository.query.Param("altName") String altName,
+        @org.springframework.data.repository.query.Param("pureName") String pureName,
+        @org.springframework.data.repository.query.Param("contentKind") String contentKind,
+        Pageable pageable);
+
     /** Disease guides are public only while their current clinical review is eligible. */
     @Query(value = """
         SELECT DISTINCT a.*

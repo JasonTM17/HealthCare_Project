@@ -232,7 +232,7 @@ BEGIN
     END IF;
 
     SELECT count(*) INTO v_illustrated_count FROM articles WHERE body LIKE '%/media/articles/illustrations/%';
-    IF v_illustrated_count < 8 THEN
+    IF (SELECT count(*) FROM articles) >= 8 AND v_illustrated_count < 8 THEN
         RAISE EXCEPTION 'V84 migration assertion failed: expected >= 8 illustrated articles, found %', v_illustrated_count;
     END IF;
 

@@ -50,6 +50,7 @@ ai:
     symptom-triage-enabled: ${AI_CHAT_SYMPTOM_TRIAGE_ENABLED:true}
     health-education-enabled: ${AI_CHAT_HEALTH_EDUCATION_ENABLED:true}
     remote-provider-enabled: ${AI_CHAT_REMOTE_PROVIDER_ENABLED:true}
+    chunked-enabled: ${AI_CHAT_CHUNKED_ENABLED:true}
   service:
     runtime: ${AI_SERVICE_RUNTIME:local}
     allow-unauthenticated-local: ${AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL:false}
