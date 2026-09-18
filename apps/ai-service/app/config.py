@@ -30,7 +30,13 @@ class Settings(BaseSettings):
     ai_chat_model: str = ""
     ai_embedding_model: str = ""
     ai_base_url: str = ""
-    ai_timeout_seconds: float = Field(default=10.0, gt=0, le=60)
+    # Observed DeepSeek latency is 5-9 s, so 10 s sat inside the model's own
+    # response time: ordinary requests tripped the timeout, the route answered
+    # 503, and the BFF substituted its canned fallback — which is why the
+    # assistant looked like it never answered. 20 s is roughly twice the
+    # observed tail and still leaves 10-15 s of the BFF's 25-35 s deadline for
+    # the round trip.
+    ai_timeout_seconds: float = Field(default=20.0, gt=0, le=60)
     # Provider credentials do not authorize exporting patient chat. This
     # separate opt-in keeps sensitive conversations local by default.
     ai_patient_chat_remote_enabled: bool = False

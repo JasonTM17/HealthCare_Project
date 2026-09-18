@@ -1027,8 +1027,17 @@ def test_public_specific_question_without_context_fails_closed() -> None:
 
 
 def test_allowed_public_query_without_context_falls_back_when_ungrounded() -> None:
+    """A no-context answer may be general, but must not invent operational facts.
+
+    The rule was previously "no digits at all", which rejected ordinary
+    clinical guidance and turned nearly every public question into the canned
+    fallback. The answer below is general clinical guidance: numbered, but
+    inventing nothing that reads as catalog data, so it is accepted.
+    """
     provider = MagicMock()
-    provider.complete_json.return_value = {"answer": "Bước 1: Truy cập web. Bước 2: Chọn lịch."}
+    provider.complete_json.return_value = {
+        "answer": "Bước 1: Ghi lại triệu chứng. Bước 2: Mang theo kết quả cũ."
+    }
     local_settings = _synthetic_remote_settings()
     local_settings.ai_public_hospital_support_remote_enabled = True
 
@@ -1040,18 +1049,71 @@ def test_allowed_public_query_without_context_falls_back_when_ungrounded() -> No
         public_support_chat=True,
         allow_public_operational=True,
     )
-    assert resp.provenance == "local_fallback"
-    assert "đặt lịch khám" in resp.answer.casefold()
-    assert "Bước 1" not in resp.answer
+    assert resp.provenance == "remote_provider"
+    assert resp.cost_tier == "remote_llm"
+    assert "triệu chứng" in resp.answer.casefold()
+
+
+def test_no_context_answer_still_falls_back_on_invented_operational_fact() -> None:
+    """The narrower rule still refuses anything that reads as catalog data."""
+
+    for invented in (
+        "Bạn có thể gọi số 0901234567 để đặt lịch khám.",
+        "Phí khám tổng quát là 500.000 đồng mỗi lượt.",
+        "Bệnh viện mở cửa 24/7 phục vụ người bệnh.",
+        "Giờ làm việc từ 7h30 - 17h00 các ngày trong tuần.",
+    ):
+        provider = MagicMock()
+        provider.complete_json.return_value = {"answer": invented}
+        local_settings = _synthetic_remote_settings()
+        local_settings.ai_public_hospital_support_remote_enabled = True
+
+        resp = resolve_chat(
+            "Cho tôi hỏi thông tin liên hệ?",
+            local_settings,
+            context=[],
+            client=provider,
+            public_support_chat=True,
+            allow_public_operational=True,
+        )
+        assert resp.provenance == "local_fallback", invented
+        assert resp.safety_action == ChatSafetyAction.INSUFFICIENT_EVIDENCE, invented
 
 
 def test_no_context_remote_answer_cannot_invent_numeric_operational_fact() -> None:
+    """Operational identifiers are refused; clinical quantities are allowed."""
     assert remote_text_output_is_safe("Bệnh viện mở cửa 24/7", allow_public_operational=True)
     assert not remote_answer_is_grounded(
         "Bệnh viện mở cửa 24/7",
         [],
         allow_public_operational=True,
     )
+    assert not remote_answer_is_grounded(
+        "Gọi hotline 0901234567 để được hỗ trợ.",
+        [],
+        allow_public_operational=True,
+    )
+    assert not remote_answer_is_grounded(
+        "Phí khám tổng quát là 500.000 đồng.",
+        [],
+        allow_public_operational=True,
+    )
+    assert not remote_answer_is_grounded(
+        "Giờ làm việc từ 7h30 - 17h00.",
+        [],
+        allow_public_operational=True,
+    )
+
+
+def test_no_context_clinical_quantities_are_not_treated_as_operational_facts() -> None:
+    """General clinical guidance is exactly what a useful answer needs."""
+    for answer in (
+        "Huyết áp mục tiêu thường dưới 140/90 mmHg.",
+        "Bạn nên uống khoảng 2 lít nước mỗi ngày.",
+        "Nên tái khám sau 3 ngày để đánh giá lại triệu chứng.",
+        "Người lớn thường cần 7-8 tiếng ngủ mỗi đêm.",
+    ):
+        assert remote_answer_is_grounded(answer, [], allow_public_operational=True), answer
 
 
 def test_public_preparation_question_accepts_natural_wording() -> None:
