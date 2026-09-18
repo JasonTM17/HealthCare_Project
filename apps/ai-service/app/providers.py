@@ -18,7 +18,7 @@ LOCAL_CHAT_PROVIDERS = frozenset({"", "local", "rule_based_triage"})
 REMOTE_CHAT_PROVIDERS = frozenset({"deepseek", "openai"})
 LOCAL_EMBEDDING_PROVIDERS = frozenset({"", "local", "hash"})
 DEFAULT_DEEPSEEK_CHAT_MODEL = "deepseek-v4-flash"
-DEFAULT_PROVIDER_TIMEOUT_SECONDS = 10.0
+DEFAULT_PROVIDER_TIMEOUT_SECONDS = 20.0
 MAX_PROVIDER_TIMEOUT_SECONDS = 60.0
 
 
