@@ -191,6 +191,11 @@ export default function DoctorArticlesPage() {
 
   const handleOpenEditor = (article?: Article) => {
     if (article) {
+      const isMine = myArticles.some((a) => a.slug === article.slug);
+      if (!isMine) {
+        setError("Bạn chỉ có quyền chỉnh sửa bài viết do chính mình xuất bản.");
+        return;
+      }
       setEditingSlug(article.slug);
       setTitle(article.title);
       setCategory(article.category || "");
@@ -290,6 +295,12 @@ export default function DoctorArticlesPage() {
   };
 
   const handleDeleteArticle = async (slug: string) => {
+    const isMine = myArticles.some((a) => a.slug === slug);
+    if (!isMine) {
+      setError("Bạn không có quyền xóa bài viết của tác giả khác.");
+      setPendingDelete(null);
+      return;
+    }
     setBusy(true);
     try {
       await doctorDeleteArticle(slug);
