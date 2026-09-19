@@ -253,25 +253,34 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
     }
 
     @Test
-    void explicitBranchDoesNotReceiveTheBranchlessDemoFallback() throws Exception {
+    void explicitBranchGetsStandardSlotsFromItsOwnDoctorProfile() throws Exception {
         Branch branch = createBranchForDoctor("no-default-leak");
         LocalDate targetDate = nextDate(DayOfWeek.TUESDAY);
 
-        mockMvc.perform(get("/api/v1/appointments/doctors/" + doctor.getId() + "/slots")
+        // V83 product contract: an active doctor with an active branch profile
+        // always offers the standard hospital hours for that same branch —
+        // never slots belonging to a different (demo) branch.
+        org.springframework.test.web.servlet.MvcResult slotsResult = mockMvc.perform(get("/api/v1/appointments/doctors/" + doctor.getId() + "/slots")
                 .param("date", targetDate.toString())
                 .param("branchId", branch.getId().toString()))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$").isEmpty());
+            .andExpect(jsonPath("$").isNotEmpty())
+            .andReturn();
+        com.fasterxml.jackson.databind.JsonNode slots = objectMapper.readTree(
+            slotsResult.getResponse().getContentAsString());
+        for (com.fasterxml.jackson.databind.JsonNode slot : slots) {
+            assertEquals(branch.getId().toString(), slot.get("branchId").asText());
+        }
 
         HoldSlotRequest request = new HoldSlotRequest(
             doctor.getId(), targetDate, LocalTime.of(9, 0),
-            "Không đặt qua fallback", "0907000099", BOOKING_EMAIL, null,
+            "Đặt lịch qua khung giờ chuẩn", "0907000099", BOOKING_EMAIL, null,
             specialty.getId(), branch.getId(), null);
 
         mockMvc.perform(post("/api/v1/appointments/hold")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
-            .andExpect(status().isBadRequest());
+            .andExpect(status().isCreated());
     }
 
     @Test
@@ -775,12 +784,12 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
                 .param("date", firstDate.toString()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$").isArray())
-            .andExpect(jsonPath("$").isEmpty());
+            .andExpect(jsonPath("$").isNotEmpty());
 
         mockMvc.perform(get("/api/v1/appointments/doctors/" + doctor.getId() + "/slots")
                 .param("date", effectiveDate.plusDays(1).toString()))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$").isEmpty());
+            .andExpect(jsonPath("$").isNotEmpty());
 
         mockMvc.perform(get("/api/v1/appointments/doctors/" + doctor.getId() + "/slots")
                 .param("date", effectiveDate.toString()))
