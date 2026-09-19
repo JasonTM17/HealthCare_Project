@@ -168,7 +168,7 @@ function publicAiChatFallbackResponse(message = ""): Response {
     {
       answer: emergency
         ? "Triệu chứng bạn mô tả có thể cần được đánh giá khẩn cấp. Hãy gọi 115 hoặc đến cơ sở cấp cứu gần nhất ngay; không chờ trợ lý AI."
-        : "Tôi chưa có đủ thông tin đã xác thực để trả lời chắc chắn. Bạn có thể tiếp tục từ các mục chính thức của HealthCare bên dưới hoặc tra cứu chuyên khoa, bác sĩ, gói khám và đặt lịch trực tiếp trên website.",
+        : "Trợ lý chưa thể trả lời lúc này. Dưới đây là hướng dẫn tạm thời: bạn có thể thử lại sau hoặc tra cứu chuyên khoa, bác sĩ, gói khám và đặt lịch trực tiếp trên website.",
       disclaimer: "Thông tin từ trợ lý AI chỉ mang tính tham khảo và không thay thế tư vấn, chẩn đoán hoặc điều trị của bác sĩ.",
       citations: [],
       provenance: "local_fallback",

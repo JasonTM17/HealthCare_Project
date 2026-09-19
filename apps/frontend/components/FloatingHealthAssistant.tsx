@@ -819,12 +819,23 @@ function FloatingHealthAssistantPanel({
                 {messages.map((message) => (
                   <article className={`${styles.message} ${message.role === "ASSISTANT" ? styles.assistant : styles.patient}`} key={message.id}>
                     <span className={styles.messageRole}><UiIcon name={message.role === "ASSISTANT" ? "stethoscope" : "user"} size={13} /> {message.role === "ASSISTANT" ? "HealthCare" : "Bạn"}</span>
+                    {message.role === "ASSISTANT" && message.provenance === "local_fallback" && message.safetyAction !== "EMERGENCY" ? (
+                      <div className={styles.fallbackNotice} data-provenance="local_fallback">
+                        <span className={styles.provenance}>Hướng dẫn tạm thời — chưa phải câu trả lời AI</span>
+                        {(() => {
+                          const index = messages.indexOf(message);
+                          const previous = index > 0 ? messages[index - 1] : null;
+                          if (!previous || previous.role !== "PATIENT" || pendingUserMessage) return null;
+                          return <button onClick={() => void handleSend(previous.content)} type="button">Thử lại</button>;
+                        })()}
+                      </div>
+                    ) : null}
                     <ChatMessageContent content={message.content} />
                     <header className={styles.messageMeta}>
                       <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
                       {message.role === "ASSISTANT" ? (() => {
                         const label = provenanceLabel(message.provenance ?? "local_provider", message.citations.length, message.safetyAction);
-                        if (!label) return null;
+                        if (!label || message.provenance === "local_fallback") return null;
                         return (
                           <>
                             <span className={styles.metaDot} aria-hidden="true">·</span>

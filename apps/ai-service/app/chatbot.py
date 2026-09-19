@@ -760,12 +760,18 @@ def _focus_candidates_for_question(
 
 
 _COMPLEX_SYMPTOM_INDICATORS: tuple[str, ...] = (
-    "kem theo", "di kem", "kem", "ket hop", "cung voi", "dong thoi", "song song",
-    "vua bi", "vua dau", "vua sot", "vua kho tho", "vua",
+    "kem theo", "di kem", "ket hop", "cung voi", "dong thoi", "song song",
+    "vua bi", "vua dau", "vua sot", "vua kho tho",
     "lan toa", "lan ra", "lan xuong", "lan len",
     "nghi ngo", "tien su", "bien chung", "man tinh",
     "nhieu ngay", "keo dai", "uong thuoc khong do", "khong giam", "tai phat",
     "dau quan", "du doi", "kho tho du doi", "hon me", "yeu liet",
+)
+
+# Word-boundary matching so a term never matches inside an unrelated word.
+_COMPLEX_SYMPTOM_TERM_PATTERNS: tuple["re.Pattern[str]", ...] = tuple(
+    re.compile(rf"(?<!\w){re.escape(term)}(?!\w)")
+    for term in _COMPLEX_SYMPTOM_INDICATORS
 )
 
 _ORGAN_SYSTEM_CLUSTERS: list[set[str]] = [
@@ -793,7 +799,7 @@ _ORGAN_SYSTEM_CLUSTERS: list[set[str]] = [
 def is_complex_multisymptom_query(message: str) -> bool:
     """Detect queries that involve complex multi-symptom clinical presentations."""
     normalized = normalize_sensitive_text(message)
-    indicators_hit = sum(1 for term in _COMPLEX_SYMPTOM_INDICATORS if term in normalized)
+    indicators_hit = sum(1 for pattern in _COMPLEX_SYMPTOM_TERM_PATTERNS if pattern.search(normalized))
     clusters_hit = sum(1 for cluster in _ORGAN_SYSTEM_CLUSTERS if any(term in normalized for term in cluster))
     return clusters_hit >= 2 or indicators_hit >= 2 or (clusters_hit >= 1 and indicators_hit >= 1)
 
