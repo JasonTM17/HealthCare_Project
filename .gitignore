@@ -103,3 +103,7 @@ plans/
 apps/frontend/local_*.png
 scripts/tmp-*.py
 scratch/
+
+# Local probe credentials (never commit)
+apps/ai-service/scratch-prod.env
+apps/*/scratch/token.tmp
