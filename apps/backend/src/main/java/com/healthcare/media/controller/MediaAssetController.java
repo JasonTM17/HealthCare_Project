@@ -20,11 +20,14 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
+@Tag(name = "Public Catalog", description = "Danh mục y tế công khai (Cơ sở bệnh viện, chuyên khoa, bác sĩ, gói khám, dịch vụ, bài viết)")
 @RestController
 @RequestMapping("/api/v1/media")
 public class MediaAssetController {
@@ -35,6 +38,7 @@ public class MediaAssetController {
         this.mediaAssetService = mediaAssetService;
     }
 
+    @Operation(summary = "Tải lên tệp đa phương tiện", description = "Tải lên hình ảnh bác sĩ, chứng chỉ chuyên môn, hoặc ảnh minh họa bài viết y khoa")
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAnyRole('PATIENT', 'DOCTOR', 'ADMIN')")
     public ResponseEntity<MediaAssetResponse> uploadImage(
@@ -45,6 +49,7 @@ public class MediaAssetController {
         return ResponseEntity.ok(response);
     }
 
+    @Operation(summary = "Tải dữ liệu tệp đa phương tiện", description = "Truy xuất nội dung tệp hình ảnh theo ID")
     @GetMapping("/{id}")
     public ResponseEntity<byte[]> getMedia(@PathVariable UUID id) {
         MediaAssetContent content = mediaAssetService.getMediaContent(id);

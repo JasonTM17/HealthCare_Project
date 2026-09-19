@@ -34,9 +34,9 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
+@Tag(name = "Appointment & Booking", description = "Đặt lịch khám, giữ chỗ tạm thời, xác thực OTP và đổi/hủy lịch")
 @RestController
 @RequestMapping("/api/v1/appointments")
-@Tag(name = "Appointment & Booking", description = "Endpoints for doctor slots, temporary hold, OTP verification, and booking management")
 public class AppointmentController {
 
     private final ScheduleService scheduleService;
@@ -51,8 +51,8 @@ public class AppointmentController {
         this.bookingRateLimiter = bookingRateLimiter;
     }
 
+    @Operation(summary = "Lấy danh sách khung giờ khám còn trống của bác sĩ", description = "Tra cứu các khung giờ khả dụng theo bác sĩ, cơ sở và ngày khám")
     @GetMapping("/doctors/{doctorId}/slots")
-    @Operation(summary = "Get available doctor appointment slots for a specific date")
     public ResponseEntity<List<TimeSlotDto>> getDoctorSlots(
             @PathVariable UUID doctorId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
@@ -62,8 +62,8 @@ public class AppointmentController {
             .body(scheduleService.getAvailableSlots(doctorId, branchId, date));
     }
 
+    @Operation(summary = "Giữ chỗ tạm thời khung giờ khám (10 phút)", description = "Khóa tạm thời khung giờ khám để tránh đặt trùng (double-booking) và gửi mã OTP xác nhận")
     @PostMapping("/hold")
-    @Operation(summary = "Hold an appointment slot for 10 minutes (prevents double-booking)")
     public ResponseEntity<HoldSlotResponse> holdSlot(
             @Valid @RequestBody HoldSlotRequest request,
             @AuthenticationPrincipal UserDetails userDetails,
@@ -73,8 +73,8 @@ public class AppointmentController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    @Operation(summary = "Gửi lại mã xác thực OTP đặt lịch", description = "Gửi lại mã OTP qua SMS/Email khi người bệnh chưa nhận được")
     @PostMapping("/{bookingCode}/otp/resend")
-    @Operation(summary = "Resend OTP for the existing appointment hold")
     public ResponseEntity<ResendOtpResponse> resendOtp(
             @PathVariable String bookingCode,
             @Valid @RequestBody(required = false) ResendBookingOtpRequest request,
@@ -87,8 +87,8 @@ public class AppointmentController {
         );
     }
 
+    @Operation(summary = "Xác nhận lịch khám bằng mã OTP", description = "Nhập mã OTP để xác nhận đặt lịch khám chính thức")
     @PostMapping("/confirm")
-    @Operation(summary = "Confirm an appointment with OTP code")
     public ResponseEntity<AppointmentResponse> confirmAppointment(
             @Valid @RequestBody ConfirmAppointmentRequest request,
             HttpServletRequest httpRequest) {
@@ -96,8 +96,8 @@ public class AppointmentController {
         return ResponseEntity.ok(bookingService.confirmAppointment(request));
     }
 
+    @Operation(summary = "Tra cứu thông tin lịch hẹn bằng mã đặt lịch", description = "Xem chi tiết lịch hẹn khám, thông tin bác sĩ, cơ sở và trạng thái")
     @GetMapping("/{bookingCode}")
-    @Operation(summary = "Look up appointment details by booking code")
     public ResponseEntity<AppointmentResponse> getAppointment(
             @PathVariable String bookingCode,
             @RequestParam(required = false) String phone,
@@ -107,8 +107,8 @@ public class AppointmentController {
         return ResponseEntity.ok(bookingService.getAppointment(bookingCode, phone, userDetails));
     }
 
+    @Operation(summary = "Hủy lịch khám đã đặt", description = "Hủy lịch khám theo yêu cầu của bệnh nhân kèm lý do hủy")
     @PostMapping("/{bookingCode}/cancel")
-    @Operation(summary = "Cancel an appointment")
     public ResponseEntity<AppointmentResponse> cancelAppointment(
             @PathVariable String bookingCode,
             @Valid @RequestBody(required = false) CancelAppointmentRequest request,
@@ -120,8 +120,8 @@ public class AppointmentController {
         return ResponseEntity.ok(bookingService.cancelAppointment(bookingCode, reason, phone, userDetails));
     }
 
+    @Operation(summary = "Dời lịch khám sang khung giờ khả dụng khác", description = "Thay đổi ngày giờ hoặc bác sĩ khám cho lịch hẹn đã xác nhận")
     @PostMapping("/{bookingCode}/reschedule")
-    @Operation(summary = "Reschedule a confirmed appointment to another available slot")
     public ResponseEntity<AppointmentResponse> rescheduleAppointment(
             @PathVariable String bookingCode,
             @Valid @RequestBody RescheduleAppointmentRequest request,

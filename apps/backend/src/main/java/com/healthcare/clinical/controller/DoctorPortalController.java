@@ -26,10 +26,13 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import java.util.UUID;
 import jakarta.validation.Valid;
 
+@Tag(name = "Clinical Records & Prescriptions", description = "Cổng bác sĩ điều trị: Hồ sơ, lịch khám phân công, xem bệnh án EMR, chỉ định cận lâm sàng và cập nhật kết quả")
 @RestController
 @RequestMapping("/api/v1/doctor")
 @PreAuthorize("hasRole('DOCTOR')")
@@ -48,6 +51,7 @@ public class DoctorPortalController {
         this.doctorService = doctorService;
     }
 
+    @Operation(summary = "Hồ sơ bác sĩ điều trị", description = "Lấy thông tin chuyên môn, học hàm, học vị, chuyên khoa và cơ sở của bác sĩ hiện tại")
     @GetMapping("/profile")
     public ResponseEntity<com.healthcare.hospital.dto.DoctorProfileResponse> getProfile(
             @AuthenticationPrincipal UserDetails userDetails) {
@@ -57,6 +61,7 @@ public class DoctorPortalController {
         return ResponseEntity.ok(doctorService.getByUserId(principal.getUserId()));
     }
 
+    @Operation(summary = "Cập nhật hồ sơ bác sĩ", description = "Cập nhật tiểu sử, số điện thoại liên hệ chuyên môn và kinh nghiệm lâm sàng")
     @org.springframework.web.bind.annotation.PutMapping("/profile")
     public ResponseEntity<com.healthcare.hospital.dto.DoctorProfileResponse> updateProfile(
             @Valid @RequestBody com.healthcare.hospital.dto.UpdateDoctorProfileRequest request,
@@ -67,6 +72,7 @@ public class DoctorPortalController {
         return ResponseEntity.ok(doctorService.updateProfile(principal.getUserId(), request));
     }
 
+    @Operation(summary = "Lịch khám bệnh của bác sĩ", description = "Tra cứu danh sách bệnh nhân hẹn khám theo ngày và trạng thái tiếp nhận")
     @GetMapping("/appointments")
     public ResponseEntity<Page<DoctorAppointmentResponse>> getAppointments(
             @RequestParam String date,
@@ -77,6 +83,7 @@ public class DoctorPortalController {
             appointmentPortalService.getDoctorAppointments(date, status, userDetails, pageable));
     }
 
+    @Operation(summary = "Cập nhật trạng thái lịch khám", description = "Chuyển trạng thái lượt khám (CONFIRMED, IN_PROGRESS, COMPLETED, CANCELLED)")
     @PatchMapping("/appointments/{appointmentId}/status")
     public ResponseEntity<DoctorAppointmentResponse> updateAppointmentStatus(
             @PathVariable UUID appointmentId,
@@ -86,6 +93,7 @@ public class DoctorPortalController {
             appointmentPortalService.updateDoctorAppointmentStatus(appointmentId, request.status(), userDetails));
     }
 
+    @Operation(summary = "Bệnh án điện tử của người bệnh", description = "Xem lịch sử bệnh án lâm sàng của bệnh nhân theo chỉ định y khoa")
     @GetMapping("/patients/{patientId}/medical-records")
     public ResponseEntity<List<MedicalRecordResponse>> getPatientRecords(
             @PathVariable UUID patientId,
@@ -93,6 +101,7 @@ public class DoctorPortalController {
         return ResponseEntity.ok(clinicalService.getDoctorPatientRecords(patientId, userDetails));
     }
 
+    @Operation(summary = "Kết quả cận lâm sàng của người bệnh", description = "Xem các phiếu xét nghiệm và chẩn đoán hình ảnh của người bệnh")
     @GetMapping("/patients/{patientId}/diagnostic-results")
     public ResponseEntity<List<DiagnosticResultResponse>> getPatientDiagnostics(
             @PathVariable UUID patientId,
@@ -100,6 +109,7 @@ public class DoctorPortalController {
         return ResponseEntity.ok(clinicalService.getDoctorPatientDiagnostics(patientId, userDetails));
     }
 
+    @Operation(summary = "Danh sách chỉ định cận lâm sàng của người bệnh", description = "Tra cứu các chỉ định xét nghiệm và chẩn đoán hình ảnh đã tạo cho bệnh nhân")
     @GetMapping("/patients/{patientId}/diagnostic-orders")
     public ResponseEntity<List<com.healthcare.clinical.dto.DiagnosticOrderResponse>> getPatientDiagnosticOrders(
             @PathVariable UUID patientId,
@@ -107,6 +117,7 @@ public class DoctorPortalController {
         return ResponseEntity.ok(clinicalService.getDoctorPatientDiagnosticOrders(patientId, userDetails));
     }
 
+    @Operation(summary = "Tạo chỉ định cận lâm sàng mới", description = "Bác sĩ chỉ định các xét nghiệm sinh hóa, huyết học, X-quang hoặc CT/MRI cho người bệnh")
     @PostMapping("/patients/{patientId}/diagnostic-orders")
     public ResponseEntity<com.healthcare.clinical.dto.DiagnosticOrderResponse> createPatientDiagnosticOrder(
             @PathVariable UUID patientId,
@@ -116,6 +127,7 @@ public class DoctorPortalController {
             .body(clinicalService.createDiagnosticOrder(patientId, request, userDetails));
     }
 
+    @Operation(summary = "Ghi nhận kết quả cận lâm sàng", description = "Bác sĩ chuyên khoa cập nhật kết quả chỉ số xét nghiệm hoặc kết luận chẩn đoán hình ảnh")
     @PostMapping("/patients/{patientId}/diagnostic-results")
     public ResponseEntity<DiagnosticResultResponse> createPatientDiagnostic(
             @PathVariable UUID patientId,

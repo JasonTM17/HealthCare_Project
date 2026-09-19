@@ -16,8 +16,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.UUID;
 
+@Tag(name = "Payments & Invoices", description = "Cổng thanh toán viện phí VietQR, xác nhận chuyển khoản ngân hàng và đối soát hóa đơn")
 @RestController
 @RequestMapping("/api/v1/patient/appointments/{appointmentId}/payment")
 @PreAuthorize("hasRole('PATIENT')")
@@ -29,6 +32,7 @@ public class PatientPaymentController {
         this.paymentService = paymentService;
     }
 
+    @Operation(summary = "Thông tin thanh toán viện phí", description = "Lấy mã chuyển khoản, tài khoản thụ hưởng và mã QR VietQR tương ứng với lượt khám")
     @GetMapping
     public ResponseEntity<BankTransferPaymentResponse> get(
             @PathVariable UUID appointmentId,
@@ -36,6 +40,7 @@ public class PatientPaymentController {
         return ResponseEntity.ok(paymentService.getForPatient(appointmentId, principal));
     }
 
+    @Operation(summary = "Xác nhận chuyển khoản viện phí", description = "Gửi thông tin mã giao dịch hoặc ủy nhiệm chi ngân hàng sau khi chuyển khoản thành công")
     @PostMapping("/submit")
     public ResponseEntity<BankTransferPaymentResponse> submit(
             @PathVariable UUID appointmentId,

@@ -20,10 +20,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+@Tag(name = "Administration", description = "Quản trị hệ thống: Quản lý lịch hẹn, cơ sở, bác sĩ, gói khám, tài chính")
 @RestController
 @RequestMapping("/api/v1/admin/ai-credits")
 @PreAuthorize("hasRole('ADMIN')")
@@ -50,6 +53,7 @@ public class AdminAiCreditController {
             @Min(0) @Max(MAX_GRANT_AMOUNT) Integer credits
     ) {}
 
+    @Operation(summary = "Quản lý tín dụng AI của bệnh nhân", description = "Lấy danh sách số dư tín dụng AI và phân hạng hội viên của bệnh nhân")
     @GetMapping("/patients")
     public ResponseEntity<List<AiCreditService.PatientCreditDto>> listPatients(
             @RequestParam(required = false) Integer page,
@@ -60,6 +64,7 @@ public class AdminAiCreditController {
             .body(result.getContent());
     }
 
+    @Operation(summary = "Quản lý tín dụng AI của bác sĩ", description = "Lấy danh sách số dư tín dụng hỗ trợ lâm sàng của đội ngũ bác sĩ")
     @GetMapping("/doctors")
     public ResponseEntity<List<AiCreditService.DoctorCreditDto>> listDoctors(
             @RequestParam(required = false) Integer page,
@@ -83,6 +88,7 @@ public class AdminAiCreditController {
         return headers;
     }
 
+    @Operation(summary = "Cấp phát tín dụng AI thủ công", description = "Quản trị viên cộng thêm lượt hỏi AI cho bệnh nhân hoặc bác sĩ")
     @PostMapping("/grant")
     public ResponseEntity<Map<String, Object>> grantCredits(@Valid @RequestBody GrantCreditRequest request) {
         aiCreditService.grantCredits(
@@ -95,6 +101,7 @@ public class AdminAiCreditController {
         return ResponseEntity.ok(Map.of("status", "SUCCESS", "message", "Đã cấp phát credit thành công"));
     }
 
+    @Operation(summary = "Cập nhật hạng thẻ và hạn mức AI", description = "Điều chỉnh hạng thẻ (SILVER, GOLD, VIP) và số lượt hỏi AI định kỳ")
     @PutMapping("/tier")
     public ResponseEntity<Map<String, Object>> updateTier(@Valid @RequestBody UpdateTierRequest request) {
         aiCreditService.updatePatientTier(request.patientProfileId(), request.tier(), request.credits());

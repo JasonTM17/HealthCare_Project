@@ -1,6 +1,8 @@
 package com.healthcare.ai.controller;
 
 import com.healthcare.ai.service.AiService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,6 +15,7 @@ import java.util.Map;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
+@Tag(name = "AI Health Assistant", description = "Trợ lý trí tuệ nhân tạo y tế phân luồng triệu chứng và tư vấn")
 @RestController
 @RequestMapping("/api/v1/ai")
 @PreAuthorize("hasAnyRole('PATIENT', 'DOCTOR', 'ADMIN')")
@@ -24,6 +27,7 @@ public class AiController {
         this.aiService = aiService;
     }
 
+    @Operation(summary = "Tìm kiếm ngữ nghĩa y khoa qua AI", description = "Truy vấn dữ liệu y tế, phác đồ điều trị và thông tin chuyên khoa bằng mô hình nhúng vector (Embedding Search)")
     @GetMapping("/search")
     public ResponseEntity<Map<String, Object>> search(
         @RequestParam("q") String query,

@@ -18,6 +18,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@Tag(name = "Administration", description = "Quản trị hệ thống: Quản lý lịch hẹn, cơ sở, bác sĩ, gói khám, tài chính")
 @RestController
 @RequestMapping("/api/v1/admin/doctors")
 @PreAuthorize("hasRole('ADMIN')")
@@ -29,21 +33,25 @@ public class AdminDoctorController {
         this.adminDoctorService = adminDoctorService;
     }
 
+    @Operation(summary = "Quản lý danh sách bác sĩ", description = "Lấy danh sách toàn bộ bác sĩ trong hệ thống dành cho ban quản trị")
     @GetMapping
     public Page<Doctor> list(@PageableDefault(size = 20, sort = "fullName") Pageable pageable) {
         return adminDoctorService.list(pageable);
     }
 
+    @Operation(summary = "Thêm mới hồ sơ bác sĩ", description = "Tạo mới bác sĩ, gán chuyên khoa và các cơ sở bệnh viện trực thuộc")
     @PostMapping
     public ResponseEntity<Doctor> create(@Valid @RequestBody DoctorRequest request) {
         return ResponseEntity.ok(adminDoctorService.create(request));
     }
 
+    @Operation(summary = "Cập nhật hồ sơ bác sĩ", description = "Chỉnh sửa thông tin chức danh, tiểu sử và chuyên môn của bác sĩ")
     @PutMapping("/{slug}")
     public ResponseEntity<Doctor> update(@PathVariable String slug, @Valid @RequestBody DoctorRequest request) {
         return ResponseEntity.ok(adminDoctorService.update(slug, request));
     }
 
+    @Operation(summary = "Xóa hồ sơ bác sĩ", description = "Xóa mềm hoặc ngừng hoạt động hồ sơ bác sĩ khỏi danh mục")
     @DeleteMapping("/{slug}")
     public ResponseEntity<Void> delete(@PathVariable String slug) {
         adminDoctorService.delete(slug);
