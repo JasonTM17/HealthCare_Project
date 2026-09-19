@@ -1720,6 +1720,7 @@ def _has_unnegated_forbidden_match(normalized: str) -> bool:
             ]
             preceding = [pos for pos in preceding if 0 <= pos < match.start()]
             if not preceding:
+                print('[DBG output] unnegated forbidden:', normalized[match.start():match.start()+40])
                 return True
             gap = sentence[max(preceding):match.start()]
             if _CONTRASTIVE_WORD_PATTERN.search(gap):
@@ -1740,14 +1741,20 @@ def remote_text_output_is_safe(
     if re.search(r"<[^>]*>", value):
         return False
     normalized = _normalize_sensitive_text(value)
-    return not (
-        contains_sensitive_or_injection(
-            value,
-            allow_public_operational=allow_public_operational,
-            allow_public_generic_guidance=allow_public_generic_guidance,
-        )
-        or _has_unnegated_forbidden_match(normalized)
+    injection = contains_sensitive_or_injection(
+        value,
+        allow_public_operational=allow_public_operational,
+        allow_public_generic_guidance=allow_public_generic_guidance,
     )
+    forbidden = _has_unnegated_forbidden_match(normalized)
+    if injection or forbidden:
+        import sys as _sys
+        print(f"[DBG output] injection={injection} forbidden={forbidden}",
+              file=_sys.stderr)
+        if forbidden:
+            for m in _REMOTE_OUTPUT_FORBIDDEN_PATTERN.finditer(normalized):
+                print(f"[DBG output]   match={m.group(0)!r}", file=_sys.stderr)
+    return not (injection or forbidden)
 
 
 # Operational facts a no-context answer must not invent. Deliberately narrow:
@@ -1774,6 +1781,7 @@ def remote_answer_is_grounded(
     context: Sequence[str],
     *,
     allow_public_operational: bool = False,
+    allow_public_generic_guidance: bool = False,
 ) -> bool:
     """Apply a conservative lexical/numeric grounding check to remote text."""
 
@@ -1791,7 +1799,10 @@ def remote_answer_is_grounded(
         # targets the identifiers that would actually pass for catalog data.
         # Clinical safety — prescribing, diagnosis, PII, injection — is enforced
         # independently by remote_text_output_is_safe, which still runs first.
-        return not bool(_UNGROUNDED_OPERATIONAL_FACT_PATTERN.search(normalized_answer))
+        matched = _UNGROUNDED_OPERATIONAL_FACT_PATTERN.search(normalized_answer)
+        if matched:
+            print('[DBG no-context] operational fact:', matched.group(0))
+        return not bool(matched)
     normalized_context = _normalize_sensitive_text("\n".join(context))
     if allow_public_operational:
         context_phones = {
@@ -1819,8 +1830,17 @@ def remote_answer_is_grounded(
         for start in claim_starts:
             tail = normalized_answer[start:]
             claim = re.split(r"[,.;:\n]", tail, maxsplit=1)[0].strip()
-            if claim and claim not in normalized_context:
-                return False
+            if not claim or claim in normalized_context:
+                continue
+            # Only a claim that names a numbered place is a location claim.
+            # The keyword list also matches ordinary clinical words — "tỉnh"
+            # inside "tỉnh thần", "điện" inside "điện giải" — and enforcing on
+            # those rejected real guidance answers wholesale. A fabricated
+            # branch address always carries a house number; ordinary prose does
+            # not.
+            if not re.search(r"\d", claim):
+                continue
+            return False
     # Numbers used to be required verbatim in the context. That rejected
     # ordinary clinical guidance — "huyết áp dưới 140/90", "tái khám sau 3
     # ngày" — whenever the retrieved passages did not happen to contain the
@@ -1833,6 +1853,12 @@ def remote_answer_is_grounded(
         for number in _GROUNDING_NUMBER_PATTERN.findall(normalized_answer)
         if number not in normalized_context
     ]
+    if ungrounded_numbers:
+        matched = _UNGROUNDED_OPERATIONAL_FACT_PATTERN.search(normalized_answer)
+        if matched:
+            print('[DBG with-context] operational fact:', matched.group(0))
+        else:
+            print('[DBG with-context] ungrounded numbers (allowed now):', ungrounded_numbers[:8])
     if ungrounded_numbers and _UNGROUNDED_OPERATIONAL_FACT_PATTERN.search(normalized_answer):
         return False
     answer_tokens = {
@@ -1841,13 +1867,24 @@ def remote_answer_is_grounded(
         if token not in _GROUNDING_STOPWORDS
     }
     context_tokens = set(_GROUNDING_TOKEN_PATTERN.findall(normalized_context))
-    if allow_public_operational:
+    if allow_public_operational and not allow_public_generic_guidance:
         # Branch facts are closed catalog data. Every non-present content token
         # must be a small presentation connector; generic lexical overlap is
         # insufficient because it would allow invented hours, services,
         # amenities, accreditation, or proximity claims.
         if answer_tokens - context_tokens - _PUBLIC_OPERATIONAL_CONNECTOR_TOKENS:
             return False
+        return len(answer_tokens.intersection(context_tokens)) >= 2
+    if allow_public_generic_guidance:
+        # Hospital-support mode answers general health questions, and the
+        # retrieved sources may be branch contacts while the question is a
+        # symptom. Requiring every content token to sit in those sources
+        # rejected general guidance wholesale — the direct cause of the
+        # assistant replying but never answering. General guidance still
+        # cannot invent an operational fact (checked above) or contact data
+        # (phone subset and location claims above), and the output gate has
+        # already refused prescribing, diagnosis and PII.
+        return True
     return len(answer_tokens.intersection(context_tokens)) >= 2
 
 
@@ -2486,6 +2523,7 @@ def resolve_chat(
     synthetic_beta: bool = False,
     allow_public_operational: bool = False,
     public_support_chat: bool = False,
+    allow_public_generic_guidance: bool = False,
 ) -> ChatResponse:
     """Resolve a bounded chat request without accepting model-created citations."""
 
@@ -2597,6 +2635,7 @@ def resolve_chat(
             answer,
             context,
             allow_public_operational=allow_public_operational,
+            allow_public_generic_guidance=allow_public_generic_guidance or public_support_chat,
         ):
             if public_remote_enabled:
                 if public_support_chat:

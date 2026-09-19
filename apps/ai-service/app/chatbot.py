@@ -1268,6 +1268,9 @@ def generate_chat_response(
                 client=client,
                 synthetic_beta=request.synthetic_beta,
                 allow_public_operational=allow_public_operational,
+                allow_public_generic_guidance=(
+                    request.mode is ChatMode.HOSPITAL_SUPPORT
+                ),
             )
             if response.safety_action is ChatSafetyAction.INSUFFICIENT_EVIDENCE:
                 return _insufficient_response(request.mode)
