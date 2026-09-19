@@ -819,7 +819,7 @@ function FloatingHealthAssistantPanel({
                 {messages.map((message) => (
                   <article className={`${styles.message} ${message.role === "ASSISTANT" ? styles.assistant : styles.patient}`} key={message.id}>
                     <span className={styles.messageRole}><UiIcon name={message.role === "ASSISTANT" ? "stethoscope" : "user"} size={13} /> {message.role === "ASSISTANT" ? "HealthCare" : "Bạn"}</span>
-                    {message.role === "ASSISTANT" && message.provenance === "local_fallback" && message.safetyAction !== "EMERGENCY" ? (
+                    {message.role === "ASSISTANT" && message.provenance === "local_fallback" && message.safetyAction === "INSUFFICIENT_EVIDENCE" ? (
                       <div className={styles.fallbackNotice} data-provenance="local_fallback">
                         <span className={styles.provenance}>Hướng dẫn tạm thời — chưa phải câu trả lời AI</span>
                         {(() => {
@@ -835,7 +835,7 @@ function FloatingHealthAssistantPanel({
                       <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
                       {message.role === "ASSISTANT" ? (() => {
                         const label = provenanceLabel(message.provenance ?? "local_provider", message.citations.length, message.safetyAction);
-                        if (!label || message.provenance === "local_fallback") return null;
+                        if (!label || (message.provenance === "local_fallback" && message.safetyAction === "INSUFFICIENT_EVIDENCE")) return null;
                         return (
                           <>
                             <span className={styles.metaDot} aria-hidden="true">·</span>
