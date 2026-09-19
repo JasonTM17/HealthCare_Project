@@ -825,7 +825,7 @@ function FloatingHealthAssistantPanel({
                         {(() => {
                           const index = messages.indexOf(message);
                           const previous = index > 0 ? messages[index - 1] : null;
-                          if (!previous || previous.role !== "PATIENT" || pendingUserMessage) return null;
+                          if (!previous || previous.role !== "USER" || pendingUserMessage) return null;
                           return <button onClick={() => void handleSend(previous.content)} type="button">Thử lại</button>;
                         })()}
                       </div>
