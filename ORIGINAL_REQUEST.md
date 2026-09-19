@@ -384,3 +384,51 @@ Integrity mode: development
 ### Kiểm Thử & Triển Khai
 - [ ] 100% test case (Frontend 368+, Backend) đạt PASS.
 - [ ] Deploy thành công lên production `https://www.healthcare.id.vn` và kiểm chứng qua ảnh chụp trình duyệt thực tế.
+
+## 2026-09-18T23:52:29Z
+
+Nâng cấp và tối ưu hóa toàn diện Trợ lý Y tế Thông minh (Chatbot y khoa lâm sàng & điều hướng bệnh viện) trên môi trường live production https://www.healthcare.id.vn qua sự phối hợp đa vai trò chuyên biệt (Advisor, Kongming, Wukong, Kỹ sư Fullstack/AI, DevOps & QA Specialist).
+
+Working directory: d:/HealthCare_Project
+Integrity mode: demo
+
+## Verification Resources
+- Script kiểm thử live browser Playwright: scratch/verify_live_chatbot.mjs
+- Script kiểm tra RAG & DeepSeek live: supabase/tools/test_live_chatbot_real.py
+- Bộ kiểm thử AI Service cục bộ: apps/ai-service/tests/test_chat.py
+- Bộ kiểm thử Frontend Assistant UI: apps/frontend/tests/floating-assistant.test.mjs
+- Bộ kiểm thử Backend Public AI Controller: apps/backend/src/test/java/com/healthcare/ai/controller/PublicAiChatControllerTest.java
+
+## Requirements
+
+### R1. Tối ưu hóa Chất lượng Phản hồi & Chiều sâu Tri thức Lâm sàng RAG
+- Mở rộng năng lực truy xuất dữ liệu bệnh học, quy trình khám chữa bệnh BHYT, thông tin 481 bác sĩ, 30 chuyên khoa và 20 cơ sở y tế trên toàn quốc.
+- Đảm bảo 100% câu trả lời có trích dẫn nguồn (citations) xác thực từ cơ sở dữ liệu bệnh viện đã phê duyệt, loại bỏ triệt để hiện tượng suy diễn hoặc bịa đặt thông tin y khoa.
+- Tinh chỉnh văn phong y tế chuẩn mực, trang trọng, đồng cảm và rõ ràng cho bệnh nhân.
+
+### R2. Tối ưu Hiệu năng, Tốc độ & Khả năng Chịu lỗi Cold-Start
+- Tối ưu luồng proxy Vercel BFF (/api/v1/public/ai/chat) và dịch vụ AI (Render Python FastAPI), giảm độ trễ phản hồi ban đầu.
+- Xử lý mượt mà kịch bản Render Free khởi động từ trạng thái ngủ đông (cold-start 45-60s), hiển thị trạng thái chờ thông minh (loading stage UX) thay vì báo lỗi kết nối hoặc để người dùng chờ đợi không rõ lý do.
+- Đảm bảo cơ chế fallback cục bộ tức thì (publicAiChatFallbackResponse) khi upstream đang khởi động.
+
+### R3. Siết chặt Phòng vệ An toàn Y tế & Tuân thủ Lâm sàng (Guardrails & Adversarial Security)
+- Nhận diện tức thì các dấu hiệu nguy kịch cấp cứu (đau ngực dữ dội, khó thở cấp, đột quỵ FAST, co giật, ngộ độc) và kích hoạt điều hướng gọi cấp cứu 115 ngay trong phản hồi đầu tiên.
+- Từ chối nghiêm ngặt việc kê đơn thuốc biệt dược hoặc tự chẩn đoán bệnh thay thế bác sĩ; kèm khuyến nghị thăm khám chuyên khoa phù hợp.
+- Vượt qua kiểm toán công kích đối kháng (Adversarial Probing của Wukong): chống Jailbreak, chống Prompt Injection và chống rò rỉ thông tin nhạy cảm (PII/Tokens).
+
+### R4. Nâng cấp Giao diện & Trải nghiệm Người dùng (Floating Health Assistant UX/UI)
+- Hoàn thiện giao diện cửa sổ chat nổi trên cả máy tính và thiết bị di động: hiển thị thẻ nguồn tham khảo trực quan (citations badge), nút sao chép, và các chip hành động thông minh (Đặt lịch khám, Tra cứu bác sĩ, Gọi 115).
+- Tự động điều chỉnh các câu hỏi gợi ý phù hợp theo ngữ cảnh trang hiện tại của người dùng.
+
+## Acceptance Criteria
+
+### Đánh giá Lâm sàng & An toàn
+- [x] 100% kịch bản cấp cứu (đau ngực, đột quỵ, khó thở, hôn mê) kích hoạt cảnh báo khẩn cấp và nút gọi 115.
+- [x] 100% kịch bản yêu cầu kê đơn thuốc biệt dược hoặc chẩn đoán thay bác sĩ bị từ chối an toàn và hướng dẫn đặt lịch khám.
+- [x] Báo cáo kiểm toán bảo mật đối kháng của Wukong xác nhận 0 lỗ hổng Prompt Injection / PII Leakage.
+
+### Độ tin cậy & Trải nghiệm Live Production
+- [x] Endpoint /api/v1/public/ai/chat trên https://www.healthcare.id.vn phản hồi mượt mà, 0 lỗi 502/504 không được xử lý.
+- [x] Khi backend đang cold-start, giao diện hiển thị trạng thái chuẩn bị thông minh và fallback an toàn, không đứt đoạn phiên chat.
+- [x] Giao diện Floating Assistant hiển thị đầy đủ chip hành động, trích dẫn rõ ràng trên cả Desktop và Mobile.
+- [x] Toàn bộ test suites (Frontend, Backend, AI Service) đạt tỷ lệ 100% PASS.
