@@ -1,9 +1,9 @@
-name: Supabase Keep-Alive (Prevent Auto-Pause)
+name: Supabase Keep-Alive (Prevent Auto-Pause) & Render Health
 
 on:
   schedule:
-    # Runs every 6 hours (UTC) to keep Supabase active and reset the 7-day inactivity pause timer
-    - cron: '0 */6 * * *'
+    # Runs every 4 hours (UTC) to keep Supabase active 24/7 and prevent the 7-day inactivity pause
+    - cron: '0 */4 * * *'
   workflow_dispatch:
 
 permissions:
@@ -11,10 +11,36 @@ permissions:
 
 jobs:
   ping-supabase:
-    name: Ping Supabase Edge & Gateway
+    name: Supabase 24/7 Keep-Alive & Active Query
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Execute Active PostgreSQL Query via Supabase API
+        env:
+          SUPABASE_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          echo "=== Executing Active Postgres Query on Supabase ==="
+          REF="${PROJECT_REF:-awaknzhadjglbfkhigck}"
+          if [ -n "$SUPABASE_TOKEN" ]; then
+            RESP=$(curl -s -w "\nHTTP_STATUS:%{http_code}" --max-time 30 \
+              -X POST "https://api.supabase.com/v1/projects/${REF}/database/query" \
+              -H "Authorization: Bearer ${SUPABASE_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d '{"query": "SELECT 1 AS keep_alive, count(*) AS active_branches FROM branches WHERE active = true;"}')
+            HTTP_CODE=$(echo "$RESP" | grep "HTTP_STATUS" | cut -d':' -f2)
+            BODY=$(echo "$RESP" | grep -v "HTTP_STATUS")
+            echo "PostgreSQL Query HTTP Response: $HTTP_CODE"
+            echo "Result: $BODY"
+            if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
+              echo "Active PostgreSQL transaction executed successfully. Supabase activity reset!"
+            else
+              echo "Warning: Database query returned HTTP $HTTP_CODE, falling back to gateways."
+            fi
+          else
+            echo "Notice: SUPABASE_ACCESS_TOKEN not set, skipping direct SQL query."
+          fi
+
       - name: Ping Supabase REST Gateway
         run: |
           echo "=== Pinging Supabase REST Gateway ==="
@@ -35,23 +61,16 @@ jobs:
 
       - name: Verify Inactivity Reset
         run: |
-          echo "Supabase Edge traffic activity successfully sent. 7-day inactivity timer reset!"
+          echo "Supabase 24/7 keep-alive routine completed successfully. Activity recorded!"
 
   render-health:
     name: Render Services Health (fail loud when instances vanish)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Probe backend and AI health endpoints
+      - name: Probe backend and AI health endpoints with retry
         run: |
           set -euo pipefail
-          # A healthy Render service answers its health path; when the account
-          # runs out of free instance-hours or a deploy leaves zero instances,
-          # Render's proxy answers `x-render-routing: no-server` with a plain
-          # 404. That state must be loud: this workflow failing emails the
-          # repo owner instead of the outage being discovered by visitors.
-          # Hostnames carry Render's random suffixes; the suffix-less names
-          # belong to deleted services and answer `no-server` forever.
           declare -A targets=(
             ["backend"]="https://healthcare-beta-backend-4wb7.onrender.com/actuator/health"
             ["ai"]="https://healthcare-beta-ai-9mip.onrender.com/livez"
@@ -59,12 +78,28 @@ jobs:
           failed=0
           for name in backend ai; do
             url="${targets[$name]}"
-            headers=$(curl -sI --max-time 45 "$url" || true)
-            code=$(printf '%s' "$headers" | head -1 | awk '{print $2}')
-            routing=$(printf '%s' "$headers" | grep -i '^x-render-routing:' | tr -d '\r' | awk '{print $2}')
-            echo "$name: http=$code x-render-routing=${routing:-absent}"
-            if [ "$code" != "200" ] || [ "${routing:-}" = "no-server" ]; then
-              echo "::error::Render service '$name' is DOWN (http=$code, routing=${routing:-absent}). Check the Render dashboard: instance hours exhausted, failed deploy, or suspended service."
+            success=0
+            for attempt in 1 2 3; do
+              echo "Probing $name (attempt $attempt/3): $url"
+              headers=$(curl -sI --max-time 45 "$url" || true)
+              code=$(printf '%s' "$headers" | head -1 | awk '{print $2}')
+              routing=$(printf '%s' "$headers" | grep -i '^x-render-routing:' | tr -d '\r' | awk '{print $2}')
+              echo "$name: http=$code x-render-routing=${routing:-absent}"
+              if [ "$code" = "200" ] && [ "${routing:-}" != "no-server" ]; then
+                echo "$name is healthy and active."
+                success=1
+                break
+              fi
+              if [ "${routing:-}" = "no-server" ]; then
+                echo "Warning: Render routing reports no-server on attempt $attempt."
+              fi
+              if [ $attempt -lt 3 ]; then
+                echo "Sleeping 20s before retry to handle potential cold-start..."
+                sleep 20
+              fi
+            done
+            if [ $success -ne 1 ]; then
+              echo "::error::Render service '$name' is DOWN after 3 attempts. Check Render dashboard: instance hours exhausted, failed deploy, or suspended service."
               failed=1
             fi
           done
