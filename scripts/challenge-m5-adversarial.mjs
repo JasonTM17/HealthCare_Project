@@ -60,7 +60,7 @@ async function runAdversarialChallenge() {
     const docContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const docPage = await docContext.newPage();
     const docResp = await docPage.goto(`${BASE_URL}/doctors`, { waitUntil: 'networkidle', timeout: 35000 });
-    
+
     if (docResp.status() !== 200) {
       throw new Error(`Doctor catalog failed to load with status ${docResp.status()}`);
     }
@@ -82,7 +82,7 @@ async function runAdversarialChallenge() {
     // Pagination test with explicit response waiting
     const initialStatus = await docPage.$eval('.catalog-pagination__status', el => el.textContent.trim());
     console.log(`  - Pagination initial: "${initialStatus}"`);
-    
+
     const nextBtn = docPage.locator('.catalog-pagination__button', { hasText: 'Sau' });
     const p2Promise = docPage.waitForResponse(
       r => r.url().includes('/hospital/doctors') && r.url().includes('page=1') && r.status() === 200,
@@ -100,7 +100,7 @@ async function runAdversarialChallenge() {
     const p2Cards = (await docPage.$$('.catalog-card')).length;
     console.log(`  - Pagination Page 2 status: "${p2Status}"`);
     console.log(`  - Page 2 doctor cards count: ${p2Cards}`);
-    
+
     if (!p2Status.includes('Trang 2 /')) {
       throw new Error(`Pagination failed to advance to Page 2; status: "${p2Status}"`);
     }
@@ -264,7 +264,7 @@ async function runAdversarialChallenge() {
     const fallbackEvaluation = await imgPage.evaluate(() => {
       const cards = Array.from(document.querySelectorAll('article, .article-card, a[href*="/articles/"]'));
       const images = Array.from(document.querySelectorAll('img')).filter(img => img.src.includes('/media/articles/'));
-      
+
       if (images.length === 0) return { error: 'No article images found' };
 
       const testImg = images[0];

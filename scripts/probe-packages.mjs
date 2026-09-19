@@ -13,19 +13,19 @@ async function inspectLivePackages() {
   const page = await browser.newPage();
   console.log("Navigating to https://www.healthcare.id.vn/packages...");
   await page.goto('https://www.healthcare.id.vn/packages', { waitUntil: 'networkidle', timeout: 35000 });
-  
+
   const cards = await page.$$eval('article', (articles) => articles.map(a => {
     const title = a.querySelector('h2, h3')?.textContent?.trim();
     const cat = a.querySelector('span[class*="category"]')?.textContent?.trim();
     const img = a.querySelector('img')?.getAttribute('src');
     return { title, cat, img };
   }));
-  
+
   console.log(`Found ${cards.length} package cards on page 1:`);
   cards.forEach((c, idx) => {
     console.log(`  [${idx + 1}] Title: "${c.title}" | Category: "${c.cat}" | Image: "${c.img}"`);
   });
-  
+
   await browser.close();
 }
 
