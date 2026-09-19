@@ -1,7 +1,7 @@
 ---
 phase: 4
 title: "Chat UX honesty (P2 backlog)"
-status: pending
+status: completed
 priority: P1
 effort: "3-4h"
 dependencies: [1, 3]

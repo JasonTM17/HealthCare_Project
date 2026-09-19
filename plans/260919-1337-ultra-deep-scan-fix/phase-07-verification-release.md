@@ -1,7 +1,7 @@
 ---
 phase: 7
 title: "Verification sweep, release, and live acceptance"
-status: pending
+status: in-progress
 priority: P0
 effort: "2-3h"
 dependencies: [1, 2, 3, 4, 5, 6]
