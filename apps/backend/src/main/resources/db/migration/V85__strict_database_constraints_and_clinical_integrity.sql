@@ -60,6 +60,11 @@ BEGIN
 
     IF NOT EXISTS (
         SELECT 1 FROM pg_constraint WHERE conname = 'check_services_price_positive'
+    ) AND EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'services'
+          AND column_name = 'price'
     ) THEN
         ALTER TABLE services
         ADD CONSTRAINT check_services_price_positive
