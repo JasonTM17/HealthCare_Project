@@ -1,7 +1,7 @@
 ---
 phase: 3
 title: "Ultra whole-site browser + API sweep"
-status: pending
+status: completed
 priority: P1
 effort: "3-4h"
 dependencies: []

@@ -1,7 +1,7 @@
 ---
 phase: 5
 title: "Portal session correctness (P3 backlog)"
-status: pending
+status: completed
 priority: P2
 effort: "3-4h"
 dependencies: [3]

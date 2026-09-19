@@ -1,7 +1,7 @@
 ---
 phase: 1
 title: "Production chatbot chain forensics and repair"
-status: pending
+status: in-progress
 priority: P0
 effort: "4-6h"
 dependencies: []

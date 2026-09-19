@@ -1,7 +1,7 @@
 ---
 phase: 2
 title: "Debug hygiene and config drift repair"
-status: pending
+status: completed
 priority: P0
 effort: "1-2h"
 dependencies: []
