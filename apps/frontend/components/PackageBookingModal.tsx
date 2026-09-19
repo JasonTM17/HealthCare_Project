@@ -193,11 +193,16 @@ export default function PackageBookingModal({
   // Doctors are fetched per active branch: branch-scoped queries stay small on
   // hosted backends, while unfiltered catalogs time out at larger page sizes.
   useEffect(() => {
-    if (!isOpen || !currentBranch?.slug) return;
+    if (!isOpen) return;
     let cancelled = false;
     const task = Promise.resolve().then(async () => {
       try {
-        const page = await fetchDoctors({ branchSlug: currentBranch.slug, page: 0, size: 100 });
+        let page = currentBranch?.slug
+          ? await fetchDoctors({ branchSlug: currentBranch.slug, page: 0, size: 100 })
+          : { content: [] };
+        if (!cancelled && page.content.length === 0) {
+          page = await fetchDoctors({ page: 0, size: 20 });
+        }
         if (!cancelled && page.content.length > 0) setLoadedDoctors(page.content);
       } catch {
         // keep prior doctors; the branch card UI still renders without them
@@ -400,8 +405,12 @@ export default function PackageBookingModal({
       return;
     }
 
-    // Resolve doctor ID (guarantee non-null doctorId for backend)
-    const doctorIdToUse = intakeDoctor?.id || "00000000-0000-0000-0000-000000000001";
+    // Resolve doctor ID (dynamically obtained from backend catalog)
+    if (!intakeDoctor?.id) {
+      setErrorMessage("Đang kết nối bác sĩ tiếp nhận của cơ sở. Vui lòng thử lại sau giây lát.");
+      return;
+    }
+    const doctorIdToUse = intakeDoctor.id;
 
     // Build structured reason / notes containing DOB & gender
     const noteParts: string[] = [];

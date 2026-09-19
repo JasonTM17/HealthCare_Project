@@ -22,9 +22,12 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
+@Tag(name = "File & Object Storage", description = "Tải lên, truy xuất và xóa tệp tin, tài liệu y tế")
 @RestController
 @RequestMapping("/api/v1/files")
 public class FileController {
@@ -35,6 +38,7 @@ public class FileController {
         this.fileStorageService = fileStorageService;
     }
 
+    @Operation(summary = "Tải lên tệp chứng từ", description = "Tải lên tệp hồ sơ bệnh nhân hoặc chứng từ lâm sàng đính kèm")
     @PostMapping("/upload")
     @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR')")
     public ResponseEntity<StoredFileResponse> upload(
@@ -46,6 +50,7 @@ public class FileController {
         return ResponseEntity.ok(StoredFileResponse.from(storedFile));
     }
 
+    @Operation(summary = "Tải xuống tệp chứng từ", description = "Tải xuống dữ liệu nhị phân của tệp lưu trữ theo tên đối tượng")
     @GetMapping("/{objectName}")
     @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'PATIENT')")
     public ResponseEntity<Resource> download(
@@ -64,6 +69,7 @@ public class FileController {
             .body(new ByteArrayResource(data));
     }
 
+    @Operation(summary = "Xóa tệp lưu trữ", description = "Quản trị viên xóa tệp tin chứng từ y tế khỏi kho lưu trữ")
     @DeleteMapping("/{objectName}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> delete(@PathVariable String objectName) throws Exception {

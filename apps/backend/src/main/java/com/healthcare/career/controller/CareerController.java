@@ -20,8 +20,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.Set;
 
+@Tag(name = "Careers & Recruitment", description = "Tuyển dụng y tế: Vị trí tuyển dụng bác sĩ, điều dưỡng, chuyên gia y tế và tiếp nhận hồ sơ")
 @RestController
 @RequestMapping("/api/v1/careers/jobs")
 public class CareerController {
@@ -35,6 +38,7 @@ public class CareerController {
         this.careerService = careerService;
     }
 
+    @Operation(summary = "Danh sách vị trí tuyển dụng công khai", description = "Lấy danh sách các vị trí bác sĩ, dược sĩ, kỹ thuật viên y tế đang mở tuyển dụng")
     @GetMapping
     public Page<JobPositionResponse> list(
             @RequestParam(required = false) String department,
@@ -44,6 +48,7 @@ public class CareerController {
             SafePageRequests.normalize(pageable, Sort.by(Sort.Direction.ASC, "deadline"), JOB_SORT_PROPERTIES));
     }
 
+    @Operation(summary = "Nộp hồ sơ ứng tuyển", description = "Ứng viên nộp thông tin cá nhân và hồ sơ ứng tuyển vào vị trí công việc cụ thể")
     @PostMapping("/{slug}/applications")
     @ResponseStatus(HttpStatus.CREATED)
     public JobApplicationReceipt apply(

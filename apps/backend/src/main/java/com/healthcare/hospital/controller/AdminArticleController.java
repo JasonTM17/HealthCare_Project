@@ -14,12 +14,19 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@Tag(name = "Administration", description = "Quản trị hệ thống: Quản lý lịch hẹn, cơ sở, bác sĩ, gói khám, tài chính")
 @RestController
 @RequestMapping("/api/v1/admin/articles")
 @PreAuthorize("hasRole('ADMIN')")
@@ -31,11 +38,13 @@ public class AdminArticleController {
         this.adminArticleService = adminArticleService;
     }
 
+    @Operation(summary = "Quản lý danh sách bài viết", description = "Lấy toàn bộ bài viết cẩm nang y tế và hướng dẫn phòng bệnh")
     @GetMapping
     public Page<Article> list(@PageableDefault(size = 20, sort = "title") Pageable pageable) {
         return adminArticleService.list(pageable);
     }
 
+    @Operation(summary = "Thêm mới bài viết y tế", description = "Tạo mới bài viết cẩm nang sức khỏe kèm tác giả bác sĩ và chuyên khoa liên quan")
     @PostMapping
     public ResponseEntity<Article> create(
             @Valid @RequestBody ArticleRequest request,
@@ -43,6 +52,7 @@ public class AdminArticleController {
         return ResponseEntity.ok(adminArticleService.create(request, actor));
     }
 
+    @Operation(summary = "Cập nhật bài viết y tế", description = "Chỉnh sửa tiêu đề, tóm tắt, nội dung chi tiết và hình ảnh đại diện của bài viết")
     @PutMapping("/{slug}")
     public ResponseEntity<Article> update(
             @PathVariable String slug,
@@ -51,6 +61,7 @@ public class AdminArticleController {
         return ResponseEntity.ok(adminArticleService.update(slug, request, actor));
     }
 
+    @Operation(summary = "Xóa bài viết y tế", description = "Xóa hoặc gỡ xuất bản bài viết khỏi cẩm nang y tế")
     @DeleteMapping("/{slug}")
     public ResponseEntity<Void> delete(
             @PathVariable String slug,

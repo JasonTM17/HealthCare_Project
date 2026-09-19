@@ -3,6 +3,8 @@ package com.healthcare.ai.controller;
 import com.healthcare.ai.service.AiClinicalReviewService;
 import com.healthcare.ai.controller.ClinicalReviewContracts.DecisionRequest;
 import com.healthcare.ai.controller.ClinicalReviewContracts.SubmissionRequest;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -19,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.Map;
 import java.util.UUID;
 
+@Tag(name = "AI Clinical Review", description = "Quy trình bác sĩ kiểm duyệt nội dung chuyên môn phục vụ chỉ mục RAG AI")
 @RestController
 @RequestMapping("/api/v1")
 public class AiClinicalReviewController {
@@ -29,6 +32,7 @@ public class AiClinicalReviewController {
         this.service = service;
     }
 
+    @Operation(summary = "Admin gửi yêu cầu thẩm định nội dung y khoa", description = "Đưa bài viết hoặc tài liệu y tế vào hàng đợi thẩm định lâm sàng")
     @PutMapping("/admin/ai-content/{type}/{id}/submission")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> submit(
@@ -39,6 +43,7 @@ public class AiClinicalReviewController {
         return ResponseEntity.ok(service.submit(type, id, request.revision(), request.contentHash(), principal));
     }
 
+    @Operation(summary = "Admin xem kho nội dung AI và tiến độ thẩm định", description = "Danh sách phân trang toàn bộ tài liệu y tế, trạng thái phê duyệt lâm sàng")
     @GetMapping("/admin/ai-content")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> adminInventory(
@@ -49,6 +54,7 @@ public class AiClinicalReviewController {
         return ResponseEntity.ok(service.adminQueuePage(type, state, page, size));
     }
 
+    @Operation(summary = "Bác sĩ lấy hàng đợi thẩm định lâm sàng", description = "Danh sách các tài liệu chuyên môn đang chờ bác sĩ thẩm định và phê duyệt")
     @GetMapping("/doctor/ai-content/reviews")
     @PreAuthorize("hasRole('DOCTOR')")
     public ResponseEntity<Map<String, Object>> queue(
@@ -58,6 +64,7 @@ public class AiClinicalReviewController {
         return ResponseEntity.ok(service.queuePage(state, page, size));
     }
 
+    @Operation(summary = "Xem chi tiết bản sửa đổi nội dung y khoa", description = "Truy xuất nội dung cụ thể của một bản sửa đổi để kiểm tra tính chính xác y khoa")
     @GetMapping("/doctor/ai-content/{type}/{id}/revisions/{revision}")
     @PreAuthorize("hasRole('DOCTOR')")
     public ResponseEntity<Map<String, Object>> revision(
@@ -67,6 +74,7 @@ public class AiClinicalReviewController {
         return ResponseEntity.ok(service.revision(type, id, revision));
     }
 
+    @Operation(summary = "Bác sĩ phê duyệt hoặc từ chối nội dung lâm sàng", description = "Đưa ra quyết định chuyên môn (APPROVE/REJECT) kèm lý do lâm sàng")
     @PutMapping("/doctor/ai-content/{type}/{id}/revisions/{revision}/decision")
     @PreAuthorize("hasRole('DOCTOR')")
     public ResponseEntity<Map<String, Object>> decision(

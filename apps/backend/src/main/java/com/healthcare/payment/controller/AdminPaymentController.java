@@ -20,8 +20,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.UUID;
 
+@Tag(name = "Administration", description = "Quản trị hệ thống: Quản lý lịch hẹn, cơ sở, bác sĩ, gói khám, tài chính")
 @RestController
 @RequestMapping("/api/v1/admin/payments")
 @PreAuthorize("hasRole('ADMIN')")
@@ -33,6 +36,7 @@ public class AdminPaymentController {
         this.paymentService = paymentService;
     }
 
+    @Operation(summary = "Danh sách giao dịch thanh toán viện phí", description = "Truy xuất danh sách chuyển khoản viện phí của bệnh nhân theo trạng thái")
     @GetMapping
     public ResponseEntity<Page<BankTransferPaymentResponse>> list(
             @RequestParam(required = false) String status,
@@ -40,6 +44,7 @@ public class AdminPaymentController {
         return ResponseEntity.ok(paymentService.listForAdmin(status, pageable));
     }
 
+    @Operation(summary = "Duyệt giao dịch chuyển khoản", description = "Xác nhận đối soát hoặc từ chối chứng từ thanh toán viện phí của bệnh nhân")
     @PatchMapping("/{paymentId}")
     public ResponseEntity<BankTransferPaymentResponse> review(
             @PathVariable UUID paymentId,
@@ -48,6 +53,7 @@ public class AdminPaymentController {
         return ResponseEntity.ok(paymentService.review(paymentId, request, principal));
     }
 
+    @Operation(summary = "Hoàn tiền giao dịch viện phí", description = "Xử lý hoàn tiền cho bệnh nhân trong trường hợp hủy lịch khám hoặc thanh toán thừa")
     @PatchMapping("/{paymentId}/refund")
     public ResponseEntity<BankTransferPaymentResponse> refund(
             @PathVariable UUID paymentId,

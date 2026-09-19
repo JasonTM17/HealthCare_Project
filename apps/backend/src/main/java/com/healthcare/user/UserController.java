@@ -24,10 +24,10 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
+@Tag(name = "User Profile & Preferences", description = "Hồ sơ cá nhân, tùy chọn tài khoản và phân quyền người dùng")
 @RestController
 @RequestMapping("/api/v1/users")
 @SecurityRequirement(name = "bearerAuth")
-@Tag(name = "Users", description = "User management APIs")
 public class UserController {
 
     private final UserRepository userRepository;
@@ -38,8 +38,8 @@ public class UserController {
         this.preferencesService = preferencesService;
     }
 
+    @Operation(summary = "Lấy thông tin tài khoản người dùng hiện tại", description = "Truy xuất họ tên, email, trạng thái xác thực và danh sách vai trò (PATIENT/DOCTOR/ADMIN)")
     @GetMapping("/me")
-    @Operation(summary = "Get current user profile", description = "Returns the authenticated user's profile information")
     public ResponseEntity<UserProfileResponse> getCurrentUser(@AuthenticationPrincipal UserDetails userDetails) {
         User user = userRepository.findWithRolesByEmail(userDetails.getUsername())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Tài khoản không còn tồn tại hoặc đã bị vô hiệu hóa"));
@@ -58,23 +58,22 @@ public class UserController {
         ));
     }
 
+    @Operation(summary = "Lấy tùy chọn người dùng (giao diện, ngôn ngữ, thông báo)", description = "Lấy cấu hình tùy biến của tài khoản người dùng hiện tại")
     @GetMapping("/me/preferences")
-    @Operation(summary = "Get current user preferences", description = "Returns preferences owned by the authenticated user")
     public ResponseEntity<UserPreferencesResponse> getPreferences(
             @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(preferencesService.get(currentUser(userDetails).getId()));
     }
 
+    @Operation(summary = "Cập nhật một phần tùy chọn người dùng (PATCH)", description = "Cập nhật các trường cấu hình được chỉ định")
     @PatchMapping("/me/preferences")
-    @Operation(summary = "Patch current user preferences", description = "Updates only supplied preference fields")
     public ResponseEntity<UserPreferencesResponse> patchPreferences(
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody UserPreferencesPatchRequest request) {
         return ResponseEntity.ok(preferencesService.patch(currentUser(userDetails).getId(), request));
     }
 
-    // The local FE worker uses PUT while the public contract is PATCH. Keep
-    // both verbs owner-scoped while the clients converge.
+    @Operation(summary = "Cập nhật toàn bộ tùy chọn người dùng (PUT)", description = "Lưu và đồng bộ cấu hình giao diện, ngôn ngữ và thông báo")
     @PutMapping("/me/preferences")
     public ResponseEntity<UserPreferencesResponse> putPreferences(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -82,8 +81,8 @@ public class UserController {
         return ResponseEntity.ok(preferencesService.patch(currentUser(userDetails).getId(), request));
     }
 
+    @Operation(summary = "Kiểm tra quyền truy cập Administrator", description = "Xác thực quyền quản trị viên cấp cao của phiên đăng nhập")
     @GetMapping("/admin/access")
-    @Operation(summary = "Check administrator access", description = "Foundation authorization boundary for ADMIN role")
     public ResponseEntity<Void> checkAdministratorAccess() {
         return ResponseEntity.noContent().build();
     }

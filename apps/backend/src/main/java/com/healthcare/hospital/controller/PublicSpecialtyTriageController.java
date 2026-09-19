@@ -12,6 +12,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@Tag(name = "Public Catalog", description = "Danh mục y tế công khai (Cơ sở bệnh viện, chuyên khoa, bác sĩ, gói khám, dịch vụ, bài viết)")
 @RestController
 @RequestMapping("/api/v1/public")
 public class PublicSpecialtyTriageController {
@@ -22,6 +26,7 @@ public class PublicSpecialtyTriageController {
         this.publicSpecialtyTriageService = publicSpecialtyTriageService;
     }
 
+    @Operation(summary = "Gợi ý chuyên khoa theo triệu chứng", description = "Phân tích triệu chứng người dùng mô tả để đề xuất chuyên khoa khám phù hợp nhất")
     @PostMapping("/specialty-recommendation")
     public ResponseEntity<Map<String, Object>> recommend(@Valid @RequestBody PublicTriageRequest request) {
         return ResponseEntity.ok(publicSpecialtyTriageService.triage(request.symptoms()));

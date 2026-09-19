@@ -10,6 +10,10 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@Tag(name = "Payments & Invoices", description = "Cổng thanh toán viện phí VietQR, xác nhận chuyển khoản ngân hàng và đối soát hóa đơn")
 @RestController
 @RequestMapping("/api/v1/payments/webhooks/bank-transfer")
 public class BankTransferWebhookController {
@@ -20,6 +24,7 @@ public class BankTransferWebhookController {
         this.webhookService = webhookService;
     }
 
+    @Operation(summary = "Tiếp nhận webhook thanh toán tự động", description = "Endpoint tiếp nhận thông báo biến động số dư từ cổng thanh toán đối tác với chữ ký HMAC-SHA256")
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<BankTransferPaymentResponse> receive(
             @RequestHeader("X-Webhook-Id") String eventId,

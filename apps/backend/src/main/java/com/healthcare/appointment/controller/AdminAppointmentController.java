@@ -13,8 +13,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.LocalDate;
 
+@Tag(name = "Administration", description = "Quản trị hệ thống: Quản lý lịch hẹn, cơ sở, bác sĩ, gói khám, tài chính")
 @RestController
 @RequestMapping("/api/v1/admin/appointments")
 @PreAuthorize("hasRole('ADMIN')")
@@ -26,6 +29,7 @@ public class AdminAppointmentController {
         this.appointmentService = appointmentService;
     }
 
+    @Operation(summary = "Danh sách lịch hẹn toàn hệ thống", description = "Lấy danh sách lịch hẹn của toàn bộ các cơ sở và bác sĩ theo ngày và trạng thái")
     @GetMapping
     public ResponseEntity<Page<AppointmentResponse>> list(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,

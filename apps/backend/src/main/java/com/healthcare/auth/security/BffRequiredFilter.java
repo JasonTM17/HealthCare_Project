@@ -80,7 +80,10 @@ public class BffRequiredFilter extends OncePerRequestFilter {
         if (path == null) {
             return false;
         }
-        if (OPEN_PATHS.contains(path) || path.startsWith("/actuator/health")) {
+        if (OPEN_PATHS.contains(path)
+                || path.startsWith("/actuator/health")
+                || path.startsWith("/swagger-ui")
+                || path.startsWith("/v3/api-docs")) {
             return true;
         }
         return "POST".equalsIgnoreCase(request.getMethod())

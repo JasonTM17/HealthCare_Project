@@ -13,6 +13,10 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@Tag(name = "Administration", description = "Quản trị hệ thống: Quản lý lịch hẹn, cơ sở, bác sĩ, gói khám, tài chính")
 @RestController
 @RequestMapping("/api/v1/admin/consultations")
 @PreAuthorize("hasRole('ADMIN')")
@@ -20,8 +24,7 @@ public class AdminConsultationController {
     private final PatientConsultationService service;
     public AdminConsultationController(PatientConsultationService service) { this.service = service; }
 
-    /** Body stays a JSON array for the existing admin frontend; optional page/size
-     * params expose bounded windows, and metadata is sent in headers. */
+    @Operation(summary = "Hàng đợi tư vấn từ xa", description = "Truy xuất danh sách các phiên tư vấn trực tuyến đang chờ điều phối hoặc đang diễn ra")
     @GetMapping("/queue")
     public ResponseEntity<List<ConsultationContracts.AdminQueueItem>> queue(
             @RequestParam(required = false) Integer page,
@@ -36,6 +39,7 @@ public class AdminConsultationController {
         return ResponseEntity.ok().headers(headers).body(result);
     }
 
+    @Operation(summary = "Điều phối phiên tư vấn cho bác sĩ", description = "Phân công hoặc chuyển giao phiên tư vấn từ xa cho một bác sĩ chuyên khoa khác")
     @PutMapping("/{id}/assignment")
     public void assign(@PathVariable UUID id, @Valid @RequestBody ConsultationContracts.HandoffRequest request,
                        @AuthenticationPrincipal UserDetails principal) { service.assign(id, request, principal); }

@@ -9,6 +9,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@Tag(name = "Public Catalog", description = "Danh mục y tế công khai (Cơ sở bệnh viện, chuyên khoa, bác sĩ, gói khám, dịch vụ, bài viết)")
 @RestController
 @RequestMapping("/api/v1")
 public class HealthController {
@@ -19,6 +23,7 @@ public class HealthController {
         this.aiService = aiService;
     }
 
+    @Operation(summary = "Kiểm tra trạng thái hệ thống", description = "Kiểm tra sức khỏe dịch vụ backend và kết nối tới dịch vụ AI")
     @GetMapping("/health")
     public ResponseEntity<Map<String, Object>> health() {
         boolean aiReady = aiService.isAvailable();

@@ -13,9 +13,12 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import java.util.Map;
 
+@Tag(name = "AI Health Assistant", description = "Trợ lý trí tuệ nhân tạo y tế phân luồng triệu chứng và tư vấn")
 @RestController
 @RequestMapping("/api/v1/patient/ai-credits")
 @PreAuthorize("hasRole('PATIENT')")
@@ -29,6 +32,7 @@ public class PatientAiCreditController {
         this.userRepository = userRepository;
     }
 
+    @Operation(summary = "Hạn mức và số dư tín dụng AI", description = "Kiểm tra số dư lượt hỏi AI khả dụng, hạng thẻ hội viên (STANDARD, SILVER, GOLD, VIP) và lịch sử biến động")
     @GetMapping("/status")
     public ResponseEntity<Map<String, Object>> getStatus(@AuthenticationPrincipal UserDetails principal) {
         User user = userRepository.findByEmail(principal.getUsername())

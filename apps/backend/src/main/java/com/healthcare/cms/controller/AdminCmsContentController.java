@@ -5,6 +5,8 @@ import com.healthcare.cms.dto.CmsContentResponse;
 import com.healthcare.cms.dto.CmsContentHistoryResponse;
 import com.healthcare.cms.dto.CmsRollbackRequest;
 import com.healthcare.cms.service.CmsContentService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.http.CacheControl;
@@ -24,6 +26,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.List;
 
+@Tag(name = "CMS & Content Delivery", description = "Quản lý nội dung động, giao diện và các slot hiển thị CMS")
 @RestController
 @RequestMapping("/api/v1/admin/cms/content")
 @PreAuthorize("hasRole('ADMIN')")
@@ -35,6 +38,7 @@ public class AdminCmsContentController {
         this.contentService = contentService;
     }
 
+    @Operation(summary = "Admin lấy danh sách tất cả các slot nội dung CMS", description = "Truy xuất danh sách slot nội dung động, banner, trang tĩnh kèm thông tin phân trang qua HTTP headers")
     @GetMapping
     public ResponseEntity<List<CmsContentResponse>> list(
         @RequestParam(required = false) Integer page,
@@ -53,11 +57,13 @@ public class AdminCmsContentController {
             .body(result.getContent());
     }
 
+    @Operation(summary = "Admin xem chi tiết nội dung CMS theo slotKey", description = "Lấy dữ liệu cấu hình JSON, nội dung đa phương tiện của slotKey")
     @GetMapping("/{slotKey}")
     public ResponseEntity<CmsContentResponse> get(@PathVariable String slotKey) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(contentService.getForAdmin(slotKey));
     }
 
+    @Operation(summary = "Admin cập nhật hoặc tạo mới slot nội dung CMS", description = "Tạo mới hoặc cập nhật nội dung giao diện, tự động ghi nhận phiên bản lịch sử")
     @PutMapping("/{slotKey}")
     public ResponseEntity<CmsContentResponse> upsert(
         @PathVariable String slotKey,
@@ -69,6 +75,7 @@ public class AdminCmsContentController {
             .body(contentService.upsert(slotKey, request, actor));
     }
 
+    @Operation(summary = "Admin xem lịch sử thay đổi của slot nội dung CMS", description = "Danh sách các lần chỉnh sửa trước đây của slotKey kèm mã hash và người chỉnh sửa")
     @GetMapping("/{slotKey}/history")
     public ResponseEntity<List<CmsContentHistoryResponse>> history(
         @PathVariable String slotKey,
@@ -79,6 +86,7 @@ public class AdminCmsContentController {
             .body(contentService.history(slotKey, limit));
     }
 
+    @Operation(summary = "Admin khôi phục (rollback) nội dung CMS về phiên bản trước", description = "Khôi phục trạng thái slotKey về mã hash hoặc phiên bản cụ thể")
     @PostMapping("/{slotKey}/rollback")
     public ResponseEntity<CmsContentResponse> rollback(
         @PathVariable String slotKey,

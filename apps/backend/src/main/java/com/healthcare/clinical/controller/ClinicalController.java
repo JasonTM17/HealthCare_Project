@@ -27,9 +27,9 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.Set;
 import java.util.UUID;
 
+@Tag(name = "Clinical Records & Prescriptions", description = "Hồ sơ bệnh án điện tử (EMR), kết quả cận lâm sàng và đơn thuốc")
 @RestController
 @RequestMapping("/api/v1/clinical")
-@Tag(name = "Clinical Records & Prescriptions", description = "Authenticated clinical records and prescription APIs")
 public class ClinicalController {
 
     private static final Set<String> RECORD_SORT_PROPERTIES = Set.of("id", "createdAt");
@@ -40,9 +40,9 @@ public class ClinicalController {
         this.clinicalService = clinicalService;
     }
 
+    @Operation(summary = "Bác sĩ tạo bệnh án EMR và kê đơn thuốc", description = "Bác sĩ phụ trách hoàn tất ca khám, ghi nhận chẩn đoán ICD, lời dặn và kê đơn thuốc điện tử")
     @PostMapping("/records")
     @PreAuthorize("hasRole('DOCTOR')")
-    @Operation(summary = "Assigned doctor completes an in-progress visit with a medical record and optional prescription")
     public ResponseEntity<MedicalRecordResponse> createRecord(
             @Valid @RequestBody CreateMedicalRecordRequest request,
             @AuthenticationPrincipal UserDetails userDetails) {
@@ -50,32 +50,30 @@ public class ClinicalController {
                 .body(clinicalService.createMedicalRecord(request, userDetails));
     }
 
+    @Operation(summary = "Xem chi tiết bệnh án EMR theo ID", description = "Truy xuất chi tiết bệnh án điện tử, chẩn đoán và kết luận khám bệnh của ca khám")
     @GetMapping("/records/{id}")
     @PreAuthorize("hasAnyRole('PATIENT', 'DOCTOR', 'ADMIN')")
-    @Operation(summary = "Get a clinical medical record owned by the current user or role")
     public ResponseEntity<MedicalRecordResponse> getRecord(
             @PathVariable UUID id,
             @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(clinicalService.getMedicalRecord(id, userDetails));
     }
 
+    @Operation(summary = "Xem lịch sử khám bệnh của bệnh nhân", description = "Danh sách phân trang toàn bộ các ca khám và bệnh án trong quá khứ của bệnh nhân")
     @GetMapping("/patients/{patientId}/records")
     @PreAuthorize("hasAnyRole('PATIENT', 'DOCTOR', 'ADMIN')")
-    @Operation(summary = "Get an authorized patient's medical history")
     public ResponseEntity<Page<MedicalRecordResponse>> getPatientRecords(
             @PathVariable UUID patientId,
             @PageableDefault(size = 10) Pageable pageable,
             @AuthenticationPrincipal UserDetails userDetails) {
-        // Medical-record rows are wide; a raw Pageable here would let any
-        // authenticated caller pull unbounded pages of them.
         return ResponseEntity.ok(clinicalService.getPatientRecords(patientId,
             SafePageRequests.normalize(pageable, Sort.by(Sort.Direction.DESC, "createdAt"), RECORD_SORT_PROPERTIES),
             userDetails));
     }
 
+    @Operation(summary = "Tra cứu đơn thuốc điện tử theo mã đơn", description = "Xem chi tiết danh mục thuốc, hàm lượng, liều dùng và hướng dẫn uống thuốc")
     @GetMapping("/prescriptions/{code}")
     @PreAuthorize("hasAnyRole('PATIENT', 'DOCTOR', 'ADMIN')")
-    @Operation(summary = "Get a prescription visible to the current user or role")
     public ResponseEntity<PrescriptionResponse> getPrescription(
             @PathVariable String code,
             @AuthenticationPrincipal UserDetails userDetails) {
