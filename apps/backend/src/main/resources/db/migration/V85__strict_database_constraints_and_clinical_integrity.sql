@@ -39,6 +39,11 @@ DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM pg_constraint WHERE conname = 'check_doctors_rating_range'
+    ) AND EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'doctors'
+          AND column_name = 'rating'
     ) THEN
         ALTER TABLE doctors
         ADD CONSTRAINT check_doctors_rating_range

@@ -106,7 +106,7 @@ test("Compose keeps browser traffic same-origin through the server-only BFF", as
   assert.match(render, /- key: APP_PUBLIC_SPECIALTY_TRIAGE_ENABLED\s+value: "true"/);
   assert.match(render, /- key: AI_RAG_INGEST_ENABLED\s+value: "true"/);
   assert.match(render, /name: healthcare-beta-ai[\s\S]*runtime: python[\s\S]*healthCheckPath: \/livez/);
-  assert.match(render, /AI_SERVICE_URL\s+value: https:\/\/healthcare-beta-ai\.onrender\.com/);
+  assert.match(render, /AI_SERVICE_URL\s+value: https:\/\/healthcare-beta-ai-9mip\.onrender\.com/);
   assert.doesNotMatch(render, /- key: CORS_ALLOWED_ORIGINS/);
   assert.doesNotMatch(envExample, /NEXT_PUBLIC_(?:CMS_)?API_BASE_URL/);
   assert.match(envExample, /^BACKEND_BFF_SERVICE_TOKEN=$/m);
