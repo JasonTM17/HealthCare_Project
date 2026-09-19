@@ -80,7 +80,7 @@ BEGIN
     ) THEN
         ALTER TABLE appointments
         ADD CONSTRAINT check_appointments_status_valid
-        CHECK (status IN ('PENDING', 'CONFIRMED', 'CHECKED_IN', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'NO_SHOW'));
+        CHECK (status IN ('PENDING_CONFIRMATION', 'CONFIRMED', 'CHECKED_IN', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'NO_SHOW'));
     END IF;
 
     IF NOT EXISTS (
@@ -122,5 +122,5 @@ ON appointments (doctor_id, appointment_date, status);
 CREATE INDEX IF NOT EXISTS idx_doctor_branches_composite 
 ON doctor_branches (doctor_id, branch_id);
 
-CREATE INDEX IF NOT EXISTS idx_articles_specialty_published 
-ON articles (related_specialty_slug, status, published_at);
+CREATE INDEX IF NOT EXISTS idx_articles_specialty_published
+ON articles (related_specialty_slug, published_at);
