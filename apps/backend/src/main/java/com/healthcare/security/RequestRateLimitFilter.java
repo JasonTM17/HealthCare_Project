@@ -305,7 +305,8 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
         }
 
         // 14. Admin backoffice mutations
-        if ("POST".equals(method) && path.startsWith("/api/v1/admin/")) {
+        if (("POST".equals(method) || "PUT".equals(method) || "PATCH".equals(method) || "DELETE".equals(method))
+                && path.startsWith("/api/v1/admin/")) {
             return new LimitRule("admin-mutations", adminMutationLimit);
         }
 
