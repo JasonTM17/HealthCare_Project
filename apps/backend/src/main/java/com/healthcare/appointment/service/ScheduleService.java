@@ -8,6 +8,7 @@ import com.healthcare.appointment.repository.DoctorScheduleRepository;
 import com.healthcare.scheduling.entity.DoctorScheduleException;
 import com.healthcare.scheduling.repository.DoctorScheduleExceptionRepository;
 import com.healthcare.hospital.entity.Branch;
+import com.healthcare.hospital.entity.Doctor;
 import com.healthcare.hospital.entity.DoctorBranch;
 import com.healthcare.hospital.repository.BranchRepository;
 import com.healthcare.hospital.repository.DoctorBranchRepository;
@@ -95,7 +96,7 @@ public class ScheduleService {
     public List<TimeSlotDto> getAvailableSlots(UUID doctorId, UUID branchId, LocalDate date) {
         LocalDate today = LocalDate.now(BUSINESS_ZONE);
         if (doctorId == null || date == null || date.isBefore(today)
-                || doctorRepository.findById(doctorId).filter(doctor -> doctor.isActive()).isEmpty()) {
+                || (doctorRepository != null && doctorRepository.findById(doctorId).filter(Doctor::isActive).isEmpty())) {
             return Collections.emptyList();
         }
         if (branchId != null && branchRepository != null
@@ -161,7 +162,15 @@ public class ScheduleService {
             LocalDate date,
             LocalTime requestedStart) {
         LocalDate today = LocalDate.now(BUSINESS_ZONE);
-        if (date == null || requestedStart == null || date.isBefore(today)) {
+        if (doctorId == null || date == null || requestedStart == null || date.isBefore(today)) {
+            return Optional.empty();
+        }
+        if (doctorRepository != null
+                && doctorRepository.findById(doctorId).filter(Doctor::isActive).isEmpty()) {
+            return Optional.empty();
+        }
+        if (branchId != null && branchRepository != null
+                && !branchRepository.findById(branchId).filter(Branch::isActive).isPresent()) {
             return Optional.empty();
         }
         if (date.equals(today)
@@ -182,6 +191,14 @@ public class ScheduleService {
     }
 
     private List<ScheduleWindow> scheduleWindowsForDate(UUID doctorId, LocalDate date, UUID branchId) {
+        if (doctorId == null || (doctorRepository != null
+                && doctorRepository.findById(doctorId).filter(Doctor::isActive).isEmpty())) {
+            return Collections.emptyList();
+        }
+        if (branchId != null && branchRepository != null
+                && !branchRepository.findById(branchId).filter(Branch::isActive).isPresent()) {
+            return Collections.emptyList();
+        }
         int isoDayOfWeek = date.getDayOfWeek().getValue();
         List<DoctorSchedule> schedules = branchId == null
             ? doctorScheduleRepository.findActiveForDoctorOnDate(doctorId, date, isoDayOfWeek)
