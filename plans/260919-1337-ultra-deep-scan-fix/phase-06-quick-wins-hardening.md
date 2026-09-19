@@ -1,7 +1,7 @@
 ---
 phase: 6
 title: "Quick wins, hardening, and keep-alive decision (P4 backlog)"
-status: pending
+status: completed
 priority: P2
 effort: "2-3h"
 dependencies: [1, 3]
