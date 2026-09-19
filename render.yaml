@@ -73,7 +73,7 @@ services:
       - key: AI_API_KEY
         sync: false
       - key: RAG_STORAGE_BACKEND
-        value: memory
+        value: supabase
       - key: RAG_INGEST_ENABLED
         value: "true"
       - key: RAG_MAX_DOCUMENTS
@@ -137,7 +137,7 @@ services:
       # HOSPITAL_SUPPORT uses the remote DeepSeek-backed FastAPI service.
       # Clinical modes and synthetic approval paths remain fail-closed.
       - key: AI_SERVICE_URL
-        value: https://healthcare-beta-ai.onrender.com
+        value: https://healthcare-beta-ai-9mip.onrender.com
       - key: AI_SERVICE_TOKEN
         fromService:
           type: web

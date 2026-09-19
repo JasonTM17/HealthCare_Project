@@ -1724,7 +1724,6 @@ def _has_unnegated_forbidden_match(normalized: str) -> bool:
             ]
             preceding = [pos for pos in preceding if 0 <= pos < match.start()]
             if not preceding:
-                print('[DBG output] unnegated forbidden:', normalized[match.start():match.start()+40])
                 return True
             gap = sentence[max(preceding):match.start()]
             if _CONTRASTIVE_WORD_PATTERN.search(gap):
@@ -1751,13 +1750,6 @@ def remote_text_output_is_safe(
         allow_public_generic_guidance=allow_public_generic_guidance,
     )
     forbidden = _has_unnegated_forbidden_match(normalized)
-    if injection or forbidden:
-        import sys as _sys
-        print(f"[DBG output] injection={injection} forbidden={forbidden}",
-              file=_sys.stderr)
-        if forbidden:
-            for m in _REMOTE_OUTPUT_FORBIDDEN_PATTERN.finditer(normalized):
-                print(f"[DBG output]   match={m.group(0)!r}", file=_sys.stderr)
     return not (injection or forbidden)
 
 
@@ -1804,8 +1796,6 @@ def remote_answer_is_grounded(
         # Clinical safety — prescribing, diagnosis, PII, injection — is enforced
         # independently by remote_text_output_is_safe, which still runs first.
         matched = _UNGROUNDED_OPERATIONAL_FACT_PATTERN.search(normalized_answer)
-        if matched:
-            print('[DBG no-context] operational fact:', matched.group(0))
         return not bool(matched)
     normalized_context = _normalize_sensitive_text("\n".join(context))
     if allow_public_operational:
@@ -1857,12 +1847,6 @@ def remote_answer_is_grounded(
         for number in _GROUNDING_NUMBER_PATTERN.findall(normalized_answer)
         if number not in normalized_context
     ]
-    if ungrounded_numbers:
-        matched = _UNGROUNDED_OPERATIONAL_FACT_PATTERN.search(normalized_answer)
-        if matched:
-            print('[DBG with-context] operational fact:', matched.group(0))
-        else:
-            print('[DBG with-context] ungrounded numbers (allowed now):', ungrounded_numbers[:8])
     if ungrounded_numbers and _UNGROUNDED_OPERATIONAL_FACT_PATTERN.search(normalized_answer):
         return False
     answer_tokens = {
