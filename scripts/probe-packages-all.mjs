@@ -11,7 +11,7 @@ const { chromium } = require(path.join(__dirname, '..', 'apps', 'frontend', 'nod
 async function inspectAllPages() {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
-  
+
   for (let p = 1; p <= 3; p++) {
     console.log(`\n--- Inspecting page ${p} ---`);
     await page.goto(`https://www.healthcare.id.vn/packages?page=${p - 1}`, { waitUntil: 'networkidle', timeout: 35000 });
