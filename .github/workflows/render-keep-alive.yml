@@ -81,7 +81,7 @@ jobs:
             success=0
             for attempt in 1 2 3; do
               echo "Probing $name (attempt $attempt/3): $url"
-              headers=$(curl -sI --max-time 45 "$url" || true)
+              headers=$(curl -s -D - -o /dev/null --max-time 45 "$url" || true)
               code=$(printf '%s\n' "$headers" | awk 'NR==1 {print $2}')
               routing=$(printf '%s\n' "$headers" | awk -F': ' 'tolower($1)=="x-render-routing" {print $2}' | tr -d '\r')
               echo "$name: http=${code:-unknown} x-render-routing=${routing:-absent}"
