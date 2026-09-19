@@ -428,6 +428,30 @@ class RequestRateLimitFilterTest {
     }
 
     @Test
+    void adminPatchAndDeleteUseAdminMutationTierNotCatchAll() throws Exception {
+        MockEnvironment environment = new MockEnvironment()
+            .withProperty("app.security.rate-limit.admin-mutation-limit", "1")
+            .withProperty("app.security.rate-limit.default-post-limit", "100")
+            .withProperty("app.security.rate-limit.window-seconds", "60");
+        RequestRateLimitFilter filter = filter(environment);
+        AtomicInteger accepted = new AtomicInteger();
+
+        MockHttpServletRequest delete1 = new MockHttpServletRequest("DELETE", "/api/v1/admin/packages/xyz");
+        delete1.setRemoteAddr("10.0.4.1");
+        MockHttpServletResponse first = new MockHttpServletResponse();
+        filter.doFilter(delete1, first, (req, res) -> accepted.incrementAndGet());
+
+        MockHttpServletRequest delete2 = new MockHttpServletRequest("DELETE", "/api/v1/admin/packages/xyz");
+        delete2.setRemoteAddr("10.0.4.1");
+        MockHttpServletResponse second = new MockHttpServletResponse();
+        filter.doFilter(delete2, second, (req, res) -> accepted.incrementAndGet());
+
+        assertThat(first.getStatus()).isEqualTo(200);
+        assertThat(second.getStatus()).isEqualTo(429);
+        assertThat(accepted).hasValue(1);
+    }
+
+    @Test
     void trailingSlashNormalizedMatchesSameRule() throws Exception {
         MockEnvironment environment = rateLimitEnvironment();
         RequestRateLimitFilter filter = filter(environment);

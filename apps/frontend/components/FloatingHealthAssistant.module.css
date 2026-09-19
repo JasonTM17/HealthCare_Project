@@ -506,6 +506,26 @@
   color: #854d0e;
 }
 
+.fallbackNotice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0 0 0.4rem;
+}
+
+.fallbackNotice button {
+  padding: 0.25rem 0.65rem;
+  border: 1px solid #854d0e;
+  border-radius: var(--radius-sm, 2px);
+  background: transparent;
+  color: #854d0e;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
 .disclaimer {
   margin: 0.45rem 0 0;
   color: #5c716f;

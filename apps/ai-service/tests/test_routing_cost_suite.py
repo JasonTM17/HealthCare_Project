@@ -140,6 +140,8 @@ class TestMultiSymptomClassifier:
             "Cho tôi biết cẩm nang bệnh tăng huyết áp",
             "Xin chào chatbot",
             "Chi phí khám tổng quát là bao nhiêu?",
+            "Cho tôi gợi ý kem đánh răng cho men răng yếu",
+            "Tôi muốn mua kem dưỡng ẩm cho da khô vào mùa lạnh",
         ],
     )
     def test_simple_and_administrative_queries_not_complex(self, query: str) -> None:

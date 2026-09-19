@@ -567,7 +567,8 @@ test("BFF returns a safe public chat fallback when the AI upstream is unavailabl
   assert.equal(body.provenance, "local_fallback");
   assert.equal(body.safety_action, "INSUFFICIENT_EVIDENCE");
   assert.equal(Array.isArray(body.citations), true);
-  assert.match(body.answer, /Tôi chưa có đủ thông tin đã xác thực/);
+  assert.match(body.answer, /Trợ lý chưa thể trả lời lúc này/);
+  assert.doesNotMatch(body.answer, /đã xác thực/);
   assert.deepEqual(body.suggested_actions, [
     { kind: "START_BOOKING", label: "Đặt lịch khám", href: "/dat-lich" },
     { kind: "VIEW_SOURCE", label: "Xem Chuyên khoa", href: "/specialties" },

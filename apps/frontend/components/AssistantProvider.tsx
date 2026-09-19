@@ -61,7 +61,11 @@ export function provenanceLabel(
   citationCount: number,
   safetyAction?: ChatSafetyAction,
 ): string | null {
-  if (safetyAction === "INSUFFICIENT_EVIDENCE") return null;
+  if (safetyAction === "INSUFFICIENT_EVIDENCE") {
+    // The offline guidance answer must never read as a verified AI response;
+    // name it for what it is so patients know to retry or navigate instead.
+    return "Hướng dẫn tạm thời";
+  }
   switch (provenance) {
     case "local_fallback":
       return safetyAction === "ANSWER" ? "Hướng dẫn nhanh" : "Hỗ trợ tạm thời";
