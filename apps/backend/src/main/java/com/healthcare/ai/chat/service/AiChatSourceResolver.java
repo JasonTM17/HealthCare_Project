@@ -532,24 +532,59 @@ public class AiChatSourceResolver {
         return (int) Math.min(Math.max(0L, value), Integer.MAX_VALUE);
     }
 
-    private ResolvedSource resolve(ChatMode mode, String type, String id) {
-        if (!isUuid(id)) return null;
-        boolean clinical = mode == ChatMode.SYMPTOM_TRIAGE || mode == ChatMode.HEALTH_EDUCATION;
+    ResolvedSource resolve(ChatMode mode, String type, String id) {
         if (mode == ChatMode.SYMPTOM_TRIAGE && !"specialty".equals(type)) return null;
         if (mode == ChatMode.HEALTH_EDUCATION && !("article".equals(type) || "faq".equals(type))) return null;
-        if (clinical && !CLINICAL_TYPES.contains(type)) {
-            return null;
-        } else if (!clinical && !SUPPORT_TYPES.contains(type)) {
+        if (isUuid(id)) {
+            boolean clinical = mode == ChatMode.SYMPTOM_TRIAGE || mode == ChatMode.HEALTH_EDUCATION;
+            if (clinical && !CLINICAL_TYPES.contains(type)) {
+                return null;
+            } else if (!clinical && !SUPPORT_TYPES.contains(type)) {
+                return null;
+            }
+
+            ResolvedSource operational = resolveOperational(type, id);
+            if (operational == null) return null;
+            if (!clinical) return operational;
+            if (!isClinicalEligible(type, id, operational.active(), operational.published())) return null;
+            ReviewHead head = reviewHead(type, id);
+            if (head == null) return null;
+            return operational.withClinical(head);
+        }
+        // The hospital knowledge plane keys its documents by stable document
+        // ids (faq-*, bv-*, br-*), not catalog UUIDs, so catalog lookups cannot
+        // see them even though both planes share one database. HOSPITAL_SUPPORT
+        // answers may cite those documents; fail closed to rows that are live
+        // and published in the knowledge base itself.
+        if (mode != ChatMode.HOSPITAL_SUPPORT) return null;
+        return resolveKnowledgeDocument(type, id);
+    }
+
+    private ResolvedSource resolveKnowledgeDocument(String type, String id) {
+        try {
+            List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT title, content_hash, sync_revision"
+                    + " FROM healthcare.ai_documents"
+                    + " WHERE source_type = ? AND source_id = ?"
+                    + " AND active AND published AND deleted_at IS NULL"
+                    + " LIMIT 1",
+                type, id);
+            if (rows.isEmpty()) return null;
+            Map<String, Object> row = rows.get(0);
+            Object rawTitle = row.get("title");
+            if (rawTitle == null || rawTitle.toString().isBlank()) return null;
+            Long revision = row.get("sync_revision") instanceof Number number
+                ? number.longValue()
+                : null;
+            String hash = row.get("content_hash") == null ? null : row.get("content_hash").toString();
+            return new ResolvedSource(
+                type, id, rawTitle.toString(), null, true, true,
+                "OPERATIONAL", revision, null, hash, null, null, null);
+        } catch (RuntimeException ex) {
+            // Knowledge-base availability is a hard deny, mirroring the
+            // catalog fail-closed posture.
             return null;
         }
-
-        ResolvedSource operational = resolveOperational(type, id);
-        if (operational == null) return null;
-        if (!clinical) return operational;
-        if (!isClinicalEligible(type, id, operational.active(), operational.published())) return null;
-        ReviewHead head = reviewHead(type, id);
-        if (head == null) return null;
-        return operational.withClinical(head);
     }
 
     private ResolvedSource resolveOperational(String type, String id) {
