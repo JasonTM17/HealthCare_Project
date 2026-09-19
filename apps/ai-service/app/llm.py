@@ -715,6 +715,9 @@ _EMERGENCY_TERMS = (
     "ngưng thở", "ngung tho", "ngưng tim", "ngung tim",
     "stroke", "heart attack", "cardiac arrest",
     "bất tỉnh", "bat tinh", "mất ý thức", "mat y thuc",
+    "xuong uc", "sau xuong uc", "dau sau xuong uc", "dau xuong uc", "retrosternal",
+    "unresponsive", "collapsed", "sudden collapse",
+    "hoa chat", "uong hoa chat", "axit", "uong axit", "thuoc tay", "uong thuoc tay",
 )
 # Crisis phrasings rarely arrive as one exact substring: callers insert filler
 # words ("đau ngực quá dữ dội"), drop diacritics, or paraphrase self-harm
@@ -724,13 +727,14 @@ _EMERGENCY_TERMS = (
 # normalized forms collide with benign words ("tư vấn", high-jump sport).
 _EMERGENCY_PHRASE_PATTERN = re.compile(
     r"\b(?:"
-    r"dau\W+(?:that\W+)?nguc(?:\W+\w{1,20}){0,6}\W{1,3}du\W+doi"
+    r"dau\W+(?:that\W+)?(?:nguc|sau\W+xuong\W+uc|xuong\W+uc)(?:\W+\w{1,20}){0,6}\W{1,3}du\W+doi"
     r"|chay\W+mau(?:\W+\w{1,20}){0,6}\W{1,3}khong\W+cam"
     # Every short alternative below carries an explicit trailing boundary. Without
     # it "tu\W*tu" matched inside "tự túc" and "tư tưởng", so an ordinary question
     # about self-catered meals raised the 115 banner.
     r"|kho\W+tho\b|meo\W+mieng\b|yeu\W+liet\b|co\W+giat\b|tu\W+tu\b"
     r"|dot\W+quy\b|tai\W+bien(?:\W+mach\W+mau\W+nao)?\b|dau\W+tim\b|nhoi\W+mau\W+co\W+tim\b|ngung\W+tho\b|ngung\W+tim\b|bat\W+tinh\b|mat\W+y\W+thuc\b"
+    r"|dau\W+(?:sau\W+)?xuong\W+uc\b|sau\W+xuong\W+uc\b|xuong\W+uc\b"
     r"|(?:khong\W+(?:con\W+)?|het\W+)muon\W+song\b|muon\W+chet\b|chet\W+di\b|ket\W+thuc\W+cuoc\W+(?:doi|song)\b"
     r"|khong\W+con\W+ly\W+do\W+song\b"
     # NOTE: the "tự vẫn" / "tư vấn" homophone is deliberately NOT matched here.
@@ -747,10 +751,10 @@ _EMERGENCY_PHRASE_PATTERN = re.compile(
     r"|bien\W+mat\W+(?:khoi\W+the\W+gioi|vinh\W+vien)\b|ket\W+thuc\W+tat\W+ca\b"
     r"|(?:dinh|muon|se|sap|dang)\W+ket\W+thuc\W+moi\W+thu\b"
     r"|chan\W+song\b|luoi\W+le\b"
-    r"|uong\W+(?:het\W+)?(?:ca\W+)?(?:lo\W+)?(?:thuoc|paracetamol|thuoc\W+ngu|giam\W+dau)"
+    r"|uong\W+(?:het\W+(?:ca\W+)?(?:lo\W+)?|ca\W+lo\W+|qua\W+lieu\W+|nhieu\W+)(?:thuoc|paracetamol|thuoc\W+ngu|giam\W+dau)"
     r"|(?:uong|dung|bo)\W+thuoc\W+qua\W+lieu|qua\W+lieu\W+thuoc"
     r"|quet\W+di\W+(?:mot\W+)?dong\W+hong\W+cam|uong\W+(?:het\W+)?thuoc\W+ngu"
-    r"|uong\W+(?:nham\W+)?thuoc\W+diet\W+co|paraquat"
+    r"|uong\W+(?:nham\W+)?(?:thuoc\W+diet\W+co|hoa\W+chat|axit|thuoc\W+tay)|paraquat"
     r"|phu\W+moi|tho\W+rit"
     # English self-harm and emergency phrasings: the assistant serves
     # bilingual visitors and none of these existed in the Vietnamese-only
@@ -758,8 +762,8 @@ _EMERGENCY_PHRASE_PATTERN = re.compile(
     r"|end\W+my\W+life|kill\w*\W+myself|suicid\w*|want\W+to\W+die"
     r"|take\W+my\W+own\W+life|don'?t\W+want\W+to\W+live|hurt\w*\W+myself"
     r"|can'?t\W+go\W+on|no\W+reason\W+to\W+live"
-    r"|chest\W+pain|shortness\W+of\W+breath|severe\W+bleeding"
-    r"|stroke|heart\W+attack|cardiac\W+arrest|unconscious"
+    r"|chest\W+pain|retrosternal|shortness\W+of\W+breath|severe\W+bleeding"
+    r"|stroke|heart\W+attack|cardiac\W+arrest|unconscious|unresponsive|collapsed|sudden\W+collapse"
     r"|unalive\w*|don'?t\W+want\W+to\W+be\W+here|disappear\w*\W+forever"
     r"|better\W+off\W+dead|end\W+it\W+all|not\W+worth\W+living"
     r"|cut\w*\W+myself|self\W*harm|overdos\w*|want\W+to\W+be\W+dead"
@@ -1454,10 +1458,10 @@ def _collapse_single_char_runs(text: str, separator: str) -> str:
     """Join single characters split by a separator ("s u i c i d e", "s.u.i.c.i.d.e")."""
 
     if separator == " ":
-        pattern = r"\b(?:\w ){2,}\w\b"
+        pattern = r"\b(?:\w ){1,}\w\b"
     else:
         escaped = re.escape(separator)
-        pattern = rf"\b\w(?:{escaped}\w){{2,}}\b"
+        pattern = rf"\b\w(?:{escaped}\w){{1,}}\b"
     return re.sub(pattern, lambda match: match.group(0).replace(separator, ""), text)
 
 
@@ -2144,7 +2148,7 @@ def build_llm_client(settings: Any) -> LLMClient | None:
 
 _RULES = [
     (
-        ["ngực", "tim", "hồi hộp", "khó thở", "đánh trống ngực"],
+        ["ngực", "nguc", "tim", "that nguc", "thắt ngực", "hồi hộp", "hoi hop", "khó thở", "kho tho", "đánh trống ngực", "danh trong nguc", "sau xuong uc", "xuong uc", "dau sau xuong uc", "dau xuong uc", "retrosternal"],
         "Tim Mạch & Can Thiệp Mạch Máu",
         "HIGH",
         "Triệu chứng có thể liên quan đến tim mạch hoặc tuần hoàn. "
@@ -2153,7 +2157,7 @@ _RULES = [
         ["Cơn đau có lan lên hàm hoặc cánh tay không?", "Có tiền sử bệnh tim hoặc tăng huyết áp không?"],
     ),
     (
-        ["bụng", "dạ dày", "tiêu hóa", "buồn nôn", "ợ chua", "đầy bụng", "đại tràng"],
+        ["bụng", "bung", "dạ dày", "da day", "tiêu hóa", "tieu hoa", "buồn nôn", "buon non", "ợ chua", "o chua", "đầy bụng", "day bung", "đại tràng", "dai trang", "thượng vị", "thuong vi"],
         "Tiêu Hóa - Gan Mật - Tụy",
         "NORMAL",
         "Triệu chứng có thể liên quan đến đường tiêu hóa. "
@@ -2162,7 +2166,7 @@ _RULES = [
         ["Đau xuất hiện lúc đói hay sau khi ăn?", "Có sụt cân bất thường gần đây không?"],
     ),
     (
-        ["đầu", "chóng mặt", "mất ngủ", "tê", "đột quỵ", "dot quy", "tai biến", "tai bien", "tai biến mạch máu não", "tai bien mach mau nao", "yếu tay", "liệt"],
+        ["đầu", "đau đầu", "dau dau", "nhức đầu", "nhuc dau", "chóng mặt", "chong mat", "mất ngủ", "mat ngu", "tê", "đột quỵ", "dot quy", "tai biến", "tai bien", "tai biến mạch máu não", "tai bien mach mau nao", "yếu tay", "yeu tay", "liệt", "liet"],
         "Thần Kinh & Đột Quỵ",
         "NORMAL",
         "Triệu chứng có thể liên quan đến hệ thần kinh. Nếu có méo miệng, yếu liệt "
@@ -2170,7 +2174,7 @@ _RULES = [
         ["Có kèm buồn nôn hoặc sợ ánh sáng không?", "Cơn đau xuất hiện đột ngột hay kéo dài?"],
     ),
     (
-        ["khớp", "gối", "lưng", "cột sống", "xương", "cổ tay", "vai"],
+        ["khớp", "khop", "gối", "goi", "lưng", "lung", "cột sống", "cot song", "xương", "xuong", "cổ tay", "co tay", "vai"],
         "Cơ Xương Khớp & Phục Hồi Chức Năng",
         "NORMAL",
         "Triệu chứng có thể liên quan đến cơ xương khớp. "
@@ -2178,7 +2182,7 @@ _RULES = [
         ["Có cứng khớp vào buổi sáng không?", "Khớp có sưng, nóng hoặc hạn chế vận động không?"],
     ),
     (
-        ["hô hấp", "phổi", "hen", "khò khè", "ho nhiều", "viêm phế quản", "copd", "ho có đờm", "ho kéo dài"],
+        ["hô hấp", "ho hap", "phổi", "phoi", "hen", "khò khè", "kho khe", "ho nhiều", "ho nhieu", "viêm phế quản", "viem phe quan", "copd", "ho có đờm", "ho co dom", "ho kéo dài", "ho keo dai"],
         "Hô Hấp & Phổi",
         "NORMAL",
         "Triệu chứng có thể liên quan đến đường hô hấp. "
@@ -2186,7 +2190,7 @@ _RULES = [
         ["Cơn ho có đờm hay ho khan?", "Có khó thở khi gắng sức hoặc về đêm không?"],
     ),
     (
-        ["tai", "mũi", "họng", "amidan", "viêm xoang", "ù tai", "chảy máu cam", "khàn tiếng", "nghẹt mũi"],
+        ["tai", "mũi", "mui", "họng", "hong", "amidan", "viêm xoang", "viem xoang", "ù tai", "u tai", "chảy máu cam", "chay mau cam", "khàn tiếng", "khan tieng", "nghẹt mũi", "nghet mui"],
         "Tai Mũi Họng",
         "NORMAL",
         "Triệu chứng có thể liên quan đến tai mũi họng. "
@@ -2194,7 +2198,7 @@ _RULES = [
         ["Triệu chứng xuất hiện bao lâu rồi?", "Có sốt hoặc nuốt đau vướng họng không?"],
     ),
     (
-        ["da", "ngứa", "mẩn đỏ", "vảy nến", "dị ứng", "mụn", "nấm da", "viêm da", "mề đay"],
+        ["da liễu", "da lieu", "ngứa", "ngua", "mẩn đỏ", "man do", "vảy nến", "vay nen", "dị ứng", "di ung", "mụn", "mun", "nấm da", "nam da", "viêm da", "viem da", "mề đay", "me day", "bệnh ngoài da", "benh ngoai da", "da"],
         "Da Liễu & Thẩm Mỹ Da",
         "NORMAL",
         "Triệu chứng có thể liên quan đến bệnh lý ngoài da hoặc phản ứng dị ứng. "
@@ -2202,14 +2206,14 @@ _RULES = [
         ["Vùng da ngứa có lan rộng không?", "Gần đây có tiếp xúc hóa chất hoặc dùng thuốc, thực phẩm lạ không?"],
     ),
     (
-        ["trẻ em", "trẻ nhỏ", "em bé", "bé nhà", "sơ sinh", "khoa nhi", "nhi đồng", "biếng ăn", "nôn trớ", "quấy khóc"],
+        ["trẻ em", "tre em", "trẻ nhỏ", "tre nho", "em bé", "em be", "bé nhà", "be nha", "sơ sinh", "so sinh", "khoa nhi", "nhi đồng", "nhi dong", "biếng ăn", "bieng an", "nôn trớ", "non tro", "quấy khóc", "quay khoc"],
         "Nhi Khoa",
         "NORMAL",
         "Triệu chứng ở trẻ em cần được theo dõi cẩn thận. Bác sĩ Nhi khoa sẽ thăm khám và đánh giá thể trạng toàn diện của bé.",
         ["Bé đã sốt bao nhiêu độ và bao nhiêu ngày?", "Bé có ăn uống, bú mẹ và chơi ngoan không?"],
     ),
     (
-        ["sản", "phụ khoa", "kinh nguyệt", "mang thai", "thai kỳ", "khí hư", "u xơ", "vú"],
+        ["sản", "san", "phụ khoa", "phu khoa", "kinh nguyệt", "kinh nguyet", "mang thai", "thai kỳ", "thai ky", "khí hư", "khi hu", "u xơ", "u xo", "vú", "vu"],
         "Sản Phụ Khoa",
         "NORMAL",
         "Triệu chứng có thể liên quan đến sức khỏe sinh sản phụ nữ. "
@@ -2217,7 +2221,7 @@ _RULES = [
         ["Chu kỳ kinh nguyệt gần nhất có bình thường không?", "Hiện tại có đang mang thai hoặc nghi ngờ có thai không?"],
     ),
     (
-        ["mắt", "nhìn mờ", "đau mắt", "cận thị", "đỏ mắt", "cộm mắt"],
+        ["mắt", "mat", "nhìn mờ", "nhin mo", "đau mắt", "dau mat", "cận thị", "can thi", "đỏ mắt", "do mat", "cộm mắt", "com mat"],
         "Mắt & Nhãn Khoa",
         "NORMAL",
         "Triệu chứng có thể liên quan đến thị lực hoặc bề mặt nhãn cầu. "
@@ -2225,7 +2229,7 @@ _RULES = [
         ["Mắt mờ đột ngột hay mờ từ từ?", "Có kèm đau nhức hoặc chảy nước mắt nhiều không?"],
     ),
     (
-        ["tiểu đường", "đường huyết", "tuyến giáp", "bướu cổ", "nội tiết", "sụt cân"],
+        ["tiểu đường", "tieu duong", "đường huyết", "duong huyet", "tuyến giáp", "tuyen giap", "bướu cổ", "buou co", "nội tiết", "noi tiet", "sụt cân", "sut can"],
         "Nội Tiết & Chuyển Hóa",
         "NORMAL",
         "Triệu chứng có thể liên quan đến rối loạn chuyển hóa hoặc nội tiết. "
@@ -2233,7 +2237,7 @@ _RULES = [
         ["Có cảm thấy khát nước nhiều và đi tiểu nhiều lần không?", "Cân nặng thay đổi thế nào trong những tháng gần đây?"],
     ),
     (
-        ["thận", "tiết niệu", "tiểu buốt", "tiểu rắt", "tiểu ra máu", "sỏi thận", "nam khoa"],
+        ["thận", "than", "tiết niệu", "tiet nieu", "tiểu buốt", "tieu buot", "tiểu rắt", "tieu rat", "tiểu ra máu", "tieu ra mau", "sỏi thận", "soi than", "nam khoa"],
         "Thận - Tiết Niệu & Nam Khoa",
         "NORMAL",
         "Triệu chứng có thể liên quan đến hệ tiết niệu hoặc nam khoa. "
@@ -2258,23 +2262,44 @@ _DEFAULT = TriageResponse(
 
 def rule_based_triage(symptoms: str) -> TriageResponse:
     symptom_text = symptoms.casefold()
+    symptom_norm = _normalize_sensitive_text(symptoms)
     for keywords, specialty, urgency, advice, questions in _RULES:
-        if any(keyword in symptom_text for keyword in keywords):
+        matched = False
+        for keyword in keywords:
+            kw_fold = keyword.casefold()
+            # If keyword is "da", ensure it is not followed by "day" / "dày" (dạ dày / da day collision)
+            # and is matched on word boundaries so it does not match inside "dau" / "đau".
+            if kw_fold == "da":
+                pattern = r"(?:\b|\A)da(?!\s*(?:day|dày))(?:\b|\Z)"
+                if re.search(pattern, symptom_text) or re.search(pattern, symptom_norm):
+                    matched = True
+                    break
+            else:
+                pattern = rf"(?:\b|\A){re.escape(kw_fold)}(?:\b|\Z)"
+                if re.search(pattern, symptom_text) or re.search(pattern, symptom_norm):
+                    matched = True
+                    break
+        if matched:
             if specialty == "Tim Mạch & Can Thiệp Mạch Máu" and any(
-                keyword in symptom_text
-                for keyword in ["dữ dội", "ngất", "vã mồ hôi", "lan ra tay", "nhói buốt"]
+                keyword in symptom_text or keyword in symptom_norm
+                for keyword in [
+                    "dữ dội", "du doi", "ngất", "ngat", "vã mồ hôi", "va mo hoi",
+                    "lan ra tay", "lan tay", "nhói buốt", "nhoi buot", "that nguc", "thắt ngực",
+                    "sau xuong uc", "xuong uc", "dau sau xuong uc", "dau xuong uc", "retrosternal",
+                ]
             ):
                 urgency = "EMERGENCY"
             if specialty == "Thần Kinh & Đột Quỵ" and any(
-                keyword in symptom_text
+                keyword in symptom_text or keyword in symptom_norm
                 for keyword in [
-                    "méo miệng", "nói ngọng", "yếu một bên", "mờ mắt đột ngột",
+                    "méo miệng", "meo mieng", "nói ngọng", "noi ngong",
+                    "yếu một bên", "yeu mot ben", "mờ mắt đột ngột", "mo mat dot ngot",
                     "đột quỵ", "dot quy", "tai biến", "tai bien",
                 ]
             ):
                 urgency = "EMERGENCY"
             if any(
-                term in symptom_text
+                term in symptom_text or term in symptom_norm
                 for term in ["đột quỵ", "dot quy", "tai biến", "tai bien"]
             ):
                 urgency = "EMERGENCY"
