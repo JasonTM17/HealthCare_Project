@@ -12,7 +12,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 BACKEND_DIGEST = (
-    "sha256:bd4d5b9fa5fe03793f470500c8e45582a26b749028b421717c93dbf2798cb69b"
+    "sha256:05a0961852a8770225f81af159ee65ca08e6ffe158b7e6486c42aa76f20bfeb2"
 )
 
 
