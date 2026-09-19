@@ -42,7 +42,9 @@ test("floating assistant is mounted globally and stays on the REST chat contract
   assert.match(component, /CHAT_WAIT_STAGE_COPY\[waitStage\]/);
   assert.match(component, /useChatWaitStage\(sending\)/);
   assert.match(waitStage, /received: "Đã nhận câu hỏi — đang chờ phản hồi…"/);
-  assert.match(waitStage, /searching: "Đang tra cứu nguồn y tế…"/);
+  assert.match(waitStage, /searching: "Đang tra cứu nguồn y tế & danh mục bác sĩ…"/);
+  assert.match(waitStage, /connecting: "Máy chủ đang kết nối dữ liệu chuyên khoa…"/);
+  assert.match(waitStage, /preparing: "Đang chuẩn bị phản hồi y tế đầy đủ cho bạn…"/);
   // Provenance labels live in AssistantProvider so the floating panel and the
   // full patient chat page share one source-honesty contract.
   assert.match(provider, /Hỗ trợ tạm thời/);
