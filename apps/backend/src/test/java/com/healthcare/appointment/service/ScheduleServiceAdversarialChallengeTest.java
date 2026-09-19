@@ -7,6 +7,7 @@ import com.healthcare.appointment.repository.DoctorScheduleRepository;
 import com.healthcare.hospital.entity.Branch;
 import com.healthcare.hospital.entity.Doctor;
 import com.healthcare.hospital.entity.DoctorBranch;
+import com.healthcare.hospital.repository.BranchRepository;
 import com.healthcare.hospital.repository.DoctorBranchRepository;
 import com.healthcare.hospital.repository.DoctorRepository;
 import com.healthcare.scheduling.entity.DoctorScheduleException;
@@ -274,6 +275,54 @@ class ScheduleServiceAdversarialChallengeTest {
             assertThat(morningCount).isEqualTo(8);
             assertThat(afternoonCount).isEqualTo(8);
             assertThat(lunchCount).isEqualTo(0);
+        }
+
+        @Test
+        @DisplayName("Inactive doctor strictly fails closed across findBookableSlot, isBookableSlot, and getAvailableSlots")
+        void inactiveDoctorFailsClosedAcrossAllMethods() {
+            activeDoctor.setActive(false);
+
+            List<TimeSlotDto> slots = scheduleService.getAvailableSlots(doctorId, branchId, testDate);
+            assertThat(slots).isEmpty();
+
+            Optional<ScheduleService.BookableSlot> bookable =
+                scheduleService.findBookableSlot(doctorId, branchId, testDate, LocalTime.of(8, 0));
+            assertThat(bookable).isEmpty();
+
+            boolean isBookable = scheduleService.isBookableSlot(doctorId, branchId, testDate, LocalTime.of(8, 0));
+            assertThat(isBookable).isFalse();
+        }
+
+        @Test
+        @DisplayName("Inactive branch strictly fails closed in findBookableSlot and isBookableSlot when branch repository is wired")
+        void inactiveBranchFailsClosedAcrossAllMethods() {
+            BranchRepository branchRepository = mock(BranchRepository.class);
+            ScheduleService strictService = new ScheduleService(
+                doctorScheduleRepository,
+                exceptionRepository,
+                appointmentRepository,
+                doctorRepository,
+                doctorBranchRepository,
+                branchRepository
+            );
+
+            UUID inactiveBranchId = UUID.randomUUID();
+            Branch inactiveBranch = new Branch();
+            inactiveBranch.setId(inactiveBranchId);
+            inactiveBranch.setActive(false);
+
+            when(branchRepository.findById(inactiveBranchId)).thenReturn(Optional.of(inactiveBranch));
+            when(doctorBranchRepository.existsByDoctorIdAndBranchId(doctorId, inactiveBranchId)).thenReturn(true);
+
+            List<TimeSlotDto> slots = strictService.getAvailableSlots(doctorId, inactiveBranchId, testDate);
+            assertThat(slots).isEmpty();
+
+            Optional<ScheduleService.BookableSlot> bookable =
+                strictService.findBookableSlot(doctorId, inactiveBranchId, testDate, LocalTime.of(8, 0));
+            assertThat(bookable).isEmpty();
+
+            boolean isBookable = strictService.isBookableSlot(doctorId, inactiveBranchId, testDate, LocalTime.of(8, 0));
+            assertThat(isBookable).isFalse();
         }
     }
 }
