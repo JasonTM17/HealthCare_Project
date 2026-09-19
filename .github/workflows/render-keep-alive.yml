@@ -82,9 +82,9 @@ jobs:
             for attempt in 1 2 3; do
               echo "Probing $name (attempt $attempt/3): $url"
               headers=$(curl -sI --max-time 45 "$url" || true)
-              code=$(printf '%s' "$headers" | head -1 | awk '{print $2}')
-              routing=$(printf '%s' "$headers" | grep -i '^x-render-routing:' | tr -d '\r' | awk '{print $2}')
-              echo "$name: http=$code x-render-routing=${routing:-absent}"
+              code=$(printf '%s\n' "$headers" | awk 'NR==1 {print $2}')
+              routing=$(printf '%s\n' "$headers" | awk -F': ' 'tolower($1)=="x-render-routing" {print $2}' | tr -d '\r')
+              echo "$name: http=${code:-unknown} x-render-routing=${routing:-absent}"
               if [ "$code" = "200" ] && [ "${routing:-}" != "no-server" ]; then
                 echo "$name is healthy and active."
                 success=1
