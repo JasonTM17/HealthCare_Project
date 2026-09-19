@@ -8,6 +8,8 @@ import com.healthcare.ai.chat.service.ChatMedicalSafety;
 import com.healthcare.ai.chat.service.ChatSuggestedActionResolver;
 import com.healthcare.ai.service.AiService;
 import com.healthcare.observability.RequestTrace;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -48,6 +50,7 @@ import static org.springframework.http.HttpStatus.BAD_GATEWAY;
  */
 @RestController
 @RequestMapping("/api/v1/public/ai")
+@Tag(name = "AI Health Assistant", description = "Trợ lý trí tuệ nhân tạo y tế phân luồng triệu chứng và tư vấn")
 public class PublicAiChatController {
 
     private static final Logger log = LoggerFactory.getLogger(PublicAiChatController.class);
@@ -100,6 +103,7 @@ public class PublicAiChatController {
         this.sourceResolver = sourceResolver;
     }
 
+    @Operation(summary = "Tư vấn sức khỏe AI thông minh", description = "Hỏi đáp triệu chứng, phân luồng chuyên khoa y tế và hướng dẫn cấp cứu/đặt khám")
     @PostMapping("/chat")
     public ResponseEntity<Map<String, Object>> chat(@Valid @RequestBody PublicChatRequest request) {
         Map<String, Object> payload = new LinkedHashMap<>();

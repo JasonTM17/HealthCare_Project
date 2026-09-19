@@ -32,7 +32,7 @@ import java.util.UUID;
  */
 @RestController
 @RequestMapping("/api/v1/patients/{patientId}/documents")
-@Tag(name = "Synthetic Patient Documents", description = "Demo visit-summary and prescription PDF exports (not legally signed)")
+@Tag(name = "Synthetic Documents", description = "Xuất tệp tóm tắt bệnh án và đơn thuốc định dạng PDF")
 @PreAuthorize("hasAnyRole('PATIENT', 'DOCTOR', 'ADMIN')")
 public class DocumentController {
 
@@ -42,8 +42,8 @@ public class DocumentController {
         this.documentService = documentService;
     }
 
+    @Operation(summary = "Lấy danh sách tài liệu y khoa tổng hợp của bệnh nhân", description = "Danh sách các bản tóm tắt ca khám hoặc đơn thuốc PDF được kết xuất")
     @GetMapping
-    @Operation(summary = "List the patient's synthetic documents visible to the current role")
     public ResponseEntity<List<DocumentResponse>> listDocuments(
             @PathVariable UUID patientId,
             @AuthenticationPrincipal UserDetails userDetails) {
@@ -52,8 +52,8 @@ public class DocumentController {
                 .body(documentService.listDocuments(patientId, userDetails));
     }
 
+    @Operation(summary = "Tạo tệp tài liệu y khoa PDF tổng hợp", description = "Khởi tạo kết xuất tệp tóm tắt bệnh án hoặc đơn thuốc dạng PDF có mã xác thực")
     @PostMapping
-    @Operation(summary = "Generate (idempotently) a synthetic visit-summary or prescription PDF")
     public ResponseEntity<DocumentResponse> generateDocument(
             @PathVariable UUID patientId,
             @Valid @RequestBody GenerateDocumentRequest request,
@@ -63,9 +63,9 @@ public class DocumentController {
                 .body(documentService.generateDocument(patientId, request, userDetails));
     }
 
+    @Operation(summary = "Thu hồi tài liệu y khoa đã xuất", description = "Đánh dấu thu hồi tệp tài liệu (lưu vết kiểm toán bất biến)")
     @PostMapping("/{documentId}/revoke")
     @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")
-    @Operation(summary = "Revoke a synthetic document while preserving the immutable audit row and object")
     public ResponseEntity<DocumentResponse> revokeDocument(
             @PathVariable UUID patientId,
             @PathVariable UUID documentId,
@@ -75,8 +75,8 @@ public class DocumentController {
                 .body(documentService.revokeDocument(patientId, documentId, userDetails));
     }
 
+    @Operation(summary = "Tải xuống luồng tệp tài liệu PDF", description = "Truy xuất luồng nhị phân (binary stream) của tệp PDF tóm tắt bệnh án hoặc đơn thuốc")
     @GetMapping("/{documentId}/download")
-    @Operation(summary = "Stream an available synthetic document; revoked or failed documents are denied")
     public ResponseEntity<InputStreamResource> downloadDocument(
             @PathVariable UUID patientId,
             @PathVariable UUID documentId,

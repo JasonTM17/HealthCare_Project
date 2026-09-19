@@ -17,9 +17,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import java.util.UUID;
 
+@Tag(name = "Public Catalog", description = "Danh mục y tế công khai (Cơ sở bệnh viện, chuyên khoa, bác sĩ, gói khám, dịch vụ, bài viết)")
 @RestController
 @RequestMapping("/api/v1/hospital/articles/{slug}/comments")
 public class ArticleCommentController {
@@ -30,11 +33,13 @@ public class ArticleCommentController {
         this.commentService = commentService;
     }
 
+    @Operation(summary = "Danh sách bình luận bài viết", description = "Lấy toàn bộ các bình luận và phản hồi y khoa của bài viết theo đường dẫn slug")
     @GetMapping
     public ResponseEntity<List<ArticleCommentResponse>> getComments(@PathVariable String slug) {
         return ResponseEntity.ok(commentService.getComments(slug));
     }
 
+    @Operation(summary = "Thêm bình luận bài viết", description = "Người dùng đăng nhập gửi bình luận hoặc câu hỏi liên quan đến bài viết y tế")
     @PostMapping
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ArticleCommentResponse> addComment(
@@ -44,6 +49,7 @@ public class ArticleCommentController {
         return ResponseEntity.status(HttpStatus.CREATED).body(commentService.addComment(slug, request, actor));
     }
 
+    @Operation(summary = "Xóa bình luận", description = "Xóa bình luận của chính tác giả hoặc do ban quản trị kiểm duyệt")
     @DeleteMapping("/{commentId}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Void> deleteComment(

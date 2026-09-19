@@ -28,9 +28,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import java.util.UUID;
 
+@Tag(name = "AI Health Assistant", description = "Trợ lý trí tuệ nhân tạo y tế phân luồng triệu chứng và tư vấn")
 @RestController
 @RequestMapping("/api/v1/ai/conversations")
 @PreAuthorize("hasRole('PATIENT')")
@@ -44,6 +47,7 @@ public class AiConversationController {
         this.objectMapper = objectMapper;
     }
 
+    @Operation(summary = "Tạo cuộc hội thoại AI mới", description = "Khởi tạo phiên tư vấn sức khỏe bảo mật dành cho người bệnh")
     @PostMapping
     public ResponseEntity<ConversationResponse> create(
             @AuthenticationPrincipal UserDetails principal,
@@ -51,12 +55,14 @@ public class AiConversationController {
         return ResponseEntity.status(HttpStatus.CREATED).body(conversationService.create(principal, request));
     }
 
+    @Operation(summary = "Danh sách phiên hội thoại AI", description = "Lấy danh sách các phiên trò chuyện tư vấn sức khỏe trước đây của người bệnh")
     @GetMapping
     public ResponseEntity<List<ConversationResponse>> list(
             @AuthenticationPrincipal UserDetails principal) {
         return ResponseEntity.ok(conversationService.list(principal));
     }
 
+    @Operation(summary = "Chi tiết phiên hội thoại AI", description = "Lấy siêu dữ liệu và trạng thái của một phiên hội thoại cụ thể")
     @GetMapping("/{conversationId}")
     public ResponseEntity<ConversationResponse> get(
             @AuthenticationPrincipal UserDetails principal,
@@ -64,6 +70,7 @@ public class AiConversationController {
         return ResponseEntity.ok(conversationService.get(principal, conversationId));
     }
 
+    @Operation(summary = "Lịch sử tin nhắn trong phiên", description = "Truy xuất danh sách các tin nhắn hỏi đáp trong phiên có phân trang con trỏ")
     @GetMapping("/{conversationId}/messages")
     public ResponseEntity<MessagePageResponse> messages(
             @AuthenticationPrincipal UserDetails principal,
@@ -73,6 +80,7 @@ public class AiConversationController {
         return ResponseEntity.ok(conversationService.messages(principal, conversationId, cursor, limit));
     }
 
+    @Operation(summary = "Gửi tin nhắn hỏi đáp AI", description = "Gửi câu hỏi của bệnh nhân tới mô hình AI lâm sàng và nhận câu trả lời đồng bộ")
     @PostMapping("/{conversationId}/messages")
     public ResponseEntity<ChatExchangeResponse> send(
             @AuthenticationPrincipal UserDetails principal,
@@ -92,6 +100,7 @@ public class AiConversationController {
      * gain and no unvalidated partial content ever leaves the server. The
      * route path stays {@code /messages/stream} for client compatibility.
      */
+    @Operation(summary = "Gửi tin nhắn nhận luồng dữ liệu SSE", description = "Gửi câu hỏi và nhận câu trả lời theo từng đoạn Server-Sent Events (SSE)")
     @PostMapping(value = "/{conversationId}/messages/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public ResponseEntity<String> sendValidatedChunks(
             @AuthenticationPrincipal UserDetails principal,
@@ -127,6 +136,7 @@ public class AiConversationController {
         target.append('\n');
     }
 
+    @Operation(summary = "Xác nhận đồng ý điều khoản AI", description = "Ghi nhận sự đồng ý của bệnh nhân về miễn trừ trách nhiệm y khoa AI")
     @PutMapping("/{conversationId}/consent")
     public ResponseEntity<ConversationResponse> consent(
             @AuthenticationPrincipal UserDetails principal,
@@ -135,6 +145,7 @@ public class AiConversationController {
         return ResponseEntity.ok(conversationService.acceptConsent(principal, conversationId, request));
     }
 
+    @Operation(summary = "Đánh giá câu trả lời AI", description = "Gửi phản hồi hữu ích (HELPFUL) hoặc chưa chính xác (NOT_HELPFUL)")
     @PutMapping("/{conversationId}/messages/{messageId}/feedback")
     public ResponseEntity<FeedbackResponse> feedback(
             @AuthenticationPrincipal UserDetails principal,
@@ -145,6 +156,7 @@ public class AiConversationController {
             principal, conversationId, messageId, request.rating()));
     }
 
+    @Operation(summary = "Xóa đánh giá câu trả lời AI", description = "Hủy bỏ đánh giá phản hồi đã gửi trước đó")
     @DeleteMapping("/{conversationId}/messages/{messageId}/feedback")
     public ResponseEntity<Void> deleteFeedback(
             @AuthenticationPrincipal UserDetails principal,
@@ -154,6 +166,7 @@ public class AiConversationController {
         return ResponseEntity.noContent().build();
     }
 
+    @Operation(summary = "Xóa phiên hội thoại AI", description = "Xóa toàn bộ lịch sử của phiên trò chuyện")
     @DeleteMapping("/{conversationId}")
     public ResponseEntity<Void> delete(
             @AuthenticationPrincipal UserDetails principal,

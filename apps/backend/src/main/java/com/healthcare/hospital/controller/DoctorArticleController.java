@@ -32,6 +32,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@Tag(name = "Public Catalog", description = "Danh mục y tế công khai (Cơ sở bệnh viện, chuyên khoa, bác sĩ, gói khám, dịch vụ, bài viết)")
 @RestController
 @RequestMapping("/api/v1/doctor/articles")
 @PreAuthorize("hasRole('DOCTOR')")
@@ -56,6 +60,7 @@ public class DoctorArticleController {
         this.userRepository = userRepository;
     }
 
+    @Operation(summary = "Bài viết y khoa của bác sĩ", description = "Lấy danh sách các bài viết cẩm nang sức khỏe do chính bác sĩ biên soạn")
     @GetMapping
     public Page<ArticleResponse> listArticles(
             @RequestParam(required = false) String contentKind,
@@ -67,6 +72,7 @@ public class DoctorArticleController {
         return articleService.listByAuthor(doctorName, altName, pureName, contentKind, pageable);
     }
 
+    @Operation(summary = "Đăng bài viết y khoa mới", description = "Bác sĩ tạo và xuất bản bài viết hướng dẫn phòng bệnh hoặc cẩm nang sức khỏe")
     @PostMapping
     public ResponseEntity<Article> createArticle(
             @Valid @RequestBody ArticleRequest request,
@@ -76,6 +82,7 @@ public class DoctorArticleController {
         return ResponseEntity.status(HttpStatus.CREATED).body(adminArticleService.create(effectiveRequest, actor));
     }
 
+    @Operation(summary = "Chỉnh sửa bài viết của bác sĩ", description = "Cập nhật nội dung chuyên môn bài viết của chính bác sĩ")
     @PutMapping("/{slug}")
     public ResponseEntity<Article> updateArticle(
             @PathVariable String slug,
@@ -89,6 +96,7 @@ public class DoctorArticleController {
         return ResponseEntity.ok(adminArticleService.update(slug, effectiveRequest, actor));
     }
 
+    @Operation(summary = "Xóa bài viết của bác sĩ", description = "Gỡ bài viết của chính bác sĩ khỏi chuyên trang cẩm nang")
     @DeleteMapping("/{slug}")
     public ResponseEntity<Void> deleteArticle(
             @PathVariable String slug,

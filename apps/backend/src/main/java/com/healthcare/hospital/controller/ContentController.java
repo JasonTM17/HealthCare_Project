@@ -8,6 +8,8 @@ import com.healthcare.hospital.entity.MedicalService;
 import com.healthcare.hospital.repository.PackageRepository;
 import com.healthcare.hospital.repository.ServiceRepository;
 import com.healthcare.exception.ResourceNotFoundException;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -19,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Set;
 
+@Tag(name = "Public Catalog", description = "Danh mục cơ sở, chuyên khoa, bác sĩ, gói khám, dịch vụ, bài viết")
 @RestController
 @RequestMapping("/api/v1/hospital")
 public class ContentController {
@@ -34,11 +37,13 @@ public class ContentController {
         this.packageRepository = packageRepository;
     }
 
+    @Operation(summary = "Lấy danh sách dịch vụ y tế công khai", description = "Danh sách dịch vụ y tế đang hoạt động kèm phân trang")
     @GetMapping("/services")
     public Page<ServiceResponse> listServices(@PageableDefault(size = 20) Pageable pageable) {
         return serviceRepository.findByActiveTrue(safeServicePageable(pageable)).map(this::toServiceResponse);
     }
 
+    @Operation(summary = "Xem chi tiết dịch vụ y tế theo slug", description = "Truy xuất thông tin chi tiết dịch vụ y tế qua đường dẫn thân thiện (slug)")
     @GetMapping("/services/{slug}")
     public ServiceResponse getServiceBySlug(@PathVariable String slug) {
         return serviceRepository.findBySlugAndActiveTrue(slug)
@@ -46,6 +51,7 @@ public class ContentController {
             .orElseThrow(() -> new ResourceNotFoundException("Service not found"));
     }
 
+    @Operation(summary = "Lấy danh sách gói khám sức khỏe công khai", description = "Danh sách các gói khám sức khỏe tổng quát, chuyên sâu kèm giá và quy trình")
     @GetMapping("/packages")
     public Page<PackageResponse> listPackages(@PageableDefault(size = 20) Pageable pageable) {
         return packageRepository.findByActiveTrue(safePackagePageable(pageable)).map(this::toPackageResponse);
@@ -59,6 +65,7 @@ public class ContentController {
         return SafePageRequests.normalize(pageable, Sort.by(Sort.Order.asc("displayOrder"), Sort.Order.asc("id")), PACKAGE_SORT_PROPERTIES);
     }
 
+    @Operation(summary = "Xem chi tiết gói khám theo slug", description = "Truy xuất danh mục xét nghiệm, chỉ định và lưu ý chuẩn bị trước khi khám của gói")
     @GetMapping("/packages/{slug}")
     public PackageResponse getPackageBySlug(@PathVariable String slug) {
         return packageRepository.findBySlugAndActiveTrue(slug)

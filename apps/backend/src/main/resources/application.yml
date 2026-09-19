@@ -218,6 +218,18 @@ storage:
     allowed-hosts: ${STORAGE_AV_ALLOWED_HOSTS:}
     mime-validation-required: ${STORAGE_MIME_VALIDATION_REQUIRED:true}
 
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    operationsSorter: method
+    tagsSorter: alpha
+    tryItOutEnabled: true
+    displayRequestDuration: true
+
 app.public:
   specialty-triage:
     enabled: ${APP_PUBLIC_SPECIALTY_TRIAGE_ENABLED:false}

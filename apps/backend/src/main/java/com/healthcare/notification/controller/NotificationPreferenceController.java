@@ -17,6 +17,10 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@Tag(name = "Notifications", description = "Trung tâm thông báo hệ thống: Lịch hẹn, đơn thuốc, thanh toán và khuyến cáo sức khỏe")
 @RestController
 @RequestMapping("/api/v1/users/me/notification-preferences")
 @PreAuthorize("hasRole('PATIENT')")
@@ -29,11 +33,13 @@ public class NotificationPreferenceController {
         this.users = users;
     }
 
+    @Operation(summary = "Cấu hình nhận thông báo của người dùng", description = "Lấy danh sách cài đặt nhận thông báo theo từng danh mục (Lịch hẹn, Đơn thuốc, Cẩm nang sức khỏe) và kênh (Email, In-App)")
     @GetMapping
     public ResponseEntity<List<NotificationPreferenceResponse>> list(@AuthenticationPrincipal UserDetails principal) {
         return ResponseEntity.ok(service.list(resolveUserId(principal)));
     }
 
+    @Operation(summary = "Cập nhật tùy chọn nhận thông báo", description = "Bật hoặc tắt nhận thông báo theo danh mục và kênh mong muốn")
     @PutMapping("/{category}/{channel}")
     public ResponseEntity<NotificationPreferenceResponse> patch(
         @AuthenticationPrincipal UserDetails principal,
