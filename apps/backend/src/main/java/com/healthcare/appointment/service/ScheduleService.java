@@ -7,7 +7,9 @@ import com.healthcare.appointment.repository.AppointmentRepository;
 import com.healthcare.appointment.repository.DoctorScheduleRepository;
 import com.healthcare.scheduling.entity.DoctorScheduleException;
 import com.healthcare.scheduling.repository.DoctorScheduleExceptionRepository;
+import com.healthcare.hospital.entity.Branch;
 import com.healthcare.hospital.entity.DoctorBranch;
+import com.healthcare.hospital.repository.BranchRepository;
 import com.healthcare.hospital.repository.DoctorBranchRepository;
 import com.healthcare.hospital.repository.DoctorRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,6 +45,7 @@ public class ScheduleService {
     private final AppointmentRepository appointmentRepository;
     private final DoctorRepository doctorRepository;
     private final DoctorBranchRepository doctorBranchRepository;
+    private final BranchRepository branchRepository;
 
     @Autowired
     public ScheduleService(
@@ -50,12 +53,24 @@ public class ScheduleService {
             DoctorScheduleExceptionRepository exceptionRepository,
             AppointmentRepository appointmentRepository,
             DoctorRepository doctorRepository,
-            @Nullable DoctorBranchRepository doctorBranchRepository) {
+            @Nullable DoctorBranchRepository doctorBranchRepository,
+            @Nullable BranchRepository branchRepository) {
         this.doctorScheduleRepository = doctorScheduleRepository;
         this.exceptionRepository = exceptionRepository;
         this.appointmentRepository = appointmentRepository;
         this.doctorRepository = doctorRepository;
         this.doctorBranchRepository = doctorBranchRepository;
+        this.branchRepository = branchRepository;
+    }
+
+    public ScheduleService(
+            DoctorScheduleRepository doctorScheduleRepository,
+            DoctorScheduleExceptionRepository exceptionRepository,
+            AppointmentRepository appointmentRepository,
+            DoctorRepository doctorRepository,
+            @Nullable DoctorBranchRepository doctorBranchRepository) {
+        this(doctorScheduleRepository, exceptionRepository, appointmentRepository,
+            doctorRepository, doctorBranchRepository, null);
     }
 
     public ScheduleService(
@@ -81,6 +96,13 @@ public class ScheduleService {
         LocalDate today = LocalDate.now(BUSINESS_ZONE);
         if (doctorId == null || date == null || date.isBefore(today)
                 || doctorRepository.findById(doctorId).filter(doctor -> doctor.isActive()).isEmpty()) {
+            return Collections.emptyList();
+        }
+        if (branchId != null && branchRepository != null
+                && !branchRepository.findById(branchId).filter(Branch::isActive).isPresent()) {
+            // An inactive branch is no longer part of the bookable catalog even
+            // when persisted schedules or the standard-hours fallback would
+            // still produce windows for it.
             return Collections.emptyList();
         }
 
