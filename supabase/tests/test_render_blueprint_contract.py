@@ -48,7 +48,7 @@ def test_render_free_blueprint_keeps_private_runtime_boundaries() -> None:
     assert env_vars["MANAGEMENT_HEALTH_MAIL_ENABLED"]["value"] == "false"
     assert env_vars["RAG_STORAGE_BACKEND"]["value"] == "memory"
     assert env_vars["AI_RAG_INGEST_ENABLED"]["value"] == "true"
-    assert env_vars["AI_SERVICE_URL"]["value"] == "https://healthcare-beta-ai.onrender.com"
+    assert env_vars["AI_SERVICE_URL"]["value"] == "https://healthcare-beta-ai-9mip.onrender.com"
     assert env_vars["AI_SERVICE_TOKEN"]["fromService"] == {
         "type": "web", "name": "healthcare-beta-ai", "envVarKey": "AI_SERVICE_TOKEN"
     }
