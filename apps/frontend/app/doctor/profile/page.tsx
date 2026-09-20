@@ -15,15 +15,6 @@ import ImageUpload from "../../../components/ImageUpload";
 import UiIcon from "../../../components/UiIcon";
 import styles from "./DoctorProfile.module.css";
 
-const SAMPLE_DOCTOR_PORTRAITS = [
-  "/media/doctors/doctor-1.jpg",
-  "/media/doctors/doctor-2.jpg",
-  "/media/doctors/doctor-3.jpg",
-  "/media/doctors/doctor-4.jpg",
-  "/media/doctors/doctor-5.jpg",
-  "/media/doctors/doctor-6.jpg",
-];
-
 export default function DoctorProfilePage() {
   const session = useAuthSession();
   const status = useAuthSessionStatus();
@@ -239,25 +230,6 @@ export default function DoctorProfilePage() {
                   <span className={styles.metaValue}>{profile.specialtySlugs.join(", ")}</span>
                 </div>
               ) : null}
-            </div>
-
-            {/* Gợi ý ảnh chân dung chuẩn */}
-            <div className={styles.samplePortraitsSection}>
-              <span className={styles.samplePortraitsTitle}>Chọn nhanh ảnh chân dung bệnh viện:</span>
-              <div className={styles.samplePortraitsGrid}>
-                {SAMPLE_DOCTOR_PORTRAITS.map((url, idx) => (
-                  <button
-                    key={url}
-                    type="button"
-                    onClick={() => setPhotoUrl(url)}
-                    className={`${styles.samplePortraitBtn} ${photoUrl === url ? styles.samplePortraitBtnSelected : ""}`}
-                    title={`Chọn ảnh mẫu ${idx + 1}`}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img alt={`Mẫu ${idx + 1}`} src={url} className={styles.samplePortraitImg} />
-                  </button>
-                ))}
-              </div>
             </div>
           </aside>
 

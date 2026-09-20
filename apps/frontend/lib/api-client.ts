@@ -71,12 +71,6 @@ import type {
   CarePlan,
   CarePlanItem,
 } from "../types/hospital";
-import {
-  presentPublicArticle,
-  presentPublicPackage,
-  presentPublicPage,
-  presentPublicService,
-} from "./public-catalog";
 import { randomId } from "./secure-random";
 
 export type {
@@ -1152,14 +1146,13 @@ export async function fetchPackages(
   page = 0,
   size = 50,
 ): Promise<Page<HealthPackage>> {
-  const result = await getJson<Page<HealthPackage>>(
+  return getJson<Page<HealthPackage>>(
     `/hospital/packages${toQuery({ page, size })}`,
   );
-  return presentPublicPage(result, presentPublicPackage) as Page<HealthPackage>;
 }
 
 export async function fetchPackageBySlug(slug: string): Promise<HealthPackage> {
-  return presentPublicPackage(await getJson<HealthPackage>(`/hospital/packages/${encodeURIComponent(slug)}`));
+  return getJson<HealthPackage>(`/hospital/packages/${encodeURIComponent(slug)}`);
 }
 
 // ── Services and FAQs ───────────────────────────────────────────────────────
@@ -1168,14 +1161,13 @@ export async function fetchServices(
   page = 0,
   size = 50,
 ): Promise<Page<MedicalService>> {
-  const result = await getJson<Page<MedicalService>>(
+  return getJson<Page<MedicalService>>(
     `/hospital/services${toQuery({ page, size })}`,
   );
-  return presentPublicPage(result, presentPublicService) as Page<MedicalService>;
 }
 
 export async function fetchServiceBySlug(slug: string): Promise<MedicalService> {
-  return presentPublicService(await getJson<MedicalService>(`/hospital/services/${encodeURIComponent(slug)}`));
+  return getJson<MedicalService>(`/hospital/services/${encodeURIComponent(slug)}`);
 }
 
 export async function fetchFaqs(
@@ -1355,12 +1347,11 @@ export async function fetchArticles(
   size = 50,
   contentKind?: "GENERAL" | "DISEASE_GUIDE",
 ): Promise<Page<Article>> {
-  const result = await getJson<Page<Article>>(`/hospital/articles${toQuery({ page, size, contentKind })}`);
-  return presentPublicPage(result, presentPublicArticle) as Page<Article>;
+  return getJson<Page<Article>>(`/hospital/articles${toQuery({ page, size, contentKind })}`);
 }
 
 export async function fetchArticleBySlug(slug: string): Promise<Article> {
-  return presentPublicArticle(await getJson<Article>(`/hospital/articles/${encodeURIComponent(slug)}`));
+  return getJson<Article>(`/hospital/articles/${encodeURIComponent(slug)}`);
 }
 
 export async function fetchPatientOverview(): Promise<PatientOverview> {

@@ -2,21 +2,18 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type FormEvent, type ReactElement } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactElement } from "react";
 import { PublicAiButton, PublicBookingButton, PublicPageShell } from "../../components/PublicPageShell";
 import PackageBookingModal from "../../components/PackageBookingModal";
 import Icon from "../../components/UiIcon";
 import {
-  ApiError,
   fetchArticles,
-  fetchAllContent,
   fetchDoctors,
   fetchPackages,
   fetchSemanticSearch,
   fetchServices,
   fetchSpecialties,
 } from "../../lib/api-client";
-import { presentApiError } from "../../lib/present-api-error";
 import { dedupePublicDoctors } from "../../lib/public-catalog";
 import { useAuthSession } from "../../components/useAuthSession";
 import type { AiTriageCitation, Article, Doctor, HealthPackage, MedicalService, SemanticSearchResponse, Specialty } from "../../types/hospital";
@@ -31,6 +28,77 @@ interface SearchCatalog {
   services: MedicalService[];
   packages: HealthPackage[];
   articles: Article[];
+}
+
+type SearchGroupKey = keyof SearchCatalog;
+type SearchGroupStatus = "loading" | "loaded" | "failed";
+
+interface CatalogPage<T> {
+  content: T[];
+  totalPages: number;
+  last?: boolean;
+}
+
+interface BoundedCatalog<T> {
+  content: T;
+  loadedPages: number;
+  totalPages: number;
+  truncated: boolean;
+}
+
+const SEARCH_PAGE_SIZE = 100;
+const SEARCH_PAGE_CAP = 3;
+
+const EMPTY_SEARCH_CATALOG: SearchCatalog = {
+  specialties: [],
+  doctors: [],
+  services: [],
+  packages: [],
+  articles: [],
+};
+
+const SEARCH_GROUP_LABELS: Record<SearchGroupKey, string> = {
+  specialties: "chuyên khoa",
+  doctors: "bác sĩ",
+  services: "dịch vụ",
+  packages: "gói khám",
+  articles: "bài viết",
+};
+
+const INITIAL_SEARCH_GROUP_STATUS: Record<SearchGroupKey, SearchGroupStatus> = {
+  specialties: "loading",
+  doctors: "loading",
+  services: "loading",
+  packages: "loading",
+  articles: "loading",
+};
+
+async function fetchBoundedContent<T>(
+  fetchPage: (page: number, size: number) => Promise<CatalogPage<T>>,
+  size = SEARCH_PAGE_SIZE,
+  maxPages = SEARCH_PAGE_CAP,
+): Promise<BoundedCatalog<T[]>> {
+  const firstPage = validateCatalogPage(await fetchPage(0, size));
+  const totalPages = Number.isFinite(firstPage.totalPages) ? Math.max(firstPage.totalPages, 0) : 0;
+  const remainingPageCount = Math.min(Math.max(totalPages - 1, 0), Math.max(maxPages - 1, 0));
+  const remainingPages = remainingPageCount > 0
+    ? await Promise.all(Array.from({ length: remainingPageCount }, (_, index) => fetchPage(index + 1, size).then(validateCatalogPage)))
+    : [];
+  const pages = [firstPage, ...remainingPages];
+
+  return {
+    content: pages.flatMap((page) => page.content),
+    loadedPages: pages.length,
+    totalPages,
+    truncated: totalPages > maxPages,
+  };
+}
+
+function validateCatalogPage<T>(page: CatalogPage<T>): CatalogPage<T> {
+  if (!page || !Array.isArray(page.content) || !Number.isFinite(page.totalPages) || page.totalPages < 0) {
+    throw new Error("Invalid catalog page response");
+  }
+  return page;
 }
 
 const SEARCH_GUIDE_STEPS = [
@@ -68,10 +136,6 @@ function matches(query: string, values: Array<string | undefined>): boolean {
   return values.some((value) => value && normalize(value).includes(query));
 }
 
-function settledContent<T>(result: PromiseSettledResult<T[]>): T[] {
-  return result.status === "fulfilled" ? result.value : [];
-}
-
 function semanticSourceLabel(sourceType: SemanticSearchResponse["results"][number]["source_type"]): string {
   const labels: Record<SemanticSearchResponse["results"][number]["source_type"], string> = {
     specialty: "Chuyên khoa",
@@ -94,6 +158,14 @@ function semanticScoreLabel(score: number): string {
 function citationLabel(citation: AiTriageCitation): string {
   const title = citation.title.trim();
   return title || `${semanticSourceLabel(citation.source_type)} · ${citation.source_id}`;
+}
+
+function doctorResultMeta(doctor: Doctor): string {
+  const branches = (doctor.branchNames ?? []).filter(Boolean);
+  const branchLabel = branches.length > 2
+    ? `${branches.slice(0, 2).join(" · ")} +${branches.length - 2} cơ sở`
+    : branches.join(" · ");
+  return [doctor.specialtyName, branchLabel].filter(Boolean).join(" · ") || doctor.bio;
 }
 
 // aria-labelledby idrefs cannot contain whitespace; Vietnamese headings such
@@ -130,81 +202,136 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
   const router = useRouter();
   const authSession = useAuthSession();
   const [query, setQuery] = useState(initialQuery);
-  const [catalog, setCatalog] = useState<SearchCatalog | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [catalog, setCatalog] = useState<SearchCatalog>(EMPTY_SEARCH_CATALOG);
+  const [groupStatus, setGroupStatus] = useState<Record<SearchGroupKey, SearchGroupStatus>>(INITIAL_SEARCH_GROUP_STATUS);
+  const [failedGroupKeys, setFailedGroupKeys] = useState<SearchGroupKey[]>([]);
+  const [truncatedGroupKeys, setTruncatedGroupKeys] = useState<SearchGroupKey[]>([]);
   const [submittedQuery, setSubmittedQuery] = useState(initialQuery.trim());
   const [semantic, setSemantic] = useState<SemanticSearchResponse | null>(null);
   const [semanticLoading, setSemanticLoading] = useState(false);
   const [semanticError, setSemanticError] = useState<string | null>(null);
+  const [semanticStateKey, setSemanticStateKey] = useState<string | null>(null);
+  const [semanticResultKey, setSemanticResultKey] = useState<string | null>(null);
+  const semanticAuthorityKeyRef = useRef<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<SearchCategory>("ALL");
   const [selectedPackageForModal, setSelectedPackageForModal] = useState<HealthPackage | null>(null);
 
+  const semanticQuery = submittedQuery.trim();
+  const sessionAuthorityKey = authSession
+    ? `${authSession.user.id}\u0000${Date.parse(authSession.absoluteExpiresAt)}`
+    : null;
+  const semanticAuthorityKey = sessionAuthorityKey && semanticQuery
+    ? `${sessionAuthorityKey}\u0000${semanticQuery}`
+    : null;
+
+  useEffect(() => {
+    semanticAuthorityKeyRef.current = semanticAuthorityKey;
+  }, [semanticAuthorityKey]);
+
   useEffect(() => {
     let cancelled = false;
-    // Client-side keyword search only needs a bounded slice of each catalog; the
-    // full-catalog fetch (41 doctor pages alone) kept the page in a loading
-    // state for tens of seconds on slow backends.
-    Promise.allSettled([
-      fetchAllContent((page, size) => fetchSpecialties(page, size), 100, 3),
-      fetchAllContent((page, size) => fetchDoctors({ page, size }), 100, 3),
-      fetchAllContent((page, size) => fetchServices(page, size), 100, 3),
-      fetchAllContent((page, size) => fetchPackages(page, size), 100, 3),
-      fetchAllContent((page, size) => fetchArticles(page, size), 100, 3),
-    ] as const)
-      .then((responses) => {
-        if (cancelled) return;
-        const [specialties, doctors, services, packages, articles] = responses;
-        const failedCount = responses.filter((response) => response.status === "rejected").length;
-        setCatalog({
-          specialties: settledContent(specialties),
-          doctors: dedupePublicDoctors(settledContent(doctors)),
-          services: settledContent(services),
-          packages: settledContent(packages),
-          articles: settledContent(articles),
-        });
-        setError(failedCount > 0
-          ? `Một phần thông tin tạm thời chưa thể hiển thị (${failedCount}/5 nhóm). Bạn vẫn có thể xem các kết quả còn lại.`
-          : null);
-      })
-      .catch((reason: unknown) => {
-        if (!cancelled) {
-          setError(presentApiError(
-            reason instanceof ApiError ? reason.code : null,
-            reason instanceof ApiError ? reason.status : undefined,
-          ));
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    const markLoaded = <T extends SearchGroupKey>(
+      group: T,
+      content: SearchCatalog[T],
+      truncated: boolean,
+    ): void => {
+      if (cancelled) return;
+      setCatalog((previous) => ({ ...previous, [group]: content } as SearchCatalog));
+      setGroupStatus((previous) => ({ ...previous, [group]: "loaded" }));
+      if (truncated) {
+        setTruncatedGroupKeys((previous) => previous.includes(group) ? previous : [...previous, group]);
+      }
+    };
+    const markFailed = (group: SearchGroupKey): void => {
+      if (cancelled) return;
+      setGroupStatus((previous) => ({ ...previous, [group]: "failed" }));
+      setFailedGroupKeys((previous) => previous.includes(group) ? previous : [...previous, group]);
+    };
+    const startGroup = <T extends SearchGroupKey>(
+      group: T,
+      request: Promise<BoundedCatalog<SearchCatalog[T]>>,
+    ): void => {
+      void request
+        .then((response) => markLoaded(group, response.content, response.truncated))
+        .catch(() => markFailed(group));
+    };
+
+    // Client-side keyword search still uses a bounded slice of each catalog,
+    // but each group publishes independently so a slow request cannot hold
+    // back already available results.
+    startGroup("specialties", fetchBoundedContent((page, size) => fetchSpecialties(page, size)));
+    startGroup("doctors", fetchBoundedContent((page, size) => fetchDoctors({ page, size })).then((response) => ({
+      ...response,
+      content: dedupePublicDoctors(response.content),
+    })));
+    startGroup("services", fetchBoundedContent((page, size) => fetchServices(page, size)));
+    startGroup("packages", fetchBoundedContent((page, size) => fetchPackages(page, size)));
+    startGroup("articles", fetchBoundedContent((page, size) => fetchArticles(page, size)));
+
     return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
-    if (!submittedQuery || !authSession) return;
-
     let cancelled = false;
+    const capturedAuthorityKey = semanticAuthorityKey;
+    const isCurrentAuthority = (): boolean => (
+      !cancelled && semanticAuthorityKeyRef.current === capturedAuthorityKey
+    );
+    if (!capturedAuthorityKey) {
+      if (isCurrentAuthority()) {
+        setSemantic(null);
+        setSemanticStateKey(null);
+        setSemanticResultKey(null);
+        setSemanticLoading(false);
+        setSemanticError(null);
+      }
+      return () => { cancelled = true; };
+    }
+
+    if (isCurrentAuthority()) {
+      // A new session or submitted query invalidates both the in-flight
+      // loading state and the previously resolved result. Keep the result key
+      // separate so loading cannot make an old response visible.
+      setSemantic(null);
+      setSemanticStateKey(capturedAuthorityKey);
+      setSemanticResultKey(null);
+      setSemanticLoading(true);
+      setSemanticError(null);
+    }
+
     void Promise.resolve()
-      .then(() => {
-        if (!cancelled) {
-          setSemanticLoading(true);
-          setSemanticError(null);
-        }
-        return fetchSemanticSearch(submittedQuery);
-      })
+      .then(() => fetchSemanticSearch(semanticQuery))
       .then((response) => {
-        if (!cancelled) setSemantic(response);
+        if (isCurrentAuthority()) {
+          setSemantic(response);
+          setSemanticResultKey(capturedAuthorityKey);
+        }
       })
       .catch(() => {
-        if (!cancelled) setSemanticError("Tạm thời chưa thể mở rộng kết quả tìm kiếm. Vui lòng thử lại sau.");
+        if (isCurrentAuthority()) {
+          setSemantic(null);
+          setSemanticResultKey(null);
+          setSemanticError("Tạm thời chưa thể mở rộng kết quả tìm kiếm. Vui lòng thử lại sau.");
+        }
       })
       .finally(() => {
-        if (!cancelled) setSemanticLoading(false);
+        if (isCurrentAuthority()) setSemanticLoading(false);
       });
 
     return () => { cancelled = true; };
-  }, [authSession, submittedQuery]);
+  }, [semanticAuthorityKey, semanticQuery]);
+
+  const loading = Object.values(groupStatus).some((status) => status === "loading");
+  const catalogSettled = !loading;
+  const loadedGroupCount = Object.values(groupStatus).filter((status) => status !== "loading").length;
+  const loadedCatalogGroupCount = Object.values(groupStatus).filter((status) => status === "loaded").length;
+  const loadingGroupLabels = (Object.keys(groupStatus) as SearchGroupKey[])
+    .filter((group) => groupStatus[group] === "loading")
+    .map((group) => SEARCH_GROUP_LABELS[group]);
+  const truncatedGroupLabels = truncatedGroupKeys.map((group) => SEARCH_GROUP_LABELS[group]);
+  const error = failedGroupKeys.length > 0
+    ? `Một phần thông tin tạm thời chưa thể hiển thị (${failedGroupKeys.length}/5 nhóm). Bạn vẫn có thể xem các kết quả còn lại.`
+    : null;
 
   const result = useMemo(() => {
     const normalizedQuery = normalize(query);
@@ -222,9 +349,8 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
     ? result.specialties.length + result.doctors.length + result.services.length + result.packages.length + result.articles.length
     : 0;
   const hasAuthSession = Boolean(authSession);
-  const catalogGroupCount = catalog
-    ? [catalog.specialties, catalog.doctors, catalog.services, catalog.packages, catalog.articles].filter((items) => items.length > 0).length
-    : 0;
+  const semanticStateVisible = Boolean(semanticAuthorityKey && semanticStateKey === semanticAuthorityKey);
+  const semanticVisible = Boolean(semanticStateVisible && semanticResultKey === semanticAuthorityKey);
 
   const categoryCounts: Record<SearchCategory, number> = useMemo(() => ({
     ALL: resultCount,
@@ -247,9 +373,9 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
 
   return (
     <PublicPageShell
-      doctors={catalog?.doctors ?? []}
-      packages={catalog?.packages ?? []}
-      specialties={catalog?.specialties ?? []}
+      doctors={catalog.doctors}
+      packages={catalog.packages}
+      specialties={catalog.specialties}
     >
       <div className="catalog-page section-inner search-page">
         {/* Breadcrumb above already links home; a duplicate back-link here
@@ -281,7 +407,7 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
             <dl className="resource-meta-grid">
               <div>
                 <dt>Danh mục tìm kiếm</dt>
-                <dd>{catalogGroupCount || "Đang tải"}/5</dd>
+                <dd>{loadedGroupCount}/5 nhóm đã phản hồi</dd>
               </div>
               <div>
                 <dt>Gợi ý thông minh</dt>
@@ -314,17 +440,22 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
           <div className="search-page__control">
             <Icon name="search" size={19} />
             <input id="search-page-input" onChange={(event) => setQuery(event.target.value)} placeholder="Ví dụ: tim mạch, khám tổng quát…" type="search" value={query} />
-            <button className="button button--primary" disabled={loading} type="submit">Tìm kiếm</button>
+            <button className="button button--primary" type="submit">Tìm kiếm</button>
           </div>
           <p>Bạn có thể nhập tên bác sĩ, chuyên khoa, dịch vụ hoặc chủ đề sức khỏe cần tìm hiểu.</p>
         </form>
 
-        {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải danh mục tìm kiếm…</p> : null}
+        {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải {loadingGroupLabels.join(", ")}… Các nhóm đã sẵn sàng vẫn đang hiển thị.</p> : null}
         {error ? <p className="catalog-status catalog-status--error" role="alert">{error} Bạn vẫn có thể thử lại sau.</p> : null}
+        {truncatedGroupLabels.length > 0 ? (
+          <p className="catalog-status" role="status">
+            Tìm kiếm hiện chỉ quét {SEARCH_PAGE_CAP} trang đầu của {truncatedGroupLabels.join(", ")}. Các nhóm này còn dữ liệu phía sau; hãy mở danh mục tương ứng để xem đầy đủ.
+          </p>
+        ) : null}
         {!hasAuthSession && normalize(query) ? <p className="catalog-status">Đăng nhập để nhận thêm gợi ý nội dung liên quan đến nhu cầu của bạn.</p> : null}
-        {semanticLoading ? <p className="catalog-status catalog-status--loading" role="status">Đang tìm thêm nội dung liên quan…</p> : null}
-        {resultCount === 0 && semanticError ? <p className="catalog-status catalog-status--error" role="alert">{semanticError}</p> : null}
-        {semantic?.results.length ? (
+        {semanticStateVisible && semanticLoading ? <p className="catalog-status catalog-status--loading" role="status">Đang tìm thêm nội dung liên quan…</p> : null}
+        {semanticStateVisible && resultCount === 0 && semanticError ? <p className="catalog-status catalog-status--error" role="alert">{semanticError}</p> : null}
+        {semanticVisible && semantic?.results.length ? (
           <section className="search-results__section" aria-labelledby="semantic-results">
             <div className="section-heading search-results__heading">
               <div>
@@ -360,10 +491,10 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
             </p>
           </section>
         ) : null}
-        {!loading && !normalize(query) ? <section className="resource-panel resource-panel--accent"><h2>Nhập một từ khóa để bắt đầu</h2><p>Ví dụ: tên chuyên khoa, bác sĩ, dịch vụ hoặc bài viết bạn quan tâm — kết quả sẽ dẫn thẳng đến trang phù hợp.</p></section> : null}
-        {!loading && result && resultCount === 0 ? <p className="catalog-status" role="status">{error ? "Chưa có nhóm thông tin nào sẵn sàng để tìm kiếm." : `Không tìm thấy kết quả khớp với “${query.trim()}”.`}</p> : null}
+        {catalogSettled && !normalize(query) ? <section className="resource-panel resource-panel--accent"><h2>Nhập một từ khóa để bắt đầu</h2><p>Ví dụ: tên chuyên khoa, bác sĩ, dịch vụ hoặc bài viết bạn quan tâm — kết quả sẽ dẫn thẳng đến trang phù hợp.</p></section> : null}
+        {catalogSettled && result && resultCount === 0 ? <p className="catalog-status" role="status">{loadedCatalogGroupCount === 0 ? "Chưa có nhóm thông tin nào sẵn sàng để tìm kiếm." : `Không tìm thấy kết quả khớp với “${query.trim()}”.`}</p> : null}
 
-        {!loading && result && resultCount > 0 ? (
+        {result && resultCount > 0 ? (
           <div className="search-results" aria-live="polite">
             <div className="search-category-tabs flex flex-wrap items-center gap-2 pb-3 border-b border-slate-200" role="tablist" aria-label="Bộ lọc danh mục tìm kiếm">
               {CATEGORY_TABS.map((tab) => {
@@ -409,7 +540,7 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
                       <Link href={`/doctors/${item.slug}`}>
                         <span className="resource-chip">Bác sĩ</span>
                         <strong>{item.fullName}</strong>
-                        <p>{item.specialtyName ?? item.bio}</p>
+                        <p>{doctorResultMeta(item)}</p>
                       </Link>
                       <PublicBookingButton className="outline-button outline-button--small" selection={{ doctorId: item.id }}>
                         Đặt lịch
