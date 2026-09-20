@@ -265,13 +265,10 @@ function parseConfiguredPublicOrigins(value: string | undefined): string[] {
 }
 
 export function readHealthcareBffRuntimeConfig(): HealthcareBffRuntimeConfig {
-  let rawBackend = process.env.BACKEND_INTERNAL_URL?.trim();
-  if (
-    rawBackend === "https://healthcare-beta-backend.onrender.com"
-    || (!rawBackend && process.env.VERCEL === "1")
-  ) {
-    rawBackend = "https://healthcare-beta-backend-4wb7.onrender.com";
-  }
+  // The backend origin is deployment configuration, not code: local runs use
+  // DEFAULT_BACKEND_ORIGIN and hosted environments must set BACKEND_INTERNAL_URL
+  // explicitly (Vercel/Docker), so no environment name or URL is hardcoded here.
+  const rawBackend = process.env.BACKEND_INTERNAL_URL?.trim();
   const backendOrigin = normalizeBackendOrigin(
     rawBackend || DEFAULT_BACKEND_ORIGIN,
   );

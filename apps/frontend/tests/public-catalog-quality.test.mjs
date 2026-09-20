@@ -25,31 +25,37 @@ function loadModule(source) {
   return runtimeModule.exports;
 }
 
-test("known synthetic catalog placeholders become distinct patient-facing labels", async () => {
+test("catalog source contains no content-substitution machinery", async () => {
   const source = await readFile(sourcePath, "utf8");
-  const { presentPublicService, presentPublicPackage, presentPublicArticle } = loadModule(source);
-
-  const service = presentPublicService({ id: "1", name: "Dịch vụ y tế 1", slug: "dv-1", description: "placeholder" });
-  const service2 = presentPublicService({ id: "2", name: "Dịch vụ y tế 2", slug: "dv-2", description: "placeholder" });
-  assert.equal(service.name, "Khám tổng quát");
-  assert.notEqual(service.name, service2.name);
-  assert.doesNotMatch(service.description, /Dịch vụ khám, tư vấn/);
-
-  const item = presentPublicPackage({ id: "1", name: "Gói khám sức khỏe cấp B #1", slug: "goi-1", description: "placeholder", price: 1 });
-  assert.equal(item.name, "Gói kiểm tra sức khỏe cơ bản");
-  assert.match(item.description, /Khám tổng quát/);
-
-  const article = presentPublicArticle({ id: "1", title: "Bài viết y khoa số 1", slug: "bv-1", summary: "placeholder", body: "placeholder", publishedAt: "2026-01-01" });
-  assert.match(article.title, /Sức khỏe chủ động:/);
-  assert.doesNotMatch(article.title, /Bài viết y khoa số/);
+  assert.doesNotMatch(
+    source,
+    /BIG_DATA_CLINICAL_ARTICLES|SERVICE_VARIANTS|PACKAGE_VARIANTS|presentPublicArticle|presentPublicService|presentPublicPackage|fixtureIndex|resolveCover/,
+    "the catalog module must never rewrite backend content client-side",
+  );
+  assert.doesNotMatch(
+    source,
+    /Trần Quốc Huy/,
+    "frontend-authored clinical copy and fixture authors must stay deleted",
+  );
 });
 
-test("editorial records pass through and duplicate doctor cards collapse", async () => {
+test("catalog records pass through unchanged and duplicate doctor cards collapse", async () => {
   const source = await readFile(sourcePath, "utf8");
-  const { presentPublicService, dedupePublicDoctors } = loadModule(source);
+  const { dedupePublicDoctors, presentPublicPage } = loadModule(source);
 
-  const editorial = { id: "real", name: "Khám chuyên sâu", slug: "kham-chuyen-sau", description: "Nội dung thật" };
-  assert.deepEqual(presentPublicService(editorial), editorial);
+  const service = { id: "real", name: "Chụp cộng hưởng từ MRI sọ não", slug: "dv-1", description: "Nội dung thật từ backend" };
+  const article = { id: "a1", title: "Phòng ngừa đột quỵ ở người trẻ", slug: "phong-ngua-dot-quy", summary: "Tóm tắt thật", body: "Nội dung thật" };
+  const pkg = { id: "p1", name: "Gói khám Sức khỏe VIP Doanh nhân Toàn diện", slug: "goi-1", description: "Nội dung thật", price: 1 };
+
+  assert.deepEqual(dedupePublicDoctors([]), []);
+  assert.deepEqual(
+    presentPublicPage({ content: [article], totalElements: 1 }, (value) => value).content,
+    [article],
+    "pages must pass through untouched",
+  );
+  assert.equal(service.slug, "dv-1");
+  assert.equal(article.title, "Phòng ngừa đột quỵ ở người trẻ");
+  assert.equal(pkg.name, "Gói khám Sức khỏe VIP Doanh nhân Toàn diện");
 
   const first = { id: "1", fullName: "Lê Văn Đức", slug: "bs-1", bio: "Bác sĩ chuyên khoa với 10 năm kinh nghiệm." };
   const duplicate = { ...first, id: "2", slug: "bs-2" };

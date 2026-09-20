@@ -2,9 +2,6 @@ import assert from "node:assert/strict";
 import { stat } from "node:fs/promises";
 import test from "node:test";
 import {
-  CORE_DOCTOR_PORTRAITS,
-  CURATED_DOCTOR_PORTRAITS,
-  getDoctorInitials,
   getDoctorPhoto,
 } from "../lib/doctor-portrait.ts";
 import {
@@ -17,34 +14,14 @@ import {
 const root = new URL("../", import.meta.url);
 
 /**
- * CHALLENGE SUITE 1: Doctor Portrait Non-Null Contract
+ * CHALLENGE SUITE 1: Doctor Portrait Own-Photo-Or-Null Contract
  * Adversarial test with 1,000+ synthetic and realistic doctor inputs.
+ *
+ * The frontend never assigns one clinician's photograph to another: every
+ * input must resolve to exactly the doctor's own non-stock catalog photoUrl,
+ * or to null so the UI renders the neutral initials avatar.
  */
-test("CHALLENGE 1: Doctor Portrait Non-Null Contract across 1,000+ adversarial inputs", async () => {
-  // Pre-load and verify all curated portrait files on disk
-  const existingFiles = new Map();
-  for (const relativePath of CURATED_DOCTOR_PORTRAITS) {
-    const fileUrl = new URL(`public${relativePath}`, root);
-    const fileStat = await stat(fileUrl);
-    assert.ok(fileStat.isFile(), `Curated portrait file ${relativePath} must exist on disk`);
-    assert.ok(fileStat.size > 200_000, `Curated portrait file ${relativePath} must be high-res (>200KB)`);
-    existingFiles.set(relativePath, fileStat.size);
-  }
-
-  // Also verify all 14 doctor images in public/media/doctors/
-  for (let i = 1; i <= 14; i += 1) {
-    const rel = `/media/doctors/doctor-${i}.jpg`;
-    try {
-      const fileUrl = new URL(`public${rel}`, root);
-      const st = await stat(fileUrl);
-      if (st.isFile()) {
-        existingFiles.set(rel, st.size);
-      }
-    } catch {
-      // Not on disk
-    }
-  }
-
+test("CHALLENGE 1: Doctor Portrait Own-Photo-Or-Null Contract across 1,000+ adversarial inputs", async () => {
   const adversarialInputs = [];
 
   // 1. Falsy & Primitive / Malformed Objects (20 cases)
@@ -172,7 +149,7 @@ test("CHALLENGE 1: Doctor Portrait Non-Null Contract across 1,000+ adversarial i
     });
   }
 
-  // 5. Rejected Stock PhotoUrls & 404 URLs falling back to curated assets (50 cases)
+  // 5. Rejected Stock PhotoUrls & 404 URLs must resolve to null (50 cases)
   const stockAnd404Urls = [
     "https://images.unsplash.com/photo-1559839734-2b71ea197ec2",
     "https://unsplash.com/photos/abc-xyz",
@@ -206,68 +183,23 @@ test("CHALLENGE 1: Doctor Portrait Non-Null Contract across 1,000+ adversarial i
     });
   }
 
-  // 6. Real Clinical Leaders, Dedicated Slugs, Name Map Variations, and Valid Local Paths (120 cases)
-  for (const [slug, expectedPhoto] of Object.entries(CORE_DOCTOR_PORTRAITS)) {
-    adversarialInputs.push({ slug });
-    adversarialInputs.push({ slug: slug.toUpperCase() });
-    adversarialInputs.push({ slug, photoUrl: expectedPhoto });
-    adversarialInputs.push({ slug, photoUrl: null });
-    adversarialInputs.push({ slug, photoUrl: undefined });
-  }
-  const titlePrefixes = [
-    "",
-    "BS. ",
-    "BS ",
-    "BS.CKI ",
-    "BS.CKII ",
-    "BS.CKI. ",
-    "ThS.BS. ",
-    "ThS.BS ",
-    "TS.BS. ",
-    "TS.BS ",
-    "PGS.TS.BS. ",
-    "PGS.TS. ",
-    "TS. ",
-    "ThS. ",
-    "PGS.TS.BS. ThS. ",
-  ];
-  const knownNames = [
-    "Lê Văn Đức",
-    "Võ Thị Mai",
-    "Nguyễn Minh Khôi",
-    "Phạm Hoàng Yến",
-    "Trần Thu Hà",
-    "Đỗ Quang Huy",
-    "Lê Thu Trang",
-    "Phan Quốc Việt",
-    "Đặng Mỹ Linh",
-    "Trịnh Anh Dũng",
-    "Hoàng Gia Huy",
-  ];
-  for (const name of knownNames) {
-    for (const prefix of titlePrefixes) {
-      adversarialInputs.push({
-        fullName: `${prefix}${name}`,
-        photoUrl: undefined,
-      });
-      // ASCII diacritic-free version
-      const ascii = name
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/đ/gi, "d");
-      adversarialInputs.push({
-        fullName: `${prefix}${ascii}`,
-        photoUrl: null,
-      });
-    }
-  }
-
-  // Valid catalog local paths
+  // 6. Valid own portraits: local catalog paths and trusted remote hosts must
+  // pass through byte-identical (trimmed), never substituted or reshuffled.
   for (let i = 1; i <= 11; i += 1) {
     adversarialInputs.push({
       id: `local-doc-${i}`,
       fullName: `BS. Local Test ${i}`,
       photoUrl: `/media/doctors/doctor-${i}.jpg`,
+    });
+    adversarialInputs.push({
+      id: `remote-doc-${i}`,
+      fullName: `BS. Remote Test ${i}`,
+      photoUrl: `https://cdn.healthcare.id.vn/portraits/doctor-${i}.jpg`,
+    });
+    adversarialInputs.push({
+      id: `ws-doc-${i}`,
+      fullName: `BS. Whitespace Test ${i}`,
+      photoUrl: `   /media/doctors/doctor-${i}.jpg   `,
     });
   }
 
@@ -282,8 +214,7 @@ test("CHALLENGE 1: Doctor Portrait Non-Null Contract across 1,000+ adversarial i
     const fn = firstNames[synthIndex % firstNames.length];
     const mn = midNames[(synthIndex * 3) % midNames.length];
     const ln = lastNames[(synthIndex * 7) % lastNames.length];
-    const prefix = titlePrefixes[synthIndex % titlePrefixes.length];
-    const fullName = `${prefix}${fn} ${mn} ${ln}`;
+    const fullName = `${fn} ${mn} ${ln}`;
     const slug = `bs-${fn}-${mn}-${ln}-${synthIndex}`
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
@@ -304,69 +235,54 @@ test("CHALLENGE 1: Doctor Portrait Non-Null Contract across 1,000+ adversarial i
     `Must have at least 1,000 test cases, got ${adversarialInputs.length}`
   );
 
-  let successCount = 0;
-  let initialsFallbackCount = 0;
-  let nullOrEmptyCount = 0;
-  let fileNotFoundCount = 0;
-  const utilizedPortraits = new Set();
+  let nullCount = 0;
+  let passThroughCount = 0;
 
   // Run the challenge across all 1,000+ inputs
   for (let i = 0; i < adversarialInputs.length; i += 1) {
     const input = adversarialInputs[i];
     const photo = getDoctorPhoto(input);
+    const ownPhoto = typeof input?.photoUrl === "string" ? input.photoUrl.trim() : "";
 
-    // 1. Non-null and non-empty assertion
-    if (photo === null || photo === undefined || typeof photo !== "string" || photo.trim() === "") {
-      nullOrEmptyCount += 1;
+    if (photo === null) {
+      nullCount += 1;
+      // Null is only allowed when the doctor has no renderable own portrait:
+      // missing, blank, 404-marked, or a stock-photography host.
+      assert.ok(
+        !ownPhoto
+          || ownPhoto.includes("404")
+          || /unsplash|pexels|pixabay|shutterstock|istockphoto|gettyimages|freepik|placehold|placekitten|picsum|loremflickr/i.test(ownPhoto),
+        `input #${i} owns a valid portrait but resolution returned null: ${ownPhoto}`,
+      );
       continue;
     }
 
-    // 2. Initials fallback assertion (photo must NOT look like initials e.g. "QH", "BS", "TD")
-    if (/^[A-ZĐ]{1,3}$/.test(photo.trim())) {
-      initialsFallbackCount += 1;
-      continue;
-    }
-
-    // 3. Must be a valid portrait path
-    if (!photo.startsWith("/media/doctors/doctor-") || !photo.endsWith(".jpg")) {
-      assert.fail(`Invalid photo format returned for input #${i}: ${photo}`);
-    }
-
-    // 4. File existence on disk
-    if (!existingFiles.has(photo)) {
-      try {
-        const fileUrl = new URL(`public${photo}`, root);
-        const st = await stat(fileUrl);
-        if (st.isFile()) {
-          existingFiles.set(photo, st.size);
-        } else {
-          fileNotFoundCount += 1;
-          continue;
-        }
-      } catch {
-        fileNotFoundCount += 1;
-        continue;
-      }
-    }
-
-    utilizedPortraits.add(photo);
-    successCount += 1;
+    // Any non-null result must be the doctor's own portrait, byte-identical.
+    assert.equal(
+      photo,
+      ownPhoto,
+      `input #${i} must resolve to its own portrait, not a substitute`,
+    );
+    assert.ok(
+      !/^[A-ZĐ]{1,3}$/.test(photo.trim()),
+      `initials must never leak through as a portrait URL: ${photo}`,
+    );
+    passThroughCount += 1;
   }
 
   // EMPIRICAL ASSERTIONS
-  assert.equal(nullOrEmptyCount, 0, `0 out of ${adversarialInputs.length} must return null or empty`);
-  assert.equal(initialsFallbackCount, 0, `0 out of ${adversarialInputs.length} must return initials`);
-  assert.equal(fileNotFoundCount, 0, `0 out of ${adversarialInputs.length} must point to missing files on disk`);
-  assert.equal(
-    successCount,
-    adversarialInputs.length,
-    `100% success required: ${successCount}/${adversarialInputs.length} passed`
-  );
-
-  // Distribution check: Ensure the deterministic hash distributes across the full curated pool
   assert.ok(
-    utilizedPortraits.size >= 11,
-    `Deterministic distribution must utilize all 11 curated portraits, got ${utilizedPortraits.size}`
+    passThroughCount > 0,
+    "at least one doctor with an own portrait must pass through",
+  );
+  assert.ok(
+    nullCount > 0,
+    "doctors without an own portrait must resolve to null (initials avatar)",
+  );
+  assert.equal(
+    passThroughCount + nullCount,
+    adversarialInputs.length,
+    `every input must resolve deterministically: ${passThroughCount}/${adversarialInputs.length} own-photo, ${nullCount} null`,
   );
 });
 

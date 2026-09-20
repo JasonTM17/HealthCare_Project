@@ -1,75 +1,21 @@
 /**
  * Doctor portrait resolution.
  *
- * Provides deterministic resolution for 100% of clinicians across the platform,
- * ensuring high-quality clinical portraits from curated local assets and catalog
- * paths while strictly rejecting generic stock photography domains.
- *
- * Guarantees a non-null string return type so doctor cards on the homepage,
- * catalog, and detail pages never fall back to initials placeholders.
- *
- * Titles are stripped before matching so "TS.BS. Lê Thu Trang" and "Lê Thu
- * Trang" resolve to the same portrait.
+ * The catalog is authoritative: a doctor renders their own `photoUrl` when the
+ * backend supplies one, and otherwise renders the neutral initials avatar.
+ * This module never assigns one clinician's photograph to another — earlier
+ * drafts mapped slugs/names to shared local portraits and hash-distributed the
+ * leftovers, which could publish a stranger's face on a real doctor's card.
+ * Stock-photography hosts are still rejected because a stock face is not a
+ * photograph of the named clinician.
  */
 
-export const CORE_DOCTOR_PORTRAITS: Record<string, string> = {
-  "nguyen-minh-khoi": "/media/doctors/doctor-1.jpg",
-  "vo-thi-mai": "/media/doctors/doctor-2.jpg",
-  "le-van-duc": "/media/doctors/doctor-3.jpg",
-  "pham-hoang-yen": "/media/doctors/doctor-4.jpg",
-  "tran-thu-ha": "/media/doctors/doctor-5.jpg",
-  "do-quang-huy": "/media/doctors/doctor-6.jpg",
-  "le-thu-trang": "/media/doctors/doctor-7.jpg",
-  "tsbs-le-thu-trang": "/media/doctors/doctor-7.jpg",
-  "phan-quoc-viet": "/media/doctors/doctor-8.jpg",
-  "bs-phan-quoc-viet": "/media/doctors/doctor-8.jpg",
-  "dang-my-linh": "/media/doctors/doctor-9.jpg",
-  "thsbs-dang-my-linh": "/media/doctors/doctor-9.jpg",
-  "trinh-anh-dung": "/media/doctors/doctor-10.jpg",
-  "bs-trinh-anh-dung": "/media/doctors/doctor-10.jpg",
-  "hoang-gia-huy": "/media/doctors/doctor-11.jpg",
-  "bs-hoang-gia-huy": "/media/doctors/doctor-11.jpg",
-};
-
-/** Local portraits known to depict the named clinician they are mapped to. */
-export const CURATED_DOCTOR_PORTRAITS: readonly string[] = [
-  "/media/doctors/doctor-1.jpg",
-  "/media/doctors/doctor-2.jpg",
-  "/media/doctors/doctor-3.jpg",
-  "/media/doctors/doctor-4.jpg",
-  "/media/doctors/doctor-5.jpg",
-  "/media/doctors/doctor-6.jpg",
-  "/media/doctors/doctor-7.jpg",
-  "/media/doctors/doctor-8.jpg",
-  "/media/doctors/doctor-9.jpg",
-  "/media/doctors/doctor-10.jpg",
-  "/media/doctors/doctor-11.jpg",
-];
-
-const DOCTOR_NAME_MAP: Record<string, string> = {
-  "lê văn đức": "/media/doctors/doctor-3.jpg",
-  "le van duc": "/media/doctors/doctor-3.jpg",
-  "võ thị mai": "/media/doctors/doctor-2.jpg",
-  "vo thi mai": "/media/doctors/doctor-2.jpg",
-  "nguyễn minh khôi": "/media/doctors/doctor-1.jpg",
-  "nguyen minh khoi": "/media/doctors/doctor-1.jpg",
-  "phạm hoàng yến": "/media/doctors/doctor-4.jpg",
-  "pham hoang yen": "/media/doctors/doctor-4.jpg",
-  "trần thu hà": "/media/doctors/doctor-5.jpg",
-  "tran thu ha": "/media/doctors/doctor-5.jpg",
-  "đỗ quang huy": "/media/doctors/doctor-6.jpg",
-  "do quang huy": "/media/doctors/doctor-6.jpg",
-  "lê thu trang": "/media/doctors/doctor-7.jpg",
-  "le thu trang": "/media/doctors/doctor-7.jpg",
-  "phan quốc việt": "/media/doctors/doctor-8.jpg",
-  "phan quoc viet": "/media/doctors/doctor-8.jpg",
-  "đặng mỹ linh": "/media/doctors/doctor-9.jpg",
-  "dang my linh": "/media/doctors/doctor-9.jpg",
-  "trịnh anh dũng": "/media/doctors/doctor-10.jpg",
-  "trinh anh dung": "/media/doctors/doctor-10.jpg",
-  "hoàng gia huy": "/media/doctors/doctor-11.jpg",
-  "hoang gia huy": "/media/doctors/doctor-11.jpg",
-};
+/**
+ * Hosts that serve generic stock photography. A portrait from one of these is
+ * not a photograph of the named clinician, so it is never published as one.
+ */
+const STOCK_PHOTO_HOST_PATTERN =
+  /(?:images\.unsplash\.com|unsplash\.com|images\.pexels\.com|pexels\.com|cdn\.pixabay\.com|pixabay\.com|shutterstock\.com|istockphoto\.com|gettyimages\.com|freepik\.com|placehold\.co|placekitten\.com|picsum\.photos|loremflickr\.com)/i;
 
 const DOCTOR_TITLE_PREFIX = /^(bs\.?cki+i*|bs\.?ckii+|ths\.?bs\.?|ts\.?bs\.?|pgs\.?ts\.?|bs\.?|ths\.?|ts\.?)\s*/i;
 
@@ -86,67 +32,17 @@ function stripTitle(fullName: string): string {
 }
 
 /**
- * Hosts that serve generic stock photography. A portrait from one of these is
- * not a photograph of the named clinician, so it is never published as one.
- *
- * The catalog currently carries Unsplash URLs in `photoUrl` for a handful of
- * synthetic rows, which is how a stock face reached a named doctor's card even
- * after the frontend stopped generating them. Filtering on the host is the
- * frontend's half of the fix; the rows themselves should be cleared or given
- * real photography before this product goes anywhere near real patients.
- */
-const STOCK_PHOTO_HOST_PATTERN =
-  /(?:images\.unsplash\.com|unsplash\.com|images\.pexels\.com|pexels\.com|cdn\.pixabay\.com|pixabay\.com|shutterstock\.com|istockphoto\.com|gettyimages\.com|freepik\.com|placehold\.co|placekitten\.com|picsum\.photos|loremflickr\.com)/i;
-
-/** Simple deterministic string hash for stable portrait distribution */
-function hashString(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i += 1) {
-    hash = ((hash << 5) - hash) + str.charCodeAt(i);
-    hash |= 0;
-  }
-  return Math.abs(hash);
-}
-
-/**
- * Resolve a doctor's portrait. Always ensures a high-quality clinical portrait is
- * returned for every clinician, preventing unrendered initials placeholders.
+ * Resolve a doctor's own portrait from the catalog, or null when the doctor
+ * has none. Callers render the initials avatar (see {@link getDoctorInitials})
+ * for the null case instead of substituting someone else's photograph.
  */
 export function getDoctorPhoto(doctor?: {
-  id?: string;
-  fullName?: string;
   photoUrl?: string;
-  slug?: string;
-} | null): string {
-  if (!doctor) {
-    return CURATED_DOCTOR_PORTRAITS[0];
-  }
-  const cleanName = stripTitle(doctor.fullName || "").toLowerCase();
-  const slug = (doctor.slug || "").toLowerCase();
-
-  // 1. Exact slug match
-  const curatedBySlug = CORE_DOCTOR_PORTRAITS[slug];
-  if (curatedBySlug) return curatedBySlug;
-
-  // 2. Full name match
-  if (DOCTOR_NAME_MAP[cleanName]) {
-    return DOCTOR_NAME_MAP[cleanName];
-  }
-
-  // 3. Catalog-supplied photograph if valid and not a 404/stock host
-  const candidate = doctor.photoUrl?.trim() ?? "";
-  if (
-    candidate &&
-    !candidate.includes("404") &&
-    !STOCK_PHOTO_HOST_PATTERN.test(candidate)
-  ) {
-    return candidate;
-  }
-
-  // 4. Deterministic assignment from curated local doctor portrait assets
-  const identity = doctor.id || doctor.slug || doctor.fullName || "doctor";
-  const index = hashString(identity) % CURATED_DOCTOR_PORTRAITS.length;
-  return CURATED_DOCTOR_PORTRAITS[index];
+} | null): string | null {
+  const candidate = doctor?.photoUrl?.trim() ?? "";
+  if (!candidate || candidate.includes("404")) return null;
+  if (STOCK_PHOTO_HOST_PATTERN.test(candidate)) return null;
+  return candidate;
 }
 
 /** Two-letter initials for the avatar shown when no portrait exists. */
