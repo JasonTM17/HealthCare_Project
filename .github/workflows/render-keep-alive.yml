@@ -15,52 +15,186 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Validate Supabase keep-alive configuration
+        env:
+          SUPABASE_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+          # Policy: the management token runs SQL, while the anon key authenticates
+          # REST/Auth probes. The project ref is required so every probe targets
+          # the same project. Missing values fail the job instead of skipping work.
+          for required in SUPABASE_TOKEN PROJECT_REF SUPABASE_ANON_KEY; do
+            if [ -z "${!required:-}" ]; then
+              echo "::error::Required Supabase keep-alive secret/configuration '$required' is missing."
+              exit 1
+            fi
+          done
+
       - name: Execute Active PostgreSQL Query via Supabase API
         env:
           SUPABASE_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
         run: |
+          set -euo pipefail
           echo "=== Executing Active Postgres Query on Supabase ==="
-          REF="${PROJECT_REF:-awaknzhadjglbfkhigck}"
-          if [ -n "$SUPABASE_TOKEN" ]; then
-            RESP=$(curl -s -w "\nHTTP_STATUS:%{http_code}" --max-time 30 \
-              -X POST "https://api.supabase.com/v1/projects/${REF}/database/query" \
-              -H "Authorization: Bearer ${SUPABASE_TOKEN}" \
-              -H "Content-Type: application/json" \
-              -d '{"query": "SELECT 1 AS keep_alive, count(*) AS active_branches FROM branches WHERE active = true;"}')
-            HTTP_CODE=$(echo "$RESP" | grep "HTTP_STATUS" | cut -d':' -f2)
-            BODY=$(echo "$RESP" | grep -v "HTTP_STATUS")
-            echo "PostgreSQL Query HTTP Response: $HTTP_CODE"
-            echo "Result: $BODY"
-            if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
-              echo "Active PostgreSQL transaction executed successfully. Supabase activity reset!"
-            else
-              echo "Warning: Database query returned HTTP $HTTP_CODE, falling back to gateways."
-            fi
-          else
-            echo "Notice: SUPABASE_ACCESS_TOKEN not set, skipping direct SQL query."
+          response_file="$(mktemp)"
+          trap 'rm -f "$response_file"' EXIT
+          set +e
+          http_code="$(curl -sS --connect-timeout 10 --max-time 30 -o "$response_file" -w "%{http_code}" \
+            -X POST "https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{"query": "SELECT 1 AS keep_alive, count(*) AS active_branches FROM branches WHERE active = true;"}')"
+          curl_exit=$?
+          set -e
+          if [ "$curl_exit" -ne 0 ]; then
+            echo "::error::Supabase SQL probe failed at the network/curl layer (exit $curl_exit)."
+            exit 1
           fi
+          echo "PostgreSQL Query HTTP Response: $http_code"
+          if [[ ! "$http_code" =~ ^2[0-9]{2}$ ]]; then
+            echo "::error::Supabase SQL probe returned HTTP $http_code."
+            exit 1
+          fi
+          # The management API probe returns one JSON document containing exactly
+          # one keep-alive row; preserve that raw response shape.
+          jq_filter='def exactly_one_document:
+            if type != "array" then false
+            elif length != 1 then false
+            else .[0]
+            end;
+            def nonnegative_integer:
+              if type != "number" then false
+              elif (isfinite | not) then false
+              else floor == . and . >= 0
+              end;
+            def keep_alive_integer_one:
+              if type != "number" then false
+              elif (isfinite | not) then false
+              else floor == . and . == 1
+              end;
+            def sql_success:
+              if type != "array" then false
+              elif length != 1 then false
+              elif (.[0] | type) != "object" then false
+              elif ((.[0] | keys_unsorted | sort) != ["active_branches", "keep_alive"]) then false
+              else ((.[0].keep_alive | keep_alive_integer_one)
+                and (.[0].active_branches | nonnegative_integer))
+              end;
+            exactly_one_document | sql_success'
+          if ! jq -e -s "$jq_filter" "$response_file" >/dev/null 2>&1; then
+            echo "::error::Supabase SQL probe returned an invalid 2xx response body."
+            exit 1
+          fi
+          echo "Active PostgreSQL transaction executed successfully. Supabase activity reset!"
 
       - name: Ping Supabase REST Gateway
+        env:
+          PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
+          set -euo pipefail
           echo "=== Pinging Supabase REST Gateway ==="
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "https://awaknzhadjglbfkhigck.supabase.co/rest/v1/" || true)
-          echo "Supabase REST Gateway Response: $HTTP_CODE"
-          if [ "$HTTP_CODE" != "000" ]; then
-            echo "Supabase REST gateway active and recorded."
+          response_file="$(mktemp)"
+          trap 'rm -f "$response_file"' EXIT
+          set +e
+          http_code="$(curl -sS --connect-timeout 10 --max-time 30 -o "$response_file" -w "%{http_code}" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            "https://${PROJECT_REF}.supabase.co/rest/v1/branches?select=id&limit=1")"
+          curl_exit=$?
+          set -e
+          if [ "$curl_exit" -ne 0 ]; then
+            echo "::error::Supabase REST gateway probe failed at the network/curl layer (exit $curl_exit)."
+            exit 1
           fi
+          echo "Supabase REST Gateway Response: $http_code"
+          if [[ ! "$http_code" =~ ^2[0-9]{2}$ ]]; then
+            echo "::error::Supabase REST gateway returned HTTP $http_code."
+            exit 1
+          fi
+          # The public table endpoint is the REST reachability oracle. It returns
+          # at most one explicitly selected branch id and never exposes the body.
+          jq_filter='def exactly_one_document:
+            if type != "array" then false
+            elif length != 1 then false
+            else .[0]
+            end;
+            def nonnull_scalar:
+              if type == "number" then isfinite
+              else (type == "string") or (type == "boolean")
+              end;
+            def rest_success:
+              if type != "array" then false
+              elif length > 1 then false
+              else all(.[];
+                (type == "object")
+                and ((keys_unsorted | sort) == ["id"])
+                and (.id | nonnull_scalar)
+              )
+              end;
+            exactly_one_document | rest_success'
+          if ! jq -e -s "$jq_filter" "$response_file" >/dev/null 2>&1; then
+            echo "::error::Supabase REST gateway returned an invalid 2xx response body."
+            exit 1
+          fi
+          echo "Supabase REST gateway is active and recorded."
 
       - name: Ping Supabase Auth Health
+        env:
+          PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
+          set -euo pipefail
           echo "=== Pinging Supabase Auth Gateway ==="
-          AUTH_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "https://awaknzhadjglbfkhigck.supabase.co/auth/v1/health" || true)
-          echo "Supabase Auth Gateway Response: $AUTH_CODE"
-          if [ "$AUTH_CODE" != "000" ]; then
-            echo "Supabase Auth gateway active and recorded."
+          response_file="$(mktemp)"
+          trap 'rm -f "$response_file"' EXIT
+          set +e
+          auth_code="$(curl -sS --connect-timeout 10 --max-time 30 -o "$response_file" -w "%{http_code}" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            "https://${PROJECT_REF}.supabase.co/auth/v1/health")"
+          curl_exit=$?
+          set -e
+          if [ "$curl_exit" -ne 0 ]; then
+            echo "::error::Supabase Auth gateway probe failed at the network/curl layer (exit $curl_exit)."
+            exit 1
           fi
+          echo "Supabase Auth Gateway Response: $auth_code"
+          if [[ ! "$auth_code" =~ ^2[0-9]{2}$ ]]; then
+            echo "::error::Supabase Auth gateway returned HTTP $auth_code."
+            exit 1
+          fi
+          # Auth health has a deliberately narrow allowlist. Supabase currently
+          # returns a nonempty description in addition to name and version.
+          jq_filter='def exactly_one_document:
+            if type != "array" then false
+            elif length != 1 then false
+            else .[0]
+            end;
+            def nonempty_string:
+            if type != "string" then false else length > 0 end;
+            def auth_success:
+              if type != "object" then false
+              elif ((keys_unsorted | sort) != ["name", "version"]
+                and (keys_unsorted | sort) != ["description", "name", "version"]) then false
+              elif .name != "GoTrue" then false
+              elif ((.version | nonempty_string) | not) then false
+              elif (has("description") and ((.description | nonempty_string) | not)) then false
+              else true
+              end;
+            exactly_one_document | auth_success'
+          if ! jq -e -s "$jq_filter" "$response_file" >/dev/null 2>&1; then
+            echo "::error::Supabase Auth gateway returned an invalid 2xx response body."
+            exit 1
+          fi
+          echo "Supabase Auth gateway is active and recorded."
 
       - name: Verify Inactivity Reset
         run: |
+          set -euo pipefail
           echo "Supabase 24/7 keep-alive routine completed successfully. Activity recorded!"
 
   render-health:

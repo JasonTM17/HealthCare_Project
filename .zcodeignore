@@ -1,0 +1,137 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+secrets/
+credentials/
+
+# Dependencies
+node_modules/
+.opencode/node_modules/
+
+# Java / Maven
+target/
+.mvn/.maven-wrapper.jar
+
+# Next.js / frontend builds
+.next/
+.next-*/
+.vercel/
+out/
+dist/
+build/
+*.tsbuildinfo
+apps/frontend/playwright-report/
+apps/frontend/test-results/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Logs and temp files
+*.log
+logs/
+.tmp/
+tmp/
+temp/
+.cache/
+audit_results/
+verification_screenshots/
+apps/frontend/scripts/
+scripts/capture-*.mjs
+
+# Local service data and uploads
+.data/
+data/local/
+apps/backend/data/
+postgres-data/
+redis-data/
+minio-data/
+uploads/local/
+storage/local/
+backups/
+*.dump
+*.dump.partial
+
+# Docker and runtime override files
+docker-compose.override.yml
+*.pid
+
+# IDE and OS files
+.idea/
+.vscode/settings.json
+.vscode/tasks.json
+.vscode/launch.json
+.DS_Store
+Thumbs.db
+
+# Agent/runtime local state
+.agentkit/local/
+.agentkit/tmp/
+.gemini/logs/
+.gemini/tmp/
+.gemini/sessions/
+.grok/
+project_structure_summary.txt
+plans/
+
+# Private AgentKit/runtime source kept on the local workspace only
+.agentkit/
+.agents/
+.claude/
+.codex/
+.gemini/
+.opencode/
+OPENCODE.md
+engineer/
+plans/
+.mimosa/
+**/.mimosa/
+.video_agent/
+apps/frontend/local_*.png
+scripts/tmp-*.py
+scratch/
+
+# Local probe credentials (never commit)
+apps/ai-service/scratch-prod.env
+apps/*/scratch/token.tmp
+
+# ===== ↑ 以上同步自 .gitignore（「从 .gitignore 同步」只重写以上部分）=====
+.git/
+.hg/
+.svn/
+bower_components/
+jspm_packages/
+site-packages/
+coverage/
+lcov-report/
+cmakefiles/
+cmake-build-*/
+bazel-*/
+pods/
+deriveddata/
+storybook-static/
+playwright-report/
+test-results/
+allure-results/
+allure-report/
+cdk.out/
+*.egg-info/
+*.dist-info/
+eggs/
+pip-wheel-metadata/
+wheels/
+# ----- ↑ 以上为 ZCode 默认排除规则（自定义规则请写在本行下方，不会被同步/恢复改动）-----
+# 自定义规则写在下方（本行提示可删除）
