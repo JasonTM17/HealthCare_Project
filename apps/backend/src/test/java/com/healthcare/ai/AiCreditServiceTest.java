@@ -53,29 +53,30 @@ class AiCreditServiceTest {
     }
 
     @Test
-    @DisplayName("Deduct patient credit decrements balance and records transaction")
+    @DisplayName("Deduct patient credit uses the atomic conditional update and records the DB-accurate balance")
     void deductPatientCreditSuccess() {
         UUID userId = UUID.randomUUID();
-        PatientProfile profile = new PatientProfile();
-        profile.setUserId(userId);
-        profile.setAiCredits(10);
-        when(patientProfileRepository.findByUserId(userId)).thenReturn(Optional.of(profile));
+        when(patientProfileRepository.deductAiCreditByUserId(userId)).thenReturn(1);
+        when(patientProfileRepository.findAiCreditsByUserId(userId)).thenReturn(Optional.of(9));
 
         boolean deducted = creditService.deductPatientCredit(userId, "Test query");
 
         assertTrue(deducted);
-        assertEquals(9, profile.getAiCredits());
-        verify(patientProfileRepository).save(profile);
-        verify(transactionRepository).save(any(AiCreditTransaction.class));
+        ArgumentCaptor<AiCreditTransaction> tx = ArgumentCaptor.forClass(AiCreditTransaction.class);
+        verify(transactionRepository).save(tx.capture());
+        assertEquals(-1, tx.getValue().getAmount());
+        assertEquals(9, tx.getValue().getBalanceAfter());
+        verify(patientProfileRepository, Mockito.never()).save(any(PatientProfile.class));
     }
 
     @Test
-    @DisplayName("Deduct patient credit throws 402 when balance is zero")
+    @DisplayName("Deduct patient credit throws 402 when the conditional update matched no row")
     void deductPatientCreditThrowsWhenZero() {
         UUID userId = UUID.randomUUID();
         PatientProfile profile = new PatientProfile();
         profile.setUserId(userId);
         profile.setAiCredits(0);
+        when(patientProfileRepository.deductAiCreditByUserId(userId)).thenReturn(0);
         when(patientProfileRepository.findByUserId(userId)).thenReturn(Optional.of(profile));
 
         BusinessException ex = assertThrows(BusinessException.class, () ->
@@ -83,6 +84,53 @@ class AiCreditServiceTest {
         );
         assertEquals(402, ex.getStatus());
         assertEquals("INSUFFICIENT_AI_CREDITS", ex.getCode());
+        verify(transactionRepository, Mockito.never()).save(any(AiCreditTransaction.class));
+    }
+
+    @Test
+    @DisplayName("Deduct patient credit without a profile is a no-op, not an error")
+    void deductPatientCreditWithoutProfileReturnsFalse() {
+        UUID userId = UUID.randomUUID();
+        when(patientProfileRepository.deductAiCreditByUserId(userId)).thenReturn(0);
+        when(patientProfileRepository.findByUserId(userId)).thenReturn(Optional.empty());
+
+        boolean deducted = creditService.deductPatientCredit(userId, "no profile");
+
+        assertFalse(deducted);
+        verify(transactionRepository, Mockito.never()).save(any(AiCreditTransaction.class));
+    }
+
+    @Test
+    @DisplayName("Deduct doctor credit uses the atomic conditional update and records the DB-accurate balance")
+    void deductDoctorCreditSuccess() {
+        UUID userId = UUID.randomUUID();
+        when(doctorRepository.deductAiCreditByUserId(userId)).thenReturn(1);
+        when(doctorRepository.findAiCreditsByUserId(userId)).thenReturn(Optional.of(149));
+
+        boolean deducted = creditService.deductDoctorCredit(userId, "Test query");
+
+        assertTrue(deducted);
+        ArgumentCaptor<AiCreditTransaction> tx = ArgumentCaptor.forClass(AiCreditTransaction.class);
+        verify(transactionRepository).save(tx.capture());
+        assertEquals("DOCTOR", tx.getValue().getTargetRole());
+        assertEquals(-1, tx.getValue().getAmount());
+        assertEquals(149, tx.getValue().getBalanceAfter());
+        verify(doctorRepository, Mockito.never()).save(any(Doctor.class));
+    }
+
+    @Test
+    @DisplayName("Deduct doctor credit throws 402 when the conditional update matched no row")
+    void deductDoctorCreditThrowsWhenZero() {
+        UUID userId = UUID.randomUUID();
+        when(doctorRepository.deductAiCreditByUserId(userId)).thenReturn(0);
+        when(doctorRepository.findByUserId(userId)).thenReturn(Optional.of(new Doctor()));
+
+        BusinessException ex = assertThrows(BusinessException.class, () ->
+            creditService.deductDoctorCredit(userId, "Test query")
+        );
+        assertEquals(402, ex.getStatus());
+        assertEquals("INSUFFICIENT_AI_CREDITS", ex.getCode());
+        verify(transactionRepository, Mockito.never()).save(any(AiCreditTransaction.class));
     }
 
     @Test

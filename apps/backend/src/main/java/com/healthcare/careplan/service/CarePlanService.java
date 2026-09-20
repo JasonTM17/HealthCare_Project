@@ -269,21 +269,42 @@ public class CarePlanService {
               JOIN doctors d ON d.id = p.doctor_id
              WHERE p.deleted_at IS NULL AND p.retention_expires_at > CURRENT_TIMESTAMP
              """ + " AND " + predicate + " ORDER BY p.updated_at DESC", args);
+        Map<UUID, List<CarePlanContracts.Item>> itemsByPlan = fetchItemsForPlans(
+                planRows.stream().map(row -> (UUID) row.get("id")).toList());
         List<CarePlanContracts.Plan> result = new ArrayList<>();
         for (Map<String, Object> row : planRows) {
             UUID id = (UUID) row.get("id");
-            List<CarePlanContracts.Item> items = jdbc.query("""
-                SELECT id, sequence_number, goal, reminder, status, due_at, completed_at
-                  FROM patient_care_plan_items
-                 WHERE care_plan_id = ? AND deleted_at IS NULL AND retention_expires_at > CURRENT_TIMESTAMP
-                 ORDER BY sequence_number ASC
-                """, (rs, n) -> new CarePlanContracts.Item(
-                    rs.getObject("id", UUID.class), rs.getInt("sequence_number"), rs.getString("goal"),
-                    rs.getString("reminder"), rs.getString("status"), rs.getObject("due_at", OffsetDateTime.class),
-                    rs.getObject("completed_at", OffsetDateTime.class)), id);
-            result.add(mapPlan(row, items));
+            result.add(mapPlan(row, itemsByPlan.getOrDefault(id, List.of())));
         }
         return result;
+    }
+
+    /**
+     * One round trip for every plan's items instead of one query per plan.
+     * Rows arrive ordered by care plan then sequence number, so grouping in
+     * memory preserves the per-plan ordering the single-plan query produced.
+     */
+    private Map<UUID, List<CarePlanContracts.Item>> fetchItemsForPlans(List<UUID> planIds) {
+        if (planIds.isEmpty()) return Map.of();
+        String placeholders = String.join(",", java.util.Collections.nCopies(planIds.size(), "?"));
+        String sql = """
+            SELECT care_plan_id, id, sequence_number, goal, reminder, status, due_at, completed_at
+              FROM patient_care_plan_items
+             WHERE care_plan_id IN (%s)
+               AND deleted_at IS NULL AND retention_expires_at > CURRENT_TIMESTAMP
+             ORDER BY care_plan_id ASC, sequence_number ASC
+            """.formatted(placeholders);
+        return jdbc.query(sql, (rs, rowNumber) -> {
+            UUID planId = rs.getObject("care_plan_id", UUID.class);
+            CarePlanContracts.Item item = new CarePlanContracts.Item(
+                rs.getObject("id", UUID.class), rs.getInt("sequence_number"), rs.getString("goal"),
+                rs.getString("reminder"), rs.getString("status"), rs.getObject("due_at", OffsetDateTime.class),
+                rs.getObject("completed_at", OffsetDateTime.class));
+            return Map.entry(planId, item);
+        }, planIds.toArray()).stream().collect(java.util.stream.Collectors.groupingBy(
+                Map.Entry::getKey,
+                java.util.LinkedHashMap::new,
+                java.util.stream.Collectors.mapping(Map.Entry::getValue, java.util.stream.Collectors.toList())));
     }
 
     private CarePlanContracts.Plan getPlan(UUID planId, UUID actor, boolean patient) {

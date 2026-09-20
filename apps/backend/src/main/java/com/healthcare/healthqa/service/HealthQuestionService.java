@@ -30,6 +30,9 @@ import java.util.regex.Pattern;
 @Service
 public class HealthQuestionService {
     private static final Pattern PII = Pattern.compile("(?i)([A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}|(?:\\+?84|0)(?:3|5|7|8|9)\\d{8}|\\b\\d{9,12}\\b)");
+    /** Public/doctor listings default to and are clamped at the historical 200-row hard cap. */
+    public static final int LISTING_DEFAULT_SIZE = 200;
+    public static final int LISTING_MAX_SIZE = 200;
     private static final List<String> REPORT_REASONS = List.of(
         "PII_DETECTED", "SAFETY_CONCERN", "OUT_OF_SCOPE", "DUPLICATE", "SPAM", "LEGAL_REQUEST");
     private static final List<String> REPORT_STATUSES = List.of("UNDER_REVIEW", "RESOLVED", "DISMISSED");
@@ -183,9 +186,17 @@ public class HealthQuestionService {
 
     @Transactional(readOnly = true)
     public List<HealthQuestionContracts.Summary> doctorQueue(UserDetails principal) {
+        return doctorQueue(principal, null, null);
+    }
+
+    /** Same bounded window as the moderation queue: default page 0 / size 200 keeps the previous hard cap. */
+    @Transactional(readOnly = true)
+    public List<HealthQuestionContracts.Summary> doctorQueue(UserDetails principal, Integer page, Integer size) {
         UUID doctor = currentUser(principal);
         requireDoctor(doctor);
-        return list("WHERE q.status IN ('AWAITING_DOCTOR', 'ANSWER_SUBMITTED')");
+        int safePage = SafePageRequests.safePage(page);
+        int safeSize = SafePageRequests.safeSize(size, LISTING_DEFAULT_SIZE, LISTING_MAX_SIZE);
+        return listWindow("WHERE q.status IN ('AWAITING_DOCTOR', 'ANSWER_SUBMITTED')", safeSize, safePage * safeSize);
     }
 
     @Transactional
@@ -271,10 +282,20 @@ public class HealthQuestionService {
 
     @Transactional(readOnly = true)
     public List<HealthQuestionContracts.Summary> publicList(String topic) {
-        if (topic == null || topic.isBlank()) return list("WHERE q.status = 'PUBLISHED'");
+        return publicList(topic, null, null);
+    }
+
+    /** Optional paging over the published listing; defaults keep the previous 200-row window. */
+    @Transactional(readOnly = true)
+    public List<HealthQuestionContracts.Summary> publicList(String topic, Integer page, Integer size) {
+        int safePage = SafePageRequests.safePage(page);
+        int safeSize = SafePageRequests.safeSize(size, LISTING_DEFAULT_SIZE, LISTING_MAX_SIZE);
+        if (topic == null || topic.isBlank()) {
+            return listWindow("WHERE q.status = 'PUBLISHED'", safeSize, safePage * safeSize);
+        }
         String normalized = topic.trim().toLowerCase();
         if (!normalized.matches("[a-z0-9]+(?:-[a-z0-9]+)*")) return List.of();
-        return list("WHERE q.status = 'PUBLISHED' AND q.topic_slug = ?", normalized);
+        return listWindow("WHERE q.status = 'PUBLISHED' AND q.topic_slug = ?", safeSize, safePage * safeSize, normalized);
     }
 
     private List<HealthQuestionContracts.Summary> list(String where, Object... args) {

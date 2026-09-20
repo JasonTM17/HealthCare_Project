@@ -7,7 +7,6 @@ import com.healthcare.ai.chat.service.AiChatSourceResolver;
 import com.healthcare.ai.chat.service.ChatMedicalSafety;
 import com.healthcare.ai.chat.service.ChatSuggestedActionResolver;
 import com.healthcare.ai.service.AiService;
-import com.healthcare.observability.RequestTrace;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -24,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -120,10 +120,17 @@ public class PublicAiChatController {
         String userMessage = request.message().trim();
         ChatMode publicMode = ChatSuggestedActionResolver.publicMode(userMessage);
         payload.put("mode", publicMode.name());
-        Map<String, Object> deterministicBranch = publicSpecificBranchResponse(userMessage);
-        if (deterministicBranch != null) return ResponseEntity.ok(deterministicBranch);
+        boolean protectedInput = ChatMedicalSafety.containsProtectedInputCue(userMessage);
+        if (!protectedInput) {
+            Map<String, Object> deterministicBranch = publicSpecificBranchResponse(userMessage);
+            if (deterministicBranch != null) return ResponseEntity.ok(deterministicBranch);
+        }
         try {
             if (publicMode == ChatMode.HEALTH_EDUCATION) {
+                if (ChatMedicalSafety.containsEmergencyInputCue(userMessage)) {
+                    return ResponseEntity.ok(publicSafetyFallback(
+                        userMessage, "EMERGENCY", ChatMode.HEALTH_EDUCATION));
+                }
                 return ResponseEntity.ok(publicEducationChat(userMessage, mappedTurns));
             }
             return ResponseEntity.ok(sanitize(aiService.chat(payload), userMessage, publicMode));
@@ -133,6 +140,12 @@ public class PublicAiChatController {
             // unavailable.  Other questions retain the normal upstream error
             // contract and are handled by the BFF's safe fallback.
             if (isAiFailure(ex)) {
+                if (ChatMedicalSafety.containsEmergencyInputCue(userMessage)) {
+                    return ResponseEntity.ok(publicSafetyFallback(userMessage, "EMERGENCY", publicMode));
+                }
+                if (protectedInput) {
+                    return ResponseEntity.ok(publicSafetyFallback(userMessage, "HUMAN_HANDOFF", publicMode));
+                }
                 Map<String, Object> fallback = publicCatalogFallback(userMessage);
                 if (fallback != null) return ResponseEntity.ok(fallback);
             }
@@ -241,7 +254,21 @@ public class PublicAiChatController {
         }
 
         List<ValidatedCitation> validatedCitations = validatedCitations(upstream, publicMode);
+        boolean protectedOperationalQuery = publicMode == ChatMode.HOSPITAL_SUPPORT
+            && ChatMedicalSafety.containsProtectedInputCue(userMessage);
+        ChatSuggestedActionResolver.HospitalSupportIntent intent =
+            ChatSuggestedActionResolver.classify(userMessage);
+        boolean protectedOperationalNavigationQuery = protectedOperationalQuery
+            && switch (intent) {
+                case SPECIALTY_GUIDANCE, PREPARATION, GREETING, EDUCATION -> false;
+                default -> true;
+            };
         if ("ANSWER".equals(safetyAction) && validatedCitations.isEmpty()) {
+            if (protectedOperationalQuery) {
+                String fallbackAction = ChatMedicalSafety.containsEmergencyInputCue(userMessage)
+                    ? "EMERGENCY" : "HUMAN_HANDOFF";
+                return publicSafetyFallback(userMessage, fallbackAction, publicMode);
+            }
             Map<String, Object> navigationFallback = publicNavigationFallback(
                 userMessage, publicMode, provenance);
             if (navigationFallback != null) return navigationFallback;
@@ -251,8 +278,21 @@ public class PublicAiChatController {
             if (publicMode == ChatMode.HEALTH_EDUCATION) {
                 return publicEducationFallback(userMessage);
             }
+            if (ChatMedicalSafety.containsEmergencyInputCue(userMessage)) {
+                return publicSafetyFallback(userMessage, "EMERGENCY", publicMode);
+            }
+            if (protectedOperationalNavigationQuery) {
+                return publicSafetyFallback(userMessage, "HUMAN_HANDOFF", publicMode);
+            }
             Map<String, Object> fallback = publicCatalogFallback(userMessage);
             if (fallback != null) return fallback;
+        }
+        if (protectedOperationalQuery && "ANSWER".equals(safetyAction)
+                && validatedCitations.stream().anyMatch(citation ->
+                    ALLOWED_OPERATIONAL_CITATION_SOURCE_TYPES.contains(citation.source().type()))) {
+            String fallbackAction = ChatMedicalSafety.containsEmergencyInputCue(userMessage)
+                ? "EMERGENCY" : "HUMAN_HANDOFF";
+            return publicSafetyFallback(userMessage, fallbackAction, publicMode);
         }
         List<AiChatSourceResolver.ResolvedSource> currentAuthorized = List.of();
         if (publicMode == ChatMode.HEALTH_EDUCATION && "ANSWER".equals(safetyAction)) {
@@ -364,6 +404,13 @@ public class PublicAiChatController {
     }
 
     private Map<String, Object> publicSafetyFallback(String userMessage, String safetyAction) {
+        return publicSafetyFallback(userMessage, safetyAction, ChatMode.HEALTH_EDUCATION);
+    }
+
+    private Map<String, Object> publicSafetyFallback(
+            String userMessage,
+            String safetyAction,
+            ChatMode publicMode) {
         String answer = switch (safetyAction) {
             case "EMERGENCY" ->
                 "Nếu bạn đang có dấu hiệu nguy hiểm, hãy gọi 115 ngay hoặc đến cơ sở y tế gần nhất. "
@@ -382,7 +429,7 @@ public class PublicAiChatController {
                 + "chẩn đoán hoặc điều trị của bác sĩ.");
         result.put("citations", List.of());
         result.put("provenance", "local_fallback");
-        result.put("mode", ChatMode.HEALTH_EDUCATION.name());
+        result.put("mode", publicMode.name());
         result.put("safety_action", safetyAction);
         result.put(
             "suggested_actions",
@@ -490,15 +537,40 @@ public class PublicAiChatController {
         List<AiChatSourceResolver.BranchDetails> matches;
         try {
             specific = sourceResolver.isSpecificBranchQuery(userMessage);
-            if (!specific) return null;
             matches = sourceResolver.branchDetails(userMessage);
         } catch (RuntimeException ignored) {
             return publicBranchUnavailable(userMessage);
         }
         if (matches == null || matches.isEmpty()) {
-            return publicBranchUnavailable(userMessage);
+            if (isGenericHospitalHoursQuery(userMessage)) {
+                return publicBranchHoursOverview(userMessage);
+            }
+            if (specific) return publicBranchUnavailable(userMessage);
+            return null;
         }
         return publicBranchResponse(userMessage, matches);
+    }
+
+    /**
+     * A generic opening-hours question about the hospital as a whole (no
+     * branch identity and no clinical department) is answered from the live
+     * active catalog. Department questions ("khoa ...") belong to the AI
+     * service, not the branch catalog.
+     */
+    private boolean isGenericHospitalHoursQuery(String userMessage) {
+        String normalized = Normalizer
+            .normalize(userMessage == null ? "" : userMessage, Normalizer.Form.NFD)
+            .replaceAll("\\p{M}+", "")
+            .replace('đ', 'd')
+            .replace('Đ', 'D')
+            .toLowerCase(Locale.ROOT);
+        if (normalized.contains("khoa ")) return false;
+        for (String term : new String[] {
+            "mo cua", "dong cua", "gio lam viec", "gio kham", "gio hoat dong", "may gio",
+        }) {
+            if (normalized.contains(term)) return true;
+        }
+        return false;
     }
 
     private Map<String, Object> publicBranchResponse(
@@ -619,6 +691,53 @@ public class PublicAiChatController {
         result.put("suggested_actions", ChatSuggestedActionResolver.hospitalSupportFallback(userMessage));
         result.put("costTier", "local_free");
         result.put("routingReason", "public_branch_unavailable");
+        return result;
+    }
+
+    /** Generic opening-hours questions are answered from the live active catalog. */
+    private static final int MAX_BRANCH_HOURS_OVERVIEW_ROWS = 4;
+
+    private Map<String, Object> publicBranchHoursOverview(String userMessage) {
+        List<AiChatSourceResolver.BranchDetails> branches;
+        try {
+            branches = sourceResolver.activeBranchOverview(MAX_BRANCH_HOURS_OVERVIEW_ROWS);
+        } catch (RuntimeException ignored) {
+            return publicBranchUnavailable(userMessage);
+        }
+        if (branches == null || branches.isEmpty()) {
+            return publicBranchUnavailable(userMessage);
+        }
+        List<String> parts = new ArrayList<>();
+        List<AiChatSourceResolver.ResolvedSource> sources = new ArrayList<>();
+        for (AiChatSourceResolver.BranchDetails branch : branches) {
+            if (branch == null || branch.source() == null) continue;
+            String hours = branch.workingHours() == null || branch.workingHours().isBlank()
+                ? "giờ làm việc đang cập nhật"
+                : branch.workingHours();
+            parts.add(branch.source().title() + " — " + hours);
+            sources.add(branch.source());
+        }
+        if (parts.isEmpty()) return publicBranchUnavailable(userMessage);
+        List<Map<String, String>> citations = verifiedOperationalCitations(sources);
+        if (citations.isEmpty()) return publicBranchUnavailable(userMessage);
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put(
+            "answer",
+            "Theo dữ liệu cơ sở đang hoạt động, giờ làm việc của bệnh viện như sau: "
+                + String.join("; ", parts)
+                + ". Giờ có thể thay đổi trong ngày lễ; bạn nên kiểm tra lại trước khi đến khám.");
+        result.put(
+            "disclaimer",
+            "Thông tin từ trợ lý AI chỉ mang tính tham khảo và không thay thế tư vấn, "
+                + "chẩn đoán hoặc điều trị của bác sĩ.");
+        result.put("citations", citations);
+        result.put("provenance", "local_fallback");
+        result.put("mode", ChatMode.HOSPITAL_SUPPORT.name());
+        result.put("safety_action", "ANSWER");
+        result.put("suggested_actions", ChatSuggestedActionResolver.hospitalSupportFallback(userMessage));
+        result.put("costTier", "local_free");
+        result.put("routingReason", "public_branch_hours_overview");
         return result;
     }
 
@@ -936,16 +1055,6 @@ public class PublicAiChatController {
 
     private ResponseStatusException badGateway(String reason) {
         return new ResponseStatusException(BAD_GATEWAY, reason);
-    }
-
-    private void recordSourceAuthorization(String outcome, long startedAt) {
-        String requestId = RequestTrace.currentId();
-        if (requestId == null) return;
-        long durationMillis = Math.max(0L, (System.nanoTime() - startedAt) / 1_000_000L);
-        log.info(
-            "AI chat stage requestId={} stage=source-authorization outcome={} durationMs={}",
-            requestId, outcome, durationMillis
-        );
     }
 
     /**

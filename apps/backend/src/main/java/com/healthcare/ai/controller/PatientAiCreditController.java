@@ -41,6 +41,7 @@ public class PatientAiCreditController {
         int credits = aiCreditService.getPatientCredits(user.getId());
         String tier = aiCreditService.getPatientTier(user.getId());
         List<AiCreditTransaction> history = aiCreditService.listTransactions(user.getId());
+        long totalTransactions = aiCreditService.countTransactions(user.getId());
 
         int tierMax = switch (tier.toUpperCase()) {
             case "VIP" -> 300;
@@ -48,16 +49,17 @@ public class PatientAiCreditController {
             case "SILVER" -> 150;
             default -> 100;
         };
-        int historyMax = (history != null && !history.isEmpty())
-                ? history.stream().mapToInt(AiCreditTransaction::getBalanceAfter).max().orElse(0)
-                : 0;
+        // Computed over the whole ledger, not the capped history window, so
+        // maxCredits keeps its value even once older transactions scroll out.
+        int historyMax = aiCreditService.getMaxTransactionBalance(user.getId());
         int maxCredits = Math.max(tierMax, Math.max(historyMax, credits));
 
         return ResponseEntity.ok(Map.of(
                 "tier", tier,
                 "credits", credits,
                 "maxCredits", maxCredits,
-                "history", history
+                "history", history,
+                "totalTransactions", totalTransactions
         ));
     }
 }
