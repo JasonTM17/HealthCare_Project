@@ -101,12 +101,14 @@ FROM generate_series(1, 20) AS s(idx)
 ON CONFLICT (slug) DO NOTHING;
 
 -- ── Doctors (500) ─────────────────────────────────────────────────────────────
+-- photo_url stays NULL on purpose: the frontend renders a neutral initials
+-- avatar for doctors without an own portrait instead of a shared photograph.
 INSERT INTO doctors (id, full_name, slug, bio, photo_url, active)
 SELECT md5(format('large-doctor:%s', gs.idx))::uuid,
        names.ho[1 + (gs.idx % 5)] || ' ' || names.dem[1 + ((gs.idx * 3) % 6)] || ' ' || names.ten[1 + ((gs.idx * 7) % 8)],
        'bs-' || gs.idx,
        'Bác sĩ chuyên khoa với ' || (8 + (gs.idx % 15)) || ' năm kinh nghiệm điều trị và chăm sóc bệnh nhân.',
-       '/media/doctors/doctor-' || (1 + (gs.idx % 6)) || '.jpg',
+       NULL,
        (gs.idx % 20 <> 0)  -- 5% inactive to exercise active filters
 FROM generate_series(1, 500) AS gs(idx),
      LATERAL (SELECT ARRAY['Nguyễn','Trần','Lê','Phạm','Võ','Đỗ','Bùi','Hoàng','Đặng','Ngô'] AS ho,
@@ -114,59 +116,152 @@ FROM generate_series(1, 500) AS gs(idx),
                      ARRAY['Khôi','Hà','Đức','Yến','Huy','Mai','Long','Trung','Lan','Phúc'] AS ten) AS names
 ON CONFLICT (slug) DO NOTHING;
 
--- ── Services (200) ────────────────────────────────────────────────────────────
+-- ── Services (200 = 10 service kinds × 20 clinical focuses) ───────────────────
+-- Names are a deterministic cross product so every catalog row stays distinct
+-- and reads like a real hospital service line item.
 INSERT INTO services (id, name, slug, description, active)
 SELECT md5(format('large-service:%s', i))::uuid,
-       'Dịch vụ y tế ' || i,
+       m.label || ' ' || f.name,
        'dv-' || i,
-       'Dịch vụ khám, tư vấn và điều trị chuyên sâu, trang bị thiết bị hiện đại.',
+       f.name || ': ' || m.detail || ', thực hiện bởi đội ngũ chuyên khoa với quy trình chuẩn và thiết bị hiện đại.',
        (i % 25 <> 0)
 FROM generate_series(1, 200) AS i
+CROSS JOIN LATERAL (
+    SELECT * FROM (VALUES
+        ('Khám chuyên khoa', 'đánh giá lâm sàng và tư vấn chuyên môn'),
+        ('Siêu âm tầm soát', 'hình ảnh học không xâm lấn theo chuẩn quốc tế'),
+        ('Xét nghiệm chẩn đoán', 'xét nghiệm cận lâm sàng phục vụ chẩn đoán'),
+        ('Tầm soát định kỳ', 'phát hiện sớm yếu tố nguy cơ'),
+        ('Tư vấn chuyên sâu', 'trao đổi kế hoạch chăm sóc cá nhân hóa'),
+        ('Theo dõi và quản lý', 'theo dõi tiến triển và điều chỉnh điều trị'),
+        ('Đánh giá nguy cơ', 'thang điểm và chỉ số dự phòng'),
+        ('Phục hồi và chăm sóc', 'kế hoạch phục hồi sau điều trị'),
+        ('Kiểm tra sức khỏe', 'bộ chỉ số nền tảng theo độ tuổi'),
+        ('Tham vấn dinh dưỡng', 'chế độ ăn phù hợp tình trạng sức khỏe')
+    ) AS t(label, detail)
+    OFFSET (((i - 1) / 20) % 10) LIMIT 1
+) m
+CROSS JOIN LATERAL (
+    SELECT * FROM (VALUES
+        ('tim mạch'), ('hô hấp'), ('tiêu hóa'), ('gan mật'), ('thận - tiết niệu'),
+        ('đái tháo đường'), ('tuyến giáp'), ('thần kinh'), ('cơ xương khớp'), ('da liễu'),
+        ('tai mũi họng'), ('mắt'), ('răng hàm mặt'), ('sản phụ khoa'), ('nhi khoa'),
+        ('nam khoa'), ('dinh dưỡng'), ('huyết học'), ('ung bướu'), ('phục hồi chức năng')
+    ) AS f(name)
+    OFFSET ((i - 1) % 20) LIMIT 1
+) f
 ON CONFLICT (slug) DO NOTHING;
 
--- ── Packages (100) ────────────────────────────────────────────────────────────
+-- ── Packages (100 = 20 clinical focuses × 5 depth levels) ─────────────────────
 INSERT INTO packages (id, name, slug, description, price, target_audience, duration_days, checklist, preparation_steps, active)
 SELECT md5(format('large-package:%s', i))::uuid,
-       'Gói khám sức khỏe cấp ' || c || ' #' || i,
+       'Gói ' || f.name || ' ' || d.level,
        'goi-' || i,
-       'Gói khám toàn diện bao gồm xét nghiệm, chẩn đoán hình ảnh và tư vấn chuyên sâu.',
+       'Gói ' || d.level || ' dành cho ' || f.name || ': kết hợp khám lâm sàng, xét nghiệm, chẩn đoán hình ảnh và tư vấn chuyên sâu.',
        (500000 + (i * 12345))::numeric(12,2),
-       'Người trưởng thành cần kiểm tra sức khỏe định kỳ',
+       'Người trưởng thành cần kiểm tra và theo dõi ' || f.name || ' định kỳ',
        1 + (i % 3),
        jsonb_build_array('Khám lâm sàng', 'Xét nghiệm cơ bản', 'Tư vấn kết quả'),
        jsonb_build_array('Mang theo giấy tờ tùy thân', 'Đến trước giờ hẹn 15 phút'),
        (i % 20 <> 0)
-FROM generate_series(1, 100) AS i,
-     LATERAL (SELECT chr(64 + 1 + (i % 3)) AS c) AS lvl
+FROM generate_series(1, 100) AS i
+CROSS JOIN LATERAL (
+    SELECT * FROM (VALUES
+        ('cơ bản'), ('nâng cao'), ('chuyên sâu'), ('toàn diện'), ('định kỳ')
+    ) AS d(level)
+    OFFSET ((i - 1) % 5) LIMIT 1
+) d
+CROSS JOIN LATERAL (
+    SELECT * FROM (VALUES
+        ('tim mạch'), ('hô hấp'), ('tiêu hóa'), ('gan mật'), ('thận - tiết niệu'),
+        ('đái tháo đường'), ('tuyến giáp'), ('thần kinh'), ('cơ xương khớp'), ('da liễu'),
+        ('tai mũi họng'), ('mắt'), ('răng hàm mặt'), ('sản phụ khoa'), ('nhi khoa'),
+        ('nam khoa'), ('dinh dưỡng'), ('huyết học'), ('ung bướu'), ('phục hồi chức năng')
+    ) AS f(name)
+    OFFSET (((i - 1) / 5) % 20) LIMIT 1
+) f
 ON CONFLICT (slug) DO NOTHING;
 
--- ── Articles (500) ────────────────────────────────────────────────────────────
+-- ── Articles (500 = 25 clinical topics × 20 editorial angles) ─────────────────
 INSERT INTO articles (id, title, slug, summary, body, published_at, category, author_name, reading_minutes, related_specialty_slug, sections, active)
 SELECT md5(format('large-article:%s', i))::uuid,
-       'Bài viết y khoa số ' || i,
+       a.angle || ' ' || t.topic,
        'bv-' || i,
-       'Tóm tắt nội dung y khoa hữu ích cho bệnh nhân và người nhà.',
-       'Nội dung chi tiết về phòng bệnh, sớm nhận biết triệu chứng và khi nào nên đi khám bác sĩ chuyên khoa.',
+       'Tổng quan y khoa về ' || t.topic || ': nhận biết sớm, phòng ngừa và khi nào nên gặp bác sĩ chuyên khoa.',
+       'Bài viết được biên soạn bởi đội ngũ chuyên môn nhằm giúp người đọc hiểu rõ về ' || t.topic || ', nhận biết dấu hiệu bất thường và chọn thời điểm đi khám phù hợp. Nội dung chỉ mang tính tham khảo, không thay thế chẩn đoán trực tiếp.',
        TIMESTAMPTZ '2026-08-01T08:00:00+07:00' - ((i % 180) || ' days')::interval,
-       CASE WHEN i % 3 = 0 THEN 'Tim mạch' WHEN i % 3 = 1 THEN 'Sức khỏe gia đình' ELSE 'Dinh dưỡng' END,
+       t.category,
        'Đội ngũ chuyên môn',
        4 + (i % 6),
-       CASE WHEN i % 3 = 0 THEN 'tim-mach' WHEN i % 3 = 1 THEN 'nhi-khoa' ELSE 'noi-tong-hop' END,
+       t.slug,
        jsonb_build_array(
-           jsonb_build_object('heading', 'Tổng quan', 'body', 'Thông tin được biên soạn để giúp người đọc nhận biết rủi ro sức khỏe và chuẩn bị câu hỏi khi đi khám.'),
+           jsonb_build_object('heading', 'Tổng quan', 'body', 'Thông tin được biên soạn để giúp người đọc nhận biết rủi ro sức khỏe liên quan đến ' || t.topic || ' và chuẩn bị câu hỏi khi đi khám.'),
            jsonb_build_object('heading', 'Gợi ý tiếp theo', 'body', 'Hãy trao đổi với nhân viên y tế nếu triệu chứng kéo dài, nặng lên hoặc ảnh hưởng sinh hoạt.' )
        ),
        (i % 15 <> 0)
 FROM generate_series(1, 500) AS i
+CROSS JOIN LATERAL (
+    SELECT * FROM (VALUES
+        ('Nhận diện sớm dấu hiệu của'), ('Cách phòng ngừa hiệu quả'), ('Hướng dẫn tự chăm sóc cho người'),
+        ('Chế độ ăn uống hợp lý cho người'), ('Khi nào cần đi khám vì'), ('Các giai đoạn tiến triển của'),
+        ('Điều trị hiện đại cho'), ('Tầm quan trọng của tái khám với'), ('Sai lầm thường gặp về'),
+        ('Hỏi đáp bác sĩ về'), ('Phục hồi chức năng sau'), ('Hỗ trợ người nhà mắc'),
+        ('Theo dõi tại nhà cho người'), ('Vận động an toàn cho người'), ('Thuốc thường dùng trong'),
+        ('Cận lâm sàng cần thiết khi nghi ngờ'), ('Chẩn đoán phân biệt trong'), ('Phòng khám chuyên sâu về'),
+        ('Câu chuyện người bệnh vượt qua'), ('Sống khỏe dài dài dù mắc')
+    ) AS a(angle)
+    OFFSET ((i - 1) % 20) LIMIT 1
+) a
+CROSS JOIN LATERAL (
+    SELECT * FROM (VALUES
+        ('cao huyết áp', 'Tim mạch', 'tim-mach'), ('bệnh động mạch vành', 'Tim mạch', 'tim-mach'),
+        ('rối loạn nhịp tim', 'Tim mạch', 'tim-mach'), ('hen phế quản', 'Hô hấp', 'ho-hap'),
+        ('viêm phế quản mạn tính', 'Hô hấp', 'ho-hap'), ('viêm loét dạ dày', 'Tiêu hóa', 'tieu-hoa'),
+        ('trào ngược dạ dày thực quản', 'Tiêu hóa', 'tieu-hoa'), ('xơ gan', 'Gan mật', 'tieu-hoa'),
+        ('sỏi thận', 'Tiết niệu', 'tiet-nieu'), ('đái tháo đường type 2', 'Nội tiết', 'noi-tiet'),
+        ('bệnh tuyến giáp', 'Nội tiết', 'noi-tiet'), ('đau nửa đầu', 'Thần kinh', 'than-kinh'),
+        ('thoái hóa khớp gối', 'Cơ xương khớp', 'co-xuong-khop'), ('viêm da dị ứng', 'Da liễu', 'da-lieu'),
+        ('viêm xoang', 'Tai mũi họng', 'tai-mui-hong'), ('đục thủy tinh thể', 'Mắt', 'mat'),
+        ('sâu răng', 'Răng hàm mặt', 'rang-ham-mat'), ('tiền sản giật', 'Sản phụ khoa', 'san-phu-khoa'),
+        ('dậy thì sớm ở trẻ', 'Nhi khoa', 'nhi-khoa'), ('rối loạn tiết niệu ở nam', 'Nam khoa', 'nam-khoa'),
+        ('thiếu máu thiếu sắt', 'Huyết học', 'huyet-hoc'), ('sức khỏe tâm thần', 'Tâm thần kinh', 'than-kinh'),
+        ('béo phì', 'Dinh dưỡng', 'dinh-duong'), ('loãng xương', 'Cơ xương khớp', 'co-xuong-khop'),
+        ('u xơ tử cung', 'Sản phụ khoa', 'san-phu-khoa')
+    ) AS t(topic, category, slug)
+    OFFSET (((i - 1) / 20) % 25) LIMIT 1
+) t
 ON CONFLICT (slug) DO NOTHING;
 
--- ── FAQs (150) ────────────────────────────────────────────────────────────────
+-- ── FAQs (150 = 10 question frames × 15 clinical focuses) ─────────────────────
 INSERT INTO faqs (id, question, answer, active)
 SELECT md5(format('large-faq:%s', i))::uuid,
-       'Câu hỏi thường gặp số ' || i || ': làm thế nào để được hỗ trợ y tế phù hợp?',
-       'Bệnh viện hỗ trợ qua nhiều kênh: đặt lịch trực tuyến, gọi điện thoại hoặc đến trực tiếp quầy lễ tân.',
+       q.question_prefix || f.name || q.question_suffix,
+       q.answer_prefix || f.name || q.answer_suffix,
        (i % 30 <> 0)
 FROM generate_series(1, 150) AS i
+CROSS JOIN LATERAL (
+    SELECT * FROM (VALUES
+        ('Có nên khám định kỳ cho bệnh lý ', ' không?', 'Có. ', ' tiến triển âm thầm, khám định kỳ giúp phát hiện sớm và điều trị kịp thời trước khi xuất hiện biến chứng.'),
+        ('Triệu chứng thường gặp của bệnh lý ', ' là gì?', 'Tùy giai đoạn, bệnh lý ', ' có thể gây mệt mỏi, đau tức tại vùng liên quan và ảnh hưởng sinh hoạt; cần đi khám khi triệu chứng kéo dài.'),
+        ('Quy trình khám và chẩn đoán ', ' diễn ra thế nào?', 'Bác sĩ sẽ khai thác tiền sử, khám lâm sàng và chỉ định cận lâm sàng phù hợp để xác định mức độ ', ' trước khi lên kế hoạch điều trị.'),
+        ('Chi phí thăm khám cho ', ' có được tư vấn trước không?', 'Có. Bạn sẽ được tư vấn lộ trình và chi phí dự kiến cho ', ' trước khi thực hiện cận lâm sàng.'),
+        ('Người nhà cần hỗ trợ gì cho người bệnh ', '?', 'Gia đình nên nhắc lịch uống thuốc, đồng hành trong các lần tái khám và ghi nhận diễn tiến triệu chứng liên quan đến ', ' để bác sĩ điều chỉnh điều trị.'),
+        ('Chế độ sinh hoạt phù hợp cho người ', ' như thế nào?', 'Người bệnh ', ' nên duy trì giấc ngủ đủ, vận động vừa sức và tuân thủ chế độ ăn bác sĩ khuyến nghị.'),
+        ('Khám ', ' có cần chuẩn bị gì trước không?', 'Bạn nên mang kết quả khám cũ, danh mục thuốc đang dùng và đến trước giờ hẹn 15 phút để quy trình khám ', ' diễn ra thuận lợi.'),
+        ('Bao lâu thì nên tái khám sau khi điều trị ', '?', 'Tần suất tái khám cho ', ' phụ thuộc giai đoạn điều trị; bác sĩ sẽ hẹn lịch cụ thể sau mỗi lần khám.'),
+        ('Bệnh lý ', ' có nguy hiểm nếu để lâu không điều trị?', 'Nhiều trường hợp ', ' tiến triển âm thầm trong năm đầu; trì hoãn điều trị làm tăng nguy cơ biến chứng và khó điều trị hơn.'),
+        ('Phụ nữ mang thai và trẻ em khám ', ' có an toàn không?', 'Có. Quy trình thăm khám ', ' cho phụ nữ mang thai và trẻ em được điều chỉnh phù hợp theo hướng dẫn chuyên khoa.')
+    ) AS q(question_prefix, question_suffix, answer_prefix, answer_suffix)
+    OFFSET ((i - 1) % 10) LIMIT 1
+) q
+CROSS JOIN LATERAL (
+    SELECT * FROM (VALUES
+        ('tim mạch'), ('hô hấp'), ('tiêu hóa'), ('tuyến giáp'), ('thần kinh'),
+        ('cơ xương khớp'), ('da liễu'), ('tai mũi họng'), ('sản phụ khoa'), ('nhi khoa'),
+        ('nam khoa'), ('dinh dưỡng'), ('huyết học'), ('ung bướu'), ('mắt')
+    ) AS f(name)
+    OFFSET (((i - 1) / 10) % 15) LIMIT 1
+) f
 ON CONFLICT DO NOTHING;
 
 -- ── Doctor ↔ Specialty (avg 2-3 per doctor ≈ 1250) ───────────────────────────
