@@ -81,9 +81,7 @@ public class BffRequiredFilter extends OncePerRequestFilter {
             return false;
         }
         if (OPEN_PATHS.contains(path)
-                || path.startsWith("/actuator/health")
-                || path.startsWith("/swagger-ui")
-                || path.startsWith("/v3/api-docs")) {
+                || path.startsWith("/actuator/health")) {
             return true;
         }
         return "POST".equalsIgnoreCase(request.getMethod())

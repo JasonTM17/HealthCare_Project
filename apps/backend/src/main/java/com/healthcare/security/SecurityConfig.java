@@ -121,7 +121,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/v1/public/ai/chat").permitAll()
                 .requestMatchers("/api/v1/ai/**").authenticated()
                 .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
-                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
+                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").hasRole("ADMIN")
                 .requestMatchers("/api/v1/users/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/v1/doctor/**").hasAnyRole("DOCTOR", "ADMIN")
