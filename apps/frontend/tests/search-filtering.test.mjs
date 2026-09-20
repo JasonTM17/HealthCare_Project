@@ -85,3 +85,105 @@ test("SearchPageClient normalization strips Vietnamese diacritics accurately", a
   assert.ok(matches("Đa khoa", ["Khám sức khỏe tổng quát đa khoa", "da-khoa"]));
   assert.ok(matches("dieu duong", ["Dịch vụ chăm sóc điều dưỡng", "dieu-duong"]));
 });
+
+test("SearchPageClient publishes catalog groups progressively", async () => {
+  const source = await read("app/search/SearchPageClient.tsx");
+
+  assert.doesNotMatch(source, /Promise\.allSettled\(/, "catalog groups must not wait on one aggregate settlement");
+  assert.match(source, /const startGroup =/, "each catalog group must have an independent request path");
+  assert.match(source, /setCatalog\(/, "a settled group must publish its own catalog data");
+  assert.match(source, /status === "loading"/, "the UI must track pending groups independently");
+  assert.match(source, /Các nhóm đã sẵn sàng vẫn đang hiển thị/, "slow groups must not hide ready results");
+  assert.doesNotMatch(source, /disabled=\{loading\}/, "search submission must stay available while a group is slow");
+});
+
+test("SearchPageClient discloses the bounded catalog continuation", async () => {
+  const source = await read("app/search/SearchPageClient.tsx");
+
+  assert.match(source, /const SEARCH_PAGE_CAP = 3/);
+  assert.match(source, /truncated: totalPages > maxPages/);
+  assert.match(source, /truncatedGroupKeys/);
+  assert.match(source, /Các nhóm này còn dữ liệu phía sau/);
+  assert.match(source, /catalogSettled && result && resultCount === 0/, "empty state must wait for every group to settle");
+  assert.match(source, /loadedCatalogGroupCount === 0/, "partial failures must not hide a truthful empty result");
+  assert.match(source, /function validateCatalogPage/, "malformed page envelopes must fail closed");
+  assert.match(source, /function doctorResultMeta/, "same-name doctors need a stable public disambiguator");
+  assert.match(source, /branchNames/, "doctor result metadata must include branch context");
+  assert.match(source, /const sessionAuthorityKey = authSession/, "session identity must be explicit");
+  assert.match(source, /Date\.parse\(authSession\.absoluteExpiresAt\)/, "session authority must use the parsed absolute expiry");
+  assert.match(source, /const semanticAuthorityKey = sessionAuthorityKey && semanticQuery/, "semantic state must have an auth/query authority key");
+  assert.match(source, /const \[semanticResultKey, setSemanticResultKey\] = useState<string \| null>/, "resolved results need a key separate from loading state");
+  assert.match(source, /const semanticStateVisible = Boolean\(semanticAuthorityKey && semanticStateKey === semanticAuthorityKey\)/, "loading/error state must be visible only for its active authority key");
+  assert.match(source, /const semanticVisible = Boolean\(semanticStateVisible && semanticResultKey === semanticAuthorityKey\)/, "results must be visible only for the resolved authority key");
+  assert.match(source, /semanticStateVisible && semanticLoading/, "semantic loading must be hidden when auth or query is absent");
+  assert.match(source, /semanticStateVisible && resultCount === 0 && semanticError/, "semantic errors must be hidden when auth or query is absent");
+  assert.match(source, /semanticVisible && semantic\?\.results\.length/, "stale semantic results must be hidden when auth or query is absent");
+  assert.match(source, /setSemanticResultKey\(null\)/, "new authority transitions must invalidate the previous result");
+  assert.doesNotMatch(source, /if \(!submittedQuery \|\| !authSession\)\s*\{\s*setSemantic\(null\)/, "auth transition effect must not synchronously clear state");
+});
+
+test("SearchPageClient rejects stale semantic authority transitions", async () => {
+  const source = await read("app/search/SearchPageClient.tsx");
+
+  assert.match(source, /useRef<string \| null>/, "active authority must be observable by late callbacks");
+  assert.match(source, /authSession\.user\.id/);
+  assert.match(source, /authSession\.absoluteExpiresAt/);
+  assert.match(source, /Date\.parse\(authSession\.absoluteExpiresAt\)/);
+  assert.match(source, /semanticQuery = submittedQuery\.trim\(\)/);
+  assert.match(source, /const capturedAuthorityKey = semanticAuthorityKey/);
+  assert.match(source, /semanticAuthorityKeyRef\.current === capturedAuthorityKey/);
+  assert.match(source, /if \(isCurrentAuthority\(\)\) \{\s*setSemantic\(response\);\s*setSemanticResultKey\(capturedAuthorityKey\);/);
+  assert.match(source, /if \(isCurrentAuthority\(\)\) \{[\s\S]*setSemanticError/);
+
+  const authorityKey = (session, submittedQuery) => {
+    const query = submittedQuery.trim();
+    return session && query
+      ? `${session.user.id}\u0000${Date.parse(session.absoluteExpiresAt)}\u0000${query}`
+      : null;
+  };
+  const userOneExpiryA = { user: { id: "user-one" }, absoluteExpiresAt: "2030-01-01T00:00:00.000Z" };
+  const userOneExpiryB = { user: { id: "user-one" }, absoluteExpiresAt: "2030-01-02T00:00:00.000Z" };
+  const userTwoExpiryA = { user: { id: "user-two" }, absoluteExpiresAt: userOneExpiryA.absoluteExpiresAt };
+  const oldKey = authorityKey(userOneExpiryA, "  tim mach  ");
+
+  assert.equal(oldKey, authorityKey(userOneExpiryA, "tim mach"), "only the exact trimmed query belongs in the key");
+  assert.notEqual(oldKey, authorityKey(userOneExpiryA, "tim mạch"), "query replacement must supersede the old authority");
+  assert.notEqual(oldKey, authorityKey(userOneExpiryB, "tim mach"), "same user with a new expiry must supersede the old authority");
+  assert.notEqual(oldKey, authorityKey(userTwoExpiryA, "tim mach"), "a different user must supersede the old authority");
+  assert.equal(authorityKey(null, "tim mach"), null, "logout must remove the active authority");
+  assert.equal(authorityKey(userOneExpiryA, "   "), null, "an empty submitted query must remove the active authority");
+
+  const visibleResult = (state, activeKey) => (
+    activeKey && state.stateKey === activeKey && state.resultKey === activeKey ? state.result : null
+  );
+  const beginRequest = (state, activeKey) => ({
+    stateKey: activeKey,
+    resultKey: null,
+    result: null,
+  });
+  const settleRequest = (state, capturedKey, activeKey, result) => (
+    capturedKey === activeKey
+      ? { ...state, resultKey: capturedKey, result }
+      : state
+  );
+
+  let state = beginRequest({ stateKey: null, resultKey: null, result: null }, oldKey);
+  state = settleRequest(state, oldKey, oldKey, { owner: "user-one" });
+  assert.deepEqual(visibleResult(state, oldKey), { owner: "user-one" });
+
+  for (const nextKey of [
+    null,
+    authorityKey(userTwoExpiryA, "tim mach"),
+    authorityKey(userOneExpiryB, "tim mach"),
+    authorityKey(userOneExpiryA, "new query"),
+  ]) {
+    state = beginRequest(state, nextKey);
+    assert.equal(visibleResult(state, nextKey), null, "a replacement authority starts without the previous result");
+    state = settleRequest(state, oldKey, nextKey, { owner: "stale-user-one" });
+    assert.equal(visibleResult(state, nextKey), null, "a late old response cannot overwrite the replacement authority");
+    if (nextKey) {
+      state = settleRequest(state, nextKey, nextKey, { owner: "current-authority" });
+      assert.deepEqual(visibleResult(state, nextKey), { owner: "current-authority" });
+    }
+  }
+});
