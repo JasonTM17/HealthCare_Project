@@ -373,6 +373,37 @@ public class AiChatSourceResolver {
     }
 
     /**
+     * Deterministic opening-hours overview for generic branch questions that
+     * carry no branch identity. Returns the first active branches in catalog
+     * name order with their verified display fields, so the answer mirrors
+     * the live public catalog instead of deflecting the visitor to a page.
+     */
+    public List<BranchDetails> activeBranchOverview(int limit) {
+        int boundedLimit = Math.max(1, limit);
+        try {
+            Page<Branch> branches = branchRepository.findByActiveTrue(PageRequest.of(
+                0, boundedLimit, Sort.by(Sort.Direction.ASC, "name")));
+            if (branches == null || branches.getContent() == null) return List.of();
+
+            List<BranchDetails> result = new ArrayList<>();
+            for (Branch branch : branches.getContent()) {
+                if (branch == null || !branch.isActive()) continue;
+                ResolvedSource source = catalogSource(
+                    "branch", branch.getId(), branchDisplayTitle(branch), branch.getSlug());
+                if (source == null) continue;
+                result.add(new BranchDetails(
+                    source,
+                    cleanBranchField(branch.getAddress(), 500),
+                    cleanBranchField(branch.getWorkingHours(), 255)));
+                if (result.size() >= boundedLimit) break;
+            }
+            return List.copyOf(result);
+        } catch (RuntimeException ex) {
+            return List.of();
+        }
+    }
+
+    /**
      * Resolve a specific branch question against the live active catalog.
      * Matching is deliberately conservative: a branch number without a
      * unique locality remains ambiguous and returns every candidate so the
