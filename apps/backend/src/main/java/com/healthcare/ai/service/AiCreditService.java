@@ -12,6 +12,7 @@ import com.healthcare.hospital.repository.DoctorRepository;
 import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.UserRepository;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -99,21 +100,20 @@ public class AiCreditService {
 
     @Transactional
     public boolean deductPatientCredit(UUID userId, String description) {
-        PatientProfile profile = patientProfileRepository.findByUserId(userId).orElse(null);
-        if (profile == null) {
-            return false;
-        }
-        int current = profile.getAiCredits() != null ? profile.getAiCredits() : 0;
-        if (current <= 0) {
+        int updated = patientProfileRepository.deductAiCreditByUserId(userId);
+        if (updated == 0) {
+            if (patientProfileRepository.findByUserId(userId).isEmpty()) {
+                return false;
+            }
             throw new BusinessException(
                 402,
                 "INSUFFICIENT_AI_CREDITS",
                 "Bạn đã dùng hết lượt hỏi AI (Credit: 0). Vui lòng nâng hạng thẻ hoặc liên hệ quản trị viên để được cấp thêm credit."
             );
         }
-        int after = current - 1;
-        profile.setAiCredits(after);
-        patientProfileRepository.save(profile);
+        // Scalar projection: the ledger must record the balance that actually
+        // exists after the atomic decrement, not a possibly stale entity copy.
+        int after = patientProfileRepository.findAiCreditsByUserId(userId).orElse(0);
 
         AiCreditTransaction tx = new AiCreditTransaction(
                 userId, "PATIENT", -1, after, "AI_CHAT_USAGE", description
@@ -142,21 +142,18 @@ public class AiCreditService {
 
     @Transactional
     public boolean deductDoctorCredit(UUID userId, String description) {
-        Doctor doctor = doctorRepository.findByUserId(userId).orElse(null);
-        if (doctor == null) {
-            return false;
-        }
-        int current = doctor.getAiCredits() != null ? doctor.getAiCredits() : 0;
-        if (current <= 0) {
+        int updated = doctorRepository.deductAiCreditByUserId(userId);
+        if (updated == 0) {
+            if (doctorRepository.findByUserId(userId).isEmpty()) {
+                return false;
+            }
             throw new BusinessException(
                 402,
                 "INSUFFICIENT_AI_CREDITS",
                 "Hạn mức AI hỗ trợ lâm sàng của bác sĩ đã hết (Credit: 0). Vui lòng liên hệ quản trị viên để gia hạn."
             );
         }
-        int after = current - 1;
-        doctor.setAiCredits(after);
-        doctorRepository.save(doctor);
+        int after = doctorRepository.findAiCreditsByUserId(userId).orElse(0);
 
         AiCreditTransaction tx = new AiCreditTransaction(
                 userId, "DOCTOR", -1, after, "AI_CHAT_USAGE", description
@@ -259,8 +256,27 @@ public class AiCreditService {
                 ));
     }
 
+    /**
+     * The patient credit status screen serves only the most recent window of
+     * the ledger so an old account cannot materialize an unbounded array;
+     * the total row count travels alongside it as {@code totalTransactions}.
+     */
+    public static final int PATIENT_HISTORY_LIMIT = 20;
+
     @Transactional(readOnly = true)
     public List<AiCreditTransaction> listTransactions(UUID userId) {
-        return transactionRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        return transactionRepository
+                .findByUserIdOrderByCreatedAtDesc(userId, PageRequest.of(0, PATIENT_HISTORY_LIMIT))
+                .getContent();
+    }
+
+    @Transactional(readOnly = true)
+    public long countTransactions(UUID userId) {
+        return transactionRepository.countByUserId(userId);
+    }
+
+    @Transactional(readOnly = true)
+    public int getMaxTransactionBalance(UUID userId) {
+        return transactionRepository.findMaxBalanceAfterByUserId(userId);
     }
 }
