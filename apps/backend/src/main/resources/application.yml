@@ -227,7 +227,7 @@ springdoc:
     enabled: true
     operationsSorter: method
     tagsSorter: alpha
-    tryItOutEnabled: true
+    tryItOutEnabled: false
     displayRequestDuration: true
 
 app.public:
