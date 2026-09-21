@@ -32,6 +32,13 @@ app:
       enabled: ${APP_MAIL_OUTBOX_ENABLED:false}
       encryption-key: ${APP_MAIL_OUTBOX_ENCRYPTION_KEY:}
       poll-ms: ${APP_MAIL_OUTBOX_POLL_MS:5000}
+  # Schedules are authoritative: a doctor with no active schedule is not
+  # bookable. The workstation demo personas have no schedule rows, so the
+  # local profile opts into the demo fallback windows (08:00-12:00 /
+  # 13:30-17:30). The service refuses this flag outside a local profile, so a
+  # production deployment can never reach it even if the variable leaks in.
+  demo:
+    default-schedule-windows: ${APP_DEMO_DEFAULT_SCHEDULE_WINDOWS:true}
 
 app.public:
   specialty-triage:
