@@ -320,6 +320,15 @@ function FloatingHealthAssistantPanel({
     setOpen(false);
   }, [invalidateLocalRequests]);
 
+  // While a reply is in flight the composer is locked and closing the panel is
+  // the only escape, so a 30-40 s cold start leaves the visitor stuck with no
+  // visible way out. Stop keeps the panel and their draft.
+  const cancelSend = useCallback(() => {
+    invalidateLocalRequests();
+    setSending(false);
+    setLoading(false);
+  }, [invalidateLocalRequests]);
+
   useEffect(() => {
     if (typeof document === "undefined") return;
 
@@ -706,6 +715,9 @@ function FloatingHealthAssistantPanel({
         setPendingUserMessage(null);
         if (requestControllerRef.current === controller) requestControllerRef.current = null;
         setSending(false);
+        // The textarea is disabled while sending, which drops focus to <body>;
+        // return it so keyboard users can keep the conversation flowing.
+        requestAnimationFrame(() => { if (inputRef.current && !inputRef.current.disabled) inputRef.current.focus(); });
       }
     }
   };
@@ -733,7 +745,6 @@ function FloatingHealthAssistantPanel({
         <section
           aria-describedby="floating-health-assistant-help"
           aria-label="Trợ lý sức khỏe HealthCare"
-          aria-modal={"true"}
           className={styles.panel}
           id="floating-health-assistant-panel"
           ref={panelRef}
@@ -860,7 +871,7 @@ function FloatingHealthAssistantPanel({
                             <span>Không chờ trợ lý phản hồi; gọi 115 hoặc đến khoa cấp cứu gần nhất.</span>
                             <div className={styles.emergencyActions}>
                               <a href="tel:115">Gọi 115</a>
-                              <Link className={styles.emergencyBranchLink} href="/branches">Cơ sở cấp cứu gần nhất</Link>
+                              <Link className={styles.emergencyBranchLink} href="/branches">Xem danh sách cơ sở</Link>
                             </div>
                           </div>
                         ) : null}
@@ -896,16 +907,17 @@ function FloatingHealthAssistantPanel({
                       </>
                     ) : null}
                     {message.role === "ASSISTANT" && message.citations.length > 0 ? (
-                      <div className={styles.citations}>
+                      <dl className={styles.citations}>
+                        <dt className="sr-only">Nguồn tham khảo cho câu trả lời này</dt>
                         {message.citations.map((citation) => (
-                          <span
-                            aria-label={`Nguồn tham khảo: ${citation.title}`}
-                            key={`${citation.source_type}-${citation.source_id}`}
-                          >
+                          // aria-label on a role-less <span> is dropped by every
+                          // major screen reader, so the source was invisible to
+                          // assistive tech. Real text is announced instead.
+                          <dd key={`${citation.source_type}-${citation.source_id}`}>
                             {citation.title}
-                          </span>
+                          </dd>
                         ))}
-                      </div>
+                      </dl>
                     ) : null}
                   </article>
                 ))}
@@ -920,7 +932,7 @@ function FloatingHealthAssistantPanel({
                   <article className={`${styles.message} ${styles.assistant}`} data-testid="floating-chat-streaming-reply">
                     <span className={styles.messageRole}><UiIcon name="stethoscope" size={13} /> HealthCare</span>
                     <ChatMessageContent content={streamingReply} />
-                    <span className={styles.provenance}>Đang nhận phản hồi từng phần đã được xác thực…</span>
+                    <span className={styles.provenance}>Đang tải phản hồi — chưa hoàn tất kiểm tra…</span>
                   </article>
                 ) : null}
                 {sending && !streamingReply ? (
@@ -947,7 +959,7 @@ function FloatingHealthAssistantPanel({
                 <div aria-live="assertive" className={styles.failure} data-kind={failure.kind} role="alert">
                   <div className={styles.failureCopy}>
                     <strong>
-                      {failure.kind === "unavailable" ? "Trợ lý tạm thời gián đoạn" : failure.kind === "blocked" ? "Không thể xử lý nội dung" : "Chưa thể mở trợ lý"}
+                      {failure.kind === "unavailable" ? "Trợ lý tạm thời gián đoạn" : failure.kind === "blocked" ? "Không thể xử lý nội dung" : failure.kind === "credits" ? "Hạn mức AI đã hết" : "Chưa thể mở trợ lý"}
                     </strong>
                     <span>{failure.message}</span>
                   </div>
@@ -986,9 +998,21 @@ function FloatingHealthAssistantPanel({
                   rows={2}
                   value={draft}
                 />
-                <button aria-label={sending ? "Đang gửi câu hỏi" : "Gửi câu hỏi"} className={styles.sendButton} disabled={sending || consentBlocked || draft.trim().length < 2} title="Gửi câu hỏi" type="submit">
-                  <UiIcon name="send" size={17} />
-                </button>
+                {sending ? (
+                  <button
+                    aria-label="Dừng chờ phản hồi"
+                    className={styles.sendButton}
+                    onClick={cancelSend}
+                    title="Dừng chờ phản hồi"
+                    type="button"
+                  >
+                    <UiIcon name="x" size={17} />
+                  </button>
+                ) : (
+                  <button aria-label="Gửi câu hỏi" className={styles.sendButton} disabled={consentBlocked || draft.trim().length < 2} title="Gửi câu hỏi" type="submit">
+                    <UiIcon name="send" size={17} />
+                  </button>
+                )}
               </form>
               <p className={styles.help} id="floating-health-assistant-help">Không thay thế bác sĩ. Trường hợp cấp cứu, gọi 115 hoặc đến cơ sở y tế gần nhất.</p>
               {isPatient ? (

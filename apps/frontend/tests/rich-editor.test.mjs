@@ -400,8 +400,8 @@ test("RichTextEditor integrates TinyMCE with self-hosted assets, menubar, toolba
   assert.match(editor, /toolbar:[\s\S]*?alignleft aligncenter alignright alignjustify/);
   assert.match(editor, /toolbar:[\s\S]*?bullist numlist outdent indent/);
   // Image controls are gated on the backend upload posture (storage 503 honesty)
-  assert.match(editor, /toolbar:[\s\S]*?table tablecellprops[\s\S]*?\$\{/);
-  assert.match(editor, /toolbar:[\s\S]*?MEDIA_UPLOADS_ENABLED \? "image media " : ""/);
+  assert.match(editor, /toolbar:[\s\S]*?table tableinsertrowbefore[\s\S]*?\$\{/);
+  assert.match(editor, /toolbar:[\s\S]*?MEDIA_UPLOADS_ENABLED \? "image " : ""/);
   assert.match(editor, /toolbar:[\s\S]*?clinical_warning doctor_note dosage_guide emergency_box/);
 
   // Custom clinical button registrations
@@ -497,9 +497,14 @@ test("TinyMCE toolbar commands all map to registered self-hosted plugins (no dea
 
   // Every command that lived only in the removed menubar must now be on the
   // toolbar, otherwise dropping the menubar would have quietly cost capability.
+  //
+  // lineheight, anchor, pagebreak, tablecellprops, tablemergecells and
+  // tablesplitcells were on this list and are deliberately gone: the body is
+  // stored as markdown and none of them survive that conversion, so the button
+  // was a promise the pipeline could not keep. Their removal, and the reason,
+  // are pinned in tests/editor-toolbar-honesty.test.mjs.
   const menubarOnlyCommands = [
-    "selectall", "lineheight", "visualblocks", "hr", "anchor", "pagebreak", "nonbreaking",
-    "tablecellprops", "tablemergecells", "tablesplitcells",
+    "selectall", "visualblocks", "hr", "nonbreaking",
     "tableinsertrowbefore", "tableinsertrowafter", "tabledeleterow",
     "tableinsertcolbefore", "tableinsertcolafter", "tabledeletecol",
   ];

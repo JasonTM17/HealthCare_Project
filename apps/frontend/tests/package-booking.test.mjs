@@ -50,6 +50,31 @@ test("PackageBookingModal exports proper types and tailored 4-step wizard", asyn
   assert.doesNotMatch(source, /07:30 - 17:00/);
 });
 
+test("PackageBookingModal never fabricates reception slots when the schedule returns none", async () => {
+  const source = await readFile(packageBookingModalPath, "utf8");
+
+  // The hardcoded 08:00–17:00 window list is gone; so is the fixed default
+  // selection that used to survive a failed lookup.
+  assert.doesNotMatch(source, /DEFAULT_RECEPTION_SLOTS/);
+  assert.doesNotMatch(source, /"07:30", "08:00"/);
+  assert.doesNotMatch(source, /08:00:00/);
+  assert.doesNotMatch(source, /khung giờ tiếp nhận tiêu chuẩn/i);
+
+  // Only what the API actually returned may be preselected.
+  assert.match(source, /setAvailableSlots\(fetchedSlots\)/);
+  assert.match(source, /setSelectedSlotTime\(firstAvailable\?\.startTime \?\? ""\)/);
+  assert.match(source, /useState<string>\(""\);\s*\n\s*\/\/ Step 3: Patient Information Form/);
+
+  // The honest empty state matches BookingModal, with the same role treatment.
+  assert.match(source, /Chưa có khung giờ cho bác sĩ, cơ sở và ngày đã chọn\./);
+  assert.match(source, /aria-live="polite"[\s\S]{0,220}role="status"/);
+
+  // Request failures keep their own alert state instead of manufacturing slots.
+  assert.match(source, /setSlotsError\(/);
+  assert.match(source, /setSlotsError\("Chưa thể tải khung giờ tiếp nhận cho cơ sở và ngày đã chọn\. Vui lòng thử lại sau\."\)/);
+  assert.match(source, /aria-live="assertive"[\s\S]{0,220}role="alert"/);
+});
+
 test("packages catalog (/packages) synchronizes 'Đặt lịch với gói này' on all package cards", async () => {
   const source = await readFile(packagesPagePath, "utf8");
 

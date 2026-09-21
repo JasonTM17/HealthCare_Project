@@ -144,6 +144,15 @@ export interface Article {
   body?: string;
   publishedAt: string;
   active?: boolean;
+  /** Present when the article was submitted through the doctor portal. */
+  authorDoctorId?: string | null;
+  /**
+   * Publication gate for doctor submissions: PENDING articles are visible only
+   * in the author/admin portals; public reads only ever receive APPROVED rows.
+   */
+  reviewStatus?: "PENDING" | "APPROVED" | "REJECTED";
+  reviewReason?: string | null;
+  reviewDecidedAt?: string | null;
   category?: string | null;
   authorName?: string | null;
   readingMinutes?: number | null;
@@ -232,6 +241,7 @@ export interface AppointmentDetails {
   status: string;
   paymentStatus: string;
   reasonForVisit?: string;
+  cancellationReason?: string | null;
   hasInsurance: boolean;
   privacyConsentAt?: string | null;
   privacyConsentVersion?: string | null;
@@ -251,6 +261,7 @@ interface PortalAppointmentBase {
   endTime: string;
   status: string;
   reasonForVisit?: string;
+  cancellationReason?: string | null;
   createdAt: string;
 }
 
@@ -265,6 +276,7 @@ export interface PatientPortalAppointment extends PortalAppointmentBase {
 export interface DoctorPortalAppointment extends PortalAppointmentBase {
   patientId: string;
   patientName: string;
+  paymentStatus: string;
 }
 
 export type PaymentStatus = "UNPAID" | "PENDING_VERIFICATION" | "PAID" | "REJECTED" | "REFUND_PENDING" | "REFUNDED";

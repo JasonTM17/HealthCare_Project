@@ -15,6 +15,7 @@ import {
   ApiError,
   fetchBranches,
   fetchDoctors,
+  getAuthSessionSnapshot,
   resendAppointmentOtp,
 } from "../lib/api-client";
 import { businessDate, formatBusinessDate } from "../lib/business-time";
@@ -37,11 +38,6 @@ const PACKAGE_BOOKING_STEPS = [
   { id: 2, label: "Ngày & Giờ tiếp nhận" },
   { id: 3, label: "Thông tin người khám" },
   { id: 4, label: "Xác nhận & Phiếu khám" },
-] as const;
-
-const DEFAULT_RECEPTION_SLOTS = [
-  "07:30", "08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00",
-  "13:30", "14:00", "14:30", "15:00", "15:30", "16:00",
 ] as const;
 
 const currency = (price: number): string => new Intl.NumberFormat("vi-VN").format(price);
@@ -104,7 +100,8 @@ export default function PackageBookingModal({
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [slotsError, setSlotsError] = useState<string>("");
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
-  const [selectedSlotTime, setSelectedSlotTime] = useState<string>("08:00:00");
+  // No client default: a slot only exists once the schedule-backed API returned it.
+  const [selectedSlotTime, setSelectedSlotTime] = useState<string>("");
 
   // Step 3: Patient Information Form
   const [fullName, setFullName] = useState<string>("");
@@ -254,47 +251,26 @@ export default function PackageBookingModal({
         let fetchedSlots: TimeSlot[] = [];
 
         if (doctorIdToQuery) {
-          try {
-            fetchedSlots = await fetchDoctorSlots(
-              doctorIdToQuery,
-              activeBranchId,
-              selectedDate,
-              controller.signal,
-            );
-          } catch {
-            fetchedSlots = [];
-          }
+          fetchedSlots = await fetchDoctorSlots(
+            doctorIdToQuery,
+            activeBranchId,
+            selectedDate,
+            controller.signal,
+          );
         }
 
         if (cancelled) return;
 
-        if (fetchedSlots.length > 0) {
-          setAvailableSlots(fetchedSlots);
-          const firstAvailable = fetchedSlots.find((s) => s.available && s.branchId === activeBranchId);
-          if (firstAvailable) {
-            setSelectedSlotTime(firstAvailable.startTime);
-          }
-        } else {
-          // Generate standard reception slots for health packages
-          const fallbackSlots: TimeSlot[] = DEFAULT_RECEPTION_SLOTS.map((time) => {
-            const [hours, minutes] = time.split(":").map(Number);
-            const endHours = minutes + 30 >= 60 ? hours + 1 : hours;
-            const endMinutes = (minutes + 30) % 60;
-            const endTime = `${String(endHours).padStart(2, "0")}:${String(endMinutes).padStart(2, "0")}:00`;
-            return {
-              branchId: activeBranchId,
-              startTime: `${time}:00`,
-              endTime,
-              available: true,
-              statusNote: "Còn trống",
-            };
-          });
-          setAvailableSlots(fallbackSlots);
-          setSelectedSlotTime("08:00:00");
-        }
+        // Whatever the schedule actually returned is the whole truth: a package
+        // must not invent reception windows for a doctor or branch that has none.
+        setAvailableSlots(fetchedSlots);
+        const firstAvailable = fetchedSlots.find((s) => s.available && s.branchId === activeBranchId);
+        setSelectedSlotTime(firstAvailable?.startTime ?? "");
       } catch {
         if (!cancelled && !controller.signal.aborted) {
-          setSlotsError("Chưa thể tải khung giờ tiếp nhận. Đang sử dụng khung giờ tiếp nhận tiêu chuẩn.");
+          setAvailableSlots([]);
+          setSelectedSlotTime("");
+          setSlotsError("Chưa thể tải khung giờ tiếp nhận cho cơ sở và ngày đã chọn. Vui lòng thử lại sau.");
         }
       } finally {
         if (!cancelled) {
@@ -612,7 +588,7 @@ export default function PackageBookingModal({
         <div className="bg-gradient-to-r from-teal-800 to-[#003336] text-white px-5 py-3 border-b border-teal-900 shadow-inner flex flex-wrap items-center justify-between gap-3">
           <div className="flex-1 min-w-[240px]">
             <div className="flex items-center gap-2 mb-0.5">
-              <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-teal-600/60 text-teal-100 rounded-xs border border-teal-500/40">
+              <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-teal-600/60 text-teal-100 rounded-sm border border-teal-500/40">
                 Gói khám đã chọn
               </span>
               {packageItem.durationDays ? (
@@ -743,7 +719,7 @@ export default function PackageBookingModal({
                             </div>
                           </div>
                           {isSelected ? (
-                            <span className="text-xs font-bold text-brand-700 bg-brand-100 px-2 py-0.5 rounded-xs">
+                            <span className="text-xs font-bold text-brand-700 bg-brand-100 px-2 py-0.5 rounded-sm">
                               Đã chọn
                             </span>
                           ) : null}
@@ -828,6 +804,16 @@ export default function PackageBookingModal({
 
                 {slotsLoading ? (
                   <div className="py-6 text-center text-sm text-gray-500">Đang kiểm tra lịch tiếp nhận khả dụng…</div>
+                ) : availableSlots.length === 0 ? (
+                  slotsError ? (
+                    <div aria-live="assertive" className="rounded-sm border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700" role="alert">
+                      <p>{slotsError}</p>
+                    </div>
+                  ) : (
+                    <div aria-live="polite" className="rounded-sm border border-dashed border-gray-300 px-3 py-6 text-center text-sm text-gray-500" role="status">
+                      Chưa có khung giờ cho bác sĩ, cơ sở và ngày đã chọn.
+                    </div>
+                  )
                 ) : (
                   <div className="space-y-3">
                     {morningSlots.length > 0 ? (
@@ -893,7 +879,6 @@ export default function PackageBookingModal({
                     ) : null}
                   </div>
                 )}
-                {slotsError ? <p className="text-xs text-amber-700 mt-2">{slotsError}</p> : null}
               </div>
 
               <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
@@ -1052,7 +1037,7 @@ export default function PackageBookingModal({
                     checked={hasInsurance}
                     onChange={(e) => setHasInsurance(e.target.checked)}
                     disabled={isSubmitting}
-                    className="mt-1 h-4 w-4 rounded-xs border-gray-300 text-brand-700 focus:ring-brand-600"
+                    className="mt-1 h-4 w-4 rounded-sm border-gray-300 text-brand-700 focus:ring-brand-600"
                   />
                   <span className="text-xs leading-5">
                     Tôi có thẻ BHYT hoặc bảo lãnh viện phí và cần xuất hóa đơn tài chính.
@@ -1066,7 +1051,7 @@ export default function PackageBookingModal({
                     checked={privacyConsent}
                     onChange={(e) => setPrivacyConsent(e.target.checked)}
                     disabled={isSubmitting}
-                    className="mt-1 h-4 w-4 rounded-xs border-gray-300 text-brand-700 focus:ring-brand-600"
+                    className="mt-1 h-4 w-4 rounded-sm border-gray-300 text-brand-700 focus:ring-brand-600"
                   />
                   <span className="text-xs leading-5">
                     Tôi đồng ý để HealthCare lưu trữ và xử lý thông tin y tế theo{" "}
@@ -1304,19 +1289,32 @@ export default function PackageBookingModal({
                       <span className="flex items-center gap-1">
                         <Icon name="building" size={13} /> {currentBranch?.name || "HealthCare Vietnam"}
                       </span>
-                      <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 rounded-xs font-bold">
+                      <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 rounded-sm font-bold">
                         ĐÃ XÁC NHẬN
                       </span>
                     </div>
                   </div>
 
                   <div className="pt-3 flex flex-wrap items-center justify-center gap-3">
-                    <Link
-                      className="inline-flex rounded-sm border border-brand-700 px-5 py-2.5 text-xs sm:text-sm font-bold text-brand-800 hover:bg-brand-50 transition-colors"
-                      href={`/patient/dashboard?paymentAppointmentId=${encodeURIComponent(confirmedAppointment.id)}#appointments`}
-                    >
-                      Thanh toán chuyển khoản
-                    </Link>
+                    {(() => {
+                      const paymentNext = `/patient/dashboard?paymentAppointmentId=${encodeURIComponent(confirmedAppointment.id)}#appointments`;
+                      const signedIn = Boolean(getAuthSessionSnapshot()?.user);
+                      return signedIn ? (
+                        <Link
+                          className="inline-flex rounded-sm border border-brand-700 px-5 py-2.5 text-xs sm:text-sm font-bold text-brand-800 hover:bg-brand-50 transition-colors"
+                          href={paymentNext}
+                        >
+                          Thanh toán chuyển khoản
+                        </Link>
+                      ) : (
+                        <Link
+                          className="inline-flex rounded-sm border border-brand-700 px-5 py-2.5 text-xs sm:text-sm font-bold text-brand-800 hover:bg-brand-50 transition-colors"
+                          href={`/auth/login?next=${encodeURIComponent(paymentNext)}`}
+                        >
+                          Đăng nhập để thanh toán chuyển khoản
+                        </Link>
+                      );
+                    })()}
                     <button
                       type="button"
                       onClick={handleClose}

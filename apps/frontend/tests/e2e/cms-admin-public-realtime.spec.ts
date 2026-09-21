@@ -156,6 +156,16 @@ async function startCmsMockBackend() {
         return;
       }
 
+      // Ultra V4 WS-B mounted `AdminNotificationBell` in app/admin/layout.tsx,
+      // so every admin page reads page 0 of its notification feed on mount.
+      // This spec's oracle is "the CMS publish touches nothing else"; the bell
+      // is shell chrome, not a CMS read, so the fixture serves it an empty page
+      // and every other unmapped route still lands in unexpectedApiRequests.
+      if (method === "GET" && apiPath === "/notifications") {
+        sendJson(response, 200, pageEnvelope());
+        return;
+      }
+
       if (method === "GET" && apiPath === `/cms/content/${SLOT_KEY}`) {
         if (requestUrl.searchParams.get("afterEventId") === "2") publicReadAfterPublish = true;
         sendJson(response, 200, publishedContent);

@@ -538,7 +538,10 @@ test("Stitch search and careers screens have live public route owners", async ()
     read("app/tra-cuu/page.tsx"),
   ]);
 
-  for (const marker of ["fetchSpecialties", "fetchDoctors", "fetchServices", "fetchPackages", "fetchArticles", "Promise.allSettled", "settledContent"]) {
+  // The search screen loads each catalog group independently (a slow group
+  // cannot hold back the others), so the live-wiring contract asserts the
+  // per-group machinery instead of the older single Promise.allSettled pass.
+  for (const marker of ["fetchSpecialties", "fetchDoctors", "fetchServices", "fetchPackages", "fetchArticles", "startGroup", "markLoaded", "markFailed", "presentApiError"]) {
     assert.ok(search.includes(marker), `missing live search marker: ${marker}`);
   }
   assert.match(search, /\/search\?q=/);
@@ -553,7 +556,10 @@ test("Stitch search and careers screens have live public route owners", async ()
   assert.match(home, /router\.push/);
   assert.match(home, /data-cms-managed/);
   assert.match(home, /CmsContentRenderer/);
-  assert.match(lookup, /appointments\/\$\{encodeURIComponent\(bookingCodeInput\.trim\(\)\)\}/);
+  // The input is styled `uppercase` but users can still type lowercase; the
+  // lookup must send the normalized code, not the raw input.
+  assert.match(lookup, /appointments\/\$\{encodeURIComponent\(normalizedCode\)\}/);
+  assert.match(lookup, /phone=\$\{encodeURIComponent\(normalizedPhone\)\}/);
   assert.match(lookup, /cache: "no-store"/);
 });
 
@@ -576,6 +582,40 @@ test("every public page family keeps the route-level CMS composition point", asy
     assert.match(footer, new RegExp(`href="${href}"`));
   }
   assert.doesNotMatch(footer, /href="\/#(?:specialties|packages|doctors|branches)"/);
+});
+
+/**
+ * A slug the shared frame skips is only allowed to skip it if the page mounts
+ * its own published slots. `/about` was excluded from the frame before any
+ * about.* slot existed, then migration V92 published `about.hero` and
+ * `about.body` into a surface nothing rendered — content work that never
+ * reached a reader. This pins the two halves of the contract together.
+ */
+test("the about page renders the CMS slots migration V92 publishes", async () => {
+  const [about, routeCms, seededSlots] = await Promise.all([
+    read("app/about/page.tsx"),
+    read("components/cms/RouteCmsSlots.tsx"),
+    read("../backend/src/main/resources/db/migration/V92__seed_faq_and_disease_guides.sql"),
+  ]);
+
+  assert.match(seededSlots, /'about\.hero'/, "V92 must keep publishing the hero slot");
+  assert.match(seededSlots, /'about\.body'/, "V92 must keep publishing the body slot");
+
+  // The shared frame still skips the slug, so the page itself is the only
+  // thing that can render it. If either half regresses, the seed goes dark.
+  assert.match(routeCms, /slug === "about"/, "the shared frame no longer skips /about");
+  assert.match(about, /CmsLiveSlot/, "/about must mount its CMS slots natively");
+  assert.match(about, /slug="about"/);
+  for (const slot of ["hero", "body"]) {
+    assert.match(about, new RegExp(`slotKey="${slot}"`), `/about never renders ${slot}`);
+  }
+  // Optional public slots stay out of the layout until the hospital publishes
+  // them, and never speak for it: an unpublished slot adds no DOM and no
+  // invented fallback copy.
+  for (const guard of ["hideWhenNotFound", "hideWhileLoading", "hideOnError"]) {
+    assert.match(about, new RegExp(guard), `/about ${guard} guard missing`);
+  }
+  assert.doesNotMatch(about, /fallback=\{/, "/about must not invent CMS content");
 });
 
 test("CMS route inventory stays aligned across frontend admin, public shell, and backend", async () => {

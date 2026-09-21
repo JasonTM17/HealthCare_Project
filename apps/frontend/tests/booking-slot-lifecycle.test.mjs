@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import vm from "node:vm";
@@ -8,6 +9,22 @@ const requireFromTest = createRequire(import.meta.url);
 const ts = requireFromTest("typescript");
 const modalPath = new URL("../components/BookingModal.tsx", import.meta.url);
 const apiPath = new URL("../lib/api.ts", import.meta.url);
+const secureRandomPath = new URL("../lib/secure-random.ts", import.meta.url);
+
+let cachedSecureRandom;
+/**
+ * The real `lib/secure-random.ts`, transpiled once. Its own vm context must hold
+ * a Web Crypto object, otherwise `randomId()` cannot run at all.
+ */
+function loadSecureRandom() {
+  cachedSecureRandom ??= transpileModule(
+    readFileSync(secureRandomPath, "utf8"),
+    "secure-random.ts",
+    {},
+    { crypto: globalThis.crypto },
+  );
+  return cachedSecureRandom;
+}
 
 function deferred() {
   let resolve;
@@ -55,6 +72,7 @@ function transpileModule(source, fileName, stubs = {}, globals = {}) {
     if (specifier === "../lib/present-api-error") return { presentApiError: () => "Chưa thể hoàn tất yêu cầu. Vui lòng thử lại." };
     if (specifier === "./UiIcon" || specifier === "./useDialogFocus") return () => null;
     if (specifier === "../types/hospital") return {};
+    if (specifier === "./secure-random") return loadSecureRandom();
     throw new Error(`Unexpected transpiled dependency: ${specifier}`);
   };
 
@@ -65,8 +83,9 @@ function transpileModule(source, fileName, stubs = {}, globals = {}) {
     URLSearchParams,
     clearTimeout,
     console,
+    crypto: globalThis.crypto,
+    ...globals,
     exports: compiledModule.exports,
-    fetch: globals.fetch,
     module: compiledModule,
     require: requireStub,
     setTimeout,
@@ -335,4 +354,49 @@ test("a current retry error preserves authoritative slots and selection until su
     branchId: "branch-a",
   });
   assert.equal(selectedAfterAuthoritativeEmpty.startTime, "");
+});
+
+test("a lost 502 hold is retried under the same idempotency key, a new hold gets a new one", async () => {
+  const apiSource = await readFile(apiPath, "utf8");
+  const requests = [];
+  const api = transpileModule(apiSource, "api.ts", {}, {
+    fetch: (url, init) => {
+      requests.push({ url: String(url), method: init.method, key: init.headers["Idempotency-Key"] });
+      // The first attempt loses its response at the gateway; the client retries once.
+      if (requests.length === 1) {
+        return Promise.resolve({ ok: false, json: async () => ({}), status: 502 });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ bookingCode: `HC-${requests.length}` }),
+        status: 201,
+      });
+    },
+  });
+
+  const payload = {
+    appointmentDate: "2026-08-27",
+    branchId: "branch-a",
+    doctorId: "doctor-a",
+    email: "an@example.com",
+    fullName: "Nguyễn Văn An",
+    phone: "0901234567",
+    privacyConsent: true,
+    specialtyId: "specialty-a",
+    startTime: "08:00:00",
+  };
+
+  const first = await api.holdAppointmentSlot(payload);
+  assert.equal(first.bookingCode, "HC-2");
+  assert.equal(requests.length, 2, "a 502 must still get exactly one retry");
+  assert.equal(requests[0].method, "POST");
+  assert.equal(requests[0].url, "/api/v1/appointments/hold");
+  assert.match(requests[0].key, /^[A-Za-z0-9._:-]{8,128}$/);
+  assert.equal(requests[1].key, requests[0].key, "the retry must replay the same hold");
+
+  const second = await api.holdAppointmentSlot(payload);
+  assert.equal(second.bookingCode, "HC-3");
+  assert.equal(requests.length, 3);
+  assert.match(requests[2].key, /^[A-Za-z0-9._:-]{8,128}$/);
+  assert.notEqual(requests[2].key, requests[0].key, "a new user action needs a new key");
 });

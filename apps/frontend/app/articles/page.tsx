@@ -161,7 +161,7 @@ export default function ArticlesPage() {
                 </dt>
                 <dd>
                   {loading && !articleCount ? (
-                    <span className="inline-block w-20 h-6 bg-teal-800/40 rounded-xs animate-pulse" aria-hidden="true" />
+                    <span className="inline-block w-20 h-6 bg-teal-800/40 rounded-sm animate-pulse" aria-hidden="true" />
                   ) : articleCount ? (
                     `${articleCount} chuyên đề`
                   ) : (
@@ -183,7 +183,7 @@ export default function ArticlesPage() {
                 </dt>
                 <dd>
                   {loading && !featuredArticle ? (
-                    <span className="inline-block w-24 h-6 bg-teal-800/40 rounded-xs animate-pulse" aria-hidden="true" />
+                    <span className="inline-block w-24 h-6 bg-teal-800/40 rounded-sm animate-pulse" aria-hidden="true" />
                   ) : featuredArticle ? (
                     formatBusinessDate(featuredArticle.publishedAt)
                   ) : (
@@ -280,7 +280,7 @@ export default function ArticlesPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Tìm kiếm bài viết theo từ khóa triệu chứng, bệnh lý..."
-              className="w-full bg-slate-50 border border-slate-200 rounded-xs px-3 py-1.5 text-sm text-slate-800 focus:outline-none focus:border-teal-700 focus:bg-white"
+              className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-1.5 text-sm text-slate-800 focus:outline-none focus:border-teal-700 focus:bg-white"
               aria-label="Tìm kiếm cẩm nang y khoa"
             />
             {searchQuery && (
@@ -296,7 +296,7 @@ export default function ArticlesPage() {
           {selectedTopic && (
             <div className="flex items-center gap-2 text-xs">
               <span className="text-slate-500">Đang lọc theo:</span>
-              <span className="bg-teal-100 text-teal-900 font-semibold px-2 py-0.5 rounded-xs">
+              <span className="bg-teal-100 text-teal-900 font-semibold px-2 py-0.5 rounded-sm">
                 {selectedTopic}
               </span>
               <button
@@ -337,7 +337,7 @@ export default function ArticlesPage() {
             </p>
             {displayedArticles.length === 0 ? (
               <div className="catalog-status text-center py-8">
-                <p className="text-slate-600 mb-3">Không tìm thấy bài viết nào phù hợp với bộ lọc hiện tại.</p>
+                <p className="text-slate-600 mb-3">Không có bài viết nào khớp trong trang này. Chủ đề khác có thể nằm ở trang kế tiếp.</p>
                 <button
                   type="button"
                   onClick={() => {

@@ -5,6 +5,7 @@ import type {
   ConfirmAppointmentPayload,
   AppointmentDetails,
 } from "../types/hospital";
+import { randomId } from "./secure-random";
 
 // Keep booking traffic on the same-origin Next.js rewrite.  A public runtime
 // API-base override would bypass the Vercel proxy and create a second CORS
@@ -113,13 +114,33 @@ export async function fetchDoctorSlots(
   return slots as TimeSlot[];
 }
 
+/**
+ * The hold endpoint accepts 8–128 characters of `[A-Za-z0-9._:-]`; a UUID fits.
+ * A missing key only loses replay protection, so Web Crypto being unavailable
+ * must not block a booking.
+ */
+function holdIdempotencyKey(): string | undefined {
+  try {
+    const key = randomId();
+    return /^[A-Za-z0-9._:-]{8,128}$/.test(key) ? key : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function holdAppointmentSlot(
   payload: HoldSlotPayload
 ): Promise<HoldSlotResult> {
   const requestUrl = `${API_BASE_URL}/appointments/hold`;
+  // One key per user-initiated hold, reused by the retry below: a lost 502/504
+  // response must replay the original hold instead of creating a second one.
+  const idempotencyKey = holdIdempotencyKey();
   const requestInit: RequestInit = {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+    },
     body: JSON.stringify(payload),
   };
   const networkMessage = "Không thể kết nối với hệ thống đặt lịch. Khung giờ chưa được giữ; vui lòng thử lại.";

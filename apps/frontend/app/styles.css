@@ -55,7 +55,11 @@
   --radius-md: 0.25rem;
   --radius-lg: 0.125rem;
   --radius-xl: 0.125rem;
-  --radius-pill: 999px;
+  /* Stitch spec rounds status pills to 9999px (docs/design/stitch-doctor-schedule.md
+     "Status Badges & Workflow Pills", tailwind.config.ts `pill`). Every consumer
+     below is a pill/badge/chip whose box is far under twice this value, so the
+     rendered capsule is unchanged; the token now matches the design source. */
+  --radius-pill: 9999px;
   /* Flat clinical surfaces: hierarchy comes from spacing, borders and type. */
   --shadow-soft: none;
   --shadow-lift: none;
@@ -421,6 +425,22 @@ main {
   box-shadow: none;
 }
 
+/* Stitch portal primary: within authenticated portals the main action color is
+   the clinical teal family. The resting state uses #0f766e (5.47:1 on white —
+   AA); #0d9488 stays on non-text accents (borders, icons, focus ring) because
+   white-on-#0d9488 only reaches 3.74:1. */
+.portal-shell .button--primary {
+  background: var(--stitch-primary-hover);
+}
+
+.portal-shell .button--primary:hover {
+  background: var(--stitch-primary-active);
+}
+
+.portal-shell .button--primary:active {
+  background: var(--stitch-primary-active);
+}
+
 .button--accent {
   padding: 0 var(--sp-6);
   border-radius: var(--radius-sm);
@@ -495,6 +515,16 @@ main {
   border-radius: var(--radius-sm);
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+.outline-button--danger {
+  border-color: var(--color-red);
+  color: var(--color-red);
+}
+
+.outline-button--danger:hover {
+  border-color: var(--color-red);
+  background: oklch(96% 0.04 25);
 }
 
 .text-button--light {
@@ -4043,13 +4073,45 @@ main {
 }
 
 /* Authenticated portal surfaces */
-.portal-shell {
+
+/* Stitch token layer for EVERY authenticated surface. It is declared on both
+   `.portal-shell` (patient/doctor) and `.admin-shell` so admin components
+   resolve the same clinical teal family, structure lines and flat elevation
+   instead of silently falling back to the public palette. It deliberately stays
+   off `:root`: public editorial pages keep their own colors. Layout belongs to
+   `.portal-shell` only (below) so carrying the tokens never restyles admin. */
+.portal-shell,
+.admin-shell {
+  /* Stitch "Clinical Portal Design System" tokens (docs/design/stitch-doctor-schedule.md):
+     clinical teal #0d9488 family for primary actions, flat surfaces separated by a
+     1px #e2e8f0 line, no resting shadow. */
+  --stitch-primary: #0d9488;
+  --stitch-primary-hover: #0f766e;
+  --stitch-primary-active: #115e59;
+  --stitch-primary-tint: #ccfbf1;
+  --stitch-primary-surface: #f0fdfa;
+  --stitch-primary-line: #99f6e4;
+  /* Panel corners are the one place the notification spec asks for more than
+     the 4px control clamp (docs/design/stitch-notification-panel.md:30 = 12px),
+     so it gets its own token instead of a literal radius. */
+  --stitch-radius-panel: 0.75rem;
+  /* Stitch family remap for the legacy hand-rolled teal scale so nav active
+     borders, the brand mark and form focus borders stay one teal family. */
+  --color-teal-600: #0d9488;
+  --color-teal-700: #0f766e;
+  --color-teal-800: #115e59;
+  /* Spec: #e2e8f0 structure lines / #cbd5e1 input+divider lines. */
+  --color-line: #cbd5e1;
   --portal-bg: oklch(96.8% 0.018 190);
   --portal-surface: var(--color-paper-bright);
   --portal-surface-soft: oklch(98.2% 0.014 190);
-  --portal-line: oklch(79% 0.032 190);
-  --portal-line-strong: oklch(69% 0.04 190);
-  --portal-shadow: 0 1px 2px oklch(24% 0.03 190 / 0.06), 0 14px 34px oklch(24% 0.03 190 / 0.11);
+  --portal-line: #e2e8f0;
+  --portal-line-strong: #cbd5e1;
+  --portal-shadow: none;
+  --color-focus: var(--stitch-primary);
+}
+
+.portal-shell {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
@@ -4235,7 +4297,6 @@ main {
   z-index: 40;
   border-bottom: 1px solid var(--portal-line);
   background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 1px 0 oklch(24% 0.03 190 / 0.04);
   backdrop-filter: blur(14px);
 }
 
@@ -4449,12 +4510,16 @@ main {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  width: 380px;
+  /* Notification-panel contract (docs/design/stitch-notification-panel.md:30):
+     380px panel, 1px --portal-line hairline, 12px corner, FLAT — no drop shadow.
+     `.portal-shell` is intentionally outside catalog-directory.css's
+     `.site-shell *` shadow reset, so `none` has to be stated here. */
+  width: min(380px, calc(100vw - 24px));
   max-width: min(380px, calc(100vw - 24px));
-  background: #ffffff;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-sm);
-  box-shadow: 0 10px 25px -5px rgba(0, 51, 54, 0.15), 0 8px 10px -6px rgba(0, 51, 54, 0.1);
+  background: var(--portal-surface, #ffffff);
+  border: 1px solid var(--portal-line, #e2e8f0);
+  border-radius: var(--stitch-radius-panel);
+  box-shadow: none;
   z-index: 100;
   display: flex;
   flex-direction: column;
@@ -4467,8 +4532,8 @@ main {
   justify-content: space-between;
   gap: 0.5rem;
   padding: 0.75rem 1rem;
-  background: #f8fafc;
-  border-bottom: 1px solid var(--color-line);
+  background: var(--portal-surface, #ffffff);
+  border-bottom: 1px solid var(--portal-line, #e2e8f0);
 }
 
 .portal-notification-popover__title {
@@ -4478,6 +4543,23 @@ main {
   font-size: 0.84375rem;
   font-weight: 750;
   color: var(--color-teal-950);
+}
+
+/* Unread counter pill: spec :32 — pill radius on --stitch-primary, white text. */
+.portal-notification-popover__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.45rem;
+  border-radius: var(--radius-pill);
+  background: var(--stitch-primary, #0d9488);
+  color: #ffffff;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .portal-notification-popover__mark-all {
@@ -4505,10 +4587,27 @@ main {
 }
 
 .portal-notification-popover__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
   padding: 2rem 1rem;
   text-align: center;
   color: var(--color-ink-muted);
   font-size: 0.8125rem;
+}
+
+/* Muted bell, per stitch-notification-panel.md:33. */
+.portal-notification-popover__empty-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--portal-line, #e2e8f0);
+  border-radius: var(--radius-pill);
+  color: var(--color-ink-soft);
+  background: var(--portal-surface-soft);
 }
 
 .portal-notification-popover__item {
@@ -4516,21 +4615,24 @@ main {
   width: 100%;
   text-align: left;
   padding: 0.75rem 1rem;
-  background: #ffffff;
+  background: var(--portal-surface, #ffffff);
   border: none;
-  border-bottom: 1px solid rgba(0, 51, 54, 0.06);
-  border-left: 3px solid transparent;
+  border-bottom: 1px solid var(--portal-line, #e2e8f0);
   cursor: pointer;
-  transition: background-color 0.12s ease, border-color 0.12s ease;
+  transition: background-color 0.12s ease;
 }
 
 .portal-notification-popover__item:hover {
-  background: #f0fdfa;
+  background: var(--stitch-primary-surface, #f0fdfa);
 }
 
+/* Unread row (stitch-notification-panel.md:31): the Stitch tint plus a 3px inset
+     accent in --stitch-primary. The accent is an inset shadow, not a border, and
+     the colour comes from the token layer so it is the same teal in the patient,
+     doctor and admin shells. */
 .portal-notification-popover__item--unread {
-  background: #f8fafc;
-  border-left-color: var(--color-teal-600);
+  background: var(--stitch-primary-surface, #f0fdfa);
+  box-shadow: inset 3px 0 0 var(--stitch-primary, #0d9488);
 }
 
 .portal-notification-popover__meta {
@@ -4556,8 +4658,8 @@ main {
 }
 
 .portal-notification-popover__item--unread .portal-notification-popover__badge {
-  background: #ccfbf1;
-  color: #0f766e;
+  background: var(--stitch-primary-tint, #ccfbf1);
+  color: var(--stitch-primary-hover, #0f766e);
 }
 
 .portal-notification-popover__item-title {
@@ -4581,8 +4683,8 @@ main {
 
 .portal-notification-popover__footer {
   padding: 0.65rem 1rem;
-  background: #f8fafc;
-  border-top: 1px solid var(--color-line);
+  background: var(--portal-surface-soft);
+  border-top: 1px solid var(--portal-line, #e2e8f0);
   text-align: center;
 }
 
@@ -4591,19 +4693,218 @@ main {
   align-items: center;
   justify-content: center;
   gap: 0.35rem;
+  min-height: 44px;
+  padding: 0.2rem 0.5rem;
   background: none;
   border: none;
-  padding: 0.2rem 0.5rem;
   font-size: 0.78125rem;
   font-weight: 700;
-  color: var(--color-teal-800);
+  /* Spec :18 — the centred "Xem tất cả" link is deep teal #0f766e. */
+  color: var(--stitch-primary-hover, #0f766e);
   cursor: pointer;
   text-decoration: none;
 }
 
 .portal-notification-popover__view-all:hover {
-  color: var(--color-teal-950);
+  color: var(--stitch-primary-active, #115e59);
   text-decoration: underline;
+}
+
+/* Full-screen notification center — stitch-notification-panel.md backlog #1
+   (category filter tabs) and #2 ("Xem tất cả" page). Same flat, pill,
+   token-driven surface as the popover; shared by /patient/notifications and
+   /doctor/notifications so neither portal forks its own list. */
+.portal-notification-center__toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.portal-notification-center__summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+  color: var(--color-ink-muted);
+  font-size: 0.875rem;
+}
+
+.portal-notification-center__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.6rem;
+  border-radius: var(--radius-pill);
+  background: var(--stitch-primary, #0d9488);
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.portal-notification-center__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-4);
+}
+
+.portal-notification-center__filter {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 44px;
+  padding: 0 var(--sp-4);
+  border: 1px solid var(--portal-line, #e2e8f0);
+  border-radius: var(--radius-pill);
+  background: var(--portal-surface, #ffffff);
+  color: var(--stitch-primary-hover, #0f766e);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) ease, border-color var(--duration-fast) ease, color var(--duration-fast) ease;
+}
+
+.portal-notification-center__filter:hover:not([aria-pressed="true"]) {
+  background: var(--stitch-primary-surface, #f0fdfa);
+}
+
+.portal-notification-center__filter[aria-pressed="true"] {
+  background: var(--stitch-primary, #0d9488);
+  border-color: var(--stitch-primary, #0d9488);
+  color: #ffffff;
+}
+
+.portal-notification-center__list {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.portal-notification-center__row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: 1px solid var(--portal-line, #e2e8f0);
+  border-radius: var(--radius-sm);
+  background: var(--portal-surface, #ffffff);
+  box-shadow: var(--portal-shadow);
+}
+
+.portal-notification-center__row--unread {
+  background: var(--stitch-primary-surface, #f0fdfa);
+  box-shadow: inset 3px 0 0 var(--stitch-primary, #0d9488);
+}
+
+.portal-notification-center__icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid var(--stitch-primary-line, #99f6e4);
+  border-radius: var(--radius-pill);
+  background: var(--portal-surface, #ffffff);
+  color: var(--stitch-primary-hover, #0f766e);
+}
+
+.portal-notification-center__row--unread .portal-notification-center__icon {
+  background: var(--stitch-primary-tint, #ccfbf1);
+}
+
+.portal-notification-center__copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.portal-notification-center__meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--sp-2) var(--sp-4);
+  color: var(--stitch-primary-hover, #0f766e);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.portal-notification-center__title {
+  margin: var(--sp-2) 0 0;
+  color: var(--color-teal-950);
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.portal-notification-center__snippet {
+  margin: var(--sp-2) 0 0;
+  color: var(--color-ink-muted);
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.portal-notification-center__actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.portal-notification-center__more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-4);
+}
+
+.portal-notification-center__empty {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-8) var(--sp-4);
+  text-align: center;
+}
+
+.portal-notification-center__empty-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border: 1px solid var(--portal-line, #e2e8f0);
+  border-radius: var(--radius-pill);
+  background: var(--portal-surface-soft);
+  color: var(--color-ink-soft);
+}
+
+.portal-notification-center__empty h3 {
+  margin: 0;
+  color: var(--color-teal-950);
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+}
+
+.portal-notification-center__empty p {
+  margin: 0;
+  color: var(--color-ink-muted);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 640px) {
+  .portal-notification-center__row {
+    flex-wrap: wrap;
+  }
+
+  .portal-notification-center__actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
 }
 
 /* Notification Detail Modal */
@@ -4991,7 +5292,7 @@ main {
   margin-bottom: var(--sp-6);
   padding: var(--sp-5);
   border: 1px solid var(--portal-line);
-  border-top: 3px solid oklch(75% 0.06 185);
+  border-top: 3px solid var(--stitch-primary, oklch(75% 0.06 185));
   border-radius: var(--radius-sm);
   background: oklch(99.2% 0.005 190);
   box-shadow: var(--portal-shadow);
@@ -5002,6 +5303,24 @@ main {
   padding-inline: var(--sp-4);
   border-top-color: oklch(78% 0.11 78 / 0.65);
   background: oklch(97% 0.025 86 / 0.65);
+}
+
+/* Stitch 12-column fluid grid: wide portal screens place secondary panels
+   side by side (24px gutters) while primary tables keep the full row. */
+@media (min-width: 1100px) {
+  .portal-grid {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    column-gap: var(--sp-6);
+    align-items: start;
+    /* Children drop their own margin-bottom so the row gap is the 24px
+       gutter, not 48px; the container keeps the section rhythm below. */
+    margin-bottom: var(--sp-6);
+  }
+
+  .portal-grid > .portal-panel { margin-bottom: 0; }
+  .portal-grid > .portal-panel--span-7 { grid-column: span 7; }
+  .portal-grid > .portal-panel--span-5 { grid-column: span 5; }
 }
 
 .portal-panel--secondary {
@@ -5035,9 +5354,9 @@ main {
   justify-content: center;
   flex: 0 0 auto;
   border-radius: 50%;
-  border: 1px solid var(--portal-line);
-  background: oklch(96% 0.025 185);
-  color: var(--color-teal-700);
+  border: 1px solid var(--stitch-primary-line, var(--portal-line));
+  background: var(--stitch-primary-surface, oklch(96% 0.025 185));
+  color: var(--stitch-primary-active, var(--color-teal-700));
   font-family: var(--font-display);
   font-size: 1.15rem;
   font-weight: 800;
@@ -5190,7 +5509,7 @@ main {
   border: 1px solid var(--portal-line);
   border-radius: var(--radius-sm);
   background: var(--portal-surface);
-  box-shadow: 0 1px 2px oklch(24% 0.03 190 / 0.05), 0 8px 20px oklch(24% 0.03 190 / 0.07);
+  box-shadow: var(--portal-shadow);
 }
 
 .portal-appointment h3 {
@@ -5212,11 +5531,45 @@ main {
 }
 
 .portal-appointment__status {
-  padding: 0.15rem 0.5rem;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-sm);
-  background: var(--color-mint-light);
-  color: var(--color-teal-800);
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 0.625rem;
+  border: 1px solid var(--stitch-primary-line, #99f6e4);
+  border-radius: var(--radius-pill);
+  background: var(--stitch-primary-surface, #f0fdfa);
+  color: var(--stitch-primary-hover, #0f766e);
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Status-specific tones per the Stitch clinical spec: IN_PROGRESS amber,
+   CANCELLED / NO_SHOW rose, PENDING_* amber, COMPLETED slate — none may read
+   as the confirmed/teal default. */
+.portal-appointment__status[data-status="IN_PROGRESS"],
+.portal-appointment__status[data-status="PENDING_CONFIRMATION"],
+.portal-appointment__status[data-status="PENDING_VERIFICATION"],
+.portal-appointment__status[data-status="RESCHEDULE_REQUESTED"] {
+  border-color: #fde68a;
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.portal-appointment__status[data-status="CANCELLED"],
+.portal-appointment__status[data-status="NO_SHOW"] {
+  border-color: #fecaca;
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.portal-appointment__status[data-status="COMPLETED"] {
+  border-color: #cbd5e1;
+  background: #e2e8f0;
+  color: #334155;
 }
 
 .portal-appointment__details {
@@ -5250,6 +5603,18 @@ main {
   flex-wrap: wrap;
   gap: var(--sp-2);
   margin-top: var(--sp-4);
+}
+
+/* Destructive affordance: the cancel action stays a quiet text button but is
+   the only red one in the row, so it cannot be confused with payment or
+   reschedule. */
+.portal-appointment__actions .portal-appointment__cancel {
+  color: var(--color-rose-600, #e11d48);
+}
+
+.portal-appointment__actions .portal-appointment__cancel:hover {
+  color: var(--color-rose-700, #be123c);
+  transform: none;
 }
 
 .portal-appointment__patient-code {
@@ -5306,7 +5671,7 @@ main {
   border: 1px solid var(--portal-line);
   border-radius: var(--radius-sm);
   background: var(--portal-surface);
-  box-shadow: 0 1px 2px oklch(24% 0.03 190 / 0.05), 0 8px 20px oklch(24% 0.03 190 / 0.07);
+  box-shadow: var(--portal-shadow);
 }
 
 .portal-record::before,
@@ -5431,6 +5796,41 @@ main {
   color: var(--color-ink-soft);
   font-size: 0.75rem;
   font-weight: 700;
+}
+
+.error-banner,
+.info-banner,
+.notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+}
+
+.error-banner {
+  border-color: color-mix(in srgb, var(--color-red) 35%, transparent);
+  background: oklch(96% 0.04 25);
+  color: var(--color-red);
+}
+
+.info-banner,
+.notice {
+  border-color: var(--color-line);
+  background: var(--color-mint-light);
+  color: var(--color-ink);
+}
+
+.portal-empty-state {
+  padding: var(--sp-5) var(--sp-4);
+  border: 1px dashed var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-ink-muted);
+  text-align: center;
 }
 
 .portal-inline-error {
@@ -5864,6 +6264,16 @@ main {
 .portal-shell *,
 .admin-shell * {
   letter-spacing: 0;
+}
+
+/* The universal reset above also zeroes intentional tracking. Restore the two
+   places that need it: Stitch status pills (0.04em spec) and section eyebrows. */
+.portal-shell .portal-appointment__status {
+  letter-spacing: 0.04em;
+}
+
+.portal-shell .section-note {
+  letter-spacing: 0.18em;
 }
 
 .auth-page > .skip-link,
@@ -12151,4 +12561,97 @@ body:has(.mobile-menu) [class*="FloatingHealthAssistant_root"] {
   font-size: 0.7rem;
   font-weight: 600;
   padding: 0.1rem 0.5rem;
+}
+
+/* ---------------------------------------------------------------------------
+ * Print stylesheet.
+ *
+ * Two affordances call window.print() — the appointment lookup e-ticket
+ * (/tra-cuu) and the article reading toolbar. Before this block the browser
+ * printed the whole application chrome: the fixed navbar, the mobile care rail,
+ * the footer, the fixed reading-progress overlay, and on /tra-cuu a dark teal
+ * ticket header with white text, producing an unreadable multi-page artefact.
+ * ------------------------------------------------------------------------- */
+@media print {
+  /* Chrome and interactive overlays carry no information onto paper. */
+  .site-nav,
+  .site-footer,
+  .mobile-care-rail,
+  .reading-progress-track,
+  .nav-menu-button,
+  .portal-nav,
+  .floating-assistant,
+  [aria-label="Trợ lý sức khỏe"],
+  .article-news-alert-box__call-115,
+  .outline-button,
+  .button,
+  .text-button,
+  .icon-button,
+  .footer-hotline,
+  .footer-hotline-fallback {
+    display: none !important;
+  }
+
+  /* Neutralise sticky/fixed layout so content is not clipped or overlapped. */
+  .site-shell,
+  main,
+  [id="main-content"] {
+    display: block !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+  }
+
+  * {
+    background: transparent !important;
+    box-shadow: none !important;
+    color: #111 !important;
+    text-shadow: none !important;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    font-size: 12pt;
+    line-height: 1.5;
+    width: auto !important;
+  }
+
+  /* Expand anything the app scrolls or truncates on screen. */
+  [class*="overflow-"],
+  .portal-record-list,
+  table {
+    max-height: none !important;
+    overflow: visible !important;
+    width: 100% !important;
+  }
+
+  .portal-panel,
+  .portal-record,
+  article,
+  section,
+  table,
+  tr {
+    border-color: #ccc !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  h1,
+  h2,
+  h3 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  /* A printed source URL is the only way a reader can verify a citation. */
+  a[href^="http"]::after,
+  a[href^="/"]::after {
+    content: " (" attr(href) ")";
+    font-size: 9pt;
+    word-break: break-all;
+  }
+
+  @page {
+    margin: 15mm;
+  }
 }

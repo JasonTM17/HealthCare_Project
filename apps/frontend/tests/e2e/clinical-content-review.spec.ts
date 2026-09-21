@@ -7,6 +7,7 @@ import {
   browserSessionFixture,
   installMockBrowserSession,
   installMockDoctorPortalSession,
+  installMockNotificationFeed,
 } from "./helpers/browser-session";
 
 interface PageEnvelope<T> {
@@ -86,6 +87,14 @@ async function installAdminReviewMocks(
     throw new Error(`Unexpected admin review request: ${request.method()} ${url.pathname}${url.search}`);
   });
   await installMockBrowserSession(context, ADMIN_SESSION);
+  // `Ultra Vòng 4` WS-B added `AdminNotificationBell` to `app/admin/layout.tsx`,
+  // so every admin page reads page 0 of `GET /api/v1/notifications` on mount.
+  // This spec's own router only claims `/api/v1/admin/ai-content**`, so the bell
+  // request would fall through to the real BFF, come back 401, and
+  // `getAuthenticatedJson` (lib/api-client.ts) would clear the mocked session —
+  // the page then renders the login-required state instead of the review
+  // console. Answering the bell keeps the strict ai-content oracle intact.
+  await installMockNotificationFeed(context);
 }
 
 test("ADMIN submits the exact inventory revision and hash without gaining approval authority", async ({ context, page }) => {

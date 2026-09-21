@@ -34,6 +34,11 @@ export const metadata: Metadata = {
   description:
     "Tìm hiểu chuyên khoa, bác sĩ, cơ sở và chủ động đặt lịch khám tại HealthCare.",
   keywords: ["y tế", "bệnh viện", "khám bệnh", "đặt lịch", "chuyên khoa"],
+  // `./` is resolved against the current request pathname, so the root default
+  // is a self-referencing canonical/og:url for every route that does not set
+  // its own. Pinning SITE_URL here would canonicalise every page (specialties,
+  // doctors, articles, ...) to the homepage.
+  alternates: { canonical: "./" },
   robots: indexingAllowed()
     ? { index: true, follow: true }
     : { index: false, follow: false },
@@ -41,6 +46,7 @@ export const metadata: Metadata = {
     type: "website",
     locale: "vi_VN",
     siteName: "HealthCare",
+    url: "./",
   },
 };
 

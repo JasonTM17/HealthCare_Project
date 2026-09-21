@@ -103,7 +103,7 @@ export default function AdminCareersPage() {
         <div aria-label="Danh sách hồ sơ ứng tuyển, có thể cuộn ngang trên màn hình nhỏ" className="mt-4 max-w-full overflow-x-auto rounded-lg border border-slate-200 bg-white" role="region" tabIndex={0}>
           <table className="w-full min-w-[1050px] text-left text-sm">
             <caption className="sr-only">Danh sách hồ sơ ứng tuyển và tiến trình xử lý</caption>
-            <thead className="border-b bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="px-4 py-3">Hồ sơ</th><th className="px-4 py-3">Ứng viên</th><th className="px-4 py-3">Vị trí</th><th className="px-4 py-3">Trạng thái</th><th className="px-4 py-3">Chuyển trạng thái</th></tr></thead>
+            <thead className="border-b bg-slate-50 text-xs uppercase text-slate-500"><tr><th scope="col" className="px-4 py-3">Hồ sơ</th><th scope="col" className="px-4 py-3">Ứng viên</th><th scope="col" className="px-4 py-3">Vị trí</th><th scope="col" className="px-4 py-3">Trạng thái</th><th scope="col" className="px-4 py-3">Chuyển trạng thái</th></tr></thead>
             <tbody>{items.map((item) => <tr className="border-b border-slate-100 align-top last:border-0" key={item.id}>
               <td className="px-4 py-4"><strong className="font-mono text-xs">{item.applicationCode}</strong><br /><span className="text-xs text-slate-500">Gửi {formatBusinessDateTime(item.submittedAt)}</span><br /><button className="mt-1 text-xs font-bold text-teal-800 underline disabled:opacity-50" disabled={updating === item.id} onClick={() => setExpandedId((current) => current === item.id ? null : item.id)} type="button">{expandedId === item.id ? "Ẩn thư giới thiệu" : "Xem thư giới thiệu"}</button>{expandedId === item.id ? <p className="mt-2 max-w-sm whitespace-pre-line rounded-md bg-slate-50 p-2 text-xs text-slate-700">{item.coverLetter || "(Không có thư giới thiệu)"}</p> : null}</td>
               <td className="px-4 py-4">{item.fullName}<br /><span className="text-xs text-slate-500">{item.email}</span><br /><span className="text-xs text-slate-500">{item.phone}</span>{item.yearsExperience != null ? <><br /><span className="text-xs text-slate-500">{item.yearsExperience} năm kinh nghiệm</span></> : null}{item.resumeUrl ? <><br /><a className="text-xs font-bold text-teal-800 underline" href={item.resumeUrl} rel="noopener noreferrer" target="_blank">Hồ sơ đính kèm ↗</a></> : null}</td>
@@ -114,7 +114,7 @@ export default function AdminCareersPage() {
           </table>
         </div>
       ) : null}
-      <nav aria-label="Phân trang hồ sơ ứng tuyển" className="mt-5 flex justify-end gap-2"><button className="rounded-lg border px-3 text-sm disabled:opacity-40" disabled={page === 0 || loading} onClick={() => setPage((value) => value - 1)} type="button">Trang trước</button><span className="inline-flex min-h-11 items-center px-3 text-sm">{totalPages === 0 ? 0 : page + 1}/{totalPages}</span><button className="rounded-lg border px-3 text-sm disabled:opacity-40" disabled={page + 1 >= totalPages || loading} onClick={() => setPage((value) => value + 1)} type="button">Trang sau</button></nav>
+      <nav aria-label="Phân trang hồ sơ ứng tuyển" className="mt-5 flex justify-end gap-2"><button className="inline-flex min-h-11 items-center rounded-lg border px-4 py-2 text-sm disabled:opacity-40" disabled={page === 0 || loading} onClick={() => setPage((value) => value - 1)} type="button">Trang trước</button><span className="inline-flex min-h-11 items-center px-3 text-sm">{totalPages === 0 ? 0 : page + 1}/{totalPages}</span><button className="inline-flex min-h-11 items-center rounded-lg border px-4 py-2 text-sm disabled:opacity-40" disabled={page + 1 >= totalPages || loading} onClick={() => setPage((value) => value + 1)} type="button">Trang sau</button></nav>
 
       <ConfirmActionDialog
         confirmLabel={pendingStatus?.next === "REJECTED" ? "Đánh dấu không phù hợp" : "Chuyển trạng thái"}
@@ -125,6 +125,7 @@ export default function AdminCareersPage() {
         destructive={pendingStatus?.next === "REJECTED"}
         dismissOnBackdrop={false}
         entity={pendingStatus?.item}
+        error={statusPending ? null : error}
         onCancel={() => { if (!statusPending) setPendingStatus(null); }}
         onConfirm={() => void submitStatus()}
         open={pendingStatus !== null}

@@ -59,7 +59,7 @@ export default function PortalAccessGate({ children, role }: PortalAccessGatePro
           <h1>Không thể xác định trạng thái phiên đăng nhập</h1>
           <p>{AUTH_SESSION_INDETERMINATE_MESSAGE}</p>
           <div className="mt-4 flex flex-wrap gap-3">
-            <button className="primary-button min-h-11" onClick={() => void hydrateAuthSession(true)} type="button">
+            <button className="button button--primary min-h-11" onClick={() => void hydrateAuthSession(true)} type="button">
               Thử xác minh lại
             </button>
             <button className="outline-button min-h-11" onClick={() => window.location.reload()} type="button">

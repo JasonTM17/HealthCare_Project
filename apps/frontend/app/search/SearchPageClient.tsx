@@ -7,6 +7,7 @@ import { PublicAiButton, PublicBookingButton, PublicPageShell } from "../../comp
 import PackageBookingModal from "../../components/PackageBookingModal";
 import Icon from "../../components/UiIcon";
 import {
+  ApiError,
   fetchArticles,
   fetchDoctors,
   fetchPackages,
@@ -14,6 +15,7 @@ import {
   fetchServices,
   fetchSpecialties,
 } from "../../lib/api-client";
+import { presentApiError } from "../../lib/present-api-error";
 import { dedupePublicDoctors } from "../../lib/public-catalog";
 import { useAuthSession } from "../../components/useAuthSession";
 import type { AiTriageCitation, Article, Doctor, HealthPackage, MedicalService, SemanticSearchResponse, Specialty } from "../../types/hospital";
@@ -307,11 +309,14 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
           setSemanticResultKey(capturedAuthorityKey);
         }
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (isCurrentAuthority()) {
           setSemantic(null);
           setSemanticResultKey(null);
-          setSemanticError("Tạm thời chưa thể mở rộng kết quả tìm kiếm. Vui lòng thử lại sau.");
+          setSemanticError(presentApiError(
+            error instanceof ApiError ? error.code : null,
+            error instanceof ApiError ? error.status : undefined,
+          ));
         }
       })
       .finally(() => {
@@ -507,7 +512,7 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
                     role="tab"
                     aria-selected={isActive}
                     onClick={() => setActiveCategory(tab.key)}
-                    className={`px-3 py-1.5 text-xs font-semibold rounded-xs border transition-colors cursor-pointer ${
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-sm border transition-colors cursor-pointer ${
                       isActive
                         ? "border-[#003336] bg-[#003336] text-white"
                         : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300"

@@ -225,6 +225,64 @@ test("C9 a language tag on the fence is preserved", () => {
   assert.ok(html.includes('class="language-json"'), html);
 });
 
+// -- C10: nested lists -----------------------------------------------------------
+//
+// The list conversion used a non-greedy `/<ul[^>]*>([\s\S]*?)<\/ul>/`, which
+// stopped at the first inner `</ul>` and captured a truncated fragment. Its two
+// text runs then had their tags stripped and were joined, so a nested list
+// published as one corrupted word ("Cha" + "Con" -> "ChaCon"). These cases pin
+// the depth-aware replacement.
+
+test("C10 a nested list keeps both items instead of concatenating them", () => {
+  const markdown = htmlToMarkdown("<ul><li>Cha<ul><li>Con</li></ul></li></ul>");
+
+  assert.doesNotMatch(markdown, /ChaCon/, `parent and child words merged: ${markdown}`);
+  assert.equal(markdown, "- Cha\n  - Con", markdown);
+});
+
+test("C10 three nesting levels keep their order, depth and words", () => {
+  const html = "<ul><li>Ông<ul><li>Cha<ul><li>Cháu</li></ul></li></ul></li></ul>";
+
+  assert.equal(htmlToMarkdown(html), "- Ông\n  - Cha\n    - Cháu");
+});
+
+test("C10 an ordered list nests under the parent step and keeps numbering", () => {
+  const html = "<ol><li>Bước một<ol><li>Bước con</li></ol></li><li>Bước hai</li></ol>";
+
+  assert.equal(htmlToMarkdown(html), "1. Bước một\n  1. Bước con\n2. Bước hai");
+});
+
+test("C10 sibling items of a nested list stay siblings", () => {
+  const html = "<ul><li>Triệu chứng<ul><li>Đau đầu</li><li>Chóng mặt</li></ul></li></ul>";
+
+  assert.equal(htmlToMarkdown(html), "- Triệu chứng\n  - Đau đầu\n  - Chóng mặt");
+});
+
+test("C10 a nested list under an emphasised parent item keeps both halves", () => {
+  const html = "<ul><li>Liều <strong>5 mg</strong><ul><li>Buổi sáng</li></ul></li></ul>";
+
+  assert.equal(htmlToMarkdown(html), "- Liều **5 mg**\n  - Buổi sáng");
+});
+
+test("C10 a flat list still converts byte for byte as before", () => {
+  // The nesting fix must not have moved the top-level output the rest of the
+  // pipeline (and the stored format) already depends on.
+  assert.equal(htmlToMarkdown("<ul><li>a</li><li>b</li></ul>"), "- a\n- b");
+  assert.equal(htmlToMarkdown("<ol><li>a</li><li>b</li></ol>"), "1. a\n2. b");
+});
+
+test("C10 indented markdown re-opens as a nested list, not a flat one", () => {
+  const html = markdownToHtml("- Cha\n  - Con\n    - Cháu");
+
+  assert.equal(html, "<ul><li>Cha<ul><li>Con<ul><li>Cháu</li></ul></li></ul></li></ul>");
+});
+
+test("C10 the nested list survives a full round trip", () => {
+  const html = "<ul><li>Ông<ul><li>Cha<ul><li>Cháu</li></ul></li></ul></li></ul>";
+
+  assert.equal(markdownToHtml(htmlToMarkdown(html)), html, "round trip changed the list");
+});
+
 // -- stored-format contract ------------------------------------------------------
 
 test("toStoredArticleBody converts editor HTML and leaves markdown alone", () => {
@@ -234,4 +292,69 @@ test("toStoredArticleBody converts editor HTML and leaves markdown alone", () =>
 
   const markdown = "## Phác đồ\n\n- Bước một";
   assert.equal(toStoredArticleBody(markdown), markdown);
+});
+
+// -- C11: merged table cells stay on their columns --------------------------------
+
+test("C11 a colspan cell no longer shifts the columns under it", () => {
+  const html = "<table><thead><tr><th>Chỉ số</th><th>Kết quả</th><th>Đơn vị</th></tr></thead>"
+    + '<tbody><tr><td colspan="2">Huyết áp 120/80</td><td>mmHg</td></tr>'
+    + "<tr><td>Glucose</td><td>5.4</td><td>mmol/L</td></tr></tbody></table>";
+  const md = htmlToMarkdown(html);
+  const lines = md.split("\n");
+  const bodyRow = lines.find((l) => l.includes("Huyết áp"));
+  const glucoseRow = lines.find((l) => l.includes("Glucose"));
+
+  assert.ok(bodyRow, "merged row missing");
+  assert.ok(glucoseRow, "plain row missing");
+  // Three pipes boundaries => three columns in every row, merged content duplicated.
+  assert.equal(bodyRow.split("|").length, glucoseRow.split("|").length);
+  assert.ok(bodyRow.split("|").filter((c) => c.includes("Huyết áp 120/80")).length >= 2,
+    "merged cell content was not carried into the covered columns");
+});
+
+test("C11 a rowspan cell keeps the row beneath aligned", () => {
+  const html = "<table><tr><th>Nhóm</th><th>Mục</th></tr>"
+    + '<tr><td rowspan="2">Xét nghiệm</td><td>Máu</td></tr>'
+    + "<tr><td>Nước tiểu</td></tr></table>";
+  const lines = htmlToMarkdown(html).split("\n");
+  const secondDataRow = lines.find((l) => l.includes("Nước tiểu"));
+
+  assert.ok(secondDataRow, "second data row missing");
+  assert.equal(secondDataRow.split("|").length, 4, "row under a rowspan shifted left");
+});
+
+test("C11 header alignment emits GFM separators the renderer can parse", () => {
+  const html = '<table><thead><tr><th style="text-align: center">Giữa</th>'
+    + '<th style="text-align: right">Phải</th><th>Trái</th></tr></thead>'
+    + "<tbody><tr><td>1</td><td>2</td><td>3</td></tr></tbody></table>";
+  const md = htmlToMarkdown(html);
+  const separator = md.split("\n")[1];
+
+  assert.equal(separator, "| :---: | ---: | --- |");
+});
+
+// -- C12: figure / figcaption round trip ------------------------------------------
+
+test("C12 a figcaption survives as an italic caption line, not loose text", () => {
+  const html = '<figure><img src="/media/a.png" alt="Sơ đồ"><figcaption>Hình 1: Quỹ đạo tim mạch</figcaption></figure>';
+  const md = htmlToMarkdown(html);
+
+  assert.ok(md.includes("![Sơ đồ](/media/a.png)"), md);
+  assert.ok(md.includes("*Hình 1: Quỹ đạo tim mạch*"), "caption not emitted");
+  assert.doesNotMatch(md, /figcaption|figure/, "figure tags leaked into markdown");
+});
+
+test("C12 a caption identical to the alt text is not duplicated", () => {
+  const html = '<figure><img src="/media/a.png" alt="Sơ đồ"><figcaption>Sơ đồ</figcaption></figure>';
+  const md = htmlToMarkdown(html);
+
+  assert.equal(md.split("Sơ đồ").length - 1, 1, "caption repeated twice");
+});
+
+test("C12 a figure without a usable image degrades to its caption text", () => {
+  const html = "<figure><figcaption>Chú thích mồ côi</figcaption></figure>";
+  const md = htmlToMarkdown(html);
+
+  assert.ok(md.includes("Chú thích mồ côi"), md);
 });

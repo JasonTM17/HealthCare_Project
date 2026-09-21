@@ -455,12 +455,23 @@
 
 .citations a,
 .citations span,
+.citations dd,
 .fullChatLink {
   color: var(--assistant-deep);
   font-size: 0.72rem;
   font-weight: 700;
   text-decoration: underline;
   text-underline-offset: 0.15rem;
+}
+
+/* Citations are not clickable yet, so they must not borrow the link's
+ * underline, and the browser default <dd> indent has to go. */
+.citations dd {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  overflow-wrap: anywhere;
+  text-decoration: none;
 }
 
 .citations a {
@@ -486,24 +497,32 @@
   overflow-wrap: anywhere;
 }
 
+/* A provenance label that is 11 px, borderless and transparent reads as caption
+ * noise, so a lay visitor cannot tell a governed model answer from the offline
+ * fallback. Render it as a real chip at a legible size. */
 .provenance {
   display: inline-flex;
   align-items: center;
   width: fit-content;
   max-width: 100%;
-  padding: 0;
-  border: 0;
-  background: transparent;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--assistant-deep) 35%, transparent);
+  border-radius: var(--radius-sm, 4px);
+  background: color-mix(in srgb, var(--assistant-deep) 8%, transparent);
   color: var(--assistant-deep);
-  font-size: 0.7rem;
+  font-size: 0.8125rem;
   font-weight: 600;
-  line-height: 1.2;
+  line-height: 1.3;
 }
 
+/* Amber alone is not distinguishable for colour-blind readers, so the fallback
+ * chip also changes weight and border style. */
 .provenance[data-provenance="local_fallback"] {
-  border: 0;
-  background: transparent;
+  border-style: dashed;
+  border-color: #b45309;
+  background: #fffbeb;
   color: #854d0e;
+  font-weight: 700;
 }
 
 .fallbackNotice {

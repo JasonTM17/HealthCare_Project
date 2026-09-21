@@ -1223,7 +1223,8 @@ export interface AdminArticlePayload {
   tags?: string[];
   scheduledPublishAt?: string | null;
   version?: number | null;
-  sections?: ArticleSection[];
+  /** Server-derived from body on every write; a client value is ignored. */
+  sections?: ArticleSection[] | null;
   contentLanguage?: string | null;
   audience?: string | null;
   topicTags?: string[];
@@ -1263,16 +1264,29 @@ export const adminListArticles = (page = 0, size = 100) => getAuthenticatedJson<
 export const adminCreateArticle = (payload: AdminArticlePayload) => getAuthenticatedJson<AdminArticle>("/admin/articles", { method: "POST", body: JSON.stringify(payload) });
 export const adminUpdateArticle = (slug: string, payload: AdminArticlePayload) => getAuthenticatedJson<AdminArticle>(`/admin/articles/${encodeURIComponent(slug)}`, { method: "PUT", body: JSON.stringify(payload) });
 export const adminDeleteArticle = (slug: string) => getAuthenticatedJson<void>(`/admin/articles/${encodeURIComponent(slug)}`, { method: "DELETE" });
+/** Admin gate decision on a doctor submission; APPROVED publishes, REJECTED withdraws from public. */
+export const adminReviewArticle = (slug: string, decision: "APPROVED" | "REJECTED", reason?: string) =>
+  getAuthenticatedJson<AdminArticle>(`/admin/articles/${encodeURIComponent(slug)}/review`, {
+    method: "PUT",
+    body: JSON.stringify({ decision, reason: reason?.trim() || undefined }),
+  });
 
 export interface AdminSchedulePayload { dayOfWeek: number; startTime: string; endTime: string; slotDurationMinutes: number; effectiveFrom: string; effectiveTo?: string | null; active: boolean }
+/**
+ * `force=true` re-issues a write the backend refused with 409
+ * SCHEDULE_HAS_ACTIVE_BOOKINGS, after the operator confirms that live
+ * appointments may be stranded. Only the endpoints the backend actually reads
+ * the flag on carry it — create-schedule and delete-exception do not.
+ */
+const forceFlagQuery = (force: boolean) => toQuery({ force: force ? "true" : undefined });
 export const adminListSchedules = (page = 0, size = 100) => getAuthenticatedJson<Page<DoctorSchedule>>(`/admin/schedules${toQuery({ page, size })}`);
 export const adminCreateSchedule = (doctorId: string, branchId: string, payload: AdminSchedulePayload) => getAuthenticatedJson<DoctorSchedule>(`/admin/schedules/doctors/${encodeURIComponent(doctorId)}/branches/${encodeURIComponent(branchId)}`, { method: "POST", body: JSON.stringify(payload) });
-export const adminUpdateSchedule = (id: string, payload: AdminSchedulePayload) => getAuthenticatedJson<DoctorSchedule>(`/admin/schedules/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(payload) });
-export const adminDeleteSchedule = (id: string) => getAuthenticatedJson<void>(`/admin/schedules/${encodeURIComponent(id)}`, { method: "DELETE" });
+export const adminUpdateSchedule = (id: string, payload: AdminSchedulePayload, force = false) => getAuthenticatedJson<DoctorSchedule>(`/admin/schedules/${encodeURIComponent(id)}${forceFlagQuery(force)}`, { method: "PUT", body: JSON.stringify(payload) });
+export const adminDeleteSchedule = (id: string, force = false) => getAuthenticatedJson<void>(`/admin/schedules/${encodeURIComponent(id)}${forceFlagQuery(force)}`, { method: "DELETE" });
 export interface AdminScheduleExceptionPayload { exceptionDate: string; type: "CUSTOM_HOURS" | "BLOCKED" | "LEAVE"; customStartTime?: string | null; customEndTime?: string | null; reason?: string | null }
 export const adminListScheduleExceptions = (page = 0, size = 100) => getAuthenticatedJson<Page<DoctorScheduleException>>(`/admin/schedules/exceptions${toQuery({ page, size })}`);
-export const adminCreateScheduleException = (doctorId: string, branchId: string, payload: AdminScheduleExceptionPayload) => getAuthenticatedJson<DoctorScheduleException>(`/admin/schedules/exceptions/doctors/${encodeURIComponent(doctorId)}/branches/${encodeURIComponent(branchId)}`, { method: "POST", body: JSON.stringify(payload) });
-export const adminUpdateScheduleException = (id: string, payload: AdminScheduleExceptionPayload) => getAuthenticatedJson<DoctorScheduleException>(`/admin/schedules/exceptions/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(payload) });
+export const adminCreateScheduleException = (doctorId: string, branchId: string, payload: AdminScheduleExceptionPayload, force = false) => getAuthenticatedJson<DoctorScheduleException>(`/admin/schedules/exceptions/doctors/${encodeURIComponent(doctorId)}/branches/${encodeURIComponent(branchId)}${forceFlagQuery(force)}`, { method: "POST", body: JSON.stringify(payload) });
+export const adminUpdateScheduleException = (id: string, payload: AdminScheduleExceptionPayload, force = false) => getAuthenticatedJson<DoctorScheduleException>(`/admin/schedules/exceptions/${encodeURIComponent(id)}${forceFlagQuery(force)}`, { method: "PUT", body: JSON.stringify(payload) });
 export const adminDeleteScheduleException = (id: string) => getAuthenticatedJson<void>(`/admin/schedules/exceptions/${encodeURIComponent(id)}`, { method: "DELETE" });
 
 // ── Admin: Services ─────────────────────────────────────────────────────────
@@ -2065,6 +2079,44 @@ export async function adminListAppointments(
   );
 }
 
+/**
+ * Admin cancels an appointment on the patient's behalf (for example when the
+ * patient phones in). The backend accepts exactly one target status, so the
+ * body always carries `CANCELLED`; `reason` is optional and capped at 500
+ * characters. A 409 APPOINTMENT_STATUS_TRANSITION_INVALID means the row is
+ * already terminal and cannot be cancelled again.
+ */
+export async function adminCancelAppointment(
+  appointmentId: string,
+  reason?: string,
+): Promise<AppointmentDetails> {
+  const trimmedReason = reason?.trim();
+  return getAuthenticatedJson<AppointmentDetails>(
+    `/admin/appointments/${encodeURIComponent(appointmentId)}/status`,
+    {
+      method: "POST",
+      body: JSON.stringify({ status: "CANCELLED", reason: trimmedReason || undefined }),
+    },
+  );
+}
+
+/**
+ * The signed-in patient cancels one of their own appointments. The backend
+ * only accepts PENDING_CONFIRMATION and CONFIRMED rows (a 400 otherwise) and
+ * stores the optional reason, which the patient later sees on the cancelled
+ * appointment card.
+ */
+export async function cancelPatientAppointment(bookingCode: string, reason?: string): Promise<AppointmentDetails> {
+  const trimmedReason = reason?.trim();
+  return getAuthenticatedJson<AppointmentDetails>(
+    `/appointments/${encodeURIComponent(bookingCode)}/cancel`,
+    {
+      method: "POST",
+      body: JSON.stringify({ reason: trimmedReason || undefined }),
+    },
+  );
+}
+
 export async function fetchPatientProfile(): Promise<PatientProfile> {
   return getAuthenticatedJson<PatientProfile>("/patient/profile");
 }
@@ -2798,21 +2850,112 @@ export async function deleteAiConversation(conversationId: string): Promise<void
   );
 }
 
+/**
+ * Filters for GET /doctor/appointments. Two mutually exclusive shapes are
+ * accepted by the backend: a single day (`date`) or a bounded range
+ * (`from` + `to`, server-capped at 31 days).
+ */
+export interface DoctorAppointmentQuery {
+  date?: string;
+  from?: string;
+  to?: string;
+  status?: string;
+  page?: number;
+  size?: number;
+}
+
+const DOCTOR_APPOINTMENT_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Bác sĩ xem lịch khám của mình.
+ *
+ * Accepts the positional single-day form used by existing call sites —
+ * `fetchDoctorAppointments("2026-01-01", status, page, size)` — or the
+ * `DoctorAppointmentQuery` object for the range view. `date` and `from`/`to`
+ * are never sent together: the backend treats them as alternatives.
+ */
 export async function fetchDoctorAppointments(
-  date: string,
+  dateOrQuery: string | DoctorAppointmentQuery,
   status?: string,
   page = 0,
   size = 50,
 ): Promise<Page<DoctorPortalAppointment>> {
-  const normalizedDate = date.trim();
   const path = "/doctor/appointments";
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedDate)) {
-    throw new ApiError("Ngày xem lịch phải có định dạng YYYY-MM-DD.", 400, path);
+  if (typeof dateOrQuery === "string") {
+    const normalizedDate = dateOrQuery.trim();
+    if (!DOCTOR_APPOINTMENT_DATE_PATTERN.test(normalizedDate)) {
+      throw new ApiError("Ngày xem lịch phải có định dạng YYYY-MM-DD.", 400, path);
+    }
+
+    return getAuthenticatedJson<Page<DoctorPortalAppointment>>(
+      `${path}${toQuery({ date: normalizedDate, status, page, size })}`,
+    );
+  }
+
+  const askedDate = dateOrQuery.date?.trim();
+  const askedFrom = dateOrQuery.from?.trim();
+  const askedTo = dateOrQuery.to?.trim();
+  if (!askedDate && !(askedFrom && askedTo)) {
+    throw new ApiError("Cần ngày xem lịch hoặc khoảng ngày từ ngày bắt đầu đến ngày kết thúc.", 400, path);
+  }
+  for (const value of [askedDate, askedFrom, askedTo]) {
+    if (value && !DOCTOR_APPOINTMENT_DATE_PATTERN.test(value)) {
+      throw new ApiError("Ngày xem lịch phải có định dạng YYYY-MM-DD.", 400, path);
+    }
   }
 
   return getAuthenticatedJson<Page<DoctorPortalAppointment>>(
-    `${path}${toQuery({ date: normalizedDate, status, page, size })}`,
+    `${path}${toQuery({
+      date: askedDate,
+      from: askedDate ? undefined : askedFrom,
+      to: askedDate ? undefined : askedTo,
+      status: dateOrQuery.status,
+      page: dateOrQuery.page ?? 0,
+      size: dateOrQuery.size ?? 50,
+    })}`,
   );
+}
+
+/**
+ * One weekly roster row of the signed-in doctor (GET /doctor/schedules).
+ * Flat and doctor-scoped: no `doctorId` / `doctorName`, and `active` is
+ * reported rather than filtered so a paused row stays visible to its owner.
+ */
+export interface DoctorRosterEntry {
+  id: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  slotDurationMinutes: number;
+  branchId?: string | null;
+  branchName?: string | null;
+  effectiveFrom?: string | null;
+  effectiveTo?: string | null;
+  active: boolean;
+}
+
+/**
+ * One leave / blocked / custom-hours day of the signed-in doctor
+ * (GET /doctor/schedule-exceptions). Custom hours arrive as `startTime` /
+ * `endTime` and the operator's reason as `note`.
+ */
+export interface DoctorRosterException {
+  id: string;
+  exceptionDate: string;
+  type: string;
+  startTime?: string | null;
+  endTime?: string | null;
+  note?: string | null;
+  branchId?: string | null;
+  branchName?: string | null;
+}
+
+export async function fetchDoctorSchedules(): Promise<DoctorRosterEntry[]> {
+  return getAuthenticatedJson<DoctorRosterEntry[]>("/doctor/schedules");
+}
+
+export async function fetchDoctorScheduleExceptions(): Promise<DoctorRosterException[]> {
+  return getAuthenticatedJson<DoctorRosterException[]>("/doctor/schedule-exceptions");
 }
 
 export async function fetchDoctorProfile(): Promise<Doctor> {
@@ -3130,6 +3273,11 @@ export interface ArticleComment {
   parentCommentId?: string | null;
   createdAt: string;
   updatedAt: string;
+  /**
+   * False marks a soft-deleted thread anchor: the backend keeps the row so its
+   * replies stay reachable, but content and authorship are already stripped.
+   */
+  active?: boolean;
 }
 
 export async function fetchArticleComments(slug: string): Promise<ArticleComment[]> {
@@ -3190,14 +3338,6 @@ export interface PatientCreditDto {
   credits: number;
 }
 
-export interface DoctorCreditDto {
-  doctorId: string;
-  userId: string;
-  fullName: string;
-  slug: string;
-  credits: number;
-}
-
 export interface AiCreditStatus {
   tier?: string;
   credits: number;
@@ -3217,13 +3357,17 @@ export async function adminListPatientAiCredits(): Promise<PatientCreditDto[]> {
   return getAuthenticatedJson<PatientCreditDto[]>("/admin/ai-credits/patients");
 }
 
-export async function adminListDoctorAiCredits(): Promise<DoctorCreditDto[]> {
-  return getAuthenticatedJson<DoctorCreditDto[]>("/admin/ai-credits/doctors");
-}
-
+/**
+ * Admin credit grant. `PATIENT` is the only supported target: the backend
+ * removed the doctor credit consumption path, so nothing could ever spend a
+ * doctor balance and `POST /admin/ai-credits/grant` answers a `DOCTOR` request
+ * with HTTP 400 and its own Vietnamese reason. The clinical listing route was
+ * deleted from the backend too, so the admin screen fetches patient balances
+ * only.
+ */
 export async function adminGrantAiCredits(payload: {
   userId: string;
-  targetRole: "PATIENT" | "DOCTOR";
+  targetRole: "PATIENT";
   amount: number;
   description?: string;
 }): Promise<{ status: string; message: string }> {
@@ -3246,6 +3390,24 @@ export async function adminUpdatePatientTier(payload: {
 
 export async function fetchPatientAiCreditStatus(): Promise<AiCreditStatus> {
   return getAuthenticatedJson<AiCreditStatus>("/patient/ai-credits/status");
+}
+
+/**
+ * Admin-triggered operational-catalog AI index sync (branches, specialties,
+ * doctors, services, packages) against POST /api/v1/admin/ai/catalog/sync.
+ * The backend also runs this on a fixed-delay schedule; this endpoint is for
+ * an immediate on-demand sync right after catalog edits.
+ */
+export async function adminSyncAiCatalog(): Promise<{
+  status: string;
+  processedDocuments: number;
+  completedAt: string;
+}> {
+  return getAuthenticatedJson<{
+    status: string;
+    processedDocuments: number;
+    completedAt: string;
+  }>("/admin/ai/catalog/sync", { method: "POST" });
 }
 
 // ── Realtime Cross-Role Catalog Broadcast ───────────────────────────────────

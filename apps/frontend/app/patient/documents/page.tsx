@@ -24,6 +24,10 @@ import {
 } from "../../../components/PortalStates";
 import { useAuthSession, useAuthSessionStatus } from "../../../components/useAuthSession";
 import { formatBusinessDateTime } from "../../../lib/business-time";
+import {
+  DOCUMENT_GENERATION_DISABLED_MESSAGE,
+  DOCUMENT_GENERATION_ENABLED,
+} from "../../../lib/media-uploads";
 import { presentApiError } from "../../../lib/present-api-error";
 import type { MedicalRecord, PatientProfile, Prescription } from "../../../types/hospital";
 import UiIcon from "../../../components/UiIcon";
@@ -44,7 +48,7 @@ const SOURCE_LABEL: Record<PatientDocumentSourceType, string> = {
 
 const STATUS_LABEL: Record<PatientDocument["status"], string> = {
   AVAILABLE: "Sẵn sàng tải",
-  FAILED: "Tạo lỗi",
+  FAILED: "Tạo thất bại",
   PENDING: "Đang tạo",
   SUPERSEDED: "Đã thay thế",
   REVOKED: "Đã thu hồi",
@@ -93,8 +97,10 @@ function formatBytes(value: number | null | undefined): string {
 }
 
 function documentFilename(document: PatientDocument): string {
-  const slug = document.sourceType.toLowerCase().replace("_", "-");
-  return `healthcare-demo-${slug}-${document.id.slice(0, 8)}.pdf`;
+  // The file lands in the patient's own downloads folder; a "demo" stamp there
+  // undercuts a clinical record. Synthetic/beta status is stated in-app instead.
+  const slug = document.sourceType === "PRESCRIPTION" ? "don-thuoc" : "ho-so-kham";
+  return `${slug}-${document.id.slice(0, 8)}.pdf`;
 }
 
 function documentSourceTitle(
@@ -224,7 +230,7 @@ export default function PatientDocumentsPage() {
           ? { status: "success", data: upsertDocument(current.data, generated) }
           : { status: "success", data: [generated] }
       ));
-      setNotice({ tone: "success", message: "Đã tạo bản PDF demo. Bạn có thể tải ngay khi trạng thái sẵn sàng." });
+      setNotice({ tone: "success", message: "Đã tạo tài liệu PDF. Bạn có thể tải về khi trạng thái chuyển sang “Sẵn sàng tải”." });
     } catch (error) {
       if (getErrorStatus(error) === 401) clearAuthSession();
       setNotice({ tone: "error", message: getErrorMessage(error) });
@@ -276,9 +282,9 @@ export default function PatientDocumentsPage() {
       <div className="section-inner portal-page">
         <header className="portal-hero">
           <div>
-            <p className="section-note">TÀI LIỆU PDF DEMO</p>
+            <p className="section-note">TÀI LIỆU KHÁM CỦA BẠN</p>
             <h1>Trung tâm tài liệu lâm sàng</h1>
-            <p>Tạo PDF từ hồ sơ khám hoặc đơn thuốc của bạn. Bản này là dữ liệu synthetic/beta, chưa phải giấy tờ ký số pháp lý.</p>
+            <p>Tạo bản PDF từ hồ sơ khám hoặc đơn thuốc của bạn. Tài liệu đang ở giai đoạn thử nghiệm và chưa có chữ ký số, nên không thay thế giấy tờ chính thức của cơ sở y tế.</p>
           </div>
         </header>
 
@@ -299,11 +305,15 @@ export default function PatientDocumentsPage() {
             <small>Chỉ đơn đang sử dụng mới được tạo PDF.</small>
           </article>
           <article className="portal-summary-card">
-            <span>Ranh giới</span>
-            <strong>Demo</strong>
-            <small>Không public URL, không chữ ký số.</small>
+            <span>Pháp lý</span>
+            <strong>Thử nghiệm</strong>
+            <small>Chưa ký số, chỉ tải qua tài khoản của bạn.</small>
           </article>
         </div>
+
+        {!DOCUMENT_GENERATION_ENABLED ? (
+          <p className="info-banner" role="status">{DOCUMENT_GENERATION_DISABLED_MESSAGE}</p>
+        ) : null}
 
         {notice ? (
           <p
@@ -324,7 +334,7 @@ export default function PatientDocumentsPage() {
             <span aria-hidden="true" className="portal-panel__icon"><UiIcon name="printer" size={20} /></span>
           </div>
           <StateContent
-            emptyDescription="Bạn có thể tạo PDF demo từ hồ sơ khám hoặc đơn thuốc ở các mục bên dưới."
+            emptyDescription="Bạn có thể tạo tài liệu PDF từ hồ sơ khám hoặc đơn thuốc ở các mục bên dưới."
             emptyTitle="Chưa có tài liệu PDF"
             retry={retry}
             state={documents}
@@ -339,7 +349,7 @@ export default function PatientDocumentsPage() {
                     </div>
                     <h3>{documentSourceTitle(document, recordsById, prescriptionsById)}</h3>
                     <p className="portal-record__doctor">Tạo lúc {formatBusinessDateTime(document.generatedAt)} · {formatBytes(document.byteSize)}</p>
-                    {document.sha256 ? <p>Mã kiểm tra: {document.sha256.slice(0, 12)}…</p> : null}
+                    {document.sha256 ? <p>Mã đối chiếu tài liệu: {document.sha256.slice(0, 12)}…</p> : null}
                     {document.status === "FAILED" ? <p className="portal-record__followup">Tệp tạo lỗi đã được ghi nhận để thử lại an toàn.</p> : null}
                     <div className="portal-appointment__actions">
                       <button
@@ -388,7 +398,7 @@ export default function PatientDocumentsPage() {
                         <div className="portal-appointment__actions">
                           <button
                             className="outline-button outline-button--small"
-                            disabled={generatingKey === actionKey}
+                            disabled={!DOCUMENT_GENERATION_ENABLED || generatingKey !== null}
                             onClick={() => void handleGenerate("VISIT_SUMMARY", record.id)}
                             type="button"
                           >
@@ -412,7 +422,7 @@ export default function PatientDocumentsPage() {
               <span aria-hidden="true" className="portal-panel__icon"><UiIcon name="book-open" size={20} /></span>
             </div>
             <StateContent
-              emptyDescription="Đơn thuốc đang hiệu lực sẽ được phép kết xuất PDF demo."
+              emptyDescription="Chỉ đơn thuốc còn hiệu lực mới được kết xuất tài liệu PDF."
               emptyTitle="Chưa có đơn thuốc"
               retry={retry}
               state={prescriptions}
@@ -433,7 +443,7 @@ export default function PatientDocumentsPage() {
                         <div className="portal-appointment__actions">
                           <button
                             className="outline-button outline-button--small"
-                            disabled={!isActive || generatingKey === actionKey}
+                            disabled={!DOCUMENT_GENERATION_ENABLED || !isActive || generatingKey !== null}
                             onClick={() => void handleGenerate("PRESCRIPTION", prescription.id)}
                             type="button"
                           >
@@ -450,7 +460,7 @@ export default function PatientDocumentsPage() {
         </div>
 
         <p className="portal-disclaimer">
-          PDF demo phản ánh snapshot dữ liệu tại thời điểm tạo. Không dùng thay thế chỉ định trực tiếp hoặc giấy tờ có chữ ký số của cơ sở y tế.
+          Tài liệu PDF phản ánh dữ liệu tại thời điểm tạo, đang ở giai đoạn thử nghiệm và chưa có chữ ký số. Không dùng thay thế chỉ định trực tiếp hoặc giấy tờ chính thức của cơ sở y tế.
         </p>
       </div>
     </PortalChrome>

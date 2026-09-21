@@ -29,12 +29,12 @@ const BOOKING_STAGES: Array<{ icon: IconName; title: string; description: string
   {
     icon: "mail",
     title: "4. Xác nhận OTP",
-    description: "Xác thực mã OTP gửi qua SMS/Email giúp bảo mật thông tin và hoàn tất lịch hẹn an toàn.",
+    description: "Xác thực mã OTP gửi qua email giúp bảo mật thông tin và hoàn tất lịch hẹn an toàn.",
   },
 ];
 
 const PREPARE_ITEMS = [
-  "Chuẩn bị số điện thoại có thể nhận OTP xác thực.",
+  "Chuẩn bị địa chỉ email có thể nhận mã OTP xác thực.",
   "Đến trước giờ hẹn 15 phút để hoàn tất thủ tục tiếp đón và đo sinh hiệu ban đầu.",
   "Mang theo CMND/CCCD, thẻ BHYT và kết quả thăm khám cũ (nếu có).",
   "Nhịn ăn sáng trước khi lấy mẫu nếu có chỉ định xét nghiệm máu hoặc đường huyết.",
@@ -88,7 +88,7 @@ export default function BookingLandingPage() {
             <h1>Đặt lịch khám trực tuyến</h1>
             <p>
               Chọn chuyên khoa, cơ sở, bác sĩ và khung giờ khám thuận tiện nhất.
-              Quy trình tiếp nhận tinh gọn, bảo mật và hỗ trợ ưu tiên tại quầy tiếp đón.
+              Giữ chỗ bằng OTP và nhận mã hẹn ngay khi xác thực xong.
             </p>
             <div className="booking-page__hero-actions">
               <PublicBookingButton>
@@ -113,7 +113,7 @@ export default function BookingLandingPage() {
             <p className="section-note">Hệ thống tiếp nhận</p>
             <h2 id="booking-inline-heading">Đăng ký lịch khám nhanh chóng</h2>
             <p>
-              Quý khách vui lòng điền thông tin người khám, chọn cơ sở y tế thuận tiện và xác thực OTP để nhận phiếu khám điện tử tức thì.
+              Quý khách vui lòng điền thông tin người khám, chọn cơ sở y tế thuận tiện và xác thực OTP để nhận mã hẹn tức thì.
             </p>
           </div>
           <BookingInlineExperience key={bookingRequest.nonce} selection={bookingRequest.selection} />

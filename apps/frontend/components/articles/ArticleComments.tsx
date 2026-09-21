@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import UiIcon from "../UiIcon";
 import { useAuthSession } from "../useAuthSession";
 import {
+  ApiError,
   createArticleComment,
   fetchArticleComments,
   hasRole,
@@ -105,7 +106,11 @@ export function ArticleComments({ slug, category }: ArticleCommentsProps) {
       setComments((prev) => [...prev, created]);
       setDraft("");
     } catch (err: unknown) {
-      setSubmitError("Chưa thể gửi bình luận. Hãy kiểm tra kết nối và thử lại.");
+      // Prefer the backend's specific reason (removed parent, expired session…)
+      // over a generic network copy that traps the user in a doomed retry.
+      setSubmitError(err instanceof ApiError && err.message
+        ? err.message
+        : "Chưa thể gửi bình luận. Hãy kiểm tra kết nối và thử lại.");
     } finally {
       setSubmitting(false);
     }
@@ -130,7 +135,9 @@ export function ArticleComments({ slug, category }: ArticleCommentsProps) {
       setReplyDraft("");
       setReplyingToId(null);
     } catch (err: unknown) {
-      setReplyError("Chưa thể gửi phản hồi. Vui lòng thử lại.");
+      setReplyError(err instanceof ApiError && err.message
+        ? err.message
+        : "Chưa thể gửi phản hồi. Vui lòng thử lại.");
     } finally {
       setReplySubmitting(false);
     }
@@ -151,7 +158,7 @@ export function ArticleComments({ slug, category }: ArticleCommentsProps) {
         <div className="flex items-center gap-2">
           <span className="text-xl">💬</span>
           <h2 id="article-comments-heading" className="text-xl font-bold text-slate-800 m-0">
-            Hỏi đáp &amp; Thảo luận y khoa ({comments.length})
+            Hỏi đáp &amp; Thảo luận y khoa ({comments.filter((c) => c.active !== false).length})
           </h2>
         </div>
         <span className="text-xs text-slate-500 font-medium">
@@ -297,6 +304,24 @@ export function ArticleComments({ slug, category }: ArticleCommentsProps) {
             const isDoctorRoot = comment.authorRole === "DOCTOR";
             const isAdminRoot = comment.authorRole === "ADMIN";
 
+            // A soft-deleted root keeps its slot as a thread anchor so replies
+            // stay reachable; it renders as a bare tombstone with no author or
+            // interaction affordances.
+            if (comment.active === false) {
+              return (
+                <article className="p-5 rounded-[4px] border border-dashed border-slate-300 bg-slate-50/70" key={comment.id}>
+                  <p className="text-sm text-slate-500 italic whitespace-pre-wrap m-0">
+                    [Bình luận đã xóa]
+                  </p>
+                  {replies.length > 0 ? (
+                    <p className="mt-1 text-[11px] text-slate-400 m-0">
+                      {replies.length} phản hồi được giữ lại trong luồng này.
+                    </p>
+                  ) : null}
+                </article>
+              );
+            }
+
             return (
               <article
                 key={comment.id}
@@ -351,12 +376,12 @@ export function ArticleComments({ slug, category }: ArticleCommentsProps) {
                 </div>
 
                 {/* Content */}
-                <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed my-3 pl-10.5">
+                <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed my-3 pl-10">
                   {comment.content}
                 </p>
 
                 {/* Actions row: Reply button & reply count */}
-                <div className="flex items-center justify-between flex-wrap gap-2 pl-10.5 mt-3 pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between flex-wrap gap-2 pl-10 mt-3 pt-2 border-t border-slate-100">
                   <span className="text-[11px] text-slate-500 font-medium">
                     {replies.length > 0 ? `💬 ${replies.length} phản hồi trong luồng` : "Chưa có phản hồi chuyên môn"}
                   </span>
@@ -401,7 +426,7 @@ export function ArticleComments({ slug, category }: ArticleCommentsProps) {
                 {isReplyingThis && (
                   <form
                     onSubmit={(e) => handleReplySubmit(e, comment.id)}
-                    className="ml-10.5 mt-3 p-4 bg-teal-50/70 border border-teal-300 rounded-[4px]"
+                    className="ml-10 mt-3 p-4 bg-teal-50/70 border border-teal-300 rounded-[4px]"
                   >
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs font-bold text-teal-950 flex items-center gap-1.5">
@@ -450,13 +475,21 @@ export function ArticleComments({ slug, category }: ArticleCommentsProps) {
 
                 {/* Nested Replies with Vertical Hierarchy Guide Line */}
                 {replies.length > 0 && (
-                  <div className="ml-10.5 mt-4 space-y-3 border-l-2 border-teal-600 pl-4">
+                  <div className="ml-10 mt-4 space-y-3 border-l-2 border-teal-600 pl-4">
                     <div className="text-[11px] font-bold text-teal-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                       <span>🩺 Luồng phản hồi &amp; giải đáp ({replies.length})</span>
                     </div>
                     {replies.map((reply) => {
                       const isDoctorReply = reply.authorRole === "DOCTOR";
                       const isAdminReply = reply.authorRole === "ADMIN";
+
+                      if (reply.active === false) {
+                        return (
+                          <div className="p-4 rounded-[4px] border border-dashed border-slate-300 bg-slate-50/70" key={reply.id}>
+                            <p className="text-xs text-slate-500 italic m-0">[Bình luận đã xóa]</p>
+                          </div>
+                        );
+                      }
 
                       return (
                         <div
@@ -504,7 +537,7 @@ export function ArticleComments({ slug, category }: ArticleCommentsProps) {
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap m-0 pl-9.5">
+                          <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap m-0 pl-10">
                             {reply.content}
                           </p>
                         </div>

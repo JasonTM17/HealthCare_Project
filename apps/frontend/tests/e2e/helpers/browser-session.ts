@@ -127,6 +127,23 @@ export function doctorProfileFixture(
   };
 }
 
+export async function installMockNotificationFeed(
+  target: BrowserContext | Page,
+): Promise<void> {
+  await target.route("**/api/v1/notifications**", async (route) => {
+    const request = route.request();
+    expect(request.method()).toBe("GET");
+    expect(new URL(request.url()).origin).toBe(expectedBrowserOrigin());
+    expect(request.headers()["authorization"]).toBeUndefined();
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers: { "Cache-Control": "no-store" },
+      body: JSON.stringify({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 0, first: true, last: true }),
+    });
+  });
+}
+
 export async function installMockPatientPortalSession(
   target: BrowserContext | Page,
   session: BrowserSessionFixture,
@@ -140,18 +157,7 @@ export async function installMockPatientPortalSession(
   // Portal pages fetch notifications on mount; a strict per-request oracle
   // elsewhere in the spec needs this route answered or it 401s and clears
   // the freshly mocked session.
-  await target.route("**/api/v1/notifications**", async (route) => {
-    const request = route.request();
-    expect(request.method()).toBe("GET");
-    expect(new URL(request.url()).origin).toBe(expectedBrowserOrigin());
-    expect(request.headers()["authorization"]).toBeUndefined();
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      headers: { "Cache-Control": "no-store" },
-      body: JSON.stringify({ content: [], totalElements: 0, totalPages: 0, number: 0, size: 0, first: true, last: true }),
-    });
-  });
+  await installMockNotificationFeed(target);
 
   await target.route("**/api/v1/patient/profile", async (route) => {
     const request = route.request();
@@ -201,6 +207,13 @@ export async function installMockDoctorPortalSession(
   } = {},
 ): Promise<void> {
   await installMockBrowserSession(target, session);
+
+  // Same mount-time bell read as the patient portal. `Ultra Vòng 4` WS-B gave
+  // the doctor shell its notification bell in `components/PortalChrome.tsx`,
+  // so an unanswered `GET /api/v1/notifications` returns 401 through the real
+  // BFF and `getAuthenticatedJson` clears the freshly mocked session, which
+  // drops the page into its login-required state before the spec can act.
+  await installMockNotificationFeed(target);
 
   await target.route("**/api/v1/doctor/profile", async (route) => {
     const request = route.request();

@@ -52,7 +52,10 @@ export function useSortableList<T>({
       dragClass,
       fallbackOnBody: true,
       swapThreshold: 0.65,
-      delay: 0,
+      // A zero delay makes the list capture the very first touch, so a vertical
+      // scroll gesture that starts on a handle becomes a no-op drag. A short
+      // press-and-hold keeps scrolling natural while still allowing touch drags.
+      delay: 200,
       delayOnTouchOnly: true,
       touchStartThreshold: 3,
       fallbackTolerance: 3,

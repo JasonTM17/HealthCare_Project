@@ -23,14 +23,24 @@ test("media upload surfaces mirror the backend upload-enabled posture", async ()
   // is gone, so the toolbar and quickbars are the gating surfaces that
   // remain. Assert every image-bearing toolbar token is inside a gate
   // rather than naming one particular interpolation.
-  assert.match(editor, /toolbar:[\s\S]*?MEDIA_UPLOADS_ENABLED \? "image media " : ""/);
+  //
+  // The gate used to carry the `media` plugin alongside `image`. Media is no
+  // longer offered at all: the markdown pipeline drops <video>/<audio>/<iframe>
+  // sources, so the button deleted the author's embed on the next save. What is
+  // left to gate is the image control, which does round-trip as `![](url)`.
+  assert.match(editor, /toolbar:[\s\S]*?MEDIA_UPLOADS_ENABLED \? "image " : ""/);
+  // Both image-bearing toolbar tokens have to sit inside a gate. The check
+  // reads the toolbar literal with its interpolations removed, so an ungated
+  // `image` (or `quickimage`) is what fails rather than a word appearing
+  // somewhere after one.
+  const toolbarLiteral = editor.match(/^\s*toolbar:\s*`([\s\S]*?)`/m);
+  assert.ok(toolbarLiteral, "the toolbar template literal must be present");
+  const ungatedToolbar = toolbarLiteral[1].replace(/\$\{[^}]*\}/g, " ");
   assert.ok(
-    !/toolbar:[\s\S]*?image media(?![\s\S]{0,80}MEDIA_UPLOADS_ENABLED)/.test(
-      editor.slice(editor.indexOf("toolbar:"), editor.indexOf("toolbar:") + 2000),
-    ),
+    !/\b(?:quick)?image\b/.test(ungatedToolbar),
     "image tokens must sit behind the upload posture",
   );
-  assert.match(editor, /MEDIA_UPLOADS_ENABLED \? "image media " : ""/);
+  assert.match(editor, /MEDIA_UPLOADS_ENABLED \? "image " : ""/);
   assert.match(editor, /MEDIA_UPLOADS_ENABLED \? "quickimage " : ""/);
   assert.match(editor, /automatic_uploads: MEDIA_UPLOADS_ENABLED/);
   assert.match(editor, /paste_data_images: MEDIA_UPLOADS_ENABLED/);
