@@ -11,9 +11,9 @@ Generated via the project's Stitch MCP connection (create_project + generate_scr
 
 ## Brand & Style
 
-This design system serves hospital physicians, triage nurses, and medical staff operating in fast-paced clinical environments. The interface prioritizes extreme clarity, quick scannability, and visual reassurance. 
+This design system serves hospital physicians, triage nurses, and medical staff operating in fast-paced clinical environments. The interface prioritizes extreme clarity, quick scannability, and visual reassurance.
 
-The emotional tone balances clinical rigor with humane accessibility: calm, authoritative, non-fatiguing, and reliable under high-stress decisions. 
+The emotional tone balances clinical rigor with humane accessibility: calm, authoritative, non-fatiguing, and reliable under high-stress decisions.
 
 The aesthetic is Modern Clinical Minimalist—defined by ultra-clean structural layouts, intentional white space, crisp hairline divisions, and semantic status indicators that immediately communicate triage states without visual clutter.
 
