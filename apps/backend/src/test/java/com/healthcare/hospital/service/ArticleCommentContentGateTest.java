@@ -76,7 +76,7 @@ class ArticleCommentContentGateTest {
     private UserDetails openCommentThread() {
         Article article = new Article();
         article.setSlug(SLUG);
-        when(articleRepository.findBySlugAndActiveTrueAndPublishedAtLessThanEqual(eq(SLUG), any()))
+        when(articleRepository.findBySlugAndActiveTrueAndReviewStatusAndPublishedAtLessThanEqual(eq(SLUG), eq("APPROVED"), any()))
             .thenReturn(Optional.of(article));
 
         UUID userId = UUID.randomUUID();
@@ -112,7 +112,7 @@ class ArticleCommentContentGateTest {
         // reveal whether the article exists.
         verify(commentRepository, never()).save(any());
         verify(articleRepository, never())
-            .findBySlugAndActiveTrueAndPublishedAtLessThanEqual(anyString(), any());
+            .findBySlugAndActiveTrueAndReviewStatusAndPublishedAtLessThanEqual(anyString(), eq("APPROVED"), any());
     }
 
     @Test

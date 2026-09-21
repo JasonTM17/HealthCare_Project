@@ -62,8 +62,8 @@ class ArticleCommentServiceTest {
         article.setSlug(slug);
         // The service now requires an article readers can open, using the same
         // predicate as the public read path, so the stub matches that contract.
-        when(articleRepository.findBySlugAndActiveTrueAndPublishedAtLessThanEqual(
-            org.mockito.ArgumentMatchers.eq(slug), org.mockito.ArgumentMatchers.any()))
+        when(articleRepository.findBySlugAndActiveTrueAndReviewStatusAndPublishedAtLessThanEqual(
+            org.mockito.ArgumentMatchers.eq(slug), org.mockito.ArgumentMatchers.eq("APPROVED"), org.mockito.ArgumentMatchers.any()))
             .thenReturn(Optional.of(article));
 
         UUID userId = UUID.randomUUID();
@@ -106,8 +106,8 @@ class ArticleCommentServiceTest {
         article.setSlug(slug);
         // The service now requires an article readers can open, using the same
         // predicate as the public read path, so the stub matches that contract.
-        when(articleRepository.findBySlugAndActiveTrueAndPublishedAtLessThanEqual(
-            org.mockito.ArgumentMatchers.eq(slug), org.mockito.ArgumentMatchers.any()))
+        when(articleRepository.findBySlugAndActiveTrueAndReviewStatusAndPublishedAtLessThanEqual(
+            org.mockito.ArgumentMatchers.eq(slug), org.mockito.ArgumentMatchers.eq("APPROVED"), org.mockito.ArgumentMatchers.any()))
             .thenReturn(Optional.of(article));
 
         UUID userId = UUID.randomUUID();
