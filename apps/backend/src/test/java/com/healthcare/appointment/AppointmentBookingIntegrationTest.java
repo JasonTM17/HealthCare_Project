@@ -62,6 +62,12 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
 
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final String BOOKING_EMAIL = "booking.test@example.com";
+    /** Standard hospital windows persisted for the test doctor (see {@link #setUpTestData()}). */
+    private static final LocalTime MORNING_WINDOW_START = LocalTime.of(8, 0);
+    private static final LocalTime MORNING_WINDOW_END = LocalTime.of(12, 0);
+    private static final LocalTime AFTERNOON_WINDOW_START = LocalTime.of(13, 30);
+    private static final LocalTime AFTERNOON_WINDOW_END = LocalTime.of(17, 30);
+    private static final int SLOT_DURATION_MINUTES = 30;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -77,6 +83,14 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
 
     private Doctor doctor;
     private Specialty specialty;
+    /**
+     * Branch the test doctor is scheduled at. The hold contract requires an
+     * explicit branch, and schedules are the availability authority, so every
+     * hold/reschedule below books this branch unless the test builds its own.
+     */
+    private Branch defaultBranch;
+    /** True once a test persisted its own windows and dropped the default ones. */
+    private boolean defaultSchedulesReplaced;
 
     @BeforeEach
     void setUpTestData() {
@@ -98,6 +112,15 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         doctorSpecialty.setDoctor(doctor);
         doctorSpecialty.setSpecialty(specialty);
         doctorSpecialtyRepository.save(doctorSpecialty);
+
+        // A doctor is bookable only where an active doctor_schedules row covers
+        // the requested weekday and date; the test profile never enables the
+        // local demo fallback, so the suite must persist the standard hospital
+        // hours it asserts on. The weekly rows cover every ISO weekday because
+        // the suite books dates derived from "today".
+        defaultBranch = createBranchForDoctor("default");
+        saveWeeklySchedule(defaultBranch, MORNING_WINDOW_START, MORNING_WINDOW_END, SLOT_DURATION_MINUTES);
+        saveWeeklySchedule(defaultBranch, AFTERNOON_WINDOW_START, AFTERNOON_WINDOW_END, SLOT_DURATION_MINUTES);
     }
 
     @Test
@@ -111,7 +134,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         HoldSlotRequest request = new HoldSlotRequest(
             doctor.getId(), LocalDate.now(BUSINESS_ZONE).plusDays(2), LocalTime.of(9, 0),
             "Bệnh nhân kiểm thử", "0907000199", BOOKING_EMAIL, "Kiểm thử invariant",
-            unrelated.getId(), null, null);
+            unrelated.getId(), defaultBranch.getId(), null);
 
         mockMvc.perform(post("/api/v1/appointments/hold")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -133,10 +156,13 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
                       "fullName": "Bệnh nhân chưa đồng ý",
                       "phone": "0907000299",
                       "specialtyId": "%s",
+                      "branchId": "%s",
                       "privacyConsent": false
                     }
-                    """.formatted(doctor.getId(), appointmentDate, specialty.getId())))
-            .andExpect(status().isBadRequest());
+                    """.formatted(doctor.getId(), appointmentDate, specialty.getId(), defaultBranch.getId())))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+            .andExpect(jsonPath("$.fieldErrors[?(@.field == 'privacyConsent')]").exists());
     }
 
     @Test
@@ -148,8 +174,11 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(header().string("Cache-Control", org.hamcrest.Matchers.containsString("no-store")))
             .andExpect(jsonPath("$").isArray())
-            .andExpect(jsonPath("$[0].startTime").exists())
-            .andExpect(jsonPath("$[0].branchId").doesNotExist())
+            // 08:00-12:00 and 13:30-17:30 in 30-minute steps.
+            .andExpect(jsonPath("$.length()").value(16))
+            .andExpect(jsonPath("$[0].startTime").value("08:00:00"))
+            .andExpect(jsonPath("$[0].endTime").value("08:30:00"))
+            .andExpect(jsonPath("$[0].branchId").value(defaultBranch.getId().toString()))
             .andExpect(jsonPath("$[0].available").value(true));
     }
 
@@ -186,7 +215,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
     }
 
     @Test
-    void branchScopedBookingAllowsSamePendingSlotAtDifferentBranchesButRejectsSameBranch() throws Exception {
+    void sameDoctorCannotHoldTheSameSlotAtTwoBranches() throws Exception {
         Branch branchA = createBranchForDoctor("pending-a");
         Branch branchB = createBranchForDoctor("pending-b");
         LocalDate targetDate = nextDate(DayOfWeek.MONDAY);
@@ -206,18 +235,23 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(branchAHold)))
             .andExpect(status().isCreated());
+        // The V11 exclusion constraint is branch-scoped, so it alone would allow
+        // this second hold. The doctor-level overlap guard is the authority that
+        // keeps one physician from holding the same clock time at two branches.
         mockMvc.perform(post("/api/v1/appointments/hold")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(branchBHold)))
-            .andExpect(status().isCreated());
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("cơ sở khác")));
         mockMvc.perform(post("/api/v1/appointments/hold")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(branchAHold)))
             .andExpect(status().isConflict());
+        assertEquals(1, appointmentRepository.count());
     }
 
     @Test
-    void branchScopedBookingRejectsOverlappingIntervalOnlyWithinTheSameBranch() throws Exception {
+    void branchScopedOverlapGuardRejectsSameBranchAndCrossBranchOverlapsOnly() throws Exception {
         Branch branchA = createBranchForDoctor("interval-a");
         Branch branchB = createBranchForDoctor("interval-b");
         LocalDate targetDate = nextDate(DayOfWeek.THURSDAY);
@@ -229,42 +263,62 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
             doctor.getId(), targetDate, LocalTime.of(9, 0),
             "Interval A patient", "0907000111", "interval-a@example.com", "Branch A interval",
             specialty.getId(), branchA.getId(), null);
+        HoldSlotRequest secondBranchAHold = new HoldSlotRequest(
+            doctor.getId(), targetDate, LocalTime.of(9, 30),
+            "Interval A second patient", "0907000113", "interval-a-2@example.com", "Branch A overlap",
+            specialty.getId(), branchA.getId(), null);
         HoldSlotRequest branchBOverlap = new HoldSlotRequest(
             doctor.getId(), targetDate, LocalTime.of(9, 30),
             "Interval B patient", "0907000112", "interval-b@example.com", "Branch B overlap",
             specialty.getId(), branchB.getId(), null);
-        HoldSlotRequest branchAOverlap = new HoldSlotRequest(
-            doctor.getId(), targetDate, LocalTime.of(9, 30),
-            "Interval A second patient", "0907000113", "interval-a-2@example.com", "Branch A overlap",
-            specialty.getId(), branchA.getId(), null);
+        HoldSlotRequest branchBFree = new HoldSlotRequest(
+            doctor.getId(), targetDate, LocalTime.of(10, 0),
+            "Interval B second patient", "0907000114", "interval-b-2@example.com", "Branch B free",
+            specialty.getId(), branchB.getId(), null);
 
+        // Occupies 09:00-10:00 at branch A.
+        holdSlot(firstBranchAHold);
+        // Same branch, overlapping interval → branch-scoped conflict.
         mockMvc.perform(post("/api/v1/appointments/hold")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(firstBranchAHold)))
-            .andExpect(status().isCreated());
+                .content(objectMapper.writeValueAsString(secondBranchAHold)))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Khung giờ khám này")));
+        // Other branch, overlapping the same physician's live hold → doctor-level conflict.
         mockMvc.perform(post("/api/v1/appointments/hold")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(branchBOverlap)))
-            .andExpect(status().isCreated());
-        mockMvc.perform(post("/api/v1/appointments/hold")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(branchAOverlap)))
-            .andExpect(status().isConflict());
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("cơ sở khác")));
+        // Other branch, interval starts exactly when the live hold ends → allowed.
+        String branchBFreeCode = holdSlot(branchBFree);
+        assertEquals(
+            branchB.getId(),
+            appointmentRepository.findByBookingCode(branchBFreeCode).orElseThrow().getBranch().getId()
+        );
     }
 
     @Test
-    void explicitBranchGetsStandardSlotsFromItsOwnDoctorProfile() throws Exception {
-        Branch branch = createBranchForDoctor("no-default-leak");
+    void branchWithoutPersistedScheduleIsClosedAndNeverBorrowsAnotherBranchesSlots() throws Exception {
+        Branch branch = createBranchForDoctor("own-profile");
         LocalDate targetDate = nextDate(DayOfWeek.TUESDAY);
 
-        // V83 product contract: an active doctor with an active branch profile
-        // always offers the standard hospital hours for that same branch —
-        // never slots belonging to a different (demo) branch.
+        // Schedules are the availability authority. The doctor's weekly hours at
+        // the default branch are NOT a fallback for another branch, and the local
+        // demo windows are disabled in the test profile, so this branch is closed.
+        mockMvc.perform(get("/api/v1/appointments/doctors/" + doctor.getId() + "/slots")
+                .param("date", targetDate.toString())
+                .param("branchId", branch.getId().toString()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$").isEmpty());
+
+        saveSchedule(branch, targetDate, 9, 0, 10, 0, SLOT_DURATION_MINUTES);
+
         org.springframework.test.web.servlet.MvcResult slotsResult = mockMvc.perform(get("/api/v1/appointments/doctors/" + doctor.getId() + "/slots")
                 .param("date", targetDate.toString())
                 .param("branchId", branch.getId().toString()))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$").isNotEmpty())
+            .andExpect(jsonPath("$.length()").value(2))
             .andReturn();
         com.fasterxml.jackson.databind.JsonNode slots = objectMapper.readTree(
             slotsResult.getResponse().getContentAsString());
@@ -294,7 +348,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         HoldSlotRequest inactiveRequest = new HoldSlotRequest(
             doctor.getId(), LocalDate.now(BUSINESS_ZONE).plusDays(3), LocalTime.of(9, 0),
             "Inactive specialty patient", "0907000199", BOOKING_EMAIL, null,
-            inactive.getId(), null, null);
+            inactive.getId(), defaultBranch.getId(), null);
 
         mockMvc.perform(post("/api/v1/appointments/hold")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -310,7 +364,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         HoldSlotRequest mismatchedRequest = new HoldSlotRequest(
             doctor.getId(), LocalDate.now(BUSINESS_ZONE).plusDays(3), LocalTime.of(9, 0),
             "Mismatched specialty patient", "0907000198", BOOKING_EMAIL, null,
-            otherActive.getId(), null, null);
+            otherActive.getId(), defaultBranch.getId(), null);
 
         mockMvc.perform(post("/api/v1/appointments/hold")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -343,7 +397,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         HoldSlotRequest inactivePackageRequest = new HoldSlotRequest(
             doctor.getId(), LocalDate.now(BUSINESS_ZONE).plusDays(3), LocalTime.of(9, 0),
             "Inactive package patient", "0907000196", BOOKING_EMAIL, null,
-            specialty.getId(), null, inactivePackage.getId());
+            specialty.getId(), defaultBranch.getId(), inactivePackage.getId());
 
         mockMvc.perform(post("/api/v1/appointments/hold")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -366,7 +420,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
             "patient.test@example.com",
             "Đau thắt ngực khi vận động",
             specialty.getId(),
-            null,
+            defaultBranch.getId(),
             null,
             true,
             true
@@ -492,7 +546,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
             null,
             "Missing delivery address",
             specialty.getId(),
-            null,
+            defaultBranch.getId(),
             null
         );
 
@@ -523,7 +577,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
             "delivery.failure@example.com",
             "Delivery rollback",
             specialty.getId(),
-            null,
+            defaultBranch.getId(),
             null
         );
 
@@ -550,7 +604,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         RescheduleAppointmentRequest request = new RescheduleAppointmentRequest(
             targetDate,
             LocalTime.of(10, 0),
-            null,
+            defaultBranch.getId(),
             phone
         );
 
@@ -584,7 +638,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         RescheduleAppointmentRequest request = new RescheduleAppointmentRequest(
             targetDate,
             LocalTime.of(10, 0),
-            null,
+            defaultBranch.getId(),
             phone
         );
 
@@ -604,7 +658,9 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         assertEquals(LocalTime.of(9, 0), unchanged.getStartTime());
         assertEquals(originalEndTime, unchanged.getEndTime());
         assertEquals(originalAppointmentTime, unchanged.getAppointmentTime());
-        assertNull(unchanged.getBranch());
+        // A rejected reschedule must not move the booking, so the branch stays
+        // the one the hold was created at (branchless rows are no longer valid).
+        assertEquals(defaultBranch.getId(), unchanged.getBranch().getId());
         assertNull(unchanged.getReminderSentAt());
     }
 
@@ -633,7 +689,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         RescheduleAppointmentRequest request = new RescheduleAppointmentRequest(
             occupiedDate,
             LocalTime.of(10, 0),
-            null,
+            defaultBranch.getId(),
             originalPhone
         );
 
@@ -657,7 +713,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         RescheduleAppointmentRequest request = new RescheduleAppointmentRequest(
             nextDate(DayOfWeek.SATURDAY),
             LocalTime.of(10, 0),
-            null,
+            defaultBranch.getId(),
             "0900000000"
         );
 
@@ -678,7 +734,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
             BOOKING_EMAIL,
             "Kiểm tra sức khỏe",
             specialty.getId(),
-            null,
+            defaultBranch.getId(),
             null
         );
 
@@ -709,7 +765,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
             BOOKING_EMAIL,
             "Khám tổng quát",
             specialty.getId(),
-            null,
+            defaultBranch.getId(),
             null
         );
 
@@ -758,17 +814,21 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
             LocalTime.of(12, 0),
             "Slot Ngoài Lịch",
             "0905552222",
-            null,
+            BOOKING_EMAIL,
             "Không được đặt giờ nghỉ trưa",
             specialty.getId(),
-            null,
+            defaultBranch.getId(),
             null
         );
 
+        // 12:00 falls in the lunch break of the persisted weekly clinic
+        // (08:00-12:00 / 13:30-17:30), so it is not a bookable slot start.
         mockMvc.perform(post("/api/v1/appointments/hold")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(holdRequest)))
-            .andExpect(status().isBadRequest());
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message")
+                .value(org.hamcrest.Matchers.containsString("Khung giờ không nằm trong lịch làm việc")));
     }
 
     @Test
@@ -780,17 +840,21 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         persisted.setEffectiveTo(effectiveDate);
         doctorScheduleRepository.saveAndFlush(persisted);
 
+        // Before effectiveFrom, the recurring row does not apply and there is no
+        // default/demo window to fall back on: the day is closed.
         mockMvc.perform(get("/api/v1/appointments/doctors/" + doctor.getId() + "/slots")
                 .param("date", firstDate.toString()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$").isArray())
-            .andExpect(jsonPath("$").isNotEmpty());
+            .andExpect(jsonPath("$").isEmpty());
 
+        // Past effectiveTo (and on a different ISO weekday) the day is closed again.
         mockMvc.perform(get("/api/v1/appointments/doctors/" + doctor.getId() + "/slots")
                 .param("date", effectiveDate.plusDays(1).toString()))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$").isNotEmpty());
+            .andExpect(jsonPath("$").isEmpty());
 
+        // Inside the effective range the persisted window is the only authority.
         mockMvc.perform(get("/api/v1/appointments/doctors/" + doctor.getId() + "/slots")
                 .param("date", effectiveDate.toString()))
             .andExpect(status().isOk())
@@ -887,7 +951,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(new HoldSlotRequest(
                     doctor.getId(), targetDate, LocalTime.of(9, 0), "Thiếu chuyên khoa", "0907000011", BOOKING_EMAIL,
-                    null, UUID.randomUUID(), null, null))))
+                    null, UUID.randomUUID(), defaultBranch.getId(), null))))
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.message").value("Không tìm thấy chuyên khoa"));
 
@@ -904,7 +968,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(new HoldSlotRequest(
                     doctor.getId(), targetDate, LocalTime.of(9, 0), "Thiếu gói", "0907000013", BOOKING_EMAIL,
-                    null, specialty.getId(), null, UUID.randomUUID()))))
+                    null, specialty.getId(), defaultBranch.getId(), UUID.randomUUID()))))
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.message").value("Không tìm thấy gói khám"));
 
@@ -929,7 +993,11 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         mockMvc.perform(post("/api/v1/appointments/hold")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"doctorId\":\"" + doctor.getId() + "\"}"))
-            .andExpect(status().isBadRequest());
+            .andExpect(status().isBadRequest())
+            // The branch is a required hold field, not an optional refinement:
+            // without it the composite (doctor, branch) invariant cannot hold.
+            .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+            .andExpect(jsonPath("$.fieldErrors[?(@.field == 'branchId')]").exists());
     }
 
     @Test
@@ -1056,7 +1124,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
             BOOKING_EMAIL,
             "Kiểm tra tranh chấp slot",
             specialty.getId(),
-            null,
+            defaultBranch.getId(),
             null
         );
         String body = objectMapper.writeValueAsString(holdRequest);
@@ -1103,7 +1171,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
     }
 
     private String createConfirmedAppointment(LocalDate date, LocalTime startTime, String phone) throws Exception {
-        HoldSlotRequest holdRequest = new HoldSlotRequest(
+        return confirmHold(holdSlot(new HoldSlotRequest(
             doctor.getId(),
             date,
             startTime,
@@ -1112,17 +1180,25 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
             BOOKING_EMAIL,
             "Kiểm tra tính năng đổi lịch",
             specialty.getId(),
-            null,
+            defaultBranch.getId(),
             null
-        );
+        )));
+    }
+
+    /**
+     * Holds the slot described by {@code request} and returns its booking code.
+     */
+    private String holdSlot(HoldSlotRequest request) throws Exception {
         MvcResult holdResult = mockMvc.perform(post("/api/v1/appointments/hold")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(holdRequest)))
+                .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isCreated())
             .andReturn();
-        String bookingCode = objectMapper.readTree(holdResult.getResponse().getContentAsString())
+        return objectMapper.readTree(holdResult.getResponse().getContentAsString())
             .get("bookingCode").asText();
+    }
 
+    private String confirmHold(String bookingCode) throws Exception {
         mockMvc.perform(post("/api/v1/appointments/confirm")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(new ConfirmAppointmentRequest(
@@ -1191,6 +1267,13 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
             int endHour,
             int endMinute,
             int duration) {
+        // The first explicitly persisted window of a test replaces the default
+        // weekly clinic hours, so slot counts never mix two schedule
+        // authorities. Later calls in the same test only add rows.
+        if (!defaultSchedulesReplaced) {
+            deactivateDefaultSchedules();
+            defaultSchedulesReplaced = true;
+        }
         DoctorSchedule schedule = new DoctorSchedule();
         schedule.setDoctor(doctor);
         schedule.setBranch(branch);
@@ -1201,6 +1284,39 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         schedule.setEffectiveFrom(date);
         schedule.setActive(true);
         return doctorScheduleRepository.saveAndFlush(schedule);
+    }
+
+    /**
+     * Persists the given window for every ISO weekday so any date the suite
+     * derives from "today" is covered. The range starts in the past and never
+     * ends, matching the recurring weekly clinic a real doctor would have.
+     */
+    private void saveWeeklySchedule(
+            Branch branch,
+            LocalTime windowStart,
+            LocalTime windowEnd,
+            int duration) {
+        LocalDate effectiveFrom = LocalDate.now(BUSINESS_ZONE).minusDays(14);
+        for (int isoDayOfWeek = 1; isoDayOfWeek <= 7; isoDayOfWeek++) {
+            DoctorSchedule schedule = new DoctorSchedule();
+            schedule.setDoctor(doctor);
+            schedule.setBranch(branch);
+            schedule.setDayOfWeek(isoDayOfWeek);
+            schedule.setStartTime(windowStart);
+            schedule.setEndTime(windowEnd);
+            schedule.setSlotDurationMinutes(duration);
+            schedule.setEffectiveFrom(effectiveFrom);
+            schedule.setActive(true);
+            doctorScheduleRepository.saveAndFlush(schedule);
+        }
+    }
+
+    private void deactivateDefaultSchedules() {
+        // The integration test base runs without a surrounding transaction, so
+        // the loaded rows are detached: the change has to be saved explicitly.
+        var defaultSchedules = doctorScheduleRepository.findByDoctorIdAndActiveTrue(doctor.getId());
+        defaultSchedules.forEach(schedule -> schedule.setActive(false));
+        doctorScheduleRepository.saveAllAndFlush(defaultSchedules);
     }
 
     private LocalDate nextDate(DayOfWeek dayOfWeek) {

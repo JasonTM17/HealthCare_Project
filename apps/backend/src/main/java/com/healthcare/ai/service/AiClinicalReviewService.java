@@ -228,6 +228,46 @@ public class AiClinicalReviewService {
         return revisionView(row);
     }
 
+    /**
+     * Records a doctor's decision on one submitted revision and republishes the
+     * source's eligibility state.
+     *
+     * <p>Decision vocabulary and state machine ({@code SUBMITTED} is the only
+     * decidable start state):
+     * <pre>
+     *   APPROVE         SUBMITTED      -> APPROVED          (eligible for 180 days)
+     *   REQUEST_CHANGES SUBMITTED      -> CHANGES_REQUESTED
+     *   REVOKE          APPROVED       -> REVOKED
+     * </pre>
+     * Anything else — a second decision on an already-decided round, a decision
+     * on a round that was never submitted — is refused as
+     * {@code AI_CONTENT_ALREADY_DECIDED} or {@code AI_CONTENT_NOT_SUBMITTED}
+     * rather than silently overwritten. REQUEST_CHANGES and REVOKE require a
+     * reason ({@code AI_CONTENT_REASON_REQUIRED}); APPROVE does not, because
+     * approval is the default path and forcing prose on it produces noise.
+     *
+     * <p>Two rules make the decision trustworthy:
+     * <ul>
+     *   <li><b>Independence.</b> The reviewer must differ from the doctor who
+     *       submitted the revision ({@code AI_CONTENT_APPROVER_NOT_INDEPENDENT}).
+     *       A self-approved clinical claim would make the review step
+     *       meaningless.</li>
+     *   <li><b>Hash lock.</b> The decision is bound to the revision <em>and</em>
+     *       its content hash. The review head is locked first
+     *       ({@code FOR UPDATE}), the round is resolved under that lock, and the
+     *       round's hash must equal the head's hash — any drift is rejected as
+     *       {@code AI_CONTENT_REVISION_STALE}. An edit that lands while a review
+     *       is being decided can therefore never be covered by the old
+     *       approval, and the implicit-round resolution that looks "obvious"
+     *       cannot race a concurrent submit.</li>
+     * </ul>
+     *
+     * <p>Committing a decision bumps the head's {@code eligibility_revision},
+     * writes an immutable event row, and appends an outbox operation
+     * ({@code UPSERT} for APPROVED, {@code TOMBSTONE} otherwise) so the
+     * retrieval index converges on the new state without the decision
+     * transaction having to touch it. Returns the refreshed head summary.
+     */
     @Transactional
     public Map<String, Object> decide(
             String rawType,

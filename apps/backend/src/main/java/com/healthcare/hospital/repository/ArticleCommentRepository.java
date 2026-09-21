@@ -10,6 +10,8 @@ import java.util.UUID;
 @Repository
 public interface ArticleCommentRepository extends JpaRepository<ArticleComment, UUID> {
     List<ArticleComment> findByArticleSlugAndActiveTrueOrderByCreatedAtAsc(String articleSlug);
+    /** Includes soft-deleted rows so reply threads survive parent deletion. */
+    List<ArticleComment> findByArticleSlugOrderByCreatedAtAsc(String articleSlug);
     List<ArticleComment> findByAuthorUserIdOrderByCreatedAtDesc(UUID authorUserId);
     long countByArticleSlugAndActiveTrue(String articleSlug);
 }

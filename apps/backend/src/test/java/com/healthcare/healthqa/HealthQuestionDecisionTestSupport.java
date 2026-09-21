@@ -38,6 +38,7 @@ final class HealthQuestionDecisionTestSupport {
         jdbc.execute("""
             CREATE TABLE health_questions(
                 id UUID PRIMARY KEY,
+                author_user_id UUID,
                 status VARCHAR(32) NOT NULL,
                 normalized_question VARCHAR(4000) NOT NULL,
                 topic_slug VARCHAR(180) NOT NULL)
@@ -69,14 +70,15 @@ final class HealthQuestionDecisionTestSupport {
         UUID roleId = UUID.randomUUID();
         UUID questionId = UUID.randomUUID();
         UUID answerId = UUID.randomUUID();
+        UUID authorId = UUID.randomUUID();
         jdbc.update("INSERT INTO users(id, status) VALUES (?, 'ACTIVE')", reviewerId);
         jdbc.update("INSERT INTO roles(id, code) VALUES (?, 'DOCTOR')", roleId);
         jdbc.update("INSERT INTO user_roles(user_id, role_id) VALUES (?, ?)", reviewerId, roleId);
         jdbc.update("INSERT INTO doctors(id, user_id, active) VALUES (?, ?, TRUE)", UUID.randomUUID(), reviewerId);
         jdbc.update("""
-            INSERT INTO health_questions(id, status, normalized_question, topic_slug)
-            VALUES (?, 'ANSWER_SUBMITTED', 'Cach theo doi huyet ap tai nha?', 'tim-mach')
-            """, questionId);
+            INSERT INTO health_questions(id, author_user_id, status, normalized_question, topic_slug)
+            VALUES (?, ?, 'ANSWER_SUBMITTED', 'Cach theo doi huyet ap tai nha?', 'tim-mach')
+            """, questionId, authorId);
         jdbc.update("""
             INSERT INTO health_question_answers(
                 id, question_id, revision, doctor_user_id, answer_text, answer_hash, status)
@@ -97,11 +99,13 @@ final class HealthQuestionDecisionTestSupport {
             return faq;
         });
         AiClinicalContentRevisionService revisions = mock(AiClinicalContentRevisionService.class);
-        HealthQuestionService service = new HealthQuestionService(jdbc, users, faqs, revisions);
+        com.healthcare.notification.service.NotificationService notifications =
+            mock(com.healthcare.notification.service.NotificationService.class);
+        HealthQuestionService service = new HealthQuestionService(jdbc, users, faqs, revisions, notifications);
         TransactionTemplate transactions = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
 
-        return new Fixture(jdbc, service, transactions, principal, faqs, revisions,
-            questionId, answerId, reviewerId);
+        return new Fixture(jdbc, service, transactions, principal, faqs, revisions, notifications,
+            questionId, answerId, reviewerId, authorId);
     }
 
     record Fixture(
@@ -111,9 +115,11 @@ final class HealthQuestionDecisionTestSupport {
             UserDetails principal,
             FaqRepository faqs,
             AiClinicalContentRevisionService revisions,
+            com.healthcare.notification.service.NotificationService notifications,
             UUID questionId,
             UUID answerId,
-            UUID reviewerId) {
+            UUID reviewerId,
+            UUID authorId) {
 
         void approve() {
             transactions.executeWithoutResult(ignored -> service.decide(

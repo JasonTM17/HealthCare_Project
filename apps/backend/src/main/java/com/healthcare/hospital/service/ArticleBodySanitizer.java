@@ -19,17 +19,29 @@ import java.util.regex.Pattern;
  * {@code javascript:} URLs. It is deliberately not a general HTML sanitizer —
  * it does not attempt to re-serialize a document, and it does not police
  * ordinary markup. The editor's own vocabulary passes through untouched.
+ *
+ * <p>The raw-text and foreign-content elements are on the list for the
+ * mutation-XSS class of defect, which is a parsing problem rather than a tag
+ * problem. {@code <svg>}, {@code <math>}, {@code <template>}, {@code <noscript>},
+ * {@code <xmp>}, {@code <plaintext>}, {@code <textarea>} and {@code <title>} each
+ * hold their content under rules a second parser may not agree with: text that
+ * is inert where it sits can be re-read as markup once a serializer moves it,
+ * and {@code <plaintext>}, {@code <xmp>} and {@code <textarea>} swallow the rest
+ * of the document because they never close. Removing them with their contents
+ * keeps this a list of constructs rather than a list of tricks.
  */
 final class ArticleBodySanitizer {
 
     /** Blocks whose entire content is unsafe, removed with their bodies. */
     private static final Pattern DANGEROUS_BLOCK = Pattern.compile(
-        "(?is)<\\s*(script|style|iframe|object|embed|applet|frame|frameset|form|meta|link|base)"
+        "(?is)<\\s*(script|style|iframe|object|embed|applet|frame|frameset|form|meta|link|base"
+            + "|svg|math|template|noscript|xmp|plaintext|textarea|title)"
             + "\\b[^>]*>.*?<\\s*/\\s*\\1\\s*>");
 
     /** Self-closing or unclosed forms of the same blocks. */
     private static final Pattern DANGEROUS_VOID = Pattern.compile(
-        "(?is)<\\s*/?\\s*(script|style|iframe|object|embed|applet|frame|frameset|form|meta|link|base)"
+        "(?is)<\\s*/?\\s*(script|style|iframe|object|embed|applet|frame|frameset|form|meta|link|base"
+            + "|svg|math|template|noscript|xmp|plaintext|textarea|title)"
             + "\\b[^>]*>");
 
     /** Inline event handlers. HTML5 accepts "/" as an attribute separator too. */

@@ -74,7 +74,16 @@ public class AiClinicalReviewController {
         return ResponseEntity.ok(service.revision(type, id, revision));
     }
 
-    @Operation(summary = "Bác sĩ phê duyệt hoặc từ chối nội dung lâm sàng", description = "Đưa ra quyết định chuyên môn (APPROVE/REJECT) kèm lý do lâm sàng")
+    @Operation(
+        summary = "Bác sĩ phê duyệt, yêu cầu sửa hoặc thu hồi nội dung lâm sàng",
+        description = """
+            Đưa ra quyết định chuyên môn cho một bản sửa đổi đang chờ thẩm định. Ba quyết định \
+            hợp lệ: APPROVE (phê duyệt), REQUEST_CHANGES (yêu cầu chỉnh sửa) và REVOKE (thu hồi \
+            một bản đã được phê duyệt trước đó). REQUEST_CHANGES và REVOKE bắt buộc phải kèm lý do, \
+            nếu thiếu sẽ trả về lỗi AI_CONTENT_REASON_REQUIRED; người thẩm định phải khác người \
+            gửi (AI_CONTENT_APPROVER_NOT_INDEPENDENT) và bản sửa đổi phải còn đúng phiên bản \
+            (AI_CONTENT_REVISION_STALE)."""
+    )
     @PutMapping("/doctor/ai-content/{type}/{id}/revisions/{revision}/decision")
     @PreAuthorize("hasRole('DOCTOR')")
     public ResponseEntity<Map<String, Object>> decision(

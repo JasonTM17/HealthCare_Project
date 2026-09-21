@@ -27,6 +27,8 @@ public class Notification {
         APPOINTMENT_CANCELLED,
         APPOINTMENT_REMINDER,
         DIAGNOSTIC_RESULT_AVAILABLE,
+        /** The visit is finished: the medical record is in the patient portal. */
+        VISIT_COMPLETED,
         PAYMENT_SUBMITTED,
         PAYMENT_CONFIRMED,
         PAYMENT_REJECTED,
@@ -34,6 +36,12 @@ public class Notification {
         CARE_PLAN_CREATED,
         CARE_PLAN_ITEM_COMPLETED,
         CARE_PLAN_ITEM_CANCELLED,
+        /** A patient submitted a new health question for moderation. */
+        HEALTH_QUESTION_SUBMITTED,
+        /** A doctor-reviewed answer to the patient's health question was approved. */
+        HEALTH_QUESTION_ANSWERED,
+        /** A message was posted in a patient-doctor consultation thread. */
+        CONSULTATION_MESSAGE,
     }
 
     @Id

@@ -25,6 +25,17 @@ public interface DoctorScheduleRepository extends JpaRepository<DoctorSchedule, 
     List<DoctorSchedule> findByDoctorIdAndBranchIdAndDayOfWeekAndActiveTrue(
         UUID doctorId, UUID branchId, int dayOfWeek);
 
+    /**
+     * Every active schedule of one physician on a weekday, regardless of branch.
+     * Overlap protection has to see all of them: a doctor cannot work two
+     * branches at the same clock time.
+     */
+    @Query("select s from AppointmentDoctorSchedule s where s.doctor.id = :doctorId and s.dayOfWeek = :dayOfWeek and s.active = true")
+    List<DoctorSchedule> findActiveForDoctorOnWeekday(
+        @Param("doctorId") UUID doctorId,
+        @Param("dayOfWeek") int dayOfWeek
+    );
+
     @Query("select s from AppointmentDoctorSchedule s where s.doctor.id = :doctorId and s.branch.id = :branchId and s.active = true and s.effectiveFrom <= :date and (s.effectiveTo is null or s.effectiveTo >= :date) and s.dayOfWeek = :dayOfWeek")
     List<DoctorSchedule> findActiveForDoctorAndBranchOnDay(
         @Param("doctorId") UUID doctorId,

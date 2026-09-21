@@ -43,22 +43,56 @@ public class ArticleCommentService {
         this.patientProfileRepository = patientProfileRepository;
     }
 
+    /**
+     * Soft-deleted comments stay in the payload as thread anchors: a reply to a
+     * deleted parent must still render, under a "[Bình luận đã xóa]" tombstone,
+     * instead of silently disappearing with its parent. The tombstone carries
+     * only the structural fields — authorship and content never leak after
+     * deletion.
+     */
     @Transactional(readOnly = true)
     public List<ArticleCommentResponse> getComments(String articleSlug) {
-        return commentRepository.findByArticleSlugAndActiveTrueOrderByCreatedAtAsc(articleSlug)
+        // Threads are only readable while their article is publicly visible.
+        // Reading by slug alone would let an anonymous caller enumerate the
+        // comments of a pending or rejected submission through this endpoint.
+        boolean publiclyVisible = articleRepository.findBySlugAndActiveTrueAndReviewStatusAndPublishedAtLessThanEqual(
+                articleSlug, "APPROVED", OffsetDateTime.now()).isPresent();
+        if (!publiclyVisible) {
+            return List.of();
+        }
+        return commentRepository.findByArticleSlugOrderByCreatedAtAsc(articleSlug)
                 .stream()
-                .map(ArticleCommentResponse::from)
+                .map(comment -> comment.isActive()
+                        ? ArticleCommentResponse.from(comment)
+                        : ArticleCommentResponse.tombstone(comment))
                 .toList();
     }
 
     @Transactional
     public ArticleCommentResponse addComment(String articleSlug, CreateCommentRequest request, UserDetails actor) {
-        // A comment must land on something readers can actually open. Checking
-        // only that the slug exists let comments attach to drafts and scheduled
-        // articles, and they surfaced the moment the article published — content
-        // nobody had moderated against a live page. The predicate here is the
-        // public read contract, so the two cannot drift.
-        articleRepository.findBySlugAndActiveTrueAndPublishedAtLessThanEqual(articleSlug, OffsetDateTime.now())
+        // Comments were the one authored field on an article with no content
+        // gate at all: the request carried a length limit and nothing else, so
+        // a comment could store markup that the article body itself would have
+        // had scrubbed. It is checked before anything is looked up, so a
+        // rejected comment reveals nothing about whether the slug exists.
+        //
+        // Rejecting outright rather than silently scrubbing is deliberate: the
+        // author is told, and clinical prose keeps working — "huyết áp < 140/90"
+        // carries a "<" but no construct this gate recognises.
+        String content = request.content().strip();
+        if (ArticleBodySanitizer.containsExecutableContent(content)) {
+            throw new BusinessException(
+                400,
+                com.healthcare.exception.ErrorCodes.VALIDATION_ERROR,
+                "Bình luận chứa mã hoặc thẻ HTML không an toàn. Vui lòng chỉ nhập nội dung văn bản.");
+        }
+
+        // A comment must land on something readers can actually open AND that
+        // has passed the publication gate. The predicate here is the public
+        // read contract, so comments can never attach to (or confirm the
+        // existence of) a pending or rejected doctor submission.
+        articleRepository.findBySlugAndActiveTrueAndReviewStatusAndPublishedAtLessThanEqual(
+                articleSlug, "APPROVED", OffsetDateTime.now())
             .orElseThrow(() -> new ResourceNotFoundException("Article not found: " + articleSlug));
 
         if (request.parentCommentId() != null) {
@@ -104,7 +138,9 @@ public class ArticleCommentService {
         comment.setAuthorUserId(user.getId());
         comment.setAuthorName(authorName);
         comment.setAuthorRole(authorRole);
-        comment.setContent(request.content().strip());
+        // Defence in depth behind the gate above, and the same call the article
+        // body goes through, so the two fields cannot diverge on what is stored.
+        comment.setContent(ArticleBodySanitizer.sanitize(content));
         comment.setParentCommentId(request.parentCommentId());
         comment.setActive(true);
 

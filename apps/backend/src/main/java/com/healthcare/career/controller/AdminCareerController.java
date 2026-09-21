@@ -47,7 +47,12 @@ public class AdminCareerController {
             SafePageRequests.normalize(pageable, Sort.by(Sort.Direction.DESC, "createdAt"), APPLICATION_SORT_PROPERTIES));
     }
 
-    @Operation(summary = "Cập nhật trạng thái hồ sơ ứng tuyển", description = "Chuyển trạng thái hồ sơ (PENDING, REVIEWED, INTERVIEWED, ACCEPTED, REJECTED)")
+    // Accepted values are exactly the ApplicationStatus constants
+    // (career/entity/ApplicationStatus): SUBMITTED, UNDER_REVIEW, INTERVIEW,
+    // OFFERED, REJECTED, WITHDRAWN. An annotation cannot enumerate an enum, so
+    // this literal list has to be updated whenever the enum changes — the note
+    // on ApplicationStatus itself marks that obligation.
+    @Operation(summary = "Cập nhật trạng thái hồ sơ ứng tuyển", description = "Chuyển trạng thái hồ sơ (SUBMITTED, UNDER_REVIEW, INTERVIEW, OFFERED, REJECTED, WITHDRAWN)")
     @PatchMapping("/{id}/status")
     public JobApplicationAdminResponse updateStatus(
             @PathVariable UUID id,

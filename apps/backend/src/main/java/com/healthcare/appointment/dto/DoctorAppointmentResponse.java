@@ -9,8 +9,10 @@ import java.util.UUID;
 
 /**
  * Least-privilege appointment view for the authenticated doctor portal.
- * Patient contact data, payment details, and appointment OTP fields are
- * intentionally absent.
+ * Patient contact data and appointment OTP fields are intentionally absent.
+ * {@code paymentStatus} is the only financial field exposed, and only as a
+ * coarse state label so a clinician can tell a settled visit from an open one;
+ * amounts, payment method and payer identity remain on the admin surface.
  */
 public record DoctorAppointmentResponse(
     UUID id,
@@ -26,7 +28,9 @@ public record DoctorAppointmentResponse(
     LocalTime startTime,
     LocalTime endTime,
     AppointmentStatus status,
+    String paymentStatus,
     String reasonForVisit,
+    String cancellationReason,
     OffsetDateTime createdAt
 ) {
 }

@@ -56,6 +56,17 @@ public final class ErrorCodes {
     public static final String DOCTOR_UNAVAILABLE = "DOCTOR_UNAVAILABLE";
     public static final String PAYMENT_FAILED = "PAYMENT_FAILED";
 
+    /** A slot hold must name the branch it books; the composite branch FK depends on it. */
+    public static final String BRANCH_REQUIRED = "BRANCH_REQUIRED";
+    /** One patient may only hold a bounded number of live PENDING_CONFIRMATION slots. */
+    public static final String TOO_MANY_ACTIVE_HOLDS = "TOO_MANY_ACTIVE_HOLDS";
+    /** A schedule or exception change would strand appointments that are still live. */
+    public static final String SCHEDULE_HAS_ACTIVE_BOOKINGS = "SCHEDULE_HAS_ACTIVE_BOOKINGS";
+    /** The supplied Idempotency-Key is malformed. */
+    public static final String IDEMPOTENCY_KEY_INVALID = "IDEMPOTENCY_KEY_INVALID";
+    /** An administrator asked for a status move the appointment state machine forbids. */
+    public static final String APPOINTMENT_STATUS_TRANSITION_INVALID = "APPOINTMENT_STATUS_TRANSITION_INVALID";
+
     private ErrorCodes() {
     }
 }

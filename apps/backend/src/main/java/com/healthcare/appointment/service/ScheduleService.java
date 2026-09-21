@@ -13,13 +13,16 @@ import com.healthcare.hospital.entity.DoctorBranch;
 import com.healthcare.hospital.repository.BranchRepository;
 import com.healthcare.hospital.repository.DoctorBranchRepository;
 import com.healthcare.hospital.repository.DoctorRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.DateTimeException;
-import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -33,13 +36,33 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * Availability authority for doctor schedules.
+ *
+ * <p><strong>Absence of a schedule means closed.</strong> A branch/day without a
+ * persisted, active, in-range {@code doctor_schedules} row (or a matching
+ * exception that opens custom hours) has no bookable windows, so
+ * {@link #getAvailableSlots} and {@link #findBookableSlot} fail closed. The
+ * service never invents clinic hours.
+ *
+ * <p>The only exception is an explicitly flagged local demo fallback:
+ * {@code app.demo.default-schedule-windows=true} <em>and</em> an active
+ * {@code local} profile. Outside that combination the flag is ignored with a
+ * single WARN and availability stays closed.
+ */
 @Service
 @Transactional(readOnly = true)
 public class ScheduleService {
 
+    private static final Logger log = LoggerFactory.getLogger(ScheduleService.class);
+
     private static final int DEFAULT_SLOT_DURATION_MINUTES = 30;
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+    /** Opt-in switch for the local-only demo windows; disabled unless explicitly enabled. */
+    static final String DEMO_DEFAULT_WINDOWS_PROPERTY = "app.demo.default-schedule-windows";
+    private static final String LOCAL_PROFILE = "local";
 
     private final DoctorScheduleRepository doctorScheduleRepository;
     private final DoctorScheduleExceptionRepository exceptionRepository;
@@ -47,6 +70,8 @@ public class ScheduleService {
     private final DoctorRepository doctorRepository;
     private final DoctorBranchRepository doctorBranchRepository;
     private final BranchRepository branchRepository;
+    private final Environment environment;
+    private final AtomicBoolean demoFallbackMisconfiguredWarned = new AtomicBoolean(false);
 
     @Autowired
     public ScheduleService(
@@ -55,13 +80,26 @@ public class ScheduleService {
             AppointmentRepository appointmentRepository,
             DoctorRepository doctorRepository,
             @Nullable DoctorBranchRepository doctorBranchRepository,
-            @Nullable BranchRepository branchRepository) {
+            @Nullable BranchRepository branchRepository,
+            @Nullable Environment environment) {
         this.doctorScheduleRepository = doctorScheduleRepository;
         this.exceptionRepository = exceptionRepository;
         this.appointmentRepository = appointmentRepository;
         this.doctorRepository = doctorRepository;
         this.doctorBranchRepository = doctorBranchRepository;
         this.branchRepository = branchRepository;
+        this.environment = environment;
+    }
+
+    public ScheduleService(
+            DoctorScheduleRepository doctorScheduleRepository,
+            DoctorScheduleExceptionRepository exceptionRepository,
+            AppointmentRepository appointmentRepository,
+            DoctorRepository doctorRepository,
+            @Nullable DoctorBranchRepository doctorBranchRepository,
+            @Nullable BranchRepository branchRepository) {
+        this(doctorScheduleRepository, exceptionRepository, appointmentRepository,
+            doctorRepository, doctorBranchRepository, branchRepository, null);
     }
 
     public ScheduleService(
@@ -71,7 +109,7 @@ public class ScheduleService {
             DoctorRepository doctorRepository,
             @Nullable DoctorBranchRepository doctorBranchRepository) {
         this(doctorScheduleRepository, exceptionRepository, appointmentRepository,
-            doctorRepository, doctorBranchRepository, null);
+            doctorRepository, doctorBranchRepository, null, null);
     }
 
     public ScheduleService(
@@ -79,7 +117,7 @@ public class ScheduleService {
             DoctorScheduleExceptionRepository exceptionRepository,
             AppointmentRepository appointmentRepository,
             DoctorRepository doctorRepository) {
-        this(doctorScheduleRepository, exceptionRepository, appointmentRepository, doctorRepository, null);
+        this(doctorScheduleRepository, exceptionRepository, appointmentRepository, doctorRepository, null, null, null);
     }
 
     /** Computes configured slots and marks every interval overlapping an appointment as occupied. */
@@ -102,8 +140,7 @@ public class ScheduleService {
         if (branchId != null && branchRepository != null
                 && !branchRepository.findById(branchId).filter(Branch::isActive).isPresent()) {
             // An inactive branch is no longer part of the bookable catalog even
-            // when persisted schedules or the standard-hours fallback would
-            // still produce windows for it.
+            // when persisted schedules would still produce windows for it.
             return Collections.emptyList();
         }
 
@@ -267,7 +304,7 @@ public class ScheduleService {
                                     ));
                                 }
                             } else {
-                                windows.addAll(defaultWindows(assignedBranchId));
+                                windows.addAll(demoWindows(assignedBranchId));
                             }
                         }
                     }
@@ -277,7 +314,9 @@ public class ScheduleService {
                 }
             }
 
-            return defaultWindows(branchId);
+            // No persisted schedule for this branch/day. Closing the day is the
+            // authority-bearing answer; only the local demo flag can open it.
+            return demoWindows(branchId);
         }
 
         Map<UUID, List<DoctorSchedule>> schedulesByBranch = new LinkedHashMap<>();
@@ -327,11 +366,45 @@ public class ScheduleService {
         return windows;
     }
 
-    private List<ScheduleWindow> defaultWindows(UUID branchId) {
+    /**
+     * Local-demo windows for a branch with no persisted schedule.
+     *
+     * <p>Returns an empty list in every production configuration: the fallback
+     * requires {@code app.demo.default-schedule-windows=true} <em>and</em> an
+     * active {@code local} profile. A flag set elsewhere is ignored (and logged
+     * once) because an unlocked default would silently re-open clinics that have
+     * no schedule.
+     */
+    private List<ScheduleWindow> demoWindows(UUID branchId) {
+        if (!demoDefaultWindowsEnabled()) {
+            return Collections.emptyList();
+        }
         return List.of(
             new ScheduleWindow(LocalTime.of(8, 0), LocalTime.of(12, 0), DEFAULT_SLOT_DURATION_MINUTES, branchId),
             new ScheduleWindow(LocalTime.of(13, 30), LocalTime.of(17, 30), DEFAULT_SLOT_DURATION_MINUTES, branchId)
         );
+    }
+
+    private boolean demoDefaultWindowsEnabled() {
+        if (environment == null) {
+            return false;
+        }
+        if (!environment.getProperty(DEMO_DEFAULT_WINDOWS_PROPERTY, Boolean.class, false)) {
+            return false;
+        }
+        if (environment.acceptsProfiles(Profiles.of(LOCAL_PROFILE))) {
+            return true;
+        }
+        if (demoFallbackMisconfiguredWarned.compareAndSet(false, true)) {
+            log.warn(
+                "{} is enabled but the active profiles {} do not include '{}'; "
+                    + "ignoring the flag and keeping days without a persisted schedule closed.",
+                DEMO_DEFAULT_WINDOWS_PROPERTY,
+                String.join(",", environment.getActiveProfiles()),
+                LOCAL_PROFILE
+            );
+        }
+        return false;
     }
 
     private ScheduleWindow toWindow(DoctorSchedule schedule, UUID branchId) {
@@ -361,7 +434,9 @@ public class ScheduleService {
 
     private boolean matchesBranch(ScheduleWindow window, UUID requestedBranchId) {
         // A branchless window is the local/demo fallback only. It must never
-        // satisfy a request explicitly scoped to a persisted branch.
+        // satisfy a request explicitly scoped to a persisted branch. With the
+        // demo flag off (every production profile) no branchless window exists
+        // and a branchless request stays closed.
         return Objects.equals(window.branchId(), requestedBranchId);
     }
 

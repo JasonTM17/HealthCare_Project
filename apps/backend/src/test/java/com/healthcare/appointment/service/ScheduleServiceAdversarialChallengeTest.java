@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.mock.env.MockEnvironment;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -83,6 +84,39 @@ class ScheduleServiceAdversarialChallengeTest {
             .thenReturn(Collections.emptyList());
     }
 
+    /**
+     * The window geometry below (staffed hours boundaries, lunch break) is only
+     * reachable through the explicit local-demo fallback. Every production
+     * configuration returns no windows at all, which is asserted by
+     * {@code daysWithoutAScheduleAreClosedInEveryShape} and
+     * {@code branchlessFallbackIsClosedByDefaultAndOpensOnlyWithTheLocalDemoFlag}.
+     */
+    private ScheduleService demoEnabledService() {
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles("local");
+        environment.setProperty(ScheduleService.DEMO_DEFAULT_WINDOWS_PROPERTY, "true");
+        return new ScheduleService(
+            doctorScheduleRepository,
+            exceptionRepository,
+            appointmentRepository,
+            doctorRepository,
+            doctorBranchRepository,
+            null,
+            environment
+        );
+    }
+
+    @Test
+    @DisplayName("A day without a persisted schedule is closed in every query shape")
+    void daysWithoutAScheduleAreClosedInEveryShape() {
+        // testDate has no schedule and no exception (see setUp).
+        assertThat(scheduleService.getAvailableSlots(doctorId, branchId, testDate)).isEmpty();
+        assertThat(scheduleService.getAvailableSlots(doctorId, testDate)).isEmpty();
+        assertThat(scheduleService.getAvailableSlots(doctorId, null, testDate)).isEmpty();
+        assertThat(scheduleService.findBookableSlot(doctorId, branchId, testDate, LocalTime.of(8, 0))).isEmpty();
+        assertThat(scheduleService.isBookableSlot(doctorId, branchId, testDate, LocalTime.of(11, 30))).isFalse();
+    }
+
     @Nested
     @DisplayName("Challenge 1: Boundary Slot Verification")
     class BoundarySlotVerification {
@@ -91,7 +125,7 @@ class ScheduleServiceAdversarialChallengeTest {
         @DisplayName("findBookableSlot succeeds for 11:30 - morning boundary, slot end 12:00")
         void morningBoundary1130Succeeds() {
             Optional<ScheduleService.BookableSlot> slot =
-                scheduleService.findBookableSlot(doctorId, branchId, testDate, LocalTime.of(11, 30));
+                demoEnabledService().findBookableSlot(doctorId, branchId, testDate, LocalTime.of(11, 30));
 
             assertThat(slot).isPresent();
             assertThat(slot.get().startTime()).isEqualTo(LocalTime.of(11, 30));
@@ -102,7 +136,7 @@ class ScheduleServiceAdversarialChallengeTest {
         @DisplayName("findBookableSlot succeeds for 17:00 - afternoon boundary, slot end 17:30")
         void afternoonBoundary1700Succeeds() {
             Optional<ScheduleService.BookableSlot> slot =
-                scheduleService.findBookableSlot(doctorId, branchId, testDate, LocalTime.of(17, 0));
+                demoEnabledService().findBookableSlot(doctorId, branchId, testDate, LocalTime.of(17, 0));
 
             assertThat(slot).isPresent();
             assertThat(slot.get().startTime()).isEqualTo(LocalTime.of(17, 0));
@@ -113,7 +147,7 @@ class ScheduleServiceAdversarialChallengeTest {
         @DisplayName("findBookableSlot succeeds for 08:00 - morning start boundary")
         void morningStart0800Succeeds() {
             Optional<ScheduleService.BookableSlot> slot =
-                scheduleService.findBookableSlot(doctorId, branchId, testDate, LocalTime.of(8, 0));
+                demoEnabledService().findBookableSlot(doctorId, branchId, testDate, LocalTime.of(8, 0));
 
             assertThat(slot).isPresent();
             assertThat(slot.get().startTime()).isEqualTo(LocalTime.of(8, 0));
@@ -124,7 +158,7 @@ class ScheduleServiceAdversarialChallengeTest {
         @DisplayName("findBookableSlot succeeds for 13:30 - afternoon start boundary")
         void afternoonStart1330Succeeds() {
             Optional<ScheduleService.BookableSlot> slot =
-                scheduleService.findBookableSlot(doctorId, branchId, testDate, LocalTime.of(13, 30));
+                demoEnabledService().findBookableSlot(doctorId, branchId, testDate, LocalTime.of(13, 30));
 
             assertThat(slot).isPresent();
             assertThat(slot.get().startTime()).isEqualTo(LocalTime.of(13, 30));
@@ -142,7 +176,7 @@ class ScheduleServiceAdversarialChallengeTest {
         void strictlyRejectsLunchIntervals(String timeStr) {
             LocalTime lunchTime = LocalTime.parse(timeStr);
             Optional<ScheduleService.BookableSlot> slot =
-                scheduleService.findBookableSlot(doctorId, branchId, testDate, lunchTime);
+                demoEnabledService().findBookableSlot(doctorId, branchId, testDate, lunchTime);
 
             assertThat(slot)
                 .as("Time %s is within lunch break and MUST NOT be bookable", timeStr)
@@ -155,7 +189,7 @@ class ScheduleServiceAdversarialChallengeTest {
         void strictlyRejectsAfterHours(String timeStr) {
             LocalTime afterHour = LocalTime.parse(timeStr);
             Optional<ScheduleService.BookableSlot> slot =
-                scheduleService.findBookableSlot(doctorId, branchId, testDate, afterHour);
+                demoEnabledService().findBookableSlot(doctorId, branchId, testDate, afterHour);
 
             assertThat(slot)
                 .as("Time %s is after clinic closing and MUST NOT be bookable", timeStr)
@@ -168,7 +202,7 @@ class ScheduleServiceAdversarialChallengeTest {
         void strictlyRejectsBeforeHours(String timeStr) {
             LocalTime beforeHour = LocalTime.parse(timeStr);
             Optional<ScheduleService.BookableSlot> slot =
-                scheduleService.findBookableSlot(doctorId, branchId, testDate, beforeHour);
+                demoEnabledService().findBookableSlot(doctorId, branchId, testDate, beforeHour);
 
             assertThat(slot)
                 .as("Time %s is before clinic opening and MUST NOT be bookable", timeStr)
@@ -181,7 +215,7 @@ class ScheduleServiceAdversarialChallengeTest {
         void strictlyRejectsOffCadenceSlots(String timeStr) {
             LocalTime offCadence = LocalTime.parse(timeStr);
             Optional<ScheduleService.BookableSlot> slot =
-                scheduleService.findBookableSlot(doctorId, branchId, testDate, offCadence);
+                demoEnabledService().findBookableSlot(doctorId, branchId, testDate, offCadence);
 
             assertThat(slot)
                 .as("Time %s is not aligned with 30-minute slot boundaries and MUST NOT be bookable", timeStr)
@@ -194,8 +228,8 @@ class ScheduleServiceAdversarialChallengeTest {
     class BranchBehaviorVerification {
 
         @Test
-        @DisplayName("Branchless fallback properly expands slots across all branches")
-        void branchlessFallbackExpandsAcrossAllBranches() {
+        @DisplayName("Branchless fallback is closed by default and opens only for the local demo flag")
+        void branchlessFallbackIsClosedByDefaultAndOpensOnlyWithTheLocalDemoFlag() {
             int dayOfWeek = testDate.getDayOfWeek().getValue();
             when(doctorScheduleRepository.findActiveForDoctorOnDate(eq(doctorId), eq(testDate), eq(dayOfWeek)))
                 .thenReturn(Collections.emptyList());
@@ -216,12 +250,16 @@ class ScheduleServiceAdversarialChallengeTest {
             when(exceptionRepository.findForDoctorAndBranchOnDate(eq(doctorId), any(), eq(testDate)))
                 .thenReturn(Collections.emptyList());
 
-            List<TimeSlotDto> slots = scheduleService.getAvailableSlots(doctorId, null, testDate);
+            // No persisted schedule for any branch => closed. The old behaviour
+            // fabricated 16 windows per assigned branch from nothing.
+            assertThat(scheduleService.getAvailableSlots(doctorId, null, testDate)).isEmpty();
 
-            assertThat(slots).hasSize(32);
-            long branchACount = slots.stream().filter(s -> branchA.equals(s.branchId())).count();
-            long branchBCount = slots.stream().filter(s -> branchB.equals(s.branchId())).count();
-            long branchCCount = slots.stream().filter(s -> branchC.equals(s.branchId())).count();
+            List<TimeSlotDto> demoSlots = demoEnabledService().getAvailableSlots(doctorId, null, testDate);
+
+            assertThat(demoSlots).hasSize(32);
+            long branchACount = demoSlots.stream().filter(s -> branchA.equals(s.branchId())).count();
+            long branchBCount = demoSlots.stream().filter(s -> branchB.equals(s.branchId())).count();
+            long branchCCount = demoSlots.stream().filter(s -> branchC.equals(s.branchId())).count();
 
             assertThat(branchACount).isEqualTo(16);
             assertThat(branchBCount).isEqualTo(16);
@@ -255,9 +293,9 @@ class ScheduleServiceAdversarialChallengeTest {
         }
 
         @Test
-        @DisplayName("Total slot breakdown confirms 8 morning and 8 afternoon slots = 16")
+        @DisplayName("Demo fixture slot breakdown confirms 8 morning and 8 afternoon slots = 16")
         void slotBreakdownConfirms8Morning8Afternoon() {
-            List<TimeSlotDto> slots = scheduleService.getAvailableSlots(doctorId, branchId, testDate);
+            List<TimeSlotDto> slots = demoEnabledService().getAvailableSlots(doctorId, branchId, testDate);
             assertThat(slots).hasSize(16);
 
             long morningCount = slots.stream()

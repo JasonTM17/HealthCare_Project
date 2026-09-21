@@ -123,7 +123,15 @@ public class PatientConsultationController {
         return service.downloadIntent(id, attachmentId, principal);
     }
 
-    @Operation(summary = "Kiểm tra trạng thái quét bảo mật của tệp đính kèm", description = "Kiểm tra kết quả quét an toàn (CLEAN/INFECTED/PENDING)")
+    @Operation(
+        summary = "Kiểm tra trạng thái quét bảo mật của tệp đính kèm",
+        description = """
+            Trả về trạng thái quét của tệp đính kèm. 'scanStatus' chỉ nhận một trong ba giá trị: \
+            PENDING (đang chờ quét), CLEAN (đã quét sạch, được phép tải xuống) hoặc REJECTED \
+            (bị từ chối, kèm 'rejectionCode' nếu có). Trạng thái tải lên 'uploadStatus' nằm trong \
+            REQUESTED, UPLOADING, UPLOADED, REJECTED hoặc EXPIRED. Chỉ tệp CLEAN mới tải xuống \
+            được."""
+    )
     @GetMapping("/{id}/attachments/{attachmentId}")
     public ConsultationContracts.Attachment attachmentStatus(@PathVariable UUID id, @PathVariable UUID attachmentId,
             @AuthenticationPrincipal UserDetails principal) {

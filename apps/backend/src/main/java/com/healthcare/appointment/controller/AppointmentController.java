@@ -26,6 +26,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -67,13 +68,16 @@ public class AppointmentController {
     public ResponseEntity<HoldSlotResponse> holdSlot(
             @Valid @RequestBody HoldSlotRequest request,
             @AuthenticationPrincipal UserDetails userDetails,
+            @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey,
             HttpServletRequest httpRequest) {
         bookingRateLimiter.check("hold", httpRequest, request.phone());
-        HoldSlotResponse response = bookingService.holdSlot(request, userDetails);
+        // A retried request that reuses its key returns the original hold, so a
+        // lost response cannot turn into a duplicate hold or a slot conflict.
+        HoldSlotResponse response = bookingService.holdSlot(request, userDetails, idempotencyKey);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    @Operation(summary = "Gửi lại mã xác thực OTP đặt lịch", description = "Gửi lại mã OTP qua SMS/Email khi người bệnh chưa nhận được")
+    @Operation(summary = "Gửi lại mã xác thực OTP đặt lịch", description = "Gửi lại mã OTP đặt lịch qua email khi người bệnh chưa nhận được. Hệ thống chỉ gửi OTP qua email (NotificationChannel: EMAIL), không gửi SMS")
     @PostMapping("/{bookingCode}/otp/resend")
     public ResponseEntity<ResendOtpResponse> resendOtp(
             @PathVariable String bookingCode,

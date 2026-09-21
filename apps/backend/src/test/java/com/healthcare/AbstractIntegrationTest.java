@@ -3,8 +3,10 @@ package com.healthcare;
 import com.healthcare.appointment.repository.AppointmentRepository;
 import com.healthcare.appointment.repository.DoctorScheduleRepository;
 import com.healthcare.appointment.repository.PatientProfileRepository;
+import com.healthcare.database.CatalogFixtureCallback;
 import com.healthcare.ai.chat.repository.AiConversationRepository;
 import com.healthcare.ai.chat.repository.AiMessageRepository;
+import com.healthcare.clinical.repository.DiagnosticOrderRepository;
 import com.healthcare.clinical.repository.DiagnosticResultRepository;
 import com.healthcare.clinical.repository.MedicalRecordRepository;
 import com.healthcare.clinical.repository.PrescriptionRepository;
@@ -21,7 +23,9 @@ import com.healthcare.hospital.repository.ServiceRepository;
 import com.healthcare.hospital.repository.SpecialtyRepository;
 import com.healthcare.cms.repository.CmsContentChangeRepository;
 import com.healthcare.cms.repository.CmsContentRepository;
+import com.healthcare.document.repository.PatientDocumentRepository;
 import com.healthcare.user.repository.RefreshTokenRepository;
+import com.healthcare.user.repository.UserPreferencesRepository;
 import com.healthcare.user.repository.UserRepository;
 import com.healthcare.storage.repository.StoredFileRepository;
 import com.healthcare.scheduling.repository.DoctorScheduleExceptionRepository;
@@ -31,6 +35,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -68,6 +75,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
  */
 @SpringBootTest(classes = HealthCareBackendApplication.class)
 @AutoConfigureMockMvc
+@Import(AbstractIntegrationTest.FlywayCatalogFixtureConfiguration.class)
 public abstract class AbstractIntegrationTest {
 
     private static final String externalDbUrl = System.getenv("TEST_DB_URL");
@@ -130,11 +138,28 @@ public abstract class AbstractIntegrationTest {
     @Autowired
     protected JdbcTemplate jdbcTemplate;
 
+    /**
+     * Registers the pre-V86 catalog fixture. Spring Boot's Flyway auto-config
+     * collects every {@code Callback} bean (ObjectProvider&lt;Callback&gt;), so a
+     * plain test bean is the supported registration path — the
+     * {@code spring.flyway.callbacks} property expects bean names, not class
+     * names, and silently does nothing when given one.
+     */
+    @TestConfiguration
+    static class FlywayCatalogFixtureConfiguration {
+        @Bean
+        CatalogFixtureCallback catalogFixtureCallback() {
+            return new CatalogFixtureCallback();
+        }
+    }
+
     // ── Auth domain ───────────────────────────────────────────────────────────
     @Autowired protected UserRepository userRepository;
+    @Autowired protected UserPreferencesRepository userPreferencesRepository;
     @Autowired protected RefreshTokenRepository refreshTokenRepository;
     @Autowired protected AiConversationRepository aiConversationRepository;
     @Autowired protected AiMessageRepository aiMessageRepository;
+    @Autowired protected PatientDocumentRepository patientDocumentRepository;
 
     // ── Hospital & Appointment domain ────────────────────────────────────────
     @Autowired protected SpecialtyRepository specialtyRepository;
@@ -157,6 +182,7 @@ public abstract class AbstractIntegrationTest {
 
     // ── Clinical overlay ─────────────────────────────────────────────────────
     @Autowired protected DiagnosticResultRepository diagnosticResultRepository;
+    @Autowired protected DiagnosticOrderRepository diagnosticOrderRepository;
     @Autowired protected MedicalRecordRepository medicalRecordRepository;
     @Autowired protected PrescriptionRepository prescriptionRepository;
     @Autowired protected StoredFileRepository storedFileRepository;
@@ -237,6 +263,14 @@ public abstract class AbstractIntegrationTest {
         prescriptionRepository.deleteAll();
         medicalRecordRepository.deleteAll();
         diagnosticResultRepository.deleteAll();
+        // V86/V87 seed diagnostic orders that reference appointments; they are
+        // a later addition to the schema, so the original cleanup order never
+        // removed them and every appointment delete failed on the FK once the
+        // fresh-database migration chain started passing.
+        diagnosticOrderRepository.deleteAll();
+        // Patient documents (and their stored files) reference patient
+        // profiles, which the appointment-domain block deletes below.
+        patientDocumentRepository.deleteAll();
         storedFileRepository.deleteAll();
 
         // Recruitment applications contain candidate data and reference openings.
@@ -267,6 +301,7 @@ public abstract class AbstractIntegrationTest {
         // request link before removal, which would violate the message-shape constraint.
         aiMessageRepository.deleteAllInBatch();
         aiConversationRepository.deleteAll();
+        userPreferencesRepository.deleteAll();
         refreshTokenRepository.deleteAll();
         userRepository.deleteAll();
     }
