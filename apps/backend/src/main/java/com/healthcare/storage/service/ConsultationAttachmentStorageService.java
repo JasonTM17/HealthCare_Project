@@ -358,6 +358,44 @@ public class ConsultationAttachmentStorageService implements ConsultationAttachm
         }
     }
 
+    /**
+     * Reads one uploaded object, proves it is the object the client declared,
+     * scans it, and promotes it to the immutable verified key.
+     *
+     * <p>This is the only place where an upload becomes trustworthy, so every
+     * check is independent of what the browser said and a failure never
+     * degrades into trust:
+     * <ul>
+     *   <li><b>Size.</b> The stored object's real size must be within
+     *       {@code maxBytes} and exactly equal to the size declared at intent
+     *       time, and reading must yield that same byte count.</li>
+     *   <li><b>MIME.</b> The type must be detected from the bytes themselves, not
+     *       taken from the request or from object metadata; it must equal the
+     *       normalized expected type, and a non-empty metadata type other than
+     *       {@code application/octet-stream} must agree with it.</li>
+     *   <li><b>Hash.</b> The SHA-256 of the read bytes must equal the declared
+     *       hash, compared in constant time.</li>
+     *   <li><b>Antivirus.</b> The scanner must return a CLEAN verdict. An
+     *       INFECTED verdict is a definitive rejection; UNAVAILABLE, ERROR or a
+     *       missing scanner is <em>not</em> a pass — it returns PENDING so the
+     *       leased worker retries later instead of admitting an unscanned
+     *       file.</li>
+     *   <li><b>Key determinism.</b> The promoted verified key is derived from
+     *       the thread and attachment, and when a verified key was already
+     *       persisted it must match, so a replay cannot point the row at a
+     *       different object.</li>
+     * </ul>
+     *
+     * <p>Storage failures return PENDING with a diagnostic code rather than
+     * throwing: the caller's lease and retry accounting own the retry decision.
+     * Nothing is deleted here — the quarantine cleanup queue is enqueued by the
+     * worker, which is also what persists the promoted key. Bytes, names and
+     * object keys are never logged.
+     *
+     * <p>{@code lease} is accepted as evidence, not as authority: it was obtained
+     * by the caller, and the worker re-checks it when writing the outcome, so a
+     * stale worker cannot promote an object it no longer owns.
+     */
     private CompletionResult verifyAndScan(
             CompletionRequest request, AttachmentScanAuditHook.ScanLease lease) {
         StatObjectResponse stat;

@@ -18,7 +18,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class ArticlePublicationEligibilityTest {
@@ -29,8 +31,8 @@ class ArticlePublicationEligibilityTest {
         Pageable pageable = PageRequest.of(0, 10);
         // The service normalizes the incoming pageable (clamped page window and
         // whitelisted default sort), so the stub matches any Pageable instance.
-        when(repository.findByContentKindAndActiveTrueAndPublishedAtLessThanEqualOrderByPublishedAtDesc(
-            eq("GENERAL"), any(OffsetDateTime.class), any(Pageable.class)))
+        when(repository.findByContentKindAndActiveTrueAndReviewStatusAndPublishedAtLessThanEqualOrderByPublishedAtDesc(
+            eq("GENERAL"), eq("APPROVED"), any(OffsetDateTime.class), any(Pageable.class)))
             .thenReturn(Page.empty(pageable));
         OffsetDateTime before = OffsetDateTime.now();
 
@@ -38,16 +40,56 @@ class ArticlePublicationEligibilityTest {
 
         OffsetDateTime after = OffsetDateTime.now();
         ArgumentCaptor<OffsetDateTime> cutoff = ArgumentCaptor.forClass(OffsetDateTime.class);
-        verify(repository).findByContentKindAndActiveTrueAndPublishedAtLessThanEqualOrderByPublishedAtDesc(
-            eq("GENERAL"), cutoff.capture(), any(Pageable.class));
+        verify(repository).findByContentKindAndActiveTrueAndReviewStatusAndPublishedAtLessThanEqualOrderByPublishedAtDesc(
+            eq("GENERAL"), eq("APPROVED"), cutoff.capture(), any(Pageable.class));
         assertThat(cutoff.getValue()).isBetween(before, after);
+    }
+
+    @Test
+    void publicListForwardsNormalizedContentKindWithTheReviewGate() {
+        ArticleRepository repository = mock(ArticleRepository.class);
+        Pageable pageable = PageRequest.of(0, 10);
+        when(repository.findByContentKindAndActiveTrueAndReviewStatusAndPublishedAtLessThanEqualOrderByPublishedAtDesc(
+            eq("GENERAL"), eq("APPROVED"), any(OffsetDateTime.class), any(Pageable.class)))
+            .thenReturn(Page.empty(pageable));
+
+        new ArticleService(repository).listPublished("  general  ", pageable);
+
+        verify(repository).findByContentKindAndActiveTrueAndReviewStatusAndPublishedAtLessThanEqualOrderByPublishedAtDesc(
+            eq("GENERAL"), eq("APPROVED"), any(OffsetDateTime.class), any(Pageable.class));
+    }
+
+    @Test
+    void diseaseGuideListIsRoutedToTheClinicallyEligibleNativeQuery() {
+        ArticleRepository repository = mock(ArticleRepository.class);
+        Pageable pageable = PageRequest.of(0, 10);
+        when(repository.findClinicallyEligibleDiseaseGuides(any(Pageable.class)))
+            .thenReturn(Page.empty(pageable));
+
+        new ArticleService(repository).listPublished("DISEASE_GUIDE", pageable);
+
+        verify(repository).findClinicallyEligibleDiseaseGuides(any(Pageable.class));
+        verify(repository, never())
+            .findByContentKindAndActiveTrueAndReviewStatusAndPublishedAtLessThanEqualOrderByPublishedAtDesc(
+                any(String.class), any(String.class), any(OffsetDateTime.class), any(Pageable.class));
+    }
+
+    @Test
+    void unknownContentKindIsRejectedBeforeAnyQuery() {
+        ArticleRepository repository = mock(ArticleRepository.class);
+
+        assertThatThrownBy(() -> new ArticleService(repository)
+            .listPublished("MARKETING", PageRequest.of(0, 10)))
+            .isInstanceOf(com.healthcare.exception.BusinessException.class);
+
+        verifyNoInteractions(repository);
     }
 
     @Test
     void publicDetailExcludesArticlesPublishedAfterCurrentTime() {
         ArticleRepository repository = mock(ArticleRepository.class);
-        when(repository.findBySlugAndActiveTrueAndPublishedAtLessThanEqual(
-            eq("future-article"), any(OffsetDateTime.class)))
+        when(repository.findBySlugAndActiveTrueAndReviewStatusAndPublishedAtLessThanEqual(
+            eq("future-article"), eq("APPROVED"), any(OffsetDateTime.class)))
             .thenReturn(Optional.empty());
         OffsetDateTime before = OffsetDateTime.now();
 
@@ -56,8 +98,8 @@ class ArticlePublicationEligibilityTest {
 
         OffsetDateTime after = OffsetDateTime.now();
         ArgumentCaptor<OffsetDateTime> cutoff = ArgumentCaptor.forClass(OffsetDateTime.class);
-        verify(repository).findBySlugAndActiveTrueAndPublishedAtLessThanEqual(
-            eq("future-article"), cutoff.capture());
+        verify(repository).findBySlugAndActiveTrueAndReviewStatusAndPublishedAtLessThanEqual(
+            eq("future-article"), eq("APPROVED"), cutoff.capture());
         assertThat(cutoff.getValue()).isBetween(before, after);
     }
 

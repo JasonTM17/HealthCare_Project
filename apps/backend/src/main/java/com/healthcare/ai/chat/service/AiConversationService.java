@@ -91,6 +91,10 @@ public class AiConversationService {
     private static final String PATIENT_CHAT_CREDIT_DESCRIPTION = "Lượt sử dụng Trợ lý AI Y khoa";
     private static final String PATIENT_CHAT_REFUND_DESCRIPTION =
         "Hoàn credit cho lượt hỏi AI không thành công";
+    private static final String PATIENT_CHAT_WAIVED_DESCRIPTION =
+        "Không tính credit: câu trả lời thiếu nguồn đủ tin cậy";
+    /** Ledger marker that attributes charge/refund/waiver rows to one attempt. */
+    private static final String CHAT_ATTEMPT_MARKER_PREFIX = "[chat:";
 
     private final AiConversationRepository conversationRepository;
     private final AiMessageRepository messageRepository;
@@ -423,8 +427,15 @@ public class AiConversationService {
         try {
             AiConversation conversation = conversationRepository.findByIdAndUserId(conversationId, userId)
                 .orElseThrow(this::notFound);
-            SanitizedAiResponse sanitized = groundedResponse(
-                userId, conversation.getMode(), content, recentTurns(conversationId), chunkedDeliveryGeneration);
+            // A prepared free answer is the credit-gate exemption: it is already
+            // the final, source-less degraded reply, so the retrieval and
+            // generation stages below are skipped entirely rather than merely
+            // going unpaid.
+            SanitizedAiResponse sanitized = prepared.freeAnswer() != null
+                ? prepared.freeAnswer()
+                : groundedResponse(
+                    userId, conversation.getMode(), content, recentTurns(conversationId),
+                    chunkedDeliveryGeneration);
             long persistenceStartedAt = System.nanoTime();
             ChatExchangeResponse completed;
             try {
@@ -639,9 +650,12 @@ public class AiConversationService {
      * A crash between the committed credit charge and the persisted exchange
      * leaves a PENDING message that no caller ever retries; without this sweep
      * the patient keeps the charge with no ledger compensation. Reuses the
-     * exact recovery path (flip to FAILED + refund) that prepare() applies to
-     * stale leases, so live traffic and the sweep cannot double-refund: the
-     * PENDING guard inside the recovery is the idempotency point.
+     * exact recovery path (flip to FAILED + guarded refund) that prepare()
+     * applies to stale leases, so live traffic and the sweep cannot
+     * double-refund: the PENDING status guard keeps one attempt from being
+     * recovered twice, and the per-attempt ledger guard
+     * ({@code AI_CHAT_USAGE} present, {@code AI_CHAT_REFUND} absent) keeps one
+     * attempt from being refunded twice.
      */
     @Scheduled(cron = "${ai.chat.lease-repair-cron:0 */10 * * * *}")
     @Transactional
@@ -692,7 +706,8 @@ public class AiConversationService {
                 return new PreparedMessage(
                     request.getId(),
                     null,
-                    new ChatExchangeResponse(toMessage(request), toMessage(reply), true)
+                    new ChatExchangeResponse(toMessage(request), toMessage(reply), true),
+                    null
                 );
             }
             throw new BusinessException(
@@ -705,8 +720,32 @@ public class AiConversationService {
             throw inProgress();
         }
 
-        if (aiCreditService != null) {
-            aiCreditService.requirePatientCredits(userId);
+        // Credit gate. Rule, in one sentence: a chat answer costs one credit,
+        // except the degraded INSUFFICIENT_EVIDENCE answer the platform can
+        // produce without contacting any provider, which is free to everyone
+        // including a patient who is out of credits.
+        //
+        // Rationale: an insufficient-evidence answer is a system outcome, not a
+        // product the patient is buying — it cites no source and exists to say
+        // "I stopped rather than guess". Gating it behind a paid balance (the
+        // old unconditional 402 here) meant the patients it protects most could
+        // never see it, and the waiver path that records it could only ever run
+        // for someone who already had a credit to spare.
+        //
+        // Boundary: the exemption is only available when the free answer is
+        // already in hand before the gate releases, so an unpaid request can
+        // never spend provider work (see localInsufficientEvidenceAnswer). A
+        // zero-credit patient whose question needs the provider still gets the
+        // 402 INSUFFICIENT_AI_CREDITS here, before generation, exactly as
+        // before. Ordinary paid use is unchanged, and the free exchange is
+        // audited by complete() writing a zero-amount AI_CHAT_WAIVED ledger row
+        // instead of a charge.
+        SanitizedAiResponse freeAnswer = null;
+        if (aiCreditService != null && !aiCreditService.hasPatientCreditBalance(userId)) {
+            freeAnswer = localInsufficientEvidenceAnswer(conversation.getMode(), content);
+            if (freeAnswer == null) {
+                aiCreditService.requirePatientCredits(userId);
+            }
         }
 
         OffsetDateTime now = now();
@@ -727,15 +766,93 @@ public class AiConversationService {
         request.setIdempotencyKey(idempotencyKey);
         request.setCreatedAt(now);
         messageRepository.save(request);
-        return new PreparedMessage(request.getId(), processingToken, null);
+        return new PreparedMessage(request.getId(), processingToken, null, freeAnswer);
     }
 
-    private void chargeAcceptedPatientExchange(UUID userId) {
+    /**
+     * The answer a zero-credit patient may receive for free, or {@code null}
+     * when nothing can be answered without paying.
+     *
+     * <p>Two conditions, both required: the reply is produced by the local
+     * deterministic catalog path — so no retrieval or generation call is made
+     * on the platform's meter — and it is the degraded
+     * {@code INSUFFICIENT_EVIDENCE} outcome, which carries no citations and no
+     * curated content. A local path that <em>can</em> name a source is a real
+     * answer, and real answers stay behind the credit gate.
+     *
+     * <p>Resolved once, here, and carried with the prepared exchange so the
+     * patient is shown exactly the answer that was checked at the gate instead
+     * of a second lookup that could disagree with the first.
+     */
+    private SanitizedAiResponse localInsufficientEvidenceAnswer(ChatMode mode, String content) {
+        SanitizedAiResponse local = deterministicBranchResponse(mode, content);
+        if (local == null
+                || local.safetyAction() != ChatSafetyAction.INSUFFICIENT_EVIDENCE
+                || !local.citations().isEmpty()) {
+            return null;
+        }
+        return local;
+    }
+
+    private void chargeAcceptedPatientExchange(UUID userId, UUID requestMessageId) {
         if (aiCreditService != null) {
-            aiCreditService.deductPatientCredit(userId, PATIENT_CHAT_CREDIT_DESCRIPTION);
+            aiCreditService.deductPatientCredit(
+                userId, PATIENT_CHAT_CREDIT_DESCRIPTION + " " + attemptMarker(requestMessageId));
         }
     }
 
+    /**
+     * A degraded answer is a service failure from the patient's point of view:
+     * they spent a credit for "no reliable source found" — or, for a patient
+     * whose only route to this answer was the credit-gate exemption, they spent
+     * nothing at all. Persist the waiver row instead of the charge so the ledger
+     * explains the zero-cost outcome either way. The early replay guard in
+     * {@code complete} (an existing reply row short-circuits the completion)
+     * means a replayed idempotency key can never reach this method twice for the
+     * same attempt.
+     */
+    private void waiveInsufficientPatientExchange(UUID userId, UUID requestMessageId) {
+        if (aiCreditService != null) {
+            aiCreditService.recordPatientWaiver(
+                userId, PATIENT_CHAT_WAIVED_DESCRIPTION + " " + attemptMarker(requestMessageId));
+        }
+    }
+
+    private static String attemptMarker(UUID requestMessageId) {
+        return CHAT_ATTEMPT_MARKER_PREFIX + requestMessageId + "]";
+    }
+
+    /**
+     * Commits one generated answer to the conversation, but only if this caller
+     * still owns the in-flight lease for it.
+     *
+     * <p>The lease is the whole point of this method. A generation can outlive
+     * its request (slow provider, dropped connection, retry), and a late answer
+     * must never overwrite a newer turn or be charged twice. So the conversation
+     * is re-read {@code FOR UPDATE} and the exchange is rejected with 503
+     * {@code AI_UNAVAILABLE} unless the conversation is still in flight, the
+     * stored processing token equals the caller's token, and the lease has not
+     * expired. Losing the race is a normal, retryable outcome, not corruption.
+     *
+     * <p>Before anything is written, the exact source identities used for the
+     * answer are revalidated and refreshed through
+     * {@link AiChatSourceResolver#revalidateForPersistence}. A source that was
+     * edited, revoked or expired while the answer was being generated degrades
+     * the answer to "insufficient evidence" rather than persisting a citation
+     * that no longer exists. This is the last point at which the store can be
+     * observed as consistent with the answer.
+     *
+     * <p>The write is idempotent: if a reply already exists for the request
+     * message, the lease is simply released and the stored reply returned, so a
+     * replayed completion cannot create a second assistant message, charge a
+     * second credit, or record a second waiver. On success the request and
+     * reply rows are saved, the conversation's title, counters and expiry are
+     * advanced, the lease is cleared, and billing is settled once — after the
+     * answer exists, never before. A grounded answer charges one patient
+     * credit; an answer degraded to {@code INSUFFICIENT_EVIDENCE} charges
+     * nothing and instead records a zero-amount {@code AI_CHAT_WAIVED} ledger
+     * row so the audit trail shows why no charge happened.
+     */
     private ChatExchangeResponse complete(
             UUID userId,
             UUID conversationId,
@@ -826,7 +943,11 @@ public class AiConversationService {
         conversation.setUpdatedAt(completedAt);
         conversation.setExpiresAt(expiry(completedAt));
         conversationRepository.save(conversation);
-        chargeAcceptedPatientExchange(userId);
+        if (response.safetyAction() == ChatSafetyAction.INSUFFICIENT_EVIDENCE) {
+            waiveInsufficientPatientExchange(userId, request.getId());
+        } else {
+            chargeAcceptedPatientExchange(userId, request.getId());
+        }
         return new ChatExchangeResponse(
             toMessage(request),
             withLiveMetadata(toMessage(reply), response),
@@ -899,6 +1020,7 @@ public class AiConversationService {
                         message.setStatus(AiMessageStatus.FAILED);
                         message.setCompletedAt(now());
                         messageRepository.save(message);
+                        refundFailedPatientExchange(userId, userMessageId);
                     }
                 });
                 conversation.setInFlight(false);
@@ -907,8 +1029,30 @@ public class AiConversationService {
                 conversation.setUpdatedAt(now());
                 conversationRepository.save(conversation);
             });
-        } catch (RuntimeException ignored) {
-            // Preserve the safe client error even when best-effort failure marking cannot complete.
+        } catch (RuntimeException compensationFailure) {
+            // The safe client error is preserved, but this branch is where a
+            // patient can permanently lose a credit with no trace, so it has to
+            // reach operators: ERROR level, plus every identifier needed to
+            // find the rows again (user, conversation, and the request message
+            // id that keys the ledger attempt marker).
+            //
+            // The throwable's message and stack are deliberately NOT logged.
+            // A failure here usually comes from the persistence layer, and a
+            // JDBC/Hibernate message can quote the offending statement, which
+            // in this table means the patient's own question. Exception types
+            // carry the diagnosis without carrying health content.
+            log.error(
+                "AI chat failure compensation incomplete userId={} conversationId={} requestMessageId={}"
+                    + " requestId={} errorType={} causeType={}",
+                userId,
+                conversationId,
+                userMessageId,
+                RequestTrace.currentId(),
+                compensationFailure.getClass().getSimpleName(),
+                compensationFailure.getCause() == null
+                    ? "none"
+                    : compensationFailure.getCause().getClass().getSimpleName()
+            );
         }
     }
 
@@ -925,6 +1069,14 @@ public class AiConversationService {
                 conversation.getId(), AiMessageStatus.PENDING)) {
             pending.setStatus(AiMessageStatus.FAILED);
             pending.setCompletedAt(recoveredAt);
+            // A pending request has no persisted reply (reply insertion flips
+            // the request to COMPLETED in the same transaction), so this is
+            // exactly the "exchange ended FAILED without an answer" case. The
+            // ledger guards make a repeated sweep a no-op rather than a
+            // second refund.
+            if (messageRepository.findByRequestMessageId(pending.getId()).isEmpty()) {
+                refundFailedPatientExchange(conversation.getUser().getId(), pending.getId());
+            }
         }
         conversation.setInFlight(false);
         conversation.setInFlightStartedAt(null);
@@ -934,9 +1086,25 @@ public class AiConversationService {
         conversationRepository.save(conversation);
     }
 
-    private void refundFailedPatientExchange(UUID userId) {
-        if (aiCreditService != null) {
-            aiCreditService.refundPatientCredit(userId, PATIENT_CHAT_REFUND_DESCRIPTION);
+    /**
+     * Compensates a patient for one exchange attempt that ended FAILED.
+     *
+     * <p>The production ordering cannot actually charge before persisting:
+     * {@code complete} charges inside the same transaction that stores the
+     * answer, so a rolled-back persistence leaves no charge to refund. The
+     * refund is nevertheless wired on every FAILED transition (live
+     * {@code markFailed} path and the stale-lease sweep) as a defensive
+     * recovery: {@link AiCreditService#refundPatientCredit(UUID, String,
+     * String)} refunds only when a charged {@code AI_CHAT_USAGE} row for this
+     * attempt exists in the ledger and no {@code AI_CHAT_REFUND} row for it
+     * does yet. When nothing was charged — the normal case — the guards make
+     * this a bounded read and the ledger is untouched, so the sweep and the
+     * live path can both run without ever double-refunding.
+     */
+    private void refundFailedPatientExchange(UUID userId, UUID requestMessageId) {
+        if (aiCreditService != null && requestMessageId != null) {
+            aiCreditService.refundPatientCredit(
+                userId, PATIENT_CHAT_REFUND_DESCRIPTION, attemptMarker(requestMessageId));
         }
     }
 
@@ -970,6 +1138,40 @@ public class AiConversationService {
         return sanitize(response, mode, authorized, null);
     }
 
+    /**
+     * Validates one raw provider response and turns it into the only shape that
+     * may be stored and shown to a patient.
+     *
+     * <p>Everything the provider returned is treated as untrusted input. The
+     * method throws {@code AI_RESPONSE_INVALID} (surfaced as 502) rather than
+     * storing a partial or guessed answer when any of these fail:
+     *
+     * <ul>
+     *   <li><b>Shape and length.</b> A non-empty {@code answer} bounded by
+     *       {@code MAX_ANSWER_LENGTH} is required, plus a provenance from the
+     *       allowed set. A {@code remote_provider} provenance is accepted only
+     *       when remote providers are switched on for this deployment, so a
+     *       configuration drift cannot quietly route a patient chat to an
+     *       unapproved upstream.</li>
+     *   <li><b>Medical safety.</b> Diagnose-or-prescribe phrasing is rejected
+     *       outright, and the disclaimer falls back to the server-owned
+     *       {@code SAFE_DISCLAIMER} when the provider omitted a usable one.</li>
+     *   <li><b>Citation integrity.</b> When sources were authorized, the
+     *       provider must have used exactly that set — a mismatch rejects the
+     *       answer instead of displaying an uncited or over-cited one. Each
+     *       authorized identity is then re-resolved, and any identity whose
+     *       revision, hash or projection changed drops the answer to
+     *       "insufficient evidence".</li>
+     *   <li><b>Safety-action consistency.</b> REFUSE and HUMAN_HANDOFF suppress
+     *       citations and catalog actions entirely; EMERGENCY gets exactly one
+     *       deterministic action so an urgent answer cannot be crowded out by
+     *       promotional CTAs.</li>
+     * </ul>
+     *
+     * <p>{@code userContent} is optional context used only to pick a
+     * hospital-support fallback action. The returned {@code SanitizedAiResponse}
+     * is the single source of truth for what persistence writes.
+     */
     private SanitizedAiResponse sanitize(
             Map<String, Object> response,
             ChatMode mode,
@@ -1905,10 +2107,17 @@ public class AiConversationService {
         );
     }
 
+    /**
+     * @param freeAnswer the degraded answer a zero-credit patient was allowed to
+     *        receive without paying, resolved at the credit gate so the reply
+     *        shown is the reply the gate audited. {@code null} for every paid
+     *        exchange and for replays.
+     */
     private record PreparedMessage(
         UUID userMessageId,
         UUID processingToken,
-        ChatExchangeResponse replay
+        ChatExchangeResponse replay,
+        SanitizedAiResponse freeAnswer
     ) {
     }
 

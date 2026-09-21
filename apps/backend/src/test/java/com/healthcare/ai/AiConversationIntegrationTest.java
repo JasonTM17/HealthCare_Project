@@ -7,6 +7,7 @@ import com.healthcare.ai.chat.entity.AiMessage;
 import com.healthcare.ai.chat.entity.AiMessageRole;
 import com.healthcare.ai.chat.entity.AiMessageStatus;
 import com.healthcare.ai.chat.service.AiConversationService;
+import com.healthcare.ai.service.AiCreditService;
 import com.healthcare.ai.service.AiService;
 import com.healthcare.appointment.entity.PatientProfile;
 import com.healthcare.exception.BusinessException;
@@ -49,6 +50,14 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private AiConversationService conversationService;
+
+    /**
+     * The real ledger service, used by the refund-idempotency check: the
+     * guarantee under test is the database state after two compensations for
+     * the same attempt, which a mocked service could not demonstrate.
+     */
+    @Autowired
+    private AiCreditService aiCreditService;
 
     @BeforeEach
     void configureLegacyProviderDouble() {
@@ -272,6 +281,131 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
         assertThat(patientProfileRepository.findByUserId(patient.getId()).orElseThrow().getAiCredits())
             .isEqualTo(3);
         assertThat(creditTransactionCount(patient.getId())).isZero();
+    }
+
+    @Test
+    @WithMockUser(username = "patient.waive-insufficient@example.com", roles = "PATIENT")
+    void insufficientEvidenceAnswerWaivesInsteadOfChargingAndReplayRecordsOnce() throws Exception {
+        User patient = createUser("patient.waive-insufficient@example.com");
+        createPatientProfile(patient, "0901002003", 3);
+        // A retrieval outage degrades the answer to INSUFFICIENT_EVIDENCE.
+        when(aiService.retrieveChat(any())).thenReturn(null);
+
+        String conversationId = mockMvc.perform(post("/api/v1/ai/conversations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"consentAccepted\":true}"))
+            .andExpect(status().isCreated())
+            .andReturn()
+            .getResponse()
+            .getContentAsString()
+            .replaceAll(".*\\\"id\\\":\\\"([^\\\"]+)\\\".*", "$1");
+
+        String endpoint = "/api/v1/ai/conversations/" + conversationId + "/messages";
+        mockMvc.perform(post(endpoint)
+                .header("Idempotency-Key", "waive-insufficient-0001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"Benh vi co chuyen khoa nao?\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.replayed").value(false))
+            .andExpect(jsonPath("$.assistantMessage.safetyAction").value("INSUFFICIENT_EVIDENCE"));
+
+        // The degraded answer is free: the balance is untouched and the ledger
+        // shows a zero-amount waiver instead of a usage charge.
+        assertThat(patientProfileRepository.findByUserId(patient.getId()).orElseThrow().getAiCredits())
+            .isEqualTo(3);
+        assertThat(creditTransactionCount(patient.getId(), "AI_CHAT_USAGE")).isZero();
+        assertThat(creditTransactionCount(patient.getId(), "AI_CHAT_WAIVED")).isEqualTo(1);
+
+        mockMvc.perform(post(endpoint)
+                .header("Idempotency-Key", "waive-insufficient-0001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"Benh vi co chuyen khoa nao?\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.replayed").value(true));
+
+        // A replayed completion short-circuits at the persisted reply, so the
+        // waiver is recorded exactly once.
+        assertThat(patientProfileRepository.findByUserId(patient.getId()).orElseThrow().getAiCredits())
+            .isEqualTo(3);
+        assertThat(creditTransactionCount(patient.getId())).isEqualTo(1);
+    }
+
+    @Test
+    void staleLeaseRecoveryRefundsAChargedAttemptOnceAndNeverRefundsUnchargedOnes() {
+        // Attempt A: charged but the answer never persisted (the crash window
+        // the sweep exists for). Attempt B: failed without ever being charged.
+        User chargedPatient = createUser("patient.lease-refund@example.com");
+        createPatientProfile(chargedPatient, "0901002004", 3);
+        AiConversation chargedConversation = staleInFlightConversation(chargedPatient);
+        AiMessage chargedRequest = stalePendingRequest(chargedConversation, "Cau hoi da bi tinh credit");
+
+        User unchargedPatient = createUser("patient.lease-nocharge@example.com");
+        createPatientProfile(unchargedPatient, "0901002005", 3);
+        AiConversation unchargedConversation = staleInFlightConversation(unchargedPatient);
+        stalePendingRequest(unchargedConversation, "Cau hoi chua bi tinh credit");
+
+        // Seed only attempt A with the ledger charge the recovery looks for.
+        jdbcTemplate.update(
+            "insert into ai_credit_transactions"
+                + " (user_id, target_role, amount, balance_after, transaction_type, description)"
+                + " values (?, 'PATIENT', -1, 2, 'AI_CHAT_USAGE', ?)",
+            chargedPatient.getId(),
+            "Luot su dung Tro ly AI Y khoa [chat:" + chargedRequest.getId() + "]"
+        );
+
+        conversationService.repairStaleInFlight();
+
+        assertThat(aiMessageRepository.findById(chargedRequest.getId()).orElseThrow().getStatus())
+            .isEqualTo(AiMessageStatus.FAILED);
+        assertThat(aiConversationRepository.findById(chargedConversation.getId()).orElseThrow().isInFlight())
+            .isFalse();
+        // Exactly one credit back, and the refund row carries the attempt marker.
+        assertThat(patientProfileRepository.findByUserId(chargedPatient.getId()).orElseThrow().getAiCredits())
+            .isEqualTo(4);
+        assertThat(creditTransactionCount(chargedPatient.getId(), "AI_CHAT_REFUND")).isEqualTo(1);
+
+        // The uncharged attempt is compensated with nothing: no ledger charge
+        // means no refund, so the sweep cannot mint free credits.
+        assertThat(patientProfileRepository.findByUserId(unchargedPatient.getId()).orElseThrow().getAiCredits())
+            .isEqualTo(3);
+        assertThat(creditTransactionCount(unchargedPatient.getId())).isZero();
+
+        // A repeated sweep finds the conversation no longer in flight and the
+        // refund already recorded; the ledger is unchanged.
+        conversationService.repairStaleInFlight();
+        assertThat(patientProfileRepository.findByUserId(chargedPatient.getId()).orElseThrow().getAiCredits())
+            .isEqualTo(4);
+        assertThat(creditTransactionCount(chargedPatient.getId(), "AI_CHAT_REFUND")).isEqualTo(1);
+    }
+
+    private AiConversation staleInFlightConversation(User patient) {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        AiConversation conversation = new AiConversation();
+        conversation.setUser(patient);
+        conversation.setTitle("Test conversation");
+        conversation.setStatus(AiConversationStatus.ACTIVE);
+        conversation.setInFlight(true);
+        // A lease started far enough in the past to be expired by the sweep.
+        conversation.setInFlightStartedAt(now.minusHours(1));
+        conversation.setInFlightToken(UUID.randomUUID());
+        conversation.setConsentVersion("patient-chat-v1");
+        conversation.setConsentedAt(now);
+        conversation.setCreatedAt(now);
+        conversation.setUpdatedAt(now);
+        conversation.setExpiresAt(now.plusDays(90));
+        return aiConversationRepository.save(conversation);
+    }
+
+    private AiMessage stalePendingRequest(AiConversation conversation, String content) {
+        AiMessage message = new AiMessage();
+        message.setConversation(conversation);
+        message.setRole(AiMessageRole.USER);
+        message.setStatus(AiMessageStatus.PENDING);
+        message.setContent(content);
+        message.setSequenceNumber(1);
+        message.setIdempotencyKey("lease-" + UUID.randomUUID());
+        message.setCreatedAt(OffsetDateTime.now(ZoneOffset.UTC));
+        return aiMessageRepository.save(message);
     }
 
     @Test
@@ -525,6 +659,110 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
         verify(aiService, never()).retrieveChat(any());
         verify(aiService, never()).generateChat(any());
         assertThat(aiMessageRepository.findAll()).isEmpty();
+    }
+
+    @Test
+    @WithMockUser(username = "patient.zero-credit-degraded@example.com", roles = "PATIENT")
+    void zeroCreditPatientStillReceivesTheProviderFreeInsufficientEvidenceAnswer() throws Exception {
+        User patient = createUser("patient.zero-credit-degraded@example.com");
+        createPatientProfile(patient, "0901002010", 0);
+
+        String conversationId = mockMvc.perform(post("/api/v1/ai/conversations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"consentAccepted\":true}"))
+            .andExpect(status().isCreated())
+            .andReturn()
+            .getResponse()
+            .getContentAsString()
+            .replaceAll(".*\\\"id\\\":\\\"([^\\\"]+)\\\".*", "$1");
+
+        String endpoint = "/api/v1/ai/conversations/" + conversationId + "/messages";
+        // An explicit branch identity the live catalog cannot verify is decided
+        // locally, before any provider stage: the reply cites no source, so it
+        // is the degraded "I stopped rather than guess" answer and is free.
+        mockMvc.perform(post(endpoint)
+                .header("Idempotency-Key", "zero-credit-degraded-0001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"Cơ sở số 98761 làm việc đến mấy giờ?\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.replayed").value(false))
+            .andExpect(jsonPath("$.assistantMessage.safetyAction").value("INSUFFICIENT_EVIDENCE"))
+            .andExpect(jsonPath("$.assistantMessage.citations").isEmpty());
+
+        // Free means free on both meters: no provider work was bought and no
+        // credit was spent, and the ledger still carries the audit row that
+        // explains the zero-cost outcome.
+        verify(aiService, never()).retrieveChat(any());
+        verify(aiService, never()).generateChat(any());
+        assertThat(patientProfileRepository.findByUserId(patient.getId()).orElseThrow().getAiCredits())
+            .isZero();
+        assertThat(creditTransactionCount(patient.getId(), "AI_CHAT_USAGE")).isZero();
+        assertThat(creditTransactionCount(patient.getId(), "AI_CHAT_WAIVED")).isEqualTo(1);
+        assertThat(ledgerBalanceAfter(patient.getId(), "AI_CHAT_WAIVED")).isZero();
+
+        // Replaying the key returns the stored answer without a second audit row.
+        mockMvc.perform(post(endpoint)
+                .header("Idempotency-Key", "zero-credit-degraded-0001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"Cơ sở số 98761 làm việc đến mấy giờ?\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.replayed").value(true));
+        assertThat(creditTransactionCount(patient.getId(), "AI_CHAT_WAIVED")).isEqualTo(1);
+
+        // The exemption did not widen past the degraded answer: a different
+        // question from the same zero-credit patient needs the paid pipeline and
+        // still hits 402 at prepare, before the provider is called.
+        mockMvc.perform(post(endpoint)
+                .header("Idempotency-Key", "zero-credit-paid-0002")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"Toi muon hoi bac si\"}"))
+            .andExpect(status().isPaymentRequired())
+            .andExpect(jsonPath("$.code").value("INSUFFICIENT_AI_CREDITS"));
+
+        // The rejected paid attempt wrote nothing: one waiver row, and the two
+        // messages from the free exchange.
+        assertThat(creditTransactionCount(patient.getId())).isEqualTo(1);
+        assertThat(aiMessageRepository.findAll()).hasSize(2);
+    }
+
+    @Test
+    void refundingTheSameAttemptMarkerTwiceCompensatesExactlyOneCredit() {
+        User patient = createUser("patient.refund-idempotent@example.com");
+        createPatientProfile(patient, "0901002011", 2);
+        String marker = "[chat:" + UUID.randomUUID() + "]";
+        // The exchange was charged once: 3 -> 2, stamped with the attempt marker.
+        jdbcTemplate.update(
+            "insert into ai_credit_transactions"
+                + " (user_id, target_role, amount, balance_after, transaction_type, description)"
+                + " values (?, 'PATIENT', -1, 2, 'AI_CHAT_USAGE', ?)",
+            patient.getId(),
+            "Luot su dung Tro ly AI Y khoa " + marker
+        );
+
+        assertThat(aiCreditService.refundPatientCredit(
+            patient.getId(), "Hoàn credit cho lượt hỏi AI không thành công", marker)).isTrue();
+        assertThat(patientProfileRepository.findByUserId(patient.getId()).orElseThrow().getAiCredits())
+            .isEqualTo(3);
+        // The ledger records the post-increment balance, not the balance that
+        // happened to be read before the refund ran.
+        assertThat(ledgerBalanceAfter(patient.getId(), "AI_CHAT_REFUND")).isEqualTo(3);
+
+        // The live failure path and the stale-lease sweep share this call, so
+        // the same marker arriving a second time is a no-op, not a second credit.
+        assertThat(aiCreditService.refundPatientCredit(
+            patient.getId(), "Hoàn credit cho lượt hỏi AI không thành công", marker)).isFalse();
+        assertThat(patientProfileRepository.findByUserId(patient.getId()).orElseThrow().getAiCredits())
+            .isEqualTo(3);
+        assertThat(creditTransactionCount(patient.getId(), "AI_CHAT_REFUND")).isEqualTo(1);
+
+        // An attempt that was never charged cannot mint a credit at all.
+        assertThat(aiCreditService.refundPatientCredit(
+            patient.getId(),
+            "Hoàn credit cho lượt hỏi AI không thành công",
+            "[chat:" + UUID.randomUUID() + "]")).isFalse();
+        assertThat(patientProfileRepository.findByUserId(patient.getId()).orElseThrow().getAiCredits())
+            .isEqualTo(3);
+        assertThat(creditTransactionCount(patient.getId())).isEqualTo(2);
     }
 
     @Test
@@ -806,6 +1044,29 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
             userId
         );
         return count == null ? 0 : count;
+    }
+
+    private long creditTransactionCount(UUID userId, String transactionType) {
+        Long count = jdbcTemplate.queryForObject(
+            "select count(*) from ai_credit_transactions where user_id = ? and transaction_type = ?",
+            Long.class,
+            userId,
+            transactionType
+        );
+        return count == null ? 0 : count;
+    }
+
+    /** The balance the ledger last recorded for one transaction type. */
+    private int ledgerBalanceAfter(UUID userId, String transactionType) {
+        Integer balance = jdbcTemplate.queryForObject(
+            "select balance_after from ai_credit_transactions"
+                + " where user_id = ? and transaction_type = ?"
+                + " order by created_at desc, id desc limit 1",
+            Integer.class,
+            userId,
+            transactionType
+        );
+        return balance == null ? -1 : balance;
     }
 
     private AiConversation createConversation(

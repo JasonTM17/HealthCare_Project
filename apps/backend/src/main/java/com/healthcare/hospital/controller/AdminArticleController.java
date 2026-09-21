@@ -69,4 +69,25 @@ public class AdminArticleController {
         adminArticleService.delete(slug, actor);
         return ResponseEntity.noContent().build();
     }
+
+    @Operation(
+        summary = "Duyệt hoặc từ chối bài của bác sĩ",
+        description = "APPROVED đưa bài sang chuyên trang công khai; REJECTED gỡ khỏi trang công khai nhưng vẫn hiển thị cho tác giả kèm lý do")
+    @PutMapping("/{slug}/review")
+    public ResponseEntity<Article> review(
+            @PathVariable String slug,
+            @Valid @RequestBody ArticleReviewRequest request,
+            @AuthenticationPrincipal UserDetails actor) {
+        return ResponseEntity.ok(adminArticleService.review(slug, request.decision(), request.reason(), actor));
+    }
+
+    /**
+     * Body of the review decision. `reason` is optional on approval and becomes
+     * the author-facing explanation on rejection (capped to fit alongside the
+     * other article fields in one admin response).
+     */
+    public record ArticleReviewRequest(
+            @jakarta.validation.constraints.NotBlank String decision,
+            @jakarta.validation.constraints.Size(max = 500) String reason) {
+    }
 }

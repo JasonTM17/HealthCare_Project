@@ -30,9 +30,10 @@ public class ArticleService {
         // General articles remain a public operational catalog. Disease guides
         // are exposed through the explicit content-kind path below so an
         // unapproved/expired clinical source can never leak into the generic
-        // feed or receive the doctor-approved trust label.
-        return articleRepository.findByContentKindAndActiveTrueAndPublishedAtLessThanEqualOrderByPublishedAtDesc(
-                "GENERAL", OffsetDateTime.now(), safePageable(pageable))
+        // feed or receive the doctor-approved trust label. The review gate
+        // keeps a doctor submission that is still pending invisible here.
+        return articleRepository.findByContentKindAndActiveTrueAndReviewStatusAndPublishedAtLessThanEqualOrderByPublishedAtDesc(
+                "GENERAL", "APPROVED", OffsetDateTime.now(), safePageable(pageable))
             .map(this::toResponse);
     }
 
@@ -46,8 +47,8 @@ public class ArticleService {
             // Native queries cannot apply a dynamic Sort, so this branch only
             // normalizes the page bounds and rejects any explicit sort.
             ? articleRepository.findClinicallyEligibleDiseaseGuides(boundedPageable(pageable))
-            : articleRepository.findByContentKindAndActiveTrueAndPublishedAtLessThanEqualOrderByPublishedAtDesc(
-                normalized, OffsetDateTime.now(), safePageable(pageable));
+            : articleRepository.findByContentKindAndActiveTrueAndReviewStatusAndPublishedAtLessThanEqualOrderByPublishedAtDesc(
+                normalized, "APPROVED", OffsetDateTime.now(), safePageable(pageable));
         return page
             .map(this::toResponse);
     }
@@ -58,6 +59,24 @@ public class ArticleService {
             page = articleRepository.findByAuthorNamesAndContentKind(authorName, altName, pureName, contentKind.trim().toUpperCase(), safePageable(pageable));
         } else {
             page = articleRepository.findByAuthorNames(authorName, altName, pureName, safePageable(pageable));
+        }
+        return page.map(this::toResponse);
+    }
+
+    /**
+     * Doctor-portal list for an identified doctor. Ownership is the
+     * {@code author_doctor_id} written by every doctor create/update, never the
+     * free-text {@code author_name}: the tolerant name matching above stays a
+     * legacy fallback for rows that predate the V93 backfill and for callers
+     * without a doctor identity.
+     */
+    public Page<ArticleResponse> listByAuthorDoctorId(java.util.UUID authorDoctorId, String contentKind, Pageable pageable) {
+        Page<Article> page;
+        if (contentKind != null && !contentKind.isBlank()) {
+            page = articleRepository.findByAuthorDoctorIdAndContentKind(
+                authorDoctorId, contentKind.trim().toUpperCase(), safePageable(pageable));
+        } else {
+            page = articleRepository.findByAuthorDoctorId(authorDoctorId, safePageable(pageable));
         }
         return page.map(this::toResponse);
     }
@@ -74,8 +93,8 @@ public class ArticleService {
     }
 
     public ArticleResponse getBySlug(String slug) {
-        Article article = articleRepository.findBySlugAndActiveTrueAndPublishedAtLessThanEqual(
-                slug, OffsetDateTime.now())
+        Article article = articleRepository.findBySlugAndActiveTrueAndReviewStatusAndPublishedAtLessThanEqual(
+                slug, "APPROVED", OffsetDateTime.now())
             .orElseThrow(() -> new ResourceNotFoundException("Article not found"));
         if ("DISEASE_GUIDE".equalsIgnoreCase(article.getContentKind())) {
             article = articleRepository.findClinicallyEligibleDiseaseGuideBySlug(slug)
@@ -102,7 +121,8 @@ public class ArticleService {
             article.getContentLanguage(), article.getAudience(), article.getTopicTags(),
             article.getKeyTakeaways(), article.getWarningSigns(), article.getPreventionTips(),
             article.getWhenToSeekCare(), article.getSourceReferences(), article.getClinicalMetadata(),
-            article.getClinicalDisclaimer(), article.isFeatured()
+            article.getClinicalDisclaimer(), article.isFeatured(),
+            article.getReviewStatus(), article.getReviewReason(), article.getReviewDecidedAt()
         );
     }
 }

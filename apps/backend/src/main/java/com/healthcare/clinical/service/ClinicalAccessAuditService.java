@@ -22,9 +22,22 @@ public class ClinicalAccessAuditService {
     public static final String TARGET_PRESCRIPTION = "PRESCRIPTION";
     public static final String TARGET_DIAGNOSTIC = "DIAGNOSTIC";
     public static final String TARGET_FILE = "FILE";
+    /**
+     * Appointment-level administrative decisions. Kept in the same append-only
+     * log as record/prescription access so a reviewer can reconstruct every
+     * high-impact touch of one patient's booking from a single ordered table.
+     * The V91 migration widens the target_type CHECK constraint to admit it.
+     */
+    public static final String TARGET_APPOINTMENT = "APPOINTMENT";
     public static final String ACTION_READ = "READ";
     public static final String ACTION_DOWNLOAD = "DOWNLOAD";
     public static final String ACTION_PRESCRIBE = "PRESCRIBE";
+    /**
+     * Admin-portal cancellation, as opposed to the patient's own cancel on
+     * {@code /api/v1/appointments/{bookingCode}/cancel}. Kept distinct so the
+     * two authorities stay separable in an audit query.
+     */
+    public static final String ACTION_ADMIN_CANCEL_APPOINTMENT = "ADMIN_CANCEL_APPOINTMENT";
     public static final String DECISION_ALLOW = "ALLOW";
     public static final String DECISION_DENY = "DENY";
 

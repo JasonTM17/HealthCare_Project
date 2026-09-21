@@ -188,6 +188,87 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
         @Param("now") OffsetDateTime now
     );
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+        select a from Appointment a
+        where a.doctor.id = :doctorId
+          and a.appointmentDate = :appointmentDate
+          and a.startTime < :endTime
+          and a.endTime > :startTime
+          and (:excludeAppointmentId is null or a.id <> :excludeAppointmentId)
+          and (
+            a.status in ('CONFIRMED', 'CHECKED_IN', 'IN_PROGRESS')
+            or (a.status = 'PENDING_CONFIRMATION' and a.holdExpiresAt > :now)
+          )
+    """)
+    List<Appointment> findDoctorOverlapsForUpdate(
+        @Param("doctorId") UUID doctorId,
+        @Param("appointmentDate") LocalDate appointmentDate,
+        @Param("startTime") LocalTime startTime,
+        @Param("endTime") LocalTime endTime,
+        @Param("now") OffsetDateTime now,
+        @Param("excludeAppointmentId") UUID excludeAppointmentId
+    );
+
+    /**
+     * Row-locked, bounded batch of abandoned holds. {@code SKIP LOCKED} keeps a
+     * scheduled sweep from blocking (or waiting on) an in-flight booking.
+     */
+    @Query(value = """
+        SELECT * FROM appointments
+        WHERE status = 'PENDING_CONFIRMATION'
+          AND hold_expires_at IS NOT NULL
+          AND hold_expires_at <= :now
+        ORDER BY hold_expires_at
+        LIMIT 100
+        FOR UPDATE SKIP LOCKED
+    """, nativeQuery = true)
+    List<Appointment> lockExpiredPendingHolds(@Param("now") OffsetDateTime now);
+
+    @Query("""
+        select a from Appointment a
+        where a.holdIdempotencyKey = :idempotencyKey
+    """)
+    Optional<Appointment> findByHoldIdempotencyKey(@Param("idempotencyKey") String idempotencyKey);
+
+    @Query("""
+        select count(a) from Appointment a
+        where a.patient.id = :patientId
+          and a.status = 'PENDING_CONFIRMATION'
+          and a.holdExpiresAt is not null
+          and a.holdExpiresAt > :now
+    """)
+    long countLiveHoldsForPatient(
+        @Param("patientId") UUID patientId,
+        @Param("now") OffsetDateTime now
+    );
+
+    /**
+     * Live bookings that a schedule change would strand. The caller supplies an
+     * already clamped, non-null date range so an open-ended schedule cannot
+     * turn into an unbounded scan.
+     *
+     * <p>{@code PENDING_CONFIRMATION} counts regardless of its hold expiry: the
+     * guard is deliberately conservative, and the scheduled hold sweeper clears
+     * abandoned rows within a minute.
+     */
+    @Query(value = """
+        SELECT count(*) FROM appointments a
+        WHERE a.doctor_id = :doctorId
+          AND a.branch_id = :branchId
+          AND a.appointment_date >= :fromDate
+          AND a.appointment_date <= :toDate
+          AND CAST(EXTRACT(ISODOW FROM a.appointment_date) AS integer) = :isoDayOfWeek
+          AND a.status IN ('CONFIRMED', 'CHECKED_IN', 'IN_PROGRESS', 'PENDING_CONFIRMATION')
+    """, nativeQuery = true)
+    long countActiveBookingsForWeekday(
+        @Param("doctorId") UUID doctorId,
+        @Param("branchId") UUID branchId,
+        @Param("fromDate") LocalDate fromDate,
+        @Param("toDate") LocalDate toDate,
+        @Param("isoDayOfWeek") int isoDayOfWeek
+    );
+
     @Query(value = """
         SELECT * FROM appointments
         WHERE status = 'CONFIRMED'

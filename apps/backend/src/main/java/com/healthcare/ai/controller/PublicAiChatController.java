@@ -216,6 +216,7 @@ public class PublicAiChatController {
         return sanitize(generated, userMessage, ChatMode.HEALTH_EDUCATION, authorized);
     }
 
+    /** Unauthenticated public chat with no authorized sources; see the four-argument overload. */
     private Map<String, Object> sanitize(
             Map<String, Object> upstream,
             String userMessage,
@@ -223,6 +224,44 @@ public class PublicAiChatController {
         return sanitize(upstream, userMessage, publicMode, List.of());
     }
 
+    /**
+     * Turns a provider response into the only shape the unauthenticated chat
+     * endpoint may return. Stronger than the authenticated path because the
+     * caller has no identity, no conversation and no way to complain.
+     *
+     * <p>Guarantees enforced here, each failing closed with 502:
+     * <ul>
+     *   <li><b>Length and control characters.</b> The answer must be non-blank,
+     *       at most {@code MAX_ANSWER_LENGTH} (4 000) characters after trimming,
+     *       and free of C0/C1 control characters — the regex deliberately
+     *       permits tab/newline while excluding the codes that can hide text or
+     *       corrupt a log.</li>
+     *   <li><b>No identity or internal leakage.</b> {@code PUBLIC_IDENTITY_PATTERN}
+     *       rejects e-mail addresses and value-shaped patient/medical-record/
+     *       appointment identifiers, and {@code INTERNAL_OUTPUT_PATTERN} rejects
+     *       service tokens, API keys and stack traces. The identity pattern
+     *       requires a value-shaped token after the label so the server's own
+     *       refusal ("không thể cung cấp mã bệnh nhân") still passes while a
+     *       real identifier does not.</li>
+     *   <li><b>Mode, provenance and safety action are re-derived, not trusted.</b>
+     *       The upstream mode must equal the requested public mode, and
+     *       provenance/safety action must come from the allowed sets. An
+     *       unsafe claim is rejected unless the answer is REFUSE or EMERGENCY,
+     *       and an ANSWER with no verified public catalog citation is replaced by
+     *       a deterministic fallback instead of being shown.</li>
+     *   <li><b>Citations are revalidated, not echoed.</b> Every citation is
+     *       checked for an allowed source type, a well-formed id and a bounded
+     *       title, then re-checked against the server-side catalog: in
+     *       HEALTH_EDUCATION the set must match the authorized sources exactly.
+     *       Citations failing revalidation cause the answer to be replaced with
+     *       a server-owned fallback, never returned with unverified
+     *       provenance.</li>
+     * </ul>
+     *
+     * <p>{@code userMessage} is used only to classify the question (emergency,
+     * protected operational navigation) and to choose which server-owned
+     * fallback applies; it never reaches the answer text.
+     */
     private Map<String, Object> sanitize(
             Map<String, Object> upstream,
             String userMessage,

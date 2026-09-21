@@ -33,6 +33,8 @@ public class HealthQuestionService {
     /** Public/doctor listings default to and are clamped at the historical 200-row hard cap. */
     public static final int LISTING_DEFAULT_SIZE = 200;
     public static final int LISTING_MAX_SIZE = 200;
+    /** Hard cap on how many admins one submitted question may notify. */
+    private static final int MAX_ADMIN_NOTIFICATION_FANOUT = 50;
     private static final List<String> REPORT_REASONS = List.of(
         "PII_DETECTED", "SAFETY_CONCERN", "OUT_OF_SCOPE", "DUPLICATE", "SPAM", "LEGAL_REQUEST");
     private static final List<String> REPORT_STATUSES = List.of("UNDER_REVIEW", "RESOLVED", "DISMISSED");
@@ -42,10 +44,20 @@ public class HealthQuestionService {
     private final UserRepository users;
     private final FaqRepository faqs;
     private final AiClinicalContentRevisionService clinicalRevisions;
+    private final com.healthcare.notification.service.NotificationService notifications;
 
     /** Compatibility constructor retained for focused tests outside approval paths. */
     public HealthQuestionService(JdbcTemplate jdbc, UserRepository users) {
-        this(jdbc, users, null, null);
+        this(jdbc, users, null, null, null);
+    }
+
+    /** Compatibility constructor for moderation/decision tests that materialize FAQs. */
+    public HealthQuestionService(
+            JdbcTemplate jdbc,
+            UserRepository users,
+            FaqRepository faqs,
+            AiClinicalContentRevisionService clinicalRevisions) {
+        this(jdbc, users, faqs, clinicalRevisions, null);
     }
 
     @Autowired
@@ -53,11 +65,13 @@ public class HealthQuestionService {
             JdbcTemplate jdbc,
             UserRepository users,
             FaqRepository faqs,
-            AiClinicalContentRevisionService clinicalRevisions) {
+            AiClinicalContentRevisionService clinicalRevisions,
+            com.healthcare.notification.service.NotificationService notifications) {
         this.jdbc = jdbc;
         this.users = users;
         this.faqs = faqs;
         this.clinicalRevisions = clinicalRevisions;
+        this.notifications = notifications;
     }
 
     @Transactional
@@ -79,7 +93,51 @@ public class HealthQuestionService {
                 normalized_question, public_alias, pii_scan_status, pii_scanned_at, status)
             VALUES (?, ?, ?, ?, ?, ?, 'CLEAR', CURRENT_TIMESTAMP, 'PENDING_MODERATION')
             """, id, profile, userId, topic, question, publicAlias);
+        notifyAdminsOfNewQuestion(id);
         return get(id, userId, true);
+    }
+
+    /**
+     * Moderators need to know a question joined the queue. The fan-out is
+     * capped and the copy carries no question text — the queue itself is the
+     * source of truth for content.
+     */
+    private void notifyAdminsOfNewQuestion(UUID questionId) {
+        if (notifications == null) return;
+        for (UUID adminId : users.findActiveAdminUserIds(
+                org.springframework.data.domain.PageRequest.of(0, MAX_ADMIN_NOTIFICATION_FANOUT))) {
+            notifications.create(
+                adminId,
+                com.healthcare.notification.entity.Notification.EventType.HEALTH_QUESTION_SUBMITTED,
+                "Có câu hỏi sức khỏe mới",
+                "Một câu hỏi sức khỏe mới đang chờ kiểm duyệt trong mục Hỏi đáp sức khỏe.",
+                questionId
+            );
+        }
+    }
+
+    /**
+     * The asker learns their question now carries a doctor-reviewed answer.
+     * Neither the question nor the answer text is quoted; the portal section
+     * is the delivery surface for content.
+     */
+    private void notifyAuthorOfApprovedAnswer(UUID questionId) {
+        if (notifications == null) return;
+        UUID authorId;
+        try {
+            authorId = jdbc.queryForObject(
+                "SELECT author_user_id FROM health_questions WHERE id = ?", UUID.class, questionId);
+        } catch (DataAccessException ex) {
+            return;
+        }
+        if (authorId == null) return;
+        notifications.create(
+            authorId,
+            com.healthcare.notification.entity.Notification.EventType.HEALTH_QUESTION_ANSWERED,
+            "Câu hỏi của bạn đã có câu trả lời",
+            "Câu hỏi sức khỏe của bạn đã được bác sĩ duyệt và trả lời. Vào mục Hỏi đáp để xem câu trả lời.",
+            questionId
+        );
     }
 
     @Transactional(readOnly = true)
@@ -261,6 +319,7 @@ public class HealthQuestionService {
             if (changed == 0) throw new BusinessException(409, "HEALTH_QUESTION_ALREADY_DECIDED", "Câu trả lời đã được quyết định");
             jdbc.update("UPDATE health_questions SET status = 'PUBLISHED' WHERE id = ?", id);
             materializeDraftFaq(id, answer.id(), reviewer);
+            notifyAuthorOfApprovedAnswer(id);
         } else if ("CHANGES_REQUESTED".equals(status)) {
             int changed = jdbc.update("""
                 UPDATE health_question_answers SET status = ?, reviewer_user_id = ?, reviewed_at = CURRENT_TIMESTAMP,

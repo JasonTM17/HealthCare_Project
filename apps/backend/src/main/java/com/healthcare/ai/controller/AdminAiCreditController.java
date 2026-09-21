@@ -40,9 +40,20 @@ public class AdminAiCreditController {
         this.aiCreditService = aiCreditService;
     }
 
+    /**
+     * Admin credit grant payload.
+     *
+     * <p>{@code targetRole} accepts {@code PATIENT} only. Doctor AI credit was
+     * decided out of the product — nothing spends a doctor's balance — so the
+     * API no longer offers that capability: a {@code DOCTOR} request fails
+     * validation here, and {@link AiCreditService#grantCredits} refuses it
+     * again for any caller that reaches the service directly.
+     */
     public record GrantCreditRequest(
             @NotNull UUID userId,
-            @NotBlank @Pattern(regexp = "^(PATIENT|DOCTOR)$") String targetRole,
+            @NotBlank(message = "Vui lòng chọn đối tượng nhận credit AI.")
+            @Pattern(regexp = "^PATIENT$", message = "Hệ thống chỉ cấp credit AI cho bệnh nhân (PATIENT); tín dụng AI cho bác sĩ đã ngừng hỗ trợ.")
+            String targetRole,
             @NotNull @Min(1) @Max(MAX_GRANT_AMOUNT) int amount,
             @Size(max = 200) String description
     ) {}
@@ -64,17 +75,6 @@ public class AdminAiCreditController {
             .body(result.getContent());
     }
 
-    @Operation(summary = "Quản lý tín dụng AI của bác sĩ", description = "Lấy danh sách số dư tín dụng hỗ trợ lâm sàng của đội ngũ bác sĩ")
-    @GetMapping("/doctors")
-    public ResponseEntity<List<AiCreditService.DoctorCreditDto>> listDoctors(
-            @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size) {
-        Page<AiCreditService.DoctorCreditDto> result = aiCreditService.listDoctors(page, size);
-        return ResponseEntity.ok()
-            .headers(adminListingHeaders(result))
-            .body(result.getContent());
-    }
-
     /**
      * HC-11 compatibility transition: the body remains a plain JSON array so
      * the existing admin client keeps working; the paging contract is exposed
@@ -88,7 +88,7 @@ public class AdminAiCreditController {
         return headers;
     }
 
-    @Operation(summary = "Cấp phát tín dụng AI thủ công", description = "Quản trị viên cộng thêm lượt hỏi AI cho bệnh nhân hoặc bác sĩ")
+    @Operation(summary = "Cấp phát tín dụng AI thủ công", description = "Quản trị viên cộng thêm lượt hỏi AI cho bệnh nhân (chỉ hỗ trợ PATIENT)")
     @PostMapping("/grant")
     public ResponseEntity<Map<String, Object>> grantCredits(@Valid @RequestBody GrantCreditRequest request) {
         aiCreditService.grantCredits(

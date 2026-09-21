@@ -53,6 +53,18 @@ public class AiCatalogIndexService {
     private int maxCatalogItems;
 
     /**
+     * Operational-catalog sync on/off switch. It mirrors the {@code app.*}
+     * configuration family and defaults to on: the scheduled writer below is
+     * the primary path for keeping branches/specialties/doctors/services/
+     * packages fresh in the protected AI index (clinical content follows its
+     * own governed outbox worker and is unaffected by this flag). The admin
+     * {@code POST /api/v1/admin/ai/catalog/sync} endpoint stays available for
+     * an immediate on-demand sync regardless of this switch.
+     */
+    @Value("${app.ai.catalog-sync-enabled:true}")
+    private boolean catalogSyncEnabled;
+
+    /**
      * Runtime constructor.  The synchronization watermark is allocated by
      * PostgreSQL; a process-local clock/counter cannot provide ordering after
      * a restart or across multiple Spring instances.
@@ -125,16 +137,25 @@ public class AiCatalogIndexService {
             packageRepository, articleRepository, faqRepository, jdbcTemplate);
     }
 
+    /**
+     * Periodic operational-catalog sync (same lease-free, fail-soft pattern as
+     * {@link AiClinicalOutboxWorker}: bounded fixed delay, silent skip when the
+     * capability is not configured, WARN-level deferral log so a transient
+     * ai-service outage cannot spam ERROR or kill the scheduler).
+     */
     @Scheduled(
         initialDelayString = "${ai.rag-ingest.initial-delay-ms:15000}",
-        fixedDelayString = "${ai.rag-ingest.sync-delay-ms:300000}"
+        fixedDelayString = "${ai.rag-ingest.sync-delay-ms:1800000}"
     )
     public void synchronizeCatalog() {
+        if (!catalogSyncEnabled) return;
         if (!aiService.isRagIngestConfigured()) return;
         try {
             int indexed = synchronizeCatalogNow();
             log.info("AI catalog synchronization completed: {} documents processed", indexed);
         } catch (RuntimeException exception) {
+            // A deferred sync is expected while the ai-service is unreachable
+            // or reindexing; the next fixed-delay tick retries.
             log.warn("AI catalog synchronization deferred: {}", exception.getClass().getSimpleName());
         }
     }

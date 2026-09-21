@@ -14,9 +14,15 @@ public record ArticleCommentResponse(
     String content,
     UUID parentCommentId,
     OffsetDateTime createdAt,
-    OffsetDateTime updatedAt
+    OffsetDateTime updatedAt,
+    /** False for soft-deleted rows kept so their replies do not orphan. */
+    boolean active
 ) {
     public static ArticleCommentResponse from(ArticleComment comment) {
+        return from(comment, true);
+    }
+
+    public static ArticleCommentResponse from(ArticleComment comment, boolean active) {
         return new ArticleCommentResponse(
             comment.getId(),
             comment.getArticleSlug(),
@@ -26,7 +32,24 @@ public record ArticleCommentResponse(
             comment.getContent(),
             comment.getParentCommentId(),
             comment.getCreatedAt(),
-            comment.getUpdatedAt()
+            comment.getUpdatedAt(),
+            active
+        );
+    }
+
+    /** A deleted comment: structure only, no author or content. */
+    public static ArticleCommentResponse tombstone(ArticleComment comment) {
+        return new ArticleCommentResponse(
+            comment.getId(),
+            comment.getArticleSlug(),
+            null,
+            null,
+            null,
+            "[Bình luận đã xóa]",
+            comment.getParentCommentId(),
+            comment.getCreatedAt(),
+            comment.getUpdatedAt(),
+            false
         );
     }
 }

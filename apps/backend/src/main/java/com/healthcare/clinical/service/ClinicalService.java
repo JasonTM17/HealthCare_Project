@@ -88,6 +88,35 @@ public class ClinicalService {
         this.clinicalAccessAuditService = clinicalAccessAuditService;
     }
 
+    /**
+     * Records the clinical encounter for one appointment: vitals, diagnosis,
+     * optional prescription lines — and, as a side effect, the appointment's
+     * transition to COMPLETED.
+     *
+     * <p>The appointment reference is the spine of this operation:
+     * <ul>
+     *   <li>It is required. A doctor cannot create a record out of thin air; the
+     *       request must name the appointment being closed.</li>
+     *   <li>Patient, doctor and appointment must belong together, and the
+     *       authenticated doctor must be the one assigned to the appointment —
+     *       otherwise the write is refused with {@code AccessDeniedException}
+     *       rather than recorded against the wrong chart.</li>
+     *   <li>The appointment must be IN_PROGRESS, and at most one record may exist
+     *       per appointment. Both are checked before the insert, and the unique
+     *       constraint on {@code appointment_id} is the real arbiter: a
+     *       concurrent duplicate loses at the database and is translated back
+     *       into the same 409 domain conflict instead of a generic 500.</li>
+     *   <li>The appointment row is locked {@code FOR UPDATE} and its status
+     *       becomes COMPLETED as part of this transaction, which is the only
+     *       path that reaches COMPLETED. State and evidence therefore commit
+     *       together or not at all.</li>
+     * </ul>
+     *
+     * <p>Prescription lines are optional and attached to the record; each saved
+     * prescription also writes an append-only
+     * {@code clinical_access_audit} row with action PRESCRIBE, because
+     * prescribing is a clinical act that must be attributable.
+     */
     @Transactional
     public MedicalRecordResponse createMedicalRecord(
             CreateMedicalRecordRequest request,
@@ -196,7 +225,31 @@ public class ClinicalService {
                 );
             }
         }
+        notifyPatientOfVisitCompletion(savedRecord);
         return mapToResponse(savedRecord);
+    }
+
+    /**
+     * Tells the patient the visit is finished and the record is in their
+     * portal. Deliberately free of diagnosis, prescription or vitals content —
+     * the body is a pointer to the portal, same PHI posture as the
+     * {@code DIAGNOSTIC_RESULT_AVAILABLE} copy above.
+     */
+    private void notifyPatientOfVisitCompletion(MedicalRecord record) {
+        if (notificationService == null
+                || record == null
+                || record.getPatient() == null
+                || record.getPatient().getUserId() == null) {
+            return;
+        }
+        notificationService.create(
+            record.getPatient().getUserId(),
+            EventType.VISIT_COMPLETED,
+            "Khám bệnh đã hoàn tất",
+            "Kết quả khám ngày " + record.getCreatedAt().toLocalDate()
+                + " đã được lưu vào hồ sơ của bạn. Vào cổng bệnh nhân để xem chi tiết.",
+            record.getId()
+        );
     }
 
     @Transactional(readOnly = true)

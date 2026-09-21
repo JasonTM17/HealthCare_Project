@@ -47,6 +47,10 @@ public class AiService {
     private static final int DEFAULT_MAX_RESPONSE_BYTES = 1_048_576;
     private static final Logger log = LoggerFactory.getLogger(AiService.class);
 
+    /** Latch for the one-WARN-per-episode RAG fallback notice; see {@link #probeHealth}. */
+    private final java.util.concurrent.atomic.AtomicBoolean ragFallbackWarningActive =
+        new java.util.concurrent.atomic.AtomicBoolean(false);
+
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
 
@@ -412,8 +416,24 @@ public class AiService {
     }
 
     public boolean isAvailable() {
+        Map<String, Object> health = probeHealth();
+        return health != null
+            && "ok".equals(health.get("status"))
+            && Boolean.TRUE.equals(health.get("ready"));
+    }
+
+    /**
+     * One bounded {@code /health} probe of the ai-service, returning the
+     * parsed response body or {@code null} when the service is unreachable,
+     * misconfigured or answered unparseable bytes. The Spring contract keeps
+     * depending only on {@code status}/{@code ready}; the extra diagnostic
+     * fields (notably {@code rag_fallback_active}) are read purely to raise a
+     * single WARN per degraded episode — they never flip this deployment's
+     * own health verdict, which stays an operator concern on the ai-service.
+     */
+    public Map<String, Object> probeHealth() {
         if (!hasServiceAuthConfiguration()) {
-            return false;
+            return null;
         }
         try {
             ResponseEntity<byte[]> response = restTemplate.exchange(
@@ -425,17 +445,36 @@ public class AiService {
             if (!response.getStatusCode().is2xxSuccessful()
                 || response.getBody() == null
                 || response.getBody().length == 0) {
-                return false;
+                return null;
             }
             Map<String, Object> health = objectMapper.readValue(
                 new String(response.getBody(), StandardCharsets.UTF_8),
                 new TypeReference<Map<String, Object>>() { }
             );
-            Object status = health.get("status");
-            Object ready = health.get("ready");
-            return "ok".equals(status) && Boolean.TRUE.equals(ready);
+            recordRagFallbackState(health.get("rag_fallback_active"));
+            return health;
         } catch (RestClientException | JsonProcessingException e) {
-            return false;
+            // Leave the latch untouched: while the service is unreachable we
+            // neither repeat nor clear the fallback warning, so recovery does
+            // not spam and a persistent episode is not silently forgotten.
+            return null;
+        }
+    }
+
+    /**
+     * WARN once when the ai-service reports its RAG store degraded to the
+     * in-memory fallback, and clear the latch on the first healthy report.
+     * Health polling is frequent; a transition latch keeps this at one log
+     * line per episode instead of one per probe.
+     */
+    private void recordRagFallbackState(Object ragFallbackActive) {
+        boolean fallbackActive = Boolean.TRUE.equals(ragFallbackActive);
+        if (fallbackActive) {
+            if (ragFallbackWarningActive.compareAndSet(false, true)) {
+                log.warn("AI service RAG backend degraded: serving from the in-memory fallback (SUPABASE_DB_URL or durable store unavailable)");
+            }
+        } else {
+            ragFallbackWarningActive.set(false);
         }
     }
 

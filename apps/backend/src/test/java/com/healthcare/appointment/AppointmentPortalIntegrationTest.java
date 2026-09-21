@@ -454,7 +454,7 @@ class AppointmentPortalIntegrationTest extends AbstractIntegrationTest {
                     "select count(*) from payment_audit_logs where payment_id = ? and action = 'WEBHOOK_RECEIVED_FOR_REVIEW'",
                     Integer.class, payment.getId())).isEqualTo(1);
                 org.assertj.core.api.Assertions.assertThat(jdbcTemplate.queryForObject(
-                    "select count(*) from notifications where event_type = 'PAYMENT_SUBMITTED'", Integer.class)).isEqualTo(1);
+                    "select count(*) from notifications where event_type = 'PAYMENT_SUBMITTED' and user_id = ?", Integer.class, patientUser.getId())).isEqualTo(1);
                 return;
             }
             webhookService.process(eventId, timestamp, webhookSignature(timestamp, payload), payload);
@@ -479,7 +479,7 @@ class AppointmentPortalIntegrationTest extends AbstractIntegrationTest {
                 "select count(*) from payment_audit_logs where payment_id = ? and action = 'WEBHOOK_RECEIVED_FOR_REVIEW'",
                 Integer.class, payment.getId())).isEqualTo(1);
             org.assertj.core.api.Assertions.assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from notifications where event_type = 'PAYMENT_SUBMITTED'", Integer.class)).isEqualTo(1);
+                "select count(*) from notifications where event_type = 'PAYMENT_SUBMITTED' and user_id = ?", Integer.class, patientUser.getId())).isEqualTo(1);
         } finally {
             resumeWorker.countDown();
             executor.shutdownNow();
@@ -790,7 +790,9 @@ class AppointmentPortalIntegrationTest extends AbstractIntegrationTest {
             .andExpect(jsonPath("$.content[0].patientName").value(patient.getFullName()))
             .andExpect(jsonPath("$.content[0].patientPhone").doesNotExist())
             .andExpect(jsonPath("$.content[0].patientEmail").doesNotExist())
-            .andExpect(jsonPath("$.content[0].paymentStatus").doesNotExist())
+            // The doctor sees the coarse payment state only — amounts, method and
+            // payer identity stay out of this contract (Ultra V4 criterion 4).
+            .andExpect(jsonPath("$.content[0].paymentStatus").value("UNPAID"))
             .andExpect(jsonPath("$.content[0].otpCode").doesNotExist());
     }
 

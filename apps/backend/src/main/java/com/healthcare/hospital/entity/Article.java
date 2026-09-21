@@ -44,6 +44,9 @@ public class Article {
     @Column(name = "author_name", length = 160)
     private String authorName;
 
+    @Column(name = "author_doctor_id")
+    private UUID authorDoctorId;
+
     @Column(name = "reading_minutes")
     private Integer readingMinutes;
 
@@ -127,6 +130,27 @@ public class Article {
     @Column(name = "published_at")
     private OffsetDateTime publishedAt;
 
+    /**
+     * Publication gate for doctor-authored submissions. Distinct from the
+     * clinical-accuracy review tracked by lastReviewedAt/lastReviewedBy:
+     * PENDING submissions are visible in the author and admin portals only,
+     * APPROVED rows are eligible for the public catalog, REJECTED rows keep
+     * the reviewer trail for the author.
+     */
+    @Column(name = "review_status", nullable = false, length = 16)
+    private String reviewStatus = "APPROVED";
+
+    /** Author-facing explanation recorded when a submission is rejected. */
+    @Column(name = "review_reason", length = 500)
+    private String reviewReason;
+
+    @Column(name = "review_decided_at")
+    private OffsetDateTime reviewDecidedAt;
+
+    @Column(name = "review_decided_by")
+    @JsonIgnore
+    private UUID reviewDecidedBy;
+
     @Column(name = "active", nullable = false)
     private boolean active = true;
 
@@ -187,6 +211,14 @@ public class Article {
 
     public void setAuthorName(String authorName) {
         this.authorName = authorName;
+    }
+
+    public UUID getAuthorDoctorId() {
+        return authorDoctorId;
+    }
+
+    public void setAuthorDoctorId(UUID authorDoctorId) {
+        this.authorDoctorId = authorDoctorId;
     }
 
     public Integer getReadingMinutes() {
@@ -262,6 +294,15 @@ public class Article {
     public void setPublishedAt(OffsetDateTime publishedAt) {
         this.publishedAt = publishedAt;
     }
+
+    public String getReviewStatus() { return reviewStatus; }
+    public void setReviewStatus(String reviewStatus) { this.reviewStatus = reviewStatus; }
+    public String getReviewReason() { return reviewReason; }
+    public void setReviewReason(String reviewReason) { this.reviewReason = reviewReason; }
+    public OffsetDateTime getReviewDecidedAt() { return reviewDecidedAt; }
+    public void setReviewDecidedAt(OffsetDateTime reviewDecidedAt) { this.reviewDecidedAt = reviewDecidedAt; }
+    public UUID getReviewDecidedBy() { return reviewDecidedBy; }
+    public void setReviewDecidedBy(UUID reviewDecidedBy) { this.reviewDecidedBy = reviewDecidedBy; }
 
     public boolean isActive() {
         return active;

@@ -15,14 +15,19 @@ import java.time.OffsetDateTime;
 public interface ArticleRepository extends JpaRepository<Article, UUID> {
     Optional<Article> findBySlug(String slug);
 
+    /** Public detail read: only admin/doctor-review-approved articles resolve. */
+    Optional<Article> findBySlugAndActiveTrueAndReviewStatusAndPublishedAtLessThanEqual(
+        String slug, String reviewStatus, OffsetDateTime publicationCutoff);
+
     Optional<Article> findBySlugAndActiveTrueAndPublishedAtLessThanEqual(
         String slug, OffsetDateTime publicationCutoff);
 
+    /** Public list reads: the APPROVED gate keeps pending doctor submissions out. */
+    Page<Article> findByContentKindAndActiveTrueAndReviewStatusAndPublishedAtLessThanEqualOrderByPublishedAtDesc(
+        String contentKind, String reviewStatus, OffsetDateTime publicationCutoff, Pageable pageable);
+
     Page<Article> findByActiveTrueAndPublishedAtLessThanEqualOrderByPublishedAtDesc(
         OffsetDateTime publicationCutoff, Pageable pageable);
-
-    Page<Article> findByContentKindAndActiveTrueAndPublishedAtLessThanEqualOrderByPublishedAtDesc(
-        String contentKind, OffsetDateTime publicationCutoff, Pageable pageable);
 
     @Query("""
         SELECT a FROM Article a
@@ -52,6 +57,35 @@ public interface ArticleRepository extends JpaRepository<Article, UUID> {
         @org.springframework.data.repository.query.Param("contentKind") String contentKind,
         Pageable pageable);
 
+    /**
+     * Author-scoped list for an identified doctor: {@code author_doctor_id}
+     * (V93) is the only ownership authority, so two doctors that share a
+     * display name can never read each other's rows and a renamed doctor keeps
+     * their own list. The legacy {@code findByAuthorNames} text matching stays
+     * reserved for rows that predate the backfill and for callers with no
+     * doctor identity at all.
+     */
+    @Query("""
+        SELECT a FROM Article a
+         WHERE a.authorDoctorId = :authorDoctorId
+         ORDER BY a.publishedAt DESC NULLS LAST, a.updatedAt DESC
+    """)
+    Page<Article> findByAuthorDoctorId(
+        @org.springframework.data.repository.query.Param("authorDoctorId") UUID authorDoctorId,
+        Pageable pageable);
+
+    /** Content-kind variant of the doctor-id scoped list. */
+    @Query("""
+        SELECT a FROM Article a
+         WHERE a.authorDoctorId = :authorDoctorId
+           AND a.contentKind = :contentKind
+         ORDER BY a.publishedAt DESC NULLS LAST, a.updatedAt DESC
+    """)
+    Page<Article> findByAuthorDoctorIdAndContentKind(
+        @org.springframework.data.repository.query.Param("authorDoctorId") UUID authorDoctorId,
+        @org.springframework.data.repository.query.Param("contentKind") String contentKind,
+        Pageable pageable);
+
     /** Disease guides are public only while their current clinical review is eligible. */
     @Query(value = """
         SELECT DISTINCT a.*
@@ -69,6 +103,7 @@ public interface ArticleRepository extends JpaRepository<Article, UUID> {
           JOIN doctors reviewer_doctor ON reviewer_doctor.user_id = reviewer_user.id
          WHERE a.content_kind = 'DISEASE_GUIDE'
            AND a.active = TRUE AND a.published_at <= CURRENT_TIMESTAMP
+           AND a.review_status = 'APPROVED'
            AND h.eligibility_state = 'APPROVED'
            AND r.state = 'APPROVED'
            AND r.expires_at > CURRENT_TIMESTAMP
@@ -93,6 +128,7 @@ public interface ArticleRepository extends JpaRepository<Article, UUID> {
           JOIN doctors reviewer_doctor ON reviewer_doctor.user_id = reviewer_user.id
          WHERE a.content_kind = 'DISEASE_GUIDE'
            AND a.active = TRUE AND a.published_at <= CURRENT_TIMESTAMP
+           AND a.review_status = 'APPROVED'
            AND h.eligibility_state = 'APPROVED' AND r.state = 'APPROVED'
            AND r.expires_at > CURRENT_TIMESTAMP
            AND reviewer_user.status = 'ACTIVE' AND reviewer_doctor.active = TRUE
@@ -115,6 +151,7 @@ public interface ArticleRepository extends JpaRepository<Article, UUID> {
           JOIN doctors reviewer_doctor ON reviewer_doctor.user_id = reviewer_user.id
          WHERE a.slug = :slug AND a.content_kind = 'DISEASE_GUIDE'
            AND a.active = TRUE AND a.published_at <= CURRENT_TIMESTAMP
+           AND a.review_status = 'APPROVED'
            AND h.eligibility_state = 'APPROVED' AND r.state = 'APPROVED'
            AND r.expires_at > CURRENT_TIMESTAMP
            AND reviewer_user.status = 'ACTIVE' AND reviewer_doctor.active = TRUE
