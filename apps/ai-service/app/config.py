@@ -96,6 +96,17 @@ class Settings(BaseSettings):
     supabase_rag_table: str = "ai_chat_documents"
     supabase_rag_rpc: str = "match_chat_documents"
     supabase_db_connect_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
+    # Defaults to True and stays permissive on purpose: build_rag_service() ANDs
+    # this with ``ai_service_runtime in {local, test, demo}``, so a hosted
+    # deployment (AI_SERVICE_RUNTIME=render, render-beta, non-local, production)
+    # can never arm the memory fallback no matter what this says. Flipping the
+    # default would only break the offline local/demo loop that depends on it,
+    # while leaving the real risk -- a permissive runtime on a shared host --
+    # untouched. That risk is instead made visible: app.supabase_rag logs an
+    # ``rag_fallback state=armed`` warning at startup whenever the fallback is
+    # live, and /health reports rag_fallback_permitted, rag_fallback_active and
+    # rag_fail_closed. An operator that wants the strict posture sets this to
+    # false explicitly; .env.example already does.
     supabase_rag_fallback_to_memory: bool = True
     rag_embedding_dimension: int = Field(default=384, ge=384, le=384)
 

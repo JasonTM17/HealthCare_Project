@@ -45,6 +45,18 @@ never put its DSN or a `service_role` credential in the frontend. The legacy
 `ai_documents`/`match_documents` pair remains for the older public catalog
 index and is rejected by the patient-chat adapter.
 
+When `RAG_STORAGE_BACKEND=supabase`, `/health` separates the three ways a
+durable-backed deployment can answer, so an operator never reads a refusal as
+fallback traffic. `rag_fallback_permitted` is static configuration: the process
+may degrade to the in-memory index (it requires a `local`/`test`/`demo` runtime,
+so a hosted runtime always reports `false`). `rag_fallback_active` is observed
+behaviour: an unfiltered retrieval is currently served from memory because the
+durable store is unavailable. `rag_fail_closed` is its exclusive counterpart:
+durable RAG was reachable and then became unavailable, so retrieval is refused
+rather than served from a possibly stale cache. `SUPABASE_RAG_FALLBACK_TO_MEMORY`
+still defaults to `true` for offline development, and any run that arms it logs
+`rag_fallback state=armed ...` at startup.
+
 Ingestion accepts `active`, `published`, and optional bounded metadata. Only
 documents with both flags enabled are searchable; sending an inactive or
 unpublished update removes the previous searchable version. Content is

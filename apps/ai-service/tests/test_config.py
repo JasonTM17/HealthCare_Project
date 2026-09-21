@@ -1,9 +1,114 @@
 """Provider-neutral and legacy environment alias tests."""
 
+import logging
+
 import pytest
 
 from app.config import Settings
 from app.providers import remote_base_url_allowed
+from app.rag import RagService
+from app.supabase_rag import PersistentRagService, SupabaseRagUnavailable, build_rag_service
+
+
+def test_rag_memory_fallback_default_stays_permissive_for_local_runtimes() -> None:
+    # Decision: the default stays True. Flipping it would turn the offline
+    # local/demo loop into a hard startup failure, and it cannot harden a hosted
+    # deployment because build_rag_service() already ANDs this flag with a local
+    # runtime name. The permissive default is instead made visible at startup.
+    assert Settings().supabase_rag_fallback_to_memory is True
+
+
+@pytest.mark.parametrize("runtime", ["render", "render-beta", "non-local", "production"])
+def test_rag_memory_fallback_cannot_arm_a_hosted_runtime(runtime: str) -> None:
+    settings = Settings(
+        rag_storage_backend="supabase",
+        ai_service_runtime=runtime,
+        supabase_db_url="",
+    )
+
+    # No DSN plus a non-local runtime must refuse to start rather than silently
+    # serve the in-memory index, regardless of the permissive default.
+    with pytest.raises(SupabaseRagUnavailable, match="requires SUPABASE_DB_URL"):
+        build_rag_service(settings)
+
+
+def test_armed_local_rag_memory_fallback_warns_at_startup(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    settings = Settings(
+        rag_storage_backend="supabase",
+        ai_service_runtime="local",
+        supabase_db_url="",
+    )
+
+    with caplog.at_level(logging.WARNING, logger="uvicorn.error.healthcare.ai.rag"):
+        service = build_rag_service(settings)
+
+    assert isinstance(service, RagService)
+    assert not isinstance(service, PersistentRagService)
+    assert service.fallback_active is True
+    # The degraded default is loud: the warning names the state and the reason.
+    messages = [record.getMessage() for record in caplog.records]
+    assert any("rag_fallback" in message and "state=armed_no_durable_authority" in message for message in messages)
+    assert any("reason=missing_supabase_db_url" in message for message in messages)
+
+
+def test_armed_durable_rag_fallback_warns_at_startup(
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.supabase_rag as supabase_rag_module
+
+    class OfflineStore:
+        def list_documents(self) -> list[object]:
+            raise SupabaseRagUnavailable("offline")
+
+    monkeypatch.setattr(supabase_rag_module, "SupabaseRagStore", lambda _: OfflineStore())
+    settings = Settings(
+        rag_storage_backend="supabase",
+        ai_service_runtime="local",
+        supabase_db_url="postgresql://service.test/healthcare",
+    )
+
+    with caplog.at_level(logging.WARNING, logger="uvicorn.error.healthcare.ai.rag"):
+        service = build_rag_service(settings)
+
+    assert isinstance(service, PersistentRagService)
+    assert service.fallback_permitted is True
+    messages = [record.getMessage() for record in caplog.records]
+    assert any(
+        "rag_fallback" in message
+        and "state=armed" in message
+        and "supabase_rag_fallback_to_memory=true" in message
+        for message in messages
+    )
+
+
+def test_hosted_rag_startup_does_not_log_an_armed_fallback(
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.supabase_rag as supabase_rag_module
+
+    class OfflineStore:
+        def list_documents(self) -> list[object]:
+            raise SupabaseRagUnavailable("offline")
+
+    monkeypatch.setattr(supabase_rag_module, "SupabaseRagStore", lambda _: OfflineStore())
+    settings = Settings(
+        rag_storage_backend="supabase",
+        ai_service_runtime="render-beta",
+        supabase_db_url="postgresql://service.test/healthcare",
+    )
+
+    # A strict deployment never claims an armed fallback, so operators reading
+    # this line can tell a permissive config from a configured-memory backend.
+    with pytest.raises(SupabaseRagUnavailable), caplog.at_level(
+        logging.WARNING, logger="uvicorn.error.healthcare.ai.rag"
+    ):
+        build_rag_service(settings)
+
+    assert "rag_fallback" not in caplog.text
 
 
 def test_patient_chat_remote_provider_is_disabled_by_default() -> None:

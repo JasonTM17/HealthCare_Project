@@ -77,6 +77,24 @@ class HealthResponse(BaseModel):
     fallback_allowed: bool = False
     remote_probe_required: bool = False
     rag_ready: bool = True
+    # Which RAG store this process is answering from and whether it is the
+    # configured backend. "memory" is the configured choice for local/test
+    # runtimes; it is a *fallback* only when Supabase was configured but the
+    # durable store is unavailable, which is what rag_fallback_active reports.
+    rag_backend: str = "memory"
+    # True only while an unfiltered retrieval is actually served from the
+    # in-memory index because durable RAG is unavailable. It is False when the
+    # service fails closed, so a caller must not log "serving from the
+    # in-memory fallback" on the strength of rag_ready=false alone.
+    rag_fallback_active: bool = False
+    # Additive degradation signals. rag_fallback_permitted is static
+    # configuration ("may this process ever degrade to memory?"), which makes a
+    # silently permissive deploy visible before anything breaks.
+    # rag_fail_closed is the mutually exclusive counterpart of
+    # rag_fallback_active while durable RAG is down: durable is unavailable and
+    # memory retrieval is refused, so no fallback traffic is being served.
+    rag_fallback_permitted: bool = False
+    rag_fail_closed: bool = False
 
 
 class TriageRequest(BaseModel):

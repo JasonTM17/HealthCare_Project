@@ -1789,6 +1789,249 @@ def test_fallback_search_linearizes_before_durable_mutation() -> None:
     assert service.persistence_available is True
 
 
+def _operational_document(revision: int = 1) -> RagDocument:
+    """A hydrated row whose profile matches the default query/ingest profile."""
+
+    return RagDocument(
+        id="branch:hcm",
+        source_type="branch",
+        source_id="hcm",
+        title="Chi nhanh",
+        content="Kham tai co so.",
+        embedding=[0.25] * 384,
+        embedding_model="provided",
+        embedding_provenance="local_provider",
+        metadata={"projection_kind": "OPERATIONAL", "eligibility_revision": str(revision)},
+    )
+
+
+class NeverAnswersStore:
+    """Durable backend that was unreachable from the first read.
+
+    The process never observes durable authority, so the explicit local
+    development fallback window stays open.
+    """
+
+    def list_documents(self) -> list[RagDocument]:
+        raise SupabaseRagUnavailable("offline")
+
+    def upsert(self, *_: object, **__: object) -> bool:
+        raise SupabaseRagUnavailable("offline")
+
+    def search(self, *_: object, **__: object) -> list[tuple[RagDocument, float]]:
+        raise SupabaseRagUnavailable("offline")
+
+
+class HydratedThenOutageStore:
+    """Durable authority answered at startup and then went away."""
+
+    def list_documents(self) -> list[RagDocument]:
+        return [_operational_document()]
+
+    def active_profile(self) -> tuple[str, str] | None:
+        return ("provided", "local_provider")
+
+    def upsert(self, *_: object, **__: object) -> bool:
+        raise SupabaseRagUnavailable("offline")
+
+    def search(self, *_: object, **__: object) -> list[tuple[RagDocument, float]]:
+        raise SupabaseRagUnavailable("offline")
+
+
+class HealthyDurableStore:
+    """Durable backend that answers every read."""
+
+    def list_documents(self) -> list[RagDocument]:
+        return [_operational_document()]
+
+    def active_profile(self) -> tuple[str, str] | None:
+        return ("provided", "local_provider")
+
+    def search(self, *_: object, **__: object) -> list[tuple[RagDocument, float]]:
+        return []
+
+
+def test_fallback_active_is_true_only_while_memory_is_being_served() -> None:
+    service = PersistentRagService(
+        NeverAnswersStore(),  # type: ignore[arg-type]
+        max_documents=5,
+        fallback_to_memory=True,
+    )
+    assert service.persistence_available is False
+    assert service.durable_authority_observed is False
+
+    document = service.ingest(
+        "specialty",
+        "cardio",
+        "Tim mach",
+        "Kham tim mach.",
+        embedding=[0.25] * 384,
+        metadata={"_sync_revision": "1"},
+    )
+
+    # The flag must describe what the caller actually receives: an answer from
+    # the in-memory index while the durable backend is unavailable.
+    assert service.search([0.25] * 384)[0][0].id == document.id
+    assert service.fallback_active is True
+    assert service.fallback_permitted is True
+    assert service.fail_closed is False
+
+
+def test_fallback_active_is_false_when_the_service_fails_closed() -> None:
+    service = PersistentRagService(
+        HydratedThenOutageStore(),  # type: ignore[arg-type]
+        max_documents=5,
+        fallback_to_memory=True,
+    )
+    assert service.persistence_available is True
+    assert service.fallback_active is False
+    assert service.fail_closed is False
+
+    with pytest.raises(SupabaseRagUnavailable, match="Supabase RAG operation failed"):
+        service.search([0.25] * 384)
+
+    # Durable authority was seen, so the outage fails closed instead of
+    # falling back. Reporting fallback_active here told the Java caller that
+    # memory was serving traffic when nothing was.
+    assert service.persistence_available is False
+    assert service.durable_authority_observed is True
+    assert service.fallback_active is False
+    assert service.fail_closed is True
+    # The deployment is still permissive by configuration; only the observed
+    # behaviour distinguishes the two states.
+    assert service.fallback_permitted is True
+
+
+def test_strict_deployment_reports_fail_closed_not_fallback() -> None:
+    service = PersistentRagService(
+        HydratedThenOutageStore(),  # type: ignore[arg-type]
+        max_documents=5,
+        fallback_to_memory=False,
+    )
+
+    with pytest.raises(SupabaseRagUnavailable, match="Supabase RAG operation failed"):
+        service.search([0.25] * 384)
+
+    assert service.fallback_permitted is False
+    assert service.fallback_active is False
+    assert service.fail_closed is True
+
+
+def test_fallback_active_is_false_for_clinical_memory_without_durable_authority() -> None:
+    service = PersistentRagService(
+        NeverAnswersStore(),  # type: ignore[arg-type]
+        max_documents=5,
+        fallback_to_memory=True,
+    )
+    service.index.add(
+        RagDocument(
+            id="article:guide",
+            source_type="article",
+            source_id="guide",
+            title="Clinical guide",
+            content="Noi dung da duyet.",
+            embedding=[0.25] * 384,
+            embedding_model="provided",
+            embedding_provenance="local_provider",
+            metadata={"projection_kind": "CLINICAL", "eligibility_revision": "4"},
+        )
+    )
+
+    # A clinical projection is never served from memory, so the fallback is not
+    # active even though the local index is populated and the deployment armed
+    # the fallback.
+    with pytest.raises(SupabaseRagUnavailable, match="Supabase RAG operation failed"):
+        service.search([0.25] * 384)
+
+    assert service.persistence_available is False
+    assert service.fallback_active is False
+    assert service.fail_closed is True
+    assert service.fallback_permitted is True
+
+
+def test_healthy_durable_backend_reports_neither_fallback_nor_fail_closed() -> None:
+    service = PersistentRagService(
+        HealthyDurableStore(),  # type: ignore[arg-type]
+        max_documents=5,
+        fallback_to_memory=True,
+    )
+
+    assert service.search([0.25] * 384) == []
+    assert service.persistence_available is True
+    assert service.fallback_permitted is True
+    assert service.fallback_active is False
+    assert service.fail_closed is False
+
+
+def test_fallback_active_and_fail_closed_are_never_both_true() -> None:
+    services = [
+        PersistentRagService(
+            NeverAnswersStore(),  # type: ignore[arg-type]
+            max_documents=5,
+            fallback_to_memory=True,
+        ),
+        PersistentRagService(
+            HydratedThenOutageStore(),  # type: ignore[arg-type]
+            max_documents=5,
+            fallback_to_memory=True,
+        ),
+        PersistentRagService(
+            HydratedThenOutageStore(),  # type: ignore[arg-type]
+            max_documents=5,
+            fallback_to_memory=False,
+        ),
+        PersistentRagService(
+            HealthyDurableStore(),  # type: ignore[arg-type]
+            max_documents=5,
+            fallback_to_memory=True,
+        ),
+        PersistentRagService(
+            HealthyDurableStore(),  # type: ignore[arg-type]
+            max_documents=5,
+            fallback_to_memory=False,
+        ),
+    ]
+    # Drive each through a retrieval and a mutation so a flag pair cannot be
+    # transiently inconsistent in any reachable state.
+    for service in services:
+        for _ in range(2):
+            assert not (service.fallback_active and service.fail_closed)
+            try:
+                service.search([0.25] * 384)
+            except SupabaseRagUnavailable:
+                pass
+            assert not (service.fallback_active and service.fail_closed)
+            try:
+                service.ingest(
+                    "specialty",
+                    "cardio",
+                    "Tim mach",
+                    "Kham tim mach.",
+                    embedding=[0.25] * 384,
+                )
+            except SupabaseRagUnavailable:
+                pass
+            assert not (service.fallback_active and service.fail_closed)
+
+
+def test_build_rag_service_no_dsn_reports_memory_as_a_permitted_fallback() -> None:
+    service = build_rag_service(
+        Settings(
+            rag_storage_backend="supabase",
+            ai_service_runtime="local",
+            supabase_db_url="",
+            supabase_rag_fallback_to_memory=True,
+        )
+    )
+
+    assert isinstance(service, RagService)
+    assert not isinstance(service, PersistentRagService)
+    assert service.backend == "memory"
+    assert service.fallback_active is True
+    assert service.fallback_permitted is True
+    assert service.fail_closed is False
+
+
 def test_artifacts_declare_catalog_customer_and_vector_contract() -> None:
     root = Path(__file__).resolve().parents[3]
     migration = (root / "supabase" / "migrations" / "20260822101722_healthcare_data_platform.sql").read_text(
