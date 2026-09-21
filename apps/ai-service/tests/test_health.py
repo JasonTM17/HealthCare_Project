@@ -4,8 +4,81 @@ from unittest.mock import patch
 from uuid import UUID
 
 from app.main import app, rag_service, settings
+from app.rag import RagDocument
+from app.supabase_rag import PersistentRagService, SupabaseRagUnavailable
 
 client = TestClient(app)
+
+# Every key the pre-change /health contract published. The Spring consumer
+# reads this payload as a generic Map, so removing or renaming one of these is
+# a breaking change; adding one is not.
+BASELINE_HEALTH_KEYS = frozenset(
+    {
+        "status",
+        "service",
+        "ai_provider",
+        "deepseek_configured",
+        "deepseek_model",
+        "service_auth_configured",
+        "local_auth_escape_hatch",
+        "ready",
+        "provider_configured",
+        "fallback_allowed",
+        "remote_probe_required",
+        "rag_ready",
+        "rag_backend",
+        "rag_fallback_active",
+    }
+)
+
+
+def _operational_document() -> RagDocument:
+    return RagDocument(
+        id="branch:hcm",
+        source_type="branch",
+        source_id="hcm",
+        title="Chi nhanh",
+        content="Kham tai co so.",
+        embedding=[0.25] * 384,
+        embedding_model="provided",
+        embedding_provenance="local_provider",
+        metadata={"projection_kind": "OPERATIONAL", "eligibility_revision": "1"},
+    )
+
+
+def _never_answering_service(*, fallback_to_memory: bool) -> PersistentRagService:
+    """A durable-backed service that never saw Supabase answer."""
+
+    class OfflineStore:
+        def list_documents(self) -> list[RagDocument]:
+            raise SupabaseRagUnavailable("offline")
+
+    return PersistentRagService(
+        OfflineStore(),  # type: ignore[arg-type]
+        fallback_to_memory=fallback_to_memory,
+    )
+
+
+def _failed_over_service(*, fallback_to_memory: bool) -> PersistentRagService:
+    """A durable-backed service whose authority answered, then went away."""
+
+    class OutageStore:
+        def list_documents(self) -> list[RagDocument]:
+            return [_operational_document()]
+
+        def active_profile(self) -> tuple[str, str] | None:
+            return ("provided", "local_provider")
+
+        def search(self, *_: object, **__: object) -> list[tuple[RagDocument, float]]:
+            raise SupabaseRagUnavailable("offline")
+
+    service = PersistentRagService(
+        OutageStore(),  # type: ignore[arg-type]
+        fallback_to_memory=fallback_to_memory,
+    )
+    with pytest.raises(SupabaseRagUnavailable):
+        service.search([0.25] * 384)
+    return service
 
 
 def test_health_returns_ok() -> None:
@@ -173,3 +246,78 @@ def test_local_runtime_reports_degraded_remote_fallback(monkeypatch: pytest.Monk
     assert response.status_code == 503
     assert response.json()["status"] == "degraded"
     assert response.json()["fallback_allowed"] is True
+
+
+def test_health_payload_remains_backward_compatible() -> None:
+    payload = client.get("/health").json()
+
+    # Additive-only change guard for the Spring Map consumer.
+    assert BASELINE_HEALTH_KEYS <= set(payload)
+
+
+def test_health_reports_no_rag_degradation_for_a_memory_deployment() -> None:
+    # The test runtime configures RAG_STORAGE_BACKEND=memory, which is the
+    # chosen backend rather than a degradation of a configured one.
+    payload = client.get("/health").json()
+
+    assert payload["ready"] is True
+    assert payload["rag_backend"] == "memory"
+    assert payload["rag_fallback_active"] is False
+    assert payload["rag_fallback_permitted"] is False
+    assert payload["rag_fail_closed"] is False
+
+
+def test_health_marks_rag_fallback_active_only_while_memory_is_serving(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.main.rag_service",
+        _never_answering_service(fallback_to_memory=True),
+    )
+
+    response = client.get("/health")
+    payload = response.json()
+
+    assert response.status_code == 200
+    assert payload["rag_backend"] == "supabase"
+    assert payload["rag_fallback_permitted"] is True
+    # Nothing durable ever answered, so this really is fallback traffic.
+    assert payload["rag_fallback_active"] is True
+    assert payload["rag_fail_closed"] is False
+
+
+def test_health_marks_rag_fail_closed_without_claiming_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.main.rag_service",
+        _failed_over_service(fallback_to_memory=True),
+    )
+
+    response = client.get("/health")
+    payload = response.json()
+
+    # Durable authority was observed and then lost, so retrieval fails closed.
+    # The old predicate reported this as fallback traffic and the Java caller
+    # logged "serving from the in-memory fallback" while nothing was.
+    assert response.status_code == 503
+    assert payload["rag_backend"] == "supabase"
+    assert payload["rag_ready"] is False
+    assert payload["rag_fallback_active"] is False
+    assert payload["rag_fail_closed"] is True
+    assert payload["rag_fallback_permitted"] is True
+
+
+def test_health_reports_fail_closed_for_a_strict_deployment_outage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.main.rag_service",
+        _failed_over_service(fallback_to_memory=False),
+    )
+
+    payload = client.get("/health").json()
+
+    assert payload["rag_fallback_permitted"] is False
+    assert payload["rag_fallback_active"] is False
+    assert payload["rag_fail_closed"] is True

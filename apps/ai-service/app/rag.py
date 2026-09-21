@@ -415,6 +415,9 @@ class RagServiceContract(Protocol):
 class RagService:
     """Coordinates normalized, idempotent ingestion and hybrid retrieval."""
 
+    # Backend identity surfaced through /health.
+    backend: str = "memory"
+
     def __init__(
         self,
         index: Optional[RagIndex] = None,
@@ -427,6 +430,32 @@ class RagService:
         self._latest_projection_states: dict[str, tuple[object, ...]] = {}
         self._operation_sequence = 0
         self._latest_operations: dict[str, int] = {}
+        # Operator-facing RAG degradation signals exposed through /health. They
+        # are read-only so PersistentRagService can override them with computed
+        # properties without changing shape. A plain in-memory deployment is
+        # neither serving a fallback nor failing closed: memory is simply the
+        # configured backend, so all three stay False.
+        self._fallback_active = False
+        self._fallback_permitted = False
+        self._fail_closed = False
+
+    @property
+    def fallback_active(self) -> bool:
+        """Whether a retrieval is currently served from memory as a fallback."""
+
+        return self._fallback_active
+
+    @property
+    def fallback_permitted(self) -> bool:
+        """Whether this deployment is allowed to degrade to memory at all."""
+
+        return self._fallback_permitted
+
+    @property
+    def fail_closed(self) -> bool:
+        """Whether durable RAG is unavailable and memory retrieval is refused."""
+
+        return self._fail_closed
 
     def health_probe(self) -> bool:
         """Return whether the in-memory index is ready for local use."""
