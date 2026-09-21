@@ -107,8 +107,8 @@ contract, so record it in the dated snapshot section afterwards.
 | `STORAGE_CONSULTATION_ENABLED` | application.yml:167 | false | consultation attachments (defaults to upload flag) | same as above |
 | `STORAGE_AV_REQUIRED` | application.yml:175 | false | fail-closed AV scan enforcement | scanner service reachable |
 | `NEXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY` (Vercel) | components/BranchMap.tsx:55 | unset | branch pages render embedded maps | Maps Embed API key; CSP `frame-src` already allows google.com |
-| `NEXT_PUBLIC_ALLOW_INDEXING` (Vercel) | app/sitemap.ts:29, app/robots.ts:4 | unset | sitemap/robots allow indexing | content approval for crawling |
-| `NEXT_PUBLIC_SITE_URL` (Vercel) | app/layout.tsx:27 | unset → placeholder domain | canonical/OG URLs + sitemap base | production builds fail without it (build guard) |
+| `NEXT_PUBLIC_ALLOW_INDEXING` (Vercel) | `lib/site-url.ts` (`indexingAllowed`) | unset → **indexable** | robots/sitemap/metadata allow crawling of the public catalog | operator decision (2026-09-20): production is fully indexable; set `false` only to de-index deliberately |
+| `NEXT_PUBLIC_SITE_URL` (Vercel) | `lib/site-url.ts`, app/layout.tsx | unset → placeholder domain | canonical/OG URLs + sitemap base | required for production builds (build guard); must be the public HTTPS origin |
 | `APP_NOTIFICATION_EMAIL_ENABLED` | application.yml:95 | false | committed in-app notifications are queued as SYSTEM_NOTIFICATION email outbox entries, honoring EMAIL preference + quiet hours | SMTP + outbox encryption secrets configured; preference policy reviewed |
 | `APP_AUTH_ALLOW_TEST_OTP` | application.yml:130 | unset (false) | fixed "123456" auth code | flag AND Spring `test` profile — never combine in any deployed environment |
 
@@ -372,6 +372,37 @@ NEXT_PUBLIC_ALLOW_INDEXING limited to public metadata. The BFF forwards only the
 closed session/CSRF cookie and header set. Missing or mismatched values must
 fail closed with 503 BFF_CONFIGURATION_UNAVAILABLE; an untrusted Origin must
 fail with 403 BFF_ORIGIN_INVALID.
+
+### Public metadata and indexing (Vercel environment)
+
+Indexing is intentionally ON (operator decision, 2026-09-20: full indexing).
+These two variables are public metadata only — never secrets, and never read by
+the BFF:
+
+| Variable | Required value | Consumed by |
+| --- | --- | --- |
+| `NEXT_PUBLIC_SITE_URL` | the public HTTPS origin, e.g. `https://www.healthcare.id.vn` (no path/trailing slash) | `metadataBase`, canonical/`og:url`, JSON-LD, the sitemap base, `robots.txt` sitemap line |
+| `NEXT_PUBLIC_ALLOW_INDEXING` | leave unset, or `true`, for production. `false` de-indexes on purpose | `lib/site-url.ts:indexingAllowed()` → `robots.txt`, `sitemap.xml`, the root `robots` metadata |
+
+With both set as above, production serves `robots.txt` with
+`Allow: /` (private prefixes `/api/`, `/patient/`, `/doctor/`, `/admin/` stay
+disallowed), a populated `sitemap.xml`, and `index, follow` metadata with a
+self-referencing canonical on every public route. localhost, private-network
+hosts, IP literals, the placeholder origin and preview hosts
+(`*.vercel.app`, `*.onrender.com`) are non-indexable regardless, so a preview
+deployment can never compete with production for the same content.
+
+Both values are read while the route is rendered: the metadata and
+`robots.txt` are produced during `next build` (the build fails without
+`NEXT_PUBLIC_SITE_URL`), while `sitemap.xml` is generated per request. Set them
+for the Production environment in Vercel — and for Preview only when a preview
+deployment genuinely must be indexable, which is not the default.
+
+Verify after a deploy:
+
+    GET /robots.txt  -> Allow: / and a Sitemap: line pointing at the public origin
+    GET /sitemap.xml -> non-empty; detail URLs use the public origin
+    GET /doctors     -> HTML carries no `noindex`; X-Vercel-Cache MISS then HIT for the same query string
 
 After a Vercel exact-SHA deploy (manual CLI or a provider-confirmed Git
 integration deploy), verify the stable alias:
