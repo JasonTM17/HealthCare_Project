@@ -21,7 +21,7 @@ public record HoldSlotRequest(
     @NotBlank @Email @Size(max = 320) String email,
     @Size(max = 1000) String reasonForVisit,
     UUID specialtyId,
-    UUID branchId,
+    @NotNull UUID branchId,
     UUID packageId,
     Boolean hasInsurance,
     @NotNull @AssertTrue(message = "Cần đồng ý chính sách bảo mật trước khi đặt lịch") Boolean privacyConsent

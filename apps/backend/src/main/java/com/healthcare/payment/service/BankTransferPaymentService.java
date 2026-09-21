@@ -46,6 +46,8 @@ public class BankTransferPaymentService {
 
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final int MAX_PAGE_SIZE = 100;
+    /** Hard cap on how many admins one payment submission may notify. */
+    private static final int MAX_ADMIN_NOTIFICATION_FANOUT = 50;
     private static final Set<String> ALLOWED_SORTS = Set.of("createdAt", "submittedAt", "verifiedAt", "status", "amount", "id");
     private static final Sort DEFAULT_SORT = Sort.by(Sort.Order.desc("submittedAt"), Sort.Order.desc("createdAt"));
 
@@ -167,6 +169,7 @@ public class BankTransferPaymentService {
             transition(previousStatus, saved.getStatus()) + ";referenceFingerprint=" + fingerprint(reference));
         notifyPatient(appointment, EventType.PAYMENT_SUBMITTED, "Đã nhận thông tin chuyển khoản",
             "Giao dịch cho lịch " + appointment.getBookingCode() + " đang được kiểm tra.");
+        notifyAdminsOfSubmission(appointment);
         return toResponse(saved);
     }
 
@@ -311,6 +314,13 @@ public class BankTransferPaymentService {
         notifyPatient(saved.getAppointment(), EventType.PAYMENT_SUBMITTED, "Đã nhận giao dịch chuyển khoản",
             "Giao dịch cho lịch " + saved.getAppointment().getBookingCode()
                 + " đã được ghi nhận và đang chờ admin kiểm tra trước khi xác nhận thanh toán.");
+        // The row now sits in the same review queue as a patient submission, so
+        // the reviewers have to be told about it. Without this the only proof
+        // that a transfer exists is the bank webhook itself and the queue is
+        // silently never picked up.
+        notifyAdminsOfSubmission(saved.getAppointment(), "Có giao dịch chờ đối soát",
+            "Ngân hàng báo đã nhận chuyển khoản cho lịch " + saved.getAppointment().getBookingCode()
+                + ". Vui lòng đối soát với sao kê trong mục Thanh toán.");
         return toResponse(saved);
     }
 
@@ -458,6 +468,41 @@ public class BankTransferPaymentService {
             if (!userId.equals(appointment.getPatient().getUserId())) {
                 notificationService.create(userId, type, title, message, appointment.getId());
             }
+        }
+    }
+
+    /**
+     * A submitted transfer needs an administrator to reconcile it against the
+     * bank statement, so every ACTIVE admin receives the heads-up in-app.
+     * The fan-out is resolved in the same transaction and hard-capped at
+     * {@link #MAX_ADMIN_NOTIFICATION_FANOUT} recipients; the copy carries the
+     * booking code only — no amount, reference or patient identity.
+     */
+    private void notifyAdminsOfSubmission(Appointment appointment) {
+        notifyAdminsOfSubmission(appointment, "Có giao dịch chờ đối soát",
+            "Bệnh nhân đã gửi thông tin chuyển khoản cho lịch " + appointment.getBookingCode()
+                + ". Vui lòng kiểm tra trong mục Thanh toán.");
+    }
+
+    /**
+     * Shared review-queue fan-out for both submission origins: the patient who
+     * reports a transfer manually and the bank webhook that reports one on the
+     * patient's behalf land in the same admin queue, so both must ping the
+     * reviewers. Only the copy differs.
+     */
+    private void notifyAdminsOfSubmission(Appointment appointment, String title, String message) {
+        for (UUID adminId : userRepository.findActiveAdminUserIds(
+                PageRequest.of(0, MAX_ADMIN_NOTIFICATION_FANOUT))) {
+            if (adminId.equals(appointment.getPatient().getUserId())) {
+                continue;
+            }
+            notificationService.create(
+                adminId,
+                EventType.PAYMENT_SUBMITTED,
+                title,
+                message,
+                appointment.getId()
+            );
         }
     }
 }

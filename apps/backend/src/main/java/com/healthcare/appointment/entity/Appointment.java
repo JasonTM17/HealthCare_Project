@@ -88,6 +88,14 @@ public class Appointment {
     @Column(name = "hold_expires_at")
     private OffsetDateTime holdExpiresAt;
 
+    /**
+     * Client-supplied {@code Idempotency-Key} for the hold that created this
+     * row. A unique index (V90) makes a retried hold return this appointment
+     * instead of creating a second one.
+     */
+    @Column(name = "hold_idempotency_key", length = 128)
+    private String holdIdempotencyKey;
+
     @Column(name = "otp_code", length = 100)
     private String otpCode;
 
@@ -268,6 +276,14 @@ public class Appointment {
 
     public void setHoldExpiresAt(OffsetDateTime holdExpiresAt) {
         this.holdExpiresAt = holdExpiresAt;
+    }
+
+    public String getHoldIdempotencyKey() {
+        return holdIdempotencyKey;
+    }
+
+    public void setHoldIdempotencyKey(String holdIdempotencyKey) {
+        this.holdIdempotencyKey = holdIdempotencyKey;
     }
 
     public String getOtpCode() {

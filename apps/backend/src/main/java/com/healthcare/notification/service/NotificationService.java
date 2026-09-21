@@ -96,9 +96,11 @@ public class NotificationService {
         return switch (eventType) {
             case APPOINTMENT_CREATED, APPOINTMENT_CONFIRMED, APPOINTMENT_RESCHEDULED,
                  APPOINTMENT_CANCELLED, APPOINTMENT_REMINDER -> NotificationCategory.APPOINTMENT;
-            case DIAGNOSTIC_RESULT_AVAILABLE -> NotificationCategory.CLINICAL_UPDATE;
+            case DIAGNOSTIC_RESULT_AVAILABLE, VISIT_COMPLETED,
+                 HEALTH_QUESTION_SUBMITTED, HEALTH_QUESTION_ANSWERED -> NotificationCategory.CLINICAL_UPDATE;
             case PAYMENT_SUBMITTED, PAYMENT_CONFIRMED, PAYMENT_REJECTED,
                  PAYMENT_REFUNDED -> NotificationCategory.PAYMENT;
+            case CONSULTATION_MESSAGE -> NotificationCategory.CONSULTATION;
             case CARE_PLAN_CREATED, CARE_PLAN_ITEM_COMPLETED,
                  CARE_PLAN_ITEM_CANCELLED -> NotificationCategory.CARE_PLAN;
         };

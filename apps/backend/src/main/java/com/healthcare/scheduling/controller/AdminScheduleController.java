@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -50,15 +51,17 @@ public class AdminScheduleController {
     @PostMapping("/exceptions/doctors/{doctorId}/branches/{branchId}")
     public ResponseEntity<DoctorScheduleExceptionResponse> createException(
             @PathVariable UUID doctorId, @PathVariable UUID branchId,
-            @Valid @RequestBody DoctorScheduleExceptionRequest request) {
-        return ResponseEntity.ok(exceptionService.create(doctorId, branchId, request));
+            @Valid @RequestBody DoctorScheduleExceptionRequest request,
+            @RequestParam(name = "force", defaultValue = "false") boolean force) {
+        return ResponseEntity.ok(exceptionService.create(doctorId, branchId, request, force));
     }
 
     @Operation(summary = "Cập nhật ngoại lệ lịch làm việc", description = "Chỉnh sửa lý do hoặc thời gian ngoại lệ lịch")
     @PutMapping("/exceptions/{exceptionId}")
     public ResponseEntity<DoctorScheduleExceptionResponse> updateException(
-            @PathVariable UUID exceptionId, @Valid @RequestBody DoctorScheduleExceptionRequest request) {
-        return ResponseEntity.ok(exceptionService.update(exceptionId, request));
+            @PathVariable UUID exceptionId, @Valid @RequestBody DoctorScheduleExceptionRequest request,
+            @RequestParam(name = "force", defaultValue = "false") boolean force) {
+        return ResponseEntity.ok(exceptionService.update(exceptionId, request, force));
     }
 
     @Operation(summary = "Xóa ngoại lệ lịch làm việc", description = "Khôi phục lịch làm việc bình thường của bác sĩ")
@@ -88,14 +91,17 @@ public class AdminScheduleController {
     @PutMapping("/{scheduleId}")
     public ResponseEntity<DoctorScheduleResponse> update(
             @PathVariable UUID scheduleId,
-            @Valid @RequestBody DoctorScheduleRequest request) {
-        return ResponseEntity.ok(DoctorScheduleResponse.from(scheduleService.updateSchedule(scheduleId, request)));
+            @Valid @RequestBody DoctorScheduleRequest request,
+            @RequestParam(name = "force", defaultValue = "false") boolean force) {
+        return ResponseEntity.ok(DoctorScheduleResponse.from(scheduleService.updateSchedule(scheduleId, request, force)));
     }
 
     @Operation(summary = "Xóa ca khám làm việc", description = "Hủy bỏ ca khám định kỳ của bác sĩ")
     @DeleteMapping("/{scheduleId}")
-    public ResponseEntity<Void> delete(@PathVariable UUID scheduleId) {
-        scheduleService.deleteSchedule(scheduleId);
+    public ResponseEntity<Void> delete(
+            @PathVariable UUID scheduleId,
+            @RequestParam(name = "force", defaultValue = "false") boolean force) {
+        scheduleService.deleteSchedule(scheduleId, force);
         return ResponseEntity.noContent().build();
     }
 }

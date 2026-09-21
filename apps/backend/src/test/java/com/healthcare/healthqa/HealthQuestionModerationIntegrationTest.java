@@ -31,6 +31,15 @@ class HealthQuestionModerationIntegrationTest {
         assertThat(fixture.questionStatus()).isEqualTo("PUBLISHED");
         assertThat(fixture.answerStatus()).isEqualTo("APPROVED");
         assertThat(fixture.answerReviewer()).isEqualTo(fixture.reviewerId());
+        // Approval is what unlocks the patient-facing answer, so the asker
+        // gets exactly one in-app notice, typed HEALTH_QUESTION_ANSWERED.
+        verify(fixture.notifications()).create(
+            org.mockito.ArgumentMatchers.eq(fixture.authorId()),
+            org.mockito.ArgumentMatchers.eq(
+                com.healthcare.notification.entity.Notification.EventType.HEALTH_QUESTION_ANSWERED),
+            org.mockito.ArgumentMatchers.anyString(),
+            org.mockito.ArgumentMatchers.anyString(),
+            org.mockito.ArgumentMatchers.eq(fixture.questionId()));
     }
 
     @Test

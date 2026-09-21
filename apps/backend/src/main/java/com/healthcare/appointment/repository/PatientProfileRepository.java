@@ -28,6 +28,17 @@ public interface PatientProfileRepository extends JpaRepository<PatientProfile, 
     int deductAiCreditByUserId(@Param("userId") UUID userId);
 
     /**
+     * Atomically returns one AI credit. Mirrors
+     * {@link #deductAiCreditByUserId(UUID)} so a refund that races another
+     * refund or a spend on the same profile cannot lose an update; returns 0
+     * only when the profile does not exist.
+     */
+    @Modifying
+    @Query("update PatientProfile p set p.aiCredits = p.aiCredits + 1"
+            + " where p.userId = :userId")
+    int refundAiCreditByUserId(@Param("userId") UUID userId);
+
+    /**
      * Scalar projection used to read the post-decrement balance for the
      * credit ledger; unlike an entity find it never serves a stale
      * persistence-context copy after the bulk update above.

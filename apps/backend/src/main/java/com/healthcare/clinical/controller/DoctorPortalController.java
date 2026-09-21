@@ -9,6 +9,8 @@ import com.healthcare.clinical.dto.MedicalRecordResponse;
 import com.healthcare.clinical.service.ClinicalService;
 import com.healthcare.hospital.dto.DoctorResponse;
 import com.healthcare.hospital.service.DoctorService;
+import com.healthcare.scheduling.dto.DoctorRosterEntryResponse;
+import com.healthcare.scheduling.dto.DoctorRosterExceptionResponse;
 import com.healthcare.security.HealthcareUserPrincipal;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -72,18 +74,35 @@ public class DoctorPortalController {
         return ResponseEntity.ok(doctorService.updateProfile(principal.getUserId(), request));
     }
 
-    @Operation(summary = "Lịch khám bệnh của bác sĩ", description = "Tra cứu danh sách bệnh nhân hẹn khám theo ngày và trạng thái tiếp nhận")
+    @Operation(
+        summary = "Lịch khám bệnh của bác sĩ",
+        description = """
+            Tra cứu danh sách bệnh nhân hẹn khám của chính bác sĩ đang đăng nhập. Truyền 'date' \
+            (yyyy-MM-dd) để xem một ngày, hoặc bỏ 'date' và truyền 'from' + 'to' để xem theo \
+            khoảng ngày tối đa 31 ngày (sắp xếp theo ngày khám rồi giờ bắt đầu). Có thể lọc thêm \
+            theo 'status'."""
+    )
     @GetMapping("/appointments")
     public ResponseEntity<Page<DoctorAppointmentResponse>> getAppointments(
-            @RequestParam String date,
+            @RequestParam(required = false) String date,
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to,
             @RequestParam(required = false) String status,
             @AuthenticationPrincipal UserDetails userDetails,
             @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(
-            appointmentPortalService.getDoctorAppointments(date, status, userDetails, pageable));
+            appointmentPortalService.getDoctorAppointments(date, from, to, status, userDetails, pageable));
     }
 
-    @Operation(summary = "Cập nhật trạng thái lịch khám", description = "Chuyển trạng thái lượt khám (CONFIRMED, IN_PROGRESS, COMPLETED, CANCELLED)")
+    @Operation(
+        summary = "Cập nhật trạng thái lịch khám",
+        description = """
+            Bác sĩ điều trị chuyển trạng thái lượt khám đang được phân công cho mình. Chỉ hai \
+            bước hợp lệ: CONFIRMED sang CHECKED_IN hoặc NO_SHOW, và CHECKED_IN sang IN_PROGRESS \
+            hoặc NO_SHOW. Tiếp nhận (CHECKED_IN / IN_PROGRESS) chỉ thực hiện được trong ngày \
+            khám; NO_SHOW chỉ sau khi khung giờ khám đã kết thúc. COMPLETED không đặt qua endpoint \
+            này mà được ghi nhận khi bác sĩ tạo bệnh án cho lượt khám."""
+    )
     @PatchMapping("/appointments/{appointmentId}/status")
     public ResponseEntity<DoctorAppointmentResponse> updateAppointmentStatus(
             @PathVariable UUID appointmentId,
@@ -91,6 +110,32 @@ public class DoctorPortalController {
             @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(
             appointmentPortalService.updateDoctorAppointmentStatus(appointmentId, request.status(), userDetails));
+    }
+
+    @Operation(
+        summary = "Lịch làm việc cố định của bác sĩ",
+        description = """
+            Danh sách ca khám định kỳ theo tuần của chính bác sĩ đang đăng nhập, gồm cả ca đã \
+            tạm ngưng (trường 'active'), sắp xếp theo thứ rồi giờ bắt đầu. Giờ trả về theo định \
+            dạng HH:mm:ss."""
+    )
+    @GetMapping("/schedules")
+    public ResponseEntity<List<DoctorRosterEntryResponse>> getSchedules(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(appointmentPortalService.getDoctorRoster(userDetails));
+    }
+
+    @Operation(
+        summary = "Ngoại lệ lịch làm việc của bác sĩ",
+        description = """
+            Các ngày nghỉ, đổi ca hoặc điều chỉnh giờ khám riêng của chính bác sĩ đang đăng \
+            nhập, sắp xếp theo ngày mới nhất trước. Giờ tùy chỉnh (nếu có) trả về theo định dạng \
+            HH:mm:ss."""
+    )
+    @GetMapping("/schedule-exceptions")
+    public ResponseEntity<List<DoctorRosterExceptionResponse>> getScheduleExceptions(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(appointmentPortalService.getDoctorScheduleExceptions(userDetails));
     }
 
     @Operation(summary = "Bệnh án điện tử của người bệnh", description = "Xem lịch sử bệnh án lâm sàng của bệnh nhân theo chỉ định y khoa")

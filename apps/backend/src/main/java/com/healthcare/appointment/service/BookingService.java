@@ -50,6 +50,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.Map;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -60,7 +61,18 @@ public class BookingService {
     private static final int OTP_DURATION_MINUTES = 5;
     private static final int MAX_OTP_ATTEMPTS = 5;
     private static final String BOOKING_PRIVACY_CONSENT_VERSION = "booking-privacy-v1";
+    /** Live holds one patient may keep open at the same time. */
+    static final int MAX_LIVE_HOLDS_PER_PATIENT = 2;
+    /**
+     * Cancellation reason for a hold that ran out. Shared by the lazy sweeps in
+     * this service, the scheduled hold sweeper, and the historical repairs
+     * (V8/V10.4) so every expired hold carries the same wording.
+     */
+    public static final String HOLD_EXPIRED_CANCELLATION_REASON = "Hết thời gian giữ chỗ (Quá 10 phút)";
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+    /** Safe, bounded client key: same shape the AI chat surface accepts. */
+    private static final java.util.regex.Pattern IDEMPOTENCY_KEY_PATTERN =
+        java.util.regex.Pattern.compile("^[A-Za-z0-9._:-]{8,128}$");
 
     private final AppointmentRepository appointmentRepository;
     private final PatientProfileRepository patientProfileRepository;
@@ -166,17 +178,47 @@ public class BookingService {
      */
     @Transactional
     public HoldSlotResponse holdSlot(HoldSlotRequest request) {
-        return holdSlot(request, null);
+        return holdSlot(request, null, null);
     }
 
     @Transactional
     public HoldSlotResponse holdSlot(HoldSlotRequest request, UserDetails userDetails) {
+        return holdSlot(request, userDetails, null);
+    }
+
+    /**
+     * Holds a slot for 10 minutes.
+     *
+     * <p>{@code rawIdempotencyKey} is the client's {@code Idempotency-Key}. When
+     * present and already used by a live hold, that hold is returned instead of
+     * creating a second appointment, so a retry after a lost response is safe.
+     */
+    @Transactional
+    public HoldSlotResponse holdSlot(HoldSlotRequest request, UserDetails userDetails, String rawIdempotencyKey) {
         if (request == null || request.doctorId() == null || request.appointmentDate() == null
                 || request.startTime() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Thông tin khung giờ không hợp lệ");
         }
         if (!Boolean.TRUE.equals(request.privacyConsent())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cần đồng ý chính sách bảo mật trước khi đặt lịch");
+        }
+        // A hold without a branch would bypass the V10 composite
+        // (doctor, branch) foreign key and reintroduce branchless rows that no
+        // schedule can authorize. The branch is therefore mandatory, not
+        // optional, before any availability work happens.
+        if (request.branchId() == null) {
+            throw new BusinessException(
+                400,
+                ErrorCodes.BRANCH_REQUIRED,
+                "Vui lòng chọn cơ sở khám trước khi giữ chỗ."
+            );
+        }
+        String idempotencyKey = normalizeIdempotencyKey(rawIdempotencyKey);
+        if (idempotencyKey != null) {
+            HoldSlotResponse replayed = replayHold(request, idempotencyKey);
+            if (replayed != null) {
+                return replayed;
+            }
         }
 
         Doctor doctor = doctorRepository.findById(request.doctorId())
@@ -196,17 +238,16 @@ public class BookingService {
                 "Bác sĩ không thuộc chuyên khoa đang được chọn"
             );
         }
-        com.healthcare.hospital.entity.Branch branch = request.branchId() == null
-            ? null
-            : branchRepository.findByIdAndActiveTrue(request.branchId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy cơ sở khám"));
-        if (branch != null && !doctorBranchRepository.existsByDoctorIdAndBranchId(request.doctorId(), branch.getId())) {
+        com.healthcare.hospital.entity.Branch branch = branchRepository
+            .findByIdAndActiveTrue(request.branchId())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy cơ sở khám"));
+        if (!doctorBranchRepository.existsByDoctorIdAndBranchId(request.doctorId(), branch.getId())) {
             throw new ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
                 "Bác sĩ không làm việc tại cơ sở khám đã chọn"
             );
         }
-        if (branch != null && !branch.isActive()) {
+        if (!branch.isActive()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Cơ sở khám hiện không nhận lịch");
         }
 
@@ -232,10 +273,9 @@ public class BookingService {
 
         // Serialize the slot key even when no appointment row exists yet. A row lock
         // alone cannot prevent two first writers from both observing an empty slot.
-        String branchLockKey = request.branchId() == null
-            ? "branchless"
-            : request.branchId().toString();
-        String slotLockKey = request.doctorId() + ":" + branchLockKey + ":" + request.appointmentDate();
+        // The key is doctor+date (not branch+date) so a physician with the same
+        // hours at two branches is serialized across branches as well.
+        String slotLockKey = request.doctorId() + ":" + request.appointmentDate();
         slotLocker.acquire(slotLockKey);
 
         List<Appointment> expired = appointmentRepository.findExpiredPendingConflictsForUpdate(
@@ -248,7 +288,7 @@ public class BookingService {
         );
         for (Appointment expiredAppointment : expired) {
             expiredAppointment.setStatus(AppointmentStatus.CANCELLED);
-            expiredAppointment.setCancellationReason("Hết thời gian giữ chỗ (Quá 10 phút)");
+            expiredAppointment.setCancellationReason(HOLD_EXPIRED_CANCELLATION_REASON);
         }
         if (!expired.isEmpty()) {
             appointmentRepository.saveAll(expired);
@@ -272,7 +312,26 @@ public class BookingService {
             );
         }
 
-        // 2. Find or Create Patient Profile (Hybrid Onboarding)
+        // 2. Doctor-level overlap across branches. The V11/V13 exclusion
+        // constraint is branch-scoped, so without this check one physician could
+        // be booked twice at the same clock time in two different branches.
+        List<Appointment> doctorOverlaps = appointmentRepository.findDoctorOverlapsForUpdate(
+            request.doctorId(),
+            request.appointmentDate(),
+            request.startTime(),
+            bookableSlot.endTime(),
+            now,
+            null
+        );
+        if (!doctorOverlaps.isEmpty()) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Bác sĩ đã có lịch khám hoặc đang giữ chỗ ở cơ sở khác trong khung giờ này. "
+                    + "Vui lòng chọn khung giờ khác."
+            );
+        }
+
+        // 3. Find or Create Patient Profile (Hybrid Onboarding)
         String cleanPhone = request.phone().replaceAll("[^0-9+]", "");
         PatientResolution patientResolution = resolvePatient(request, cleanPhone, userDetails);
         PatientProfile patient = patientResolution.patient();
@@ -281,7 +340,20 @@ public class BookingService {
             throw emailDeliveryUnavailable();
         }
 
-        // 3. Create Appointment with Hold Lock
+        // 4. Bound how many slots one patient can park at the same time. Holds
+        // expire on their own, but nothing else stops a patient from parking an
+        // entire clinic day and starving other patients.
+        long liveHolds = appointmentRepository.countLiveHoldsForPatient(patient.getId(), now);
+        if (liveHolds >= MAX_LIVE_HOLDS_PER_PATIENT) {
+            throw new BusinessException(
+                429,
+                ErrorCodes.TOO_MANY_ACTIVE_HOLDS,
+                "Bạn đang giữ " + liveHolds + " chỗ khám chưa xác nhận. "
+                    + "Vui lòng xác nhận hoặc hủy bớt trước khi giữ chỗ mới."
+            );
+        }
+
+        // 5. Create Appointment with Hold Lock
         String bookingCode = generateBookingCode(request.appointmentDate());
         OffsetDateTime holdExpiry = now.plusMinutes(HOLD_DURATION_MINUTES);
         OffsetDateTime otpExpiry = now.plusMinutes(OTP_DURATION_MINUTES);
@@ -302,6 +374,7 @@ public class BookingService {
         );
         appointment.setStatus(AppointmentStatus.PENDING_CONFIRMATION);
         appointment.setHoldExpiresAt(holdExpiry);
+        appointment.setHoldIdempotencyKey(idempotencyKey);
         appointment.setOtpCode(passwordEncoder.encode(otpCode));
         appointment.setOtpExpiresAt(otpExpiry);
         appointment.setOtpIssuedAt(now);
@@ -318,6 +391,16 @@ public class BookingService {
         try {
             appointmentRepository.saveAndFlush(appointment);
         } catch (DataIntegrityViolationException exception) {
+            if (idempotencyKey != null) {
+                // The unique hold-key index rejected a racing retry. The
+                // transaction is aborted so the winner cannot be read here; the
+                // client retries and the fast path above replays it.
+                throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Yêu cầu giữ chỗ với cùng Idempotency-Key đang được xử lý. Vui lòng thử lại.",
+                    exception
+                );
+            }
             throw new ResponseStatusException(
                 HttpStatus.CONFLICT,
                 "Khung giờ khám này vừa có người đặt hoặc đang được giữ chỗ. Vui lòng chọn khung giờ khác.",
@@ -389,7 +472,7 @@ public class BookingService {
         }
         if (appointment.getHoldExpiresAt() == null || !now.isBefore(appointment.getHoldExpiresAt())) {
             appointment.setStatus(AppointmentStatus.CANCELLED);
-            appointment.setCancellationReason("Hết thời gian giữ chỗ (Quá 10 phút)");
+            appointment.setCancellationReason(HOLD_EXPIRED_CANCELLATION_REASON);
             appointment.setOtpCode(null);
             appointment.setOtpExpiresAt(null);
             appointment.setOtpIssuedAt(null);
@@ -452,6 +535,66 @@ public class BookingService {
             "Mã xác thực đang được gửi đến email đã xác minh của bạn.",
             0L
         );
+    }
+
+    /**
+     * Replays the hold created by an earlier request that carried this key.
+     *
+     * @return the original hold response, or {@code null} when the key has never
+     *         been used. A key reused for a different slot, or one whose hold is
+     *         no longer live, is a conflict rather than a silent replay.
+     */
+    private HoldSlotResponse replayHold(HoldSlotRequest request, String idempotencyKey) {
+        Appointment existing = appointmentRepository.findByHoldIdempotencyKey(idempotencyKey).orElse(null);
+        if (existing == null) {
+            return null;
+        }
+        UUID existingBranchId = existing.getBranch() == null ? null : existing.getBranch().getId();
+        boolean sameRequest = Objects.equals(existing.getDoctor().getId(), request.doctorId())
+            && Objects.equals(existing.getAppointmentDate(), request.appointmentDate())
+            && Objects.equals(existing.getStartTime(), request.startTime())
+            && Objects.equals(existingBranchId, request.branchId());
+        if (!sameRequest) {
+            throw new BusinessException(
+                409,
+                ErrorCodes.CONFLICT,
+                "Idempotency-Key này đã được dùng cho một yêu cầu giữ chỗ khác. Vui lòng dùng khoá mới."
+            );
+        }
+        OffsetDateTime now = OffsetDateTime.now(BUSINESS_ZONE);
+        boolean live = existing.getStatus() == AppointmentStatus.PENDING_CONFIRMATION
+            && existing.getHoldExpiresAt() != null
+            && now.isBefore(existing.getHoldExpiresAt());
+        if (!live) {
+            throw new BusinessException(
+                409,
+                ErrorCodes.CONFLICT,
+                "Yêu cầu giữ chỗ trước đó đã hết hiệu lực. Vui lòng đặt lại với khoá Idempotency-Key mới."
+            );
+        }
+        return new HoldSlotResponse(
+            existing.getBookingCode(),
+            existing.getHoldExpiresAt(),
+            existing.getOtpExpiresAt(),
+            "Yêu cầu giữ chỗ này đã được xử lý trước đó. Mã OTP của lần giữ chỗ đầu tiên vẫn còn hiệu lực.",
+            true,
+            OtpDeliveryStatus.QUEUED
+        );
+    }
+
+    private String normalizeIdempotencyKey(String rawIdempotencyKey) {
+        if (rawIdempotencyKey == null || rawIdempotencyKey.isBlank()) {
+            return null;
+        }
+        String key = rawIdempotencyKey.trim();
+        if (!IDEMPOTENCY_KEY_PATTERN.matcher(key).matches()) {
+            throw new BusinessException(
+                400,
+                ErrorCodes.IDEMPOTENCY_KEY_INVALID,
+                "Idempotency-Key không hợp lệ: cần 8-128 ký tự chữ, số hoặc các ký tự . _ : -"
+            );
+        }
+        return key;
     }
 
     private void authorizeOtpResend(Appointment appointment, String phone, UserDetails principal) {
@@ -557,7 +700,7 @@ public class BookingService {
 
         if (appointment.getHoldExpiresAt() != null && !now.isBefore(appointment.getHoldExpiresAt())) {
             appointment.setStatus(AppointmentStatus.CANCELLED);
-            appointment.setCancellationReason("Hết thời gian giữ chỗ (Quá 10 phút)");
+            appointment.setCancellationReason(HOLD_EXPIRED_CANCELLATION_REASON);
             appointmentRepository.save(appointment);
             throw new ResponseStatusException(HttpStatus.GONE, "Thời gian giữ chỗ đã hết hạn. Vui lòng thực hiện đặt lại.");
         }
@@ -620,9 +763,38 @@ public class BookingService {
             "Lịch khám đã được xác nhận",
             "Lịch khám " + appointment.getBookingCode() + " đã được xác nhận."
         );
+        notifyDoctorOfBooking(appointment);
         // OTP proves control of this booking, but this public endpoint must not
         // turn an authenticated caller into a full appointment-detail reader.
         return toPublicResponse(appointment);
+    }
+
+    /**
+     * Heads-up to the assigned physician that a confirmed booking arrived.
+     * The copy mirrors the patient notification style: booking code, slot and
+     * branch only — the patient display name never travels with a diagnosis
+     * and no clinical content is included.
+     */
+    private void notifyDoctorOfBooking(Appointment appointment) {
+        if (notificationService == null
+                || appointment.getDoctor() == null
+                || appointment.getDoctor().getUserId() == null) {
+            return;
+        }
+        String branch = appointment.getBranch() != null ? appointment.getBranch().getName() : null;
+        String patientName = appointment.getPatient() != null ? appointment.getPatient().getFullName() : null;
+        String message = "Lịch khám mới " + appointment.getBookingCode()
+            + " lúc " + appointment.getStartTime()
+            + " ngày " + appointment.getAppointmentDate()
+            + (patientName != null && !patientName.isBlank() ? " — bệnh nhân " + patientName : "")
+            + (branch != null ? " tại " + branch + "." : ".");
+        notificationService.create(
+            appointment.getDoctor().getUserId(),
+            EventType.APPOINTMENT_CONFIRMED,
+            "Có lịch khám mới được xác nhận",
+            message,
+            appointment.getId()
+        );
     }
 
     /**
@@ -700,7 +872,11 @@ public class BookingService {
         doctorRepository.findActiveByIdForUpdate(appointment.getDoctor().getId())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Bác sĩ hiện không nhận lịch khám"));
 
-        UUID branchId = request.branchId();
+        UUID currentBranchId = appointment.getBranch() == null ? null : appointment.getBranch().getId();
+        // Omitting the branch keeps the appointment where it already is. It must
+        // never null the branch out: a branchless row bypasses the V10 composite
+        // (doctor, branch) FK and no schedule can authorize it.
+        UUID branchId = request.branchId() != null ? request.branchId() : currentBranchId;
         if (branchId != null) {
             branchRepository.findByIdAndActiveTrue(branchId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy cơ sở khám"));
@@ -709,7 +885,6 @@ public class BookingService {
             }
         }
 
-        UUID currentBranchId = appointment.getBranch() == null ? null : appointment.getBranch().getId();
         if (appointment.getAppointmentDate().equals(request.appointmentDate())
                 && appointment.getStartTime().equals(request.startTime())
                 && java.util.Objects.equals(currentBranchId, branchId)) {
@@ -723,8 +898,10 @@ public class BookingService {
                 "Khung giờ mới không nằm trong lịch làm việc hoặc đã qua"
             ));
 
-        String branchLockKey = branchId == null ? "branchless" : branchId.toString();
-        String slotLockKey = appointment.getDoctor().getId() + ":" + branchLockKey + ":" + request.appointmentDate();
+        // Serialize on the physician and the date, not the branch: the V11/V13
+        // exclusion constraint is branch-scoped, so cross-branch moves of the
+        // same doctor at the same time need this shared key to serialize.
+        String slotLockKey = appointment.getDoctor().getId() + ":" + request.appointmentDate();
         slotLocker.acquire(slotLockKey);
 
         OffsetDateTime now = OffsetDateTime.now(BUSINESS_ZONE);
@@ -738,7 +915,7 @@ public class BookingService {
         );
         for (Appointment expiredAppointment : expired) {
             expiredAppointment.setStatus(AppointmentStatus.CANCELLED);
-            expiredAppointment.setCancellationReason("Hết thời gian giữ chỗ (Quá 10 phút)");
+            expiredAppointment.setCancellationReason(HOLD_EXPIRED_CANCELLATION_REASON);
         }
         if (!expired.isEmpty()) {
             appointmentRepository.saveAll(expired);
@@ -758,6 +935,25 @@ public class BookingService {
             throw new ResponseStatusException(
                 HttpStatus.CONFLICT,
                 "Khung giờ mới vừa có người đặt hoặc đang được giữ chỗ. Vui lòng chọn khung giờ khác."
+            );
+        }
+
+        // The branch-scoped query above cannot see a booking at another branch.
+        // The row being moved is excluded so a move never conflicts with itself.
+        boolean doctorOccupiedElsewhere = appointmentRepository.findDoctorOverlapsForUpdate(
+                appointment.getDoctor().getId(),
+                request.appointmentDate(),
+                request.startTime(),
+                targetSlot.endTime(),
+                now,
+                appointment.getId()
+            ).stream()
+            .anyMatch(conflict -> !conflict.getId().equals(appointment.getId()));
+        if (doctorOccupiedElsewhere) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Bác sĩ đã có lịch khám hoặc đang giữ chỗ ở cơ sở khác trong khung giờ này. "
+                    + "Vui lòng chọn khung giờ khác."
             );
         }
 
@@ -940,6 +1136,7 @@ public class BookingService {
             a.getStatus(),
             a.getPaymentStatus(),
             a.getReasonForVisit(),
+            a.getCancellationReason(),
             a.isHasInsurance(),
             a.getPrivacyConsentAt(),
             a.getPrivacyConsentVersion(),
@@ -967,6 +1164,7 @@ public class BookingService {
             a.getStatus(),
             a.getPaymentStatus(),
             null,
+            a.getCancellationReason(),
             a.isHasInsurance(),
             a.getPrivacyConsentAt(),
             a.getPrivacyConsentVersion(),

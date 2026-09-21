@@ -33,6 +33,14 @@ public record ArticleResponse(
     JsonNode sourceReferences,
     JsonNode clinicalMetadata,
     String clinicalDisclaimer,
-    boolean featured
+    boolean featured,
+    /**
+     * Publication gate state. Public reads only ever carry APPROVED (the
+     * repository filter guarantees it); the doctor portal receives the author's
+     * own PENDING/REJECTED rows so the submission state is visible.
+     */
+    String reviewStatus,
+    String reviewReason,
+    OffsetDateTime reviewDecidedAt
 ) {
 }

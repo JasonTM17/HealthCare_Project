@@ -13,6 +13,7 @@ import com.healthcare.scheduling.entity.DoctorScheduleException;
 import com.healthcare.scheduling.repository.DoctorScheduleExceptionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.env.MockEnvironment;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -69,74 +70,126 @@ class ScheduleServiceTest {
             .thenReturn(Collections.emptyList());
     }
 
-    @Test
-    void returnsDefaultWindowsWhenSchedulesAreEmptyForActiveDoctor() {
-        LocalDate futureDate = LocalDate.now().plusDays(5);
-        int dayOfWeek = futureDate.getDayOfWeek().getValue();
+    /**
+     * Only the explicit local-demo combination may fabricate clinic hours.
+     */
+    private ScheduleService demoEnabledService() {
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles("local");
+        environment.setProperty(ScheduleService.DEMO_DEFAULT_WINDOWS_PROPERTY, "true");
+        return new ScheduleService(
+            doctorScheduleRepository,
+            exceptionRepository,
+            appointmentRepository,
+            doctorRepository,
+            doctorBranchRepository,
+            null,
+            environment
+        );
+    }
 
-        when(doctorScheduleRepository.findActiveForDoctorAndBranchOnDate(eq(doctorId), eq(branchId), eq(futureDate), eq(dayOfWeek)))
+    private void stubEmptySchedules(LocalDate date) {
+        int dayOfWeek = date.getDayOfWeek().getValue();
+        when(doctorScheduleRepository.findActiveForDoctorAndBranchOnDate(eq(doctorId), eq(branchId), eq(date), eq(dayOfWeek)))
             .thenReturn(Collections.emptyList());
-        when(exceptionRepository.findForDoctorAndBranchOnDate(eq(doctorId), eq(branchId), eq(futureDate)))
+        when(exceptionRepository.findForDoctorAndBranchOnDate(eq(doctorId), eq(branchId), eq(date)))
             .thenReturn(Collections.emptyList());
+    }
+
+    @Test
+    void returnsNoSlotsWhenSchedulesAreEmptyForActiveDoctor() {
+        LocalDate futureDate = LocalDate.now().plusDays(5);
+        stubEmptySchedules(futureDate);
 
         List<TimeSlotDto> slots = scheduleService.getAvailableSlots(doctorId, branchId, futureDate);
+
+        // No persisted schedule means the day is closed, not "standard clinic
+        // hours". Nothing may be bookable from an invented window.
+        assertThat(slots).isEmpty();
+        assertThat(scheduleService.findBookableSlot(doctorId, branchId, futureDate, LocalTime.of(9, 0))).isEmpty();
+        assertThat(scheduleService.isBookableSlot(doctorId, branchId, futureDate, LocalTime.of(9, 0))).isFalse();
+    }
+
+    @Test
+    void demoFlagWithLocalProfileOpensTheDemoWindows() {
+        LocalDate futureDate = LocalDate.now().plusDays(5);
+        stubEmptySchedules(futureDate);
+
+        ScheduleService demoService = demoEnabledService();
+        List<TimeSlotDto> slots = demoService.getAvailableSlots(doctorId, branchId, futureDate);
 
         assertThat(slots).isNotEmpty();
         // 8 morning slots (08:00 - 12:00) + 8 afternoon slots (13:30 - 17:30) = 16 slots
         assertThat(slots).hasSize(16);
         assertThat(slots).allMatch(slot -> slot.branchId().equals(branchId));
 
-        // Verify Morning boundary slots
         assertThat(slots.get(0).startTime()).isEqualTo(LocalTime.of(8, 0));
         assertThat(slots.get(0).endTime()).isEqualTo(LocalTime.of(8, 30));
         assertThat(slots.get(0).available()).isTrue();
 
         assertThat(slots.get(7).startTime()).isEqualTo(LocalTime.of(11, 30));
         assertThat(slots.get(7).endTime()).isEqualTo(LocalTime.of(12, 0));
-        assertThat(slots.get(7).available()).isTrue();
 
-        // Verify Afternoon boundary slots
         assertThat(slots.get(8).startTime()).isEqualTo(LocalTime.of(13, 30));
         assertThat(slots.get(8).endTime()).isEqualTo(LocalTime.of(14, 0));
-        assertThat(slots.get(8).available()).isTrue();
 
         assertThat(slots.get(15).startTime()).isEqualTo(LocalTime.of(17, 0));
         assertThat(slots.get(15).endTime()).isEqualTo(LocalTime.of(17, 30));
-        assertThat(slots.get(15).available()).isTrue();
+    }
+
+    @Test
+    void demoFlagOutsideTheLocalProfileStaysClosed() {
+        LocalDate futureDate = LocalDate.now().plusDays(5);
+        stubEmptySchedules(futureDate);
+
+        MockEnvironment productionLike = new MockEnvironment();
+        productionLike.setActiveProfiles("standalone");
+        productionLike.setProperty(ScheduleService.DEMO_DEFAULT_WINDOWS_PROPERTY, "true");
+
+        ScheduleService service = new ScheduleService(
+            doctorScheduleRepository,
+            exceptionRepository,
+            appointmentRepository,
+            doctorRepository,
+            doctorBranchRepository,
+            null,
+            productionLike
+        );
+
+        // Fail closed: a flag enabled outside local must never open clinic hours.
+        assertThat(service.getAvailableSlots(doctorId, branchId, futureDate)).isEmpty();
+        assertThat(service.findBookableSlot(doctorId, branchId, futureDate, LocalTime.of(8, 0))).isEmpty();
     }
 
     @Test
     void boundarySlotsAreBookableAndLunchOrAfterHoursAreNot() {
         LocalDate futureDate = LocalDate.now().plusDays(5);
-        int dayOfWeek = futureDate.getDayOfWeek().getValue();
+        stubEmptySchedules(futureDate);
 
-        when(doctorScheduleRepository.findActiveForDoctorAndBranchOnDate(eq(doctorId), eq(branchId), eq(futureDate), eq(dayOfWeek)))
-            .thenReturn(Collections.emptyList());
-        when(exceptionRepository.findForDoctorAndBranchOnDate(eq(doctorId), eq(branchId), eq(futureDate)))
-            .thenReturn(Collections.emptyList());
+        ScheduleService demoService = demoEnabledService();
 
         // Valid morning boundary slot 11:30 - 12:00
         Optional<ScheduleService.BookableSlot> morningBoundary =
-            scheduleService.findBookableSlot(doctorId, branchId, futureDate, LocalTime.of(11, 30));
+            demoService.findBookableSlot(doctorId, branchId, futureDate, LocalTime.of(11, 30));
         assertThat(morningBoundary).isPresent();
         assertThat(morningBoundary.get().startTime()).isEqualTo(LocalTime.of(11, 30));
         assertThat(morningBoundary.get().endTime()).isEqualTo(LocalTime.of(12, 0));
 
         // Valid afternoon boundary slot 17:00 - 17:30
         Optional<ScheduleService.BookableSlot> afternoonBoundary =
-            scheduleService.findBookableSlot(doctorId, branchId, futureDate, LocalTime.of(17, 0));
+            demoService.findBookableSlot(doctorId, branchId, futureDate, LocalTime.of(17, 0));
         assertThat(afternoonBoundary).isPresent();
         assertThat(afternoonBoundary.get().startTime()).isEqualTo(LocalTime.of(17, 0));
         assertThat(afternoonBoundary.get().endTime()).isEqualTo(LocalTime.of(17, 30));
 
         // Lunch break interval (12:00 - 13:30) must NOT be bookable
-        assertThat(scheduleService.findBookableSlot(doctorId, branchId, futureDate, LocalTime.of(12, 0))).isEmpty();
-        assertThat(scheduleService.findBookableSlot(doctorId, branchId, futureDate, LocalTime.of(12, 30))).isEmpty();
-        assertThat(scheduleService.findBookableSlot(doctorId, branchId, futureDate, LocalTime.of(13, 0))).isEmpty();
+        assertThat(demoService.findBookableSlot(doctorId, branchId, futureDate, LocalTime.of(12, 0))).isEmpty();
+        assertThat(demoService.findBookableSlot(doctorId, branchId, futureDate, LocalTime.of(12, 30))).isEmpty();
+        assertThat(demoService.findBookableSlot(doctorId, branchId, futureDate, LocalTime.of(13, 0))).isEmpty();
 
         // After clinic closing time (17:30) must NOT be bookable
-        assertThat(scheduleService.findBookableSlot(doctorId, branchId, futureDate, LocalTime.of(17, 30))).isEmpty();
-        assertThat(scheduleService.findBookableSlot(doctorId, branchId, futureDate, LocalTime.of(18, 0))).isEmpty();
+        assertThat(demoService.findBookableSlot(doctorId, branchId, futureDate, LocalTime.of(17, 30))).isEmpty();
+        assertThat(demoService.findBookableSlot(doctorId, branchId, futureDate, LocalTime.of(18, 0))).isEmpty();
     }
 
     @Test
@@ -156,7 +209,33 @@ class ScheduleServiceTest {
     }
 
     @Test
-    void branchlessFallbackResolvesAllActiveBranchesForDoctor() {
+    void branchlessRequestIsClosedWithoutTheDemoFlag() {
+        LocalDate futureDate = LocalDate.now().plusDays(5);
+        int dayOfWeek = futureDate.getDayOfWeek().getValue();
+
+        when(doctorScheduleRepository.findActiveForDoctorOnDate(eq(doctorId), eq(futureDate), eq(dayOfWeek)))
+            .thenReturn(Collections.emptyList());
+
+        Branch branch1 = new Branch();
+        branch1.setId(UUID.randomUUID());
+        branch1.setActive(true);
+
+        DoctorBranch assignment = new DoctorBranch();
+        assignment.setId(UUID.randomUUID());
+        assignment.setDoctor(activeDoctor);
+        assignment.setBranch(branch1);
+
+        when(doctorBranchRepository.findByDoctorId(doctorId)).thenReturn(List.of(assignment));
+        when(exceptionRepository.findForDoctorAndBranchOnDate(eq(doctorId), any(), eq(futureDate)))
+            .thenReturn(Collections.emptyList());
+
+        // The branchless path used to expand the fabricated standard hours for
+        // every assigned branch. Without the local demo flag it is closed too.
+        assertThat(scheduleService.getAvailableSlots(doctorId, null, futureDate)).isEmpty();
+    }
+
+    @Test
+    void demoFlagExpandsBranchlessRequestAcrossAllActiveBranches() {
         LocalDate futureDate = LocalDate.now().plusDays(5);
         int dayOfWeek = futureDate.getDayOfWeek().getValue();
 
@@ -187,7 +266,7 @@ class ScheduleServiceTest {
         when(exceptionRepository.findForDoctorAndBranchOnDate(eq(doctorId), any(), eq(futureDate)))
             .thenReturn(Collections.emptyList());
 
-        List<TimeSlotDto> slots = scheduleService.getAvailableSlots(doctorId, null, futureDate);
+        List<TimeSlotDto> slots = demoEnabledService().getAvailableSlots(doctorId, null, futureDate);
 
         // 16 slots per branch * 2 branches = 32 slots total
         assertThat(slots).hasSize(32);
@@ -198,8 +277,9 @@ class ScheduleServiceTest {
     }
 
     @Test
-    void maintainsBackwardsCompatibilityWithFourArgumentConstructor() {
-        // Constructor without DoctorBranchRepository (used by legacy tests)
+    void legacyConstructorWithoutEnvironmentStaysClosed() {
+        // Constructor without DoctorBranchRepository/Environment (used by legacy tests):
+        // with no environment the demo flag cannot be read, so availability is closed.
         ScheduleService legacyService = new ScheduleService(
             doctorScheduleRepository,
             exceptionRepository,
@@ -208,15 +288,10 @@ class ScheduleServiceTest {
         );
 
         LocalDate futureDate = LocalDate.now().plusDays(5);
-        int dayOfWeek = futureDate.getDayOfWeek().getValue();
-
-        when(doctorScheduleRepository.findActiveForDoctorAndBranchOnDate(eq(doctorId), eq(branchId), eq(futureDate), eq(dayOfWeek)))
-            .thenReturn(Collections.emptyList());
-        when(exceptionRepository.findForDoctorAndBranchOnDate(eq(doctorId), eq(branchId), eq(futureDate)))
-            .thenReturn(Collections.emptyList());
+        stubEmptySchedules(futureDate);
 
         List<TimeSlotDto> slots = legacyService.getAvailableSlots(doctorId, branchId, futureDate);
-        assertThat(slots).hasSize(16);
+        assertThat(slots).isEmpty();
     }
 
     @Test
@@ -234,8 +309,9 @@ class ScheduleServiceTest {
         when(exceptionRepository.findForDoctorAndBranchOnDate(eq(doctorId), eq(branchId), eq(futureDate)))
             .thenReturn(List.of(leave));
 
-        List<TimeSlotDto> slots = scheduleService.getAvailableSlots(doctorId, branchId, futureDate);
-        assertThat(slots).isEmpty();
+        // A blocking exception closes the day even when the local demo flag would
+        // otherwise fabricate hours.
+        assertThat(demoEnabledService().getAvailableSlots(doctorId, branchId, futureDate)).isEmpty();
     }
 
     @Test

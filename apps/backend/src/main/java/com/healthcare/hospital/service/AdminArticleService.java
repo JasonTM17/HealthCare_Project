@@ -4,6 +4,7 @@ import com.healthcare.exception.BusinessException;
 import com.healthcare.exception.DuplicateResourceException;
 import com.healthcare.exception.ErrorCodes;
 import com.healthcare.hospital.dto.ArticleRequest;
+import com.healthcare.hospital.dto.ArticleSectionRequest;
 import com.healthcare.hospital.entity.Article;
 import com.healthcare.hospital.repository.ArticleRepository;
 import org.hibernate.exception.ConstraintViolationException;
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 @Service
 public class AdminArticleService {
@@ -48,6 +50,17 @@ public class AdminArticleService {
 
     @Transactional
     public Article create(ArticleRequest request, UserDetails actor) {
+        return create(request, actor, null);
+    }
+
+    /**
+     * Doctor-portal create.  The doctor id is resolved by the caller (the
+     * authenticated doctor principal), never taken from the request payload,
+     * so a client cannot forge authorship.  Passing {@code null} keeps the
+     * plain admin create behaviour unchanged.
+     */
+    @Transactional
+    public Article create(ArticleRequest request, UserDetails actor, UUID authorDoctorId) {
         if (articleRepository.findBySlug(request.slug()).isPresent()) {
             throw new DuplicateResourceException("Article slug already exists: " + request.slug());
         }
@@ -58,6 +71,10 @@ public class AdminArticleService {
         article.setBody(ArticleBodySanitizer.sanitize(request.body()));
         applyRichFields(article, request);
         article.setActive(request.active());
+        if (authorDoctorId != null) {
+            article.setAuthorDoctorId(authorDoctorId);
+        }
+        applyReviewGate(article, authorDoctorId != null);
         applyPublicationState(article, request, true);
         Article saved = saveArticle(article);
         if (revisionService != null) revisionService.recordArticle(saved, actor);
@@ -71,6 +88,18 @@ public class AdminArticleService {
 
     @Transactional
     public Article update(String slug, ArticleRequest request, UserDetails actor) {
+        return update(slug, request, actor, null);
+    }
+
+    /**
+     * Doctor-portal update.  A non-null {@code authorDoctorId} is the verified
+     * caller from the doctor controller: writing it here atomically binds the
+     * article to the doctor and self-heals legacy rows whose
+     * {@code author_doctor_id} was still NULL.  The admin path passes
+     * {@code null} and must never clobber an existing binding.
+     */
+    @Transactional
+    public Article update(String slug, ArticleRequest request, UserDetails actor, UUID authorDoctorId) {
         Article article = articleRepository.findBySlug(slug)
             .orElseThrow(() -> new com.healthcare.exception.ResourceNotFoundException("Article not found: " + slug));
         if (request.version() != null && !request.version().equals(article.getVersion())) {
@@ -89,6 +118,10 @@ public class AdminArticleService {
         article.setBody(ArticleBodySanitizer.sanitize(request.body()));
         applyRichFields(article, request);
         article.setActive(request.active());
+        if (authorDoctorId != null) {
+            article.setAuthorDoctorId(authorDoctorId);
+        }
+        applyReviewGate(article, authorDoctorId != null);
         applyPublicationState(article, request, false);
         Article saved = saveArticle(article);
         if (revisionService != null) revisionService.recordArticle(saved, actor);
@@ -106,6 +139,66 @@ public class AdminArticleService {
             .orElseThrow(() -> new com.healthcare.exception.ResourceNotFoundException("Article not found: " + slug));
         if (revisionService != null) revisionService.recordArticleDeletion(article, actor);
         articleRepository.delete(article);
+    }
+
+    /** The only review decisions the gate accepts; anything else is a client bug. */
+    public static final String REVIEW_APPROVED = "APPROVED";
+    public static final String REVIEW_REJECTED = "REJECTED";
+    public static final String REVIEW_PENDING = "PENDING";
+
+    /**
+     * Admin decision on a doctor submission. Approving publishes to the public
+     * catalog (the public queries filter on APPROVED); rejecting withdraws the
+     * article from the catalog while keeping it visible to the author with the
+     * recorded reason. Admin-written articles never pass through here: they
+     * are born APPROVED and admin edits do not re-open the gate.
+     */
+    @Transactional
+    public Article review(String slug, String decision, String reason, UserDetails reviewer) {
+        Article article = articleRepository.findBySlug(slug)
+            .orElseThrow(() -> new com.healthcare.exception.ResourceNotFoundException("Article not found: " + slug));
+        String normalized = decision == null ? "" : decision.trim().toUpperCase(java.util.Locale.ROOT);
+        if (!REVIEW_APPROVED.equals(normalized) && !REVIEW_REJECTED.equals(normalized)) {
+            throw new com.healthcare.exception.BusinessException(
+                400, ErrorCodes.VALIDATION_ERROR, "Quyết định duyệt bài chỉ có thể là APPROVED hoặc REJECTED");
+        }
+        if (REVIEW_REJECTED.equals(normalized) && article.getAuthorDoctorId() == null) {
+            throw new com.healthcare.exception.BusinessException(
+                400, ErrorCodes.VALIDATION_ERROR,
+                "Chỉ bài do bác sĩ gửi mới có thể bị từ chối; hãy gỡ xuất bản trực tiếp nếu cần");
+        }
+        article.setReviewStatus(normalized);
+        // The reason travels on the public article projection, so it is kept only
+        // for a rejection, where the author is the intended reader. An approval
+        // note must not reach an anonymous reader.
+        article.setReviewReason(REVIEW_REJECTED.equals(normalized)
+            && reason != null && !reason.isBlank() ? reason.strip() : null);
+        article.setReviewDecidedAt(OffsetDateTime.now());
+        article.setReviewDecidedBy(resolveReviewerId(reviewer));
+        return articleRepository.save(article);
+    }
+
+    private UUID resolveReviewerId(UserDetails reviewer) {
+        if (reviewer instanceof com.healthcare.security.HealthcareUserPrincipal principal) {
+            return principal.getUserId();
+        }
+        return null;
+    }
+
+    /**
+     * The doctor submission gate. Every create or edit by a doctor re-enters
+     * review: an edited APPROVED body no longer matches what the reviewer saw,
+     * and editing a REJECTED article is precisely the re-submission the
+     * rejection asked for. The admin path never demotes an existing decision.
+     */
+    private void applyReviewGate(Article article, boolean doctorSubmission) {
+        if (!doctorSubmission) {
+            return;
+        }
+        article.setReviewStatus(REVIEW_PENDING);
+        article.setReviewReason(null);
+        article.setReviewDecidedAt(null);
+        article.setReviewDecidedBy(null);
     }
 
     private void applyRichFields(Article article, ArticleRequest request) {
@@ -129,8 +222,16 @@ public class AdminArticleService {
         // cleared.  Treat it as an explicit value so an article cannot remain
         // silently scheduled after the editor shows an empty field.
         article.setScheduledPublishAt(request.scheduledPublishAt());
-        if (request.sections() != null) {
+        // Sections come from the author when the editor supplied them; the
+        // admin article form has a real section builder (heading + body per
+        // row, with duplicate/reorder), and silently replacing that work with
+        // a body-derived array made the editor a lie.
+        // Derivation is the fallback for body-only authors, so the public
+        // disease-guide pages never render an empty outline.
+        if (hasAuthorSections(request.sections())) {
             article.setSections(HospitalJsonMapper.articleSections(request.sections()));
+        } else {
+            article.setSections(ArticleSectionsDeriver.derive(article.getBody()));
         }
         if (request.contentLanguage() != null) article.setContentLanguage(request.contentLanguage().strip());
         if (request.audience() != null) article.setAudience(request.audience().strip().toUpperCase(java.util.Locale.ROOT));
@@ -217,6 +318,18 @@ public class AdminArticleService {
             return;
         }
         if (creating || article.getPublishedAt() == null) article.setPublishedAt(now);
+    }
+
+    /**
+     * True when the editor submitted sections the author actually wrote. A
+     * heading with no body is scaffolding, not content: the medical blueprint
+     * presets in the admin editor create exactly that, and treating it as
+     * authored would publish an empty outline over the real article prose.
+     */
+    private boolean hasAuthorSections(java.util.List<ArticleSectionRequest> sections) {
+        if (sections == null) return false;
+        return sections.stream().anyMatch(section -> section != null
+                && section.body() != null && !section.body().isBlank());
     }
 
     private String trimToNull(String value) {

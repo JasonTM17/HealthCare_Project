@@ -27,6 +27,7 @@ public record PatientAppointmentResponse(
     AppointmentStatus status,
     String paymentStatus,
     String reasonForVisit,
+    String cancellationReason,
     OffsetDateTime createdAt
 ) {
 }

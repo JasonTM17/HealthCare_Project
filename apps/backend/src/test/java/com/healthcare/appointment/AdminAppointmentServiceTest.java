@@ -3,6 +3,7 @@ package com.healthcare.appointment;
 import com.healthcare.appointment.entity.AppointmentStatus;
 import com.healthcare.appointment.repository.AppointmentRepository;
 import com.healthcare.appointment.service.AdminAppointmentService;
+import com.healthcare.clinical.service.ClinicalAccessAuditService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -23,7 +24,9 @@ import static org.mockito.Mockito.when;
 class AdminAppointmentServiceTest {
 
     private final AppointmentRepository appointmentRepository = mock(AppointmentRepository.class);
-    private final AdminAppointmentService service = new AdminAppointmentService(appointmentRepository);
+    private final ClinicalAccessAuditService clinicalAccessAuditService = mock(ClinicalAccessAuditService.class);
+    private final AdminAppointmentService service =
+        new AdminAppointmentService(appointmentRepository, clinicalAccessAuditService);
 
     @Test
     void rejectsUnknownStatusBeforeQueryingRepository() {

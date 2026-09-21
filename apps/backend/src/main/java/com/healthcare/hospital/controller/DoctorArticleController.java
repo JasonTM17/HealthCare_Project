@@ -35,6 +35,8 @@ import org.springframework.web.bind.annotation.RestController;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+import java.util.UUID;
+
 @Tag(name = "Public Catalog", description = "Danh mục y tế công khai (Cơ sở bệnh viện, chuyên khoa, bác sĩ, gói khám, dịch vụ, bài viết)")
 @RestController
 @RequestMapping("/api/v1/doctor/articles")
@@ -60,12 +62,28 @@ public class DoctorArticleController {
         this.userRepository = userRepository;
     }
 
+    /**
+     * The doctor's own article list.
+     *
+     * <p>Read ownership uses the same authority as PUT/DELETE: the caller's
+     * doctor id.  Matching on the free-text {@code author_name} here would let
+     * two doctors that share a display name read each other's rows, and would
+     * show an empty list to a renamed doctor whose edits and deletes still
+     * succeed — a read/write contract mismatch.  The legacy name query is kept
+     * only for a caller that has no resolvable {@code doctors} row at all; rows
+     * the V93 backfill deliberately left unbound because their name was
+     * ambiguous are never resurrected through fuzzy matching.
+     */
     @Operation(summary = "Bài viết y khoa của bác sĩ", description = "Lấy danh sách các bài viết cẩm nang sức khỏe do chính bác sĩ biên soạn")
     @GetMapping
     public Page<ArticleResponse> listArticles(
             @RequestParam(required = false) String contentKind,
             @PageableDefault(size = 20) Pageable pageable,
             @AuthenticationPrincipal UserDetails actor) {
+        UUID doctorId = resolveDoctorId(actor);
+        if (doctorId != null) {
+            return articleService.listByAuthorDoctorId(doctorId, contentKind, pageable);
+        }
         String doctorName = resolveDoctorName(actor);
         String altName = resolveDoctorAltName(actor);
         String pureName = stripAcademicTitles(doctorName);
@@ -77,9 +95,11 @@ public class DoctorArticleController {
     public ResponseEntity<Article> createArticle(
             @Valid @RequestBody ArticleRequest request,
             @AuthenticationPrincipal UserDetails actor) {
+        UUID doctorId = resolveDoctorId(actor);
         String doctorName = resolveDoctorName(actor);
         ArticleRequest effectiveRequest = enforceDoctorAuthor(request, doctorName);
-        return ResponseEntity.status(HttpStatus.CREATED).body(adminArticleService.create(effectiveRequest, actor));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(adminArticleService.create(effectiveRequest, actor, doctorId));
     }
 
     @Operation(summary = "Chỉnh sửa bài viết của bác sĩ", description = "Cập nhật nội dung chuyên môn bài viết của chính bác sĩ")
@@ -90,10 +110,13 @@ public class DoctorArticleController {
             @AuthenticationPrincipal UserDetails actor) {
         Article existing = articleRepository.findBySlug(slug)
                 .orElseThrow(() -> new ResourceNotFoundException("Article not found: " + slug));
-        assertAuthorOwnership(existing, actor);
+        UUID doctorId = resolveDoctorId(actor);
+        assertAuthorOwnership(existing, actor, doctorId);
         String doctorName = resolveDoctorName(actor);
         ArticleRequest effectiveRequest = enforceDoctorAuthor(request, doctorName);
-        return ResponseEntity.ok(adminArticleService.update(slug, effectiveRequest, actor));
+        // The write itself re-binds author_doctor_id to the caller, which
+        // self-heals legacy rows that were still matched by name only.
+        return ResponseEntity.ok(adminArticleService.update(slug, effectiveRequest, actor, doctorId));
     }
 
     @Operation(summary = "Xóa bài viết của bác sĩ", description = "Gỡ bài viết của chính bác sĩ khỏi chuyên trang cẩm nang")
@@ -103,12 +126,26 @@ public class DoctorArticleController {
             @AuthenticationPrincipal UserDetails actor) {
         Article existing = articleRepository.findBySlug(slug)
                 .orElseThrow(() -> new ResourceNotFoundException("Article not found: " + slug));
-        assertAuthorOwnership(existing, actor);
+        assertAuthorOwnership(existing, actor, resolveDoctorId(actor));
         adminArticleService.delete(slug, actor);
         return ResponseEntity.noContent().build();
     }
 
-    private void assertAuthorOwnership(Article article, UserDetails actor) {
+    /**
+     * Ownership is decided by doctor id, not by the mutable display-name
+     * string: a rename no longer revokes access and two doctors sharing a
+     * name can no longer claim each other's articles.  Rows predating the
+     * {@code author_doctor_id} backfill fall back to the historical
+     * display-name matching.
+     */
+    private void assertAuthorOwnership(Article article, UserDetails actor, UUID doctorId) {
+        UUID ownerId = article.getAuthorDoctorId();
+        if (ownerId != null) {
+            if (doctorId == null || !ownerId.equals(doctorId)) {
+                throw new ForbiddenException("Bạn không có quyền chỉnh sửa hoặc xóa bài viết của tác giả khác");
+            }
+            return;
+        }
         String doctorName = resolveDoctorName(actor);
         String altName = resolveDoctorAltName(actor);
         String pureName = stripAcademicTitles(doctorName);
@@ -157,6 +194,19 @@ public class DoctorArticleController {
             request.whenToSeekCare(), request.sourceReferences(), request.clinicalMetadata(),
             request.clinicalDisclaimer(), request.featured(), request.active()
         );
+    }
+
+    private UUID resolveDoctorId(UserDetails actor) {
+        if (actor == null) {
+            return null;
+        }
+        User user = findUserFromActor(actor);
+        if (user == null) {
+            return null;
+        }
+        return doctorRepository.findByUserId(user.getId())
+                .map(Doctor::getId)
+                .orElse(null);
     }
 
     private String resolveDoctorName(UserDetails actor) {

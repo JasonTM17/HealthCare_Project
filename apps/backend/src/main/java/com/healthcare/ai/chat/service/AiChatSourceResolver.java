@@ -110,7 +110,41 @@ public class AiChatSourceResolver {
             serviceRepository, packageRepository, articleRepository, faqRepository, jdbc);
     }
 
-    /** Resolve AI retrieval candidates into exact source metadata for generate. */
+    /**
+     * Converts the retrieval candidates returned by the AI service into exact,
+     * mode-legal source identities, and drops everything else.
+     *
+     * <p>This is one half of the authorization invariant for a chat answer; the
+     * other half is {@link #revalidateForPersistence(ChatMode, List)}. What this
+     * method guarantees:
+     *
+     * <ul>
+     *   <li><b>The mode decides the plane.</b> Each candidate is resolved
+     *       through {@link #resolve(ChatMode, String, String)}, which refuses any
+     *       source type the mode may not cite at all — SYMPTOM_TRIAGE accepts
+     *       only specialties, HEALTH_EDUCATION only articles and FAQs. A public
+     *       education answer therefore cannot cite a clinical source no matter
+     *       what the retrieval layer proposed, and a hospital-support answer
+     *       cannot cite one either: in non-clinical modes the resolver requires
+     *       a type from the operational set and rejects the rest.</li>
+     *   <li><b>Only rows that are still eligible survive.</b> A clinical source
+     *       must additionally be live, published and backed by a review head,
+     *       so an unpublished or never-approved catalog row is dropped rather
+     *       than cited.</li>
+     *   <li><b>Fail-closed.</b> Malformed candidates, unknown types, missing ids
+     *       and unresolvable rows are skipped; a null or non-list argument yields
+     *       an empty list. Nothing is inferred and nothing is passed through
+     *       unverified, and a transient SQL/lock failure also yields an empty
+     *       list instead of an answer without provenance.</li>
+     *   <li><b>Bounded and deduplicated.</b> At most 20 distinct sources are
+     *       authorized, keyed by type and id, so a provider cannot inflate the
+     *       answer's citation set.</li>
+     * </ul>
+     *
+     * <p>An identity authorized here is not yet a promise: the same identity is
+     * re-resolved at the persistence linearization point, and a source that
+     * changed, expired or was revoked in between fails the whole answer closed.
+     */
     public List<ResolvedSource> authorize(ChatMode mode, Object rawCandidates) {
         if (!(rawCandidates instanceof List<?> candidates)) return List.of();
         List<ResolvedSource> resolved = new ArrayList<>();
@@ -714,7 +748,13 @@ public class AiChatSourceResolver {
                                'summary', a.summary,
                                'title', a.title
                            )::text
-                             FROM articles a WHERE a.id = h.source_id
+                             FROM articles a
+                              WHERE a.id = h.source_id
+                                -- Publication gate: a PENDING or REJECTED
+                                -- article must hard-deny here regardless of
+                                -- any stale clinical approval head, or the
+                                -- anonymous chat could cite withdrawn content.
+                                AND a.review_status = 'APPROVED'
                          )
                          WHEN 'FAQ' THEN (
                            SELECT jsonb_build_object(

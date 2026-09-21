@@ -1,6 +1,7 @@
 package com.healthcare.appointment;
 
 import com.healthcare.appointment.dto.HoldSlotRequest;
+import com.healthcare.appointment.dto.HoldSlotResponse;
 import com.healthcare.appointment.dto.ConfirmAppointmentRequest;
 import com.healthcare.appointment.dto.OtpDeliveryStatus;
 import com.healthcare.appointment.dto.ResendOtpResponse;
@@ -55,6 +56,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 class BookingServiceValidationTest {
 
@@ -229,6 +231,73 @@ class BookingServiceValidationTest {
         verify(emailSender, never()).sendBookingOtp(anyString(), any(), anyString(), any(), any(), anyLong());
     }
 
+    @Test
+    void confirmNotifiesTheAssignedDoctorAboutTheNewBooking() {
+        AppointmentRepository appointments = mock(AppointmentRepository.class);
+        PatientProfileRepository patients = mock(PatientProfileRepository.class);
+        DoctorRepository doctors = mock(DoctorRepository.class);
+        DoctorBranchRepository doctorBranches = mock(DoctorBranchRepository.class);
+        DoctorSpecialtyRepository doctorSpecialties = mock(DoctorSpecialtyRepository.class);
+        SpecialtyRepository specialties = mock(SpecialtyRepository.class);
+        BranchRepository branches = mock(BranchRepository.class);
+        PackageRepository packages = mock(PackageRepository.class);
+        UserRepository users = mock(UserRepository.class);
+        ScheduleService schedules = mock(ScheduleService.class);
+        NotificationService notifications = mock(NotificationService.class);
+        PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
+
+        UUID doctorUserId = UUID.randomUUID();
+        UUID patientUserId = UUID.randomUUID();
+        Doctor doctor = new Doctor();
+        doctor.setId(UUID.randomUUID());
+        doctor.setUserId(doctorUserId);
+        doctor.setFullName("Bác sĩ Trần B");
+        PatientProfile patient = new PatientProfile();
+        patient.setId(UUID.randomUUID());
+        patient.setUserId(patientUserId);
+        patient.setFullName("Nguyễn Văn A");
+        patient.setPhone("0900000001");
+        Appointment appointment = new Appointment();
+        appointment.setId(UUID.randomUUID());
+        appointment.setBookingCode("APT-DOCTOR");
+        appointment.setPatient(patient);
+        appointment.setDoctor(doctor);
+        appointment.setStatus(com.healthcare.appointment.entity.AppointmentStatus.PENDING_CONFIRMATION);
+        appointment.setHoldExpiresAt(java.time.OffsetDateTime.now().plusMinutes(8));
+        appointment.setOtpExpiresAt(java.time.OffsetDateTime.now().plusMinutes(4));
+        appointment.setOtpCode("$2a$10$encoded");
+        appointment.setOtpAttempts(0);
+        when(appointments.findByBookingCodeWithDetailsForUpdate("APT-DOCTOR"))
+            .thenReturn(Optional.of(appointment));
+        when(appointments.saveAndFlush(any())).thenReturn(appointment);
+        when(passwordEncoder.matches(eq("123456"), eq("$2a$10$encoded"))).thenReturn(true);
+
+        BookingService service = new BookingService(
+            appointments, patients, doctors, doctorBranches, doctorSpecialties, specialties,
+            branches, packages, users, schedules, passwordEncoder, notifications,
+            appointments::acquireSlotLock,
+            new AfterCommitEmailSender(new com.healthcare.auth.mail.NoopEmailSender()),
+            null, null, null);
+
+        service.confirmAppointment(new ConfirmAppointmentRequest("APT-DOCTOR", "123456", null));
+
+        // The assigned physician gets one heads-up carrying the slot and the
+        // patient display name — never diagnosis content — and the patient
+        // keeps the pre-existing confirmation notice.
+        verify(notifications).create(
+            eq(doctorUserId),
+            eq(com.healthcare.notification.entity.Notification.EventType.APPOINTMENT_CONFIRMED),
+            anyString(),
+            org.mockito.ArgumentMatchers.contains("APT-DOCTOR"),
+            eq(appointment.getId()));
+        verify(notifications).create(
+            eq(patientUserId),
+            eq(com.healthcare.notification.entity.Notification.EventType.APPOINTMENT_CONFIRMED),
+            anyString(),
+            anyString(),
+            eq(appointment.getId()));
+    }
+
     private Appointment pendingAppointment(UUID appointmentId, UUID ownerId, String phone) {
         PatientProfile patient = new PatientProfile();
         patient.setId(UUID.randomUUID());
@@ -297,9 +366,11 @@ class BookingServiceValidationTest {
         BookingService service = new BookingService(
             appointments, patients, doctors, doctorBranches, doctorSpecialties, specialties,
             branches, packages, users, schedules, notifications);
+        // Branch is mandatory for every hold now; the specialty rule must still
+        // be the check that fires for a doctor who does not own the specialty.
         HoldSlotRequest request = new HoldSlotRequest(
             doctorId, LocalDate.now().plusDays(1), LocalTime.of(9, 0),
-            "Bệnh nhân", "0900000001", null, null, specialtyId, null, null);
+            "Bệnh nhân", "0900000001", null, null, specialtyId, UUID.randomUUID(), null);
 
         assertThatThrownBy(() -> service.holdSlot(request))
             .isInstanceOf(ResponseStatusException.class)
@@ -329,9 +400,13 @@ class BookingServiceValidationTest {
         UUID doctorId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
         UUID appointmentId = UUID.randomUUID();
+        UUID branchId = UUID.randomUUID();
         Doctor doctor = new Doctor();
         doctor.setId(doctorId);
         doctor.setActive(true);
+        com.healthcare.hospital.entity.Branch branch = new com.healthcare.hospital.entity.Branch();
+        branch.setId(branchId);
+        branch.setActive(true);
         com.healthcare.user.entity.User authenticatedUser = new com.healthcare.user.entity.User();
         authenticatedUser.setId(userId);
         authenticatedUser.setEmail("patient@example.test");
@@ -346,7 +421,9 @@ class BookingServiceValidationTest {
         when(doctors.findById(doctorId)).thenReturn(Optional.of(doctor));
         when(users.findByEmail("patient@example.test")).thenReturn(Optional.of(authenticatedUser));
         when(patients.findByUserId(userId)).thenReturn(Optional.of(linkedPatient));
-        when(schedules.findBookableSlot(any(), isNull(), any(), any()))
+        when(branches.findByIdAndActiveTrue(branchId)).thenReturn(Optional.of(branch));
+        when(doctorBranches.existsByDoctorIdAndBranchId(doctorId, branchId)).thenReturn(true);
+        when(schedules.findBookableSlot(any(), eq(branchId), any(), any()))
             .thenReturn(Optional.of(new ScheduleService.BookableSlot(LocalTime.of(9, 0), LocalTime.of(9, 30))));
         when(appointments.findExpiredPendingConflictsForUpdate(any(), any(), any(), any(), any(), any()))
             .thenReturn(List.of());
@@ -380,7 +457,7 @@ class BookingServiceValidationTest {
             );
         HoldSlotRequest request = new HoldSlotRequest(
             doctorId, LocalDate.now().plusDays(1), LocalTime.of(9, 0),
-            "Bệnh nhân", "0900000001", null, null, null, null, null, true, true);
+            "Bệnh nhân", "0900000001", null, null, null, branchId, null, true, true);
 
         assertEquals(OtpDeliveryStatus.QUEUED, service.holdSlot(request, userDetails).otpDeliveryStatus());
 
@@ -406,5 +483,224 @@ class BookingServiceValidationTest {
         assertEquals(300L, ttlCaptor.getValue());
         assertTrue(variablesCaptor.getValue().get("code").matches("\\d{6}"));
         assertEquals("5", variablesCaptor.getValue().get("minutes"));
+    }
+
+    /** Fully wired BookingService for the hold-path tests below. */
+    private static final class HoldFixture {
+        final AppointmentRepository appointments = mock(AppointmentRepository.class);
+        final PatientProfileRepository patients = mock(PatientProfileRepository.class);
+        final DoctorRepository doctors = mock(DoctorRepository.class);
+        final DoctorBranchRepository doctorBranches = mock(DoctorBranchRepository.class);
+        final DoctorSpecialtyRepository doctorSpecialties = mock(DoctorSpecialtyRepository.class);
+        final SpecialtyRepository specialties = mock(SpecialtyRepository.class);
+        final BranchRepository branches = mock(BranchRepository.class);
+        final PackageRepository packages = mock(PackageRepository.class);
+        final UserRepository users = mock(UserRepository.class);
+        final ScheduleService schedules = mock(ScheduleService.class);
+        final NotificationService notifications = mock(NotificationService.class);
+        final PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
+        final AfterCommitEmailSender emailSender = mock(AfterCommitEmailSender.class);
+        final Environment environment = mock(Environment.class);
+        final AppointmentSlotLocker slotLocker = mock(AppointmentSlotLocker.class);
+        final BankTransferPaymentService payments = mock(BankTransferPaymentService.class);
+        final AppointmentClaimService claimService = mock(AppointmentClaimService.class);
+
+        BookingService service() {
+            return new BookingService(
+                appointments, patients, doctors, doctorBranches, doctorSpecialties, specialties,
+                branches, packages, users, schedules, passwordEncoder, notifications, slotLocker,
+                emailSender, environment, payments, claimService);
+        }
+    }
+
+    private static com.healthcare.hospital.entity.Branch activeBranch(UUID branchId) {
+        com.healthcare.hospital.entity.Branch branch = new com.healthcare.hospital.entity.Branch();
+        branch.setId(branchId);
+        branch.setActive(true);
+        return branch;
+    }
+
+    private static Doctor activeDoctor(UUID doctorId) {
+        Doctor doctor = new Doctor();
+        doctor.setId(doctorId);
+        doctor.setActive(true);
+        return doctor;
+    }
+
+    private static HoldSlotRequest holdRequest(UUID doctorId, UUID branchId) {
+        return new HoldSlotRequest(
+            doctorId, LocalDate.now().plusDays(1), LocalTime.of(9, 0),
+            "Bệnh nhân", "0900000001", "patient@example.test", null, null, branchId, null, false, true);
+    }
+
+    @Test
+    void rejectsHoldWithoutBranchBeforeAnyCatalogOrAvailabilityWork() {
+        HoldFixture fixture = new HoldFixture();
+        BookingService service = fixture.service();
+        HoldSlotRequest request = new HoldSlotRequest(
+            UUID.randomUUID(), LocalDate.now().plusDays(1), LocalTime.of(9, 0),
+            "Bệnh nhân", "0900000001", "patient@example.test", null, null, null, null, false, true);
+
+        // A branchless hold would bypass the V10 composite (doctor, branch) FK,
+        // so it is rejected before any catalog or schedule lookup runs.
+        assertThatThrownBy(() -> service.holdSlot(request))
+            .isInstanceOf(BusinessException.class)
+            .extracting(exception -> ((BusinessException) exception).getCode())
+            .isEqualTo(ErrorCodes.BRANCH_REQUIRED);
+        verify(fixture.doctors, never()).findById(any());
+        verifyNoInteractions(fixture.schedules);
+    }
+
+    @Test
+    void rejectsDoctorOverlapInAnotherBranchWhenTheRequestedBranchIsFree() {
+        HoldFixture fixture = new HoldFixture();
+        UUID doctorId = UUID.randomUUID();
+        UUID branchId = UUID.randomUUID();
+        LocalDate date = LocalDate.now().plusDays(1);
+        Doctor doctor = activeDoctor(doctorId);
+
+        when(fixture.doctors.findById(doctorId)).thenReturn(Optional.of(doctor));
+        when(fixture.branches.findByIdAndActiveTrue(branchId)).thenReturn(Optional.of(activeBranch(branchId)));
+        when(fixture.doctorBranches.existsByDoctorIdAndBranchId(doctorId, branchId)).thenReturn(true);
+        when(fixture.schedules.findBookableSlot(eq(doctorId), eq(branchId), eq(date), eq(LocalTime.of(9, 0))))
+            .thenReturn(Optional.of(new ScheduleService.BookableSlot(LocalTime.of(9, 0), LocalTime.of(9, 30))));
+        when(fixture.appointments.findExpiredPendingConflictsForUpdate(any(), any(), any(), any(), any(), any()))
+            .thenReturn(List.of());
+        when(fixture.appointments.findActiveConflictsForUpdate(any(), any(), any(), any(), any(), any()))
+            .thenReturn(List.of());
+        Appointment bookedElsewhere = new Appointment();
+        bookedElsewhere.setId(UUID.randomUUID());
+        when(fixture.appointments.findDoctorOverlapsForUpdate(any(), any(), any(), any(), any(), any()))
+            .thenReturn(List.of(bookedElsewhere));
+
+        BookingService service = fixture.service();
+
+        // The branch-scoped exclusion constraint cannot see the other branch; the
+        // doctor-level guard is what stops a cross-branch double booking.
+        assertThatThrownBy(() -> service.holdSlot(holdRequest(doctorId, branchId), null, null))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("cơ sở khác");
+        verify(fixture.appointments, never()).saveAndFlush(any());
+        verifyNoInteractions(fixture.emailSender);
+    }
+
+    @Test
+    void capLiveHoldsPerPatientRejectsTheThirdHold() {
+        HoldFixture fixture = new HoldFixture();
+        UUID doctorId = UUID.randomUUID();
+        UUID branchId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        LocalDate date = LocalDate.now().plusDays(1);
+        Doctor doctor = activeDoctor(doctorId);
+
+        com.healthcare.user.entity.User user = new com.healthcare.user.entity.User();
+        user.setId(userId);
+        user.setEmail("patient@example.test");
+        user.setStatus("ACTIVE");
+        user.setEmailVerified(true);
+        PatientProfile linked = new PatientProfile();
+        linked.setId(UUID.randomUUID());
+        linked.setUserId(userId);
+        linked.setFullName("Bệnh nhân");
+        linked.setPhone("0900000001");
+        linked.setEmail("patient@example.test");
+
+        when(fixture.doctors.findById(doctorId)).thenReturn(Optional.of(doctor));
+        when(fixture.branches.findByIdAndActiveTrue(branchId)).thenReturn(Optional.of(activeBranch(branchId)));
+        when(fixture.doctorBranches.existsByDoctorIdAndBranchId(doctorId, branchId)).thenReturn(true);
+        when(fixture.schedules.findBookableSlot(eq(doctorId), eq(branchId), eq(date), eq(LocalTime.of(9, 0))))
+            .thenReturn(Optional.of(new ScheduleService.BookableSlot(LocalTime.of(9, 0), LocalTime.of(9, 30))));
+        when(fixture.appointments.findExpiredPendingConflictsForUpdate(any(), any(), any(), any(), any(), any()))
+            .thenReturn(List.of());
+        when(fixture.appointments.findActiveConflictsForUpdate(any(), any(), any(), any(), any(), any()))
+            .thenReturn(List.of());
+        when(fixture.appointments.findDoctorOverlapsForUpdate(any(), any(), any(), any(), any(), any()))
+            .thenReturn(List.of());
+        when(fixture.users.findByEmail("patient@example.test")).thenReturn(Optional.of(user));
+        when(fixture.patients.findByUserId(userId)).thenReturn(Optional.of(linked));
+        when(fixture.emailSender.isDeliveryAvailable()).thenReturn(true);
+        when(fixture.appointments.countLiveHoldsForPatient(eq(linked.getId()), any())).thenReturn(2L);
+
+        BookingService service = fixture.service();
+        UserDetails principal = new User("patient@example.test", "ignored",
+            List.of(new SimpleGrantedAuthority("ROLE_PATIENT")));
+
+        assertThatThrownBy(() -> service.holdSlot(holdRequest(doctorId, branchId), principal, null))
+            .isInstanceOf(BusinessException.class)
+            .extracting(exception -> ((BusinessException) exception).getCode())
+            .isEqualTo(ErrorCodes.TOO_MANY_ACTIVE_HOLDS);
+        verify(fixture.appointments, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void repeatedIdempotencyKeyReplaysTheExistingHold() {
+        HoldFixture fixture = new HoldFixture();
+        UUID doctorId = UUID.randomUUID();
+        UUID branchId = UUID.randomUUID();
+        LocalDate date = LocalDate.now().plusDays(1);
+        String key = "hold-key-0001";
+
+        Appointment existing = new Appointment();
+        existing.setId(UUID.randomUUID());
+        existing.setBookingCode("APT-REPLAY");
+        existing.setDoctor(activeDoctor(doctorId));
+        existing.setBranch(activeBranch(branchId));
+        existing.setAppointmentDate(date);
+        existing.setStartTime(LocalTime.of(9, 0));
+        existing.setEndTime(LocalTime.of(9, 30));
+        existing.setStatus(com.healthcare.appointment.entity.AppointmentStatus.PENDING_CONFIRMATION);
+        existing.setHoldExpiresAt(java.time.OffsetDateTime.now().plusMinutes(7));
+        existing.setOtpExpiresAt(java.time.OffsetDateTime.now().plusMinutes(3));
+        when(fixture.appointments.findByHoldIdempotencyKey(key)).thenReturn(Optional.of(existing));
+
+        BookingService service = fixture.service();
+
+        HoldSlotResponse replayed = service.holdSlot(holdRequest(doctorId, branchId), null, key);
+
+        assertEquals("APT-REPLAY", replayed.bookingCode());
+        assertEquals(OtpDeliveryStatus.QUEUED, replayed.otpDeliveryStatus());
+        // The retry must not create a second hold, a second OTP, or another row.
+        verify(fixture.appointments, never()).saveAndFlush(any());
+        verifyNoInteractions(fixture.emailSender);
+        verifyNoInteractions(fixture.schedules);
+    }
+
+    @Test
+    void idempotencyKeyReusedForADifferentSlotIsRejected() {
+        HoldFixture fixture = new HoldFixture();
+        UUID doctorId = UUID.randomUUID();
+        UUID branchId = UUID.randomUUID();
+        String key = "hold-key-0002";
+
+        Appointment otherSlot = new Appointment();
+        otherSlot.setId(UUID.randomUUID());
+        otherSlot.setBookingCode("APT-OTHER");
+        otherSlot.setDoctor(activeDoctor(doctorId));
+        otherSlot.setBranch(activeBranch(branchId));
+        otherSlot.setAppointmentDate(LocalDate.now().plusDays(4));
+        otherSlot.setStartTime(LocalTime.of(15, 0));
+        otherSlot.setStatus(com.healthcare.appointment.entity.AppointmentStatus.PENDING_CONFIRMATION);
+        otherSlot.setHoldExpiresAt(java.time.OffsetDateTime.now().plusMinutes(5));
+        when(fixture.appointments.findByHoldIdempotencyKey(key)).thenReturn(Optional.of(otherSlot));
+
+        BookingService service = fixture.service();
+
+        assertThatThrownBy(() -> service.holdSlot(holdRequest(doctorId, branchId), null, key))
+            .isInstanceOf(BusinessException.class)
+            .extracting(exception -> ((BusinessException) exception).getCode())
+            .isEqualTo(ErrorCodes.CONFLICT);
+        verify(fixture.appointments, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void malformedIdempotencyKeyIsRejected() {
+        HoldFixture fixture = new HoldFixture();
+        BookingService service = fixture.service();
+
+        assertThatThrownBy(() -> service.holdSlot(
+                holdRequest(UUID.randomUUID(), UUID.randomUUID()), null, "short"))
+            .isInstanceOf(BusinessException.class)
+            .extracting(exception -> ((BusinessException) exception).getCode())
+            .isEqualTo(ErrorCodes.IDEMPOTENCY_KEY_INVALID);
     }
 }

@@ -52,6 +52,7 @@ public class PatientConsultationService {
     private final JdbcTemplate jdbc;
     private final UserRepository users;
     private final ConsultationAttachmentStorage attachmentStorage;
+    private final com.healthcare.notification.service.NotificationService notifications;
 
     /** Direct-to-object-store consultation uploads remain disabled until the
      * beta private bucket and AV/MIME worker are provisioned. */
@@ -60,15 +61,23 @@ public class PatientConsultationService {
 
     /** Compatibility constructor used by focused unit tests and local slices. */
     public PatientConsultationService(JdbcTemplate jdbc, UserRepository users) {
-        this(jdbc, users, null);
+        this(jdbc, users, null, null);
+    }
+
+    /** Compatibility constructor for attachment-focused tests. */
+    public PatientConsultationService(JdbcTemplate jdbc, UserRepository users,
+                                      ObjectProvider<ConsultationAttachmentStorage> storageProvider) {
+        this(jdbc, users, storageProvider, null);
     }
 
     @Autowired
     public PatientConsultationService(JdbcTemplate jdbc, UserRepository users,
-                                      ObjectProvider<ConsultationAttachmentStorage> storageProvider) {
+                                      ObjectProvider<ConsultationAttachmentStorage> storageProvider,
+                                      com.healthcare.notification.service.NotificationService notifications) {
         this.jdbc = jdbc;
         this.users = users;
         this.attachmentStorage = storageProvider == null ? null : storageProvider.getIfAvailable();
+        this.notifications = notifications;
     }
 
     @Transactional
@@ -286,7 +295,43 @@ public class PatientConsultationService {
             """, id, userId, normalizedKey);
         appendEvent(id, userId, role, "MESSAGE_SENT",
             "{\"messageId\":\"" + row.get("id") + "\"}");
+        notifyCounterpartOfMessage(id, role);
         return mapMessage(row, "SENT");
+    }
+
+    /**
+     * One in-app ping to the participant who is now waiting: the patient when
+     * the doctor writes, the doctor when the patient writes. The body is never
+     * quoted — the thread is the delivery surface for content, and the
+     * notification stays free of clinical narrative.
+     */
+    private void notifyCounterpartOfMessage(UUID threadId, String authorRole) {
+        if (notifications == null) return;
+        Map<String, Object> thread;
+        try {
+            thread = jdbc.queryForMap("""
+                SELECT p.user_id AS patient_user_id, d.user_id AS doctor_user_id
+                  FROM patient_consultation_threads t
+                  JOIN patient_profiles p ON p.id = t.patient_profile_id
+                  JOIN doctors d ON d.id = t.doctor_id
+                 WHERE t.id = ?
+                """, threadId);
+        } catch (DataAccessException ex) {
+            return;
+        }
+        Object patientUser = thread.get("patient_user_id");
+        Object doctorUser = thread.get("doctor_user_id");
+        UUID counterpartId = "DOCTOR".equals(authorRole)
+            ? (patientUser instanceof UUID uuid ? uuid : null)
+            : (doctorUser instanceof UUID uuid ? uuid : null);
+        if (counterpartId == null) return;
+        notifications.create(
+            counterpartId,
+            com.healthcare.notification.entity.Notification.EventType.CONSULTATION_MESSAGE,
+            "Có tin nhắn tư vấn mới",
+            "Kênh tư vấn của bạn có tin nhắn mới. Vào mục Tư vấn để xem và trả lời.",
+            threadId
+        );
     }
 
     private ConsultationContracts.Message findIdempotentMessage(
