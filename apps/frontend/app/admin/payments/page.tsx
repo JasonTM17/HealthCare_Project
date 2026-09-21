@@ -118,7 +118,7 @@ export default function AdminPaymentsPage() {
         <div aria-label="Bảng đối soát thanh toán, có thể cuộn ngang trên màn hình nhỏ" className="mt-4 max-w-full overflow-x-auto rounded-lg border border-slate-200 bg-white" role="region" tabIndex={0}>
           <table className="w-full min-w-[1050px] text-left text-sm">
             <caption className="sr-only">Danh sách giao dịch chờ bệnh viện đối soát và phê duyệt</caption>
-            <thead className="border-b bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="px-4 py-3">Lịch hẹn</th><th className="px-4 py-3">Bệnh nhân</th><th className="px-4 py-3">Số tiền</th><th className="px-4 py-3">Nội dung / mã giao dịch</th><th className="px-4 py-3">Trạng thái</th><th className="px-4 py-3">Thao tác</th></tr></thead>
+            <thead className="border-b bg-slate-50 text-xs uppercase text-slate-500"><tr><th scope="col" className="px-4 py-3">Lịch hẹn</th><th scope="col" className="px-4 py-3">Bệnh nhân</th><th scope="col" className="px-4 py-3">Số tiền</th><th scope="col" className="px-4 py-3">Nội dung / mã giao dịch</th><th scope="col" className="px-4 py-3">Trạng thái</th><th scope="col" className="px-4 py-3">Thao tác</th></tr></thead>
             <tbody>{items.map((item) => <tr className="border-b border-slate-100 align-top last:border-0" key={item.id}>
               <td className="px-4 py-4"><strong className="font-mono text-xs">{item.bookingCode}</strong><br /><span className="text-xs text-slate-500">{formatBusinessDate(item.appointmentDate)} · {item.doctorName}</span></td>
               <td className="px-4 py-4">{item.patientName}</td>
@@ -130,7 +130,7 @@ export default function AdminPaymentsPage() {
           </table>
         </div>
       ) : null}
-      <nav aria-label="Phân trang thanh toán" className="mt-5 flex justify-end gap-2"><button className="rounded-lg border px-3 text-sm disabled:opacity-40" disabled={page === 0 || loading} onClick={() => setPage((value) => value - 1)} type="button">Trang trước</button><span className="inline-flex min-h-11 items-center px-3 text-sm">{totalPages === 0 ? 0 : page + 1}/{totalPages}</span><button className="rounded-lg border px-3 text-sm disabled:opacity-40" disabled={page + 1 >= totalPages || loading} onClick={() => setPage((value) => value + 1)} type="button">Trang sau</button></nav>
+      <nav aria-label="Phân trang thanh toán" className="mt-5 flex justify-end gap-2"><button className="inline-flex min-h-11 items-center rounded-lg border px-4 py-2 text-sm disabled:opacity-40" disabled={page === 0 || loading} onClick={() => setPage((value) => value - 1)} type="button">Trang trước</button><span className="inline-flex min-h-11 items-center px-3 text-sm">{totalPages === 0 ? 0 : page + 1}/{totalPages}</span><button className="inline-flex min-h-11 items-center rounded-lg border px-4 py-2 text-sm disabled:opacity-40" disabled={page + 1 >= totalPages || loading} onClick={() => setPage((value) => value + 1)} type="button">Trang sau</button></nav>
 
       <ConfirmActionDialog
         cancelLabel="Đóng"

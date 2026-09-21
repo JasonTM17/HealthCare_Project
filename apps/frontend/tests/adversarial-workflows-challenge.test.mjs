@@ -147,18 +147,24 @@ test("Flow 1: Quota debiting contract is strictly transactional upon completed a
     "prepare() must NOT charge patient quota",
   );
 
-  // complete() must charge quota AFTER assistant response is saved
+  // complete() charges quota for accepted answers and WAIVES degraded
+  // insufficient-evidence answers (both after the reply is saved, same tx).
   const completeMethod = backendService.substring(
     backendService.indexOf("private ChatExchangeResponse complete("),
     backendService.indexOf("private boolean sameSourceSet("),
   );
   assert.match(
     completeMethod,
-    /chargeAcceptedPatientExchange\(userId\);/,
+    /chargeAcceptedPatientExchange\(userId, request\.getId\(\)\)/,
     "complete() must charge quota upon successful generation",
   );
+  assert.match(
+    completeMethod,
+    /safetyAction\(\) == ChatSafetyAction\.INSUFFICIENT_EVIDENCE[\s\S]*waiveInsufficientPatientExchange\(userId, request\.getId\(\)\)[\s\S]*\} else \{[\s\S]*chargeAcceptedPatientExchange/,
+    "complete() must waive (not charge) degraded insufficient-evidence answers",
+  );
 
-  // markFailed() must NOT refund or charge (zero debit on failure)
+  // markFailed() must refund a charged attempt idempotently and never charge
   const markFailedMethod = backendService.substring(
     backendService.indexOf("private void markFailed("),
     backendService.indexOf("private void recoverStaleInFlight("),
@@ -168,10 +174,10 @@ test("Flow 1: Quota debiting contract is strictly transactional upon completed a
     /chargeAcceptedPatientExchange/,
     "markFailed() must not charge quota",
   );
-  assert.doesNotMatch(
+  assert.match(
     markFailedMethod,
     /refundFailedPatientExchange/,
-    "markFailed() does not need to refund because prepare() never charged",
+    "markFailed() refunds a charged attempt whose answer never persisted",
   );
 
   // Frontend does not optimistically deduct quota
@@ -254,10 +260,12 @@ test("Flow 2: Normalization handles exhaustive Vietnamese diacritics and regex s
 test("Flow 2: Zero false red error banners when results exist (resultCount > 0)", async () => {
   const source = await read("app/search/SearchPageClient.tsx");
 
-  // Exact semantic error rendering condition
+  // The semantic error banner must strictly require resultCount === 0; the
+  // current render additionally gates on the semantic-state visibility flag,
+  // so the invariant is asserted without pinning that extra prefix.
   assert.match(
     source,
-    /\{resultCount === 0 && semanticError \? <p className="catalog-status catalog-status--error" role="alert">\{semanticError\}<\/p> : null\}/,
+    /resultCount === 0 && semanticError \? <p className="catalog-status catalog-status--error" role="alert">\{semanticError\}<\/p> : null\}/,
     "semanticError banner must strictly require resultCount === 0",
   );
 

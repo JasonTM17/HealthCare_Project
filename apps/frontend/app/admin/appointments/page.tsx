@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { adminListAppointments, type AppointmentDetails } from "../../../lib/api-client";
+import { adminCancelAppointment, adminListAppointments, type AppointmentDetails } from "../../../lib/api-client";
 import { formatBusinessDate } from "../../../lib/business-time";
 import AdminState from "../_components/AdminState";
+import ConfirmActionDialog from "../../../components/ui/ConfirmActionDialog";
 import { describeAdminError } from "../_lib/errors";
 
 const STATUS_OPTIONS = [
@@ -16,6 +17,15 @@ const STATUS_OPTIONS = [
   ["NO_SHOW", "Không đến"],
 ] as const;
 
+/**
+ * Statuses the backend refuses to cancel (409
+ * APPOINTMENT_STATUS_TRANSITION_INVALID). Keeping the list next to the row
+ * action is what lets the button be disabled before the request is sent.
+ */
+const TERMINAL_STATUSES = ["COMPLETED", "CANCELLED", "NO_SHOW"];
+
+const CANCEL_REASON_MAX_LENGTH = 500;
+
 type Filters = { date: string; status: string };
 const EMPTY_FILTERS: Filters = { date: "", status: "" };
 
@@ -27,6 +37,10 @@ function formatTime(value?: string): string {
   return value ? value.slice(0, 5) : "Chưa cập nhật";
 }
 
+function isCancellable(appointment: AppointmentDetails): boolean {
+  return !TERMINAL_STATUSES.includes(appointment.status);
+}
+
 export default function AdminAppointmentsPage() {
   const [appointments, setAppointments] = useState<AppointmentDetails[]>([]);
   const [draftFilters, setDraftFilters] = useState<Filters>(EMPTY_FILTERS);
@@ -36,6 +50,10 @@ export default function AdminAppointmentsPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pendingCancel, setPendingCancel] = useState<AppointmentDetails | null>(null);
+  const [cancelBusy, setCancelBusy] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const [cancelNotice, setCancelNotice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -71,6 +89,32 @@ export default function AdminAppointmentsPage() {
     setAppliedFilters(EMPTY_FILTERS);
   };
 
+  const openCancel = (appointment: AppointmentDetails): void => {
+    setCancelNotice(null);
+    setCancelError(null);
+    setPendingCancel(appointment);
+  };
+
+  /**
+   * Cancels on the patient's behalf and commits the row the server returned,
+   * so the table shows the stored status instead of an optimistically guessed
+   * one. The list is not refetched: the response is the authoritative row.
+   */
+  const cancelAppointment = async (appointment: AppointmentDetails, reason: string): Promise<void> => {
+    setCancelBusy(true);
+    setCancelError(null);
+    try {
+      const updated = await adminCancelAppointment(appointment.id, reason || undefined);
+      setAppointments((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      setPendingCancel(null);
+      setCancelNotice(`Đã hủy lịch ${updated.bookingCode} của ${updated.patientName}.`);
+    } catch (cause) {
+      setCancelError(describeAdminError(cause).description);
+    } finally {
+      setCancelBusy(false);
+    }
+  };
+
   return (
     <div>
       <header className="border-b border-slate-200 pb-6">
@@ -88,19 +132,81 @@ export default function AdminAppointmentsPage() {
       </form>
 
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-slate-600">Tổng cộng <strong>{total.toLocaleString("vi-VN")}</strong> lịch hẹn</p><button className="text-sm font-bold text-teal-800 underline underline-offset-4 disabled:opacity-50" disabled={loading} onClick={() => void load()} type="button">Làm mới</button></div>
+      {cancelNotice ? <div className="mt-4"><AdminState description={cancelNotice} title="Đã hủy lịch hẹn" tone="success" /></div> : null}
       {loading ? <div className="mt-4"><AdminState tone="loading" title="Đang tải lịch hẹn" description="Danh sách vận hành đang được cập nhật." /></div> : null}
       {!loading && error ? <div className="mt-4"><AdminState action={<button className="text-sm font-bold underline underline-offset-4" onClick={() => void load()} type="button">Thử lại</button>} tone="error" title="Không thể tải lịch hẹn" description={error} /></div> : null}
       {!loading && !error && appointments.length === 0 ? <div className="mt-4"><AdminState tone="empty" title="Không có lịch hẹn" description="Không có bản ghi phù hợp với bộ lọc hiện tại." /></div> : null}
       {!loading && !error && appointments.length > 0 ? (
         <div aria-label="Bảng lịch hẹn, có thể cuộn ngang trên màn hình nhỏ" className="mt-4 max-w-full overflow-x-auto rounded-lg border border-slate-200 bg-white" role="region" tabIndex={0}>
-          <table className="w-full min-w-[860px] text-left text-sm">
+          <table className="w-full min-w-[1080px] text-left text-sm">
             <caption className="sr-only">Danh sách lịch hẹn trong khu vực quản trị</caption>
-            <thead className="border-b bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="px-4 py-3">Mã</th><th className="px-4 py-3">Thời gian</th><th className="px-4 py-3">Bệnh nhân</th><th className="px-4 py-3">Bác sĩ</th><th className="px-4 py-3">Cơ sở</th><th className="px-4 py-3">Trạng thái</th></tr></thead>
-            <tbody>{appointments.map((item) => <tr className="border-b border-slate-100 last:border-0" key={item.id}><td className="px-4 py-4 font-mono text-xs">{item.bookingCode}</td><td className="px-4 py-4"><strong>{formatBusinessDate(item.appointmentDate)}</strong><br />{formatTime(item.startTime)} - {formatTime(item.endTime)}</td><td className="px-4 py-4"><strong>{item.patientName}</strong><br /><span className="text-xs text-slate-500">{item.patientPhone}</span></td><td className="px-4 py-4">{item.doctorName}</td><td className="px-4 py-4">{item.branchName || "Chưa cập nhật"}</td><td className="px-4 py-4"><span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-bold">{statusLabel(item.status)}</span></td></tr>)}</tbody>
+            <thead className="border-b bg-slate-50 text-xs uppercase text-slate-500"><tr><th scope="col" className="px-4 py-3">Mã</th><th scope="col" className="px-4 py-3">Thời gian</th><th scope="col" className="px-4 py-3">Bệnh nhân</th><th scope="col" className="px-4 py-3">Bác sĩ</th><th scope="col" className="px-4 py-3">Cơ sở</th><th scope="col" className="px-4 py-3">Trạng thái</th><th scope="col" className="px-4 py-3">Lý do hủy</th><th scope="col" className="px-4 py-3">Thao tác</th></tr></thead>
+            <tbody>{appointments.map((item) => (
+              <tr className="border-b border-slate-100 last:border-0" key={item.id}>
+                <td className="px-4 py-4 font-mono text-xs">{item.bookingCode}</td>
+                <td className="px-4 py-4"><strong>{formatBusinessDate(item.appointmentDate)}</strong><br />{formatTime(item.startTime)} - {formatTime(item.endTime)}</td>
+                <td className="px-4 py-4"><strong>{item.patientName}</strong><br /><span className="text-xs text-slate-500">{item.patientPhone}</span></td>
+                <td className="px-4 py-4">{item.doctorName}</td>
+                <td className="px-4 py-4">{item.branchName || "Chưa cập nhật"}</td>
+                <td className="px-4 py-4"><span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-bold">{statusLabel(item.status)}</span></td>
+                <td className="px-4 py-4">
+                  {item.status === "CANCELLED" && item.cancellationReason ? (
+                    <span className="block max-w-[220px] truncate text-xs text-slate-600" title={item.cancellationReason}>{item.cancellationReason}</span>
+                  ) : (
+                    <span className="text-xs text-slate-400">—</span>
+                  )}
+                </td>
+                <td className="px-4 py-4">
+                  <button
+                    aria-label={`Hủy lịch ${item.bookingCode} của ${item.patientName}`}
+                    className="text-sm font-bold text-red-700 underline underline-offset-4 disabled:cursor-not-allowed disabled:text-slate-400 disabled:no-underline"
+                    disabled={!isCancellable(item) || cancelBusy}
+                    onClick={() => openCancel(item)}
+                    title={isCancellable(item) ? "Hủy lịch hẹn này thay người bệnh" : "Lịch đã ở trạng thái kết thúc nên không thể hủy lại"}
+                    type="button"
+                  >
+                    Hủy lịch
+                  </button>
+                </td>
+              </tr>
+            ))}</tbody>
           </table>
         </div>
       ) : null}
-      <nav aria-label="Phân trang lịch hẹn" className="admin-pagination mt-5 flex flex-wrap justify-end gap-2"><button className="rounded-lg border px-3 text-sm disabled:opacity-40" disabled={page === 0 || loading} onClick={() => setPage((value) => value - 1)} type="button">Trang trước</button><span aria-live="polite" className="inline-flex min-h-11 items-center px-3 text-sm">{totalPages === 0 ? 0 : page + 1}/{totalPages}</span><button className="rounded-lg border px-3 text-sm disabled:opacity-40" disabled={page + 1 >= totalPages || loading} onClick={() => setPage((value) => value + 1)} type="button">Trang sau</button></nav>
+      <nav aria-label="Phân trang lịch hẹn" className="admin-pagination mt-5 flex flex-wrap justify-end gap-2"><button className="inline-flex min-h-11 items-center rounded-lg border px-4 py-2 text-sm disabled:opacity-40" disabled={page === 0 || loading} onClick={() => setPage((value) => value - 1)} type="button">Trang trước</button><span aria-live="polite" className="inline-flex min-h-11 items-center px-3 text-sm">{totalPages === 0 ? 0 : page + 1}/{totalPages}</span><button className="inline-flex min-h-11 items-center rounded-lg border px-4 py-2 text-sm disabled:opacity-40" disabled={page + 1 >= totalPages || loading} onClick={() => setPage((value) => value + 1)} type="button">Trang sau</button></nav>
+
+      <ConfirmActionDialog
+        cancelLabel="Đóng"
+        confirmLabel="Hủy lịch hẹn"
+        confirmingLabel="Đang hủy…"
+        description="Lịch hẹn sẽ chuyển sang trạng thái “Đã hủy” và người bệnh cần được thông báo theo quy trình của cơ sở. Lịch đã hủy không thể khôi phục."
+        destructive
+        entity={pendingCancel}
+        error={cancelError}
+        fields={[{
+          description: "Không bắt buộc. Nội dung được lưu cùng lịch hẹn để đối chiếu sau này.",
+          label: "Lý do hủy",
+          maxLength: CANCEL_REASON_MAX_LENGTH,
+          multiline: true,
+          name: "reason",
+          placeholder: "Ví dụ: người bệnh gọi điện báo bận, xin dời sang tuần sau",
+        }]}
+        onCancel={() => { if (!cancelBusy) { setPendingCancel(null); setCancelError(null); } }}
+        onConfirm={(values) => {
+          if (pendingCancel) void cancelAppointment(pendingCancel, values.reason ?? "");
+        }}
+        open={pendingCancel !== null}
+        pending={cancelBusy}
+        summaryItems={pendingCancel ? [
+          { label: "Mã lịch hẹn", value: pendingCancel.bookingCode, mono: true },
+          { label: "Người bệnh", value: `${pendingCancel.patientName} · ${pendingCancel.patientPhone}` },
+          { label: "Bác sĩ", value: pendingCancel.doctorName },
+          { label: "Thời gian", value: `${formatBusinessDate(pendingCancel.appointmentDate)} · ${formatTime(pendingCancel.startTime)} - ${formatTime(pendingCancel.endTime)}` },
+          { label: "Trạng thái hiện tại", value: statusLabel(pendingCancel.status) },
+        ] : []}
+        summaryLabel="Lịch hẹn sẽ bị hủy"
+        title="Hủy lịch hẹn này thay người bệnh?"
+      />
     </div>
   );
 }

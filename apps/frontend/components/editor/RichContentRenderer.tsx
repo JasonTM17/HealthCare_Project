@@ -148,7 +148,7 @@ export function renderInlineMarkdown(text: string): ReactNode[] {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               alt={imgAlt || "Hình ảnh y khoa"}
-              className="max-h-96 max-w-full rounded-[4px] border border-slate-200 object-contain shadow-2xs"
+              className="max-h-96 max-w-full rounded-[4px] border border-slate-200 object-contain"
               loading="lazy"
               src={imgUrl}
             />
@@ -165,16 +165,23 @@ export function renderInlineMarkdown(text: string): ReactNode[] {
     } else if (isLink && linkUrl) {
       const safe = isSafeUrl(linkUrl);
       const isExternal = linkUrl.startsWith("http://") || linkUrl.startsWith("https://");
+      // An unsafe target must not become a clickable anchor: pointing it at the
+      // page top jumps the reader out of a clinical article and reads as a
+      // broken source link, so the anchor is omitted entirely instead.
       nodes.push(
-        <a
-          className="font-medium text-teal-800 underline decoration-teal-600/40 underline-offset-2 hover:text-teal-950 hover:decoration-teal-800 transition-colors"
-          href={safe ? linkUrl : "#"}
-          key={key}
-          rel={isExternal ? "noopener noreferrer" : undefined}
-          target={isExternal ? "_blank" : undefined}
-        >
-          {renderInlineMarkdown(linkText)}
-        </a>,
+        safe ? (
+          <a
+            className="font-medium text-teal-800 underline decoration-teal-600/40 underline-offset-2 hover:text-teal-950 hover:decoration-teal-800 transition-colors"
+            href={linkUrl}
+            key={key}
+            rel={isExternal ? "noopener noreferrer" : undefined}
+            target={isExternal ? "_blank" : undefined}
+          >
+            {renderInlineMarkdown(linkText)}
+          </a>
+        ) : (
+          <span key={key}>{renderInlineMarkdown(linkText)}</span>
+        ),
       );
     } else if (isCode) {
       nodes.push(
@@ -668,7 +675,7 @@ function RenderBlockList({
 
             return (
               <div
-                className={`my-4 p-4 rounded-[4px] shadow-2xs ${config.containerClass}`}
+                className={`my-4 p-4 rounded-[4px] ${config.containerClass}`}
                 key={blockKey}
                 role="region"
                 aria-label={title}
@@ -705,7 +712,7 @@ function RenderBlockList({
           case "code":
             return (
               <div
-                className="my-4 overflow-hidden rounded-[4px] border border-slate-700 bg-slate-900 text-slate-100 shadow-2xs"
+                className="my-4 overflow-hidden rounded-[4px] border border-slate-700 bg-slate-900 text-slate-100"
                 key={blockKey}
               >
                 {block.language && (
@@ -731,7 +738,7 @@ function RenderBlockList({
             };
             return (
               <div
-                className="my-5 overflow-x-auto rounded-[4px] border border-slate-200 bg-white shadow-2xs"
+                className="my-5 overflow-x-auto rounded-[4px] border border-slate-200 bg-white"
                 key={blockKey}
               >
                 <table className="w-full text-xs sm:text-sm border-collapse">
@@ -739,7 +746,7 @@ function RenderBlockList({
                     <thead className="bg-slate-50 border-b border-slate-200 text-slate-900 font-bold uppercase tracking-wider text-[11px]">
                       <tr>
                         {headers.map((h, hIdx) => (
-                          <th className={`px-4 py-3 ${getAlignClass(hIdx)}`} key={`th-${hIdx}`}>
+                          <th scope="col" className={`px-4 py-3 ${getAlignClass(hIdx)}`} key={`th-${hIdx}`}>
                             {renderInlineMarkdown(h)}
                           </th>
                         ))}
@@ -1033,6 +1040,125 @@ function extractCallouts(html: string): string {
   return out;
 }
 
+/** A top-level list or item element found by `findTopLevelListElements`. */
+interface MarkupSpan {
+  /** Lower-cased element name: `ul`, `ol` or `li`. */
+  name: string;
+  /** Index of the opening `<`. */
+  start: number;
+  /** Index just past the closing `>`. */
+  end: number;
+  /** Raw markup between the two tags. */
+  inner: string;
+}
+
+/**
+ * Locate the `</name>` closing the element that opened before `from`.
+ *
+ * Same-name elements are counted, so the close returned is the one that
+ * balances the opener rather than the first one to appear — which is what the
+ * list conversion below needs to tell a parent list from its child.
+ */
+function findElementClose(html: string, from: number, name: string): { tagStart: number; end: number } | null {
+  const tagPattern = new RegExp(`<\\s*(/?)\\s*${name}\\b[^>]*>`, "gi");
+  tagPattern.lastIndex = from;
+  let depth = 1;
+  let match: RegExpExecArray | null;
+  while ((match = tagPattern.exec(html)) !== null) {
+    if (match[1] === "/") {
+      depth -= 1;
+      if (depth === 0) return { tagStart: match.index, end: tagPattern.lastIndex };
+    } else {
+      depth += 1;
+    }
+  }
+  return null;
+}
+
+/**
+ * Every top-level `<ul>`, `<ol>` or `<li>` in `html`, in document order.
+ *
+ * "Top level" means not nested inside another element from the same scan: the
+ * scan resumes past each element it records, so an item inside a recorded list
+ * is never reported a second time as a sibling. An unbalanced element is left
+ * as raw markup for the caller instead of being guessed at.
+ */
+function findTopLevelListElements(html: string, names: string): MarkupSpan[] {
+  const opener = new RegExp(`<\\s*(${names})\\b[^>]*>`, "gi");
+  const spans: MarkupSpan[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = opener.exec(html)) !== null) {
+    const name = match[1].toLowerCase();
+    const close = findElementClose(html, opener.lastIndex, name);
+    if (!close) continue;
+    spans.push({
+      name,
+      start: match.index,
+      end: close.end,
+      inner: html.slice(opener.lastIndex, close.tagStart),
+    });
+    opener.lastIndex = close.end;
+  }
+  return spans;
+}
+
+/** Indent added per nesting level, so a child list stays inside its parent item. */
+const LIST_INDENT = "  ";
+
+/**
+ * Render one list element's items as markdown lines, nesting as it goes.
+ *
+ * The previous conversion ran `/<ul[^>]*>([\s\S]*?)<\/ul>/` — non-greedy, so for
+ * `<ul><li>Cha<ul><li>Con</li></ul></li></ul>` it stopped at the inner `</ul>`
+ * and captured `<li>Cha<ul><li>Con</li>`. The two text runs in that fragment
+ * were then stripped of their tags and joined, publishing `ChaCon`: an author's
+ * nested list came out of the editor as one corrupted word. Depth is now
+ * tracked through the markup, so a nested item is emitted as an indented item
+ * of its parent (up to any depth) and never merged into the parent's text.
+ */
+function listToMarkdownLines(name: string, itemSpans: MarkupSpan[], depth: number): string[] {
+  const indent = LIST_INDENT.repeat(depth);
+  const ordered = name.toLowerCase() === "ol";
+  const lines: string[] = [];
+  let ordinal = 1;
+  for (const item of itemSpans) {
+    const marker = ordered ? `${ordinal}.` : "-";
+    ordinal += 1;
+    const nested = findTopLevelListElements(item.inner, "ul|ol");
+    // Rebuild the item's own content with the nested lists removed, so the
+    // child's words cannot reach `htmlToMarkdown` as part of the parent's text.
+    let direct = item.inner;
+    for (let idx = nested.length - 1; idx >= 0; idx -= 1) {
+      direct = direct.slice(0, nested[idx].start) + direct.slice(nested[idx].end);
+    }
+    lines.push(`${indent}${marker} ${htmlToMarkdown(direct).trim()}`);
+    for (const child of nested) {
+      lines.push(...listToMarkdownLines(child.name, findTopLevelListElements(child.inner, "li"), depth + 1));
+    }
+  }
+  return lines;
+}
+
+/**
+ * Replace every top-level list in `html` with markdown list lines.
+ *
+ * Only the outermost lists are handled here; each one recurses into its own
+ * items, which is also why the top-level output of a flat list is unchanged.
+ */
+function convertListMarkup(html: string): string {
+  const lists = findTopLevelListElements(html, "ul|ol");
+  if (lists.length === 0) return html;
+  let output = "";
+  let cursor = 0;
+  for (const list of lists) {
+    output += html.slice(cursor, list.start);
+    const items = findTopLevelListElements(list.inner, "li");
+    output += `\n${listToMarkdownLines(list.name, items, 0).join("\n")}\n`;
+    cursor = list.end;
+  }
+  return output + html.slice(cursor);
+}
+
 export function htmlToMarkdown(html: string): string {
   if (!html || !html.trim()) return "";
   let md = html;
@@ -1069,27 +1195,74 @@ export function htmlToMarkdown(html: string): string {
     return `\n\`\`\`${lang || ""}\n${decodeHtmlEntities(stripTags(code))}\n\`\`\`\n`;
   });
 
-  // Tables: convert <table>...</table> to markdown table
+  // Tables: convert <table>...</table> to markdown table. Merged cells are
+  // expanded onto an occupancy grid — colspan duplicates content across the
+  // covered columns of its own row, rowspan carries it into the same column of
+  // the rows below. Without this, everything after a merged cell shifts left
+  // and each column reads the wrong label.
   md = md.replace(/<table[^>]*>([\s\S]*?)<\/table>/gi, (_m, tableHtml) => {
-    const rows: string[][] = [];
+    const headerAlignments: ("center" | "right" | "left")[] = [];
+    const spanValue = (attrs: string, name: "colspan" | "rowspan"): number => {
+      const pattern = name === "colspan" ? /colspan\s*=\s*["']?(\d+)/i : /rowspan\s*=\s*["']?(\d+)/i;
+      const found = pattern.exec(attrs);
+      return Math.max(1, (found && parseInt(found[1], 10)) || 1);
+    };
+    const parsed: { content: string; colSpan: number; rowSpan: number }[][] = [];
     const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
     let rowMatch: RegExpExecArray | null;
     while ((rowMatch = rowRegex.exec(tableHtml)) !== null) {
-      const cells: string[] = [];
-      const cellRegex = /<(?:th|td)[^>]*>([\s\S]*?)<\/(?:th|td)>/gi;
+      const cells: { content: string; colSpan: number; rowSpan: number }[] = [];
+      const cellRegex = /<(th|td)((?:\s[^>]*)?)>([\s\S]*?)<\/\1>/gi;
       let cellMatch: RegExpExecArray | null;
       while ((cellMatch = cellRegex.exec(rowMatch[1])) !== null) {
-        cells.push(toTableCell(cellMatch[1]));
+        const attrs = cellMatch[2] || "";
+        cells.push({
+          content: toTableCell(cellMatch[3]),
+          colSpan: spanValue(attrs, "colspan"),
+          rowSpan: spanValue(attrs, "rowspan"),
+        });
+        if (parsed.length === 0 && cellMatch[1].toLowerCase() === "th") {
+          const align = /text-align\s*:\s*(center|right)/i.exec(attrs)?.[1];
+          headerAlignments.push(align === "center" || align === "right" ? align : "left");
+        }
       }
-      if (cells.length > 0) rows.push(cells);
+      if (cells.length > 0) parsed.push(cells);
     }
-    if (rows.length === 0) return "";
-    const headers = rows[0];
-    const dataRows = rows.slice(1);
-    const colCount = Math.max(...rows.map((r) => r.length));
+    if (parsed.length === 0) return "";
+
+    // Place every cell on the shared grid, skipping slots a rowspan from an
+    // earlier row already occupies.
+    const grid: string[][] = parsed.map(() => []);
+    const occupied: boolean[][] = parsed.map(() => []);
+    for (let r = 0; r < parsed.length; r += 1) {
+      let c = 0;
+      for (const cell of parsed[r]) {
+        while (occupied[r][c]) c += 1;
+        for (let dr = 0; dr < cell.rowSpan && r + dr < parsed.length; dr += 1) {
+          for (let dc = 0; dc < cell.colSpan; dc += 1) {
+            grid[r + dr][c + dc] = cell.content;
+            occupied[r + dr][c + dc] = true;
+          }
+        }
+        c += cell.colSpan;
+      }
+    }
+
+    const colCount = Math.max(...grid.map((row) => row.length));
+    const headers = grid[0];
+    const dataRows = grid.slice(1);
     const normalizedHeaders = Array.from({ length: colCount }, (_, idx) => headers[idx] || "");
+    const alignmentFor = (idx: number): "center" | "right" | "left" =>
+      headerAlignments.length > idx ? headerAlignments[idx] : "left";
     const headerLine = `| ${normalizedHeaders.join(" | ")} |`;
-    const separatorLine = `| ${normalizedHeaders.map(() => "---").join(" | ")} |`;
+    const separatorLine = `| ${normalizedHeaders
+      .map((_, idx) => {
+        const a = alignmentFor(idx);
+        if (a === "center") return ":---:";
+        if (a === "right") return "---:";
+        return "---";
+      })
+      .join(" | ")} |`;
     const rowLines = dataRows.map((r) => {
       const normalizedRow = Array.from({ length: colCount }, (_, idx) => r[idx] || "");
       return `| ${normalizedRow.join(" | ")} |`;
@@ -1097,27 +1270,10 @@ export function htmlToMarkdown(html: string): string {
     return `\n${headerLine}\n${separatorLine}\n${rowLines.join("\n")}\n`;
   });
 
-  // Lists
-  md = md.replace(/<ul[^>]*>([\s\S]*?)<\/ul>/gi, (_m, listHtml) => {
-    const items: string[] = [];
-    const liRegex = /<li[^>]*>([\s\S]*?)<\/li>/gi;
-    let liMatch: RegExpExecArray | null;
-    while ((liMatch = liRegex.exec(listHtml)) !== null) {
-      items.push(`- ${htmlToMarkdown(liMatch[1]).trim()}`);
-    }
-    return `\n${items.join("\n")}\n`;
-  });
-
-  md = md.replace(/<ol[^>]*>([\s\S]*?)<\/ol>/gi, (_m, listHtml) => {
-    const items: string[] = [];
-    const liRegex = /<li[^>]*>([\s\S]*?)<\/li>/gi;
-    let liMatch: RegExpExecArray | null;
-    let idx = 1;
-    while ((liMatch = liRegex.exec(listHtml)) !== null) {
-      items.push(`${idx++}. ${htmlToMarkdown(liMatch[1]).trim()}`);
-    }
-    return `\n${items.join("\n")}\n`;
-  });
+  // Lists. Depth-aware, because a nested list used to be flattened into its
+  // parent's item and the two text runs concatenated. Flat lists convert
+  // exactly as before — the round-trip tests pin that output byte for byte.
+  md = convertListMarkup(md);
 
   // Paragraphs
   md = md.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, (_m, content) => {
@@ -1137,6 +1293,23 @@ export function htmlToMarkdown(html: string): string {
   md = md.replace(/<(?:del|s|strike)[^>]*>([\s\S]*?)<\/(?:del|s|strike)>/gi, "~~$1~~");
   md = md.replace(/<code[^>]*>([\s\S]*?)<\/code>/gi, "`$1`");
   md = md.replace(/<a[^>]*href=["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi, "[$2]($1)");
+  // Figures: the editor's own image modal emits <figure><img><figcaption>.
+  // Without this rule the tags were stripped and the caption survived as loose
+  // text glued to the next paragraph. The caption round-trips as an italic line
+  // right under the image (skipped when it only repeats the alt text, which the
+  // renderer already shows as the image caption).
+  md = md.replace(/<figure\b[^>]*>([\s\S]*?)<\/figure>/gi, (_m, inner: string) => {
+    const imgMatch = /<img\b[^>]*\/?>/i.exec(inner);
+    const src = imgMatch ? htmlAttribute(imgMatch[0], "src") : "";
+    const alt = imgMatch ? htmlAttribute(imgMatch[0], "alt") ?? "" : "";
+    const captionMatch = /<figcaption\b[^>]*>([\s\S]*?)<\/figcaption>/i.exec(inner);
+    const caption = captionMatch ? stripTags(captionMatch[1]).trim() : "";
+    if (!src) {
+      return caption ? `\n\n${caption}\n\n` : "";
+    }
+    const captionLine = caption && caption !== alt ? `\n\n*${caption}*` : "";
+    return `\n\n![${alt}](${src})${captionLine}\n\n`;
+  });
   // Images: read the attributes instead of assuming an order. The previous
   // two-pattern approach required src before alt, so a re-serialised tag lost
   // its alt text — an accessibility regression on a medical site.
@@ -1177,6 +1350,64 @@ export function toStoredArticleBody(content: string): string {
   return /<(?:p|div|h[1-6]|table|ul|ol|blockquote|figure|span|strong|em|a|img)\b[^>]*>/i.test(value)
     ? htmlToMarkdown(value)
     : value.trim();
+}
+
+/** True when a markdown source line opens a list item. */
+function isListSourceLine(line: string): boolean {
+  return /^\s*(?:[-*+]|\d+\.)\s+/.test(line);
+}
+
+/** Leading whitespace width of a source line, with a tab counted as two columns. */
+function listSourceIndent(line: string): number {
+  return (line.match(/^[ \t]*/)?.[0] ?? "").replace(/\t/g, "  ").length;
+}
+
+/**
+ * Build a `<ul>`/`<ol>` from consecutive markdown list lines, recursing into
+ * the more-indented lines that belong to an item.
+ *
+ * `htmlToMarkdown` now writes nested lists as indented items, and this is the
+ * other half of that contract: without it the editor re-opened an indented list
+ * as a flat one, so the structure an author created survived the save and
+ * disappeared the next time they edited the article. `formatInline` is passed
+ * in rather than reached for because it is defined inside `markdownToHtml`,
+ * where the escaping contract it implements lives.
+ */
+function markdownListToHtml(
+  lines: string[],
+  start: number,
+  indent: number,
+  ordered: boolean,
+  formatInline: (text: string) => string,
+): { html: string; next: number } {
+  const tag = ordered ? "ol" : "ul";
+  const items: string[] = [];
+  let i = start;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (!isListSourceLine(line)) break;
+    const lineIndent = listSourceIndent(line);
+    // A less indented line ends this list; a more indented one belongs to the
+    // item just opened and is consumed by the recursion below.
+    if (lineIndent !== indent) break;
+    if (/^\s*\d+\.\s+/.test(line) !== ordered) break;
+    const text = line.trim().replace(/^(?:[-*+]|\d+\.)\s+/, "");
+    i += 1;
+    let nested = "";
+    if (i < lines.length && isListSourceLine(lines[i]) && listSourceIndent(lines[i]) > indent) {
+      const child = markdownListToHtml(
+        lines,
+        i,
+        listSourceIndent(lines[i]),
+        /^\s*\d+\.\s+/.test(lines[i]),
+        formatInline,
+      );
+      nested = child.html;
+      i = child.next;
+    }
+    items.push(`<li>${formatInline(text)}${nested}</li>`);
+  }
+  return { html: `<${tag}>${items.join("")}</${tag}>`, next: i };
 }
 
 /**
@@ -1317,31 +1548,25 @@ export function markdownToHtml(md: string): string {
         };
         const headers = parseRow(tableLines[0]);
         const rows = tableLines.slice(2).map(parseRow);
-        const ths = headers.map((h) => `<th>${formatInline(h)}</th>`).join("");
+        const ths = headers.map((h) => `<th scope="col">${formatInline(h)}</th>`).join("");
         const trs = rows.map((r) => `<tr>${r.map((c) => `<td>${formatInline(c)}</td>`).join("")}</tr>`).join("");
         htmlParts.push(`<table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`);
         continue;
       }
     }
 
-    // Lists
-    if (/^[-*+]\s+/.test(trimmed)) {
-      const items: string[] = [];
-      while (i < lines.length && /^[-*+]\s+/.test(lines[i].trim())) {
-        items.push(`<li>${formatInline(lines[i].trim().replace(/^[-*+]\s+/, ""))}</li>`);
-        i++;
-      }
-      htmlParts.push(`<ul>${items.join("")}</ul>`);
-      continue;
-    }
-
-    if (/^\d+\.\s+/.test(trimmed)) {
-      const items: string[] = [];
-      while (i < lines.length && /^\d+\.\s+/.test(lines[i].trim())) {
-        items.push(`<li>${formatInline(lines[i].trim().replace(/^\d+\.\s+/, ""))}</li>`);
-        i++;
-      }
-      htmlParts.push(`<ol>${items.join("")}</ol>`);
+    // Lists (ordered and unordered share one builder so indentation, not
+    // marker syntax, decides nesting).
+    if (isListSourceLine(line)) {
+      const built = markdownListToHtml(
+        lines,
+        i,
+        listSourceIndent(line),
+        /^\s*\d+\.\s+/.test(line),
+        formatInline,
+      );
+      htmlParts.push(built.html);
+      i = built.next;
       continue;
     }
 

@@ -197,7 +197,7 @@ async function installPatientDocumentMocks(context: BrowserContext): Promise<voi
         status: 200,
         contentType: "application/pdf",
         headers: {
-          "Content-Disposition": `attachment; filename="healthcare-demo-visit-summary-${AVAILABLE_DOCUMENT_ID.slice(0, 8)}.pdf"`,
+          "Content-Disposition": `attachment; filename="ho-so-kham-${AVAILABLE_DOCUMENT_ID.slice(0, 8)}.pdf"`,
           "Cache-Control": "no-store",
         },
         body: Buffer.from("%PDF-1.7\n% synthetic patient document e2e\n%%EOF", "utf8"),
@@ -289,11 +289,22 @@ test("patient document center covers PDF states at required responsive widths", 
       await expect(page.getByRole("heading", { name: "Trung tâm tài liệu lâm sàng" })).toBeVisible();
       await expect(page.getByRole("navigation", { name: "Điều hướng cổng thông tin" }).getByRole("link", { name: "Tài liệu PDF" })).toBeVisible();
       await expect(page.getByText("Sẵn sàng tải", { exact: true })).toBeVisible();
-      await expect(page.getByText("Tạo lỗi", { exact: true })).toBeVisible();
+      // Ultra V4 de-branded a patient's own clinical record: the FAILED status
+      // label moved from "Tạo lỗi" to "Tạo thất bại" and the beta disclaimer
+      // from "chưa phải giấy tờ ký số pháp lý" to "chưa có chữ ký số"
+      // (app/patient/documents/page.tsx:51,287). Both strings are already
+      // pinned by tests/patient-documents.test.mjs:24, which was updated in the
+      // same pass; these two e2e labels were missed. Still exact-match visible
+      // text, so no state stopped being asserted.
+      await expect(page.getByText("Tạo thất bại", { exact: true })).toBeVisible();
       await expect(page.getByText("Đang tạo", { exact: true })).toBeVisible();
       await expect(page.getByText("Đã thay thế", { exact: true })).toBeVisible();
       await expect(page.getByText("Đã thu hồi", { exact: true })).toBeVisible();
-      await expect(page.getByText("chưa phải giấy tờ ký số pháp lý")).toBeVisible();
+      // Scoped to the persistent disclaimer block: the reworded phrase now also
+      // appears in the section intro (app/patient/documents/page.tsx:287), and
+      // an unscoped locator would fail Playwright strict mode. `.portal-disclaimer`
+      // is the single always-visible caveat surface (page.tsx:463).
+      await expect(page.locator(".portal-disclaimer")).toContainText("chưa có chữ ký số");
       await expect.poll(
         () => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
         { message: `${viewport.width}px document center must not overflow horizontally` },
@@ -310,17 +321,17 @@ test("patient document center can generate and download synthetic PDFs", async (
   await page.goto("/patient/documents", { waitUntil: "domcontentloaded" });
 
   await page.getByRole("button", { name: "Tạo PDF tổng kết" }).click();
-  await expect(page.getByRole("status").filter({ hasText: "Đã tạo bản PDF demo" })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Đã tạo tài liệu PDF" })).toBeVisible();
   await expect(page.getByText(/aaaaaaaaaaaa/)).toBeVisible();
 
   await page.locator("article.portal-record").filter({ hasText: "RX-PDF-001" }).getByRole("button", { name: "Tạo PDF đơn thuốc" }).click();
-  await expect(page.getByRole("status").filter({ hasText: "Đã tạo bản PDF demo" })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Đã tạo tài liệu PDF" })).toBeVisible();
   await expect(page.locator("article.portal-record").filter({ hasText: "RX-PDF-OLD" }).getByRole("button", { name: "Tạo PDF đơn thuốc" })).toBeDisabled();
 
   const downloadPromise = page.waitForEvent("download");
   await page.locator("article.portal-record").filter({ hasText: "0123456789ab" }).getByRole("button", { name: "Tải PDF" }).click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toMatch(/^healthcare-demo-visit-summary-document\.pdf$/);
+  expect(download.suggestedFilename()).toMatch(/^ho-so-kham-document\.pdf$/);
   await expect(page.getByRole("status").filter({ hasText: "Đã bắt đầu tải PDF về máy" })).toBeVisible();
 
   await assertNoSensitiveBrowserStorage(page);

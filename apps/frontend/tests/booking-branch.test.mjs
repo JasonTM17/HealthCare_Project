@@ -182,6 +182,71 @@ test("booking dialog resets, manages focus, and only closes from the real backdr
   assert.match(source, /setFullName\(""\)/);
 });
 
+test("booking steps announce themselves and slot selection is not colour-only", async () => {
+  const source = await readFile(modalPath, "utf8");
+
+  // Every one of the seven steps focuses its own heading after the transition.
+  assert.match(source, /const stepHeadingRef = useRef<HTMLHeadingElement \| null>\(null\)/);
+  assert.match(source, /const lastFocusedStepRef = useRef<number>\(step\)/);
+  assert.match(source, /if \(lastFocusedStepRef\.current === step\) return/);
+  assert.match(source, /stepHeadingRef\.current\?\.focus\(\)/);
+  const headingTargets = source.match(/ref=\{stepHeadingRef\} tabIndex=\{-1\}/g) ?? [];
+  assert.equal(headingTargets.length, 7, "each booking step heading must be a focus target");
+
+  // Selection carries a pressed state and a text alternative, not just colour.
+  assert.match(source, /aria-pressed=\{isSelected\}/);
+  assert.match(source, /<span className="sr-only">Đã chọn<\/span>/);
+  assert.match(source, /aria-labelledby="booking-slot-label"/);
+});
+
+test("booking slot duration comes from the selected slot instead of a fixed label", async () => {
+  const source = await readFile(modalPath, "utf8");
+
+  assert.match(source, /const selectedSlotMinutes = bookingSlotMinutes\(selectedSlotDetail\)/);
+  assert.match(source, /function bookingSlotMinutes\(slot\?: TimeSlot\): number \| null/);
+  assert.match(source, /end === null \|\| end <= start/);
+  assert.match(source, /"Khung giờ khám"/);
+  assert.match(source, /`Khung giờ khám \(\$\{selectedSlotMinutes\} phút\/lượt\)`/);
+  assert.doesNotMatch(source, /30 phút\/lượt/);
+});
+
+test("booking error banner lives in the scrollable step body and describes step 6 inputs", async () => {
+  const source = await readFile(modalPath, "utf8");
+
+  assert.match(source, /id="booking-error-message"/);
+  assert.match(source, /ref=\{errorBannerRef\}/);
+  assert.match(source, /errorBannerRef\.current\?\.scrollIntoView\(\{ block: "nearest" \}\)/);
+  assert.match(source, /const step6ErrorId = step === 6 && errorMessage \? "booking-error-message" : ""/);
+  assert.equal(
+    (source.match(/aria-invalid=\{step6ErrorId \? true : undefined\}/g) ?? []).length,
+    6,
+    "every step-6 input must be marked invalid while the form-level error is shown",
+  );
+  assert.match(source, /aria-describedby=\{step6ErrorId \? `booking-email-help \$\{step6ErrorId\}` : "booking-email-help"\}/);
+  // The banner must render inside the body (which is the scrolling container in the modal).
+  const bodyIndex = source.indexOf('<div className={bodyClassName}>');
+  const bannerIndex = source.indexOf('id="booking-error-message"');
+  assert.ok(bodyIndex >= 0 && bannerIndex > bodyIndex, "banner must sit inside the step body");
+});
+
+test("booking modal keeps its header reachable on phones", async () => {
+  const source = await readFile(modalPath, "utf8");
+
+  assert.match(source, /max-h-\[92dvh\]/);
+  assert.match(source, /className="dialog-layer fixed inset-0 flex items-center justify-center p-2 sm:p-4 animate-fadeIn"/);
+});
+
+test("hold requests carry one idempotency key across their single retry", async () => {
+  const source = await readFile(apiPath, "utf8");
+
+  assert.match(source, /import \{ randomId \} from "\.\/secure-random"/);
+  assert.match(source, /const idempotencyKey = holdIdempotencyKey\(\)/);
+  assert.match(source, /\.\.\.\(idempotencyKey \? \{ "Idempotency-Key": idempotencyKey \} : \{\}\)/);
+  assert.match(source, /\^\[A-Za-z0-9\._:-\]\{8,128\}\$/);
+  // The retry loop reuses requestInit, so both attempts share the same key.
+  assert.match(source, /for \(let attempt = 0; attempt < 2; attempt\+\+\)[\s\S]*fetchBookingApi\(requestUrl, requestInit, networkMessage\)/);
+});
+
 test("booking page reuses the engine inline without mounting a second dialog", async () => {
   const [source, shell, route] = await Promise.all([
     readFile(modalPath, "utf8"),

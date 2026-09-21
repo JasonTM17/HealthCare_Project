@@ -19,6 +19,20 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 25_000;
 // fallback plus retry covers the shortened cold-start window.
 const DEFAULT_STREAM_REQUEST_TIMEOUT_MS = 30_000;
 const DEFAULT_PUBLIC_AI_REQUEST_TIMEOUT_MS = 35_000;
+// A Render Free backend that is waking up answers through its router with 502
+// (or refuses the connection outright) until the instance is listening: the
+// measured cold window is ~26 s. One retry inside the SAME absolute deadline
+// turns that race into a served response instead of a user-visible
+// BFF_UPSTREAM_UNAVAILABLE.
+const RETRY_BACKOFF_MS = 400;
+const RETRYABLE_UPSTREAM_STATUSES = new Set([502, 504]);
+// Only GET/HEAD are retried: they carry no request body and cannot duplicate a
+// mutation. POST/PUT/PATCH/DELETE keep their exact previous behaviour,
+// including the public-chat fallback answer for an unavailable AI upstream.
+const RETRYABLE_METHODS = new Set(["GET", "HEAD"]);
+// Below this much remaining budget a retry cannot plausibly finish, so the
+// first answer is surfaced instead of burning the caller's deadline.
+const RETRY_MIN_REMAINING_MS = 1_000;
 const MAX_REQUEST_BYTES = 12 * 1024 * 1024;
 const MAX_PATH_LENGTH = 2_048;
 const MAX_HEADER_VALUE_LENGTH = 16_384;
@@ -232,6 +246,86 @@ async function cancelUpstreamBody(upstream: Response, reason: string): Promise<v
     // The local fallback/error response is authoritative even when the
     // upstream stream has already closed or races with cancellation.
   }
+}
+
+/**
+ * Wait for the retry backoff, but never for longer than the request lives: an
+ * abort (browser disconnect or deadline) resolves the wait immediately so the
+ * retry loop observes `canRetry()` as false instead of sleeping past its
+ * budget.
+ */
+function waitForRetryBackoff(signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal.aborted) {
+      resolve();
+      return;
+    }
+    const settle = () => {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", settle);
+      resolve();
+    };
+    const timer = setTimeout(settle, RETRY_BACKOFF_MS);
+    signal.addEventListener("abort", settle, { once: true });
+  });
+}
+
+/**
+ * Emit one content-free record when a safe read is retried. The path and query
+ * are deliberately excluded; only the outcome shape is recorded.
+ */
+function recordUpstreamRetry(requestId: string, reason: string, status?: number): void {
+  console.warn("healthcare_bff_upstream_retry", {
+    attempt: 2,
+    reason,
+    requestId,
+    status: status ?? null,
+  });
+}
+
+interface UpstreamRetryOptions {
+  /** False for every non-retryable method (see RETRYABLE_METHODS). */
+  allowed: boolean;
+  /** Re-evaluated between attempts: false once the deadline or browser aborts. */
+  canRetry: () => boolean;
+  requestId: string;
+  signal: AbortSignal;
+}
+
+/**
+ * Run one upstream attempt, and for safe reads exactly one more when the first
+ * answer is a retryable 502/504 or the fetch itself fails at the network layer.
+ *
+ * The absolute request deadline is never extended: the caller keeps its single
+ * timer, so a retry consumes the remaining budget instead of adding to the
+ * worst case. Returns null when the first response had to be discarded and the
+ * retry can no longer run, which the caller answers with its own structured
+ * BFF_UPSTREAM_UNAVAILABLE.
+ */
+async function fetchUpstreamWithRetry(
+  attempt: () => Promise<Response>,
+  options: UpstreamRetryOptions,
+): Promise<Response | null> {
+  if (!options.allowed) return attempt();
+
+  let response: Response;
+  try {
+    response = await attempt();
+  } catch (error) {
+    if (!options.canRetry()) throw error;
+    recordUpstreamRetry(options.requestId, "network_error");
+    await waitForRetryBackoff(options.signal);
+    if (!options.canRetry()) throw error;
+    return attempt();
+  }
+
+  if (!RETRYABLE_UPSTREAM_STATUSES.has(response.status) || !options.canRetry()) return response;
+
+  recordUpstreamRetry(options.requestId, "upstream_status", response.status);
+  await cancelUpstreamBody(response, "BFF_UPSTREAM_RETRY");
+  await waitForRetryBackoff(options.signal);
+  if (!options.canRetry()) return null;
+  return attempt();
 }
 
 function normalizeBackendOrigin(rawValue: string): string {
@@ -774,6 +868,9 @@ export async function proxyHealthcareRequest(
       : apiPath.endsWith("/messages/stream")
       ? runtime.streamRequestTimeoutMs ?? runtime.requestTimeoutMs
       : runtime.requestTimeoutMs;
+    // The retry shares this single absolute deadline: it is measured from the
+    // first byte of the request and is never re-armed by a second attempt.
+    const retryDeadlineAt = Date.now() + requestTimeoutMs;
     timeoutId = setTimeout(() => {
       deadlineExpired = true;
       requestController.abort();
@@ -781,14 +878,32 @@ export async function proxyHealthcareRequest(
     const body = await boundedRequestBody(request, requestController.signal);
     publicChatMessage = apiPath === PUBLIC_AI_CHAT_PATH ? readPublicChatMessage(body) : "";
 
-    const upstream = await (options.fetchImpl ?? fetch)(target, {
-      method,
-      headers,
-      body,
-      cache: "no-store",
-      redirect: "manual",
-       signal: requestController.signal,
-    });
+    const retryAllowed = RETRYABLE_METHODS.has(method);
+    const canRetryUpstream = () =>
+      retryAllowed
+      && !deadlineExpired
+      && !browserAborted
+      && !requestController.signal.aborted
+      && retryDeadlineAt - Date.now() > RETRY_MIN_REMAINING_MS;
+    const upstream = await fetchUpstreamWithRetry(
+      () => (options.fetchImpl ?? fetch)(target, {
+        method,
+        headers,
+        body,
+        cache: "no-store",
+        redirect: "manual",
+        signal: requestController.signal,
+      }),
+      {
+        allowed: retryAllowed,
+        canRetry: canRetryUpstream,
+        requestId,
+        signal: requestController.signal,
+      },
+    );
+    if (upstream === null) {
+      return tracedResponse(jsonError(502, "BFF_UPSTREAM_UNAVAILABLE"), interruptedOutcome("failed"));
+    }
     if (upstream.status >= 300 && upstream.status < 400) {
       await cancelUpstreamBody(upstream, "BFF_UPSTREAM_REDIRECT_REJECTED");
       return tracedResponse(jsonError(502, "BFF_UPSTREAM_REDIRECT_REJECTED"), "failed");

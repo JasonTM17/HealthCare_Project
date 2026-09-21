@@ -65,3 +65,65 @@ test("AI triage uses the authenticated backend contract without a local answer",
   assert.doesNotMatch(apiClient, /URLSearchParams\([^)]*symptoms/);
   assert.doesNotMatch(aiModal, /console\.(?:log|error|warn)\([^)]*symptoms/);
 });
+
+/**
+ * Doctor AI credits were decided out of the product: the backend removed the
+ * doctor deduction path, refuses a `DOCTOR` grant with HTTP 400, and no longer
+ * serves `GET /admin/ai-credits/doctors`. The admin screen therefore carries no
+ * clinical credit surface at all — not even a decorative read-only table — and
+ * must not fetch the retired route: while it did, the deleted route answered
+ * non-2xx inside the same `Promise.all`, so the whole page (patient balances
+ * and patient granting included) failed to load.
+ */
+test("no admin surface claims a spendable per-doctor AI quota", async () => {
+  const [dashboard, adminCredits, apiClient] = await Promise.all([
+    read("app/doctor/dashboard/page.tsx"),
+    read("app/admin/ai-credits/page.tsx"),
+    read("lib/api-client.ts"),
+  ]);
+
+  // No doctor-facing credit chip survived, in either of its two states.
+  assert.doesNotMatch(dashboard, /lượt AI khả dụng/);
+  assert.doesNotMatch(dashboard, /Hạn mức AI đang cập nhật/);
+  assert.doesNotMatch(dashboard, /\.aiCredits/);
+
+  // The retired route is gone from the client layer, not merely unused: no
+  // fetch helper, no payload type, and no literal path that a renamed helper
+  // could be pointed back at. The write contract narrows with the read
+  // contract, so `DOCTOR` is no longer a value the client can even express.
+  assert.doesNotMatch(apiClient, /adminListDoctorAiCredits|DoctorCreditDto/);
+  assert.doesNotMatch(apiClient, /\/admin\/ai-credits\/doctors/);
+  assert.doesNotMatch(apiClient, /targetRole: "PATIENT" \| "DOCTOR"/);
+  assert.match(apiClient, /adminGrantAiCredits\(payload: \{\s*userId: string;\s*targetRole: "PATIENT";/);
+
+  // The screen holds no clinical credit state, tab, stat card or table — the
+  // read-only balance table that used to satisfy this spot is part of the
+  // retired surface, so its labels are asserted absent rather than relabelled.
+  assert.doesNotMatch(adminCredits, /adminListDoctorAiCredits|DoctorCreditDto|totalDoctorCredits/);
+  assert.doesNotMatch(adminCredits, /doctors\./);
+  assert.doesNotMatch(adminCredits, /activeTab/);
+  assert.doesNotMatch(adminCredits, /targetRole: "DOCTOR"/);
+  assert.doesNotMatch(adminCredits, /\+ Cấp thêm lượt AI/);
+  assert.doesNotMatch(adminCredits, /Credits Lâm sàng|Chỉ đọc · không còn cấp phát/);
+
+  // Load isolation is the actual bug fix: exactly one AI credit listing is
+  // requested, so no clinical request can fail the patient table again.
+  assert.deepEqual(
+    adminCredits.match(/adminList\w*AiCredits\(\)/g) ?? [],
+    ["adminListPatientAiCredits()"],
+    "the credits page must fetch the patient listing and nothing else",
+  );
+
+  // An admin who remembers the tab still learns why it is gone, in Vietnamese,
+  // and a rejected grant still surfaces the backend's own reason.
+  assert.match(adminCredits, /role="note"/);
+  assert.match(adminCredits, /không còn định mức theo từng bác sĩ/);
+  assert.match(adminCredits, /preferServerMessage: true/);
+
+  // Patient granting and listing stay real, reachable actions.
+  assert.match(adminCredits, /adminListPatientAiCredits/);
+  assert.match(adminCredits, /targetRole: "PATIENT"/);
+  assert.match(adminCredits, /adminGrantAiCredits/);
+  assert.match(adminCredits, /\+ Cấp thêm/);
+  assert.match(adminCredits, /adminUpdatePatientTier/);
+});

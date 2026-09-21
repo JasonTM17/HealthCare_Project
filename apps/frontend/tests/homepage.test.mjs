@@ -38,21 +38,15 @@ test("homepage mounts the published CMS hero slot for realtime updates", async (
   assert.match(page, /hideWhenNotFound/);
 });
 
-test("homepage mounts the published CMS hero slot for realtime updates", async () => {
+test("designed hero typography stays reserved for the seeded default copy", async () => {
   const page = await readFile(pagePath, "utf8");
 
-  assert.match(page, /import \{ CmsLiveSlot \} from "\.\.\/components\/cms"/);
-  assert.match(page, /id="cms-live"/);
-  assert.match(page, /className="hero-inner"/);
-  assert.match(page, /fallback=\{<HomeHeroComposition/);
-  assert.match(page, /renderContent=\{\(content: CmsContent\)/);
-  assert.match(page, /slotKey="hero"/);
-  for (const slot of ["body", "sidebar"]) {
-    assert.match(page, new RegExp(`slotKey="${slot}"`));
-  }
-  assert.match(page, /<Footer branches=\{branches\} cmsSlug="home" \/>/);
-  assert.match(page, /<main id="main-content" tabIndex=\{-1\}>/);
-  assert.match(page, /AiTriageModal/);
-  assert.match(page, /handleAiSpecialtySelect/);
-  assert.match(page, /hideWhenNotFound/);
+  // Two deliberate guards decide when a published payload may not overwrite the
+  // hand-set hero: the seeded default strings keep their three-line composition,
+  // and any payload naming the live-compose fixtures never reaches a patient.
+  assert.ok(page.includes('const DEFAULT_HERO_TITLE = "Đồng hành cùng sức khỏe gia đình";'));
+  assert.ok(page.includes("activeCmsHero.title !== DEFAULT_HERO_TITLE"));
+  assert.ok(page.includes("!isPlaceholderCmsHeroPayload(cmsHero)"));
+  assert.ok(page.includes("/(?:Live Compose|Live CMS|demo|test)/i"));
+  assert.ok(page.includes('<span className="hero-teal-accent">gia đình</span>'));
 });

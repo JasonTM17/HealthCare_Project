@@ -166,8 +166,17 @@ test("cross-owner consultation failure is fail-closed and never renders raw PHI 
 
   await page.goto(`/patient/consultations/${THREAD_ID}`);
   await expect(page.getByRole("heading", { name: "Không thể tải dữ liệu" })).toBeVisible();
-  await expect(page.getByText("Yêu cầu chưa thể hoàn tất. Vui lòng kiểm tra thông tin và thử lại.")).toBeVisible();
+  // Ultra V4 changed `ErrorState` (components/PortalStates.tsx) to render the
+  // caller-supplied copy instead of collapsing every 4xx to one generic
+  // sentence, because a permanent "this thread is not yours" gate was being
+  // reported to patients as a transient connection problem. The supplied string
+  // is a hardcoded literal at app/patient/consultations/[id]/page.tsx:560 — it
+  // is never `error.message`. Scoped to role="alert" rather than the whole page
+  // so an unrelated node cannot satisfy it.
+  await expect(page.getByRole("alert").filter({ hasText: "Không thể tải kênh tư vấn." })).toBeVisible();
   const bodyText = await page.locator("body").innerText();
+  // Now load-bearing: because ErrorState renders what it is given, these prove
+  // the fail-closed boundary is still the code-owned map and not the payload.
   expect(bodyText).not.toContain("Nguyễn Văn Bí mật");
   expect(bodyText).not.toContain("jdbc:postgresql://internal-db");
   expect(bodyText).not.toContain("PatientIsolationException");

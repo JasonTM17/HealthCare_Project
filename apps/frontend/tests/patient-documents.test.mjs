@@ -21,10 +21,21 @@ test("patient documents route is a real PDF workflow, not a dashboard alias", as
   assert.match(page, /PRESCRIPTION/);
   assert.match(page, /STATUS_LABEL/);
   assert.match(page, /Sẵn sàng tải/);
-  assert.match(page, /Tạo lỗi/);
+  assert.match(page, /Tạo thất bại/);
   assert.match(page, /Đã thay thế/);
-  assert.match(page, /chưa phải giấy tờ ký số pháp lý/);
+  assert.match(page, /chưa có chữ ký số/);
   assert.match(page, /Không dùng thay thế/);
+  // A patient's own clinical record must not be branded a demo, in the copy or
+  // in the file they download. Beta status stays stated, just not as "demo".
+  assert.doesNotMatch(page, /TÀI LIỆU PDF DEMO/);
+  assert.doesNotMatch(page, /PDF demo/);
+  assert.doesNotMatch(page, /healthcare-demo-/);
+  assert.match(page, /ho-so-kham/);
+  assert.match(page, /don-thuoc/);
+  // Generation is gated on object storage; the page must say so up front rather
+  // than offer a control that can only return 503.
+  assert.match(page, /DOCUMENT_GENERATION_ENABLED/);
+  assert.match(page, /DOCUMENT_GENERATION_DISABLED_MESSAGE/);
 });
 
 test("patient documents page fails closed and never renders raw caught errors", async () => {

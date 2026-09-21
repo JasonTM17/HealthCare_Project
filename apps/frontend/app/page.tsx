@@ -96,7 +96,7 @@ const JOURNEY_STEPS: Array<{ icon: IconName; title: string; description: string 
   {
     icon: "book-open",
     title: "Thăm khám đúng giờ",
-    description: "Xuất trình mã hẹn tại quầy tiếp đón để vào khám mà không phải chờ đợi lâu.",
+    description: "Mã hẹn giúp bạn và quầy tiếp đón đối chiếu đúng lịch khám đã đặt.",
   },
 ];
 

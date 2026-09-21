@@ -50,6 +50,16 @@ const securityHeaders = [
   },
 ];
 
+// Build-time media and image assets change only by shipping a new file under a
+// new name (nothing writes into `public/` at runtime), so the URL is immutable
+// for practical purposes. Without this rule Next/Vercel answer `/media/**` with
+// `Cache-Control: max-age=0, must-revalidate` and the CDN MISSes on every view
+// — expensive for 0.7-0.9 MB posters and doctor photos.
+const immutableAssetCacheControl = "public, max-age=31536000, immutable";
+const immutableAssetHeaders = [
+  { key: "Cache-Control", value: immutableAssetCacheControl },
+];
+
 const nextConfig: NextConfig = {
   distDir,
   reactStrictMode: true,
@@ -129,12 +139,24 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        source: "/media/:path*",
+        headers: immutableAssetHeaders,
+      },
+      {
+        source: "/images/:path*",
+        headers: immutableAssetHeaders,
+      },
+      {
         source: "/:path*",
         headers: securityHeaders,
       },
     ];
   },
   images: {
+    // Next's default derivative TTL is 4 hours. The sources are 0.7-0.9 MB, so
+    // re-optimizing them on every weekend-old cache miss is the expensive path;
+    // retain the derivative for a week instead.
+    minimumCacheTTL: 604800,
     remotePatterns: [
       {
         protocol: "https",

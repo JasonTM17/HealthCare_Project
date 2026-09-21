@@ -125,7 +125,6 @@ export default function DoctorHealthQuestionsPage() {
                     <h2 className="mt-2 text-xl font-bold text-teal-950">{item.question}</h2>
                     <p className="mt-1 text-sm text-slate-600">Hiển thị công khai dưới tên: {item.publicAlias}</p>
                   </div>
-                  <span className="pill">{item.status}</span>
                 </div>
 
                 {isAnswerable ? (

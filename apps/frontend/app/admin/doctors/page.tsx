@@ -213,7 +213,7 @@ export default function AdminDoctorsPage() {
                 <table className="min-w-[680px] w-full text-left text-sm">
                   <caption className="sr-only">Bác sĩ trong admin catalog</caption>
                   <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                    <tr><th className="px-4 py-3 font-bold">Họ tên</th><th className="px-4 py-3 font-bold">Slug</th><th className="px-4 py-3 font-bold">Trạng thái</th><th className="px-4 py-3 text-right font-bold">Thao tác</th></tr>
+                    <tr><th scope="col" className="px-4 py-3 font-bold">Họ tên</th><th scope="col" className="px-4 py-3 font-bold">Slug</th><th scope="col" className="px-4 py-3 font-bold">Trạng thái</th><th scope="col" className="px-4 py-3 text-right font-bold">Thao tác</th></tr>
                   </thead>
                   <tbody>
                     {doctors.map((doctor) => (

@@ -14,6 +14,7 @@ import {
   installMockBrowserSession,
 } from "./helpers/browser-session";
 import { fulfillBackendWarmup } from "./helpers/backend-warmup";
+import { fulfillNotificationBell } from "./helpers/notification-bell";
 
 function pageEnvelope<T>(content: T[]) {
   return {
@@ -73,6 +74,8 @@ test("admin schedule deletion is dialog-gated, contextual, cancelable, and singl
 
   await context.route("**/api/v1/**", async (route) => {
     if (await fulfillBackendWarmup(route)) return;
+    // Shell chrome every admin page reads on mount since Ultra V4 WS-B.
+    if (await fulfillNotificationBell(route)) return;
     const request = route.request();
     expect(request.headers()["authorization"]).toBeUndefined();
     const url = new URL(request.url());
@@ -190,6 +193,8 @@ test("admin catalog destructive copy offers a hide alternative and rich-text tem
 
   await context.route("**/api/v1/**", async (route) => {
     if (await fulfillBackendWarmup(route)) return;
+    // Shell chrome every admin page reads on mount since Ultra V4 WS-B.
+    if (await fulfillNotificationBell(route)) return;
     const request = route.request();
     expect(request.headers()["authorization"]).toBeUndefined();
     const url = new URL(request.url());
@@ -277,6 +282,8 @@ test("admin catalog keyboard reorder persists and failed reorder rolls back", as
 
   await context.route("**/api/v1/**", async (route) => {
     if (await fulfillBackendWarmup(route)) return;
+    // Shell chrome every admin page reads on mount since Ultra V4 WS-B.
+    if (await fulfillNotificationBell(route)) return;
     const request = route.request();
     expect(request.headers()["authorization"]).toBeUndefined();
     const url = new URL(request.url());
@@ -340,6 +347,8 @@ test("stale catalog broadcast load cannot overwrite a newer load result", async 
 
   await context.route("**/api/v1/**", async (route) => {
     if (await fulfillBackendWarmup(route)) return;
+    // Shell chrome every admin page reads on mount since Ultra V4 WS-B.
+    if (await fulfillNotificationBell(route)) return;
     const request = route.request();
     expect(request.headers()["authorization"]).toBeUndefined();
     const url = new URL(request.url());
@@ -404,6 +413,8 @@ test("cross-tab load during an in-flight reorder cannot revert the saved order",
 
   await context.route("**/api/v1/**", async (route) => {
     if (await fulfillBackendWarmup(route)) return;
+    // Shell chrome every admin page reads on mount since Ultra V4 WS-B.
+    if (await fulfillNotificationBell(route)) return;
     const request = route.request();
     expect(request.headers()["authorization"]).toBeUndefined();
     const url = new URL(request.url());

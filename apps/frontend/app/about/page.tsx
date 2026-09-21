@@ -4,6 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { PublicBookingButton, PublicPageShell } from "../../components/PublicPageShell";
+import CmsLiveSlot from "../../components/cms/CmsLiveSlot";
+import { CmsSlotRenderer } from "../../components/cms/CmsRenderer";
 import Icon from "../../components/UiIcon";
 import { fetchBranches, fetchDoctors, fetchSpecialties } from "../../lib/api-client";
 import styles from "./about.module.css";
@@ -146,6 +148,27 @@ export default function AboutPage() {
           </figure>
         </section>
 
+        {/*
+          * Published CMS content for /about. The shared route frame is skipped
+          * for this slug (see components/cms/RouteCmsSlots.tsx) because it would
+          * drop a second hero band above the native hero below, so the authored
+          * slots mount here instead, in the page's own rhythm. `hideWhenNotFound`
+          * plus `hideWhileLoading` means an unpublished slot adds no DOM at all:
+          * the page is unchanged until the hospital publishes a component.
+          */}
+        <CmsLiveSlot
+          className="section-inner"
+          hideOnError
+          hideWhenNotFound
+          hideWhileLoading
+          renderContent={(content) => (
+            <CmsSlotRenderer content={content} headingLevel="h2" slotKey="hero" />
+          )}
+          showSourceLabel={false}
+          slug="about"
+          slotKey="hero"
+        />
+
         <section className={`${styles.story} section-inner`} aria-labelledby="about-story-title">
           <div className={styles.storyHeading}>
             <p className="section-note">Câu chuyện của chúng tôi</p>
@@ -197,6 +220,19 @@ export default function AboutPage() {
             </figure>
           </div>
         </section>
+
+        <CmsLiveSlot
+          className="section-inner"
+          hideOnError
+          hideWhenNotFound
+          hideWhileLoading
+          renderContent={(content) => (
+            <CmsSlotRenderer content={content} headingLevel="h2" slotKey="body" />
+          )}
+          showSourceLabel={false}
+          slug="about"
+          slotKey="body"
+        />
 
         <section className={styles.valuesSection} aria-labelledby="about-values-title">
           <div className="section-inner">

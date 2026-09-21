@@ -46,7 +46,7 @@ const MODERATION_REASON_OPTIONS = [
 
 interface PendingModeration {
   id: string;
-  decision: "REJECT";
+  decision: "REJECT" | "CLOSE";
   question: HealthQuestionSummary;
 }
 
@@ -248,6 +248,16 @@ export default function AdminHealthQuestionsPage() {
                       <button className="min-h-11 rounded-lg border border-rose-200 px-3 text-sm font-bold text-rose-700" disabled={busy === item.id} onClick={() => setPendingModeration({ id: item.id, decision: "REJECT", question: item })} type="button">Từ chối</button>
                     </>
                   ) : null}
+                  {item.status === "AWAITING_DOCTOR" || item.status === "ANSWER_SUBMITTED" || item.status === "PUBLISHED" ? (
+                    <button
+                      className="min-h-11 rounded-lg border border-slate-300 px-3 text-sm font-bold text-slate-700"
+                      disabled={busy === item.id}
+                      onClick={() => setPendingModeration({ id: item.id, decision: "CLOSE", question: item })}
+                      type="button"
+                    >
+                      Đóng câu hỏi
+                    </button>
+                  ) : null}
                   <button
                     className="min-h-11 rounded-lg border border-slate-300 px-3 text-sm font-bold text-slate-700"
                     type="button"
@@ -300,15 +310,19 @@ export default function AdminHealthQuestionsPage() {
       </div>
 
       <ConfirmActionDialog
-        confirmLabel="Từ chối câu hỏi"
-        description="Câu hỏi sẽ không được chuyển tới bác sĩ và người gửi sẽ nhận trạng thái từ chối kèm lý do bạn chọn."
+        confirmLabel={pendingModeration?.decision === "CLOSE" ? "Đóng câu hỏi" : "Từ chối câu hỏi"}
+        description={
+          pendingModeration?.decision === "CLOSE"
+            ? "Câu hỏi sẽ ngừng nhận phản hồi và rời khỏi trang công khai. Nội dung cũ vẫn được lưu trữ cho kiểm toán."
+            : "Câu hỏi sẽ không được chuyển tới bác sĩ và người gửi sẽ nhận trạng thái từ chối kèm lý do bạn chọn."
+        }
         destructive
         entity={pendingModeration?.question ?? null}
         error={null}
         fields={[
           {
             name: "reasonCode",
-            label: "Lý do từ chối",
+            label: pendingModeration?.decision === "CLOSE" ? "Lý do đóng" : "Lý do từ chối",
             required: true,
             options: MODERATION_REASON_OPTIONS,
             description: "Lý do này được lưu cùng quyết định và hiển thị cho người gửi.",
@@ -327,8 +341,8 @@ export default function AdminHealthQuestionsPage() {
           { label: "Câu hỏi", value: pendingModeration?.question.question ?? "—" },
           { label: "Chủ đề", value: pendingModeration?.question.topicSlug ?? "—" },
         ]}
-        summaryLabel="Nội dung sẽ bị từ chối"
-        title="Từ chối câu hỏi sức khỏe?"
+        summaryLabel={pendingModeration?.decision === "CLOSE" ? "Câu hỏi sẽ bị đóng" : "Nội dung sẽ bị từ chối"}
+        title={pendingModeration?.decision === "CLOSE" ? "Đóng câu hỏi sức khỏe?" : "Từ chối câu hỏi sức khỏe?"}
       />
 
       <ConfirmActionDialog

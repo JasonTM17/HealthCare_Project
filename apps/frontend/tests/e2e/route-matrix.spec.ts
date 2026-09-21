@@ -79,6 +79,7 @@ const DOCTOR_ROUTES = [
   "/doctor/consultations",
   "/doctor/consultations/00000000-0000-0000-0000-000000000001",
   "/doctor/health-questions",
+  "/doctor/notifications",
   "/doctor/articles",
   "/doctor/profile",
 ] as const;

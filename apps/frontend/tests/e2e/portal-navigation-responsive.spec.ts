@@ -47,11 +47,16 @@ for (const role of ["PATIENT", "DOCTOR"] as const) {
         }
         const navLinks = navigation.getByRole("link");
         await navLinks.last().focus();
-        if (role === "PATIENT") {
-          await page.keyboard.press("Tab");
-          const bell = page.getByRole("link", { name: /Thông báo từ bệnh viện/ });
-          await expect(bell).toBeFocused();
-        }
+        // The notification bell is a focus stop between the last nav link and
+        // the account link for BOTH portals now: Ultra V4 WS-B gave the doctor
+        // shell the same bell the patient already had (components/PortalChrome
+        // .tsx `portal-notification-bell`), so the doctor keyboard path gained a
+        // stop that this spec used to assert only for the patient. Enumerating
+        // it for both roles keeps the full tab order pinned; dropping the stop
+        // would have silently unchecked the doctor's next tab target.
+        await page.keyboard.press("Tab");
+        const bell = page.getByRole("link", { name: /Thông báo từ bệnh viện/ });
+        await expect(bell).toBeFocused();
         await page.keyboard.press("Tab");
         const profile = page.getByRole("link", { name: "Xem thông tin tài khoản", exact: true });
         await expect(profile).toBeFocused();

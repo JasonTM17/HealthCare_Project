@@ -43,6 +43,22 @@ test("public booking success never dead-ends guests into the patient portal", as
   assert.ok(myAppointmentsChip, "portal appointments chip must require a session");
 });
 
+test("an empty doctor list is only claimed when the catalog actually loaded", async () => {
+  const source = await read("../components/BookingModal.tsx");
+
+  // A failed catalog load also leaves the list empty. Claiming "no doctor covers
+  // this specialty at this branch" then sends the patient a fiction about the
+  // clinic's staffing; the catalogError banner above already tells the truth.
+  const emptyDoctorMessage = source.match(
+    /\{(!catalogLoading[\s\S]{0,120}?)availableDoctors\.length === 0 \?/,
+  );
+  assert.ok(emptyDoctorMessage, "the empty-doctor notice must stay one guarded expression");
+  assert.ok(
+    emptyDoctorMessage[1].includes("!catalogError"),
+    "the empty-doctor notice must be gated on a loaded catalog",
+  );
+});
+
 test("package booking copy no longer claims unsupported per-branch equipment", async () => {
   const source = await read("../components/PackageBookingModal.tsx");
   assert.doesNotMatch(source, /Tất cả các cơ sở đều được trang bị đầy đủ/);

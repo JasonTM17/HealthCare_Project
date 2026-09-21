@@ -4,10 +4,11 @@ import Link from "next/link";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import PortalChrome from "../../../components/PortalChrome";
+import PortalChrome, { formatNotificationType } from "../../../components/PortalChrome";
 import { fetchDoctorSlots } from "../../../lib/api";
 import {
   ApiError,
+  cancelPatientAppointment,
   clearAuthSession,
   downloadProtectedFile,
   fetchBankTransferPayment,
@@ -28,6 +29,7 @@ import {
   changePassword,
   type Page,
 } from "../../../lib/api-client";
+import ConfirmActionDialog from "../../../components/ui/ConfirmActionDialog";
 import { useAuthSession } from "../../../components/useAuthSession";
 import type {
   AuthUser,
@@ -153,22 +155,6 @@ function formatPrescriptionStatus(status: string): string {
     CANCELLED: "Đã ngừng",
   };
   return labels[status] ?? "Đã kê";
-}
-
-function formatNotificationType(eventType: string): string {
-  const labels: Record<string, string> = {
-    APPOINTMENT_CREATED: "Đã tạo lịch hẹn",
-    APPOINTMENT_CONFIRMED: "Lịch hẹn đã xác nhận",
-    APPOINTMENT_RESCHEDULED: "Lịch hẹn đã thay đổi",
-    APPOINTMENT_CANCELLED: "Lịch hẹn đã hủy",
-    APPOINTMENT_REMINDER: "Nhắc lịch khám",
-    DIAGNOSTIC_RESULT_AVAILABLE: "Có kết quả mới",
-    PAYMENT_SUBMITTED: "Đã gửi thông tin chuyển khoản",
-    PAYMENT_CONFIRMED: "Thanh toán đã xác nhận",
-    PAYMENT_REJECTED: "Thanh toán cần kiểm tra lại",
-    PAYMENT_REFUNDED: "Thanh toán đã hoàn tiền",
-  };
-  return labels[eventType] ?? "Thông báo mới";
 }
 
 function formatPaymentStatus(status: string): string {
@@ -733,6 +719,9 @@ export default function PatientDashboardPage() {
   const [paymentNotice, setPaymentNotice] = useState<PaymentNotice | null>(null);
   const [copiedPaymentField, setCopiedPaymentField] = useState<string | null>(null);
   const [copyAnnouncement, setCopyAnnouncement] = useState("");
+  const [cancelTarget, setCancelTarget] = useState<PatientPortalAppointment | null>(null);
+  const [cancelSubmitting, setCancelSubmitting] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
   const [rescheduleDate, setRescheduleDate] = useState("");
   const [slots, setSlots] = useState<Loadable<TimeSlot[]> | null>(null);
   const [selectedStartTime, setSelectedStartTime] = useState("");
@@ -846,6 +835,11 @@ export default function PatientDashboardPage() {
     setRescheduleNotice(null);
   }, []);
 
+  const handleChooseCancel = useCallback((appointment: PatientPortalAppointment) => {
+    setCancelTarget(appointment);
+    setCancelError(null);
+  }, []);
+
   const syncAppointmentPaymentStatus = useCallback((appointmentIdToUpdate: string, status: PaymentStatus) => {
     setAppointments((current) => {
       if (current.status !== "success") return current;
@@ -873,6 +867,35 @@ export default function PatientDashboardPage() {
       setPayment({ status: "error", message: getErrorMessage(error), statusCode: getErrorStatus(error) });
     }
   }, [syncAppointmentPaymentStatus]);
+
+  const applyCancellation = useCallback((bookingCode: string, reason: string | null) => {
+    setAppointments((current) => {
+      if (current.status !== "success") return current;
+      let changed = false;
+      const content = current.data.content.map((appointment) => {
+        if (appointment.bookingCode !== bookingCode) return appointment;
+        changed = true;
+        return { ...appointment, status: "CANCELLED" as const, cancellationReason: reason };
+      });
+      return changed ? { status: "success", data: { ...current.data, content } } : current;
+    });
+  }, []);
+
+  const handleConfirmCancel = useCallback(async (values: Record<string, string>) => {
+    if (!cancelTarget || cancelSubmitting) return;
+    setCancelSubmitting(true);
+    setCancelError(null);
+    try {
+      const reason = values.reason?.trim() || null;
+      await cancelPatientAppointment(cancelTarget.bookingCode, reason ?? undefined);
+      applyCancellation(cancelTarget.bookingCode, reason);
+      setCancelTarget(null);
+    } catch (error) {
+      setCancelError(getErrorMessage(error));
+    } finally {
+      setCancelSubmitting(false);
+    }
+  }, [cancelTarget, cancelSubmitting, applyCancellation]);
 
   const handleSubmitPayment = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -1579,8 +1602,40 @@ export default function PatientDashboardPage() {
             retry={retry}
             state={appointments}
           >
-            {(page) => <PortalAppointments activePaymentAppointmentId={selectedPaymentAppointmentId ?? undefined} onPayment={(appointment) => void handleChoosePayment(appointment)} onReschedule={handleChooseReschedule} page={page} viewer="patient" />}
+            {(page) => <PortalAppointments activePaymentAppointmentId={selectedPaymentAppointmentId ?? undefined} onCancel={handleChooseCancel} onPayment={(appointment) => void handleChoosePayment(appointment)} onReschedule={handleChooseReschedule} page={page} viewer="patient" />}
           </StateContent>
+          <ConfirmActionDialog
+            confirmLabel="Xác nhận hủy lịch"
+            confirmingLabel="Đang hủy…"
+            description="Lịch hẹn sau khi hủy không thể khôi phục. Bạn có thể đặt lịch mới bất cứ lúc nào."
+            destructive
+            entity={cancelTarget}
+            error={cancelError}
+            fields={[
+              {
+                name: "reason",
+                label: "Lý do hủy (không bắt buộc)",
+                maxLength: 500,
+                multiline: true,
+                placeholder: "Ví dụ: trùng lịch cá nhân, đổi sang cơ sở khác…",
+              },
+            ]}
+            onCancel={() => setCancelTarget(null)}
+            onConfirm={(values) => void handleConfirmCancel(values)}
+            open={cancelTarget !== null}
+            pending={cancelSubmitting}
+            summaryItems={[
+              { label: "Mã lịch hẹn", value: cancelTarget?.bookingCode ?? "", mono: true },
+              { label: "Bác sĩ", value: cancelTarget && "doctorName" in cancelTarget ? cancelTarget.doctorName : "" },
+              {
+                label: "Thời gian",
+                value: cancelTarget
+                  ? `${formatBusinessDate(cancelTarget.appointmentDate)} · ${cancelTarget.startTime}–${cancelTarget.endTime}`
+                  : "",
+              },
+            ]}
+            title="Hủy lịch hẹn"
+          />
           {visiblePaymentNotice ? (
             <p
               aria-live={visiblePaymentNotice.kind === "error" ? "assertive" : "polite"}
@@ -1735,7 +1790,10 @@ export default function PatientDashboardPage() {
             <section aria-labelledby="records-title" className="portal-panel" id="records">
             <div className="portal-panel__heading">
               <div><p className="section-note">HỒ SƠ LÂM SÀNG</p><h2 id="records-title">Lịch sử khám</h2></div>
-              <span aria-hidden="true" className="portal-panel__icon"><UiIcon name="activity" size={20} /></span>
+              <div className="flex items-center gap-3">
+                <Link className="outline-button outline-button--small" href="/patient/documents">Tài liệu PDF</Link>
+                <span aria-hidden="true" className="portal-panel__icon"><UiIcon name="activity" size={20} /></span>
+              </div>
             </div>
             <StateContent
               emptyDescription="Khi bác sĩ hoàn tất một lượt khám được liên kết với tài khoản, hồ sơ sẽ xuất hiện ở đây."
@@ -1781,7 +1839,10 @@ export default function PatientDashboardPage() {
             <section aria-labelledby="prescriptions-title" className="portal-panel" id="prescriptions">
             <div className="portal-panel__heading">
               <div><p className="section-note">ĐIỀU TRỊ</p><h2 id="prescriptions-title">Đơn thuốc</h2></div>
-              <span aria-hidden="true" className="portal-panel__icon"><UiIcon name="book-open" size={20} /></span>
+              <div className="flex items-center gap-3">
+                <Link className="outline-button outline-button--small" href="/patient/documents">Tài liệu PDF</Link>
+                <span aria-hidden="true" className="portal-panel__icon"><UiIcon name="book-open" size={20} /></span>
+              </div>
             </div>
             <StateContent
               emptyDescription="Đơn thuốc được kê trong hồ sơ khám sẽ hiển thị ở đây."
@@ -1969,7 +2030,7 @@ export default function PatientDashboardPage() {
                         <input
                           required
                           maxLength={160}
-                          className="w-full h-11 px-3.5 bg-white border border-slate-300 focus:border-teal-600 focus:ring-1 focus:ring-teal-600 rounded-[4px] text-sm text-slate-900 font-medium transition-colors shadow-2xs outline-none"
+                          className="w-full h-11 px-3.5 bg-white border border-slate-300 focus:border-teal-600 focus:ring-1 focus:ring-teal-600 rounded-[4px] text-sm text-slate-900 font-medium transition-colors outline-none"
                           onChange={(event) => setProfileForm((value) => ({ ...value, fullName: event.target.value }))}
                           value={profileForm.fullName}
                         />
@@ -1977,7 +2038,7 @@ export default function PatientDashboardPage() {
                       <label className="flex flex-col gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700">
                         <span className="text-slate-800">Ngày sinh</span>
                         <input
-                          className="w-full h-11 px-3.5 bg-white border border-slate-300 focus:border-teal-600 focus:ring-1 focus:ring-teal-600 rounded-[4px] text-sm text-slate-900 font-medium transition-colors shadow-2xs outline-none"
+                          className="w-full h-11 px-3.5 bg-white border border-slate-300 focus:border-teal-600 focus:ring-1 focus:ring-teal-600 rounded-[4px] text-sm text-slate-900 font-medium transition-colors outline-none"
                           onChange={(event) => setProfileForm((value) => ({ ...value, dateOfBirth: event.target.value }))}
                           type="date"
                           value={profileForm.dateOfBirth}
@@ -1986,7 +2047,7 @@ export default function PatientDashboardPage() {
                       <label className="flex flex-col gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700">
                         <span className="text-slate-800">Giới tính</span>
                         <select
-                          className="w-full h-11 px-3.5 bg-white border border-slate-300 focus:border-teal-600 focus:ring-1 focus:ring-teal-600 rounded-[4px] text-sm text-slate-900 font-medium transition-colors shadow-2xs outline-none"
+                          className="w-full h-11 px-3.5 bg-white border border-slate-300 focus:border-teal-600 focus:ring-1 focus:ring-teal-600 rounded-[4px] text-sm text-slate-900 font-medium transition-colors outline-none"
                           onChange={(event) => setProfileForm((value) => ({ ...value, gender: event.target.value as ProfileForm["gender"] }))}
                           value={profileForm.gender}
                         >
@@ -2002,7 +2063,7 @@ export default function PatientDashboardPage() {
                         <input
                           maxLength={500}
                           placeholder="Số nhà, tên đường, phường/xã, quận/huyện, tỉnh/thành phố"
-                          className="w-full h-11 px-3.5 bg-white border border-slate-300 focus:border-teal-600 focus:ring-1 focus:ring-teal-600 rounded-[4px] text-sm text-slate-900 font-medium transition-colors shadow-2xs outline-none"
+                          className="w-full h-11 px-3.5 bg-white border border-slate-300 focus:border-teal-600 focus:ring-1 focus:ring-teal-600 rounded-[4px] text-sm text-slate-900 font-medium transition-colors outline-none"
                           onChange={(event) => setProfileForm((value) => ({ ...value, address: event.target.value }))}
                           value={profileForm.address}
                         />
@@ -2012,7 +2073,7 @@ export default function PatientDashboardPage() {
                         <input
                           maxLength={160}
                           placeholder="Họ tên người thân (vợ/chồng, bố mẹ, con...)"
-                          className="w-full h-11 px-3.5 bg-white border border-slate-300 focus:border-teal-600 focus:ring-1 focus:ring-teal-600 rounded-[4px] text-sm text-slate-900 font-medium transition-colors shadow-2xs outline-none"
+                          className="w-full h-11 px-3.5 bg-white border border-slate-300 focus:border-teal-600 focus:ring-1 focus:ring-teal-600 rounded-[4px] text-sm text-slate-900 font-medium transition-colors outline-none"
                           onChange={(event) => setProfileForm((value) => ({ ...value, emergencyContactName: event.target.value }))}
                           value={profileForm.emergencyContactName}
                         />
@@ -2022,7 +2083,7 @@ export default function PatientDashboardPage() {
                         <input
                           maxLength={20}
                           placeholder="Ví dụ: 0912345678"
-                          className="w-full h-11 px-3.5 bg-white border border-slate-300 focus:border-teal-600 focus:ring-1 focus:ring-teal-600 rounded-[4px] text-sm text-slate-900 font-medium transition-colors shadow-2xs outline-none"
+                          className="w-full h-11 px-3.5 bg-white border border-slate-300 focus:border-teal-600 focus:ring-1 focus:ring-teal-600 rounded-[4px] text-sm text-slate-900 font-medium transition-colors outline-none"
                           onChange={(event) => setProfileForm((value) => ({ ...value, emergencyContactPhone: event.target.value }))}
                           value={profileForm.emergencyContactPhone}
                         />
@@ -2051,7 +2112,7 @@ export default function PatientDashboardPage() {
                     </div>
 
                     {/* Allergy Alert Box */}
-                    <div className="rounded-[4px] border border-amber-300 bg-amber-50/75 p-4 sm:p-5 mb-5 shadow-2xs">
+                    <div className="rounded-[4px] border border-amber-300 bg-amber-50/75 p-4 sm:p-5 mb-5">
                       <div className="flex items-start gap-3">
                         <span className="flex items-center justify-center w-7 h-7 rounded-[4px] bg-amber-100 text-amber-800 border border-amber-300 shrink-0 mt-0.5">
                           <UiIcon name="alert-triangle" size={16} />
@@ -2078,7 +2139,7 @@ export default function PatientDashboardPage() {
                       <label className="flex flex-col gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700">
                         <span className="text-slate-800">Nhóm máu (Hệ ABO & Rh)</span>
                         <select
-                          className="w-full h-11 px-3.5 rounded-[4px] border border-slate-300 bg-white text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-600 focus:border-teal-600 transition-colors shadow-2xs"
+                          className="w-full h-11 px-3.5 rounded-[4px] border border-slate-300 bg-white text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-600 focus:border-teal-600 transition-colors"
                           value={profileForm.bloodType}
                           onChange={(e) => setProfileForm((v) => ({ ...v, bloodType: e.target.value }))}
                         >
@@ -2098,7 +2159,7 @@ export default function PatientDashboardPage() {
                       <label className="md:col-span-2 flex flex-col gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700">
                         <span className="text-slate-800">Tiền sử bệnh lý bản thân & gia đình</span>
                         <textarea
-                          className="w-full min-h-[90px] p-3.5 rounded-[4px] border border-slate-300 bg-white text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-600 focus:border-teal-600 resize-y transition-colors shadow-2xs"
+                          className="w-full min-h-[90px] p-3.5 rounded-[4px] border border-slate-300 bg-white text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-600 focus:border-teal-600 resize-y transition-colors"
                           rows={3}
                           placeholder="Ví dụ: Tăng huyết áp 5 năm đang dùng thuốc, viêm loét dạ dày HP, từng mổ ruột thừa năm 2020; Gia đình: Mẹ mắc đái tháo đường type 2..."
                           value={profileForm.medicalHistory}
@@ -2142,7 +2203,7 @@ export default function PatientDashboardPage() {
                       <input
                         required
                         type="password"
-                        className="w-full h-11 px-3.5 bg-white border border-slate-300 focus:border-teal-600 focus:ring-1 focus:ring-teal-600 rounded-[4px] text-sm text-slate-900 font-medium transition-colors shadow-2xs outline-none"
+                        className="w-full h-11 px-3.5 bg-white border border-slate-300 focus:border-teal-600 focus:ring-1 focus:ring-teal-600 rounded-[4px] text-sm text-slate-900 font-medium transition-colors outline-none"
                         value={passwordForm.currentPassword}
                         onChange={(e) => setPasswordForm((v) => ({ ...v, currentPassword: e.target.value }))}
                         placeholder="Nhập mật khẩu đang dùng"
@@ -2154,7 +2215,7 @@ export default function PatientDashboardPage() {
                         required
                         type="password"
                         minLength={8}
-                        className="w-full h-11 px-3.5 bg-white border border-slate-300 focus:border-teal-600 focus:ring-1 focus:ring-teal-600 rounded-[4px] text-sm text-slate-900 font-medium transition-colors shadow-2xs outline-none"
+                        className="w-full h-11 px-3.5 bg-white border border-slate-300 focus:border-teal-600 focus:ring-1 focus:ring-teal-600 rounded-[4px] text-sm text-slate-900 font-medium transition-colors outline-none"
                         value={passwordForm.newPassword}
                         onChange={(e) => setPasswordForm((v) => ({ ...v, newPassword: e.target.value }))}
                         placeholder="Tối thiểu 8 ký tự"
@@ -2166,7 +2227,7 @@ export default function PatientDashboardPage() {
                         required
                         type="password"
                         minLength={8}
-                        className="w-full h-11 px-3.5 bg-white border border-slate-300 focus:border-teal-600 focus:ring-1 focus:ring-teal-600 rounded-[4px] text-sm text-slate-900 font-medium transition-colors shadow-2xs outline-none"
+                        className="w-full h-11 px-3.5 bg-white border border-slate-300 focus:border-teal-600 focus:ring-1 focus:ring-teal-600 rounded-[4px] text-sm text-slate-900 font-medium transition-colors outline-none"
                         value={passwordForm.confirmPassword}
                         onChange={(e) => setPasswordForm((v) => ({ ...v, confirmPassword: e.target.value }))}
                         placeholder="Nhập lại mật khẩu mới"

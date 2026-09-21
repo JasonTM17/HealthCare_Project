@@ -20,6 +20,25 @@ interface DoctorsPageClientProps {
   branchSlug?: string;
 }
 
+interface DoctorsCatalogFilter {
+  specialtySlug?: string;
+  branchSlug?: string;
+}
+
+/**
+ * The `/doctors` route is prerendered, so the server can no longer hand the
+ * filter slugs down as props (reading `searchParams` would opt the route back
+ * into dynamic rendering). Resolve them from the URL on the client instead —
+ * only in an effect, never during render, so the prerender stays deterministic.
+ */
+function readFilterFromLocation(): DoctorsCatalogFilter {
+  const search = new URLSearchParams(window.location.search);
+  return {
+    specialtySlug: search.get("specialty") ?? undefined,
+    branchSlug: search.get("branch") ?? undefined,
+  };
+}
+
 function initials(name: string): string {
   return name.split(/\s+/).filter(Boolean).slice(-2).map((part) => part[0]).join("").toUpperCase();
 }
@@ -30,6 +49,30 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
+  const [filter, setFilter] = useState<DoctorsCatalogFilter | null>(
+    specialtySlug || branchSlug ? { specialtySlug, branchSlug } : null,
+  );
+
+  useEffect(() => {
+    // The URL owns the filter (that is how deep links like
+    // `/doctors?specialty=tim-mach` keep working); prop values only fill a gap
+    // when the URL carries no filter. Re-running on `popstate` keeps
+    // back/forward navigation consistent.
+    const sync = () => {
+      const fromLocation = readFilterFromLocation();
+      setFilter({
+        specialtySlug: fromLocation.specialtySlug ?? specialtySlug,
+        branchSlug: fromLocation.branchSlug ?? branchSlug,
+      });
+    };
+    sync();
+    window.addEventListener("popstate", sync);
+    return () => window.removeEventListener("popstate", sync);
+  }, [branchSlug, specialtySlug]);
+
+  const resolvedSpecialtySlug = filter?.specialtySlug;
+  const resolvedBranchSlug = filter?.branchSlug;
+  const filterResolved = filter !== null;
 
   useEffect(() => {
     let cancelled = false;
@@ -40,6 +83,7 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
   }, []);
 
   useEffect(() => {
+    if (!filterResolved) return;
     let cancelled = false;
     const task = Promise.resolve()
       .then(() => {
@@ -50,8 +94,8 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
           page: currentPage,
           size: 12,
           sort: "fullName,asc",
-          specialtySlug,
-          branchSlug,
+          specialtySlug: resolvedSpecialtySlug,
+          branchSlug: resolvedBranchSlug,
         });
       })
       .then((data) => {
@@ -65,11 +109,11 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
       });
     void task;
     return () => { cancelled = true; };
-  }, [branchSlug, currentPage, specialtySlug]);
+  }, [currentPage, filterResolved, resolvedBranchSlug, resolvedSpecialtySlug]);
 
-  const selectedSpecialty = specialties.find((item) => item.slug === specialtySlug);
+  const selectedSpecialty = specialties.find((item) => item.slug === resolvedSpecialtySlug);
   const visibleDoctors = page ? dedupePublicDoctors(page.content) : [];
-  const filterLabel = selectedSpecialty?.name ?? specialtySlug;
+  const filterLabel = selectedSpecialty?.name ?? resolvedSpecialtySlug;
   const featuredDoctor = visibleDoctors[0];
   const doctorCount = page?.totalElements ?? visibleDoctors.length;
 
