@@ -2,7 +2,12 @@ name: Supabase Keep-Alive (Prevent Auto-Pause) & Render Health
 
 on:
   schedule:
-    # Runs every 4 hours (UTC) to keep Supabase active 24/7 and prevent the 7-day inactivity pause
+    # Runs every 4 hours (UTC) to keep Supabase active 24/7 and prevent the 7-day
+    # inactivity pause. Cadence note: Render Free idles a web service after ~15
+    # minutes, so a 4-hourly cron cannot keep the backend or the AI service warm —
+    # this job is a health canary plus Supabase activity, not a warmer. Real
+    # visitor traffic (and the frontend's own bounded warm-up request) is what
+    # keeps cold starts rare.
     - cron: '0 */4 * * *'
   workflow_dispatch:
 
@@ -200,7 +205,10 @@ jobs:
   render-health:
     name: Render Services Health (fail loud when instances vanish)
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # Worst case is two services x (3 attempts x 90 s probe + 2 x 20 s backoff)
+    # = ~620 s, because a Render Free instance has to finish booting before it
+    # can answer at all.
+    timeout-minutes: 15
     steps:
       - name: Probe backend and AI health endpoints with retry
         run: |
@@ -215,17 +223,22 @@ jobs:
             success=0
             for attempt in 1 2 3; do
               echo "Probing $name (attempt $attempt/3): $url"
-              headers=$(curl -s -D - -o /dev/null --max-time 45 "$url" || true)
+              # --max-time has to outlast a Free-plan cold start (measured:
+              # backend 20.4 s, AI 42.5 s). The previous 45 s ceiling aborted the
+              # probe while the instance was still booting, which turned a
+              # healthy service into a reported outage.
+              headers=$(curl -s -D - -o /dev/null --max-time 90 "$url" || true)
               code=$(printf '%s\n' "$headers" | awk 'NR==1 {print $2}')
-              routing=$(printf '%s\n' "$headers" | awk -F': ' 'tolower($1)=="x-render-routing" {print $2}' | tr -d '\r')
-              echo "$name: http=${code:-unknown} x-render-routing=${routing:-absent}"
-              if [ "$code" = "200" ] && [ "${routing:-}" != "no-server" ]; then
+              # Informational only. Cloudflare fronts Render, so Render's router
+              # header (`x-render-routing`) is no longer observable and the
+              # surviving `x-render-origin-server` value is not a health signal:
+              # the status code alone decides.
+              origin_server=$(printf '%s\n' "$headers" | awk -F': ' 'tolower($1)=="x-render-origin-server" {print $2}' | tr -d '\r')
+              echo "$name: http=${code:-unknown} x-render-origin-server=${origin_server:-absent}"
+              if [ "$code" = "200" ]; then
                 echo "$name is healthy and active."
                 success=1
                 break
-              fi
-              if [ "${routing:-}" = "no-server" ]; then
-                echo "Warning: Render routing reports no-server on attempt $attempt."
               fi
               if [ $attempt -lt 3 ]; then
                 echo "Sleeping 20s before retry to handle potential cold-start..."

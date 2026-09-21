@@ -73,6 +73,11 @@ services:
         sync: false
       - key: RAG_STORAGE_BACKEND
         value: supabase
+      # The AI service reads its RAG corpus through this pooled Supabase DSN
+      # (RAG_STORAGE_BACKEND=supabase). It is a secret, so it is never committed:
+      # the blueprint cannot reproduce the running service without it.
+      - key: SUPABASE_DB_URL
+        sync: false
       - key: RAG_INGEST_ENABLED
         value: "true"
       - key: RAG_MAX_DOCUMENTS
@@ -132,6 +137,22 @@ services:
         value: "5"
       - key: SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE
         value: "1"
+
+      # Connection lifecycle for the Free-plan pooler. Render's managed Postgres
+      # drops idle connections, so a connection that outlives the server-side
+      # idle timeout fails on first use. Recycle every 4 minutes, ping idle
+      # connections every minute, and bound validation so a dead socket is
+      # rejected instead of handed to a request thread. leak-detection is raised
+      # above the 5 s connection timeout: at 5 s it only ever reported normal
+      # pool waits as leaks.
+      - key: SPRING_DATASOURCE_HIKARI_MAX_LIFETIME
+        value: "240000"
+      - key: SPRING_DATASOURCE_HIKARI_KEEPALIVE_TIME
+        value: "60000"
+      - key: SPRING_DATASOURCE_HIKARI_VALIDATION_TIMEOUT
+        value: "3000"
+      - key: SPRING_DATASOURCE_HIKARI_LEAK_DETECTION_THRESHOLD
+        value: "30000"
 
       # HOSPITAL_SUPPORT uses the remote DeepSeek-backed FastAPI service.
       # Clinical modes and synthetic approval paths remain fail-closed.
