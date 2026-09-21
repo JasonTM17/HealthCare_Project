@@ -1,0 +1,261 @@
+# Stitch design proposal — Doctor schedule & received appointments
+
+Generated via the project's Stitch MCP connection (create_project + generate_screen_from_text).
+
+- Project: https://stitch.withgoogle.com/projects/1816799799990259439
+- Design system: `assets/b58e3c65039b44f3a3b05795273118a2` — Clinical Portal Design System
+
+## Design system guidance (excerpt)
+
+### styleGuidelines
+
+## Brand & Style
+
+This design system serves hospital physicians, triage nurses, and medical staff operating in fast-paced clinical environments. The interface prioritizes extreme clarity, quick scannability, and visual reassurance. 
+
+The emotional tone balances clinical rigor with humane accessibility: calm, authoritative, non-fatiguing, and reliable under high-stress decisions. 
+
+The aesthetic is Modern Clinical Minimalist—defined by ultra-clean structural layouts, intentional white space, crisp hairline divisions, and semantic status indicators that immediately communicate triage states without visual clutter.
+
+## Layout & Spacing
+
+A structured 12-column fluid grid system drives desktop layouts, switching to an 8-column layout on clinical tablets (e.g., bedside rounding iPads) and a single-column 4-gutter layout on mobile devices.
+
+- **Breakpoints**:
+  - Desktop / Workstation: `1280px+` (12 columns, 24px gutter, 32px canvas margins).
+  - Bedside Tablet: `768px – 1279px` (8 columns, 16px gutter, 24px canvas margins).
+  - Mobile / Handheld: `< 768px` (4 columns / single-flow, 16px gutter, 16px canvas margins).
+- **Clinical Density**: Form groupings and tabular vitals prioritize information density. Padding inside medical record rows stays compact (`space-sm` vertical, `space-md` horizontal) to display maximum patient context above the fold.
+
+## Elevation & Depth
+
+This design system avoids dark or heavy drop shadows, relying instead on high-clarity structural layering, surface color contrast, and 1px crisp borders.
+
+- **Layer 0 (Canvas)**: Background canvas `#f8fafc`.
+- **Layer 1 (Cards, Modules, Patient Panes)**: `#ffffff` surface bounded by a subtle `1px solid #e2e8f0` stroke. No shadow in resting state.
+- **Layer 2 (Contextual Popovers & Dropdowns)**: `#ffffff` background with `1px solid #cbd5e1` outline and a soft ambient glow: `0 4px 12px -2px rgba(15, 23, 42, 0.06), 0 2px 6px -1px rgba(15, 23, 42, 0.04)`.
+- **Layer 3 (Modals & Critical Clinical Alerts)**: `#ffffff` with a high-contrast `1px solid #cbd5e1` boundary, cast over a translucent backdrop `rgba(15, 23, 42, 0.45)` with `backdrop-filter: blur(2px)` and shadow `0 20px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.08)`.
+
+## Components
+
+### Buttons
+- **Primary**: Background `#0d9488`, foreground `#ffffff`, border none. Hover: `#0f766e`. Active: `#115e59`. Radius 8px. Height 40px (desktop), 44px (touch). Font weight 600.
+- **Secondary / Outline**: Background `#ffffff`, border `1px solid #cbd5e1`, foreground `#0f172a`. Hover: background `#f8fafc`, border `#94a3b8`.
+- **Ghost**: Background transparent, foreground `#0f766e`. Hover: background `#f0fdfa`.
+- **Destructive**: Background `#e11d48`, foreground `#ffffff`. Hover: `#be123c`.
+
+### Status Badges & Workflow Pills
+- Fixed height: 24px. Radius: `9999px`. Padding: `2px 10px`. Font: `label-sm` (uppercase, letter-spacing `0.04em`).
+- **Confirmed / Received**: Background `#ecfdf5`, border `1px solid #a7f3d0`, text `#065f46`.
+- **In-Progress**: Background `#fffbeb`, border `1px solid #fde68a`, text `#92400e`.
+- **Absent / Cancelled**: Background `#fff1f2`, border `1px solid #fecdd3`, text `#9f1239`.
+- **Suspended / Inactive**: Background `#f1f5f9`, border `1px solid #e2e8f0`, text `#475569`.
+
+### Input Fields & Selects
+- Height 40px, surface `#ffffff`, border `1px solid #cbd5e1`, radius 8px.
+- Text: `body-md` in `#0f172a`, placeholder in `#94a3b8`.
+- Focus state: Border color `#0d9488` with a 2px outer ring in `rgba(13, 148, 136, 0.2)`. No layout shift.
+- Error state: Border `#e11d48`, focus ring `rgba(225, 29, 72, 0.2)`.
+
+### Cards & Clinical Data Panes
+- Background `#ffffff`, border `1px solid #e2e8f0`, radius 8px.
+- Header section separated by `1px solid #f1f5f9` with 16px internal padding.
+- Card contents use 16px to 20px padding.
+
+### Checkboxes & Radio Controls
+- Base: 18px × 18px square (checkbox, 4px radius) or circle (radio).
+- Border `1.5px solid #94a3b8` on `#ffffff`.
+- Checked state: Background `#0d9488`, border `#0d9488`, checkmark/indicator `#ffffff`.
+
+### Data Grid & Vitals Row
+- Header row: Background `#f8fafc`, bottom border `1px solid #cbd5e1`, text `label-md` in `#475569`.
+- Body rows: Background `#ffffff`, bottom border `1px solid #f1f5f9`, hover state `#f8fafc`.
+- Vitals cells utilize monospace/tabular numerals with unit labels in `body-sm` `#64748b`.
+
+### theme
+
+{
+  "colorMode": "LIGHT",
+  "font": "BE_VIETNAM_PRO",
+  "roundness": "ROUND_EIGHT",
+  "customColor": "#0d9488",
+  "headlineFont": "BE_VIETNAM_PRO",
+  "bodyFont": "BE_VIETNAM_PRO",
+  "labelFont": "BE_VIETNAM_PRO",
+  "namedColors": {
+    "on_secondary_container": "#006f67",
+    "outline": "#6d7a77",
+    "tertiary_fixed": "#cce5ff",
+    "tertiary": "#006194",
+    "secondary_fixed": "#9cf2e8",
+    "on_secondary": "#ffffff",
+    "primary_fixed": "#89f5e7",
+    "on_surface_variant": "#3d4947",
+    "on_tertiary_container": "#fdfcff",
+    "on_secondary_fixed": "#00201d",
+    "error_container": "#ffdad6",
+    "surface_container_highest": "#d3e4fe",
+    "inverse_surface": "#213145",
+    "surface_tint": "#006a61",
+    "surface_dim": "#cbdbf5",
+    "on_surface": "#0b1c30",
+    "on_primary_fixed": "#00201d",
+    "on_tertiary": "#ffffff",
+    "primary_container": "#008378",
+    "secondary_container": "#99efe5",
+    "surface": "#f8f9ff",
+    "surface_variant": "#d3e4fe",
+    "on_error": "#ffffff",
+    "surface_bright": "#f8f9ff",
+    "on_primary_fixed_variant": "#005049",
+    "tertiary_container": "#007bb9",
+    "secondary_fixed_dim": "#80d5cb",
+    "on_primary": "#ffffff",
+    "inverse_on_surface": "#eaf1ff",
+    "on_primary_container": "#f4fffc",
+    "secondary": "#006a63",
+    "outline_variant": "#bcc9c6",
+    "surface_container": "#e5eeff",
+    "on_tertiary_fixed": "#001d31",
+    "surface_container_low": "#eff4ff",
+    "surface_container_high": "#dce9ff",
+    "inverse_primary": "#6bd8cb",
+    "error": "#ba1a1a",
+    "surface_container_lowest": "#ffffff",
+    "tertiary_fixed_dim": "#93ccff",
+    "on_error_container": "#93000a",
+    "on_tertiary_fixed_variant": "#004b73",
+    "background": "#f8f9ff",
+    "on_secondary_fixed_variant": "#00504a",
+    "primary": "#00685f",
+    "on_background": "#0b1c30",
+    "primary_fixed_dim": "#6bd8cb"
+  },
+  "designMd": "---\nname: Clinical Portal Design System\ncolors:\n  surface: '#f8f9ff'\n  surface-dim: '#cbdbf5'\n  surface-bright: '#f8f9ff'\n  surface-container-lowest: '#ffffff'\n  surface-container-low: '#eff4ff'\n  surface-container: '#e5eeff'\n  surface-container-high: '#dce9ff'\n  surface-container-highest: '#d3e4fe'\n  on-surface: '#0b1c30'\n  on-surface-variant: '#3d4947'\n  inverse-surface: '#213145'\n  inverse-on-surface: '#eaf1ff'\n  outline: '#6d7a77'\n  outline-variant: '#bcc9c6'\n  surface-tint: '#006a61'\n  primary: '#00685f'\n  on-primary: '#ffffff'\n  primary-container: '#008378'\n  on-primary-container: '#f4fffc'\n  inverse-primary: '#6bd8cb'\n  secondary: '#006a63'\n  on-secondary: '#ffffff'\n  secondary-container: '#99efe5'\n  on-secondary-container: '#006f67'\n  tertiary: '#006194'\n  on-tertiary: '#ffffff'\n  tertiary-container: '#007bb9'\n  on-tertiary-container: '#fdfcff'\n  error: '#ba1a1a'\n  on-error: '#ffffff'\n  error-container: '#ffdad6'\n  on-error-container: '#93000a'\n  primary-fixed: '#89f5e7'\n  primary-fixed-dim: '#6bd8cb'\n  on-primary-fixed: '#00201d'\n  on-primary-fixed-variant: '#005049'\n  secondary-fixed: '#9cf2e8'\n  secondary-fixed-dim: '#80d5cb'\n  on-secondary-fixed: '#00201d'\n  on-secondary-fixed-variant: '#00504a'\n  tertiary-fixed: '#cce5ff'\n  tertiary-fixed-dim: '#93ccff'\n  on-tertiary-fixed: '#001d31'\n  on-tertiary-fixed-variant: '#004b73'\n  background: '#f8f9ff'\n  on-background: '#0b1c30'\n  surface-variant: '#d3e4fe'\ntypography:\n  display:\n    fontFamily: Be Vietnam Pro\n    fontSize: 36px\n    fontWeight: '700'\n    lineHeight: 44px\n    letterSpacing: -0.02em\n  display-mobile:\n    fontFamily: Be Vietnam Pro\n    fontSize: 28px\n    fontWeight: '700'\n    lineHeight: 36px\n    letterSpacing: -0.01em\n  headline-lg:\n    fontFamily: Be Vietnam Pro\n    fontSize: 28px\n    fontWeight: '600'\n    lineHeight: 36px\n    letterSpacing: -0.01em\n  headline-lg-mobile:\n    fontFamily: Be Vietnam Pro\n    fontSize: 22px\n    fontWeight: '600'\n    lineHeight: 30px\n  headline-md:\n    fontFamily: Be Vietnam Pro\n    fontSize: 20px\n    fontWeight: '600'\n    lineHeight: 28px\n  headline-sm:\n    fontFamily: Be Vietnam Pro\n    fontSize: 16px\n    fontWeight: '600'\n    lineHeight: 24px\n  body-lg:\n    fontFamily: Be Vietnam Pro\n    fontSize: 16px\n    fontWeight: '400'\n    lineHeight: 26px\n  body-md:\n    fontFamily: Be Vietnam Pro\n    fontSize: 14px\n    fontWeight: '400'\n    lineHeight: 22px\n  body-sm:\n    fontFamily: Be Vietnam Pro\n    fontSize: 12px\n    fontWeight: '400'\n    lineHeight: 18px\n  label-lg:\n    fontFamily: Be Vietnam Pro\n    fontSize: 14px\n    fontWeight: '600'\n    lineHeight: 20px\n    letterSpacing: 0.01em\n  label-md:\n    fontFamily: Be Vietnam Pro\n    fontSize: 12px\n    fontWeight: '600'\n    lineHeight: 16px\n    letterSpacing: 0.02em\n  label-sm:\n    fontFamily: Be Vietnam Pro\n    fontSize: 10px\n    fontWeight: '700'\n    lineHeight: 14px\n    letterSpacing: 0.04em\nrounded:\n  sm: 0.25rem\n  DEFAULT: 0.5rem\n  md: 0.75rem\n  lg: 1rem\n  xl: 1.5rem\n  full: 9999px\nspacing:\n  gutter: 1rem\n  gutter-lg: 1.5rem\n  margin: 1rem\n  margin-md: 1.5rem\n  margin-lg: 2rem\n  space-xs: 0.25rem\n  space-sm: 0.5rem\n  space-md: 1rem\n  space-lg: 1.5rem\n  space-xl: 2rem\n---\n\n## Brand & Style\n\nThis design system serves hospital physicians, triage nurses, and medical staff operating in fast-paced clinical environments. The interface prioritizes extreme clarity, quick scannability, and visual reassurance. \n\nThe emotional tone balances clinical rigor with humane accessibility: calm, authoritative, non-fatiguing, and reliable under high-stress decisions. \n\nThe aesthetic is Modern Clinical Minimalist—defined by ultra-clean structural layouts, intentional white space, crisp hairline divisions, and semantic status indicators that immediately communicate triage states without visual clutter.\n\n## Colors\n\nThe color palette is calibrated for long-session readability under institutional LED lighting, using high-contrast foregrounds and low-strain backgrounds.\n\n- **Primary & Interactive**: Teal `#0d9488` drives primary actions, active navigation anchors, and focal interactive states. Deep teal `#0f766e` handles active/pressed states and high-emphasis focus rings.\n- **Canvas & Surfaces**: The base application background is cool slate `#f8fafc`. Interactive surfaces, clinical cards, patient charts, and data grids rest on crisp `#ffffff` to create distinct surface separation.\n- **Structural Outlines**: Hairline structural borders use neutral slate `#e2e8f0` to segment dense clinical records without heavy bounding boxes.\n- **Clinical Workflow Semantics**:\n  - **Confirmed / Received / Stable**: Emerald (`#059669` text/border on `#ecfdf5` tint).\n  - **In-Progress / Pending Review**: Amber (`#d97706` text/border on `#fffbeb` tint).\n  - **Critical / Absent / Cancelled**: Rose (`#e11d48` text/border on `#fff1f2` tint).\n  - **Suspended / Archived / Inactive**: Slate (`#475569` text/border on `#f1f5f9` tint).\n\n## Typography\n\nThe type system relies exclusively on **Be Vietnam Pro** across all typographic hierarchies, providing native, uncompromised rendering of Vietnamese tone marks and diacritics alongside alphanumeric clinical notations.\n\n- **Legibility Rules**: Numerical clinical data (vitals, lab metrics, dosage rates, timestamps) utilize tabular figures (`font-variant-numeric: tabular-nums`) to align precisely in multi-line medical charts and inspection tables.\n- **Vertical Metrics**: Generous line heights (`1.5` to `1.6` on body text) prevent diacritic collisions between multi-accented Vietnamese characters (e.g., ử, ữ, ể).\n\n## Layout & Spacing\n\nA structured 12-column fluid grid system drives desktop layouts, switching to an 8-column layout on clinical tablets (e.g., bedside rounding iPads) and a single-column 4-gutter layout on mobile devices.\n\n- **Breakpoints**:\n  - Desktop / Workstation: `1280px+` (12 columns, 24px gutter, 32px canvas margins).\n  - Bedside Tablet: `768px – 1279px` (8 columns, 16px gutter, 24px canvas margins).\n  - Mobile / Handheld: `< 768px` (4 columns / single-flow, 16px gutter, 16px canvas margins).\n- **Clinical Density**: Form groupings and tabular vitals prioritize information density. Padding inside medical record rows stays compact (`space-sm` vertical, `space-md` horizontal) to display maximum patient context above the fold.\n\n## Elevation & Depth\n\nThis design system avoids dark or heavy drop shadows, relying instead on high-clarity structural layering, surface color contrast, and 1px crisp borders.\n\n- **Layer 0 (Canvas)**: Background canvas `#f8fafc`.\n- **Layer 1 (Cards, Modules, Patient Panes)**: `#ffffff` surface bounded by a subtle `1px solid #e2e8f0` stroke. No shadow in resting state.\n- **Layer 2 (Contextual Popovers & Dropdowns)**: `#ffffff` background with `1px solid #cbd5e1` outline and a soft ambient glow: `0 4px 12px -2px rgba(15, 23, 42, 0.06), 0 2px 6px -1px rgba(15, 23, 42, 0.04)`.\n- **Layer 3 (Modals & Critical Clinical Alerts)**: `#ffffff` with a high-contrast `1px solid #cbd5e1` boundary, cast over a translucent backdrop `rgba(15, 23, 42, 0.45)` with `backdrop-filter: blur(2px)` and shadow `0 20px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.08)`.\n\n## Shapes\n\nThe geometric personality is precise, modern, and clinical. \n\nInteractive controls, cards, panels, inputs, and list containers share an 8px (`0.5rem`, `rounded-lg`) corner radius. This softens the high-density layout while preserving clean grid lines. \n\nStatus pills, counters, and triage tags use full pill radiuses (`9999px`) to immediately differentiate categorical metadata from actionable rectangular components.\n\n## Components\n\n### Buttons\n- **Primary**: Background `#0d9488`, foreground `#ffffff`, border none. Hover: `#0f766e`. Active: `#115e59`. Radius 8px. Height 40px (desktop), 44px (touch). Font weight 600.\n- **Secondary / Outline**: Background `#ffffff`, border `1px solid #cbd5e1`, foreground `#0f172a`. Hover: background `#f8fafc`, border `#94a3b8`.\n- **Ghost**: Background transparent, foreground `#0f766e`. Hover: background `#f0fdfa`.\n- **Destructive**: Background `#e11d48`, foreground `#ffffff`. Hover: `#be123c`.\n\n### Status Badges & Workflow Pills\n- Fixed height: 24px. Radius: `9999px`. Padding: `2px 10px`. Font: `label-sm` (uppercase, letter-spacing `0.04em`).\n- **Confirmed / Received**: Background `#ecfdf5`, border `1px solid #a7f3d0`, text `#065f46`.\n- **In-Progress**: Background `#fffbeb`, border `1px solid #fde68a`, text `#92400e`.\n- **Absent / Cancelled**: Background `#fff1f2`, border `1px solid #fecdd3`, text `#9f1239`.\n- **Suspended / Inactive**: Background `#f1f5f9`, border `1px solid #e2e8f0`, text `#475569`.\n\n### Input Fields & Selects\n- Height 40px, surface `#ffffff`, border `1px solid #cbd5e1`, radius 8px.\n- Text: `body-md` in `#0f172a`, placeholder in `#94a3b8`.\n- Focus state: Border color `#0d9488` with a 2px outer ring in `rgba(13, 148, 136, 0.2)`. No layout shift.\n- Error state: Border `#e11d48`, focus ring `rgba(225, 29, 72, 0.2)`.\n\n### Cards & Clinical Data Panes\n- Background `#ffffff`, border `1px solid #e2e8f0`, radius 8px.\n- Header section separated by `1px solid #f1f5f9` with 16px internal padding.\n- Card contents use 16px to 20px padding.\n\n### Checkboxes & Radio Controls\n- Base: 18px × 18px square (checkbox, 4px radius) or circle (radio).\n- Border `1.5px solid #94a3b8` on `#ffffff`.\n- Checked state: Background `#0d9488`, border `#0d9488`, checkmark/indicator `#ffffff`.\n\n### Data Grid & Vitals Row\n- Header row: Background `#f8fafc`, bottom border `1px solid #cbd5e1`, text `label-md` in `#475569`.\n- Body rows: Background `#ffffff`, bottom border `1px solid #f1f5f9`, hover state `#f8fafc`.\n- Vitals cells utilize monospace/tabular numerals with unit labels in `body-sm` `#64748b`.",
+  "colorVariant": "FIDELITY",
+  "overridePrimaryColor": "#0d9488",
+  "overrideSecondaryColor": "#0f766e",
+  "overrideTertiaryColor": "#0284c7",
+  "overrideNeutralColor": "#64748b",
+  "spacingScale": 2,
+  "typography": {
+    "body-sm": {
+      "fontFamily": "Be Vietnam Pro",
+      "fontSize": "12px",
+      "fontWeight": "400",
+      "lineHeight": "18px"
+    },
+    "headline-lg": {
+      "fontFamily": "Be Vietnam Pro",
+      "fontSize": "28px",
+      "fontWeight": "600",
+      "lineHeight": "36px",
+      "letterSpacing": "-0.01em"
+    },
+    "headline-sm": {
+      "fontFamily": "Be Vietnam Pro",
+      "fontSize": "16px",
+      "fontWeight": "600",
+      "lineHeight": "24px"
+    },
+    "display": {
+      "fontFamily": "Be Vietnam Pro",
+      "fontSize": "36px",
+      "fontWeight": "700",
+      "lineHeight": "44px",
+      "letterSpacing": "-0.02em"
+    },
+    "label-sm": {
+      "fontFamily": "Be Vietnam Pro",
+      "fontSize": "10px",
+      "fontWeight": "700",
+      "lineHeight": "14px",
+      "letterSpacing": "0.04em"
+    },
+    "body-lg": {
+      "fontFamily": "Be Vietnam Pro",
+      "fontSize": "16px",
+      "fontWeight": "400",
+      "lineHeight": "26px"
+    },
+    "display-mobile": {
+      "fontFamily": "Be Vietnam Pro",
+      "fontSize": "28px",
+      "fontWeight": "700",
+      "lineHeight": "36px",
+      "letterSpacing": "-0.01em"
+    },
+    "headline-md": {
+      "fontFamily": "Be Vietnam Pro",
+      "fontSize": "20px",
+      "fontWeight": "600",
+      "lineHeight": "28px"
+    },
+    "label-lg": {
+      "fontFamily": "Be Vietnam Pro",
+      "fontSize": "14px",
+      "fontWeight": "600",
+      "lineHeight": "20px",
+      "letterSpacing": "0.01em"
+    },
+    "body-md": {
+      "fontFamily": "Be Vietnam Pro",
+      "fontSize": "14px",
+      "fontWeight": "400",
+      "lineHeight": "22px"
+    },
+    "label-md": {
+      "fontFamily": "Be Vietnam Pro",
+      "fontSize": "12px",
+      "fontWeight": "600",
+      "lineHeight": "16px",
+      "letterSpacing": "0.02em"
+    },
+    "headline-lg-mobile": {
+      "fontFamily": "Be Vietnam Pro",
+      "fontSize": "22px",
+      "fontWeight": "600",
+      "lineHeight": "30px"
+    }
+  },
+  "spacing": {
+    "space-xl": "2rem",
+    "gutter-lg": "1.5rem",
+    "space-sm": "0.5rem",
+    "margin": "1rem",
+    "margin-md": "1.5rem",
+    "margin-lg": "2rem",
+    "space-xs": "0.25rem",
+    "gutter": "1rem",
+    "space-lg": "1.5rem",
+    "space-md": "1rem"
+  },
+  "headlineFontFamily": "Be Vietnam Pro",
+  "bodyFontFamily": "Be Vietnam Pro",
+  "labelFontFamily": "Be Vietnam Pro"
+}
+
+## Stitch's summary
+
+Tôi đã thiết kế hoàn chỉnh màn hình web desktop **"Lịch làm việc của tôi"** dành cho Cổng thông tin Bác sĩ (Hospital Doctor Portal) chuẩn y khoa theo đúng yêu cầu:
+
+### Điểm nổi bật trong thiết kế:
+1. **Bộ nhận diện y tế chuẩn xác:**
+   - **Màu sắc & Phông chữ:** Tông màu chủ đạo **Teal (#0d9488)** tạo cảm giác tin cậy, sạch sẽ và chuyên nghiệp; typography hiển thị chuẩn tiếng Việt với phông chữ **Be Vietnam Pro**; bo góc tiêu chuẩn **8px (rounded-lg)** trên nền trắng sáng và viền xám mềm mại.
+   - **Thanh điều hướng bên trái (Sidebar):** Logo bệnh viện với dấu chữ thập y tế, danh mục menu chức năng: *Tổng quan*, *Lịch khám* (trạng thái kích hoạt nổi bật), *Hồ sơ*, *Bài viết*, cùng thông tin bác sĩ phụ trách (*BS. Nguyễn Văn A*).
+
+2. **Khối thông báo & Banner hướng dẫn:**
+   - Banner thông báo chuẩn: *"Chưa có lịch làm việc — liên hệ quản trị viên"* với nút gửi yêu cầu hỗ trợ nhanh.
+
+3. **Card 1 — Danh sách lịch hẹn bệnh nhân:**
+   - Bộ lọc phân đoạn (Segmented Control): nút chuyển đổi trực quan giữa **"Hôm nay"** (được chọn) và **"7 ngày tới"**.
+   - Bảng 4 lượt khám với đầy đủ thông tin: Khung giờ (08:30 - 09:00, 09:00 - 09:30, 09:30 - 10:00, 10:00 - 10:30), Họ tên bệnh nhân, Mã hồ sơ, Cơ sở/Phòng khám, kèm huy hiệu trạng thái rõ ràng (*Đã xác nhận*, *Đã tiếp nhận*, *Đang khám*) và hai nút thao tác lâm sàng: **Tiếp nhận** và **Không đến**.
+
+4. **Card 2 — Lịch làm việc của tôi (Mục có thể thu gọn):**
+   - Tiêu đề tích hợp nút chevron thu gọn/mở rộng.
+   - Bảng phân ca tuần từ Thứ 2 đến Chủ nhật chi tiết gồm các cột: *Thứ, Cơ sở, Giờ làm việc (06:30 - 20:00), Thời lượng khung (30 phút), Hiệu lực (01/09/2026 - 31/12/2026)* và huy hiệu **Tạm ngưng** trên dòng Thứ 5.
+   - Khu vực **Ngoại lệ** bên dưới bảng gồm 2 bản ghi: *Nghỉ phép 25/09/2026* và *Chặn giờ 30/09/2026 (13:30 - 15:00)*.
+   - Ngôn ngữ hoàn toàn bằng tiếng Việt chuyên ngành y tế, không sử dụng từ ngữ tiếng Anh hay văn bản mẫu Latin.
+
+## Screens
+- `projects/1816799799990259439/screens/dd5ff7a3d21d4320a1f361d714688a53` — https://stitch.withgoogle.com/projects/1816799799990259439?screen=dd5ff7a3d21d4320a1f361d714688a53
