@@ -27,6 +27,20 @@ import javax.sql.DataSource;
 
 class FlywayMigrationTest extends TestcontainersIntegrationTest {
 
+    // The catalog rows db/seed/seed-local-data.sql and
+    // db/seed/seed-local-rich-content.sql own. richLocalSeedOverlayPopulatesV15ContentContracts
+    // measures the overlay against these slugs instead of a schema-wide total.
+    private static final String SEEDED_SPECIALTY_SLUGS =
+        "('tim-mach','than-kinh','tieu-hoa','noi-tong-hop','nhi-khoa','san-phu-khoa',"
+            + "'co-xuong-khop','tai-mui-hong')";
+    private static final String SEEDED_BRANCH_SLUGS =
+        "('benh-vien-sai-gon-xanh','phong-kham-thao-dien')";
+    private static final String SEEDED_PACKAGE_SLUGS =
+        "('goi-kham-co-ban','goi-kham-tim-mach','goi-tam-soat-tieu-duong','goi-kham-tre-em')";
+    private static final String SEEDED_ARTICLE_SLUGS =
+        "('dau-hieu-canh-bao-benh-tim-mach','dinh-duong-hop-ly-nguoi-tang-huyet-ap',"
+            + "'tre-bieng-an-hieu-dung-de-cham-dung')";
+
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
@@ -179,12 +193,27 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
         String schema = createMigrationSchema();
         try {
             migrateLatest(schema);
+            // V86 publishes the same five slots through its own durable-event
+            // block (actor admin@healthcare.id.vn), and the large seed
+            // deliberately emits no synthetic event for content a newer actor
+            // already owns. The public-schema sibling test only reaches the seed
+            // with those rows gone, because AbstractIntegrationTest#cleanDatabase
+            // truncates the CMS tables before every method. Remove the chain's
+            // rows for the seeded slots here too so both seeds start from the
+            // same precondition; the assertions below still demand the seed's
+            // own five attributed, unduplicated, fully-joined events.
+            String seededSlots = "('homepage.hero','homepage.body','careers.hero','careers.body','search.hero')";
+            jdbcTemplate.update(
+                "delete from " + table(schema, "cms_content_changes")
+                    + " where slot_key in " + seededSlots);
+            jdbcTemplate.update(
+                "delete from " + table(schema, "cms_contents")
+                    + " where slot_key in " + seededSlots);
             executeLargeSeed(schema);
             executeLargeSeed(schema);
 
             String contents = table(schema, "cms_contents");
             String changes = table(schema, "cms_content_changes");
-            String seededSlots = "('homepage.hero','homepage.body','careers.hero','careers.body','search.hero')";
 
             assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from " + contents + " where slot_key in " + seededSlots,
@@ -1020,24 +1049,35 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
             );
             executeRichSeed(schema);
 
+            // The counts are scoped to the rows the two local seeds ship. A
+            // schema-wide total is no longer a measure of this overlay: V95
+            // seeds a second (An Tam) catalogue with its own amenities and
+            // checklists, and V86/V92 publish additional article sections, so an
+            // unscoped count reports how many rows the whole chain carries rather
+            // than whether the overlay filled every V15 contract it owns. Each
+            // scoped expectation still demands all of the seed's own rows.
             assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from " + table(schema, "specialties")
-                    + " where jsonb_array_length(common_symptoms) > 0",
+                    + " where slug in " + SEEDED_SPECIALTY_SLUGS
+                    + " and jsonb_array_length(common_symptoms) > 0",
                 Integer.class
             )).isEqualTo(8);
             assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from " + table(schema, "branches")
-                    + " where jsonb_array_length(amenities) > 0",
+                    + " where slug in " + SEEDED_BRANCH_SLUGS
+                    + " and jsonb_array_length(amenities) > 0",
                 Integer.class
             )).isEqualTo(2);
             assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from " + table(schema, "packages")
-                    + " where jsonb_array_length(checklist) > 0",
+                    + " where slug in " + SEEDED_PACKAGE_SLUGS
+                    + " and jsonb_array_length(checklist) > 0",
                 Integer.class
             )).isEqualTo(4);
             assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from " + table(schema, "articles")
-                    + " where jsonb_array_length(sections) > 0",
+                    + " where slug in " + SEEDED_ARTICLE_SLUGS
+                    + " and jsonb_array_length(sections) > 0",
                 Integer.class
             )).isEqualTo(3);
             assertThat(jdbcTemplate.queryForObject(
@@ -1129,6 +1169,9 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
             .locations("classpath:db/migration")
             .schemas(schema)
             .defaultSchema(schema)
+            // V86/V87 reference catalog rows a production database supplied
+            // through the admin CMS; seed them just-in-time on fresh schemas.
+            .callbacks(new CatalogFixtureCallback())
             .load()
             .migrate();
     }
