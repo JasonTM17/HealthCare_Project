@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 import re
 from contextlib import contextmanager
@@ -38,6 +39,14 @@ _REVISION_KEY = "_sync_revision"
 _TOMBSTONE_KEY = "_tombstone"
 _LOCAL_RUNTIME_NAMES = frozenset({"local", "test", "demo"})
 _PROJECTION_KINDS = frozenset({"OPERATIONAL", "CLINICAL"})
+
+# Startup telemetry rides on Uvicorn's configured logger tree (the same
+# convention app/main.py documents): a standalone named logger has no handler
+# in the container, so a "this deployment may degrade to memory" warning would
+# be invisible exactly where it matters. Child loggers propagate to
+# ``uvicorn.error``, which Uvicorn always configures.
+_RAG_STARTUP_LOGGER_NAME = "uvicorn.error.healthcare.ai.rag"
+_startup_logger = logging.getLogger(_RAG_STARTUP_LOGGER_NAME)
 _CLINICAL_SOURCE_TYPES = CLINICAL_SOURCE_TYPES
 
 
@@ -740,6 +749,63 @@ class SupabaseRagStore:
 class PersistentRagService(RagService):
     """RagService with durable writes/search and a bounded local fallback."""
 
+    backend = "supabase"
+
+    @property
+    def fallback_active(self) -> bool:
+        """Whether an unfiltered retrieval is currently served from memory.
+
+        True only during the explicit local-development fallback window: the
+        durable backend is configured, persistence is currently unavailable,
+        the deployment armed ``SUPABASE_RAG_FALLBACK_TO_MEMORY``, and memory
+        retrieval is still safe for this process.  Once Supabase has answered
+        anything, a later outage fails closed instead of falling back, so this
+        stays False -- see :attr:`fail_closed`, which is the mutually exclusive
+        signal for exactly that state.
+
+        Safety is evaluated with the same predicate the request path uses
+        (:meth:`_memory_fallback_is_safe`) for an unfiltered retrieval, so this
+        flag can never claim fallback traffic that no caller is receiving.
+        """
+
+        if not self.fallback_to_memory or self.persistence_available:
+            return False
+        return self._memory_fallback_is_safe(None)
+
+    @property
+    def fallback_permitted(self) -> bool:
+        """Whether this deployment may degrade to the in-memory index at all.
+
+        Static configuration, not observed traffic: it answers "could this
+        process ever serve memory?" so an operator can tell a strict durable
+        deployment from one that merely has not degraded yet.
+        """
+
+        return self.fallback_to_memory
+
+    @property
+    def fail_closed(self) -> bool:
+        """Whether durable RAG is unavailable and memory retrieval is refused.
+
+        The complement of :attr:`fallback_active` while the durable backend is
+        down.  Nothing is being served from the in-memory index in this state
+        -- requests raise -- so a caller must not describe the response as
+        fallback traffic.
+        """
+
+        return not self.persistence_available and not self.fallback_active
+
+    @property
+    def durable_authority_observed(self) -> bool:
+        """Whether this process has ever seen the durable backend answer.
+
+        Public read-only view of the internal fence that ends the memory
+        fallback window; startup telemetry and tests use it instead of reaching
+        for a private attribute.
+        """
+
+        return self._durable_authority_seen
+
     def __init__(
         self,
         store: SupabaseRagStore,
@@ -1354,6 +1420,27 @@ class PersistentRagService(RagService):
         )
 
 
+class MemoryFallbackRagService(RagService):
+    """In-memory index standing in for a durable backend that was never reached.
+
+    The deployment asked for Supabase but had no usable DSN, so the empty local
+    index is a degraded fallback rather than the configured backend. /health
+    must say so instead of staying green silently.
+    """
+
+    @property
+    def fallback_active(self) -> bool:
+        return True
+
+    @property
+    def fallback_permitted(self) -> bool:
+        return True
+
+    @property
+    def fail_closed(self) -> bool:
+        return False
+
+
 def build_rag_service(settings: Any) -> RagService:
     """Select durable storage only when explicitly configured.
 
@@ -1368,16 +1455,37 @@ def build_rag_service(settings: Any) -> RagService:
         return RagService(max_documents=max_documents)
 
     runtime = str(getattr(settings, "ai_service_runtime", "non-local")).strip().casefold()
-    fallback = bool(getattr(settings, "supabase_rag_fallback_to_memory", True)) and runtime in _LOCAL_RUNTIME_NAMES
+    configured_fallback = bool(
+        getattr(settings, "supabase_rag_fallback_to_memory", True)
+    )
+    fallback = configured_fallback and runtime in _LOCAL_RUNTIME_NAMES
     dsn = str(getattr(settings, "supabase_db_url", ""))
     if not dsn.strip():
         if fallback:
-            return RagService(max_documents=max_documents)
+            service = MemoryFallbackRagService(max_documents=max_documents)
+            _startup_logger.warning(
+                "rag_fallback state=armed_no_durable_authority backend=supabase "
+                "runtime=%s reason=missing_supabase_db_url serving=in_memory",
+                runtime,
+            )
+            return service
         raise SupabaseRagUnavailable("RAG_STORAGE_BACKEND=supabase requires SUPABASE_DB_URL")
 
     config = SupabaseRagConfig.from_settings(settings)
-    return PersistentRagService(
+    durable_service = PersistentRagService(
         SupabaseRagStore(config),
         max_documents=max_documents,
         fallback_to_memory=fallback,
     )
+    if fallback:
+        # SUPABASE_RAG_FALLBACK_TO_MEMORY still defaults to True, so this is the
+        # one place that can tell an operator that a durable-backed deployment
+        # is allowed to answer from memory. Without it the default is silent
+        # until a degradation actually happens.
+        _startup_logger.warning(
+            "rag_fallback state=armed backend=supabase runtime=%s "
+            "supabase_rag_fallback_to_memory=true durable_authority_observed=%s",
+            runtime,
+            durable_service.durable_authority_observed,
+        )
+    return durable_service

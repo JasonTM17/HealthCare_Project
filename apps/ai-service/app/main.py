@@ -493,6 +493,10 @@ def health(response: Response) -> HealthResponse:
     )
     auth_ready = auth_configured or local_auth_escape_hatch_enabled()
     rag_ready = _rag_ready()
+    rag_backend = str(getattr(rag_service, "backend", "memory")).strip().casefold() or "memory"
+    rag_fallback_active = bool(getattr(rag_service, "fallback_active", False))
+    rag_fallback_permitted = bool(getattr(rag_service, "fallback_permitted", False))
+    rag_fail_closed = bool(getattr(rag_service, "fail_closed", False))
     ready = auth_ready and provider_ready and not remote_probe_required and rag_ready
     status = "ok" if ready else "degraded" if fallback_allowed and auth_ready else "misconfigured"
     response.status_code = 200 if ready else 503
@@ -511,6 +515,10 @@ def health(response: Response) -> HealthResponse:
         fallback_allowed=fallback_allowed,
         remote_probe_required=remote_probe_required,
         rag_ready=rag_ready,
+        rag_backend=rag_backend,
+        rag_fallback_active=rag_fallback_active,
+        rag_fallback_permitted=rag_fallback_permitted,
+        rag_fail_closed=rag_fail_closed,
     )
 
 
