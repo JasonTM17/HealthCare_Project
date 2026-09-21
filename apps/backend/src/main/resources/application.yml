@@ -9,7 +9,16 @@ spring:
       maximum-pool-size: ${SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE:10}
       minimum-idle: ${SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE:2}
       connection-timeout: ${SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT:5000}
-      leak-detection-threshold: ${SPRING_DATASOURCE_HIKARI_LEAK_DETECTION_THRESHOLD:5000}
+      # Managed Postgres (and Render's pooler) drops connections that outlive its
+      # own idle timeout, and a pooled socket can be killed by the network while
+      # it waits. Recycle every 4 minutes and keep idle connections alive every
+      # minute so a request never receives a socket the server already closed.
+      max-lifetime: ${SPRING_DATASOURCE_HIKARI_MAX_LIFETIME:240000}
+      keepalive-time: ${SPRING_DATASOURCE_HIKARI_KEEPALIVE_TIME:60000}
+      validation-timeout: ${SPRING_DATASOURCE_HIKARI_VALIDATION_TIMEOUT:3000}
+      # Leak detection must sit ABOVE the 5 s connection timeout: at 5 s it
+      # reported ordinary pool waits as leaks and never identified a real one.
+      leak-detection-threshold: ${SPRING_DATASOURCE_HIKARI_LEAK_DETECTION_THRESHOLD:30000}
   jpa:
     hibernate:
       ddl-auto: validate
@@ -147,6 +156,13 @@ app:
       # "test" profile together; mail-disabled deployments must never turn it
       # into a universal password-reset code.
       allow-test-otp: ${APP_AUTH_ALLOW_TEST_OTP:false}
+  ai:
+    # Periodic operational-catalog RAG sync (branches/specialties/doctors/
+    # services/packages) performed by AiCatalogIndexService. Clinical content
+    # follows its own governed outbox worker and is unaffected by this flag.
+    # The admin endpoint POST /api/v1/admin/ai/catalog/sync stays available
+    # for an on-demand sync when the switch is off.
+    catalog-sync-enabled: ${APP_AI_CATALOG_SYNC_ENABLED:true}
 
 cms:
   realtime:
@@ -265,7 +281,7 @@ ai:
     token: ${AI_RAG_INGEST_TOKEN:}
     max-catalog-items: ${AI_RAG_INGEST_MAX_CATALOG_ITEMS:5000}
     initial-delay-ms: ${AI_RAG_INGEST_INITIAL_DELAY_MS:15000}
-    sync-delay-ms: ${AI_RAG_INGEST_SYNC_DELAY_MS:300000}
+    sync-delay-ms: ${AI_RAG_INGEST_SYNC_DELAY_MS:1800000}
 
 server:
   # Render supplies PORT (10000 by default). Keep BACKEND_PORT as the local
