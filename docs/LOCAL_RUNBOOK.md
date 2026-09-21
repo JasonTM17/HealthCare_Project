@@ -258,13 +258,19 @@ on its own.
 
 The one-shot `local-seed` container runs after Flyway and backend health. It
 creates fictional catalog data, recurring schedules, and these disposable local
-accounts (all use password `LocalDemo!2026`):
+accounts (all use password `HealthCare@2026`):
 
 | Role | Email |
 | --- | --- |
 | Admin | `admin@healthcare.local` |
 | Doctor | `doctor@healthcare.local` |
 | Patient | `patient@healthcare.local` |
+
+`HealthCare@2026` is the credential the migration chain actually leaves behind:
+V56 first seeds the `.local` personas, then V58 overwrites all six demo hashes
+(`.local` and `.healthcare.com`) with it. V70 flags the same six as `is_demo`,
+which is what `HEALTHCARE_DEMO_LOGIN_ALLOWED=false` can switch off in a
+non-demo deployment.
 
 Never reuse these credentials outside the local seed. Seeded accounts are marked
 email-verified; newly registered patients are not issued tokens until they
@@ -420,6 +426,49 @@ until both credentials are available; otherwise OTP delivery will fail.
     booking appears with the correct date/status, then inspect catalog/schedules.
 13. Confirm that anonymous/non-admin access to admin APIs is rejected and that
     another patient cannot read the first patient's clinical/file resources.
+
+### Ultra vòng 4 — các bước bắt buộc bổ sung
+
+Các bước dưới đây phủ đúng những hành vi mới của notification matrix, CMS, catalog
+seed, review gate bài viết và định mức AI. Đây là checklist E2E, không phải mô tả tính
+năng: mỗi dòng phải kiểm chứng trên trình duyệt đang đăng nhập bằng role được nêu.
+
+14. Patient: after the admin cancels a booking (step 12 below path), open
+    `/patient/dashboard` and confirm the notification names the cancellation **and shows
+    `cancellationReason`**; then cancel a second booking *without* filling the reason and
+    confirm the patient is told the neutral clinic-authored wording, not a stale system
+    string left over from an expired hold.
+15. Doctor: with the bell in the portal chrome, confirm a new confirmed booking, a
+    care-plan item completion, and a patient consultation message each raise a doctor
+    notification; open `/doctor/notifications` (full-screen inbox, filter tabs, empty
+    state) and verify mark-as-read and "Xem tất cả" work for the doctor role, not only
+    the patient role.
+16. Doctor: on `/doctor/dashboard` confirm the appointment row shows the coarse
+    payment state badge, and confirm no payment action control is offered to the doctor
+    (amount, method and payer identity stay on the admin surface).
+17. Admin: submit a payment proof through **both** channels — the manual admin submission
+    and the bank/SePay webhook path — and confirm admins receive a notification for each;
+    these were previously silent on the webhook channel.
+18. Admin: post a health question as a patient and confirm admins receive a notification.
+19. Anonymous: open `/faq`, `/benh-pho-bien` and a guide detail page; confirm real
+    content (not an empty state), and confirm a `DISEASE_GUIDE` article only appears once
+    its `review_status` is `APPROVED`.
+20. Doctor: publish an article from the doctor portal and confirm it stays out of the
+    public catalog until an admin approves it in the review surface, and that a rejection
+    is visible to the author with the reviewer's reason.
+21. Patient with zero AI credits: ask a question that the platform can answer without any
+    provider call and with no citation; confirm the degraded answer is delivered free and
+    recorded as a `AI_CHAT_WAIVED` ledger row at balance 0, while a question that would
+    need the provider still returns `402 INSUFFICIENT_AI_CREDITS` **before** any provider
+    call. Confirm the admin credits page no longer offers per-doctor AI grants and still
+    grants patient credits normally.
+22. Admin: on `/admin/content` or `/admin/catalog`, confirm the section builder is real —
+    fill in section bodies and verify the outline a reader sees matches them; leave the
+    bodies empty and verify the outline is instead derived from the article body. A
+    medical "blueprint" preset must only scaffold headings, so applying one and publishing
+    must never put template prose on a public clinical page.
+23. Admin: open `/about` and confirm the CMS-published `about.hero` / `about.body` slots
+    actually render, and that an unpublished slot adds no DOM rather than an empty band.
 
 The backend also exposes `POST /api/v1/admin/ai/catalog/sync` for an authenticated
 ADMIN to perform a bounded catalog refresh and receive an explicit processed
