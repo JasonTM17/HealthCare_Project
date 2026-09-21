@@ -202,7 +202,7 @@ function ConfirmActionDialogBody({
                 {field.required ? <span aria-hidden="true"> *</span> : null}
                 {field.options?.length ? (
                   <select
-                    className="mt-1 w-full rounded-sm border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                    className="mt-1 w-full rounded-sm border border-slate-300 bg-white px-3 py-2.5 text-sm focus:border-teal-600"
                     defaultValue=""
                     name={field.name}
                     required={field.required}
@@ -214,7 +214,7 @@ function ConfirmActionDialogBody({
                   </select>
                 ) : field.multiline ? (
                   <textarea
-                    className="mt-1 w-full rounded-sm border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                    className="mt-1 w-full rounded-sm border border-slate-300 px-3 py-2.5 text-sm focus:border-teal-600"
                     maxLength={field.maxLength}
                     minLength={field.minLength}
                     name={field.name}
@@ -225,7 +225,7 @@ function ConfirmActionDialogBody({
                 ) : (
                   <input
                     autoComplete={field.autoComplete}
-                    className="mt-1 w-full rounded-sm border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                    className="mt-1 w-full rounded-sm border border-slate-300 px-3 py-2.5 text-sm focus:border-teal-600"
                     inputMode={field.inputMode}
                     maxLength={field.maxLength}
                     minLength={field.minLength}

@@ -105,6 +105,10 @@ export function PublicPageShell({
 
   const effectiveBranches = branches.length > 0 ? branches : shellBranches;
   const cmsSlug = routeCmsSlug(pathname);
+  const hotlineBranch = effectiveBranches.find((branch) => branch.emergencyHotline);
+  const contactBranch = hotlineBranch ?? effectiveBranches.find((branch) => branch.phone);
+  const emergencyContact = hotlineBranch?.emergencyHotline ?? contactBranch?.phone ?? undefined;
+  const emergencyContactIsHotline = Boolean(hotlineBranch?.emergencyHotline);
 
   const actions: PublicPageActions = {
     openBooking: (nextSelection) => {
@@ -126,9 +130,8 @@ export function PublicPageShell({
         <main id="main-content" tabIndex={-1}><RouteCmsSlots>{children}</RouteCmsSlots></main>
         <Footer branches={effectiveBranches} cmsSlug={cmsSlug ?? undefined} />
         <AiTriageModal
-          emergencyContact={effectiveBranches.find((branch) => branch.emergencyHotline || branch.phone)?.emergencyHotline
-            ?? effectiveBranches.find((branch) => branch.phone)?.phone
-            ?? undefined}
+          emergencyContact={emergencyContact}
+          emergencyContactIsHotline={emergencyContactIsHotline}
           isOpen={triageOpen}
           onClose={() => setTriageOpen(false)}
           onSelectSpecialtyForBooking={(_name, specialtyId) => {

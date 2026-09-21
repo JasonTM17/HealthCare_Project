@@ -40,10 +40,12 @@ export function ErrorState({
   message,
   status,
   onRetry,
+  nextPath,
 }: {
   message: string;
   status?: number;
   onRetry?: () => void;
+  nextPath?: string;
 }) {
   const isUnauthorized = status === 401;
   const isForbidden = status === 403;
@@ -55,15 +57,23 @@ export function ErrorState({
       : isUnavailable
         ? "Dịch vụ tạm thời không khả dụng"
         : "Không thể tải dữ liệu";
-  const description = isUnauthorized
-    ? "Vui lòng đăng nhập lại để tiếp tục xem thông tin của bạn."
-    : isForbidden
-      ? "Tài khoản hiện tại chưa được phép xem nội dung này."
-      : isUnavailable
-        ? "Kết nối đang bị gián đoạn. Vui lòng thử lại sau ít phút."
-        : message.trim()
-          ? "Yêu cầu chưa thể hoàn tất. Vui lòng kiểm tra thông tin và thử lại."
+  // A caller-supplied message has already been translated by `presentApiError`,
+  // which knows whether the failure is permanent (a disabled feature) or
+  // transient. Replacing it with generic connection copy told patients a flaky
+  // link was at fault for a gate that retrying can never clear.
+  const supplied = message.trim();
+  const description = supplied
+    ? supplied
+    : isUnauthorized
+      ? "Vui lòng đăng nhập lại để tiếp tục xem thông tin của bạn."
+      : isForbidden
+        ? "Tài khoản hiện tại chưa được phép xem nội dung này."
+        : isUnavailable
+          ? "Kết nối đang bị gián đoạn. Vui lòng thử lại sau ít phút."
           : "Dữ liệu tạm thời chưa thể hiển thị. Vui lòng thử lại.";
+  const loginHref = nextPath
+    ? `/auth/login?next=${encodeURIComponent(nextPath)}`
+    : "/auth/login?next=%2F";
 
   return (
     <div aria-live="assertive" className="portal-state portal-state--error" role="alert">
@@ -71,7 +81,7 @@ export function ErrorState({
       <div>
         <h3>{title}</h3>
         <p>{description}</p>
-        {isUnauthorized ? <Link className="button button--primary" href="/auth/login?next=%2F">Đăng nhập lại</Link> : null}
+        {isUnauthorized ? <Link className="button button--primary" href={loginHref}>Đăng nhập lại</Link> : null}
         {onRetry ? <button className="outline-button outline-button--small" onClick={onRetry} type="button">Thử lại</button> : null}
       </div>
     </div>

@@ -1,24 +1,17 @@
 import DoctorsPageClient from "./DoctorsPageClient";
 
-type SearchParamValue = string | string[] | undefined;
+/**
+ * Prerender the doctor directory like its catalog siblings (specialties,
+ * packages, branches, ...) and refresh the cached document every five minutes.
+ *
+ * Reading `searchParams` on the server is what previously kept this route
+ * dynamic — every visit paid a server render while `/specialties` was served
+ * from the CDN. The interactive specialty/branch filters are resolved
+ * client-side from the URL by `DoctorsPageClient`, so the route keeps a single
+ * cached document for every query-string variant and the UX is unchanged.
+ */
+export const revalidate = 300;
 
-interface DoctorsPageProps {
-  searchParams: Promise<{
-    specialty?: SearchParamValue;
-    branch?: SearchParamValue;
-  }>;
-}
-
-function firstValue(value: SearchParamValue): string | undefined {
-  return Array.isArray(value) ? value[0] : value;
-}
-
-export default async function DoctorsPage({ searchParams }: DoctorsPageProps) {
-  const params = await searchParams;
-  return (
-    <DoctorsPageClient
-      branchSlug={firstValue(params.branch)}
-      specialtySlug={firstValue(params.specialty)}
-    />
-  );
+export default function DoctorsPage() {
+  return <DoctorsPageClient />;
 }

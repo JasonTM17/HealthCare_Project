@@ -40,6 +40,7 @@ export default function TraCuuPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [cancelReason, setCancelReason] = useState("");
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [cancelError, setCancelError] = useState("");
   const [cancelSuccess, setCancelSuccess] = useState(false);
   const lookupRequestRef = useRef(0);
   const cancelDialogRef = useRef<HTMLDivElement>(null);
@@ -72,7 +73,7 @@ export default function TraCuuPage() {
 
     try {
       const res = await fetchWithTimeout(
-        `${API_BASE_URL}/appointments/${encodeURIComponent(bookingCodeInput.trim())}?phone=${encodeURIComponent(phoneInput.trim())}`,
+        `${API_BASE_URL}/appointments/${encodeURIComponent(normalizedCode)}?phone=${encodeURIComponent(normalizedPhone)}`,
         { cache: "no-store" },
       );
       if (!res.ok) {
@@ -115,7 +116,9 @@ export default function TraCuuPage() {
         }),
       });
       if (!res.ok) {
-        setErrorMessage(
+        // Surface inside the dialog: the page-level alert renders behind this
+        // fixed overlay, so a failure must be visible where the user is looking.
+        setCancelError(
           res.status === 404
             ? "Không tìm thấy lịch hẹn cần hủy. Vui lòng tra cứu lại thông tin."
             : res.status === 401 || res.status === 403
@@ -130,7 +133,7 @@ export default function TraCuuPage() {
       setCancelSuccess(true);
       setShowCancelDialog(false);
     } catch (error) {
-      setErrorMessage(
+      setCancelError(
         error instanceof Error && error.name === "AbortError"
           ? "Tạm thời hệ thống phản hồi chậm. Vui lòng thử lại sau."
           : "Tạm thời chưa thể hủy lịch hẹn. Vui lòng kiểm tra kết nối và thử lại sau."
@@ -374,7 +377,7 @@ export default function TraCuuPage() {
                 {appointment.status === "CONFIRMED" && (
                   <button
                     type="button"
-                    onClick={() => setShowCancelDialog(true)}
+                    onClick={() => { setCancelError(""); setShowCancelDialog(true); }}
                     className="px-5 py-2.5 text-xs font-bold text-red-600 hover:text-red-800 hover:bg-red-50 rounded-[4px] transition-colors"
                   >
                     Hủy lịch hẹn này
@@ -415,6 +418,12 @@ export default function TraCuuPage() {
                   className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-[4px] text-xs"
                 />
               </div>
+              {cancelError && (
+                <div aria-live="assertive" className="p-3 bg-red-50 border border-red-200 rounded-[4px] text-xs text-red-700 flex items-center gap-2" role="alert">
+                  <Icon name="alert-triangle" size={16} />
+                  <span>{cancelError}</span>
+                </div>
+              )}
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"

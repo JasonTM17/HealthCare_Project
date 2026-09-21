@@ -11,6 +11,7 @@ import {
   installMockBrowserSession,
 } from "./helpers/browser-session";
 import { fulfillBackendWarmup } from "./helpers/backend-warmup";
+import { fulfillNotificationBell } from "./helpers/notification-bell";
 
 function session(role: "DOCTOR" | "ADMIN") {
   return browserSessionFixture(role, `primary-action-${role.toLowerCase()}`, `Primary Action ${role}`);
@@ -52,6 +53,7 @@ test("doctor primary appointment action sends the authorized status mutation", a
     startTime: "08:00:00",
     endTime: "08:30:00",
     status: "CONFIRMED",
+    paymentStatus: "PAID",
     reasonForVisit: "Tái khám",
     createdAt: "2026-08-22T10:00:00Z",
   };
@@ -79,6 +81,22 @@ test("doctor primary appointment action sends the authorized status mutation", a
         active: true,
       };
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(pageEnvelope([branch])) });
+      return;
+    }
+    // Shell chrome added by Ultra V4 WS-B: the notification bell in
+    // components/PortalChrome.tsx reads page 0 on mount.
+    if (await fulfillNotificationBell(route)) return;
+    // Ultra V4 WS-D gave /doctor/dashboard a read-only "Lịch làm việc của tôi"
+    // roster (backend contract: DoctorPortalRosterAndRangeTest), so the
+    // dashboard now reads both schedule feeds when it mounts. This spec models
+    // the appointment PATCH, so the roster is answered as empty here instead of
+    // being allowed to fall into the unexpected-request oracle.
+    if (request.method() === "GET" && url.pathname === "/api/v1/doctor/schedules") {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([]) });
+      return;
+    }
+    if (request.method() === "GET" && url.pathname === "/api/v1/doctor/schedule-exceptions") {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([]) });
       return;
     }
     if (request.method() === "PATCH" && url.pathname === `/api/v1/doctor/appointments/${appointment.id}/status`) {
@@ -151,6 +169,10 @@ test("admin primary mutation creates a specialty with the authorized REST payloa
       await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify(created) });
       return;
     }
+
+    // Shell chrome added by Ultra V4 WS-B: `AdminNotificationBell` in
+    // app/admin/layout.tsx reads page 0 on every admin page.
+    if (await fulfillNotificationBell(route)) return;
 
     unexpectedRequests.push(`${request.method()} ${url.pathname}`);
     await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ message: "Unhandled admin action request" }) });

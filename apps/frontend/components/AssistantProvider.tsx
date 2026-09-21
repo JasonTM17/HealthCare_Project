@@ -114,7 +114,7 @@ export interface AssistantSendOptions {
   onDelta?: (delta: string) => void;
 }
 
-export type AssistantFailureKind = "access" | "blocked" | "unavailable" | "generic";
+export type AssistantFailureKind = "access" | "blocked" | "credits" | "unavailable" | "generic";
 
 export interface AssistantFailure {
   code: string | null;
@@ -130,12 +130,16 @@ const ASSISTANT_ERROR_COPY: Readonly<Record<string, string>> = {
   CHAT_IDEMPOTENCY_CONFLICT: "Yêu cầu gửi lại không còn khớp với tin nhắn ban đầu. Hãy thử lại từ lịch sử.",
   CHAT_INPUT_INVALID: "Tin nhắn phải có từ 2 đến 10.000 ký tự.",
   PUBLIC_CHAT_INPUT_INVALID: "Tin nhắn ở chế độ khách phải có từ 2 đến 500 ký tự.",
-  BFF_UPSTREAM_UNAVAILABLE: "Kết nối tới trợ lý đang bị gián đoạn. Câu hỏi vẫn được giữ lại; hãy thử lại sau ít phút.",
+  BFF_UPSTREAM_UNAVAILABLE: "Kết nối tới trợ lý đang bị gián đoạn. Hãy thử lại sau ít phút.",
+  // These two only fire inside an existing server-side thread, so the retained
+  // question and the idempotent retry are genuinely true. Guest-side failures
+  // above deliberately make no retention claim: a guest draft dies with the tab.
   AI_UNAVAILABLE: "Trợ lý tạm thời chưa thể phản hồi. Câu hỏi vẫn được giữ lại; bạn có thể thử gửi lại sau ít phút.",
   AI_RESPONSE_INVALID: "Phản hồi của trợ lý chưa đạt yêu cầu an toàn. Câu hỏi vẫn được giữ lại; hãy thử lại sau ít phút.",
   CHAT_CONTENT_BLOCKED: "Hãy bỏ thông tin nhận dạng cá nhân và thử diễn đạt lại câu hỏi.",
   CHAT_RETENTION_EXPIRED: "Cuộc trò chuyện đã hết thời hạn lưu trữ và không còn truy cập được.",
-  REQUEST_TIMEOUT: "Phản hồi mất quá nhiều thời gian. Câu hỏi vẫn được giữ lại; hãy thử lại.",
+  INSUFFICIENT_AI_CREDITS: "Bạn đã dùng hết lượt hỏi AI. Nâng hạng thẻ hoặc liên hệ quản trị viên để được cấp thêm credit.",
+  REQUEST_TIMEOUT: "Phản hồi mất quá nhiều thời gian. Hãy thử lại.",
 };
 
 export function assistantFailureFromError(error: unknown): AssistantFailure {
@@ -143,7 +147,7 @@ export function assistantFailureFromError(error: unknown): AssistantFailure {
     return {
       code: null,
       kind: "unavailable",
-      message: "Kết nối tới trợ lý đang bị gián đoạn. Câu hỏi vẫn được giữ lại; hãy thử lại sau ít phút.",
+      message: "Kết nối tới trợ lý đang bị gián đoạn. Hãy thử lại sau ít phút.",
       retryable: true,
     };
   }
@@ -165,6 +169,17 @@ export function assistantFailureFromError(error: unknown): AssistantFailure {
   if (code === "CHAT_CONTENT_BLOCKED" || code === "CHAT_INPUT_INVALID" || code === "PUBLIC_CHAT_INPUT_INVALID") {
     return { code, kind: "blocked", message: knownMessage ?? "Yêu cầu chưa thể hoàn tất.", retryable: false, status };
   }
+  if (code === "INSUFFICIENT_AI_CREDITS") {
+    // The backend message carries the live balance and the upgrade instruction;
+    // prefer it over the static copy so the patient sees the real count.
+    return {
+      code,
+      kind: "credits",
+      message: error.message || knownMessage || "Bạn đã dùng hết lượt hỏi AI.",
+      retryable: false,
+      status,
+    };
+  }
   const retryable = status === 0
     || status >= 500
     || status === 429
@@ -179,7 +194,7 @@ export function assistantFailureFromError(error: unknown): AssistantFailure {
     message: knownMessage ?? (status === 429
       ? "Bạn đang gửi yêu cầu quá nhanh. Vui lòng chờ một lát rồi thử lại."
       : retryable
-        ? "Kết nối tới trợ lý đang bị gián đoạn. Câu hỏi vẫn được giữ lại; hãy thử lại sau ít phút."
+        ? "Kết nối tới trợ lý đang bị gián đoạn. Hãy thử lại sau ít phút."
         : "Yêu cầu chưa thể hoàn tất. Vui lòng kiểm tra và thử lại."),
     retryable,
     status,

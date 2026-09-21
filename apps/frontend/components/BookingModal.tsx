@@ -365,6 +365,28 @@ function maskEmail(value: string): string {
   return `${visiblePrefix}${hiddenPart}@${domain}`;
 }
 
+function clockMinutes(value: string): number | null {
+  const match = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(value.trim());
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 23 || minutes > 59) return null;
+  return hours * 60 + minutes;
+}
+
+/**
+ * Duration of one slot in minutes, read from that slot's own start/end times.
+ * Unknown or inverted times yield null so the label omits the parenthetical
+ * instead of asserting a duration the schedule never published.
+ */
+function bookingSlotMinutes(slot?: TimeSlot): number | null {
+  if (!slot) return null;
+  const start = clockMinutes(slot.startTime);
+  const end = clockMinutes(slot.endTime);
+  if (start === null || end === null || end <= start) return null;
+  return end - start;
+}
+
 export interface BookingSelection {
   doctorId?: string;
   specialtyId?: string;
@@ -500,6 +522,22 @@ function BookingExperience({
   useEffect(() => {
     if (confirmedAppointment) successHeadingRef.current?.focus();
   }, [confirmedAppointment]);
+  // Every wizard transition lands on the new step's heading, so a screen-reader
+  // or keyboard user starts inside the step content instead of the old position.
+  const stepHeadingRef = useRef<HTMLHeadingElement | null>(null);
+  const lastFocusedStepRef = useRef<number>(step);
+  const errorBannerRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (lastFocusedStepRef.current === step) return;
+    lastFocusedStepRef.current = step;
+    stepHeadingRef.current?.focus();
+  }, [step]);
+  // The banner lives inside the scrollable step body; pull it into view whenever
+  // a new message appears.
+  useEffect(() => {
+    if (!errorMessage) return;
+    errorBannerRef.current?.scrollIntoView({ block: "nearest" });
+  }, [errorMessage]);
   const bookingSessionRef = useRef(0);
   const otpResendAttemptRef = useRef(0);
   const otpResendControllerRef = useRef<AbortController | null>(null);
@@ -654,25 +692,37 @@ function BookingExperience({
   const syncSelection = useCallback(() => {
     if (!active) return;
     const requestedDoctor = doctors.find((doctor) => doctor.id === initialDoctorId);
-    const firstBranch = branches.find((branch) => branch.id === initialBranchId)
+    // This callback re-runs whenever the combo doctor load replaces `doctors`.
+    // Everything the patient already picked must therefore survive that refresh;
+    // reading only the `initial*` props reset the form to the first specialty in
+    // the catalog, which made any other specialty impossible to keep.
+    const keptSpecialty = specialties.find((specialty) => specialty.id === selectedSpecialty);
+    const keptBranch = branches.find((branch) => branch.id === selectedBranch);
+    const firstBranch = keptBranch
+      ?? branches.find((branch) => branch.id === initialBranchId)
       ?? branches.find((branch) => requestedDoctor && doctorMatchesBranch(requestedDoctor, branch.id))
       ?? branches[0];
     const nextBranchId = firstBranch?.id ?? "";
     const requestedSpecialtyId = initialSpecialtyId?.trim()
       || specialtyIdForDoctor(requestedDoctor, specialties);
-    const requestedSpecialty = specialties.find((specialty) => specialty.id === requestedSpecialtyId);
+    const requestedSpecialty = keptSpecialty
+      ?? specialties.find((specialty) => specialty.id === requestedSpecialtyId);
     const nextSpecialtyId = requestedSpecialty
       ? requestedSpecialty.id
       : requestedSpecialtyId
         ? ""
         : specialties[0]?.id ?? "";
-    setSelectionError(requestedSpecialtyId && !requestedSpecialty
+    setSelectionError(!keptSpecialty && requestedSpecialtyId && !requestedSpecialty
       ? "Chuyên khoa từ trợ lý không còn trong danh mục hiện tại. Vui lòng chọn lại trước khi tiếp tục."
       : "");
     const nextSpecialty = specialties.find((specialty) => specialty.id === nextSpecialtyId);
-    const firstDoctor = doctors.find((doctor) => doctor.id === initialDoctorId
+    const keptDoctor = doctors.find((doctor) => doctor.id === selectedDoctor
       && doctorMatchesBranch(doctor, nextBranchId)
-      && doctorMatchesSpecialty(doctor, nextSpecialty))
+      && doctorMatchesSpecialty(doctor, nextSpecialty));
+    const firstDoctor = keptDoctor
+      ?? doctors.find((doctor) => doctor.id === initialDoctorId
+        && doctorMatchesBranch(doctor, nextBranchId)
+        && doctorMatchesSpecialty(doctor, nextSpecialty))
       ?? doctors.find((doctor) => doctorMatchesBranch(doctor, nextBranchId)
         && doctorMatchesSpecialty(doctor, nextSpecialty));
     setSelectedSpecialty(nextSpecialtyId);
@@ -685,7 +735,10 @@ function BookingExperience({
           ? initialPackageId ?? ""
           : "",
     );
-  }, [active, branches, doctors, initialBranchId, initialDoctorId, initialPackageId, initialSpecialtyId, packages, specialties]);
+  }, [
+    active, branches, doctors, initialBranchId, initialDoctorId, initialPackageId,
+    initialSpecialtyId, packages, selectedBranch, selectedDoctor, selectedSpecialty, specialties,
+  ]);
 
   useEffect(() => {
     const task = Promise.resolve().then(syncSelection);
@@ -806,6 +859,9 @@ function BookingExperience({
   );
   const holdExpired = Boolean(bookingCode && holdExpiresAt && !confirmedAppointment && secondsRemaining <= 0);
   const otpExpired = Boolean(bookingCode && otpExpiresAt && !confirmedAppointment && otpSecondsRemaining <= 0);
+  // On step 6 the banner describes this form, so each field points at that same
+  // node instead of leaving the announced error unassociated with the inputs.
+  const step6ErrorId = step === 6 && errorMessage ? "booking-error-message" : "";
 
   const navigateToStep = (nextStep: number): void => {
     if (isSubmitting) return;
@@ -1077,11 +1133,17 @@ function BookingExperience({
   };
 
   const panelTitleId = isModal ? "booking-modal-title" : "booking-inline-title";
+  // dvh keeps the panel inside the visible viewport when a phone keyboard is
+  // open, so the header and its close button never scroll out of reach.
   const panelClassName = isModal
-    ? "booking-panel booking-panel--modal relative w-full max-w-2xl bg-white rounded-sm shadow-2xl overflow-hidden border border-brand-100 flex flex-col max-h-[92vh]"
+    ? "booking-panel booking-panel--modal relative w-full max-w-2xl bg-white rounded-sm shadow-2xl overflow-hidden border border-brand-100 flex flex-col max-h-[92dvh] sm:max-h-[92vh]"
     : "booking-panel booking-panel--inline relative w-full bg-white rounded-sm shadow-xl overflow-hidden border border-brand-100 flex flex-col";
   const bodyClassName = isModal ? "booking-panel__body p-6 overflow-y-auto flex-1" : "booking-panel__body p-6 flex-1";
   const completionActionLabel = isModal ? "Đóng và về trang chủ" : "Đặt lịch mới";
+  const selectedSlotDetail = slots.find((slot) => (
+    slot.branchId === selectedBranch && slot.startTime === selectedSlot
+  ));
+  const selectedSlotMinutes = bookingSlotMinutes(selectedSlotDetail);
 
   const panel = (
       <div className={panelClassName} ref={dialogRef}>
@@ -1136,16 +1198,23 @@ function BookingExperience({
           </div>
         )}
 
-        {/* Error Alert */}
-        {errorMessage && (
-          <div aria-live="assertive" className="mx-6 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-center gap-2" role="alert">
-            <Icon name="activity" size={18} />
-            <span>{errorMessage}</span>
-          </div>
-        )}
-
         {/* Booking body */}
         <div className={bodyClassName}>
+          {/* The alert sits in the scrollable step body: a message raised by a
+              validation or transport failure must be visible where the user is
+              working, not above the fold of a scrolled panel. */}
+          {errorMessage ? (
+            <div
+              aria-live="assertive"
+              className="mb-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+              id="booking-error-message"
+              ref={errorBannerRef}
+              role="alert"
+            >
+              <Icon name="activity" size={18} />
+              <span>{errorMessage}</span>
+            </div>
+          ) : null}
           {catalogLoading ? (
             <p className="mb-4 rounded-sm border border-teal-200 bg-teal-50 p-3 text-sm text-teal-950" role="status">
               Đang tải thông tin bác sĩ, chuyên khoa và cơ sở…
@@ -1175,7 +1244,7 @@ function BookingExperience({
             <div className="space-y-5">
               <div>
                 <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">01 · Nhu cầu khám</p>
-                <h3 className="text-xl font-bold text-gray-900">
+                <h3 className="text-xl font-bold text-gray-900 focus-visible:outline-none" ref={stepHeadingRef} tabIndex={-1}>
                   {currentPackage ? `Đặt lịch theo gói: ${currentPackage.name}` : "Bạn muốn được hỗ trợ ở chuyên khoa nào?"}
                 </h3>
                 <p className="mt-1 text-sm leading-6 text-gray-600">
@@ -1240,7 +1309,7 @@ function BookingExperience({
             <div className="space-y-5">
               <div>
                 <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">02 · Cơ sở</p>
-                <h3 className="text-xl font-bold text-gray-900">Chọn cơ sở y tế thuận tiện nhất</h3>
+                <h3 className="text-xl font-bold text-gray-900 focus-visible:outline-none" ref={stepHeadingRef} tabIndex={-1}>Chọn cơ sở y tế thuận tiện nhất</h3>
                 <p className="mt-1 text-sm leading-6 text-gray-600">Lịch làm việc và khung giờ sẽ được kiểm tra theo đúng cơ sở này.</p>
               </div>
               <div>
@@ -1268,7 +1337,7 @@ function BookingExperience({
             <div className="space-y-5">
               <div>
                 <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">03 · Chuyên gia</p>
-                <h3 className="text-xl font-bold text-gray-900">Lựa chọn bác sĩ chuyên khoa tiếp nhận</h3>
+                <h3 className="text-xl font-bold text-gray-900 focus-visible:outline-none" ref={stepHeadingRef} tabIndex={-1}>Lựa chọn bác sĩ chuyên khoa tiếp nhận</h3>
                 <p className="mt-1 text-sm leading-6 text-gray-600">Danh sách được lọc theo chuyên khoa và cơ sở bạn vừa chọn.</p>
               </div>
               <div>
@@ -1277,7 +1346,7 @@ function BookingExperience({
                   <option value="" disabled>Chọn bác sĩ thuộc chuyên khoa đã chọn</option>
                   {availableDoctors.map((doc) => <option key={doc.id} value={doc.id}>{doc.fullName} ({currentSpecialty?.name || doc.title || doc.specialtyName || "Bác sĩ chuyên khoa"})</option>)}
                 </select>
-                {!catalogLoading && selectedBranch && selectedSpecialty && availableDoctors.length === 0 ? <p className="mt-1.5 text-xs text-amber-800" role="status">Chưa có bác sĩ nhận lịch cho chuyên khoa này tại cơ sở đã chọn.</p> : null}
+                {!catalogLoading && !catalogError && selectedBranch && selectedSpecialty && availableDoctors.length === 0 ? <p className="mt-1.5 text-xs text-amber-800" role="status">Chưa có bác sĩ nhận lịch cho chuyên khoa này tại cơ sở đã chọn.</p> : null}
               </div>
               <div className="flex items-center gap-4 rounded-sm border border-brand-100 bg-brand-50/60 p-4">
                 <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-brand-700 text-xl font-bold text-white"><Icon name="stethoscope" size={26} /></div>
@@ -1301,7 +1370,7 @@ function BookingExperience({
             <div className="space-y-5">
               <div>
                 <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">04 · Ngày khám</p>
-                <h3 className="text-xl font-bold text-gray-900">Chọn ngày thuận tiện cho bạn</h3>
+                <h3 className="text-xl font-bold text-gray-900 focus-visible:outline-none" ref={stepHeadingRef} tabIndex={-1}>Chọn ngày thuận tiện cho bạn</h3>
                 <p className="mt-1 text-sm leading-6 text-gray-600">Quý khách vui lòng chọn ngày khám từ ngày làm việc tiếp theo.</p>
               </div>
               <div>
@@ -1326,7 +1395,7 @@ function BookingExperience({
             <div className="space-y-5">
               <div>
                 <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">05 · Khung giờ</p>
-                <h3 className="text-xl font-bold text-gray-900">Chọn một khung giờ còn trống</h3>
+                <h3 className="text-xl font-bold text-gray-900 focus-visible:outline-none" ref={stepHeadingRef} tabIndex={-1}>Chọn một khung giờ còn trống</h3>
                 <p className="mt-1 text-sm leading-6 text-gray-600">Khung giờ khám theo lịch trực thực tế của bác sĩ và được bảo lưu giữ chỗ khi xác nhận.</p>
               </div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-sm border border-brand-100 bg-brand-50/60 p-3 text-xs text-brand-900">
@@ -1336,7 +1405,11 @@ function BookingExperience({
               </div>
               <div>
                 <div className="mb-2 flex items-center justify-between gap-3">
-                  <span className="block text-sm font-semibold text-gray-700" id="booking-slot-label">Khung giờ khám (30 phút/lượt)</span>
+                  <span className="block text-sm font-semibold text-gray-700" id="booking-slot-label">
+                    {selectedSlotMinutes === null
+                      ? "Khung giờ khám"
+                      : `Khung giờ khám (${selectedSlotMinutes} phút/lượt)`}
+                  </span>
                   <span className="flex flex-wrap items-center gap-2 text-xs font-medium text-brand-700" aria-label="Chú giải trạng thái khung giờ">
                     <span className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="h-2 w-2 rounded-full bg-emerald-500" />Còn trống</span>
                     <span aria-hidden="true">•</span>
@@ -1346,7 +1419,23 @@ function BookingExperience({
                 {loadingSlots ? <div aria-live="polite" className="py-8 text-center text-sm text-gray-500" role="status"><Icon name="clock" size={15} /> Đang tải lịch khám khả dụng…</div>
                   : slotError ? <div aria-live="assertive" className="rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700" role="alert"><p>{slotError}</p><button className="mt-2 font-semibold underline underline-offset-2" onClick={() => setSlotRefreshNonce((value) => value + 1)} type="button">Thử tải lại khung giờ</button></div>
                   : slots.length === 0 ? <div aria-live="polite" className="rounded-lg border border-dashed border-gray-300 px-3 py-6 text-center text-sm text-gray-500" role="status">Chưa có khung giờ cho bác sĩ, cơ sở và ngày đã chọn.</div>
-                  : <div aria-labelledby="booking-slot-label" className="grid max-h-56 grid-cols-3 gap-2.5 overflow-y-auto p-1 sm:grid-cols-4">{slots.map((slot) => { const isSelected = selectedSlot === slot.startTime; return <button key={`${slot.branchId}-${slot.startTime}`} type="button" disabled={isSubmitting || !slot.available || slot.branchId !== selectedBranch} onClick={() => handleSlotChange(slot.startTime)} className={`flex flex-col items-center justify-center gap-0.5 rounded-lg border p-2.5 text-xs font-semibold transition-colors ${isSelected ? "border-brand-700 bg-brand-700 text-white shadow-md ring-2 ring-brand-500" : slot.available ? "border-brand-200 bg-white text-gray-800 hover:border-brand-500 hover:bg-brand-50" : "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-500"}`}><span className="text-sm font-bold">{slot.startTime.slice(0, 5)}</span><span className="text-[10px] opacity-80">{slot.available ? "Còn trống" : "Đã kín"}</span></button>; })}</div>}
+                  : <div aria-labelledby="booking-slot-label" className="grid max-h-56 grid-cols-3 gap-2.5 overflow-y-auto p-1 sm:grid-cols-4">{slots.map((slot) => {
+                    const isSelected = selectedSlot === slot.startTime;
+                    return (
+                      <button
+                        key={`${slot.branchId}-${slot.startTime}`}
+                        type="button"
+                        aria-pressed={isSelected}
+                        disabled={isSubmitting || !slot.available || slot.branchId !== selectedBranch}
+                        onClick={() => handleSlotChange(slot.startTime)}
+                        className={`flex flex-col items-center justify-center gap-0.5 rounded-lg border p-2.5 text-xs font-semibold transition-colors ${isSelected ? "border-brand-700 bg-brand-700 text-white shadow-md ring-2 ring-brand-500" : slot.available ? "border-brand-200 bg-white text-gray-800 hover:border-brand-500 hover:bg-brand-50" : "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-500"}`}
+                      >
+                        <span className="text-sm font-bold">{slot.startTime.slice(0, 5)}</span>
+                        <span className="text-[10px] opacity-80">{slot.available ? "Còn trống" : "Đã kín"}</span>
+                        {isSelected ? <span className="sr-only">Đã chọn</span> : null}
+                      </button>
+                    );
+                  })}</div>}
               </div>
               <div className="booking-step-actions flex items-center justify-between border-t border-gray-100 pt-4">
                 <button type="button" disabled={isSubmitting} onClick={() => navigateToStep(4)} className="inline-flex min-h-[44px] items-center px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 disabled:opacity-50 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 transition-colors">← Quay lại</button>
@@ -1362,7 +1451,7 @@ function BookingExperience({
             <form onSubmit={handleHoldSlot} className="space-y-4">
               <div>
                 <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">06 · Thông tin bệnh nhân</p>
-                <h3 className="text-xl font-bold text-gray-900">Thông tin người đến thăm khám</h3>
+                <h3 className="text-xl font-bold text-gray-900 focus-visible:outline-none" ref={stepHeadingRef} tabIndex={-1}>Thông tin người đến thăm khám</h3>
                 <p className="mt-1 text-sm leading-6 text-gray-600">Thông tin được mã hóa bảo mật chuẩn y tế, phục vụ công tác lập hồ sơ và chuẩn bị tiếp đón.</p>
               </div>
               <div className="p-3.5 bg-brand-50/60 border border-brand-100 rounded-sm text-xs text-brand-900 space-y-1">
@@ -1380,6 +1469,8 @@ function BookingExperience({
                 <input
                   id="booking-full-name"
                   name="full-name"
+                  aria-describedby={step6ErrorId || undefined}
+                  aria-invalid={step6ErrorId ? true : undefined}
                   autoComplete="name"
                   type="text"
                   required
@@ -1399,6 +1490,8 @@ function BookingExperience({
                   <input
                     id="booking-phone"
                     name="phone"
+                    aria-describedby={step6ErrorId || undefined}
+                    aria-invalid={step6ErrorId ? true : undefined}
                     autoComplete="tel"
                     inputMode="tel"
                     type="tel"
@@ -1417,7 +1510,8 @@ function BookingExperience({
                   <input
                     id="booking-email"
                     name="email"
-                    aria-describedby="booking-email-help"
+                    aria-describedby={step6ErrorId ? `booking-email-help ${step6ErrorId}` : "booking-email-help"}
+                    aria-invalid={step6ErrorId ? true : undefined}
                     autoComplete="email"
                     type="email"
                     required
@@ -1441,6 +1535,8 @@ function BookingExperience({
                 <textarea
                   id="booking-reason"
                   name="reason"
+                  aria-describedby={step6ErrorId || undefined}
+                  aria-invalid={step6ErrorId ? true : undefined}
                   maxLength={500}
                   rows={2}
                   placeholder="Mô tả sơ bộ triệu chứng (đau đầu, sốt, khó thở...) để bác sĩ chuẩn bị trước..."
@@ -1456,6 +1552,8 @@ function BookingExperience({
                   <input
                     id="booking-has-insurance"
                     name="has-insurance"
+                    aria-describedby={step6ErrorId || undefined}
+                    aria-invalid={step6ErrorId ? true : undefined}
                     type="checkbox"
                     checked={hasInsurance}
                     onChange={(event) => setHasInsurance(event.target.checked)}
@@ -1471,6 +1569,8 @@ function BookingExperience({
                   <input
                     id="booking-privacy-consent"
                     name="privacy-consent"
+                    aria-describedby={step6ErrorId || undefined}
+                    aria-invalid={step6ErrorId ? true : undefined}
                     type="checkbox"
                     required
                     checked={privacyConsent}
@@ -1526,7 +1626,7 @@ function BookingExperience({
                 <form onSubmit={handleConfirmOtp} className="space-y-4 text-center py-2">
                   <div>
                     <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">07 · Xác nhận</p>
-                    <h3 className="text-xl font-bold text-gray-900">Xác nhận lịch hẹn bằng OTP</h3>
+                    <h3 className="text-xl font-bold text-gray-900 focus-visible:outline-none" ref={stepHeadingRef} tabIndex={-1}>Xác nhận lịch hẹn bằng OTP</h3>
                   </div>
                   <div className="flex flex-wrap justify-center items-center gap-2 text-xs font-semibold">
                     <span className="inline-flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1 text-amber-900 whitespace-nowrap">
@@ -1582,7 +1682,7 @@ function BookingExperience({
                           type="button"
                           onClick={() => void handleResendOtp()}
                           disabled={isSubmitting || isResendingOtp || resendCooldownSeconds > 0}
-                          className="inline-flex min-h-11 items-center justify-center rounded-lg border border-brand-300 bg-white px-4 py-2 text-sm font-bold text-brand-800 transition-colors hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-55 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
+                          className="inline-flex min-h-11 items-center justify-center rounded-lg border border-brand-300 bg-white px-4 py-2 text-sm font-bold text-brand-800 transition-colors hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300 focus-visible:ring-2 focus-visible:ring-brand-600"
                         >
                           {isResendingOtp
                             ? "Đang gửi lại mã..."
@@ -1779,7 +1879,7 @@ function BookingExperience({
 
   return (
     <div
-      className="dialog-layer fixed inset-0 flex items-center justify-center p-4 animate-fadeIn"
+      className="dialog-layer fixed inset-0 flex items-center justify-center p-2 sm:p-4 animate-fadeIn"
       role="dialog"
       aria-modal="true"
       aria-labelledby={panelTitleId}

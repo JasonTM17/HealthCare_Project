@@ -82,11 +82,61 @@ for (const target of [
     await expect(page.locator(target.role === "ADMIN" ? ".admin-shell" : ".portal-shell")).toBeVisible();
     expect(await flatRadiusViolations(page)).toEqual([]);
     if (target.role !== "ADMIN") {
-      // Assert elevation on structural surfaces, not on the flat cells nested
-      // inside a raised summary grid.
+      // Structural surfaces stay visible; layout wrappers such as
+      // `.portal-record-list` are excluded because they are grids, not panes.
       const depthSurface = page.locator(".portal-summary-grid, .portal-panel, .portal-record-list, .portal-record").first();
       await expect(depthSurface).toBeVisible();
-      expect(await depthSurface.evaluate((node) => getComputedStyle(node).boxShadow)).not.toBe("none");
+
+      // ── Elevation contract reconciliation (PENDING PRODUCT SIGN-OFF) ──
+      // This block previously asserted `expect(boxShadow).not.toBe("none")`.
+      // That rule was added deliberately in c667683 (2026-09-12, "portal shell
+      // visual depth restored — panel/record elevation kept off the public
+      // flat-contract reset") and pinned here.
+      //
+      // Ultra V4 WS-D then applied the approved Stitch design system to the
+      // portal, which states the opposite for Layer 1 (docs/design/
+      // stitch-doctor-schedule.md, "Elevation & Depth"): "Layer 1 (Cards,
+      // Modules, Patient Panes): #ffffff surface bounded by a subtle 1px solid
+      // #e2e8f0 stroke. No shadow in resting state." Plan WS-D criterion #7
+      // lists "flat elevation" as an acceptance signal, and app/styles.css:4110
+      // now sets `--portal-shadow: none`.
+      //
+      // The two contracts cannot both hold, so the check is rewritten against
+      // the currently approved source rather than deleted: depth must come from
+      // a crisp border plus surface/canvas contrast, and a resting drop shadow
+      // on a Layer-1 pane is now itself the violation. That is a different
+      // assertion of the same strength, not a loosened threshold — the radius
+      // clamp above is untouched.
+      //
+      // To restore the 2026-09-12 portal-depth carve-out instead: give
+      // `--portal-shadow` an elevation value again and revert this block to
+      // `expect(...boxShadow).not.toBe("none")`.
+      const canvas = await page.locator(".portal-shell").evaluate((node) => getComputedStyle(node).backgroundColor);
+      const layer1Surfaces = await page.locator(".portal-summary-grid, .portal-panel, .portal-record").evaluateAll((nodes, shellColor) => (
+        nodes.map((node) => {
+          const style = getComputedStyle(node);
+          const widths = [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth];
+          const colors = [style.borderTopColor, style.borderRightColor, style.borderBottomColor, style.borderLeftColor];
+          return {
+            className: node.getAttribute("class") ?? "",
+            hasCrispBorder: widths.some((width, index) => (Number.parseFloat(width) || 0) >= 1 && colors[index] !== "transparent"),
+            background: style.backgroundColor,
+            restingShadow: style.boxShadow,
+            surfaceColor: shellColor,
+          };
+        })
+      ), canvas);
+
+      expect(layer1Surfaces.length).toBeGreaterThan(0);
+      for (const surface of layer1Surfaces) {
+        expect(surface.hasCrispBorder, `${surface.className} lost its Layer-1 hairline border`).toBe(true);
+        expect(surface.background, `${surface.className} has no surface fill to separate it from the canvas`)
+          .not.toBe("rgba(0, 0, 0, 0)");
+        expect(surface.background, `${surface.className} no longer contrasts with the portal canvas`)
+          .not.toBe(surface.surfaceColor);
+        expect(surface.restingShadow, `${surface.className} must stay flat at rest (Stitch Layer 1)`)
+          .toBe("none");
+      }
     }
   });
 }

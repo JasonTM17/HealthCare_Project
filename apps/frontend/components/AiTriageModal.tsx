@@ -16,6 +16,7 @@ interface AiTriageModalProps {
   onClose: () => void;
   onSelectSpecialtyForBooking: (specialtyName: string, specialtyId?: string) => void;
   emergencyContact?: string;
+  emergencyContactIsHotline?: boolean;
 }
 
 type TriageErrorKind = "forbidden" | "unavailable" | "error";
@@ -76,6 +77,7 @@ export default function AiTriageModal({
   onClose,
   onSelectSpecialtyForBooking,
   emergencyContact,
+  emergencyContactIsHotline = false,
 }: AiTriageModalProps) {
   const [symptoms, setSymptoms] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
@@ -176,6 +178,7 @@ export default function AiTriageModal({
 
   const errorCopy = errorKind ? TRIAGE_ERROR_COPY[errorKind] : null;
   const emergencyHref = safeTelephoneHref(emergencyContact);
+  const emergencyContactLabel = emergencyContactIsHotline ? "Gọi hotline cấp cứu" : "Gọi số cơ sở";
   const remainingCharacters = MAX_SYMPTOM_LENGTH - symptoms.length;
 
   return (
@@ -348,27 +351,32 @@ export default function AiTriageModal({
 
               {result.urgencyLevel === "EMERGENCY" ? (
                 <div className="space-y-3 border-t border-red-200 pt-3">
-                  <p className="text-xs font-bold leading-relaxed text-red-800">
-                    Dấu hiệu được mô tả cần được đánh giá y tế khẩn cấp. Không chờ lịch hẹn trực tuyến; hãy đến cơ sở cấp cứu gần nhất.
+                  <p className="text-sm font-bold leading-relaxed text-red-800">
+                    Dấu hiệu được mô tả cần được đánh giá y tế khẩn cấp. Không chờ lịch hẹn trực tuyến; gọi 115 ngay hoặc đến cơ sở cấp cứu gần nhất.
                   </p>
                   <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                    <a
+                      className="flex min-h-11 items-center justify-center gap-1.5 rounded-lg bg-red-700 px-5 py-2 text-sm font-bold text-white shadow-md transition-colors hover:bg-red-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-300 focus-visible:ring-2 focus-visible:ring-red-600"
+                      href="tel:115"
+                    >
+                      <Icon name="phone" size={16} /> Gọi cấp cứu 115
+                    </a>
                     {emergencyHref ? (
                       <a
-                        className="flex min-h-11 items-center justify-center gap-1.5 rounded-lg bg-red-700 px-5 py-2 text-xs font-bold text-white shadow-md transition-colors hover:bg-red-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-300 focus-visible:ring-2 focus-visible:ring-red-600"
+                        className="flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-red-300 bg-white px-5 py-2 text-sm font-bold text-red-800 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-300 focus-visible:ring-2 focus-visible:ring-red-500"
                         href={emergencyHref}
                       >
-                        <Icon name="phone" size={16} /> Gọi hotline cấp cứu · {emergencyContact}
+                        <Icon name="phone" size={16} /> {emergencyContactLabel} · {emergencyContact}
                       </a>
                     ) : null}
                     <Link
-                      className="flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-red-300 bg-white px-5 py-2 text-xs font-bold text-red-800 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-300 focus-visible:ring-2 focus-visible:ring-red-500"
+                      className="flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-red-300 bg-white px-5 py-2 text-sm font-bold text-red-800 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-300 focus-visible:ring-2 focus-visible:ring-red-500"
                       href="/branches"
                       onClick={closeDialog}
                     >
-                      Xem cơ sở gần nhất <Icon name="arrow-right" size={16} />
+                      Xem danh sách cơ sở <Icon name="arrow-right" size={16} />
                     </Link>
                   </div>
-                  {!emergencyHref ? <p className="text-[11px] text-red-700">Chưa có hotline cấp cứu công khai cho cơ sở hiện tại. Nếu có dấu hiệu nguy hiểm, hãy gọi cấp cứu địa phương hoặc đến cơ sở gần nhất.</p> : null}
                 </div>
               ) : (
                 <div className="flex flex-col gap-3 border-t border-brand-100 pt-3 sm:flex-row sm:items-center sm:justify-between">

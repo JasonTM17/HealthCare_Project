@@ -43,7 +43,10 @@ async function fetchBackendJson(path: string, searchParams?: URLSearchParams): P
   const timeoutId = setTimeout(() => controller.abort(), BACKEND_REQUEST_TIMEOUT_MS);
   try {
     const response = await fetch(target, {
-      cache: "no-store",
+      // Public catalog data feeding the sitemap is stable enough to cache for
+      // five minutes; the sitemap itself stays force-dynamic so new slugs are
+      // picked up within one cache window instead of on every visit.
+      next: { revalidate: 300 },
       headers: {
         Accept: "application/json",
         "X-Healthcare-Bff-Token": runtime.serviceToken,

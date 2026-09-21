@@ -3,14 +3,14 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   adminGrantAiCredits,
-  adminListDoctorAiCredits,
   adminListPatientAiCredits,
+  adminSyncAiCatalog,
   adminUpdatePatientTier,
-  type DoctorCreditDto,
   type PatientCreditDto,
 } from "../../../lib/api-client";
 import UiIcon, { type IconName } from "../../../components/UiIcon";
 import AdminState from "../_components/AdminState";
+import ConfirmActionDialog from "../../../components/ui/ConfirmActionDialog";
 import { describeAdminError } from "../_lib/errors";
 
 type Feedback = {
@@ -27,35 +27,45 @@ const TIER_BADGES: Record<string, { label: string; bg: string; text: string; ico
 };
 
 export default function AdminAiCreditsPage() {
-  const [activeTab, setActiveTab] = useState<"patients" | "doctors">("patients");
   const [patients, setPatients] = useState<PatientCreditDto[]>([]);
-  const [doctors, setDoctors] = useState<DoctorCreditDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
 
-  // Modal / Action state
+  // Modal / Action state. The target is narrowed to PATIENT on purpose: the
+  // backend no longer meters clinical AI per doctor and rejects a DOCTOR grant,
+  // so the operator is never offered an action that cannot take effect.
   const [grantModal, setGrantModal] = useState<{
     open: boolean;
     userId: string;
-    targetRole: "PATIENT" | "DOCTOR";
+    targetRole: "PATIENT";
     name: string;
     currentCredits: number;
   } | null>(null);
   const [customAmount, setCustomAmount] = useState<number>(25);
   const [grantReason, setGrantReason] = useState<string>("");
+  // Tier changes are staged: the select shows a preview, the write happens only
+  // after the operator confirms in a dialog (it also resets the credit balance).
+  const [tierPending, setTierPending] = useState<{ patient: PatientCreditDto; next: string } | null>(null);
+  const [tierError, setTierError] = useState<string | null>(null);
+  // Grant failures must render inside the modal — the page-level feedback
+  // banner sits behind the fixed overlay and would be invisible.
+  const [grantError, setGrantError] = useState<string | null>(null);
+  // Operational-catalog AI index sync: staged behind a confirm dialog because
+  // it rewrites the protected vector index from live catalog rows.
+  const [syncDialogOpen, setSyncDialogOpen] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const [patientList, doctorList] = await Promise.all([
-        adminListPatientAiCredits(),
-        adminListDoctorAiCredits(),
-      ]);
+      // Patient balances are the only AI credit listing the backend still
+      // exposes; clinical (doctor) credits were retired along with the doctor
+      // deduction path, so nothing here fetches them.
+      const patientList = await adminListPatientAiCredits();
       setPatients(patientList);
-      setDoctors(doctorList);
     } catch (err) {
       setLoadError(describeAdminError(err).description);
     } finally {
@@ -68,20 +78,23 @@ export default function AdminAiCreditsPage() {
     return () => void task;
   }, [loadData]);
 
-  const handleUpdateTier = async (patientProfileId: string, newTier: string) => {
+  const submitTierUpdate = async () => {
+    if (!tierPending || busy) return;
     setBusy(true);
+    setTierError(null);
     setFeedback(null);
     try {
-      await adminUpdatePatientTier({ patientProfileId, tier: newTier });
+      await adminUpdatePatientTier({ patientProfileId: tierPending.patient.patientId, tier: tierPending.next });
       setFeedback({
         tone: "success",
         title: "Cập nhật thành công",
-        description: `Đã nâng hạng thành viên lên ${newTier} và cấp thêm hạn mức AI tương ứng.`,
+        description: `Đã chuyển ${tierPending.patient.fullName || "bệnh nhân"} sang hạng ${tierPending.next}; hạn mức AI được đặt lại theo hạng mới.`,
       });
+      setTierPending(null);
       await loadData();
     } catch (err) {
       const copy = describeAdminError(err);
-      setFeedback({ tone: "error", title: copy.title, description: copy.description });
+      setTierError(copy.description);
     } finally {
       setBusy(false);
     }
@@ -105,29 +118,66 @@ export default function AdminAiCreditsPage() {
       });
       setGrantModal(null);
       setGrantReason("");
+      setGrantError(null);
       await loadData();
     } catch (err) {
+      // The grant endpoint answers a rejected request with its own Vietnamese
+      // reason (an out-of-range amount, a target the backend no longer
+      // supports). Opting into the server copy keeps that reason in front of
+      // the operator instead of the generic "check the required fields"
+      // sentence.
+      const copy = describeAdminError(err, { preferServerMessage: true });
+      setGrantError(copy.description);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSyncCatalog = async () => {
+    if (busy) return;
+    setBusy(true);
+    setSyncError(null);
+    setFeedback(null);
+    try {
+      const result = await adminSyncAiCatalog();
+      setFeedback({
+        tone: "success",
+        title: "Đồng bộ index AI thành công",
+        description: `Đã xử lý ${result.processedDocuments} tài liệu danh mục (cơ sở, chuyên khoa, bác sĩ, dịch vụ, gói khám) vào kho dữ liệu vector AI.`,
+      });
+      setSyncDialogOpen(false);
+    } catch (err) {
       const copy = describeAdminError(err);
-      setFeedback({ tone: "error", title: copy.title, description: copy.description });
+      setSyncError(copy.description);
     } finally {
       setBusy(false);
     }
   };
 
   const totalPatientCredits = patients.reduce((acc, p) => acc + (p.credits || 0), 0);
-  const totalDoctorCredits = doctors.reduce((acc, d) => acc + (d.credits || 0), 0);
 
   return (
     <div className="space-y-6">
-      <header className="border-b border-slate-200 pb-6">
-        <h1 className="text-3xl font-bold text-slate-900">Quản lý AI Credits & Phân hạng Bệnh nhân</h1>
-        <p className="mt-2 text-sm text-slate-600">
-          Cấp phát hạn mức hỏi Trợ lý AI y khoa cho Bệnh nhân theo hạng thành viên (Standard, Bạc, Vàng, VIP) và hạn mức Bác sĩ hỗ trợ lâm sàng.
-        </p>
+      <header className="flex flex-col gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900">Quản lý AI Credits & Phân hạng Bệnh nhân</h1>
+          <p className="mt-2 text-sm text-slate-600">
+            Cấp phát hạn mức hỏi Trợ lý AI y khoa cho Bệnh nhân theo hạng thành viên (Standard, Bạc, Vàng, VIP).
+          </p>
+        </div>
+        <button
+          className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-teal-800 disabled:opacity-50"
+          disabled={busy}
+          onClick={() => { setSyncError(null); setSyncDialogOpen(true); }}
+          type="button"
+        >
+          <UiIcon name="brain" size={16} className="shrink-0" />
+          Đồng bộ index AI
+        </button>
       </header>
 
       {/* Overview Stat Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="rounded-sm border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Tổng Bệnh nhân</p>
           <p className="mt-2 text-3xl font-bold text-teal-800">{patients.length}</p>
@@ -137,16 +187,6 @@ export default function AdminAiCreditsPage() {
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Credits Bệnh nhân còn lại</p>
           <p className="mt-2 text-3xl font-bold text-emerald-700">{totalPatientCredits}</p>
           <p className="mt-1 text-xs text-slate-500">Hạn mức hỏi AI người bệnh</p>
-        </div>
-        <div className="rounded-sm border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Tổng Bác sĩ</p>
-          <p className="mt-2 text-3xl font-bold text-teal-800">{doctors.length}</p>
-          <p className="mt-1 text-xs text-slate-500">Bác sĩ chuyên khoa hệ thống</p>
-        </div>
-        <div className="rounded-sm border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Credits Bác sĩ lâm sàng</p>
-          <p className="mt-2 text-3xl font-bold text-purple-700">{totalDoctorCredits}</p>
-          <p className="mt-1 text-xs text-slate-500">Hạn mức AI hỗ trợ chẩn đoán</p>
         </div>
       </div>
 
@@ -163,49 +203,23 @@ export default function AdminAiCreditsPage() {
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="flex border-b border-slate-200">
-        <button
-          className={`px-6 py-3 text-sm font-bold transition-colors ${
-            activeTab === "patients"
-              ? "border-b-2 border-teal-700 text-teal-800"
-              : "text-slate-500 hover:text-slate-800"
-          }`}
-          onClick={() => setActiveTab("patients")}
-          type="button"
-        >
-          Bệnh nhân & Hạng Thẻ ({patients.length})
-        </button>
-        <button
-          className={`px-6 py-3 text-sm font-bold transition-colors ${
-            activeTab === "doctors"
-              ? "border-b-2 border-teal-700 text-teal-800"
-              : "text-slate-500 hover:text-slate-800"
-          }`}
-          onClick={() => setActiveTab("doctors")}
-          type="button"
-        >
-          Bác sĩ & AI Lâm sàng ({doctors.length})
-        </button>
-      </div>
-
       {loading ? (
         <div className="rounded-sm border border-slate-200 bg-white p-12 text-center text-slate-500">
           Đang tải dữ liệu AI Credits...
         </div>
       ) : loadError ? (
         <AdminState tone="error" title="Không thể tải dữ liệu" description={loadError} />
-      ) : activeTab === "patients" ? (
+      ) : (
         <div className="overflow-hidden rounded-sm border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-slate-200 bg-slate-50 text-xs font-bold uppercase text-slate-600">
                 <tr>
-                  <th className="px-5 py-4">Bệnh nhân</th>
-                  <th className="px-5 py-4">Liên hệ</th>
-                  <th className="px-5 py-4">Hạng thẻ</th>
-                  <th className="px-5 py-4">Hạn mức AI</th>
-                  <th className="px-5 py-4 text-right">Hành động</th>
+                  <th scope="col" className="px-5 py-4">Bệnh nhân</th>
+                  <th scope="col" className="px-5 py-4">Liên hệ</th>
+                  <th scope="col" className="px-5 py-4">Hạng thẻ</th>
+                  <th scope="col" className="px-5 py-4">Hạn mức AI</th>
+                  <th scope="col" className="px-5 py-4 text-right">Hành động</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -232,9 +246,10 @@ export default function AdminAiCreditsPage() {
                       <td className="px-5 py-4 text-right">
                         <div className="inline-flex items-center gap-2">
                           <select
+                            aria-label={`Chuyển hạng thẻ cho ${p.fullName || "bệnh nhân"}`}
                             className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:border-teal-600"
                             disabled={busy}
-                            onChange={(e) => void handleUpdateTier(p.patientId, e.target.value)}
+                            onChange={(e) => { setTierError(null); setTierPending({ patient: p, next: e.target.value }); }}
                             value={p.tier?.toUpperCase() || "STANDARD"}
                           >
                             <option value="STANDARD">Hạng Tiêu chuẩn (20)</option>
@@ -255,6 +270,7 @@ export default function AdminAiCreditsPage() {
                                   currentCredits: p.credits,
                                 });
                                 setCustomAmount(25);
+                                setGrantError(null);
                               }}
                               type="button"
                             >
@@ -270,60 +286,22 @@ export default function AdminAiCreditsPage() {
             </table>
           </div>
         </div>
-      ) : (
-        <div className="overflow-hidden rounded-sm border border-slate-200 bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-slate-200 bg-slate-50 text-xs font-bold uppercase text-slate-600">
-                <tr>
-                  <th className="px-5 py-4">Bác sĩ</th>
-                  <th className="px-5 py-4">Mã định danh (Slug)</th>
-                  <th className="px-5 py-4">Credits Lâm sàng</th>
-                  <th className="px-5 py-4 text-right">Hành động</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {doctors.map((d) => (
-                  <tr className="hover:bg-slate-50/80 transition-colors" key={d.doctorId}>
-                    <td className="px-5 py-4 font-semibold text-slate-900">
-                      {d.fullName}
-                    </td>
-                    <td className="px-5 py-4 text-slate-600 font-mono text-xs">
-                      {d.slug}
-                    </td>
-                    <td className="px-5 py-4 font-bold text-purple-700">
-                      <span className="text-base">{d.credits ?? 0}</span> <span className="text-xs font-normal text-slate-500">lượt</span>
-                    </td>
-                    <td className="px-5 py-4 text-right">
-                      {d.userId ? (
-                        <button
-                          className="rounded-lg bg-purple-50 px-3.5 py-1.5 text-xs font-bold text-purple-800 hover:bg-purple-100"
-                          disabled={busy}
-                          onClick={() => {
-                            setGrantModal({
-                              open: true,
-                              userId: d.userId,
-                              targetRole: "DOCTOR",
-                              name: d.fullName,
-                              currentCredits: d.credits,
-                            });
-                            setCustomAmount(50);
-                          }}
-                          type="button"
-                        >
-                          + Cấp thêm lượt AI
-                        </button>
-                      ) : (
-                        <span className="text-xs text-slate-400">Chưa liên kết User</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
       )}
+
+      {/* Where the retired "Bác sĩ & AI Lâm sàng" tab used to be: the copy stays
+          visible so an admin who remembers it learns why there is no clinical
+          credit surface anymore. */}
+      {!loading && !loadError ? (
+        <div className="rounded-sm border border-slate-200 bg-slate-50 p-4" role="note">
+          <p className="text-sm font-bold text-slate-900">AI lâm sàng không còn định mức theo từng bác sĩ</p>
+          <p className="mt-1 text-sm text-slate-600">
+            Hệ thống đã ngừng trừ lượt AI khi bác sĩ làm việc, nên trang này không còn bảng tín dụng AI cho Bác sĩ
+            và quản trị viên cũng không cấp thêm lượt cho tài khoản bác sĩ — thao tác đó sẽ bị hệ thống từ chối.
+            Số dư cũ vẫn còn lưu trong dữ liệu nhưng không bác sĩ nào tiêu được. Muốn bổ sung hạn mức hỏi Trợ lý
+            AI, hãy cấp cho bệnh nhân ở bảng trên.
+          </p>
+        </div>
+      ) : null}
 
       {/* Grant Credits Modal */}
       {grantModal && (
@@ -331,7 +309,7 @@ export default function AdminAiCreditsPage() {
           <div className="w-full max-w-md rounded-sm bg-white p-6 shadow-xl">
             <h3 className="text-lg font-bold text-slate-900">Cấp phát Credit AI</h3>
             <p className="mt-1 text-sm text-slate-600">
-              Đối tượng: <strong>{grantModal.name}</strong> ({grantModal.targetRole === "PATIENT" ? "Bệnh nhân" : "Bác sĩ"}).
+              Đối tượng: <strong>{grantModal.name}</strong> (Bệnh nhân).
               Hiện có: <strong>{grantModal.currentCredits}</strong> credit.
             </p>
 
@@ -379,6 +357,16 @@ export default function AdminAiCreditsPage() {
               </div>
             </div>
 
+            {grantError && (
+              <div aria-live="assertive" className="mt-4 rounded-sm border border-red-200 bg-red-50 p-3 text-sm text-red-900" role="alert">
+                {grantError}
+              </div>
+            )}
+
+            <div aria-hidden="true" className="mt-4 text-xs text-slate-500">
+              Thao tác này ghi nhận một dòng giao dịch credit và không thể hoàn tác tự động.
+            </div>
+
             <div className="mt-6 flex justify-end gap-3">
               <button
                 className="rounded-sm border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
@@ -400,6 +388,44 @@ export default function AdminAiCreditsPage() {
           </div>
         </div>
       )}
+
+      <ConfirmActionDialog
+        confirmLabel="Chuyển hạng & đặt lại hạn mức"
+        confirmingLabel="Đang cập nhật hạng…"
+        description="Chuyển hạng sẽ đặt lại hạn mức AI của bệnh nhân theo hạn mức mặc định của hạng mới. Thay đổi được ghi vào lịch sử giao dịch credit."
+        dismissOnBackdrop={false}
+        error={busy ? null : tierError}
+        onCancel={() => { if (!busy) { setTierPending(null); setTierError(null); } }}
+        onConfirm={() => void submitTierUpdate()}
+        open={tierPending !== null}
+        pending={busy}
+        summaryItems={tierPending ? [
+          { label: "Bệnh nhân", value: tierPending.patient.fullName || "Bệnh nhân" },
+          { label: "Liên hệ", value: tierPending.patient.email || tierPending.patient.phone || "—" },
+          { label: "Hạng hiện tại", value: tierPending.patient.tier?.toUpperCase() || "STANDARD" },
+          { label: "Chuyển sang", value: tierPending.next },
+        ] : []}
+        summaryLabel="Bệnh nhân đang xét"
+        title="Chuyển hạng thành viên?"
+      />
+
+      <ConfirmActionDialog
+        confirmLabel="Đồng bộ ngay"
+        confirmingLabel="Đang đồng bộ…"
+        description="Quét lại toàn bộ cơ sở, chuyên khoa, bác sĩ, dịch vụ và gói khám đang hoạt động rồi ghi vào kho dữ liệu vector AI. Hệ thống cũng tự động đồng bộ định kỳ mỗi 30 phút; thao tác này dành cho lúc cần cập nhật ngay sau khi sửa danh mục."
+        dismissOnBackdrop={false}
+        error={busy ? null : syncError}
+        onCancel={() => { if (!busy) { setSyncDialogOpen(false); setSyncError(null); } }}
+        onConfirm={() => void handleSyncCatalog()}
+        open={syncDialogOpen}
+        pending={busy}
+        summaryItems={[
+          { label: "Phạm vi", value: "Cơ sở · Chuyên khoa · Bác sĩ · Dịch vụ · Gói khám" },
+          { label: "Bài viết & FAQ", value: "Không đổi (đồng bộ qua luồng kiểm duyệt nội dung)" },
+        ]}
+        summaryLabel="Tác động"
+        title="Đồng bộ index AI?"
+      />
     </div>
   );
 }

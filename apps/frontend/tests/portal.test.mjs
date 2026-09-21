@@ -18,9 +18,11 @@ const patientAliasRoutes = [
   ["../app/patient/medical-records/page.tsx", "/patient/dashboard#records"],
   ["../app/patient/prescriptions/page.tsx", "/patient/dashboard#prescriptions"],
   ["../app/patient/diagnostic-results/page.tsx", "/patient/dashboard#diagnostics"],
-  ["../app/patient/notifications/page.tsx", "/patient/dashboard#notifications"],
   ["../app/doctor/page.tsx", "/doctor/dashboard"],
   ["../app/doctor/appointments/page.tsx", "/doctor/dashboard#daily-appointments"],
+  // /patient/notifications is no longer in this list on purpose: it is the
+  // full-screen inbox the bell's "Xem tất cả" opens (see the inbox contract
+  // test below), not a second address for a dashboard anchor.
 ];
 
 test("authenticated client exposes portal contracts without browser bearer storage", async () => {
@@ -104,6 +106,37 @@ test("portal alias routes redirect to the dashboard anchors that already own the
   assert.match(appointmentDetail, /encodeURIComponent\(id\)/);
   assert.match(appointmentDetail, /appointmentId=/);
   assert.match(appointmentDetail, /#appointments/);
+});
+
+test("both portals mount one shared full-screen notification inbox", async () => {
+  const [patientInbox, doctorInbox, center] = await Promise.all([
+    readFile(new URL("../app/patient/notifications/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/doctor/notifications/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/NotificationCenter.tsx", import.meta.url), "utf8"),
+  ]);
+
+  const portals = [
+    ["app/patient/notifications/page.tsx", patientInbox, "PATIENT"],
+    ["app/doctor/notifications/page.tsx", doctorInbox, "DOCTOR"],
+  ];
+  for (const [name, source, role] of portals) {
+    assert.doesNotMatch(source, /redirect\(/, `${name} must render the inbox, not bounce to a dashboard anchor`);
+    assert.match(source, new RegExp(`PortalChrome role="${role}"`), `${name} must keep the portal chrome for ${role}`);
+    assert.match(source, new RegExp(`NotificationCenter role="${role}"`), `${name} must mount the shared inbox`);
+    assert.match(source, /LoginRequiredState/, `${name} must state the sign-in requirement`);
+    assert.match(source, /<ForbiddenState/, `${name} must refuse the wrong role`);
+  }
+
+  // A single list implementation serves both roles; it reads the live API and
+  // never invents rows.
+  assert.match(center, /fetchNotifications\(/);
+  assert.match(center, /markNotificationAsRead/);
+  assert.match(center, /markAllNotificationsAsRead/);
+  assert.match(center, /healthcare:notifications-updated/, "inbox actions must resync the bell badge");
+  assert.match(center, /aria-pressed/, "category filter tabs must expose their selected state");
+  assert.match(center, /Chưa có thông báo mới/, "empty state keeps the Stitch spec copy");
+  assert.match(center, /Tải thêm/, "a bounded page must offer the next page");
+  assert.doesNotMatch(center, /Lorem ipsum|placeholder text|mẫu giả/i);
 });
 
 test("shared portal states include forbidden and loading semantics", async () => {

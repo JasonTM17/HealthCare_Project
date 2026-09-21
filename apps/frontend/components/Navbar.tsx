@@ -138,8 +138,9 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
   };
 
   const handleHotlineClick = async (e: React.MouseEvent<HTMLAnchorElement>) => {
+    // Desktop browsers cannot dial, so copy the number as a convenience — but
+    // never block the tel: navigation (softphones/tablets still need to call).
     if (typeof window !== "undefined" && window.innerWidth >= 1024 && contactPhone && navigator.clipboard) {
-      e.preventDefault();
       setCopiedHotline(false);
       setHotlineCopyError(false);
       try {

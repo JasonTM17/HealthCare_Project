@@ -15,6 +15,10 @@ import {
   SAFE_LOGOUT_ERROR_MESSAGE,
 } from "../lib/api-client";
 import { formatBusinessDateTime } from "../lib/business-time";
+import {
+  NOTIFICATION_POLL_INTERVAL_MS,
+  startNotificationPoll,
+} from "../lib/notification-polling";
 import BrandMark from "./BrandMark";
 import UiIcon from "./UiIcon";
 
@@ -65,7 +69,11 @@ const HREF_FOR_SECTION_HASH: Record<string, string> = {
   "#profile": "/patient/profile",
 };
 
-function formatNotificationType(eventType: string): string {
+export function formatNotificationType(eventType: string): string {
+  // One label per value of the backend `Notification.EventType` enum, mirrored
+  // by the V94 `chk_notifications_event_type` whitelist. Anything else falls
+  // through to the generic clinical label, so a new server-side event type
+  // degrades to a readable badge instead of an invented one.
   const labels: Record<string, string> = {
     APPOINTMENT_CREATED: "Đã tạo lịch hẹn",
     APPOINTMENT_CONFIRMED: "Lịch hẹn đã xác nhận",
@@ -73,22 +81,44 @@ function formatNotificationType(eventType: string): string {
     APPOINTMENT_CANCELLED: "Lịch hẹn đã hủy",
     APPOINTMENT_REMINDER: "Nhắc lịch khám",
     DIAGNOSTIC_RESULT_AVAILABLE: "Có kết quả mới",
-    PRESCRIPTION_ISSUED: "Đơn thuốc mới",
-    SYSTEM_NOTIFICATION: "Thông báo hệ thống",
+    VISIT_COMPLETED: "Khám đã hoàn tất",
+    PAYMENT_SUBMITTED: "Thanh toán chờ duyệt",
+    PAYMENT_CONFIRMED: "Thanh toán đã xác nhận",
+    PAYMENT_REJECTED: "Thanh toán cần kiểm tra",
+    PAYMENT_REFUNDED: "Đã hoàn tiền",
+    HEALTH_QUESTION_SUBMITTED: "Câu hỏi mới chờ duyệt",
+    HEALTH_QUESTION_ANSWERED: "Câu hỏi đã có trả lời",
+    CONSULTATION_MESSAGE: "Tư vấn có tin nhắn mới",
+    CARE_PLAN_CREATED: "Kế hoạch chăm sóc mới",
+    CARE_PLAN_ITEM_COMPLETED: "Nhiệm vụ kế hoạch hoàn thành",
+    CARE_PLAN_ITEM_CANCELLED: "Nhiệm vụ kế hoạch đã hủy",
   };
   return labels[eventType] ?? "Thông báo y tế";
 }
 
-function getNotificationAction(item: Notification): { label: string; hash: string } | null {
+function getNotificationAction(
+  item: Notification,
+  role: PortalRole,
+): { label: string; hash: string } | null {
   if (item.eventType.includes("APPOINTMENT")) {
+    // The doctor portal anchors its schedule under a different section hash.
+    if (role === "DOCTOR") {
+      return { label: "Xem lịch khám", hash: "#daily-appointments" };
+    }
     return { label: "Xem lịch hẹn", hash: "#appointments" };
   }
   if (item.eventType.includes("PRESCRIPTION")) {
+    // Prescription deep-links stay a patient-portal surface.
+    if (role === "DOCTOR") return null;
     return { label: "Xem đơn thuốc", hash: "#prescriptions" };
   }
   if (item.eventType.includes("DIAGNOSTIC") || item.eventType.includes("RESULT")) {
+    // Diagnostic results are likewise patient-only content.
+    if (role === "DOCTOR") return null;
     return { label: "Xem kết quả CLS", hash: "#diagnostics" };
   }
+  // Consultation and health-Q&A notices have dedicated nav pages on both
+  // portals; no dashboard hash exists for them, so no action button.
   return null;
 }
 
@@ -120,28 +150,43 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
     active.scrollIntoView({ block: "nearest", inline: "nearest", behavior: prefersReducedMotion ? "auto" : "smooth" });
   }, [pathname]);
 
-  const loadNotifications = useCallback(() => {
-    if (role !== "PATIENT") return;
-    // The badge counts the whole inbox, not the ten rows this panel previews:
-    // deriving it from the first page under-reported as soon as a patient had
-    // more than ten notifications, and the badge is the only signal that
-    // anything is waiting.
-    fetchPatientOverview()
-      .then((overview) => {
-        if (typeof overview?.unreadNotificationCount === "number") {
-          setUnreadCount(overview.unreadNotificationCount);
-        }
-      })
-      .catch(() => {
-        // A failed count must not blank a badge the patient may still have
-        // notifications behind; keep the last known value.
-      });
-    fetchNotifications(0, 10)
+  // Returns the settle promise so the background poll can tell when a read is
+  // still in flight and refuse to stack a second one on top of it.
+  const loadNotifications = useCallback((): Promise<unknown> => {
+    if (role === "PATIENT") {
+      // The badge counts the whole inbox, not the ten rows this panel previews:
+      // deriving it from the first page under-reported as soon as a patient had
+      // more than ten notifications, and the badge is the only signal that
+      // anything is waiting.
+      const badge = fetchPatientOverview()
+        .then((overview) => {
+          if (typeof overview?.unreadNotificationCount === "number") {
+            setUnreadCount(overview.unreadNotificationCount);
+          }
+        })
+        .catch(() => {
+          // A failed count must not blank a badge the patient may still have
+          // notifications behind; keep the last known value.
+        });
+      const preview = fetchNotifications(0, 10)
+        .then((data) => {
+          if (data?.content) setNotificationsList(data.content);
+        })
+        .catch(() => {
+          // The preview list is optional; the badge above is the load-bearing part.
+        });
+      return Promise.allSettled([badge, preview]);
+    }
+    // The doctor portal has no overview endpoint yet, so the badge is derived
+    // from a wider first page of the same role-agnostic notifications API.
+    return fetchNotifications(0, 50)
       .then((data) => {
-        if (data?.content) setNotificationsList(data.content);
+        if (!data?.content) return;
+        setNotificationsList(data.content.slice(0, 10));
+        setUnreadCount(data.content.filter((item) => !item.read).length);
       })
       .catch(() => {
-        // The preview list is optional; the badge above is the load-bearing part.
+        // Same contract as the patient branch: keep the last known values.
       });
   }, [role]);
 
@@ -157,6 +202,30 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
     window.addEventListener("healthcare:notifications-updated", handleUpdate);
     return () => {
       window.removeEventListener("healthcare:notifications-updated", handleUpdate);
+    };
+  }, [loadNotifications]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof document === "undefined") return;
+    // A doctor who leaves the portal open must see a new unread badge without
+    // navigating. Bounded, non-stacking and paused while the tab is hidden.
+    const poll = startNotificationPoll({
+      tick: loadNotifications,
+      intervalMs: NOTIFICATION_POLL_INTERVAL_MS,
+      timers: {
+        schedule: (callback, delayMs) => window.setTimeout(callback, delayMs),
+        cancel: (handle) => window.clearTimeout(handle as number),
+      },
+      hidden: () => document.hidden,
+    });
+    poll.setPaused(document.hidden);
+    const handleVisibilityChange = (): void => {
+      poll.setPaused(document.hidden);
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      poll.stop();
     };
   }, [loadNotifications]);
 
@@ -226,21 +295,6 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
   const handleViewAllNotifications = () => {
     setIsPopoverOpen(false);
     setSelectedNotification(null);
-    setActiveHash("#notifications");
-    if (typeof window !== "undefined") {
-      if (pathname === homePath) {
-        // replaceState keeps the URL hash in sync without the flagged global
-        // location mutation; the dispatched event drives the tab switch.
-        window.history.replaceState(null, "", "#notifications");
-        window.dispatchEvent(
-          new CustomEvent("portal:tab-change", {
-            detail: { hash: "#notifications", href: "/patient/notifications" },
-          })
-        );
-      } else {
-        router.push(`${homePath}#notifications`);
-      }
-    }
   };
 
   useEffect(() => {
@@ -282,6 +336,9 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
     };
   }, [avatarUrl, role, user.id]);
   const homePath = role === "PATIENT" ? "/patient/dashboard" : "/doctor/dashboard";
+  // Every portal now owns a full-screen inbox, so the bell's destinations are
+  // real routes for both roles instead of a patient-only dashboard anchor.
+  const notificationsPath = role === "PATIENT" ? "/patient/notifications" : "/doctor/notifications";
 
   const links = role === "PATIENT"
     ? [
@@ -411,11 +468,16 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
           </nav>
 
           <div className="portal-user">
-            {role === "PATIENT" ? (
+            {(() => {
+              // The notifications API is role-agnostic (backend allows
+              // PATIENT, DOCTOR and ADMIN and scopes rows to the caller) and
+              // both portals now ship a full-screen inbox, so the bell and its
+              // "Xem tất cả" footer render identically for each role.
+              return (
               <div className="portal-notification-wrapper" ref={popoverRef}>
                 <Link
                   className="portal-notification-bell"
-                  href={pathname === homePath ? "#notifications" : `${homePath}#notifications`}
+                  href={notificationsPath}
                   aria-label={unreadCount > 0 ? `Thông báo từ bệnh viện (${unreadCount} tin mới)` : "Thông báo từ bệnh viện"}
                   title="Thông báo từ bệnh viện"
                   aria-expanded={isPopoverOpen}
@@ -434,12 +496,21 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
                   <div
                     className="portal-notification-popover"
                     role="dialog"
-                    aria-label="Xem trước thông báo bệnh viện"
+                    aria-label={unreadCount > 0
+                      ? `Xem trước thông báo bệnh viện, ${unreadCount} tin chưa đọc`
+                      : "Xem trước thông báo bệnh viện"}
                   >
                     <div className="portal-notification-popover__header">
                       <div className="portal-notification-popover__title">
                         <UiIcon name="bell" size={16} />
                         <span>Thông báo từ bệnh viện</span>
+                        {unreadCount > 0 ? (
+                          // The count is spoken through the dialog label above, so
+                          // the decorative pill does not repeat a bare number.
+                          <span aria-hidden="true" className="portal-notification-popover__count">
+                            {unreadCount > 99 ? "99+" : unreadCount}
+                          </span>
+                        ) : null}
                       </div>
                       {unreadCount > 0 ? (
                         <button
@@ -455,7 +526,10 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
                     <div className="portal-notification-popover__list">
                       {notificationsList.length === 0 ? (
                         <div className="portal-notification-popover__empty">
-                          <p>Chưa có thông báo nào từ bệnh viện.</p>
+                          <span aria-hidden="true" className="portal-notification-popover__empty-mark">
+                            <UiIcon name="bell" size={20} />
+                          </span>
+                          <p>Chưa có thông báo mới</p>
                         </div>
                       ) : (
                         notificationsList.map((item) => (
@@ -481,19 +555,20 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
                     </div>
 
                     <div className="portal-notification-popover__footer">
-                      <button
-                        type="button"
+                      <Link
                         className="portal-notification-popover__view-all"
+                        href={notificationsPath}
                         onClick={handleViewAllNotifications}
                       >
                         <span>Xem tất cả thông báo</span>
                         <UiIcon name="arrow-right" size={14} />
-                      </button>
+                      </Link>
                     </div>
                   </div>
                 ) : null}
               </div>
-            ) : null}
+              );
+            })()}
 
             <Link
               className="portal-user__link"
@@ -593,7 +668,7 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
 
             <div className="portal-notification-modal__footer">
               {(() => {
-                const action = getNotificationAction(selectedNotification);
+                const action = getNotificationAction(selectedNotification, role);
                 if (action) {
                   return (
                     <button

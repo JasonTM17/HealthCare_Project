@@ -51,6 +51,14 @@ import styles from "./chat.module.css";
 
 const MESSAGE_LIMIT = 30;
 const MAX_MESSAGE_LENGTH = 10_000;
+// The API speaks enum; the patient portal must not. Mirrors the labels already
+// used by the admin credit console so the two surfaces never disagree.
+const TIER_LABEL: Readonly<Record<string, string>> = {
+  STANDARD: "Cơ bản",
+  SILVER: "Bạc",
+  GOLD: "Vàng",
+  VIP: "VIP",
+};
 
 // Vietnamese labels for triage urgency enums so patients never see raw English codes.
 const TRIAGE_URGENCY_VI: Readonly<Record<string, string>> = {
@@ -300,6 +308,7 @@ function PatientChatPageContent() {
   const listRequestRef = useRef(0);
   const threadRequestRef = useRef(0);
   const messageViewportRef = useRef<HTMLDivElement | null>(null);
+  const composerInputRef = useRef<HTMLTextAreaElement | null>(null);
   const deleteDialogRef = useRef<HTMLDialogElement | null>(null);
   const shouldScrollToLatestRef = useRef(false);
   const sendInFlightRef = useRef(false);
@@ -758,6 +767,9 @@ function PatientChatPageContent() {
         setStreamingReply("");
         setSending(false);
         if (requestControllerRef.current === controller) requestControllerRef.current = null;
+        // The composer is disabled while sending, which drops keyboard focus to
+        // <body>; return it so keyboard users can keep typing without re-tabbing.
+        requestAnimationFrame(() => { if (composerInputRef.current && !composerInputRef.current.disabled) composerInputRef.current.focus(); });
       }
     }
   };
@@ -891,12 +903,9 @@ function PatientChatPageContent() {
               <ChatMessageContent className={styles.messageContent} content={streamingReply} />
               <p className={styles.messageStatus}>Đang nhận phản hồi từng phần đã được xác thực…</p>
             </li>
-          ) : sending ? (
-            <li className={`${styles.message} ${styles.messageAssistant}`} data-testid="chat-thinking-indicator">
-              <div className={styles.messageMeta}><strong>Trợ lý HealthCare</strong></div>
-              <p className={styles.messageStatus}>Đang tra cứu dữ liệu và tổng hợp câu trả lời an toàn…</p>
-            </li>
           ) : null}
+          {/* While sending but not yet streaming, the staged `chat-waiting`
+              status below the thread is the single progress indicator. */}
         </ol>
       </>
     );
@@ -912,8 +921,8 @@ function PatientChatPageContent() {
             <p>Đặt câu hỏi về thông tin chăm sóc và xem lại phản hồi gắn với nguồn HealthCare.</p>
             {creditStatus && (
               <div className="mt-3 inline-flex items-center gap-2.5 rounded-[4px] bg-emerald-50 border border-emerald-200 px-3.5 py-1.5 text-xs font-semibold text-emerald-900 shadow-xs">
-                <UiIcon name={creditStatus.tier === 'VIP' ? 'sparkles' : creditStatus.tier === 'GOLD' ? 'star' : creditStatus.tier === 'SILVER' ? 'award' : 'shield-check'} size={15} className="text-emerald-700 shrink-0" />
-                <span>Hạng <strong>{creditStatus.tier || 'STANDARD'}</strong></span>
+                <UiIcon name="shield-check" size={15} className="text-emerald-700 shrink-0" />
+                <span>Hạng <strong>{TIER_LABEL[creditStatus.tier ?? ""] ?? "Cơ bản"}</strong></span>
                 <span className="text-emerald-300">|</span>
                 <span>Lượt AI còn lại: <strong className="text-emerald-700 text-sm">{creditStatus.credits}</strong>/{creditStatus.maxCredits}</span>
               </div>
@@ -1149,6 +1158,7 @@ function PatientChatPageContent() {
                   }}
                   onKeyDown={handleComposerKeyDown}
                   placeholder="Ví dụ: Tôi cần chuẩn bị gì trước buổi khám tim mạch?"
+                  ref={composerInputRef}
                   required
                   rows={3}
                   value={draft}

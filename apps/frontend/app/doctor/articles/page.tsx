@@ -38,6 +38,20 @@ import { resolveArticleCoverImage, resolveArticleAlt } from "../../../lib/articl
 // budget.
 const ARTICLE_BODY_MAX_CHARS = 8000;
 
+/**
+ * Publication-gate status shown on the author's own cards. Null means the
+ * submission is approved and the ordinary draft/public label applies.
+ */
+function reviewGateLabel(article: { reviewStatus?: string }): { label: string; tone: string } | null {
+  if (article.reviewStatus === "PENDING") {
+    return { label: "● Chờ duyệt — chưa công khai", tone: "text-amber-700" };
+  }
+  if (article.reviewStatus === "REJECTED") {
+    return { label: "○ Bị từ chối", tone: "text-red-700" };
+  }
+  return null;
+}
+
 function toSlug(text: string): string {
   return text
     .toLowerCase()
@@ -582,9 +596,13 @@ export default function DoctorArticlesPage() {
                         <span className="rounded-[4px] bg-teal-50 px-2.5 py-0.5 font-bold text-teal-800">
                           {a.category || "Cẩm nang y tế"}
                         </span>
-                        <span className={`font-semibold ${a.active ? "text-emerald-700" : "text-amber-700"}`}>
-                          {a.active ? "● Đang hiển thị công khai" : "○ Bản nháp"}
-                        </span>
+                        {reviewGateLabel(a) ? (
+                          <span className={`font-semibold ${reviewGateLabel(a)!.tone}`}>{reviewGateLabel(a)!.label}</span>
+                        ) : (
+                          <span className={`font-semibold ${a.active ? "text-emerald-700" : "text-amber-700"}`}>
+                            {a.active ? "● Đang hiển thị công khai" : "○ Bản nháp"}
+                          </span>
+                        )}
                       </div>
 
                       <h3 className="mt-3 text-base font-bold text-teal-950 line-clamp-2">
@@ -593,6 +611,11 @@ export default function DoctorArticlesPage() {
                       <p className="mt-2 text-xs text-slate-600 line-clamp-3 leading-relaxed">
                         {a.summary}
                       </p>
+                      {a.reviewStatus === "REJECTED" && a.reviewReason ? (
+                        <p className="mt-2 rounded-[4px] bg-red-50 px-2.5 py-1.5 text-xs text-red-800">
+                          Lý do từ chối: {a.reviewReason}
+                        </p>
+                      ) : null}
                     </div>
 
                     <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
@@ -687,7 +710,7 @@ export default function DoctorArticlesPage() {
                       <div>
                         <div className="flex items-center gap-1.5 font-bold text-slate-900 text-sm">
                           <span>{readingArticle.authorName || "Bác sĩ Chuyên khoa"}</span>
-                          <span className="rounded-[4px] bg-teal-800 px-1.5 py-0.2 text-[10px] font-bold text-white inline-flex items-center gap-1">
+                          <span className="rounded-[4px] bg-teal-800 px-1.5 py-0.5 text-[10px] font-bold text-white inline-flex items-center gap-1">
                             <UiIcon name="shield-check" size={10} />
                             <span>Đã xác thực</span>
                           </span>
@@ -706,7 +729,7 @@ export default function DoctorArticlesPage() {
                 </div>
 
                 {/* Lead Summary Callout - Professional Medical Key Takeaways */}
-                <div className="rounded-[4px] border-l-4 border-l-teal-700 bg-slate-50/90 border border-slate-200 p-4 sm:p-5 text-sm text-slate-800 leading-relaxed shadow-2xs">
+                <div className="rounded-[4px] border-l-4 border-l-teal-700 bg-slate-50/90 border border-slate-200 p-4 sm:p-5 text-sm text-slate-800 leading-relaxed">
                   <div className="flex items-center gap-2 mb-1.5">
                     <span className="inline-block w-2 h-2 rounded-full bg-teal-700"></span>
                     <span className="font-bold text-xs uppercase tracking-wider text-teal-950 font-mono">
@@ -758,7 +781,7 @@ export default function DoctorArticlesPage() {
                                 ? "border-l-4 border-l-teal-700 border border-teal-200 bg-teal-50/40"
                                 : isAdmin
                                 ? "border-l-4 border-l-purple-700 border border-purple-200 bg-purple-50/40"
-                                : "border border-slate-200 bg-white shadow-2xs"
+                                : "border border-slate-200 bg-white"
                             }`}
                             key={c.id}
                           >
@@ -825,7 +848,7 @@ export default function DoctorArticlesPage() {
                       </div>
                     )}
                     <textarea
-                      className="w-full rounded-[4px] border border-slate-300 p-3.5 text-sm focus:border-teal-700 focus:ring-1 focus:ring-teal-700 focus:outline-none transition leading-relaxed text-slate-800 placeholder:text-slate-400 bg-white shadow-2xs"
+                      className="w-full rounded-[4px] border border-slate-300 p-3.5 text-sm focus:border-teal-700 focus:ring-1 focus:ring-teal-700 focus:outline-none transition leading-relaxed text-slate-800 placeholder:text-slate-400 bg-white"
                       disabled={busy}
                       onChange={(e) => setReplyText(e.target.value)}
                       placeholder="Gửi phản hồi y khoa chính thức từ Bác sĩ..."

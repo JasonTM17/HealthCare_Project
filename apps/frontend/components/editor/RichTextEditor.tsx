@@ -58,6 +58,69 @@ function containsHtml(value: string): boolean {
   return HTML_TAG_PATTERN.test(value);
 }
 
+/**
+ * Remove Microsoft Word's paste scaffolding from clipboard HTML.
+ *
+ * Word does not paste a fragment of HTML; it pastes a small document, and the
+ * parts that exist only to describe that document survive the editor's own
+ * filtering as visible text. Authors reported clinical articles opening with
+ * runs of `[if gte mso 9]`, `mso-list:Ignore`, `</o:p>` and Office namespace
+ * XML — none of it authored, all of it published.
+ *
+ * The order matters and is the whole design: the conditional comments go first,
+ * because a downlevel-hidden block *contains* the `<xml>`/`<w:*>` payload and
+ * deleting the payload first would leave the block's own markers behind as
+ * text; the namespace remnants go last, once nothing is wrapping them.
+ *
+ * Self-contained on purpose — `tests/editor-toolbar-honesty.test.mjs` lifts
+ * this function out of the module by name and runs it, so it may not depend on
+ * anything else in the file.
+ */
+export function stripWordPasteArtifacts(html: string): string {
+  if (!html || html.indexOf("<") < 0) return html ?? "";
+  let cleaned = html;
+
+  // 1. Downlevel-hidden conditional comments, with their payload:
+  //    <!--[if gte mso 9]><xml>…</xml><![endif]--> and the
+  //    <!--[if !mso]><!-->…<!--<![endif]--> wrapper form.
+  cleaned = cleaned.replace(/<!--\s*\[if[\s\S]*?<!\[endif\]\s*-->/gi, "");
+  cleaned = cleaned.replace(/<!--\s*\[if[\s\S]*?-->/gi, "");
+
+  // 2. Downlevel-revealed markers, where the content between them is real and
+  //    must be kept: <![if !supportLists]>•<![endif]> is how Word marks list
+  //    bullets. Only the markers are artifacts.
+  cleaned = cleaned.replace(/<!\[if[\s\S]*?\]>/gi, "");
+  cleaned = cleaned.replace(/<!\[endif\]\s*>/gi, "");
+
+  // 3. Word's head CSS is nothing but Office scaffolding, so a style block that
+  //    is still carrying mso declarations goes as a block. This has to run
+  //    before those declarations are stripped below — the check is what is left
+  //    in the block, and stripping first leaves a selector and no marker. Any
+  //    other style block is left for the author and TinyMCE to decide about.
+  cleaned = cleaned.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, (block) =>
+    /mso-/i.test(block) ? "" : block);
+
+  // 4. mso-* declarations inside style attributes, and the class Word writes
+  //    on every paragraph. Word omits the quotes as often as it writes them,
+  //    and mixes its own declarations in among real ones, so the declaration
+  //    form is removed wherever it sits rather than only after the quote.
+  cleaned = cleaned.replace(/;?\s*mso-[a-z-]+\s*:\s*[^;"']*;?/gi, "");
+  cleaned = cleaned.replace(/\sstyle=(["'])\s*(?:[a-z-]+\s*:\s*;?\s*)*\1/gi, "");
+  cleaned = cleaned.replace(/\sstyle=(?!["'])[^\s>]*mso-[^\s>]*/gi, "");
+  cleaned = cleaned.replace(/\sclass=(["'])[^"']*\bMso[A-Za-z]*[^"']*\1/gi, "");
+  cleaned = cleaned.replace(/\sclass=(?!["'])[^\s>]*\bMso[A-Za-z]*/gi, "");
+
+  // 5. Office namespace elements. <o:p></o:p> is the empty paragraph Word pads
+  //    documents with; the rest (w:, v:, x:, o:) are its document metadata.
+  cleaned = cleaned.replace(/<\s*o:p\b[^>]*>\s*<\s*\/\s*o:p\s*>/gi, "");
+  cleaned = cleaned.replace(/<\s*\/?\s*(?:o|w|v|x):[a-z0-9]+\b[^>]*>/gi, "");
+  cleaned = cleaned.replace(/<xml\b[^>]*>[\s\S]*?<\/xml>/gi, "");
+  cleaned = cleaned.replace(/<\?xml[\s\S]*?\?>/gi, "");
+  cleaned = cleaned.replace(/<\s*\/?\s*xml\b[^>]*>/gi, "");
+
+  return cleaned;
+}
+
 interface MedicalTemplate {
   title: string;
   description: string;
@@ -349,17 +412,31 @@ export function RichTextEditor({
       // Table and the whole dropdown beneath each — was English in a Vietnamese
       // product, and TinyMCE ships language packs separately. The choice was a
       // vendored download or no untranslated chrome, so the chrome goes: the
-      // toolbar below carries the commands, including the table cell, row and
-      // column operations the clinical templates need to build dosage tables.
+      // toolbar below carries the commands, including the row and column
+      // operations the clinical templates need to build dosage tables.
       // Restore `menubar` together with a reviewed `language_url` if a vi pack
       // is ever added.
       menubar: false,
       // Wrap rather than overflow: the added commands must stay reachable in a
       // narrow editor instead of hiding behind a "more" button.
       toolbar_mode: "wrap" as const,
-      toolbar: `undo redo | blocks | bold italic underline strikethrough | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | table tablecellprops tablemergecells tablesplitcells tableinsertrowbefore tableinsertrowafter tabledeleterow tableinsertcolbefore tableinsertcolafter tabledeletecol link ${
-        MEDIA_UPLOADS_ENABLED ? "image media " : ""
-      }accordion | clinical_warning doctor_note dosage_guide emergency_box | searchreplace emoticons charmap insertdatetime | hr anchor pagebreak nonbreaking selectall lineheight visualblocks | removeformat code preview fullscreen`,
+      // The toolbar is a promise about what will still be there tomorrow: the
+      // body is stored as markdown, so a command whose result the converter
+      // cannot express is a button that quietly eats the author's work.
+      // Removed for exactly that reason, each verified lossy on the round trip:
+      //   tablemergecells/tablesplitcells/tablecellprops — colspan and rowspan
+      //     have no GFM syntax; the converter dropped them and shifted a
+      //     rowspan's value into the wrong column of the dosage tables.
+      //   media — <video>/<audio>/<iframe> sources are deleted, leaving a void.
+      //   anchor — the id attribute is dropped, so intra-document links break.
+      //   pagebreak, lineheight, accordion, emoticons — dropped entirely (the
+      //     emoticons images are remote cdnjs URLs the CSP does not allow).
+      // The table insert/row/column commands stay: those tables do survive as
+      // GFM. tests/editor-toolbar-honesty.test.mjs pins the removals, and
+      // tests/editor-round-trip.test.mjs pins what the pipeline keeps.
+      toolbar: `undo redo | blocks | bold italic underline strikethrough | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | table tableinsertrowbefore tableinsertrowafter tabledeleterow tableinsertcolbefore tableinsertcolafter tabledeletecol link ${
+        MEDIA_UPLOADS_ENABLED ? "image " : ""
+      }| clinical_warning doctor_note dosage_guide emergency_box | searchreplace charmap insertdatetime | hr nonbreaking selectall visualblocks | removeformat code preview fullscreen`,
       plugins: [
         "advlist",
         "autolink",
@@ -368,31 +445,24 @@ export function RichTextEditor({
         "link",
         "image",
         "charmap",
-        "codesample",
-        "emoticons",
         "preview",
-        "anchor",
         "searchreplace",
         "visualblocks",
-        "visualchars",
         "code",
         "fullscreen",
         "insertdatetime",
-        "media",
         "table",
         "wordcount",
-        "accordion",
-        "directionality",
         "nonbreaking",
-        "pagebreak",
         "quickbars",
       ],
       quickbars_selection_toolbar:
         "bold italic underline strikethrough | quicklink h2 h3 blockquote",
       quickbars_insert_toolbar: `${MEDIA_UPLOADS_ENABLED ? "quickimage " : ""}quicktable | hr`,
-      font_family_formats:
-        "Be Vietnam Pro='Be Vietnam Pro',sans-serif; Mặc định hệ thống=-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; Arial=arial,helvetica,sans-serif; Courier New=courier new,courier,monospace; Georgia=georgia,palatino,serif; Tahoma=tahoma,arial,helvetica,sans-serif; Times New Roman=times new roman,times,serif; Trebuchet MS=trebuchet ms,geneva,sans-serif; Verdana=verdana,geneva,sans-serif",
-      font_size_formats: "12px 13px 14px 15px 16px 18px 20px 24px 28px 32px 36px",
+      // font_family_formats and font_size_formats used to sit here naming nine
+      // typefaces and eleven sizes. Nothing could reach them: the menubar is
+      // off and no toolbar token exposed the `fontfamily`/`fontsize` lists, so
+      // they were dead configuration that read as supported capability.
       table_default_attributes: {
         border: "1",
       },
@@ -402,6 +472,14 @@ export function RichTextEditor({
       },
       automatic_uploads: MEDIA_UPLOADS_ENABLED,
       paste_data_images: MEDIA_UPLOADS_ENABLED,
+      // Word paste arrives as a whole Office document, and the parts that only
+      // describe that document used to land in the body as visible text. The
+      // hook is scrubbed before insertion; `paste_as_text` was the alternative
+      // and was rejected because it also discards the tables and lists authors
+      // legitimately paste out of Word.
+      paste_preprocess: (_editor: TinyMCEEditor, args: { content: string }) => {
+        args.content = stripWordPasteArtifacts(args.content);
+      },
       images_reuse_filename: true,
       branding: false,
       promotion: false,
@@ -627,7 +705,9 @@ export function RichTextEditor({
           return uploadRes.url;
         } catch (err) {
           setIsDirectUploading(false);
-          const message = presentApiError(err, "Không thể tải ảnh lên máy chủ bệnh viện.");
+          const message = err instanceof ApiError
+            ? presentApiError(err.code, err.status)
+            : "Không thể tải ảnh lên máy chủ bệnh viện.";
           setDirectUploadError(message);
           throw new Error(message);
         }
@@ -1364,7 +1444,17 @@ export function RichTextEditor({
 
   const containerClasses = isFullscreen
     ? "fixed inset-0 z-50 flex flex-col bg-white p-4 sm:p-6 shadow-2xl overflow-hidden"
-    : "flex flex-col rounded-[4px] border border-slate-300 bg-white shadow-2xs transition-colors focus-within:border-teal-700 focus-within:ring-1 focus-within:ring-teal-700";
+    : "flex flex-col rounded-[4px] border border-slate-300 bg-white transition-colors focus-within:border-teal-700 focus-within:ring-1 focus-within:ring-teal-700";
+
+  // The visible label has to point at the control that is actually mounted.
+  // TinyMCE does not use the caller's `id`: tinymce-react renders its own
+  // textarea carrying this one and swaps in an iframe, so a label left pointing
+  // at `id` named nothing in the default mode — the association was lost in
+  // exactly the mode an author lands in. Deriving both from one value keeps the
+  // label and the editor from drifting apart again, and the iframe keeps the
+  // same accessible name through `iframe_title`/`handleEditorInit` below.
+  const tinyEditorId = id ? `${id}-tinymce` : "healthcare-tinymce-editor";
+  const editorControlId = viewMode === "tinymce" ? tinyEditorId : id;
 
   return (
     <div className={containerClasses}>
@@ -1372,7 +1462,11 @@ export function RichTextEditor({
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50/90 px-3 py-2">
         <div className="flex items-center gap-2">
           {label && (
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-800" htmlFor={id}>
+            <label
+              className="text-xs font-bold uppercase tracking-wider text-slate-800"
+              htmlFor={editorControlId}
+              id={`${id}-label`}
+            >
               {label} {required && <span className="text-red-500">*</span>}
             </label>
           )}
@@ -1384,13 +1478,13 @@ export function RichTextEditor({
 
         {/* View Mode Switcher + Fullscreen */}
         <div className="flex items-center gap-1">
-          <div className="inline-flex rounded-[3px] border border-slate-300 bg-white p-0.5 shadow-2xs">
+          <div className="inline-flex rounded-[3px] border border-slate-300 bg-white p-0.5">
             <button
               aria-label="Chế độ trực quan TinyMCE"
               aria-pressed={viewMode === "tinymce"}
               className={`rounded-[2px] px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 ${
                 viewMode === "tinymce"
-                  ? "bg-teal-800 text-white shadow-2xs"
+                  ? "bg-teal-800 text-white"
                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
               }`}
               onClick={() => setViewMode("tinymce")}
@@ -1405,7 +1499,7 @@ export function RichTextEditor({
               aria-pressed={viewMode === "edit"}
               className={`rounded-[2px] px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer ${
                 viewMode === "edit"
-                  ? "bg-teal-800 text-white shadow-2xs"
+                  ? "bg-teal-800 text-white"
                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
               }`}
               onClick={() => setViewMode("edit")}
@@ -1419,7 +1513,7 @@ export function RichTextEditor({
               aria-pressed={viewMode === "split"}
               className={`rounded-[2px] px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer ${
                 viewMode === "split"
-                  ? "bg-teal-800 text-white shadow-2xs"
+                  ? "bg-teal-800 text-white"
                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
               }`}
               onClick={() => setViewMode("split")}
@@ -1433,7 +1527,7 @@ export function RichTextEditor({
               aria-pressed={viewMode === "preview"}
               className={`rounded-[2px] px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer ${
                 viewMode === "preview"
-                  ? "bg-teal-800 text-white shadow-2xs"
+                  ? "bg-teal-800 text-white"
                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
               }`}
               onClick={() => setViewMode("preview")}
@@ -1446,7 +1540,7 @@ export function RichTextEditor({
 
           <button
             aria-label={isFullscreen ? "Thoát toàn màn hình" : "Mở rộng toàn màn hình"}
-            className="inline-flex items-center justify-center rounded-[3px] border border-slate-300 bg-white p-1.5 text-slate-600 hover:text-teal-900 hover:bg-slate-100 cursor-pointer transition shadow-2xs ml-1 min-h-[30px]"
+            className="inline-flex items-center justify-center rounded-[3px] border border-slate-300 bg-white p-1.5 text-slate-600 hover:text-teal-900 hover:bg-slate-100 cursor-pointer transition ml-1 min-h-[30px]"
             onClick={() => setIsFullscreen(!isFullscreen)}
             title={isFullscreen ? "Thu nhỏ (Esc)" : "Toàn màn hình"}
             type="button"
@@ -1795,10 +1889,13 @@ export function RichTextEditor({
         )}
 
         {viewMode === "tinymce" && (
-          <div className="h-full w-full">
+          /* The wrapper keeps the caller's `id` so a label or hash anchor
+             written against it still resolves to the editor region; the
+             labelled control inside it is the textarea TinyMCE replaces. */
+          <div className="h-full w-full" id={id}>
             <TinyEditor
               disabled={disabled}
-              id={id ? `${id}-tinymce` : "healthcare-tinymce-editor"}
+              id={tinyEditorId}
               init={{ ...tinyMceInitConfig, iframe_title: label || "Trình soạn thảo nội dung" }}
               licenseKey="gpl"
               onEditorChange={handleTinyEditorChange}
@@ -1872,7 +1969,7 @@ export function RichTextEditor({
                 <UiIcon name="eye" size={12} />
                 <span>Xem trước thời gian thực</span>
               </div>
-              <div className="rounded-[4px] border border-slate-200 bg-white p-5 shadow-2xs">
+              <div className="rounded-[4px] border border-slate-200 bg-white p-5">
                 <RichContentRenderer content={safeValue} />
               </div>
             </div>
@@ -1912,10 +2009,10 @@ export function RichTextEditor({
 
         <div className="hidden sm:flex items-center gap-3 text-[11px] text-slate-500">
           <span>Phím tắt:</span>
-          <kbd className="rounded-[3px] bg-white px-1.5 py-0.5 border border-slate-300 font-mono shadow-2xs">Ctrl+B: Đậm</kbd>
-          <kbd className="rounded-[3px] bg-white px-1.5 py-0.5 border border-slate-300 font-mono shadow-2xs">Ctrl+I: Nghiêng</kbd>
-          <kbd className="rounded-[3px] bg-white px-1.5 py-0.5 border border-slate-300 font-mono shadow-2xs">Ctrl+K: Link</kbd>
-          <kbd className="rounded-[3px] bg-white px-1.5 py-0.5 border border-slate-300 font-mono shadow-2xs">Ctrl+Z: Hoàn tác</kbd>
+          <kbd className="rounded-[3px] bg-white px-1.5 py-0.5 border border-slate-300 font-mono">Ctrl+B: Đậm</kbd>
+          <kbd className="rounded-[3px] bg-white px-1.5 py-0.5 border border-slate-300 font-mono">Ctrl+I: Nghiêng</kbd>
+          <kbd className="rounded-[3px] bg-white px-1.5 py-0.5 border border-slate-300 font-mono">Ctrl+K: Link</kbd>
+          <kbd className="rounded-[3px] bg-white px-1.5 py-0.5 border border-slate-300 font-mono">Ctrl+Z: Hoàn tác</kbd>
         </div>
       </div>
 
@@ -2029,7 +2126,7 @@ export function RichTextEditor({
                   type="file"
                 />
                 <button
-                  className="inline-flex items-center gap-2 rounded-[4px] bg-teal-800 px-4 py-2 text-xs font-bold text-white hover:bg-teal-900 disabled:opacity-50 cursor-pointer shadow-2xs"
+                  className="inline-flex items-center gap-2 rounded-[4px] bg-teal-800 px-4 py-2 text-xs font-bold text-white hover:bg-teal-900 disabled:opacity-50 cursor-pointer"
                   disabled={isUploadingImage}
                   onClick={() => fileUploadInputRef.current?.click()}
                   onMouseDown={(e) => e.preventDefault()}

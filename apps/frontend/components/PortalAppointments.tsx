@@ -9,6 +9,7 @@ type PortalAppointmentsProps =
       onSelectAppointment?: never;
       onUpdateStatus?: never;
       onReschedule?: (appointment: PatientPortalAppointment) => void;
+      onCancel?: (appointment: PatientPortalAppointment) => void;
       onPayment?: (appointment: PatientPortalAppointment) => void;
       activePaymentAppointmentId?: string;
     }
@@ -18,6 +19,7 @@ type PortalAppointmentsProps =
       onSelectAppointment?: (appointment: DoctorPortalAppointment) => void;
       onUpdateStatus?: (appointment: DoctorPortalAppointment, status: "CHECKED_IN" | "IN_PROGRESS" | "NO_SHOW") => void;
       onReschedule?: never;
+      onCancel?: never;
       onPayment?: never;
       activePaymentAppointmentId?: never;
     };
@@ -58,6 +60,7 @@ export default function PortalAppointments({
   onSelectAppointment,
   onUpdateStatus,
   onReschedule,
+  onCancel,
   onPayment,
   activePaymentAppointmentId,
 }: PortalAppointmentsProps) {
@@ -68,7 +71,7 @@ export default function PortalAppointments({
           <div className="portal-appointment__meta">
             <span>{formatBusinessDate(appointment.appointmentDate)}</span>
             <span>{formatTime(appointment.startTime)} – {formatTime(appointment.endTime)}</span>
-            <span className="portal-appointment__status">{statusLabel(appointment.status)}</span>
+            <span className="portal-appointment__status" data-status={appointment.status}>{statusLabel(appointment.status)}</span>
           </div>
           <h3>
             {viewer === "doctor"
@@ -93,7 +96,27 @@ export default function PortalAppointments({
                 </dd>
               </div>
             ) : null}
-            {viewer === "patient" && "paymentStatus" in appointment ? <div><dt>Thanh toán</dt><dd><span aria-label={`Trạng thái thanh toán: ${statusLabel(appointment.paymentStatus)}`}>{statusLabel(appointment.paymentStatus)}</span></dd></div> : null}
+            {/* Payment status is informational for the doctor viewer and
+                actionable for the patient, so the doctor chip stays neutral. */}
+            {"paymentStatus" in appointment ? (
+              <div>
+                <dt>Thanh toán</dt>
+                <dd>
+                  <span
+                    aria-label={`Trạng thái thanh toán: ${statusLabel(appointment.paymentStatus)}`}
+                    {...(viewer === "doctor" ? { "data-viewer": "doctor" } : {})}
+                  >
+                    {statusLabel(appointment.paymentStatus)}
+                  </span>
+                </dd>
+              </div>
+            ) : null}
+            {appointment.status === "CANCELLED" && appointment.cancellationReason ? (
+              <div>
+                <dt>Lý do hủy</dt>
+                <dd>{appointment.cancellationReason}</dd>
+              </div>
+            ) : null}
           </dl>
           {viewer === "doctor" && "patientId" in appointment ? (
             <div className="portal-appointment__actions">
@@ -114,10 +137,14 @@ export default function PortalAppointments({
               ) : null}
             </div>
           ) : null}
-          {viewer === "patient" && "doctorId" in appointment && appointment.status === "CONFIRMED" && onReschedule ? (
+          {viewer === "patient" && "doctorId" in appointment
+            && (appointment.status === "CONFIRMED" || appointment.status === "PENDING_CONFIRMATION")
+            && (onReschedule || onCancel || onPayment) ? (
             <div className="portal-appointment__actions">
-              <button className="outline-button outline-button--small" onClick={() => onReschedule(appointment)} type="button">Đổi lịch</button>
-              {onPayment && appointment.paymentStatus !== "PAID" && appointment.paymentStatus !== "REFUNDED" && appointment.paymentStatus !== "REFUND_PENDING" ? (
+              {onReschedule && appointment.status === "CONFIRMED" ? (
+                <button className="outline-button outline-button--small" onClick={() => onReschedule(appointment)} type="button">Đổi lịch</button>
+              ) : null}
+              {onPayment && appointment.status === "CONFIRMED" && appointment.paymentStatus !== "PAID" && appointment.paymentStatus !== "REFUNDED" && appointment.paymentStatus !== "REFUND_PENDING" ? (
                 <button
                   aria-controls="patient-payment-panel"
                   aria-expanded={activePaymentAppointmentId === appointment.id}
@@ -128,6 +155,16 @@ export default function PortalAppointments({
                   type="button"
                 >
                   {paymentActionLabel(appointment.paymentStatus)}
+                </button>
+              ) : null}
+              {onCancel ? (
+                <button
+                  aria-label={`Hủy lịch ${appointment.bookingCode}`}
+                  className="text-button portal-appointment__cancel"
+                  onClick={() => onCancel(appointment)}
+                  type="button"
+                >
+                  Hủy lịch
                 </button>
               ) : null}
             </div>

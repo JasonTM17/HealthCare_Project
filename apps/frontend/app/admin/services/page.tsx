@@ -213,10 +213,10 @@ export default function AdminServicesPage() {
                 <caption className="sr-only">Dịch vụ trong danh sách quản trị</caption>
                 <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                   <tr>
-                    <th className="px-4 py-3">Tên</th>
-                    <th className="px-4 py-3">Slug</th>
-                    <th className="px-4 py-3">Trạng thái</th>
-                    <th className="px-4 py-3 text-right">Thao tác</th>
+                    <th scope="col" className="px-4 py-3">Tên</th>
+                    <th scope="col" className="px-4 py-3">Slug</th>
+                    <th scope="col" className="px-4 py-3">Trạng thái</th>
+                    <th scope="col" className="px-4 py-3 text-right">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>

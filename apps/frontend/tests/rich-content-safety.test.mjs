@@ -16,7 +16,12 @@ test("renderInlineMarkdown sanitizes image and link URLs with an allowlist", asy
   assert.match(renderer, /export function renderInlineMarkdown/);
   assert.match(renderer, /const safe = isSafeUrl\(imgUrl\)/);
   assert.match(renderer, /const safe = isSafeUrl\(linkUrl\)/);
-  assert.match(renderer, /href=\{safe \? linkUrl : "#"\}/);
+  // An unsafe link must produce no anchor at all. The previous `href="#"`
+  // fallback still rendered a clickable element that scrolled the reader to
+  // the top of a clinical article, so it is now forbidden outright.
+  assert.match(renderer, /safe \? \(\s*<a/);
+  assert.doesNotMatch(renderer, /href=\{safe \? linkUrl : "#"\}/);
+  assert.doesNotMatch(renderer, /href="#"/);
 
   const isSafeUrlMatch = renderer.match(/export function isSafeUrl\(url:\s*string\):\s*boolean\s*\{([\s\S]*?)\n\}/);
   assert.ok(isSafeUrlMatch, "isSafeUrl function must be exported");

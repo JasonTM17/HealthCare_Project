@@ -7,6 +7,7 @@ import {
   adminCreateFaq,
   adminCreatePackage,
   adminDeleteArticle,
+  adminReviewArticle,
   adminDeleteFaq,
   adminDeletePackage,
   adminListArticles,
@@ -138,22 +139,10 @@ const MEDICAL_ARTICLE_BLUEPRINTS: MedicalBlueprint[] = [
       preventionTips: current.preventionTips || "Dinh dưỡng lành mạnh, giảm muối, hạn chế đường tinh luyện\nVận động thể lực tối thiểu 30 phút mỗi ngày\nKhám sức khỏe tổng quát định kỳ 6 tháng một lần",
       whenToSeekCare: current.whenToSeekCare || "Đến ngay cơ sở y tế khi có dấu hiệu cảnh báo đỏ hoặc triệu chứng kéo dài trên 3 ngày.",
       sections: [
-        createSection(
-          "1. Tổng quan tình trạng & Cơ chế bệnh sinh",
-          "Mô tả định nghĩa y khoa, nguyên nhân khởi phát (di truyền, môi trường, lối sống) và các nhóm đối tượng có nguy cơ cao mắc bệnh.",
-        ),
-        createSection(
-          "2. Dấu hiệu nhận biết sớm & Triệu chứng điển hình",
-          "Phân tích cụ thể các biểu hiện cơ năng, dấu hiệu thực thể và các triệu chứng cảnh báo giai đoạn tiến triển.",
-        ),
-        createSection(
-          "3. Chẩn đoán cận lâm sàng & Phác đồ điều trị chuẩn",
-          "Các phương pháp xét nghiệm máu, chẩn đoán hình ảnh (X-quang, MRI, nội soi) và hướng dẫn điều trị nội - ngoại khoa.",
-        ),
-        createSection(
-          "4. Chăm sóc phục hồi & Phòng ngừa tái phát",
-          "Hướng dẫn chăm sóc người bệnh tại nhà, chế độ dinh dưỡng hỗ trợ hồi phục và lịch tái khám định kỳ theo khuyến cáo.",
-        ),
+        createSection("1. Tổng quan tình trạng & Cơ chế bệnh sinh"),
+        createSection("2. Dấu hiệu nhận biết sớm & Triệu chứng điển hình"),
+        createSection("3. Chẩn đoán cận lâm sàng & Phác đồ điều trị chuẩn"),
+        createSection("4. Chăm sóc phục hồi & Phòng ngừa tái phát"),
       ],
     }),
   },
@@ -172,18 +161,9 @@ const MEDICAL_ARTICLE_BLUEPRINTS: MedicalBlueprint[] = [
       preventionTips: current.preventionTips || "Tăng cường rau xanh đậm và trái cây ít ngọt\nUống từ 1.5 đến 2 lít nước lọc mỗi ngày\nHạn chế tối đa rượu bia, thuốc lá và thức ăn chế biến sẵn",
       whenToSeekCare: current.whenToSeekCare || "Tham vấn ý kiến bác sĩ chuyên khoa dinh dưỡng khi có bệnh lý mạn tính đi kèm.",
       sections: [
-        createSection(
-          "1. Vai trò của dinh dưỡng đối với sức khỏe & Phục hồi",
-          "Tác động sinh học của các nhóm chất (protein, carbohydrate tốt, chất béo lành mạnh, vitamin & khoáng chất) đối với cơ thể.",
-        ),
-        createSection(
-          "2. Nhóm thực phẩm khuyến nghị & Thực phẩm cần kiêng",
-          "Bảng danh mục chi tiết các thực phẩm nên bổ sung hàng ngày và các thực phẩm gây hại cần cắt giảm tối đa.",
-        ),
-        createSection(
-          "3. Thực đơn mẫu tham khảo & Lưu ý chế biến an toàn",
-          "Gợi ý thực đơn các bữa ăn trong tuần, kỹ thuật chế biến hấp/luộc để giữ trọn vi chất và cách đọc nhãn thực phẩm.",
-        ),
+        createSection("1. Vai trò của dinh dưỡng đối với sức khỏe & Phục hồi"),
+        createSection("2. Nhóm thực phẩm khuyến nghị & Thực phẩm cần kiêng"),
+        createSection("3. Thực đơn mẫu tham khảo & Lưu ý chế biến an toàn"),
       ],
     }),
   },
@@ -202,18 +182,9 @@ const MEDICAL_ARTICLE_BLUEPRINTS: MedicalBlueprint[] = [
       preventionTips: current.preventionTips || "Trang bị hộp sơ cấp cứu đạt chuẩn tại gia đình và nơi làm việc\nHọc và rèn luyện kỹ năng sơ cấp cứu, ép tim CPR cơ bản",
       whenToSeekCare: current.whenToSeekCare || "Mọi trường hợp tai nạn nặng hoặc chấn thương cột sống cần đưa ngay đến bệnh viện gần nhất sau khi cố định an toàn.",
       sections: [
-        createSection(
-          "1. Dấu hiệu nguy kịch cần gọi cấp cứu 115 ngay lập tức",
-          "Liệt kê các dấu hiệu sinh tồn bất thường, khó thở cấp, ngừng tuần hoàn, chấn thương sọ não cần can thiệp y tế khẩn cấp.",
-        ),
-        createSection(
-          "2. Quy trình các bước sơ cứu an toàn tại chỗ",
-          "Hướng dẫn cụ thể theo nguyên tắc DRABC (Danger - Response - Airway - Breathing - Circulation), cách đặt tư thế hồi sức an toàn.",
-        ),
-        createSection(
-          "3. Những sai lầm tai hại tuyệt đối không được làm",
-          "Cảnh báo các biện pháp sơ cứu dân gian sai lệch (nhỏ chanh, cạo gió khi đột quỵ, garo sai cách) gây nguy hiểm cho tính mạng nạn nhân.",
-        ),
+        createSection("1. Dấu hiệu nguy kịch cần gọi cấp cứu 115 ngay lập tức"),
+        createSection("2. Quy trình các bước sơ cứu an toàn tại chỗ"),
+        createSection("3. Những sai lầm tai hại tuyệt đối không được làm"),
       ],
     }),
   },
@@ -458,7 +429,12 @@ export default function AdminCatalogPage() {
   });
 
   const persistFaqOrder = async (newFaqs: Faq[], oldIdx: number, newIdx: number) => {
-    if (reorderInFlightRef.current) return;
+    if (reorderInFlightRef.current) {
+      // A silent drop read as a broken drag: the row snapped back with no
+      // explanation. Say why the second reorder waits.
+      addToast({ tone: "info", title: "Đang lưu thứ tự trước đó", message: "Vui lòng đợi lưu xong rồi kéo tiếp." });
+      return;
+    }
     reorderInFlightRef.current = true;
     loadGenerationRef.current += 1;
     reorderEpochRef.current += 1;
@@ -483,7 +459,10 @@ export default function AdminCatalogPage() {
   };
 
   const persistPackageOrder = async (newPackages: HealthPackage[], oldIdx: number, newIdx: number) => {
-    if (reorderInFlightRef.current) return;
+    if (reorderInFlightRef.current) {
+      addToast({ tone: "info", title: "Đang lưu thứ tự trước đó", message: "Vui lòng đợi lưu xong rồi kéo tiếp." });
+      return;
+    }
     reorderInFlightRef.current = true;
     loadGenerationRef.current += 1;
     reorderEpochRef.current += 1;
@@ -555,6 +534,28 @@ export default function AdminCatalogPage() {
     broadcast?: { kind: "package" | "faq" | "article"; slug?: string };
   };
   const [pendingRemoval, setPendingRemoval] = useState<PendingRemoval | null>(null);
+
+  type PendingReview = { slug: string; title: string; decision: "APPROVED" | "REJECTED" };
+  const [pendingReview, setPendingReview] = useState<PendingReview | null>(null);
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+
+  const confirmReview = async (values: Record<string, string>) => {
+    const current = pendingReview;
+    if (!current || reviewSubmitting) return;
+    setReviewSubmitting(true);
+    setReviewError(null);
+    try {
+      await adminReviewArticle(current.slug, current.decision, values.reason);
+      setPendingReview(null);
+      await run(() => Promise.resolve(), current.decision === "APPROVED" ? "Đã duyệt bài viết" : "Đã từ chối bài viết");
+      broadcastCatalogChange({ kind: "article", action: "updated", slug: current.slug });
+    } catch (error) {
+      setReviewError(describeAdminError(error).description);
+    } finally {
+      setReviewSubmitting(false);
+    }
+  };
 
   const load = useCallback(async () => {
     const generation = ++loadGenerationRef.current;
@@ -854,9 +855,8 @@ export default function AdminCatalogPage() {
       return;
     }
 
-    const sections = articleForm.sections
-      .map((section) => ({ heading: section.heading.trim(), body: section.body.trim() }))
-      .filter((section) => section.heading && section.body);
+    // Sections are server-derived from the body on every write (the backend is
+    // the single source of truth), so a stale client-side array is never sent.
     const payload: AdminArticlePayload = {
       title: articleForm.title.trim(),
       slug: finalSlug,
@@ -873,7 +873,7 @@ export default function AdminCatalogPage() {
       tags: listFieldTo(articleForm.tags),
       scheduledPublishAt: scheduledDateToIso(articleForm.scheduledPublishAt),
       version: articleForm.version ?? undefined,
-      sections,
+      sections: null,
       contentLanguage: articleForm.contentLanguage.trim() || null,
       audience: articleForm.audience.trim() || null,
       topicTags: listFieldTo(articleForm.topicTags),
@@ -1400,6 +1400,9 @@ export default function AdminCatalogPage() {
                   <div>
                     <h3 className="text-sm font-bold text-slate-900">Cấu trúc các Section bài viết ({articleForm.sections.length})</h3>
                     <p className="text-xs text-slate-500">Kéo biểu tượng ⠿ hoặc dùng nút ▲ ▼ để sắp xếp thứ tự logic bài viết</p>
+                    <p className="text-xs text-slate-500">
+                      Nội dung bạn điền cho từng mục bên dưới sẽ là dàn ý người đọc nhìn thấy. Khung tiêu đề có sẵn chỉ để gợi ý; chỉ khi không mục nào có nội dung, dàn ý mới được tách tự động từ bài viết.
+                    </p>
                   </div>
                   <button
                     className={secondaryButtonClass}
@@ -1688,8 +1691,18 @@ export default function AdminCatalogPage() {
                 })
                 .map((item) => {
                 const active = item.active ?? Boolean(item.publishedAt);
+                const isDoctorSubmission = Boolean(item.authorDoctorId);
+                const reviewStatus = item.reviewStatus ?? "APPROVED";
+                const reviewChip = !isDoctorSubmission
+                  ? null
+                  : reviewStatus === "PENDING"
+                    ? { label: "Chờ duyệt", className: "bg-amber-100 text-amber-800" }
+                    : reviewStatus === "REJECTED"
+                      ? { label: "Đã từ chối", className: "bg-red-100 text-red-800" }
+                      : { label: "Đã duyệt", className: "bg-emerald-100 text-emerald-800" };
                 const metaChips = [
                   articleKindLabel(item.contentKind),
+                  isDoctorSubmission ? "Tác giả: Bác sĩ" : null,
                   item.category,
                   item.authorName,
                   item.relatedSpecialtySlug ? `Chuyên khoa: ${item.relatedSpecialtySlug}` : null,
@@ -1711,7 +1724,12 @@ export default function AdminCatalogPage() {
                         <strong className="block break-words">{item.title}</strong>
                         <p className="mt-1 text-xs text-slate-600">{item.slug}</p>
                       </div>
-                      <StatusBadge active={active} />
+                      <div className="flex flex-wrap items-center gap-2">
+                        {reviewChip ? (
+                          <span className={`rounded-[4px] px-2 py-1 text-xs font-bold ${reviewChip.className}`}>{reviewChip.label}</span>
+                        ) : null}
+                        <StatusBadge active={active} />
+                      </div>
                     </div>
                     <p className="mt-2 text-sm text-slate-700 line-clamp-2">{item.summary?.trim() || "Chưa có tóm tắt."}</p>
                     <div className="mt-2 flex flex-wrap gap-2">
@@ -1731,6 +1749,14 @@ export default function AdminCatalogPage() {
                       <p>Clinical metadata: {metadataCount}</p>
                     </div>
                     {!active ? <p className="mt-2 text-xs font-semibold text-amber-700">Chưa xuất bản</p> : null}
+                    {isDoctorSubmission && reviewStatus !== "APPROVED" ? (
+                      <p className="mt-2 text-xs font-semibold text-amber-700">
+                        Bài đang chờ duyệt — chưa hiện trên trang công khai.
+                      </p>
+                    ) : null}
+                    {isDoctorSubmission && item.reviewReason ? (
+                      <p className="mt-2 text-xs text-slate-600">Lý do duyệt gần nhất: {item.reviewReason}</p>
+                    ) : null}
                     <button
                       aria-label={`Sửa ${item.title}`}
                       className="mr-3 text-teal-800 underline"
@@ -1743,6 +1769,36 @@ export default function AdminCatalogPage() {
                     >
                       Sửa
                     </button>
+                    {isDoctorSubmission && reviewStatus !== "APPROVED" ? (
+                      <button
+                        aria-label={`Duyệt ${item.title}`}
+                        className="mr-3 text-emerald-700 underline"
+                        disabled={busy}
+                        onClick={() => setPendingReview({
+                          slug: item.slug,
+                          title: item.title,
+                          decision: "APPROVED",
+                        })}
+                        type="button"
+                      >
+                        Duyệt bài
+                      </button>
+                    ) : null}
+                    {isDoctorSubmission && reviewStatus === "PENDING" ? (
+                      <button
+                        aria-label={`Từ chối ${item.title}`}
+                        className="mr-3 text-red-700 underline"
+                        disabled={busy}
+                        onClick={() => setPendingReview({
+                          slug: item.slug,
+                          title: item.title,
+                          decision: "REJECTED",
+                        })}
+                        type="button"
+                      >
+                        Từ chối
+                      </button>
+                    ) : null}
                     <button
                       aria-label={`Xóa ${item.title}`}
                       className="text-red-700 underline"
@@ -1783,6 +1839,38 @@ export default function AdminCatalogPage() {
         summaryItems={pendingRemoval?.detail ?? []}
         summaryLabel="Bản ghi sẽ bị xóa vĩnh viễn"
         title={pendingRemoval ? `Xóa ${pendingRemoval.label}?` : "Xóa bản ghi này?"}
+      />
+
+      <ConfirmActionDialog
+        confirmLabel={pendingReview?.decision === "APPROVED" ? "Duyệt bài" : "Từ chối bài"}
+        confirmingLabel="Đang ghi quyết định…"
+        description={
+          pendingReview?.decision === "APPROVED"
+            ? "Bài viết sẽ hiển thị trên chuyên trang công khai với nhãn tham vấn y khoa."
+            : "Bài viết sẽ bị gỡ khỏi trang công khai nhưng tác giả vẫn thấy được quyết định và lý do."
+        }
+        destructive={pendingReview?.decision === "REJECTED"}
+        entity={pendingReview}
+        error={reviewError}
+        fields={[
+          {
+            name: "reason",
+            label: pendingReview?.decision === "APPROVED" ? "Ghi chú duyệt (không bắt buộc)" : "Lý do từ chối (bác sĩ sẽ thấy)",
+            maxLength: 500,
+            multiline: true,
+            placeholder: pendingReview?.decision === "APPROVED" ? "Ví dụ: nội dung chuẩn y khoa, đã kiểm chứng nguồn" : "Ví dụ: cần bổ sung nguồn tham khảo theo hướng dẫn của Bộ Y tế",
+          },
+        ]}
+        onCancel={() => { if (!reviewSubmitting) setPendingReview(null); }}
+        onConfirm={(values) => void confirmReview(values)}
+        open={pendingReview !== null}
+        pending={reviewSubmitting}
+        summaryItems={[
+          { label: "Tiêu đề", value: pendingReview?.title ?? "" },
+          { label: "Slug", value: pendingReview?.slug ?? "", mono: true },
+          { label: "Quyết định", value: pendingReview?.decision === "APPROVED" ? "Duyệt (APPROVED)" : "Từ chối (REJECTED)" },
+        ]}
+        title={pendingReview?.decision === "APPROVED" ? "Duyệt bài của bác sĩ?" : "Từ chối bài của bác sĩ?"}
       />
 
       {/* Enterprise Toast Notifications */}

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   adminListAppointments,
   adminListArticles,
@@ -64,7 +64,7 @@ function SnapshotCard({
   }
 
   if (snapshot.status === "error") {
-    value = "!";
+    value = "—";
     note = snapshot.description;
   }
 
@@ -84,8 +84,11 @@ function SnapshotCard({
 
 export default function AdminDashboard() {
   const [snapshots, setSnapshots] = useState<SnapshotMap>(INITIAL_SNAPSHOTS);
+  const loadRun = useRef(0);
 
   const load = useCallback(async () => {
+    const runId = loadRun.current + 1;
+    loadRun.current = runId;
     setSnapshots(INITIAL_SNAPSHOTS);
     const results = await Promise.allSettled([
       adminListDoctors(0, 1),
@@ -103,6 +106,7 @@ export default function AdminDashboard() {
       return { status: "error", description: describeAdminError(result.reason).description };
     };
 
+    if (loadRun.current !== runId) return;
     setSnapshots({
       doctors: toSnapshot(results[0]),
       specialties: toSnapshot(results[1]),
@@ -138,7 +142,7 @@ export default function AdminDashboard() {
           <div>
             <h2 className="text-xl font-bold text-slate-900" id="catalog-summary-title">Dữ liệu hiện tại</h2>
           </div>
-          <button className="w-fit text-sm font-bold text-teal-800 underline underline-offset-4" onClick={() => void load()} type="button">
+          <button className="w-fit text-sm font-bold text-teal-800 underline underline-offset-4 disabled:text-slate-400 disabled:no-underline" disabled={loading} onClick={() => void load()} type="button">
             Làm mới
           </button>
         </div>

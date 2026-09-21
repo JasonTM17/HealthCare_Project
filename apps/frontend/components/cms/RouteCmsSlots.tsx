@@ -13,9 +13,10 @@ const PUBLIC_CMS_ROUTES: ReadonlySet<string> = new Set(CMS_PUBLIC_ROUTE_SLUGS);
 /**
  * Places typed CMS regions inside the public route frame rather than appending
  * a generic block after the page. The native route composition remains
- * authoritative, including its page heading. The homepage and careers page own
- * their custom hero/body placements; the shared Footer owns every route's
- * footer slot. Missing slots disappear without inventing page content.
+ * authoritative, including its page heading. The homepage, careers page, and
+ * About page own their custom hero/body placements; the shared Footer owns
+ * every route's footer slot. Missing slots disappear without inventing page
+ * content.
  */
 export function routeCmsSlug(pathname: string): string | null {
   const segments = pathname.split("/").filter(Boolean);
@@ -31,7 +32,8 @@ export function routeCmsSlug(pathname: string): string | null {
 export function RouteCmsSlots({ children }: { children: ReactNode }): ReactElement {
   const pathname = usePathname();
   const slug = routeCmsSlug(pathname);
-  // Careers owns its hero/body composition. About also preserves its native layout.
+  // Careers owns its hero/body composition, and About does the same from
+  // app/about/page.tsx, so the generic frame below would double-render them.
   // Their footer is still mounted by the shared Footer, so the standard frame preserves their native layout.
   if (!slug || slug === "careers" || slug === "about") return <>{children}</>;
 

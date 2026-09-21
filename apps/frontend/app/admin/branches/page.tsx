@@ -225,11 +225,11 @@ export default function AdminBranchesPage() {
                   <caption className="sr-only">Cơ sở trong admin catalog</caption>
                   <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                     <tr>
-                      <th className="px-4 py-3">Tên</th>
-                      <th className="px-4 py-3">Địa chỉ</th>
-                      <th className="px-4 py-3">Điện thoại</th>
-                      <th className="px-4 py-3">Trạng thái</th>
-                      <th className="px-4 py-3 text-right">Thao tác</th>
+                      <th scope="col" className="px-4 py-3">Tên</th>
+                      <th scope="col" className="px-4 py-3">Địa chỉ</th>
+                      <th scope="col" className="px-4 py-3">Điện thoại</th>
+                      <th scope="col" className="px-4 py-3">Trạng thái</th>
+                      <th scope="col" className="px-4 py-3 text-right">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody>
