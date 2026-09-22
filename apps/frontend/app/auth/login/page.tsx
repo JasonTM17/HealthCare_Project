@@ -57,10 +57,9 @@ const DEMO_ROLES: readonly DemoRoleInfo[] = [
 const SHOW_DEMO_ACCOUNTS = process.env.NEXT_PUBLIC_ENABLE_DEMO_LOGIN === "true";
 
 export default function LoginPage() {
-  // The login form is interactive only after hydration. Until then the SSR
-  // markup must keep the submit disabled: an enabled button lets a pre-JS
-  // click fire a native GET submit, which used to leak the password into the
-  // URL bar and left the user stranded on a reloaded login page.
+  // The form renders client-side only. The SSR markup for an interactive form
+  // let a pre-hydration click fire a native GET submit, which sent the
+  // password to the URL bar and reloaded a broken login page.
   const [hydrated, setHydrated] = useState(false);
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
   const [email, setEmail] = useState("");
@@ -160,6 +159,23 @@ export default function LoginPage() {
     }
   };
 
+  // The form only renders once React owns the page. The SSR markup for an
+  // interactive form let a pre-hydration click fire a native GET submit,
+  // which sent the password to the URL bar and reloaded a broken login page.
+  if (!hydrated) {
+    return (
+      <main className={`auth-page ${styles.page}`} aria-busy="true">
+        <div className={styles.layout}>
+          <div className={styles.welcome} aria-hidden="true" />
+          <section aria-labelledby="login-title" className={`auth-card ${styles.card}`}>
+            <h1 id="login-title">Đang tải trang đăng nhập…</h1>
+            <p className="auth-card__intro">Vui lòng đợi trong giây lát.</p>
+          </section>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className={`auth-page ${styles.page}`}>
       <a className="skip-link" href="#login-title">Bỏ qua điều hướng</a>
@@ -254,7 +270,7 @@ export default function LoginPage() {
             </div>
             {fieldErrors.password ? <small className="auth-form__field-error" id="login-password-error">{fieldErrors.password}</small> : null}
           </div>
-          <button aria-label="Đăng nhập vào tài khoản HealthCare" className={`${styles.submit} button button--primary auth-form__submit`} disabled={submitting || !hydrated} type="submit">
+          <button className={`${styles.submit} button button--primary auth-form__submit`} disabled={submitting} type="submit">
             {submitting
               ? (slowWakeup
                   ? "Đang kết nối (máy chủ đang khởi động lại)..."
