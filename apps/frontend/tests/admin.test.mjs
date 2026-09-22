@@ -67,7 +67,9 @@ test("dashboard uses live catalog snapshots instead of invented metrics", async 
   assert.doesNotMatch(page, /endpoint công khai/);
   assert.match(page, /Promise\.allSettled/);
   assert.match(page, /Chưa có bản ghi/);
-  assert.match(page, /Bản ghi đang quản lý/);
+  // The caption was removed deliberately: a silent card reads cleaner than a
+  // note repeated under every number, so the source must not re-add it.
+  assert.doesNotMatch(page, /Bản ghi đang quản lý/);
   assert.match(page, /UiIcon/);
   assert.doesNotMatch(page, />500</);
   assert.doesNotMatch(page, />30</);
