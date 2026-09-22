@@ -3,6 +3,9 @@
 - `care-team.webp`: Medical team artwork; project asset.
 - `about-introduction.mp4`: [Woman Getting Medical Consultation](https://www.pexels.com/video/woman-getting-medical-consultation-4486776/) by Cedric Fauntleroy, Pexels.
 - `about-care-poster.jpg`: HealthCare clinical doctor team photography; project asset.
+- `doctor-family-consult-v2.jpg`: HealthCare Vietnamese doctor family consultation photography; project asset.
+- `pediatric-care.jpg`: HealthCare pediatric clinic consultation and examination; project asset.
+- `cardiology-clinic.jpg`: HealthCare cardiology clinic and ECG consultation; project asset.
 - `hospital-team-landscape.jpg`: HealthCare clinical doctor team photography; project asset.
 - `hospital-team-portrait.jpg`: HealthCare clinical doctor team photography; project asset.
 - `patient-male-avatar.jpg`: HealthCare patient male portrait photography; project asset.
