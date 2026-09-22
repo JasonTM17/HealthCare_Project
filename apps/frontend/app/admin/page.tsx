@@ -60,7 +60,9 @@ function SnapshotCard({
 
   if (snapshot.status === "success") {
     value = snapshot.count.toLocaleString("vi-VN");
-    note = successNote ?? (snapshot.count === 0 ? "Chưa có bản ghi" : "Bản ghi đang quản lý");
+    // Only annotate the exceptional case: a silent card reads cleaner than a
+    // caption repeated under every number.
+    note = successNote ?? (snapshot.count === 0 ? "Chưa có bản ghi" : "");
   }
 
   if (snapshot.status === "error") {
