@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import BrandMark from "../../../components/BrandMark";
 import Icon from "../../../components/UiIcon";
 import styles from "./login.module.css";
@@ -57,6 +57,11 @@ const DEMO_ROLES: readonly DemoRoleInfo[] = [
 const SHOW_DEMO_ACCOUNTS = process.env.NEXT_PUBLIC_ENABLE_DEMO_LOGIN === "true";
 
 export default function LoginPage() {
+  // The login form is interactive only after hydration. Until then the SSR
+  // markup must keep the submit disabled: an enabled button lets a pre-JS
+  // click fire a native GET submit, which used to leak the password into the
+  // URL bar and left the user stranded on a reloaded login page.
+  const [hydrated, setHydrated] = useState(false);
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -66,6 +71,10 @@ export default function LoginPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({});
   const [verificationEmail, setVerificationEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   const selectedRoleInfo = DEMO_ROLES.find((item) => item.role === selectedRole);
 
@@ -245,7 +254,7 @@ export default function LoginPage() {
             </div>
             {fieldErrors.password ? <small className="auth-form__field-error" id="login-password-error">{fieldErrors.password}</small> : null}
           </div>
-          <button className={`${styles.submit} button button--primary auth-form__submit`} disabled={submitting} type="submit">
+          <button aria-label="Đăng nhập vào tài khoản HealthCare" className={`${styles.submit} button button--primary auth-form__submit`} disabled={submitting || !hydrated} type="submit">
             {submitting
               ? (slowWakeup
                   ? "Đang kết nối (máy chủ đang khởi động lại)..."
