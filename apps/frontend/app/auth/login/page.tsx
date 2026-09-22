@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import BrandMark from "../../../components/BrandMark";
 import Icon from "../../../components/UiIcon";
@@ -58,7 +57,6 @@ const DEMO_ROLES: readonly DemoRoleInfo[] = [
 const SHOW_DEMO_ACCOUNTS = process.env.NEXT_PUBLIC_ENABLE_DEMO_LOGIN === "true";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -133,7 +131,11 @@ export default function LoginPage() {
                 : hasRole(session.user, "ADMIN")
                   ? "/admin"
                   : "/";
-      router.replace(target);
+      // Hard navigation on purpose: the session cookie was just set by the
+      // server, and a client-side replace occasionally raced the hydration and
+      // left the user stranded on the login form even though /users/me already
+      // returned their profile. A full reload re-reads the cookie reliably.
+      window.location.assign(target);
     } catch (error) {
       setFieldErrors(authFieldErrors(error));
       if (error instanceof ApiError && error.code === "EMAIL_VERIFICATION_REQUIRED") {
