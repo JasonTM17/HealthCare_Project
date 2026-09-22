@@ -604,19 +604,15 @@ export default function AdminCatalogPage() {
     try {
       await action();
       const refreshed = await load();
-      const desc = refreshed
-        ? "Danh sách đã được cập nhật để phản ánh trạng thái mới nhất."
-        : "Thay đổi đã được lưu nhưng danh sách chưa thể làm mới. Vui lòng thử lại.";
-      setFeedback({
-        tone: "success",
-        title: success,
-        description: desc,
-      });
-      addToast({
-        tone: "success",
-        title: success,
-        message: desc,
-      });
+      if (!refreshed) {
+        setFeedback({
+          tone: "error",
+          title: success,
+          description: "Thay đổi đã được lưu nhưng danh sách chưa thể làm mới. Vui lòng thử lại.",
+        });
+      }
+      // Success is self-evident from the refreshed list: no repeated inline
+      // note and no toast on top of it.
       return true;
     } catch (error) {
       const copy = describeAdminError(error);

@@ -395,11 +395,8 @@ function AdminShell({ children, displayName }: { children: ReactNode; displayNam
 
       <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8" id="main-content" tabIndex={-1}>
         <div className="mx-auto max-w-7xl">
-          <div className="mb-6 flex items-start justify-between gap-4 border-b border-teal-200 bg-teal-50 px-4 py-3 text-sm leading-6 text-teal-950">
-            <p className="admin-scope-note">
-              <strong>Phạm vi quản trị:</strong> nội dung công khai, lịch làm việc và dữ liệu vận hành chỉ hiển thị theo quyền của tài khoản hiện tại.
-            </p>
-            <div className="shrink-0 pt-1">
+          <div className="mb-6 flex items-start justify-end gap-4">
+            <div className="shrink-0">
               <AdminNotificationBell />
             </div>
           </div>
