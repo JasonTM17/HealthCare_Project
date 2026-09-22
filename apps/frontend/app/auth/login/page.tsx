@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, useSyncExternalStore, type FormEvent } from "react";
 import BrandMark from "../../../components/BrandMark";
 import Icon from "../../../components/UiIcon";
 import styles from "./login.module.css";
@@ -56,11 +56,20 @@ const DEMO_ROLES: readonly DemoRoleInfo[] = [
 // opt-in via build-time env so hosted builds default to a plain login form.
 const SHOW_DEMO_ACCOUNTS = process.env.NEXT_PUBLIC_ENABLE_DEMO_LOGIN === "true";
 
+const noopSubscribe = () => () => {};
+function useHydrated(): boolean {
+  // Server snapshot renders the shell; after hydration the client snapshot
+  // turns on the interactive form. This detects hydration without a
+  // setState-in-effect (which the React hooks lint forbids) and, more
+  // importantly, without ever rendering the live form in SSR markup.
+  return useSyncExternalStore(noopSubscribe, () => true, () => false);
+}
+
 export default function LoginPage() {
   // The form renders client-side only. The SSR markup for an interactive form
   // let a pre-hydration click fire a native GET submit, which sent the
   // password to the URL bar and reloaded a broken login page.
-  const [hydrated, setHydrated] = useState(false);
+  const hydrated = useHydrated();
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -70,10 +79,6 @@ export default function LoginPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({});
   const [verificationEmail, setVerificationEmail] = useState<string | null>(null);
-
-  useEffect(() => {
-    setHydrated(true);
-  }, []);
 
   const selectedRoleInfo = DEMO_ROLES.find((item) => item.role === selectedRole);
 

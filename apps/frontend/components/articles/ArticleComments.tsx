@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent, type ReactElement } from "react";
 import UiIcon from "../UiIcon";
 import { useAuthSession } from "../useAuthSession";
 import {
@@ -151,6 +151,86 @@ export function ArticleComments({ slug, category }: ArticleCommentsProps) {
     }
     return acc;
   }, {});
+
+  // Shared reply-thread renderer so replies stay visible under any root —
+  // including a soft-deleted root rendered as a tombstone anchor. It recurses
+  // through repliesByParent because the API accepts reply-to-reply nesting:
+  // a surviving reply under a deleted reply must still render.
+  const renderReplyThread = (thread: ArticleComment[]): ReactElement => (
+    <div className="ml-10 mt-4 space-y-3 border-l-2 border-teal-600 pl-4">
+      <div className="text-[11px] font-bold text-teal-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+        <span>🩺 Luồng phản hồi &amp; giải đáp ({thread.length})</span>
+      </div>
+      {thread.map((reply) => {
+        const childReplies = repliesByParent[reply.id] ?? [];
+        const nested = childReplies.length > 0 ? renderReplyThread(childReplies) : null;
+        const isDoctorReply = reply.authorRole === "DOCTOR";
+        const isAdminReply = reply.authorRole === "ADMIN";
+
+        if (reply.active === false) {
+          return (
+            <div className="p-4 rounded-[4px] border border-dashed border-slate-300 bg-slate-50/70" key={reply.id}>
+              <p className="text-xs text-slate-500 italic m-0">[Bình luận đã xóa]</p>
+              {nested}
+            </div>
+          );
+        }
+
+        return (
+          <div
+            key={reply.id}
+            className={`p-4 rounded-[4px] border ${
+              isDoctorReply
+                ? "bg-teal-50/70 border-teal-300 border-l-4 border-l-teal-700"
+                : isAdminReply
+                ? "bg-indigo-50/70 border-indigo-300 border-l-4 border-l-indigo-700"
+                : "bg-slate-50 border-slate-200"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+              <div className="flex items-center gap-2.5">
+                <div
+                  className={`w-7 h-7 rounded-[4px] flex items-center justify-center text-xs font-bold shrink-0 border ${
+                    isDoctorReply
+                      ? "bg-teal-800 text-white border-teal-900"
+                      : isAdminReply
+                      ? "bg-indigo-700 text-white border-indigo-800"
+                      : "bg-slate-200 text-slate-700 border-slate-300"
+                  }`}
+                >
+                  {isDoctorReply ? "BS" : isAdminReply ? "AD" : reply.authorName.slice(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-slate-900 block">
+                    {reply.authorName}
+                  </span>
+                  <span className="text-[10px] text-slate-500">
+                    {formatBusinessDate(reply.createdAt)}
+                  </span>
+                </div>
+              </div>
+
+              {isDoctorReply ? (
+                <DoctorVerifiedBadge category={category} authorName={reply.authorName} />
+              ) : isAdminReply ? (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-[4px] bg-indigo-100 border border-indigo-300 text-[10px] font-bold text-indigo-900">
+                  🛡️ Ban Biên Tập
+                </span>
+              ) : (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] bg-slate-200 text-[10px] font-medium text-slate-700">
+                  Thành viên phản hồi
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap m-0 pl-10">
+              {reply.content}
+            </p>
+            {nested}
+          </div>
+        );
+      })}
+    </div>
+  );
 
   return (
     <section id="article-comments" aria-labelledby="article-comments-heading" className="article-news-section article-comments-section mt-10 pt-8 border-t border-slate-200">
@@ -306,7 +386,8 @@ export function ArticleComments({ slug, category }: ArticleCommentsProps) {
 
             // A soft-deleted root keeps its slot as a thread anchor so replies
             // stay reachable; it renders as a bare tombstone with no author or
-            // interaction affordances.
+            // interaction affordances, and the surviving reply thread stays
+            // fully readable beneath it.
             if (comment.active === false) {
               return (
                 <article className="p-5 rounded-[4px] border border-dashed border-slate-300 bg-slate-50/70" key={comment.id}>
@@ -314,9 +395,9 @@ export function ArticleComments({ slug, category }: ArticleCommentsProps) {
                     [Bình luận đã xóa]
                   </p>
                   {replies.length > 0 ? (
-                    <p className="mt-1 text-[11px] text-slate-400 m-0">
-                      {replies.length} phản hồi được giữ lại trong luồng này.
-                    </p>
+                    <div className="mt-3">
+                      {renderReplyThread(replies)}
+                    </div>
                   ) : null}
                 </article>
               );
@@ -474,77 +555,7 @@ export function ArticleComments({ slug, category }: ArticleCommentsProps) {
                 )}
 
                 {/* Nested Replies with Vertical Hierarchy Guide Line */}
-                {replies.length > 0 && (
-                  <div className="ml-10 mt-4 space-y-3 border-l-2 border-teal-600 pl-4">
-                    <div className="text-[11px] font-bold text-teal-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                      <span>🩺 Luồng phản hồi &amp; giải đáp ({replies.length})</span>
-                    </div>
-                    {replies.map((reply) => {
-                      const isDoctorReply = reply.authorRole === "DOCTOR";
-                      const isAdminReply = reply.authorRole === "ADMIN";
-
-                      if (reply.active === false) {
-                        return (
-                          <div className="p-4 rounded-[4px] border border-dashed border-slate-300 bg-slate-50/70" key={reply.id}>
-                            <p className="text-xs text-slate-500 italic m-0">[Bình luận đã xóa]</p>
-                          </div>
-                        );
-                      }
-
-                      return (
-                        <div
-                          key={reply.id}
-                          className={`p-4 rounded-[4px] border ${
-                            isDoctorReply
-                              ? "bg-teal-50/70 border-teal-300 border-l-4 border-l-teal-700"
-                              : isAdminReply
-                              ? "bg-indigo-50/70 border-indigo-300 border-l-4 border-l-indigo-700"
-                              : "bg-slate-50 border-slate-200"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-                            <div className="flex items-center gap-2.5">
-                              <div
-                                className={`w-7 h-7 rounded-[4px] flex items-center justify-center text-xs font-bold shrink-0 border ${
-                                  isDoctorReply
-                                    ? "bg-teal-800 text-white border-teal-900"
-                                    : isAdminReply
-                                    ? "bg-indigo-700 text-white border-indigo-800"
-                                    : "bg-slate-200 text-slate-700 border-slate-300"
-                                }`}
-                              >
-                                {isDoctorReply ? "BS" : isAdminReply ? "AD" : reply.authorName.slice(0, 2).toUpperCase()}
-                              </div>
-                              <div>
-                                <span className="text-xs font-bold text-slate-900 block">
-                                  {reply.authorName}
-                                </span>
-                                <span className="text-[10px] text-slate-500">
-                                  {formatBusinessDate(reply.createdAt)}
-                                </span>
-                              </div>
-                            </div>
-
-                            {isDoctorReply ? (
-                              <DoctorVerifiedBadge category={category} authorName={reply.authorName} />
-                            ) : isAdminReply ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-[4px] bg-indigo-100 border border-indigo-300 text-[10px] font-bold text-indigo-900">
-                                🛡️ Ban Biên Tập
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] bg-slate-200 text-[10px] font-medium text-slate-700">
-                                Thành viên phản hồi
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap m-0 pl-10">
-                            {reply.content}
-                          </p>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                {replies.length > 0 ? renderReplyThread(replies) : null}
               </article>
             );
           })}
