@@ -40,6 +40,19 @@ if (-not $env:EMBEDDING_PROVIDER) { $env:EMBEDDING_PROVIDER = 'local' }
 # explicitly enabled; without it the chatbot degrades to canned answers.
 $env:AI_PUBLIC_HOSPITAL_SUPPORT_REMOTE_ENABLED = 'true'
 
+# The patient-chat remote path additionally sits behind an operator release
+# hold. Forward the opt-in flags only when the operator (or .env) provides
+# them; leaving them unset keeps the hold closed.
+foreach ($optInName in @('REMOTE_AI_RELEASE_HOLD', 'AI_PATIENT_CHAT_REMOTE_ENABLED')) {
+    $optInValue = Resolve-Secret $optInName
+    if ($optInValue) {
+        Set-Item -Path "Env:$optInName" -Value $optInValue
+        Write-Output ("{0} forwarded: yes (len {1})" -f $optInName, $optInValue.Length)
+    } else {
+        Write-Output ("{0} forwarded: no (patient-chat remote stays held)" -f $optInName)
+    }
+}
+
 if (-not (Resolve-Secret 'DEEPSEEK_API_KEY')) {
     Write-Error 'DEEPSEEK_API_KEY not found in user store or .env; DeepSeek chat cannot start'
     exit 1
