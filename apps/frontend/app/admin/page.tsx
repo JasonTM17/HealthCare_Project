@@ -79,7 +79,9 @@ function SnapshotCard({
       <p className={`mt-4 text-3xl font-bold ${snapshot.status === "error" ? "text-red-700" : "text-teal-800"}`}>
         {value}
       </p>
-      <p className="mt-2 text-xs leading-5 text-slate-500">{note}</p>
+      {note ? (
+        <p className="mt-2 text-xs leading-5 text-slate-500">{note}</p>
+      ) : null}
     </Link>
   );
 }
