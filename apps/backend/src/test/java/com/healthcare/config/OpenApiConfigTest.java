@@ -21,6 +21,15 @@ class OpenApiConfigTest {
         assertThat(openAPI.getInfo().getTitle()).contains("HealthCare");
         assertThat(openAPI.getInfo().getVersion()).isEqualTo("1.0.0");
 
+        // Verify configured server URLs
+        List<String> serverUrls = openAPI.getServers().stream().map(io.swagger.v3.oas.models.servers.Server::getUrl).toList();
+        assertThat(serverUrls).contains(
+            "/",
+            "https://healthcare-beta-backend-4wb7.onrender.com",
+            "https://www.healthcare.id.vn/api/v1",
+            "http://localhost:8080"
+        );
+
         // Verify all 14 tags are present
         List<String> tagNames = openAPI.getTags().stream().map(Tag::getName).toList();
         assertThat(tagNames).contains(

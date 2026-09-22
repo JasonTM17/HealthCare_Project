@@ -44,7 +44,7 @@ public class OpenApiConfig {
             )
             .servers(List.of(
                 new Server().url("/").description("Current Environment Origin (Same-origin / Reverse Proxy)"),
-                new Server().url("https://healthcare-project-iwh7.onrender.com").description("Production Render Backend"),
+                new Server().url("https://healthcare-beta-backend-4wb7.onrender.com").description("Production Render Backend"),
                 new Server().url("https://www.healthcare.id.vn/api/v1").description("Production BFF Gateway"),
                 new Server().url("http://localhost:8080").description("Local Development Backend")
             ))
