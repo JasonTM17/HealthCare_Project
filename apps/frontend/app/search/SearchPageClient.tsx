@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactElement } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactElement } from "react";
 import { PublicAiButton, PublicBookingButton, PublicPageShell } from "../../components/PublicPageShell";
 import PackageBookingModal from "../../components/PackageBookingModal";
 import Icon from "../../components/UiIcon";
@@ -102,6 +102,29 @@ function validateCatalogPage<T>(page: CatalogPage<T>): CatalogPage<T> {
   }
   return page;
 }
+
+// One group's bounded catalog fetch, extracted so the initial load and a
+// per-group "Thử lại" retry run the exact same request pipeline. The result is
+// the catalog-row union; the caller stores it into the computed key slot.
+function loadCatalogGroup(group: SearchGroupKey): Promise<BoundedCatalog<SearchCatalog[SearchGroupKey]>> {
+  switch (group) {
+    case "specialties":
+      return fetchBoundedContent((page, size) => fetchSpecialties(page, size));
+    case "doctors":
+      return fetchBoundedContent((page, size) => fetchDoctors({ page, size })).then((response) => ({
+        ...response,
+        content: dedupePublicDoctors(response.content),
+      }));
+    case "services":
+      return fetchBoundedContent((page, size) => fetchServices(page, size));
+    case "packages":
+      return fetchBoundedContent((page, size) => fetchPackages(page, size));
+    case "articles":
+      return fetchBoundedContent((page, size) => fetchArticles(page, size));
+  }
+}
+
+const SEARCH_GROUP_KEYS = Object.keys(INITIAL_SEARCH_GROUP_STATUS) as SearchGroupKey[];
 
 const SEARCH_GUIDE_STEPS = [
   ["01", "Nhập nhu cầu", "Gõ triệu chứng, tên chuyên khoa, tên bác sĩ, dịch vụ hoặc chủ đề sức khỏe bạn đang quan tâm."],
@@ -230,48 +253,52 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
     semanticAuthorityKeyRef.current = semanticAuthorityKey;
   }, [semanticAuthorityKey]);
 
-  useEffect(() => {
-    let cancelled = false;
-    const markLoaded = <T extends SearchGroupKey>(
-      group: T,
-      content: SearchCatalog[T],
-      truncated: boolean,
-    ): void => {
-      if (cancelled) return;
-      setCatalog((previous) => ({ ...previous, [group]: content } as SearchCatalog));
-      setGroupStatus((previous) => ({ ...previous, [group]: "loaded" }));
-      if (truncated) {
-        setTruncatedGroupKeys((previous) => previous.includes(group) ? previous : [...previous, group]);
-      }
-    };
-    const markFailed = (group: SearchGroupKey): void => {
-      if (cancelled) return;
-      setGroupStatus((previous) => ({ ...previous, [group]: "failed" }));
-      setFailedGroupKeys((previous) => previous.includes(group) ? previous : [...previous, group]);
-    };
-    const startGroup = <T extends SearchGroupKey>(
-      group: T,
-      request: Promise<BoundedCatalog<SearchCatalog[T]>>,
-    ): void => {
-      void request
-        .then((response) => markLoaded(group, response.content, response.truncated))
-        .catch(() => markFailed(group));
-    };
+  // Per-group run tokens: a late response from a superseded attempt (an
+  // initial load landing after its own retry) must not overwrite the slot it
+  // lost, so each group tracks its newest request id.
+  const groupRunRef = useRef<Record<SearchGroupKey, number>>({
+    specialties: 0,
+    doctors: 0,
+    services: 0,
+    packages: 0,
+    articles: 0,
+  });
+  const mountedRef = useRef(true);
 
-    // Client-side keyword search still uses a bounded slice of each catalog,
-    // but each group publishes independently so a slow request cannot hold
-    // back already available results.
-    startGroup("specialties", fetchBoundedContent((page, size) => fetchSpecialties(page, size)));
-    startGroup("doctors", fetchBoundedContent((page, size) => fetchDoctors({ page, size })).then((response) => ({
-      ...response,
-      content: dedupePublicDoctors(response.content),
-    })));
-    startGroup("services", fetchBoundedContent((page, size) => fetchServices(page, size)));
-    startGroup("packages", fetchBoundedContent((page, size) => fetchPackages(page, size)));
-    startGroup("articles", fetchBoundedContent((page, size) => fetchArticles(page, size)));
-
-    return () => { cancelled = true; };
+  const loadGroup = useCallback((group: SearchGroupKey): void => {
+    const runId = groupRunRef.current[group] + 1;
+    groupRunRef.current[group] = runId;
+    setGroupStatus((previous) => ({ ...previous, [group]: "loading" }));
+    void loadCatalogGroup(group)
+      .then((response) => {
+        if (!mountedRef.current || groupRunRef.current[group] !== runId) return;
+        setCatalog((previous) => ({ ...previous, [group]: response.content } as SearchCatalog));
+        setGroupStatus((previous) => ({ ...previous, [group]: "loaded" }));
+        // The group is serving again — drop it from the failed set so the
+        // aggregate line and its retry buttons stop reporting a resolved gap.
+        setFailedGroupKeys((previous) => (previous.includes(group) ? previous.filter((key) => key !== group) : previous));
+        if (response.truncated) {
+          setTruncatedGroupKeys((previous) => previous.includes(group) ? previous : [...previous, group]);
+        }
+      })
+      .catch(() => {
+        if (!mountedRef.current || groupRunRef.current[group] !== runId) return;
+        setGroupStatus((previous) => ({ ...previous, [group]: "failed" }));
+        setFailedGroupKeys((previous) => (previous.includes(group) ? previous : [...previous, group]));
+      });
   }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    // Deferred off the effect body so the render→effect boundary stays free of
+    // synchronous setState (the codebase's load pattern). Each group starts on
+    // its own request, and a failed one can be retried without disturbing the
+    // groups that already loaded.
+    void Promise.resolve().then(() => {
+      for (const group of SEARCH_GROUP_KEYS) loadGroup(group);
+    });
+    return () => { mountedRef.current = false; };
+  }, [loadGroup]);
 
   useEffect(() => {
     let cancelled = false;
@@ -452,6 +479,25 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
 
         {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải {loadingGroupLabels.join(", ")}… Các nhóm đã sẵn sàng vẫn đang hiển thị.</p> : null}
         {error ? <p className="catalog-status catalog-status--error" role="alert">{error} Bạn vẫn có thể thử lại sau.</p> : null}
+        {/* Per-group recovery: the aggregate line above states the gap, this
+            offers a retry for each failed group without discarding the groups
+            that already loaded. */}
+        {failedGroupKeys.length > 0 ? (
+          <p className="catalog-status" role="status">
+            <span>Chưa tải được: {failedGroupKeys.map((group) => SEARCH_GROUP_LABELS[group]).join(", ")}.</span>{" "}
+            {failedGroupKeys.map((group) => (
+              <button
+                aria-label={`Thử tải lại nhóm ${SEARCH_GROUP_LABELS[group]}`}
+                className="text-button"
+                key={group}
+                onClick={() => loadGroup(group)}
+                type="button"
+              >
+                Thử lại {SEARCH_GROUP_LABELS[group]}
+              </button>
+            ))}
+          </p>
+        ) : null}
         {truncatedGroupLabels.length > 0 ? (
           <p className="catalog-status" role="status">
             Tìm kiếm hiện chỉ quét {SEARCH_PAGE_CAP} trang đầu của {truncatedGroupLabels.join(", ")}. Các nhóm này còn dữ liệu phía sau; hãy mở danh mục tương ứng để xem đầy đủ.

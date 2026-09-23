@@ -5,6 +5,7 @@ import {
   ApiError,
   clearAuthSession,
   fetchNotifications,
+  fetchPatientOverview,
   markAllNotificationsAsRead,
   markNotificationAsRead,
   type Page,
@@ -30,6 +31,12 @@ import UiIcon, { type IconName } from "./UiIcon";
  * filter narrows the rows already loaded and "Tải thêm" pulls the next page of
  * the same inbox. The summary line says "đã tải" for exactly that reason: it
  * must not read like a total the server never returned.
+ *
+ * The *unread* number is the exception: for the patient portal it is the same
+ * `unreadNotificationCount` the bell badge and popover read from the overview
+ * endpoint, so all three surfaces agree. While the loaded pages do not cover
+ * every unread (pagination), the header states "đang hiển thị X trong Y tin
+ * chưa đọc" instead of presenting the page slice as the whole inbox.
  */
 
 const PAGE_SIZE = 20;
@@ -95,6 +102,11 @@ export default function NotificationCenter({ role }: NotificationCenterProps) {
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [clearingAll, setClearingAll] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string>(ALL_TAB);
+  // The single server-provided unread number shared with the bell badge and the
+  // bell popover (`PatientOverview.unreadNotificationCount`). While it is
+  // unknown (doctor portal has no overview endpoint; a failed fetch), the
+  // header honestly derives from the loaded rows instead of inventing a total.
+  const [serverUnreadCount, setServerUnreadCount] = useState<number | null>(null);
   const loadRun = useRef(0);
   const ownEvent = useRef(false);
 
@@ -131,11 +143,26 @@ export default function NotificationCenter({ role }: NotificationCenterProps) {
     }
   }, []);
 
+  const refreshServerUnread = useCallback(async (): Promise<void> => {
+    if (role !== "PATIENT") return;
+    try {
+      const overview = await fetchPatientOverview();
+      setServerUnreadCount(
+        typeof overview?.unreadNotificationCount === "number" ? overview.unreadNotificationCount : null,
+      );
+    } catch {
+      // Without the server number the header must not pretend it has one:
+      // null falls back to the honest loaded-rows derivation.
+      setServerUnreadCount(null);
+    }
+  }, [role]);
+
   useEffect(() => {
     // Deferred off the effect body so the render→effect boundary stays free of
     // synchronous setState (same pattern as the portal load helpers).
     void Promise.resolve().then(() => load(0));
-  }, [load]);
+    void Promise.resolve().then(refreshServerUnread);
+  }, [load, refreshServerUnread]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -148,14 +175,27 @@ export default function NotificationCenter({ role }: NotificationCenterProps) {
         return;
       }
       void load(0);
+      // The bell marks rows from its popover; its read is the server's truth,
+      // so the shared unread number must be re-read here as well.
+      void refreshServerUnread();
     };
     window.addEventListener("healthcare:notifications-updated", handleUpdated);
     return () => {
       window.removeEventListener("healthcare:notifications-updated", handleUpdated);
     };
-  }, [load]);
+  }, [load, refreshServerUnread]);
 
-  const unreadCount = useMemo(() => items.filter((item) => !item.read).length, [items]);
+  const loadedUnreadCount = useMemo(() => items.filter((item) => !item.read).length, [items]);
+
+  // The patient overview's `unreadNotificationCount` is the single source the
+  // bell badge and popover also read; the inbox must not publish a different
+  // number derived from a page slice. When the server number is unknown (a
+  // failed fetch; the doctor portal has no overview endpoint) the header falls
+  // back to the loaded-rows count and says so.
+  const displayedUnread = serverUnreadCount ?? loadedUnreadCount;
+  // "đang hiển thị X trong Y" whenever the loaded rows do not cover every
+  // unread the server says exists (paginated inbox or an un-refreshed page).
+  const paginatedUnread = serverUnreadCount !== null && (loadedUnreadCount < serverUnreadCount || !lastPage);
 
   const visibleItems = useMemo(() => (
     activeCategory === ALL_TAB
@@ -191,6 +231,9 @@ export default function NotificationCenter({ role }: NotificationCenterProps) {
       setItems((current) => current.map((item) => (
         item.id === notification.id ? { ...item, read: true } : item
       )));
+      // The server count moved exactly one step; patch it locally so the header
+      // does not contradict the row the user just acted on between refreshes.
+      setServerUnreadCount((current) => (current === null ? current : Math.max(0, current - 1)));
       announceChange();
     } catch (error) {
       if (errorStatus(error) === 401) clearAuthSession();
@@ -207,6 +250,7 @@ export default function NotificationCenter({ role }: NotificationCenterProps) {
     try {
       await markAllNotificationsAsRead();
       setItems((current) => current.map((item) => ({ ...item, read: true })));
+      setServerUnreadCount((current) => (current === null ? current : 0));
       announceChange();
     } catch (error) {
       if (errorStatus(error) === 401) clearAuthSession();
@@ -231,9 +275,9 @@ export default function NotificationCenter({ role }: NotificationCenterProps) {
           </p>
         </div>
         <div className="portal-hero__actions">
-          {ready && unreadCount > 0 ? (
+          {ready && displayedUnread > 0 ? (
             <div className="portal-notification-center__toolbar">
-              <span className="portal-notification-center__count" aria-hidden="true">{unreadCount}</span>
+              <span className="portal-notification-center__count" aria-hidden="true">{displayedUnread}</span>
               <button
                 className="outline-button outline-button--small"
                 disabled={clearingAll}
@@ -298,7 +342,9 @@ export default function NotificationCenter({ role }: NotificationCenterProps) {
 
           <p className="portal-notification-center__summary">
             {activeCategory === ALL_TAB
-              ? `${items.length} thông báo đã tải, ${unreadCount} tin chưa đọc${lastPage ? "." : " (còn trang tiếp theo)."}`
+              ? paginatedUnread
+                ? `đang hiển thị ${loadedUnreadCount} trong ${serverUnreadCount} tin chưa đọc${lastPage ? "." : " (còn trang tiếp theo)."}`
+                : `${items.length} thông báo đã tải, ${displayedUnread} tin chưa đọc${lastPage ? "." : " (còn trang tiếp theo)."}`
               : `${visibleItems.length}/${items.length} thông báo đã tải thuộc mục “${filterLabel(activeCategory)}”.`}
           </p>
 

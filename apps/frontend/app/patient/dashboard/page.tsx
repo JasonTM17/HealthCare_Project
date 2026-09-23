@@ -1128,6 +1128,18 @@ export default function PatientDashboardPage() {
     activeTabRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
   }, [currentTab]);
 
+  // The server unread count (patient overview) is the single source the bell
+  // badge, the bell popover and this page all read from. Re-fetching it after a
+  // read is marked anywhere keeps every surface on the same number instead of
+  // each one deriving its own from the first page of the notifications feed.
+  const refreshOverview = useCallback(() => {
+    fetchPatientOverview()
+      .then((value) => setOverview({ status: "success", data: value }))
+      .catch(() => {
+        // Keep the last known count; a failed refresh must not blank the badge.
+      });
+  }, []);
+
   // This listener must be registered unconditionally, before the auth early
   // returns below. Calling a hook after a conditional return changes the hook
   // count when the session hydrates from unauthenticated to ready, which makes
@@ -1138,12 +1150,13 @@ export default function PatientDashboardPage() {
       fetchNotifications().then((res) => {
         setNotifications({ status: "success", data: res });
       }).catch(() => {});
+      refreshOverview();
     };
     window.addEventListener("healthcare:notifications-updated", handleNotificationsUpdate);
     return () => {
       window.removeEventListener("healthcare:notifications-updated", handleNotificationsUpdate);
     };
-  }, []);
+  }, [refreshOverview]);
 
   const navigateToTab = useCallback((tab: TabKey, hash: string) => {
     setSelectedTab(tab);
@@ -1178,8 +1191,14 @@ export default function PatientDashboardPage() {
     );
   }
 
-  const unreadCount = notifications.status === "success"
-    ? notifications.data.content.filter((notification) => !notification.read).length
+  // FIX (unread-count coherence): the hero link and the tab badge must show the
+  // same server-provided number the bell and the popover use
+  // (`PatientOverview.unreadNotificationCount`), not a per-page count derived
+  // from the first notifications page — those disagreed as soon as the inbox
+  // held more rows than one page. When the overview has not loaded, no unread
+  // number is invented: the surfaces fall back to total-row counts.
+  const unreadCount = overview.status === "success" && typeof overview.data.unreadNotificationCount === "number"
+    ? overview.data.unreadNotificationCount
     : null;
 
   const handleMarkAsRead = async (notification: Notification) => {
@@ -1197,6 +1216,10 @@ export default function PatientDashboardPage() {
             },
           }
         : current);
+      // Re-read the server count so the badge and this list agree after the row
+      // flips to read (the local patch alone would leave the count stale until
+      // the next poll).
+      refreshOverview();
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("healthcare:notifications-updated"));
       }
@@ -1218,6 +1241,7 @@ export default function PatientDashboardPage() {
             data: { ...current.data, content: current.data.content.map((item) => ({ ...item, read: true })) },
           }
         : current);
+      refreshOverview();
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("healthcare:notifications-updated"));
       }

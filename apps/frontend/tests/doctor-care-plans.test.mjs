@@ -35,6 +35,23 @@ test("doctor care plan page wires editing, item actions and safe portal states",
   assert.doesNotMatch(source, /window\.confirm/);
   assert.match(source, /Xóa kế hoạch chăm sóc này\?/);
   assert.match(source, /Hủy mục chăm sóc này\?/);
+
+  // FIX (B3r): the buttons may only QUEUE the dialog. The DELETE/cancel API
+  // call is reachable exclusively from the dialog's confirm handler, so no
+  // destructive request can fire without an explicit confirmation.
+  assert.match(source, /onClick=\{\(\) => setPendingAction\(\{ kind: "delete-plan", plan \}\)\}/);
+  assert.match(source, /onClick=\{\(\) => setPendingAction\(\{ kind: "cancel-item", planId: plan\.id, item \}\)\}/);
+  assert.doesNotMatch(
+    source,
+    /onClick=\{\(\) => void (deletePlan|cancelItem)\(/,
+    "a destructive call must not be wired straight to a button",
+  );
+  const dialog = source.slice(source.indexOf("<ConfirmActionDialog"));
+  assert.match(
+    dialog,
+    /onConfirm=\{\(\) => \{\s*if \(pendingAction\?\.kind === "delete-plan"\) void deletePlan\(pendingAction\.plan\.id\);\s*else if \(pendingAction\?\.kind === "cancel-item"\) void cancelItem\(pendingAction\.planId, pendingAction\.item\.id\);/,
+    "the mutation fires only from the confirmed dialog",
+  );
   assert.match(source, /aria-live="polite"/);
   assert.match(source, /LoginRequiredState/);
   assert.match(source, /ForbiddenState/);

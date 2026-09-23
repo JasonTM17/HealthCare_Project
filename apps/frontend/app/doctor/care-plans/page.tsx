@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { businessDate } from "../../../lib/business-time";
+import { formatDateTime } from "../../../lib/datetime";
 import PortalChrome from "../../../components/PortalChrome";
 import ConfirmActionDialog from "../../../components/ui/ConfirmActionDialog";
 import { EmptyState, ErrorState, ForbiddenState, LoadingState, LoginRequiredState } from "../../../components/PortalStates";
@@ -46,11 +47,8 @@ function statusLabel(status: string, labels: Record<string, string>): string {
 }
 
 function dateTimeLabel(value?: string | null): string {
-  if (!value) return "Chưa đặt hạn";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? "Chưa đặt hạn"
-    : date.toLocaleString("vi-VN", { dateStyle: "medium", timeStyle: "short" });
+  if (!value || Number.isNaN(Date.parse(value))) return "Chưa đặt hạn";
+  return formatDateTime(value);
 }
 
 function toDateTimeLocal(value?: string | null): string {

@@ -149,3 +149,67 @@ test("the portal bell offers the inbox to every role instead of patients only", 
   assert.match(chrome, /Chưa có thông báo mới/, "the popover keeps the spec empty state copy");
   assert.match(chrome, /portal-notification-popover__count/, "the header shows the unread pill");
 });
+
+test("all three unread surfaces share one server-provided number", async () => {
+  const [chrome, inbox, dashboard] = await Promise.all([
+    read("../components/PortalChrome.tsx"),
+    read("../components/NotificationCenter.tsx"),
+    read("../app/patient/dashboard/page.tsx"),
+  ]);
+
+  // Badge: caps visually at "9+", while BOTH aria-label and title state the
+  // true count — a patient with 41 unread must not be told "9+" by a
+  // screen reader or hover.
+  assert.match(chrome, /\{unreadCount > 9 \? "9\+" : unreadCount\}/);
+  assert.match(chrome, /aria-label=\{unreadCount > 0 \? `Thông báo từ bệnh viện \(\$\{unreadCount\} tin mới\)` : "Thông báo từ bệnh viện"\}/);
+  assert.match(chrome, /title=\{unreadCount > 0 \? `Thông báo từ bệnh viện \(\$\{unreadCount\} tin mới\)` : "Thông báo từ bệnh viện"\}/);
+
+  // One source field: `PatientOverview.unreadNotificationCount`, read by the
+  // bell/popover, the dashboard hero link and tab badge, and the full inbox.
+  assert.match(chrome, /overview\?\.unreadNotificationCount === "number"/);
+  assert.match(chrome, /setUnreadCount\(overview\.unreadNotificationCount\)/);
+  assert.match(dashboard, /const unreadCount = overview\.status === "success" && typeof overview\.data\.unreadNotificationCount === "number"/);
+  assert.match(inbox, /typeof overview\?\.unreadNotificationCount === "number"/);
+
+  // The dashboard no longer invents its own number from the first
+  // notifications page — that derivation was the 9+/41/20 divergence.
+  assert.doesNotMatch(dashboard, /notifications\.data\.content\.filter\(\(notification\) => !notification\.read\)\.length/);
+
+  // The inbox paginates at 20 rows; while the loaded rows do not cover every
+  // unread, the header states "đang hiển thị X trong Y tin chưa đọc".
+  assert.match(inbox, /const paginatedUnread = serverUnreadCount !== null && \(loadedUnreadCount < serverUnreadCount \|\| !lastPage\)/);
+  assert.match(inbox, /`đang hiển thị \$\{loadedUnreadCount\} trong \$\{serverUnreadCount\} tin chưa đọc/);
+
+  // The doctor portal has no overview endpoint: the inbox fetch is gated to
+  // patients, and an unknown number falls back to the honest loaded count.
+  assert.match(inbox, /if \(role !== "PATIENT"\) return;/);
+  assert.match(inbox, /const displayedUnread = serverUnreadCount \?\? loadedUnreadCount/);
+});
+
+test("every path that marks a read keeps the shared unread number coherent", async () => {
+  const [inbox, dashboard] = await Promise.all([
+    read("../components/NotificationCenter.tsx"),
+    read("../app/patient/dashboard/page.tsx"),
+  ]);
+
+  // Inbox local actions: one row is a step of -1, mark-all is 0.
+  assert.match(inbox, /setServerUnreadCount\(\(current\) => \(current === null \? current : Math\.max\(0, current - 1\)\)\)/);
+  assert.match(inbox, /setServerUnreadCount\(\(current\) => \(current === null \? current : 0\)\)/);
+
+  // A read made from the bell popover on this page re-reads the shared
+  // server number alongside the list.
+  const updatedHandler = inbox.slice(
+    inbox.indexOf("const handleUpdated"),
+    inbox.indexOf('window.addEventListener("healthcare:notifications-updated", handleUpdated)'),
+  );
+  assert.match(updatedHandler, /void load\(0\);/);
+  assert.match(updatedHandler, /void refreshServerUnread\(\);/);
+
+  // Dashboard: marking read (one or all) re-reads the overview, so the tab
+  // badge and hero line converge on the server number instead of a page slice.
+  const markOne = dashboard.slice(dashboard.indexOf("const handleMarkAsRead"), dashboard.indexOf("const handleMarkAllAsRead"));
+  const markAll = dashboard.slice(dashboard.indexOf("const handleMarkAllAsRead"), dashboard.indexOf("const handleSaveProfile"));
+  assert.match(markOne, /refreshOverview\(\)/);
+  assert.match(markAll, /refreshOverview\(\)/);
+  assert.match(dashboard, /const handleNotificationsUpdate = \(\) => \{[\s\S]*?refreshOverview\(\);[\s\S]*?\};/);
+});

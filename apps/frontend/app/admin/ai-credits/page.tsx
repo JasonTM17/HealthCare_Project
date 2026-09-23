@@ -209,6 +209,15 @@ export default function AdminAiCreditsPage() {
         </div>
       ) : loadError ? (
         <AdminState tone="error" title="Không thể tải dữ liệu" description={loadError} />
+      ) : patients.length === 0 ? (
+        // Zero rows used to render a header-only table — indistinguishable
+        // from a broken page. AdminState's empty tone says plainly that there
+        // is simply nothing to manage yet.
+        <AdminState
+          tone="empty"
+          title="Chưa có bệnh nhân nào được cấp AI credits"
+          description="Danh sách bệnh nhân có hồ sơ điện tử đang trống. Khi bệnh nhân được kích hoạt, hạn mức AI mặc định theo hạng thành viên sẽ xuất hiện tại đây để cấp phát hoặc điều chỉnh."
+        />
       ) : (
         <div className="overflow-hidden rounded-sm border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">

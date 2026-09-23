@@ -220,6 +220,15 @@ function getTodayIsoDate(): string {
   return businessDate();
 }
 
+// A 403 from the three patient-record endpoints means this doctor simply is
+// not assigned to the looked-up patient — the generic
+// "chưa được phép thực hiện thao tác này" line read like a broken feature and
+// left the lookup appearing to do nothing. Returns null for every other
+// status so the shared getErrorMessage copy still wins elsewhere.
+function patientLookupErrorMessage(error: unknown): string | null {
+  return getErrorStatus(error) === 403 ? "Bạn không có quyền xem hồ sơ của bệnh nhân này." : null;
+}
+
 function createPatientLookupFence() {
   let latestRequestId = 0;
   return {
@@ -453,15 +462,27 @@ export default function DoctorDashboardPage() {
       return;
     }
 
+    // 403 branch: a denied patient-record read is an assignment fact, not a
+    // transient failure. State it once against the lookup form's existing
+    // portal-inline-error surface…
+    const forbiddenMessage = [recordsResult, diagnosticsResult, ordersResult]
+      .map((result) => (result.status === "rejected" ? patientLookupErrorMessage(result.reason) : null))
+      .find((message) => message !== null);
+    if (forbiddenMessage) {
+      setLookupError(forbiddenMessage);
+    }
+
+    // …and use the same specific copy inside the failed panels instead of the
+    // generic "chưa được phép thực hiện thao tác này" line.
     setRecords(recordsResult.status === "fulfilled"
       ? { status: "success", data: recordsResult.value }
-      : { status: "error", message: getErrorMessage(recordsResult.reason), statusCode: getErrorStatus(recordsResult.reason) });
+      : { status: "error", message: patientLookupErrorMessage(recordsResult.reason) ?? getErrorMessage(recordsResult.reason), statusCode: getErrorStatus(recordsResult.reason) });
     setDiagnostics(diagnosticsResult.status === "fulfilled"
       ? { status: "success", data: diagnosticsResult.value }
-      : { status: "error", message: getErrorMessage(diagnosticsResult.reason), statusCode: getErrorStatus(diagnosticsResult.reason) });
+      : { status: "error", message: patientLookupErrorMessage(diagnosticsResult.reason) ?? getErrorMessage(diagnosticsResult.reason), statusCode: getErrorStatus(diagnosticsResult.reason) });
     setOrders(ordersResult.status === "fulfilled"
       ? { status: "success", data: ordersResult.value }
-      : { status: "error", message: getErrorMessage(ordersResult.reason), statusCode: getErrorStatus(ordersResult.reason) });
+      : { status: "error", message: patientLookupErrorMessage(ordersResult.reason) ?? getErrorMessage(ordersResult.reason), statusCode: getErrorStatus(ordersResult.reason) });
   };
 
   const handleLookup = async (event: FormEvent<HTMLFormElement>) => {
@@ -710,8 +731,16 @@ export default function DoctorDashboardPage() {
     ? dailyAppointments.status === "loading"
     : rangeAppointments.status === "loading";
 
+  // The topbar chip must carry the doctor's clinical identity: the auth session
+  // displayName comes from the account seed (e.g. "Bác sĩ Local"), while the
+  // doctor profile owns the real professional name. Prefer the profile name
+  // once it has loaded and fall back to the session display name until then.
+  const chipUser = doctorProfile.status === "success" && doctorProfile.data.fullName
+    ? { ...user, displayName: doctorProfile.data.fullName }
+    : user;
+
   return (
-    <PortalChrome role="DOCTOR" user={user}>
+    <PortalChrome role="DOCTOR" user={chipUser}>
       <div className="portal-content">
         <header className="portal-hero">
           <div>
