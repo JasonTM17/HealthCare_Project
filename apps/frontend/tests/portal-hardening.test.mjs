@@ -389,3 +389,35 @@ test("responsive layout constraints, horizontal overflow containment, and touch 
   assert.match(styles, /\.site-shell \.mobile-care-rail \.mobile-care-rail__primary/);
   assert.match(styles, /body\.mobile-menu-open \.mobile-care-rail/);
 });
+
+test("patient copy never renders raw record UUIDs", async () => {
+  const [carePlan, chrome, inbox, dashboard] = await Promise.all([
+    read("app/patient/care-plan/page.tsx"),
+    read("components/PortalChrome.tsx"),
+    read("components/NotificationCenter.tsx"),
+    read("app/patient/dashboard/page.tsx"),
+  ]);
+
+  // The patient care-plan card used to print a truncated appointment UUID
+  // ("Lịch hẹn liên quan: 75ddcbe7…"). The endpoint carries no human
+  // reference (booking code), so a placeholder wins over an unquotable id.
+  assert.doesNotMatch(carePlan, /plan\.appointmentId\.slice/);
+  assert.match(carePlan, /Lịch hẹn liên quan: \{RELATED_APPOINTMENT_PLACEHOLDER\}/);
+  assert.match(carePlan, /const RELATED_APPOINTMENT_PLACEHOLDER = "—"/);
+
+  // The bell modal only surfaces a reference the patient can act on: the
+  // backend `referenceId` is the raw entity UUID, and that must not be
+  // printed as "Mã tham chiếu". Booking codes in message bodies stay.
+  assert.match(
+    chrome,
+    /const isRawUuid = \/\^\[0-9a-f\]\{8\}-\[0-9a-f\]\{4\}-\[0-9a-f\]\{4\}-\[0-9a-f\]\{4\}-\[0-9a-f\]\{12\}\$\/i\.test\(reference\)/,
+  );
+  const refBlock = chrome.slice(chrome.indexOf("Mã tham chiếu") - 1200, chrome.indexOf("Mã tham chiếu"));
+  assert.match(refBlock, /reference && !isRawUuid/, "the reference block must be gated by the UUID check");
+
+  // No patient-visible interpolation of an entity id survives on the inbox or
+  // the dashboard (keys and DOM ids are attribute positions, not text).
+  assert.doesNotMatch(inbox, />[^<]*\{(?:item|notification)\.id\}/);
+  assert.doesNotMatch(dashboard, />\{(?:record|notification|appointment|plan)\.id\}/);
+  assert.doesNotMatch(dashboard, /appointmentId\.slice/);
+});

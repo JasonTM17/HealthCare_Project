@@ -127,3 +127,24 @@ test("no admin surface claims a spendable per-doctor AI quota", async () => {
   assert.match(adminCredits, /\+ Cấp thêm/);
   assert.match(adminCredits, /adminUpdatePatientTier/);
 });
+
+/**
+ * FIX (B6): `adminListPatientAiCredits()` answering with zero rows used to
+ * render a header-only table — an admin could not tell "nothing to manage"
+ * from "the page is broken". AdminState must carry a real empty tone for the
+ * zero-row case without borrowing the error styling.
+ */
+test("ai-credits renders an empty AdminState for zero rows", async () => {
+  const page = await read("app/admin/ai-credits/page.tsx");
+
+  // The empty branch sits between the error branch and the table, keyed on
+  // zero rows, and names the exact situation.
+  assert.match(page, /loadError \?\s*\(\s*<AdminState tone="error"[\s\S]*?\) : patients\.length === 0 \?\s*\([\s\S]*?<AdminState\s+tone="empty"/);
+  assert.match(page, /Chưa có bệnh nhân nào được cấp AI credits/);
+
+  // A failed load must stay distinguishable from "nothing to manage": the
+  // error branch keeps tone="error" and the empty state is never an alert.
+  assert.match(page, /<AdminState tone="error" title="Không thể tải dữ liệu"/);
+  const emptyBranch = page.slice(page.indexOf('patients.length === 0'), page.indexOf('patients.length === 0') + 900);
+  assert.doesNotMatch(emptyBranch, /tone="error"/);
+});

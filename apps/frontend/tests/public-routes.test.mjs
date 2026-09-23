@@ -541,7 +541,10 @@ test("Stitch search and careers screens have live public route owners", async ()
   // The search screen loads each catalog group independently (a slow group
   // cannot hold back the others), so the live-wiring contract asserts the
   // per-group machinery instead of the older single Promise.allSettled pass.
-  for (const marker of ["fetchSpecialties", "fetchDoctors", "fetchServices", "fetchPackages", "fetchArticles", "startGroup", "markLoaded", "markFailed", "presentApiError"]) {
+  // The loader is shared with the per-group retry affordance: loadGroup runs
+  // the extracted loadCatalogGroup pipeline and publishes into groupRunRef-
+  // fenced slots.
+  for (const marker of ["fetchSpecialties", "fetchDoctors", "fetchServices", "fetchPackages", "fetchArticles", "loadGroup", "loadCatalogGroup", "groupRunRef", "presentApiError"]) {
     assert.ok(search.includes(marker), `missing live search marker: ${marker}`);
   }
   assert.match(search, /\/search\?q=/);
