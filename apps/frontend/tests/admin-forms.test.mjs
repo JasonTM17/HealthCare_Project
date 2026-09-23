@@ -42,6 +42,23 @@ test("admin health question and consultation helpers pass page and size query pa
   assert.match(consultations, /aria-label="Phân trang hàng đợi tư vấn"/);
 });
 
+test("health question moderation reasons stay inside the stored moderation_reason_code set", async () => {
+  const healthQuestions = await source("health-questions/page.tsx");
+
+  const start = healthQuestions.indexOf("const MODERATION_REASON_OPTIONS");
+  assert.notEqual(start, -1, "missing MODERATION_REASON_OPTIONS");
+  const options = healthQuestions.slice(start, healthQuestions.indexOf("];", start));
+
+  // These are the only codes V38 ck_health_questions_moderation_reason accepts;
+  // report-only codes (SPAM, SAFETY_CONCERN, LEGAL_REQUEST) violate the DB CHECK.
+  for (const code of ["PII_DETECTED", "OUT_OF_SCOPE", "DUPLICATE", "SAFETY_REVIEW", "OTHER"]) {
+    assert.match(options, new RegExp(`value: "${code}"`), `missing ${code}`);
+  }
+  for (const code of ["SPAM", "SAFETY_CONCERN", "LEGAL_REQUEST"]) {
+    assert.doesNotMatch(options, new RegExp(`value: "${code}"`), `${code} is not a moderation reason`);
+  }
+});
+
 test("doctor admin form validates optional linked userId and sends it only when present", async () => {
   const doctors = await source("doctors/page.tsx");
 
