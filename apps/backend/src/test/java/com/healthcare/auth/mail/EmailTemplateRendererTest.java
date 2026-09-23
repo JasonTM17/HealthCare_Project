@@ -31,6 +31,14 @@ class EmailTemplateRendererTest {
             assertFalse(rendered.subject().contains("<"));
             assertTrue(rendered.htmlBody().contains("<meta charset=\"utf-8\">"));
             assertTrue(rendered.htmlBody().contains("min-height:44px"));
+            assertTrue(rendered.htmlBody().contains("role=\"presentation\""));
+            assertTrue(rendered.htmlBody().indexOf("display:none")
+                < rendered.htmlBody().indexOf("bgcolor=\"#0f766e\""));
+            assertFalse(rendered.htmlBody().contains("linear-gradient"));
+            assertFalse(rendered.htmlBody().contains("<img"));
+            assertFalse(rendered.htmlBody().contains("1900 1234"));
+            assertFalse(rendered.htmlBody().contains("123 Đường Sức Khỏe"));
+            assertFalse(rendered.textBody().contains("1900 1234"));
             assertFalse(rendered.textBody().isBlank());
         }
     }
@@ -76,21 +84,20 @@ class EmailTemplateRendererTest {
             "portalUrl", "https://portal.example.test/appointments/123"
         ));
         assertTrue(appointment.htmlBody().contains("Lịch khám đã được xác nhận"));
-        assertTrue(appointment.htmlBody().contains("Hướng dẫn chuẩn bị trước khi khám"));
+        assertTrue(appointment.htmlBody().contains("Trước buổi khám"));
         assertTrue(appointment.htmlBody().contains("Xem chi tiết lịch hẹn"));
-        assertTrue(appointment.htmlBody().contains("🚨 CẤP CỨU 24/7: 1900 1234"));
-        assertTrue(appointment.htmlBody().contains("Luật Khám bệnh, chữa bệnh"));
-        assertTrue(appointment.textBody().contains("Lưu ý trước khi khám:"));
+        assertFalse(appointment.htmlBody().contains("nhịn ăn"));
+        assertTrue(appointment.textBody().contains("hướng dẫn chuẩn bị riêng"));
 
         // 2. Payment status
         RenderedEmail payment = renderer.render(EmailTemplateKey.PAYMENT_STATUS, Map.of(
             "message", "Thanh toán 500,000 VND thành công.",
             "portalUrl", "https://portal.example.test/billing/456"
         ));
-        assertTrue(payment.htmlBody().contains("Cập nhật thanh toán viện phí"));
-        assertTrue(payment.htmlBody().contains("Giao dịch an toàn &amp; Bảo mật"));
+        assertTrue(payment.htmlBody().contains("Cập nhật thanh toán"));
+        assertTrue(payment.htmlBody().contains("Kiểm tra thanh toán"));
         assertTrue(payment.htmlBody().contains("Xem biên lai thanh toán"));
-        assertTrue(payment.textBody().contains("Giao dịch an toàn:"));
+        assertTrue(payment.textBody().contains("Đối chiếu trạng thái"));
 
         // 3. Results ready
         RenderedEmail results = renderer.render(EmailTemplateKey.RESULTS_READY, Map.of(
@@ -98,7 +105,7 @@ class EmailTemplateRendererTest {
             "portalUrl", "https://portal.example.test/results/789"
         ));
         assertTrue(results.htmlBody().contains("Kết quả cận lâm sàng"));
-        assertTrue(results.htmlBody().contains("Bảo mật hồ sơ bệnh án"));
+        assertTrue(results.htmlBody().contains("Bảo mật kết quả"));
         assertTrue(results.htmlBody().contains("Xem kết quả xét nghiệm"));
 
         // 4. Prescription ready
@@ -107,7 +114,7 @@ class EmailTemplateRendererTest {
             "portalUrl", "https://portal.example.test/prescriptions/101"
         ));
         assertTrue(rx.htmlBody().contains("Toa thuốc điện tử mới"));
-        assertTrue(rx.htmlBody().contains("Hướng dẫn an toàn dùng thuốc"));
+        assertTrue(rx.htmlBody().contains("Về toa thuốc"));
         assertTrue(rx.htmlBody().contains("Xem toa thuốc điện tử"));
 
         // 5. Consultation reply
@@ -115,8 +122,8 @@ class EmailTemplateRendererTest {
             "message", "Bác sĩ đã trả lời thắc mắc của bạn.",
             "portalUrl", "https://portal.example.test/consultations/202"
         ));
-        assertTrue(consult.htmlBody().contains("Phản hồi tư vấn y khoa"));
-        assertTrue(consult.htmlBody().contains("Lưu ý y khoa"));
+        assertTrue(consult.htmlBody().contains("Phản hồi tư vấn"));
+        assertTrue(consult.htmlBody().contains("Về phản hồi tư vấn"));
         assertTrue(consult.htmlBody().contains("Xem phản hồi bác sĩ"));
 
         // 6. Care plan reminder
@@ -124,8 +131,8 @@ class EmailTemplateRendererTest {
             "message", "Đã đến thời gian kiểm tra huyết áp định kỳ.",
             "portalUrl", "https://portal.example.test/care-plans/303"
         ));
-        assertTrue(reminder.htmlBody().contains("Nhắc nhở chăm sóc sức khỏe"));
-        assertTrue(reminder.htmlBody().contains("Lời khuyên sức khỏe"));
+        assertTrue(reminder.htmlBody().contains("Nhắc chăm sóc"));
+        assertTrue(reminder.htmlBody().contains("Theo dõi kế hoạch"));
         assertTrue(reminder.htmlBody().contains("Xem kế hoạch chăm sóc"));
 
         // 7. Appointment cancel
@@ -134,7 +141,7 @@ class EmailTemplateRendererTest {
             "portalUrl", "https://portal.example.test/appointments/new"
         ));
         assertTrue(cancel.htmlBody().contains("Lịch khám đã được hủy"));
-        assertTrue(cancel.htmlBody().contains("Hỗ trợ đặt lại lịch hẹn"));
+        assertTrue(cancel.htmlBody().contains("Cần đặt lịch khác?"));
         assertTrue(cancel.htmlBody().contains("Truy cập cổng đặt lịch"));
     }
 
