@@ -309,7 +309,7 @@ export default function DoctorAiContentReviewsPage() {
   const canDecide = Boolean(selected && revision && selected.revision === revision.revision && decision && availableDecisions.includes(decision) && !staleRevision);
 
   if (!session) return <main className="portal-entry"><LoginRequiredState nextPath="/doctor/ai-content-reviews" /></main>;
-  if (!hasRole(session.user, "DOCTOR")) return <main className="portal-entry"><ForbiddenState title="Không có quyền duyệt nội dung AI" description="Chỉ bác sĩ độc lập với người submit mới có thể approve, yêu cầu chỉnh sửa hoặc revoke." /></main>;
+  if (!hasRole(session.user, "DOCTOR")) return <main className="portal-entry"><ForbiddenState title="Không có quyền duyệt nội dung AI" description="Chỉ bác sĩ không phải người gửi bản nội dung mới có thể phê duyệt, yêu cầu chỉnh sửa hoặc thu hồi." /></main>;
 
   return (
     <PortalChrome role="DOCTOR" user={session.user}>
