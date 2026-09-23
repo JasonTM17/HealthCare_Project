@@ -42,6 +42,11 @@
       "string": "Đặt lịch hẹn",
       "replacedBy": "Đặt lịch khám",
       "scope": "Banned specifically as a booking CTA label. The noun 'lịch hẹn' stays canonical for the appointment entity."
+    },
+    {
+      "string": "(Body)",
+      "replacedBy": "Bỏ hẳn — nhãn tiếng Việt thuần (Nội dung chi tiết / Nội dung bài viết y khoa)",
+      "scope": "English parenthetical suffix on Vietnamese editor labels (round-10 matrix screenshot m3-doc10). Applies to label/heading text; code identifiers and API field names are unaffected."
     }
   ]
 }
