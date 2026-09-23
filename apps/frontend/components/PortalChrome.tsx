@@ -484,8 +484,11 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
                 <Link
                   className="portal-notification-bell"
                   href={notificationsPath}
+                  // The visible badge caps at "9+", but aria-label and title
+                  // carry the true server-provided count so the number reads
+                  // the same here, in the popover and in the full inbox.
                   aria-label={unreadCount > 0 ? `Thông báo từ bệnh viện (${unreadCount} tin mới)` : "Thông báo từ bệnh viện"}
-                  title="Thông báo từ bệnh viện"
+                  title={unreadCount > 0 ? `Thông báo từ bệnh viện (${unreadCount} tin mới)` : "Thông báo từ bệnh viện"}
                   aria-expanded={isPopoverOpen}
                   aria-haspopup="dialog"
                   onClick={handleTogglePopover}
@@ -618,9 +621,14 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
         </div>
       </header>
       <main className="portal-main" id="portal-main-content" tabIndex={-1}>{children}</main>
-      <footer className="portal-footer">
-        Thông tin sức khỏe của bạn được bảo mật an toàn theo tiêu chuẩn bệnh viện và chỉ dành riêng cho bạn.
-      </footer>
+      {/* The patient-facing privacy sentence speaks to the person whose health
+          record this is; the doctor portal must not address its clinician that
+          way. The shell already knows the portal variant, so scope it here. */}
+      {role === "PATIENT" ? (
+        <footer className="portal-footer">
+          Thông tin sức khỏe của bạn được bảo mật an toàn theo tiêu chuẩn bệnh viện và chỉ dành riêng cho bạn.
+        </footer>
+      ) : null}
 
       {selectedNotification ? (
         <div
@@ -665,12 +673,21 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
               <div className="portal-notification-modal__content">
                 <p>{selectedNotification.message}</p>
               </div>
-              {selectedNotification.referenceId ? (
-                <div className="portal-notification-modal__ref">
-                  <span>Mã tham chiếu:</span>
-                  <strong>{selectedNotification.referenceId}</strong>
-                </div>
-              ) : null}
+              {(() => {
+                // The backend stores `referenceId` as the referenced entity's
+                // raw UUID (see NotificationService.create). A UUID is not a
+                // human reference — booking codes like APT-… are, and those may
+                // appear in the message body as the lookup handle. Only render
+                // a reference the patient could actually act on.
+                const reference = selectedNotification.referenceId?.trim() ?? "";
+                const isRawUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(reference);
+                return reference && !isRawUuid ? (
+                  <div className="portal-notification-modal__ref">
+                    <span>Mã tham chiếu:</span>
+                    <strong>{reference}</strong>
+                  </div>
+                ) : null;
+              })()}
             </div>
 
             <div className="portal-notification-modal__footer">

@@ -90,7 +90,10 @@ test("SearchPageClient publishes catalog groups progressively", async () => {
   const source = await read("app/search/SearchPageClient.tsx");
 
   assert.doesNotMatch(source, /Promise\.allSettled\(/, "catalog groups must not wait on one aggregate settlement");
-  assert.match(source, /const startGroup =/, "each catalog group must have an independent request path");
+  // Each group gets an independent request path (and, since the retry fix,
+  // the same path a failed group can re-enter on its own).
+  assert.match(source, /const loadGroup = useCallback\(/, "each catalog group must have an independent request path");
+  assert.match(source, /for \(const group of SEARCH_GROUP_KEYS\) loadGroup\(group\);/, "every group starts on its own request");
   assert.match(source, /setCatalog\(/, "a settled group must publish its own catalog data");
   assert.match(source, /status === "loading"/, "the UI must track pending groups independently");
   assert.match(source, /Các nhóm đã sẵn sàng vẫn đang hiển thị/, "slow groups must not hide ready results");
@@ -186,4 +189,29 @@ test("SearchPageClient rejects stale semantic authority transitions", async () =
       assert.deepEqual(visibleResult(state, nextKey), { owner: "current-authority" });
     }
   }
+});
+
+test("failed catalog groups get their own retry while loaded groups stay put", async () => {
+  const source = await read("app/search/SearchPageClient.tsx");
+
+  // The bounded pipeline is extracted once, so a retry runs the exact same
+  // fetch as the initial load instead of a divergent second copy.
+  assert.match(source, /function loadCatalogGroup\(group: SearchGroupKey\)/);
+  assert.match(source, /for \(const group of SEARCH_GROUP_KEYS\) loadGroup\(group\);/);
+
+  // Each failed group gets a "Thử lại" button that re-runs only that group.
+  assert.match(source, /failedGroupKeys\.length > 0/);
+  assert.match(
+    source,
+    /failedGroupKeys\.map\(\(group\) => \(\s*<button[\s\S]*?onClick=\{\(\) => loadGroup\(group\)\}[\s\S]*?Thử lại/,
+  );
+  assert.match(source, /aria-label=\{`Thử tải lại nhóm \$\{SEARCH_GROUP_LABELS\[group\]\}`\}/);
+
+  // A successful retry clears just that group from the failed set; the
+  // aggregate line remains for whatever is still missing.
+  assert.match(source, /setFailedGroupKeys\(\(previous\) => \(previous\.includes\(group\) \? previous\.filter\(\(key\) => key !== group\) : previous\)\)/);
+  assert.match(source, /Một phần thông tin tạm thời chưa thể hiển thị \(\$\{failedGroupKeys\.length\}\/5 nhóm\)/);
+
+  // A late response from a superseded attempt cannot overwrite newer state.
+  assert.match(source, /if \(!mountedRef\.current \|\| groupRunRef\.current\[group\] !== runId\) return;/);
 });
