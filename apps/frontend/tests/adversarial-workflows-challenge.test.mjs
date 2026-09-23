@@ -147,8 +147,10 @@ test("Flow 1: Quota debiting contract is strictly transactional upon completed a
     "prepare() must NOT charge patient quota",
   );
 
-  // complete() charges quota for accepted answers and WAIVES degraded
-  // insufficient-evidence answers (both after the reply is saved, same tx).
+  // complete() charges quota for accepted answers and WAIVES unbilled safety
+  // outcomes — the degraded insufficient-evidence reply and the static
+  // emergency/refuse/handoff texts (both after the reply is saved, same tx).
+  // Charging any of those would paywall or monetize crisis guidance (audit A4).
   const completeMethod = backendService.substring(
     backendService.indexOf("private ChatExchangeResponse complete("),
     backendService.indexOf("private boolean sameSourceSet("),
@@ -160,8 +162,18 @@ test("Flow 1: Quota debiting contract is strictly transactional upon completed a
   );
   assert.match(
     completeMethod,
-    /safetyAction\(\) == ChatSafetyAction\.INSUFFICIENT_EVIDENCE[\s\S]*waiveInsufficientPatientExchange\(userId, request\.getId\(\)\)[\s\S]*\} else \{[\s\S]*chargeAcceptedPatientExchange/,
-    "complete() must waive (not charge) degraded insufficient-evidence answers",
+    /isUnbilledSafetyOutcome\(response\.safetyAction\(\)\)[\s\S]*waiveUnbilledPatientExchange\(\s*userId, request\.getId\(\), waiverDescriptionFor\(response\.safetyAction\(\)\)\)[\s\S]*\} else \{[\s\S]*chargeAcceptedPatientExchange/,
+    "complete() must waive (not charge) the static safety answers and degraded insufficient-evidence answers",
+  );
+  assert.match(
+    backendService,
+    /static boolean isUnbilledSafetyOutcome\(ChatSafetyAction action\) \{[\s\S]*INSUFFICIENT_EVIDENCE[\s\S]*EMERGENCY[\s\S]*REFUSE[\s\S]*HUMAN_HANDOFF/,
+    "the unbilled-safety waiver must cover INSUFFICIENT_EVIDENCE, EMERGENCY, REFUSE and HUMAN_HANDOFF",
+  );
+  assert.match(
+    backendService,
+    /containsEmergencyInputCue\(content\)\) \{[\s\S]*freeAnswer = safetyResponse\(conversation\.getMode\(\), "EMERGENCY", content\)/,
+    "a crisis message must resolve to the free canned emergency answer before the credit gate",
   );
 
   // markFailed() must refund a charged attempt idempotently and never charge

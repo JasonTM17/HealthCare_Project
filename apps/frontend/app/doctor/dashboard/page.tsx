@@ -188,7 +188,23 @@ function getErrorStatus(error: unknown): number | undefined {
   return error instanceof ApiError ? error.status : undefined;
 }
 
+// The backend answers an actionable 400/409 with a Vietnamese reason the doctor
+// can act on (e.g. a "check in today only" booking conflict). Surface that copy
+// instead of the vague generic line; a blank, English or oversized body is not
+// user-facing text, so it returns null and the table below wins. This mirrors
+// the pass-through guard in lib/api.ts bookingErrorMessage.
+function backendMessage(error: unknown): string | null {
+  if (!(error instanceof ApiError)) return null;
+  if (error.status !== 400 && error.status !== 409) return null;
+  const normalized = error.message?.trim();
+  if (!normalized || normalized.length > 240) return null;
+  const VIETNAMESE_TEXT = /[ăâđêôơưáàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]/i;
+  return VIETNAMESE_TEXT.test(normalized) ? normalized : null;
+}
+
 function getErrorMessage(error: unknown): string {
+  const authored = backendMessage(error);
+  if (authored) return authored;
   const status = getErrorStatus(error);
   if (status === 401) return "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
   if (status === 403) return "Tài khoản hiện tại chưa được phép thực hiện thao tác này.";

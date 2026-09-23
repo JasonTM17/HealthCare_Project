@@ -20,6 +20,7 @@ import {
   adminUpdatePackage,
   type AdminArticlePayload,
   type AdminArticle,
+  type ArticleSection,
   type Faq,
   type HealthPackage,
   fetchAllContent,
@@ -392,6 +393,15 @@ function articleSectionAt(form: ArticleForm, index: number, patch: Partial<Artic
     return { ...section, ...patch };
   });
   return { ...form, sections };
+}
+
+// The backend treats a heading-only row as scaffolding, not content, and falls
+// back to deriving the outline from the body unless some row has a non-blank
+// body (see AdminArticleService.hasAuthorSections). Send the authored rows only
+// once one actually has body text; otherwise send null so that derivation wins.
+function authoredSectionsPayload(sections: ArticleSectionForm[]): ArticleSection[] | null {
+  if (!sections.some((section) => section.body.trim().length > 0)) return null;
+  return sections.map((section) => ({ heading: section.heading, body: section.body }));
 }
 
 export default function AdminCatalogPage() {
@@ -851,8 +861,6 @@ export default function AdminCatalogPage() {
       return;
     }
 
-    // Sections are server-derived from the body on every write (the backend is
-    // the single source of truth), so a stale client-side array is never sent.
     const payload: AdminArticlePayload = {
       title: articleForm.title.trim(),
       slug: finalSlug,
@@ -869,7 +877,7 @@ export default function AdminCatalogPage() {
       tags: listFieldTo(articleForm.tags),
       scheduledPublishAt: scheduledDateToIso(articleForm.scheduledPublishAt),
       version: articleForm.version ?? undefined,
-      sections: null,
+      sections: authoredSectionsPayload(articleForm.sections),
       contentLanguage: articleForm.contentLanguage.trim() || null,
       audience: articleForm.audience.trim() || null,
       topicTags: listFieldTo(articleForm.topicTags),

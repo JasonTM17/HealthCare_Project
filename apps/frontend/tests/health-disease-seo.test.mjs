@@ -28,6 +28,35 @@ test("disease detail resolves closed, route-specific metadata on the server", as
   assert.match(server, /expectedSlug !== undefined && value\.slug !== expectedSlug/);
 });
 
+test("general article detail resolves route-specific metadata on the server", async () => {
+  const [layout, server] = await Promise.all([
+    read("app/articles/[slug]/layout.tsx"),
+    read("app/articles/[slug]/article-seo.ts"),
+  ]);
+
+  assert.match(layout, /export async function generateMetadata/);
+  assert.match(layout, /const \{ slug \} = await params/);
+  assert.match(layout, /getArticleBySlug\(slug\)/);
+  assert.match(layout, /alternates: \{ canonical \}/);
+  assert.match(layout, /robots: \{ index: false, follow: true \}/);
+  assert.match(layout, /type: "article"/);
+  assert.match(layout, /publishedTime/);
+  assert.match(layout, /modifiedTime/);
+  assert.match(layout, /article\.seoTitle/);
+  assert.match(layout, /article\.seoDescription/);
+  assert.doesNotMatch(layout, /["']use client["']/);
+
+  assert.match(server, /import "server-only"/);
+  assert.match(server, /readHealthcareBffRuntimeConfig\(\)/);
+  assert.match(server, /"X-Healthcare-Bff-Token": runtime\.serviceToken/);
+  assert.match(server, /cache: "no-store"/);
+  assert.match(server, /redirect: "manual"/);
+  // A disease guide is not served on /articles/<slug>, matching the client gate.
+  assert.match(server, /value\.contentKind === "DISEASE_GUIDE"/);
+  assert.match(server, /expectedSlug !== undefined && value\.slug !== expectedSlug/);
+  assert.match(server, /\/articles\/\$\{encodeURIComponent\(slug\)\}/);
+});
+
 test("disease JSON-LD uses an escaped absolute canonical and no unverified reviewer data", async () => {
   const page = await read("app/benh-pho-bien/[slug]/page.tsx");
 
