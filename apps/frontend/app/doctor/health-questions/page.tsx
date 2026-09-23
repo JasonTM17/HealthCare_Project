@@ -102,7 +102,7 @@ export default function DoctorHealthQuestionsPage() {
           <div>
             <p className="section-note">PATIENT Q&amp;A</p>
             <h1>Hỏi đáp bệnh phổ biến</h1>
-            <p>Câu hỏi đã qua ADMIN lọc PII. Trả lời là một revision bất biến; bác sĩ khác phải duyệt độc lập trước khi xuất bản.</p>
+            <p>Câu hỏi đã được ban quản trị kiểm duyệt và bảo vệ quyền riêng tư. Trả lời là một bản sửa đổi bất biến; bác sĩ khác phải duyệt độc lập trước khi xuất bản.</p>
           </div>
           <button className="outline-button" disabled={loading} onClick={() => setReloadToken((value) => value + 1)} type="button">
             {loading ? "Đang tải..." : "Tải lại hàng đợi"}

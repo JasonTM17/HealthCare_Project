@@ -187,7 +187,7 @@ export default function AdminConsultationsPage() {
   };
 
   if (!session) return <main className="portal-entry"><LoginRequiredState nextPath="/admin/consultations" /></main>;
-  if (!hasRole(session.user, "ADMIN")) return <main className="portal-entry"><ForbiddenState title="Không có quyền điều phối" description="Hàng đợi tư vấn chỉ dành cho ADMIN và chỉ hiển thị metadata vận hành." /></main>;
+  if (!hasRole(session.user, "ADMIN")) return <main className="portal-entry"><ForbiddenState title="Không có quyền điều phối" description="Hàng đợi tư vấn chỉ dành cho quản trị viên và chỉ hiển thị thông tin vận hành." /></main>;
 
   return (
     <div className="section-inner portal-page admin-page grid gap-6">
@@ -216,7 +216,7 @@ export default function AdminConsultationsPage() {
 
       <section aria-label="Phạm vi quyền" className="portal-panel grid gap-3">
         <p className="section-note">METADATA-ONLY</p>
-        <p className="portal-panel__intro">ADMIN chỉ thấy trạng thái, SLA, chuyên khoa và assignment. Không có subject, transcript, attachment, patient name, contact hay profile identifier trong projection này.</p>
+        <p className="portal-panel__intro">Quản trị viên chỉ theo dõi trạng thái, SLA, chuyên khoa và phân công bác sĩ. Không hiển thị tiêu đề, nội dung trao đổi, tệp đính kèm hay danh tính người bệnh trong màn hình này.</p>
         <p className="text-sm font-bold text-teal-900">Mã kênh nội bộ được giữ kín trên giao diện; chỉ số thứ tự dùng để điều phối.</p>
       </section>
 
