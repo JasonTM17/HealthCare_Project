@@ -207,6 +207,7 @@ test("independent DOCTOR reviews immutable snapshot and field diff before an exa
   await expect(page.getByText("Tóm tắt cũ", { exact: true })).toBeVisible();
   await expect(page.getByText("Bản tóm tắt không chứa dữ liệu bệnh nhân.", { exact: true })).toHaveCount(2);
 
+  await page.getByLabel("Quyết định").selectOption("APPROVE");
   await page.getByRole("button", { name: "Ghi quyết định" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Quyết định đã được ghi vào audit log" })).toBeVisible();
   expect(observed.decisions).toEqual([{ decision: "APPROVE" }]);
@@ -217,6 +218,7 @@ test("stale doctor decision fails closed with code-owned copy and no raw PHI or 
 
   await page.goto("/doctor/ai-content-reviews");
   await page.getByRole("button", { name: /Mở Hướng dẫn sức khỏe đã chuẩn hóa, revision 7/ }).click();
+  await page.getByLabel("Quyết định").selectOption("APPROVE");
   await page.getByRole("button", { name: "Ghi quyết định" }).click();
 
   await expect(page.getByRole("alert").filter({
