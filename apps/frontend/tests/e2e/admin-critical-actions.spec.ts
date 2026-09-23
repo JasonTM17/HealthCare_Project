@@ -114,6 +114,9 @@ test("admin schedule deletion is dialog-gated, contextual, cancelable, and singl
   await installAdminSession(context);
 
   await page.goto("/admin/schedules");
+  // Round 9 made the week-calendar the default browser; per-schedule delete
+  // affordances live in the paginated "Danh sách" view, so switch there first.
+  await page.getByRole("button", { name: "Danh sách", exact: true }).click();
   const deleteButton = page.getByRole("button", { name: "Xóa lịch của BS.CKII Nguyễn Minh" });
   await expect(deleteButton).toBeVisible();
   await deleteButton.click();
