@@ -1003,7 +1003,7 @@ export default function DoctorArticlesPage() {
                       contract stays identical via htmlToMarkdown. */}
                   <RichTextEditor
                     id="doctor-article-body-input"
-                    label="Nội dung chi tiết (Body)"
+                    label="Nội dung chi tiết"
                     minHeight="360px"
                     onChange={(value) => {
                       setBody(value);
