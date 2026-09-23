@@ -72,6 +72,14 @@ class AdminArticleSlugGuardTest {
                 new ArticleRequest("Tụt huyết áp", "my-article", "Tóm tắt", "Nội dung", true)))
                 .as("the shape the editor generates must pass")
                 .isEmpty();
+
+            // Round-10 matrix: titles containing " - " used to generate slugs with
+            // hyphen runs, which the strict pattern then made permanently uneditable
+            // (the doctor edit path re-sends the stored slug).
+            assertThat(validator.validate(
+                new ArticleRequest("P2 matrix - quy trình", "p2-matrix---quy-trinh", "Tóm tắt", "Nội dung", true)))
+                .as("legacy slugs with hyphen runs must stay editable")
+                .isEmpty();
         }
     }
 
