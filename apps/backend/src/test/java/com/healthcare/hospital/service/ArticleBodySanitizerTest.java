@@ -125,6 +125,35 @@ class ArticleBodySanitizerTest {
     }
 
     @Test
+    void nestedTagsCannotReassembleIntoAnExecutableBlock() {
+        // A single sweep of the passes was the defect: <scr<iframe>ipt> lost
+        // its inner <iframe> to the void-element pass and closed up into a
+        // working <script>, exactly like the control-character carrier did
+        // before the strip was moved first. The pass sequence now runs to a
+        // fixed point, so the reassembled block dies in the next iteration.
+        String stored = ArticleBodySanitizer.sanitize("<scr<iframe>ipt>alert(1)</scr<iframe>ipt>");
+
+        assertThat(stored).doesNotContain("<script");
+        assertThat(stored).doesNotContain("alert(1)");
+        assertThat(ArticleBodySanitizer.containsExecutableContent(stored)).isFalse();
+    }
+
+    @Test
+    void repeatedlyNestedReassemblyEitherSettlesCleanOrFailsClosed() {
+        String nested = "<scr<scr<iframe>ipt>iframe>ipt>alert(1)</scr<scr<iframe>ipt>iframe>ipt>";
+        try {
+            String stored = ArticleBodySanitizer.sanitize(nested);
+            assertThat(ArticleBodySanitizer.containsExecutableContent(stored)).isFalse();
+            assertThat(stored).doesNotContain("<script");
+        } catch (com.healthcare.exception.BusinessException rejected) {
+            // Refusing the body is the other safe outcome: the sanitizer
+            // bounds its loop and fails closed rather than storing what it
+            // could not clean.
+            assertThat(rejected.getStatus()).isEqualTo(400);
+        }
+    }
+
+    @Test
     void stillRemovesTheOriginalCarriers() {
         // The denylist grew; nothing that was already on it may have moved.
         String stored = ArticleBodySanitizer.sanitize(
