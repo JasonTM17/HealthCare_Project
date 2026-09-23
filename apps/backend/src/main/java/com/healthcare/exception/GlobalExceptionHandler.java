@@ -13,6 +13,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.http.converter.HttpMessageNotWritableException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
@@ -44,6 +45,16 @@ public class GlobalExceptionHandler {
         // SSE disconnects/timeouts are normal lifecycle events. In particular, never send
         // the JSON ApiError envelope after text/event-stream has already been selected.
         log.debug("Async response completed for {}: {}", extractPath(request), ex.getMessage());
+        return ResponseEntity.noContent().build();
+    }
+
+    @ExceptionHandler(HttpMessageNotWritableException.class)
+    public ResponseEntity<Void> handleNotWritableResponse(HttpMessageNotWritableException ex, WebRequest request) {
+        // The message converter already failed for this response — most often because an
+        // SSE mapping preset text/event-stream and a downstream failure tried to serialize
+        // the JSON envelope into it. Nothing can be written at this point, so answer with
+        // an empty response; the warning keeps genuine serialization bugs visible.
+        log.warn("Response body was not writable for {}: {}", extractPath(request), ex.getMessage());
         return ResponseEntity.noContent().build();
     }
 
