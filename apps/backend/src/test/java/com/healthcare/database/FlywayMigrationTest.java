@@ -545,6 +545,52 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
     }
 
     @Test
+    void v103AlignsPlaceholderDoctorDisplayNamesWithTheLinkedProfile() {
+        String schema = createMigrationSchema();
+        try {
+            migrate(schema, "100");
+            UUID placeholderUserId = UUID.randomUUID();
+            UUID realNameUserId = UUID.randomUUID();
+            jdbcTemplate.update(
+                "insert into " + table(schema, "users")
+                    + " (id, email, password_hash, display_name, status, created_at, updated_at,"
+                    + " email_verified, synthetic_fixture, is_demo) "
+                    + "values (?, ?, 'x', ?, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, true, false, false)",
+                placeholderUserId, "v101.placeholder@example.test", "Bác sĩ Local");
+            jdbcTemplate.update(
+                "insert into " + table(schema, "users")
+                    + " (id, email, password_hash, display_name, status, created_at, updated_at,"
+                    + " email_verified, synthetic_fixture, is_demo) "
+                    + "values (?, ?, 'x', ?, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, true, false, false)",
+                realNameUserId, "v101.real@example.test", "BS.CKII Nguyễn Thật");
+            insertDoctorLinkedTo(schema, placeholderUserId, "BS.CKII Võ Thị Mai", "v103-placeholder-doctor");
+            insertDoctorLinkedTo(schema, realNameUserId, "BS.CKII Nguyễn Thật", "v103-real-doctor");
+
+            migrate(schema, "103");
+
+            // Placeholder-aligned; a deliberate display name is never rewritten.
+            assertThat(jdbcTemplate.queryForObject(
+                "select display_name from " + table(schema, "users") + " where id = ?",
+                String.class, placeholderUserId
+            )).isEqualTo("BS.CKII Võ Thị Mai");
+            assertThat(jdbcTemplate.queryForObject(
+                "select display_name from " + table(schema, "users") + " where id = ?",
+                String.class, realNameUserId
+            )).isEqualTo("BS.CKII Nguyễn Thật");
+        } finally {
+            dropMigrationSchema(schema);
+        }
+    }
+
+    private void insertDoctorLinkedTo(String schema, UUID userId, String fullName, String slug) {
+        jdbcTemplate.update(
+            "insert into " + table(schema, "doctors") + " (id, full_name, slug, active, user_id) "
+                + "values (?, ?, ?, true, ?)",
+            UUID.randomUUID(), fullName, slug, userId
+        );
+    }
+
+    @Test
     void v100AbortsInsteadOfMassUpdatingWhenDemoDoctorCountDriftsBelowBounds() {
         String schema = createMigrationSchema();
         try {
