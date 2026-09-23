@@ -102,11 +102,21 @@ public class AuthController {
     @PostMapping("/change-password")
     public ResponseEntity<AuthActionResponse> changePassword(
             @Valid @RequestBody com.healthcare.user.dto.ChangePasswordRequest request,
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @AuthenticationPrincipal UserDetails userDetails,
+            HttpServletRequest httpRequest) {
         if (userDetails == null) {
             throw new org.springframework.security.access.AccessDeniedException("Authentication required");
         }
-        authService.changePassword(userDetails.getUsername(), request.currentPassword(), request.newPassword());
+        // When the caller is acting from a browser session, that session must
+        // survive its own password change; every other credential is revoked.
+        java.util.UUID currentSessionId = userDetails instanceof HealthcareUserPrincipal principal
+            ? browserSessionService.context(httpRequest)
+                .filter(value -> value.userId().equals(principal.getUserId()))
+                .map(BrowserSessionContext::sessionId)
+                .orElse(null)
+            : null;
+        authService.changePassword(
+            userDetails.getUsername(), request.currentPassword(), request.newPassword(), currentSessionId);
         return ResponseEntity.ok(new AuthActionResponse("Mật khẩu đã được thay đổi thành công."));
     }
 

@@ -181,6 +181,27 @@ public class BrowserSessionService {
             """, normalizeReason(reason), userId);
     }
 
+    /**
+     * Revokes every active session of the user except {@code keepSessionId}.
+     * A null keep-id degrades to a full revocation, which is the correct
+     * posture when the caller is not acting from a browser session.
+     */
+    @Transactional
+    public void revokeOthersForUser(UUID userId, UUID keepSessionId, String reason) {
+        if (keepSessionId == null) {
+            revokeAllForUser(userId, reason);
+            return;
+        }
+        jdbcTemplate.update("""
+            UPDATE browser_sessions
+               SET revoked_at = CURRENT_TIMESTAMP,
+                   revoked_reason = ?
+             WHERE user_id = ?
+               AND revoked_at IS NULL
+               AND id <> ?
+            """, normalizeReason(reason), userId, keepSessionId);
+    }
+
     public boolean csrfMatches(BrowserSessionContext context, String rawCsrfSecret) {
         if (context == null || !isPlausibleSecret(rawCsrfSecret)) return false;
         return constantTimeEquals(
