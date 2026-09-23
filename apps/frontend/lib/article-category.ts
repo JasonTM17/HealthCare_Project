@@ -19,6 +19,7 @@ export const ARTICLE_CATEGORY_LABELS: Record<string, string> = {
   GASTROENTEROLOGY: "Tiêu hóa",
   GENERAL: "Sức khỏe tổng quát",
   GYNECOLOGY: "Sản phụ khoa",
+  HEALTH_GUIDE: "Hướng dẫn sức khỏe",
   NEUROLOGY: "Thần kinh",
   ONCOLOGY: "Ung bướu",
   PEDIATRICS: "Nhi khoa",
