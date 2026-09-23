@@ -1,6 +1,7 @@
 package com.healthcare.hospital.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.healthcare.ai.chat.service.ChatMedicalSafety;
 import com.healthcare.exception.BusinessException;
 import com.healthcare.exception.ErrorCodes;
 import com.healthcare.hospital.entity.Specialty;
@@ -33,11 +34,19 @@ public class PublicSpecialtyTriageService {
             + "uống\\s+\\d|bạn\\s+bị|you\\s+have)",
         Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE
     );
-    private static final Pattern EMERGENCY = Pattern.compile(
-        "(đau\\s+ngực\\s+dữ\\s+dội|khó\\s+thở\\s+nặng|tự\\s+tử|tự\\s+sát|xuất\\s+huyết\\s+nhiều|"
-            + "mất\\s+ý\\s+thức|bất\\s+tỉnh|đột\\s+quỵ|tai\\s+biến|đau\\s+tim|nhồi\\s+máu\\s+cơ\\s+tim|"
-            + "ngưng\\s+thở|ngưng\\s+tim|chest\\s+pain|suicide|stroke|heart\\s+attack|cardiac\\s+arrest|unconscious)",
-        Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE
+    /**
+     * Emergency detection is delegated to {@link ChatMedicalSafety}, the same
+     * normalized (diacritic-folded, đ→d) lexicon the AI safety boundary and
+     * the public chat controller use, so this endpoint cannot drift from it.
+     * This pattern carries ONLY the few acute expressions the shared lexicon
+     * does not list — tự sát, xuất huyết, đau tim, unconscious — kept as an
+     * explicit remainder so adopting the shared vocabulary cannot silently
+     * lose coverage this endpoint already had. It is matched against
+     * accent-folded text, never raw input.
+     */
+    private static final Pattern EMERGENCY_SUPPLEMENT = Pattern.compile(
+        "(?<![a-z0-9])(?:tu\\s+sat|xuat\\s+huyet|dau\\s+tim|unconscious)(?![a-z0-9])",
+        Pattern.CASE_INSENSITIVE
     );
     private static final Pattern PII = Pattern.compile(
         "([A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}|\\b0\\d{8,10}\\b|"
@@ -65,6 +74,16 @@ public class PublicSpecialtyTriageService {
             throw new BusinessException(400, ErrorCodes.VALIDATION_ERROR,
                 "Mô tả triệu chứng phải dài từ 2 đến 500 ký tự.");
         }
+        // Emergency check runs FIRST, before every rejection path (audit A4):
+        // a crisis message that also carries PII or a diagnose-shaped phrase
+        // must still receive the 115 guidance, never a 422 with none.
+        // Detection is delegated to the shared ChatMedicalSafety lexicon —
+        // normalized and diacritic-folded, so an accent-free "dau nguc du
+        // doi" matches — instead of this class keeping its own diacritic-
+        // anchored list that could drift from the AI safety boundary.
+        if (isEmergency(symptoms)) {
+            return emergencyPayload();
+        }
         if (PII.matcher(symptoms).find()) {
             throw new BusinessException(422, ErrorCodes.CHAT_CONTENT_BLOCKED,
                 "Hãy bỏ thông tin nhận dạng cá nhân và thử diễn đạt lại.");
@@ -72,9 +91,6 @@ public class PublicSpecialtyTriageService {
         if (DIAGNOSE_OR_PRESCRIBE.matcher(symptoms).find()) {
             throw new BusinessException(422, ErrorCodes.CHAT_CONTENT_BLOCKED,
                 "Công cụ này không chẩn đoán hoặc kê đơn. Hãy mô tả triệu chứng để gợi ý chuyên khoa.");
-        }
-        if (EMERGENCY.matcher(symptoms).find()) {
-            return emergencyPayload();
         }
 
         Specialty match = bestMatch(symptoms, specialtyRepository.findByActiveTrue());
@@ -109,6 +125,22 @@ public class PublicSpecialtyTriageService {
             "title", match.getName()
         )));
         return body;
+    }
+
+    /**
+     * Shared Spring emergency lexicon ({@link ChatMedicalSafety} normalizes
+     * the input itself), combined with the accent-folded remainder pattern so
+     * moving to the shared vocabulary cannot lose expressions this endpoint
+     * already caught. Folding here maps đ→d explicitly because this class's
+     * own {@link #normalize} drops đ to a space.
+     */
+    private boolean isEmergency(String symptoms) {
+        if (ChatMedicalSafety.containsEmergencyInputCue(symptoms)) {
+            return true;
+        }
+        return EMERGENCY_SUPPLEMENT.matcher(normalize(symptoms
+            .replace('đ', 'd')
+            .replace('Đ', 'D'))).find();
     }
 
     private Map<String, Object> emergencyPayload() {

@@ -72,4 +72,34 @@ class PublicSpecialtyTriageIntegrationTest extends AbstractIntegrationTest {
             .andExpect(jsonPath("$.specialty_resolution").value("UNRESOLVED"))
             .andExpect(jsonPath("$.recommended_specialty_id").doesNotExist());
     }
+
+    @Test
+    void accentFreeEmergencyPhraseStillTriggersEmergencyGuidance() throws Exception {
+        // Audit A4 (T3): detection used to be anchored to the diacritics, so
+        // "dau nguc du doi" typed without them fell through to NORMAL.
+        mockMvc.perform(post("/api/v1/public/specialty-recommendation")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(java.util.Map.of(
+                    "symptoms", "dau nguc du doi roi khoi lam gi"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.urgency_level").value("EMERGENCY"))
+            .andExpect(jsonPath("$.clinical_advice").value(
+                org.hamcrest.Matchers.containsString("115")))
+            .andExpect(jsonPath("$.specialty_resolution").value("UNRESOLVED"));
+    }
+
+    @Test
+    void emergencyMessageContainingPhoneNumberGetsGuidanceNotContentBlocked() throws Exception {
+        // Audit A4 (T3): the PII rejection used to run first, so a crisis
+        // message that also carried a phone number got a 422 with zero 115
+        // guidance. Emergency short-circuits every rejection path now.
+        mockMvc.perform(post("/api/v1/public/specialty-recommendation")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(java.util.Map.of(
+                    "symptoms", "đau ngực dữ dội, số tôi 0901234567"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.urgency_level").value("EMERGENCY"))
+            .andExpect(jsonPath("$.clinical_advice").value(
+                org.hamcrest.Matchers.containsString("115")));
+    }
 }

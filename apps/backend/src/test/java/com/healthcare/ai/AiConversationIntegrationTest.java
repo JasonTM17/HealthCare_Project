@@ -222,7 +222,34 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
     void idempotentReplayDoesNotDebitAgainEvenAfterBalanceReachesZero() throws Exception {
         User patient = createUser("patient.credit-replay@example.com");
         createPatientProfile(patient, "0901002001", 1);
-        when(aiService.retrieveChat(any())).thenReturn(Map.of("safety_action", "REFUSE"));
+        // Since audit A4 the static safety outcomes (REFUSE/EMERGENCY/
+        // HUMAN_HANDOFF) are waived, not charged — so replay protection is
+        // asserted on a grounded, cited answer, the path that still moves the
+        // balance.
+        MedicalService service = new MedicalService();
+        service.setName("Tư vấn tổng quát");
+        service.setSlug("tu-van-tong-quat-" + UUID.randomUUID());
+        service.setDescription("Thông tin hỗ trợ đặt lịch tư vấn tổng quát.");
+        service.setActive(true);
+        service = serviceRepository.saveAndFlush(service);
+        String sourceId = service.getId().toString();
+        when(aiService.retrieveChat(any())).thenReturn(Map.of(
+            "safety_action", "ANSWER",
+            "candidates", List.of(Map.of(
+                "source_type", "service",
+                "source_id", sourceId,
+                "projection_kind", "OPERATIONAL",
+                "score", 1.0
+            ))
+        ));
+        when(aiService.generateChat(any())).thenReturn(Map.of(
+            "answer", "Bạn có thể đặt lịch tư vấn tổng quát.",
+            "provenance", "local_provider",
+            "used_sources", List.of(Map.of(
+                "source_type", "service",
+                "source_id", sourceId,
+                "projection_kind", "OPERATIONAL"))
+        ));
 
         String conversationId = mockMvc.perform(post("/api/v1/ai/conversations")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -243,7 +270,7 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
 
         assertThat(patientProfileRepository.findByUserId(patient.getId()).orElseThrow().getAiCredits())
             .isZero();
-        assertThat(creditTransactionCount(patient.getId())).isEqualTo(1);
+        assertThat(creditTransactionCount(patient.getId(), "AI_CHAT_USAGE")).isEqualTo(1);
 
         mockMvc.perform(post(endpoint)
                 .header("Idempotency-Key", "credit-replay-0001")
@@ -328,6 +355,128 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
         assertThat(patientProfileRepository.findByUserId(patient.getId()).orElseThrow().getAiCredits())
             .isEqualTo(3);
         assertThat(creditTransactionCount(patient.getId())).isEqualTo(1);
+    }
+
+    @Test
+    @WithMockUser(username = "patient.zero-credit-crisis@example.com", roles = "PATIENT")
+    void zeroCreditPatientSendingCrisisMessageGetsFreeEmergencyGuidance() throws Exception {
+        // Audit A4 (T1): the credit gate must never stand between a patient in
+        // crisis and the fixed 115 guidance. Before the fix this request died
+        // at the 402 INSUFFICIENT_AI_CREDITS gate, safety text unread.
+        User patient = createUser("patient.zero-credit-crisis@example.com");
+        createPatientProfile(patient, "0901002014", 0);
+
+        String conversationId = mockMvc.perform(post("/api/v1/ai/conversations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"consentAccepted\":true}"))
+            .andExpect(status().isCreated())
+            .andReturn()
+            .getResponse()
+            .getContentAsString()
+            .replaceAll(".*\\\"id\\\":\\\"([^\\\"]+)\\\".*", "$1");
+
+        mockMvc.perform(post("/api/v1/ai/conversations/" + conversationId + "/messages")
+                .header("Idempotency-Key", "zero-credit-crisis-0001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"Tôi bị đau ngực dữ dội, phải làm sao\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.replayed").value(false))
+            .andExpect(jsonPath("$.assistantMessage.safetyAction").value("EMERGENCY"))
+            .andExpect(jsonPath("$.assistantMessage.content").value(
+                org.hamcrest.Matchers.containsString("115")));
+
+        // The crisis answer is the canned static text: no provider call was
+        // bought and no credit row was written — only the zero-amount waiver.
+        verify(aiService, never()).retrieveChat(any());
+        verify(aiService, never()).generateChat(any());
+        assertThat(patientProfileRepository.findByUserId(patient.getId()).orElseThrow().getAiCredits())
+            .isZero();
+        assertThat(creditTransactionCount(patient.getId(), "AI_CHAT_USAGE")).isZero();
+        assertThat(creditTransactionCount(patient.getId(), "AI_CHAT_WAIVED")).isEqualTo(1);
+        assertThat(ledgerBalanceAfter(patient.getId(), "AI_CHAT_WAIVED")).isZero();
+    }
+
+    @Test
+    @WithMockUser(username = "patient.credited-crisis@example.com", roles = "PATIENT")
+    void creditedPatientEmergencyMessageIsAnsweredWithoutAnyDeduction() throws Exception {
+        // Audit A4 (T2): a paying patient receives the same free crisis answer.
+        // The Tier-1 detector short-circuits before the provider, and
+        // complete() waives the EMERGENCY outcome, so no credit moves.
+        User patient = createUser("patient.credited-crisis@example.com");
+        createPatientProfile(patient, "0901002015", 3);
+
+        String conversationId = mockMvc.perform(post("/api/v1/ai/conversations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"consentAccepted\":true}"))
+            .andExpect(status().isCreated())
+            .andReturn()
+            .getResponse()
+            .getContentAsString()
+            .replaceAll(".*\\\"id\\\":\\\"([^\\\"]+)\\\".*", "$1");
+
+        mockMvc.perform(post("/api/v1/ai/conversations/" + conversationId + "/messages")
+                .header("Idempotency-Key", "credited-crisis-0001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"Tôi khó thở dữ dội và đau ngực lan ra tay\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.assistantMessage.safetyAction").value("EMERGENCY"))
+            .andExpect(jsonPath("$.assistantMessage.content").value(
+                org.hamcrest.Matchers.containsString("115")));
+
+        verify(aiService, never()).retrieveChat(any());
+        verify(aiService, never()).generateChat(any());
+        assertThat(patientProfileRepository.findByUserId(patient.getId()).orElseThrow().getAiCredits())
+            .isEqualTo(3);
+        assertThat(creditTransactionCount(patient.getId(), "AI_CHAT_USAGE")).isZero();
+        assertThat(creditTransactionCount(patient.getId(), "AI_CHAT_WAIVED")).isEqualTo(1);
+        assertThat(ledgerBalanceAfter(patient.getId(), "AI_CHAT_WAIVED")).isEqualTo(3);
+    }
+
+    @Test
+    @WithMockUser(username = "patient.provider-safety-waived@example.com", roles = "PATIENT")
+    void providerClassifiedSafetyOutcomesAreWaivedInsteadOfCharged() throws Exception {
+        // Audit A4 (part 2): when the classification comes from the provider
+        // (no Tier-1 acute term in the message), the completed answer is still
+        // a canned safety text — REFUSE and provider-declared EMERGENCY must
+        // not carry an AI_CHAT_USAGE row either.
+        User patient = createUser("patient.provider-safety-waived@example.com");
+        createPatientProfile(patient, "0901002016", 3);
+
+        String conversationId = mockMvc.perform(post("/api/v1/ai/conversations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"consentAccepted\":true}"))
+            .andExpect(status().isCreated())
+            .andReturn()
+            .getResponse()
+            .getContentAsString()
+            .replaceAll(".*\\\"id\\\":\\\"([^\\\"]+)\\\".*", "$1");
+
+        String endpoint = "/api/v1/ai/conversations/" + conversationId + "/messages";
+        // @BeforeEach stubs retrieveChat → REFUSE for this content.
+        mockMvc.perform(post(endpoint)
+                .header("Idempotency-Key", "safety-waive-refuse-0001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"Toi muon hoi bac si\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.assistantMessage.safetyAction").value("REFUSE"));
+
+        assertThat(patientProfileRepository.findByUserId(patient.getId()).orElseThrow().getAiCredits())
+            .isEqualTo(3);
+        assertThat(creditTransactionCount(patient.getId(), "AI_CHAT_USAGE")).isZero();
+        assertThat(creditTransactionCount(patient.getId(), "AI_CHAT_WAIVED")).isEqualTo(1);
+
+        when(aiService.retrieveChat(any())).thenReturn(Map.of("safety_action", "EMERGENCY"));
+        mockMvc.perform(post(endpoint)
+                .header("Idempotency-Key", "safety-waive-emergency-0002")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"Toi muon hoi them ve truoc\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.assistantMessage.safetyAction").value("EMERGENCY"));
+
+        assertThat(patientProfileRepository.findByUserId(patient.getId()).orElseThrow().getAiCredits())
+            .isEqualTo(3);
+        assertThat(creditTransactionCount(patient.getId(), "AI_CHAT_USAGE")).isZero();
+        assertThat(creditTransactionCount(patient.getId(), "AI_CHAT_WAIVED")).isEqualTo(2);
     }
 
     @Test
