@@ -1,5 +1,6 @@
 package com.healthcare.hospital.controller;
 
+import com.healthcare.hospital.dto.AdminDoctorResponse;
 import com.healthcare.hospital.dto.DoctorRequest;
 import com.healthcare.hospital.entity.Doctor;
 import com.healthcare.hospital.service.AdminDoctorService;
@@ -35,7 +36,7 @@ public class AdminDoctorController {
 
     @Operation(summary = "Quản lý danh sách bác sĩ", description = "Lấy danh sách toàn bộ bác sĩ trong hệ thống dành cho ban quản trị")
     @GetMapping
-    public Page<Doctor> list(@PageableDefault(size = 20, sort = "fullName") Pageable pageable) {
+    public Page<AdminDoctorResponse> list(@PageableDefault(size = 20, sort = "fullName") Pageable pageable) {
         return adminDoctorService.list(pageable);
     }
 

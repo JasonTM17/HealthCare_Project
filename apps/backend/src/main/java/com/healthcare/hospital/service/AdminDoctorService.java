@@ -4,8 +4,11 @@ import com.healthcare.ai.service.AiClinicalContentRevisionService;
 import com.healthcare.exception.DuplicateResourceException;
 import com.healthcare.exception.BusinessException;
 import com.healthcare.exception.ResourceNotFoundException;
+import com.healthcare.hospital.dto.AdminDoctorResponse;
 import com.healthcare.hospital.dto.DoctorRequest;
 import com.healthcare.hospital.entity.Doctor;
+import com.healthcare.hospital.entity.DoctorBranch;
+import com.healthcare.hospital.repository.DoctorBranchRepository;
 import com.healthcare.hospital.repository.DoctorRepository;
 import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.UserRepository;
@@ -15,30 +18,61 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
 @Service
 public class AdminDoctorService {
 
     private final DoctorRepository doctorRepository;
     private final UserRepository userRepository;
+    private final DoctorBranchRepository doctorBranchRepository;
     private final AiClinicalContentRevisionService revisionService;
 
-    public AdminDoctorService(DoctorRepository doctorRepository, UserRepository userRepository) {
-        this(doctorRepository, userRepository, null);
+    public AdminDoctorService(
+            DoctorRepository doctorRepository,
+            UserRepository userRepository,
+            DoctorBranchRepository doctorBranchRepository) {
+        this(doctorRepository, userRepository, doctorBranchRepository, null);
     }
 
     @Autowired
     public AdminDoctorService(
             DoctorRepository doctorRepository,
             UserRepository userRepository,
+            DoctorBranchRepository doctorBranchRepository,
             AiClinicalContentRevisionService revisionService) {
         this.doctorRepository = doctorRepository;
         this.userRepository = userRepository;
+        this.doctorBranchRepository = doctorBranchRepository;
         this.revisionService = revisionService;
     }
 
+    /**
+     * Admin doctor page. Returns {@link AdminDoctorResponse} rather than the raw
+     * entity so each row carries {@code branchIds} resolved from the
+     * {@code doctor_branches} link table — the same source
+     * {@link DoctorService} uses for the public catalog — which the admin
+     * schedules page depends on to populate its branch dropdown. Paging and
+     * sort from {@code pageable} are preserved by {@link Page#map}.
+     */
     @Transactional(readOnly = true)
-    public Page<Doctor> list(Pageable pageable) {
-        return doctorRepository.findAll(pageable);
+    public Page<AdminDoctorResponse> list(Pageable pageable) {
+        Page<Doctor> page = doctorRepository.findAll(pageable);
+        List<Doctor> doctors = page.getContent();
+        if (doctors.isEmpty()) {
+            return page.map(doctor -> AdminDoctorResponse.from(doctor, List.of()));
+        }
+        List<UUID> doctorIds = doctors.stream().map(Doctor::getId).toList();
+        Map<UUID, List<String>> branchIdsByDoctor = doctorBranchRepository.findByDoctorIdIn(doctorIds).stream()
+            .collect(Collectors.groupingBy(
+                link -> link.getDoctor().getId(),
+                Collectors.mapping(link -> link.getBranch().getId().toString(), Collectors.toList())));
+        return page.map(doctor -> AdminDoctorResponse.from(
+            doctor,
+            branchIdsByDoctor.getOrDefault(doctor.getId(), List.of())));
     }
 
     @Transactional
