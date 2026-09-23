@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.core.MethodParameter;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.converter.HttpMessageNotWritableException;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.MissingPathVariableException;
@@ -291,5 +292,17 @@ class GlobalExceptionHandlerSuiteTest {
 
         var resp503 = handler.handleResponseStatus(new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE), request);
         assertThat(resp503.getBody().code()).isEqualTo(ErrorCodes.SERVICE_UNAVAILABLE);
+    }
+
+    @Test
+    @DisplayName("A non-writable response answers 204 instead of failing the JSON envelope write")
+    void handleNotWritableResponse() {
+        HttpMessageNotWritableException ex = new HttpMessageNotWritableException(
+            "No converter for [class com.healthcare.exception.ApiError] with preset Content-Type 'text/event-stream'");
+
+        var response = handler.handleNotWritableResponse(ex, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+        assertThat(response.getBody()).isNull();
     }
 }
