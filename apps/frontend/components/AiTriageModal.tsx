@@ -266,6 +266,9 @@ export default function AiTriageModal({
             <div className="space-y-2 rounded-sm border border-red-200 bg-red-50 p-4 text-sm text-red-900" role="alert" aria-live="assertive">
               <p className="font-bold">{errorCopy.title}</p>
               <p>{errorCopy.description}</p>
+              <p className="flex items-start gap-2 rounded-lg border border-red-200 bg-white/80 p-3 text-xs leading-relaxed text-red-900">
+                <Icon name="alert-triangle" size={14} /> <span>Trường hợp khẩn cấp, vui lòng gọi 115 hoặc đến cơ sở y tế gần nhất.</span>
+              </p>
               {errorKind === "unavailable" || errorKind === "error" ? (
                 <button
                   type="button"

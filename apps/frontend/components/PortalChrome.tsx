@@ -21,6 +21,7 @@ import {
 } from "../lib/notification-polling";
 import BrandMark from "./BrandMark";
 import UiIcon from "./UiIcon";
+import useDialogFocus from "./useDialogFocus";
 
 export type PortalRole = "PATIENT" | "DOCTOR";
 
@@ -137,6 +138,11 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLElement>(null);
+  const notificationModalRef = useRef<HTMLDivElement>(null);
+  // The notification detail opens from the (self-closing) popover, so the
+  // popover Escape handler above never sees it. Treat the detail as a modal
+  // dialog: trap focus, close on Escape, and restore the trigger.
+  useDialogFocus(notificationModalRef, Boolean(selectedNotification), () => setSelectedNotification(null));
   const effectiveAvatar = avatarUrl ?? resolvedAvatar ?? getCachedAvatar(role, user.id);
 
   // The mobile tab strip scrolls horizontally, so keep the active tab visible
@@ -628,6 +634,7 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
         >
           <div
             className="portal-notification-modal"
+            ref={notificationModalRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="notification-modal-title"
