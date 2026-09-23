@@ -100,7 +100,11 @@ function toSlug(text: string): string {
     .replace(/[đĐ]/g, "d")
     .replace(/[^a-z0-9\s-]/g, "")
     .trim()
-    .replace(/\s+/g, "-");
+    .replace(/\s+/g, "-")
+    // A title like "P2 matrix - quy trình" would otherwise yield "p2-matrix---quy-trinh",
+    // a slug the backend's kebab-case validation rejects on the next edit.
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
 }
 
 export default function DoctorArticlesPage() {

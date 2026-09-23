@@ -17,7 +17,10 @@ public record ArticleRequest(
     // the DB unique constraint (case-sensitive) let "tang-huyet" and
     // "Tang-Huyet" coexist, silently splitting the public URL space.
     @NotBlank @Size(max = 220)
-    @Pattern(regexp = "^[a-z0-9]+(?:-[a-z0-9]+)*$", message = "slug phải dạng kebab-case (chữ thường, số, dấu gạch nối)")
+    // Hyphen runs are tolerated so stored legacy slugs (a title with " - "
+    // used to generate "p2-matrix---quy-trinh") stay editable; the frontend
+    // slugifier now collapses runs for everything created from here on.
+    @Pattern(regexp = "^[a-z0-9]+(?:-+[a-z0-9]+)*$", message = "slug phải dạng kebab-case (chữ thường, số, dấu gạch nối)")
     String slug,
     @Size(max = 500) String summary,
     @Size(max = 8000) String body,
