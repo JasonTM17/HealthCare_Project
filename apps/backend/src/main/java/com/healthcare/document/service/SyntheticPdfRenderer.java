@@ -121,7 +121,9 @@ public class SyntheticPdfRenderer {
     }
 
     String issuerLine() {
-        return ISSUER_LINE;
+        // The visible label already carries "Đơn vị phát hành: ", so the value
+        // must not repeat it (round-10 screenshot showed the doubled prefix).
+        return ISSUER_LINE.replace("Đơn vị phát hành: ", "");
     }
 
     // ── Canvas helpers ──────────────────────────────────────────────────────
@@ -381,16 +383,16 @@ public class SyntheticPdfRenderer {
 
         private byte[] finish(DocumentSnapshot snapshot, String snapshotHash) throws IOException {
             ensureOpen();
-            y -= 12f;
-            stream.setNonStrokingColor(0.25f, 0.25f, 0.25f);
-            drawText(HASH_LABEL + snapshotHash, regular, 8.5f);
-            y -= 11f;
-            drawText("Mã bản ghi nguồn: " + snapshot.sourceRecordId()
-                + " · Phiên bản biểu mẫu: " + snapshot.templateVersion(), regular, 8.5f);
-            stream.setNonStrokingColor(0f, 0f, 0f);
             footer();
             stream.close();
             stream = null;
+            // Integrity provenance (source hash, record id, template version) must be
+            // verifiable but must not render on the patient-facing page — it lives in
+            // the PDF document metadata instead of the drawn footer (round-10 finding).
+            PDDocumentInformation provenance = document.getDocumentInformation();
+            provenance.setCustomMetadataValue("SourceContentSha256", snapshotHash);
+            provenance.setCustomMetadataValue("SourceRecordId", snapshot.sourceRecordId().toString());
+            provenance.setCustomMetadataValue("TemplateVersion", TEMPLATE_VERSION);
             ByteArrayOutputStream output = new ByteArrayOutputStream(48 * 1024);
             document.save(output);
             return stabilizeDocumentId(output.toByteArray(), snapshotHash);
