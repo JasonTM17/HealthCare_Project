@@ -335,7 +335,7 @@ export default function DoctorAiContentReviewsPage() {
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
               <h2 id="review-queue-title">Hàng đợi độc lập</h2>
-              <p className="text-sm text-slate-600">Chỉ revision đã được ADMIN submit mới xuất hiện; lịch sử đã duyệt chỉ để kiểm tra và thu hồi. Không hiển thị danh tính bệnh nhân.</p>
+              <p className="text-sm text-slate-600">Chỉ các bản sửa đổi đã được quản trị viên gửi duyệt mới hiển thị; lịch sử đã duyệt chỉ để kiểm tra và thu hồi. Không hiển thị thông tin danh tính bệnh nhân.</p>
             </div>
             <span className="text-sm text-slate-600" aria-live="polite">{loading ? "Đang đồng bộ…" : `${reviews.length} nội dung · ${stateLabel(queueState)}`}</span>
           </div>
