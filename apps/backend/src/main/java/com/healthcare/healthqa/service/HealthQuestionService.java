@@ -23,7 +23,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -154,18 +153,14 @@ public class HealthQuestionService {
         UUID reporter = currentUser(principal);
         requirePublishedQuestion(questionId);
         String reason = normalizeReportReason(request.reasonCode());
-        try {
-            Map<String, Object> existing = jdbc.queryForMap("""
-                SELECT id, question_id, reason_code, status, created_at, handled_at, resolution_code
-                  FROM health_question_reports
-                 WHERE question_id = ? AND reporter_user_id = ? AND reason_code = ?
-                   AND status IN ('OPEN', 'UNDER_REVIEW')
-                 ORDER BY created_at DESC LIMIT 1
-                """, questionId, reporter, reason);
-            if (existing != null && !existing.isEmpty()) return mapReport(existing);
-        } catch (EmptyResultDataAccessException ignored) {
-            // First report for this question/reason.
-        }
+        List<HealthQuestionContracts.ReportSummary> existing = jdbc.query("""
+            SELECT id, question_id, reason_code, status, created_at, handled_at, resolution_code
+              FROM health_question_reports
+             WHERE question_id = ? AND reporter_user_id = ? AND reason_code = ?
+               AND status IN ('OPEN', 'UNDER_REVIEW')
+             ORDER BY created_at DESC LIMIT 1
+            """, (rs, n) -> mapReport(rs), questionId, reporter, reason);
+        if (!existing.isEmpty()) return existing.get(0);
         UUID id = UUID.randomUUID();
         jdbc.update("""
             INSERT INTO health_question_reports(id, question_id, reporter_user_id, reason_code)
@@ -267,10 +262,17 @@ public class HealthQuestionService {
             throw new BusinessException(400, "HEALTH_QUESTION_REASON_REQUIRED", "Cần nêu lý do khi từ chối hoặc đóng câu hỏi");
         }
         String status = switch (decision) { case "APPROVE" -> "AWAITING_DOCTOR"; case "REJECT" -> "REJECTED"; default -> "CLOSED"; };
+        // Approve/reject act on the moderation queue; CLOSE retires a question
+        // that already passed moderation (the admin UI only offers close on
+        // these post-moderation states). Restricting every decision to
+        // PENDING_MODERATION made CLOSE 404 on every queue row.
+        String sourceStates = "CLOSE".equals(decision)
+            ? "'AWAITING_DOCTOR', 'ANSWER_SUBMITTED', 'PUBLISHED'"
+            : "'PENDING_MODERATION'";
         int changed = jdbc.update("""
             UPDATE health_questions SET status = ?, moderator_user_id = ?, moderated_at = CURRENT_TIMESTAMP,
-                   moderation_reason_code = ? WHERE id = ? AND status = 'PENDING_MODERATION'
-            """, status, admin, request.reasonCode(), id);
+                   moderation_reason_code = ? WHERE id = ? AND status IN (%s)
+            """.formatted(sourceStates), status, admin, request.reasonCode(), id);
         if (changed == 0) throw notFound();
     }
 
@@ -476,13 +478,6 @@ public class HealthQuestionService {
         } catch (DataAccessException ex) {
             throw reportNotFound();
         }
-    }
-
-    private HealthQuestionContracts.ReportSummary mapReport(Map<String, Object> row) {
-        return new HealthQuestionContracts.ReportSummary(
-            (UUID) row.get("id"), (UUID) row.get("question_id"), String.valueOf(row.get("reason_code")),
-            String.valueOf(row.get("status")), (OffsetDateTime) row.get("created_at"),
-            (OffsetDateTime) row.get("handled_at"), row.get("resolution_code") == null ? null : String.valueOf(row.get("resolution_code")));
     }
 
     private HealthQuestionContracts.ReportSummary mapReport(java.sql.ResultSet rs) throws java.sql.SQLException {

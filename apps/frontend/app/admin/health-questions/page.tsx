@@ -31,17 +31,17 @@ const reportStatusLabels: Record<string, string> = {
 
 const ADMIN_QUEUE_PAGE_SIZE = 20;
 
-// Mirrors HealthQuestionService's accepted moderation reason codes. The backend
-// rejects a non-APPROVE decision without one, so the operator has to choose;
-// the page previously sent a hardcoded OUT_OF_SCOPE for every rejection, which
-// recorded a reason nobody had verified.
+// Mirrors health_questions.moderation_reason_code (V38 ck_health_questions_moderation_reason:
+// PII_DETECTED, OUT_OF_SCOPE, DUPLICATE, SAFETY_REVIEW, OTHER). The backend stores this code
+// on the question row, so a report-only code (SPAM/SAFETY_CONCERN/LEGAL_REQUEST — those belong
+// to health_question_reports) would violate the DB CHECK; the list previously copied the
+// report reason set for that reason.
 const MODERATION_REASON_OPTIONS = [
-  { value: "OUT_OF_SCOPE", label: "Ngoài phạm vi chuyên môn" },
   { value: "PII_DETECTED", label: "Có thông tin định danh cá nhân" },
-  { value: "SAFETY_CONCERN", label: "Lo ngại an toàn người bệnh" },
+  { value: "OUT_OF_SCOPE", label: "Ngoài phạm vi chuyên môn" },
   { value: "DUPLICATE", label: "Trùng với câu hỏi khác" },
-  { value: "SPAM", label: "Spam hoặc lạm dụng" },
-  { value: "LEGAL_REQUEST", label: "Yêu cầu pháp lý" },
+  { value: "SAFETY_REVIEW", label: "Cần rà soát an toàn" },
+  { value: "OTHER", label: "Lý do khác" },
 ];
 
 interface PendingModeration {
