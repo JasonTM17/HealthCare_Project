@@ -49,7 +49,10 @@ test("doctor primary appointment action sends the authorized status mutation", a
     specialtyName: "Tim mạch",
     branchId: "branch-primary-action",
     branchName: "HealthCare Quận 1",
-    appointmentDate: "2026-08-23",
+    // Doctor check-in/no-show are day-scoped server-side (round-10 finding),
+    // so the fixture must sit on the business "today" for the affordances to
+    // render at all.
+    appointmentDate: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date()),
     startTime: "08:00:00",
     endTime: "08:30:00",
     status: "CONFIRMED",
