@@ -486,6 +486,159 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
     }
 
     @Test
+    void v100HidesDemoDoctorsAndUnpublishesE2eFixturesWithoutDeletingRows() {
+        String schema = createMigrationSchema();
+        try {
+            migrate(schema, "99");
+            for (int ordinal = 1; ordinal <= 8; ordinal++) {
+                insertDoctor(schema, "Bác sĩ mẫu " + ordinal + " - Tim mạch",
+                    "demo-bs-v100-" + ordinal, true);
+            }
+            // A second set belonging to another branch, exactly like V67's
+            // per-branch expansion; both sets must end up hidden.
+            insertDoctor(schema, "Bác sĩ mẫu 1 - Thần kinh", "demo-bs-v100-branch2-1", true);
+            insertDoctor(schema, "Bác sĩ mẫu 2 - Tiêu hóa", "demo-bs-v100-branch2-2", true);
+            insertDoctor(schema, "Bác sĩ Trần Thị Thật", "v100-control-doctor", true);
+            insertPublishedArticle(schema, "e2e-round7-nhip-tim-cham---khi-nao-can-gap-bac-si", true);
+            insertPublishedArticle(schema, "dau-hieu-canh-bao-benh-tim-mach", false);
+
+            migrate(schema, "100");
+
+            // All ten demo doctors still exist; the V67 naming predicate hid
+            // every one of them, and no non-demo profile was touched.
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + table(schema, "doctors")
+                    + " where full_name like 'Bác sĩ mẫu %'",
+                Integer.class
+            )).isEqualTo(10);
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + table(schema, "doctors")
+                    + " where full_name like 'Bác sĩ mẫu %' and active = true",
+                Integer.class
+            )).isZero();
+            assertThat(jdbcTemplate.queryForObject(
+                "select active from " + table(schema, "doctors") + " where slug = 'v100-control-doctor'",
+                Boolean.class
+            )).isTrue();
+
+            // The fixture is unpublished, keeps its row and its APPROVED review
+            // trail, and loses the schedule so the publication sweeper cannot
+            // republish it one tick after the hide.
+            Map<String, Object> fixture = jdbcTemplate.queryForMap(
+                "select published_at, scheduled_publish_at, review_status, active "
+                    + "from " + table(schema, "articles")
+                    + " where slug = 'e2e-round7-nhip-tim-cham---khi-nao-can-gap-bac-si'");
+            assertThat(fixture.get("published_at")).isNull();
+            assertThat(fixture.get("scheduled_publish_at")).isNull();
+            assertThat(fixture.get("review_status")).isEqualTo("APPROVED");
+            assertThat(fixture.get("active")).isEqualTo(true);
+
+            // The real article is untouched.
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + table(schema, "articles")
+                    + " where slug = 'dau-hieu-canh-bao-benh-tim-mach' and published_at is not null",
+                Integer.class
+            )).isEqualTo(1);
+        } finally {
+            dropMigrationSchema(schema);
+        }
+    }
+
+    @Test
+    void v100AbortsInsteadOfMassUpdatingWhenDemoDoctorCountDriftsBelowBounds() {
+        String schema = createMigrationSchema();
+        try {
+            migrate(schema, "99");
+            // Only three V67-named doctors: candidates exist but the affected
+            // count cannot land in [8, 32], so the migration must abort.
+            for (int ordinal = 1; ordinal <= 3; ordinal++) {
+                insertDoctor(schema, "Bác sĩ mẫu " + ordinal + " - Tim mạch",
+                    "demo-bs-v100-drift-" + ordinal, true);
+            }
+
+            Throwable failure = catchThrowable(() -> migrate(schema, "100"));
+
+            assertThat(failure).isNotNull();
+            assertThat(allMessages(failure)).contains("V100 guard failed", "[8, 32]");
+            // The abort rolled the guarded UPDATE back: rows exist and are active.
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + table(schema, "doctors")
+                    + " where full_name like 'Bác sĩ mẫu %' and active = true",
+                Integer.class
+            )).isEqualTo(3);
+        } finally {
+            dropMigrationSchema(schema);
+        }
+    }
+
+    @Test
+    void v100AbortsInsteadOfMassUpdatingWhenE2eArticleCountDriftsAboveBounds() {
+        String schema = createMigrationSchema();
+        try {
+            migrate(schema, "99");
+            for (int index = 1; index <= 25; index++) {
+                insertPublishedArticle(schema, "e2e-bulk-drift-fixture-" + index, false);
+            }
+
+            Throwable failure = catchThrowable(() -> migrate(schema, "100"));
+
+            assertThat(failure).isNotNull();
+            assertThat(allMessages(failure)).contains("V100 guard failed", "[1, 20]");
+            // No fixture lost its publication: the transaction was aborted.
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + table(schema, "articles")
+                    + " where slug like 'e2e-%' and published_at is not null",
+                Integer.class
+            )).isEqualTo(25);
+        } finally {
+            dropMigrationSchema(schema);
+        }
+    }
+
+    @Test
+    void v100SkipsBothGuardsOnAFreshChainWithoutDemoOrE2eRows() {
+        String schema = createMigrationSchema();
+        try {
+            // V67 cross-joins a catalog that only V95 seeds later, so a fresh
+            // chain reaches V100 with zero candidates. Without the skip branch
+            // every fresh deployment and Testcontainers schema would abort.
+            migrateLatest(schema);
+
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + table(schema, "doctors")
+                    + " where full_name like 'Bác sĩ mẫu %'",
+                Integer.class
+            )).isZero();
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + table(schema, "articles")
+                    + " where slug like 'e2e-%' and published_at is not null",
+                Integer.class
+            )).isZero();
+        } finally {
+            dropMigrationSchema(schema);
+        }
+    }
+
+    private void insertDoctor(String schema, String fullName, String slug, boolean active) {
+        jdbcTemplate.update(
+            "insert into " + table(schema, "doctors") + " (id, full_name, slug, active) "
+                + "values (?, ?, ?, ?)",
+            UUID.randomUUID(), fullName, slug, active
+        );
+    }
+
+    private void insertPublishedArticle(String schema, String slug, boolean scheduled) {
+        jdbcTemplate.update(
+            "insert into " + table(schema, "articles")
+                + " (id, title, slug, summary, body, published_at, scheduled_publish_at) "
+                + "values (?, ?, ?, ?, ?, CURRENT_TIMESTAMP - INTERVAL '1 day', "
+                + (scheduled ? "CURRENT_TIMESTAMP - INTERVAL '2 days'" : "NULL") + ")",
+            UUID.randomUUID(), "Bài viết " + slug, slug,
+            "Tóm tắt fixture " + slug, "Nội dung fixture " + slug
+        );
+    }
+
+    @Test
     void cmsSlotKeysAreBoundToPublicRouteInventoryAtDatabaseBoundary() {
         UUID contentId = UUID.randomUUID();
         jdbcTemplate.update("delete from cms_content_changes where slot_key in (?, ?)", "contact.footer", "patient.dashboard.hero");
@@ -1158,6 +1311,10 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
             .locations("classpath:db/migration")
             .schemas(schema)
             .defaultSchema(schema)
+            // Same just-in-time catalog fixture as migrateLatest: harmless for
+            // targets below 86 (it only fires before V86) and required for any
+            // test that walks the chain to 99/100 on an isolated schema.
+            .callbacks(new CatalogFixtureCallback())
             .target(MigrationVersion.fromVersion(target))
             .load()
             .migrate();
