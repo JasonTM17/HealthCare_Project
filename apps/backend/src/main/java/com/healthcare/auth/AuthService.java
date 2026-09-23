@@ -288,8 +288,20 @@ public class AuthService {
         return new AuthActionResponse("Password reset completed.");
     }
 
+    /**
+     * Rotates the password and revokes every other credential of the user in
+     * the same transaction: all refresh tokens (no refresh token can be
+     * attributed to the caller's browser session) and all browser sessions
+     * except the caller's own. Unlike the reset flow, which logs everyone out,
+     * a change performed from an active session must not log the actor out.
+     *
+     * @param currentBrowserSessionId session id resolved from the caller's own
+     *        request, or {@code null} when the caller is not on a browser
+     *        session (legacy bearer lane), in which case every session goes too
+     */
     @Transactional
-    public void changePassword(String email, String currentPassword, String newPassword) {
+    public void changePassword(String email, String currentPassword, String newPassword,
+                               UUID currentBrowserSessionId) {
         User user = userRepository.findByEmail(email)
             .orElseThrow(() -> new BadCredentialsException("Tài khoản không tồn tại"));
         if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
@@ -301,6 +313,7 @@ public class AuthService {
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         user.setUpdatedAt(OffsetDateTime.now());
         userRepository.save(user);
+        revokeOtherSessionsLocked(user, currentBrowserSessionId);
     }
 
     @Transactional(noRollbackFor = BadCredentialsException.class)
@@ -402,6 +415,23 @@ public class AuthService {
                 refreshTokenRepository.save(rt);
             });
         browserSessionService.revokeAllForUser(lockedUser.getId(), "SECURITY_REVOKE_ALL");
+    }
+
+    /**
+     * Revokes every refresh token and browser session of the user except the
+     * caller's current browser session. Refresh tokens carry no binding to a
+     * browser session, so the caller's own login cannot be attributed to one
+     * and all tokens are revoked; the browser session kept alive is the one
+     * resolved from the caller's request.
+     */
+    private void revokeOtherSessionsLocked(User user, UUID keepBrowserSessionId) {
+        OffsetDateTime now = OffsetDateTime.now();
+        refreshTokenRepository.findAllActiveByUserId(user.getId())
+            .forEach(rt -> {
+                rt.setRevokedAt(now);
+                refreshTokenRepository.save(rt);
+            });
+        browserSessionService.revokeOthersForUser(user.getId(), keepBrowserSessionId, "PASSWORD_CHANGED");
     }
 
     private AuthResponse buildAuthResponse(User user, String accessToken, String refreshToken) {
