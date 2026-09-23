@@ -1,5 +1,5 @@
 import type { Page } from "../lib/api-client";
-import { formatBusinessDate } from "../lib/business-time";
+import { businessDate, formatBusinessDate } from "../lib/business-time";
 import type { DoctorPortalAppointment, PatientPortalAppointment } from "../types/hospital";
 
 type PortalAppointmentsProps =
@@ -64,6 +64,9 @@ export default function PortalAppointments({
   onPayment,
   activePaymentAppointmentId,
 }: PortalAppointmentsProps) {
+  // Doctor actions are day-scoped by the backend; re-derive per render so a
+  // long-lived tab crosses midnight correctly.
+  const today = businessDate();
   return (
     <div aria-label={viewer === "patient" ? "Danh sách lịch hẹn của bệnh nhân" : "Lịch hẹn trong ngày của bác sĩ"} className="portal-appointment-list">
       {page.content.map((appointment) => (
@@ -120,11 +123,20 @@ export default function PortalAppointments({
           </dl>
           {viewer === "doctor" && "patientId" in appointment ? (
             <div className="portal-appointment__actions">
+              {/* The backend only accepts check-in on the appointment day and
+                  no-show once the visit window has ended, so a future row must
+                  not offer either action. */}
               {appointment.status === "CONFIRMED" && onUpdateStatus ? (
-                <>
-                  <button className="outline-button outline-button--small" onClick={() => onUpdateStatus(appointment, "CHECKED_IN")} type="button">Tiếp nhận</button>
+                appointment.appointmentDate === today ? (
+                  <>
+                    <button className="outline-button outline-button--small" onClick={() => onUpdateStatus(appointment, "CHECKED_IN")} type="button">Tiếp nhận</button>
+                    <button className="text-button" onClick={() => onUpdateStatus(appointment, "NO_SHOW")} type="button">Không đến</button>
+                  </>
+                ) : appointment.appointmentDate < today ? (
                   <button className="text-button" onClick={() => onUpdateStatus(appointment, "NO_SHOW")} type="button">Không đến</button>
-                </>
+                ) : (
+                  <p className="section-note">Chỉ thao tác được trong ngày khám.</p>
+                )
               ) : null}
               {appointment.status === "CHECKED_IN" && onUpdateStatus ? (
                 <>
