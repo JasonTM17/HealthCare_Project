@@ -93,6 +93,8 @@ public class AiConversationService {
         "Hoàn credit cho lượt hỏi AI không thành công";
     private static final String PATIENT_CHAT_WAIVED_DESCRIPTION =
         "Không tính credit: câu trả lời thiếu nguồn đủ tin cậy";
+    private static final String PATIENT_SAFETY_CHAT_WAIVED_DESCRIPTION =
+        "Không tính credit: câu trả lời an toàn cố định của hệ thống";
     /** Ledger marker that attributes charge/refund/waiver rows to one attempt. */
     private static final String CHAT_ATTEMPT_MARKER_PREFIX = "[chat:";
 
@@ -427,10 +429,10 @@ public class AiConversationService {
         try {
             AiConversation conversation = conversationRepository.findByIdAndUserId(conversationId, userId)
                 .orElseThrow(this::notFound);
-            // A prepared free answer is the credit-gate exemption: it is already
-            // the final, source-less degraded reply, so the retrieval and
-            // generation stages below are skipped entirely rather than merely
-            // going unpaid.
+            // A prepared free answer is the credit-gate exemption: it is
+            // already the final, source-less reply — the static safety text
+            // or the degraded answer — so the retrieval and generation stages
+            // below are skipped entirely rather than merely going unpaid.
             SanitizedAiResponse sanitized = prepared.freeAnswer() != null
                 ? prepared.freeAnswer()
                 : groundedResponse(
@@ -721,16 +723,19 @@ public class AiConversationService {
         }
 
         // Credit gate. Rule, in one sentence: a chat answer costs one credit,
-        // except the degraded INSUFFICIENT_EVIDENCE answer the platform can
-        // produce without contacting any provider, which is free to everyone
-        // including a patient who is out of credits.
+        // except the static safety answers and the degraded
+        // INSUFFICIENT_EVIDENCE answer the platform can produce without
+        // contacting any provider, which are free to everyone including a
+        // patient who is out of credits.
         //
-        // Rationale: an insufficient-evidence answer is a system outcome, not a
-        // product the patient is buying — it cites no source and exists to say
-        // "I stopped rather than guess". Gating it behind a paid balance (the
-        // old unconditional 402 here) meant the patients it protects most could
-        // never see it, and the waiver path that records it could only ever run
-        // for someone who already had a credit to spare.
+        // Rationale: these answers are system outcomes, not products the
+        // patient is buying — an insufficient-evidence answer cites no source
+        // and exists to say "I stopped rather than guess", and an emergency
+        // answer is the fixed call-115 guidance. Gating them behind a paid
+        // balance (the old unconditional 402 here) meant the patients they
+        // protect most could never see them, and the waiver path that records
+        // them could only ever run for someone who already had a credit to
+        // spare.
         //
         // Boundary: the exemption is only available when the free answer is
         // already in hand before the gate releases, so an unpaid request can
@@ -740,8 +745,20 @@ public class AiConversationService {
         // before. Ordinary paid use is unchanged, and the free exchange is
         // audited by complete() writing a zero-amount AI_CHAT_WAIVED ledger row
         // instead of a charge.
+        //
+        // Crisis bypass (audit A4): the emergency guidance must never be
+        // paywalled, so a message carrying an acute term is evaluated before
+        // the credit check using the same detection the public controller and
+        // the local fallback already trust
+        // (ChatMedicalSafety#containsEmergencyInputCue — no second lexicon).
+        // When it matches, the answer is the canned static EMERGENCY text
+        // produced by safetyResponse with zero provider work, carried as the
+        // prepared free answer; complete() waives the EMERGENCY outcome, so no
+        // credit is charged for it even when the patient can pay.
         SanitizedAiResponse freeAnswer = null;
-        if (aiCreditService != null && !aiCreditService.hasPatientCreditBalance(userId)) {
+        if (ChatMedicalSafety.containsEmergencyInputCue(content)) {
+            freeAnswer = safetyResponse(conversation.getMode(), "EMERGENCY", content);
+        } else if (aiCreditService != null && !aiCreditService.hasPatientCreditBalance(userId)) {
             freeAnswer = localInsufficientEvidenceAnswer(conversation.getMode(), content);
             if (freeAnswer == null) {
                 aiCreditService.requirePatientCredits(userId);
@@ -802,19 +819,45 @@ public class AiConversationService {
     }
 
     /**
-     * A degraded answer is a service failure from the patient's point of view:
-     * they spent a credit for "no reliable source found" — or, for a patient
-     * whose only route to this answer was the credit-gate exemption, they spent
-     * nothing at all. Persist the waiver row instead of the charge so the ledger
-     * explains the zero-cost outcome either way. The early replay guard in
-     * {@code complete} (an existing reply row short-circuits the completion)
-     * means a replayed idempotency key can never reach this method twice for the
-     * same attempt.
+     * Outcomes the platform produced as a safety system rather than as a
+     * purchased answer: the static emergency / refusal / handoff texts and the
+     * degraded insufficient-evidence reply all cite no curated source, and the
+     * static ones in particular involve no provider work at all. None of them
+     * may be billed — audit A4 found that charging the canned crisis guidance
+     * meant a patient in distress paid (or, at zero credits, was refused) for
+     * a fixed string.
      */
-    private void waiveInsufficientPatientExchange(UUID userId, UUID requestMessageId) {
+    private static boolean isUnbilledSafetyOutcome(ChatSafetyAction action) {
+        return action == ChatSafetyAction.INSUFFICIENT_EVIDENCE
+            || action == ChatSafetyAction.EMERGENCY
+            || action == ChatSafetyAction.REFUSE
+            || action == ChatSafetyAction.HUMAN_HANDOFF;
+    }
+
+    /** The ledger wording that explains why this unbilled outcome was free. */
+    private static String waiverDescriptionFor(ChatSafetyAction action) {
+        return action == ChatSafetyAction.INSUFFICIENT_EVIDENCE
+            ? PATIENT_CHAT_WAIVED_DESCRIPTION
+            : PATIENT_SAFETY_CHAT_WAIVED_DESCRIPTION;
+    }
+
+    /**
+     * An unbilled completion is a service outcome from the patient's point of
+     * view: they either spent a credit for "no reliable source found" — or,
+     * for a patient whose only route to the answer was the credit-gate
+     * exemption, they spent nothing at all. Persist the waiver row instead of
+     * the charge so the ledger explains the zero-cost outcome either way. The
+     * early replay guard in {@code complete} (an existing reply row
+     * short-circuits the completion) means a replayed idempotency key can never
+     * reach this method twice for the same attempt.
+     */
+    private void waiveUnbilledPatientExchange(
+            UUID userId,
+            UUID requestMessageId,
+            String waiverDescription) {
         if (aiCreditService != null) {
             aiCreditService.recordPatientWaiver(
-                userId, PATIENT_CHAT_WAIVED_DESCRIPTION + " " + attemptMarker(requestMessageId));
+                userId, waiverDescription + " " + attemptMarker(requestMessageId));
         }
     }
 
@@ -849,9 +892,11 @@ public class AiConversationService {
      * reply rows are saved, the conversation's title, counters and expiry are
      * advanced, the lease is cleared, and billing is settled once — after the
      * answer exists, never before. A grounded answer charges one patient
-     * credit; an answer degraded to {@code INSUFFICIENT_EVIDENCE} charges
-     * nothing and instead records a zero-amount {@code AI_CHAT_WAIVED} ledger
-     * row so the audit trail shows why no charge happened.
+     * credit; a safety-system outcome — the static {@code EMERGENCY},
+     * {@code REFUSE} or {@code HUMAN_HANDOFF} text, or an answer degraded to
+     * {@code INSUFFICIENT_EVIDENCE} — charges nothing and instead records a
+     * zero-amount {@code AI_CHAT_WAIVED} ledger row so the audit trail shows
+     * why no charge happened.
      */
     private ChatExchangeResponse complete(
             UUID userId,
@@ -943,8 +988,9 @@ public class AiConversationService {
         conversation.setUpdatedAt(completedAt);
         conversation.setExpiresAt(expiry(completedAt));
         conversationRepository.save(conversation);
-        if (response.safetyAction() == ChatSafetyAction.INSUFFICIENT_EVIDENCE) {
-            waiveInsufficientPatientExchange(userId, request.getId());
+        if (isUnbilledSafetyOutcome(response.safetyAction())) {
+            waiveUnbilledPatientExchange(
+                userId, request.getId(), waiverDescriptionFor(response.safetyAction()));
         } else {
             chargeAcceptedPatientExchange(userId, request.getId());
         }
@@ -2108,10 +2154,11 @@ public class AiConversationService {
     }
 
     /**
-     * @param freeAnswer the degraded answer a zero-credit patient was allowed to
-     *        receive without paying, resolved at the credit gate so the reply
-     *        shown is the reply the gate audited. {@code null} for every paid
-     *        exchange and for replays.
+     * @param freeAnswer the answer the credit gate exempted from payment —
+     *        either the static emergency safety text or the degraded answer a
+     *        zero-credit patient was allowed to receive — resolved at the gate
+     *        so the reply shown is the reply the gate audited. {@code null}
+     *        for every paid exchange and for replays.
      */
     private record PreparedMessage(
         UUID userMessageId,
