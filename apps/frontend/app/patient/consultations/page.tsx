@@ -13,6 +13,7 @@ import {
   hasRole,
 } from "../../../lib/api-client";
 import { presentApiError } from "../../../lib/present-api-error";
+import { formatDate } from "../../../lib/datetime";
 import type { ConsultationSummary, PatientPortalAppointment } from "../../../types/hospital";
 
 const ELIGIBLE_APPOINTMENT_STATUSES = new Set(["CONFIRMED", "CHECKED_IN", "COMPLETED"]);
@@ -36,10 +37,9 @@ function errorStatus(error: unknown): number | undefined {
   return error instanceof ApiError ? error.status : undefined;
 }
 
-function safeDate(value: string | null | undefined, options: Intl.DateTimeFormatOptions = {}): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString("vi-VN", options);
+function safeDate(value: string | null | undefined): string {
+  if (!value || Number.isNaN(Date.parse(value))) return "—";
+  return formatDate(value);
 }
 
 function statusLabel(value: string): string {

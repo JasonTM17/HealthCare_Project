@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readdirSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
@@ -126,4 +127,68 @@ test("delight layer stays flat, tokened and reduced-motion safe", async () => {
     "hero orbs must be motion-gated",
   );
   assert.doesNotMatch(styles, /fx-gradient/);
+});
+
+// B6 P1: every display date/time must render through lib/business-time or
+// lib/datetime (both pinned to Asia/Ho_Chi_Minh). A raw
+// toLocaleDateString("vi-VN", …)/toLocaleString("vi-VN", …) call formats in
+// the viewer's host time zone, which is exactly the drift B6 removed.
+// Number.toLocaleString("vi-VN") is a legitimate, separate use of the locale,
+// so each numeric call site is allowlisted by its receiver — not by file —
+// and any new date formatting in those files still fails the gate.
+const VI_VN_LOCALE_CALL = /toLocale(?:Date)?String\(\s*(?:"vi-VN"|'vi-VN'|`vi-VN`)/;
+const VI_VN_DISPLAY_ALLOWLIST = [
+  { file: "app/admin/page.tsx", receiver: "count.toLocaleString(\"vi-VN\")", reason: "numeric snapshot counter, not a date" },
+  { file: "app/admin/appointments/page.tsx", receiver: "total.toLocaleString(\"vi-VN\")", reason: "numeric counter, not a date" },
+  { file: "app/admin/careers/page.tsx", receiver: "total.toLocaleString(\"vi-VN\")", reason: "numeric counter, not a date" },
+  { file: "app/admin/catalog/page.tsx", receiver: "item.price.toLocaleString(\"vi-VN\")", reason: "numeric price, not a date" },
+  { file: "app/admin/catalog/page.tsx", receiver: "(item.price).toLocaleString(\"vi-VN\")", reason: "numeric price, not a date" },
+  { file: "app/admin/payments/page.tsx", receiver: "total.toLocaleString(\"vi-VN\")", reason: "numeric counter, not a date" },
+  { file: "app/doctor/articles/page.tsx", receiver: "ARTICLE_BODY_MAX_CHARS.toLocaleString(\"vi-VN\")", reason: "numeric char limit, not a date" },
+  { file: "app/doctor/articles/page.tsx", receiver: "storedBody.length.toLocaleString(\"vi-VN\")", reason: "numeric char count, not a date" },
+  { file: "app/patient/chat/page.tsx", receiver: "draft.length.toLocaleString(\"vi-VN\")", reason: "numeric char count, not a date" },
+  {
+    file: "app/patient/care-plan/page.tsx",
+    receiver: "date.toLocaleDateString(\"vi-VN\", { dateStyle: \"medium\" })",
+    reason: "OUT OF SCOPE for the B6 P1 nine-page batch: still a host-zone date site, needs the same formatDate migration in a follow-up",
+  },
+];
+
+function appAndComponentSources(dir) {
+  return readdirSync(new URL(`../${dir}/`, import.meta.url), { recursive: true, encoding: "utf8" })
+    .map((entry) => entry.replace(/\\/g, "/"))
+    .filter((entry) => /\.(?:tsx|ts|jsx|js|mjs)$/.test(entry))
+    .map((entry) => `${dir}/${entry}`);
+}
+
+test("display date formatting goes through lib/business-time or lib/datetime", async () => {
+  const files = [...appAndComponentSources("app"), ...appAndComponentSources("components")];
+  assert.ok(files.length > 50, "the gate must actually enumerate the app/component tree");
+  const violations = [];
+  for (const file of files) {
+    const source = await read(file);
+    const lines = source.split(/\r?\n/);
+    for (const [index, line] of lines.entries()) {
+      if (!VI_VN_LOCALE_CALL.test(line)) continue;
+      const allowed = VI_VN_DISPLAY_ALLOWLIST.some(
+        (entry) => entry.file === file && line.includes(entry.receiver),
+      );
+      if (!allowed) violations.push(`${file}:${index + 1}: ${line.trim().slice(0, 120)}`);
+    }
+  }
+  assert.deepEqual(
+    violations,
+    [],
+    `vi-VN date/time formatting must go through lib/datetime or lib/business-time:\n${violations.join("\n")}`,
+  );
+});
+
+test("vi-VN allowlist entries stay narrow and used", async () => {
+  for (const entry of VI_VN_DISPLAY_ALLOWLIST) {
+    const source = await read(entry.file);
+    assert.ok(
+      source.includes(entry.receiver),
+      `stale allowlist entry: ${entry.file} no longer contains ${entry.receiver} — remove the entry`,
+    );
+  }
 });
