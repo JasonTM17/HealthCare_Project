@@ -27,19 +27,68 @@ public interface ArticleRepository extends JpaRepository<Article, UUID> {
     boolean existsBySlugIgnoreCaseAndSlugNotAndIdNot(
         String slug, String excludedSlug, UUID excludedId);
 
+    /**
+     * Fixture-guard pattern. Every public read below carries
+     * {@code slug NOT LIKE 'e2e-%'}: a Playwright fixture must never surface on
+     * the hospital's public pages, even if a run leaves one behind published
+     * (V100 hides what already exists; this keeps new leaks structurally
+     * impossible). Admin and doctor-portal queries intentionally do NOT filter
+     * the prefix, so authors keep seeing their own fixtures. The derived names
+     * are kept as-is on purpose: callers and existing repository stubs bind to
+     * them, and the explicit @Query bodies replace method-name derivation while
+     * preserving the signature.
+     */
     /** Public detail read: only admin/doctor-review-approved articles resolve. */
+    @Query("""
+        SELECT a FROM Article a
+         WHERE a.slug = :slug
+           AND a.active = TRUE
+           AND a.reviewStatus = :reviewStatus
+           AND a.publishedAt <= :publicationCutoff
+           AND a.slug NOT LIKE 'e2e-%'
+    """)
     Optional<Article> findBySlugAndActiveTrueAndReviewStatusAndPublishedAtLessThanEqual(
-        String slug, String reviewStatus, OffsetDateTime publicationCutoff);
+        @org.springframework.data.repository.query.Param("slug") String slug,
+        @org.springframework.data.repository.query.Param("reviewStatus") String reviewStatus,
+        @org.springframework.data.repository.query.Param("publicationCutoff") OffsetDateTime publicationCutoff);
 
+    @Query("""
+        SELECT a FROM Article a
+         WHERE a.slug = :slug
+           AND a.active = TRUE
+           AND a.publishedAt <= :publicationCutoff
+           AND a.slug NOT LIKE 'e2e-%'
+    """)
     Optional<Article> findBySlugAndActiveTrueAndPublishedAtLessThanEqual(
-        String slug, OffsetDateTime publicationCutoff);
+        @org.springframework.data.repository.query.Param("slug") String slug,
+        @org.springframework.data.repository.query.Param("publicationCutoff") OffsetDateTime publicationCutoff);
 
     /** Public list reads: the APPROVED gate keeps pending doctor submissions out. */
+    @Query("""
+        SELECT a FROM Article a
+         WHERE a.contentKind = :contentKind
+           AND a.active = TRUE
+           AND a.reviewStatus = :reviewStatus
+           AND a.publishedAt <= :publicationCutoff
+           AND a.slug NOT LIKE 'e2e-%'
+         ORDER BY a.publishedAt DESC
+    """)
     Page<Article> findByContentKindAndActiveTrueAndReviewStatusAndPublishedAtLessThanEqualOrderByPublishedAtDesc(
-        String contentKind, String reviewStatus, OffsetDateTime publicationCutoff, Pageable pageable);
+        @org.springframework.data.repository.query.Param("contentKind") String contentKind,
+        @org.springframework.data.repository.query.Param("reviewStatus") String reviewStatus,
+        @org.springframework.data.repository.query.Param("publicationCutoff") OffsetDateTime publicationCutoff,
+        Pageable pageable);
 
+    @Query("""
+        SELECT a FROM Article a
+         WHERE a.active = TRUE
+           AND a.publishedAt <= :publicationCutoff
+           AND a.slug NOT LIKE 'e2e-%'
+         ORDER BY a.publishedAt DESC
+    """)
     Page<Article> findByActiveTrueAndPublishedAtLessThanEqualOrderByPublishedAtDesc(
-        OffsetDateTime publicationCutoff, Pageable pageable);
+        @org.springframework.data.repository.query.Param("publicationCutoff") OffsetDateTime publicationCutoff,
+        Pageable pageable);
 
     /**
      * Scheduled articles whose appointed time has arrived. The where-clause
@@ -135,6 +184,7 @@ public interface ArticleRepository extends JpaRepository<Article, UUID> {
          WHERE a.content_kind = 'DISEASE_GUIDE'
            AND a.active = TRUE AND a.published_at <= CURRENT_TIMESTAMP
            AND a.review_status = 'APPROVED'
+           AND a.slug NOT LIKE 'e2e-%'
            AND h.eligibility_state = 'APPROVED'
            AND r.state = 'APPROVED'
            AND r.expires_at > CURRENT_TIMESTAMP
@@ -160,6 +210,7 @@ public interface ArticleRepository extends JpaRepository<Article, UUID> {
          WHERE a.content_kind = 'DISEASE_GUIDE'
            AND a.active = TRUE AND a.published_at <= CURRENT_TIMESTAMP
            AND a.review_status = 'APPROVED'
+           AND a.slug NOT LIKE 'e2e-%'
            AND h.eligibility_state = 'APPROVED' AND r.state = 'APPROVED'
            AND r.expires_at > CURRENT_TIMESTAMP
            AND reviewer_user.status = 'ACTIVE' AND reviewer_doctor.active = TRUE
@@ -183,6 +234,7 @@ public interface ArticleRepository extends JpaRepository<Article, UUID> {
          WHERE a.slug = :slug AND a.content_kind = 'DISEASE_GUIDE'
            AND a.active = TRUE AND a.published_at <= CURRENT_TIMESTAMP
            AND a.review_status = 'APPROVED'
+           AND a.slug NOT LIKE 'e2e-%'
            AND h.eligibility_state = 'APPROVED' AND r.state = 'APPROVED'
            AND r.expires_at > CURRENT_TIMESTAMP
            AND reviewer_user.status = 'ACTIVE' AND reviewer_doctor.active = TRUE

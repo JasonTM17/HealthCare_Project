@@ -9,6 +9,15 @@ import { expect, test } from "@playwright/test";
  */
 const SLUG = "e2e-comments-tombstone-reply-fixture";
 
+// Convention guard: every e2e fixture slug must start with `e2e-`. The backend
+// relies on that prefix to keep fixture content out of public reads (V100
+// unpublishes existing `e2e-*` rows and the public ArticleRepository queries
+// exclude the prefix structurally), so a fixture created outside it would leak
+// onto the real hospital site and survive both safeguards.
+test("fixture slug follows the e2e- convention", () => {
+  expect(SLUG).toMatch(/^e2e-/);
+});
+
 const article = {
   id: "art-fixture-1",
   title: "E2E: Tombstone reply thread fixture",
