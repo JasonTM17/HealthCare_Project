@@ -7,6 +7,7 @@ import { EmptyState, ErrorState, ForbiddenState, LoadingState, LoginRequiredStat
 import { useAuthSession } from "../../../components/useAuthSession";
 import { ApiError, createPatientHealthQuestion, fetchPatientHealthQuestions, hasRole } from "../../../lib/api-client";
 import { presentApiError } from "../../../lib/present-api-error";
+import { formatDate } from "../../../lib/datetime";
 import type { HealthQuestionSummary } from "../../../types/hospital";
 
 const statusLabels: Record<string, string> = {
@@ -127,7 +128,7 @@ export default function PatientHealthQuestionsPage() {
                 <span className="pill">{item.publicAlias}</span>
               </div>
               {item.answer ? <p className="mt-3 text-slate-700">{item.answer}</p> : <p className="mt-3 text-sm text-slate-500">Bác sĩ chưa gửi câu trả lời công khai.</p>}
-              <p className="mt-3 text-xs text-slate-500">Gửi ngày {new Date(item.createdAt).toLocaleDateString("vi-VN")}. Nội dung được giữ theo chính sách lưu trữ của bệnh viện.</p>
+              <p className="mt-3 text-xs text-slate-500">Gửi ngày {formatDate(item.createdAt)}. Nội dung được giữ theo chính sách lưu trữ của bệnh viện.</p>
             </article>
           ))}
         </section>
