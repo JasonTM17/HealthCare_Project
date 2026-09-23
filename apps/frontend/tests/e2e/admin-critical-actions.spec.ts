@@ -245,7 +245,7 @@ test("admin catalog destructive copy offers a hide alternative and rich-text tem
 
   await page.getByRole("button", { name: "Sửa Hướng dẫn chăm sóc sau khám" }).click();
   await page.getByRole("button", { name: "Mã nguồn" }).click();
-  const editor = page.getByLabel("Nội dung bài viết y khoa (Body)");
+  const editor = page.getByLabel("Nội dung bài viết y khoa");
   await expect(editor).toHaveValue(initialBody);
 
   await page.getByRole("button", { name: /Mẫu bài viết/ }).click();
