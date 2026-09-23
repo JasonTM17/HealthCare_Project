@@ -113,6 +113,11 @@ const RESPONSE_HEADER_ALLOWLIST = new Set([
   "expires",
   "last-modified",
   "vary",
+  // Pagination contract headers emitted by the queue/list controllers
+  // (AdminHealthQuestionController, AdminConsultationController, …).
+  "x-has-more",
+  "x-page",
+  "x-page-size",
 ]);
 const SAFE_SEGMENT_PATTERN = /^[A-Za-z0-9._~-]+$/u;
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/u;
@@ -865,7 +870,7 @@ export async function proxyHealthcareRequest(
     else request.signal.addEventListener("abort", abortFromBrowser, { once: true });
     const requestTimeoutMs = apiPath === PUBLIC_AI_CHAT_PATH
       ? runtime.publicAiRequestTimeoutMs ?? runtime.requestTimeoutMs
-      : apiPath.endsWith("/messages/stream")
+      : apiPath.endsWith("/messages/stream") || apiPath.endsWith("/cms/content/events")
       ? runtime.streamRequestTimeoutMs ?? runtime.requestTimeoutMs
       : runtime.requestTimeoutMs;
     // The retry shares this single absolute deadline: it is measured from the
