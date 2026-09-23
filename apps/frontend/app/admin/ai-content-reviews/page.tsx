@@ -8,6 +8,7 @@ import {
   submitAiContentRevision,
 } from "../../../lib/api-client";
 import { presentApiError } from "../../../lib/present-api-error";
+import { formatDateTime } from "../../../lib/datetime";
 import UiIcon from "../../../components/UiIcon";
 import useDialogFocus from "../../../components/useDialogFocus";
 import type {
@@ -52,11 +53,8 @@ function stateLabel(state: AiContentReviewState): string {
 }
 
 function dateLabel(value?: string | null): string {
-  if (!value) return "Chưa có";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? "Chưa có"
-    : date.toLocaleString("vi-VN", { dateStyle: "medium", timeStyle: "short" });
+  if (!value || Number.isNaN(Date.parse(value))) return "Chưa có";
+  return formatDateTime(value);
 }
 
 function compactHash(hash?: string | null): string {
