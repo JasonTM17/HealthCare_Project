@@ -269,11 +269,17 @@ test("the schedule list is sorted, counted and filtered on the client", async ()
   assert.match(schedules, /const sortedSchedules = useMemo\(/);
   assert.match(schedules, /left\.doctorName\.localeCompare\(right\.doctorName, "vi"\)/);
   assert.match(schedules, /left\.dayOfWeek - right\.dayOfWeek/);
-  assert.match(schedules, /sortedSchedules\.map\(\(item\) => \(/);
-  assert.match(schedules, /Tổng cộng <strong>\{sortedSchedules\.length\}<\/strong> lịch/);
+  // Round 9 split the browser into a week-grid default plus a paginated list
+  // view, so the client-side sort/count/filter contract is now pinned on the
+  // list slice and the shared count line rather than the old one-shot map.
+  assert.match(schedules, /const pagedSchedules = sortedSchedules\.slice\(/);
+  assert.match(schedules, /pagedSchedules\.map\(\(item\) => \(/);
+  assert.match(schedules, /Đang hiển thị <strong>\{sortedSchedules\.length\}<\/strong> lịch/);
   assert.match(schedules, /type="search"/);
   assert.match(schedules, /function foldForFilter\(value: string\): string/);
   assert.match(schedules, /Không có lịch phù hợp/);
+  // The list view must never render more than one page of cards to the DOM.
+  assert.match(schedules, /CALENDAR_LIST_PAGE_SIZE = 20/);
 });
 
 test("schedule forms rebuild their defaults from the current business day", async () => {
