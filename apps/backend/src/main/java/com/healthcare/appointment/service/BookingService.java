@@ -60,6 +60,8 @@ public class BookingService {
     private static final int HOLD_DURATION_MINUTES = 10;
     private static final int OTP_DURATION_MINUTES = 5;
     private static final int MAX_OTP_ATTEMPTS = 5;
+    private static final String OTP_ATTEMPTS_EXHAUSTED_MESSAGE =
+        "Bạn đã nhập sai mã OTP quá " + MAX_OTP_ATTEMPTS + " lần. Vui lòng yêu cầu gửi lại mã OTP.";
     private static final String BOOKING_PRIVACY_CONSENT_VERSION = "booking-privacy-v1";
     /** Live holds one patient may keep open at the same time. */
     static final int MAX_LIVE_HOLDS_PER_PATIENT = 2;
@@ -716,23 +718,19 @@ public class BookingService {
         }
 
         String inputOtp = request.otpCode().trim();
+        // Exhausting the attempts locks the OTP challenge; it never cancels the
+        // booking. The hold and its remaining window survive, so a resend (which
+        // resets the counter) is the only way back to a usable code.
+        if (appointment.getOtpAttempts() >= MAX_OTP_ATTEMPTS) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, OTP_ATTEMPTS_EXHAUSTED_MESSAGE);
+        }
         if (!matchesOtp(inputOtp, appointment.getOtpCode())) {
             int attempts = appointment.getOtpAttempts() + 1;
             appointment.setOtpAttempts(attempts);
-            if (attempts >= MAX_OTP_ATTEMPTS) {
-                appointment.setStatus(AppointmentStatus.CANCELLED);
-                appointment.setCancellationReason("Quá số lần nhập OTP không hợp lệ");
-                appointment.setHoldExpiresAt(null);
-                appointment.setOtpCode(null);
-                appointment.setOtpExpiresAt(null);
-                appointment.setOtpIssuedAt(null);
-                appointmentRepository.saveAndFlush(appointment);
-                throw new ResponseStatusException(
-                    HttpStatus.TOO_MANY_REQUESTS,
-                    "Đã vượt quá số lần nhập OTP. Vui lòng đặt lại lịch hẹn."
-                );
-            }
             appointmentRepository.saveAndFlush(appointment);
+            if (attempts >= MAX_OTP_ATTEMPTS) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, OTP_ATTEMPTS_EXHAUSTED_MESSAGE);
+            }
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Mã xác thực OTP không chính xác");
         }
 
@@ -798,6 +796,32 @@ public class BookingService {
     }
 
     /**
+     * Heads-up to the assigned physician that a confirmed booking moved to
+     * another slot. Same recipient guard and copy discipline as
+     * {@link #notifyDoctorOfBooking}: booking code, new slot and branch, with
+     * no clinical content.
+     */
+    private void notifyDoctorOfReschedule(Appointment appointment) {
+        if (notificationService == null
+                || appointment.getDoctor() == null
+                || appointment.getDoctor().getUserId() == null) {
+            return;
+        }
+        String branch = appointment.getBranch() != null ? appointment.getBranch().getName() : null;
+        String message = "Lịch khám " + appointment.getBookingCode()
+            + " đã chuyển sang " + appointment.getAppointmentDate()
+            + " lúc " + appointment.getStartTime()
+            + (branch != null ? " tại " + branch + "." : ".");
+        notificationService.create(
+            appointment.getDoctor().getUserId(),
+            EventType.APPOINTMENT_RESCHEDULED,
+            "Lịch khám đã thay đổi",
+            message,
+            appointment.getId()
+        );
+    }
+
+    /**
      * Look up appointment by booking code.
      */
     @Transactional(readOnly = true)
@@ -827,6 +851,22 @@ public class BookingService {
             throw new ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
                 "Chỉ có thể hủy lịch khám đang chờ xác nhận hoặc đã xác nhận"
+            );
+        }
+
+        // A slot that has already started cannot be self-cancelled: the visit
+        // window is open and the clinic (via the admin cancel path) is the
+        // authority for calling it off. PENDING_CONFIRMATION holds are future
+        // by construction, so this keys on the scheduled start itself.
+        OffsetDateTime cancelCheckNow = OffsetDateTime.now(BUSINESS_ZONE);
+        OffsetDateTime slotStart = OffsetDateTime.of(
+            appointment.getAppointmentDate(),
+            appointment.getStartTime(),
+            BUSINESS_ZONE.getRules().getOffset(cancelCheckNow.toInstant()));
+        if (!cancelCheckNow.isBefore(slotStart)) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Không thể hủy lịch khám đã qua giờ hẹn. Vui lòng liên hệ bệnh viện."
             );
         }
 
@@ -985,6 +1025,7 @@ public class BookingService {
             "Lịch khám " + appointment.getBookingCode() + " đã chuyển sang "
                 + appointment.getAppointmentDate() + " lúc " + appointment.getStartTime() + "."
         );
+        notifyDoctorOfReschedule(appointment);
         return principal == null ? toPublicResponse(appointment) : toResponse(appointment);
     }
 
