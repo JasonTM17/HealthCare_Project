@@ -62,4 +62,11 @@ test("doctor review queue exposes approved history and keeps decision states con
   assert.match(doctor, /decision === "REVOKE"/);
   assert.match(doctor, /availableDecisions/);
   assert.doesNotMatch(doctor, /fetchDoctorAiContentReviews\(\{ state: "SUBMITTED" \}\)/);
+
+  // Round-10 matrix F-3: the panel used to preselect APPROVE, so a single
+  // "Ghi quyết định" click approved AI content without an explicit choice.
+  assert.match(doctor, /useState<AiContentDecision \| null>\(null\)/);
+  assert.match(doctor, /Chọn quyết định…/);
+  assert.doesNotMatch(doctor, /useState<AiContentDecision>\("APPROVE"\)/);
+  assert.doesNotMatch(doctor, /setDecision\(item\.state === "APPROVED" \? "REVOKE" : "APPROVE"\)/);
 });

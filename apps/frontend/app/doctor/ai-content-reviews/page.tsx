@@ -179,7 +179,7 @@ export default function DoctorAiContentReviewsPage() {
   const [selected, setSelected] = useState<AiContentReviewSummary | null>(null);
   const [revision, setRevision] = useState<AiContentRevision | null>(null);
   const [queueState, setQueueState] = useState<AiContentReviewState>("SUBMITTED");
-  const [decision, setDecision] = useState<AiContentDecision>("APPROVE");
+  const [decision, setDecision] = useState<AiContentDecision | null>(null);
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(false);
   const [revisionLoading, setRevisionLoading] = useState(false);
@@ -237,7 +237,10 @@ export default function DoctorAiContentReviewsPage() {
     setRevision(null);
     setRevisionLoading(true);
     setReason("");
-    setDecision(item.state === "APPROVED" ? "REVOKE" : "APPROVE");
+    // No preselected decision: approving AI content must be an explicit act
+    // (round-10 matrix finding F-3 — a preselected APPROVE was one misclick
+    // away from publishing).
+    setDecision(null);
     setError(null);
     setNotice(null);
     setStaleRevision(false);
@@ -245,7 +248,7 @@ export default function DoctorAiContentReviewsPage() {
       const nextRevision = await fetchDoctorAiContentRevision(item.sourceType, item.sourceId, item.revision, { signal: controller.signal });
       if (requestId !== revisionRequestRef.current || controller.signal.aborted) return;
       setRevision(nextRevision);
-      setDecision(nextRevision.state === "APPROVED" ? "REVOKE" : "APPROVE");
+      setDecision(null);
     } catch (cause) {
       if (controller.signal.aborted || requestId !== revisionRequestRef.current) return;
       setStaleRevision(cause instanceof ApiError && cause.code === "AI_CONTENT_REVISION_STALE");
@@ -269,7 +272,7 @@ export default function DoctorAiContentReviewsPage() {
   };
 
   const submitDecision = async (): Promise<void> => {
-    if (!selected || !revision || busy || selected.revision !== revision.revision) return;
+    if (!selected || !revision || !decision || busy || selected.revision !== revision.revision) return;
     const decisionAllowed = revision.state === "SUBMITTED"
       ? decision === "APPROVE" || decision === "REQUEST_CHANGES"
       : revision.state === "APPROVED" && decision === "REVOKE";
@@ -303,7 +306,7 @@ export default function DoctorAiContentReviewsPage() {
     : revision?.state === "APPROVED"
       ? ["REVOKE" as AiContentDecision]
       : [];
-  const canDecide = Boolean(selected && revision && selected.revision === revision.revision && availableDecisions.includes(decision) && !staleRevision);
+  const canDecide = Boolean(selected && revision && selected.revision === revision.revision && decision && availableDecisions.includes(decision) && !staleRevision);
 
   if (!session) return <main className="portal-entry"><LoginRequiredState nextPath="/doctor/ai-content-reviews" /></main>;
   if (!hasRole(session.user, "DOCTOR")) return <main className="portal-entry"><ForbiddenState title="Không có quyền duyệt nội dung AI" description="Chỉ bác sĩ độc lập với người submit mới có thể approve, yêu cầu chỉnh sửa hoặc revoke." /></main>;
@@ -418,7 +421,8 @@ export default function DoctorAiContentReviewsPage() {
               {!availableDecisions.length ? <p className="text-sm text-slate-600">Revision này chỉ được xem lại; không còn thao tác duyệt hoặc thu hồi hợp lệ.</p> : null}
               {availableDecisions.length ? <>
               <label className="grid gap-1 text-sm font-bold" htmlFor="review-decision">Quyết định</label>
-              <select aria-describedby="review-decision-help" className="min-h-11 max-w-md rounded-lg border border-slate-300 px-3" disabled={!canDecide || busy} id="review-decision" onChange={(event) => setDecision(event.target.value as AiContentDecision)} value={decision}>
+              <select aria-describedby="review-decision-help" className="min-h-11 max-w-md rounded-lg border border-slate-300 px-3" disabled={!canDecide || busy} id="review-decision" onChange={(event) => setDecision(event.target.value ? event.target.value as AiContentDecision : null)} value={decision ?? ""}>
+                <option disabled value="">Chọn quyết định…</option>
                 {availableDecisions.map((item) => <option key={item} value={item}>{decisionLabel(item)}</option>)}
               </select>
               <p className="text-xs text-slate-600" id="review-decision-help">Yêu cầu chỉnh sửa hoặc thu hồi phải có lý do để lưu audit.</p>
