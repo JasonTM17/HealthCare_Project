@@ -7,6 +7,7 @@ import com.healthcare.appointment.dto.ConfirmAppointmentRequest;
 import com.healthcare.appointment.dto.HoldSlotRequest;
 import com.healthcare.appointment.dto.RescheduleAppointmentRequest;
 import com.healthcare.appointment.entity.Appointment;
+import com.healthcare.appointment.entity.AppointmentStatus;
 import com.healthcare.appointment.entity.DoctorSchedule;
 import com.healthcare.appointment.entity.PatientProfile;
 import com.healthcare.auth.mail.EmailSender;
@@ -17,6 +18,7 @@ import com.healthcare.hospital.entity.Doctor;
 import com.healthcare.hospital.entity.DoctorBranch;
 import com.healthcare.hospital.entity.DoctorSpecialty;
 import com.healthcare.hospital.entity.Specialty;
+import com.healthcare.payment.entity.PaymentStatus;
 import com.healthcare.security.JwtTokenProvider;
 import com.healthcare.scheduling.entity.DoctorScheduleException;
 import com.healthcare.user.entity.User;
@@ -34,6 +36,7 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -44,6 +47,7 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
@@ -752,7 +756,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
     }
 
     @Test
-    void confirmAppointmentFailsWithInvalidOtp() throws Exception {
+    void otpExhaustionLocksTheChallengeUntilOtpIsResent() throws Exception {
         LocalDate appointmentDate = nextDate(DayOfWeek.MONDAY);
         LocalTime startTime = LocalTime.of(10, 0);
 
@@ -791,10 +795,41 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
                 .andExpect(status().isBadRequest());
         }
 
+        // The fifth wrong code locks the challenge: 400, not 429, and the
+        // booking must survive — no self-cancellation on a typo storm.
         mockMvc.perform(post("/api/v1/appointments/confirm")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(invalidConfirm)))
-            .andExpect(status().isTooManyRequests());
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message")
+                .value(org.hamcrest.Matchers.containsString("quá 5 lần")));
+
+        Appointment locked = appointmentRepository.findByBookingCode(bookingCode).orElseThrow();
+        assertEquals(AppointmentStatus.PENDING_CONFIRMATION, locked.getStatus());
+        assertEquals(5, locked.getOtpAttempts());
+        assertNull(locked.getCancellationReason());
+
+        // A locked challenge rejects even the correct code until a resend.
+        mockMvc.perform(post("/api/v1/appointments/confirm")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new ConfirmAppointmentRequest(
+                    bookingCode,
+                    "123456",
+                    null
+                ))))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message")
+                .value(org.hamcrest.Matchers.containsString("quá 5 lần")));
+
+        // The resend cooldown keys on the issued timestamp; rewind it so the
+        // recovery path is exercised without sleeping.
+        jdbcTemplate.update(
+            "update appointments set otp_issued_at = otp_issued_at - interval '5 minutes' where booking_code = ?",
+            bookingCode);
+        mockMvc.perform(post("/api/v1/appointments/" + bookingCode + "/otp/resend")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"phone\":\"0987654321\"}"))
+            .andExpect(status().isAccepted());
 
         mockMvc.perform(post("/api/v1/appointments/confirm")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -803,7 +838,115 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
                     "123456",
                     null
                 ))))
-            .andExpect(status().isBadRequest());
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("CONFIRMED"));
+    }
+
+    @Test
+    void adminCancelOfPaidAppointmentArmsRefund() throws Exception {
+        User admin = createUserWithRole("ADMIN", "admin.cancel." + UUID.randomUUID() + "@example.com");
+        String bookingCode = createConfirmedAppointment(
+            nextDate(DayOfWeek.MONDAY), LocalTime.of(9, 0), "0907000221");
+        Appointment appointment = appointmentRepository.findByBookingCode(bookingCode).orElseThrow();
+        markPaymentPaid(appointment.getId());
+
+        mockMvc.perform(post("/api/v1/admin/appointments/{id}/status", appointment.getId())
+                .header("Authorization", bearer(admin))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\":\"CANCELLED\",\"reason\":\"Bệnh nhân gọi điện hủy\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("CANCELLED"));
+
+        assertEquals(PaymentStatus.REFUND_PENDING,
+            bankTransferPaymentRepository.findByAppointmentId(appointment.getId()).orElseThrow().getStatus());
+        assertEquals("REFUND_PENDING",
+            appointmentRepository.findById(appointment.getId()).orElseThrow().getPaymentStatus());
+    }
+
+    @Test
+    void adminCancelOfUnpaidAppointmentIsUnaffectedByThePaymentHook() throws Exception {
+        User admin = createUserWithRole("ADMIN", "admin.cancel.unpaid." + UUID.randomUUID() + "@example.com");
+        String bookingCode = createConfirmedAppointment(
+            nextDate(DayOfWeek.WEDNESDAY), LocalTime.of(9, 30), "0907000225");
+        Appointment appointment = appointmentRepository.findByBookingCode(bookingCode).orElseThrow();
+
+        mockMvc.perform(post("/api/v1/admin/appointments/{id}/status", appointment.getId())
+                .header("Authorization", bearer(admin))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\":\"CANCELLED\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("CANCELLED"))
+            .andExpect(jsonPath("$.paymentStatus").value("UNPAID"));
+    }
+
+    @Test
+    void patientCancelIsRefusedOnceTheSlotHasPassed() throws Exception {
+        String phone = "0907000222";
+        String bookingCode = createConfirmedAppointment(
+            nextDate(DayOfWeek.MONDAY), LocalTime.of(9, 0), phone);
+        Appointment appointment = appointmentRepository.findByBookingCode(bookingCode).orElseThrow();
+        markPaymentPaid(appointment.getId());
+        // The visit window closed yesterday: a past slot cannot be self-cancelled,
+        // only the clinic (admin cancel path) may call it off.
+        jdbcTemplate.update(
+            "update appointments set appointment_date = CURRENT_DATE - 1 where booking_code = ?", bookingCode);
+
+        mockMvc.perform(post("/api/v1/appointments/" + bookingCode + "/cancel")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"reason\":\"Quên lịch\",\"phone\":\"" + phone + "\"}"))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.message")
+                .value(org.hamcrest.Matchers.containsString("đã qua giờ hẹn")));
+
+        Appointment unchanged = appointmentRepository.findByBookingCode(bookingCode).orElseThrow();
+        assertEquals(AppointmentStatus.CONFIRMED, unchanged.getStatus());
+        assertEquals(PaymentStatus.PAID,
+            bankTransferPaymentRepository.findByAppointmentId(unchanged.getId()).orElseThrow().getStatus());
+    }
+
+    @Test
+    void patientCancelOfFuturePaidAppointmentArmsRefund() throws Exception {
+        String phone = "0907000223";
+        String bookingCode = createConfirmedAppointment(
+            nextDate(DayOfWeek.TUESDAY), LocalTime.of(9, 30), phone);
+        Appointment appointment = appointmentRepository.findByBookingCode(bookingCode).orElseThrow();
+        markPaymentPaid(appointment.getId());
+
+        mockMvc.perform(post("/api/v1/appointments/" + bookingCode + "/cancel")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"reason\":\"Thay đổi kế hoạch\",\"phone\":\"" + phone + "\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("CANCELLED"))
+            .andExpect(jsonPath("$.paymentStatus").value("REFUND_PENDING"));
+
+        assertEquals(PaymentStatus.REFUND_PENDING,
+            bankTransferPaymentRepository.findByAppointmentId(appointment.getId()).orElseThrow().getStatus());
+    }
+
+    @Test
+    void rescheduleNotifiesTheAssignedDoctor() throws Exception {
+        User doctorUser = createUserWithRole("DOCTOR", "reschedule.doctor." + UUID.randomUUID() + "@example.com");
+        doctor.setUserId(doctorUser.getId());
+        doctorRepository.saveAndFlush(doctor);
+        String phone = "0907000224";
+        String bookingCode = createConfirmedAppointment(
+            nextDate(DayOfWeek.MONDAY), LocalTime.of(9, 0), phone);
+
+        mockMvc.perform(post("/api/v1/appointments/" + bookingCode + "/reschedule")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new RescheduleAppointmentRequest(
+                    nextDate(DayOfWeek.TUESDAY),
+                    LocalTime.of(10, 0),
+                    defaultBranch.getId(),
+                    phone))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("CONFIRMED"));
+
+        List<String> doctorMessages = jdbcTemplate.queryForList(
+            "select message from notifications where user_id = ? and event_type = 'APPOINTMENT_RESCHEDULED'",
+            String.class, doctorUser.getId());
+        assertEquals(1, doctorMessages.size());
+        assertTrue(doctorMessages.get(0).contains(bookingCode));
     }
 
     @Test
@@ -1227,6 +1370,44 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         user.setEmailVerified(true);
         user.setEmailVerifiedAt(java.time.OffsetDateTime.now());
         userRepository.saveAndFlush(user);
+        return "Bearer " + tokenProvider.generateAccessToken(user.getId(), user.getEmail());
+    }
+
+    /**
+     * Persists the payment row the hold initialized and stamps the appointment's
+     * coarse payment state, so cancellation refund assertions start from PAID.
+     */
+    private void markPaymentPaid(java.util.UUID appointmentId) {
+        assertEquals(1, jdbcTemplate.update(
+            "update bank_transfer_payments set status = 'PAID', transaction_reference = 'REF-PAID-TEST', "
+                + "submitted_at = now(), verified_at = now() where appointment_id = ?", appointmentId));
+        assertEquals(1, jdbcTemplate.update(
+            "update appointments set payment_status = 'PAID' where id = ?", appointmentId));
+    }
+
+    private User createUserWithRole(String roleCode, String email) {
+        // Flyway seeds the role rows and the per-test cleanup leaves them intact.
+        // The class is not @Transactional, so a loaded Role is detached before
+        // the user is persisted; the membership is written through the join
+        // table instead of the PERSIST cascade on User.roles.
+        UUID roleId = jdbcTemplate.queryForObject(
+            "select id from roles where code = ?", UUID.class, roleCode);
+        OffsetDateTime now = OffsetDateTime.now();
+        User user = new User();
+        user.setEmail(email);
+        user.setPasswordHash("not-used-by-booking-test");
+        user.setDisplayName(roleCode + " Booking Test");
+        user.setStatus("ACTIVE");
+        user.setEmailVerified(true);
+        user.setEmailVerifiedAt(now);
+        user.setCreatedAt(now);
+        user.setUpdatedAt(now);
+        userRepository.saveAndFlush(user);
+        jdbcTemplate.update("insert into user_roles (user_id, role_id) values (?, ?)", user.getId(), roleId);
+        return user;
+    }
+
+    private String bearer(User user) {
         return "Bearer " + tokenProvider.generateAccessToken(user.getId(), user.getEmail());
     }
 

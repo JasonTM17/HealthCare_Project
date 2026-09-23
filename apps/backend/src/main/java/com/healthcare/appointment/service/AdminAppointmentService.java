@@ -10,6 +10,7 @@ import com.healthcare.exception.BusinessException;
 import com.healthcare.exception.ErrorCodes;
 import com.healthcare.notification.entity.Notification.EventType;
 import com.healthcare.notification.service.NotificationService;
+import com.healthcare.payment.service.BankTransferPaymentService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -63,22 +64,33 @@ public class AdminAppointmentService {
     private final AppointmentRepository appointmentRepository;
     private final ClinicalAccessAuditService clinicalAccessAuditService;
     private final NotificationService notificationService;
+    private final BankTransferPaymentService paymentService;
 
     @org.springframework.beans.factory.annotation.Autowired
     public AdminAppointmentService(
             AppointmentRepository appointmentRepository,
             ClinicalAccessAuditService clinicalAccessAuditService,
-            NotificationService notificationService) {
+            NotificationService notificationService,
+            BankTransferPaymentService paymentService) {
         this.appointmentRepository = appointmentRepository;
         this.clinicalAccessAuditService = clinicalAccessAuditService;
         this.notificationService = notificationService;
+        this.paymentService = paymentService;
+    }
+
+    /** Backward-compatible constructor for focused unit tests. */
+    public AdminAppointmentService(
+            AppointmentRepository appointmentRepository,
+            ClinicalAccessAuditService clinicalAccessAuditService,
+            NotificationService notificationService) {
+        this(appointmentRepository, clinicalAccessAuditService, notificationService, null);
     }
 
     /** Backward-compatible constructor for focused unit tests. */
     public AdminAppointmentService(
             AppointmentRepository appointmentRepository,
             ClinicalAccessAuditService clinicalAccessAuditService) {
-        this(appointmentRepository, clinicalAccessAuditService, null);
+        this(appointmentRepository, clinicalAccessAuditService, null, null);
     }
 
     @Transactional(readOnly = true)
@@ -164,6 +176,13 @@ public class AdminAppointmentService {
         appointment.setOtpCode(null);
         appointment.setOtpExpiresAt(null);
         appointment.setOtpIssuedAt(null);
+        // A booking the clinic calls off must enter the refund pipeline exactly
+        // like a patient-initiated cancellation: PAID becomes REFUND_PENDING and
+        // a transfer still awaiting reconciliation becomes REJECTED. Rows
+        // without a payment (or already UNPAID) are left untouched.
+        if (paymentService != null) {
+            paymentService.markAppointmentCancelled(appointment);
+        }
         Appointment saved = appointmentRepository.saveAndFlush(appointment);
 
         clinicalAccessAuditService.record(
