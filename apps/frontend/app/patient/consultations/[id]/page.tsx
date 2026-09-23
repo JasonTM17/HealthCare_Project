@@ -18,6 +18,7 @@ import {
   fetchConsultationUploadResponse,
 } from "../../../../lib/consultation-request";
 import { presentApiError } from "../../../../lib/present-api-error";
+import { formatDate, formatDateTime } from "../../../../lib/datetime";
 import type { ConsultationAttachment, ConsultationDetail, ConsultationMessage } from "../../../../types/hospital";
 
 interface MessagePageResponse {
@@ -68,10 +69,8 @@ const MESSAGE_STATUS_LABELS: Record<string, string> = {
 };
 
 function safeDate(value: string | null | undefined, includeTime = false): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleString("vi-VN", includeTime ? { dateStyle: "short", timeStyle: "short" } : { dateStyle: "medium" });
+  if (!value || Number.isNaN(Date.parse(value))) return "—";
+  return includeTime ? formatDateTime(value) : formatDate(value);
 }
 
 function statusLabel(value: string): string {

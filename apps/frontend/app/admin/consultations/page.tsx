@@ -12,6 +12,7 @@ import {
   hasRole,
 } from "../../../lib/api-client";
 import { presentApiError } from "../../../lib/present-api-error";
+import { formatDateTime } from "../../../lib/datetime";
 import type { ConsultationAdminQueueItem, Doctor } from "../../../types/hospital";
 
 const STATUS_OPTIONS: Array<[string, string]> = [
@@ -60,11 +61,8 @@ function specialtyLabel(value?: string | null): string {
 }
 
 function dateLabel(value?: string | null): string {
-  if (!value) return "Chưa có";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? "Chưa có"
-    : date.toLocaleString("vi-VN", { dateStyle: "medium", timeStyle: "short" });
+  if (!value || Number.isNaN(Date.parse(value))) return "Chưa có";
+  return formatDateTime(value);
 }
 
 function isClosed(status: string): boolean {

@@ -22,6 +22,7 @@ import {
 import { pollConsultationAttachments } from "../../../../lib/consultation-attachment-polling";
 import { reconcileConsultationServerPage } from "../../../../lib/consultation-read-watermark";
 import { presentApiError } from "../../../../lib/present-api-error";
+import { formatDate, formatDateTime } from "../../../../lib/datetime";
 import type { ConsultationAttachment, ConsultationDetail, ConsultationHandoffDoctor } from "../../../../types/hospital";
 
 interface ServerReadWatermark {
@@ -49,10 +50,8 @@ function statusLabel(status: string): string {
 }
 
 function safeDate(value: string | null | undefined, includeTime = false): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleString("vi-VN", includeTime ? { dateStyle: "short", timeStyle: "short" } : { dateStyle: "medium" });
+  if (!value || Number.isNaN(Date.parse(value))) return "—";
+  return includeTime ? formatDateTime(value) : formatDate(value);
 }
 
 function tokenLabel(value?: string | null): string {
