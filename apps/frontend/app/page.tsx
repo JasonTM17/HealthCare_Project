@@ -786,7 +786,7 @@ export default function Home(): React.ReactElement {
               <button className="care-link hm-quick-card" onClick={() => handleOpenBooking()} type="button">
                 <span className="care-link__icon hm-quick-card__icon"><Icon name="calendar" size={22} /></span>
                 <span className="hm-quick-card__body">
-                  <strong>Đặt lịch hẹn</strong>
+                  <strong>Đặt lịch khám</strong>
                   <small>Chọn bác sĩ và khung giờ</small>
                 </span>
               </button>

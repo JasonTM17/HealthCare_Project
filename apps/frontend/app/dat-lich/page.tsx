@@ -218,7 +218,7 @@ export default function BookingLandingPage() {
                           className="outline-button outline-button--small"
                           selection={{ branchId: branch.id }}
                         >
-                          Đặt lịch hẹn
+                          Đặt lịch khám
                         </PublicBookingButton>
                       )}
                     </div>

@@ -25,7 +25,7 @@ const DEMO_ROLES: readonly DemoRoleInfo[] = [
     label: "Bệnh nhân",
     icon: "user",
     email: "patient@healthcare.com",
-    badge: "Quyền bệnh nhân: xem hồ sơ, đặt khám và Chatbot AI",
+    badge: "Quyền bệnh nhân: xem hồ sơ, đặt khám và Trợ lý AI",
     badgeColor: "#ecfeff",
     badgeBorder: "#a5f3fc",
     badgeText: "#0e7490",

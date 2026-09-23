@@ -232,7 +232,9 @@ test("booking landing keeps the appointment flow inline without auto-opening a d
     await expect(page.locator('[aria-modal="true"]')).toHaveCount(0);
     await expect(page.getByLabel("Chuyên khoa")).toHaveValue(SPECIALTY.id);
 
-    await page.getByRole("button", { name: "Đặt lịch hẹn" }).first().click();
+    // The canonical CTA label "Đặt lịch khám" now appears on several buttons on
+    // the page (navbar included), so click the branch card's own CTA.
+    await page.locator(".booking-page__branch-card").getByRole("button", { name: "Đặt lịch khám" }).first().click();
 
     await expect(inlineRegion).toBeFocused();
     await expect(page.locator('[role="dialog"]')).toHaveCount(0);

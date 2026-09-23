@@ -60,7 +60,7 @@ export function PublicBookingButton({
   return <button aria-label={ariaLabel} className={className} onClick={() => openBooking(selection)} type="button">{children}</button>;
 }
 
-export function PublicAiButton({ children = "Trợ lý triệu chứng", className = "outline-button" }: { children?: ReactNode; className?: string }) {
+export function PublicAiButton({ children = "Tư vấn triệu chứng", className = "outline-button" }: { children?: ReactNode; className?: string }) {
   const { openAi } = usePublicPageActions();
   return <button className={className} onClick={openAi} type="button">{children}</button>;
 }
