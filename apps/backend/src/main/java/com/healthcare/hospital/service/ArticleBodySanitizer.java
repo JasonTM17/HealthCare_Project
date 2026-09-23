@@ -67,6 +67,14 @@ final class ArticleBodySanitizer {
     private static final Pattern CONTROL_CHARACTERS = Pattern.compile(
         "[\\p{Cntrl}&&[^\\t\\n\\r]]");
 
+    /**
+     * Bound on the scrub loop. Every pass either leaves the string untouched
+     * or makes it strictly shorter, so a fixed point is reached well within
+     * this many iterations for any realistic input; the cap exists so a
+     * pathological string fails closed (rejection) instead of spinning.
+     */
+    private static final int MAX_PASSES = 10;
+
     private ArticleBodySanitizer() {
     }
 
@@ -78,6 +86,16 @@ final class ArticleBodySanitizer {
      * as {@code <scr\0ipt>} survived the tag passes as {@code <scr\0ipt>}, and
      * deleting the null afterwards produced a working {@code <script>}.
      *
+     * <p>The same reassembly argument applies between the tag passes
+     * themselves, so the sequence runs to a fixed point rather than once:
+     * {@code <scr<iframe>ipt>} lost its {@code <iframe>} to the void-element
+     * pass and closed up into a working {@code <script>}. Each iteration
+     * strictly shrinks the string or stops, and the loop is capped at
+     * {@value #MAX_PASSES} iterations; a body that neither settles nor
+     * cleans within that budget is rejected with the same validation failure
+     * the comment gate raises, as is anything still carrying an executable
+     * construct at the fixed point.
+     *
      * <p>Truncation is intentionally absent: silently cutting clinical text
      * would change what the author published, so an over-long body keeps its
      * content and is rejected by the request-level size constraint instead.
@@ -87,14 +105,37 @@ final class ArticleBodySanitizer {
             return null;
         }
         String cleaned = CONTROL_CHARACTERS.matcher(body).replaceAll("");
-        if (cleaned.indexOf('<') >= 0) {
-            cleaned = DANGEROUS_BLOCK.matcher(cleaned).replaceAll("");
-            cleaned = DANGEROUS_VOID.matcher(cleaned).replaceAll("");
-            cleaned = EVENT_HANDLER.matcher(cleaned).replaceAll("");
-            cleaned = SCRIPT_URL.matcher(cleaned).replaceAll("$1=\"#\"");
-            cleaned = CSS_ESCAPE.matcher(cleaned).replaceAll("");
+        int passes = 0;
+        String previous;
+        do {
+            previous = cleaned;
+            if (previous.indexOf('<') >= 0) {
+                cleaned = DANGEROUS_BLOCK.matcher(previous).replaceAll("");
+                cleaned = DANGEROUS_VOID.matcher(cleaned).replaceAll("");
+                cleaned = EVENT_HANDLER.matcher(cleaned).replaceAll("");
+                cleaned = SCRIPT_URL.matcher(cleaned).replaceAll("$1=\"#\"");
+                cleaned = CSS_ESCAPE.matcher(cleaned).replaceAll("");
+            }
+            if (++passes > MAX_PASSES) {
+                throw unsafeContent();
+            }
+        } while (!cleaned.equals(previous));
+        if (containsExecutableContent(cleaned)) {
+            throw unsafeContent();
         }
         return cleaned;
+    }
+
+    /**
+     * Fail closed with the request-level validation error the content gates
+     * already raise (see {@code ArticleCommentService}), so a body this
+     * sanitizer cannot vouch for is refused rather than silently stored.
+     */
+    private static com.healthcare.exception.BusinessException unsafeContent() {
+        return new com.healthcare.exception.BusinessException(
+            400,
+            com.healthcare.exception.ErrorCodes.VALIDATION_ERROR,
+            "Nội dung chứa mã hoặc thẻ HTML không an toàn.");
     }
 
     /**

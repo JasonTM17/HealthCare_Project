@@ -12,7 +12,13 @@ import java.util.Map;
 
 public record ArticleRequest(
     @NotBlank @Size(max = 200) String title,
-    @NotBlank @Size(max = 220) String slug,
+    // Canonical URL slug: lowercase alphanumeric words joined by single
+    // hyphens. Without this, "My Article!" or "Tang-Huyet" reached storage and
+    // the DB unique constraint (case-sensitive) let "tang-huyet" and
+    // "Tang-Huyet" coexist, silently splitting the public URL space.
+    @NotBlank @Size(max = 220)
+    @Pattern(regexp = "^[a-z0-9]+(?:-[a-z0-9]+)*$", message = "slug phải dạng kebab-case (chữ thường, số, dấu gạch nối)")
+    String slug,
     @Size(max = 500) String summary,
     @Size(max = 8000) String body,
     @Size(max = 120) String category,

@@ -64,6 +64,9 @@ public class AdminArticleService {
         if (articleRepository.findBySlug(request.slug()).isPresent()) {
             throw new DuplicateResourceException("Article slug already exists: " + request.slug());
         }
+        if (articleRepository.existsBySlugIgnoreCaseAndSlugNot(request.slug(), request.slug())) {
+            throw new DuplicateResourceException("Article slug already exists: " + request.slug());
+        }
         Article article = new Article();
         article.setTitle(request.title());
         article.setSlug(request.slug());
@@ -109,8 +112,20 @@ public class AdminArticleService {
                 "Article version is stale; reload before saving"
             );
         }
-        if (!slug.equals(request.slug()) && articleRepository.findBySlug(request.slug()).isPresent()) {
-            throw new DuplicateResourceException("Article slug already exists: " + request.slug());
+        if (!slug.equals(request.slug())) {
+            if (articleRepository.findBySlug(request.slug()).isPresent()) {
+                throw new DuplicateResourceException("Article slug already exists: " + request.slug());
+            }
+            // The database constraint is case-sensitive, so a rename that only
+            // changes case would leave two articles sharing one URL when
+            // lower-cased. Reject renames that collide case-insensitively with
+            // any other row; the row's own slug is excluded by id so a legacy
+            // mixed-case slug can still be cleaned up. Untouched slugs are
+            // never re-checked: existing data must stay editable.
+            if (articleRepository.existsBySlugIgnoreCaseAndSlugNotAndIdNot(
+                    request.slug(), request.slug(), article.getId())) {
+                throw new DuplicateResourceException("Article slug already exists: " + request.slug());
+            }
         }
         article.setTitle(request.title());
         article.setSlug(request.slug());

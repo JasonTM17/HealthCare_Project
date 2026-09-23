@@ -15,6 +15,18 @@ import java.time.OffsetDateTime;
 public interface ArticleRepository extends JpaRepository<Article, UUID> {
     Optional<Article> findBySlug(String slug);
 
+    /**
+     * True when some other row already owns a slug that only differs in case.
+     * The database unique constraint is case-sensitive, so it happily stores
+     * {@code tang-huyet} next to {@code Tang-Huyet}; this pre-check keeps new
+     * writes from creating that split. Existing rows are untouched.
+     */
+    boolean existsBySlugIgnoreCaseAndSlugNot(String slug, String excludedSlug);
+
+    /** Rename variant: the row being renamed is excluded by id, not by slug. */
+    boolean existsBySlugIgnoreCaseAndSlugNotAndIdNot(
+        String slug, String excludedSlug, UUID excludedId);
+
     /** Public detail read: only admin/doctor-review-approved articles resolve. */
     Optional<Article> findBySlugAndActiveTrueAndReviewStatusAndPublishedAtLessThanEqual(
         String slug, String reviewStatus, OffsetDateTime publicationCutoff);
@@ -28,6 +40,25 @@ public interface ArticleRepository extends JpaRepository<Article, UUID> {
 
     Page<Article> findByActiveTrueAndPublishedAtLessThanEqualOrderByPublishedAtDesc(
         OffsetDateTime publicationCutoff, Pageable pageable);
+
+    /**
+     * Scheduled articles whose appointed time has arrived. The where-clause
+     * is deliberately explicit: only an active row that has passed the review
+     * gate and has never been published may be promoted by the sweep, so a
+     * PENDING or REJECTED draft with a due schedule can never leak out.
+     */
+    @Query("""
+        SELECT a FROM Article a
+         WHERE a.publishedAt IS NULL
+           AND a.active = TRUE
+           AND a.reviewStatus = 'APPROVED'
+           AND a.scheduledPublishAt IS NOT NULL
+           AND a.scheduledPublishAt <= :dueBefore
+         ORDER BY a.scheduledPublishAt ASC
+    """)
+    java.util.List<Article> findDueScheduledPublications(
+        @org.springframework.data.repository.query.Param("dueBefore") OffsetDateTime dueBefore,
+        org.springframework.data.domain.Pageable pageable);
 
     @Query("""
         SELECT a FROM Article a
