@@ -13,6 +13,15 @@ import AdminState from "../_components/AdminState";
 import ConfirmActionDialog from "../../../components/ui/ConfirmActionDialog";
 import { describeAdminError } from "../_lib/errors";
 import { businessDate, formatBusinessDate } from "../../../lib/business-time";
+import {
+  addDays,
+  branchChipTint,
+  branchShortName,
+  deriveShiftRows,
+  scheduleAppliesOnDate,
+  schedulesForCell,
+  weekDaysFrom,
+} from "./week-grid";
 
 /**
  * Forms are built from functions rather than module-level constants: a tab left
@@ -49,6 +58,8 @@ const exceptionTypeLabels = {
   CUSTOM_HOURS: "Giờ đặc biệt",
 };
 const ADMIN_PAGE_SIZE = 100;
+/** Hard cap on schedule cards rendered at once in the "Danh sách" view. */
+const CALENDAR_LIST_PAGE_SIZE = 20;
 const SCHEDULE_TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/;
 
 function toMinutes(value: string): number | null {
@@ -141,6 +152,9 @@ export default function AdminSchedulesPage() {
   const [editingExceptionId, setEditingExceptionId] = useState<string | null>(null);
   const [exceptionFormError, setExceptionFormError] = useState<string | null>(null);
   const [scheduleFilter, setScheduleFilter] = useState("");
+  const [view, setView] = useState<"week" | "list">("week");
+  const [weekStart, setWeekStart] = useState(() => businessDate());
+  const [listPage, setListPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -150,6 +164,12 @@ export default function AdminSchedulesPage() {
   const [pendingDelete, setPendingDelete] = useState<
     { kind: "schedule"; item: DoctorSchedule } | { kind: "exception"; item: DoctorScheduleException } | null
   >(null);
+  // Lists arrive page-by-page: one ADMIN_PAGE_SIZE window is rendered at a
+  // time and "Tải thêm" appends the next window, so a large schedule table
+  // cannot flood the DOM in one pass.
+  const [schedulePaging, setSchedulePaging] = useState({ page: 0, totalPages: 1 });
+  const [exceptionPaging, setExceptionPaging] = useState({ page: 0, totalPages: 1 });
+  const [loadingMore, setLoadingMore] = useState<"schedule" | "exception" | null>(null);
 
   const slotPlan = useMemo(
     () => planSlots(form.startTime, form.endTime, form.slotDurationMinutes),
@@ -167,6 +187,27 @@ export default function AdminSchedulesPage() {
         || left.startTime.localeCompare(right.startTime));
   }, [scheduleFilter, schedules]);
 
+  const weekDays = useMemo(() => weekDaysFrom(weekStart), [weekStart]);
+  const weekRows = useMemo(() => deriveShiftRows(sortedSchedules), [sortedSchedules]);
+  const weekSchedules = useMemo(() => sortedSchedules.filter((item) => (
+    weekDays.some((day) => scheduleAppliesOnDate(item, day.date))
+  )), [sortedSchedules, weekDays]);
+  const weekBranches = useMemo(() => {
+    const byId = new Map<string, string>();
+    weekSchedules.forEach((item) => byId.set(item.branchId, item.branchName));
+    return [...byId.entries()].sort((left, right) => left[1].localeCompare(right[1], "vi"));
+  }, [weekSchedules]);
+
+  // The list view is a window over the already-loaded, already-filtered rows:
+  // at most CALENDAR_LIST_PAGE_SIZE cards are ever in the DOM, and a page that
+  // fell off the end (filter narrowed, row deleted) is clamped at render time.
+  const listTotalPages = Math.max(1, Math.ceil(sortedSchedules.length / CALENDAR_LIST_PAGE_SIZE));
+  const safeListPage = Math.min(listPage, listTotalPages - 1);
+  const pagedSchedules = sortedSchedules.slice(
+    safeListPage * CALENDAR_LIST_PAGE_SIZE,
+    (safeListPage + 1) * CALENDAR_LIST_PAGE_SIZE,
+  );
+
   /**
    * Branches the selected doctor is actually assigned to. With no doctor picked
    * every branch is offered; with one picked, an empty result is a real
@@ -181,13 +222,15 @@ export default function AdminSchedulesPage() {
     setLoadError(null);
     try {
       const [schedulePage, exceptionPage, doctorPage, branchPage] = await Promise.all([
-        fetchAllContent(adminListSchedules, ADMIN_PAGE_SIZE),
-        fetchAllContent(adminListScheduleExceptions, ADMIN_PAGE_SIZE),
+        adminListSchedules(0, ADMIN_PAGE_SIZE),
+        adminListScheduleExceptions(0, ADMIN_PAGE_SIZE),
         fetchAllContent(adminListDoctors, ADMIN_PAGE_SIZE),
         fetchAllContent(adminListBranches, ADMIN_PAGE_SIZE),
       ]);
-      setSchedules(schedulePage);
-      setExceptions(exceptionPage);
+      setSchedules(schedulePage.content);
+      setSchedulePaging({ page: 0, totalPages: Math.max(1, schedulePage.totalPages) });
+      setExceptions(exceptionPage.content);
+      setExceptionPaging({ page: 0, totalPages: Math.max(1, exceptionPage.totalPages) });
       setDoctors(doctorPage);
       setBranches(branchPage);
       return true;
@@ -198,6 +241,29 @@ export default function AdminSchedulesPage() {
       setLoading(false);
     }
   }, []);
+
+  const loadMore = useCallback(async (kind: "schedule" | "exception") => {
+    const paging = kind === "schedule" ? schedulePaging : exceptionPaging;
+    if (loadingMore !== null || paging.page + 1 >= paging.totalPages) return;
+    setLoadingMore(kind);
+    setLoadError(null);
+    const next = paging.page + 1;
+    try {
+      if (kind === "schedule") {
+        const result = await adminListSchedules(next, ADMIN_PAGE_SIZE);
+        setSchedules((prev) => [...prev, ...result.content]);
+        setSchedulePaging({ page: next, totalPages: Math.max(1, result.totalPages) });
+      } else {
+        const result = await adminListScheduleExceptions(next, ADMIN_PAGE_SIZE);
+        setExceptions((prev) => [...prev, ...result.content]);
+        setExceptionPaging({ page: next, totalPages: Math.max(1, result.totalPages) });
+      }
+    } catch (error) {
+      setLoadError(describeAdminError(error).description);
+    } finally {
+      setLoadingMore(null);
+    }
+  }, [loadingMore, schedulePaging, exceptionPaging]);
 
   useEffect(() => {
     const task = Promise.resolve().then(load);
@@ -389,8 +455,8 @@ export default function AdminSchedulesPage() {
 
       {!loading && !loadError ? (
         <>
-          <div className="mt-6 grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
-            <section aria-labelledby="schedule-form-title" className="border-t border-slate-200 bg-white p-5">
+          <div className="mt-6">
+            <section aria-labelledby="schedule-form-title" className="border-t border-slate-200 bg-white p-5 xl:max-w-3xl">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-xl font-bold" id="schedule-form-title">{editingId ? "Sửa lịch" : "Tạo lịch"}</h2>
                 {editingId ? <button className="text-sm font-bold text-slate-700 underline" disabled={busy} onClick={resetScheduleForm} type="button">Hủy sửa</button> : null}
@@ -454,36 +520,138 @@ export default function AdminSchedulesPage() {
               </form>
             </section>
 
-            <section aria-labelledby="schedule-list-title">
-              <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+            <section aria-labelledby="schedule-list-title" className="mt-8 border-t border-slate-200 bg-white py-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-xl font-bold" id="schedule-list-title">Lịch hiện có</h2>
-                {schedules.length > 0 ? (
+                <div aria-label="Chế độ xem lịch làm việc" className="inline-flex gap-1 rounded-lg border border-slate-300 p-1" role="group">
+                  <button
+                    aria-pressed={view === "week"}
+                    className={view === "week" ? "rounded-md bg-teal-700 px-4 py-2 text-sm font-bold text-white" : "rounded-md px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100"}
+                    onClick={() => setView("week")}
+                    type="button"
+                  >
+                    Tuần
+                  </button>
+                  <button
+                    aria-pressed={view === "list"}
+                    className={view === "list" ? "rounded-md bg-teal-700 px-4 py-2 text-sm font-bold text-white" : "rounded-md px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100"}
+                    onClick={() => setView("list")}
+                    type="button"
+                  >
+                    Danh sách
+                  </button>
+                </div>
+              </div>
+
+              {schedules.length > 0 ? (
+                <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
                   <label className="text-sm font-semibold">
                     Lọc theo bác sĩ hoặc cơ sở
                     <input
                       className={inputClass}
-                      onChange={(event) => setScheduleFilter(event.target.value)}
+                      onChange={(event) => { setScheduleFilter(event.target.value); setListPage(0); }}
                       placeholder="Ví dụ: Nguyễn Minh hoặc Quận 1"
                       spellCheck={false}
                       type="search"
                       value={scheduleFilter}
                     />
                   </label>
-                ) : null}
-              </div>
-              {schedules.length > 0 ? (
-                <p className="mb-3 text-sm text-slate-600" role="status" aria-live="polite">
-                  Tổng cộng <strong>{sortedSchedules.length}</strong> lịch
-                  {scheduleFilter.trim() ? ` khớp bộ lọc (trên ${schedules.length} lịch)` : ""}.
-                </p>
+                  <p className="text-sm text-slate-600" role="status" aria-live="polite">
+                    Đang hiển thị <strong>{sortedSchedules.length}</strong> lịch
+                    {scheduleFilter.trim() ? ` khớp bộ lọc (trên ${schedules.length} lịch đã tải)` : "."}
+                  </p>
+                </div>
               ) : null}
+
               {schedules.length === 0 ? (
-                <AdminState description="Tạo lịch để hệ thống sinh khung giờ đặt khám." title="Chưa có lịch" tone="empty" />
+                <div className="mt-3">
+                  <AdminState description="Tạo lịch để hệ thống sinh khung giờ đặt khám." title="Chưa có lịch" tone="empty" />
+                </div>
+              ) : view === "week" ? (
+                <div className="mt-4">
+                  <div className="flex flex-wrap items-end gap-2">
+                    <label className="text-sm font-semibold">
+                      Tuần từ ngày
+                      <input className={inputClass} onChange={(event) => setWeekStart(event.target.value || businessDate())} type="date" value={weekStart} />
+                    </label>
+                    <button className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold" onClick={() => setWeekStart((current) => addDays(current, -7))} type="button">Tuần trước</button>
+                    <button className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold" onClick={() => setWeekStart((current) => addDays(current, 7))} type="button">Tuần sau</button>
+                    <button className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold" onClick={() => setWeekStart(businessDate())} type="button">Hôm nay</button>
+                    <p className="text-sm text-slate-600">
+                      {weekDays[0].date.slice(8, 10)}/{weekDays[0].date.slice(5, 7)} – {weekDays[6].date.slice(8, 10)}/{weekDays[6].date.slice(5, 7)} · {weekSchedules.length} lịch khớp bộ lọc trong tuần
+                    </p>
+                  </div>
+                  {weekRows.length === 0 ? (
+                    <div className="mt-3">
+                      <AdminState description="Không có khung giờ làm việc nào khớp bộ lọc trong dữ liệu đã tải." title="Không có khung giờ để hiển thị" tone="empty" />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200">
+                        <table className="w-full min-w-[980px] border-collapse text-sm">
+                          <caption className="sr-only">Lịch làm việc theo tuần: hàng là khung giờ, cột là ngày.</caption>
+                          <thead>
+                            <tr>
+                              <th scope="col" className="w-32 border-b border-slate-200 bg-slate-50 p-2 text-left text-xs font-bold uppercase text-slate-500">Khung giờ</th>
+                              {weekDays.map((day) => (
+                                <th className="border-b border-l border-slate-200 bg-slate-50 p-2 text-left align-top" key={day.date} scope="col">
+                                  <span className="block text-xs font-bold text-slate-800">{dayNames[day.dayOfWeek]}</span>
+                                  <span className="block text-xs text-slate-500">{day.date.slice(8, 10)}/{day.date.slice(5, 7)}</span>
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {weekRows.map((row) => (
+                              <tr className="border-t border-slate-200 align-top" key={row.key}>
+                                <th className="border-r border-slate-200 bg-slate-50 p-2 text-left align-top text-xs font-bold text-slate-800" scope="row">
+                                  {row.startTime} - {row.endTime}
+                                </th>
+                                {weekDays.map((day) => {
+                                  const cell = schedulesForCell(sortedSchedules, day.date, row.key);
+                                  return (
+                                    <td className="border-l border-slate-100 p-1.5" key={day.date}>
+                                      {cell.length === 0 ? (
+                                        <span aria-hidden="true" className="block py-1 text-center text-xs text-slate-300">—</span>
+                                      ) : (
+                                        <div className="space-y-1">
+                                          {cell.map((item) => (
+                                            <span
+                                              className={`block rounded-md border px-2 py-1 ${branchChipTint(item.branchId)}${item.active ? "" : " opacity-60"}`}
+                                              key={item.id}
+                                              title={`${item.doctorName} · ${item.branchName} · ${dayNames[day.dayOfWeek]} ${formatBusinessDate(day.date)} · ${row.startTime}–${row.endTime}${item.active ? "" : " · Tạm ngưng"}`}
+                                            >
+                                              <strong className="block truncate text-xs font-bold">{item.doctorName}</strong>
+                                              <span className="block truncate text-[11px]">{branchShortName(item.branchName)}</span>
+                                            </span>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      {weekBranches.length > 0 ? (
+                        <div aria-label="Chú thích màu theo cơ sở" className="mt-3 flex flex-wrap gap-2" role="list">
+                          {weekBranches.map(([id, name]) => (
+                            <span className={`inline-flex items-center rounded-md border px-2 py-1 text-xs font-bold ${branchChipTint(id)}`} key={id} role="listitem">{name}</span>
+                          ))}
+                        </div>
+                      ) : null}
+                    </>
+                  )}
+                </div>
               ) : sortedSchedules.length === 0 ? (
-                <AdminState description="Không có lịch nào khớp bộ lọc hiện tại. Hãy xóa hoặc chỉnh lại từ khóa." title="Không có lịch phù hợp" tone="empty" />
+                <div className="mt-3">
+                  <AdminState description="Không có lịch nào khớp bộ lọc hiện tại. Hãy xóa hoặc chỉnh lại từ khóa." title="Không có lịch phù hợp" tone="empty" />
+                </div>
               ) : (
-                <div className="space-y-3">
-                  {sortedSchedules.map((item) => (
+                <div className="mt-3 space-y-3">
+                  {pagedSchedules.map((item) => (
                     <article className="rounded-lg border border-slate-200 bg-white p-4" key={item.id}>
                       <div className="flex flex-col justify-between gap-4 sm:flex-row">
                         <div>
@@ -517,6 +685,21 @@ export default function AdminSchedulesPage() {
                       </div>
                     </article>
                   ))}
+                  {schedulePaging.page + 1 < schedulePaging.totalPages ? (
+                    <button
+                      className="w-full rounded-lg border border-teal-200 bg-teal-50 px-4 py-2.5 text-sm font-bold text-teal-900 disabled:opacity-50"
+                      disabled={loadingMore !== null}
+                      onClick={() => void loadMore("schedule")}
+                      type="button"
+                    >
+                      {loadingMore === "schedule" ? "Đang tải…" : `Tải thêm lịch (đang hiển thị ${schedules.length})`}
+                    </button>
+                  ) : null}
+                  <nav aria-label="Phân trang lịch làm việc" className="admin-pagination mt-5 flex flex-wrap justify-end gap-2">
+                    <button className="inline-flex min-h-11 items-center rounded-lg border px-4 py-2 text-sm disabled:opacity-40" disabled={safeListPage === 0} onClick={() => setListPage(safeListPage - 1)} type="button">Trang trước</button>
+                    <span aria-live="polite" className="inline-flex min-h-11 items-center px-3 text-sm">{safeListPage + 1}/{listTotalPages}</span>
+                    <button className="inline-flex min-h-11 items-center rounded-lg border px-4 py-2 text-sm disabled:opacity-40" disabled={safeListPage + 1 >= listTotalPages} onClick={() => setListPage(safeListPage + 1)} type="button">Trang sau</button>
+                  </nav>
                 </div>
               )}
             </section>
@@ -597,6 +780,16 @@ export default function AdminSchedulesPage() {
                     </div>
                   </article>
                 ))}
+                {exceptionPaging.page + 1 < exceptionPaging.totalPages ? (
+                  <button
+                    className="w-full rounded-lg border border-teal-200 bg-teal-50 px-4 py-2.5 text-sm font-bold text-teal-900 disabled:opacity-50"
+                    disabled={loadingMore !== null}
+                    onClick={() => void loadMore("exception")}
+                    type="button"
+                  >
+                    {loadingMore === "exception" ? "Đang tải…" : `Tải thêm ngoại lệ (đã hiển thị ${exceptions.length})`}
+                  </button>
+                ) : null}
               </div>
             </div>
           </section>
