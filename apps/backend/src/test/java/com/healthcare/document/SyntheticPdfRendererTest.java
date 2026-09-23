@@ -64,9 +64,18 @@ class SyntheticPdfRendererTest {
         assertThat(text).contains(SyntheticPdfRenderer.DISCLAIMER_LINE);
         assertThat(text).contains("Nguyễn Thị Bích Hòa");
         assertThat(text).contains("BẢN TỔNG KẾT LẦN KHÁM");
-        assertThat(text).contains(SyntheticPdfRenderer.HASH_LABEL + hash);
-        assertThat(text).contains(snapshot.sourceRecordId().toString());
-        assertThat(text).contains("Phiên bản biểu mẫu: " + SyntheticPdfRenderer.TEMPLATE_VERSION);
+        assertThat(text).contains("Đơn vị phát hành: HealthCare");
+        assertThat(text).doesNotContain("Đơn vị phát hành: Đơn vị phát hành:");
+        assertThat(text).doesNotContain(SyntheticPdfRenderer.HASH_LABEL + hash);
+        assertThat(text).doesNotContain(snapshot.sourceRecordId().toString());
+        try (PDDocument document = Loader.loadPDF(pdf)) {
+            assertThat(document.getDocumentInformation().getCustomMetadataValue("SourceContentSha256"))
+                .isEqualTo(hash);
+            assertThat(document.getDocumentInformation().getCustomMetadataValue("SourceRecordId"))
+                .isEqualTo(snapshot.sourceRecordId().toString());
+            assertThat(document.getDocumentInformation().getCustomMetadataValue("TemplateVersion"))
+                .isEqualTo(SyntheticPdfRenderer.TEMPLATE_VERSION);
+        }
         assertThat(text).contains("không có giá trị pháp lý");
     }
 
