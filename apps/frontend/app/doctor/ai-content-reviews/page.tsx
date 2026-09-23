@@ -421,15 +421,15 @@ export default function DoctorAiContentReviewsPage() {
               {!availableDecisions.length ? <p className="text-sm text-slate-600">Revision này chỉ được xem lại; không còn thao tác duyệt hoặc thu hồi hợp lệ.</p> : null}
               {availableDecisions.length ? <>
               <label className="grid gap-1 text-sm font-bold" htmlFor="review-decision">Quyết định</label>
-              <select aria-describedby="review-decision-help" className="min-h-11 max-w-md rounded-lg border border-slate-300 px-3" disabled={!canDecide || busy} id="review-decision" onChange={(event) => setDecision(event.target.value ? event.target.value as AiContentDecision : null)} value={decision ?? ""}>
+              <select aria-describedby="review-decision-help" className="min-h-11 max-w-md rounded-lg border border-slate-300 px-3" disabled={busy || staleRevision || selected.revision !== revision.revision} id="review-decision" onChange={(event) => setDecision(event.target.value ? event.target.value as AiContentDecision : null)} value={decision ?? ""}>
                 <option disabled value="">Chọn quyết định…</option>
                 {availableDecisions.map((item) => <option key={item} value={item}>{decisionLabel(item)}</option>)}
               </select>
               <p className="text-xs text-slate-600" id="review-decision-help">Yêu cầu chỉnh sửa hoặc thu hồi phải có lý do để lưu audit.</p>
-              {decision !== "APPROVE" ? <label className="grid max-w-2xl gap-1 text-sm font-bold" htmlFor="review-reason">Lý do bắt buộc<textarea aria-describedby="review-reason-help" className="min-h-24 rounded-lg border border-slate-300 p-3" disabled={!canDecide || busy} id="review-reason" maxLength={1000} onChange={(event) => setReason(event.target.value)} value={reason} /></label> : null}
-              {decision !== "APPROVE" ? <p className="text-xs text-slate-600" id="review-reason-help">Không đưa thông tin bệnh nhân hoặc dữ liệu nhạy cảm vào lý do.</p> : null}
+              {decision && decision !== "APPROVE" ? <label className="grid max-w-2xl gap-1 text-sm font-bold" htmlFor="review-reason">Lý do bắt buộc<textarea aria-describedby="review-reason-help" className="min-h-24 rounded-lg border border-slate-300 p-3" disabled={busy || staleRevision || selected.revision !== revision.revision} id="review-reason" maxLength={1000} onChange={(event) => setReason(event.target.value)} value={reason} /></label> : null}
+              {decision && decision !== "APPROVE" ? <p className="text-xs text-slate-600" id="review-reason-help">Không đưa thông tin bệnh nhân hoặc dữ liệu nhạy cảm vào lý do.</p> : null}
               <button aria-describedby="review-submit-help" className="min-h-11 w-fit rounded-lg bg-teal-800 px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={!canDecide || busy || ((decision !== "APPROVE") && !reason.trim())} onClick={() => void submitDecision()} type="button">{busy ? "Đang ghi…" : "Ghi quyết định"}</button>
-              <p className={canDecide ? "sr-only" : "text-sm text-amber-800"} id="review-submit-help">{canDecide ? "Ghi quyết định cho revision đang chờ duyệt." : "Revision này đã thay đổi hoặc không còn ở trạng thái chờ duyệt. Hãy tải lại hàng đợi."}</p>
+              <p className={canDecide ? "sr-only" : "text-sm text-amber-800"} id="review-submit-help">{!decision ? "Vui lòng chọn quyết định để tiếp tục." : canDecide ? "Ghi quyết định cho revision đang chờ duyệt." : "Revision này đã thay đổi hoặc không còn ở trạng thái chờ duyệt. Hãy tải lại hàng đợi."}</p>
               </> : null}
             </div>
           </section>
