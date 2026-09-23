@@ -292,3 +292,72 @@ test("the section builder tells the author which outline actually wins", async (
   assert.match(adminArticleService, /section\.body\(\) != null && !section\.body\(\)\.isBlank\(\)/);
   assert.match(adminArticleService, /ArticleSectionsDeriver\.derive/);
 });
+
+/**
+ * The hint only stays honest if the save path actually submits what the builder
+ * holds. For a while it did not: the admin form hard-coded `sections: null`, so
+ * every authored row was dropped and the server always re-derived the outline —
+ * the builder and the medical blueprints were inert. These cases pin the two
+ * branches the backend gate (a non-blank body) leaves open.
+ */
+const authoredSectionsPayload = await (async () => {
+  const catalogSource = await readFile(
+    new URL("../app/admin/catalog/page.tsx", import.meta.url),
+    "utf8",
+  );
+  const start = catalogSource.indexOf("function authoredSectionsPayload(");
+  assert.ok(start > 0, "authoredSectionsPayload must be defined in the catalog form");
+  const open = catalogSource.indexOf("{", start);
+  let depth = 0;
+  let end = -1;
+  for (let i = open; i < catalogSource.length; i += 1) {
+    if (catalogSource[i] === "{") depth += 1;
+    else if (catalogSource[i] === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        end = i + 1;
+        break;
+      }
+    }
+  }
+  assert.ok(end > 0, "authoredSectionsPayload is unbalanced");
+  const { outputText } = ts.transpileModule(catalogSource.slice(start, end), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  });
+  return new Function(`${outputText}\nreturn authoredSectionsPayload;`)();
+})();
+
+test("the save path submits authored sections instead of a hard-coded null", async () => {
+  const catalog = await readFile(new URL("../app/admin/catalog/page.tsx", import.meta.url), "utf8");
+
+  // The dead `sections: null` contract is gone, and the builder feeds the payload.
+  assert.doesNotMatch(catalog, /sections:\s*null/, "a hard-coded null makes the section builder inert");
+  assert.match(catalog, /sections:\s*authoredSectionsPayload\(articleForm\.sections\)/);
+});
+
+test("a filled section body is submitted as authored outline", () => {
+  const payload = authoredSectionsPayload([
+    { id: "sec-1", heading: "Tổng quan", body: "  nội dung thật  " },
+    { id: "sec-2", heading: "Triệu chứng", body: "   " },
+  ]);
+  // Heading-only scaffolding travels with the row that has body text; the
+  // backend gate only decides whether the array wins over derivation.
+  assert.deepEqual(payload, [
+    { heading: "Tổng quan", body: "  nội dung thật  " },
+    { heading: "Triệu chứng", body: "   " },
+  ]);
+});
+
+test("a builder with only blank bodies sends null so the body outline wins", () => {
+  // Blueprint presets drop heading-only rows; submitting those would publish an
+  // empty outline over the real prose, so the author's still-empty builder is
+  // reported as "nothing authored" and the server derives from the body.
+  assert.equal(authoredSectionsPayload([]), null);
+  assert.equal(
+    authoredSectionsPayload([
+      { id: "sec-1", heading: "Tổng quan", body: "" },
+      { id: "sec-2", heading: "Triệu chứng", body: "   \n\t " },
+    ]),
+    null,
+  );
+});
