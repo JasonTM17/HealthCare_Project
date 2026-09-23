@@ -23,6 +23,7 @@ import {
   type Specialty,
 } from "../../../lib/api-client";
 import { presentApiError } from "../../../lib/present-api-error";
+import { formatDate } from "../../../lib/datetime";
 import { ForbiddenState, LoadingState, LoginRequiredState } from "../../../components/PortalStates";
 import { useAuthSession, useAuthSessionStatus } from "../../../components/useAuthSession";
 import ImageUpload from "../../../components/ImageUpload";
@@ -50,6 +51,45 @@ function reviewGateLabel(article: { reviewStatus?: string }): { label: string; t
     return { label: "○ Bị từ chối", tone: "text-red-700" };
   }
   return null;
+}
+
+/**
+ * Vietnamese labels for the raw enum tokens that category cells can carry
+ * (the ingestion and content-kind vocabularies store UPPER_SNAKE values).
+ * Mirrors the statusLabel(dictionary) pattern used elsewhere: anything not
+ * listed renders unchanged, so a new value degrades to raw text instead of
+ * an invented label.
+ */
+const CATEGORY_LABELS: Record<string, string> = {
+  CLINICAL_UPDATE: "Cập nhật lâm sàng",
+  GENERAL: "Cẩm nang",
+  DISEASE_GUIDE: "Hướng dẫn bệnh",
+};
+
+function categoryLabel(category?: string | null): string | null {
+  if (!category) return null;
+  return CATEGORY_LABELS[category] ?? category;
+}
+
+/**
+ * Specialty names arrive without diacritics when the row was created by the
+ * ingestion tooling ("Tim mach" for "Tim mạch"). The chips and the editor
+ * select render s.name directly, so normalize the known variants here; an
+ * unlisted name is left as stored.
+ */
+const SPECIALTY_NAME_LABELS: Record<string, string> = {
+  "Tim mach": "Tim mạch",
+  "Noi tong hop": "Nội tổng hợp",
+  "Nhi khoa": "Nhi khoa",
+  "San phu khoa": "Sản phụ khoa",
+  "Tieu hoa": "Tiêu hóa",
+  "Co xuong khop": "Cơ xương khớp",
+  "Than kinh": "Thần kinh",
+  "Tai mui hong": "Tai mũi họng",
+};
+
+function specialtyLabel(name: string): string {
+  return SPECIALTY_NAME_LABELS[name] ?? name;
 }
 
 function toSlug(text: string): string {
@@ -473,7 +513,7 @@ export default function DoctorArticlesPage() {
                     onClick={() => setSelectedSpecialty(s.slug)}
                     type="button"
                   >
-                    {s.name} ({count})
+                    {specialtyLabel(s.name)} ({count})
                   </button>
                 );
               })}
@@ -504,13 +544,13 @@ export default function DoctorArticlesPage() {
                           src={article.coverImageUrl}
                         />
                         <span className="absolute top-3 left-3 rounded-[4px] bg-teal-950/80 backdrop-blur-md px-2.5 py-0.5 text-xs font-bold text-teal-100">
-                          {article.category || "Cẩm nang y tế"}
+                          {categoryLabel(article.category) || "Cẩm nang y tế"}
                         </span>
                       </div>
                     ) : (
                       <div className="h-28 w-full bg-gradient-to-r from-teal-900 to-teal-700 p-4 flex items-end">
                         <span className="rounded-[4px] bg-white/20 backdrop-blur-md px-2.5 py-0.5 text-xs font-bold text-white">
-                          {article.category || "Cẩm nang y tế"}
+                          {categoryLabel(article.category) || "Cẩm nang y tế"}
                         </span>
                       </div>
                     )}
@@ -594,7 +634,7 @@ export default function DoctorArticlesPage() {
                       </div>
                       <div className="flex items-center justify-between text-xs text-slate-500">
                         <span className="rounded-[4px] bg-teal-50 px-2.5 py-0.5 font-bold text-teal-800">
-                          {a.category || "Cẩm nang y tế"}
+                          {categoryLabel(a.category) || "Cẩm nang y tế"}
                         </span>
                         {reviewGateLabel(a) ? (
                           <span className={`font-semibold ${reviewGateLabel(a)!.tone}`}>{reviewGateLabel(a)!.label}</span>
@@ -661,7 +701,7 @@ export default function DoctorArticlesPage() {
               {/* Header Bar */}
               <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 bg-slate-50/90">
                 <span className="rounded-[4px] bg-teal-50 border border-teal-200 px-3 py-1 text-xs font-bold text-teal-900 tracking-wider uppercase font-mono">
-                  {readingArticle.category || "Chuyên đề Sức khỏe Bệnh viện"}
+                  {categoryLabel(readingArticle.category) || "Chuyên đề Sức khỏe Bệnh viện"}
                 </span>
                 <button
                   aria-label="Đóng bài báo"
@@ -801,7 +841,7 @@ export default function DoctorArticlesPage() {
                                 )}
                               </div>
                               <span className="text-[10px] text-slate-400">
-                                {new Date(c.createdAt).toLocaleDateString("vi-VN")}
+                                {formatDate(c.createdAt)}
                               </span>
                             </div>
                             <p className="mt-2 text-slate-700 leading-relaxed whitespace-pre-wrap text-sm">{c.content}</p>
@@ -927,7 +967,7 @@ export default function DoctorArticlesPage() {
                     >
                       {specialties.map((s) => (
                         <option key={s.id} value={s.slug}>
-                          {s.name}
+                          {specialtyLabel(s.name)}
                         </option>
                       ))}
                     </select>
