@@ -64,7 +64,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   CLINICAL_UPDATE: "Cập nhật lâm sàng",
   GENERAL: "Cẩm nang",
   DISEASE_GUIDE: "Hướng dẫn bệnh",
-  HEALTH_GUIDE: "Cẩm nang sức khỏe",
+  HEALTH_GUIDE: "Hướng dẫn sức khỏe",
 };
 
 function categoryLabel(category?: string | null): string | null {
