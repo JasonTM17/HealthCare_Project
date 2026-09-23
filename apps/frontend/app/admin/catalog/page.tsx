@@ -1371,7 +1371,7 @@ export default function AdminCatalogPage() {
                 <div className="space-y-1">
                   <RichTextEditor
                     id="admin-article-body-editor"
-                    label="Nội dung bài viết y khoa (Body)"
+                    label="Nội dung bài viết y khoa"
                     minHeight="280px"
                     onChange={(newBody) => setArticleForm((current) => ({ ...current, body: newBody }))}
                     placeholder="Nội dung chi tiết bài viết, hỗ trợ định dạng Markdown và hộp thông tin lâm sàng..."
