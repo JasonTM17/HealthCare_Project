@@ -52,6 +52,21 @@ foreach ($name in 'DATABASE_URL', 'DATABASE_USERNAME', 'DATABASE_PASSWORD') {
     Write-Output ($name + ' resolved: yes (len ' + $value.Length + ')')
 }
 
+# A standalone backend does not inherit Compose's MinIO variables. Document
+# generation uses this private store even when general uploads are disabled.
+# Resolve the same local credentials as Compose without printing them.
+$storageEndpoint = Resolve-LocalSecret 'MINIO_ENDPOINT'
+$storageAccess = Resolve-LocalSecret 'MINIO_ROOT_USER'
+$storageSecret = Resolve-LocalSecret 'MINIO_ROOT_PASSWORD'
+if (-not $storageEndpoint -or -not $storageAccess -or -not $storageSecret) {
+    Write-Error 'Local MinIO endpoint or credentials not found in user store or .env'
+    exit 1
+}
+$env:STORAGE_ENDPOINT = $storageEndpoint
+$env:STORAGE_ACCESS_KEY = $storageAccess
+$env:STORAGE_SECRET_KEY = $storageSecret
+Write-Output 'Local document storage resolved: yes'
+
 # The Compose stack passes these fictional demo values to the container itself
 # (infrastructure/docker-compose.yml:221-226); a standalone backend gets nothing,
 # so BankTransferPaymentService#isConfigured() is false and every patient payment

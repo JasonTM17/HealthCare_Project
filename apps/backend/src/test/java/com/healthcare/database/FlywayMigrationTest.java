@@ -619,6 +619,81 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
         }
     }
 
+    @Test
+    void v101MarksOnlyUnbackedSeedDocumentsFailedAndKeepsTheirSources() {
+        String schema = createMigrationSchema();
+        try {
+            migrate(schema, "100");
+            String documents = table(schema, "patient_documents");
+            String seedMarker = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + documents
+                    + " where status = 'AVAILABLE' and sha256 = ? and byte_size = 384512",
+                Integer.class, seedMarker
+            )).isEqualTo(14);
+
+            // A row whose object metadata has been repaired must survive the
+            // migration unchanged, even though its ID is from the seed set.
+            String repairedId = "80000000-0000-0000-00a0-000000000001";
+            jdbcTemplate.update(
+                "update " + documents + " set sha256 = repeat('a', 64), byte_size = 1024 where id = ?::uuid",
+                repairedId
+            );
+
+            migrate(schema, "101");
+
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + documents
+                    + " where status = 'AVAILABLE' and sha256 = ? and byte_size = 384512",
+                Integer.class, seedMarker
+            )).isZero();
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + documents
+                    + " where status = 'FAILED' and sha256 is null and byte_size is null",
+                Integer.class
+            )).isEqualTo(13);
+            assertThat(jdbcTemplate.queryForObject(
+                "select status || '|' || sha256 || '|' || byte_size from " + documents + " where id = ?::uuid",
+                String.class, repairedId
+            )).isEqualTo("AVAILABLE|" + "a".repeat(64) + "|1024");
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + documents + " where source_record_id is not null",
+                Integer.class
+            )).isEqualTo(14);
+        } finally {
+            dropMigrationSchema(schema);
+        }
+    }
+
+    @Test
+    void v102AllowsDocumentActionsAndStillRejectsUnknownAuditActions() {
+        String schema = createMigrationSchema();
+        try {
+            migrate(schema, "101");
+            String audit = table(schema, "clinical_access_audit");
+            String insert = "insert into " + audit
+                + " (id, actor_email, actor_role, target_type, target_id, action, decision)"
+                + " values (?, 'demo@example.invalid', 'PATIENT', 'DOCUMENT', 'demo-document', ?, 'ALLOW')";
+
+            assertThatThrownBy(() -> jdbcTemplate.update(insert, UUID.randomUUID(), "GENERATE"))
+                .isInstanceOf(DataAccessException.class);
+            migrate(schema, "102");
+
+            jdbcTemplate.update(insert, UUID.randomUUID(), "GENERATE");
+            jdbcTemplate.update(insert, UUID.randomUUID(), "REVOKE");
+            jdbcTemplate.update(insert, UUID.randomUUID(), "READ");
+            jdbcTemplate.update(insert, UUID.randomUUID(), "ADMIN_CANCEL_APPOINTMENT");
+            assertThatThrownBy(() -> jdbcTemplate.update(insert, UUID.randomUUID(), "UNKNOWN"))
+                .isInstanceOf(DataAccessException.class);
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + audit + " where target_type = 'DOCUMENT'",
+                Integer.class
+            )).isEqualTo(4);
+        } finally {
+            dropMigrationSchema(schema);
+        }
+    }
+
     private void insertDoctor(String schema, String fullName, String slug, boolean active) {
         jdbcTemplate.update(
             "insert into " + table(schema, "doctors") + " (id, full_name, slug, active) "
