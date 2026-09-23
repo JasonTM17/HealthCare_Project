@@ -268,7 +268,9 @@ test("booking page reuses the engine inline without mounting a second dialog", a
   assert.match(route, /<PublicPageShell onBookingRequest=\{handleBookingRequest\}>/);
   assert.match(route, /Các cơ sở khám nổi bật/);
   assert.match(route, /fetchBranches\(0, 6\)/);
-  assert.match(route, /Đặt lịch hẹn/);
+  // Canonical booking CTA (docs/terminology.json): the /dat-lich branch cards
+  // must label the button with "Đặt lịch khám", never the "hẹn" variant.
+  assert.match(route, /Đặt lịch khám/);
   assert.match(route, /<BookingInlineExperience key=\{bookingRequest\.nonce\} selection=\{bookingRequest\.selection\} \/>/);
   assert.match(route, /bookingRegionRef\.current\?\.scrollIntoView/);
   assert.doesNotMatch(route, /bookingInitiallyOpen/);

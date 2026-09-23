@@ -104,7 +104,7 @@ const Footer: React.FC<FooterProps> = ({ branches = [], cmsSlug }) => {
     <nav aria-label="Lối tắt trên thiết bị nhỏ" className="mobile-care-rail">
       <Link href="/specialties"><Icon name="layers" size={19} /><span>Chuyên khoa</span></Link>
       <Link href="/doctors"><Icon name="stethoscope" size={19} /><span>Tìm bác sĩ</span></Link>
-      <Link className="mobile-care-rail__primary" href="/dat-lich"><Icon name="calendar" size={19} /><span>Đặt lịch hẹn</span></Link>
+      <Link className="mobile-care-rail__primary" href="/dat-lich"><Icon name="calendar" size={19} /><span>Đặt lịch khám</span></Link>
       {contactHref ? <a href={contactHref}><Icon name="phone" size={19} /><span>Liên hệ</span></a> : <Link href="/contact"><Icon name="phone" size={19} /><span>Liên hệ</span></Link>}
     </nav>
   </footer>

@@ -131,7 +131,7 @@ export default function DoctorHealthQuestionsPage() {
                   <div className="grid gap-2">
                     <label className="grid gap-1 text-sm font-bold" htmlFor={`answer-${item.id}`}>Câu trả lời (tối đa 4.000 ký tự)</label>
                     <textarea id={`answer-${item.id}`} className="min-h-32 rounded-lg border border-slate-300 p-3" maxLength={4000} onChange={(event) => setDrafts((current) => ({ ...current, [item.id]: event.target.value }))} value={drafts[item.id] ?? ""} />
-                    <button className="min-h-11 w-fit rounded-lg bg-teal-800 px-4 text-sm font-bold text-white disabled:opacity-50" disabled={busy === item.id || !(drafts[item.id] ?? "").trim()} onClick={() => answer(item)} type="button">{busy === item.id ? "Đang gửi..." : "Gửi revision"}</button>
+                    <button className="min-h-11 w-fit rounded-lg bg-teal-800 px-4 text-sm font-bold text-white disabled:opacity-50" disabled={busy === item.id || !(drafts[item.id] ?? "").trim()} onClick={() => answer(item)} type="button">{busy === item.id ? "Đang gửi..." : "Gửi bản trả lời"}</button>
                   </div>
                 ) : null}
 
@@ -143,7 +143,7 @@ export default function DoctorHealthQuestionsPage() {
                     <div className="flex flex-wrap gap-2">
                       <button className="min-h-11 rounded-lg bg-emerald-700 px-4 text-sm font-bold text-white disabled:opacity-50" disabled={busy === item.id} onClick={() => decide(item, "APPROVE")} type="button">Duyệt xuất bản</button>
                       <button className="min-h-11 rounded-lg border border-amber-300 px-4 text-sm font-bold text-amber-800 disabled:opacity-50" disabled={busy === item.id || !(reasons[item.id] ?? "").trim()} onClick={() => decide(item, "REQUEST_CHANGES")} type="button">Yêu cầu sửa</button>
-                      <button className="min-h-11 rounded-lg border border-rose-300 px-4 text-sm font-bold text-rose-700 disabled:opacity-50" disabled={busy === item.id || !(reasons[item.id] ?? "").trim()} onClick={() => decide(item, "REVOKE")} type="button">Revoke</button>
+                      <button className="min-h-11 rounded-lg border border-rose-300 px-4 text-sm font-bold text-rose-700 disabled:opacity-50" disabled={busy === item.id || !(reasons[item.id] ?? "").trim()} onClick={() => decide(item, "REVOKE")} type="button">Thu hồi</button>
                     </div>
                   </div>
                 ) : null}
