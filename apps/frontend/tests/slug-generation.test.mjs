@@ -24,9 +24,9 @@ function extractToSlug(source) {
   const js = ts.transpileModule(`${fn}\nmodule.exports = { toSlug };`, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
   }).outputText;
-  const module = { exports: {} };
-  new Function("module", "exports", js)(module, module.exports);
-  return module.exports.toSlug;
+  const mod = { exports: {} };
+  new Function("module", "exports", js)(mod, mod.exports);
+  return mod.exports.toSlug;
 }
 
 for (const page of PAGES) {
