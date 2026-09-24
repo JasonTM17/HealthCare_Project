@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactElement } from "react";
 import { PublicAiButton, PublicBookingButton, PublicPageShell } from "../../components/PublicPageShell";
+import { specialtyIdForDoctor } from "../../components/BookingModal";
 import PackageBookingModal from "../../components/PackageBookingModal";
 import Icon from "../../components/UiIcon";
 import {
@@ -593,7 +594,14 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
                         <strong>{item.fullName}</strong>
                         <p>{doctorResultMeta(item)}</p>
                       </Link>
-                      <PublicBookingButton className="outline-button outline-button--small" selection={{ doctorId: item.id }}>
+                      <PublicBookingButton
+                        className="outline-button outline-button--small"
+                        selection={{
+                          doctorId: item.id,
+                          specialtyId: specialtyIdForDoctor(item, catalog.specialties) || undefined,
+                          branchId: item.branchId || item.branchIds?.[0],
+                        }}
+                      >
                         Đặt lịch
                       </PublicBookingButton>
                     </article>
