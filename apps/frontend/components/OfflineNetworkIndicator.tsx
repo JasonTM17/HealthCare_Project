@@ -1,50 +1,57 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useSyncExternalStore } from "react";
 import Icon from "./UiIcon";
 
+function subscribeOnline(callback: () => void) {
+  window.addEventListener("online", callback);
+  window.addEventListener("offline", callback);
+  return () => {
+    window.removeEventListener("online", callback);
+    window.removeEventListener("offline", callback);
+  };
+}
+
+function getOnlineSnapshot(): boolean {
+  return typeof navigator !== "undefined" ? navigator.onLine : true;
+}
+
+function getServerOnlineSnapshot(): boolean {
+  return true;
+}
+
 export default function OfflineNetworkIndicator() {
-  const [isOffline, setIsOffline] = useState(false);
+  const isOnline = useSyncExternalStore(subscribeOnline, getOnlineSnapshot, getServerOnlineSnapshot);
+  const [dismissed, setDismissed] = useState(false);
   const [showReconnected, setShowReconnected] = useState(false);
 
   useEffect(() => {
-    // Only execute on browser
-    if (typeof window === "undefined" || !("onLine" in navigator)) {
-      return;
-    }
-
-    // Initialize state
-    if (!navigator.onLine) {
-      setIsOffline(true);
-    }
-
-    let timerId: NodeJS.Timeout | null = null;
-
-    const handleOffline = () => {
-      if (timerId) clearTimeout(timerId);
-      setShowReconnected(false);
-      setIsOffline(true);
-    };
+    let timer: NodeJS.Timeout | null = null;
 
     const handleOnline = () => {
-      setIsOffline(false);
       setShowReconnected(true);
-      timerId = setTimeout(() => {
-        setShowReconnected(false);
-      }, 3500);
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => setShowReconnected(false), 3500);
     };
 
-    window.addEventListener("offline", handleOffline);
+    const handleOffline = () => {
+      setShowReconnected(false);
+      setDismissed(false);
+    };
+
     window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
 
     return () => {
-      window.removeEventListener("offline", handleOffline);
       window.removeEventListener("online", handleOnline);
-      if (timerId) clearTimeout(timerId);
+      window.removeEventListener("offline", handleOffline);
+      if (timer) clearTimeout(timer);
     };
   }, []);
 
-  if (!isOffline && !showReconnected) {
+  const isOffline = !isOnline;
+
+  if (dismissed || (!isOffline && !showReconnected)) {
     return null;
   }
 
@@ -81,7 +88,7 @@ export default function OfflineNetworkIndicator() {
           aria-label="Đóng thông báo trạng thái mạng"
           className="px-2 py-0.5 rounded-[4px] hover:bg-black/5 text-current transition-colors text-[11px] font-bold"
           onClick={() => {
-            setIsOffline(false);
+            setDismissed(true);
             setShowReconnected(false);
           }}
           type="button"
