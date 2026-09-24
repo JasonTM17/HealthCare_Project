@@ -432,3 +432,42 @@ Integrity mode: demo
 - [x] Khi backend đang cold-start, giao diện hiển thị trạng thái chuẩn bị thông minh và fallback an toàn, không đứt đoạn phiên chat.
 - [x] Giao diện Floating Assistant hiển thị đầy đủ chip hành động, trích dẫn rõ ràng trên cả Desktop và Mobile.
 - [x] Toàn bộ test suites (Frontend, Backend, AI Service) đạt tỷ lệ 100% PASS.
+
+## 2026-09-24T03:06:30Z
+
+This is a single self-contained fix; keep it small and focused.
+Khi người bệnh nhấn "Đặt lịch với bác sĩ" trên bất kỳ thẻ bác sĩ nào (Trang chủ, Danh bạ bác sĩ, Trang chi tiết bác sĩ, Tìm kiếm), cửa sổ đặt lịch (Booking Modal) phải hiển thị rõ ràng, nổi bật tên và thông tin của bác sĩ được chọn (ví dụ: "Đặt lịch khám cùng BS Trương Gia Bảo") ngay từ bước 1 và xuyên suốt các bước đặt lịch, thay vì chỉ hiện form chọn chuyên khoa chung chung.
+
+Working directory: d:/HealthCare_Project
+Integrity mode: development
+
+## Requirements
+
+### R1. Hiển Thị Nổi Bật Bác Sĩ Tiếp Nhận Trên Header & Bước 1 (Doctor Booking Identity)
+- Khi `BookingModal` nhận `initialDoctorId` hoặc khi đã xác định được `selectedDoctor`/`currentDoctor`:
+  - Tại Header của modal: hiển thị rõ ngữ cảnh đặt khám cùng bác sĩ (ví dụ: "Đặt lịch trực tuyến cùng BS Trương Gia Bảo" hoặc huy hiệu "Bác sĩ tiếp nhận: BS Trương Gia Bảo").
+  - Tại Bước 1 ("01 · Nhu cầu khám"): hiển thị một thẻ tóm tắt bác sĩ nổi bật (Doctor Highlight Card) gồm ảnh đại diện/chữ cái viết tắt, Họ tên bác sĩ đầy đủ, học hàm/học vị, chuyên khoa phụ trách, và thông báo xác nhận: *"Bác sĩ đã được chỉ định theo yêu cầu của bạn"*.
+  - Tự động điền và khóa hoặc ưu tiên chuyên khoa của bác sĩ đó, không để người bệnh phải tự suy đoán chuyên khoa.
+
+### R2. Tối Ưu Truyền Dữ Liệu Từ Các Điểm Gọi Đặt Lịch (Caller Props Propagation)
+- Trong `apps/frontend/app/page.tsx`, `apps/frontend/app/doctors/DoctorsPageClient.tsx`, và các trang liên quan:
+  - Khi người dùng nhấn "Đặt lịch với bác sĩ", truyền đồng thời `doctorId` và `specialtyId` (hoặc thông tin chuyên khoa tương ứng của bác sĩ) vào hàm `handleOpenBooking` để `BookingModal` nhận diện ngay lập tức mà không phải chờ tải combo phụ.
+
+### R3. Nhất Quán Trải Nghiệm Qua Các Bước (Step-by-Step Consistency)
+- Bước 2 (Cơ sở): Tự động ưu tiên hoặc chỉ lọc các cơ sở bệnh viện nơi bác sĩ đó làm việc (`doctor.branchIds` / `doctor.branchNames`).
+- Bước 3 (Bác sĩ): Tự động chọn sẵn bác sĩ đó, hiển thị thông tin xác nhận.
+- Bước 4/5 (Lịch & Khung giờ): Tiêu đề và hướng dẫn nêu rõ *"Chọn khung giờ khám cùng [Tên bác sĩ]"*.
+- Bước 6 & Xác nhận: Tóm tắt đặt lịch ghi nhận chính xác tên bác sĩ đã chọn.
+
+## Acceptance Criteria
+
+### Xác thực Giao diện & Trải nghiệm (UI/UX)
+- [ ] Nhấn "Đặt lịch với bác sĩ" trên thẻ bác sĩ (ví dụ: BS Trương Gia Bảo) mở Modal và hiển thị ngay tên bác sĩ trên tiêu đề/bước 1.
+- [ ] Bước 1 xuất hiện thẻ bác sĩ tiếp nhận với ảnh/avatar, tên đầy đủ, chuyên khoa và thông báo chỉ định rõ ràng.
+- [ ] Chuyên khoa được tự động chọn chính xác theo chuyên khoa của bác sĩ.
+- [ ] Không có hiện tượng giật màn hình hoặc mất thông tin bác sĩ khi chuyển đổi các bước.
+
+### Kiểm thử & Tự động hóa (Testing & Verification)
+- [ ] Toàn bộ bộ test frontend (`npm test`) đạt 100% PASS.
+- [ ] Frontend typecheck (`npm run typecheck`) và ESLint đạt 0 lỗi.
+- [ ] Kiểm thử tự động bằng Playwright trên trình duyệt thực tế xác nhận: click "Đặt lịch với bác sĩ" -> Modal hiển thị tên bác sĩ chính xác trong DOM.
