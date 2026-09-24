@@ -71,6 +71,24 @@ def test_chat_falls_back_deterministically_without_provider() -> None:
     assert "tham khảo" in result.answer
 
 
+def test_public_general_checkup_preparation_fallback_does_not_route_to_packages() -> None:
+    local_settings = MagicMock()
+    local_settings.ai_provider = "local"
+    local_settings.ai_service_runtime = "test"
+    local_settings.ai_public_hospital_support_remote_enabled = False
+
+    result = resolve_chat(
+        "Cần chuẩn bị gì trước buổi khám tổng quát tại HealthCare?",
+        local_settings,
+        public_support_chat=True,
+    )
+
+    assert result.provenance == "local_fallback"
+    assert result.safety_action is ChatSafetyAction.INSUFFICIENT_EVIDENCE
+    assert "nhịn ăn tùy loại" in result.answer
+    assert "danh mục Gói khám" not in result.answer
+
+
 def test_patient_answer_remote_flags_still_use_local_grounded_path() -> None:
     provider = MagicMock()
     provider.complete_json.return_value = {"answer": "Bạn có thể xem hướng dẫn phù hợp."}

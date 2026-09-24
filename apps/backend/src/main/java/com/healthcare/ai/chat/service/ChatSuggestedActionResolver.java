@@ -87,10 +87,10 @@ public final class ChatSuggestedActionResolver {
         if (isSpecialtyGuidance(normalized)) return HospitalSupportIntent.SPECIALTY_GUIDANCE;
         if (containsAny(normalized, CATALOG_TERMS)) return HospitalSupportIntent.CATALOG;
         if (containsAny(normalized, DOCTOR_TERMS)) return HospitalSupportIntent.DOCTOR;
+        if (containsAny(normalized, PREPARATION_TERMS)) return HospitalSupportIntent.PREPARATION;
         if (containsAny(normalized, PACKAGE_TERMS)) return HospitalSupportIntent.PACKAGE;
         if (containsAny(normalized, SERVICE_TERMS)) return HospitalSupportIntent.SERVICE;
         if (containsAny(normalized, BRANCH_TERMS)) return HospitalSupportIntent.BRANCH;
-        if (containsAny(normalized, PREPARATION_TERMS)) return HospitalSupportIntent.PREPARATION;
         return HospitalSupportIntent.GENERAL;
     }
 

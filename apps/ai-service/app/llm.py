@@ -2450,6 +2450,16 @@ def _chat_fallback(
             "và thông tin chi tiết trước khi đặt lịch. Nếu bạn cho biết tên dịch vụ, tôi sẽ hỗ trợ "
             "tra cứu đúng mục trong danh mục hiện có."
         )
+    if any(term in normalized for term in _PUBLIC_PREPARATION_TERMS) and not (
+        any(term in normalized for term in _PUBLIC_BOOKING_SUPPORT_TERMS) or "dat lich" in normalized
+    ):
+        return (
+            "Trước khi đi khám tại HealthCare, bạn nên chuẩn bị: "
+            "1) Giấy tờ tùy thân (CCCD/Hộ chiếu), thẻ BHYT và kết quả xét nghiệm, đơn thuốc cũ (nếu có); "
+            "2) Yêu cầu nhịn ăn tùy loại xét nghiệm hoặc thủ thuật; không nên áp dụng một mốc giờ chung "
+            "mà hãy xác nhận trước với cơ sở hoặc bác sĩ; "
+            "3) Trang phục thoải mái và ghi chú trước các câu hỏi hoặc triệu chứng muốn trao đổi trực tiếp với bác sĩ."
+        )
     if any(term in normalized for term in _PUBLIC_PACKAGE_TERMS):
         return (
             "Bạn có thể mở danh mục Gói khám để xem từng gói, hạng mục và thông tin đặt lịch. "
@@ -2470,14 +2480,6 @@ def _chat_fallback(
         return (
             "Để tìm bác sĩ phù hợp, bạn có thể mở danh sách Bác sĩ để xem thông tin hiện có; "
             "sau đó chọn Đặt lịch khám nếu muốn tiếp tục."
-        )
-    if any(term in normalized for term in _PUBLIC_PREPARATION_TERMS):
-        return (
-            "Trước khi đi khám tại HealthCare, bạn nên chuẩn bị: "
-            "1) Giấy tờ tùy thân (CCCD/Hộ chiếu), thẻ BHYT và kết quả xét nghiệm, đơn thuốc cũ (nếu có); "
-            "2) Yêu cầu nhịn ăn tùy loại xét nghiệm hoặc thủ thuật; không nên áp dụng một mốc giờ chung "
-            "mà hãy xác nhận trước với cơ sở hoặc bác sĩ; "
-            "3) Trang phục thoải mái và ghi chú trước các câu hỏi hoặc triệu chứng muốn trao đổi trực tiếp với bác sĩ."
         )
     if any(term in normalized for term in _PUBLIC_BRANCH_HOURS_TERMS):
         return (
