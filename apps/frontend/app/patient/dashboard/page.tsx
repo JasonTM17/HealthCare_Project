@@ -712,6 +712,9 @@ export default function PatientDashboardPage() {
   const [selectedAppointment, setSelectedAppointment] = useState<PatientPortalAppointment | null>(null);
   const [selectedPaymentAppointmentId, setSelectedPaymentAppointmentId] = useState<string | null>(null);
   const [payment, setPayment] = useState<Loadable<BankTransferPayment> | null>(null);
+  // "Now" captured whenever fresh payment data lands; the overdue check must
+  // not call Date.now() during render (React purity rules).
+  const [paymentNowMs, setPaymentNowMs] = useState(0);
   const [paymentReference, setPaymentReference] = useState("");
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
   const [paymentRefreshing, setPaymentRefreshing] = useState(false);
@@ -852,6 +855,13 @@ export default function PatientDashboardPage() {
       return changed ? { status: "success", data: { ...current.data, content } } : current;
     });
   }, []);
+
+  useEffect(() => {
+    if (payment?.status === "success" && payment.data.payByDeadline) {
+      const timer = window.setTimeout(() => setPaymentNowMs(Date.now()), 0);
+      return () => window.clearTimeout(timer);
+    }
+  }, [payment]);
 
   const handleChoosePayment = useCallback(async (appointment: PatientPortalAppointment) => {
     setSelectedPaymentAppointmentId(appointment.id);
@@ -1743,15 +1753,16 @@ export default function PatientDashboardPage() {
                         <div className={paymentStyles.detailWide}>
                           <dt>Hạn thanh toán</dt>
                           <dd>
-                            <span
-                              className={paymentStyles.deadline}
-                              data-overdue={new Date(payment.data.payByDeadline).getTime() < Date.now() ? "true" : "false"}
-                            >
-                              {formatBusinessDateTime(payment.data.payByDeadline)}
-                              {new Date(payment.data.payByDeadline).getTime() < Date.now()
-                                ? " — đã quá hạn, vui lòng liên hệ cơ sở y tế nếu đã chuyển khoản"
-                                : ""}
-                            </span>
+                            {(() => {
+                              const overdue = paymentNowMs > 0
+                                && new Date(payment.data.payByDeadline).getTime() < paymentNowMs;
+                              return (
+                                <span className={paymentStyles.deadline} data-overdue={overdue ? "true" : "false"}>
+                                  {formatBusinessDateTime(payment.data.payByDeadline)}
+                                  {overdue ? " — đã quá hạn, vui lòng liên hệ cơ sở y tế nếu đã chuyển khoản" : ""}
+                                </span>
+                              );
+                            })()}
                           </dd>
                         </div>
                       ) : null}
@@ -1766,7 +1777,18 @@ export default function PatientDashboardPage() {
                     </div>
                   ) : null}
 
-                  {payment.data.status === "PAID" ? <p className={paymentStyles.successCard}><UiIcon name="check" size={20} /> Khoản thanh toán đã được xác nhận.</p> : null}
+                  {payment.data.status === "PAID" ? (
+                    <p className={paymentStyles.successCard}>
+                      <UiIcon name="check" size={20} /> Khoản thanh toán đã được xác nhận.{" "}
+                      <a
+                        className={paymentStyles.receiptLink}
+                        download
+                        href={`/api/v1/patient/appointments/${payment.data.appointmentId}/payment/invoice.pdf`}
+                      >
+                        Tải biên nhận PDF
+                      </a>
+                    </p>
+                  ) : null}
 
                   {payment.data.status === "REJECTED" ? (
                     <div aria-labelledby="payment-rejected-title" className={paymentStyles.rejectedGuide} role="alert">
