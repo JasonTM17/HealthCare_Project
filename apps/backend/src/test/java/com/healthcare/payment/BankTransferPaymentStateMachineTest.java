@@ -19,6 +19,7 @@ import com.healthcare.payment.service.BankTransferPaymentService;
 import com.healthcare.payment.service.PaymentAuditService;
 import com.healthcare.payment.service.PaymentNotYetConfirmableException;
 import com.healthcare.payment.service.PaymentStatusEmailService;
+import com.healthcare.payment.service.VietQrChannelProvider;
 import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -67,9 +68,11 @@ class BankTransferPaymentStateMachineTest {
     private final PaymentAuditService auditService = mock(PaymentAuditService.class);
     private final AppointmentClaimService claimService = mock(AppointmentClaimService.class);
     private final PaymentStatusEmailService emailService = mock(PaymentStatusEmailService.class);
+    private final VietQrChannelProvider channelProvider = new VietQrChannelProvider();
     private final BankTransferPaymentService service = new BankTransferPaymentService(
         paymentRepository, appointmentRepository, patientProfileRepository, userRepository,
-        mock(com.healthcare.notification.service.NotificationService.class), auditService, claimService, emailService);
+        mock(com.healthcare.notification.service.NotificationService.class), auditService, claimService,
+        emailService, channelProvider);
 
     private UserDetails patientPrincipal;
     private UserDetails adminPrincipal;
@@ -78,13 +81,14 @@ class BankTransferPaymentStateMachineTest {
 
     @BeforeEach
     void configureServiceAndFixtures() {
-        ReflectionTestUtils.setField(service, "enabled", true);
-        ReflectionTestUtils.setField(service, "bankName", "Test Bank");
-        ReflectionTestUtils.setField(service, "bankAccount", "0000000000");
-        ReflectionTestUtils.setField(service, "bankBin", "970436");
-        ReflectionTestUtils.setField(service, "accountHolder", "HEALTHCARE TEST");
+        ReflectionTestUtils.setField(service, "configuredProvider", VietQrChannelProvider.PROVIDER_ID);
         ReflectionTestUtils.setField(service, "defaultAmount", AMOUNT);
         ReflectionTestUtils.setField(service, "payByHoursBeforeAppointment", 2);
+        ReflectionTestUtils.setField(channelProvider, "enabled", true);
+        ReflectionTestUtils.setField(channelProvider, "bankName", "Test Bank");
+        ReflectionTestUtils.setField(channelProvider, "bankAccount", "0000000000");
+        ReflectionTestUtils.setField(channelProvider, "bankBin", "970436");
+        ReflectionTestUtils.setField(channelProvider, "accountHolder", "HEALTHCARE TEST");
 
         User patientUser = new User();
         patientUser.setId(PATIENT_USER_ID);
