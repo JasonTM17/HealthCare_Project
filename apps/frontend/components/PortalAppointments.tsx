@@ -159,6 +159,7 @@ export default function PortalAppointments({
                   <a
                     className="outline-button outline-button--small"
                     href={buildGoogleCalendarUrl({
+                      appointmentId: appointment.id,
                       bookingCode: appointment.bookingCode,
                       doctorName: appointment.doctorName,
                       specialtyName: appointment.specialtyName,
@@ -177,6 +178,7 @@ export default function PortalAppointments({
                     className="outline-button outline-button--small"
                     onClick={() =>
                       downloadIcsFile({
+                        appointmentId: appointment.id,
                         bookingCode: appointment.bookingCode,
                         doctorName: appointment.doctorName,
                         specialtyName: appointment.specialtyName,
