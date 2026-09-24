@@ -5,11 +5,13 @@ import com.healthcare.payment.dto.PaymentWebhookEventAdminView;
 import com.healthcare.payment.dto.ReviewBankTransferRequest;
 import com.healthcare.payment.dto.RefundBankTransferRequest;
 import com.healthcare.payment.service.BankTransferPaymentService;
+import com.healthcare.payment.service.PaymentInvoiceService;
 import com.healthcare.payment.service.PaymentWebhookEventAdminService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -34,11 +36,14 @@ public class AdminPaymentController {
 
     private final BankTransferPaymentService paymentService;
     private final PaymentWebhookEventAdminService webhookEventAdminService;
+    private final PaymentInvoiceService invoiceService;
 
     public AdminPaymentController(BankTransferPaymentService paymentService,
-            PaymentWebhookEventAdminService webhookEventAdminService) {
+            PaymentWebhookEventAdminService webhookEventAdminService,
+            PaymentInvoiceService invoiceService) {
         this.paymentService = paymentService;
         this.webhookEventAdminService = webhookEventAdminService;
+        this.invoiceService = invoiceService;
     }
 
     @Operation(summary = "Danh sách giao dịch thanh toán viện phí", description = "Truy xuất danh sách chuyển khoản viện phí của bệnh nhân theo trạng thái")
@@ -73,5 +78,17 @@ public class AdminPaymentController {
             @Valid @RequestBody RefundBankTransferRequest request,
             @AuthenticationPrincipal UserDetails principal) {
         return ResponseEntity.ok(paymentService.refund(paymentId, request, principal));
+    }
+
+    @Operation(summary = "Biên nhận thanh toán PDF", description = "Tải biên nhận của một giao dịch đã xác nhận; lượt tải sau trả lại cùng biên nhận đã cấp")
+    @GetMapping(value = "/{paymentId}/invoice.pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    public ResponseEntity<byte[]> invoicePdf(
+            @PathVariable UUID paymentId,
+            @AuthenticationPrincipal UserDetails principal) {
+        byte[] pdf = invoiceService.receiptForAdmin(paymentId, principal);
+        return ResponseEntity.ok()
+            .contentType(MediaType.APPLICATION_PDF)
+            .header("Content-Disposition", "inline; filename=\"payment-receipt-" + paymentId + ".pdf\"")
+            .body(pdf);
     }
 }

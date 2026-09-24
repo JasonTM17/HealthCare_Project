@@ -3,7 +3,9 @@ package com.healthcare.payment.controller;
 import com.healthcare.payment.dto.BankTransferPaymentResponse;
 import com.healthcare.payment.dto.SubmitBankTransferRequest;
 import com.healthcare.payment.service.BankTransferPaymentService;
+import com.healthcare.payment.service.PaymentInvoiceService;
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -27,9 +29,12 @@ import java.util.UUID;
 public class PatientPaymentController {
 
     private final BankTransferPaymentService paymentService;
+    private final PaymentInvoiceService invoiceService;
 
-    public PatientPaymentController(BankTransferPaymentService paymentService) {
+    public PatientPaymentController(BankTransferPaymentService paymentService,
+            PaymentInvoiceService invoiceService) {
         this.paymentService = paymentService;
+        this.invoiceService = invoiceService;
     }
 
     @Operation(summary = "Thông tin thanh toán viện phí", description = "Lấy mã chuyển khoản, tài khoản thụ hưởng và mã QR VietQR tương ứng với lượt khám")
@@ -48,5 +53,17 @@ public class PatientPaymentController {
             @RequestHeader("Idempotency-Key") String idempotencyKey,
             @AuthenticationPrincipal UserDetails principal) {
         return ResponseEntity.ok(paymentService.submit(appointmentId, request, idempotencyKey, principal));
+    }
+
+    @Operation(summary = "Biên nhận thanh toán PDF", description = "Tải biên nhận cho giao dịch đã được xác nhận đối soát; lượt tải sau trả lại cùng biên nhận đã cấp")
+    @GetMapping(value = "/invoice.pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    public ResponseEntity<byte[]> invoicePdf(
+            @PathVariable UUID appointmentId,
+            @AuthenticationPrincipal UserDetails principal) {
+        byte[] pdf = invoiceService.receiptForPatient(appointmentId, principal);
+        return ResponseEntity.ok()
+            .contentType(MediaType.APPLICATION_PDF)
+            .header("Content-Disposition", "inline; filename=\"payment-receipt-" + appointmentId + ".pdf\"")
+            .body(pdf);
     }
 }
