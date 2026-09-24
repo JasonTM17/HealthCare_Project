@@ -17,6 +17,7 @@ import com.healthcare.payment.repository.BankTransferPaymentRepository;
 import com.healthcare.payment.service.BankTransferPaymentService;
 import com.healthcare.payment.service.PaymentAuditService;
 import com.healthcare.payment.service.PaymentStatusEmailService;
+import com.healthcare.payment.service.VietQrChannelProvider;
 import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -73,9 +74,10 @@ class BankTransferSubmissionAdminNotificationTest {
     private final PaymentAuditService auditService = mock(PaymentAuditService.class);
     private final AppointmentClaimService claimService = mock(AppointmentClaimService.class);
     private final PaymentStatusEmailService emailService = mock(PaymentStatusEmailService.class);
+    private final VietQrChannelProvider channelProvider = new VietQrChannelProvider();
     private final BankTransferPaymentService service = new BankTransferPaymentService(
         paymentRepository, appointmentRepository, patientProfileRepository, userRepository,
-        notifications, auditService, claimService, emailService);
+        notifications, auditService, claimService, emailService, channelProvider);
 
     private UserDetails patientPrincipal;
     private User patientUser;
@@ -84,13 +86,15 @@ class BankTransferSubmissionAdminNotificationTest {
 
     @BeforeEach
     void configureBankTransferAndFixtures() {
-        // The @Value bank configuration is what requireConfigured() gates on;
+        // The @Value channel configuration is what requireConfigured() gates on;
         // mirror the test-profile values so the service is usable off-context.
-        ReflectionTestUtils.setField(service, "enabled", true);
-        ReflectionTestUtils.setField(service, "bankName", "Test Bank");
-        ReflectionTestUtils.setField(service, "bankAccount", "0000000000");
-        ReflectionTestUtils.setField(service, "bankBin", "970436");
+        ReflectionTestUtils.setField(service, "configuredProvider", VietQrChannelProvider.PROVIDER_ID);
         ReflectionTestUtils.setField(service, "defaultAmount", new BigDecimal("200000"));
+        ReflectionTestUtils.setField(channelProvider, "enabled", true);
+        ReflectionTestUtils.setField(channelProvider, "bankName", "Test Bank");
+        ReflectionTestUtils.setField(channelProvider, "bankAccount", "0000000000");
+        ReflectionTestUtils.setField(channelProvider, "bankBin", "970436");
+        ReflectionTestUtils.setField(channelProvider, "accountHolder", "HEALTHCARE TEST");
 
         patientUser = new User();
         patientUser.setId(PATIENT_USER_ID);

@@ -32,7 +32,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.OffsetDateTime;
@@ -63,17 +62,11 @@ public class BankTransferPaymentService {
     private final PaymentAuditService auditService;
     private final AppointmentClaimService appointmentClaimService;
     private final PaymentStatusEmailService statusEmailService;
+    private final PaymentChannelProvider channelProvider;
 
-    @Value("${app.payment.bank-transfer.enabled:false}")
-    private boolean enabled;
-    @Value("${app.payment.bank-transfer.bank-name:}")
-    private String bankName;
-    @Value("${app.payment.bank-transfer.account-number:}")
-    private String bankAccount;
-    @Value("${app.payment.bank-transfer.account-holder:}")
-    private String accountHolder;
-    @Value("${app.payment.bank-transfer.bank-bin:}")
-    private String bankBin;
+    /** Selects the active channel; today only {@code vietqr} ships. */
+    @Value("${app.payment.provider:vietqr}")
+    private String configuredProvider;
     @Value("${app.payment.bank-transfer.default-amount:200000}")
     private BigDecimal defaultAmount;
     /** Payment is expected this many hours before the visit starts. */
@@ -88,7 +81,8 @@ public class BankTransferPaymentService {
             NotificationService notificationService,
             PaymentAuditService auditService,
             AppointmentClaimService appointmentClaimService,
-            PaymentStatusEmailService statusEmailService) {
+            PaymentStatusEmailService statusEmailService,
+            PaymentChannelProvider channelProvider) {
         this.paymentRepository = paymentRepository;
         this.appointmentRepository = appointmentRepository;
         this.patientProfileRepository = patientProfileRepository;
@@ -97,10 +91,11 @@ public class BankTransferPaymentService {
         this.auditService = auditService;
         this.appointmentClaimService = appointmentClaimService;
         this.statusEmailService = statusEmailService;
+        this.channelProvider = channelProvider;
     }
 
     public boolean isAvailable() {
-        return enabled && !bankName.isBlank() && !bankAccount.isBlank() && !bankBin.isBlank();
+        return channelProvider.id().equals(configuredProvider) && channelProvider.isConfigured();
     }
 
     /** Ownership-verified, locked payment load — shared by the receipt issuer. */
@@ -451,18 +446,6 @@ public class BankTransferPaymentService {
         return "from=" + from.name() + ";to=" + to.name();
     }
 
-    private String qrCodeUrl(BankTransferPayment payment) {
-        StringBuilder url = new StringBuilder("https://img.vietqr.io/image/")
-            .append(URLEncoder.encode(bankBin, StandardCharsets.UTF_8)).append('-')
-            .append(URLEncoder.encode(bankAccount, StandardCharsets.UTF_8)).append("-compact2.png?amount=")
-            .append(payment.getAmount().toBigIntegerExact()).append("&addInfo=")
-            .append(URLEncoder.encode(payment.getTransferContent(), StandardCharsets.UTF_8));
-        if (accountHolder != null && !accountHolder.isBlank()) {
-            url.append("&accountName=").append(URLEncoder.encode(accountHolder, StandardCharsets.UTF_8));
-        }
-        return url.toString();
-    }
-
     private void requireConfigured() {
         if (!isAvailable()) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Thanh toán chuyển khoản chưa được cấu hình");
@@ -501,7 +484,8 @@ public class BankTransferPaymentService {
             appointment.getMedicalPackage() == null ? null : appointment.getMedicalPackage().getName(),
             appointment.getAppointmentDate(), appointment.getStartTime(), payByDeadline(appointment),
             payment.getAmount(), payment.getCurrency(), payment.getStatus(),
-            bankName, bankAccount, accountHolder, qrCodeUrl(payment), payment.getTransferContent(), payment.getTransactionReference(),
+            channelProvider.bankName(), channelProvider.bankAccount(), channelProvider.accountHolder(),
+            channelProvider.buildQrUrl(payment), payment.getTransferContent(), payment.getTransactionReference(),
             payment.getSubmittedAt(), payment.getVerifiedAt(), payment.getRejectionReason(),
             payment.getRefundReference(), payment.getRefundedAt(),
             payment.getCreatedAt(), payment.getUpdatedAt()
