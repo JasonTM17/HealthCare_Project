@@ -125,20 +125,21 @@ public class PublicAiChatController {
             Map<String, Object> deterministicBranch = publicSpecificBranchResponse(userMessage);
             if (deterministicBranch != null) return ResponseEntity.ok(deterministicBranch);
         }
-        try {
-            if (publicMode == ChatMode.HEALTH_EDUCATION) {
-                if (ChatMedicalSafety.containsEmergencyInputCue(userMessage)) {
-                    return ResponseEntity.ok(publicSafetyFallback(
-                        userMessage, "EMERGENCY", ChatMode.HEALTH_EDUCATION));
-                }
-                return ResponseEntity.ok(publicEducationChat(userMessage, mappedTurns));
+        if (publicMode == ChatMode.HEALTH_EDUCATION) {
+            if (ChatMedicalSafety.containsEmergencyInputCue(userMessage)) {
+                return ResponseEntity.ok(publicSafetyFallback(
+                    userMessage, "EMERGENCY", ChatMode.HEALTH_EDUCATION));
             }
-            return ResponseEntity.ok(sanitize(aiService.chat(payload), userMessage, publicMode));
+            return ResponseEntity.ok(publicEducationChat(userMessage, mappedTurns));
+        }
+        Map<String, Object> upstream;
+        try {
+            upstream = aiService.chat(payload);
         } catch (ResponseStatusException ex) {
             // Broad catalog navigation can be answered from the same live
             // Spring catalog even while the semantic/RAG service is cold or
-            // unavailable.  Other questions retain the normal upstream error
-            // contract and are handled by the BFF's safe fallback.
+            // unavailable. Source-dependent questions get a server-owned
+            // outage response; an upstream error cannot prove source absence.
             if (isAiFailure(ex)) {
                 if (ChatMedicalSafety.containsEmergencyInputCue(userMessage)) {
                     return ResponseEntity.ok(publicSafetyFallback(userMessage, "EMERGENCY", publicMode));
@@ -148,11 +149,12 @@ public class PublicAiChatController {
                 }
                 Map<String, Object> fallback = publicCatalogFallback(userMessage);
                 if (fallback != null) return ResponseEntity.ok(fallback);
-                fallback = publicMissingVerifiedSourceFallback(userMessage, publicMode);
+                fallback = publicAiUnavailableFallback(userMessage, publicMode);
                 if (fallback != null) return ResponseEntity.ok(fallback);
             }
             throw ex;
         }
+        return ResponseEntity.ok(sanitize(upstream, userMessage, publicMode));
     }
 
     /**
@@ -301,7 +303,7 @@ public class PublicAiChatController {
             ChatSuggestedActionResolver.classify(userMessage);
         boolean protectedOperationalNavigationQuery = protectedOperationalQuery
             && switch (intent) {
-                case SPECIALTY_GUIDANCE, PREPARATION, GREETING, EDUCATION -> false;
+                case SPECIALTY_GUIDANCE, GREETING, EDUCATION -> false;
                 default -> true;
             };
         if ("ANSWER".equals(safetyAction) && validatedCitations.isEmpty()) {
@@ -328,6 +330,10 @@ public class PublicAiChatController {
                 return publicSafetyFallback(userMessage, "HUMAN_HANDOFF", publicMode);
             }
             Map<String, Object> fallback = publicCatalogFallback(userMessage);
+            if (fallback != null) return fallback;
+            fallback = validatedCitations.isEmpty()
+                ? publicMissingVerifiedSourceFallback(userMessage, publicMode)
+                : publicInsufficientVerifiedEvidenceFallback(userMessage, publicMode);
             if (fallback != null) return fallback;
         }
         if (protectedOperationalQuery && "ANSWER".equals(safetyAction)
@@ -452,6 +458,30 @@ public class PublicAiChatController {
 
     private Map<String, Object> publicMissingVerifiedSourceFallback(
             String userMessage, ChatMode publicMode) {
+        return publicSourceDependentFallback(userMessage, publicMode,
+            "Mình chưa có nguồn đã xác thực để trả lời chi tiết câu hỏi này. "
+                + "Bạn hãy xem thông tin trên website hoặc xác nhận trực tiếp với cơ sở trước buổi khám.",
+            "public_missing_verified_source");
+    }
+
+    private Map<String, Object> publicInsufficientVerifiedEvidenceFallback(
+            String userMessage, ChatMode publicMode) {
+        return publicSourceDependentFallback(userMessage, publicMode,
+            "Mình chưa đủ thông tin đã xác thực để trả lời chi tiết câu hỏi này. "
+                + "Bạn hãy xem thông tin trên website hoặc xác nhận trực tiếp với cơ sở trước buổi khám.",
+            "public_insufficient_evidence");
+    }
+
+    private Map<String, Object> publicAiUnavailableFallback(
+            String userMessage, ChatMode publicMode) {
+        return publicSourceDependentFallback(userMessage, publicMode,
+            "Dịch vụ trợ lý tạm thời gián đoạn nên mình chưa thể trả lời câu hỏi này. "
+                + "Bạn hãy xem thông tin trên website hoặc xác nhận trực tiếp với cơ sở trước buổi khám.",
+            "public_ai_unavailable");
+    }
+
+    private Map<String, Object> publicSourceDependentFallback(
+            String userMessage, ChatMode publicMode, String answer, String routingReason) {
         if (publicMode != ChatMode.HOSPITAL_SUPPORT) return null;
         ChatSuggestedActionResolver.HospitalSupportIntent intent =
             ChatSuggestedActionResolver.classify(userMessage);
@@ -460,11 +490,10 @@ public class PublicAiChatController {
                 && intent != ChatSuggestedActionResolver.HospitalSupportIntent.SERVICE) return null;
         Map<String, Object> fallback = publicSafetyFallback(
             userMessage, "INSUFFICIENT_EVIDENCE", publicMode);
-        fallback.put("answer", "Mình chưa có nguồn đã xác thực để trả lời chi tiết câu hỏi này. "
-            + "Bạn hãy xem thông tin trên website hoặc xác nhận trực tiếp với cơ sở trước buổi khám.");
+        fallback.put("answer", answer);
         fallback.put("suggested_actions",
             ChatSuggestedActionResolver.hospitalSupportFallback(userMessage));
-        fallback.put("routingReason", "public_missing_verified_source");
+        fallback.put("routingReason", routingReason);
         return fallback;
     }
 
