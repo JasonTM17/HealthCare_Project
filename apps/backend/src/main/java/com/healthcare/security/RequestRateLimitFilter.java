@@ -245,8 +245,9 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
             return new LimitRule("payment-webhook", webhookLimit);
         }
 
-        // 4. Payment submissions and administrative refunds
+        // 4. Payment submissions, statement imports and administrative refunds
         if (("POST".equals(method) && path.matches("^/api/v1/patient/appointments/[^/]+/payment/submit$"))
+                || ("POST".equals(method) && path.equals("/api/v1/admin/payments/statements/import"))
                 || ("PATCH".equals(method) && path.matches("^/api/v1/admin/payments/[^/]+(?:/refund)?$"))) {
             return new LimitRule("payments", paymentLimit);
         }

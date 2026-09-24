@@ -2046,6 +2046,31 @@ export async function adminListBankWebhookEvents(
   );
 }
 
+export interface BankStatementUnmatchedRow {
+  transferContent: string;
+  bankReference: string | null;
+  amount: string;
+  note: string;
+}
+
+export interface BankStatementImportResult {
+  importId: string;
+  totalRows: number;
+  matchedRows: number;
+  duplicateRows: number;
+  invalidRows: number;
+  unmatched: BankStatementUnmatchedRow[];
+}
+
+export async function adminImportBankStatement(file: File): Promise<BankStatementImportResult> {
+  const body = new FormData();
+  body.append("file", file);
+  return getAuthenticatedJson<BankStatementImportResult>("/admin/payments/statements/import", {
+    method: "POST",
+    body,
+  });
+}
+
 export async function adminReviewPayment(
   paymentId: string,
   decision: "VERIFY" | "REJECT",
