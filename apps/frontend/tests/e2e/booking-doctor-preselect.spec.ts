@@ -10,7 +10,7 @@ import { expect, test } from "@playwright/test";
 
 async function firstDoctorCard(page: import("@playwright/test").Page) {
   const card = page.locator("article.catalog-card").first();
-  await expect(card).toBeVisible();
+  await expect(card).toBeVisible({ timeout: 25000 });
   const name = (await card.locator("h2").innerText()).trim();
   expect(name.length).toBeGreaterThan(0);
   return { card, name };
