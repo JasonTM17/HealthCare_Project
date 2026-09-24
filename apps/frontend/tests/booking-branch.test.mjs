@@ -54,7 +54,7 @@ test("step 1 shows the preselected doctor and lets the patient switch away", asy
 
   assert.match(source, /data-testid="booking-preselected-doctor"/);
   assert.match(source, /initialDoctorId && !preselectionDismissed && currentDoctor\?\.id === initialDoctorId/);
-  assert.match(source, /Bác sĩ bạn chọn/);
+  assert.match(source, /Bác sĩ tiếp nhận/);
   assert.match(source, /onClick=\{\(\) => setPreselectionDismissed\(true\)\}/);
   // Dismissing must survive the combo-doctor refresh: syncSelection may not
   // re-apply initialDoctorId once the patient chose to switch doctors.
@@ -73,19 +73,19 @@ test("doctor booking identity is highlighted on header and steps 1, 4, and 5", a
   const source = await readFile(modalPath, "utf8");
 
   // Header displays doctor context
-  assert.match(source, /Bác sĩ tiếp nhận: \$\{currentDoctor\.fullName\}/);
-  assert.match(source, /Đặt lịch trực tuyến cùng \$\{currentDoctor\.fullName\}/);
+  assert.match(source, /Bác sĩ tiếp nhận: \$\{currentDoctor\??\.fullName\}/);
+  assert.match(source, /Đặt lịch trực tuyến cùng \$\{currentDoctor\??\.fullName\}/);
 
   // Step 1 Doctor Highlight Card
   assert.match(source, /data-testid="booking-preselected-doctor"/);
   assert.match(source, /doctorPhotoUrl\(currentDoctor\)/);
-  assert.match(source, /doctorInitials\(currentDoctor\.fullName\)/);
+  assert.match(source, /doctorInitials\(currentDoctor\??\.fullName\)/);
   assert.match(source, /Bác sĩ đã được chỉ định theo yêu cầu của bạn/);
-  assert.match(source, /currentDoctor\.title/);
+  assert.match(source, /currentDoctor\??\.title/);
 
   // Step 4 & 5 Headings include doctor full name
-  assert.match(source, /Chọn ngày khám cùng \$\{currentDoctor\.fullName\}/);
-  assert.match(source, /Chọn khung giờ khám cùng \$\{currentDoctor\.fullName\}/);
+  assert.match(source, /Chọn ngày khám cùng \$\{currentDoctor\??\.fullName\}/);
+  assert.match(source, /Chọn khung giờ khám cùng \$\{currentDoctor\??\.fullName\}/);
 });
 
 test("doctor CTA callers propagate doctorId, specialtyId, and branchId", async () => {

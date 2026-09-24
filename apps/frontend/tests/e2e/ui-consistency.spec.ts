@@ -165,9 +165,12 @@ test("footer keyboard focus contrasts with its dark surface and survives forced 
     await brand.focus();
     await about.focus();
     await expect(about).toBeFocused();
-    const outline = await about.evaluate((node) => ({
-      width: parseFloat(getComputedStyle(node).outlineWidth), style: getComputedStyle(node).outlineStyle,
-    }));
+    const outline = await about.evaluate((node) => {
+      const cs = getComputedStyle(node);
+      const raw = cs.outlineWidth;
+      const width = raw === "thin" ? 1 : raw === "medium" ? 3 : raw === "thick" ? 5 : parseFloat(raw);
+      return { width, style: cs.outlineStyle };
+    });
     expect(outline.width).toBeGreaterThanOrEqual(2);
     expect(outline.style).not.toBe("none");
     expect(await contrast(about, "outlineColor"), `footer outline contrast (${forcedColors})`).toBeGreaterThanOrEqual(3);

@@ -344,6 +344,11 @@ export function specialtyIdForDoctor(doctor: Doctor | undefined, specialties: Sp
       specialty.name.trim().toLocaleLowerCase("vi-VN") === primaryName
     ));
     if (byName) return byName.id;
+    const byPartialName = specialties.find((specialty) => {
+      const specName = specialty.name.trim().toLocaleLowerCase("vi-VN");
+      return primaryName.includes(specName) || specName.includes(primaryName);
+    });
+    if (byPartialName) return byPartialName.id;
   }
 
   return doctor.specialtySlugs?.map((slug) => specialties.find((specialty) => specialty.slug === slug))
@@ -1228,19 +1233,23 @@ function BookingExperience({
     slot.branchId === selectedBranch && slot.startTime === selectedSlot
   ));
   const selectedSlotMinutes = bookingSlotMinutes(selectedSlotDetail);
+  const isDesignatedDoctor = Boolean(
+    initialDoctorId && !preselectionDismissed && currentDoctor?.id === initialDoctorId
+  );
+  const hasDoctorContext = Boolean(currentDoctor && (isDesignatedDoctor || (step >= 4 && !preselectionDismissed)));
 
   const panel = (
       <div className={panelClassName} ref={dialogRef}>
         <div className="booking-panel__header flex items-center justify-between">
           <div>
             <span className="booking-panel__eyebrow">
-              {currentDoctor && !preselectionDismissed
+              {hasDoctorContext && currentDoctor
                 ? `Bác sĩ tiếp nhận: ${currentDoctor.fullName}`
                 : "Hệ thống đặt lịch khám"}
             </span>
             <h2 id={panelTitleId} className="booking-panel__title flex items-center gap-2">
               <Icon name="calendar" size={18} />
-              {currentDoctor && !preselectionDismissed
+              {hasDoctorContext && currentDoctor
                 ? `Đặt lịch trực tuyến cùng ${currentDoctor.fullName}`
                 : "Đặt lịch trực tuyến nhanh chóng"}
             </h2>
@@ -1256,7 +1265,7 @@ function BookingExperience({
             </button>
           ) : (
             <span className="booking-panel__context">
-              {currentDoctor && !preselectionDismissed
+              {hasDoctorContext && currentDoctor
                 ? `Bác sĩ tiếp nhận: ${currentDoctor.fullName}`
                 : "Đặt lịch khám"}
             </span>
@@ -1338,19 +1347,19 @@ function BookingExperience({
                 <h3 className="text-xl font-bold text-gray-900 focus-visible:outline-none" ref={stepHeadingRef} tabIndex={-1}>
                   {currentPackage
                     ? `Đặt lịch theo gói: ${currentPackage.name}`
-                    : currentDoctor && !preselectionDismissed
+                    : isDesignatedDoctor && currentDoctor
                       ? `Đặt lịch khám cùng bác sĩ ${currentDoctor.fullName}`
                       : "Bạn muốn được hỗ trợ ở chuyên khoa nào?"}
                 </h3>
                 <p className="mt-1 text-sm leading-6 text-gray-600">
                   {currentPackage
                     ? "Gói khám đã bao gồm danh mục khám và xét nghiệm tiêu chuẩn. Bạn có thể chọn thêm chuyên khoa hoặc tiếp tục chọn cơ sở tiếp nhận."
-                    : currentDoctor && !preselectionDismissed
+                    : isDesignatedDoctor && currentDoctor
                       ? `Bác sĩ ${currentDoctor.fullName} thuộc chuyên khoa ${currentSpecialty?.name ?? currentDoctor.specialtyName ?? "chuyên khoa tiếp nhận"}. Chuyên khoa đã được tự động chọn để bạn tiếp tục chọn cơ sở và thời gian khám.`
                       : "Chọn chuyên khoa phù hợp để chúng tôi tìm cơ sở và bác sĩ đang tiếp nhận lịch."}
                 </p>
               </div>
-              {initialDoctorId && !preselectionDismissed && currentDoctor?.id === initialDoctorId ? (
+              {isDesignatedDoctor && currentDoctor ? (
                 <div
                   data-testid="booking-preselected-doctor"
                   role="status"
@@ -1366,6 +1375,7 @@ function BookingExperience({
                             width={56}
                             height={56}
                             className="h-full w-full object-cover"
+                            unoptimized
                           />
                         ) : (
                           <span className="text-sm font-bold tracking-tight">
@@ -1375,7 +1385,7 @@ function BookingExperience({
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <p className="text-xs font-bold uppercase tracking-wider text-teal-700">Bác sĩ bạn chọn</p>
+                          <p className="text-xs font-bold uppercase tracking-wider text-teal-700">Bác sĩ tiếp nhận</p>
                           {currentDoctor.title ? (
                             <span className="rounded bg-teal-100 px-1.5 py-0.5 text-[11px] font-semibold text-teal-800">
                               {currentDoctor.title}
@@ -1461,12 +1471,12 @@ function BookingExperience({
               <div>
                 <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">02 · Cơ sở</p>
                 <h3 className="text-xl font-bold text-gray-900 focus-visible:outline-none" ref={stepHeadingRef} tabIndex={-1}>
-                  {currentDoctor && !preselectionDismissed
+                  {isDesignatedDoctor && currentDoctor
                     ? `Chọn cơ sở khám cùng ${currentDoctor.fullName}`
                     : "Chọn cơ sở y tế thuận tiện nhất"}
                 </h3>
                 <p className="mt-1 text-sm leading-6 text-gray-600">
-                  {currentDoctor && !preselectionDismissed
+                  {isDesignatedDoctor && currentDoctor
                     ? `Danh sách hiển thị các cơ sở tiếp nhận lịch khám của ${currentDoctor.fullName}.`
                     : "Lịch làm việc và khung giờ sẽ được kiểm tra theo đúng cơ sở này."}
                 </p>
@@ -1497,12 +1507,12 @@ function BookingExperience({
               <div>
                 <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">03 · Chuyên gia</p>
                 <h3 className="text-xl font-bold text-gray-900 focus-visible:outline-none" ref={stepHeadingRef} tabIndex={-1}>
-                  {initialDoctorId && !preselectionDismissed && currentDoctor?.id === initialDoctorId
+                  {isDesignatedDoctor && currentDoctor
                     ? `Xác nhận bác sĩ tiếp nhận: ${currentDoctor.fullName}`
                     : "Lựa chọn bác sĩ chuyên khoa tiếp nhận"}
                 </h3>
                 <p className="mt-1 text-sm leading-6 text-gray-600">
-                  {initialDoctorId && !preselectionDismissed && currentDoctor?.id === initialDoctorId
+                  {isDesignatedDoctor
                     ? "Bác sĩ đã được chỉ định theo yêu cầu của bạn. Bạn có thể tiếp tục hoặc chọn bác sĩ khác."
                     : "Danh sách được lọc theo chuyên khoa và cơ sở bạn vừa chọn."}
                 </p>
@@ -1520,10 +1530,11 @@ function BookingExperience({
                   {doctorPhotoUrl(currentDoctor) ? (
                     <Image
                       src={doctorPhotoUrl(currentDoctor)!}
-                      alt={`Ảnh bác sĩ ${currentDoctor?.fullName}`}
+                      alt={`Ảnh bác sĩ ${currentDoctor?.fullName ?? ""}`}
                       width={56}
                       height={56}
                       className="h-full w-full object-cover"
+                      unoptimized
                     />
                   ) : (
                     <span>{doctorInitials(currentDoctor?.fullName)}</span>
@@ -1533,7 +1544,7 @@ function BookingExperience({
                   <h4 className="text-base font-bold text-brand-900">{currentDoctor?.fullName ?? "Chưa chọn bác sĩ"}</h4>
                   <p className="text-xs text-brand-700">{currentSpecialty?.name ?? currentDoctor?.title ?? "Chưa có hồ sơ bác sĩ"}{currentDoctor?.experienceYears ? ` • ${currentDoctor.experienceYears} năm kinh nghiệm` : ""}</p>
                   <p className="mt-1 line-clamp-2 text-xs text-gray-500">{currentDoctor?.bio ?? "Chọn bác sĩ để xem thông tin phù hợp."}</p>
-                  {initialDoctorId && !preselectionDismissed && currentDoctor?.id === initialDoctorId ? (
+                  {isDesignatedDoctor ? (
                     <p className="mt-1.5 flex items-center gap-1 text-xs font-semibold text-teal-700">
                       <Icon name="check" size={14} className="inline text-teal-600" />
                       Bác sĩ đã được chỉ định theo yêu cầu của bạn
