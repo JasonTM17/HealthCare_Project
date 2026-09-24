@@ -4,7 +4,7 @@
 
 export interface CalendarAppointmentInput {
   bookingCode: string;
-  patientName: string;
+  patientName?: string;
   doctorName?: string;
   specialtyName?: string;
   appointmentDate: string; // YYYY-MM-DD
@@ -31,11 +31,12 @@ export function buildGoogleCalendarUrl(appt: CalendarAppointmentInput): string {
   const doctor = appt.doctorName?.trim() || "Bác sĩ chuyên khoa";
   const specialty = appt.specialtyName?.trim() || "Đa khoa";
   const branch = appt.branchName?.trim() || "Hệ thống Bệnh viện Đa khoa HealthCare";
+  const patient = appt.patientName?.trim() || "Bệnh nhân";
 
   const title = `Lịch khám tại HealthCare: ${doctor} - ${specialty}`;
   const details = [
     `Mã phiếu khám: ${appt.bookingCode}`,
-    `Người khám: ${appt.patientName}`,
+    `Người khám: ${patient}`,
     `Bác sĩ phụ trách: ${doctor}`,
     `Chuyên khoa: ${specialty}`,
     `Cơ sở tiếp nhận: ${branch}`,
@@ -73,6 +74,7 @@ export function downloadIcsFile(appt: CalendarAppointmentInput): void {
   const doctor = appt.doctorName?.trim() || "Bác sĩ chuyên khoa";
   const specialty = appt.specialtyName?.trim() || "Đa khoa";
   const branch = appt.branchName?.trim() || "Hệ thống Bệnh viện Đa khoa HealthCare";
+  const patient = appt.patientName?.trim() || "Bệnh nhân";
 
   const datePart = cleanIsoDate(appt.appointmentDate);
   const startPart = cleanIsoTime(appt.startTime);
@@ -84,7 +86,7 @@ export function downloadIcsFile(appt: CalendarAppointmentInput): void {
   const summary = `Lịch khám tại HealthCare: ${doctor} - ${specialty}`;
   const description = [
     `Mã phiếu khám: ${appt.bookingCode}`,
-    `Bệnh nhân: ${appt.patientName}`,
+    `Bệnh nhân: ${patient}`,
     `Bác sĩ: ${doctor}`,
     `Chuyên khoa: ${specialty}`,
     `Cơ sở: ${branch}`,

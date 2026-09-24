@@ -16,6 +16,7 @@ import { ReadingProgressBar } from "../../../components/articles/ReadingProgress
 import { ReadingToolbar } from "../../../components/articles/ReadingToolbar";
 import { ToastContainer, useToastManager } from "../../../components/ui/ToastNotification";
 import { ArticleComments } from "../../../components/articles/ArticleComments";
+import { JsonLd } from "../../../components/JsonLd";
 
 const ARTICLE_STEPS = [
   ["01", "Đọc phần tóm tắt", "Xác nhận bài viết có đúng chủ đề bạn đang tìm không."],
@@ -99,8 +100,32 @@ export default function ArticleDetailPage() {
   const preventionTips = stringList(article?.preventionTips);
   const sources = stringList(article?.sourceReferences);
 
+  const articleJsonLd = article
+    ? {
+        "@context": "https://schema.org",
+        "@type": "MedicalWebPage",
+        name: article.title,
+        headline: article.title,
+        description: article.summary,
+        url: `https://www.healthcare.id.vn/articles/${article.slug}`,
+        image: article.coverImageUrl ? [article.coverImageUrl] : undefined,
+        datePublished: article.publishedAt,
+        dateModified: article.updatedAt || article.publishedAt,
+        author: {
+          "@type": "Person",
+          name: article.authorName || "Đội ngũ Bác sĩ Chuyên khoa HealthCare",
+        },
+        publisher: {
+          "@type": "MedicalOrganization",
+          name: "Hệ thống Y tế Đa khoa HealthCare",
+          url: "https://www.healthcare.id.vn",
+        },
+      }
+    : null;
+
   return (
     <PublicPageShell>
+      {articleJsonLd ? <JsonLd data={articleJsonLd} id="article-jsonld" /> : null}
       <ReadingProgressBar />
       <ToastContainer toasts={toasts} onClose={removeToast} />
       <div aria-busy={loading} className="resource-page section-inner">

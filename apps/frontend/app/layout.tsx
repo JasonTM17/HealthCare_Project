@@ -8,6 +8,7 @@ import "./brand-experience.css";
 import "./catalog-directory.css";
 import FloatingHealthAssistant from "../components/FloatingHealthAssistant";
 import BackendWarmup from "../components/BackendWarmup";
+import OfflineNetworkIndicator from "../components/OfflineNetworkIndicator";
 
 function safeJsonLdStringify(data: unknown): string {
   return JSON.stringify(data)
@@ -83,6 +84,7 @@ export default function RootLayout({
           }}
         />
         {children}
+        <OfflineNetworkIndicator />
         <FloatingHealthAssistant />
         <BackendWarmup />
       </body>
