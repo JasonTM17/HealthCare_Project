@@ -51,7 +51,7 @@ async function installMocks(context: import("@playwright/test").BrowserContext) 
     });
   });
 
-  await context.route(/\/api\/v1\/faqs/, async (route) => {
+  await context.route(/\/api\/v1\/(hospital\/)?faqs(\/.*)?/, async (route) => {
     await route.fulfill({ json: pageEnvelope([FAQ_ITEM]) });
   });
 
