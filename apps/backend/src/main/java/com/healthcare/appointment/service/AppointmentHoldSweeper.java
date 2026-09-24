@@ -3,6 +3,8 @@ package com.healthcare.appointment.service;
 import com.healthcare.appointment.entity.Appointment;
 import com.healthcare.appointment.entity.AppointmentStatus;
 import com.healthcare.appointment.repository.AppointmentRepository;
+import com.healthcare.payment.entity.PaymentStatus;
+import com.healthcare.payment.service.BankTransferPaymentService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -35,9 +37,12 @@ public class AppointmentHoldSweeper {
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     private final AppointmentRepository appointmentRepository;
+    private final BankTransferPaymentService paymentService;
 
-    public AppointmentHoldSweeper(AppointmentRepository appointmentRepository) {
+    public AppointmentHoldSweeper(AppointmentRepository appointmentRepository,
+            BankTransferPaymentService paymentService) {
         this.appointmentRepository = appointmentRepository;
+        this.paymentService = paymentService;
     }
 
     @Scheduled(fixedDelayString = "${app.booking.hold-sweep-ms:60000}")
@@ -58,6 +63,14 @@ public class AppointmentHoldSweeper {
             appointment.setOtpCode(null);
             appointment.setOtpExpiresAt(null);
             appointment.setOtpIssuedAt(null);
+            // Same payment sync as the lazy sweeps: an in-review transfer for a
+            // booking that just died must leave the admin queue. UNPAID holds
+            // (no money moved) skip the payment lookup entirely.
+            String paymentStatus = appointment.getPaymentStatus();
+            if (paymentService != null && paymentStatus != null
+                    && !PaymentStatus.UNPAID.name().equals(paymentStatus)) {
+                paymentService.markAppointmentCancelled(appointment);
+            }
         }
         appointmentRepository.saveAll(abandoned);
         log.info("Swept {} expired appointment hold(s) into CANCELLED.", abandoned.size());

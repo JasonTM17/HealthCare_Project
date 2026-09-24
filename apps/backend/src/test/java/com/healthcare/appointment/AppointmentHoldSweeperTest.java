@@ -5,6 +5,7 @@ import com.healthcare.appointment.entity.AppointmentStatus;
 import com.healthcare.appointment.repository.AppointmentRepository;
 import com.healthcare.appointment.service.AppointmentHoldSweeper;
 import com.healthcare.appointment.service.BookingService;
+import com.healthcare.payment.service.BankTransferPaymentService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,11 +27,14 @@ class AppointmentHoldSweeperTest {
     @Mock
     private AppointmentRepository appointmentRepository;
 
+    @Mock
+    private BankTransferPaymentService paymentService;
+
     private AppointmentHoldSweeper sweeper;
 
     @BeforeEach
     void setUp() {
-        sweeper = new AppointmentHoldSweeper(appointmentRepository);
+        sweeper = new AppointmentHoldSweeper(appointmentRepository, paymentService);
     }
 
     @Test

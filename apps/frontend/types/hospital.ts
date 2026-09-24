@@ -281,6 +281,19 @@ export interface DoctorPortalAppointment extends PortalAppointmentBase {
 
 export type PaymentStatus = "UNPAID" | "PENDING_VERIFICATION" | "PAID" | "REJECTED" | "REFUND_PENDING" | "REFUNDED";
 
+export interface PaymentWebhookEventView {
+  eventId: string;
+  transferContent: string | null;
+  amount: number | null;
+  transactionReference: string | null;
+  receivedAt: string;
+  retryAttempts: number | null;
+  nextRetryAt: string | null;
+  processedAt: string | null;
+  permanentFailure: boolean;
+  failureReason: string | null;
+}
+
 export interface BankTransferPayment {
   id: string;
   appointmentId: string;
@@ -289,6 +302,8 @@ export interface BankTransferPayment {
   doctorName: string;
   packageName?: string | null;
   appointmentDate: string;
+  appointmentStartTime?: string | null;
+  payByDeadline?: string | null;
   amount: number;
   currency: "VND";
   status: PaymentStatus;

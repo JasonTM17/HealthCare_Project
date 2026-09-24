@@ -88,6 +88,7 @@ app:
       webhook-tolerance-seconds: ${PAYMENT_WEBHOOK_TOLERANCE_SECONDS:300}
       retry-enabled: ${APP_PAYMENT_BANK_TRANSFER_RETRY_ENABLED:false}
       retry-poll-ms: ${APP_PAYMENT_BANK_TRANSFER_RETRY_POLL_MS:60000}
+      pay-by-hours-before-appointment: ${PAYMENT_PAY_BY_HOURS_BEFORE_APPOINTMENT:2}
       status-email-enabled: ${PAYMENT_STATUS_EMAIL_ENABLED:true}
   mail:
     enabled: ${APP_MAIL_ENABLED:false}

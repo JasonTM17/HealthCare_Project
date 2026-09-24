@@ -24,6 +24,7 @@ import com.healthcare.hospital.repository.PackageRepository;
 import com.healthcare.hospital.repository.SpecialtyRepository;
 import com.healthcare.notification.entity.Notification.EventType;
 import com.healthcare.notification.service.NotificationService;
+import com.healthcare.payment.entity.PaymentStatus;
 import com.healthcare.payment.service.BankTransferPaymentService;
 import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.UserRepository;
@@ -291,6 +292,7 @@ public class BookingService {
         for (Appointment expiredAppointment : expired) {
             expiredAppointment.setStatus(AppointmentStatus.CANCELLED);
             expiredAppointment.setCancellationReason(HOLD_EXPIRED_CANCELLATION_REASON);
+            syncPaymentOnHoldExpiry(expiredAppointment);
         }
         if (!expired.isEmpty()) {
             appointmentRepository.saveAll(expired);
@@ -479,6 +481,7 @@ public class BookingService {
             appointment.setOtpExpiresAt(null);
             appointment.setOtpIssuedAt(null);
             appointment.setHoldExpiresAt(null);
+            syncPaymentOnHoldExpiry(appointment);
             appointmentRepository.saveAndFlush(appointment);
             throw new ResponseStatusException(HttpStatus.GONE, "Thời gian giữ chỗ đã hết hạn. Vui lòng thực hiện đặt lại.");
         }
@@ -703,6 +706,7 @@ public class BookingService {
         if (appointment.getHoldExpiresAt() != null && !now.isBefore(appointment.getHoldExpiresAt())) {
             appointment.setStatus(AppointmentStatus.CANCELLED);
             appointment.setCancellationReason(HOLD_EXPIRED_CANCELLATION_REASON);
+            syncPaymentOnHoldExpiry(appointment);
             appointmentRepository.save(appointment);
             throw new ResponseStatusException(HttpStatus.GONE, "Thời gian giữ chỗ đã hết hạn. Vui lòng thực hiện đặt lại.");
         }
@@ -833,6 +837,21 @@ public class BookingService {
     }
 
     /**
+     * A hold expiring is an appointment cancellation as far as the payment
+     * subsystem is concerned: a PENDING_VERIFICATION transfer must not sit in
+     * the admin review queue for a booking that no longer exists. UNPAID holds
+     * (the common case) are skipped — no money has moved, and if the patient
+     * pays late the bank webhook dead-letter path surfaces it instead.
+     */
+    private void syncPaymentOnHoldExpiry(Appointment expiredAppointment) {
+        String paymentStatus = expiredAppointment.getPaymentStatus();
+        if (paymentService != null && paymentStatus != null
+                && !PaymentStatus.UNPAID.name().equals(paymentStatus)) {
+            paymentService.markAppointmentCancelled(expiredAppointment);
+        }
+    }
+
+    /**
      * Cancel an appointment.
      */
     @Transactional
@@ -956,6 +975,7 @@ public class BookingService {
         for (Appointment expiredAppointment : expired) {
             expiredAppointment.setStatus(AppointmentStatus.CANCELLED);
             expiredAppointment.setCancellationReason(HOLD_EXPIRED_CANCELLATION_REASON);
+            syncPaymentOnHoldExpiry(expiredAppointment);
         }
         if (!expired.isEmpty()) {
             appointmentRepository.saveAll(expired);

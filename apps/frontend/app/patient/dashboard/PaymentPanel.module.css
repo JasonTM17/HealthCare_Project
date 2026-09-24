@@ -227,6 +227,17 @@
   color: var(--color-teal-900);
 }
 
+.deadline {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.deadline[data-overdue="true"] {
+  color: var(--color-amber-dark);
+}
+
 .polling {
   display: flex;
   align-items: center;
