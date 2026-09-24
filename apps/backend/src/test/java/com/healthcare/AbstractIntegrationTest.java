@@ -221,6 +221,8 @@ public abstract class AbstractIntegrationTest {
         jdbcTemplate.execute("DELETE FROM clinical_access_audit");
         jdbcTemplate.execute("DELETE FROM payment_webhook_events");
         jdbcTemplate.execute("DELETE FROM payment_audit_logs");
+        jdbcTemplate.execute("DELETE FROM bank_statement_rows");
+        jdbcTemplate.execute("DELETE FROM bank_statement_imports");
         // Consultation/Q&A/care-plan rows were added after the original test
         // baseline.  Truncate the complete child set together so append-only
         // audit and answer triggers cannot leak state between tests.  This is

@@ -4,6 +4,7 @@ import com.healthcare.payment.dto.BankTransferPaymentResponse;
 import com.healthcare.payment.dto.PaymentWebhookEventAdminView;
 import com.healthcare.payment.dto.ReviewBankTransferRequest;
 import com.healthcare.payment.dto.RefundBankTransferRequest;
+import com.healthcare.payment.service.BankStatementImportService;
 import com.healthcare.payment.service.BankTransferPaymentService;
 import com.healthcare.payment.service.PaymentInvoiceService;
 import com.healthcare.payment.service.PaymentWebhookEventAdminService;
@@ -19,13 +20,16 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 @Tag(name = "Administration", description = "Quản trị hệ thống: Quản lý lịch hẹn, cơ sở, bác sĩ, gói khám, tài chính")
@@ -37,13 +41,16 @@ public class AdminPaymentController {
     private final BankTransferPaymentService paymentService;
     private final PaymentWebhookEventAdminService webhookEventAdminService;
     private final PaymentInvoiceService invoiceService;
+    private final BankStatementImportService statementImportService;
 
     public AdminPaymentController(BankTransferPaymentService paymentService,
             PaymentWebhookEventAdminService webhookEventAdminService,
-            PaymentInvoiceService invoiceService) {
+            PaymentInvoiceService invoiceService,
+            BankStatementImportService statementImportService) {
         this.paymentService = paymentService;
         this.webhookEventAdminService = webhookEventAdminService;
         this.invoiceService = invoiceService;
+        this.statementImportService = statementImportService;
     }
 
     @Operation(summary = "Danh sách giao dịch thanh toán viện phí", description = "Truy xuất danh sách chuyển khoản viện phí của bệnh nhân theo trạng thái")
@@ -60,6 +67,15 @@ public class AdminPaymentController {
             @RequestParam(defaultValue = "unprocessed") String scope,
             @RequestParam(defaultValue = "50") int limit) {
         return ResponseEntity.ok(webhookEventAdminService.list(scope, limit));
+    }
+
+    @Operation(summary = "Nhập sao kê ngân hàng", description = "Tải lên tệp sao kê (mỗi dòng: số tiền ; nội dung chuyển khoản ; mã giao dịch). Các dòng khớp nội dung + số tiền sẽ vào hàng chờ đối soát như webhook ngân hàng, dòng lệch được liệt kê để xử lý thủ công")
+    @PostMapping(value = "/statements/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<BankStatementImportService.ImportResult> importStatement(
+            @RequestParam("file") MultipartFile file,
+            @AuthenticationPrincipal UserDetails principal) throws java.io.IOException {
+        String csv = new String(file.getBytes(), StandardCharsets.UTF_8);
+        return ResponseEntity.ok(statementImportService.importStatement(file.getOriginalFilename(), csv, principal));
     }
 
     @Operation(summary = "Duyệt giao dịch chuyển khoản", description = "Xác nhận đối soát hoặc từ chối chứng từ thanh toán viện phí của bệnh nhân")
