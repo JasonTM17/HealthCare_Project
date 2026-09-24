@@ -6,6 +6,7 @@ import Icon from "../../components/UiIcon";
 import { PublicAiButton, PublicBookingButton, PublicPageShell } from "../../components/PublicPageShell";
 import useDialogFocus from "../../components/useDialogFocus";
 import { AppointmentDetails } from "../../types/hospital";
+import { buildGoogleCalendarUrl, downloadIcsFile } from "../../lib/appointment-calendar";
 
 // Lookup/cancellation must use the same-origin proxy, just like the rest of
 // the patient portal.  The backend origin remains server-only in Next config.
@@ -147,14 +148,14 @@ export default function TraCuuPage() {
     <PublicPageShell>
       <section className="resource-page section-inner">
         {/* Breadcrumb */}
-        <div className="resource-breadcrumb">
+        <div className="resource-breadcrumb no-print">
           <Link href="/">Trang chủ</Link>
           <span>/</span>
           <span>Tra cứu lịch hẹn & Phiếu khám</span>
         </div>
 
         {/* Page Header */}
-        <header className="resource-page__header">
+        <header className="resource-page__header no-print">
           <p className="section-note">Cổng thông tin bệnh nhân</p>
           <h1>Tra cứu lịch hẹn trực tuyến</h1>
           <p>
@@ -162,7 +163,7 @@ export default function TraCuuPage() {
           </p>
         </header>
 
-        <section className="resource-hero-card resource-hero-card--teal">
+        <section className="resource-hero-card resource-hero-card--teal no-print">
           <div className="resource-icon" aria-hidden="true">
             <Icon name="search" size={34} />
           </div>
@@ -192,7 +193,7 @@ export default function TraCuuPage() {
           </div>
         </section>
 
-        <section className="resource-panel resource-panel--wide">
+        <section className="resource-panel resource-panel--wide no-print">
           <div className="section-heading">
             <div>
               <p className="section-note">Cách tra cứu an toàn</p>
@@ -211,7 +212,7 @@ export default function TraCuuPage() {
         </section>
 
         {/* Search Card */}
-        <div className="bg-white p-6 sm:p-8 rounded-[4px] border border-mint-200 shadow-xs mb-8">
+        <div className="bg-white p-6 sm:p-8 rounded-[4px] border border-mint-200 shadow-xs mb-8 no-print">
           <form onSubmit={handleLookup} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
               <div className="sm:col-span-8">
@@ -365,20 +366,64 @@ export default function TraCuuPage() {
               </div>
 
               {/* Actions */}
-              <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-mint-100">
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-ink-muted text-xs font-bold rounded-[4px] transition-colors flex items-center gap-1.5"
-                >
-                  <Icon name="printer" size={15} /> In phiếu khám
-                </button>
+              <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-mint-100 no-print">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-ink-muted text-xs font-bold rounded-[4px] transition-colors flex items-center gap-1.5"
+                  >
+                    <Icon name="printer" size={15} /> In phiếu khám
+                  </button>
+
+                  {appointment.status === "CONFIRMED" && (
+                    <>
+                      <a
+                        href={buildGoogleCalendarUrl({
+                          bookingCode: appointment.bookingCode,
+                          patientName: appointment.patientName,
+                          doctorName: appointment.doctorName,
+                          specialtyName: appointment.specialtyName,
+                          appointmentDate: appointment.appointmentDate,
+                          startTime: appointment.startTime,
+                          endTime: appointment.endTime,
+                          branchName: appointment.branchName,
+                        })}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3.5 py-2 bg-white border border-teal-200 hover:bg-teal-50 text-teal-900 text-xs font-semibold rounded-[4px] transition-colors flex items-center gap-1.5"
+                        data-testid="tra-cuu-google-calendar"
+                      >
+                        <Icon name="calendar" size={15} /> Thêm vào Google Calendar
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          downloadIcsFile({
+                            bookingCode: appointment.bookingCode,
+                            patientName: appointment.patientName,
+                            doctorName: appointment.doctorName,
+                            specialtyName: appointment.specialtyName,
+                            appointmentDate: appointment.appointmentDate,
+                            startTime: appointment.startTime,
+                            endTime: appointment.endTime,
+                            branchName: appointment.branchName,
+                          })
+                        }
+                        className="px-3.5 py-2 bg-white border border-teal-200 hover:bg-teal-50 text-teal-900 text-xs font-semibold rounded-[4px] transition-colors flex items-center gap-1.5"
+                        data-testid="tra-cuu-download-ics"
+                      >
+                        <Icon name="download" size={15} /> Tải file nhắc hẹn (.ics)
+                      </button>
+                    </>
+                  )}
+                </div>
 
                 {appointment.status === "CONFIRMED" && (
                   <button
                     type="button"
                     onClick={() => { setCancelError(""); setShowCancelDialog(true); }}
-                    className="px-5 py-2.5 text-xs font-bold text-red-600 hover:text-red-800 hover:bg-red-50 rounded-[4px] transition-colors"
+                    className="px-4 py-2 text-xs font-bold text-red-600 hover:text-red-800 hover:bg-red-50 rounded-[4px] transition-colors"
                   >
                     Hủy lịch hẹn này
                   </button>

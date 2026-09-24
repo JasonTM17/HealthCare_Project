@@ -12577,6 +12577,8 @@ body:has(.mobile-menu) [class*="FloatingHealthAssistant_root"] {
  * ------------------------------------------------------------------------- */
 @media print {
   /* Chrome and interactive overlays carry no information onto paper. */
+  .no-print,
+  [data-no-print="true"],
   .site-nav,
   .site-footer,
   .mobile-care-rail,
@@ -12647,8 +12649,8 @@ body:has(.mobile-menu) [class*="FloatingHealthAssistant_root"] {
   }
 
   /* A printed source URL is the only way a reader can verify a citation. */
-  a[href^="http"]::after,
-  a[href^="/"]::after {
+  a[href^="http"]:not([data-testid*="calendar"]):not([target="_blank"])::after,
+  a[href^="/"]:not([data-testid*="calendar"])::after {
     content: " (" attr(href) ")";
     font-size: 9pt;
     word-break: break-all;

@@ -58,3 +58,18 @@ test("presentApiError correctly translates BFF upstream cold-start and timeout c
     "Máy chủ y tế phản hồi chậm. Vui lòng đợi trong giây lát rồi thử lại."
   );
 });
+
+test("buildGoogleCalendarUrl defaults patientName to 'Bệnh nhân' when omitted", () => {
+  const apptWithoutPatient = {
+    bookingCode: "APT-PORTAL-999",
+    doctorName: "BS Lê Văn C",
+    appointmentDate: "2026-12-01",
+    startTime: "10:00:00",
+    endTime: "10:30:00",
+  };
+
+  const url = buildGoogleCalendarUrl(apptWithoutPatient);
+  const parsed = new URL(url);
+  assert.ok(parsed.searchParams.get("details")?.includes("Người khám: Bệnh nhân"));
+  assert.ok(parsed.searchParams.get("details")?.includes("APT-PORTAL-999"));
+});
