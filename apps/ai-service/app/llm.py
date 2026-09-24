@@ -22,6 +22,7 @@ from app.providers import (
     REMOTE_CHAT_PROVIDERS,
     bounded_timeout_setting,
     provider_secret,
+    remote_base_url_allowed,
     remote_provider_requested,
     runtime_allows_local_fallback,
     string_setting,
@@ -2167,6 +2168,17 @@ def build_llm_client(
     else:
         base_url = base_url or "https://api.openai.com/v1"
     if not model:
+        return None
+    # Fail closed when the allowlist is configured: the resolved egress host
+    # must be on it or no remote client is built. Real Settings always carry
+    # the field (default api.deepseek.com); an explicitly empty value disables
+    # the check rather than pretending every host is denied.
+    allowed_hosts = {
+        host.strip().casefold()
+        for host in string_setting(settings, "remote_ai_https_host_allowlist").split(",")
+        if host.strip()
+    }
+    if allowed_hosts and not remote_base_url_allowed(base_url, allowed_hosts):
         return None
     return OpenAIChatClient(
         api_key=api_key,
