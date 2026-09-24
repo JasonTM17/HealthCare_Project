@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable, Sequence
 
+from app.cancellation import ChatCancellation
 from app.embeddings import EmbeddingResult, LocalEmbeddingClient, embed
 from app.llm import (
     chat_safety_response,
@@ -1196,6 +1197,7 @@ def generate_chat_response(
     rag_service: RagServiceContract,
     *,
     client: Any | None = None,
+    cancellation: ChatCancellation | None = None,
 ) -> ChatResponse:
     """Validate Spring's exact allowlist, then answer from that projection."""
 
@@ -1208,6 +1210,8 @@ def generate_chat_response(
             "cost_tier": "local_free",
             "routing_reason": "safety_guardrail_shortcircuit",
         })
+    if cancellation is not None:
+        cancellation.raise_if_cancelled()
 
     if (
         getattr(settings, "ai_patient_chat_remote_enabled", False) is True
@@ -1220,6 +1224,8 @@ def generate_chat_response(
     if len(set(keys)) != len(keys):
         raise ChatContractError("CHAT_AUTHORIZED_SOURCES_DUPLICATE")
     metas = [_validate_projection_source(source, request.mode, rag_service) for source in sources]
+    if cancellation is not None:
+        cancellation.raise_if_cancelled()
     expected_used = [_used_source(meta) for meta in metas]
     if not metas:
         return _insufficient_response(request.mode)
@@ -1272,6 +1278,7 @@ def generate_chat_response(
                 citations=citations,
                 used_sources=expected_used,
                 client=client,
+                cancellation=cancellation,
                 synthetic_beta=request.synthetic_beta,
                 allow_public_operational=allow_public_operational,
                 allow_public_generic_guidance=(

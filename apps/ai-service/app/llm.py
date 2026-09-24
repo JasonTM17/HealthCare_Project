@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import html
 import os
@@ -13,6 +14,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol, Sequence
 
 from app import emergency_terms
+from app.cancellation import ChatCancellation
 from app.providers import (
     LOCAL_CHAT_PROVIDERS,
     DEFAULT_DEEPSEEK_CHAT_MODEL,
@@ -2042,6 +2044,7 @@ class OpenAIChatClient:
     base_url: str
     model: str
     timeout_seconds: float
+    cancellation: ChatCancellation | None = None
 
     def complete_json(
         self,
@@ -2052,6 +2055,8 @@ class OpenAIChatClient:
     ) -> Any:
         from openai import OpenAI
 
+        if self.cancellation is not None:
+            self.cancellation.raise_if_cancelled()
         messages: list[Any] = [{"role": "system", "content": system_prompt}]
         if context:
             bounded_context = "\n\n".join(
@@ -2071,18 +2076,22 @@ class OpenAIChatClient:
                 )
         messages.append({"role": "user", "content": user_prompt})
 
-        client = OpenAI(
-            api_key=self.api_key,
-            base_url=self.base_url,
-            timeout=self.timeout_seconds,
-            max_retries=0,
-        )
-        completion = client.chat.completions.create(  # type: ignore[call-overload]
-            model=self.model,
-            response_format={"type": "json_object"},
-            temperature=0,
-            messages=messages,
-        )
+        if self.cancellation is None:
+            client = OpenAI(
+                api_key=self.api_key,
+                base_url=self.base_url,
+                timeout=self.timeout_seconds,
+                max_retries=0,
+            )
+            completion = client.chat.completions.create(  # type: ignore[call-overload]
+                model=self.model,
+                response_format={"type": "json_object"},
+                temperature=0,
+                messages=messages,
+            )
+        else:
+            completion = asyncio.run(self._complete_cancellable(messages))
+            self.cancellation.raise_if_cancelled()
         choices = getattr(completion, "choices", None)
         if not choices:
             raise ValueError("provider returned no choices")
@@ -2100,8 +2109,45 @@ class OpenAIChatClient:
             raise ValueError("provider returned a non-object JSON payload")
         return payload
 
+    async def _complete_cancellable(self, messages: list[Any]) -> Any:
+        from openai import AsyncOpenAI
 
-def build_llm_client(settings: Any) -> LLMClient | None:
+        cancellation = self.cancellation
+        if cancellation is None:
+            raise RuntimeError("cancellation context is missing")
+        loop = asyncio.get_running_loop()
+        task = asyncio.current_task()
+        if task is None:
+            raise RuntimeError("provider task is missing")
+
+        def cancel_provider() -> None:
+            try:
+                loop.call_soon_threadsafe(task.cancel)
+            except RuntimeError:
+                # The request already completed and closed its event loop.
+                pass
+
+        unregister = cancellation.register(cancel_provider)
+        try:
+            async with AsyncOpenAI(
+                api_key=self.api_key,
+                base_url=self.base_url,
+                timeout=self.timeout_seconds,
+                max_retries=0,
+            ) as client:
+                return await client.chat.completions.create(  # type: ignore[call-overload]
+                    model=self.model,
+                    response_format={"type": "json_object"},
+                    temperature=0,
+                    messages=messages,
+                )
+        finally:
+            unregister()
+
+
+def build_llm_client(
+    settings: Any, cancellation: ChatCancellation | None = None
+) -> LLMClient | None:
     """Resolve a configured remote client without exposing credentials."""
 
     provider = string_setting(settings, "ai_provider", RULE_BASED).lower()
@@ -2127,6 +2173,7 @@ def build_llm_client(settings: Any) -> LLMClient | None:
         base_url=base_url,
         model=model,
         timeout_seconds=bounded_timeout_setting(settings),
+        cancellation=cancellation,
     )
 
 
@@ -2535,9 +2582,12 @@ def resolve_chat(
     allow_public_operational: bool = False,
     public_support_chat: bool = False,
     allow_public_generic_guidance: bool = False,
+    cancellation: ChatCancellation | None = None,
 ) -> ChatResponse:
     """Resolve a bounded chat request without accepting model-created citations."""
 
+    if cancellation is not None:
+        cancellation.raise_if_cancelled()
     safety_response = chat_safety_response(message, recent_turns)
     if safety_response is not None:
         return safety_response
@@ -2585,7 +2635,7 @@ def resolve_chat(
             cost_tier="local_free",
             routing_reason="remote_disabled_fallback",
         )
-    client = client or build_llm_client(settings)
+    client = client or build_llm_client(settings, cancellation=cancellation)
     if client is None:
         if public_remote_enabled:
             raise ProviderUnavailable()
@@ -2629,11 +2679,15 @@ def resolve_chat(
                 "bạn không có nguồn để xác nhận. Nếu người dùng cần thông tin cụ "
                 "thể đó, hãy mời họ xem các mục tương ứng trên website chính thức."
             )
+        if cancellation is not None:
+            cancellation.raise_if_cancelled()
         data = client.complete_json(
             system_prompt=system_prompt,
             user_prompt=prompt,
             context=context,
         )
+        if cancellation is not None:
+            cancellation.raise_if_cancelled()
         answer = data.get("answer") if isinstance(data, dict) else None
         if not isinstance(answer, str) or not answer.strip() or len(answer.strip()) > 4_000:
             raise ValueError("invalid chat response")
