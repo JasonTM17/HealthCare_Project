@@ -1,3 +1,5 @@
+import asyncio
+import contextlib
 import logging
 import re
 import secrets
@@ -6,12 +8,14 @@ import time
 from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import Generator, cast
+from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.config import Settings
+from app.cancellation import ChatCancellation
 from app.chatbot import (
     ChatContractError,
     focus_public_retrieval_hits,
@@ -549,8 +553,50 @@ def symptom_triage(request: TriageRequest) -> TriageResponse:
     return resolve_triage(symptoms, settings, synthetic_beta=request.synthetic_beta)
 
 
+async def _run_cancellable_chat(
+    request: Request, operation: Callable[[ChatCancellation], Any]
+) -> Any:
+    cancellation = ChatCancellation()
+    worker = asyncio.create_task(asyncio.to_thread(operation, cancellation))
+    disconnect = asyncio.create_task(_wait_for_chat_disconnect(request))
+    try:
+        done, _ = await asyncio.wait(
+            {worker, disconnect}, return_when=asyncio.FIRST_COMPLETED
+        )
+        if worker in done:
+            return await worker
+        cancellation.cancel()
+        try:
+            await asyncio.wait_for(asyncio.shield(worker), timeout=1)
+        except (Exception, asyncio.CancelledError):
+            # The disconnected client receives no response. The bounded wait
+            # gives an async provider time to close its HTTP call.
+            pass
+        raise HTTPException(status_code=499, detail="Client closed request")
+    except asyncio.CancelledError:
+        cancellation.cancel()
+        raise
+    finally:
+        disconnect.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await disconnect
+
+
+async def _wait_for_chat_disconnect(request: Request) -> None:
+    # FastAPI has already parsed the bounded request body. ASGI now emits
+    # http.disconnect when the downstream socket closes.
+    while (await request.receive())["type"] != "http.disconnect":
+        pass
+
+
 @app.post("/chat", response_model=ChatResponse, dependencies=[Depends(require_service_auth), Depends(_require_llm_capacity)])
-def chat(request: ChatRequest) -> ChatResponse:
+async def chat(request: ChatRequest, http_request: Request) -> ChatResponse:
+    return await _run_cancellable_chat(
+        http_request, lambda cancellation: _chat_sync(request, cancellation)
+    )
+
+
+def _chat_sync(request: ChatRequest, cancellation: ChatCancellation) -> ChatResponse:
     message = _enforce_input_limit(
         request.message,
         label="Chat message",
@@ -571,6 +617,8 @@ def chat(request: ChatRequest) -> ChatResponse:
         # A refusal keeps the caller's requested mode instead of silently
         # reporting the HOSPITAL_SUPPORT default (mirrors /chat/generate).
         return safety_response.model_copy(update={"mode": effective_mode})
+
+    cancellation.raise_if_cancelled()
 
     if request.public_support_chat and public_source_types_for_query(message) == frozenset({"article", "faq"}):
         # Do not let a legacy caller turn a clinical-looking public question
@@ -602,8 +650,10 @@ def chat(request: ChatRequest) -> ChatResponse:
             synthetic_beta=request.synthetic_beta,
             public_support_chat=request.public_support_chat,
             allow_public_operational=allow_public_op,
+            cancellation=cancellation,
         )
 
+    cancellation.raise_if_cancelled()
     query_embedding, query_model, embedding_provenance = _embedding_parts(
         embed(message, settings, synthetic_beta=request.synthetic_beta)
     )
@@ -647,6 +697,7 @@ def chat(request: ChatRequest) -> ChatResponse:
         # A persisted index built by another embedding model is not safe
         # context for a local fallback. Continue with the deterministic answer.
         hits = []
+    cancellation.raise_if_cancelled()
     if request.public_support_chat:
         # Public chat has no Spring-owned two-step allowlist. Keep only rows
         # whose own title/content carries a concrete identity from the query;
@@ -725,7 +776,9 @@ def chat(request: ChatRequest) -> ChatResponse:
                 ],
                 synthetic_beta=request.synthetic_beta,
             )
-            response = generate_chat_response(grounded_request, settings, rag_service)
+            response = generate_chat_response(
+                grounded_request, settings, rag_service, cancellation=cancellation
+            )
         except ChatContractError:
             # A stale/malformed local projection must degrade to navigation
             # guidance, never to an answer that is only apparently grounded.
@@ -736,6 +789,7 @@ def chat(request: ChatRequest) -> ChatResponse:
                 synthetic_beta=request.synthetic_beta,
                 allow_public_operational=allow_public_op,
                 public_support_chat=request.public_support_chat,
+                cancellation=cancellation,
             )
     elif (
         hits
@@ -769,6 +823,7 @@ def chat(request: ChatRequest) -> ChatResponse:
             synthetic_beta=request.synthetic_beta,
             allow_public_operational=allow_public_op,
             public_support_chat=request.public_support_chat,
+            cancellation=cancellation,
         )
         if response.provenance == "remote_provider":
             routing_reason = "complex_multisymptom_clinical_reasoning" if is_complex else "low_similarity_escalation"
@@ -821,7 +876,15 @@ def chat_retrieve(request: ChatRetrieveRequest) -> ChatRetrieveResponse:
     response_model=ChatResponse,
     dependencies=[Depends(require_service_auth), Depends(_require_llm_capacity)],
 )
-def chat_generate(request: ChatGenerateRequest) -> ChatResponse:
+async def chat_generate(request: ChatGenerateRequest, http_request: Request) -> ChatResponse:
+    return await _run_cancellable_chat(
+        http_request, lambda cancellation: _chat_generate_sync(request, cancellation)
+    )
+
+
+def _chat_generate_sync(
+    request: ChatGenerateRequest, cancellation: ChatCancellation
+) -> ChatResponse:
     """Generate only from Spring's exact, revisioned source allowlist."""
 
     message = _enforce_input_limit(
@@ -830,14 +893,18 @@ def chat_generate(request: ChatGenerateRequest) -> ChatResponse:
         setting_name="ai_max_input_chars",
     )
     bounded_request = request.model_copy(update={"message": message})
-    return generate_chat_response(bounded_request, settings, rag_service)
+    return generate_chat_response(
+        bounded_request, settings, rag_service, cancellation=cancellation
+    )
 
 
 @app.post(
     "/chat/generate/stream",
     dependencies=[Depends(require_service_auth), Depends(_require_llm_capacity)],
 )
-def chat_generate_stream(request: ChatGenerateRequest) -> StreamingResponse:
+async def chat_generate_stream(
+    request: ChatGenerateRequest, http_request: Request
+) -> StreamingResponse:
     """Stream a fully validated generation response as persisted SSE events."""
 
     message = _enforce_input_limit(
@@ -846,7 +913,12 @@ def chat_generate_stream(request: ChatGenerateRequest) -> StreamingResponse:
         setting_name="ai_max_input_chars",
     )
     bounded_request = request.model_copy(update={"message": message})
-    response = generate_chat_response(bounded_request, settings, rag_service)
+    response = await _run_cancellable_chat(
+        http_request,
+        lambda cancellation: generate_chat_response(
+            bounded_request, settings, rag_service, cancellation=cancellation
+        ),
+    )
     return StreamingResponse(
         _chat_response_sse(response),
         media_type="text/event-stream",
