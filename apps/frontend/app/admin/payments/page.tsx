@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { adminListPayments, adminRefundPayment, adminReviewPayment, type BankTransferPayment } from "../../../lib/api-client";
+import { adminListBankWebhookEvents, adminListPayments, adminRefundPayment, adminReviewPayment, type BankTransferPayment, type PaymentWebhookEventView } from "../../../lib/api-client";
 import { formatBusinessDate, formatBusinessDateTime } from "../../../lib/business-time";
 import ConfirmActionDialog from "../../../components/ui/ConfirmActionDialog";
 import AdminState from "../_components/AdminState";
@@ -42,6 +42,7 @@ export default function AdminPaymentsPage() {
   const [decision, setDecision] = useState<PaymentDecision | null>(null);
   const [decisionPending, setDecisionPending] = useState(false);
   const [decisionError, setDecisionError] = useState<string | null>(null);
+  const [webhookEvents, setWebhookEvents] = useState<PaymentWebhookEventView[]>([]);
   const loadRequestRef = useRef(0);
   const decisionPendingRef = useRef(false);
 
@@ -49,9 +50,13 @@ export default function AdminPaymentsPage() {
     const requestId = ++loadRequestRef.current;
     setLoading(true); setError(null);
     try {
-      const result = await adminListPayments({ status: status || undefined, page, size: 20 });
+      const [result, events] = await Promise.all([
+        adminListPayments({ status: status || undefined, page, size: 20 }),
+        adminListBankWebhookEvents("unprocessed", 20).catch(() => [] as PaymentWebhookEventView[]),
+      ]);
       if (requestId !== loadRequestRef.current) return;
       setItems(result.content); setTotal(result.totalElements); setTotalPages(result.totalPages);
+      setWebhookEvents(events);
     } catch (reason) {
       if (requestId !== loadRequestRef.current) return;
       setError(describeAdminError(reason).description);
@@ -112,6 +117,28 @@ export default function AdminPaymentsPage() {
         <div className="flex items-center gap-4"><span className="text-sm text-slate-600">Tổng cộng <strong>{total.toLocaleString("vi-VN")}</strong></span><button className="text-sm font-bold text-teal-800 underline" disabled={loading} onClick={() => void load()} type="button">Làm mới</button></div>
       </div>
       {error ? <div className="mt-4"><AdminState tone="error" title="Không thể xử lý thanh toán" description={error} /></div> : null}
+      {!loading && webhookEvents.length > 0 ? (
+        <section aria-label="Thông báo ngân hàng chưa khớp" className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-4">
+          <h2 className="text-sm font-bold text-amber-900">Thông báo ngân hàng chưa khớp ({webhookEvents.length})</h2>
+          <p className="mt-1 text-xs leading-5 text-amber-800">Chuyển khoản ngân hàng báo có nhưng chưa ghép được với lịch hẹn nào. Các bản “không thể ghép tự động” đã vượt qua hàng chờ thử lại — cần đối chiếu thủ công và hoàn tiền cho bệnh nhân nếu đã trừ tiền.</p>
+          <div className="mt-3 max-w-full overflow-x-auto" role="region" aria-label="Bảng thông báo ngân hàng chưa khớp, có thể cuộn ngang" tabIndex={0}>
+            <table className="w-full min-w-[860px] text-left text-xs">
+              <caption className="sr-only">Bằng chứng chuyển khoản từ webhook ngân hàng chưa ghép được thanh toán</caption>
+              <thead className="border-b border-amber-200 text-[11px] uppercase text-amber-800"><tr><th scope="col" className="px-3 py-2">Mã sự kiện</th><th scope="col" className="px-3 py-2">Nội dung / mã giao dịch</th><th scope="col" className="px-3 py-2">Số tiền</th><th scope="col" className="px-3 py-2">Nhận lúc</th><th scope="col" className="px-3 py-2">Lần thử</th><th scope="col" className="px-3 py-2">Ghi chú hệ thống</th></tr></thead>
+              <tbody>{webhookEvents.map((event) => <tr className="border-b border-amber-100 last:border-0" key={event.eventId}>
+                <td className="px-3 py-2 font-mono">{event.eventId}</td>
+                <td className="px-3 py-2"><span className="font-mono">{event.transferContent || "—"}</span><br /><strong className="font-mono">{event.transactionReference || "Không có"}</strong></td>
+                <td className="px-3 py-2 font-bold">{event.amount == null ? "—" : money(event.amount)}</td>
+                <td className="px-3 py-2">{formatBusinessDateTime(event.receivedAt)}</td>
+                <td className="px-3 py-2">{event.retryAttempts ?? 0}</td>
+                <td className="px-3 py-2">{event.permanentFailure
+                  ? <strong className="text-red-700">{event.failureReason || "Không thể ghép tự động"}</strong>
+                  : <span className="text-amber-800">Đang chờ ghép tự động</span>}</td>
+              </tr>)}</tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
       {loading ? <div className="mt-4"><AdminState tone="loading" title="Đang tải giao dịch" description="Đang lấy dữ liệu đối soát mới nhất." /></div> : null}
       {!loading && !error && items.length === 0 ? <div className="mt-4"><AdminState tone="empty" title="Không có giao dịch" description="Không có thanh toán phù hợp với trạng thái đã chọn." /></div> : null}
       {!loading && items.length > 0 ? (

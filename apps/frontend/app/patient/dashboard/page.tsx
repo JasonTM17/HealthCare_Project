@@ -1739,6 +1739,22 @@ export default function PatientDashboardPage() {
                         <dt>Trạng thái</dt>
                         <dd><span aria-label={`Trạng thái thanh toán: ${formatPaymentStatus(payment.data.status)}`} className={paymentStyles.status} data-status={payment.data.status}>{formatPaymentStatus(payment.data.status)}</span></dd>
                       </div>
+                      {payment.data.payByDeadline && (payment.data.status === "UNPAID" || payment.data.status === "REJECTED") ? (
+                        <div className={paymentStyles.detailWide}>
+                          <dt>Hạn thanh toán</dt>
+                          <dd>
+                            <span
+                              className={paymentStyles.deadline}
+                              data-overdue={new Date(payment.data.payByDeadline).getTime() < Date.now() ? "true" : "false"}
+                            >
+                              {formatBusinessDateTime(payment.data.payByDeadline)}
+                              {new Date(payment.data.payByDeadline).getTime() < Date.now()
+                                ? " — đã quá hạn, vui lòng liên hệ cơ sở y tế nếu đã chuyển khoản"
+                                : ""}
+                            </span>
+                          </dd>
+                        </div>
+                      ) : null}
                     </dl>
                   </div>
 

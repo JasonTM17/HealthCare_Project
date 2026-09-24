@@ -103,6 +103,9 @@ class BankTransferSubmissionAdminNotificationTest {
         appointment.setId(APPOINTMENT_ID);
         appointment.setBookingCode("HC-TEST-0001");
         appointment.setStatus(AppointmentStatus.CONFIRMED);
+        // toResponse derives the pay-by deadline from the visit start.
+        appointment.setAppointmentDate(java.time.LocalDate.of(2030, 1, 15));
+        appointment.setStartTime(java.time.LocalTime.of(13, 30));
         PatientProfile patient = new PatientProfile();
         patient.setId(UUID.fromString("ffffffff-6666-6666-6666-666666666666"));
         patient.setUserId(PATIENT_USER_ID);
@@ -129,8 +132,10 @@ class BankTransferSubmissionAdminNotificationTest {
         when(paymentRepository.save(any(BankTransferPayment.class))).thenAnswer(call -> call.getArgument(0));
         when(claimService.claimedUserIds(APPOINTMENT_ID)).thenReturn(List.of(PATIENT_USER_ID, CLAIMED_USER_ID));
         // ADMIN_ONE, ADMIN_TWO and the patient account, which also holds ADMIN.
+        // The fan-out walks pages until an empty one, so page 2 must terminate.
         when(userRepository.findActiveAdminUserIds(any(Pageable.class)))
-            .thenReturn(List.of(ADMIN_ONE, ADMIN_TWO, PATIENT_USER_ID));
+            .thenReturn(List.of(ADMIN_ONE, ADMIN_TWO, PATIENT_USER_ID))
+            .thenReturn(List.of());
     }
 
     @Test
@@ -177,12 +182,14 @@ class BankTransferSubmissionAdminNotificationTest {
      * Shared invariants of both fan-outs: the reviewers are addressed through
      * the bounded admin query, the page bound is the documented cap, and an
      * admin who is also the patient is notified once — the reviewer copy — not
-     * twice.
+     * twice. Paging stops at the first empty page, so exactly one extra probe
+     * happens beyond the single page of admins the stub returns.
      */
     private void verifyAdminFanOutIsBoundedAndDeduped() {
         ArgumentCaptor<Pageable> fanOut = ArgumentCaptor.forClass(Pageable.class);
-        verify(userRepository).findActiveAdminUserIds(fanOut.capture());
-        assertThat(fanOut.getValue().getPageSize()).isEqualTo(50);
+        verify(userRepository, org.mockito.Mockito.times(2)).findActiveAdminUserIds(fanOut.capture());
+        assertThat(fanOut.getAllValues().get(0).getPageSize()).isEqualTo(50);
+        assertThat(fanOut.getAllValues().get(1).getPageNumber()).isEqualTo(1);
 
         // The patient account holds ADMIN, so it must not receive the reviewer
         // notice in addition to its own confirmation notice.

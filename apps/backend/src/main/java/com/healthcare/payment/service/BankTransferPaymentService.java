@@ -6,6 +6,7 @@ import com.healthcare.appointment.entity.PatientProfile;
 import com.healthcare.appointment.repository.AppointmentRepository;
 import com.healthcare.appointment.repository.PatientProfileRepository;
 import com.healthcare.appointment.service.AppointmentClaimService;
+import com.healthcare.appointment.service.BookingService;
 import com.healthcare.notification.entity.Notification.EventType;
 import com.healthcare.notification.service.NotificationService;
 import com.healthcare.payment.dto.BankTransferPaymentResponse;
@@ -36,6 +37,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
@@ -46,8 +48,10 @@ public class BankTransferPaymentService {
 
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final int MAX_PAGE_SIZE = 100;
-    /** Hard cap on how many admins one payment submission may notify. */
+    /** Page size of the bounded active-admin reviewer query. */
     private static final int MAX_ADMIN_NOTIFICATION_FANOUT = 50;
+    /** Hard cap on total reviewers notified for one payment, across pages. */
+    private static final int MAX_ADMIN_NOTIFICATION_TOTAL = 500;
     private static final Set<String> ALLOWED_SORTS = Set.of("createdAt", "submittedAt", "verifiedAt", "status", "amount", "id");
     private static final Sort DEFAULT_SORT = Sort.by(Sort.Order.desc("submittedAt"), Sort.Order.desc("createdAt"));
 
@@ -72,6 +76,9 @@ public class BankTransferPaymentService {
     private String bankBin;
     @Value("${app.payment.bank-transfer.default-amount:200000}")
     private BigDecimal defaultAmount;
+    /** Payment is expected this many hours before the visit starts. */
+    @Value("${app.payment.bank-transfer.pay-by-hours-before-appointment:2}")
+    private int payByHoursBeforeAppointment;
 
     public BankTransferPaymentService(
             BankTransferPaymentRepository paymentRepository,
@@ -139,7 +146,13 @@ public class BankTransferPaymentService {
         String requestHash = sha256(reference);
         String normalizedKey = normalizeIdempotencyKey(idempotencyKey);
 
-        if (normalizedKey.equals(payment.getSubmissionIdempotencyKey())) {
+        // A replayed key is a replay only while the payment has not been sent
+        // back to the patient. After an admin rejection the SAME key with the
+        // SAME reference is a deliberate resubmission (the client derives a
+        // stable key from appointment + reference), so it falls through and
+        // reopens the queue instead of dead-ending on the REJECTED row.
+        if (normalizedKey.equals(payment.getSubmissionIdempotencyKey())
+                && payment.getStatus() != PaymentStatus.REJECTED) {
             if (requestHash.equals(payment.getSubmissionRequestHash())) return toResponse(payment);
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Idempotency-Key đã được dùng cho yêu cầu khác");
         }
@@ -195,7 +208,9 @@ public class BankTransferPaymentService {
 
         PaymentStatus previousStatus = payment.getStatus();
         if (request.decision() == ReviewBankTransferRequest.Decision.VERIFY) {
-            ensureAppointmentCanBePaid(payment.getAppointment());
+            // VERIFY is a payment authorization: an unconfirmed hold or an
+            // ended appointment must never become PAID from the admin queue.
+            ensurePayable(payment.getAppointment());
             if (payment.getStatus() == PaymentStatus.PAID) return toResponse(payment);
             if (payment.getStatus() != PaymentStatus.PENDING_VERIFICATION) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "Chỉ có thể duyệt giao dịch đang chờ kiểm tra");
@@ -295,6 +310,14 @@ public class BankTransferPaymentService {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                 "Thanh toán đang chờ admin kiểm tra với một mã giao dịch khác");
         }
+        // Money for a hold the patient never OTP-confirmed is real, but the
+        // booking is not final yet. The evidence row stays unprocessed and the
+        // retry worker re-drives it after confirmation (or dead-letters it once
+        // the hold expires) — the live 409 tells the bank to expect exactly that.
+        if (payment.getAppointment().getStatus() == AppointmentStatus.PENDING_CONFIRMATION) {
+            throw new PaymentNotYetConfirmableException(
+                "Lịch hẹn chưa hoàn tất xác nhận — giao dịch sẽ được ghi nhận tự động sau khi xác nhận lịch");
+        }
         ensureAppointmentCanBePaid(payment.getAppointment());
         if (payment.getStatus() == PaymentStatus.REFUND_PENDING || payment.getStatus() == PaymentStatus.REFUNDED) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Khoản thanh toán đã vào quy trình hoàn tiền");
@@ -366,10 +389,18 @@ public class BankTransferPaymentService {
     }
 
     private void ensurePayable(Appointment appointment) {
-        if (appointment.getStatus() == AppointmentStatus.PENDING_CONFIRMATION
-                || appointment.getStatus() == AppointmentStatus.CANCELLED
-                || appointment.getStatus() == AppointmentStatus.NO_SHOW) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Lịch hẹn hiện không thể thanh toán");
+        if (appointment.getStatus() == AppointmentStatus.PENDING_CONFIRMATION) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Lịch hẹn chưa hoàn tất xác nhận nên chưa thể thanh toán");
+        }
+        if (appointment.getStatus() == AppointmentStatus.CANCELLED) {
+            if (BookingService.HOLD_EXPIRED_CANCELLATION_REASON.equals(appointment.getCancellationReason())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Lịch hẹn đã bị hủy do quá hạn giữ chỗ. Nếu bạn đã chuyển khoản, vui lòng liên hệ bệnh viện để được hỗ trợ hoàn lại.");
+            }
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Lịch hẹn đã bị hủy nên không thể thanh toán");
+        }
+        if (appointment.getStatus() == AppointmentStatus.NO_SHOW) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Lịch hẹn đã kết thúc nên không thể thanh toán");
         }
     }
 
@@ -452,12 +483,25 @@ public class BankTransferPaymentService {
             payment.getId(), appointment.getId(), appointment.getBookingCode(),
             appointment.getPatient().getFullName(), appointment.getDoctor().getFullName(),
             appointment.getMedicalPackage() == null ? null : appointment.getMedicalPackage().getName(),
-            appointment.getAppointmentDate(), payment.getAmount(), payment.getCurrency(), payment.getStatus(),
+            appointment.getAppointmentDate(), appointment.getStartTime(), payByDeadline(appointment),
+            payment.getAmount(), payment.getCurrency(), payment.getStatus(),
             bankName, bankAccount, accountHolder, qrCodeUrl(payment), payment.getTransferContent(), payment.getTransactionReference(),
             payment.getSubmittedAt(), payment.getVerifiedAt(), payment.getRejectionReason(),
             payment.getRefundReference(), payment.getRefundedAt(),
             payment.getCreatedAt(), payment.getUpdatedAt()
         );
+    }
+
+    /**
+     * Payment is expected before the visit starts, minus a configurable buffer.
+     * Derived, not stored: the appointment start stays the single source of
+     * truth and changing the policy needs no migration.
+     */
+    private OffsetDateTime payByDeadline(Appointment appointment) {
+        return java.time.LocalDateTime.of(appointment.getAppointmentDate(), appointment.getStartTime())
+            .minusHours(payByHoursBeforeAppointment)
+            .atZone(BUSINESS_ZONE)
+            .toOffsetDateTime();
     }
 
     private void notifyPatient(Appointment appointment, EventType type, String title, String message) {
@@ -488,21 +532,30 @@ public class BankTransferPaymentService {
      * Shared review-queue fan-out for both submission origins: the patient who
      * reports a transfer manually and the bank webhook that reports one on the
      * patient's behalf land in the same admin queue, so both must ping the
-     * reviewers. Only the copy differs.
+     * reviewers. Only the copy differs. The fan-out walks every page of active
+     * admins up to {@link #MAX_ADMIN_NOTIFICATION_TOTAL} recipients — paging
+     * stops at the first empty page, so hospitals with more than one page of
+     * reviewers are not silently dropped the way a fixed page-0 read was.
      */
     private void notifyAdminsOfSubmission(Appointment appointment, String title, String message) {
-        for (UUID adminId : userRepository.findActiveAdminUserIds(
-                PageRequest.of(0, MAX_ADMIN_NOTIFICATION_FANOUT))) {
-            if (adminId.equals(appointment.getPatient().getUserId())) {
-                continue;
+        UUID patientUserId = appointment.getPatient().getUserId();
+        int notified = 0;
+        for (int page = 0; notified < MAX_ADMIN_NOTIFICATION_TOTAL; page++) {
+            List<UUID> adminIds = userRepository.findActiveAdminUserIds(
+                PageRequest.of(page, MAX_ADMIN_NOTIFICATION_FANOUT));
+            if (adminIds.isEmpty()) {
+                return;
             }
-            notificationService.create(
-                adminId,
-                EventType.PAYMENT_SUBMITTED,
-                title,
-                message,
-                appointment.getId()
-            );
+            for (UUID adminId : adminIds) {
+                if (notified >= MAX_ADMIN_NOTIFICATION_TOTAL) {
+                    return;
+                }
+                if (adminId.equals(patientUserId)) {
+                    continue;
+                }
+                notificationService.create(adminId, EventType.PAYMENT_SUBMITTED, title, message, appointment.getId());
+                notified++;
+            }
         }
     }
 }

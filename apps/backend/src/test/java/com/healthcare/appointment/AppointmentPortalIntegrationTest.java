@@ -175,9 +175,17 @@ class AppointmentPortalIntegrationTest extends AbstractIntegrationTest {
                 .content(payload))
             .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("PENDING_VERIFICATION"))
-                .andExpect(jsonPath("$.transactionReference").value("FT-WEBHOOK-123456"));
+                .andExpect(jsonPath("$.transferContent").value(payment.getTransferContent()))
+                // The acknowledgement is deliberately minimal: the bank never
+                // receives the account number, patient identity or references.
+                .andExpect(jsonPath("$.transactionReference").doesNotExist())
+                .andExpect(jsonPath("$.bankAccount").doesNotExist())
+                .andExpect(jsonPath("$.patientName").doesNotExist());
         }
 
+        // A payload clash on the same event id: the conflict is thrown by the
+        // signature/payload guard before any transactional work, so the queue
+        // state below stays untouched.
         mockMvc.perform(post("/api/v1/payments/webhooks/bank-transfer")
                 .header("X-Webhook-Id", "evt-valid-replayed")
                 .header("X-Webhook-Timestamp", timestamp)
@@ -327,10 +335,69 @@ class AppointmentPortalIntegrationTest extends AbstractIntegrationTest {
                 .content(payload))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("PENDING_VERIFICATION"))
-            .andExpect(jsonPath("$.transactionReference").value("FT-LATE-WEBHOOK-001"));
+            .andExpect(jsonPath("$.transferContent").value(transferContent))
+            .andExpect(jsonPath("$.transactionReference").doesNotExist());
         org.assertj.core.api.Assertions.assertThat(jdbcTemplate.queryForObject(
             "select count(*) from payment_webhook_events where event_id = ? and processed_at is not null",
             Integer.class, eventId)).isEqualTo(1);
+    }
+
+    @Test
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
+    void mismatchedBankWebhookEvidenceIsDeadLetteredForAdmins() throws Exception {
+        // NOT_SUPPORTED: the webhook evidence writer commits on its own
+        // connection and the retry worker claims with SKIP LOCKED, so the
+        // fixtures must be committed before the flow starts. One transaction
+        // keeps the seeded role managed for the user cascade.
+        record DeadLetterFixtures(User patient, User admin, BankTransferPayment payment) { }
+        DeadLetterFixtures fixtures = new org.springframework.transaction.support.TransactionTemplate(
+            transactionManager).execute(status -> {
+                User patientUser = createUser("PATIENT", "dead-letter.patient." + UUID.randomUUID() + "@example.com");
+                User adminUser = createUser("ADMIN", "dead-letter.admin." + UUID.randomUUID() + "@example.com");
+                User doctorUser = createUser("DOCTOR", "dead-letter.doctor." + UUID.randomUUID() + "@example.com");
+                PatientProfile patient = createPatient(patientUser, "098" + randomDigits());
+                Doctor doctor = createDoctor(doctorUser, "dead-letter-doctor-" + UUID.randomUUID());
+                Branch branch = createBranch("dead-letter-branch-" + UUID.randomUUID());
+                assignDoctorToBranch(doctor, branch);
+                Appointment appointment = createAppointment(
+                    patient, doctor, branch, PORTAL_DATE, LocalTime.of(14, 30), AppointmentStatus.CONFIRMED);
+                return new DeadLetterFixtures(patientUser, adminUser, paymentService.initialize(appointment));
+            });
+        BankTransferPayment payment = fixtures.payment();
+
+        // The bank reports a transfer with the wrong amount: the evidence is
+        // stored, the confirm conflicts, and no retry can ever fix the amount.
+        String payload = "{\"transferContent\":\"" + payment.getTransferContent()
+            + "\",\"amount\":" + payment.getAmount().add(java.math.BigDecimal.ONE)
+            + ",\"transactionReference\":\"FT-WRONG-AMOUNT-01\"}";
+        String timestamp = Long.toString(Instant.now().getEpochSecond());
+        mockMvc.perform(post("/api/v1/payments/webhooks/bank-transfer")
+                .header("X-Webhook-Id", "evt-dead-letter-1")
+                .header("X-Webhook-Timestamp", timestamp)
+                .header("X-Webhook-Signature", webhookSignature(timestamp, payload))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(payload))
+            .andExpect(status().isConflict());
+
+        webhookService.retryPendingEvents();
+
+        org.assertj.core.api.Assertions.assertThat(jdbcTemplate.queryForObject(
+            "select permanent_failure from payment_webhook_events where event_id = ?",
+            Boolean.class, "evt-dead-letter-1")).isTrue();
+        org.assertj.core.api.Assertions.assertThat(jdbcTemplate.queryForObject(
+            "select failure_reason from payment_webhook_events where event_id = ?",
+            String.class, "evt-dead-letter-1")).contains("không khớp");
+
+        // The dead row is surfaced to admins and hidden from everyone else.
+        mockMvc.perform(get("/api/v1/admin/payments/webhook-events")
+                .header("Authorization", bearer(fixtures.admin())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[?(@.eventId == 'evt-dead-letter-1')]").exists());
+        mockMvc.perform(get("/api/v1/admin/payments/webhook-events")
+                .header("Authorization", bearer(fixtures.patient())))
+            .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/v1/admin/payments/webhook-events"))
+            .andExpect(status().isUnauthorized());
     }
 
     @Test

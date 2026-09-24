@@ -31,6 +31,10 @@ app:
     refresh-token-ttl: 604800
   booking:
     allow-test-otp: true
+    # The scheduled hold sweeper runs on its own connection and would race
+    # test transactions for appointment/payment row locks; tests that need
+    # the sweep drive it explicitly.
+    hold-sweep-ms: 3600000
   payment:
     bank-transfer:
       enabled: true

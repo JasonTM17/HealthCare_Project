@@ -56,6 +56,7 @@ import type {
   AiContentReviewSummary,
   AiContentRevision,
   BankTransferPayment,
+  PaymentWebhookEventView,
   PatientOverview,
   PatientDocument,
   PatientDocumentSourceType,
@@ -130,6 +131,7 @@ export type {
   AiContentReviewSummary,
   AiContentRevision,
   BankTransferPayment,
+  PaymentWebhookEventView,
   PatientOverview,
   PatientDocument,
   PatientDocumentSourceType,
@@ -1997,10 +1999,27 @@ export async function submitBankTransfer(
     `/patient/appointments/${encodeURIComponent(appointmentId)}/payment/submit`,
     {
       method: "POST",
-      headers: { "Idempotency-Key": randomId() },
+      // Stable, derived key: a network timeout retry of the SAME reference
+      // must be idempotent on the server instead of minting a fresh key that
+      // turns the retry into a second submission. Mirrors the backend key
+      // charset ([A-Za-z0-9._:-]) and 100-char cap.
+      headers: {
+        "Idempotency-Key": paymentIdempotencyKey(appointmentId, transactionReference),
+      },
       body: JSON.stringify({ transactionReference }),
     },
   );
+}
+
+function paymentIdempotencyKey(appointmentId: string, transactionReference: string): string {
+  const referenceSlug = transactionReference
+    .trim()
+    .replace(/\s+/g, " ")
+    .toUpperCase()
+    .replace(/[^A-Z0-9._:-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+  return `apt-${appointmentId}-${referenceSlug}`.slice(0, 100);
 }
 
 export async function adminRefundPayment(paymentId: string, refundReference: string): Promise<BankTransferPayment> {
@@ -2015,6 +2034,15 @@ export async function adminListPayments(
 ): Promise<Page<BankTransferPayment>> {
   return getAuthenticatedJson<Page<BankTransferPayment>>(
     `/admin/payments${toQuery({ status: filters.status, page: filters.page ?? 0, size: filters.size ?? 20 })}`,
+  );
+}
+
+export async function adminListBankWebhookEvents(
+  scope: "unprocessed" | "all" = "unprocessed",
+  limit = 50,
+): Promise<PaymentWebhookEventView[]> {
+  return getAuthenticatedJson<PaymentWebhookEventView[]>(
+    `/admin/payments/webhook-events${toQuery({ scope, limit })}`,
   );
 }
 
