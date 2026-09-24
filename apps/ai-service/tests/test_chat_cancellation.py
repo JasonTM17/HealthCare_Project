@@ -7,6 +7,7 @@ import json
 import logging
 import socket
 import threading
+from uuid import uuid4
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Sequence
 from unittest.mock import MagicMock
@@ -68,8 +69,11 @@ def test_cancellation_ends_in_flight_provider_http_request() -> None:
     server_thread = threading.Thread(target=server.serve_forever, daemon=True)
     server_thread.start()
     cancellation = ChatCancellation()
+    # The stub provider never validates the bearer token; a per-run throwaway
+    # value keeps the fixture free of credential-shaped literals.
+    probe_api_key = f"change-me-{uuid4().hex}"
     client = OpenAIChatClient(
-        api_key="local-provider-probe-only",
+        api_key=probe_api_key,
         base_url=f"http://127.0.0.1:{server.server_port}/v1",
         model="probe-model",
         timeout_seconds=5,
@@ -146,8 +150,11 @@ def test_real_client_disconnect_closes_fastapi_provider_socket(
                 provider_call_finished.set()
 
     def local_client(_settings: object, cancellation: ChatCancellation | None = None) -> OpenAIChatClient:
+        # The stub never validates the bearer token; per-run throwaway avoids
+        # credential-shaped literals.
+        tracked_api_key = f"change-me-{uuid4().hex}"
         return TrackedClient(
-            api_key="local-provider-test-only",
+            api_key=tracked_api_key,
             base_url=f"http://127.0.0.1:{provider.server_port}/v1",
             model="probe-model",
             timeout_seconds=5,
